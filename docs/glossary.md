@@ -14,7 +14,18 @@ The A2UI protocol enables conversation between **agent** and **renderer**:
     - Receives **user input**, communicated by renderer
     - Updates **data** to show in UI
 
-![agent and renderer](assets/agent-and-renderer.png)
+```mermaid
+sequenceDiagram
+    participant Renderer as A2UI Renderer
+    participant Agent as A2UI Agent
+
+    Renderer->>Agent: Catalog & instructions
+
+    loop Agentic flow
+        Agent->>Renderer: Data + UI Updates. Function calls.
+        Renderer->>Agent: User input
+    end
+```
 
 While the protocol is designed for **AI-empowered agents**, it can work with deterministic agents as well. For example, an agent may return a pre-canned A2UI UI.
 
