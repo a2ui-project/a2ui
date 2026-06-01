@@ -39,7 +39,7 @@ jobs:
       contents: write
       actions: read
 
-    if: github.repository == 'google/A2UI'
+    if: github.repository == 'a2ui-project/a2ui'
 
     steps:
       - name: Checkout Code

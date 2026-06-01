@@ -74,7 +74,7 @@ class TestAssembleCatalogV08(unittest.TestCase):
         # Assert urlopen was called with the 0.8 URL
         called_req = mock_urlopen.call_args[0][0]
         self.assertEqual(called_req.full_url, BASIC_CATALOG_URLS["0.8"])
-        self.assertIn("https://raw.githubusercontent.com/google/A2UI/refs/heads/main/specification/v0_8/json/standard_catalog_definition.json", called_req.full_url)
+        self.assertIn("https://raw.githubusercontent.com/a2ui-project/a2ui/refs/heads/main/specification/v0_8/json/standard_catalog_definition.json", called_req.full_url)
 
         self.assertIn("$defs", result)
         self.assertIn("theme", result["$defs"])

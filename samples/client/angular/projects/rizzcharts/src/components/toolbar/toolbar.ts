@@ -51,7 +51,7 @@ export class Toolbar {
     },
     {
       value:
-        'https://github.com/google/A2UI/blob/main/samples/agent/adk/rizzcharts/rizzcharts_catalog_definition.json',
+        'https://github.com/a2ui-project/a2ui/blob/main/samples/agent/adk/rizzcharts/rizzcharts_catalog_definition.json',
       viewValue: 'Rizzcharts Custom',
     },
   ];

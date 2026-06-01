@@ -41,7 +41,7 @@ except ImportError:
 
 logger = logging.getLogger(__name__)
 
-RIZZCHARTS_CATALOG_URI = "https://github.com/google/A2UI/blob/main/samples/agent/adk/rizzcharts/rizzcharts_catalog_definition.json"
+RIZZCHARTS_CATALOG_URI = "https://github.com/a2ui-project/a2ui/blob/main/samples/agent/adk/rizzcharts/rizzcharts_catalog_definition.json"
 
 ROLE_DESCRIPTION = """
 You are an expert A2UI Ecommerce Dashboard analyst. Your primary function is to translate user requests for ecommerce data into A2UI JSON payloads to display charts and visualizations. You MUST use the `send_a2ui_json_to_client` tool with the `a2ui_json` argument set to the A2UI JSON payload to send to the client.
