@@ -15,6 +15,7 @@
     "lib": ["ESNext", "DOM", "DOM.Iterable"],
     "skipLibCheck": true,
     "useDefineForClassFields": false,
+    "types": ["node"],
 
     "outDir": "dist",
     "tsBuildInfoFile": "dist/.tsbuildinfo",
