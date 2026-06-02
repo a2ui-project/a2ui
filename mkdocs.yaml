@@ -42,6 +42,7 @@ nav:
   - A2UI Composer ⭐: composer.md
   - Concepts:
       - Overview: concepts/overview.md
+      - Glossary: concepts/glossary.md
       - Data Flow: concepts/data-flow.md
       - Components & Structure: concepts/components.md
       - Data Binding: concepts/data-binding.md
