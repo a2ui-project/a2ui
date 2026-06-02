@@ -17,12 +17,12 @@
   args:
     data: {"foo": "bar"}
   expect:
-    mime_type: "application/json+a2ui"
+    mime_type: "application/a2ui+json"
 
 - name: test_is_a2ui_part
   action: is_a2ui_part
   args:
-    mime_type: "application/json+a2ui"
+    mime_type: "application/a2ui+json"
   expect: true
 
 - name: test_try_activate_extension_success
@@ -58,7 +58,7 @@
       - kind: "text"
         text: "Here is your chart:"
       - kind: "data"
-        mimeType: "application/json+a2ui"
+        mimeType: "application/a2ui+json"
         data: {"beginRendering": {"surfaceId": "sales-dashboard"}}
       - kind: "text"
         text: "Enjoy!"

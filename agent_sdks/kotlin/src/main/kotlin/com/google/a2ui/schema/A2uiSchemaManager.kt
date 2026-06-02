@@ -30,6 +30,7 @@ enum class A2uiVersion(
 ) {
   VERSION_0_8(A2uiConstants.VERSION_0_8, "server_to_client.json"),
   VERSION_0_9(A2uiConstants.VERSION_0_9, "server_to_client.json", "common_types.json"),
+  VERSION_0_9_1(A2uiConstants.VERSION_0_9_1, "server_to_client.json", "common_types.json"),
 }
 
 /**

@@ -201,7 +201,7 @@ Once validated, the A2UI payload must be transmitted over the network. In typica
 
 ### Standards for Transport
 
-1.  **MIME Type**: Mark A2UI JSON payloads with `application/json+a2ui`. This tells the frontend renderer (e.g., the browser or mobile app) how to interpret the stream.
+1.  **MIME Type**: Mark A2UI JSON payloads with `application/a2ui+json`. This tells the frontend renderer (e.g., the browser or mobile app) how to interpret the stream.
 2.  **Standard Helpers**: Provide a `createA2uiPart` helper to automate this wrapping process.
 3.  **Yielding Strategy**: Support both complete objects (when the LLM finishes speaking) and incremental streaming parser yielding (for partial JSON display).
 

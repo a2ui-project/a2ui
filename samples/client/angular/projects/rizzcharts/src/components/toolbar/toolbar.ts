@@ -38,7 +38,7 @@ import {FormsModule} from '@angular/forms';
   ],
   templateUrl: './toolbar.html',
   styleUrl: './toolbar.scss',
-  changeDetection: ChangeDetectionStrategy.Eager,
+  changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class Toolbar {
   catalogService = inject(CatalogService);

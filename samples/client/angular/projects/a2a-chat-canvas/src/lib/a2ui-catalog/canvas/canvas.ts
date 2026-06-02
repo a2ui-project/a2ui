@@ -31,7 +31,7 @@ import {MatCard, MatCardContent} from '@angular/material/card';
   templateUrl: './canvas.html',
   styleUrl: './canvas.scss',
   imports: [MatButton, MatCard, MatCardContent],
-  changeDetection: ChangeDetectionStrategy.Eager,
+  changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class Canvas extends DynamicComponent<Types.CustomNode> implements OnInit {
   /** Service for managing the canvas state. */

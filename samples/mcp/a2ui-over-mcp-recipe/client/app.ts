@@ -368,7 +368,10 @@ export class A2uiRecipeApp extends LitElement {
         uri: 'a2ui://recipe-form',
       });
 
-      const a2uiContent = result.contents.find((c: any) => c.mimeType === 'application/json+a2ui');
+      const a2uiContent = result.contents.find(
+        (c: any) =>
+          c.mimeType === 'application/a2ui+json' || c.mimeType === 'application/json+a2ui',
+      );
 
       if (!a2uiContent || !('text' in a2uiContent)) {
         throw new Error('Resource does not contain valid A2UI JSON data.');

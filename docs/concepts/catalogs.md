@@ -143,30 +143,15 @@ When the agent uses that catalog, it generates a payload strictly conforming to 
 ]
 ```
 
-### Freestanding Catalogs
+### Catalog Linking
 
 A2UI Catalogs must be standalone (no references to external files) to simplify LLM inference and dependency management.
 
-While the final catalog must be freestanding, you may still author your catalogs modularly using JSON Schema `$ref` pointing to external documents during local development. Run `tools/build_catalog/assemble_catalog.py` before distributing your catalog to bundle all external file references into a single, independent JSON Schema file:
+While the final catalog must be freestanding, you may still author your catalogs modularly using JSON Schema `$ref` pointing to external documents during local development.
 
-```bash
-uv run tools/build_catalog/assemble_catalog.py [INPUTS ...] --output-name <OUTPUT_NAME> [--catalog-id <ID>] [--version <VERSION>] [--extend-basic-catalog] [--out-dir <DIR>] [--verbose]
-```
+To automate bundling and registering these external file references, this catalog registration process is called **"Linking"** and is consolidated under a single, multi-platform Node.js script (**`register-catalogs.js`**).
 
-where:
-
-- `inputs`: One or more paths or URLs to A2UI component catalog JSONs.
-- `--output-name`: (Required) The desired name of the combined catalog (e.g.
-  `my_merged_catalog`). The `.json` extension is appended automatically if
-  omitted.
-- `--catalog-id`: Custom `catalogId` for the output. Defaults to `urn:a2ui:catalog:<base_name>`.
-- `--version`: The A2UI specification version to use for official catalog
-  fallbacks. Choices are `0.9` or `0.10`. Defaults to `0.9`.
-- `--extend-basic-catalog`: If passed, automatically includes the entirety of
-  `catalogs/basic/catalog.json` in the root output regardless of whether the input
-  catalogs explicitly reference it.
-- `--out-dir`, `-o`: The directory where the assembled catalog will be saved. Defaults to `dist`.
-- `--verbose`, `-v`: If passed, enables verbose debug logging to help diagnose issues.
+This linking script is natively wrapped inside **Xcode Build Phases** (for iOS/macOS client builds) and **Gradle tasks** (for Android client builds) to compile, aggregate, and link static and dynamic schemas seamlessly during your application's build phase.
 
 ### Composition & Imports
 
@@ -200,7 +185,7 @@ This catalog imports all elements from the Basic Catalog and adds a new `Suggest
 }
 ```
 
-**Make sure to run `tools/build_catalog/assemble_catalog.py` to resolve the external $ref before publishing.**
+**Make sure to link and resolve external references during compilation using your platform's Xcode Build Phase or Gradle task (running `register-catalogs.js`).**
 
 #### Example: Cherry-picking Components
 
@@ -227,7 +212,7 @@ This catalog imports only `Text` from the Basic Catalog to build a simple Popup 
 }
 ```
 
-**Make sure to run `tools/build_catalog/assemble_catalog.py` to resolve the external $ref before publishing.**
+**Make sure to link and resolve external references during compilation using your platform's Xcode Build Phase or Gradle task (running `register-catalogs.js`).**
 
 ### Implementing Renderers
 

@@ -29,7 +29,7 @@ from starlette.requests import Request
 
 from recipes import RECIPES
 
-A2UI_MIME_TYPE = "application/json+a2ui"
+A2UI_MIME_TYPE = "application/a2ui+json"
 BASIC_CATALOG_ID = "https://a2ui.org/specification/v0_9/basic_catalog.json"
 
 

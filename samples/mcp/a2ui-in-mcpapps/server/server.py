@@ -28,7 +28,7 @@ logger = logging.getLogger("a2ui-in-mcp-apps-server")
 
 # Global counter state
 COUNTER = 0
-A2UI_MIME_TYPE = "application/json+a2ui"
+A2UI_MIME_TYPE = "application/a2ui+json"
 
 @click.command()
 @click.option("--port", default=8000, help="Port to listen on for SSE")

@@ -86,7 +86,7 @@ Here is the sequence of events for dynamically loading A2UI components into MCP 
 3.  **Relay**: The Sandbox Proxy relays this message to the Client Host.
 4.  **MCP Call**: The Client Host translates this custom message into a standard MCP `tools/call` request to the MCP Server.
     - _Example Tool_: `fetch_counter_a2ui`
-5.  **Response**: The MCP Server executes the tool and returns a result containing an `application/json+a2ui` resource.
+5.  **Response**: The MCP Server executes the tool and returns a result containing an `application/a2ui+json` resource.
 6.  **Response forwarding**: The Host receives the tool result and forwards it back down through the Sandbox Proxy to the MCP App.
 7.  **Rendering**: The MCP App extracts the A2UI JSON payload from the resource and feeds it into its local A2UI `MessageProcessor`, which updates the A2UI surface dynamically.
 
@@ -188,7 +188,7 @@ Your inlined app is now running in the sandbox. To leverage A2UI:
 
 1.  **Include the A2UI Angular/Lit libraries** in your app's bundle.
 2.  **Define a communication contract** with your Host to interact with the MCP Server.
-3.  When you receive the response from the Host, look for the `application/json+a2ui` mimeType in the content.
+3.  When you receive the response from the Host, look for the `application/a2ui+json` mimeType in the content.
 4.  Parse the JSON text and pass it to the A2UI [`MessageProcessor`](https://github.com/google/A2UI/blob/main/renderers/angular/src/v0_8/data/processor.ts).
 
 **Example: Fetching and Rendering A2UI**
@@ -199,7 +199,7 @@ const result = await callHostMethod('ui/fetch_counter_a2ui');
 
 // 2. Find and parse the A2UI resource
 const a2uiResource = result.find(
-  c => c.type === 'resource' && c.resource?.mimeType === 'application/json+a2ui',
+  c => c.type === 'resource' && (c.resource?.mimeType === 'application/a2ui+json' || c.resource?.mimeType === 'application/json+a2ui'),
 );
 
 if (a2uiResource?.resource?.text) {
@@ -298,7 +298,7 @@ To put this all together, here is an HTML mockup representing a compiled and inl
       // Helper to extract and process dynamic A2UI responses from tool results
       function processA2UIResponse(result) {
         const a2uiResource = result?.content?.find(
-          c => c.type === 'resource' && c.resource?.mimeType === 'application/json+a2ui',
+          c => c.type === 'resource' && (c.resource?.mimeType === 'application/a2ui+json' || c.resource?.mimeType === 'application/json+a2ui'),
         );
         if (a2uiResource?.resource?.text) {
           const payload = JSON.parse(a2uiResource.resource.text);

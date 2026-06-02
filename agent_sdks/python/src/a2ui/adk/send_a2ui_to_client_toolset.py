@@ -12,11 +12,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Module for the SendA2uiToClientToolset and Part Converter.
+"""Module for the SendA2uiToClientToolset.
 
 This module provides the necessary components to enable an agent to send A2UI (Agent-to-User Interface)
-JSON payloads to a client. It includes the `SendA2uiToClientToolset` for managing A2UI tools, a specific tool for the LLM
-to send JSON, and a part converter to translate the LLM's tool calls into A2A (Agent-to-Agent) parts.
+JSON payloads to a client. It includes the `SendA2uiToClientToolset` for managing A2UI tools, and a specific tool for the LLM
+to send JSON.
 
 This is just one approach for capturing A2UI JSON payloads from an LLM.
 
@@ -28,7 +28,6 @@ Key Components:
     that effectively sends a JSON payload to the client. This tool validates the JSON against
     the provided schema. It automatically wraps the provided schema in an array structure,
     instructing the LLM that it can send a list of UI items.
-  * `A2uiEventConverter`: An event converter that automatically injects the A2UI catalog into part conversion.
 
 Usage Examples:
 
@@ -75,22 +74,10 @@ Usage Examples:
         ],
     )
     ```
-
-  3. Integration with Executor:
-    Configure the executor to use the A2UI part converter.
-
-    ```python
-    config = A2aAgentExecutorConfig(
-        event_converter=A2uiEventConverter()
-    )
-    executor = A2aAgentExecutor(config)
-    ```
 """
 
 import inspect
-import json
 import logging
-import re
 from typing import (
     TYPE_CHECKING,
     Any,
@@ -101,17 +88,22 @@ from typing import (
     Union,
 )
 
-import jsonschema
-
-from a2a import types as a2a_types
-from a2ui.a2a import parts
-from a2ui.parser.parser import has_a2ui_parts
+from a2ui.adk.a2a.event_converter import A2uiEventConverter
+from a2ui.adk.a2a.part_converter import A2uiPartConverter
 from a2ui.parser.payload_fixer import parse_and_fix
 from a2ui.schema import catalog
 from a2ui.schema import constants
-from google.adk import models
-from google.adk.a2a.converters import part_converter
+from a2ui.schema.catalog import A2uiCatalog
+from a2ui.schema.constants import (
+    A2UI_SCHEMA_BLOCK_END,
+    A2UI_SCHEMA_BLOCK_START,
+    A2UI_TOOL_ERROR_KEY,
+    A2UI_TOOL_NAME,
+    A2UI_VALIDATED_JSON_KEY,
+)
 from google.adk.agents import readonly_context
+from google.adk.agents.readonly_context import ReadonlyContext
+from google.adk.models import LlmRequest
 from google.adk.tools import base_toolset
 from google.adk.tools import base_tool
 from google.adk.tools import tool_context
@@ -119,8 +111,6 @@ from google.adk.utils.feature_decorator import experimental
 from google.genai import types as genai_types
 
 if TYPE_CHECKING:
-  from a2a.server.events import Event as A2AEvent
-  from google.adk.a2a.converters.part_converter import GenAIPartToA2APartConverter
   from google.adk.agents.invocation_context import InvocationContext
   from google.adk.events.event import Event
 
@@ -206,10 +196,10 @@ class SendA2uiToClientToolset(base_toolset.BaseToolset):
     return A2uiPartConverter(catalog)
 
   class _SendA2uiJsonToClientTool(base_tool.BaseTool):
-    TOOL_NAME = "send_a2ui_json_to_client"
-    VALIDATED_A2UI_JSON_KEY = "validated_a2ui_json"
+    TOOL_NAME = A2UI_TOOL_NAME
+    VALIDATED_A2UI_JSON_KEY = A2UI_VALIDATED_JSON_KEY
     A2UI_JSON_ARG_NAME = "a2ui_json"
-    TOOL_ERROR_KEY = "error"
+    TOOL_ERROR_KEY = A2UI_TOOL_ERROR_KEY
 
     def __init__(
         self,
@@ -334,125 +324,3 @@ class SendA2uiToClientToolset(base_toolset.BaseToolset):
         logger.error(err)
 
         return {self.TOOL_ERROR_KEY: err}
-
-
-@experimental
-class A2uiPartConverter:
-  """A catalog-aware GenAI to A2A part converter.
-
-  This converter handles both tool-based A2UI (via `send_a2ui_json_to_client`)
-  and text-based A2UI (via A2UI delimiter tags). It uses the provided
-  catalog to validate and fix JSON payloads.
-  """
-
-  def __init__(
-      self, a2ui_catalog: catalog.A2uiCatalog, bypass_tool_check: bool = False
-  ):
-    self._catalog = a2ui_catalog
-    self._bypass_tool_check = bypass_tool_check
-
-  def convert(self, part: genai_types.Part) -> list[a2a_types.Part]:
-    """Converts a GenAI part to A2A parts, with A2UI validation.
-
-    Args:
-        part: The GenAI part to convert.
-
-    Returns:
-        A list of A2A parts.
-    """
-    # 1. Handle Tool Responses (FunctionResponse)
-    if function_response := part.function_response:
-      is_send_a2ui_json_to_client_response = (
-          function_response.name
-          == SendA2uiToClientToolset._SendA2uiJsonToClientTool.TOOL_NAME
-      )
-
-      if is_send_a2ui_json_to_client_response or self._bypass_tool_check:
-        response_dict = function_response.response or {}
-
-        if (
-            SendA2uiToClientToolset._SendA2uiJsonToClientTool.TOOL_ERROR_KEY
-            in response_dict
-        ):
-          logger.warning(
-              "A2UI tool call failed:"
-              f" {response_dict[SendA2uiToClientToolset._SendA2uiJsonToClientTool.TOOL_ERROR_KEY]}"
-          )
-          return []
-
-        if (
-            isinstance(response_dict, dict)
-            and SendA2uiToClientToolset._SendA2uiJsonToClientTool.VALIDATED_A2UI_JSON_KEY
-            in response_dict
-        ):
-          json_data = response_dict.get(
-              SendA2uiToClientToolset._SendA2uiJsonToClientTool.VALIDATED_A2UI_JSON_KEY
-          )
-          if json_data:
-            return [parts.create_a2ui_part(message) for message in json_data]
-
-        if is_send_a2ui_json_to_client_response:
-          logger.info("No result in A2UI tool response")
-          return []
-
-    # 2. Handle Tool Calls (FunctionCall) - Skip sending to client
-    if (
-        (function_call := part.function_call)
-        and function_call.name
-        == SendA2uiToClientToolset._SendA2uiJsonToClientTool.TOOL_NAME
-    ):
-      return []
-
-    # 3. Handle Text-based A2UI (TextPart)
-    if text := part.text:
-      if has_a2ui_parts(text):
-        return parts.parse_response_to_parts(text, validator=self._catalog.validator)
-
-    # 4. Default conversion for other parts
-    converted_part = part_converter.convert_genai_part_to_a2a_part(part)
-    return [converted_part] if converted_part else []
-
-
-@experimental
-class A2uiEventConverter:
-  """An event converter that automatically injects the A2UI catalog into part conversion.
-
-  This allows text-based A2UI extraction and validation to work even when the
-  catalog is session-specific.
-  """
-
-  def __init__(
-      self, catalog_key: str = "system:a2ui_catalog", bypass_tool_check: bool = False
-  ):
-    self._catalog_key = catalog_key
-    self._bypass_tool_check = bypass_tool_check
-
-  def __call__(
-      self,
-      event: "Event",
-      invocation_context: "InvocationContext",
-      task_id: Optional[str] = None,
-      context_id: Optional[str] = None,
-      part_converter_func: "GenAIPartToA2APartConverter" = part_converter.convert_genai_part_to_a2a_part,
-  ) -> list["A2AEvent"]:
-    """Converts an ADK event to A2A events, using the session catalog if available."""
-    from google.adk.a2a.converters.event_converter import (
-        convert_event_to_a2a_events,
-    )
-
-    catalog = invocation_context.session.state.get(self._catalog_key)
-    if catalog:
-      # Use the catalog-aware part converter
-      effective_converter = A2uiPartConverter(
-          catalog, bypass_tool_check=self._bypass_tool_check
-      ).convert
-    else:
-      effective_converter = part_converter_func
-
-    return convert_event_to_a2a_events(
-        event,
-        invocation_context,
-        task_id,
-        context_id,
-        effective_converter,
-    )

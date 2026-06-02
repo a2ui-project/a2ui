@@ -9,6 +9,6 @@ Please do not propose changes here. If you have proposed changes or new features
 ## v0.9 Documentation
 
 - [Protocol](docs/a2ui_protocol.md)
-- [Custom Functions](docs/custom_functions.md)
+- [Custom Functions](docs/a2ui_custom_functions.md)
 - [Extension Specification](docs/a2ui_extension_specification.md)
 - [Evolution Guide](docs/evolution_guide.md)

@@ -25,7 +25,7 @@ import {MatButtonModule} from '@angular/material/button';
   styleUrl: './app.scss',
   imports: [A2aChatCanvas, MatButtonModule],
 
-  changeDetection: ChangeDetectionStrategy.Eager,
+  changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class App {
   protected readonly agentName = signal('MCP Calculator');

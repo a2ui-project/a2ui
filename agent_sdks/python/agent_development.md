@@ -169,7 +169,7 @@ for part in response_parts:
 
 **2. Stream the A2UI Payload**
 
-Wrap the validated payloads in an A2A `DataPart` with the correct MIME type (`application/json+a2ui`) and stream it.
+Wrap the validated payloads in an A2A `DataPart` with the correct MIME type (`application/a2ui+json`) and stream it.
 
 **Recommendation:** Use the `create_a2ui_part` helper.
 

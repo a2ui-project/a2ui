@@ -20,7 +20,6 @@ import {MessageProcessor} from '../data/processor';
 import {Theme} from '../rendering/theming';
 import {Catalog} from '../rendering/catalog';
 import {By} from '@angular/platform-browser';
-import {ChangeDetectionStrategy} from '@angular/core';
 
 describe('MultipleChoice Component', () => {
   let component: MultipleChoice;
@@ -57,13 +56,7 @@ describe('MultipleChoice Component', () => {
         {provide: Theme, useValue: mockTheme},
         {provide: Catalog, useValue: {}},
       ],
-    })
-      .overrideComponent(MultipleChoice, {
-        set: {
-          changeDetection: ChangeDetectionStrategy.Default,
-        },
-      })
-      .compileComponents();
+    }).compileComponents();
 
     fixture = TestBed.createComponent(MultipleChoice);
     component = fixture.componentInstance;

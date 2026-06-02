@@ -258,7 +258,7 @@ A2UI is transport-agnostic, but it is most commonly used over **A2A (Agent-to-Ag
 
 In the standard A2A binding, A2UI messages are encoded as an A2A **DataPart**. To identify it as an A2UI payload, the part must be wrapped with specific metadata:
 
-- **mimeType**: `application/json+a2ui`
+- **mimeType**: `application/a2ui+json`
 
 The `data` field of the `DataPart` contains a **list** of A2UI messages. This allows multiple updates (e.g., `createSurface` followed by `updateComponents`) to be sent in a single network packet.
 
@@ -268,7 +268,7 @@ NOTE: **A2A Versioning**: The use of a **list** in the `data` field was introduc
 {
   "kind": "data",
   "metadata": {
-    "mimeType": "application/json+a2ui"
+    "mimeType": "application/a2ui+json"
   },
   "data": [
     {

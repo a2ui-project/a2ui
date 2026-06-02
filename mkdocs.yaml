@@ -99,7 +99,7 @@ theme:
     text: Google Sans
     code: Roboto Mono
   logo: assets/A2UI_light.svg
-  favicon: assets/A2UI_dark.svg
+  favicon: assets/favicon.svg
   icon:
     repo: fontawesome/brands/github
     # view: material/pencil-box-multiple

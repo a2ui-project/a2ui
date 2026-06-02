@@ -24,7 +24,7 @@ import type {IconNode, StringValue} from '../types';
     'aria-hidden': 'true',
     tabindex: '-1',
   },
-  changeDetection: ChangeDetectionStrategy.Eager,
+  changeDetection: ChangeDetectionStrategy.OnPush,
   styles: `
     :host {
       display: block;
