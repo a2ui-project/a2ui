@@ -285,8 +285,42 @@ export class Validator {
         }
       } else if (message.createSurface) {
         this.validateCreateSurface(message.createSurface, errors);
-        if (message.createSurface.surfaceId) {
-          createdSurfaces.add(message.createSurface.surfaceId);
+        const surfaceId = message.createSurface.surfaceId;
+        if (surfaceId) {
+          createdSurfaces.add(surfaceId);
+        }
+
+        const initialState = message.createSurface.initialState;
+        if (initialState && typeof initialState === 'object') {
+          if (initialState.components) {
+            hasUpdateComponents = true;
+
+            if (initialState.components.surfaceId !== surfaceId) {
+              errors.push(
+                `initialState.components.surfaceId '${initialState.components.surfaceId}' does not match createSurface.surfaceId '${surfaceId}'.`,
+              );
+            }
+
+            this.validateUpdateComponents(initialState.components, errors);
+
+            // Check for root component in nested components
+            if (initialState.components.components) {
+              for (const comp of initialState.components.components) {
+                if (comp.id === 'root') {
+                  hasRootComponent = true;
+                }
+              }
+            }
+          }
+          if (initialState.dataModel) {
+            if (initialState.dataModel.surfaceId !== surfaceId) {
+              errors.push(
+                `initialState.dataModel.surfaceId '${initialState.dataModel.surfaceId}' does not match createSurface.surfaceId '${surfaceId}'.`,
+              );
+            }
+
+            this.validateUpdateDataModel(initialState.dataModel, errors);
+          }
         }
       } else if (message.updateDataModel) {
         this.validateUpdateDataModel(message.updateDataModel, errors);
@@ -347,7 +381,7 @@ export class Validator {
     if (data.catalogId === undefined) {
       errors.push("createSurface must have a 'catalogId' property.");
     }
-    const allowed = ['surfaceId', 'catalogId'];
+    const allowed = ['surfaceId', 'catalogId', 'theme', 'sendDataModel', 'initialState'];
     for (const key in data) {
       if (!allowed.includes(key)) {
         errors.push(`createSurface has unexpected property: ${key}`);

@@ -1,0 +1,163 @@
+{
+  "schema": "server_to_client.json",
+  "tests": [
+    {
+      "description": "Valid createSurface with initialState containing both components and dataModel",
+      "valid": true,
+      "data": {
+        "version": "v0.10",
+        "createSurface": {
+          "surfaceId": "test_surface",
+          "catalogId": "https://a2ui.org/specification/v0_10/catalogs/basic/catalog.json",
+          "initialState": {
+            "components": {
+              "surfaceId": "test_surface",
+              "components": [
+                {
+                  "id": "root",
+                  "component": "Column",
+                  "children": ["welcome_text"]
+                },
+                {
+                  "id": "welcome_text",
+                  "component": "Text",
+                  "text": "Welcome to the application!"
+                }
+              ]
+            },
+            "dataModel": {
+              "surfaceId": "test_surface",
+              "path": "/user",
+              "value": {
+                "name": "John Doe"
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "description": "Valid createSurface with initialState containing only components",
+      "valid": true,
+      "data": {
+        "version": "v0.10",
+        "createSurface": {
+          "surfaceId": "test_surface",
+          "catalogId": "https://a2ui.org/specification/v0_10/catalogs/basic/catalog.json",
+          "initialState": {
+            "components": {
+              "surfaceId": "test_surface",
+              "components": [
+                {
+                  "id": "root",
+                  "component": "Text",
+                  "text": "Minimal components configuration"
+                }
+              ]
+            }
+          }
+        }
+      }
+    },
+    {
+      "description": "Valid createSurface with initialState containing only dataModel",
+      "valid": true,
+      "data": {
+        "version": "v0.10",
+        "createSurface": {
+          "surfaceId": "test_surface",
+          "catalogId": "https://a2ui.org/specification/v0_10/catalogs/basic/catalog.json",
+          "initialState": {
+            "dataModel": {
+              "surfaceId": "test_surface",
+              "value": {
+                "themePreference": "dark"
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "description": "Invalid: initialState contains additional unexpected properties",
+      "valid": false,
+      "data": {
+        "version": "v0.10",
+        "createSurface": {
+          "surfaceId": "test_surface",
+          "catalogId": "https://a2ui.org/specification/v0_10/catalogs/basic/catalog.json",
+          "initialState": {
+            "components": {
+              "surfaceId": "test_surface",
+              "components": [
+                {
+                  "id": "root",
+                  "component": "Text",
+                  "text": "Invalid extra prop"
+                }
+              ]
+            },
+            "extraProp": "should_not_be_here"
+          }
+        }
+      }
+    },
+    {
+      "description": "Invalid: nested components missing surfaceId",
+      "valid": false,
+      "data": {
+        "version": "v0.10",
+        "createSurface": {
+          "surfaceId": "test_surface",
+          "catalogId": "https://a2ui.org/specification/v0_10/catalogs/basic/catalog.json",
+          "initialState": {
+            "components": {
+              "components": [
+                {
+                  "id": "root",
+                  "component": "Text",
+                  "text": "No surface ID here"
+                }
+              ]
+            }
+          }
+        }
+      }
+    },
+    {
+      "description": "Invalid: nested components contains empty components list",
+      "valid": false,
+      "data": {
+        "version": "v0.10",
+        "createSurface": {
+          "surfaceId": "test_surface",
+          "catalogId": "https://a2ui.org/specification/v0_10/catalogs/basic/catalog.json",
+          "initialState": {
+            "components": {
+              "surfaceId": "test_surface",
+              "components": []
+            }
+          }
+        }
+      }
+    },
+    {
+      "description": "Invalid: nested dataModel missing surfaceId",
+      "valid": false,
+      "data": {
+        "version": "v0.10",
+        "createSurface": {
+          "surfaceId": "test_surface",
+          "catalogId": "https://a2ui.org/specification/v0_10/catalogs/basic/catalog.json",
+          "initialState": {
+            "dataModel": {
+              "value": {
+                "foo": "bar"
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
+}

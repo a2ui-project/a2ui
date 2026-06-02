@@ -181,6 +181,9 @@ This message signals the client to create a new surface and begin rendering it. 
 - `catalogId` (string, required): A string that uniquely identifies the catalog (components and functions) used for this surface. It is recommended to prefix this with an internet domain that you own, to avoid conflicts (e.g., `https://mycompany.com/1.0/somecatalog`). If it is a URL, the URL does not need to have any deployed resources, it is simply a unique identifier.
 - `theme` (object, optional): A JSON object containing theme parameters (e.g., `primaryColor`) defined in the catalog's theme schema.
 - `sendDataModel` (boolean, optional): If true, the client will send the full data model of this surface in the metadata of every message sent to the server (via the Transport's metadata mechanism). This ensures the surface owner receives the full current state of the UI alongside the user's action or query. Defaults to false.
+- `initialState` (object, optional): An optional initial state containing components and/or a data model for the surface, allowing the client to build and populate the UI tree immediately on surface creation.
+  - `components` (object, optional): A set of components that defines the initial UI layout for the surface. Conforms to the payload of `updateComponents`.
+  - `dataModel` (object, optional): Initial data model content to populate the component data bindings. Conforms to the payload of `updateDataModel`.
 
 **Example:**
 
@@ -193,7 +196,30 @@ This message signals the client to create a new surface and begin rendering it. 
     "theme": {
       "primaryColor": "#00BFFF"
     },
-    "sendDataModel": true
+    "sendDataModel": true,
+    "initialState": {
+      "components": {
+        "surfaceId": "user_profile_card",
+        "components": [
+          {
+            "id": "root",
+            "component": "Column",
+            "children": ["user_name"]
+          },
+          {
+            "id": "user_name",
+            "component": "Text",
+            "text": { "path": "/name" }
+          }
+        ]
+      },
+      "dataModel": {
+        "surfaceId": "user_profile_card",
+        "value": {
+          "name": "John Doe"
+        }
+      }
+    }
   }
 }
 ```

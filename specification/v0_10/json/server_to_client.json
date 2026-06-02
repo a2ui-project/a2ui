@@ -38,6 +38,19 @@
             "sendDataModel": {
               "type": "boolean",
               "description": "If true, the client will send the full data model of this surface in the metadata of every A2A message sent to the server that created the surface. Defaults to false."
+            },
+            "initialState": {
+              "type": "object",
+              "description": "Optional initial state containing components and/or data model.",
+              "properties": {
+                "components": {
+                  "$ref": "#/$defs/UpdateComponents"
+                },
+                "dataModel": {
+                  "$ref": "#/$defs/UpdateDataModel"
+                }
+              },
+              "additionalProperties": false
             }
           },
           "required": ["surfaceId", "catalogId"],
@@ -47,6 +60,26 @@
       "required": ["createSurface", "version"],
       "additionalProperties": false
     },
+    "UpdateComponents": {
+      "type": "object",
+      "description": "Updates a surface with a new set of components. This message can be sent multiple times to update the component tree of an existing surface. One of the components in one of the components lists MUST have an 'id' of 'root' to serve as the root of the component tree. The createSurface message MUST have been previously sent with the 'catalogId' that is in this message.",
+      "properties": {
+        "surfaceId": {
+          "type": "string",
+          "description": "The unique identifier for the UI surface to be updated."
+        },
+        "components": {
+          "type": "array",
+          "description": "A list containing all UI components for the surface.",
+          "minItems": 1,
+          "items": {
+            "$ref": "catalog.json#/$defs/anyComponent"
+          }
+        }
+      },
+      "required": ["surfaceId", "components"],
+      "additionalProperties": false
+    },
     "UpdateComponentsMessage": {
       "type": "object",
       "properties": {
@@ -54,27 +87,30 @@
           "const": "v0.10"
         },
         "updateComponents": {
-          "type": "object",
-          "description": "Updates a surface with a new set of components. This message can be sent multiple times to update the component tree of an existing surface. One of the components in one of the components lists MUST have an 'id' of 'root' to serve as the root of the component tree. The createSurface message MUST have been previously sent with the 'catalogId' that is in this message.",
-          "properties": {
-            "surfaceId": {
-              "type": "string",
-              "description": "The unique identifier for the UI surface to be updated."
-            },
-            "components": {
-              "type": "array",
-              "description": "A list containing all UI components for the surface.",
-              "minItems": 1,
-              "items": {
-                "$ref": "catalog.json#/$defs/anyComponent"
-              }
-            }
-          },
-          "required": ["surfaceId", "components"],
-          "additionalProperties": false
+          "$ref": "#/$defs/UpdateComponents"
         }
       },
       "required": ["updateComponents", "version"],
+      "additionalProperties": false
+    },
+    "UpdateDataModel": {
+      "type": "object",
+      "description": "Updates the data model for an existing surface. This message can be sent multiple times to update the data model. The createSurface message MUST have been previously sent with the 'catalogId' that is in this message.",
+      "properties": {
+        "surfaceId": {
+          "type": "string",
+          "description": "The unique identifier for the UI surface this data model update applies to."
+        },
+        "path": {
+          "type": "string",
+          "description": "An optional path to a location within the data model (e.g., '/user/name'). If omitted, or set to '/', refers to the entire data model."
+        },
+        "value": {
+          "description": "The data to be updated in the data model. If present, the value at 'path' is replaced (or created). If omitted, the key at 'path' is removed.",
+          "additionalProperties": true
+        }
+      },
+      "required": ["surfaceId"],
       "additionalProperties": false
     },
     "UpdateDataModelMessage": {
@@ -84,24 +120,7 @@
           "const": "v0.10"
         },
         "updateDataModel": {
-          "type": "object",
-          "description": "Updates the data model for an existing surface. This message can be sent multiple times to update the data model. The createSurface message MUST have been previously sent with the 'catalogId' that is in this message.",
-          "properties": {
-            "surfaceId": {
-              "type": "string",
-              "description": "The unique identifier for the UI surface this data model update applies to."
-            },
-            "path": {
-              "type": "string",
-              "description": "An optional path to a location within the data model (e.g., '/user/name'). If omitted, or set to '/', refers to the entire data model."
-            },
-            "value": {
-              "description": "The data to be updated in the data model. If present, the value at 'path' is replaced (or created). If omitted, the key at 'path' is removed.",
-              "additionalProperties": true
-            }
-          },
-          "required": ["surfaceId"],
-          "additionalProperties": false
+          "$ref": "#/$defs/UpdateDataModel"
         }
       },
       "required": ["updateDataModel", "version"],
