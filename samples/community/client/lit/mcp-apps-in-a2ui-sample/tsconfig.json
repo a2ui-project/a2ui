@@ -7,7 +7,7 @@
     "declarationMap": true,
     "incremental": true,
     "forceConsistentCasingInFileNames": true,
-    "inlineSources": false,
+    "inlineSources": true,
     // "allowJs": true,
     "preserveWatchOutput": true,
     "sourceMap": true,
