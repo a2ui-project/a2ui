@@ -62,7 +62,7 @@
     },
     "UpdateComponents": {
       "type": "object",
-      "description": "Updates a surface with a new set of components. This message can be sent multiple times to update the component tree of an existing surface. One of the components in one of the components lists MUST have an 'id' of 'root' to serve as the root of the component tree. The createSurface message MUST have been previously sent with the 'catalogId' that is in this message.",
+      "description": "The payload representing a collection of UI components to render or update on a surface.",
       "properties": {
         "surfaceId": {
           "type": "string",
@@ -87,7 +87,8 @@
           "const": "v0.10"
         },
         "updateComponents": {
-          "$ref": "#/$defs/UpdateComponents"
+          "$ref": "#/$defs/UpdateComponents",
+          "description": "Updates a surface with a new set of components. This message can be sent multiple times to update the component tree of an existing surface. One of the components in one of the components lists MUST have an 'id' of 'root' to serve as the root of the component tree. The createSurface message MUST have been previously sent with the 'catalogId' that is in this message."
         }
       },
       "required": ["updateComponents", "version"],
@@ -95,7 +96,7 @@
     },
     "UpdateDataModel": {
       "type": "object",
-      "description": "Updates the data model for an existing surface. This message can be sent multiple times to update the data model. The createSurface message MUST have been previously sent with the 'catalogId' that is in this message.",
+      "description": "The payload representing updates to the data model of a surface.",
       "properties": {
         "surfaceId": {
           "type": "string",
@@ -120,7 +121,8 @@
           "const": "v0.10"
         },
         "updateDataModel": {
-          "$ref": "#/$defs/UpdateDataModel"
+          "$ref": "#/$defs/UpdateDataModel",
+          "description": "Updates the data model for an existing surface. This message can be sent multiple times to update the data model. The createSurface message MUST have been previously sent with the 'catalogId' that is in this message."
         }
       },
       "required": ["updateDataModel", "version"],
