@@ -21,7 +21,7 @@ import pytest
 
 def _get_conformance_path(filename):
   return os.path.abspath(
-      os.path.join(os.path.dirname(__file__), "../../../conformance", filename)
+      os.path.join(os.path.dirname(__file__), "../../../../conformance", filename)
   )
 
 

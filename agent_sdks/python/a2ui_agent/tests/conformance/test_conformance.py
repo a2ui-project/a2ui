@@ -39,7 +39,7 @@ class MemoryCatalogProvider:
 
 def _get_conformance_path(filename):
   return os.path.abspath(
-      os.path.join(os.path.dirname(__file__), "../../../conformance", filename)
+      os.path.join(os.path.dirname(__file__), "../../../../conformance", filename)
   )
 
 
@@ -229,7 +229,9 @@ def test_catalog_conformance(name, test_case):
   elif action == "load":
     path = args.get("path")
     if path:
-      full_path = os.path.join(os.path.dirname(__file__), "../../../conformance", path)
+      full_path = os.path.join(
+          os.path.dirname(__file__), "../../../../conformance", path
+      )
     else:
       full_path = None
     validate = args.get("validate", False)
@@ -298,7 +300,7 @@ def test_schema_manager_conformance(name, test_case):
     configs = []
     for cfg in catalog_configs:
       full_path = os.path.join(
-          os.path.dirname(__file__), "../../../conformance", cfg["path"]
+          os.path.dirname(__file__), "../../../../conformance", cfg["path"]
       )
       configs.append(CatalogConfig.from_path(name=cfg["name"], catalog_path=full_path))
     manager = A2uiSchemaManager(
@@ -322,7 +324,7 @@ def test_schema_manager_conformance(name, test_case):
     examples_path = args.get("examples_path")
     if examples_path:
       examples_path = os.path.join(
-          os.path.dirname(__file__), "../../../conformance", examples_path
+          os.path.dirname(__file__), "../../../../conformance", examples_path
       )
 
     config = BasicCatalog.get_config(version)
