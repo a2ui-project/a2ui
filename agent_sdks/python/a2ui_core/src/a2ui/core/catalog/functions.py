@@ -4,7 +4,7 @@
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
 #
-#     http://www.apache.org/licenses/LICENSE-2.0
+#      https://www.apache.org/licenses/LICENSE-2.0
 #
 # Unless required by applicable law or agreed to in writing, software
 # distributed under the License is distributed on an "AS IS" BASIS,
@@ -12,29 +12,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-[project]
-name = "a2ui-core"
-version = "0.1.0"
-description = "A2UI Python SDK - Core Library"
-readme = "README.md"
-requires-python = ">=3.14"
-dependencies = [
-    "pydantic>=2.10.0",
-]
+# Auto-generated. Do not edit manually.
+from typing import Any, Optional
 
-[dependency-groups]
-dev = [
-    "pytest>=8.0.0",
-    "pyink>=24.10.0",
-]
 
-[build-system]
-requires = ["hatchling"]
-build-backend = "hatchling.build"
-
-[tool.hatch.build.targets.wheel]
-packages = ["src/a2ui"]
-
-[[tool.uv.index]]
-url = "https://pypi.org/simple"
-default = true
+class FunctionApi:
+    name: str = ""
+    args: Optional[Any] = None
+    return_type: str = "void"
