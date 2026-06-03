@@ -158,6 +158,42 @@
           }
         }
       }
+    },
+    {
+      "description": "Invalid: components is a string instead of an array",
+      "valid": false,
+      "data": {
+        "version": "v0.10",
+        "createSurface": {
+          "surfaceId": "test_surface",
+          "catalogId": "https://a2ui.org/specification/v0_10/catalogs/basic/catalog.json",
+          "initialState": {
+            "components": {
+              "surfaceId": "test_surface",
+              "components": "not-an-array"
+            }
+          }
+        }
+      }
+    },
+    {
+      "description": "Invalid: components array contains a null element",
+      "valid": false,
+      "data": {
+        "version": "v0.10",
+        "createSurface": {
+          "surfaceId": "test_surface",
+          "catalogId": "https://a2ui.org/specification/v0_10/catalogs/basic/catalog.json",
+          "initialState": {
+            "components": {
+              "surfaceId": "test_surface",
+              "components": [
+                null
+              ]
+            }
+          }
+        }
+      }
     }
   ]
 }
