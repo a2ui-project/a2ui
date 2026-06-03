@@ -183,7 +183,7 @@ This message signals the client to create a new surface and begin rendering it. 
 - `sendDataModel` (boolean, optional): If true, the client will send the full data model of this surface in the metadata of every message sent to the server (via the Transport's metadata mechanism). This ensures the surface owner receives the full current state of the UI alongside the user's action or query. Defaults to false.
 - `initialState` (object, optional): An optional initial state containing components and/or a data model for the surface, allowing the client to build and populate the UI tree immediately on surface creation.
   - `components` (array, optional): A list containing UI components for the surface. Conforms to the `ComponentsList` schema.
-  - `dataModel` (object, optional): Path and value representing initial data model content. Conforms to the `DataModelUpdate` schema.
+  - `dataModel` (object, optional): A plain JSON object representing the initial root state of the data model.
 
 **Example:**
 
@@ -207,13 +207,11 @@ This message signals the client to create a new surface and begin rendering it. 
         {
           "id": "user_name",
           "component": "Text",
-          "text": { "path": "/name" }
+          "text": {"path": "/name"}
         }
       ],
       "dataModel": {
-        "value": {
-          "name": "John Doe"
-        }
+        "name": "John Doe"
       }
     }
   }

@@ -308,9 +308,6 @@ export class Validator {
               errors.push('initialState.components must be an array of components.');
             }
           }
-          if (initialState.dataModel && typeof initialState.dataModel === 'object') {
-            this.validateDataModelUpdate(initialState.dataModel, errors);
-          }
         }
       } else if (message.updateDataModel) {
         this.validateUpdateDataModel(message.updateDataModel, errors);

@@ -23,8 +23,7 @@
               }
             ],
             "dataModel": {
-              "path": "/user",
-              "value": {
+              "user": {
                 "name": "John Doe"
               }
             }
@@ -62,9 +61,7 @@
           "catalogId": "https://a2ui.org/specification/v0_10/catalogs/basic/catalog.json",
           "initialState": {
             "dataModel": {
-              "value": {
-                "themePreference": "dark"
-              }
+              "themePreference": "dark"
             }
           }
         }
@@ -128,15 +125,13 @@
           "surfaceId": "test_surface",
           "catalogId": "https://a2ui.org/specification/v0_10/catalogs/basic/catalog.json",
           "initialState": {
-            "components": [
-              null
-            ]
+            "components": [null]
           }
         }
       }
     },
     {
-      "description": "Invalid: dataModel contains unexpected properties",
+      "description": "Invalid: dataModel is a string instead of an object",
       "valid": false,
       "data": {
         "version": "v0.10",
@@ -144,12 +139,7 @@
           "surfaceId": "test_surface",
           "catalogId": "https://a2ui.org/specification/v0_10/catalogs/basic/catalog.json",
           "initialState": {
-            "dataModel": {
-              "value": {
-                "foo": "bar"
-              },
-              "extraField": "invalid"
-            }
+            "dataModel": "not-an-object"
           }
         }
       }
