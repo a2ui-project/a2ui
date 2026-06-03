@@ -295,31 +295,21 @@ export class Validator {
           if (initialState.components) {
             hasUpdateComponents = true;
 
-            if (initialState.components.surfaceId !== surfaceId) {
-              errors.push(
-                `initialState.components.surfaceId '${initialState.components.surfaceId}' does not match createSurface.surfaceId '${surfaceId}'.`,
-              );
-            }
+            if (Array.isArray(initialState.components)) {
+              this.validateComponentsList(initialState.components, errors);
 
-            this.validateUpdateComponents(initialState.components, errors);
-
-            // Check for root component in nested components
-            if (Array.isArray(initialState.components.components)) {
-              for (const comp of initialState.components.components) {
+              // Check for root component in nested components
+              for (const comp of initialState.components) {
                 if (comp && typeof comp === 'object' && comp.id === 'root') {
                   hasRootComponent = true;
                 }
               }
+            } else {
+              errors.push('initialState.components must be an array of components.');
             }
           }
-          if (initialState.dataModel) {
-            if (initialState.dataModel.surfaceId !== surfaceId) {
-              errors.push(
-                `initialState.dataModel.surfaceId '${initialState.dataModel.surfaceId}' does not match createSurface.surfaceId '${surfaceId}'.`,
-              );
-            }
-
-            this.validateUpdateDataModel(initialState.dataModel, errors);
+          if (initialState.dataModel && typeof initialState.dataModel === 'object') {
+            this.validateDataModelUpdate(initialState.dataModel, errors);
           }
         }
       } else if (message.updateDataModel) {
@@ -410,8 +400,13 @@ export class Validator {
       return;
     }
 
+    this.validateComponentsList(data.components, errors);
+  }
+
+  private validateComponentsList(components: any[], errors: string[]) {
     const componentIds = new Set<string>();
-    for (const c of data.components) {
+    for (const c of components) {
+      if (!c || typeof c !== 'object') continue;
       const id = c.id;
       if (id) {
         if (componentIds.has(id)) {
@@ -439,12 +434,21 @@ export class Validator {
       }
     }
 
-    for (const component of data.components) {
-      this.validateComponent(component, componentIds, errors);
+    for (const component of components) {
+      if (component && typeof component === 'object') {
+        this.validateComponent(component, componentIds, errors);
+      }
     }
   }
 
   private validateUpdateDataModel(data: any, errors: string[]) {
+    if (data.surfaceId === undefined) {
+      errors.push("UpdateDataModel must have a 'surfaceId' property.");
+    }
+    this.validateDataModelUpdate(data, errors);
+  }
+
+  private validateDataModelUpdate(data: any, errors: string[]) {
     // Schema validation handles types and basic structure.
     // 'op' is removed in v0.10, so we don't need to validate it or its relationship with 'value'.
     // We strictly rely on the schema for this message type now.
