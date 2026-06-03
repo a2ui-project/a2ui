@@ -77,7 +77,7 @@ uv run pyink .
 
 ## Releasing the SDK
 
-See go/a2ui-release-pipy.
+See internal guidance at go/a2ui-release-pipy.
 
 ## Disclaimer
 
