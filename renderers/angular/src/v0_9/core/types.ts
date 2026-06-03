@@ -82,9 +82,7 @@ interface CheckProps {
 
 /** The binder can add some properties to the Props object. This util adds them to the type. */
 export type ExtendedProps<ComponentProps extends {[key: string]: unknown}> =
-  'checks' extends keyof ComponentProps
-    ? Omit<ComponentProps, 'checks'> & CheckProps
-    : ComponentProps;
+  'checks' extends keyof ComponentProps ? ComponentProps & CheckProps : ComponentProps;
 
 /**
  * Utility to convert a component Api Type to the props Type, where the

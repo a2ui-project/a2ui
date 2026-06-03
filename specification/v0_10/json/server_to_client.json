@@ -38,6 +38,14 @@
             "sendDataModel": {
               "type": "boolean",
               "description": "If true, the client will send the full data model of this surface in the metadata of every A2A message sent to the server that created the surface. Defaults to false."
+            },
+            "components": {
+              "$ref": "#/$defs/ComponentsList"
+            },
+            "dataModel": {
+              "type": "object",
+              "description": "The initial root data model object for the surface.",
+              "additionalProperties": true
             }
           },
           "required": ["surfaceId", "catalogId"],
@@ -46,6 +54,14 @@
       },
       "required": ["createSurface", "version"],
       "additionalProperties": false
+    },
+    "ComponentsList": {
+      "type": "array",
+      "description": "A list containing UI components for the surface.",
+      "minItems": 1,
+      "items": {
+        "$ref": "catalog.json#/$defs/anyComponent"
+      }
     },
     "UpdateComponentsMessage": {
       "type": "object",
@@ -62,12 +78,7 @@
               "description": "The unique identifier for the UI surface to be updated."
             },
             "components": {
-              "type": "array",
-              "description": "A list containing all UI components for the surface.",
-              "minItems": 1,
-              "items": {
-                "$ref": "catalog.json#/$defs/anyComponent"
-              }
+              "$ref": "#/$defs/ComponentsList"
             }
           },
           "required": ["surfaceId", "components"],
