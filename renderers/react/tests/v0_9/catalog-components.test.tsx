@@ -68,7 +68,7 @@ describe('Basic Catalog Components', () => {
       const {view} = renderA2uiComponent(Text, 't1', {text: 'Title', variant: 'h1'});
       const h1 = view.container.querySelector('div.h1');
       expect(h1).not.toBeNull();
-      expect(h1?.textContent).toBe('# Title');
+      expect(h1?.textContent).toBe('Title');
     });
   });
 

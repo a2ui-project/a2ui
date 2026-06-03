@@ -38,7 +38,7 @@ describe('Gallery Integration Tests', () => {
       </React.StrictMode>,
     );
 
-    expect(screen.getByText('### Markdown Rendering')).toBeInTheDocument();
+    expect(screen.getByText('Markdown Rendering')).toBeInTheDocument();
   });
 
   it('renders Task Card -> content visibility', async () => {
@@ -54,8 +54,8 @@ describe('Gallery Integration Tests', () => {
       </React.StrictMode>,
     );
 
-    expect(screen.getByText('### Review pull request')).toBeInTheDocument();
-    expect(screen.getByText('*Backend*')).toBeInTheDocument();
+    expect(screen.getByText('Review pull request')).toBeInTheDocument();
+    expect(screen.getByText('Backend')).toBeInTheDocument();
   });
 
   it('handles Login form -> input updates data model', async () => {
