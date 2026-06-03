@@ -276,9 +276,9 @@ export class Validator {
         this.validateUpdateComponents(message.updateComponents, errors);
 
         // Check for root component in this message
-        if (message.updateComponents.components) {
+        if (Array.isArray(message.updateComponents.components)) {
           for (const comp of message.updateComponents.components) {
-            if (comp.id === 'root') {
+            if (comp && typeof comp === 'object' && comp.id === 'root') {
               hasRootComponent = true;
             }
           }
@@ -304,9 +304,9 @@ export class Validator {
             this.validateUpdateComponents(initialState.components, errors);
 
             // Check for root component in nested components
-            if (initialState.components.components) {
+            if (Array.isArray(initialState.components.components)) {
               for (const comp of initialState.components.components) {
-                if (comp.id === 'root') {
+                if (comp && typeof comp === 'object' && comp.id === 'root') {
                   hasRootComponent = true;
                 }
               }
