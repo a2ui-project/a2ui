@@ -1,5 +1,8 @@
 ## Unreleased
 
+- (v0_9) Narrow `A2uiChildRef` to the supported child reference shapes used by
+  `renderNode`.
+
 ## 0.10.0
 
 - **BREAKING CHANGE**: (v0_9) Rename Icon `path` property to `svgPath` and update component to correctly render SVG elements.
