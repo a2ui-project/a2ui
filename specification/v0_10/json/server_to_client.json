@@ -39,20 +39,13 @@
               "type": "boolean",
               "description": "If true, the client will send the full data model of this surface in the metadata of every A2A message sent to the server that created the surface. Defaults to false."
             },
-            "initialState": {
+            "components": {
+              "$ref": "#/$defs/ComponentsList"
+            },
+            "dataModel": {
               "type": "object",
-              "description": "Optional initial state containing components and/or data model.",
-              "properties": {
-                "components": {
-                  "$ref": "#/$defs/ComponentsList"
-                },
-                "dataModel": {
-                  "type": "object",
-                  "description": "The initial root data model object for the surface.",
-                  "additionalProperties": true
-                }
-              },
-              "additionalProperties": false
+              "description": "The initial root data model object for the surface.",
+              "additionalProperties": true
             }
           },
           "required": ["surfaceId", "catalogId"],

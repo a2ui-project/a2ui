@@ -290,23 +290,21 @@ export class Validator {
           createdSurfaces.add(surfaceId);
         }
 
-        const initialState = message.createSurface.initialState;
-        if (initialState && typeof initialState === 'object') {
-          if (initialState.components) {
-            hasUpdateComponents = true;
+        const createSurface = message.createSurface;
+        if (createSurface.components) {
+          hasUpdateComponents = true;
 
-            if (Array.isArray(initialState.components)) {
-              this.validateComponentsList(initialState.components, errors);
+          if (Array.isArray(createSurface.components)) {
+            this.validateComponentsList(createSurface.components, errors);
 
-              // Check for root component in nested components
-              for (const comp of initialState.components) {
-                if (comp && typeof comp === 'object' && comp.id === 'root') {
-                  hasRootComponent = true;
-                }
+            // Check for root component in nested components
+            for (const comp of createSurface.components) {
+              if (comp && typeof comp === 'object' && comp.id === 'root') {
+                hasRootComponent = true;
               }
-            } else {
-              errors.push('initialState.components must be an array of components.');
             }
+          } else {
+            errors.push('createSurface.components must be an array of components.');
           }
         }
       } else if (message.updateDataModel) {
@@ -368,7 +366,7 @@ export class Validator {
     if (data.catalogId === undefined) {
       errors.push("createSurface must have a 'catalogId' property.");
     }
-    const allowed = ['surfaceId', 'catalogId', 'theme', 'sendDataModel', 'initialState'];
+    const allowed = ['surfaceId', 'catalogId', 'theme', 'sendDataModel', 'components', 'dataModel'];
     for (const key in data) {
       if (!allowed.includes(key)) {
         errors.push(`createSurface has unexpected property: ${key}`);

@@ -2,89 +2,81 @@
   "schema": "server_to_client.json",
   "tests": [
     {
-      "description": "Valid createSurface with initialState containing both components list and dataModel update",
+      "description": "Valid createSurface with both components list and dataModel update",
       "valid": true,
       "data": {
         "version": "v0.10",
         "createSurface": {
           "surfaceId": "test_surface",
           "catalogId": "https://a2ui.org/specification/v0_10/catalogs/basic/catalog.json",
-          "initialState": {
-            "components": [
-              {
-                "id": "root",
-                "component": "Column",
-                "children": ["welcome_text"]
-              },
-              {
-                "id": "welcome_text",
-                "component": "Text",
-                "text": "Welcome to the application!"
-              }
-            ],
-            "dataModel": {
-              "user": {
-                "name": "John Doe"
-              }
+          "components": [
+            {
+              "id": "root",
+              "component": "Column",
+              "children": ["welcome_text"]
+            },
+            {
+              "id": "welcome_text",
+              "component": "Text",
+              "text": "Welcome to the application!"
+            }
+          ],
+          "dataModel": {
+            "user": {
+              "name": "John Doe"
             }
           }
         }
       }
     },
     {
-      "description": "Valid createSurface with initialState containing only components list",
+      "description": "Valid createSurface with only components list",
       "valid": true,
       "data": {
         "version": "v0.10",
         "createSurface": {
           "surfaceId": "test_surface",
           "catalogId": "https://a2ui.org/specification/v0_10/catalogs/basic/catalog.json",
-          "initialState": {
-            "components": [
-              {
-                "id": "root",
-                "component": "Text",
-                "text": "Minimal components configuration"
-              }
-            ]
-          }
-        }
-      }
-    },
-    {
-      "description": "Valid createSurface with initialState containing only dataModel update",
-      "valid": true,
-      "data": {
-        "version": "v0.10",
-        "createSurface": {
-          "surfaceId": "test_surface",
-          "catalogId": "https://a2ui.org/specification/v0_10/catalogs/basic/catalog.json",
-          "initialState": {
-            "dataModel": {
-              "themePreference": "dark"
+          "components": [
+            {
+              "id": "root",
+              "component": "Text",
+              "text": "Minimal components configuration"
             }
+          ]
+        }
+      }
+    },
+    {
+      "description": "Valid createSurface with only dataModel update",
+      "valid": true,
+      "data": {
+        "version": "v0.10",
+        "createSurface": {
+          "surfaceId": "test_surface",
+          "catalogId": "https://a2ui.org/specification/v0_10/catalogs/basic/catalog.json",
+          "dataModel": {
+            "themePreference": "dark"
           }
         }
       }
     },
     {
-      "description": "Invalid: initialState contains additional unexpected properties",
+      "description": "Invalid: createSurface contains additional unexpected properties",
       "valid": false,
       "data": {
         "version": "v0.10",
         "createSurface": {
           "surfaceId": "test_surface",
           "catalogId": "https://a2ui.org/specification/v0_10/catalogs/basic/catalog.json",
-          "initialState": {
-            "components": [
-              {
-                "id": "root",
-                "component": "Text",
-                "text": "Invalid extra prop"
-              }
-            ],
-            "extraProp": "should_not_be_here"
-          }
+          "components": [
+            {
+              "id": "root",
+              "component": "Text",
+              "text": "Invalid extra prop"
+            }
+          ],
+          "extraProp": "should_not_be_here"
         }
       }
     },
@@ -96,9 +88,7 @@
         "createSurface": {
           "surfaceId": "test_surface",
           "catalogId": "https://a2ui.org/specification/v0_10/catalogs/basic/catalog.json",
-          "initialState": {
-            "components": "not-an-array"
-          }
+          "components": "not-an-array"
         }
       }
     },
@@ -110,9 +100,7 @@
         "createSurface": {
           "surfaceId": "test_surface",
           "catalogId": "https://a2ui.org/specification/v0_10/catalogs/basic/catalog.json",
-          "initialState": {
-            "components": []
-          }
+          "components": []
         }
       }
     },
@@ -124,9 +112,7 @@
         "createSurface": {
           "surfaceId": "test_surface",
           "catalogId": "https://a2ui.org/specification/v0_10/catalogs/basic/catalog.json",
-          "initialState": {
-            "components": [null]
-          }
+          "components": [null]
         }
       }
     },
@@ -138,9 +124,7 @@
         "createSurface": {
           "surfaceId": "test_surface",
           "catalogId": "https://a2ui.org/specification/v0_10/catalogs/basic/catalog.json",
-          "initialState": {
-            "dataModel": "not-an-object"
-          }
+          "dataModel": "not-an-object"
         }
       }
     }
