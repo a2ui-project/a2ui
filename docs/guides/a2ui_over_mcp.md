@@ -22,7 +22,7 @@ Before diving into the protocol details, let's get a working example running. Th
 ```bash
 # Clone the repo (if you haven't already)
 git clone https://github.com/a2ui-project/a2ui.git
-cd A2UI/samples/mcp/a2ui-over-mcp-recipe
+cd a2ui/samples/mcp/a2ui-over-mcp-recipe
 
 # Start the MCP server (SSE transport on port 8000)
 uv run .
