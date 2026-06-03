@@ -24,7 +24,7 @@ from a2ui.a2a.parts import create_a2ui_part
 from a2ui.adk.a2a.part_converter import A2uiPartConverter
 from a2ui.adk.send_a2ui_to_client_toolset import SendA2uiToClientToolset
 from a2ui.schema.catalog import A2uiCatalog
-from a2ui.schema.constants import A2UI_CLOSE_TAG, A2UI_OPEN_TAG
+from a2ui.schema.constants import A2UI_CLOSE_TAG, A2UI_OPEN_TAG, VERSION_0_8, VERSION_0_9_1
 from google.genai import types as genai_types
 
 
@@ -45,7 +45,27 @@ def test_converter_class_convert_valid_tool_response():
 
   a2a_parts = converter.convert(part)
   assert len(a2a_parts) == 1
-  assert a2a_parts[0] == create_a2ui_part(valid_a2ui)
+  assert a2a_parts[0] == create_a2ui_part(valid_a2ui, version=VERSION_0_8)
+
+
+def test_converter_class_convert_valid_tool_response_v0_9_1():
+  catalog_mock = MagicMock(spec=A2uiCatalog)
+  converter = A2uiPartConverter(catalog_mock, version=VERSION_0_9_1)
+
+  valid_a2ui = {"type": "Text", "text": "Hello"}
+  function_response = genai_types.FunctionResponse(
+      name=SendA2uiToClientToolset._SendA2uiJsonToClientTool.TOOL_NAME,
+      response={
+          SendA2uiToClientToolset._SendA2uiJsonToClientTool.VALIDATED_A2UI_JSON_KEY: [
+              valid_a2ui
+          ]
+      },
+  )
+  part = genai_types.Part(function_response=function_response)
+
+  a2a_parts = converter.convert(part)
+  assert len(a2a_parts) == 1
+  assert a2a_parts[0] == create_a2ui_part(valid_a2ui, version=VERSION_0_9_1)
 
 
 def test_converter_class_convert_tool_error_response():
@@ -107,7 +127,26 @@ def test_converter_class_convert_text_with_a2ui():
   # Expect 2 parts: TextPart and A2UI DataPart
   assert len(a2a_parts) == 2
   assert a2a_parts[0].root.text == "Here is the UI:"
-  assert a2a_parts[1] == create_a2ui_part(valid_a2ui[0])
+  assert a2a_parts[1] == create_a2ui_part(valid_a2ui[0], version=VERSION_0_8)
+  catalog_mock.validator.validate.assert_called_once_with(valid_a2ui)
+
+
+def test_converter_class_convert_text_with_a2ui_v0_9_1():
+  catalog_mock = MagicMock(spec=A2uiCatalog)
+  converter = A2uiPartConverter(catalog_mock, version=VERSION_0_9_1)
+
+  valid_a2ui = [{"type": "Text", "text": "Hello"}]
+  catalog_mock.validator.validate.return_value = None
+
+  text = f"Here is the UI:\n{A2UI_OPEN_TAG}\n{json.dumps(valid_a2ui)}\n{A2UI_CLOSE_TAG}"
+  part = genai_types.Part(text=text)
+
+  a2a_parts = converter.convert(part)
+
+  # Expect 2 parts: TextPart and A2UI DataPart
+  assert len(a2a_parts) == 2
+  assert a2a_parts[0].root.text == "Here is the UI:"
+  assert a2a_parts[1] == create_a2ui_part(valid_a2ui[0], version=VERSION_0_9_1)
   catalog_mock.validator.validate.assert_called_once_with(valid_a2ui)
 
 
@@ -123,7 +162,7 @@ def test_converter_class_convert_text_empty_leading():
   a2a_parts = converter.convert(part)
 
   assert len(a2a_parts) == 1
-  assert a2a_parts[0] == create_a2ui_part(ui[0])
+  assert a2a_parts[0] == create_a2ui_part(ui[0], version=VERSION_0_8)
 
 
 def test_converter_class_convert_text_markdown_wrapped():
@@ -140,7 +179,7 @@ def test_converter_class_convert_text_markdown_wrapped():
 
   assert len(a2a_parts) == 2
   assert a2a_parts[0].root.text == "Behold:"
-  assert a2a_parts[1] == create_a2ui_part(ui[0])
+  assert a2a_parts[1] == create_a2ui_part(ui[0], version=VERSION_0_8)
   catalog_mock.validator.validate.assert_called_once_with(ui)
 
 
@@ -197,7 +236,7 @@ def test_converter_class_convert_tool_response_with_result_containing_a2ui():
   # Expect 2 parts: TextPart and A2UI DataPart
   assert len(a2a_parts) == 2
   assert a2a_parts[0].root.text == "Here is the result:"
-  assert a2a_parts[1] == create_a2ui_part(valid_a2ui[0])
+  assert a2a_parts[1] == create_a2ui_part(valid_a2ui[0], version=VERSION_0_8)
   catalog_mock.validator.validate.assert_called_once_with(valid_a2ui)
 
 
