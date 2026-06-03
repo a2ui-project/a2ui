@@ -25,6 +25,7 @@ import styles from './Text.module.css';
 /** Variants rendered with declarative HTML instead of the Markdown pipeline. */
 const NON_MARKDOWN_VARIANTS = new Set(['h1', 'h2', 'h3', 'h4', 'h5', 'caption']);
 
+/** Renders text through the Markdown pipeline for unknown/default variants. */
 function MarkdownText({
   text,
   className,
@@ -37,13 +38,40 @@ function MarkdownText({
   const renderedHtml = useMarkdown(text);
   const classes = renderedHtml === null ? `${className} no-markdown-renderer` : className;
   const contentProps =
-    renderedHtml !== null
-      ? {dangerouslySetInnerHTML: {__html: renderedHtml}}
-      : {children: text};
+    renderedHtml !== null ? {dangerouslySetInnerHTML: {__html: renderedHtml}} : {children: text};
 
   return <div className={classes} style={style} {...contentProps} />;
 }
 
+/** Renders known variants (h1–h5, caption) as native HTML elements without Markdown. */
+function NonMarkdownText({
+  text,
+  variant,
+  className,
+  style,
+}: {
+  text: string;
+  variant: string;
+  className: string;
+  style: React.CSSProperties;
+}) {
+  const isCaption = variant === 'caption';
+  const HeadingTag = isCaption ? 'em' : (variant as 'h1' | 'h2' | 'h3' | 'h4' | 'h5');
+  if (isCaption) {
+    return (
+      <span className={className} style={style}>
+        <HeadingTag>{text}</HeadingTag>
+      </span>
+    );
+  }
+  return (
+    <div className={className} style={style}>
+      <HeadingTag>{text}</HeadingTag>
+    </div>
+  );
+}
+
+/** Renders text content, using the Markdown pipeline for rich text or native HTML elements for known typographic variants. */
 export const Text = createComponentImplementation(TextApi, ({props}) => {
   useBasicCatalogStyles();
   const text = typeof props.text === 'string' ? props.text : String(props.text ?? '');
@@ -56,22 +84,8 @@ export const Text = createComponentImplementation(TextApi, ({props}) => {
 
   if (variant && NON_MARKDOWN_VARIANTS.has(variant)) {
     const isCaption = variant === 'caption';
-    const className = [styles.a2uiText, isCaption ? styles.a2uiCaption : variant || 'body'].join(
-      ' ',
-    );
-    const HeadingTag = isCaption ? 'em' : (variant as 'h1' | 'h2' | 'h3' | 'h4' | 'h5');
-    if (isCaption) {
-      return (
-        <span className={className} style={style}>
-          <HeadingTag>{text}</HeadingTag>
-        </span>
-      );
-    }
-    return (
-      <div className={className} style={style}>
-        <HeadingTag>{text}</HeadingTag>
-      </div>
-    );
+    const className = [styles.a2uiText, isCaption ? styles.a2uiCaption : variant].join(' ');
+    return <NonMarkdownText text={text} variant={variant} className={className} style={style} />;
   }
 
   const className = [styles.a2uiText, variant || 'body'].join(' ');
