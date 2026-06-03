@@ -115,7 +115,7 @@ Prerequisites: Node.js 18+, [uv](https://docs.astral.sh/uv/), and a [Gemini API 
 
 ```bash
 git clone https://github.com/a2ui-project/a2ui.git
-cd A2UI
+cd a2ui
 export GEMINI_API_KEY="your_gemini_api_key"
 cd samples/client/lit
 npm run demo:restaurant
