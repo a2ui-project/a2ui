@@ -52,7 +52,7 @@ cd "$REPO_ROOT"
 # Check if dart is available before running
 if command -v dart >/dev/null 2>&1; then
   echo "Resolving Dart workspace dependencies..."
-  flutter pub get || echo "Warning: 'dart pub get' failed. Formatting might have package resolution warnings."
+  flutter pub get || echo "Warning: 'flutter pub get' failed. Formatting might have package resolution warnings."
   if [ "$CHECK_ONLY" = true ]; then
     dart format --output=none --set-exit-if-changed .
   else
