@@ -3,8 +3,8 @@
 - (v0_9) Fix null de-referencing TypeError in `ComponentBinder` when `children` property is null or undefined. [#1472](https://github.com/a2ui-project/a2ui/pull/1472)
 - (v0_8) Fix Icon component to handle camelCase and TitleCase names by converting them to snake_case for `g-icon`.
 - (v0_8) Fix Modal component styling and position fixed for overlay.
-- (v0_9) Remove `placeholder` prop support from the `TextField` component, since it was not part of the v0_9 basic catalog schema. [#1372](https://github.com/google/A2UI/pull/1372)
-- (v0_9) Preserve `checks` property in `ExtendedProps` type. [#1523](https://github.com/google/A2UI/pull/1523)
+- (v0_9) Remove `placeholder` prop support from the `TextField` component, since it was not part of the v0_9 basic catalog schema. [#1372](https://github.com/a2ui-project/a2ui/pull/1372)
+- (v0_9) Preserve `checks` property in `ExtendedProps` type. [#1523](https://github.com/a2ui-project/a2ui/pull/1523)
 
 ## 0.10.0
 
