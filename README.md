@@ -1,10 +1,3 @@
-> ⚠️ NOTICE: This repository will be moved to another GitHub organization on
-> Wednesday June 3rd, 2026. We will be locking this repo on that day to
-> facilitate the transfer. If you have this repo cloned or forked, you may need
-> to re-clone, create a new fork, or modify your remotes in order to maintain
-> your development setup. We will automatically migrate pull requests and issues
-> as they are once the repo is locked.
-
 # A2UI: Agent-to-User Interface
 
 A2UI is an open-source project, complete with a format
