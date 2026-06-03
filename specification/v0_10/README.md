@@ -4,7 +4,7 @@ This directory contains the specification for version 0.10 of A2UI.
 
 **This specification is currently under development.**
 
-If you have proposed changes or new features, please open an issue or submit a pull request to the [A2UI repository](https://github.com/google/A2UI).
+If you have proposed changes or new features, please open an issue or submit a pull request to the [A2UI repository](https://github.com/a2ui-project/a2ui).
 
 ## Documentation
 

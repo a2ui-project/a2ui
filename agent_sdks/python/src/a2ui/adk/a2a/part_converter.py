@@ -55,6 +55,12 @@ class A2uiPartConverter:
   This converter handles both tool-based A2UI (via `send_a2ui_json_to_client`)
   and text-based A2UI (via A2UI delimiter tags). It uses the provided
   catalog to validate and fix JSON payloads.
+
+  Args:
+      a2ui_catalog: The A2UI catalog.
+      bypass_tool_check: If True, bypass tool validation.
+      fallback_text: Optional text to fall back on if parsing fails.
+      version: The A2UI version to use. Defaults to "0.8".
   """
 
   def __init__(
@@ -62,10 +68,12 @@ class A2uiPartConverter:
       a2ui_catalog: A2uiCatalog,
       bypass_tool_check: bool = False,
       fallback_text: Optional[str] = None,
+      version: str = constants.VERSION_0_8,
   ):
     self._catalog = a2ui_catalog
     self._bypass_tool_check = bypass_tool_check
     self._fallback_text = fallback_text
+    self._version = version
 
   def convert(self, part: genai_types.Part) -> list[a2a_types.Part]:
     """Converts a GenAI part to A2A parts, with A2UI validation.
@@ -97,7 +105,10 @@ class A2uiPartConverter:
         ):
           json_data = response_dict.get(constants.A2UI_VALIDATED_JSON_KEY)
           if json_data:
-            return [create_a2ui_part(message) for message in json_data]
+            return [
+                create_a2ui_part(message, version=self._version)
+                for message in json_data
+            ]
 
         if is_send_a2ui_json_to_client_response:
           logger.info("No result in A2UI tool response")
@@ -111,6 +122,7 @@ class A2uiPartConverter:
               result,
               validator=self._catalog.validator,
               fallback_text=self._fallback_text,
+              version=self._version,
           )
 
     # 2. Handle Tool Calls (FunctionCall) - Skip sending to client
@@ -126,6 +138,7 @@ class A2uiPartConverter:
             text,
             validator=self._catalog.validator,
             fallback_text=self._fallback_text,
+            version=self._version,
         )
 
     # 4. Default conversion for other parts

@@ -164,17 +164,17 @@ const processor = new MessageProcessor([basicCatalog, myCatalog]);
 ## Basic Catalog Components
 
 The `@a2ui/lit/v0_9` package includes a `basicCatalog` with standard components.
-You can find the full specification of the basic catalog in the [GitHub repository](https://github.com/google/A2UI/blob/main/specification/v0_9/json/catalogs/basic/catalog.json).
+You can find the full specification of the basic catalog in the [GitHub repository](https://github.com/a2ui-project/a2ui/blob/main/specification/v0_9/json/catalogs/basic/catalog.json).
 
 - **Layout**: `Row`, `Column`, `List`, `Card`, `Tabs`, `Modal`, `Divider`
 - **Content**: `Text`, `Image`, `Icon`, `Video`
 - **Input**: `Button`, `TextField`, `CheckBox`, `ChoicePicker`, `Slider`, `DateTimeInput`
 
-You can find the source code for these components in the [GitHub repository](https://github.com/google/A2UI/tree/main/renderers/lit/src/v0_9/catalogs/basic/components).
+You can find the source code for these components in the [GitHub repository](https://github.com/a2ui-project/a2ui/tree/main/renderers/lit/src/v0_9/catalogs/basic/components).
 
 ## Migration from v0.8
 
-If you are migrating an existing application from v0.8 to v0.9, you can reference the migration of the shell sample in [Pull Request #1105](https://github.com/google/A2UI/pull/1105) (commit `a5ad0c328628df6fd8f53aef86f5b3db452ba3a8`).
+If you are migrating an existing application from v0.8 to v0.9, you can reference the migration of the shell sample in [Pull Request #1105](https://github.com/a2ui-project/a2ui/pull/1105) (commit `a5ad0c328628df6fd8f53aef86f5b3db452ba3a8`).
 
 Key changes in that migration included:
 

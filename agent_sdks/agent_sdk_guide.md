@@ -262,7 +262,7 @@ Create the helper utilities to wrap JSON in transport Parts (if needed for your 
 
 ### Step 5: Sample Applications
 
-Create a simple sample (like a command-line agent or local server) to verify that the SDK works end-to-end. Refer to the reference Python samples (e.g., `samples/agent/adk/contact_lookup`) for inspiration.
+Create a simple sample (like a command-line agent or local server) to verify that the SDK works end-to-end. Refer to the reference Python samples (e.g., `samples/agent/adk/restaurant_finder`) for inspiration.
 
 > [!IMPORTANT]
 > Keep the SDK idiomatic to your language. Don't force Python-isms if it doesn't make sense (e.g., use builder patterns in Java/Kotlin or macros in C++ if they are more ergonomic).

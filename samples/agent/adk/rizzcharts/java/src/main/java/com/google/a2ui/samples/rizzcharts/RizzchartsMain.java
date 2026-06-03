@@ -67,7 +67,7 @@ public class RizzchartsMain {
         "http://localhost:10002",
         List.of(
             "https://a2ui.org/specification/v0_8/standard_catalog_definition.json",
-            "https://github.com/google/A2UI/blob/main/samples/agent/adk/rizzcharts/rizzcharts_catalog_definition.json"));
+            "https://github.com/a2ui-project/a2ui/blob/main/samples/agent/adk/rizzcharts/rizzcharts_catalog_definition.json"));
   }
 
   @PostMapping(value = "/", produces = MediaType.APPLICATION_JSON_VALUE)

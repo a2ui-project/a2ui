@@ -21,5 +21,5 @@ If you need help, consider asking for advice on the [discussion board].
 [CHANGELOG]: ../CHANGELOG.md
 [CLA]: https://cla.developers.google.com/
 [Contributors Guide]: ../CONTRIBUTING.md
-[discussion board]: https://github.com/google/A2UI/discussions
+[discussion board]: https://github.com/a2ui-project/a2ui/discussions
 [Style Guide]: ../CONTRIBUTING.md#coding-style

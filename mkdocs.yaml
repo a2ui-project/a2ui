@@ -82,8 +82,8 @@ exclude_docs: |
   scripts/**
 
 # Repository
-repo_name: google/A2UI
-repo_url: https://github.com/google/A2UI
+repo_name: a2ui-project/a2ui
+repo_url: https://github.com/a2ui-project/a2ui
 edit_uri: raw/main/docs/
 
 # Copyright

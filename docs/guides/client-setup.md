@@ -4,13 +4,13 @@ Integrate A2UI into your application using the renderer for your platform.
 
 ## Renderers
 
-| Renderer                                                                           | Platform           | v0.8 | v0.9 | Status             |
-| ---------------------------------------------------------------------------------- | ------------------ | ---- | ---- | ------------------ |
-| **[React](https://github.com/google/A2UI/tree/main/renderers/react)**              | Web                | ✅   | ✅   | ✅ Stable          |
-| **[Lit (Web Components)](https://github.com/google/A2UI/tree/main/renderers/lit)** | Web                | ✅   | ✅   | ✅ Stable          |
-| **[Angular](https://github.com/google/A2UI/tree/main/renderers/angular)**          | Web                | ✅   | ✅   | ✅ Stable          |
-| **[Flutter (GenUI SDK)](https://docs.flutter.dev/ai/genui)**                       | Mobile/Desktop/Web | ✅   | ✅   | ✅ Stable          |
-| **Jetpack Compose**                                                                | Android            | —    | —    | 🚧 Planned Q2 2026 |
+| Renderer                                                                                 | Platform           | v0.8 | v0.9 | Status             |
+| ---------------------------------------------------------------------------------------- | ------------------ | ---- | ---- | ------------------ |
+| **[React](https://github.com/a2ui-project/a2ui/tree/main/renderers/react)**              | Web                | ✅   | ✅   | ✅ Stable          |
+| **[Lit (Web Components)](https://github.com/a2ui-project/a2ui/tree/main/renderers/lit)** | Web                | ✅   | ✅   | ✅ Stable          |
+| **[Angular](https://github.com/a2ui-project/a2ui/tree/main/renderers/angular)**          | Web                | ✅   | ✅   | ✅ Stable          |
+| **[Flutter (GenUI SDK)](https://docs.flutter.dev/ai/genui)**                             | Mobile/Desktop/Web | ✅   | ✅   | ✅ Stable          |
+| **Jetpack Compose**                                                                      | Android            | —    | —    | 🚧 Planned Q2 2026 |
 
 For more see all [A2UI Renderers](../reference/renderers.md) and [Community A2UI Renderers](../ecosystem/renderers.md).
 
@@ -44,7 +44,7 @@ Once installed, you can use the renderer in your app. The Lit renderer uses:
 - **`<a2ui-surface>` component**: Renders surfaces in your app.
 - **Lit Signals**: Provides reactive state management for automatic UI updates.
 
-**See working example:** [Lit shell sample](https://github.com/google/a2ui/tree/main/samples/client/lit/shell) — Check its README for detailed run instructions.
+**See working example:** [Lit shell sample](https://github.com/a2ui-project/a2ui/tree/main/samples/client/lit/shell) — Check its README for detailed run instructions.
 
 ## Angular
 
@@ -82,7 +82,7 @@ export const appConfig: ApplicationConfig = {
 };
 ```
 
-**See working example:** [Angular samples](https://github.com/google/a2ui/tree/main/samples/client/angular)
+**See working example:** [Angular samples](https://github.com/a2ui-project/a2ui/tree/main/samples/client/angular)
 
 ### Streaming
 
@@ -105,7 +105,7 @@ The React renderer provides:
 - **`<A2UISurface>` component**: Renders A2UI surfaces in your React app
 - **`useA2UI()` hook**: Accesses the message processor from any component
 
-**See working example:** [React shell](https://github.com/google/A2UI/tree/main/samples/client/react/shell)
+**See working example:** [React shell](https://github.com/a2ui-project/a2ui/tree/main/samples/client/react/shell)
 
 ## Flutter (GenUI SDK)
 
@@ -131,7 +131,7 @@ Common transport options:
 - **WebSockets**: Bidirectional real-time communication
 - **A2A Protocol**: Standardized agent-to-agent communication with A2UI support
 
-See [samples/client/lit/shell/client.ts](https://github.com/google/a2ui/tree/main/samples/client/lit/shell/client.ts) for an example of using the A2A protocol client.
+See [samples/client/lit/shell/client.ts](https://github.com/a2ui-project/a2ui/tree/main/samples/client/lit/shell/client.ts) for an example of using the A2A protocol client.
 
 **See:** [Transports guide](../concepts/transports.md)
 
@@ -144,7 +144,7 @@ When users interact with A2UI components (clicking buttons, submitting forms, et
 3. Sends the action to the agent
 4. Processes the agent's response messages
 
-See the `@a2uiaction` event handler in `#maybeRenderData` in [samples/client/lit/shell/app.ts](https://github.com/google/a2ui/tree/main/samples/client/lit/shell/app.ts) for an example of handling button clicks and form submissions.
+See the `@a2uiaction` event handler in `#maybeRenderData` in [samples/client/lit/shell/app.ts](https://github.com/a2ui-project/a2ui/tree/main/samples/client/lit/shell/app.ts) for an example of handling button clicks and form submissions.
 
 ## Error Handling
 
@@ -155,7 +155,7 @@ Common errors to handle:
 - **Invalid Data Path**: Check data model structure and JSON Pointer syntax.
 - **Schema Validation Failed**: Verify message format matches A2UI specification.
 
-See `try...catch` blocks in `#sendMessage` in [samples/client/lit/shell/app.ts](https://github.com/google/a2ui/tree/main/samples/client/lit/shell/app.ts) for examples of handling communication errors.
+See `try...catch` blocks in `#sendMessage` in [samples/client/lit/shell/app.ts](https://github.com/a2ui-project/a2ui/tree/main/samples/client/lit/shell/app.ts) for examples of handling communication errors.
 
 ## Next Steps
 
