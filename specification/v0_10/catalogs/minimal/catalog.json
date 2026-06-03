@@ -178,11 +178,9 @@
         "weight": {"type": "number"}
       }
     },
-    "theme": {
+    "configuration": {
       "type": "object",
-      "properties": {
-        "primaryColor": {"type": "string", "pattern": "^#[0-9a-fA-F]{6}$"}
-      },
+      "properties": {},
       "additionalProperties": true
     },
     "anyComponent": {

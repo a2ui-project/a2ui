@@ -139,11 +139,11 @@ The [`server_to_client.json`] schema is the top-level entry point. Every message
 
 ### The Basic Catalog
 
-The [`catalogs/basic/catalog.json`] schema contains the definitions for all specific UI components (e.g., `Text`, `Button`, `Row`), functions (e.g., `required`, `email`), and the theme schema.
+The [`catalogs/basic/catalog.json`] schema contains the definitions for all specific UI components (e.g., `Text`, `Button`, `Row`), functions (e.g., `required`, `email`), and the configuration schema.
 
 **Swappable Catalogs & Validation:**
 
-The [`server_to_client.json`] envelope schema is designed to be catalog-agnostic. It references components and themes using a placeholder filename: `catalog.json` (specifically `$ref: "catalog.json#/$defs/anyComponent"` and `$ref: "catalog.json#/$defs/theme"`).
+The [`server_to_client.json`] envelope schema is designed to be catalog-agnostic. It references components and configurations using a placeholder filename: `catalog.json` (specifically `$ref: "catalog.json#/$defs/anyComponent"` and `$ref: "catalog.json#/$defs/configuration"`).
 
 To validate A2UI messages:
 
@@ -179,7 +179,7 @@ This message signals the client to create a new surface and begin rendering it. 
 
 - `surfaceId` (string, required): The unique identifier for the UI surface to be rendered.
 - `catalogId` (string, required): A string that uniquely identifies the catalog (components and functions) used for this surface. It is recommended to prefix this with an internet domain that you own, to avoid conflicts (e.g., `https://mycompany.com/1.0/somecatalog`). If it is a URL, the URL does not need to have any deployed resources, it is simply a unique identifier.
-- `theme` (object, optional): A JSON object containing theme parameters (e.g., `primaryColor`) defined in the catalog's theme schema.
+- `configuration` (object, optional): A JSON object containing configuration parameters (e.g., `agentDisplayName`) defined in the catalog's configuration schema.
 - `sendDataModel` (boolean, optional): If true, the client will send the full data model of this surface in the metadata of every message sent to the server (via the Transport's metadata mechanism). This ensures the surface owner receives the full current state of the UI alongside the user's action or query. Defaults to false.
 
 **Example:**
@@ -190,8 +190,8 @@ This message signals the client to create a new surface and begin rendering it. 
   "createSurface": {
     "surfaceId": "user_profile_card",
     "catalogId": "https://a2ui.org/specification/v0_10/catalogs/basic/catalog.json",
-    "theme": {
-      "primaryColor": "#00BFFF"
+    "configuration": {
+      "agentDisplayName": "Weather Bot"
     },
     "sendDataModel": true
   }
@@ -743,15 +743,14 @@ The [`catalogs/basic/catalog.json`] provides the baseline set of components and 
 | **or**             | Logical OR operation on a list of boolean values.                        |
 | **not**            | Logical NOT operation on a boolean value.                                |
 
-### Theme
+### Configuration
 
-The basic catalog defines the following theme properties that can be set in the `createSurface` message:
+The basic catalog defines the following configuration properties that can be set in the `createSurface` message:
 
-| Property             | Type   | Description                                                                                                                                                                                                               |
-| :------------------- | :----- | :------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| **primaryColor**     | String | The primary brand color used for highlights throughout the UI (e.g., primary buttons, active borders). The renderer may generate variants, such as lighter shades, as needed. Format: Hexadecimal code (e.g., '#00BFFF'). |
-| **iconUrl**          | URI    | A URL for an image (e.g., logo or avatar) that identifies the agent or tool associated with the surface.                                                                                                                  |
-| **agentDisplayName** | String | Text to be displayed next to the surface to identify the agent or tool that created it (e.g. "Weather Bot").                                                                                                              |
+| Property             | Type   | Description                                                                                                  |
+| :------------------- | :----- | :----------------------------------------------------------------------------------------------------------- |
+| **iconUrl**          | URI    | A URL for an image (e.g., logo or avatar) that identifies the agent or tool associated with the surface.     |
+| **agentDisplayName** | String | Text to be displayed next to the surface to identify the agent or tool that created it (e.g. "Weather Bot"). |
 
 #### Identity and attribution
 
