@@ -24,9 +24,6 @@ The A2UI repository includes sample agents you can learn from:
 - [Restaurant Finder](https://github.com/a2ui-project/a2ui/tree/main/samples/agent/adk/restaurant_finder)
     - Table reservations with forms.
     - Written with the ADK.
-- [Contact Lookup](https://github.com/a2ui-project/a2ui/tree/main/samples/agent/adk/contact_lookup)
-    - Search with result lists.
-    - Written with the ADK.
 - [Rizzcharts](https://github.com/a2ui-project/a2ui/tree/main/samples/agent/adk/rizzcharts/python)
     - A2UI Custom components demo.
     - Written with the ADK.

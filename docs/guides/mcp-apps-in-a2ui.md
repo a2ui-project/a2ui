@@ -297,13 +297,13 @@ http://localhost:4200/?disable_security_self_test=true
 
 ## Troubleshooting
 
-| Problem                                        | Solution                                                                                         |
-| ---------------------------------------------- | ------------------------------------------------------------------------------------------------ |
-| `GEMINI_API_KEY environment variable not set`  | Export the key or add a `.env` file in the agent directory                                       |
-| Python version error on `contact_lookup` agent | Install Python 3.13+ (required by that sample's `pyproject.toml`)                                |
-| `npm run build:renderer` fails                 | Make sure you ran `npm install` first in `samples/client/lit/`                                   |
-| Angular client shows blank page                | Ensure you ran `npm run build:sandbox` before `npm start`                                        |
-| MCP app iframe doesn't load                    | Check that both the MCP server (port 8000) and proxy agent (port 10006) are running              |
-| `ng serve` not found                           | Run `npm install --include=dev` to install dev dependencies including `@angular/cli`             |
-| "URL with hostname not allowed"                | Angular 21 restricts allowed hosts. Use `localhost` (the default) — do not pass `--host 0.0.0.0` |
-| Security self-test fails in dev                | Add `?disable_security_self_test=true` to the URL                                                |
+| Problem                                           | Solution                                                                                         |
+| ------------------------------------------------- | ------------------------------------------------------------------------------------------------ |
+| `GEMINI_API_KEY environment variable not set`     | Export the key or add a `.env` file in the agent directory                                       |
+| Python version error on `restaurant_finder` agent | Install Python 3.13+ (required by that sample's `pyproject.toml`)                                |
+| `npm run build:renderer` fails                    | Make sure you ran `npm install` first in `samples/client/lit/`                                   |
+| Angular client shows blank page                   | Ensure you ran `npm run build:sandbox` before `npm start`                                        |
+| MCP app iframe doesn't load                       | Check that both the MCP server (port 8000) and proxy agent (port 10006) are running              |
+| `ng serve` not found                              | Run `npm install --include=dev` to install dev dependencies including `@angular/cli`             |
+| "URL with hostname not allowed"                   | Angular 21 restricts allowed hosts. Use `localhost` (the default) — do not pass `--host 0.0.0.0` |
+| Security self-test fails in dev                   | Add `?disable_security_self_test=true` to the URL                                                |

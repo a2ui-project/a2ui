@@ -170,11 +170,6 @@ The A2UI community is building exciting projects:
     - Gemini-powered agent
     - Full source code available
 
-- **Contact Lookup** ([samples/agent/adk/contact_lookup](https://github.com/a2ui-project/a2ui/tree/main/samples/agent/adk/contact_lookup))
-    - Search interface with results list
-    - A2A agent example
-    - Demonstrates data binding
-
 - **Component Gallery** ([samples/client/angular - gallery mode](https://github.com/a2ui-project/a2ui/tree/main/samples/client/angular))
     - Interactive showcase of all components
     - Live examples with code

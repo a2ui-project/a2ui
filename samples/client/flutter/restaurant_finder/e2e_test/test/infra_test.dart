@@ -30,9 +30,13 @@ void main() {
     print('Joke from AI:\n\n$result\n\n');
   });
 
-  test('test can start restaurant_finder', () async {
-    final restaurantFinderClient = TestRestaurantFinderClient();
-    addTearDown(restaurantFinderClient.dispose);
-    await restaurantFinderClient.startAndVerify();
-  }, timeout: const Timeout(Duration(minutes: 5)));
+  test(
+    'test can start restaurant_finder',
+    () async {
+      final restaurantFinderClient = TestRestaurantFinderClient();
+      addTearDown(restaurantFinderClient.dispose);
+      await restaurantFinderClient.startAndVerify();
+    },
+    timeout: const Timeout(Duration(minutes: 5)),
+  );
 }

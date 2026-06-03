@@ -17,7 +17,6 @@ The best way to share your work is to **post in [GitHub Discussions](https://git
 **Official samples** in the repo are a great reference for what good A2UI projects look like:
 
 - [Restaurant Finder](https://github.com/a2ui-project/a2ui/tree/main/samples/agent/adk/restaurant_finder) — ADK agent with dynamic forms.
-- [Contact Lookup](https://github.com/a2ui-project/a2ui/tree/main/samples/agent/adk/contact_lookup) — search UI with data binding.
 - [Angular client](https://github.com/a2ui-project/a2ui/tree/main/samples/client/angular) — gallery + restaurant client.
 - [Lit shell](https://github.com/a2ui-project/a2ui/tree/main/samples/client/lit/shell) — minimal web component client.
 
