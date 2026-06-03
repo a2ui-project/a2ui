@@ -29,7 +29,7 @@ A2UI enables AI agents to generate rich, interactive user interfaces that render
 
 A2UI is Apache 2.0 licensed,
 created by Google with contributions from CopilotKit and the open source community,
-and is in active development [on GitHub](https://github.com/google/A2UI).
+and is in active development [on GitHub](https://github.com/a2ui-project/a2ui).
 
 A2UI solves the following problem: **how can AI agents safely send rich UIs across trust boundaries?**
 

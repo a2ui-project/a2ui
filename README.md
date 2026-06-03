@@ -114,8 +114,8 @@ Pick the path that matches where you want to start:
 Prerequisites: Node.js 18+, [uv](https://docs.astral.sh/uv/), and a [Gemini API key](https://aistudio.google.com/apikey).
 
 ```bash
-git clone https://github.com/google/A2UI.git
-cd A2UI
+git clone https://github.com/a2ui-project/a2ui.git
+cd a2ui
 export GEMINI_API_KEY="your_gemini_api_key"
 cd samples/client/lit
 npm run demo:restaurant

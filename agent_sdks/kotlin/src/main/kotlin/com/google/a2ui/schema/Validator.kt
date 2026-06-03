@@ -16,11 +16,11 @@
 
 package com.google.a2ui.schema
 
-import com.fasterxml.jackson.databind.ObjectMapper
-import com.networknt.schema.JsonSchema
-import com.networknt.schema.JsonSchemaFactory
-import com.networknt.schema.SchemaValidatorsConfig
-import com.networknt.schema.SpecVersion
+import com.networknt.schema.InputFormat
+import com.networknt.schema.Schema
+import com.networknt.schema.SchemaRegistry
+import com.networknt.schema.SchemaRegistryConfig
+import com.networknt.schema.dialect.Dialects
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
@@ -44,21 +44,18 @@ constructor(
   private val catalog: A2uiCatalog,
   private val schemaMappings: Map<String, String> = emptyMap(),
 ) {
-  private val validator: JsonSchema = buildValidator()
-  private val mapper = ObjectMapper()
-  private val shared0_9Factory: JsonSchemaFactory by lazy {
-    JsonSchemaFactory.builder(JsonSchemaFactory.getInstance(SpecVersion.VersionFlag.V202012))
-      .schemaMappers { schemaMappers ->
-        schemaMappings.forEach { (prefix, target) -> schemaMappers.mapPrefix(prefix, target) }
+  private val shared0_9Registry: SchemaRegistry by lazy {
+    SchemaRegistry.withDialect(Dialects.getDraft202012()) { builder ->
+      builder.schemaIdResolvers { schemaIdResolvers ->
+        schemaMappings.forEach { (prefix, target) -> schemaIdResolvers.mapPrefix(prefix, target) }
       }
-      .build()
+    }
   }
-  private val sharedConfig: SchemaValidatorsConfig by lazy {
-    SchemaValidatorsConfig.builder().build()
-  }
-  private val subValidators = mutableMapOf<String, JsonSchema>()
+  private val sharedConfig: SchemaRegistryConfig by lazy { SchemaRegistryConfig.builder().build() }
+  private val subValidators = mutableMapOf<String, Schema>()
+  private val validator: Schema = buildValidator()
 
-  private fun buildValidator(): JsonSchema =
+  private fun buildValidator(): Schema =
     if (catalog.version == A2uiVersion.VERSION_0_8) build0_8Validator() else build0_9Validator()
 
   private fun injectAdditionalProperties(
@@ -121,7 +118,7 @@ constructor(
     return bundled as JsonObject
   }
 
-  private fun build0_8Validator(): JsonSchema {
+  private fun build0_8Validator(): Schema {
     val bundledSchema = bundle0_8Schemas()
     val fullSchema = SchemaResourceLoader.wrapAsJsonArray(bundledSchema).toMutableMap()
     fullSchema[KEY_DOLLAR_SCHEMA] = JsonPrimitive(SCHEMA_DRAFT_2020_12)
@@ -132,38 +129,29 @@ constructor(
     val baseDirUri = baseUri.substringBeforeLast("/")
     val commonTypesUri = "$baseDirUri/$FILE_COMMON_TYPES"
 
-    val config = SchemaValidatorsConfig.builder().build()
-
     val jsonFmt = Json { prettyPrint = false }
 
-    val factory =
-      JsonSchemaFactory.builder(JsonSchemaFactory.getInstance(SpecVersion.VersionFlag.V202012))
-        .schemaMappers { schemaMappers ->
-          schemaMappings.forEach { (prefix, target) -> schemaMappers.mapPrefix(prefix, target) }
-          schemaMappers.mapPrefix(FILE_COMMON_TYPES, commonTypesUri)
+    val registry =
+      SchemaRegistry.withDialect(Dialects.getDraft202012()) { builder ->
+        builder.schemaIdResolvers { schemaIdResolvers ->
+          schemaMappings.forEach { (prefix, target) -> schemaIdResolvers.mapPrefix(prefix, target) }
+          schemaIdResolvers.mapPrefix(FILE_COMMON_TYPES, commonTypesUri)
         }
-        .build()
+        builder.schemaRegistryConfig(sharedConfig)
+      }
 
     val schemaString = jsonFmt.encodeToString(JsonElement.serializer(), JsonObject(fullSchema))
-    return factory.getSchema(schemaString, config)
+    return registry.getSchema(schemaString, InputFormat.JSON)
   }
 
-  private fun build0_9Validator(): JsonSchema {
+  private fun build0_9Validator(): Schema {
     val fullSchema =
       SchemaResourceLoader.wrapAsJsonArray(catalog.serverToClientSchema).toMutableMap()
     fullSchema[KEY_DOLLAR_SCHEMA] = JsonPrimitive(SCHEMA_DRAFT_2020_12)
 
-    val config = SchemaValidatorsConfig.builder().build()
-    val factory =
-      JsonSchemaFactory.builder(JsonSchemaFactory.getInstance(SpecVersion.VersionFlag.V202012))
-        .schemaMappers { schemaMappers ->
-          schemaMappings.forEach { (prefix, target) -> schemaMappers.mapPrefix(prefix, target) }
-        }
-        .build()
-
     val jsonFmt = Json { prettyPrint = false }
     val schemaString = jsonFmt.encodeToString(JsonElement.serializer(), JsonObject(fullSchema))
-    return factory.getSchema(schemaString, config)
+    return shared0_9Registry.getSchema(schemaString, InputFormat.JSON)
   }
 
   /**
@@ -185,9 +173,8 @@ constructor(
       // Basic schema validation
       val jsonFmt = Json { prettyPrint = false }
       val messagesString = jsonFmt.encodeToString(JsonElement.serializer(), messages)
-      val jsonNode = mapper.readTree(messagesString)
 
-      val errors = validator.validate(jsonNode)
+      val errors = validator.validate(messagesString, InputFormat.JSON)
       if (errors.isNotEmpty()) {
         val msg = buildString {
           append("Validation failed:")
@@ -290,7 +277,7 @@ constructor(
     }
   }
 
-  private fun getSubValidator(defName: String): JsonSchema {
+  private fun getSubValidator(defName: String): Schema {
     return subValidators.getOrPut(defName) {
       val defs =
         catalog.serverToClientSchema["\$defs"] as? JsonObject
@@ -310,22 +297,21 @@ constructor(
 
       val jsonFmt = Json { prettyPrint = false }
       val schemaString = jsonFmt.encodeToString(JsonElement.serializer(), tempSchema)
-      shared0_9Factory.getSchema(schemaString, sharedConfig)
+      shared0_9Registry.getSchema(schemaString, InputFormat.JSON)
     }
   }
 
   private fun getFormattedErrors(
-    validator: JsonSchema,
+    validator: Schema,
     instance: JsonElement,
     basePath: String,
   ): List<String> {
     val jsonFmt = Json { prettyPrint = false }
     val instanceStr = jsonFmt.encodeToString(JsonElement.serializer(), instance)
-    val jsonNode = mapper.readTree(instanceStr)
-    val errors = validator.validate(jsonNode)
+    val errors = validator.validate(instanceStr, InputFormat.JSON)
 
     return errors.map { err ->
-      val msg = err.message ?: ""
+      val msg = err.toString()
       val unexpectedRegex =
         Regex(
           "property '(.*?)' is not defined in the schema and the schema does not allow additional properties"
@@ -419,7 +405,7 @@ constructor(
           )
         val jsonFmt = Json { prettyPrint = false }
         val schemaString = jsonFmt.encodeToString(JsonElement.serializer(), tempSchema)
-        shared0_9Factory.getSchema(schemaString, sharedConfig)
+        shared0_9Registry.getSchema(schemaString, InputFormat.JSON)
       }
 
     return getFormattedErrors(validator, comp, path)

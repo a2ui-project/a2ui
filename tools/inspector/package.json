@@ -55,7 +55,7 @@
   "repository": {
     "directory": "tools/inspector",
     "type": "git",
-    "url": "git+https://github.com/google/A2UI.git"
+    "url": "git+https://github.com/a2ui-project/a2ui.git"
   },
   "files": [
     "dist"
@@ -64,9 +64,9 @@
   "author": "Google",
   "license": "Apache-2.0",
   "bugs": {
-    "url": "https://github.com/google/A2UI/issues"
+    "url": "https://github.com/a2ui-project/a2ui/issues"
   },
-  "homepage": "https://github.com/google/A2UI/tree/main/web#readme",
+  "homepage": "https://github.com/a2ui-project/a2ui/tree/main/web#readme",
   "devDependencies": {
     "dotenv": "^17.2.3",
     "typescript": "^5.8.3",

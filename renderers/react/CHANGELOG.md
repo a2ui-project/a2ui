@@ -3,7 +3,7 @@
 ## 0.10.0
 
 - **BREAKING CHANGE**: (v0_9) Rename Icon `path` property to `svgPath` and update component to correctly render SVG elements.
-- (v0_8) Exclude SVG elements and descendants from CSS reset to restore SVG rendering. [#1252](https://github.com/google/A2UI/pull/1252)
+- (v0_8) Exclude SVG elements and descendants from CSS reset to restore SVG rendering. [#1252](https://github.com/a2ui-project/a2ui/pull/1252)
 - Added license.
 
 ## 0.9.1
@@ -12,7 +12,7 @@
 - **BREAKING CHANGE**: Renamed `createBinderlessComponent` to `createBinderlessComponentImplementation`.
 - **BREAKING CHANGE**: Removed `minimalCatalog`.
 - (v0_9) Re-style the v0_9 catalog components using the default theme from
-  `web_core`. [#1205](https://github.com/google/A2UI/pull/1205)
+  `web_core`. [#1205](https://github.com/a2ui-project/a2ui/pull/1205)
 
 ## 0.8.1
 

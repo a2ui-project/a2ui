@@ -128,7 +128,7 @@ fun main(args: Array<String>) {
               "http://localhost:10002",
               listOf(
                 "https://a2ui.org/specification/v0_8/standard_catalog_definition.json",
-                "https://raw.githubusercontent.com/google/A2UI/main/samples/agent/adk/rizzcharts/rizzcharts_catalog_definition.json",
+                "https://raw.githubusercontent.com/a2ui-project/a2ui/main/samples/agent/adk/rizzcharts/rizzcharts_catalog_definition.json",
               ),
             )
           call.respond(response)
