@@ -68,7 +68,7 @@ class A2uiPartConverter:
       a2ui_catalog: A2uiCatalog,
       bypass_tool_check: bool = False,
       fallback_text: Optional[str] = None,
-      version: str = "0.8",
+      version: str = constants.VERSION_0_8,
   ):
     self._catalog = a2ui_catalog
     self._bypass_tool_check = bypass_tool_check
