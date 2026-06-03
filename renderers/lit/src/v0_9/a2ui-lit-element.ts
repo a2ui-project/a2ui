@@ -75,6 +75,9 @@ export abstract class A2uiLitElement<Api extends ComponentApi> extends LitElemen
     } else {
       componentId = childRef;
     }
+
+    // Keep this fallback because the previous A2uiChildRef type allowed object
+    // refs without a basePath.
     path = path ?? parentPath;
 
     return renderA2uiNode(new ComponentContext(surface, componentId, path), surface.catalog);
