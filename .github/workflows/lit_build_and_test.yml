@@ -33,6 +33,9 @@ permissions:
 jobs:
   build-and-test:
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        task: [unit, explorer]
 
     steps:
       - uses: actions/checkout@v6
@@ -58,6 +61,13 @@ jobs:
         working-directory: ./renderers/lit
         run: npm run build
 
-      - name: Run Lit renderer tests
-        working-directory: ./renderers/lit
-        run: npm test
+      - name: Run task
+        run: |
+          case "${{ matrix.task }}" in
+            unit)
+              cd ./renderers/lit && npm run test:unit
+              ;;
+            explorer)
+              cd ./renderers/lit/a2ui_explorer && npm i && npm run test:ci
+              ;;
+          esac
