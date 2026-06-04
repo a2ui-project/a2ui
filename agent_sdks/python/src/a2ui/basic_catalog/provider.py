@@ -59,3 +59,12 @@ class BasicCatalog:
         provider=BundledCatalogProvider(version),
         examples_path=resolve_examples_path(examples_path),
     )
+
+  @staticmethod
+  def get_catalog_id(version: str) -> str:
+    """Returns the basic catalog ID based on the specification version."""
+    if version not in BASIC_CATALOG_PATHS:
+      raise ValueError(f"Unsupported version: {version}")
+    rel_path = BASIC_CATALOG_PATHS[version][CATALOG_SCHEMA_KEY]
+    catalog_file = rel_path.replace("/json/", "/")
+    return f"{BASE_SCHEMA_URL}{catalog_file}"
