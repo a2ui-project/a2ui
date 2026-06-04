@@ -41,7 +41,7 @@ def create_a2ui_part(a2ui_data: dict[str, Any], version: Optional[str] = None) -
       An A2A Part with a DataPart containing the A2UI data.
   """
   mime_type = A2UI_MIME_TYPE
-  if version in ("0.8", "0.9", "v0.8", "v0.9"):
+  if version is None or version in ("0.8", "0.9", "v0.8", "v0.9"):
     mime_type = DEPRECATED_A2UI_MIME_TYPE
 
   return Part(
