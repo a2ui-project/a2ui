@@ -10,7 +10,7 @@
     "serve:ssr:angular": "node dist/angular/server/server.mjs",
     "serve:ssr:restaurant": "node dist/restaurant/server/server.mjs",
     "serve:ssr:rizzcharts": "node dist/rizzcharts/server/server.mjs",
-    "build:renderer": "cd ../../../renderers && for dir in 'web_core' 'markdown/markdown-it' 'angular'; do (cd \"$dir\" && npm install && npm run build); done",
+    "build:renderer": "cd ../../../adapters && for dir in 'web_core' 'markdown/markdown-it' 'angular'; do (cd \"$dir\" && npm install && npm run build); done",
     "serve:agent:restaurant": "cd ../../agent/adk/restaurant_finder && uv run .",
     "demo:restaurant": "npm run build:renderer && concurrently -k -n \"AGENT,WEB\" -c \"magenta,blue\" \"npm run serve:agent:restaurant\" \"npm start -- restaurant\"",
     "postinstall": "npm run build:renderer",

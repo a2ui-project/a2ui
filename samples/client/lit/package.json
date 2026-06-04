@@ -11,7 +11,7 @@
     "serve:agent:restaurant": "cd ../../agent/adk/restaurant_finder && uv run .",
     "serve:agent:orchestrator": "cd ../../agent/adk/orchestrator && uv run .",
     "serve:shell": "cd shell && npm run dev",
-    "build:renderer": "cd ../../../renderers && for dir in 'web_core' 'markdown/markdown-it' 'lit'; do (cd \"$dir\" && npm install && npm run build); done",
+    "build:renderer": "cd ../../../adapters && for dir in 'web_core' 'markdown/markdown-it' 'lit'; do (cd \"$dir\" && npm install && npm run build); done",
     "demo:restaurant": "npm install && npm run build:renderer && concurrently -k -n \"SHELL,REST\" -c \"magenta,blue\" \"npm run serve:shell\" \"npm run serve:agent:restaurant\"",
     "demo:orchestrator": "npm install && npm run build:renderer && concurrently -k -n \"SHELL,ORCH\" -c \"magenta,cyan\" \"npm run serve:shell\" \"npm run serve:agent:orchestrator\""
   },
