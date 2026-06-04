@@ -273,7 +273,7 @@ export class Validator {
             `updateComponents message received for surface '${surfaceId}' before createSurface message.`,
           );
         }
-        if (surfaceId && !activeSurfaces.has(surfaceId)) {
+        if (surfaceId && createdSurfaces.has(surfaceId) && !activeSurfaces.has(surfaceId)) {
           errors.push(
             `updateComponents message received for inactive or deleted surface '${surfaceId}'.`,
           );
@@ -322,15 +322,16 @@ export class Validator {
       } else if (message.updateDataModel) {
         this.validateUpdateDataModel(message.updateDataModel, errors);
         const surfaceId = message.updateDataModel.surfaceId;
-        if (surfaceId && !createdSurfaces.has(surfaceId)) {
-          errors.push(
-            `updateDataModel message received for surface '${surfaceId}' before createSurface message.`,
-          );
-        }
-        if (surfaceId && !activeSurfaces.has(surfaceId)) {
-          errors.push(
-            `updateDataModel message received for inactive or deleted surface '${surfaceId}'.`,
-          );
+        if (surfaceId) {
+          if (!createdSurfaces.has(surfaceId)) {
+            errors.push(
+              `updateDataModel message received for surface '${surfaceId}' before createSurface message.`,
+            );
+          } else if (!activeSurfaces.has(surfaceId)) {
+            errors.push(
+              `updateDataModel message received for inactive or deleted surface '${surfaceId}'.`,
+            );
+          }
         }
       } else if (message.deleteSurface) {
         this.validateDeleteSurface(message.deleteSurface, errors);

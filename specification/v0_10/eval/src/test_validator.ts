@@ -52,7 +52,11 @@ async function runTests() {
   const schemas = loadSchemas();
   const validator = new Validator(schemas);
 
-  const mockPrompt = {name: 'test_prompt', systemPrompt: '', userPrompt: ''};
+  const mockPrompt = {
+    name: 'test_prompt',
+    description: 'test description',
+    promptText: 'test prompt',
+  };
 
   const testCases: {
     name: string;
@@ -161,7 +165,22 @@ async function runTests() {
       ],
       expectedErrors: [
         "updateComponents message received for surface 'surf3' before createSurface message.",
-        "updateComponents message received for inactive or deleted surface 'surf3'.",
+      ],
+    },
+    {
+      name: 'updateDataModel before createSurface',
+      messages: [
+        {
+          version: 'v0.10',
+          updateDataModel: {
+            surfaceId: 'surf3_dm',
+            path: '/name',
+            value: 'Bob',
+          },
+        },
+      ],
+      expectedErrors: [
+        "updateDataModel message received for surface 'surf3_dm' before createSurface message.",
       ],
     },
     {
