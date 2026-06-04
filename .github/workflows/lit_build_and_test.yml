@@ -68,6 +68,6 @@ jobs:
               cd ./renderers/lit && npm run test:unit
               ;;
             explorer)
-              cd ./renderers/lit/a2ui_explorer && npm i && npm run test:ci
+              cd ./renderers/lit/a2ui_explorer && npm run build:deps && npm run test:ci
               ;;
           esac

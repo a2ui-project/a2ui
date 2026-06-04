@@ -7,7 +7,7 @@
   "scripts": {
     "generate-examples": "node scripts/generate-examples.mjs",
     "dev": "npm run generate-examples && npm run build:deps && vite",
-    "build:deps": "for dir in '../../web_core' '../../lit'; do npm install --prefix $dir && npm run build --prefix $dir; done && npm install",
+    "build:deps": "for dir in '../../web_core' '../../markdown/markdown-it' '../../lit'; do npm install --prefix $dir && npm run build --prefix $dir; done && npm install",
     "build": "npm run generate-examples && npm run build:deps && tsc && vite build",
     "test": "npm run generate-examples && karma start karma.conf.cjs --single-run=false --auto-watch=true",
     "test:debug": "npm run generate-examples && karma start karma.conf.cjs --single-run=false --auto-watch=true --browsers Chrome",
