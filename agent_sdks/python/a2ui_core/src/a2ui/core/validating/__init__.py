@@ -12,26 +12,18 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-SPEC_VERSION = "v0.9"
-SPEC_BASE_URL = "https://a2ui.org/specification"
+from .validator import A2uiValidator, A2uiValidatorError
+from .topology_analyzer import analyze_topology
+from .integrity_checker import (
+    validate_component_integrity,
+    validate_recursion_and_paths,
+    get_component_references,
+)
 
-MSG_TYPE_CREATE_SURFACE = "createSurface"
-MSG_TYPE_UPDATE_COMPONENTS = "updateComponents"
-MSG_TYPE_UPDATE_DATA_MODEL = "updateDataModel"
-MSG_TYPE_DELETE_SURFACE = "deleteSurface"
-
-CATALOG_COMPONENTS_KEY = "components"
-SURFACE_ID_KEY = "surfaceId"
-THEME_KEY = "theme"
-
-ROOT_ID = "root"
-
-DEFAULT_SINGLE_REF_FIELDS = {
-    "child",
-    "contentChild",
-    "entryPointChild",
-    "trigger",
-    "content",
-}
-
-DEFAULT_LIST_REF_FIELDS = {"children", "tabs"}
+__all__ = [
+    "A2uiValidator",
+    "analyze_topology",
+    "validate_component_integrity",
+    "validate_recursion_and_paths",
+    "get_component_references",
+]
