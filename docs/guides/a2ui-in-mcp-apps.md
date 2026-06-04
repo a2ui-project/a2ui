@@ -189,7 +189,7 @@ Your inlined app is now running in the sandbox. To leverage A2UI:
 1.  **Include the A2UI Angular/Lit libraries** in your app's bundle.
 2.  **Define a communication contract** with your Host to interact with the MCP Server.
 3.  When you receive the response from the Host, look for the `application/a2ui+json` mimeType in the content.
-4.  Parse the JSON text and pass it to the A2UI [`MessageProcessor`](https://github.com/a2ui-project/a2ui/blob/main/renderers/angular/src/v0_8/data/processor.ts).
+4.  Parse the JSON text and pass it to the A2UI [`MessageProcessor`](https://github.com/a2ui-project/a2ui/blob/main/adapters/angular/src/v0_8/data/processor.ts).
 
 **Example: Fetching and Rendering A2UI**
 

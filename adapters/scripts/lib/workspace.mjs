@@ -69,8 +69,8 @@ export function getPackageGraph() {
     // or those that are not private (if one is private and other isn't)
     if (packages[pkg.name]) {
       const existing = packages[pkg.name];
-      const isNewInRenderers = dir.includes('/renderers/');
-      const isExistingInRenderers = existing.dir.includes('/renderers/');
+      const isNewInRenderers = dir.includes('/adapters/');
+      const isExistingInRenderers = existing.dir.includes('/adapters/');
 
       if (isExistingInRenderers && !isNewInRenderers) continue;
       if (isExistingInRenderers === isNewInRenderers) {

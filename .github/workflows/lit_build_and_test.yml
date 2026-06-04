@@ -43,21 +43,21 @@ jobs:
           node-version: "22"
 
       - name: Install web_core dependencies
-        working-directory: ./renderers/web_core
+        working-directory: ./adapters/web_core
         run: npm i
 
       - name: Build web_core
-        working-directory: ./renderers/web_core
+        working-directory: ./adapters/web_core
         run: npm run build
 
       - name: Install Lit renderer dependencies
-        working-directory: ./renderers/lit
+        working-directory: ./adapters/lit
         run: npm i
 
       - name: Build Lit renderer
-        working-directory: ./renderers/lit
+        working-directory: ./adapters/lit
         run: npm run build
 
       - name: Run Lit renderer tests
-        working-directory: ./renderers/lit
+        working-directory: ./adapters/lit
         run: npm test

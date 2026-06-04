@@ -43,10 +43,10 @@ Once versions are updated and merged into `main`, use the `publish_npm` script t
 
 ```sh
 # Simulate publishing multiple packages (dry-run by default).
-./renderers/scripts/publish_npm.mjs --package=lit --package=web_core
+./adapters/scripts/publish_npm.mjs --package=lit --package=web_core
 
 # Actually publish by passing --no-dry-run.
-./renderers/scripts/publish_npm.mjs --package=lit --package=web_core --no-dry-run
+./adapters/scripts/publish_npm.mjs --package=lit --package=web_core --no-dry-run
 ```
 
 This script will:
@@ -69,13 +69,13 @@ Finally, trigger the public release to npmjs.com by uploading a manifest file. B
 
 ```sh
 # Simulate the preparation of the manifest (dry-run by default).
-./renderers/scripts/upload_manifest.mjs
+./adapters/scripts/upload_manifest.mjs
 
 # Prepare and upload a manifest to publish ALL packages.
-./renderers/scripts/upload_manifest.mjs --no-dry-run
+./adapters/scripts/upload_manifest.mjs --no-dry-run
 
 # Prepare and upload a manifest for specific packages.
-./renderers/scripts/upload_manifest.mjs --package=angular --package=lit --no-dry-run
+./adapters/scripts/upload_manifest.mjs --package=angular --package=lit --no-dry-run
 ```
 
 This generates a `manifest.json` and uploads it to GCS to trigger the internal release infrastructure. You must pass `--no-dry-run` to actually perform the upload. You should receive an email from exit-gate noting that publishing has commenced.

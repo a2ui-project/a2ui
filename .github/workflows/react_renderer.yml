@@ -59,23 +59,23 @@ jobs:
             ${{ runner.os }}-node-and-wireit-
 
       - name: Build web_core dependency
-        working-directory: ./renderers/web_core
+        working-directory: ./adapters/web_core
         run: |
           npm i
           npm run build
 
       - name: Build markdown-it dependency
-        working-directory: ./renderers/markdown/markdown-it
+        working-directory: ./adapters/markdown/markdown-it
         run: |
           npm i
           npm run build
 
       - name: Install React renderer deps
-        working-directory: ./renderers/react
+        working-directory: ./adapters/react
         run: npm i
 
       - name: Run task
-        working-directory: ./renderers/react
+        working-directory: ./adapters/react
         run: |
           case "${{ matrix.task }}" in
             test)

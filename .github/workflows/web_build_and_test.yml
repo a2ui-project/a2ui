@@ -41,19 +41,19 @@ jobs:
           node-version: "22"
 
       - name: Install web_core dependencies
-        working-directory: ./renderers/web_core
+        working-directory: ./adapters/web_core
         run: npm i
 
       - name: Build web_core
-        working-directory: ./renderers/web_core
+        working-directory: ./adapters/web_core
         run: npm run build
 
       - name: Lint web_core
-        working-directory: ./renderers/web_core
+        working-directory: ./adapters/web_core
         run: npm run lint
 
       - name: Test web_core
-        working-directory: ./renderers/web_core
+        working-directory: ./adapters/web_core
         run: npm run test
   test-scripts:
     runs-on: ubuntu-latest

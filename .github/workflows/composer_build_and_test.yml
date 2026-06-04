@@ -51,11 +51,11 @@ jobs:
           cache-dependency-path: "tools/composer/pnpm-lock.yaml"
 
       - name: Build web_core (dependency of @a2ui/react)
-        working-directory: ./renderers/web_core
+        working-directory: ./adapters/web_core
         run: npm ci && npm run build
 
       - name: Build React renderer (local file dependency)
-        working-directory: ./renderers/react
+        working-directory: ./adapters/react
         run: npm ci && npm run build
 
       - name: Install dependencies

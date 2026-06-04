@@ -63,7 +63,7 @@ export default async () => {
       alias: {
         '@a2ui/markdown-it': resolve(
           __dirname,
-          '../../../../renderers/markdown/markdown-it/dist/src/markdown.js',
+          '../../../../adapters/markdown/markdown-it/dist/src/markdown.js',
         ),
         'sandbox.js': resolve(__dirname, '../../' + SANDBOX_ENTRY_NAME + '.ts'),
         '@modelcontextprotocol/ext-apps/app-bridge': resolve(

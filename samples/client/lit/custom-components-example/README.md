@@ -13,7 +13,7 @@ This sample depends on the Lit renderer. Before running this sample, you need to
 1. **Build the renderer:**
 
    ```bash
-   cd ../../../renderers/lit
+   cd ../../../adapters/lit
    npm install
    npm run build
    ```

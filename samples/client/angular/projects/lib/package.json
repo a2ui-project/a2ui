@@ -4,7 +4,7 @@
   "dependencies": {
     "markdown-it": "^14.1.0",
     "tslib": "^2.3.0",
-    "@a2ui/web_core": "file:../../../../../renderers/web_core"
+    "@a2ui/web_core": "file:../../../../../adapters/web_core"
   },
   "peerDependencies": {
     "@angular/common": "^21.2.0",

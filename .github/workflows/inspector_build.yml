@@ -45,19 +45,19 @@ jobs:
           node-version: "22"
 
       - name: Install web_core deps
-        working-directory: ./renderers/web_core
+        working-directory: ./adapters/web_core
         run: npm ci
 
       - name: Build web_core
-        working-directory: ./renderers/web_core
+        working-directory: ./adapters/web_core
         run: npm run build
 
       - name: Install lib's deps
-        working-directory: ./renderers/lit
+        working-directory: ./adapters/lit
         run: npm ci
 
       - name: Build lib
-        working-directory: ./renderers/lit
+        working-directory: ./adapters/lit
         run: npm run build
 
       - name: Install inspector deps

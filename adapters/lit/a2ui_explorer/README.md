@@ -24,8 +24,8 @@ npm run build
 
 For more details on building the renderers, see:
 
-- [Web Core README](../../../../renderers/web_core/README.md)
-- [Lit Renderer README](../../../../renderers/lit/README.md)
+- [Web Core README](../../../../adapters/web_core/README.md)
+- [Lit Renderer README](../../../../adapters/lit/README.md)
 
 ## Getting Started
 

@@ -170,7 +170,7 @@ You can find the full specification of the basic catalog in the [GitHub reposito
 - **Content**: `Text`, `Image`, `Icon`, `Video`
 - **Input**: `Button`, `TextField`, `CheckBox`, `ChoicePicker`, `Slider`, `DateTimeInput`
 
-You can find the source code for these components in the [GitHub repository](https://github.com/a2ui-project/a2ui/tree/main/renderers/lit/src/v0_9/catalogs/basic/components).
+You can find the source code for these components in the [GitHub repository](https://github.com/a2ui-project/a2ui/tree/main/adapters/lit/src/v0_9/catalogs/basic/components).
 
 ## Migration from v0.8
 

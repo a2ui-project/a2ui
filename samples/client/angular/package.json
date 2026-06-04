@@ -19,8 +19,8 @@
   "private": true,
   "dependencies": {
     "@a2a-js/sdk": "^0.3.4",
-    "@a2ui/markdown-it": "file:../../../renderers/markdown/markdown-it",
-    "@a2ui/web_core": "file:../../../renderers/web_core",
+    "@a2ui/markdown-it": "file:../../../adapters/markdown/markdown-it",
+    "@a2ui/web_core": "file:../../../adapters/web_core",
     "@angular/cdk": "^20.2.10",
     "@angular/common": "^21.2.0",
     "@angular/compiler": "^21.2.0",
@@ -75,7 +75,7 @@
   },
   "workspaces": [
     "projects/*",
-    "../../../renderers/web_core",
-    "../../../renderers/markdown/markdown-it"
+    "../../../adapters/web_core",
+    "../../../adapters/markdown/markdown-it"
   ]
 }

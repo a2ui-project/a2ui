@@ -30,5 +30,5 @@
     "noUnusedParameters": true,
     "noFallthroughCasesInSwitch": true
   },
-  "references": [{"path": "../../../../renderers/lit"}]
+  "references": [{"path": "../../../../adapters/lit"}]
 }
