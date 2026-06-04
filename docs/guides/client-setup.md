@@ -4,13 +4,13 @@ Integrate A2UI into your application using the renderer for your platform.
 
 ## Renderers
 
-| Renderer                                                                                 | Platform           | v0.8 | v0.9 | Status             |
-| ---------------------------------------------------------------------------------------- | ------------------ | ---- | ---- | ------------------ |
+| Renderer                                                                                | Platform           | v0.8 | v0.9 | Status             |
+| --------------------------------------------------------------------------------------- | ------------------ | ---- | ---- | ------------------ |
 | **[React](https://github.com/a2ui-project/a2ui/tree/main/adapters/react)**              | Web                | ✅   | ✅   | ✅ Stable          |
 | **[Lit (Web Components)](https://github.com/a2ui-project/a2ui/tree/main/adapters/lit)** | Web                | ✅   | ✅   | ✅ Stable          |
 | **[Angular](https://github.com/a2ui-project/a2ui/tree/main/adapters/angular)**          | Web                | ✅   | ✅   | ✅ Stable          |
-| **[Flutter (GenUI SDK)](https://docs.flutter.dev/ai/genui)**                             | Mobile/Desktop/Web | ✅   | ✅   | ✅ Stable          |
-| **Jetpack Compose**                                                                      | Android            | —    | —    | 🚧 Planned Q2 2026 |
+| **[Flutter (GenUI SDK)](https://docs.flutter.dev/ai/genui)**                            | Mobile/Desktop/Web | ✅   | ✅   | ✅ Stable          |
+| **Jetpack Compose**                                                                     | Android            | —    | —    | 🚧 Planned Q2 2026 |
 
 For more see all [A2UI Renderers](../reference/renderers.md) and [Community A2UI Renderers](../ecosystem/renderers.md).
 
