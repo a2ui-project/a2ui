@@ -8,7 +8,8 @@
     "dev": "npm run build:deps && vite",
     "build:deps": "for dir in '../../web_core' '../../lit'; do npm install --prefix $dir && npm run build --prefix $dir; done && npm install",
     "build": "npm run build:deps && tsc && vite build",
-    "preview": "vite preview"
+    "test": "vitest",
+    "test:ci": "vitest run"
   },
   "dependencies": {
     "@a2ui/lit": "file:..",
@@ -20,6 +21,8 @@
   },
   "devDependencies": {
     "typescript": "^5.8.3",
-    "vite": "^7.1.11"
+    "vite": "^7.1.11",
+    "vitest": "^4.0.18",
+    "jsdom": "^28.1.0"
   }
 }

@@ -179,18 +179,19 @@ function extractMessagesAndDescription(
 }
 
 /**
- * Converts a filename (e.g., "basic_components.json") to a human-readable title
- * (e.g., "Basic Components").
+ * Converts a filename (e.g., "02_email-compose.json") to a human-readable title
+ * (e.g., "Email Compose").
  *
- * Replaces underscores with spaces and capitalizes each word.
+ * Removes leading numbering prefixes, replaces hyphens and underscores with spaces,
+ * and capitalizes each word.
  *
  * @param filename The filename to convert.
  * @returns The formatted title.
  */
 function filenameToTitle(filename: string): string {
   return filename
-    .split('_')
-    .map(word => word.charAt(0).toUpperCase() + word.slice(1))
-    .join(' ')
-    .replace('.json', '');
+    .replace('.json', '')
+    .replace(/^[0-9]+_/, '')
+    .replace(/[-_]/g, ' ')
+    .replace(/\b\w/g, l => l.toUpperCase());
 }

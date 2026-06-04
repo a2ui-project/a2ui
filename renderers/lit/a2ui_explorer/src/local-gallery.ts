@@ -31,12 +31,15 @@ export class LocalGallery extends LitElement {
   @state() accessor processedMessageCount = 0;
   @state() accessor currentDataModelText = '{}';
   @state() accessor primaryColor = '#1177ee';
+  // Expose the dispatched actions log for automated integration tests to inspect
+  actionLog: Array<{action: any}> = [];
 
   @provide({context: Context.markdown})
   private accessor markdownRenderer = renderMarkdown;
 
   private processor = new MessageProcessor([basicCatalog], (action: any) => {
     this.log(`Action dispatched: ${action.surfaceId}`, action);
+    this.actionLog.push({action});
   });
 
   private dataModelSubscription?: {unsubscribe: () => void};
@@ -75,6 +78,7 @@ export class LocalGallery extends LitElement {
     this.processedMessageCount = 0;
     this.mockLogs = [];
     this.currentDataModelText = '{}';
+    this.actionLog = [];
 
     // Clear old surface and subscriptions
     if (this.dataModelSubscription) {
