@@ -397,3 +397,90 @@ agent_card = AgentCard(
     )
 )
 ```
+
+#### Setting or Propagating Client Capabilities on Remote A2A Agents
+
+When calling remote A2A agents (such as delegating to a sub-agent or proxying to a backend A2A stubby agent) via ADK `RemoteA2aAgent`, you must ensure that the remote agent receives the client's UI capabilities in its request metadata under `a2uiClientCapabilities`.
+
+You can configure an `A2aRemoteAgentConfig` with a `before_request` interceptor (`RequestInterceptor`) to inject this metadata. There are two common scenarios:
+
+##### Scenario 1: Propagating Capabilities from Session State (Orchestrator)
+
+When an orchestrator receives an A2A request from a client, it captures the client capabilities into session state. When calling a sub-agent via `RemoteA2aAgent`, the interceptor propagates those capabilities from `ctx.session.state`:
+
+```python
+from a2a.types import Message as A2AMessage
+from a2ui.schema.constants import A2UI_CLIENT_CAPABILITIES_KEY
+from google.adk.a2a.agent.config import A2aRemoteAgentConfig, ParametersConfig, RequestInterceptor
+from google.adk.agents.invocation_context import InvocationContext
+from google.adk.agents.remote_a2a_agent import RemoteA2aAgent
+
+async def propagate_capabilities_interceptor(
+    ctx: InvocationContext,
+    message: A2AMessage,
+    params: ParametersConfig,
+) -> tuple[A2AMessage, ParametersConfig]:
+  # Retrieve capabilities saved earlier in session context state
+  if ctx.session and ctx.session.state:
+    client_capabilities = ctx.session.state.get("client_capabilities")
+    if client_capabilities:
+      if message.metadata is None:
+        message.metadata = {}
+      message.metadata[A2UI_CLIENT_CAPABILITIES_KEY] = client_capabilities
+  return message, params
+
+remote_agent_config = A2aRemoteAgentConfig(
+    request_interceptors=[
+        RequestInterceptor(before_request=propagate_capabilities_interceptor)
+    ]
+)
+
+remote_a2a_agent = RemoteA2aAgent(
+    name="subagent_name",
+    agent_card=subagent_card,
+    config=remote_agent_config,
+    # ...
+)
+```
+
+##### Scenario 2: Explicitly Setting Capabilities for Proxy Agents
+
+When acting as a proxy connecting a non-A2A frontend (such as Orcas UI) to a remote A2A backend stubby agent, the incoming frontend request does not have A2A metadata. The proxy agent configures a `before_request` interceptor to explicitly construct and inject the supported client capabilities on outgoing requests:
+
+```python
+from a2a.types import Message as A2AMessage
+from a2ui.schema.constants import A2UI_CLIENT_CAPABILITIES_KEY
+from google.adk.a2a.agent.config import A2aRemoteAgentConfig, ParametersConfig, RequestInterceptor
+from google.adk.agents.invocation_context import InvocationContext
+from google.adk.agents.remote_a2a_agent import RemoteA2aAgent
+
+async def set_proxy_capabilities_interceptor(
+    ctx: InvocationContext,
+    message: A2AMessage,
+    params: ParametersConfig,
+) -> tuple[A2AMessage, ParametersConfig]:
+  if message.metadata is None:
+    message.metadata = {}
+
+  # Explicitly define what the proxy or UI client supports
+  message.metadata[A2UI_CLIENT_CAPABILITIES_KEY] = {
+      "supportedCatalogIds": [
+          "https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json"
+      ],
+      "inlineCatalogs": True,
+  }
+  return message, params
+
+proxy_agent_config = A2aRemoteAgentConfig(
+    request_interceptors=[
+        RequestInterceptor(before_request=set_proxy_capabilities_interceptor)
+    ]
+)
+
+remote_stubby_agent = RemoteA2aAgent(
+    name="stubby_backend",
+    agent_card=agent_card,
+    config=proxy_agent_config,
+    # ...
+)
+```
