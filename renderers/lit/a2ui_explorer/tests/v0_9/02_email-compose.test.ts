@@ -15,7 +15,12 @@
  */
 
 import {describe, it, expect, beforeEach} from 'vitest';
-import {loadExample, getDeepTextContent, querySelectorAllDeep, whenSettled} from '../utils/test-utils';
+import {
+  loadExample,
+  getDeepTextContent,
+  querySelectorAllDeep,
+  whenSettled,
+} from '../utils/test-utils';
 import {LocalGallery} from '../../src/local-gallery';
 
 describe('Example: Email Compose', () => {
@@ -37,7 +42,10 @@ describe('Example: Email Compose', () => {
   });
 
   it('should handle Send button click', async () => {
-    const buttons = querySelectorAllDeep(gallery.shadowRoot!, '.a2ui-button') as HTMLButtonElement[];
+    const buttons = querySelectorAllDeep(
+      gallery.shadowRoot!,
+      '.a2ui-button',
+    ) as HTMLButtonElement[];
     const sendBtn = buttons.find(b => getDeepTextContent(b).includes('Send'))!;
     expect(sendBtn).toBeDefined();
 
@@ -49,7 +57,10 @@ describe('Example: Email Compose', () => {
   });
 
   it('should handle Discard button click', async () => {
-    const buttons = querySelectorAllDeep(gallery.shadowRoot!, '.a2ui-button') as HTMLButtonElement[];
+    const buttons = querySelectorAllDeep(
+      gallery.shadowRoot!,
+      '.a2ui-button',
+    ) as HTMLButtonElement[];
     const discardBtn = buttons.find(b => getDeepTextContent(b).includes('Discard'))!;
     expect(discardBtn).toBeDefined();
 
