@@ -5,7 +5,7 @@
   "description": "React renderer for A2UI (Agent-to-User Interface)",
   "homepage": "https://a2ui.org/",
   "repository": {
-    "directory": "renderers/react",
+    "directory": "adapters/react",
     "type": "git",
     "url": "git+https://github.com/a2ui-project/a2ui.git"
   },

@@ -18,11 +18,11 @@ on:
   push:
     branches: [main]
     paths:
-      - "renderers/web_core/**/*"
+      - "adapters/web_core/**/*"
       - ".github/workflows/web_build_and_test.yml"
   pull_request:
     paths:
-      - "renderers/web_core/**/*"
+      - "adapters/web_core/**/*"
       - ".github/workflows/web_build_and_test.yml"
 
 permissions:
@@ -66,4 +66,4 @@ jobs:
           node-version: "22"
 
       - name: Run publish script integration test
-        run: node --test renderers/scripts/publish_npm.test.mjs
+        run: node --test adapters/scripts/publish_npm.test.mjs

@@ -30,7 +30,7 @@ The A2UI repository is organized into several key directories:
 - `agent_sdks/`: Contains source code for Agent integrations.
   - `python/`: Python implementation of the A2UI agent library.
   - `kotlin/`: Kotlin implementation of the A2UI agent library.
-- `renderers/`: Contains renderer libraries.
+- `adapters/`: Contains renderer libraries.
   - `lit/`: The shared Lit renderer library used by the Lit clients.
   - `angular/`: The shared Angular renderer library used by the Angular clients.
   - `web_core/`: The shared core library used by web renderers.
@@ -84,7 +84,7 @@ The Lit clients are located in `samples/client/lit/`.
     First, ensure the shared renderers are built:
 
     ```bash
-    cd renderers/markdown/markdown-it
+    cd adapters/markdown/markdown-it
     npm install
     npm run build
 
@@ -112,7 +112,7 @@ The Angular clients are located in `samples/client/angular/`.
 First, ensure the shared renderers are built (if not already done):
 
 ```bash
-cd renderers/markdown/markdown-it
+cd adapters/markdown/markdown-it
 npm install
 npm run build
 
@@ -143,9 +143,9 @@ npm start -- contact  # Replace 'contact' with the desired project name (e.g., r
 
 There are three renderers available for A2UI:
 
-- **Web (Lit)**: Located in `renderers/lit`, this is the primary web renderer used by the demos in `web/`.
-- **Angular**: Located in `renderers/angular`, this is an alternative web renderer for Angular applications.
-- **Flutter**: The Flutter renderer is in a separate repository: [https://github.com/flutter/genui](https://github.com/flutter/genui). There is a placeholder renderer folder with a README.md file at `renderers/flutter`.
+- **Web (Lit)**: Located in `adapters/lit`, this is the primary web renderer used by the demos in `web/`.
+- **Angular**: Located in `adapters/angular`, this is an alternative web renderer for Angular applications.
+- **Flutter**: The Flutter renderer is in a separate repository: [https://github.com/flutter/genui](https://github.com/flutter/genui). There is a placeholder renderer folder with a README.md file at `adapters/flutter`.
 
 ## Keeping This Guide Updated
 

@@ -18,14 +18,14 @@ on:
   push:
     paths:
       - "tools/composer/**"
-      - "renderers/react/**"
-      - "renderers/web_core/**"
+      - "adapters/react/**"
+      - "adapters/web_core/**"
       - ".github/workflows/composer_build_and_test.yml"
   pull_request:
     paths:
       - "tools/composer/**"
-      - "renderers/react/**"
-      - "renderers/web_core/**"
+      - "adapters/react/**"
+      - "adapters/web_core/**"
       - ".github/workflows/composer_build_and_test.yml"
 
 permissions:

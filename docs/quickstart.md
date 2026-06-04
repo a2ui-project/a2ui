@@ -278,7 +278,7 @@ Want to see how it works? Check out:
 
 - **Agent Code**: `samples/agent/adk/restaurant_finder/` — The Python A2A agent
 - **Client Code**: `samples/client/lit/` — The Lit web client with A2UI renderer
-- **A2UI Renderers**: `renderers/lit/` (Lit) and `renderers/web_core/` (framework-agnostic core)
+- **A2UI Renderers**: `adapters/lit/` (Lit) and `adapters/web_core/` (framework-agnostic core)
 
 Each directory has its own README with detailed documentation.
 

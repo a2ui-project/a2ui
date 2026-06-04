@@ -176,18 +176,18 @@ This happens when Vite's dependency optimization cache becomes stale, typically 
 **Fix:** Clear the Vite cache and restart:
 
 ```bash
-# From renderers/react/visual-parity/
+# From adapters/react/visual-parity/
 rm -rf node_modules/.vite react/node_modules/.vite lit/node_modules/.vite ../node_modules/.vite
 npm run dev:react  # or dev:lit
 ```
 
 ### React Renderer Changes Not Picked Up
 
-If you edit files in `renderers/react/src/` but the visual parity app doesn't reflect the changes, this is because the visual parity app imports from the **built** `@a2ui/react` package, not directly from source.
+If you edit files in `adapters/react/src/` but the visual parity app doesn't reflect the changes, this is because the visual parity app imports from the **built** `@a2ui/react` package, not directly from source.
 
 **Why this happens:**
 
-1. Source changes are in `renderers/react/src/`
+1. Source changes are in `adapters/react/src/`
 2. Visual parity app imports from `@a2ui/react/styles` (workspace package)
 3. Vite pre-bundles workspace dependencies into `node_modules/.vite`
 4. The pre-bundled cache still has the old built version
@@ -195,7 +195,7 @@ If you edit files in `renderers/react/src/` but the visual parity app doesn't re
 **Fix:** Rebuild the package and clear Vite's cache:
 
 ```bash
-# From renderers/react/visual-parity/
+# From adapters/react/visual-parity/
 
 # 1. Rebuild the React renderer
 cd ../

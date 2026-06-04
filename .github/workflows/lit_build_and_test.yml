@@ -18,13 +18,13 @@ on:
   push:
     branches: [main]
     paths:
-      - "renderers/lit/**"
-      - "renderers/web_core/**"
+      - "adapters/lit/**"
+      - "adapters/web_core/**"
       - ".github/workflows/lit_build_and_test.yml"
   pull_request:
     paths:
-      - "renderers/lit/**"
-      - "renderers/web_core/**"
+      - "adapters/lit/**"
+      - "adapters/web_core/**"
       - ".github/workflows/lit_build_and_test.yml"
 
 permissions:

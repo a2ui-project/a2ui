@@ -19,14 +19,14 @@ on:
     branches: [main]
     paths:
       - "tools/inspector/**"
-      - "renderers/lit/**"
-      - "renderers/web_core/**"
+      - "adapters/lit/**"
+      - "adapters/web_core/**"
       - ".github/workflows/inspector_build.yml"
   pull_request:
     paths:
       - "tools/inspector/**"
-      - "renderers/lit/**"
-      - "renderers/web_core/**"
+      - "adapters/lit/**"
+      - "adapters/web_core/**"
       - ".github/workflows/inspector_build.yml"
 
 permissions:

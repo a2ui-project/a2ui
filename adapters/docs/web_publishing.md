@@ -4,7 +4,7 @@ This guide is for project maintainers. It details the publishing process to the 
 
 ## Automated Release Workflow (Recommended)
 
-The following scripts in `renderers/scripts/` automate the versioning, building, testing, and publishing of packages. These should generally be run from the `main` branch after a PR has been merged.
+The following scripts in `adapters/scripts/` automate the versioning, building, testing, and publishing of packages. These should generally be run from the `main` branch after a PR has been merged.
 
 ### Pre-requirement: Artifact registry configuration
 
@@ -25,10 +25,10 @@ To increment a package version and automatically sync all internal dependents (u
 
 ```sh
 # Automatically increment patch version (e.g. 0.9.5 -> 0.9.6)
-renderers/scripts/increment_version.mjs web_core
+adapters/scripts/increment_version.mjs web_core
 
 # Set a specific version (e.g. including pre-releases)
-renderers/scripts/increment_version.mjs lit 0.9.2-beta.1
+adapters/scripts/increment_version.mjs lit 0.9.2-beta.1
 ```
 
 This script will:

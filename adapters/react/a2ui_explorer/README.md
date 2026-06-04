@@ -6,8 +6,8 @@ This is the reference Gallery Application for the A2UI React renderer. It allows
 
 This application depends on the following local libraries in this repository:
 
-1. `@a2ui/web_core` (located in `renderers/web_core`)
-2. `@a2ui/react` (located in `renderers/react`)
+1. `@a2ui/web_core` (located in `adapters/web_core`)
+2. `@a2ui/react` (located in `adapters/react`)
 
 ## Building Dependencies
 
@@ -30,7 +30,7 @@ Once the dependencies are built, you can start the gallery app:
 
 ```bash
 # Navigate to this directory
-cd renderers/react/a2ui_explorer
+cd adapters/react/a2ui_explorer
 
 # Install dependencies
 npm install

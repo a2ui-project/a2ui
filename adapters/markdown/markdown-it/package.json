@@ -3,7 +3,7 @@
   "version": "0.0.4",
   "description": "A Markdown renderer using markdown-it and dompurify.",
   "repository": {
-    "directory": "renderers/markdown/markdown-it",
+    "directory": "adapters/markdown/markdown-it",
     "type": "git",
     "url": "git+https://github.com/a2ui-project/a2ui.git"
   },

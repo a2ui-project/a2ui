@@ -362,7 +362,7 @@ When a surface is created with `sendDataModel: true`, the client is responsible 
 
 To dynamically generate the `a2uiClientCapabilities` payload (specifically `inlineCatalogs`), the processor must convert internal component schemas into valid JSON Schemas.
 
-**Schema Types Location**: Foundational schema types _should_ be defined in a dedicated directory like `schema`. You can see the `renderers/web_core/src/v0_9/schema/common-types.ts` file in the reference web implementation as an example.
+**Schema Types Location**: Foundational schema types _should_ be defined in a dedicated directory like `schema`. You can see the `adapters/web_core/src/v0_9/schema/common-types.ts` file in the reference web implementation as an example.
 
 **Detectable Common Types**: Shared definitions (like `DynamicString`) must emit external JSON Schema `$ref` pointers. This is achieved by "tagging" the schemas using their `description` property (e.g., `REF:common_types.json#/$defs/DynamicString`).
 

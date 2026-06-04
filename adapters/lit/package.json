@@ -6,7 +6,7 @@
   "license": "Apache-2.0",
   "homepage": "https://a2ui.org/",
   "repository": {
-    "directory": "renderers/lit",
+    "directory": "adapters/lit",
     "type": "git",
     "url": "git+https://github.com/a2ui-project/a2ui.git"
   },

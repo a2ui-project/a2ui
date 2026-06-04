@@ -18,14 +18,14 @@ on:
   push:
     paths:
       - "tools/editor/**"
-      - "renderers/lit/**"
-      - "renderers/web_core/**"
+      - "adapters/lit/**"
+      - "adapters/web_core/**"
       - ".github/workflows/editor_build.yml"
   pull_request:
     paths:
       - "tools/editor/**"
-      - "renderers/lit/**"
-      - "renderers/web_core/**"
+      - "adapters/lit/**"
+      - "adapters/web_core/**"
       - ".github/workflows/editor_build.yml"
 
 permissions:

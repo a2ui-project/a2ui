@@ -18,15 +18,15 @@ on:
   push:
     branches: [main]
     paths-ignore:
-      - "renderers/angular/**"
-      - "renderers/flutter/**"
-      - "renderers/lit/**"
+      - "adapters/angular/**"
+      - "adapters/flutter/**"
+      - "adapters/lit/**"
       - "samples/agent/adk/**"
   pull_request:
     paths-ignore:
-      - "renderers/angular/**"
-      - "renderers/flutter/**"
-      - "renderers/lit/**"
+      - "adapters/angular/**"
+      - "adapters/flutter/**"
+      - "adapters/lit/**"
       - "samples/agent/adk/**"
 
 permissions:

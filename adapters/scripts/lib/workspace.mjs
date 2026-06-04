@@ -65,7 +65,7 @@ export function getPackageGraph() {
     const pkg = JSON.parse(readFileSync(path, 'utf8'));
     const dir = dirname(path);
 
-    // If we have a duplicate name, prioritize packages in 'renderers/'
+    // If we have a duplicate name, prioritize packages in 'adapters/'
     // or those that are not private (if one is private and other isn't)
     if (packages[pkg.name]) {
       const existing = packages[pkg.name];

@@ -111,10 +111,10 @@ def prepare_build_context(demo_dir: Path) -> Path:
     """
     print("\nPreparing build context...")
 
-    renderers_dir = demo_dir.parent.parent / "renderers"
+    adapters_dir = demo_dir.parent.parent / "adapters"
 
     # Copy web_core first (lit depends on it)
-    web_core_source = renderers_dir / "web_core"
+    web_core_source = adapters_dir / "web_core"
     web_core_dest = demo_dir / "a2ui-web-core"
 
     if not web_core_source.exists():
@@ -129,7 +129,7 @@ def prepare_build_context(demo_dir: Path) -> Path:
     shutil.copytree(web_core_source, web_core_dest, ignore=shutil.ignore_patterns("node_modules", ".git"))
 
     # Copy lit (the main web-lib)
-    a2ui_source = renderers_dir / "lit"
+    a2ui_source = adapters_dir / "lit"
     a2ui_dest = demo_dir / "a2ui-web-lib"
 
     if not a2ui_source.exists():

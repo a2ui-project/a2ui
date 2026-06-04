@@ -12,7 +12,7 @@ Navigate to the project root and run:
 
 ```bash
 # Build Web Core
-cd renderers/web_core
+cd adapters/web_core
 npm install
 npm run build
 

@@ -33,17 +33,17 @@ Run the following commands from the **root of the repository**:
 
 ```bash
 # 1. Build Web Core
-cd renderers/web_core
+cd adapters/web_core
 npm install
 npm run build
 
 # 2. Build Markdown Utilities
-cd renderers/markdown/markdown-it
+cd adapters/markdown/markdown-it
 npm install
 npm run build
 
 # 3. Build Angular Renderer
-cd renderers/angular
+cd adapters/angular
 npm install
 npm run build
 

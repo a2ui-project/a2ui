@@ -62,13 +62,13 @@ Run the following from the repository root:
 
 ```bash
 # 1. Web Core
-cd renderers/web_core && npm install && npm run build && cd ../..
+cd adapters/web_core && npm install && npm run build && cd ../..
 
 # 2. Markdown Utilities
-cd renderers/markdown/markdown-it && npm install && npm run build && cd ../../..
+cd adapters/markdown/markdown-it && npm install && npm run build && cd ../../..
 
 # 3. Angular Renderer SDK
-cd renderers/angular && npm install && npm run build && cd ../..
+cd adapters/angular && npm install && npm run build && cd ../..
 ```
 
 ---
