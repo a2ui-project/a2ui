@@ -73,9 +73,9 @@
             "$ref": "#/$defs/FunctionDefinition"
           }
         },
-        "configuration": {
-          "title": "A2UI Configuration",
-          "description": "A schema that defines a catalog of A2UI configuration properties. Each key is a configuration property name, and each value is the JSON schema for that property.",
+        "surfaceProperties": {
+          "title": "A2UI Surface Properties",
+          "description": "A schema that defines a catalog of A2UI surface properties. Each key is a surface property name, and each value is the JSON schema for that property.",
           "type": "object",
           "additionalProperties": {
             "$ref": "https://json-schema.org/draft/2020-12/schema"

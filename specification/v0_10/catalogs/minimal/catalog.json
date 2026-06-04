@@ -178,7 +178,7 @@
         "weight": {"type": "number"}
       }
     },
-    "configuration": {
+    "surfaceProperties": {
       "type": "object",
       "properties": {},
       "additionalProperties": true

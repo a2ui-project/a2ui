@@ -139,11 +139,11 @@ The [`server_to_client.json`] schema is the top-level entry point. Every message
 
 ### The Basic Catalog
 
-The [`catalogs/basic/catalog.json`] schema contains the definitions for all specific UI components (e.g., `Text`, `Button`, `Row`), functions (e.g., `required`, `email`), and the configuration schema.
+The [`catalogs/basic/catalog.json`] schema contains the definitions for all specific UI components (e.g., `Text`, `Button`, `Row`), functions (e.g., `required`, `email`), and the `surfaceProperties` schema.
 
 **Swappable Catalogs & Validation:**
 
-The [`server_to_client.json`] envelope schema is designed to be catalog-agnostic. It references components and configurations using a placeholder filename: `catalog.json` (specifically `$ref: "catalog.json#/$defs/anyComponent"` and `$ref: "catalog.json#/$defs/configuration"`).
+The [`server_to_client.json`] envelope schema is designed to be catalog-agnostic. It references components and surfaceProperties using a placeholder filename: `catalog.json` (specifically `$ref: "catalog.json#/$defs/anyComponent"` and `$ref: "catalog.json#/$defs/surfaceProperties"`).
 
 To validate A2UI messages:
 
@@ -179,7 +179,7 @@ This message signals the client to create a new surface and begin rendering it. 
 
 - `surfaceId` (string, required): The unique identifier for the UI surface to be rendered.
 - `catalogId` (string, required): A string that uniquely identifies the catalog (components and functions) used for this surface. It is recommended to prefix this with an internet domain that you own, to avoid conflicts (e.g., `https://mycompany.com/1.0/somecatalog`). If it is a URL, the URL does not need to have any deployed resources, it is simply a unique identifier.
-- `configuration` (object, optional): A JSON object containing configuration parameters (e.g., `agentDisplayName`) defined in the catalog's configuration schema.
+- `surfaceProperties` (object, optional): A JSON object containing surface properties (e.g., `agentDisplayName`) defined in the catalog's surfaceProperties schema.
 - `sendDataModel` (boolean, optional): If true, the client will send the full data model of this surface in the metadata of every message sent to the server (via the Transport's metadata mechanism). This ensures the surface owner receives the full current state of the UI alongside the user's action or query. Defaults to false.
 - `components` (array, optional): A list containing UI components for the surface, allowing the client to build and populate the UI tree immediately on surface creation. Conforms to the `ComponentsList` schema.
 - `dataModel` (object, optional): A plain JSON object representing the initial root state of the data model.
@@ -192,7 +192,7 @@ This message signals the client to create a new surface and begin rendering it. 
   "createSurface": {
     "surfaceId": "user_profile_card",
     "catalogId": "https://a2ui.org/specification/v0_10/catalogs/basic/catalog.json",
-    "configuration": {
+    "surfaceProperties": {
       "agentDisplayName": "Weather Bot"
     },
     "sendDataModel": true,
@@ -760,9 +760,9 @@ The [`catalogs/basic/catalog.json`] provides the baseline set of components and 
 | **or**             | Logical OR operation on a list of boolean values.                        |
 | **not**            | Logical NOT operation on a boolean value.                                |
 
-### Configuration
+### Surface Properties
 
-The basic catalog defines the following configuration properties that can be set in the `createSurface` message:
+The basic catalog defines the following surface properties that can be set in the `createSurface` message:
 
 | Property             | Type   | Description                                                                                                  |
 | :------------------- | :----- | :----------------------------------------------------------------------------------------------------------- |

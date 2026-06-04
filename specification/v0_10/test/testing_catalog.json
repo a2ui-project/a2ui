@@ -71,7 +71,7 @@
     }
   },
   "$defs": {
-    "configuration": {
+    "surfaceProperties": {
       "type": "object",
       "properties": {
         "iconUrl": {

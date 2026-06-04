@@ -31,9 +31,9 @@
               "description": "A string that uniquely identifies this catalog. It is recommended to prefix this with an internet domain that you own, to avoid conflicts e.g. mycompany.com:somecatalog'.",
               "type": "string"
             },
-            "configuration": {
-              "$ref": "catalog.json#/$defs/configuration",
-              "description": "Initial configuration parameters for the surface (e.g., {'agentDisplayName': 'My Agent'}). These must validate against the 'configuration' schema defined in the catalog."
+            "surfaceProperties": {
+              "$ref": "catalog.json#/$defs/surfaceProperties",
+              "description": "Initial surface properties (e.g., {'agentDisplayName': 'My Agent'}). These must validate against the 'surfaceProperties' schema defined in the catalog."
             },
             "sendDataModel": {
               "type": "boolean",
