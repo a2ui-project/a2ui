@@ -32,6 +32,10 @@ describe('Example: Email Compose', () => {
     surface = getSurface(gallery);
   });
 
+  afterEach(() => {
+    gallery.remove();
+  });
+
   it('should render text content', async () => {
     const textContent = getDeepTextContent(surface);
 

@@ -22,11 +22,9 @@ module.exports = function (config) {
     frameworks: ['jasmine'],
     plugins: [require('karma-jasmine'), require('karma-chrome-launcher'), require('karma-esbuild')],
     files: [
-      {pattern: 'tests/utils/setup-jasmine.ts', watched: true},
       {pattern: 'tests/**/*.test.ts', watched: true},
     ],
     preprocessors: {
-      'tests/utils/setup-jasmine.ts': ['esbuild'],
       'tests/**/*.test.ts': ['esbuild'],
     },
     esbuild: {
