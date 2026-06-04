@@ -121,3 +121,14 @@ export function querySelectorAllDeep(root: Node, selector: string): Element[] {
   });
   return results;
 }
+
+/**
+ * Convenience method to retrieve the first <a2ui-surface> element in root.
+ */
+export function getSurface(root: Element): HTMLElement {
+  const surface = querySelectorAllDeep(root, 'a2ui-surface')[0];
+  if (!surface) {
+    throw new Error('a2ui-surface not found in root element');
+  }
+  return surface as HTMLElement;
+}

@@ -14,9 +14,9 @@
  * limitations under the License.
  */
 
-import {describe, it, expect, beforeEach} from 'vitest';
 import {
   loadExample,
+  getSurface,
   getDeepTextContent,
   querySelectorAllDeep,
   whenSettled,
@@ -25,13 +25,15 @@ import {LocalGallery} from '../../src/local-gallery';
 
 describe('Example: Email Compose', () => {
   let gallery: LocalGallery;
+  let surface: HTMLElement;
 
   beforeEach(async () => {
     gallery = await loadExample('02_email-compose.json');
+    surface = getSurface(gallery);
   });
 
   it('should render text content', async () => {
-    const textContent = getDeepTextContent(gallery);
+    const textContent = getDeepTextContent(surface);
 
     expect(textContent).toContain('FROM');
     expect(textContent).toContain('TO');
@@ -42,10 +44,7 @@ describe('Example: Email Compose', () => {
   });
 
   it('should handle Send button click', async () => {
-    const buttons = querySelectorAllDeep(
-      gallery.shadowRoot!,
-      '.a2ui-button',
-    ) as HTMLButtonElement[];
+    const buttons = querySelectorAllDeep(surface, '.a2ui-button') as HTMLButtonElement[];
     const sendBtn = buttons.find(b => getDeepTextContent(b).includes('Send'))!;
     expect(sendBtn).toBeDefined();
 
@@ -57,10 +56,7 @@ describe('Example: Email Compose', () => {
   });
 
   it('should handle Discard button click', async () => {
-    const buttons = querySelectorAllDeep(
-      gallery.shadowRoot!,
-      '.a2ui-button',
-    ) as HTMLButtonElement[];
+    const buttons = querySelectorAllDeep(surface, '.a2ui-button') as HTMLButtonElement[];
     const discardBtn = buttons.find(b => getDeepTextContent(b).includes('Discard'))!;
     expect(discardBtn).toBeDefined();
 

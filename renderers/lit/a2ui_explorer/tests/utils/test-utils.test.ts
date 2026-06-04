@@ -14,7 +14,6 @@
  * limitations under the License.
  */
 
-import {describe, it, expect} from 'vitest';
 import {getDeepTextContent, querySelectorAllDeep, walkDeep} from './test-utils';
 
 describe('test-utils', () => {

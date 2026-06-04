@@ -1,4 +1,3 @@
-/// <reference types="vite/client" />
 /*
  * Copyright 2025 Google LLC
  *
@@ -17,6 +16,7 @@
 
 import {basicCatalog} from '@a2ui/lit/v0_9';
 import {A2uiMessage, CreateSurfaceMessage} from '@a2ui/web_core/v0_9';
+import {exampleModules} from './generated/examples-list';
 
 /**
  * Represents a demo item loaded from an example JSON file.
@@ -45,24 +45,23 @@ export function getDemoItems(): DemoItem[] {
 
   const sortedEntries = getSortedExampleEntries();
 
-  for (const [path, data] of sortedEntries) {
+  for (const [filename, data] of sortedEntries) {
     try {
-      const filename = path.substring(path.lastIndexOf('/') + 1);
       const jsonData = data.default;
 
-      const [messages, description] = extractMessagesAndDescription(jsonData, filename, path);
+      const [messages, description] = extractMessagesAndDescription(jsonData, filename);
 
       const surfaceId = ensureCreateSurfaceMessage(filename, messages);
 
       items.push({
         id: surfaceId,
         title: filenameToTitle(filename),
-        filename: filename,
-        description: description,
-        messages: messages,
+        filename,
+        description,
+        messages,
       });
     } catch (err) {
-      console.error(`Error loading ${path}:`, err);
+      console.error(`Error loading ${filename}:`, err);
     }
   }
 
@@ -133,14 +132,6 @@ interface ExampleModule {
  * second is the ExampleModule.
  */
 function getSortedExampleEntries(): [string, ExampleModule][] {
-  // NOTE: This glob pattern must be a string literal. We cannot use variables or
-  // pass it as a parameter because Vite needs to statically analyze it at build
-  // time.
-  const exampleModules = import.meta.glob<ExampleModule>(
-    '../../../../specification/v0_9/catalogs/basic/examples/*.json',
-    {eager: true},
-  );
-
   return Object.entries(exampleModules).sort((a, b) => a[0].localeCompare(b[0]));
 }
 
@@ -152,14 +143,12 @@ function getSortedExampleEntries(): [string, ExampleModule][] {
  * Logs warnings for unexpected formats or empty messages.
  *
  * @param jsonData The raw JSON data loaded from the file.
- * @param filename The name of the file (used for default description).
- * @param path The full path of the file (used for logging).
+ * @param filename The name of the file (used for default description and logging).
  * @returns A tuple containing the array of messages and the description string.
  */
 function extractMessagesAndDescription(
   jsonData: ExampleData | A2uiMessage[],
   filename: string,
-  path: string,
 ): [A2uiMessage[], string] {
   let messages: A2uiMessage[] = [];
   let description = `Source: ${filename}`;
@@ -172,7 +161,7 @@ function extractMessagesAndDescription(
   }
 
   if (messages.length === 0) {
-    console.warn(`No A2UI messages found in ${path}`, jsonData);
+    console.warn(`No A2UI messages found in ${filename}`, jsonData);
   }
 
   return [messages, description];
