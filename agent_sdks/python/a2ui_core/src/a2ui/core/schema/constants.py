@@ -12,5 +12,18 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# Auto-generated. Do not edit manually.
 SPEC_VERSION = "v0.9"
+SPEC_BASE_URL = "https://a2ui.org/specification"
+CATALOG_COMPONENTS_KEY = "components"
+
+ROOT_ID = "root"
+
+DEFAULT_SINGLE_REF_FIELDS = {
+    "child",
+    "contentChild",
+    "entryPointChild",
+    "trigger",
+    "content",
+}
+
+DEFAULT_LIST_REF_FIELDS = {"children", "tabs"}
