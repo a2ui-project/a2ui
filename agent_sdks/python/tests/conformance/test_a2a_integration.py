@@ -60,7 +60,8 @@ def test_a2a_integration_conformance(name, test_case):
 
   if action == "create_a2ui_part":
     data = args["data"]
-    part = create_a2ui_part(data)
+    version = args.get("version")
+    part = create_a2ui_part(data, version=version)
     assert is_a2ui_part(part)
     expect = test_case["expect"]
     data_part = get_a2ui_datapart(part)
