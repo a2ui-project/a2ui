@@ -158,13 +158,13 @@ export class ComponentHostComponent {
 
     // Create context
     this.context = new ComponentContext(surface, id, basePath);
-    this.props = this.binder.bind(this.context);
+    this.props = this.binder.bind(this.context, api.schema);
     this.resolvedDataContextPath = this.context.dataContext.path;
 
     // Subscribes to updates to the component model properties, to get the
     // component to react when a new prop is added after creation.
     this.propsSub = componentModel.onUpdated.subscribe(() => {
-      this.props = this.binder.bind(this.context!);
+      this.props = this.binder.bind(this.context!, api.schema);
       this.cdr.markForCheck();
     });
 

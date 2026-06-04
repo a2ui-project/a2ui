@@ -185,3 +185,81 @@ describe('GenericBinder Checkable Trait', () => {
     assert.deepStrictEqual(binder.snapshot.validationErrors, []);
   });
 });
+
+describe('GenericBinder Child and Structural Behavior', () => {
+  const mockCatalog = new Catalog('test', [], []);
+
+  it('should resolve static and dynamic CHILD behavior to {id, basePath}', async () => {
+    const surface = new SurfaceModel('s1', mockCatalog);
+    const schema = z.object({
+      singleChild: CommonSchemas.ComponentId,
+    });
+
+    surface.dataModel.set('/child_path', 'c_child');
+
+    const compModel = new ComponentModel('c1', 'Test', {
+      singleChild: {path: '/child_path'}, // dynamic child ID
+    });
+    surface.componentsModel.addComponent(compModel);
+
+    const context = new ComponentContext(surface, 'c1', '/parent_path');
+    const binder = new GenericBinder<any>(context, schema);
+    binder.subscribe(() => {});
+
+    // Initial check: should be resolved relative to parent's data context path
+    assert.deepStrictEqual(binder.snapshot.singleChild, {
+      id: 'c_child',
+      basePath: '/parent_path',
+    });
+
+    // Update path: should reactively update
+    surface.dataModel.set('/child_path', 'c_child_updated');
+    await new Promise(resolve => setTimeout(resolve, 0));
+
+    assert.deepStrictEqual(binder.snapshot.singleChild, {
+      id: 'c_child_updated',
+      basePath: '/parent_path',
+    });
+  });
+
+  it('should resolve static and dynamic STRUCTURAL behavior to array of {id, basePath}', async () => {
+    const surface = new SurfaceModel('s1', mockCatalog);
+    const schema = z.object({
+      children: CommonSchemas.ChildList,
+    });
+
+    surface.dataModel.set('/items', [{}, {}]);
+
+    const compModel = new ComponentModel('c1', 'Test', {
+      children: {
+        componentId: 'item-comp',
+        path: '/items',
+      },
+    });
+    surface.componentsModel.addComponent(compModel);
+
+    const context = new ComponentContext(surface, 'c1', '/parent_path');
+    const binder = new GenericBinder<any>(context, schema);
+    binder.subscribe(() => {});
+
+    // Dynamic list resolution
+    assert.deepStrictEqual(binder.snapshot.children, [
+      { id: 'item-comp', basePath: '/items/0' },
+      { id: 'item-comp', basePath: '/items/1' },
+    ]);
+
+    // Static list resolution
+    const staticCompModel = new ComponentModel('c2', 'Test', {
+      children: ['child1', 'child2'],
+    });
+    surface.componentsModel.addComponent(staticCompModel);
+
+    const staticContext = new ComponentContext(surface, 'c2', '/parent_path');
+    const staticBinder = new GenericBinder<any>(staticContext, schema);
+
+    assert.deepStrictEqual(staticBinder.snapshot.children, [
+      { id: 'child1', basePath: '/parent_path' },
+      { id: 'child2', basePath: '/parent_path' },
+    ]);
+  });
+});

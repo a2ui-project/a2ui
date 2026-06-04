@@ -16,7 +16,7 @@
 
 import {z} from 'zod';
 import {ComponentContext} from './component-context.js';
-import {Action, ChildList, DataBinding, FunctionCall} from '../schema/common-types.js';
+import {Action, ChildList, DataBinding, FunctionCall, ComponentId, A2uiTypeDef} from '../schema/common-types.js';
 
 // --- Schema Scraping ---
 
@@ -40,6 +40,7 @@ export type BehaviorNode =
   | {type: 'STRUCTURAL'}
   | {type: 'CHECKABLE'}
   | {type: 'STATIC'}
+  | {type: 'CHILD'}
   | {type: 'OBJECT'; shape: Record<string, BehaviorNode>}
   | {type: 'ARRAY'; element: BehaviorNode};
 
@@ -71,7 +72,22 @@ function getFieldBehavior(type: z.ZodTypeAny, propertyName?: string): BehaviorNo
     return {type: 'CHECKABLE'};
   }
 
-  // Structural matching for A2UI primitives using typeName to avoid dual-module instanceof issues
+  // 1. Tag-based matching (robust)
+  const a2uiType = (current._def as A2uiTypeDef).a2uiType;
+  if (a2uiType) {
+    switch (a2uiType) {
+      case 'ComponentId':
+        return {type: 'CHILD'};
+      case 'ChildList':
+        return {type: 'STRUCTURAL'};
+      case 'Action':
+        return {type: 'ACTION'};
+      case 'Dynamic':
+        return {type: 'DYNAMIC'};
+    }
+  }
+
+  // 2. Structural fallback matching for untagged schemas
   if (current._def.typeName === 'ZodUnion') {
     const options = current._def.options as z.ZodTypeAny[];
 
@@ -90,8 +106,6 @@ function getFieldBehavior(type: z.ZodTypeAny, propertyName?: string): BehaviorNo
       o => o._def.typeName === 'ZodObject' && o._def.shape().componentId && o._def.shape().path,
     );
     if (isChildList) return {type: 'STRUCTURAL'};
-  } else if (current._def.typeName === 'ZodString') {
-    // ComponentId falls back to STATIC since we can't perfectly identify it, which is fine because STATIC returns strings as-is.
   }
 
   // Recursive array scraping
@@ -129,9 +143,15 @@ export type ResolveA2uiProp<T> = [NonNullable<T>] extends [Action]
   ? (() => void) | Extract<T, undefined>
   : [NonNullable<T>] extends [ChildList]
     ? any | Extract<T, undefined>
-    : Exclude<T, DynamicTypes> extends never
-      ? any
-      : Exclude<T, DynamicTypes>;
+    : [NonNullable<T>] extends [ComponentId]
+      ? {id: string; basePath: string} | Extract<T, undefined>
+      : T extends (infer U)[]
+        ? ResolveA2uiProp<U>[] | Extract<T, undefined>
+        : T extends object
+          ? {[K in keyof T]: ResolveA2uiProp<T[K]>} | Extract<T, undefined>
+          : Exclude<T, DynamicTypes> extends never
+            ? any
+            : Exclude<T, DynamicTypes>;
 
 /**
  * Automatically generates two-way binding setters for dynamic properties.
@@ -255,6 +275,21 @@ export class GenericBinder<T> {
         };
       }
 
+      case 'CHILD': {
+        const bound = this.context.dataContext.subscribeDynamicValue(value, newVal => {
+          this.updateDeepValue(path, newVal ? {id: newVal, basePath: this.context.dataContext.path} : null);
+          this.notify();
+        });
+
+        if (!isSync) {
+          this.dataListeners.push(() => bound.unsubscribe());
+        } else {
+          bound.unsubscribe();
+        }
+
+        return bound.value ? {id: bound.value, basePath: this.context.dataContext.path} : null;
+      }
+
       case 'STRUCTURAL': {
         if (value && typeof value === 'object' && value.path && value.componentId) {
           const bound = this.context.dataContext.subscribeDynamicValue(
@@ -283,6 +318,14 @@ export class GenericBinder<T> {
             id: value.componentId,
             basePath: listContext.nested(String(i)).path,
           }));
+        }
+        if (Array.isArray(value)) {
+          return value.map(item => {
+            if (typeof item === 'object' && item !== null && 'id' in item) {
+              return item;
+            }
+            return {id: item, basePath: this.context.dataContext.path};
+          });
         }
         return value;
       }

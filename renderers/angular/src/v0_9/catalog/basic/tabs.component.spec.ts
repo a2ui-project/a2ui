@@ -18,9 +18,9 @@ import {ComponentFixture, TestBed} from '@angular/core/testing';
 import {Component, input} from '@angular/core';
 import {By} from '@angular/platform-browser';
 import {TabsComponent} from './tabs.component';
-import {ComponentModel, DynamicString} from '@a2ui/web_core/v0_9';
+import {ComponentModel} from '@a2ui/web_core/v0_9';
 import {A2uiRendererService} from '../../core/a2ui-renderer.service';
-import {ComponentBinder} from '../../core/component-binder.service';
+import {ComponentBinder, Child} from '../../core/component-binder.service';
 import {setComponentProps, createBoundProperty, ComponentToProps} from '../../core/test-utils';
 
 @Component({
@@ -72,7 +72,7 @@ describe('TabsComponent', () => {
     fixture.componentRef.setInput('dataContextPath', '/');
 
     defaultProps = {
-      tabs: createBoundProperty<{title: DynamicString; child: string}[]>([]),
+      tabs: createBoundProperty<{title: string; child: Child}[]>([]),
     };
     setComponentProps(fixture, defaultProps);
   });
@@ -85,9 +85,9 @@ describe('TabsComponent', () => {
   it('should render tabs and switch content', () => {
     setComponentProps(fixture, {
       ...defaultProps,
-      tabs: createBoundProperty<{title: DynamicString; child: string}[]>([
-        {title: 'Tab 1', child: 'content-1'},
-        {title: 'Tab 2', child: 'content-2'},
+      tabs: createBoundProperty<{title: string; child: Child}[]>([
+        {title: 'Tab 1', child: {id: 'content-1', basePath: '/'}},
+        {title: 'Tab 2', child: {id: 'content-2', basePath: '/'}},
       ]),
     });
     fixture.detectChanges();
@@ -113,7 +113,7 @@ describe('TabsComponent', () => {
   it('should handle empty tabs array', () => {
     setComponentProps(fixture, {
       ...defaultProps,
-      tabs: createBoundProperty<{title: DynamicString; child: string}[]>([]),
+      tabs: createBoundProperty<{title: string; child: Child}[]>([]),
     });
     fixture.detectChanges();
     expect(component.tabs()).toEqual([]);

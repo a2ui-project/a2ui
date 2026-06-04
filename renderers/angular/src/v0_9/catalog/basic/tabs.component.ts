@@ -102,12 +102,7 @@ export class TabsComponent extends BasicCatalogComponent<typeof TabsApi> {
   readonly activeTab = computed(() => this.tabs()[this.activeTabIndex()]);
 
   protected readonly normalizedActiveTabChild = computed(() => {
-    const child = this.activeTab()?.child;
-    if (!child) return null;
-    if (typeof child === 'object' && child !== null && 'id' in child) {
-      return child as {id: string; basePath: string};
-    }
-    return {id: child as string, basePath: this.dataContextPath()};
+    return this.activeTab()?.child || null;
   });
 
   setActiveTab(index: number) {

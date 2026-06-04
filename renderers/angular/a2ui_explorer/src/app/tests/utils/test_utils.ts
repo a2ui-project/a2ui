@@ -98,13 +98,11 @@ export async function waitForCondition(
   interval = 50,
 ): Promise<boolean> {
   const start = performance.now();
-  while (true) {
+  while (performance.now() - start <= timeout) {
     if (condition()) {
       return true;
     }
-    if (performance.now() - start > timeout) {
-      return false;
-    }
     await wait(interval);
   }
+  return condition();
 }

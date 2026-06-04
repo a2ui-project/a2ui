@@ -17,7 +17,6 @@
 import {ComponentFixture, TestBed} from '@angular/core/testing';
 import {signal as angularSignal} from '@angular/core';
 import {ChoicePickerComponent} from './choice-picker.component';
-import {DynamicString} from '@a2ui/web_core/v0_9';
 import {A2uiRendererService} from '../../core/a2ui-renderer.service';
 import {ComponentBinder} from '../../core/component-binder.service';
 import {setComponentProps, createBoundProperty, ComponentToProps} from '../../core/test-utils';
@@ -57,7 +56,7 @@ describe('ChoicePickerComponent', () => {
 
     defaultProps = {
       label: createBoundProperty<string | undefined>(''),
-      options: createBoundProperty<{label: DynamicString; value: string}[]>([]),
+      options: createBoundProperty<{label: string; value: string}[]>([]),
       value: createBoundProperty<string[]>([]),
       variant: createBoundProperty<'multipleSelection' | 'mutuallyExclusive' | undefined>(
         'mutuallyExclusive',
@@ -78,7 +77,7 @@ describe('ChoicePickerComponent', () => {
     setComponentProps(fixture, {
       ...defaultProps,
       label: createBoundProperty<string | undefined>('Pick one'),
-      options: createBoundProperty<{label: DynamicString; value: string}[]>([
+      options: createBoundProperty<{label: string; value: string}[]>([
         {label: 'Opt 1', value: '1'},
         {label: 'Opt 2', value: '2'},
       ]),
@@ -95,7 +94,7 @@ describe('ChoicePickerComponent', () => {
     setComponentProps(fixture, {
       ...defaultProps,
       label: createBoundProperty<string | undefined>('Pick one'),
-      options: createBoundProperty<{label: DynamicString; value: string}[]>([
+      options: createBoundProperty<{label: string; value: string}[]>([
         {label: 'Opt 1', value: '1'},
         {label: 'Opt 2', value: '2'},
       ]),
@@ -111,7 +110,7 @@ describe('ChoicePickerComponent', () => {
     const onUpdateSpy = jasmine.createSpy('onUpdate');
     setComponentProps(fixture, {
       ...defaultProps,
-      options: createBoundProperty<{label: DynamicString; value: string}[]>([
+      options: createBoundProperty<{label: string; value: string}[]>([
         {label: 'Chip 1', value: 'c1'},
         {label: 'Chip 2', value: 'c2'},
       ]),

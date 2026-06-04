@@ -16,6 +16,10 @@
 
 import {z} from 'zod';
 
+export interface A2uiTypeDef {
+  a2uiType?: 'Dynamic' | 'ComponentId' | 'ChildList' | 'Action';
+}
+
 export const DataBindingSchema = z
   .object({
     path: z.string().describe('A JSON Pointer path to a value in the data model.'),
@@ -41,6 +45,7 @@ export const DynamicBooleanSchema = z
   .describe(
     'REF:common_types.json#/$defs/DynamicBoolean|A boolean value that can be a literal, a path, or a function call returning a boolean.',
   );
+(DynamicBooleanSchema._def as A2uiTypeDef).a2uiType = 'Dynamic';
 
 export const DynamicStringSchema = z
   .union([
@@ -50,18 +55,21 @@ export const DynamicStringSchema = z
     FunctionCallSchema,
   ])
   .describe('REF:common_types.json#/$defs/DynamicString|Represents a string');
+(DynamicStringSchema._def as A2uiTypeDef).a2uiType = 'Dynamic';
 
 export const DynamicNumberSchema = z
   .union([z.number(), DataBindingSchema, FunctionCallSchema])
   .describe(
     'REF:common_types.json#/$defs/DynamicNumber|Represents a value that can be either a literal number, a path to a number in the data model, or a function call returning a number.',
   );
+(DynamicNumberSchema._def as A2uiTypeDef).a2uiType = 'Dynamic';
 
 export const DynamicStringListSchema = z
   .union([z.array(z.string()), DataBindingSchema, FunctionCallSchema])
   .describe(
     'REF:common_types.json#/$defs/DynamicStringList|Represents a value that can be either a literal array of strings, a path to a string array in the data model, or a function call returning a string array.',
   );
+(DynamicStringListSchema._def as A2uiTypeDef).a2uiType = 'Dynamic';
 
 export const DynamicValueSchema = z
   .union([
@@ -75,6 +83,7 @@ export const DynamicValueSchema = z
   .describe(
     'REF:common_types.json#/$defs/DynamicValue|A value that can be a literal, a path, or a function call returning any type.',
   );
+(DynamicValueSchema._def as A2uiTypeDef).a2uiType = 'Dynamic';
 
 /** A JSON Pointer path to a value in the data model. */
 export type DataBinding = z.infer<typeof DataBindingSchema>;
@@ -93,7 +102,9 @@ export type DynamicValue = z.infer<typeof DynamicValueSchema>;
 
 export const ComponentIdSchema = z
   .string()
+  .brand<'ComponentId'>()
   .describe('REF:common_types.json#/$defs/ComponentId|The unique identifier for a component.');
+(ComponentIdSchema._def as A2uiTypeDef).a2uiType = 'ComponentId';
 /** The unique identifier for a component. */
 export type ComponentId = z.infer<typeof ComponentIdSchema>;
 
@@ -110,6 +121,7 @@ export const ChildListSchema = z
       .describe('A template for generating a dynamic list of children.'),
   ])
   .describe('REF:common_types.json#/$defs/ChildList');
+(ChildListSchema._def as A2uiTypeDef).a2uiType = 'ChildList';
 /** A static list of child component IDs or a dynamic list template. */
 export type ChildList = z.infer<typeof ChildListSchema>;
 
@@ -130,6 +142,7 @@ export const ActionSchema = z
       .describe('Executes a local client-side function.'),
   ])
   .describe('REF:common_types.json#/$defs/Action');
+(ActionSchema._def as A2uiTypeDef).a2uiType = 'Action';
 /** Triggers a server-side event or a local client-side function. */
 export type Action = z.infer<typeof ActionSchema>;
 

@@ -16,7 +16,13 @@
 
 import {Signal} from '@angular/core';
 import {z} from 'zod';
-import {ComponentApi, DataBindingSchema, FunctionCallSchema} from '@a2ui/web_core/v0_9';
+import {
+  ComponentApi,
+  DataBindingSchema,
+  FunctionCallSchema,
+  ComponentId,
+  ChildList,
+} from '@a2ui/web_core/v0_9';
 import {Child} from './component-binder.service';
 
 /** Data structure that represents a template used to render a collection of children. */
@@ -65,14 +71,24 @@ export interface BoundProperty<T = unknown> {
 
 type DataBindingType = z.infer<typeof DataBindingSchema>;
 type FunctionCallType = z.infer<typeof FunctionCallSchema>;
-type DynamicSchemaValueToRaw<Input> = Exclude<Input, DataBindingType | FunctionCallType>;
+type DynamicTypes = DataBindingType | FunctionCallType;
+
+type ResolveAngularProp<T> = [NonNullable<T>] extends [ChildList]
+  ? Child[] | Extract<T, undefined>
+  : [NonNullable<T>] extends [ComponentId]
+    ? Child | Extract<T, undefined>
+    : Exclude<T, DynamicTypes> extends never
+      ? any
+      : ResolveAngularPropNested<Exclude<T, DynamicTypes>>;
+
+type ResolveAngularPropNested<T> = T extends (infer U)[]
+  ? ResolveAngularProp<U>[] | Extract<T, undefined>
+  : T extends object
+    ? {[K in keyof T]: ResolveAngularProp<T[K]>} | Extract<T, undefined>
+    : T;
 
 type InferredInterfaceToProps<InferredSchema> = {
-  [K in keyof InferredSchema]: K extends 'children'
-    ? BoundProperty<Child[]>
-    : K extends 'child' | 'trigger' | 'content'
-      ? BoundProperty<Child>
-      : BoundProperty<DynamicSchemaValueToRaw<InferredSchema[K]>>;
+  [K in keyof InferredSchema]: BoundProperty<ResolveAngularProp<InferredSchema[K]>>;
 };
 
 interface CheckProps {

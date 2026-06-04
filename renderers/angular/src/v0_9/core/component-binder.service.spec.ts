@@ -16,7 +16,8 @@
 
 import {TestBed} from '@angular/core/testing';
 import {ComponentBinder} from './component-binder.service';
-import {Catalog, ComponentContext, ComponentModel, SurfaceModel} from '@a2ui/web_core/v0_9';
+import {Catalog, ComponentContext, ComponentModel, SurfaceModel, CommonSchemas} from '@a2ui/web_core/v0_9';
+import {z} from 'zod';
 
 /**
  * Helper to construct instances of SurfaceModel, ComponentModel, and ComponentContext.
@@ -73,7 +74,15 @@ describe('ComponentBinder', () => {
         },
       });
 
-      const bound = binder.bind(context);
+      const schema = z.object({
+        text: CommonSchemas.DynamicString,
+        count: CommonSchemas.DynamicNumber,
+        enabled: CommonSchemas.DynamicBoolean,
+        config: z.object({theme: z.string()}),
+        empty: z.any().nullable().optional(),
+      });
+
+      const bound = binder.bind(context, schema);
 
       expect(bound['text'].value()).toBe('Hello World');
       expect(bound['count'].value()).toBe(42);
@@ -91,7 +100,11 @@ describe('ComponentBinder', () => {
         data: {'/data/text': 'initial-value'},
       });
 
-      const bound = binder.bind(context);
+      const schema = z.object({
+        value: CommonSchemas.DynamicString,
+      });
+
+      const bound = binder.bind(context, schema);
 
       expect(bound['value'].value()).toBe('initial-value');
       expect(bound['value'].onUpdate).toBeDefined();
@@ -109,7 +122,11 @@ describe('ComponentBinder', () => {
         },
       });
 
-      const bound = binder.bind(context);
+      const schema = z.object({
+        text: CommonSchemas.DynamicString,
+      });
+
+      const bound = binder.bind(context, schema);
 
       expect(bound['text'].value()).toBe('literal-text');
       expect(bound['text'].onUpdate).toBeDefined();
@@ -122,11 +139,15 @@ describe('ComponentBinder', () => {
 
   describe('single child bindings (child, trigger, content)', () => {
     const testSingleChildKey = (key: 'child' | 'trigger' | 'content') => {
+      const schema = z.object({
+        [key]: CommonSchemas.ComponentId.optional().nullable(),
+      });
+
       it(`should handle null/falsy value for ${key}`, () => {
         const {context} = createComponentContext({
           properties: {[key]: null},
         });
-        const bound = binder.bind(context);
+        const bound = binder.bind(context, schema);
         expect(bound[key].value()).toBeNull();
       });
 
@@ -134,7 +155,7 @@ describe('ComponentBinder', () => {
         const {context} = createComponentContext({
           properties: {[key]: 'my-child-id'},
         });
-        const bound = binder.bind(context);
+        const bound = binder.bind(context, schema);
         expect(bound[key].value()).toEqual({
           id: 'my-child-id',
           basePath: '/',
@@ -149,7 +170,7 @@ describe('ComponentBinder', () => {
         const {context} = createComponentContext({
           properties: {[key]: existingChild},
         });
-        const bound = binder.bind(context);
+        const bound = binder.bind(context, schema);
         expect(bound[key].value()).toEqual(existingChild);
       });
     };
@@ -160,11 +181,16 @@ describe('ComponentBinder', () => {
   });
 
   describe('children list bindings', () => {
+    const schema = z.object({
+      children: CommonSchemas.ChildList,
+      anotherProp: z.string().optional(),
+    });
+
     it('should handle null/falsy or non-array values by returning an empty array', () => {
       const {context} = createComponentContext({
         properties: {children: null},
       });
-      const bound = binder.bind(context);
+      const bound = binder.bind(context, schema);
       expect(bound['children'].value()).toEqual([]);
     });
 
@@ -172,7 +198,7 @@ describe('ComponentBinder', () => {
       const {context} = createComponentContext({
         properties: {children: ['child-1', 'child-2']},
       });
-      const bound = binder.bind(context);
+      const bound = binder.bind(context, schema);
       expect(bound['children'].value()).toEqual([
         {id: 'child-1', basePath: '/'},
         {id: 'child-2', basePath: '/'},
@@ -185,7 +211,7 @@ describe('ComponentBinder', () => {
         properties: {children: {path: '/dynamic/list'}},
         data: {'/dynamic/list': ['child-a', 'child-b']},
       });
-      const bound = binder.bind(context);
+      const bound = binder.bind(context, schema);
       expect(bound['children'].value()).toEqual([
         {id: 'child-a', basePath: '/'},
         {id: 'child-b', basePath: '/'},
@@ -203,7 +229,7 @@ describe('ComponentBinder', () => {
           ],
         },
       });
-      const bound = binder.bind(context);
+      const bound = binder.bind(context, schema);
       expect(bound['children'].value()).toEqual([
         {id: 'child-x', basePath: '/custom/x'},
         {id: 'child-y', basePath: '/custom/y'},
@@ -215,7 +241,7 @@ describe('ComponentBinder', () => {
         properties: {children: {componentId: 'item-card', path: '/items'}},
         data: {'/items': ['item1', 'item2', 'item3']},
       });
-      const bound = binder.bind(context);
+      const bound = binder.bind(context, schema);
       expect(bound['children'].value()).toEqual([
         {id: 'item-card', basePath: '/items/0'},
         {id: 'item-card', basePath: '/items/1'},
@@ -236,7 +262,7 @@ describe('ComponentBinder', () => {
         },
         data: {'/items': ['item1']},
       });
-      const bound = binder.bind(context);
+      const bound = binder.bind(context, schema);
 
       expect(bound['children'].template).toEqual({
         id: 'item-card',
@@ -247,11 +273,15 @@ describe('ComponentBinder', () => {
   });
 
   describe('validation checks (checks)', () => {
+    const schema = z.object({
+      checks: CommonSchemas.Checkable.shape.checks,
+    });
+
     it('should return isValid=true and empty errors when checks is null/empty', () => {
       const {context} = createComponentContext({
         properties: {checks: []},
       });
-      const bound = binder.bind(context);
+      const bound = binder.bind(context, schema);
 
       expect(bound['isValid']).toBeDefined();
       expect(bound['validationErrors']).toBeDefined();
@@ -274,7 +304,7 @@ describe('ComponentBinder', () => {
         },
       });
 
-      const bound = binder.bind(context);
+      const bound = binder.bind(context, schema);
 
       // Since one rule resolves to false in the DataModel:
       expect(bound['isValid'].value()).toBe(false);
@@ -296,7 +326,7 @@ describe('ComponentBinder', () => {
         data: {'/form/singleCheck': false},
       });
 
-      const bound = binder.bind(context);
+      const bound = binder.bind(context, schema);
 
       expect(bound['isValid'].value()).toBe(false);
       expect(bound['validationErrors'].value()).toEqual(['Validation failed']); // default message
@@ -322,7 +352,7 @@ describe('ComponentBinder', () => {
         },
       });
 
-      const bound = binder.bind(context);
+      const bound = binder.bind(context, schema);
 
       expect(bound['isValid'].value()).toBe(false);
       expect(bound['validationErrors'].value()).toEqual(['Error 2', 'Error 3']);

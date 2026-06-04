@@ -15,7 +15,15 @@
  */
 
 import {DestroyRef, Injectable, inject, NgZone} from '@angular/core';
-import {ComponentContext, computed} from '@a2ui/web_core/v0_9';
+import {
+  ComponentContext,
+  computed,
+  scrapeSchemaBehavior,
+  BehaviorNode,
+  Signal,
+  signal,
+} from '@a2ui/web_core/v0_9';
+import {z} from 'zod';
 import {toAngularSignal} from './utils';
 import {BoundProperty, ComponentTemplate} from './types';
 
@@ -44,67 +52,29 @@ export class ComponentBinder {
    * Binds all properties of a component to an object of Angular Signals.
    *
    * @param context The ComponentContext containing the model and data context.
+   * @param schema The Zod schema of the component.
    * @returns An object where each key corresponds to a component prop and its value is an Angular Signal.
    */
-  bind(context: ComponentContext): Record<string, BoundProperty> {
+  bind(context: ComponentContext, schema?: z.ZodTypeAny): Record<string, BoundProperty> {
     const props = context.componentModel.properties;
     const bound: Record<string, BoundProperty<any>> = {};
+    const behaviorTree = scrapeSchemaBehavior(schema || z.object({}));
 
     for (const key of Object.keys(props)) {
       const value = props[key];
       let template: ComponentTemplate | undefined = undefined;
+      const behavior: BehaviorNode =
+        (behaviorTree.type === 'OBJECT' ? behaviorTree.shape[key] : null) || {type: 'STATIC'};
 
-      let preactSig;
-      const isChildListTemplate =
-        value && typeof value === 'object' && 'componentId' in value && 'path' in value;
+      const resolvedPreactSig = this.resolveNested(value, behavior, context);
+      const angSig = toAngularSignal(resolvedPreactSig as any, this.destroyRef, this.ngZone);
+
+      if (behavior.type === 'STRUCTURAL' && value && typeof value === 'object' && 'componentId' in value) {
+        template = {id: value.componentId, path: value.path};
+      }
+
       const isBoundPath =
         value && typeof value === 'object' && 'path' in value && !('componentId' in value);
-
-      if (isChildListTemplate) {
-        const listSig = context.dataContext.resolveSignal({path: value.path});
-        const listContext = context.dataContext.nested(value.path);
-        preactSig = computed(() => {
-          const arr = listSig.value;
-          const currentArr = Array.isArray(arr) ? arr : [];
-          return currentArr.map((_, i) => ({
-            id: value.componentId,
-            basePath: listContext.nested(String(i)).path,
-          }));
-        });
-      } else {
-        preactSig = context.dataContext.resolveSignal(value);
-      }
-
-      if (['child', 'trigger', 'content'].includes(key)) {
-        const originalSig = preactSig;
-        preactSig = computed(() => {
-          const val = originalSig.value;
-          if (!val) return null;
-          if (typeof val === 'object' && val !== null && 'id' in val) {
-            return val;
-          }
-          return {id: val, basePath: context.dataContext.path};
-        });
-      } else if (key === 'children') {
-        const originalSig = preactSig;
-        const id = value?.componentId;
-        const path = value?.path;
-        if (id && path) {
-          template = {id, path};
-        }
-        preactSig = computed(() => {
-          const val = originalSig.value;
-          const arr = Array.isArray(val) ? val : [];
-          return arr.map(item => {
-            if (typeof item === 'object' && item !== null && 'id' in item) {
-              return item;
-            }
-            return {id: item, basePath: context.dataContext.path};
-          });
-        });
-      }
-
-      const angSig = toAngularSignal(preactSig as any, this.destroyRef, this.ngZone);
 
       bound[key] = {
         value: angSig,
@@ -112,10 +82,10 @@ export class ComponentBinder {
         template,
         onUpdate: isBoundPath
           ? (newValue: any) => context.dataContext.set(value.path, newValue)
-          : () => {}, // No-op for non-bound values
+          : () => {},
       };
 
-      if (key === 'checks') {
+      if (behavior.type === 'CHECKABLE') {
         const checksArray = Array.isArray(value) ? value : [];
 
         const ruleResults = checksArray.map((rule: any) => {
@@ -148,5 +118,82 @@ export class ComponentBinder {
     }
 
     return bound;
+  }
+
+  private resolveNested(value: any, behavior: BehaviorNode, context: ComponentContext): Signal<any> {
+    if (value === undefined || value === null) {
+      if (behavior.type === 'STRUCTURAL') {
+        return signal([]);
+      }
+      return signal(value);
+    }
+
+    switch (behavior.type) {
+      case 'CHILD': {
+        const rawSig = context.dataContext.resolveSignal(value);
+        return computed(() => {
+          const val = rawSig.value;
+          if (!val) return null;
+          if (typeof val === 'object' && val !== null && 'id' in val) {
+            return val;
+          }
+          return {id: val, basePath: context.dataContext.path};
+        });
+      }
+      case 'STRUCTURAL': {
+        if (value && typeof value === 'object' && 'componentId' in value && 'path' in value) {
+          const listSig = context.dataContext.resolveSignal({path: value.path});
+          const listContext = context.dataContext.nested(value.path);
+          return computed(() => {
+            const arr = listSig.value;
+            const currentArr = Array.isArray(arr) ? arr : [];
+            return currentArr.map((_, i) => ({
+              id: value.componentId,
+              basePath: listContext.nested(String(i)).path,
+            }));
+          });
+        } else {
+          const listSig = context.dataContext.resolveSignal(value);
+          return computed(() => {
+            const val = listSig.value;
+            const arr = Array.isArray(val) ? val : [];
+            return arr.map(item => {
+              if (typeof item === 'object' && item !== null && 'id' in item) {
+                return item;
+              }
+              return {id: item, basePath: context.dataContext.path};
+            });
+          });
+        }
+      }
+      case 'DYNAMIC': {
+        return context.dataContext.resolveSignal(value);
+      }
+      case 'ARRAY': {
+        if (!Array.isArray(value)) return signal(value);
+        const itemSignals = value.map((item) =>
+          this.resolveNested(item, behavior.element, context),
+        );
+        return computed(() => itemSignals.map(sig => sig.value));
+      }
+      case 'OBJECT': {
+        if (typeof value !== 'object') return signal(value);
+        const resolvedProps: Record<string, Signal<any>> = {};
+        for (const [k, v] of Object.entries(value)) {
+          const childBehavior = behavior.shape[k] || {type: 'STATIC'};
+          resolvedProps[k] = this.resolveNested(v, childBehavior, context);
+        }
+        return computed(() => {
+          const result: any = {};
+          for (const [k, sig] of Object.entries(resolvedProps)) {
+            result[k] = sig.value;
+          }
+          return result;
+        });
+      }
+      case 'STATIC':
+      default:
+        return signal(value);
+    }
   }
 }
