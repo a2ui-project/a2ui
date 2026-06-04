@@ -41,7 +41,7 @@ Version 0.10 differs from 0.9 in the following ways:
 
 ### 2.7. Processing Rules
 
-- <TBD>
+- Explicitly specified that `surfaceId` must be globally unique per client session. Creating a surface with an ID that already exists (without first deleting it) is an error.
 
 ### 2.8. Server-to-Client Messages
 

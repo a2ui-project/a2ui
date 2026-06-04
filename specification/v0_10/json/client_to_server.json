@@ -20,7 +20,7 @@
         },
         "surfaceId": {
           "type": "string",
-          "description": "The id of the surface where the event originated."
+          "description": "The id of the surface where the event originated. It must be globally unique within the client session."
         },
         "sourceComponentId": {
           "type": "string",
@@ -78,7 +78,7 @@
             },
             "surfaceId": {
               "type": "string",
-              "description": "The id of the surface where the error occurred."
+              "description": "The id of the surface where the error occurred. It must be globally unique within the client session."
             },
             "path": {
               "type": "string",
@@ -107,7 +107,7 @@
             },
             "surfaceId": {
               "type": "string",
-              "description": "The id of the surface where the error occurred."
+              "description": "The id of the surface where the error occurred. It must be globally unique within the client session."
             },
             "functionCallId": {
               "$ref": "common_types.json#/$defs/CallId",
