@@ -22,8 +22,8 @@ WORKDIR /app
 # Copy everything first
 COPY . .
 
-# Update package.json to point to the local copy instead of ../../renderers/lit
-RUN sed -i 's|file:../../renderers/lit|file:./a2ui-web-lib|g' package.json
+# Update package.json to point to the local copy instead of ../../adapters/lit
+RUN sed -i 's|file:../../adapters/lit|file:./a2ui-web-lib|g' package.json
 
 # Rename the package from @a2ui/lit to @a2ui/web-lib so imports resolve correctly
 # (the source code imports from @a2ui/web-lib but the actual package is @a2ui/lit)

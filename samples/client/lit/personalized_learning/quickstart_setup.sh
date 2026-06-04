@@ -107,11 +107,11 @@ if [ "$SKIP_NPM" = false ]; then
     echo -e "${YELLOW}[3/6]${NC} Installing Node.js dependencies..."
 
     # Build A2UI core library first (lit depends on it)
-    (cd ../../renderers/web_core && npm install --registry https://registry.npmjs.org/ --silent 2>/dev/null && npm run build --silent 2>/dev/null)
+    (cd ../../adapters/web_core && npm install --registry https://registry.npmjs.org/ --silent 2>/dev/null && npm run build --silent 2>/dev/null)
     echo "  A2UI core library built"
 
     # Build A2UI renderer
-    (cd ../../renderers/lit && npm install --registry https://registry.npmjs.org/ --silent 2>/dev/null && npm run build --silent 2>/dev/null)
+    (cd ../../adapters/lit && npm install --registry https://registry.npmjs.org/ --silent 2>/dev/null && npm run build --silent 2>/dev/null)
     echo "  A2UI renderer built"
 
     # Install demo dependencies

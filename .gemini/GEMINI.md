@@ -30,10 +30,10 @@ The A2UI repository is organized into several key directories:
 - `agent_sdks/`: Contains source code for Agent integrations.
   - `python/`: Python implementation of the A2UI agent library.
   - `kotlin/`: Kotlin implementation of the A2UI agent library.
-- `adapters/`: Contains renderer libraries.
-  - `lit/`: The shared Lit renderer library used by the Lit clients.
-  - `angular/`: The shared Angular renderer library used by the Angular clients.
-  - `web_core/`: The shared core library used by web renderers.
+- `adapters/`: Contains framework adapter libraries.
+  - `lit/`: The shared Lit adapter library used by the Lit clients.
+  - `angular/`: The shared Angular adapter library used by the Angular clients.
+  - `web_core/`: The shared core library used by web adapters.
   - `markdown/`: Markdown rendering utilities.
 - `tools/`: Helper tools for development.
   - `editor/`: A web-based editor for generating and visualizing A2UI.
