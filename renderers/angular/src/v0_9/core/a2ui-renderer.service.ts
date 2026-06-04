@@ -21,6 +21,7 @@ import {
   ActionListener as ActionHandler,
   A2uiMessage,
   A2uiClientAction as Action,
+  A2uiClientDataModel,
 } from '@a2ui/web_core/v0_9';
 import {AngularComponentImplementation, AngularCatalog} from '../catalog/types';
 
@@ -89,5 +90,12 @@ export class A2uiRendererService implements OnDestroy {
 
   ngOnDestroy(): void {
     this._messageProcessor.model.dispose();
+  }
+
+  /**
+   * Returns the aggregated data model for all surfaces that have 'sendDataModel' enabled.
+   */
+  getClientDataModel(): A2uiClientDataModel | undefined {
+    return this._messageProcessor.getClientDataModel();
   }
 }
