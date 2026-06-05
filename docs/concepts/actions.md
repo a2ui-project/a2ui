@@ -231,7 +231,7 @@ Before an agent can safely send a UI, the renderer must advertise which componen
 
 ### Advertising Capabilities
 
-Renderers include an `a2uiClientCapabilities` object in the **metadata** of their messages to the agent (e.g., in the `metadata` field of an A2A envelope).
+Renderers include an `a2uiClientCapabilities` object in the **metadata** of their messages to the agent (e.g., in the `metadata` field of an A2A `Message`).
 
 ```json
 {
