@@ -73,18 +73,22 @@ type DataBindingType = z.infer<typeof DataBindingSchema>;
 type FunctionCallType = z.infer<typeof FunctionCallSchema>;
 type DynamicTypes = DataBindingType | FunctionCallType;
 
-type ResolveAngularProp<T> = [NonNullable<T>] extends [ChildList]
-  ? Child[] | Extract<T, null | undefined>
-  : [NonNullable<T>] extends [ComponentId]
-    ? Child | Extract<T, null | undefined>
-    : Exclude<T, DynamicTypes> extends never
-      ? any
-      : ResolveAngularPropNested<Exclude<T, DynamicTypes>>;
+type ResolveAngularProp<T> = T extends any
+  ? T extends null | undefined
+    ? T
+    : [T] extends [ChildList]
+      ? Child[]
+      : [T] extends [ComponentId]
+        ? Child
+        : Exclude<T, DynamicTypes> extends never
+          ? any
+          : ResolveAngularPropNested<Exclude<T, DynamicTypes>>
+  : never;
 
 type ResolveAngularPropNested<T> = T extends (infer U)[]
-  ? ResolveAngularProp<U>[] | Extract<T, null | undefined>
+  ? ResolveAngularProp<U>[]
   : T extends object
-    ? {[K in keyof T]: ResolveAngularProp<T[K]>} | Extract<T, null | undefined>
+    ? {[K in keyof T]: ResolveAngularProp<T[K]>}
     : T;
 
 type InferredInterfaceToProps<InferredSchema> = {

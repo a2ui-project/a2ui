@@ -146,19 +146,23 @@ type IsDynamic<T> = DataBinding extends NonNullable<T> ? true : false;
  * Maps raw Zod inferred types to their resolved runtime equivalents.
  * For example, an `Action` object becomes a callable `() => void` function.
  */
-export type ResolveA2uiProp<T> = [NonNullable<T>] extends [Action]
-  ? (() => void) | Extract<T, null | undefined>
-  : [NonNullable<T>] extends [ChildList]
-    ? any | Extract<T, null | undefined>
-    : [NonNullable<T>] extends [ComponentId]
-      ? {id: string; basePath: string} | Extract<T, null | undefined>
-      : T extends (infer U)[]
-        ? ResolveA2uiProp<U>[] | Extract<T, null | undefined>
-        : T extends object
-          ? {[K in keyof T]: ResolveA2uiProp<T[K]>} | Extract<T, null | undefined>
-          : Exclude<T, DynamicTypes> extends never
-            ? any
-            : Exclude<T, DynamicTypes>;
+export type ResolveA2uiProp<T> = T extends any
+  ? T extends null | undefined
+    ? T
+    : [T] extends [Action]
+      ? (() => void)
+      : [T] extends [ChildList]
+        ? any
+        : [T] extends [ComponentId]
+          ? {id: string; basePath: string}
+          : T extends (infer U)[]
+            ? ResolveA2uiProp<U>[]
+            : T extends object
+              ? {[K in keyof T]: ResolveA2uiProp<T[K]>}
+              : Exclude<T, DynamicTypes> extends never
+                ? any
+                : Exclude<T, DynamicTypes>
+  : never;
 
 /**
  * Automatically generates two-way binding setters for dynamic properties.
