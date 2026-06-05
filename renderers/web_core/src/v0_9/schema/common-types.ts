@@ -62,7 +62,9 @@ export type FunctionCallType = z.infer<typeof FunctionCallSchema>;
 
 export const DynamicBooleanSchema = z
   .union([z.boolean(), DataBindingSchema, FunctionCallSchema])
-  .describe('A boolean value that can be a literal, a path, or a function call returning a boolean.')
+  .describe(
+    'A boolean value that can be a literal, a path, or a function call returning a boolean.',
+  )
   .setA2uiType('Dynamic')
   .setRefPath('common_types.json#/$defs/DynamicBoolean');
 

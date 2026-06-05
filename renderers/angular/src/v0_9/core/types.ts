@@ -81,9 +81,8 @@ type ResolveAngularPropNested<T> = T extends (infer U)[]
     ? {[K in keyof T]: ResolveAngularProp<T[K]>}
     : T;
 
-type ResolveNonComponentProp<T> = UnwrappedDynamic<T> extends never
-  ? any
-  : ResolveAngularPropNested<UnwrappedDynamic<T>>;
+type ResolveNonComponentProp<T> =
+  UnwrappedDynamic<T> extends never ? any : ResolveAngularPropNested<UnwrappedDynamic<T>>;
 
 type ResolveNonNullAngularProp<T> = [T] extends [ChildList]
   ? Child[]
@@ -91,9 +90,7 @@ type ResolveNonNullAngularProp<T> = [T] extends [ChildList]
     ? Child
     : ResolveNonComponentProp<T>;
 
-export type ResolveAngularProp<T> = T extends null | undefined
-  ? T
-  : ResolveNonNullAngularProp<T>;
+export type ResolveAngularProp<T> = T extends null | undefined ? T : ResolveNonNullAngularProp<T>;
 
 type InferredInterfaceToProps<InferredSchema> = {
   [K in keyof InferredSchema]: BoundProperty<ResolveAngularProp<InferredSchema[K]>>;

@@ -71,7 +71,10 @@ describe('MessageProcessor', () => {
       const customApi: ComponentApi = {
         name: 'Custom',
         schema: z.object({
-          title: z.string().describe('The title').setRefPath('common_types.json#/$defs/DynamicString'),
+          title: z
+            .string()
+            .describe('The title')
+            .setRefPath('common_types.json#/$defs/DynamicString'),
         }),
       };
       const cat = new Catalog('cat-ref', [customApi]);
@@ -105,7 +108,10 @@ describe('MessageProcessor', () => {
       };
 
       const themeSchema = z.object({
-        primaryColor: z.string().describe('The main color').setRefPath('common_types.json#/$defs/Color'),
+        primaryColor: z
+          .string()
+          .describe('The main color')
+          .setRefPath('common_types.json#/$defs/Color'),
       });
 
       const cat = new Catalog('cat-full', [buttonApi], [addFn], themeSchema);
@@ -174,7 +180,10 @@ describe('MessageProcessor', () => {
         name: 'EdgeComp',
         schema: z.object({
           noPipe: z.string().setRefPath('common_types.json#/$defs/NoPipe'),
-          multiPipe: z.string().describe('First|Second').setRefPath('common_types.json#/$defs/MultiPipe'),
+          multiPipe: z
+            .string()
+            .describe('First|Second')
+            .setRefPath('common_types.json#/$defs/MultiPipe'),
         }),
       };
       const cat = new Catalog('cat-edge', [edgeApi]);

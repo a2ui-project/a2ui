@@ -147,8 +147,6 @@ export class MessageProcessor<T extends ComponentApi> {
     };
   }
 
-
-
   /**
    * Returns the aggregated data model for all surfaces that have 'sendDataModel' enabled.
    */

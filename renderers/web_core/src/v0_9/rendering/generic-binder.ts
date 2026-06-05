@@ -154,9 +154,8 @@ type ResolveA2uiPropNested<T> = T extends (infer U)[]
     ? {[K in keyof T]: ResolveA2uiProp<T[K]>}
     : T;
 
-type ResolveNonComponentA2uiProp<T> = UnwrappedDynamic<T> extends never
-  ? any
-  : ResolveA2uiPropNested<UnwrappedDynamic<T>>;
+type ResolveNonComponentA2uiProp<T> =
+  UnwrappedDynamic<T> extends never ? any : ResolveA2uiPropNested<UnwrappedDynamic<T>>;
 
 type ResolveNonNullA2uiProp<T> = [T] extends [Action]
   ? () => void
@@ -166,9 +165,7 @@ type ResolveNonNullA2uiProp<T> = [T] extends [Action]
       ? {id: ComponentId; basePath: string}
       : ResolveNonComponentA2uiProp<T>;
 
-export type ResolveA2uiProp<T> = T extends null | undefined
-  ? T
-  : ResolveNonNullA2uiProp<T>;
+export type ResolveA2uiProp<T> = T extends null | undefined ? T : ResolveNonNullA2uiProp<T>;
 
 /**
  * Automatically generates two-way binding setters for dynamic properties.
