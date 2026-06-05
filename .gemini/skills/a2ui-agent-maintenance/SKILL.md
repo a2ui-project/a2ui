@@ -20,4 +20,4 @@ Guidelines for keeping agent instruction files (`.gemini/AGENTS.md`) and special
 2. **Analyze Scope:** Determine if modifications alter specifications, major SDK features, or core directory structures.
 3. **Update AGENTS.md:** Surgically edit `.gemini/AGENTS.md`. Maintain a factual, technical, and concise tone.
 4. **Update Skills:** Refactor relevant skill definitions under `.gemini/skills/` without introducing duplicate references.
-5. **Suggest Changes:** Never automatically commit or push updates. Present your recommended documentation updates as a suggestion in your response, explaining *why* the update is needed.
+5. **Suggest Changes:** Never automatically commit or push updates. Present your recommended documentation updates as a suggestion in your response, explaining _why_ the update is needed.
