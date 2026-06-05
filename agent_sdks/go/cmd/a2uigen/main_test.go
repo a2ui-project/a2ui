@@ -3,6 +3,7 @@ package main
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -60,5 +61,48 @@ func TestResolveOutputConfigExplicitA2UIImport(t *testing.T) {
 	}
 	if cfg.VersionImport != "example.com/custom/a2ui/v010" {
 		t.Fatalf("VersionImport = %q, want example.com/custom/a2ui/v010", cfg.VersionImport)
+	}
+}
+
+func TestGenerateSDKRootLayout(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "go.mod"), []byte("module example.com/root\n\ngo 1.25\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := generateSDK(dir, "example.com/root", ".", "a2uibuild", "", "", ""); err != nil {
+		t.Fatal(err)
+	}
+
+	checks := []struct {
+		path string
+		want string
+	}{
+		{"a2ui.go", `import "example.com/root/v09"`},
+		{filepath.Join("a2uibuild", "zz_builders.go"), `import "example.com/root"`},
+		{filepath.Join("a2uischema", "manager.go"), `"example.com/root/v010"`},
+	}
+	for _, check := range checks {
+		data, err := os.ReadFile(filepath.Join(dir, check.path))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !strings.Contains(string(data), check.want) {
+			t.Fatalf("%s does not contain %q", check.path, check.want)
+		}
+	}
+
+	for _, path := range []string{
+		filepath.Join(dir, "a2ui.go"),
+		filepath.Join(dir, "a2uischema", "manager.go"),
+		filepath.Join(dir, "a2uibuild", "surface.go"),
+	} {
+		data, err := os.ReadFile(path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if strings.Contains(string(data), "github.com/a2ui-project/a2ui/agent_sdks/go") {
+			t.Fatalf("%s contains upstream module import", path)
+		}
 	}
 }
