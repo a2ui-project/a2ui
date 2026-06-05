@@ -43,6 +43,7 @@ jobs:
         with:
           node-version: "22"
 
+      # Unit tests need to build the Lit renderer
       - name: Build web_core
         if: matrix.task == 'unit'
         working-directory: ./renderers/web_core
@@ -56,7 +57,8 @@ jobs:
         working-directory: ./renderers/lit
         run: npm run test:unit
 
+      # Integration tests take care of build:deps in the app under test
       - name: Run integration tests
         if: matrix.task == 'integration'
-        working-directory: ./renderers/lit/a2ui_explorer
-        run: npm run build:deps && npm run test:ci
+        working-directory: ./renderers/lit
+        run: npm run test:integration

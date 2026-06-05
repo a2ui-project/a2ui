@@ -11,7 +11,7 @@
     "build": "npm run generate-examples && npm run build:deps && tsc && vite build",
     "test": "npm run generate-examples && karma start karma.conf.cjs --single-run=false --auto-watch=true",
     "test:debug": "npm run generate-examples && karma start karma.conf.cjs --single-run=false --auto-watch=true --browsers Chrome",
-    "test:ci": "npm run generate-examples && karma start karma.conf.cjs --single-run=true"
+    "test:ci": "npm run build:deps && npm run generate-examples && karma start karma.conf.cjs --single-run=true"
   },
   "dependencies": {
     "@a2ui/lit": "file:..",
