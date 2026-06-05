@@ -19,6 +19,7 @@ import {describe, it, beforeEach} from 'node:test';
 import {MessageProcessor} from './message-processor.js';
 import {Catalog, ComponentApi} from '../catalog/types.js';
 import {z} from 'zod';
+import {withA2uiMetadata} from '../schema/common-types.js';
 
 describe('MessageProcessor', () => {
   let processor: MessageProcessor<ComponentApi>;
@@ -71,10 +72,10 @@ describe('MessageProcessor', () => {
       const customApi: ComponentApi = {
         name: 'Custom',
         schema: z.object({
-          title: z
-            .string()
-            .describe('The title')
-            .setRefPath('common_types.json#/$defs/DynamicString'),
+          title: withA2uiMetadata(
+            z.string().describe('The title'),
+            { refPath: 'common_types.json#/$defs/DynamicString' }
+          ),
         }),
       };
       const cat = new Catalog('cat-ref', [customApi]);
@@ -108,10 +109,10 @@ describe('MessageProcessor', () => {
       };
 
       const themeSchema = z.object({
-        primaryColor: z
-          .string()
-          .describe('The main color')
-          .setRefPath('common_types.json#/$defs/Color'),
+        primaryColor: withA2uiMetadata(
+          z.string().describe('The main color'),
+          { refPath: 'common_types.json#/$defs/Color' }
+        ),
       });
 
       const cat = new Catalog('cat-full', [buttonApi], [addFn], themeSchema);
@@ -155,10 +156,10 @@ describe('MessageProcessor', () => {
         schema: z.object({
           items: z.array(
             z.object({
-              action: z
-                .string()
-                .describe('The action to perform')
-                .setRefPath('common_types.json#/$defs/Action'),
+              action: withA2uiMetadata(
+                z.string().describe('The action to perform'),
+                { refPath: 'common_types.json#/$defs/Action' }
+              ),
             }),
           ),
         }),
@@ -179,11 +180,11 @@ describe('MessageProcessor', () => {
       const edgeApi: ComponentApi = {
         name: 'EdgeComp',
         schema: z.object({
-          noPipe: z.string().setRefPath('common_types.json#/$defs/NoPipe'),
-          multiPipe: z
-            .string()
-            .describe('First|Second')
-            .setRefPath('common_types.json#/$defs/MultiPipe'),
+          noPipe: withA2uiMetadata(z.string(), { refPath: 'common_types.json#/$defs/NoPipe' }),
+          multiPipe: withA2uiMetadata(
+            z.string().describe('First|Second'),
+            { refPath: 'common_types.json#/$defs/MultiPipe' }
+          ),
         }),
       };
       const cat = new Catalog('cat-edge', [edgeApi]);

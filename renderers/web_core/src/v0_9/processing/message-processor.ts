@@ -21,7 +21,6 @@ import {ComponentModel} from '../state/component-model.js';
 import {Subscription} from '../common/events.js';
 import {zodToJsonSchema, ignoreOverride} from 'zod-to-json-schema';
 import {A2uiTypeDef} from '../schema/common-types.js';
-import '../schema/common-types.js';
 
 import {
   A2uiMessage,
