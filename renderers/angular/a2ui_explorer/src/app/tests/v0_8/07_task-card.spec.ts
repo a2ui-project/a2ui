@@ -16,11 +16,11 @@
 
 import {Version, getCanvas, loadExample} from '../utils/test_utils';
 
-describe('Example: Task Card (basic) (v0.8)', () => {
+describe('Example: Task Card (v0.8)', () => {
   let textContent: string;
 
   beforeEach(async () => {
-    await loadExample('Task Card (basic)', Version.V0_8);
+    await loadExample('Task Card', Version.V0_8);
     textContent = getCanvas().textContent;
   });
 

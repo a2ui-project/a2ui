@@ -16,11 +16,11 @@
 
 import {Version, getCanvas, loadExample} from '../utils/test_utils';
 
-describe('Example: Step Counter (basic) (v0.8)', () => {
+describe('Example: Step Counter (v0.8)', () => {
   let textContent: string;
 
   beforeEach(async () => {
-    await loadExample('Step Counter (basic)', Version.V0_8);
+    await loadExample('Step Counter', Version.V0_8);
     textContent = getCanvas().textContent;
   });
 

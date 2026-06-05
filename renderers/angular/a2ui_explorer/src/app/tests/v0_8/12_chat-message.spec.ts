@@ -16,11 +16,11 @@
 
 import {Version, getCanvas, loadExample} from '../utils/test_utils';
 
-describe('Example: Chat Message (basic) (v0.8)', () => {
+describe('Example: Chat Message (v0.8)', () => {
   let textContent: string;
 
   beforeEach(async () => {
-    await loadExample('Chat Message (basic)', Version.V0_8);
+    await loadExample('Chat Message', Version.V0_8);
     textContent = getCanvas().textContent;
   });
 

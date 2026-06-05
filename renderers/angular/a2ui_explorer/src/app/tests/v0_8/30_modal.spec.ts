@@ -18,12 +18,12 @@ import {ComponentFixture} from '@angular/core/testing';
 import {DemoComponent} from '../../demo.component';
 import {Version, getCanvas, loadExample, wait} from '../utils/test_utils';
 
-describe('Example: Modal Sample (basic) (v0.8)', () => {
+describe('Example: Modal Sample (v0.8)', () => {
   let textContent: string;
   let fixture: ComponentFixture<DemoComponent>;
 
   beforeEach(async () => {
-    fixture = await loadExample('Modal Sample (basic)', Version.V0_8);
+    fixture = await loadExample('Modal Sample', Version.V0_8);
     textContent = getCanvas().textContent;
   });
 

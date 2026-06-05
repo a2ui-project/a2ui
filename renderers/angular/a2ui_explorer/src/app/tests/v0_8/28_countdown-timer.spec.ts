@@ -16,11 +16,11 @@
 
 import {Version, getCanvas, loadExample} from '../utils/test_utils';
 
-describe('Example: Countdown Timer (basic) (v0.8)', () => {
+describe('Example: Countdown Timer (v0.8)', () => {
   let textContent: string;
 
   beforeEach(async () => {
-    await loadExample('Countdown Timer (basic)', Version.V0_8);
+    await loadExample('Countdown Timer', Version.V0_8);
     textContent = getCanvas().textContent;
   });
 

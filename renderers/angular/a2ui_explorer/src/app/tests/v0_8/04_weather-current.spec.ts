@@ -16,11 +16,11 @@
 
 import {Version, getCanvas, loadExample} from '../utils/test_utils';
 
-describe('Example: Weather Current (basic) (v0.8)', () => {
+describe('Example: Weather Current (v0.8)', () => {
   let textContent: string;
 
   beforeEach(async () => {
-    await loadExample('Weather Current (basic)', Version.V0_8);
+    await loadExample('Weather Current', Version.V0_8);
     textContent = getCanvas().textContent;
   });
 

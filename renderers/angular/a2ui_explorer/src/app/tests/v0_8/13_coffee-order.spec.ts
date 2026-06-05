@@ -18,12 +18,12 @@ import {ComponentFixture} from '@angular/core/testing';
 import {DemoComponent} from '../../demo.component';
 import {Version, getCanvas, loadExample, wait} from '../utils/test_utils';
 
-describe('Example: Coffee Order (basic) (v0.8)', () => {
+describe('Example: Coffee Order (v0.8)', () => {
   let textContent: string;
   let fixture: ComponentFixture<DemoComponent>;
 
   beforeEach(async () => {
-    fixture = await loadExample('Coffee Order (basic)', Version.V0_8);
+    fixture = await loadExample('Coffee Order', Version.V0_8);
     textContent = getCanvas().textContent;
   });
 

@@ -16,11 +16,11 @@
 
 import {Version, getCanvas, loadExample} from '../utils/test_utils';
 
-describe('Example: Track List (basic) (v0.8)', () => {
+describe('Example: Track List (v0.8)', () => {
   let textContent: string;
 
   beforeEach(async () => {
-    await loadExample('Track List (basic)', Version.V0_8);
+    await loadExample('Track List', Version.V0_8);
     textContent = getCanvas().textContent;
   });
 

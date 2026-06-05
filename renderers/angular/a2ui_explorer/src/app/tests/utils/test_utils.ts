@@ -43,13 +43,7 @@ export async function loadExample(exampleName: string, version: Version = Versio
   fixture.detectChanges();
 
   const examples = version === Version.V0_9 ? EXAMPLES_V09 : EXAMPLES_V08;
-  let example = examples.find(ex => ex.name === exampleName);
-
-  if (version === Version.V0_8 && !example) {
-    example =
-      examples.find(ex => ex.name === `${exampleName} (basic)`) ||
-      examples.find(ex => ex.name === `${exampleName} (minimal)`);
-  }
+  const example = examples.find(ex => ex.name === exampleName);
 
   expect(example).withContext(`Example not found: ${exampleName}`).toBeTruthy();
 
