@@ -49,10 +49,10 @@ describe('Example: Email Compose', () => {
 
   it('should handle Send button click', async () => {
     const buttons = querySelectorAllDeep(surface, '.a2ui-button') as HTMLButtonElement[];
-    const sendBtn = buttons.find(b => getDeepTextContent(b).includes('Send'))!;
+    const sendBtn = buttons.find(b => getDeepTextContent(b).includes('Send'));
     expect(sendBtn).toBeDefined();
 
-    sendBtn.click();
+    sendBtn?.click();
     await whenSettled(gallery);
 
     expect(gallery.actionLog.length).toBe(1);
@@ -61,10 +61,10 @@ describe('Example: Email Compose', () => {
 
   it('should handle Discard button click', async () => {
     const buttons = querySelectorAllDeep(surface, '.a2ui-button') as HTMLButtonElement[];
-    const discardBtn = buttons.find(b => getDeepTextContent(b).includes('Discard'))!;
+    const discardBtn = buttons.find(b => getDeepTextContent(b).includes('Discard'));
     expect(discardBtn).toBeDefined();
 
-    discardBtn.click();
+    discardBtn?.click();
     await whenSettled(gallery);
 
     expect(gallery.actionLog.length).toBe(1);
