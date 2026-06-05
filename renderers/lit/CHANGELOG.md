@@ -3,6 +3,7 @@
 - (v0_9) Tighten resolved child list types in the basic catalog layout components.
 - (v0_9) Narrow `A2uiChildRef` to the supported child reference shapes used by
   `renderNode`.
+- (v0_9) Add missing CSS classes to the `Modal` component to align with the Angular implementation.
 
 ## 0.10.0
 
