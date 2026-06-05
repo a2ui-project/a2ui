@@ -25,7 +25,7 @@ from a2ui.core.state import (
     SurfaceModel,
     SurfaceGroupModel,
 )
-from a2ui.core.basic_catalog import BasicCatalog
+from a2ui.core.basic_catalog import BasicModelCatalog
 
 
 def test_component_model_lifecycle():
@@ -274,9 +274,8 @@ def test_component_node_lifecycle():
 
 
 def test_surface_model_node_layer_resolution():
-    from a2ui.core.basic_catalog import BasicCatalog
+    catalog = BasicModelCatalog()
 
-    catalog = BasicCatalog()
     surface = SurfaceModel("main", catalog)
 
     # 1. Access root node placeholder
@@ -349,7 +348,7 @@ def test_node_core_properties():
 
 
 def test_surface_model_root_node_resolution():
-    catalog = BasicCatalog()
+    catalog = BasicModelCatalog()
     surface = SurfaceModel("surf-1", catalog)
 
     # Initial state: no root component, rootNode is None
@@ -370,7 +369,7 @@ def test_surface_model_root_node_resolution():
 
 
 def test_node_layer_reactive_property_resolution():
-    catalog = BasicCatalog()
+    catalog = BasicModelCatalog()
     surface = SurfaceModel("surf-1", catalog)
 
     # Initialize data model
@@ -393,7 +392,7 @@ def test_node_layer_reactive_property_resolution():
 
 
 def test_structural_child_resolution():
-    catalog = BasicCatalog()
+    catalog = BasicModelCatalog()
     surface = SurfaceModel("surf-1", catalog)
 
     # Setup parent component pointing to a child component
@@ -421,7 +420,7 @@ def test_structural_child_resolution():
 
 
 def test_template_child_list_spawning():
-    catalog = BasicCatalog()
+    catalog = BasicModelCatalog()
     surface = SurfaceModel("surf-1", catalog)
 
     # Set up dynamic array data
@@ -482,7 +481,7 @@ def test_template_child_list_spawning():
 
 
 def test_progressive_rendering_and_reconciliation():
-    catalog = BasicCatalog()
+    catalog = BasicModelCatalog()
     surface = SurfaceModel("surf-1", catalog)
 
     # Parent component references a child that hasn't arrived yet
@@ -513,7 +512,7 @@ def test_progressive_rendering_and_reconciliation():
 
 
 def test_action_binding_closures():
-    catalog = BasicCatalog()
+    catalog = BasicModelCatalog()
     surface = SurfaceModel("surf-1", catalog)
 
     # Data model state
@@ -563,7 +562,7 @@ def test_action_binding_closures():
 def test_unresolved_data_binding_warning_and_value():
     from a2ui.core.rendering.data_context import MissingDataBindingWarning
 
-    catalog = BasicCatalog()
+    catalog = BasicModelCatalog()
     surface = SurfaceModel("surf-1", catalog)
 
     # Setup component pointing to a missing path
@@ -584,7 +583,7 @@ def test_unresolved_data_binding_warning_and_value():
 
 
 def test_structural_child_modification():
-    catalog = BasicCatalog()
+    catalog = BasicModelCatalog()
     surface = SurfaceModel("surf-1", catalog)
 
     # Setup parent component and two potential child components
@@ -625,7 +624,7 @@ def test_structural_child_modification():
 
 
 def test_structural_children_and_template_modification():
-    catalog = BasicCatalog()
+    catalog = BasicModelCatalog()
     surface = SurfaceModel("surf-1", catalog)
 
     # Setup parent component pointing to an explicit list of children
@@ -695,7 +694,7 @@ def test_structural_children_and_template_modification():
 
 
 def test_data_context_function_call_bindings():
-    catalog = BasicCatalog()
+    catalog = BasicModelCatalog()
     surface = SurfaceModel("surf-1", catalog)
 
     # Populate data model with string template arguments
@@ -737,7 +736,7 @@ def test_data_context_function_call_bindings():
     assert node_2.props.value["text"] == "Name: ${escaped} and real name John"
 
     # 3. Test catalog custom math function execution ("add" custom catalog invoker)
-    class MathCatalog(BasicCatalog):
+    class MathCatalog(BasicModelCatalog):
 
         def __init__(self):
             super().__init__()
@@ -765,7 +764,7 @@ def test_data_context_function_call_bindings():
 
 
 def test_nested_tab_list_child_resolution():
-    catalog = BasicCatalog()
+    catalog = BasicModelCatalog()
     surface = SurfaceModel("surf-1", catalog)
 
     # Setup parent component with tabs property (list of TabItem dicts referencing children)
@@ -809,7 +808,7 @@ def test_nested_tab_list_child_resolution():
 
 
 def test_component_deletion_reconciliation():
-    catalog = BasicCatalog()
+    catalog = BasicModelCatalog()
     surface = SurfaceModel("surf-1", catalog)
 
     # Setup parent referencing a child component
@@ -852,7 +851,7 @@ def test_a2ui_text_renderer_reactive_layouts():
     sys.path.insert(0, os.path.dirname(__file__))
     from text_renderer import A2uiTextRenderer
 
-    catalog = BasicCatalog()
+    catalog = BasicModelCatalog()
     surface = SurfaceModel("surf-1", catalog)
 
     # 1. Set up initial static surface components

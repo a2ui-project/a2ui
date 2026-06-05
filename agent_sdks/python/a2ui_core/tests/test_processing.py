@@ -24,7 +24,7 @@ from a2ui.core.rendering import (
     MissingDataBindingWarning,
 )
 from a2ui.core.state import SurfaceModel
-from a2ui.core.basic_catalog import BasicCatalog
+from a2ui.core.basic_catalog import BasicModelCatalog
 from a2ui.core.catalog import ModelCatalog, JsonCatalog
 from a2ui.core.schema.constants import SPEC_VERSION
 
@@ -54,7 +54,7 @@ def mock_catalog():
 
 @pytest.fixture
 def real_catalog_09():
-    return BasicCatalog()
+    return BasicModelCatalog()
 
 
 def test_message_processor_surface_lifecycle(mock_catalog):
@@ -554,7 +554,7 @@ def test_message_processor_strict_mode_unrecognized_component_type(
 
 
 def test_message_processor_xor_conflict_coverage():
-    catalog = BasicCatalog()
+    catalog = BasicModelCatalog()
 
     processor = MessageProcessor(catalogs=[catalog])
 

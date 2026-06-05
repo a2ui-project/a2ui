@@ -58,7 +58,7 @@ graph TD
 #### 5. Basic Catalog (`src/a2ui/core/basic_catalog`)
 
 - **Basic Component Models**: Symmetrical declarations of core out-of-the-box components (`TextComponent`, `ButtonComponent`, `CardComponent`, etc.) conforming directly to standard schema configurations.
-- **`BasicCatalog`**: Factory provider initializing standard schemas and layout parameters.
+- **`BasicModelCatalog`**: Factory provider initializing standard schemas and layout parameters.
 
 #### 6. Symmetrical Schemas (`src/a2ui/core/schema`)
 

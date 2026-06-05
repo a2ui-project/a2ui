@@ -22,11 +22,11 @@ from a2ui.core.rendering import (
     GenericBinder,
     MissingDataBindingWarning,
 )
-from a2ui.core.basic_catalog import BasicCatalog
+from a2ui.core.basic_catalog import BasicModelCatalog
 
 
 def test_component_context_from_surface():
-    surface = SurfaceModel("s1", BasicCatalog(), theme={"primaryColor": "#123456"})
+    surface = SurfaceModel("s1", BasicModelCatalog(), theme={"primaryColor": "#123456"})
     c1 = ComponentModel("c1", "Button", {"label": "Click"})
     surface.components_model.add_component(c1)
 
@@ -49,7 +49,7 @@ def test_component_context_from_surface():
 
 
 def test_data_context_resolve_action_and_locale():
-    surface = SurfaceModel("s1", BasicCatalog(), locale="fr-FR")
+    surface = SurfaceModel("s1", BasicModelCatalog(), locale="fr-FR")
     surface.data_model.set("/username", "Alice")
 
     ctx = DataContext(surface=surface)
@@ -80,7 +80,8 @@ def test_data_context_missing_binding_warning():
 
 
 def test_generic_binder_reactive_checks():
-    surface = SurfaceModel("s1", BasicCatalog())
+    surface = SurfaceModel("s1", BasicModelCatalog())
+
     surface.data_model.set("/score", 50)
 
     c1 = ComponentModel(
@@ -155,10 +156,8 @@ def test_resolve_dynamic_values():
 
 
 def test_string_interpolation_format_string():
-    from a2ui.core.basic_catalog import BasicCatalog
-
     data_model = DataModel({"user": {"name": "Charlie"}})
-    ctx = DataContext(path="/", data_model=data_model, catalog=BasicCatalog())
+    ctx = DataContext(path="/", data_model=data_model, catalog=BasicModelCatalog())
 
     # Test basic formatString execution
     expr = {"call": "formatString", "args": {"value": "Hello ${user/name}!"}}
@@ -168,10 +167,8 @@ def test_string_interpolation_format_string():
 
 
 def test_string_interpolation_with_escapes():
-    from a2ui.core.basic_catalog import BasicCatalog
-
     data_model = DataModel({"user": {"name": "Charlie"}})
-    ctx = DataContext(path="/", data_model=data_model, catalog=BasicCatalog())
+    ctx = DataContext(path="/", data_model=data_model, catalog=BasicModelCatalog())
 
     # Escaped block resolving to literal string
     expr = {

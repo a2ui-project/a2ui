@@ -26,7 +26,7 @@ from a2ui.core.validating import (
     ValidationConfig,
     CatalogValidator,
 )
-from a2ui.core.basic_catalog import BasicCatalog
+from a2ui.core.basic_catalog import BasicModelCatalog
 
 
 # ==============================================================================
@@ -235,7 +235,7 @@ def test_a2ui_validator_protocol_envelope_not_dict():
 
 
 def test_a2ui_validator_validate_valid_payload():
-    catalog = BasicCatalog()
+    catalog = BasicModelCatalog()
     validator = A2uiValidator()
 
     messages = [
@@ -271,7 +271,7 @@ def test_a2ui_validator_validate_valid_payload():
 
 
 def test_a2ui_validator_validate_components_error():
-    catalog = BasicCatalog()
+    catalog = BasicModelCatalog()
     validator = A2uiValidator()
 
     messages = [
@@ -421,7 +421,7 @@ def test_validator_aggregated_pydantic_error_formatting():
 def test_validator_config_parameter():
     # Verify that ValidationConfig is respected during validation
 
-    catalog = CatalogValidator.from_catalog(BasicCatalog())
+    catalog = CatalogValidator.from_catalog(BasicModelCatalog())
     validator = A2uiValidator()
     strict_config = ValidationConfig(
         allow_orphan_components=False, allow_dangling_references=False

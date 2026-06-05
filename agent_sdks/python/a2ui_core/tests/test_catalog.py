@@ -17,7 +17,7 @@ from pydantic import BaseModel, Field, ValidationError
 import pytest
 from a2ui.core.catalog import CatalogApi, JsonCatalog, ModelCatalog
 from a2ui.core.validating import CatalogValidator
-from a2ui.core.basic_catalog import BasicCatalog
+from a2ui.core.basic_catalog import BasicModelCatalog
 from a2ui.core.schema.common_types import ComponentId
 from a2ui.core.schema.constants import SPEC_VERSION
 
@@ -830,18 +830,18 @@ def test_json_catalog_unevaluated_properties_handling():
 
 
 # ==============================================================================
-# 3. BasicCatalog Implementation Coverage
+# 3. BasicModelCatalog Implementation Coverage
 # ==============================================================================
 
 
 def test_basic_catalog_initialization():
-    catalog = BasicCatalog()
+    catalog = BasicModelCatalog()
     assert catalog.spec_version == SPEC_VERSION
     assert "https://a2ui.org/specification" in catalog.catalog_id
 
 
 def test_basic_catalog_validate_components():
-    catalog = BasicCatalog()
+    catalog = BasicModelCatalog()
 
     # Valid component payload
     text_comp = {
@@ -863,7 +863,7 @@ def test_basic_catalog_validate_components():
 
 
 def test_basic_catalog_validate_theme():
-    catalog = BasicCatalog()
+    catalog = BasicModelCatalog()
 
     # 1. Test Valid Theme
     _val(catalog).validate_theme({"primaryColor": "#00BFFF"})
@@ -874,7 +874,7 @@ def test_basic_catalog_validate_theme():
 
 
 def test_basic_catalog_validate_functions():
-    catalog = BasicCatalog()
+    catalog = BasicModelCatalog()
 
     # 1. Test validate_function Valid
     # Valid call: formatString takes named parameter 'value'
@@ -890,7 +890,7 @@ def test_basic_catalog_validate_functions():
 
 
 def test_basic_catalog_nested_function_validation():
-    catalog = BasicCatalog()
+    catalog = BasicModelCatalog()
 
     # 1. Rejects unrecognized nested catalog function call
     with pytest.raises(ValueError, match="Unknown function: unrecognizedFunctionName"):
@@ -927,7 +927,7 @@ def test_basic_catalog_nested_function_validation():
 
 
 def test_basic_catalog_extract_ref_fields():
-    catalog = BasicCatalog()
+    catalog = BasicModelCatalog()
     ref_map = catalog.extract_ref_fields()
 
     # Check that Button has 'child' as single ref
@@ -942,7 +942,7 @@ def test_basic_catalog_extract_ref_fields():
 
 
 def test_basic_catalog_tabs_ref():
-    catalog = BasicCatalog()
+    catalog = BasicModelCatalog()
     ref_map = catalog.extract_ref_fields()
     assert "Tabs" in ref_map
     single_refs, list_refs = ref_map["Tabs"]

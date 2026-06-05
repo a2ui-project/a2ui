@@ -74,7 +74,7 @@ def _basic_catalog_id(spec_version: str) -> str:
     )
 
 
-class BasicCatalog(ModelCatalog):
+class BasicModelCatalog(ModelCatalog):
 
     def __init__(self):
         components_map = {
