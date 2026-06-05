@@ -46,7 +46,7 @@ import {A2uiModal} from './components/Modal.js';
  * from package @a2ui/web_core.
  */
 export const basicCatalog = new Catalog<LitComponentApi>(
-  'https://a2ui.org/specification/v0_9/basic_catalog.json',
+  'https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json',
   [
     A2uiText,
     A2uiButton,

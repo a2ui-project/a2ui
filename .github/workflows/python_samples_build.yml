@@ -28,6 +28,9 @@ on:
       - "agent_sdks/python/**"
       - "specification/**/json/**"
 
+permissions:
+  contents: read
+
 jobs:
   build:
     name: Build samples

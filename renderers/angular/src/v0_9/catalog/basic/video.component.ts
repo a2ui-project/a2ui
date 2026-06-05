@@ -17,12 +17,11 @@
 import {Component, computed, ChangeDetectionStrategy} from '@angular/core';
 import {BasicCatalogComponent} from './basic-catalog-component';
 import {VideoApi} from '@a2ui/web_core/v0_9/basic_catalog';
-import {AnyDuringSchemaAlignment} from '../types';
 
 /**
  * Angular implementation of the A2UI Video component (v0.9).
  *
- * Renders a video player with standard controls and an optional poster image.
+ * Renders a video player with standard controls.
  *
  * Supported CSS variables:
  * - `--a2ui-video-border-radius`: Controls the border radius of the video element.
@@ -33,12 +32,7 @@ import {AnyDuringSchemaAlignment} from '../types';
   imports: [],
   template: `
     <div class="a2ui-video-container">
-      <video
-        [attr.src]="url() || null"
-        controls
-        [attr.poster]="posterUrl() || null"
-        class="a2ui-video"
-      >
+      <video [attr.src]="url() || null" controls class="a2ui-video">
         Your browser does not support the video tag.
       </video>
     </div>
@@ -61,7 +55,4 @@ import {AnyDuringSchemaAlignment} from '../types';
 })
 export class VideoComponent extends BasicCatalogComponent<typeof VideoApi> {
   readonly url = computed(() => this.props()['url']?.value());
-  readonly posterUrl = computed(() =>
-    (this.props() as AnyDuringSchemaAlignment)['posterUrl']?.value(),
-  );
 }

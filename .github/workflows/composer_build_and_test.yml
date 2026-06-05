@@ -28,6 +28,9 @@ on:
       - "renderers/web_core/**"
       - ".github/workflows/composer_build_and_test.yml"
 
+permissions:
+  contents: read
+
 jobs:
   build-and-test:
     runs-on: ubuntu-latest

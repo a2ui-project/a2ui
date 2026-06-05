@@ -31,7 +31,7 @@ interface GallerySample {
   imports: [CommonModule, Surface],
   templateUrl: './gallery.html',
   styleUrl: './gallery.css',
-  changeDetection: ChangeDetectionStrategy.Eager,
+  changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class GalleryComponent {
   @ViewChild('dialog') dialog!: ElementRef<HTMLDialogElement>;

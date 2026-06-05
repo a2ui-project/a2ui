@@ -5,7 +5,7 @@
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
 #
-#     http://www.apache.org/licenses/LICENSE-2.0
+#     https://www.apache.org/licenses/LICENSE-2.0
 #
 # Unless required by applicable law or agreed to in writing, software
 # distributed under the License is distributed on an "AS IS" BASIS,
@@ -22,13 +22,14 @@ import sys
 
 # Constants
 TEST_DIR = os.path.dirname(os.path.abspath(__file__))
-SCHEMA_DIR = os.path.abspath(os.path.join(TEST_DIR, "../json"))
+SPEC_DIR = os.path.abspath(os.path.join(TEST_DIR, ".."))
+SCHEMA_DIR = os.path.join(SPEC_DIR, "json")
 CASES_DIR = os.path.join(TEST_DIR, "cases")
 TEMP_FILE = os.path.join(TEST_DIR, "temp_data.json")
 TEMP_CATALOG_FILE = os.path.join(TEST_DIR, "catalog.json")
 
 # Map of schema filenames to their full paths
-# Note: catalog.json is dynamically created from basic_catalog.json
+# Note: catalog.json is dynamically created from catalogs/basic/catalog.json
 SCHEMAS = {
     "server_to_client.json": os.path.join(SCHEMA_DIR, "server_to_client.json"),
     "common_types.json": os.path.join(SCHEMA_DIR, "common_types.json"),
@@ -36,34 +37,35 @@ SCHEMAS = {
     "client_to_server.json": os.path.join(SCHEMA_DIR, "client_to_server.json"),
 }
 
-def setup_catalog_alias(catalog_file="basic_catalog.json"):
+def setup_catalog_alias(catalog_file="catalogs/basic/catalog.json"):
     """
-    Creates a temporary catalog.json from basic_catalog.json (or the
-    specified file)  with the $id modified to match what server_to_client.json
+    Creates a temporary catalog.json from catalogs/basic/catalog.json (or the
+    specified file) with the $id modified to match what server_to_client.json
     expects.
     """
-    basic_catalog_path = os.path.join(SCHEMA_DIR, catalog_file)
+    basic_catalog_path = os.path.join(SPEC_DIR, catalog_file)
     if not os.path.exists(basic_catalog_path):
-        # Fallback to current directory for relative paths like 'testing_catalog.json'
         basic_catalog_path = os.path.join(TEST_DIR, catalog_file)
-        if not os.path.exists(basic_catalog_path):
-            print(f"Error: Catalog file not found: {catalog_file}")
-            sys.exit(1)
+
+    if not os.path.exists(basic_catalog_path):
+        print(f"Error: Catalog file not found: {catalog_file} (resolved to {basic_catalog_path})")
+        sys.exit(1)
 
     with open(basic_catalog_path, 'r') as f:
         try:
             catalog = json.load(f)
         except json.JSONDecodeError as e:
-            print(f"Error parsing basic_catalog.json: {e}")
+            print(f"Error parsing catalog.json: {e}")
             sys.exit(1)
 
     # Modify the $id to be the generic catalog reference
     # This allows server_to_client.json to refer to "catalog.json"
     # and have it resolve to this schema content.
     if "$id" in catalog:
-        # Extract the base URL and append catalog.json
-        base_url = catalog["$id"].rsplit("/", 1)[0]
-        catalog["$id"] = f"{base_url}/catalog.json"
+        import re
+        match = re.match(r"^(https://a2ui\.org/specification/v0_\d+/)", catalog["$id"])
+        if match:
+            catalog["$id"] = match.group(1) + "catalog.json"
 
 
     with open(TEMP_CATALOG_FILE, 'w') as f:
@@ -101,7 +103,7 @@ def run_suite(suite_path):
             print(f"Error parsing JSON in {suite_path}: {e}")
             return 0, 0
 
-    catalog_file = suite.get("catalog", "basic_catalog.json")
+    catalog_file = suite.get("catalog", "catalogs/basic/catalog.json")
     setup_catalog_alias(catalog_file)
 
     try:
@@ -181,6 +183,63 @@ def validate_jsonl_example(jsonl_path):
     finally:
         cleanup_catalog_alias()
 
+def validate_catalogs_structure():
+    """
+    Validates the catalog files directly against the Catalog definition in
+    client_capabilities.json schema.
+    """
+    client_caps_path = os.path.join(SCHEMA_DIR, "client_capabilities.json")
+    if not os.path.exists(client_caps_path):
+        print(f"Error: client_capabilities.json not found at {client_caps_path}")
+        return 0, 1
+
+    temp_validator_path = os.path.join(TEST_DIR, "temp_catalog_validator.json")
+
+    # We reference the absolute ID of client_capabilities.json which gets loaded as a reference
+    validator_schema = {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "$ref": "https://a2ui.org/specification/v0_10/client_capabilities.json#/$defs/Catalog"
+    }
+
+    with open(temp_validator_path, 'w') as f:
+        json.dump(validator_schema, f)
+
+    catalogs_to_validate = [
+        ("catalogs/basic/catalog.json", os.path.join(SPEC_DIR, "catalogs/basic/catalog.json")),
+        ("catalogs/minimal/catalog.json", os.path.join(SPEC_DIR, "catalogs/minimal/catalog.json")),
+        ("test/testing_catalog.json", os.path.join(TEST_DIR, "testing_catalog.json")),
+    ]
+
+    passed = 0
+    failed = 0
+
+    print("\nValidating catalog structural integrity against client_capabilities.json...")
+
+    ref_schemas = {
+        "client_capabilities.json": client_caps_path
+    }
+
+    try:
+        for name, path in catalogs_to_validate:
+            if not os.path.exists(path):
+                print(f"  [FAIL] {name} (File not found)")
+                failed += 1
+                continue
+
+            is_valid, output = validate_ajv(temp_validator_path, path, ref_schemas)
+            if is_valid:
+                passed += 1
+                # print(f"  [PASS] {name}")
+            else:
+                failed += 1
+                print(f"  [FAIL] {name}")
+                print(f"         Output: {output.strip()}")
+
+        return passed, failed
+    finally:
+        if os.path.exists(temp_validator_path):
+            os.remove(temp_validator_path)
+
 def main():
     if not os.path.exists(CASES_DIR):
         print(f"No cases directory found at {CASES_DIR}")
@@ -201,6 +260,11 @@ def main():
         # 2. Run .jsonl example validation
         example_path = os.path.join(CASES_DIR, "contact_form_example.jsonl")
         p, f = validate_jsonl_example(example_path)
+        total_passed += p
+        total_failed += f
+
+        # 3. Validate catalogs structural integrity
+        p, f = validate_catalogs_structure()
         total_passed += p
         total_failed += f
 

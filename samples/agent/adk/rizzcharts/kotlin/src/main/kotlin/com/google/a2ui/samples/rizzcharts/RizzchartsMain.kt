@@ -18,9 +18,10 @@ package com.google.a2ui.samples.rizzcharts
 
 import com.google.a2ui.a2a.A2aHandler
 import com.google.a2ui.basic_catalog.BasicCatalog
-import com.google.a2ui.core.schema.A2uiSchemaManager
-import com.google.a2ui.core.schema.A2uiVersion
-import com.google.a2ui.core.schema.CatalogConfig
+import com.google.a2ui.schema.A2uiCatalog
+import com.google.a2ui.schema.A2uiSchemaManager
+import com.google.a2ui.schema.A2uiVersion
+import com.google.a2ui.schema.CatalogConfig
 import com.google.adk.agents.ReadonlyContext
 import com.google.adk.models.Gemini
 import com.google.adk.runner.InMemoryRunner
@@ -37,6 +38,7 @@ import io.ktor.server.response.respond
 import io.ktor.server.routing.get
 import io.ktor.server.routing.post
 import io.ktor.server.routing.routing
+import java.util.Collections
 import kotlin.system.exitProcess
 
 lateinit var schemaManager: A2uiSchemaManager
@@ -79,7 +81,7 @@ fun main(args: Array<String>) {
         BasicCatalog.getConfig(A2uiVersion.VERSION_0_8, "../examples/standard_catalog/0.8"),
       ),
       true,
-      java.util.Collections.emptyList(),
+      Collections.emptyList(),
     )
 
   agent =
@@ -95,7 +97,7 @@ fun main(args: Array<String>) {
       },
       { ctx: ReadonlyContext ->
         ctx.state()[RizzchartsAgentExecutor.A2UI_CATALOG_KEY]
-          as com.google.a2ui.core.schema.A2uiCatalog
+          as A2uiCatalog
       },
       { ctx: ReadonlyContext -> ctx.state()[RizzchartsAgentExecutor.A2UI_EXAMPLES_KEY] as String },
     )
@@ -126,7 +128,7 @@ fun main(args: Array<String>) {
               "http://localhost:10002",
               listOf(
                 "https://a2ui.org/specification/v0_8/standard_catalog_definition.json",
-                "https://raw.githubusercontent.com/google/A2UI/main/samples/agent/adk/rizzcharts/rizzcharts_catalog_definition.json",
+                "https://raw.githubusercontent.com/a2ui-project/a2ui/main/samples/agent/adk/rizzcharts/rizzcharts_catalog_definition.json",
               ),
             )
           call.respond(response)

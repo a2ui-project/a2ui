@@ -15,25 +15,45 @@
  */
 
 import {TestBed} from '@angular/core/testing';
-import {DestroyRef} from '@angular/core';
-import {signal as preactSignal} from '@preact/signals-core';
-import {ComponentContext} from '@a2ui/web_core/v0_9';
-import {Child, ComponentBinder} from './component-binder.service';
+import {ComponentBinder} from './component-binder.service';
+import {Catalog, ComponentContext, ComponentModel, SurfaceModel} from '@a2ui/web_core/v0_9';
+
+/**
+ * Helper to construct instances of SurfaceModel, ComponentModel, and ComponentContext.
+ */
+function createComponentContext({
+  properties,
+  componentId = 'test-comp',
+  componentType = 'TestComponent',
+  data = {},
+}: {
+  properties: Record<string, unknown>;
+  componentId?: string;
+  componentType?: string;
+  data?: Record<string, unknown>;
+}): {context: ComponentContext; surface: SurfaceModel} {
+  const catalog = new Catalog('test-catalog', []);
+  const surface = new SurfaceModel('test-surface', catalog);
+
+  for (const [path, val] of Object.entries(data)) {
+    surface.dataModel.set(path, val);
+  }
+
+  const componentModel = new ComponentModel(componentId, componentType, properties);
+  surface.componentsModel.addComponent(componentModel);
+
+  const context = new ComponentContext(surface, componentId);
+
+  return {context, surface};
+}
 
 describe('ComponentBinder', () => {
   let binder: ComponentBinder;
-  let mockDestroyRef: jasmine.SpyObj<DestroyRef>;
 
   beforeEach(() => {
-    mockDestroyRef = jasmine.createSpyObj('DestroyRef', ['onDestroy']);
-    mockDestroyRef.onDestroy.and.callFake((callback: () => void) => {
-      return () => {}; // Return unregister function
-    });
-
     TestBed.configureTestingModule({
-      providers: [ComponentBinder, {provide: DestroyRef, useValue: mockDestroyRef}],
+      providers: [ComponentBinder],
     });
-
     binder = TestBed.inject(ComponentBinder);
   });
 
@@ -41,166 +61,281 @@ describe('ComponentBinder', () => {
     expect(binder).toBeTruthy();
   });
 
-  it('should bind properties to Angular signals', () => {
-    const mockComponentModel = {
-      properties: {
-        text: 'Hello',
-        visible: true,
-      },
-    };
+  describe('basic property binding', () => {
+    it('should bind literal properties to Angular signals', () => {
+      const {context} = createComponentContext({
+        properties: {
+          text: 'Hello World',
+          count: 42,
+          enabled: true,
+          config: {theme: 'dark'},
+          empty: null,
+        },
+      });
 
-    const mockpSigText = preactSignal('Hello');
-    const mockpSigVisible = preactSignal(true);
+      const bound = binder.bind(context);
 
-    const mockDataContext = {
-      resolveSignal: jasmine.createSpy('resolveSignal').and.callFake((val: any) => {
-        if (val === 'Hello') return mockpSigText;
-        if (val === true) return mockpSigVisible;
-        return preactSignal(val);
-      }),
-      set: jasmine.createSpy('set'),
-    };
+      expect(bound['text'].value()).toBe('Hello World');
+      expect(bound['count'].value()).toBe(42);
+      expect(bound['enabled'].value()).toBe(true);
+      expect(bound['config'].value()).toEqual({theme: 'dark'});
+      expect(bound['empty'].value()).toBeNull();
 
-    const mockContext = {
-      componentModel: mockComponentModel,
-      dataContext: mockDataContext,
-    } as unknown as ComponentContext;
+      expect(bound['text'].template).toBeUndefined();
+      expect(bound['text'].raw).toBe('Hello World');
+    });
 
-    const bound = binder.bind(mockContext);
+    it('should bind path-based properties and setup onUpdate (two-way binding)', () => {
+      const {context, surface} = createComponentContext({
+        properties: {value: {path: '/data/text'}},
+        data: {'/data/text': 'initial-value'},
+      });
 
-    expect(bound['text']).toBeDefined();
-    expect(bound['visible']).toBeDefined();
-    expect(bound['text'].value()).toBe('Hello');
-    expect(bound['visible'].value()).toBe(true);
+      const bound = binder.bind(context);
 
-    // Verify resolveSignal was called
-    expect(mockDataContext.resolveSignal).toHaveBeenCalledWith('Hello');
-    expect(mockDataContext.resolveSignal).toHaveBeenCalledWith(true);
+      expect(bound['value'].value()).toBe('initial-value');
+      expect(bound['value'].onUpdate).toBeDefined();
+
+      // Call onUpdate to verify it propagates dynamically to the DataModel
+      bound['value'].onUpdate('new-value');
+      expect(surface.dataModel.get('/data/text')).toBe('new-value');
+      expect(bound['value'].value()).toBe('new-value');
+    });
+
+    it('should make onUpdate a no-op for literal properties', () => {
+      const {context} = createComponentContext({
+        properties: {
+          text: 'literal-text',
+        },
+      });
+
+      const bound = binder.bind(context);
+
+      expect(bound['text'].value()).toBe('literal-text');
+      expect(bound['text'].onUpdate).toBeDefined();
+
+      // Verify calling onUpdate does not throw or modify
+      expect(() => bound['text'].onUpdate('new-text')).not.toThrow();
+      expect(bound['text'].value()).toBe('literal-text');
+    });
   });
 
-  it('should add update() method for data bindings (two-way binding)', () => {
-    const mockComponentModel = {
-      properties: {
-        value: {path: '/data/text'},
-      },
+  describe('single child bindings (child, trigger, content)', () => {
+    const testSingleChildKey = (key: 'child' | 'trigger' | 'content') => {
+      it(`should handle null/falsy value for ${key}`, () => {
+        const {context} = createComponentContext({
+          properties: {[key]: null},
+        });
+        const bound = binder.bind(context);
+        expect(bound[key].value()).toBeNull();
+      });
+
+      it(`should resolve string ID to Child object for ${key}`, () => {
+        const {context} = createComponentContext({
+          properties: {[key]: 'my-child-id'},
+        });
+        const bound = binder.bind(context);
+        expect(bound[key].value()).toEqual({
+          id: 'my-child-id',
+          basePath: '/',
+        });
+      });
+
+      it(`should return existing Child object as-is for ${key}`, () => {
+        const existingChild = {
+          id: 'custom-child-id',
+          basePath: '/different/path',
+        };
+        const {context} = createComponentContext({
+          properties: {[key]: existingChild},
+        });
+        const bound = binder.bind(context);
+        expect(bound[key].value()).toEqual(existingChild);
+      });
     };
 
-    const mockpSig = preactSignal('initial');
-    const mockDataContext = {
-      resolveSignal: jasmine.createSpy('resolveSignal').and.returnValue(mockpSig),
-      set: jasmine.createSpy('set'),
-    };
-
-    const mockContext = {
-      componentModel: mockComponentModel,
-      dataContext: mockDataContext,
-    } as unknown as ComponentContext;
-
-    const bound = binder.bind(mockContext);
-
-    expect(bound['value']).toBeDefined();
-    expect(bound['value'].value()).toBe('initial');
-    expect(bound['value'].onUpdate).toBeDefined();
-
-    // Call update
-    bound['value'].onUpdate('new-value');
-
-    // Verify set was called on DataContext
-    expect(mockDataContext.set).toHaveBeenCalledWith('/data/text', 'new-value');
+    describe('child', () => testSingleChildKey('child'));
+    describe('trigger', () => testSingleChildKey('trigger'));
+    describe('content', () => testSingleChildKey('content'));
   });
 
-  it('should NOT add update() method for literals', () => {
-    const mockComponentModel = {
-      properties: {
-        text: 'Literal String',
-      },
-    };
+  describe('children list bindings', () => {
+    it('should handle null/falsy or non-array values by returning an empty array', () => {
+      const {context} = createComponentContext({
+        properties: {children: null},
+      });
+      const bound = binder.bind(context);
+      expect(bound['children'].value()).toEqual([]);
+    });
 
-    const mockpSig = preactSignal('Literal String');
-    const mockDataContext = {
-      resolveSignal: jasmine.createSpy('resolveSignal').and.returnValue(mockpSig),
-      set: jasmine.createSpy('set'),
-    };
+    it('should bind a static array of string child IDs', () => {
+      const {context} = createComponentContext({
+        properties: {children: ['child-1', 'child-2']},
+      });
+      const bound = binder.bind(context);
+      expect(bound['children'].value()).toEqual([
+        {id: 'child-1', basePath: '/'},
+        {id: 'child-2', basePath: '/'},
+      ]);
+      expect(bound['children'].template).toBeUndefined();
+    });
 
-    const mockContext = {
-      componentModel: mockComponentModel,
-      dataContext: mockDataContext,
-    } as unknown as ComponentContext;
+    it('should bind a path resolving to an array of child IDs', () => {
+      const {context} = createComponentContext({
+        properties: {children: {path: '/dynamic/list'}},
+        data: {'/dynamic/list': ['child-a', 'child-b']},
+      });
+      const bound = binder.bind(context);
+      expect(bound['children'].value()).toEqual([
+        {id: 'child-a', basePath: '/'},
+        {id: 'child-b', basePath: '/'},
+      ]);
+      expect(bound['children'].template).toBeUndefined();
+    });
 
-    const bound = binder.bind(mockContext);
+    it('should bind a path resolving to an array of pre-formatted Child objects', () => {
+      const {context} = createComponentContext({
+        properties: {children: {path: '/dynamic/custom-list'}},
+        data: {
+          '/dynamic/custom-list': [
+            {id: 'child-x', basePath: '/custom/x'},
+            {id: 'child-y', basePath: '/custom/y'},
+          ],
+        },
+      });
+      const bound = binder.bind(context);
+      expect(bound['children'].value()).toEqual([
+        {id: 'child-x', basePath: '/custom/x'},
+        {id: 'child-y', basePath: '/custom/y'},
+      ]);
+    });
 
-    expect(bound['text']).toBeDefined();
-    expect(bound['text'].value()).toBe('Literal String');
-    expect(bound['text'].onUpdate).toBeDefined(); // No-op for literals
+    it('should expand ChildList template objects and populate template field', () => {
+      const {context} = createComponentContext({
+        properties: {children: {componentId: 'item-card', path: '/items'}},
+        data: {'/items': ['item1', 'item2', 'item3']},
+      });
+      const bound = binder.bind(context);
+      expect(bound['children'].value()).toEqual([
+        {id: 'item-card', basePath: '/items/0'},
+        {id: 'item-card', basePath: '/items/1'},
+        {id: 'item-card', basePath: '/items/2'},
+      ]);
 
-    // Call onUpdate on literal, should not crash or call set
-    bound['text'].onUpdate('new');
-    expect(mockDataContext.set).not.toHaveBeenCalled();
+      expect(bound['children'].template).toEqual({
+        id: 'item-card',
+        path: '/items',
+      });
+    });
+
+    it('should not leak template to subsequent properties', () => {
+      const {context} = createComponentContext({
+        properties: {
+          children: {componentId: 'item-card', path: '/items'},
+          anotherProp: 'some-literal',
+        },
+        data: {'/items': ['item1']},
+      });
+      const bound = binder.bind(context);
+
+      expect(bound['children'].template).toEqual({
+        id: 'item-card',
+        path: '/items',
+      });
+      expect(bound['anotherProp'].template).toBeUndefined();
+    });
   });
 
-  it('should expand ChildList object templates', () => {
-    const mockComponentModel = {
-      properties: {
-        children: {componentId: 'item-comp', path: '/list/data'},
-      },
-    };
+  describe('validation checks (checks)', () => {
+    it('should return isValid=true and empty errors when checks is null/empty', () => {
+      const {context} = createComponentContext({
+        properties: {checks: []},
+      });
+      const bound = binder.bind(context);
 
-    const mockListSig = preactSignal(['a', 'b']);
-    const mockDataContext = {
-      resolveSignal: jasmine.createSpy('resolveSignal').and.callFake((val: any) => {
-        if (val && val.path === '/list/data') return mockListSig;
-        return preactSignal(val);
-      }),
-      nested: jasmine.createSpy('nested').and.callFake((path: string) => ({
-        path,
-        nested: (sub: string) => ({path: `${path}/${sub}`}),
-      })),
-      set: jasmine.createSpy('set'),
-    };
+      expect(bound['isValid']).toBeDefined();
+      expect(bound['validationErrors']).toBeDefined();
 
-    const mockContext = {
-      componentModel: mockComponentModel,
-      dataContext: mockDataContext,
-    } as unknown as ComponentContext;
+      expect(bound['isValid'].value()).toBe(true);
+      expect(bound['validationErrors'].value()).toEqual([]);
+    });
 
-    const bound = binder.bind(mockContext);
+    it('should handle checks with simple condition values (resolved as signals)', () => {
+      const {context, surface} = createComponentContext({
+        properties: {
+          checks: [
+            {condition: {path: '/form/nameValid'}, message: 'Name must be valid'},
+            {condition: {path: '/form/ageValid'}, message: 'Age must be valid'},
+          ],
+        },
+        data: {
+          '/form/nameValid': true,
+          '/form/ageValid': false,
+        },
+      });
 
-    expect(bound['children']).toBeDefined();
-    const children = bound['children'].value() as Child[];
-    expect(Array.isArray(children)).toBe(true);
-    expect(children.length).toBe(2);
-    expect(children[0]).toEqual({id: 'item-comp', basePath: '/list/data/0'});
-    expect(children[1]).toEqual({id: 'item-comp', basePath: '/list/data/1'});
-  });
+      const bound = binder.bind(context);
 
-  it('should handle static array of child IDs', () => {
-    const mockComponentModel = {
-      properties: {
-        children: ['child1', 'child2'],
-      },
-    };
+      // Since one rule resolves to false in the DataModel:
+      expect(bound['isValid'].value()).toBe(false);
+      expect(bound['validationErrors'].value()).toEqual(['Age must be valid']);
 
-    const mockpSig = preactSignal(['child1', 'child2']);
-    const mockDataContext = {
-      resolveSignal: jasmine.createSpy('resolveSignal').and.returnValue(mockpSig),
-      path: '/current/path',
-      set: jasmine.createSpy('set'),
-    };
+      // Dynamically update the DataModel to verify reactivity:
+      surface.dataModel.set('/form/ageValid', true);
+      expect(bound['isValid'].value()).toBe(true);
+      expect(bound['validationErrors'].value()).toEqual([]);
+    });
 
-    const mockContext = {
-      componentModel: mockComponentModel,
-      dataContext: mockDataContext,
-    } as unknown as ComponentContext;
+    it('should support shorthand condition rules (condition as the rule object itself)', () => {
+      const {context, surface} = createComponentContext({
+        properties: {
+          checks: [
+            {path: '/form/singleCheck'}, // Shorthand
+          ],
+        },
+        data: {'/form/singleCheck': false},
+      });
 
-    const bound = binder.bind(mockContext);
+      const bound = binder.bind(context);
 
-    expect(bound['children']).toBeDefined();
-    const children = bound['children'].value() as Child[];
-    expect(Array.isArray(children)).toBe(true);
-    expect(children.length).toBe(2);
-    expect(children[0]).toEqual({id: 'child1', basePath: '/current/path'});
-    expect(children[1]).toEqual({id: 'child2', basePath: '/current/path'});
+      expect(bound['isValid'].value()).toBe(false);
+      expect(bound['validationErrors'].value()).toEqual(['Validation failed']); // default message
 
-    expect((bound['children'] as any).template).toBeUndefined();
+      surface.dataModel.set('/form/singleCheck', true);
+      expect(bound['isValid'].value()).toBe(true);
+      expect(bound['validationErrors'].value()).toEqual([]);
+    });
+
+    it('should evaluate multiple validation errors dynamically', () => {
+      const {context, surface} = createComponentContext({
+        properties: {
+          checks: [
+            {condition: {path: '/check1'}, message: 'Error 1'},
+            {condition: {path: '/check2'}, message: 'Error 2'},
+            {condition: {path: '/check3'}, message: 'Error 3'},
+          ],
+        },
+        data: {
+          '/check1': true,
+          '/check2': false,
+          '/check3': false,
+        },
+      });
+
+      const bound = binder.bind(context);
+
+      expect(bound['isValid'].value()).toBe(false);
+      expect(bound['validationErrors'].value()).toEqual(['Error 2', 'Error 3']);
+
+      // Partially solve in DataModel:
+      surface.dataModel.set('/check2', true);
+      expect(bound['isValid'].value()).toBe(false);
+      expect(bound['validationErrors'].value()).toEqual(['Error 3']);
+
+      // Fully solve in DataModel:
+      surface.dataModel.set('/check3', true);
+      expect(bound['isValid'].value()).toBe(true);
+      expect(bound['validationErrors'].value()).toEqual([]);
+    });
   });
 });

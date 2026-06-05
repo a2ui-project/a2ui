@@ -403,7 +403,9 @@ def verify():
             'version': 'v0.9',
             'createSurface': {
                 'surfaceId': 'contact_form_1',
-                'catalogId': 'https://a2ui.dev/specification/v0_9/basic_catalog.json',
+                'catalogId': (
+                    'https://a2ui.dev/specification/v0_9/catalogs/basic/catalog.json'
+                ),
                 'fakeProperty': 'should be allowed',
             },
         },

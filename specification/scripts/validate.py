@@ -181,9 +181,17 @@ def main():
             "root_schema": "specification/v0_9/json/server_to_client.json",
             "refs": [
                 "specification/v0_9/json/common_types.json",
-                "specification/v0_9/json/basic_catalog.json"
+                "specification/v0_9/catalogs/basic/catalog.json"
             ],
-            "examples": "specification/v0_9/json/catalogs/basic/examples/*.json"
+            "examples": "specification/v0_9/catalogs/basic/examples/*.json"
+        },
+        "v0_10": {
+            "root_schema": "specification/v0_10/json/server_to_client.json",
+            "refs": [
+                "specification/v0_10/json/common_types.json",
+                "specification/v0_10/catalogs/basic/catalog.json"
+            ],
+            "examples": "specification/v0_10/catalogs/basic/examples/*.json"
         }
     }
     
@@ -204,12 +212,12 @@ def main():
         refs = []
         for ref in config["refs"]:
             ref_path = os.path.join(repo_root, ref)
-            if "basic_catalog.json" in ref:
-                # v0.9 basic_catalog needs aliasing to catalog.json as expected by server_to_client.json
+            if ref.endswith("catalog.json"):
+                # catalog needs aliasing to catalog.json as expected by server_to_client.json
                 with open(ref_path, 'r') as f:
                     catalog = json.load(f)
                 if "$id" in catalog:
-                    catalog["$id"] = catalog["$id"].replace("basic_catalog.json", "catalog.json")
+                    catalog["$id"] = f"https://a2ui.org/specification/{version}/catalog.json"
                 alias_path = os.path.join(version_temp_dir, "catalog.json")
                 with open(alias_path, 'w') as f:
                     json.dump(catalog, f)

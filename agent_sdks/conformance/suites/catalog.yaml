@@ -390,3 +390,74 @@
     schema: {type: object, additionalProperties: true}
   expect:
     schema: {type: object, additionalProperties: true}
+
+- name: test_with_pruning_common_types_transitive
+  description: Tests that pruning components preserves transitively reachable common types.
+  catalog:
+    version: "0.9"
+    common_types_schema:
+      $defs:
+        TypeForCompA:
+          type: string
+          $ref: "#/$defs/SubtypeForA"
+        TypeForCompB: {type: number}
+        SubtypeForA: {type: boolean}
+    catalog_schema:
+      catalogId: basic
+      components:
+        CompA: {$ref: "common_types.json#/$defs/TypeForCompA"}
+        CompB: {$ref: "common_types.json#/$defs/TypeForCompB"}
+  action: prune
+  args:
+    allowed_components: [CompA]
+  expect:
+    common_types_schema:
+      $defs:
+        TypeForCompA:
+          type: string
+          $ref: "#/$defs/SubtypeForA"
+        SubtypeForA: {type: boolean}
+
+- name: test_render_as_llm_instructions_drops_common_types_no_defs
+  description: Tests that common types without $defs are omitted in rendering.
+  catalog:
+    version: "0.9"
+    s2c_schema: {s2c: schema}
+    common_types_schema: {something: else}
+    catalog_schema:
+      $schema: "https://json-schema.org/draft/2020-12/schema"
+      catalog: schema
+      catalogId: id_basic
+  action: render
+  expect_output: |
+    ---BEGIN A2UI JSON SCHEMA---
+
+    ### Server To Client Schema:
+    {"s2c":"schema"}
+
+    ### Catalog Schema:
+    {"$schema":"https://json-schema.org/draft/2020-12/schema","catalog":"schema","catalogId":"id_basic"}
+
+    ---END A2UI JSON SCHEMA---
+
+- name: test_render_as_llm_instructions_drops_common_types_empty_defs
+  description: Tests that common types with empty $defs are omitted in rendering.
+  catalog:
+    version: "0.9"
+    s2c_schema: {s2c: schema}
+    common_types_schema: {$defs: {}}
+    catalog_schema:
+      $schema: "https://json-schema.org/draft/2020-12/schema"
+      catalog: schema
+      catalogId: id_basic
+  action: render
+  expect_output: |
+    ---BEGIN A2UI JSON SCHEMA---
+
+    ### Server To Client Schema:
+    {"s2c":"schema"}
+
+    ### Catalog Schema:
+    {"$schema":"https://json-schema.org/draft/2020-12/schema","catalog":"schema","catalogId":"id_basic"}
+
+    ---END A2UI JSON SCHEMA---

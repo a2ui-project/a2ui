@@ -30,8 +30,17 @@ import type {AnyComponentNode, ModalNode} from '../types';
     </div>
 
     @if (isOpen()) {
-      <div [class]="theme.components.Modal.backdrop" (click)="closeModal()">
-        <div [class]="theme.components.Modal.element" (click)="$event.stopPropagation()">
+      <div
+        class="a2ui-modal-overlay"
+        [class]="theme.components.Modal.backdrop"
+        (click)="closeModal()"
+      >
+        <div
+          class="a2ui-modal-content"
+          [class]="theme.components.Modal.element"
+          (click)="$event.stopPropagation()"
+        >
+          <button class="a2ui-modal-close" (click)="closeModal()">&times;</button>
           @if (contentChild()) {
             <ng-container a2ui-renderer [surfaceId]="surfaceId()!" [component]="contentChild()!" />
           }
@@ -46,6 +55,42 @@ import type {AnyComponentNode, ModalNode} from '../types';
     .a2ui-modal-entry-point {
       cursor: pointer;
     }
+    .a2ui-modal-overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100vw;
+      height: 100vh;
+      background: var(--a2ui-modal-backdrop-bg, rgba(0, 0, 0, 0.5));
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      z-index: 1000;
+    }
+    .a2ui-modal-content {
+      background: var(--a2ui-modal-background, var(--a2ui-color-surface, white));
+      padding: var(--a2ui-modal-padding, var(--a2ui-spacing-xl, 32px));
+      border-radius: var(--a2ui-modal-border-radius, var(--a2ui-border-radius, 8px));
+      position: relative;
+      min-width: 300px;
+      max-width: 80%;
+      max-height: 80%;
+      overflow-y: auto;
+      box-shadow: var(--a2ui-modal-box-shadow, 0 10px 25px rgba(0, 0, 0, 0.2));
+    }
+    .a2ui-modal-close {
+      position: absolute;
+      top: 10px;
+      right: 15px;
+      border: none;
+      background: none;
+      font-size: 24px;
+      cursor: pointer;
+      color: var(--a2ui-text-caption-color, #999);
+    }
+    .a2ui-modal-close:hover {
+      color: var(--a2ui-text-color, #333);
+    }
   `,
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
@@ -55,11 +100,11 @@ export class Modal extends DynamicComponent<ModalNode> {
 
   protected readonly isOpen = signal(false);
 
-  protected openModal() {
+  openModal() {
     this.isOpen.set(true);
   }
 
-  protected closeModal() {
+  closeModal() {
     this.isOpen.set(false);
   }
 }

@@ -35,6 +35,13 @@
       "request": "launch",
       "command": "./scripts/fix_licenses.sh",
       "cwd": "${workspaceFolder}"
+    },
+    {
+      "name": "fix format",
+      "type": "node-terminal",
+      "request": "launch",
+      "command": "./scripts/fix_format.sh --write",
+      "cwd": "${workspaceFolder}"
     }
   ]
 }

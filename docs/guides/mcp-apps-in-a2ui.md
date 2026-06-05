@@ -8,7 +8,7 @@ This guide explains how **Model Context Protocol (MCP) Applications** are integr
 
 The Model Context Protocol (MCP) allows MCP servers to deliver rich, interactive HTML-based user interfaces to hosts. A2UI provides a secure environment to run these third-party applications.
 
-<img src="../assets/mcp-apps-calculator-demo.gif" alt="MCP Calculator demo — loading the app, opening the calculator, and chatting with the agent" width="640">
+![MCP Calculator demo — loading the app, opening the calculator, and chatting with the agent](../assets/mcp-apps-calculator-demo.gif)
 
 ## Double-Iframe Isolation Pattern
 
@@ -22,14 +22,14 @@ To prevent this, A2UI strictly excludes `allow-same-origin` for the inner iframe
 
 ### The Architecture
 
-1.  **[Sandbox Proxy (`sandbox.html`)](https://github.com/google/A2UI/blob/main/samples/client/shared/mcp_apps_inner_iframe/sandbox.html)**: An intermediate `iframe` served from the same origin. It isolates raw DOM injection from the main app while maintaining a structured JSON-RPC channel.
-    - Permissions: **Do not sandbox** in the host template (e.g., [`mcp-app.ts`](https://github.com/google/A2UI/blob/main/samples/client/angular/projects/mcp_calculator/src/a2ui-catalog/mcp-app.ts) or [`mcp-apps-component.ts`](https://github.com/google/A2UI/blob/main/samples/client/lit/custom-components-example/ui/custom-components/mcp-apps-component.ts)).
+1.  **[Sandbox Proxy (`sandbox.html`)](https://github.com/a2ui-project/a2ui/blob/main/samples/client/shared/mcp_apps_inner_iframe/sandbox.html)**: An intermediate `iframe` served from the same origin. It isolates raw DOM injection from the main app while maintaining a structured JSON-RPC channel.
+    - Permissions: **Do not sandbox** in the host template (e.g., [`mcp-app.ts`](https://github.com/a2ui-project/a2ui/blob/main/samples/client/angular/projects/mcp_calculator/src/a2ui-catalog/mcp-app.ts) or [`mcp-apps-component.ts`](https://github.com/a2ui-project/a2ui/blob/main/samples/client/lit/custom-components-example/ui/custom-components/mcp-apps-component.ts)).
     - Host origin validation: Validates that messages come from the expected host origin.
 2.  **Embedded App (Inner Iframe)**: The innermost `iframe`. Injected dynamically via `srcdoc` with restricted permissions.
     - Permissions: `sandbox="allow-scripts allow-forms allow-popups allow-modals"` (**MUST NOT** include `allow-same-origin`).
     - Isolation: Removes access to `localStorage`, `sessionStorage`, `IndexedDB`, and cookies due to unique origin.
 
-### Architecture Diagram
+### Physical Iframe Nesting
 
 ```mermaid
 flowchart TD
@@ -43,6 +43,52 @@ flowchart TD
         C -->|Dynamic Injection| D[inner iframe untrusted content]
     end
 ```
+
+### End-to-End Architecture & Lifecycle Flow
+
+The complete cycle—including layout tree hierarchy, completely separated backend actors (the Proxy Agent and the MCP Server), and how isolated third-party widgets interact reactively with their native siblings (e.g., the Pong game's scoreboard)—is detailed below:
+
+```mermaid
+graph TD
+    %% 1. Top Tier (Strict vertical hierarchy)
+    MCPServer["MCP App Server<br/>(Hosts widget resources & core tools)"]
+
+    %% 2. Middle-Top Tier
+    Agent["AI Agent<br/>(A2UI Backend Coordinator)"]
+
+    %% 3. Subgraph for Host layout tree (Bottom Tier)
+    subgraph HostApp ["Host Application"]
+        direction TB
+        Shell["A2UI Rendering Engine & State Manager<br/>(Orchestrates native layout & state bindings)"]
+
+        subgraph LayoutTree ["A2UI Component Tree"]
+            McpComponent["McpApp Component<br/>(Sandboxed HTML/JS Widget)"]
+            SiblingComponent["Other A2UI Components<br/>(e.g., PongScoreBoard)"]
+        end
+
+        Shell <-->|"1. Initialize postMessage Event Bridge"| McpComponent
+        Shell -.->|"5. Reactive State Update<br/>(e.g., Render updated score)"| SiblingComponent
+    end
+
+    %% Vertical Channel connecting Top to Middle-Top
+    MCPServer ==>|"MCP Protocol (SSE / Stdio)"| Agent
+
+    %% Unidirectional Data Cycle (Flowing vertically through the center)
+    McpComponent ==>|"2. Tool Action Request<br/>(e.g., score_update)"| Shell
+    Shell ==>|"3. Action Delegation (A2UI Protocol)"| Agent
+    Agent ==>|"4. State Mutation & Sync (dataModelUpdate)"| Shell
+
+    %% Style Sibling Relationship
+    McpComponent -.->|"No Direct Access (Strictly Isolated)"| SiblingComponent
+```
+
+#### How the Sibling Update Loop Works:
+
+1. **Initialize postMessage Event Bridge (1)**: The host shell instantiates the double-iframe sandbox and establishes a secure message relay bridge with the `McpApp` component.
+2. **Tool Action Request (2)**: When a user interacts with the sandboxed app (e.g., scores a point in the Pong game), the app triggers a tool action by posting a message over the postMessage bridge.
+3. **Action Delegation (3)**: The host layout engine intercepts the action and delegates its execution to the `AI Proxy Agent` over the A2UI/A2A protocol. The agent optionally coordinates with the `MCP App Server` using the standard MCP Protocol (SSE / Stdio) if external calculation or resources are required.
+4. **State Mutation & Sync (4)**: The agent processes the action, mutates the master session state, and pushes a `dataModelUpdate` back to the host state manager.
+5. **Reactive State Update (5)**: The host updates its local store, triggering a reactive update on sibling A2UI components (such as native scoreboards or displays) bound to that state path. Direct communication between the sandboxed component and native sibling elements is strictly blocked to maintain containerization security.
 
 ## Usage / Code Example
 
@@ -251,13 +297,13 @@ http://localhost:4200/?disable_security_self_test=true
 
 ## Troubleshooting
 
-| Problem                                        | Solution                                                                                         |
-| ---------------------------------------------- | ------------------------------------------------------------------------------------------------ |
-| `GEMINI_API_KEY environment variable not set`  | Export the key or add a `.env` file in the agent directory                                       |
-| Python version error on `contact_lookup` agent | Install Python 3.13+ (required by that sample's `pyproject.toml`)                                |
-| `npm run build:renderer` fails                 | Make sure you ran `npm install` first in `samples/client/lit/`                                   |
-| Angular client shows blank page                | Ensure you ran `npm run build:sandbox` before `npm start`                                        |
-| MCP app iframe doesn't load                    | Check that both the MCP server (port 8000) and proxy agent (port 10006) are running              |
-| `ng serve` not found                           | Run `npm install --include=dev` to install dev dependencies including `@angular/cli`             |
-| "URL with hostname not allowed"                | Angular 21 restricts allowed hosts. Use `localhost` (the default) — do not pass `--host 0.0.0.0` |
-| Security self-test fails in dev                | Add `?disable_security_self_test=true` to the URL                                                |
+| Problem                                           | Solution                                                                                         |
+| ------------------------------------------------- | ------------------------------------------------------------------------------------------------ |
+| `GEMINI_API_KEY environment variable not set`     | Export the key or add a `.env` file in the agent directory                                       |
+| Python version error on `restaurant_finder` agent | Install Python 3.13+ (required by that sample's `pyproject.toml`)                                |
+| `npm run build:renderer` fails                    | Make sure you ran `npm install` first in `samples/client/lit/`                                   |
+| Angular client shows blank page                   | Ensure you ran `npm run build:sandbox` before `npm start`                                        |
+| MCP app iframe doesn't load                       | Check that both the MCP server (port 8000) and proxy agent (port 10006) are running              |
+| `ng serve` not found                              | Run `npm install --include=dev` to install dev dependencies including `@angular/cli`             |
+| "URL with hostname not allowed"                   | Angular 21 restricts allowed hosts. Use `localhost` (the default) — do not pass `--host 0.0.0.0` |
+| Security self-test fails in dev                   | Add `?disable_security_self_test=true` to the URL                                                |

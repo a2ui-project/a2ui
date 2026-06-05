@@ -237,7 +237,7 @@ Renderers include an `a2uiClientCapabilities` object in the **metadata** of thei
 {
   "v0.9": {
     "supportedCatalogIds": [
-      "https://a2ui.org/specification/v0_9/basic_catalog.json",
+      "https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json",
       "https://my-company.com/catalogs/v1/custom.json"
     ],
     "inlineCatalogs": []
@@ -258,7 +258,7 @@ A2UI is transport-agnostic, but it is most commonly used over **A2A (Agent-to-Ag
 
 In the standard A2A binding, A2UI messages are encoded as an A2A **DataPart**. To identify it as an A2UI payload, the part must be wrapped with specific metadata:
 
-- **mimeType**: `application/json+a2ui`
+- **mimeType**: `application/a2ui+json`
 
 The `data` field of the `DataPart` contains a **list** of A2UI messages. This allows multiple updates (e.g., `createSurface` followed by `updateComponents`) to be sent in a single network packet.
 
@@ -268,7 +268,7 @@ NOTE: **A2A Versioning**: The use of a **list** in the `data` field was introduc
 {
   "kind": "data",
   "metadata": {
-    "mimeType": "application/json+a2ui"
+    "mimeType": "application/a2ui+json"
   },
   "data": [
     {

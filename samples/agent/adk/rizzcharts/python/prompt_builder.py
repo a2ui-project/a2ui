@@ -63,7 +63,7 @@ if __name__ == "__main__":
       ui_description=UI_DESCRIPTION,
       client_ui_capabilities={
           "supported_catalog_ids": [
-              "https://a2ui.org/specification/v0_9/basic_catalog.json"
+              "https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json"
           ]
       },
       include_schema=False,

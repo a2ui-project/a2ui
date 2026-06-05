@@ -16,7 +16,9 @@ import json
 import argparse
 from pathlib import Path
 
-VERSION_0_9_CATALOG_ID = "https://a2ui.org/specification/v0_9/basic_catalog.json"
+VERSION_0_9_CATALOG_ID = (
+    "https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json"
+)
 
 
 def _convert_map(v_map):

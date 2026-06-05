@@ -22,7 +22,7 @@ import type {AnyComponentNode, ResolvedRow, RowNode} from '../types';
 @Component({
   selector: 'a2ui-row',
   imports: [Renderer],
-  changeDetection: ChangeDetectionStrategy.Eager,
+  changeDetection: ChangeDetectionStrategy.OnPush,
   host: {
     '[attr.alignment]': 'alignment()',
     '[attr.distribution]': 'distribution()',

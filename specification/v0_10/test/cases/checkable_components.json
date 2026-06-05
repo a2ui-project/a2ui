@@ -13,21 +13,29 @@
               "id": "tf1",
               "component": "TextField",
               "label": "Email",
-              "value": {"path": "/formData/email"},
+              "value": {
+                "path": "/formData/email"
+              },
               "checks": [
                 {
                   "condition": {
                     "call": "required",
-                    "args": {"value": {"path": "/formData/email"}},
-                    "returnType": "boolean"
+                    "args": {
+                      "value": {
+                        "path": "/formData/email"
+                      }
+                    }
                   },
                   "message": "Email is required"
                 },
                 {
                   "condition": {
                     "call": "email",
-                    "args": {"value": {"path": "/formData/email"}},
-                    "returnType": "boolean"
+                    "args": {
+                      "value": {
+                        "path": "/formData/email"
+                      }
+                    }
                   },
                   "message": "Must be valid email"
                 }
@@ -51,19 +59,28 @@
               "label": "Interests",
               "variant": "multipleSelection",
               "options": [
-                {"label": "Code", "value": "code"},
-                {"label": "Design", "value": "design"}
+                {
+                  "label": "Code",
+                  "value": "code"
+                },
+                {
+                  "label": "Design",
+                  "value": "design"
+                }
               ],
-              "value": {"path": "/formData/interests"},
+              "value": {
+                "path": "/formData/interests"
+              },
               "checks": [
                 {
                   "condition": {
                     "call": "length",
                     "args": {
-                      "value": {"path": "/formData/interests"},
+                      "value": {
+                        "path": "/formData/interests"
+                      },
                       "min": 1
-                    },
-                    "returnType": "boolean"
+                    }
                   },
                   "message": "Select at least one"
                 }
@@ -87,16 +104,19 @@
               "label": "Rating",
               "min": 1,
               "max": 5,
-              "value": {"path": "/formData/rating"},
+              "value": {
+                "path": "/formData/rating"
+              },
               "checks": [
                 {
                   "condition": {
                     "call": "numeric",
                     "args": {
-                      "value": {"path": "/formData/rating"},
+                      "value": {
+                        "path": "/formData/rating"
+                      },
                       "min": 3
-                    },
-                    "returnType": "boolean"
+                    }
                   },
                   "message": "Rating must be > 3"
                 }
@@ -118,13 +138,18 @@
               "id": "cb1",
               "component": "CheckBox",
               "label": "I agree",
-              "value": {"path": "/formData/agreed"},
+              "value": {
+                "path": "/formData/agreed"
+              },
               "checks": [
                 {
                   "condition": {
                     "call": "required",
-                    "args": {"value": {"path": "/formData/agreed"}},
-                    "returnType": "boolean"
+                    "args": {
+                      "value": {
+                        "path": "/formData/agreed"
+                      }
+                    }
                   },
                   "message": "Must agree"
                 }
@@ -146,13 +171,18 @@
               "id": "dt1",
               "component": "DateTimeInput",
               "label": "Date",
-              "value": {"path": "/formData/date"},
+              "value": {
+                "path": "/formData/date"
+              },
               "checks": [
                 {
                   "condition": {
                     "call": "required",
-                    "args": {"value": {"path": "/formData/date"}},
-                    "returnType": "boolean"
+                    "args": {
+                      "value": {
+                        "path": "/formData/date"
+                      }
+                    }
                   },
                   "message": "Date required"
                 }
@@ -174,16 +204,19 @@
               "id": "tf_regex",
               "component": "TextField",
               "label": "Phone",
-              "value": {"path": "/formData/phone"},
+              "value": {
+                "path": "/formData/phone"
+              },
               "checks": [
                 {
                   "condition": {
                     "call": "regex",
                     "args": {
-                      "value": {"path": "/formData/phone"},
+                      "value": {
+                        "path": "/formData/phone"
+                      },
                       "pattern": "^\\d{10}$"
-                    },
-                    "returnType": "boolean"
+                    }
                   },
                   "message": "Must be 10 digits"
                 }
@@ -205,17 +238,20 @@
               "id": "tf_len",
               "component": "TextField",
               "label": "Password",
-              "value": {"path": "/formData/pw"},
+              "value": {
+                "path": "/formData/pw"
+              },
               "checks": [
                 {
                   "condition": {
                     "call": "length",
                     "args": {
-                      "value": {"path": "/formData/pw"},
+                      "value": {
+                        "path": "/formData/pw"
+                      },
                       "min": 8,
                       "max": 64
-                    },
-                    "returnType": "boolean"
+                    }
                   },
                   "message": "Password must be 8-64 characters"
                 }
@@ -239,17 +275,20 @@
               "label": "Score",
               "min": 0,
               "max": 100,
-              "value": {"path": "/formData/score"},
+              "value": {
+                "path": "/formData/score"
+              },
               "checks": [
                 {
                   "condition": {
                     "call": "numeric",
                     "args": {
-                      "value": {"path": "/formData/score"},
+                      "value": {
+                        "path": "/formData/score"
+                      },
                       "min": 0,
                       "max": 100
-                    },
-                    "returnType": "boolean"
+                    }
                   },
                   "message": "Score must be between 0 and 100"
                 }
@@ -271,7 +310,9 @@
               "id": "tf_complex",
               "component": "TextField",
               "label": "Secret Code",
-              "value": {"path": "/formData/code"},
+              "value": {
+                "path": "/formData/code"
+              },
               "checks": [
                 {
                   "condition": {
@@ -280,8 +321,11 @@
                       "values": [
                         {
                           "call": "required",
-                          "args": {"value": {"path": "/formData/code"}},
-                          "returnType": "boolean"
+                          "args": {
+                            "value": {
+                              "path": "/formData/code"
+                            }
+                          }
                         },
                         {
                           "call": "or",
@@ -290,10 +334,11 @@
                               {
                                 "call": "regex",
                                 "args": {
-                                  "value": {"path": "/formData/code"},
+                                  "value": {
+                                    "path": "/formData/code"
+                                  },
                                   "pattern": "^[A-Z]"
-                                },
-                                "returnType": "boolean"
+                                }
                               },
                               {
                                 "call": "not",
@@ -301,21 +346,19 @@
                                   "value": {
                                     "call": "regex",
                                     "args": {
-                                      "value": {"path": "/formData/code"},
+                                      "value": {
+                                        "path": "/formData/code"
+                                      },
                                       "pattern": "^[0-9]"
-                                    },
-                                    "returnType": "boolean"
+                                    }
                                   }
-                                },
-                                "returnType": "boolean"
+                                }
                               }
                             ]
-                          },
-                          "returnType": "boolean"
+                          }
                         }
                       ]
-                    },
-                    "returnType": "boolean"
+                    }
                   },
                   "message": "Code must start with letter or not start with number"
                 }
@@ -337,13 +380,18 @@
               "id": "tf_invalid",
               "component": "TextField",
               "label": "Email",
-              "value": {"path": "/formData/email"},
+              "value": {
+                "path": "/formData/email"
+              },
               "checks": [
                 {
                   "condition": {
                     "call": "email",
-                    "args": {"value": {"path": "/formData/email"}},
-                    "returnType": "boolean"
+                    "args": {
+                      "value": {
+                        "path": "/formData/email"
+                      }
+                    }
                   }
                 }
               ]
@@ -364,12 +412,16 @@
               "id": "tf_wrong_type",
               "component": "TextField",
               "label": "Name",
-              "value": {"path": "/formData/name"},
+              "value": {
+                "path": "/formData/name"
+              },
               "checks": [
                 {
                   "condition": {
                     "call": "formatString",
-                    "args": {"value": "Hello ${/formData/name}"},
+                    "args": {
+                      "value": "Hello ${/formData/name}"
+                    },
                     "returnType": "string"
                   },
                   "message": "This should fail because returnType is string, not boolean"
@@ -394,25 +446,106 @@
               "label": "Interests",
               "variant": "multipleSelection",
               "options": [
-                {"label": "A", "value": "a"},
-                {"label": "B", "value": "b"},
-                {"label": "C", "value": "c"}
+                {
+                  "label": "A",
+                  "value": "a"
+                },
+                {
+                  "label": "B",
+                  "value": "b"
+                },
+                {
+                  "label": "C",
+                  "value": "c"
+                }
               ],
-              "value": {"path": "/formData/interests"},
+              "value": {
+                "path": "/formData/interests"
+              },
               "checks": [
                 {
                   "condition": {
                     "call": "length",
                     "args": {
-                      "value": {"path": "/formData/interests"},
+                      "value": {
+                        "path": "/formData/interests"
+                      },
                       "min": 2,
                       "max": 2
-                    },
-                    "returnType": "boolean"
+                    }
                   },
                   "message": "Select exactly 2 interests"
                 }
               ]
+            }
+          ]
+        }
+      }
+    },
+    {
+      "description": "Slider with valid steps property",
+      "valid": true,
+      "data": {
+        "version": "v0.10",
+        "updateComponents": {
+          "surfaceId": "test_1",
+          "components": [
+            {
+              "id": "sl_steps",
+              "component": "Slider",
+              "label": "Continuous rating",
+              "min": 0,
+              "max": 10,
+              "steps": 5,
+              "value": {
+                "path": "/formData/rating"
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "description": "Slider with invalid steps property (string)",
+      "valid": false,
+      "data": {
+        "version": "v0.10",
+        "updateComponents": {
+          "surfaceId": "test_1",
+          "components": [
+            {
+              "id": "sl_steps_invalid_str",
+              "component": "Slider",
+              "label": "Rating",
+              "min": 0,
+              "max": 10,
+              "steps": "five",
+              "value": {
+                "path": "/formData/rating"
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "description": "Slider with invalid steps property (less than 1)",
+      "valid": false,
+      "data": {
+        "version": "v0.10",
+        "updateComponents": {
+          "surfaceId": "test_1",
+          "components": [
+            {
+              "id": "sl_steps_invalid_num",
+              "component": "Slider",
+              "label": "Rating",
+              "min": 0,
+              "max": 10,
+              "steps": 0,
+              "value": {
+                "path": "/formData/rating"
+              }
             }
           ]
         }

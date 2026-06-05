@@ -53,7 +53,7 @@ A2UI defines a sequence of JSON messages that describe the UI. When streamed, th
       "version": "v0.9",
       "createSurface": {
         "surfaceId": "main",
-        "catalogId": "https://a2ui.org/specification/v0_9/basic_catalog.json"
+        "catalogId": "https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json"
       }
     }
     {
@@ -197,7 +197,7 @@ A sequence of self-contained JSON objects is streaming-friendly, easy for LLMs t
       "version": "v0.9",
       "createSurface": {
         "surfaceId": "booking",
-        "catalogId": "https://a2ui.org/specification/v0_9/basic_catalog.json"
+        "catalogId": "https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json"
       }
     }
     ```

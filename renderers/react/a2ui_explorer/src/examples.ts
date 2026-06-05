@@ -18,7 +18,7 @@ import {type A2uiMessage} from '@a2ui/web_core/v0_9';
 
 // Dynamically import all examples from the specification folder
 const exampleModules = import.meta.glob(
-  '../../../../specification/v0_9/json/catalogs/basic/examples/*.json',
+  '../../../../specification/v0_9/catalogs/basic/examples/*.json',
   {eager: true},
 );
 

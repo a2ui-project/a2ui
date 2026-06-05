@@ -16,8 +16,9 @@
 
 package com.google.a2ui.a2a
 
-import com.google.a2ui.core.parser.hasA2uiParts
-import com.google.a2ui.core.parser.parseResponseToParts
+import com.google.a2ui.parser.hasA2uiParts
+import com.google.a2ui.parser.parseResponseToParts
+import com.google.a2ui.schema.A2uiConstants
 import com.google.adk.agents.RunConfig
 import com.google.adk.events.Event
 import com.google.adk.runner.Runner
@@ -41,6 +42,7 @@ class A2aHandler(private val runner: Runner) {
     agentName: String,
     serverUrl: String,
     supportedCatalogIds: List<String> = emptyList(),
+    version: String = A2uiConstants.VERSION_0_9,
   ): Map<String, Any> {
     return mapOf(
       "name" to agentName,
@@ -52,7 +54,7 @@ class A2aHandler(private val runner: Runner) {
           "extensions" to
             listOf(
               mapOf(
-                "uri" to A2uiA2a.A2UI_EXTENSION_URI,
+                "uri" to "${A2uiA2a.A2UI_EXTENSION_BASE_URI}$version",
                 "params" to mapOf("supportedCatalogIds" to supportedCatalogIds),
               )
             ),

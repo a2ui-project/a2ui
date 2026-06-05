@@ -284,6 +284,7 @@ class RestaurantAgent:
         async for part in stream_response_to_parts(
             self._parsers[session_id],
             token_stream(),
+            version=ui_version,
         ):
           parts_streamed = True
           yield {
@@ -354,7 +355,7 @@ class RestaurantAgent:
             f" (Attempt {attempt}). ---"
         )
         final_parts = parse_response_to_parts(
-            final_response_content, fallback_text="OK."
+            final_response_content, fallback_text="OK.", version=ui_version
         )
 
         yield {

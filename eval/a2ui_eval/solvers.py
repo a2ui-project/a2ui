@@ -38,7 +38,7 @@ def a2ui_system_prompt(schema_path: str, catalog_path: str) -> Solver:
     
     workflow_override = """
 Additional Rules:
-1. Generate a 'createSurface' message with surfaceId 'main' and catalogId 'https://a2ui.org/specification/v0_9/basic_catalog.json'.
+1. Generate a 'createSurface' message with surfaceId 'main' and catalogId 'https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json'.
 2. Generate a 'updateComponents' message with surfaceId 'main' containing the requested UI.
 3. Among the 'updateComponents' messages in the output, there MUST be one root component with id: 'root'.
 4. Ensure all component children are referenced by ID, NOT nested inline as objects.

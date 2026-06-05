@@ -29,6 +29,9 @@ on:
       - "renderers/lit/**"
       - "samples/agent/adk/**"
 
+permissions:
+  contents: read
+
 jobs:
   build-and-test:
     runs-on: ubuntu-latest

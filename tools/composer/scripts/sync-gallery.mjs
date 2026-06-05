@@ -31,7 +31,7 @@ import {fileURLToPath} from 'url';
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(__dirname, '../../..'); // monorepo root
 const V08_EXAMPLES = join(ROOT, 'specification/v0_8/json/catalogs/basic/examples');
-const V09_EXAMPLES = join(ROOT, 'specification/v0_9/json/catalogs/basic/examples');
+const V09_EXAMPLES = join(ROOT, 'specification/v0_9/catalogs/basic/examples');
 const V08_OUT = join(__dirname, '../src/data/gallery/v08/generated.ts');
 const V09_OUT = join(__dirname, '../src/data/gallery/v09/generated.ts');
 

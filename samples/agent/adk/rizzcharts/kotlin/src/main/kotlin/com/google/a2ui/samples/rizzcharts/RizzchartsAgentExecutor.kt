@@ -18,7 +18,7 @@ package com.google.a2ui.samples.rizzcharts
 
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.google.a2ui.a2a.A2uiA2a
-import com.google.a2ui.core.schema.A2uiSchemaManager
+import com.google.a2ui.schema.A2uiSchemaManager
 import com.google.adk.sessions.Session
 
 class RizzchartsAgentExecutor(

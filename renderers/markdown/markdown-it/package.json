@@ -5,10 +5,10 @@
   "repository": {
     "directory": "renderers/markdown/markdown-it",
     "type": "git",
-    "url": "git+https://github.com/google/A2UI.git"
+    "url": "git+https://github.com/a2ui-project/a2ui.git"
   },
   "bugs": {
-    "url": "https://github.com/google/A2UI/issues"
+    "url": "https://github.com/a2ui-project/a2ui/issues"
   },
   "keywords": [
     "a2ui",

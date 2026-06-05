@@ -1,6 +1,6 @@
 # Defining Your Own Catalog
 
-While the [Basic Catalog](../../specification/v0_9/json/basic_catalog.json) is useful for starting out and bootstrapping an application, most production applications will define their own catalog to reflect their specific design system.
+While the [Basic Catalog](../../specification/v0_9/catalogs/basic/catalog.json) is useful for starting out and bootstrapping an application, most production applications will define their own catalog to reflect their specific design system.
 
 By defining your own catalog, you restrict the agent to using exactly the components and visual language that exist in your application, rather than generic inputs or buttons.
 
@@ -31,18 +31,19 @@ It is recommended to create catalogs that directly map to your existing componen
 === "Web (Lit / Angular / React)"
 
     To implement your own catalog on the web:
-    -   Create a JSON Schema containing your component definitions.
 
-- Create your own `Component` objects and `Catalog` object within your chosen web renderer.
-  - Provide the schema or reference ID to the agent.
+    - Create a JSON Schema containing your component definitions.
+    - Create your own `Component` objects and `Catalog` object within your chosen web renderer.
+        - Provide the schema or reference ID to the agent.
 
-  _Detailed guides for each framework coming soon._
+    _Detailed guides for each framework coming soon._
 
 === "Flutter"
 
     To implement your own catalog in Flutter:
-    -   Define a JSON Schema describing your widget properties.
-    -   Map the schema to Flutter widgets using a custom renderer.
+
+    - Define a JSON Schema describing your widget properties.
+    - Map the schema to Flutter widgets using a custom renderer.
 
     *Detailed Flutter integration guide coming soon.*
 

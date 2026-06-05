@@ -21,13 +21,13 @@ describe('examples.ts (Sample Loading Logic)', () => {
   describe('processExampleModules', () => {
     it('should correctly parse and sort modules', () => {
       const mockModules = {
-        '../../../../specification/v0_9/json/catalogs/minimal/examples/1_simple.json': {
+        '../../../../specification/v0_9/catalogs/minimal/examples/1_simple.json': {
           name: 'Simple',
         },
-        '../../../../specification/v0_9/json/catalogs/basic/examples/01_card.json': {
+        '../../../../specification/v0_9/catalogs/basic/examples/01_card.json': {
           default: {name: 'Card'},
         },
-        '../../../../specification/v0_9/json/catalogs/minimal/examples/2_row.json': {name: 'Row'},
+        '../../../../specification/v0_9/catalogs/minimal/examples/2_row.json': {name: 'Row'},
       };
 
       const result = processExampleModules(mockModules);

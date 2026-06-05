@@ -27,6 +27,9 @@ on:
       - ".github/workflows/validate_specifications.yml"
       - "specification/scripts/validate.py"
 
+permissions:
+  contents: read
+
 jobs:
   validate:
     runs-on: ubuntu-latest

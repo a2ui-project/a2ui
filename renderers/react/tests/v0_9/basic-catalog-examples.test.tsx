@@ -27,7 +27,7 @@ import path from 'path';
 describe('v0.9 Basic Catalog Examples Rendering', () => {
   const examplesDir = path.resolve(
     process.cwd(),
-    '../../specification/v0_9/json/catalogs/basic/examples',
+    '../../specification/v0_9/catalogs/basic/examples',
   );
 
   if (!fs.existsSync(examplesDir)) {

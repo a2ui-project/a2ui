@@ -130,7 +130,7 @@ export {BASIC_FUNCTIONS};
  */
 export class BasicCatalogBase extends AngularCatalog {
   constructor(options: BasicCatalogOptions = {}) {
-    const id = options.id ?? 'https://a2ui.org/specification/v0_9/basic_catalog.json';
+    const id = options.id ?? 'https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json';
     const functions = options.functions ?? BASIC_FUNCTIONS;
 
     const overrides = options.components ?? {};

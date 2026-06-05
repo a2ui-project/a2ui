@@ -174,32 +174,33 @@ Adding/removing items automatically updates the rendered components.
 
 Interactive components update the data model bidirectionally:
 
-| Component          | Example                                     | User Action      | Data Update              |
-| ------------------ | ------------------------------------------- | ---------------- | ------------------------ |
-| **TextField**      | `{"text": {"path": "/form/name"}}`          | Types "Alice"    | `/form/name` = "Alice"   |
-| **CheckBox**       | `{"value": {"path": "/form/agreed"}}`       | Checks box       | `/form/agreed` = true    |
-| **MultipleChoice** | `{"selections": {"path": "/form/country"}}` | Selects "Canada" | `/form/country` = ["ca"] |
+| Component          | Example                                     | User Action      | Data Update                |
+| ------------------ | ------------------------------------------- | ---------------- | -------------------------- |
+| **TextField**      | `{"text": {"path": "/form/name"}}`          | Types "Alice"    | `/form/name` = `"Alice"`   |
+| **CheckBox**       | `{"value": {"path": "/form/agreed"}}`       | Checks box       | `/form/agreed` = `true`    |
+| **MultipleChoice** | `{"selections": {"path": "/form/country"}}` | Selects "Canada" | `/form/country` = `["ca"]` |
 
 ## Best Practices
 
 - **Use granular updates**: Update only changed paths.
 
-  ```json
-  {
-    "dataModelUpdate": {
-      "path": "/user",
-      "contents": [{"key": "name", "valueString": "Alice"}]
+    ```json
+    {
+      "dataModelUpdate": {
+        "path": "/user",
+        "contents": [{"key": "name", "valueString": "Alice"}]
+      }
     }
-  }
-  ```
+    ```
 
 - **Organize by domain**: Group related data.
 
-  ```json
-  {"user": {...}, "cart": {...}, "ui": {...}}
-  ```
+    ```json
+    {"user": {...}, "cart": {...}, "ui": {...}}
+    ```
 
 - **Pre-compute display values**: Formats data (currency, dates) on the agent before sending.
-  ```json
-  {"price": "$19.99"} // Not: {"price": 19.99}
-  ```
+
+    ```json
+    {"price": "$19.99"} // Not: {"price": 19.99}
+    ```

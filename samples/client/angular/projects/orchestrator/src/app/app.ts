@@ -35,7 +35,7 @@ import {demoMessageDecorator} from '../message-decorator/demo-message-decorator'
   templateUrl: './app.html',
   styleUrl: './app.scss',
   imports: [A2aChatCanvas, RouterOutlet, MatButtonModule],
-  changeDetection: ChangeDetectionStrategy.Eager,
+  changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class App implements OnInit {
   protected demoMessageDecorator = demoMessageDecorator;

@@ -18,6 +18,9 @@ on:
   push:
   pull_request:
 
+permissions:
+  contents: read
+
 jobs:
   check-for-private-index:
     runs-on: ubuntu-latest

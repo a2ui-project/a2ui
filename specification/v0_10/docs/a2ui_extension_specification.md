@@ -41,7 +41,7 @@ Example AgentExtension block:
   "required": false,
   "params": {
     "supportedCatalogIds": [
-      "https://a2ui.org/specification/v0_10/basic_catalog.json",
+      "https://a2ui.org/specification/v0_10/catalogs/basic/catalog.json",
       "https://my-company.com/a2ui/v0_1/my_custom_catalog.json"
     ],
     "acceptsInlineCatalogs": true
@@ -72,7 +72,7 @@ A2UI messages are encoded as an A2A `DataPart`.
 
 To identify a `DataPart` as containing A2UI data, it must have the following metadata:
 
-- `mimeType`: `application/json+a2ui`
+- `mimeType`: `application/a2ui+json`
 
 The `data` field of the `DataPart` contains a **list** of A2UI JSON messages (e.g., `createSurface`, `updateComponents`, `action`). It MUST be an array of messages.
 
@@ -97,7 +97,7 @@ Example DataPart:
       "version": "v0.10",
       "createSurface": {
         "surfaceId": "example_surface",
-        "catalogId": "https://a2ui.org/specification/v0_10/basic_catalog.json"
+        "catalogId": "https://a2ui.org/specification/v0_10/catalogs/basic/catalog.json"
       }
     },
     {
@@ -116,14 +116,14 @@ Example DataPart:
   ],
   "kind": "data",
   "metadata": {
-    "mimeType": "application/json+a2ui"
+    "mimeType": "application/a2ui+json"
   }
 }
 ```
 
 ### Client-to-server events
 
-When a client (or an agent forwarding an event) sends a message to an agent, it also uses a `DataPart` with the same `application/json+a2ui` MIME type. However, the `data` payload must validate against the **Client-to-Server Message List Schema**.
+When a client (or an agent forwarding an event) sends a message to an agent, it also uses a `DataPart` with the same `application/a2ui+json` MIME type. However, the `data` payload must validate against the **Client-to-Server Message List Schema**.
 
 Example `action` DataPart:
 
@@ -145,7 +145,7 @@ Example `action` DataPart:
   ],
   "kind": "data",
   "metadata": {
-    "mimeType": "application/json+a2ui"
+    "mimeType": "application/a2ui+json"
   }
 }
 ```

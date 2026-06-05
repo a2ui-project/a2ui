@@ -25,36 +25,85 @@
   },
   "required": ["v0.10"],
   "$defs": {
-    "FunctionDefinition": {
+    "FunctionCallValidationSchema": {
       "type": "object",
-      "description": "Describes a function's interface.",
+      "description": "JSON Schema structure that validates a wire-level FunctionCall object.",
       "properties": {
-        "name": {
-          "type": "string",
-          "description": "The unique name of the function."
+        "type": {
+          "const": "object"
         },
         "description": {
-          "type": "string",
-          "description": "A human-readable description of what the function does and how to use it."
+          "type": "string"
         },
-        "parameters": {
+        "properties": {
           "type": "object",
-          "description": "A JSON Schema describing the expected arguments (args) for this function.",
-          "$ref": "https://json-schema.org/draft/2020-12/schema"
+          "properties": {
+            "call": {
+              "type": "object",
+              "properties": {
+                "const": {"type": "string"}
+              },
+              "required": ["const"]
+            },
+            "args": {
+              "type": "object",
+              "description": "A JSON Schema describing the expected arguments (args) for this function.",
+              "$ref": "https://json-schema.org/draft/2020-12/schema"
+            }
+          },
+          "required": ["call"],
+          "additionalProperties": false
         },
-        "returnType": {
-          "type": "string",
-          "enum": ["string", "number", "boolean", "array", "object", "any", "void"],
-          "description": "The type of value this function returns."
+        "required": {
+          "type": "array",
+          "items": {"type": "string"},
+          "contains": {"const": "call"}
+        },
+        "unevaluatedProperties": {
+          "type": "boolean"
+        },
+        "additionalProperties": {
+          "type": "boolean"
         }
       },
-      "required": ["name", "parameters", "returnType"],
-      "additionalProperties": false
+      "required": ["type", "properties", "required"]
+    },
+    "FunctionDefinition": {
+      "type": "object",
+      "description": "Describes a function's validation schema and interface metadata.",
+      "allOf": [
+        {
+          "$ref": "#/$defs/FunctionCallValidationSchema"
+        },
+        {
+          "type": "object",
+          "properties": {
+            "returnType": {
+              "type": "string",
+              "enum": ["string", "number", "boolean", "array", "object", "any", "void"],
+              "description": "The type of value this function returns."
+            },
+            "callableFrom": {
+              "type": "string",
+              "enum": ["clientOnly", "remoteOnly", "clientOrRemote"],
+              "default": "clientOnly",
+              "description": "Specifies where this function can be invoked from."
+            }
+          },
+          "required": ["returnType"]
+        }
+      ],
+      "unevaluatedProperties": false
     },
     "Catalog": {
       "type": "object",
       "description": "A collection of component and function definitions.",
       "properties": {
+        "$schema": {"type": "string"},
+        "$id": {"type": "string"},
+        "title": {"type": "string"},
+        "description": {"type": "string"},
+        "$defs": {"type": "object"},
         "catalogId": {
           "type": "string",
           "description": "Unique identifier for this catalog."
@@ -67,15 +116,15 @@
           }
         },
         "functions": {
-          "type": "array",
+          "type": "object",
           "description": "Definitions for functions supported by this catalog.",
-          "items": {
+          "additionalProperties": {
             "$ref": "#/$defs/FunctionDefinition"
           }
         },
-        "theme": {
-          "title": "A2UI Theme",
-          "description": "A schema that defines a catalog of A2UI theme properties. Each key is a theme property name (e.g. 'primaryColor'), and each value is the JSON schema for that property.",
+        "surfaceProperties": {
+          "title": "A2UI Surface Properties",
+          "description": "A schema that defines a catalog of A2UI surface properties. Each key is a surface property name, and each value is the JSON schema for that property.",
           "type": "object",
           "additionalProperties": {
             "$ref": "https://json-schema.org/draft/2020-12/schema"

@@ -24,7 +24,7 @@ import {Client} from './client';
   templateUrl: './app.html',
   styleUrl: 'app.css',
   imports: [SurfaceComponent],
-  changeDetection: ChangeDetectionStrategy.Eager,
+  changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class App {
   protected client = inject(Client);

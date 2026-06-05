@@ -29,7 +29,7 @@ import {MatIcon} from '@angular/material/icon';
   styleUrl: './demo-message-decorator.scss',
   templateUrl: './demo-message-decorator.html',
   imports: [MatIcon, MatIconButton, NgTemplateOutlet],
-  changeDetection: ChangeDetectionStrategy.Eager,
+  changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class DemoMessageDecoratorComponent implements MessageDecoratorComponent {
   readonly message = input.required<UiMessage>();

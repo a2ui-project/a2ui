@@ -28,7 +28,11 @@ on:
       - "specification/v0_9/**"
       - ".github/workflows/run_evals.yml"
       - "agent_sdks/python/**"
-
+  # Run evals on schedule, in order to:
+  # - catch regressions introduced by changes in environment
+  # - have more data for observing dynamics of performance degradation
+  schedule:
+    - cron: "0 0 * * *" # daily
 jobs:
   run-evals:
     runs-on: ubuntu-latest
@@ -69,30 +73,8 @@ jobs:
           GEMINI_API_KEY: ${{ env.REPO_GEMINI_API_KEY }}
         run: ./bin/run_ci_evals.py --threshold 90
 
-      - name: Create Issue if evals fail post-submit on main branch
-        if: failure() && github.event_name == 'push' && github.ref == 'refs/heads/main'
-        uses: actions/github-script@v7
-        with:
-          script: |
-            const prs = await github.rest.repos.listPullRequestsAssociatedWithCommit({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              commit_sha: context.sha
-            });
-
-            const prLink = prs.data.length > 0 ? `Associated PR: #${prs.data[0].number}` : "No associated PR found";
-
-            github.rest.issues.create({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              title: prs.data.length > 0
-                ? `Evals failed on main (PR #${prs.data[0].number})`
-                : `Evals failed on main for commit ${context.sha.substring(0, 7)}`,
-              labels: ['eval_failure'],
-              body: `The evals workflow failed on main for commit ${context.sha}.
-            ${prLink}
-            See logs: ${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`,
-              headers: {
-                'X-GitHub-Api-Version': '2022-11-28'
-              }
-            })
+      - name: Create Issue if evals fail on main branch
+        if: failure() && (github.event_name == 'push' || github.event_name == 'schedule') && github.ref == 'refs/heads/main'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: ./scripts/create_issue.sh "Evals" "eval_failure"

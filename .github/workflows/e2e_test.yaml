@@ -5,17 +5,21 @@
 name: E2E Tests
 
 on:
-  push:
-    # Workflow runs on push to any branch in the repo (not forks).
   schedule:
-    - cron: "0 * * * *" # hourly
+    - cron: "0 0 * * *" # daily
+
+permissions:
+  contents: read
 
 jobs:
   e2e_test:
     # Do not run on forked branches,
     # because the test does not have access to secrets in forks.
-    if: github.repository == 'google/a2ui'
+    if: github.repository == 'a2ui-project/a2ui'
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: write
     steps:
       - name: Check that REPO_GEMINI_API_KEY is set and available
         env:
@@ -53,3 +57,8 @@ jobs:
         env:
           GEMINI_API_KEY: ${{ secrets.REPO_GEMINI_API_KEY }}
         run: ./scripts/e2e_test.sh
+      - name: Create Issue if E2E tests fail on main branch
+        if: failure() && (github.event_name == 'push' || github.event_name == 'schedule') && github.ref == 'refs/heads/main'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: ./scripts/create_issue.sh "E2E tests" "e2e_failure"

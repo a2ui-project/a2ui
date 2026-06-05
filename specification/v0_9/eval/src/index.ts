@@ -29,7 +29,7 @@ import {analysisFlow} from './analysis_flow';
 
 const schemaFiles = [
   '../../json/common_types.json',
-  '../../json/basic_catalog.json',
+  '../../catalogs/basic/catalog.json',
   '../../json/server_to_client.json',
 ];
 
@@ -38,15 +38,19 @@ function loadSchemas(): Record<string, any> {
   for (const file of schemaFiles) {
     const schemaString = fs.readFileSync(path.join(__dirname, file), 'utf-8');
     const schema = JSON.parse(schemaString);
-    schemas[path.basename(file)] = schema;
+    const key = file.replace('../../', '');
+    schemas[key] = schema;
   }
 
-  // Alias basic_catalog.json to catalog.json to match server_to_client.json references
+  // Alias catalogs/basic/catalog.json to catalog.json to match server_to_client.json references
   // This mirrors the logic in run_tests.py
-  if (schemas['basic_catalog.json']) {
-    const catalogSchema = JSON.parse(JSON.stringify(schemas['basic_catalog.json']));
+  if (schemas['catalogs/basic/catalog.json']) {
+    const catalogSchema = JSON.parse(JSON.stringify(schemas['catalogs/basic/catalog.json']));
     if (catalogSchema['$id']) {
-      catalogSchema['$id'] = catalogSchema['$id'].replace('basic_catalog.json', 'catalog.json');
+      catalogSchema['$id'] = catalogSchema['$id'].replace(
+        /catalogs\/basic\/catalog\.json$/,
+        'catalog.json',
+      );
     }
     schemas['catalog.json'] = catalogSchema;
   }

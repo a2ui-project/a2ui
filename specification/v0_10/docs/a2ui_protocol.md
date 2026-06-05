@@ -28,7 +28,7 @@ Communication occurs via a stream of JSON objects. The renderer parses each obje
 - `updateDataModel`: Provides new data to be inserted into or to replace a surface's data model.
 - `deleteSurface`: Explicitly removes a surface and its contents from the UI.
 
-End of agent turn is signaled by [transport layer](https://github.com/google/A2UI/tree/main/docs/concepts/transports.md).
+End of agent turn is signaled by [transport layer](https://github.com/a2ui-project/a2ui/tree/main/docs/concepts/transports.md).
 
 ## Changes from previous versions
 
@@ -139,15 +139,15 @@ The [`server_to_client.json`] schema is the top-level entry point. Every message
 
 ### The Basic Catalog
 
-The [`basic_catalog.json`] schema contains the definitions for all specific UI components (e.g., `Text`, `Button`, `Row`), functions (e.g., `required`, `email`), and the theme schema.
+The [`catalogs/basic/catalog.json`] schema contains the definitions for all specific UI components (e.g., `Text`, `Button`, `Row`), functions (e.g., `required`, `email`), and the `surfaceProperties` schema.
 
 **Swappable Catalogs & Validation:**
 
-The [`server_to_client.json`] envelope schema is designed to be catalog-agnostic. It references components and themes using a placeholder filename: `catalog.json` (specifically `$ref: "catalog.json#/$defs/anyComponent"` and `$ref: "catalog.json#/$defs/theme"`).
+The [`server_to_client.json`] envelope schema is designed to be catalog-agnostic. It references components and surfaceProperties using a placeholder filename: `catalog.json` (specifically `$ref: "catalog.json#/$defs/anyComponent"` and `$ref: "catalog.json#/$defs/surfaceProperties"`).
 
 To validate A2UI messages:
 
-1.  **Basic Catalog**: Map `catalog.json` to `basic_catalog.json`.
+1.  **Basic Catalog**: Map `catalog.json` to `catalogs/basic/catalog.json`.
 2.  **Client Catalog**: Map `catalog.json` to your own catalog file (e.g., `my_company_catalog.json`).
 
 This indirection allows the same core envelope schema to be used with any compliant component catalog without modification.
@@ -169,18 +169,24 @@ Validators determine which fields represent structural links by looking for thes
 
 ## Envelope message structure
 
-The envelope defines several message types, and every message streamed by the server must be a JSON object containing exactly one of the following keys: `createSurface`, `updateComponents`, `updateDataModel`, `deleteSurface`, or `actionResponse`. The key indicates the type of message, and these are the messages that make up each message in the protocol stream.
+The envelope defines several message types, and every message streamed by the server must be a JSON object containing exactly one of the following keys: `createSurface`, `updateComponents`, `updateDataModel`, `deleteSurface`, `callFunction`, or `actionResponse`. The key indicates the type of message, and these are the messages that make up each message in the protocol stream.
 
 ### `createSurface`
 
-This message signals the client to create a new surface and begin rendering it. A surface must be created before any `updateComponents` or `updateDataModel` messages can be sent to it. While typically achieved by the agent sending a `createSurface` message, an agent may skip this if it knows the surface has already been created (e.g., by another agent). Once a surface is created, its `surfaceId` and `catalogId` are fixed; to reconfigure them, the surface must be deleted and recreated. It is an error to send `createSurface` for a `surfaceId` that already exists without first deleting it. One of the components in one of the component lists MUST have an `id` of `root` to serve as the root of the component tree.
+This message signals the client to create a new surface and begin rendering it. A surface must be created before any `updateComponents` or `updateDataModel` messages can be sent to it. While typically achieved by the agent sending a `createSurface` message, an agent may skip this if it knows the surface has already been created (e.g., by another agent). Once a surface is created, its `surfaceId` and `catalogId` are fixed; to reconfigure them, the surface must be deleted and recreated.
+
+It is an error to try to create a surface with a `surfaceId` that already exists without first deleting it; `surfaceId` must be globally unique for the renderer's lifetime. Orchestrators with subagents are empowered to manage surface IDs as needed to prevent conflicts (e.g., prefixing the subagent's name to the `surfaceId` or requiring subagents to use UUIDs).
+
+One of the components in one of the component lists MUST have an `id` of `root` to serve as the root of the component tree.
 
 **Properties:**
 
-- `surfaceId` (string, required): The unique identifier for the UI surface to be rendered.
+- `surfaceId` (string, required): The unique identifier for the UI surface to be rendered. This must be globally unique for the renderer's lifetime.
 - `catalogId` (string, required): A string that uniquely identifies the catalog (components and functions) used for this surface. It is recommended to prefix this with an internet domain that you own, to avoid conflicts (e.g., `https://mycompany.com/1.0/somecatalog`). If it is a URL, the URL does not need to have any deployed resources, it is simply a unique identifier.
-- `theme` (object, optional): A JSON object containing theme parameters (e.g., `primaryColor`) defined in the catalog's theme schema.
+- `surfaceProperties` (object, optional): A JSON object containing surface properties (e.g., `agentDisplayName`) defined in the catalog's surfaceProperties schema.
 - `sendDataModel` (boolean, optional): If true, the client will send the full data model of this surface in the metadata of every message sent to the server (via the Transport's metadata mechanism). This ensures the surface owner receives the full current state of the UI alongside the user's action or query. Defaults to false.
+- `components` (array, optional): A list containing UI components for the surface, allowing the client to build and populate the UI tree immediately on surface creation. Conforms to the `ComponentsList` schema.
+- `dataModel` (object, optional): A plain JSON object representing the initial root state of the data model.
 
 **Example:**
 
@@ -189,11 +195,26 @@ This message signals the client to create a new surface and begin rendering it. 
   "version": "v0.10",
   "createSurface": {
     "surfaceId": "user_profile_card",
-    "catalogId": "https://a2ui.org/specification/v0_10/basic_catalog.json",
-    "theme": {
-      "primaryColor": "#00BFFF"
+    "catalogId": "https://a2ui.org/specification/v0_10/catalogs/basic/catalog.json",
+    "surfaceProperties": {
+      "agentDisplayName": "Weather Bot"
     },
-    "sendDataModel": true
+    "sendDataModel": true,
+    "components": [
+      {
+        "id": "root",
+        "component": "Column",
+        "children": ["user_name"]
+      },
+      {
+        "id": "user_name",
+        "component": "Text",
+        "text": {"path": "/name"}
+      }
+    ],
+    "dataModel": {
+      "name": "John Doe"
+    }
   }
 }
 ```
@@ -204,7 +225,7 @@ This message provides a list of UI components to be added to or updated within a
 
 **Properties:**
 
-- `surfaceId` (string, required): The unique identifier for the UI surface to be updated. This is typically a name with meaning (e.g. "user_profile_card"), and it has to be unique within the context of the GenUI session.
+- `surfaceId` (string, required): The unique identifier for the UI surface to be updated. This must be globally unique for the renderer's lifetime.
 - `components` (array, required): A list of component objects. The components are provided as a flat list, and their relationships are defined by ID references in an adjacency list.
 
 **Example:**
@@ -241,7 +262,7 @@ This message is used to send or update the data that populates the UI components
 
 **Properties:**
 
-- `surfaceId` (string, required): The unique identifier for the UI surface this data model update applies to.
+- `surfaceId` (string, required): The unique identifier for the UI surface this data model update applies to. This must be globally unique for the renderer's lifetime.
 - `path` (string, optional): A JSON Pointer to the location in the data model to update. Defaults to `/`.
 - `value` (any, optional): The new value for the specified path. If omitted, the key at `path` is removed.
 
@@ -264,7 +285,7 @@ This message instructs the client to remove a surface and all its associated com
 
 **Properties:**
 
-- `surfaceId` (string, required): The unique identifier for the UI surface to be deleted.
+- `surfaceId` (string, required): The unique identifier for the UI surface to be deleted. This must be globally unique for the renderer's lifetime.
 
 **Example:**
 
@@ -324,13 +345,76 @@ Server responds with:
 }
 ```
 
+### `callFunction`
+
+This message is sent by the server to execute a function registered on the client. Functions are catalog-defined abstractions that avoid sending raw executable code across the wire.
+
+**Properties:**
+
+- `functionCallId` (string, required): A unique identifier for this invocation instance. The client MUST copy this ID verbatim into the subsequent `functionResponse` or `error` message.
+- `wantResponse` (boolean, optional, default `false`): Specifies whether the server expects a response payload back from the client. If set to `true`, the client MUST reply with either a `functionResponse` or an `error` message.
+- `callFunction` (object, required): The description of the function call.
+  - `call` (string, required): The registered name of the function to execute.
+  - `args` (object, optional): Arguments passed to the function, as defined by its schema in the catalog.
+
+**Security Boundaries and Verification:**
+
+Execution boundary verification (`remoteOnly` vs `clientOnly`) is enforced strictly at runtime by the client application:
+
+- When a client receives a `callFunction` message, it MUST look up the requested function name in its active catalog registry. (Note: The client determines the execution boundary of a function by reading the `callableFrom` metadata property or schema annotation declared in the catalog; if omitted, the boundary defaults to `"clientOnly"`.)
+- If the requested function is configured in the catalog as `clientOnly`, or if the function is not registered at all, the client MUST immediately reject the call and return a client-to-server `error` message with `code: "INVALID_FUNCTION_CALL"`.
+
+**Example:**
+
+Server sends this message to the client:
+
+```json
+{
+  "version": "v0.10",
+  "functionCallId": "get_device_resolution_123",
+  "wantResponse": true,
+  "callFunction": {
+    "call": "getScreenResolution",
+    "args": {
+      "screenIndex": 0
+    }
+  }
+}
+```
+
+If the function executes successfully, the client responds with:
+
+```json
+{
+  "version": "v0.10",
+  "functionResponse": {
+    "functionCallId": "get_device_resolution_123",
+    "call": "getScreenResolution",
+    "value": [1920, 1080]
+  }
+}
+```
+
+If the server attempts to call a `clientOnly` function (e.g., a local-only component validator), the client responds with an error:
+
+```json
+{
+  "version": "v0.10",
+  "error": {
+    "code": "INVALID_FUNCTION_CALL",
+    "message": "Function 'validateLocalInput' is clientOnly and cannot be invoked remotely.",
+    "functionCallId": "get_device_resolution_123"
+  }
+}
+```
+
 ## Example Stream
 
 The following example demonstrates a complete interaction to render a Contact Form, expressed as a JSONL stream.
 
 ```jsonl
-{"version": "v0.10", "createSurface":{"surfaceId":"contact_form_1","catalogId":"https://a2ui.org/specification/v0_10/basic_catalog.json"}}
-{"version": "v0.10", "updateComponents":{"surfaceId":"contact_form_1","components":[{"id":"root","component":"Card","child":"form_container"},{"id":"form_container","component":"Column","children":["header_row","name_row","email_group","phone_group","pref_group","divider_1","newsletter_checkbox","submit_button"],"justify":"start","align":"stretch"},{"id":"header_row","component":"Row","children":["header_icon","header_text"],"align":"center"},{"id":"header_icon","component":"Icon","name":"mail"},{"id":"header_text","component":"Text","text":"# Contact Us","variant":"h2"},{"id":"name_row","component":"Row","children":["first_name_group","last_name_group"],"justify":"spaceBetween"},{"id":"first_name_group","component":"Column","children":["first_name_label","first_name_field"],"weight":1},{"id":"first_name_label","component":"Text","text":"First Name","variant":"caption"},{"id":"first_name_field","component":"TextField","label":"First Name","value":{"path":"/contact/firstName"},"variant":"shortText"},{"id":"last_name_group","component":"Column","children":["last_name_label","last_name_field"],"weight":1},{"id":"last_name_label","component":"Text","text":"Last Name","variant":"caption"},{"id":"last_name_field","component":"TextField","label":"Last Name","value":{"path":"/contact/lastName"},"variant":"shortText"},{"id":"email_group","component":"Column","children":["email_label","email_field"]},{"id":"email_label","component":"Text","text":"Email Address","variant":"caption"},{"id":"email_field","component":"TextField","label":"Email","value":{"path":"/contact/email"},"variant":"shortText","checks":[{"call":"required","args":{"value":{"path":"/contact/email"}},"message":"Email is required."},{"call":"email","args":{"value":{"path":"/contact/email"}},"message":"Please enter a valid email address."}]},{"id":"phone_group","component":"Column","children":["phone_label","phone_field"]},{"id":"phone_label","component":"Text","text":"Phone Number","variant":"caption"},{"id":"phone_field","component":"TextField","label":"Phone","value":{"path":"/contact/phone"},"variant":"shortText","checks":[{"call":"regex","args":{"value":{"path":"/contact/phone"},"pattern":"^\\d{10}$"},"message":"Phone number must be 10 digits."}]},{"id":"pref_group","component":"Column","children":["pref_label","pref_picker"]},{"id":"pref_label","component":"Text","text":"Preferred Contact Method","variant":"caption"},{"id":"pref_picker","component":"ChoicePicker","variant":"mutuallyExclusive","options":[{"label":"Email","value":"email"},{"label":"Phone","value":"phone"},{"label":"SMS","value":"sms"}],"value":{"path":"/contact/preference"}},{"id":"divider_1","component":"Divider","axis":"horizontal"},{"id":"newsletter_checkbox","component":"CheckBox","label":"Subscribe to our newsletter","value":{"path":"/contact/subscribe"}},{"id":"submit_button_label","component":"Text","text":"Send Message"},{"id":"submit_button","component":"Button","child":"submit_button_label","variant":"primary","action":{"event":{"name":"submitContactForm","context":{"formId":"contact_form_1","clientTime":{"call":"formatDate","args":{"value": "2026-02-02T15:17:00Z", "format": "E MMM d, YYYY h:mm a"},"returnType":"string"},"isNewsletterSubscribed":{"path":"/contact/subscribe"}}}}}]}}
+{"version": "v0.10", "createSurface":{"surfaceId":"contact_form_1","catalogId":"https://a2ui.org/specification/v0_10/catalogs/basic/catalog.json"}}
+{"version": "v0.10", "updateComponents":{"surfaceId":"contact_form_1","components":[{"id":"root","component":"Card","child":"form_container"},{"id":"form_container","component":"Column","children":["header_row","name_row","email_group","phone_group","pref_group","divider_1","newsletter_checkbox","submit_button"],"justify":"start","align":"stretch"},{"id":"header_row","component":"Row","children":["header_icon","header_text"],"align":"center"},{"id":"header_icon","component":"Icon","name":"mail"},{"id":"header_text","component":"Text","text":"# Contact Us","variant":"h2"},{"id":"name_row","component":"Row","children":["first_name_group","last_name_group"],"justify":"spaceBetween"},{"id":"first_name_group","component":"Column","children":["first_name_label","first_name_field"],"weight":1},{"id":"first_name_label","component":"Text","text":"First Name","variant":"caption"},{"id":"first_name_field","component":"TextField","label":"First Name","value":{"path":"/contact/firstName"},"variant":"shortText"},{"id":"last_name_group","component":"Column","children":["last_name_label","last_name_field"],"weight":1},{"id":"last_name_label","component":"Text","text":"Last Name","variant":"caption"},{"id":"last_name_field","component":"TextField","label":"Last Name","value":{"path":"/contact/lastName"},"variant":"shortText"},{"id":"email_group","component":"Column","children":["email_label","email_field"]},{"id":"email_label","component":"Text","text":"Email Address","variant":"caption"},{"id":"email_field","component":"TextField","label":"Email","value":{"path":"/contact/email"},"variant":"shortText","checks":[{"call":"required","args":{"value":{"path":"/contact/email"}},"message":"Email is required."},{"call":"email","args":{"value":{"path":"/contact/email"}},"message":"Please enter a valid email address."}]},{"id":"phone_group","component":"Column","children":["phone_label","phone_field"]},{"id":"phone_label","component":"Text","text":"Phone Number","variant":"caption"},{"id":"phone_field","component":"TextField","label":"Phone","value":{"path":"/contact/phone"},"variant":"shortText","checks":[{"call":"regex","args":{"value":{"path":"/contact/phone"},"pattern":"^\\d{10}$"},"message":"Phone number must be 10 digits."}]},{"id":"pref_group","component":"Column","children":["pref_label","pref_picker"]},{"id":"pref_label","component":"Text","text":"Preferred Contact Method","variant":"caption"},{"id":"pref_picker","component":"ChoicePicker","variant":"mutuallyExclusive","options":[{"label":"Email","value":"email"},{"label":"Phone","value":"phone"},{"label":"SMS","value":"sms"}],"value":{"path":"/contact/preference"}},{"id":"divider_1","component":"Divider","axis":"horizontal"},{"id":"newsletter_checkbox","component":"CheckBox","label":"Subscribe to our newsletter","value":{"path":"/contact/subscribe"}},{"id":"submit_button_label","component":"Text","text":"Send Message"},{"id":"submit_button","component":"Button","child":"submit_button_label","variant":"primary","action":{"event":{"name":"submitContactForm","context":{"formId":"contact_form_1","clientTime":{"call":"formatDate","args":{"value": "2026-02-02T15:17:00Z", "format": "E MMM d, YYYY h:mm a"}},"isNewsletterSubscribed":{"path":"/contact/subscribe"}}}}}]}}
 {"version": "v0.10", "updateDataModel":{"surfaceId":"contact_form_1","path":"/contact","value":{"firstName":"John","lastName":"Doe","email":"john.doe@example.com","phone":"1234567890","preference":["email"],"subscribe":true}}}
 {"version": "v0.10", "deleteSurface":{"surfaceId":"contact_form_1"}}
 ```
@@ -351,7 +435,7 @@ This structure is designed to be both flexible and strictly validated.
 
 ### The component catalog
 
-The set of available UI components and functions is defined in a **Catalog**. The basic catalog is defined in [`basic_catalog.json`]. While the Basic Catalog is useful for starting out, most production applications will define their own catalog to reflect their specific design system. The server must generate messages that conform to the catalog understood by the client.
+The set of available UI components and functions is defined in a **Catalog**. The basic catalog is defined in [`catalogs/basic/catalog.json`]. While the Basic Catalog is useful for starting out, most production applications will define their own catalog to reflect their specific design system. The server must generate messages that conform to the catalog understood by the client.
 
 ### UI composition: the adjacency list model
 
@@ -633,7 +717,7 @@ A2UI v0.10 generalizes client-side logic into **Functions**. These can be used f
 
 ### Registered functions
 
-The client supports a set of named **Functions** (e.g., `required`, `regex`, `email`, `add`, `concat`) which are defined in the JSON schema (e.g. `basic_catalog.json`) alongside the component definitions. The server references these functions by name in `FunctionCall` objects. This avoids sending executable code.
+The client supports a set of named **Functions** (e.g., `required`, `regex`, `email`, `add`, `concat`) which are defined in the JSON schema (e.g. `catalogs/basic/catalog.json`) alongside the component definitions. The server references these functions by name in `FunctionCall` objects. This avoids sending executable code.
 
 Input components (like `TextField`, `CheckBox`) can define a list of checks. Each failure produces a specific error message that can be displayed when the component is rendered. Note that for validation checks, the function must return a boolean.
 
@@ -699,7 +783,7 @@ Buttons can also define `checks`. If any check fails, the button is automaticall
 
 ## Basic Component Catalog
 
-The [`basic_catalog.json`] provides the baseline set of components and functions.
+The [`catalogs/basic/catalog.json`] provides the baseline set of components and functions.
 
 ### Components
 
@@ -743,15 +827,14 @@ The [`basic_catalog.json`] provides the baseline set of components and functions
 | **or**             | Logical OR operation on a list of boolean values.                        |
 | **not**            | Logical NOT operation on a boolean value.                                |
 
-### Theme
+### Surface Properties
 
-The basic catalog defines the following theme properties that can be set in the `createSurface` message:
+The basic catalog defines the following surface properties that can be set in the `createSurface` message:
 
-| Property             | Type   | Description                                                                                                                                                                                                               |
-| :------------------- | :----- | :------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| **primaryColor**     | String | The primary brand color used for highlights throughout the UI (e.g., primary buttons, active borders). The renderer may generate variants, such as lighter shades, as needed. Format: Hexadecimal code (e.g., '#00BFFF'). |
-| **iconUrl**          | URI    | A URL for an image (e.g., logo or avatar) that identifies the agent or tool associated with the surface.                                                                                                                  |
-| **agentDisplayName** | String | Text to be displayed next to the surface to identify the agent or tool that created it (e.g. "Weather Bot").                                                                                                              |
+| Property             | Type   | Description                                                                                                  |
+| :------------------- | :----- | :----------------------------------------------------------------------------------------------------------- |
+| **iconUrl**          | URI    | A URL for an image (e.g., logo or avatar) that identifies the agent or tool associated with the surface.     |
+| **agentDisplayName** | String | Text to be displayed next to the surface to identify the agent or tool that created it (e.g. "Weather Bot"). |
 
 #### Identity and attribution
 
@@ -850,53 +933,126 @@ If validation fails, the client (or the system acting on behalf of the client) s
 }
 ```
 
-## Client-to-server messages
+## Client-to-server event messages
 
-The protocol also defines messages that the client can send to the server, which are defined in the [`client_to_server.json`] schema. These are used for handling user interactions and reporting client-side information.
+The protocol defines messages that the client can send to the server to report user interactions, execution results of server-initiated function calls, or client-side runtime errors. Every client-to-server message must validate against the [`client_to_server.json`] schema and contain exactly one of the following top-level keys: `action`, `functionResponse`, or `error`.
 
 ### `action`
 
-This message is sent when the user interacts with a component that has an `action` defined, such as a `Button`.
+This message is sent when a user interacts with a component that has a server action defined (such as a `Button`).
 
 **Properties:**
 
 - `name` (string, required): The name of the action.
-- `surfaceId` (string, required): The ID of the surface where the action originated.
-- `sourceComponentId` (string, required): The ID of the component that triggered the action.
-- `timestamp` (string, required): An ISO 8601 timestamp.
-- `context` (object, required): A JSON object containing any context provided in the component's `action` property.
-- `actionId` (string, optional): A unique ID for this action call, generated by the client if `wantResponse` is true.
+- `surfaceId` (string, required): The unique ID of the surface where the event originated.
+- `sourceComponentId` (string, required): The ID of the component that triggered the interaction.
+- `timestamp` (string, required): An ISO 8601 timestamp representing when the event occurred.
+- `context` (object, required): A JSON object containing the key-value pairs of the action's context parameters, after resolving all dynamic data bindings.
+- `wantResponse` (boolean, optional, default `false`): If `true`, indicates that the client expects the server to respond with a corresponding `actionResponse` message.
+- `actionId` (string, optional): A unique ID for this specific action instance. This field is REQUIRED if `wantResponse` is set to `true`.
 
-### Capabilities & metadata
+**Example:**
 
-In A2UI v0.10, capabilities and other metadata are exchanged via **Transport metadata** or initialization payloads (e.g., A2A metadata, Agent Cards, or MCP initialization), rather than as first-class A2UI messages.
+```json
+{
+  "version": "v0.10",
+  "action": {
+    "name": "submitForm",
+    "surfaceId": "contact_form_1",
+    "sourceComponentId": "submit_button",
+    "timestamp": "2026-06-02T08:57:23Z",
+    "context": {
+      "isSubscribed": true
+    },
+    "wantResponse": true,
+    "actionId": "form_submit_773"
+  }
+}
+```
 
-#### Server capabilities
+### `functionResponse`
 
-A server (or agent) advertises its capabilities using the [`server_capabilities.json`] schema. This indicates which catalogs it can generate UI for, and whether it accepts inline catalogs from the client. The exact mechanism depends on the transport (e.g., the `params` object in an A2A AgentCard, or server capabilities in MCP).
-
-#### Client capabilities
-
-The `a2uiClientCapabilities` object in the metadata follows the [`client_capabilities.json`] schema.
+This message is sent by the client to return the successful execution result of a server-initiated function call. It is required only if the server sent the `callFunction` request with `wantResponse: true`.
 
 **Properties:**
 
-- `supportedCatalogIds` (array of strings, required): URIs of supported catalogs.
-- `inlineCatalogs`: An array of inline catalog definitions provided directly by the client (useful for custom or ad-hoc components and functions).
+- `functionCallId` (string, required): The unique invocation ID copied verbatim from the server's `callFunction` message.
+- `call` (string, required): The name of the executed function, copied verbatim from the server's `callFunction` message.
+- `value` (any, required): The returned execution value of the function call.
 
-#### Client data model
+**Example:**
 
-When `sendDataModel` is enabled for a surface, the client includes the `a2uiClientDataModel` object in the metadata, following the [`client_data_model.json`] schema.
-
-**Properties:**
-
-- `surfaces` (object, required): A map of surface IDs to their current data models.
+```json
+{
+  "version": "v0.10",
+  "functionResponse": {
+    "functionCallId": "ping-call-id-102",
+    "call": "pingServer",
+    "value": true
+  }
+}
+```
 
 ### `error`
 
-This message is used to report a client-side error to the server.
+This message is sent by the client to report runtime or execution errors to the server (such as execution boundary violations, or missing catalog-registered handlers).
 
-[`basic_catalog.json`]: ../json/basic_catalog.json
+**Properties:**
+
+- `code` (string, required): The machine-readable error code (e.g., `"INVALID_FUNCTION_CALL"`).
+- `message` (string, required): A short, human-readable description of the error.
+- `surfaceId` (string, optional): The unique ID of the surface where the error occurred. This field is mutually exclusive with `functionCallId`.
+- `functionCallId` (string, optional): The unique ID of the function invocation that failed. This field is mutually exclusive with `surfaceId` and MUST be included if the error is triggered by a server-initiated function call failure.
+
+**Example (Execution Boundary Failure):**
+
+```json
+{
+  "version": "v0.10",
+  "error": {
+    "code": "INVALID_FUNCTION_CALL",
+    "message": "Function 'deleteLocalFile' is clientOnly and cannot be called from the server.",
+    "functionCallId": "delete_file_call_9"
+  }
+}
+```
+
+---
+
+## Capabilities and metadata
+
+In A2UI v0.10, capabilities and other metadata are exchanged via **transport metadata** or initialization payloads (e.g., A2A metadata, Agent Cards, or MCP initialization) rather than as first-class A2UI messages.
+
+### Server capabilities
+
+A server (or agent) advertises its capabilities using the [`server_capabilities.json`] schema. This indicates which catalogs it can generate UI for, and whether it accepts inline catalogs from the client. The exact mechanism depends on the transport (e.g., the `params` object in an A2A AgentCard, or server capabilities in MCP).
+
+**Properties:**
+
+- `v0.10` (object, required): The capability structure for version 0.10 of the A2UI protocol.
+  - `supportedCatalogIds` (array of strings, required): An array of strings identifying the Catalog Definition Schemas the server can generate.
+  - `acceptsInlineCatalogs` (boolean, optional, default `false`): Indicates if the server can accept custom inline component/function catalogs in the client's capabilities metadata.
+
+### Client capabilities
+
+The `a2uiClientCapabilities` object in the transport metadata follows the [`client_capabilities.json`] schema to describe the client's rendering capabilities.
+
+**Properties:**
+
+- `v0.10` (object, required): The capability structure for version 0.10 of the A2UI protocol.
+  - `supportedCatalogIds` (array of strings, required): The URIs of supported component and function catalogs.
+  - `inlineCatalogs` (array, optional): An array of custom catalog definitions provided inline by the client. Functions defined within inline catalogs support declaring execution boundaries (`callableFrom: "clientOnly" | "remoteOnly" | "clientOrRemote"`) to statically specify remote invocation safety.
+
+### Client data model
+
+When `sendDataModel` is enabled for a surface, the client includes the `a2uiClientDataModel` object in the transport metadata, following the [`client_data_model.json`] schema.
+
+**Properties:**
+
+- `version` (string, required): Must be the constant `"v0.10"`.
+- `surfaces` (object, required): A map of surface IDs to their current local data models.
+
+[`catalogs/basic/catalog.json`]: ../catalogs/basic/catalog.json
 [`common_types.json`]: ../json/common_types.json
 [`server_to_client.json`]: ../json/server_to_client.json
 [`client_to_server.json`]: ../json/client_to_server.json

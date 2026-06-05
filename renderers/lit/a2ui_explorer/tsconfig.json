@@ -11,6 +11,7 @@
     "outDir": "dist",
     "sourceMap": true,
     "resolveJsonModule": true,
-    "isolatedModules": true
+    "isolatedModules": true,
+    "types": ["jasmine"]
   }
 }

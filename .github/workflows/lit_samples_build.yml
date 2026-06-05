@@ -23,6 +23,9 @@ on:
     paths-ignore:
       - "samples/agent/adk/**"
 
+permissions:
+  contents: read
+
 jobs:
   build:
     runs-on: ubuntu-latest

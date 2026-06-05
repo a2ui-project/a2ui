@@ -381,7 +381,7 @@ Each activity in the inner lists should be a 'Row' containing a 'CheckBox' (to m
     description: 'Usage of pluralize.',
     promptText: `Create a 'createSurface' and 'updateComponents' message for a shopping cart summary. Surface ID 'main'.
     Display a 'Text' component.
-    The text value should be a 'pluralize' function call with returnType 'string'.
+    The text value should be a 'pluralize' function call.
     The pluralize call should use the count from '/cart/count' and provide these options:
     'zero': "No items"
     'one': "One item"

@@ -20,7 +20,7 @@ import {A2AClient} from '@a2a-js/sdk/client';
 import {MessageSendParams, Part, SendMessageSuccessResponse, Task} from '@a2a-js/sdk';
 import * as crypto from 'crypto';
 
-const A2UI_MIME_TYPE = 'application/json+a2ui';
+const A2UI_MIME_TYPE = 'application/a2ui+json';
 const enableStreaming = process.env['ENABLE_STREAMING'] !== 'false';
 
 const fetchWithCustomHeader: typeof fetch = async (url, init) => {

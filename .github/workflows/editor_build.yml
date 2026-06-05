@@ -28,6 +28,9 @@ on:
       - "renderers/web_core/**"
       - ".github/workflows/editor_build.yml"
 
+permissions:
+  contents: read
+
 jobs:
   build:
     runs-on: ubuntu-latest

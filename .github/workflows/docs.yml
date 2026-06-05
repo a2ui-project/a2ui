@@ -39,7 +39,7 @@ jobs:
       contents: write
       actions: read
 
-    if: github.repository == 'google/A2UI'
+    if: github.repository == 'a2ui-project/a2ui'
 
     steps:
       - name: Checkout Code
@@ -76,7 +76,7 @@ jobs:
         run: |
           cp -R specification/* docs/specification/
           # Flatten JSON files to version roots to support clean URLs without redirects
-          for version in v0_8 v0_9; do
+          for version in v0_8 v0_9 v0_10; do
             if [ -d "docs/specification/$version/json" ]; then
               cp docs/specification/$version/json/*.json docs/specification/$version/
             fi

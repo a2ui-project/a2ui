@@ -29,14 +29,15 @@ python docs/scripts/convert_docs.py
 
 - **Source (GitHub-flavored Markdown):**
 
-  ```markdown
-  > ⚠️ **Attention**
-  >
-  > This is an alert.
-  ```
+    ```markdown
+    > ⚠️ **Attention**
+    >
+    > This is an alert.
+    ```
 
 - **Target (MkDocs Syntax):**
-  ```markdown
-  !!! warning "Attention"
-  This is an alert.
-  ```
+
+    ```markdown
+    !!! warning "Attention"
+    This is an alert.
+    ```

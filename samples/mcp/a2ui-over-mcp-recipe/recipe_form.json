@@ -1,0 +1,120 @@
+[
+  {
+    "version": "v0.9",
+    "createSurface": {
+      "surfaceId": "recipe-form",
+      "catalogId": "https://a2ui.org/specification/v0_9/basic_catalog.json"
+    }
+  },
+  {
+    "version": "v0.9",
+    "updateComponents": {
+      "surfaceId": "recipe-form",
+      "components": [
+        {
+          "id": "root",
+          "component": "Card",
+          "child": "main-column"
+        },
+        {
+          "id": "main-column",
+          "component": "Column",
+          "children": ["title", "cooking-style-picker", "protein-picker", "submit-button"]
+        },
+        {
+          "id": "title",
+          "component": "Text",
+          "text": "Customize Your Recipe",
+          "variant": "h3"
+        },
+        {
+          "id": "cooking-style-picker",
+          "component": "ChoicePicker",
+          "label": "Cooking style",
+          "variant": "mutuallyExclusive",
+          "displayStyle": "chips",
+          "options": [
+            {
+              "label": "Grilled",
+              "value": "Grilled"
+            },
+            {
+              "label": "Baked",
+              "value": "Baked"
+            },
+            {
+              "label": "Slow-Cooked",
+              "value": "Slow-Cooked"
+            }
+          ],
+          "value": {
+            "path": "/cookingStyle"
+          }
+        },
+        {
+          "id": "protein-picker",
+          "component": "ChoicePicker",
+          "label": "Protein Type",
+          "variant": "mutuallyExclusive",
+          "displayStyle": "chips",
+          "options": [
+            {
+              "label": "Chicken",
+              "value": "Chicken"
+            },
+            {
+              "label": "Beef",
+              "value": "Beef"
+            },
+            {
+              "label": "Tofu",
+              "value": "Tofu"
+            },
+            {
+              "label": "Salmon",
+              "value": "Salmon"
+            }
+          ],
+          "value": {
+            "path": "/protein"
+          }
+        },
+        {
+          "id": "submit-button",
+          "component": "Button",
+          "child": "submit-button-text",
+          "variant": "primary",
+          "action": {
+            "event": {
+              "name": "generate_recipe",
+              "context": {
+                "cookingStyle": {
+                  "path": "/cookingStyle"
+                },
+                "protein": {
+                  "path": "/protein"
+                }
+              }
+            }
+          }
+        },
+        {
+          "id": "submit-button-text",
+          "component": "Text",
+          "text": "Get Recipe"
+        }
+      ]
+    }
+  },
+  {
+    "version": "v0.9",
+    "updateDataModel": {
+      "surfaceId": "recipe-form",
+      "path": "/",
+      "value": {
+        "cookingStyle": ["Grilled"],
+        "protein": ["Chicken"]
+      }
+    }
+  }
+]

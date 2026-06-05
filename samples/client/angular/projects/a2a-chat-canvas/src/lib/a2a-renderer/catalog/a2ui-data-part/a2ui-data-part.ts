@@ -32,7 +32,7 @@ import {ChangeDetectionStrategy, Component, computed, inject, input} from '@angu
   templateUrl: './a2ui-data-part.html',
   styleUrl: './a2ui-data-part.scss',
   imports: [Surface],
-  changeDetection: ChangeDetectionStrategy.Eager,
+  changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class A2uiDataPart implements RendererComponent {
   /** The UiMessageContent containing the A2A data part with the embedded A2UI message. */

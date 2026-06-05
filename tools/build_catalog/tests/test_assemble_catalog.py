@@ -137,7 +137,11 @@ class TestAssembleCatalog(unittest.TestCase):
         common_types_path = self.fixtures_dir / "common_types.json"
         component3_path = self.fixtures_dir / "component3.json"
 
-        assembler = CatalogAssembler(version="0.9", local_common_types_path=str(common_types_path))
+        assembler = CatalogAssembler(
+            version="0.9",
+            local_basic_catalog_path=str(self.basic_catalog_path),
+            local_common_types_path=str(common_types_path)
+        )
         result = assembler.assemble("CommonTextCatalog", [str(component3_path)])
 
         self.assertIn("$defs", result)
@@ -212,7 +216,7 @@ class TestAssembleCatalog(unittest.TestCase):
         mock_logger.warning.assert_called_with("Component collision: 'CustomHeader' already exists. Overwriting.")
 
     def test_missing_local_file(self):
-        assembler = CatalogAssembler(version="0.9")
+        assembler = CatalogAssembler(version="0.9", local_basic_catalog_path=str(self.basic_catalog_path))
         missing_path = self.fixtures_dir / "does_not_exist.json"
 
         with self.assertRaises(CatalogError) as context:

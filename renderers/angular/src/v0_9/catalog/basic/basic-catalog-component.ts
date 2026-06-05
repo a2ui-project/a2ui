@@ -19,6 +19,7 @@ import {injectBasicCatalogStyles} from '@a2ui/web_core/v0_9/basic_catalog';
 import {A2uiRendererService} from '../../core/a2ui-renderer.service';
 import {ComponentApi} from '@a2ui/web_core/v0_9';
 import {CatalogComponent} from '../../core/catalog_component';
+import {BoundProperty} from '../../core/types';
 
 /**
  * Base class for A2UI basic catalog components in Angular.
@@ -44,8 +45,13 @@ export abstract class BasicCatalogComponent<
     return this.theme()?.primaryColor;
   });
 
-  /** Weight is applied as flex css property on the component host HTML element. */
-  protected readonly weight = computed(() => this.props()['weight']?.value() ?? null);
+  /**
+   * Weight is applied as flex css property on the component host HTML element.
+   */
+  protected readonly weight = computed(() => {
+    const props = this.props() as {weight?: BoundProperty<number | undefined>};
+    return props['weight']?.value() ?? null;
+  });
 
   constructor() {
     super();

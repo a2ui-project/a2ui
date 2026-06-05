@@ -180,7 +180,7 @@ A2UI follows [Semantic Versioning](https://semver.org/):
 
 ## Stay Updated
 
-- Watch the [GitHub repository](https://github.com/google/A2UI) for updates
+- Watch the [GitHub repository](https://github.com/a2ui-project/a2ui) for updates
 - Star the repo to show your support
 - Follow releases to get notified of new versions
 
@@ -188,4 +188,4 @@ A2UI follows [Semantic Versioning](https://semver.org/):
 
 **Last Updated:** March 2026
 
-Have questions about the roadmap? [Start a discussion on GitHub](https://github.com/google/A2UI/discussions).
+Have questions about the roadmap? [Start a discussion on GitHub](https://github.com/a2ui-project/a2ui/discussions).

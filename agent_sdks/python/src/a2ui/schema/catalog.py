@@ -280,7 +280,7 @@ class A2uiCatalog:
 
     root_common_types = []
     for ref in external_refs:
-      if ref.startswith("common_types.json#/$defs/"):
+      if "common_types.json#/$defs/" in ref:
         root_common_types.append(ref.split("#/$defs/")[-1])
 
     new_common_types_schema = copy.deepcopy(self.common_types_schema)
