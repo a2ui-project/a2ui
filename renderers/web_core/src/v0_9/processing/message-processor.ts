@@ -19,7 +19,9 @@ import {Catalog, ComponentApi} from '../catalog/types.js';
 import {SurfaceGroupModel} from '../state/surface-group-model.js';
 import {ComponentModel} from '../state/component-model.js';
 import {Subscription} from '../common/events.js';
-import {zodToJsonSchema} from 'zod-to-json-schema';
+import {zodToJsonSchema, ignoreOverride} from 'zod-to-json-schema';
+import {A2uiTypeDef} from '../schema/common-types.js';
+import '../schema/common-types.js';
 
 import {
   A2uiMessage,
@@ -40,6 +42,20 @@ export interface CapabilitiesOptions {
   /** If true, the full definition of all catalogs will be included. */
   includeInlineCatalogs?: boolean;
 }
+
+const zodToJsonSchemaOptions = {
+  target: 'jsonSchema2019-09' as const,
+  override: (def: any) => {
+    const a2uiDef = def as A2uiTypeDef;
+    if (a2uiDef.refPath) {
+      return {
+        $ref: a2uiDef.refPath,
+        description: (def as any).description,
+      };
+    }
+    return ignoreOverride;
+  },
+};
 
 /**
  * The central processor for A2UI messages.
@@ -88,12 +104,7 @@ export class MessageProcessor<T extends ComponentApi> {
     const components: Record<string, any> = {};
 
     for (const [name, api] of catalog.components.entries()) {
-      const zodSchema = zodToJsonSchema(api.schema, {
-        target: 'jsonSchema2019-09',
-      }) as any;
-
-      // Clean up Zod-specific artifacts and process REF: tags
-      this.processRefs(zodSchema);
+      const zodSchema = zodToJsonSchema(api.schema as any, zodToJsonSchemaOptions) as any;
 
       // Wrap in standard A2UI component envelope (ComponentCommon)
       components[name] = {
@@ -112,11 +123,7 @@ export class MessageProcessor<T extends ComponentApi> {
 
     const functions: any[] = [];
     for (const api of catalog.functions.values()) {
-      const zodSchema = zodToJsonSchema(api.schema, {
-        target: 'jsonSchema2019-09',
-      }) as any;
-
-      this.processRefs(zodSchema);
+      const zodSchema = zodToJsonSchema(api.schema as any, zodToJsonSchemaOptions) as any;
 
       functions.push({
         name: api.name,
@@ -128,11 +135,7 @@ export class MessageProcessor<T extends ComponentApi> {
 
     let theme: Record<string, any> | undefined;
     if (catalog.themeSchema) {
-      const zodSchema = zodToJsonSchema(catalog.themeSchema, {
-        target: 'jsonSchema2019-09',
-      }) as any;
-
-      this.processRefs(zodSchema);
+      const zodSchema = zodToJsonSchema(catalog.themeSchema as any, zodToJsonSchemaOptions) as any;
       theme = zodSchema.properties;
     }
 
@@ -144,39 +147,7 @@ export class MessageProcessor<T extends ComponentApi> {
     };
   }
 
-  private processRefs(node: any): void {
-    if (typeof node !== 'object' || node === null) return;
 
-    // If the node itself is a REF target, transform it and stop recursion.
-    if (typeof node.description === 'string' && node.description.startsWith('REF:')) {
-      const parts = node.description.substring(4).split('|');
-      const ref = parts[0];
-      const desc = parts[1] || '';
-
-      // Clear the node of all other properties.
-      for (const k of Object.keys(node)) {
-        delete node[k];
-      }
-
-      // Re-add only the $ref and an optional description.
-      node['$ref'] = ref;
-      if (desc) {
-        node['description'] = desc;
-      }
-      return;
-    }
-
-    // If not a REF target, recurse into its children.
-    if (Array.isArray(node)) {
-      for (const item of node) {
-        this.processRefs(item);
-      }
-    } else {
-      for (const key of Object.keys(node)) {
-        this.processRefs(node[key]);
-      }
-    }
-  }
 
   /**
    * Returns the aggregated data model for all surfaces that have 'sendDataModel' enabled.

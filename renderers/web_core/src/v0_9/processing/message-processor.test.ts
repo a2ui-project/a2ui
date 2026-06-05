@@ -67,11 +67,11 @@ describe('MessageProcessor', () => {
       assert.deepStrictEqual(buttonSchema.allOf[1].required, ['component', 'label']);
     });
 
-    it('transforms REF: descriptions into valid $ref nodes', () => {
+    it('transforms schemas with refPath into valid $ref nodes', () => {
       const customApi: ComponentApi = {
         name: 'Custom',
         schema: z.object({
-          title: z.string().describe('REF:common_types.json#/$defs/DynamicString|The title'),
+          title: z.string().describe('The title').setRefPath('common_types.json#/$defs/DynamicString'),
         }),
       };
       const cat = new Catalog('cat-ref', [customApi]);
@@ -105,7 +105,7 @@ describe('MessageProcessor', () => {
       };
 
       const themeSchema = z.object({
-        primaryColor: z.string().describe('REF:common_types.json#/$defs/Color|The main color'),
+        primaryColor: z.string().describe('The main color').setRefPath('common_types.json#/$defs/Color'),
       });
 
       const cat = new Catalog('cat-full', [buttonApi], [addFn], themeSchema);
@@ -151,7 +151,8 @@ describe('MessageProcessor', () => {
             z.object({
               action: z
                 .string()
-                .describe('REF:common_types.json#/$defs/Action|The action to perform'),
+                .describe('The action to perform')
+                .setRefPath('common_types.json#/$defs/Action'),
             }),
           ),
         }),
@@ -172,8 +173,8 @@ describe('MessageProcessor', () => {
       const edgeApi: ComponentApi = {
         name: 'EdgeComp',
         schema: z.object({
-          noPipe: z.string().describe('REF:common_types.json#/$defs/NoPipe'),
-          multiPipe: z.string().describe('REF:common_types.json#/$defs/MultiPipe|First|Second'),
+          noPipe: z.string().setRefPath('common_types.json#/$defs/NoPipe'),
+          multiPipe: z.string().describe('First|Second').setRefPath('common_types.json#/$defs/MultiPipe'),
         }),
       };
       const cat = new Catalog('cat-edge', [edgeApi]);
@@ -186,7 +187,7 @@ describe('MessageProcessor', () => {
       assert.strictEqual(properties.noPipe.description, undefined);
 
       assert.strictEqual(properties.multiPipe.$ref, 'common_types.json#/$defs/MultiPipe');
-      assert.strictEqual(properties.multiPipe.description, 'First');
+      assert.strictEqual(properties.multiPipe.description, 'First|Second');
     });
 
     it('handles multiple catalogs correctly', () => {
