@@ -1,0 +1,58 @@
+{
+  "name": "Capitalized Text",
+  "description": "Simple example demonstrating basic catalog components.",
+  "messages": [
+    {
+      "version": "v0.9",
+      "createSurface": {
+        "surfaceId": "gallery-capitalized-text",
+        "catalogId": "https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json",
+        "sendDataModel": true
+      }
+    },
+    {
+      "version": "v0.9",
+      "updateComponents": {
+        "surfaceId": "gallery-capitalized-text",
+        "components": [
+          {
+            "id": "root",
+            "component": "Column",
+            "children": ["input_field", "result_label", "result_text"],
+            "justify": "start",
+            "align": "stretch"
+          },
+          {
+            "id": "input_field",
+            "component": "TextField",
+            "label": "Type something in lowercase:",
+            "value": {
+              "path": "/inputValue"
+            },
+            "variant": "shortText"
+          },
+          {
+            "id": "result_label",
+            "component": "Text",
+            "text": "Capitalized output:",
+            "variant": "caption"
+          },
+          {
+            "id": "result_text",
+            "component": "Text",
+            "text": {
+              "call": "capitalize",
+              "args": {
+                "value": {
+                  "path": "/inputValue"
+                }
+              },
+              "returnType": "string"
+            },
+            "variant": "h2"
+          }
+        ]
+      }
+    }
+  ]
+}

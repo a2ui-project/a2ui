@@ -21,13 +21,13 @@ describe('examples.ts (Sample Loading Logic)', () => {
   describe('processExampleModules', () => {
     it('should correctly parse and sort modules', () => {
       const mockModules = {
-        '../../../../specification/v0_9/catalogs/minimal/examples/1_simple.json': {
+        '../../../../specification/v0_9/catalogs/custom/examples/1_simple.json': {
           name: 'Simple',
         },
         '../../../../specification/v0_9/catalogs/basic/examples/01_card.json': {
           default: {name: 'Card'},
         },
-        '../../../../specification/v0_9/catalogs/minimal/examples/2_row.json': {name: 'Row'},
+        '../../../../specification/v0_9/catalogs/custom/examples/2_row.json': {name: 'Row'},
       };
 
       const result = processExampleModules(mockModules);
@@ -39,12 +39,12 @@ describe('examples.ts (Sample Loading Logic)', () => {
       expect(result[0]!.key).toBe('basic_01_card');
       expect(result[0]!.data).toEqual({name: 'Card'});
 
-      expect(result[1]!.catalog).toBe('Minimal');
-      expect(result[1]!.key).toBe('minimal_1_simple');
+      expect(result[1]!.catalog).toBe('Custom');
+      expect(result[1]!.key).toBe('custom_1_simple');
       expect(result[1]!.data).toEqual({name: 'Simple'});
 
-      expect(result[2]!.catalog).toBe('Minimal');
-      expect(result[2]!.key).toBe('minimal_2_row');
+      expect(result[2]!.catalog).toBe('Custom');
+      expect(result[2]!.key).toBe('custom_2_row');
       expect(result[2]!.data).toEqual({name: 'Row'});
     });
 

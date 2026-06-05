@@ -16,16 +16,16 @@
 
 import {Version, getCanvas, loadExample} from '../utils/test_utils';
 
-describe('Example: Row Layout (minimal) (v0.8)', () => {
+describe('Example: Complex Layout (v0.8)', () => {
   let textContent: string;
 
   beforeEach(async () => {
-    await loadExample('Row Layout (minimal)', Version.V0_8);
+    await loadExample('Complex Layout', Version.V0_8);
     textContent = getCanvas().textContent;
   });
 
   it('should render expected text content', async () => {
-    expect(textContent).toContain('Left Content');
-    expect(textContent).toContain('Right Content');
+    expect(textContent).toContain('User Profile Form');
+    expect(textContent).toContain('Please fill out all fields.');
   });
 });
