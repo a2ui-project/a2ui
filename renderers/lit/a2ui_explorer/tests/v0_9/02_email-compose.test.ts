@@ -20,6 +20,7 @@ import {
   getDeepTextContent,
   querySelectorAllDeep,
   whenSettled,
+  findButtonByText,
 } from '../utils/test-utils';
 import {LocalGallery} from '../../src/local-gallery';
 
@@ -48,11 +49,9 @@ describe('Example: Email Compose', () => {
   });
 
   it('should handle Send button click', async () => {
-    const buttons = querySelectorAllDeep(surface, '.a2ui-button') as HTMLButtonElement[];
-    const sendBtn = buttons.find(b => getDeepTextContent(b).includes('Send'));
-    expect(sendBtn).toBeDefined();
+    const sendBtn = await findButtonByText(surface, 'Send');
 
-    sendBtn?.click();
+    sendBtn.click();
     await whenSettled(gallery);
 
     expect(gallery.actionLog.length).toBe(1);
@@ -60,11 +59,9 @@ describe('Example: Email Compose', () => {
   });
 
   it('should handle Discard button click', async () => {
-    const buttons = querySelectorAllDeep(surface, '.a2ui-button') as HTMLButtonElement[];
-    const discardBtn = buttons.find(b => getDeepTextContent(b).includes('Discard'));
-    expect(discardBtn).toBeDefined();
+    const discardBtn = await findButtonByText(surface, 'Discard');
 
-    discardBtn?.click();
+    discardBtn.click();
     await whenSettled(gallery);
 
     expect(gallery.actionLog.length).toBe(1);
