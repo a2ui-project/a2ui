@@ -185,7 +185,7 @@ export class ComponentBinder {
         return computed(() => itemSignals.map(sig => sig.value));
       }
       case 'OBJECT': {
-        if (typeof value !== 'object') return signal(value);
+        if (typeof value !== 'object' || Array.isArray(value)) return signal(value);
         const resolvedProps: Record<string, Signal<any>> = {};
         for (const [k, v] of Object.entries(value)) {
           const childBehavior = behavior.shape[k] || {type: 'STATIC'};

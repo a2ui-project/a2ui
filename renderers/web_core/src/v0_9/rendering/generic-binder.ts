@@ -147,15 +147,15 @@ type IsDynamic<T> = DataBinding extends NonNullable<T> ? true : false;
  * For example, an `Action` object becomes a callable `() => void` function.
  */
 export type ResolveA2uiProp<T> = [NonNullable<T>] extends [Action]
-  ? (() => void) | Extract<T, undefined>
+  ? (() => void) | Extract<T, null | undefined>
   : [NonNullable<T>] extends [ChildList]
-    ? any | Extract<T, undefined>
+    ? any | Extract<T, null | undefined>
     : [NonNullable<T>] extends [ComponentId]
-      ? {id: string; basePath: string} | Extract<T, undefined>
+      ? {id: string; basePath: string} | Extract<T, null | undefined>
       : T extends (infer U)[]
-        ? ResolveA2uiProp<U>[] | Extract<T, undefined>
+        ? ResolveA2uiProp<U>[] | Extract<T, null | undefined>
         : T extends object
-          ? {[K in keyof T]: ResolveA2uiProp<T[K]>} | Extract<T, undefined>
+          ? {[K in keyof T]: ResolveA2uiProp<T[K]>} | Extract<T, null | undefined>
           : Exclude<T, DynamicTypes> extends never
             ? any
             : Exclude<T, DynamicTypes>;
@@ -392,7 +392,7 @@ export class GenericBinder<T> {
       }
 
       case 'OBJECT': {
-        if (typeof value !== 'object') return value;
+        if (typeof value !== 'object' || Array.isArray(value)) return value;
         const result: any = {};
 
         // 1. Resolve all provided properties
