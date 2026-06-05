@@ -112,7 +112,7 @@ Implement the following communication features:
     - Resolve all data bindings within the `action.context` against the data model.
     - Send the complete `userAction` object to the server's event handling endpoint.
 - **Client Capabilities Reporting**:
-    - In **every** A2A `Message`'s `metadata` field sent to the server, include an `a2uiClientCapabilities` object.
+    - In **every** A2A `Message` sent to the server, include an `a2uiClientCapabilities` object in the `metadata` field of the A2A `Message`.
     - This object should declare the component catalog your client supports via `supportedCatalogIds` (e.g., including the URI for the standard 0.8 catalog).
     - Optionally, if the server supports it, provide `inlineCatalogs` for custom, on-the-fly component definitions.
 - **Error Reporting**: Implement a mechanism to send an `error` message to the server to report any client-side errors (e.g., failed data binding, unknown component type).
