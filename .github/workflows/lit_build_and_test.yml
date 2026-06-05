@@ -58,6 +58,10 @@ jobs:
         run: npm run test:unit
 
       # Integration tests take care of build:deps in the app under test
+      - name: Install Lit deps
+        if: matrix.task == 'integration'
+        working-directory: ./renderers/lit
+        run: npm i
       - name: Run integration tests
         if: matrix.task == 'integration'
         working-directory: ./renderers/lit
