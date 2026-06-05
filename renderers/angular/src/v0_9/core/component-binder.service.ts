@@ -63,13 +63,19 @@ export class ComponentBinder {
     for (const key of Object.keys(props)) {
       const value = props[key];
       let template: ComponentTemplate | undefined = undefined;
-      const behavior: BehaviorNode =
-        (behaviorTree.type === 'OBJECT' ? behaviorTree.shape[key] : null) || {type: 'STATIC'};
+      const behavior: BehaviorNode = (behaviorTree.type === 'OBJECT'
+        ? behaviorTree.shape[key]
+        : null) || {type: 'STATIC'};
 
       const resolvedPreactSig = this.resolveNested(value, behavior, context);
       const angSig = toAngularSignal(resolvedPreactSig as any, this.destroyRef, this.ngZone);
 
-      if (behavior.type === 'STRUCTURAL' && value && typeof value === 'object' && 'componentId' in value) {
+      if (
+        behavior.type === 'STRUCTURAL' &&
+        value &&
+        typeof value === 'object' &&
+        'componentId' in value
+      ) {
         template = {id: value.componentId, path: value.path};
       }
 
@@ -120,7 +126,11 @@ export class ComponentBinder {
     return bound;
   }
 
-  private resolveNested(value: any, behavior: BehaviorNode, context: ComponentContext): Signal<any> {
+  private resolveNested(
+    value: any,
+    behavior: BehaviorNode,
+    context: ComponentContext,
+  ): Signal<any> {
     if (value === undefined || value === null) {
       if (behavior.type === 'STRUCTURAL') {
         return signal([]);
@@ -171,9 +181,7 @@ export class ComponentBinder {
       }
       case 'ARRAY': {
         if (!Array.isArray(value)) return signal(value);
-        const itemSignals = value.map((item) =>
-          this.resolveNested(item, behavior.element, context),
-        );
+        const itemSignals = value.map(item => this.resolveNested(item, behavior.element, context));
         return computed(() => itemSignals.map(sig => sig.value));
       }
       case 'OBJECT': {

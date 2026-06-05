@@ -16,7 +16,13 @@
 
 import {TestBed} from '@angular/core/testing';
 import {ComponentBinder} from './component-binder.service';
-import {Catalog, ComponentContext, ComponentModel, SurfaceModel, CommonSchemas} from '@a2ui/web_core/v0_9';
+import {
+  Catalog,
+  ComponentContext,
+  ComponentModel,
+  SurfaceModel,
+  CommonSchemas,
+} from '@a2ui/web_core/v0_9';
 import {z} from 'zod';
 
 /**

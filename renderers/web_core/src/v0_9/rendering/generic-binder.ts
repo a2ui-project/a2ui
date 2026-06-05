@@ -16,7 +16,14 @@
 
 import {z} from 'zod';
 import {ComponentContext} from './component-context.js';
-import {Action, ChildList, DataBinding, FunctionCall, ComponentId, A2uiTypeDef} from '../schema/common-types.js';
+import {
+  Action,
+  ChildList,
+  DataBinding,
+  FunctionCall,
+  ComponentId,
+  A2uiTypeDef,
+} from '../schema/common-types.js';
 
 // --- Schema Scraping ---
 
@@ -277,7 +284,10 @@ export class GenericBinder<T> {
 
       case 'CHILD': {
         const bound = this.context.dataContext.subscribeDynamicValue(value, newVal => {
-          this.updateDeepValue(path, newVal ? {id: newVal, basePath: this.context.dataContext.path} : null);
+          this.updateDeepValue(
+            path,
+            newVal ? {id: newVal, basePath: this.context.dataContext.path} : null,
+          );
           this.notify();
         });
 

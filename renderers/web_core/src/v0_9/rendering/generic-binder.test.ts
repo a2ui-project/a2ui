@@ -244,8 +244,8 @@ describe('GenericBinder Child and Structural Behavior', () => {
 
     // Dynamic list resolution
     assert.deepStrictEqual(binder.snapshot.children, [
-      { id: 'item-comp', basePath: '/items/0' },
-      { id: 'item-comp', basePath: '/items/1' },
+      {id: 'item-comp', basePath: '/items/0'},
+      {id: 'item-comp', basePath: '/items/1'},
     ]);
 
     // Static list resolution
@@ -258,8 +258,8 @@ describe('GenericBinder Child and Structural Behavior', () => {
     const staticBinder = new GenericBinder<any>(staticContext, schema);
 
     assert.deepStrictEqual(staticBinder.snapshot.children, [
-      { id: 'child1', basePath: '/parent_path' },
-      { id: 'child2', basePath: '/parent_path' },
+      {id: 'child1', basePath: '/parent_path'},
+      {id: 'child2', basePath: '/parent_path'},
     ]);
   });
 });
