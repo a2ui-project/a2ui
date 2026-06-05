@@ -65,7 +65,29 @@ function generateExamplesBundle() {
  * in the specification directory.
  */
 
+import {A2uiMessage} from '@a2ui/web_core/v0_9';
+
 ${imports.join('\n')}
+
+/**
+ * Represents the expected structure of the example JSON data.
+ * It can be a direct array of messages or an object containing messages and metadata.
+ */
+export interface ExampleData {
+  messages?: A2uiMessage[];
+  description?: string;
+}
+
+/**
+ * Represents the module structure returned by Vite when importing a JSON file
+ * via import.meta.glob.
+ *
+ * The \`default\` property contains the parsed content of the file (in this case,
+ * our example data).
+ */
+export interface ExampleModule {
+  default: ExampleData | A2uiMessage[];
+}
 
 export const exampleModules: Record<string, { default: any }> = {
 ${entries.join(',\n')}

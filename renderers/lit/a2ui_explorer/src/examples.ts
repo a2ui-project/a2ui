@@ -16,7 +16,7 @@
 
 import {basicCatalog} from '@a2ui/lit/v0_9';
 import {A2uiMessage, CreateSurfaceMessage} from '@a2ui/web_core/v0_9';
-import {exampleModules} from './generated/examples-list';
+import {ExampleData, ExampleModule, exampleModules} from './generated/examples-list';
 
 /**
  * Represents a demo item loaded from an example JSON file.
@@ -102,26 +102,6 @@ function ensureCreateSurfaceMessage(filename: string, messages: A2uiMessage[]): 
   }
 
   return surfaceId;
-}
-
-/**
- * Represents the expected structure of the example JSON data.
- * It can be a direct array of messages or an object containing messages and metadata.
- */
-interface ExampleData {
-  messages?: A2uiMessage[];
-  description?: string;
-}
-
-/**
- * Represents the module structure returned by Vite when importing a JSON file
- * via import.meta.glob.
- *
- * The `default` property contains the parsed content of the file (in this case,
- * our example data).
- */
-interface ExampleModule {
-  default: ExampleData | A2uiMessage[];
 }
 
 /**
