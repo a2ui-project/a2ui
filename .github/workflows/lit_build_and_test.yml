@@ -33,31 +33,36 @@ permissions:
 jobs:
   build-and-test:
     runs-on: ubuntu-latest
-
+    strategy:
+      matrix:
+        task: [unit, integration]
     steps:
       - uses: actions/checkout@v6
-
       - name: Set up Node.js
         uses: actions/setup-node@v6
         with:
           node-version: "22"
 
-      - name: Install web_core dependencies
-        working-directory: ./renderers/web_core
-        run: npm i
-
+      # Unit tests need to build the Lit renderer
       - name: Build web_core
+        if: matrix.task == 'unit'
         working-directory: ./renderers/web_core
-        run: npm run build
+        run: npm i && npm run build
+      - name: Build Lit renderer
+        if: matrix.task == 'unit'
+        working-directory: ./renderers/lit
+        run: npm i && npm run build
+      - name: Run unit tests
+        if: matrix.task == 'unit'
+        working-directory: ./renderers/lit
+        run: npm run test:unit
 
-      - name: Install Lit renderer dependencies
+      # Integration tests take care of build:deps in the app under test
+      - name: Install Lit deps
+        if: matrix.task == 'integration'
         working-directory: ./renderers/lit
         run: npm i
-
-      - name: Build Lit renderer
+      - name: Run integration tests
+        if: matrix.task == 'integration'
         working-directory: ./renderers/lit
-        run: npm run build
-
-      - name: Run Lit renderer tests
-        working-directory: ./renderers/lit
-        run: npm test
+        run: npm run test:integration

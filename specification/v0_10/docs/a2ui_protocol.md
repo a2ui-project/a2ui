@@ -173,11 +173,15 @@ The envelope defines several message types, and every message streamed by the se
 
 ### `createSurface`
 
-This message signals the client to create a new surface and begin rendering it. A surface must be created before any `updateComponents` or `updateDataModel` messages can be sent to it. While typically achieved by the agent sending a `createSurface` message, an agent may skip this if it knows the surface has already been created (e.g., by another agent). Once a surface is created, its `surfaceId` and `catalogId` are fixed; to reconfigure them, the surface must be deleted and recreated. It is an error to send `createSurface` for a `surfaceId` that already exists without first deleting it. One of the components in one of the component lists MUST have an `id` of `root` to serve as the root of the component tree.
+This message signals the client to create a new surface and begin rendering it. A surface must be created before any `updateComponents` or `updateDataModel` messages can be sent to it. While typically achieved by the agent sending a `createSurface` message, an agent may skip this if it knows the surface has already been created (e.g., by another agent). Once a surface is created, its `surfaceId` and `catalogId` are fixed; to reconfigure them, the surface must be deleted and recreated.
+
+It is an error to try to create a surface with a `surfaceId` that already exists without first deleting it; `surfaceId` must be globally unique for the renderer's lifetime. Orchestrators with subagents are empowered to manage surface IDs as needed to prevent conflicts (e.g., prefixing the subagent's name to the `surfaceId` or requiring subagents to use UUIDs).
+
+One of the components in one of the component lists MUST have an `id` of `root` to serve as the root of the component tree.
 
 **Properties:**
 
-- `surfaceId` (string, required): The unique identifier for the UI surface to be rendered.
+- `surfaceId` (string, required): The unique identifier for the UI surface to be rendered. This must be globally unique for the renderer's lifetime.
 - `catalogId` (string, required): A string that uniquely identifies the catalog (components and functions) used for this surface. It is recommended to prefix this with an internet domain that you own, to avoid conflicts (e.g., `https://mycompany.com/1.0/somecatalog`). If it is a URL, the URL does not need to have any deployed resources, it is simply a unique identifier.
 - `surfaceProperties` (object, optional): A JSON object containing surface properties (e.g., `agentDisplayName`) defined in the catalog's surfaceProperties schema.
 - `sendDataModel` (boolean, optional): If true, the client will send the full data model of this surface in the metadata of every message sent to the server (via the Transport's metadata mechanism). This ensures the surface owner receives the full current state of the UI alongside the user's action or query. Defaults to false.
@@ -221,7 +225,7 @@ This message provides a list of UI components to be added to or updated within a
 
 **Properties:**
 
-- `surfaceId` (string, required): The unique identifier for the UI surface to be updated. This is typically a name with meaning (e.g. "user_profile_card"), and it has to be unique within the context of the GenUI session.
+- `surfaceId` (string, required): The unique identifier for the UI surface to be updated. This must be globally unique for the renderer's lifetime.
 - `components` (array, required): A list of component objects. The components are provided as a flat list, and their relationships are defined by ID references in an adjacency list.
 
 **Example:**
@@ -258,7 +262,7 @@ This message is used to send or update the data that populates the UI components
 
 **Properties:**
 
-- `surfaceId` (string, required): The unique identifier for the UI surface this data model update applies to.
+- `surfaceId` (string, required): The unique identifier for the UI surface this data model update applies to. This must be globally unique for the renderer's lifetime.
 - `path` (string, optional): A JSON Pointer to the location in the data model to update. Defaults to `/`.
 - `value` (any, optional): The new value for the specified path. If omitted, the key at `path` is removed.
 
@@ -281,7 +285,7 @@ This message instructs the client to remove a surface and all its associated com
 
 **Properties:**
 
-- `surfaceId` (string, required): The unique identifier for the UI surface to be deleted.
+- `surfaceId` (string, required): The unique identifier for the UI surface to be deleted. This must be globally unique for the renderer's lifetime.
 
 **Example:**
 

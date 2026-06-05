@@ -262,6 +262,7 @@ export class Validator {
     let hasUpdateComponents = false;
     let hasRootComponent = false;
     const createdSurfaces = new Set<string>();
+    const activeSurfaces = new Set<string>();
 
     for (const message of messages) {
       if (message.updateComponents) {
@@ -270,6 +271,11 @@ export class Validator {
         if (surfaceId && !createdSurfaces.has(surfaceId)) {
           errors.push(
             `updateComponents message received for surface '${surfaceId}' before createSurface message.`,
+          );
+        }
+        if (surfaceId && createdSurfaces.has(surfaceId) && !activeSurfaces.has(surfaceId)) {
+          errors.push(
+            `updateComponents message received for inactive or deleted surface '${surfaceId}'.`,
           );
         }
 
@@ -287,7 +293,13 @@ export class Validator {
         this.validateCreateSurface(message.createSurface, errors);
         const surfaceId = message.createSurface.surfaceId;
         if (surfaceId) {
+          if (activeSurfaces.has(surfaceId)) {
+            errors.push(
+              `Duplicate createSurface message received for surface '${surfaceId}' without prior deleteSurface.`,
+            );
+          }
           createdSurfaces.add(surfaceId);
+          activeSurfaces.add(surfaceId);
         }
 
         const createSurface = message.createSurface;
@@ -309,8 +321,29 @@ export class Validator {
         }
       } else if (message.updateDataModel) {
         this.validateUpdateDataModel(message.updateDataModel, errors);
+        const surfaceId = message.updateDataModel.surfaceId;
+        if (surfaceId) {
+          if (!createdSurfaces.has(surfaceId)) {
+            errors.push(
+              `updateDataModel message received for surface '${surfaceId}' before createSurface message.`,
+            );
+          } else if (!activeSurfaces.has(surfaceId)) {
+            errors.push(
+              `updateDataModel message received for inactive or deleted surface '${surfaceId}'.`,
+            );
+          }
+        }
       } else if (message.deleteSurface) {
         this.validateDeleteSurface(message.deleteSurface, errors);
+        const surfaceId = message.deleteSurface.surfaceId;
+        if (surfaceId) {
+          if (!activeSurfaces.has(surfaceId)) {
+            errors.push(
+              `deleteSurface message received for inactive or non-existent surface '${surfaceId}'.`,
+            );
+          }
+          activeSurfaces.delete(surfaceId);
+        }
       } else {
         errors.push(`Unknown message type in output: ${JSON.stringify(message)}`);
       }

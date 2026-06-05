@@ -21,11 +21,11 @@
         },
         "createSurface": {
           "type": "object",
-          "description": "Signals the client to create a new surface and begin rendering it. It is an error to send 'createSurface' for a surfaceId that already exists without first deleting it. When this message is sent, the client will expect 'updateComponents' and/or 'updateDataModel' messages for the same surfaceId that define the component tree.",
+          "description": "Signals the client to create a new surface and begin rendering it. It is an error to try to create a surface with the same ID twice without first deleting it; surfaceId MUST be globally unique for the renderer's lifetime. When this message is sent, the client will expect 'updateComponents' and/or 'updateDataModel' messages for the same surfaceId that define the component tree.",
           "properties": {
             "surfaceId": {
               "type": "string",
-              "description": "The unique identifier for the UI surface to be rendered."
+              "description": "The unique identifier for the UI surface to be rendered. It must be globally unique for the renderer's lifetime."
             },
             "catalogId": {
               "description": "A string that uniquely identifies this catalog. It is recommended to prefix this with an internet domain that you own, to avoid conflicts e.g. mycompany.com:somecatalog'.",
@@ -75,7 +75,7 @@
           "properties": {
             "surfaceId": {
               "type": "string",
-              "description": "The unique identifier for the UI surface to be updated."
+              "description": "The unique identifier for the UI surface to be updated. It must be globally unique for the renderer's lifetime."
             },
             "components": {
               "$ref": "#/$defs/ComponentsList"
@@ -100,7 +100,7 @@
           "properties": {
             "surfaceId": {
               "type": "string",
-              "description": "The unique identifier for the UI surface this data model update applies to."
+              "description": "The unique identifier for the UI surface this data model update applies to. It must be globally unique for the renderer's lifetime."
             },
             "path": {
               "type": "string",
@@ -130,7 +130,7 @@
           "properties": {
             "surfaceId": {
               "type": "string",
-              "description": "The unique identifier for the UI surface to be deleted."
+              "description": "The unique identifier for the UI surface to be deleted. It must be globally unique for the renderer's lifetime."
             }
           },
           "required": ["surfaceId"],
