@@ -24,6 +24,7 @@ from a2ui.schema.constants import (
     VERSION_0_9,
 )
 from a2ui.basic_catalog.constants import BASIC_CATALOG_NAME
+from a2ui.basic_catalog import BasicCatalog
 
 
 def test_catalog_id_property():
@@ -97,3 +98,17 @@ def test_basic_catalog_get_config_examples_path():
       version=VERSION_0_9, examples_path="file:///absolute/examples"
   )
   assert config.examples_path == "/absolute/examples"
+
+
+def test_basic_catalog_id_retrieval_methods():
+
+  # Test v0.8 variations
+  expected_0_8 = "https://a2ui.org/specification/v0_8/standard_catalog_definition.json"
+  assert BasicCatalog.get_catalog_id("0.8") == expected_0_8
+
+  # Test other version variations
+  expected_0_9 = "https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json"
+  assert BasicCatalog.get_catalog_id("0.9") == expected_0_9
+
+  with pytest.raises(ValueError, match="Unsupported version: 0.7"):
+    BasicCatalog.get_catalog_id("0.7")
