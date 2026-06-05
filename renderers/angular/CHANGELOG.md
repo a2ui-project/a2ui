@@ -1,5 +1,7 @@
 ## Unreleased
 
+- Make component binders schema-driven, removing the restriction of hardcoded `child`, `children`, `trigger`, and `content` property names. Component properties nested inside objects or arrays (e.g. `Tabs.tabs[].child`) are now recursively resolved based on Zod metadata.
+- Refactor `ResolveAngularProp` into split named helper types to simplify compiler math and improve readability while maintaining strict nullability.
 - (v0_9) Fix null de-referencing TypeError in `ComponentBinder` when `children` property is null or undefined. [#1472](https://github.com/a2ui-project/a2ui/pull/1472)
 - (v0_8) Fix Icon component to handle camelCase and TitleCase names by converting them to snake_case for `g-icon`.
 - (v0_8) Fix Modal component styling and position fixed for overlay.
