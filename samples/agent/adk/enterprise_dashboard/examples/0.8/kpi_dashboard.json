@@ -101,16 +101,57 @@
           "id": "aov-card",
           "component": {
             "Card": {
-              "child": "aov-text"
+              "child": "aov-col"
             }
           }
         },
         {
-          "id": "aov-text",
+          "id": "aov-col",
+          "component": {
+            "Column": {
+              "children": {
+                "explicitList": ["aov-title-val", "aov-trend-row"]
+              }
+            }
+          }
+        },
+        {
+          "id": "aov-title-val",
           "component": {
             "Text": {
               "text": {
-                "literalString": "**Avg Order**\n\n**$22.85**\n\n-1.2% vs last week"
+                "literalString": "**Avg Order**\n\n**$22.85**"
+              }
+            }
+          }
+        },
+        {
+          "id": "aov-trend-row",
+          "component": {
+            "Row": {
+              "children": {
+                "explicitList": ["aov-icon", "aov-trend-text"]
+              },
+              "alignment": "center"
+            }
+          }
+        },
+        {
+          "id": "aov-icon",
+          "component": {
+            "Icon": {
+              "name": {
+                "literalString": "trending_down"
+              }
+            }
+          }
+        },
+        {
+          "id": "aov-trend-text",
+          "component": {
+            "Text": {
+              "text": {
+                "literalString": "-1.2% vs last week"
               }
             }
           }

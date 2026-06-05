@@ -24,6 +24,8 @@ Key patterns:
   - Component diversity requirements
 """
 
+import os
+
 from a2ui.schema.constants import VERSION_0_8
 from a2ui.schema.manager import A2uiSchemaManager
 from a2ui.basic_catalog.provider import BasicCatalog
@@ -36,13 +38,10 @@ ROLE_DESCRIPTION = (
 )
 
 UI_DESCRIPTION = """
-You are a VISUAL DASHBOARD, not a text chatbot.
-
 Layout Recipes (use the right pattern for each data type):
 - KPI metrics: Row of Card components, each Card wrapping a Text child
   with bold metric name, large value, and trend indicator.
 - Store/product comparisons: Row of Card components side-by-side.
-  NEVER use markdown tables.
 - Rankings and lists: List with Card children, each showing rank +
   name + key metric.
 - Multi-section responses: Tabs component organizing different views
@@ -69,7 +68,9 @@ def get_dashboard_prompt() -> str:
       version=VERSION_0_8,
       catalogs=[BasicCatalog.get_config(
           version=VERSION_0_8,
-          examples_path="examples/0.8",
+          examples_path=os.path.join(
+              os.path.dirname(os.path.abspath(__file__)), "examples/0.8"
+          ),
       )],
   )
   return schema_manager.generate_system_prompt(
