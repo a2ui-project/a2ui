@@ -83,9 +83,18 @@
             "component": "ChoicePicker",
             "label": "Location",
             "options": [
-              {"label": "Grand Ballroom", "value": "ballroom"},
-              {"label": "Sunset Terrace", "value": "terrace"},
-              {"label": "Garden Pavillion", "value": "garden"}
+              {
+                "label": "Grand Ballroom",
+                "value": "ballroom"
+              },
+              {
+                "label": "Sunset Terrace",
+                "value": "terrace"
+              },
+              {
+                "label": "Garden Pavillion",
+                "value": "garden"
+              }
             ],
             "value": {
               "path": "/event/location"
@@ -167,8 +176,7 @@
                   "path": "/event/date"
                 },
                 "format": "EEEE, MMMM d, yyyy 'at' h:mm a"
-              },
-              "returnType": "string"
+              }
             },
             "variant": "body"
           },
@@ -179,8 +187,7 @@
               "call": "formatString",
               "args": {
                 "value": "Location: ${/event/location/0}"
-              },
-              "returnType": "string"
+              }
             },
             "variant": "caption"
           }

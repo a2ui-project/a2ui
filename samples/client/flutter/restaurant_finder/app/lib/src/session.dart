@@ -23,7 +23,7 @@ import 'primitives.dart';
 
 const String defaultServerUrl = 'http://localhost:10002';
 
-// https://a2ui.org/specification/v0_9/basic_catalog.json
+// https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json
 // https://a2ui.org/specification/v0_9/standard_catalog.json
 
 class RestaurantSession extends ChangeNotifier {
@@ -43,7 +43,7 @@ class RestaurantSession extends ChangeNotifier {
   // Catalog id is already fixed in genui at main branch, so, as soon
   // as this fix gets released, the override will no longer be needed.
   static const String _agentCatalogId =
-      'https://a2ui.org/specification/v0_9/basic_catalog.json';
+      'https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json';
 
   late final A2uiAgentConnector _connector;
   late final SurfaceController _surfaceController;

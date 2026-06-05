@@ -6,10 +6,10 @@
   "repository": {
     "directory": "renderers/angular",
     "type": "git",
-    "url": "git+https://github.com/google/A2UI.git"
+    "url": "git+https://github.com/a2ui-project/a2ui.git"
   },
   "bugs": {
-    "url": "https://github.com/google/A2UI/issues"
+    "url": "https://github.com/a2ui-project/a2ui/issues"
   },
   "keywords": [
     "a2ui",
@@ -47,8 +47,8 @@
   },
   "devDependencies": {
     "@a2ui/markdown-it": "file:../markdown/markdown-it",
-    "@angular/build": "^21.2.0",
-    "@angular/cli": "^21.2.0",
+    "@angular/build": "^21.2.12",
+    "@angular/cli": "^21.2.12",
     "@angular/compiler": "^21.2.0",
     "@angular/compiler-cli": "^21.2.0",
     "@angular/core": "^21.2.0",

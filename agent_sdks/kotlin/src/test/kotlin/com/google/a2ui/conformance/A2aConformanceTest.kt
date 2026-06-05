@@ -84,7 +84,8 @@ class A2aConformanceTest {
             val data = args["data"] as Map<*, *>
             val jsonElement = anyToJsonElement(data) as JsonObject
 
-            val part = A2uiA2a.createA2uiPart(jsonElement)
+            val version = args["version"] as? String
+            val part = A2uiA2a.createA2uiPart(jsonElement, version)
             assertTrue(part is DataPart)
             val expect = case[ConformanceTestHelper.KEY_EXPECT] as Map<*, *>
             assertEquals(

@@ -49,10 +49,10 @@ export class ComponentBinder {
   bind(context: ComponentContext): Record<string, BoundProperty> {
     const props = context.componentModel.properties;
     const bound: Record<string, BoundProperty<any>> = {};
-    let template: ComponentTemplate | undefined = undefined;
 
     for (const key of Object.keys(props)) {
       const value = props[key];
+      let template: ComponentTemplate | undefined = undefined;
 
       let preactSig;
       const isChildListTemplate =
@@ -87,8 +87,8 @@ export class ComponentBinder {
         });
       } else if (key === 'children') {
         const originalSig = preactSig;
-        const id = value.componentId;
-        const path = value.path;
+        const id = value?.componentId;
+        const path = value?.path;
         if (id && path) {
           template = {id, path};
         }

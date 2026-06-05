@@ -61,7 +61,7 @@ renderer and catalog understand.
 
 **Note:** The _basic catalog_ components are not wired to use the `theme` coming from the agent.
 
-_Want to influence this design? Chime in here: [#1118](https://github.com/google/A2UI/issues/1118)._
+_Want to influence this design? Chime in here: [#1118](https://github.com/a2ui-project/a2ui/issues/1118)._
 
 ## Catalog theming
 

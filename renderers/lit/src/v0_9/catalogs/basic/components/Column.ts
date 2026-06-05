@@ -18,7 +18,10 @@ import {html, nothing, css, PropertyValues} from 'lit';
 import {customElement} from 'lit/decorators.js';
 import {map} from 'lit/directives/map.js';
 import {ColumnApi} from '@a2ui/web_core/v0_9/basic_catalog';
-import {BasicCatalogA2uiLitElement} from '../basic-catalog-a2ui-lit-element.js';
+import {
+  BasicCatalogA2uiLitElement,
+  type ResolvedChildList,
+} from '../basic-catalog-a2ui-lit-element.js';
 import {A2uiController} from '@a2ui/lit/v0_9';
 
 const JUSTIFY_MAP: Record<string, string> = {
@@ -71,9 +74,9 @@ export class A2uiBasicColumnElement extends BasicCatalogA2uiLitElement<typeof Co
     const props = this.controller.props;
     if (!props) return nothing;
 
-    const children = Array.isArray(props.children) ? props.children : [];
+    const children: ResolvedChildList = Array.isArray(props.children) ? props.children : [];
 
-    return html` ${map(children, (child: any) => html`${this.renderNode(child)}`)} `;
+    return html` ${map(children, child => html`${this.renderNode(child)}`)} `;
   }
 }
 

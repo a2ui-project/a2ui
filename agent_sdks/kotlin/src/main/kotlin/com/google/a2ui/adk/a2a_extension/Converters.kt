@@ -17,9 +17,9 @@
 package com.google.a2ui.adk.a2a_extension
 
 import com.google.a2ui.a2a.A2uiA2a
-import com.google.a2ui.core.parser.hasA2uiParts
-import com.google.a2ui.core.parser.parseResponseToParts
-import com.google.a2ui.core.schema.A2uiCatalog
+import com.google.a2ui.parser.hasA2uiParts
+import com.google.a2ui.parser.parseResponseToParts
+import com.google.a2ui.schema.A2uiCatalog
 import com.google.adk.a2a.converters.EventConverter
 import com.google.adk.agents.InvocationContext
 import com.google.adk.events.Event

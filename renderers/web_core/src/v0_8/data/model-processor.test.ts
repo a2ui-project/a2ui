@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import assert from 'node:assert';
+import * as assert from 'node:assert';
 import {describe, it, beforeEach} from 'node:test';
 import {A2uiMessageProcessor} from './model-processor.js';
 import {TextNode, RowNode} from '../types/types.js';
@@ -38,7 +38,7 @@ describe('A2uiMessageProcessor', () => {
     ]);
 
     const surfaces = processor.getSurfaces();
-    const surface = surfaces.get('s1');
+    const surface = surfaces.get('s1')!;
     assert.ok(surface);
     assert.strictEqual(surface.rootComponentId, 'root');
     assert.deepStrictEqual(surface.styles, {font: 'Arial'});
@@ -69,10 +69,10 @@ describe('A2uiMessageProcessor', () => {
       },
     ]);
 
-    const surface = processor.getSurfaces().get('s1');
+    const surface = processor.getSurfaces().get('s1')!;
     assert.ok(surface);
     assert.ok(surface.componentTree);
-    const root = surface.componentTree as TextNode;
+    const root = surface.componentTree! as TextNode;
     assert.strictEqual(root.id, 'root');
     assert.strictEqual(root.type, 'Text');
     // The property preserves the literal wrapper

@@ -23,7 +23,7 @@ import {GalleryComponent} from './features/gallery/gallery.component';
   templateUrl: './app.html',
   styleUrl: './app.css',
   imports: [LibraryComponent, GalleryComponent],
-  changeDetection: ChangeDetectionStrategy.Eager,
+  changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class App {
   readonly currentView = signal<'library' | 'gallery'>('library');

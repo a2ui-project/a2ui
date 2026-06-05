@@ -18,9 +18,10 @@ package com.google.a2ui.samples.rizzcharts;
 
 import com.google.a2ui.a2a.A2aHandler;
 import com.google.a2ui.basic_catalog.BasicCatalog;
-import com.google.a2ui.core.schema.A2uiSchemaManager;
-import com.google.a2ui.core.schema.A2uiVersion;
-import com.google.a2ui.core.schema.CatalogConfig;
+import com.google.a2ui.schema.A2uiCatalog;
+import com.google.a2ui.schema.A2uiSchemaManager;
+import com.google.a2ui.schema.A2uiVersion;
+import com.google.a2ui.schema.CatalogConfig;
 import com.google.adk.runner.InMemoryRunner;
 import com.google.adk.runner.Runner;
 import java.io.IOException;
@@ -66,7 +67,7 @@ public class RizzchartsMain {
         "http://localhost:10002",
         List.of(
             "https://a2ui.org/specification/v0_8/standard_catalog_definition.json",
-            "https://github.com/google/A2UI/blob/main/samples/agent/adk/rizzcharts/rizzcharts_catalog_definition.json"));
+            "https://github.com/a2ui-project/a2ui/blob/main/samples/agent/adk/rizzcharts/rizzcharts_catalog_definition.json"));
   }
 
   @PostMapping(value = "/", produces = MediaType.APPLICATION_JSON_VALUE)
@@ -162,7 +163,7 @@ public class RizzchartsMain {
                   ctx.state().getOrDefault(RizzchartsAgentExecutor.A2UI_ENABLED_KEY, false);
             },
             ctx -> {
-              return (com.google.a2ui.core.schema.A2uiCatalog)
+              return (A2uiCatalog)
                   ctx.state().get(RizzchartsAgentExecutor.A2UI_CATALOG_KEY);
             },
             ctx -> {

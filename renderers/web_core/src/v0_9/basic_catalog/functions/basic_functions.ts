@@ -234,6 +234,24 @@ export const EmailImplementation = createFunctionImplementation(EmailApi, args =
 
 // Formatting
 /**
+ * Coerces a value to a string following the a2ui_protocol.md §"Type conversion" rules:
+ * - Numbers/Booleans: Standard string representation.
+ * - null/undefined: An empty string "".
+ * - Objects/Arrays: Stringified as JSON.
+ */
+function coerceToString(value: unknown): string {
+  if (value === null || value === undefined) return '';
+  if (typeof value === 'object') {
+    try {
+      return JSON.stringify(value) ?? String(value);
+    } catch {
+      return String(value);
+    }
+  }
+  return String(value);
+}
+
+/**
  * Implementation of the string formatting function.
  * Parses a template string and resolves any embedded expressions using the provided context.
  * Returns a computed signal that updates when referenced signals change.
@@ -258,10 +276,8 @@ export const FormatStringImplementation = createFunctionImplementation(
     return computed(() => {
       return dynamicParts
         .map(p => {
-          if (isSignal(p)) {
-            return p.value;
-          }
-          return p;
+          const resolved = isSignal(p) ? p.value : p;
+          return coerceToString(resolved);
         })
         .join('');
     });

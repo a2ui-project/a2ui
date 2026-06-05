@@ -16,10 +16,12 @@
 
 import {TestBed} from '@angular/core/testing';
 import {AgentStubService} from './agent-stub.service';
+import {AgentStubV09Service} from './agent-stub-v09.service';
 import {A2uiRendererService} from '@a2ui/angular/v0_9';
 import {ActionDispatcher} from './action-dispatcher.service';
 import {Subject} from 'rxjs';
 import {A2uiMessage} from '@a2ui/web_core/v0_9';
+import {A2UI_VERSION, Version} from './types';
 
 describe('AgentStubService', () => {
   let service: AgentStubService;
@@ -43,9 +45,10 @@ describe('AgentStubService', () => {
 
     TestBed.configureTestingModule({
       providers: [
-        AgentStubService,
+        {provide: AgentStubService, useClass: AgentStubV09Service},
         {provide: A2uiRendererService, useValue: mockRendererService},
         {provide: ActionDispatcher, useValue: mockActionDispatcher},
+        {provide: A2UI_VERSION, useValue: Version.V0_9},
       ],
     });
     service = TestBed.inject(AgentStubService);

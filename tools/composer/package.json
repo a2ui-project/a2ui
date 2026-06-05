@@ -34,7 +34,7 @@
     "hono": "^4.11.10",
     "localforage": "^1.10.0",
     "lucide-react": "^0.556.0",
-    "next": "16.1.5",
+    "next": "16.2.6",
     "react": "19.2.1",
     "react-dom": "19.2.1",
     "react-resizable-panels": "^3.0.6",

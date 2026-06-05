@@ -16,7 +16,7 @@
 
 package com.google.a2ui.samples.rizzcharts;
 
-import com.google.a2ui.core.schema.A2uiSchemaManager;
+import com.google.a2ui.schema.A2uiSchemaManager;
 import com.google.adk.runner.Runner;
 import com.google.adk.sessions.Session;
 

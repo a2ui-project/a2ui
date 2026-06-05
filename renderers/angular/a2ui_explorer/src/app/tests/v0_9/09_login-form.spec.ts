@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import {getCanvas, loadExample} from '../test_utils';
+import {getCanvas, loadExample} from '../utils';
 
 describe('Example: Login Form with Validation', () => {
   let textContent: string;

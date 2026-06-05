@@ -16,7 +16,7 @@
 
 import {ComponentFixture} from '@angular/core/testing';
 import {DemoComponent} from '../../demo.component';
-import {getCanvas, loadExample} from '../test_utils';
+import {getCanvas, loadExample} from '../utils';
 
 describe('Example: Podcast Episode', () => {
   let fixture: ComponentFixture<DemoComponent>;

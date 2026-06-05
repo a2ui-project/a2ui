@@ -5,10 +5,13 @@
   "description": "A2UI Lit Explorer",
   "type": "module",
   "scripts": {
-    "dev": "npm run build:deps && vite",
-    "build:deps": "for dir in '../../web_core' '../../lit'; do npm install --prefix $dir && npm run build --prefix $dir; done && npm install",
-    "build": "npm run build:deps && tsc && vite build",
-    "preview": "vite preview"
+    "generate-examples": "node scripts/generate-examples.mjs",
+    "dev": "npm run generate-examples && npm run build:deps && vite",
+    "build:deps": "for dir in '../../web_core' '../../markdown/markdown-it' '../../lit'; do npm install --prefix $dir && npm run build --prefix $dir; done && npm install",
+    "build": "npm run generate-examples && npm run build:deps && tsc && vite build",
+    "test": "npm run generate-examples && karma start karma.conf.cjs --single-run=false --auto-watch=true",
+    "test:debug": "npm run generate-examples && karma start karma.conf.cjs --single-run=false --auto-watch=true --browsers Chrome",
+    "test:ci": "npm run build:deps && npm run generate-examples && karma start karma.conf.cjs --single-run=true"
   },
   "dependencies": {
     "@a2ui/lit": "file:..",
@@ -19,6 +22,13 @@
     "lit": "^3.3.1"
   },
   "devDependencies": {
+    "@types/jasmine": "^5.1.5",
+    "esbuild": "^0.25.0",
+    "jasmine-core": "^5.6.0",
+    "karma": "^6.4.4",
+    "karma-chrome-launcher": "^3.2.0",
+    "karma-esbuild": "^2.3.0",
+    "karma-jasmine": "^5.1.0",
     "typescript": "^5.8.3",
     "vite": "^7.1.11"
   }

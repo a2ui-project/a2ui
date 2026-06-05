@@ -1,0 +1,65 @@
+{
+  "name": "Modal Sample",
+  "description": "Example of Modal component showing a trigger and content.",
+  "messages": [
+    {
+      "version": "v0.9",
+      "createSurface": {
+        "surfaceId": "modal-sample-surface",
+        "catalogId": "https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json",
+        "sendDataModel": true
+      }
+    },
+    {
+      "version": "v0.9",
+      "updateComponents": {
+        "surfaceId": "modal-sample-surface",
+        "components": [
+          {
+            "id": "root",
+            "component": "Column",
+            "children": ["title", "modal-comp"]
+          },
+          {
+            "id": "title",
+            "component": "Text",
+            "text": "Modal Component Sample",
+            "variant": "h2"
+          },
+          {
+            "id": "modal-comp",
+            "component": "Modal",
+            "trigger": "open-btn",
+            "content": "modal-content"
+          },
+          {
+            "id": "open-btn-text",
+            "component": "Text",
+            "text": "Open Modal"
+          },
+          {
+            "id": "open-btn",
+            "component": "Button",
+            "child": "open-btn-text",
+            "action": {
+              "event": {
+                "name": "openModalEvent",
+                "context": {}
+              }
+            }
+          },
+          {
+            "id": "modal-content",
+            "component": "Column",
+            "children": ["modal-text"]
+          },
+          {
+            "id": "modal-text",
+            "component": "Text",
+            "text": "This is the content inside the modal."
+          }
+        ]
+      }
+    }
+  ]
+}

@@ -81,8 +81,7 @@
                   "path": "/price"
                 },
                 "currency": "USD"
-              },
-              "returnType": "string"
+              }
             },
             "variant": "body"
           },

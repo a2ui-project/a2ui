@@ -14,17 +14,28 @@
  * limitations under the License.
  */
 
-import {ChangeDetectorRef, Component, OnInit, inject, OnDestroy} from '@angular/core';
+import {
+  ChangeDetectorRef,
+  Component,
+  OnInit,
+  inject,
+  OnDestroy,
+  effect,
+  signal,
+} from '@angular/core';
 import {CommonModule} from '@angular/common';
 import {A2uiRendererService, A2UI_RENDERER_CONFIG} from '@a2ui/angular/v0_9';
 import {AgentStubService} from './agent-stub.service';
-import {SurfaceComponent} from '@a2ui/angular/v0_9';
+import {AgentStubV08Service} from './agent-stub-v08.service';
+import {AgentStubV09Service} from './agent-stub-v09.service';
+import {SurfaceComponent as SurfaceComponentV09} from '@a2ui/angular/v0_9';
+import {provideMarkdownRenderer, Surface as SurfaceV08} from '@a2ui/angular/v0_8';
 import {AngularCatalog} from '@a2ui/angular/v0_9';
 import {DemoCatalog} from './demo-catalog';
-import {A2uiClientAction, CreateSurfaceMessage} from '@a2ui/web_core/v0_9';
-import {EXAMPLES} from './generated/examples-bundle';
-import {Example} from './types';
+import {A2uiClientAction} from '@a2ui/web_core/v0_9';
+import {A2uiExample, A2UI_VERSION, A2UI_EXAMPLES, Version} from './types';
 import {ActionDispatcher} from './action-dispatcher.service';
+import {Catalog as CatalogV08, DEFAULT_CATALOG as DEFAULT_CATALOG_V08} from '@a2ui/angular/v0_8';
 
 /**
  * Main dashboard component for A2UI v0.9 Angular Renderer.
@@ -34,13 +45,20 @@ import {ActionDispatcher} from './action-dispatcher.service';
 @Component({
   selector: 'a2ui-v0-9-demo',
   standalone: true,
-  imports: [CommonModule, SurfaceComponent],
+  imports: [CommonModule, SurfaceComponentV09, SurfaceV08],
   template: `
     <div class="dashboard">
       <!-- Sidebar Navigation -->
       <div class="sidebar">
         <div class="sidebar-header">
           <h3>A2UI Examples</h3>
+          <div class="version-selector">
+            <label for="version">Version:</label>
+            <select id="version" (change)="onVersionChange($event)">
+              <option [value]="Version.V0_9" [selected]="version === Version.V0_9">0.9</option>
+              <option [value]="Version.V0_8" [selected]="version === Version.V0_8">0.8</option>
+            </select>
+          </div>
         </div>
         <ul class="example-list">
           <li
@@ -61,10 +79,18 @@ import {ActionDispatcher} from './action-dispatcher.service';
           <p class="subtitle">{{ selectedExample.description }}</p>
         </div>
         <div class="canvas-frame">
-          <div *ngIf="surfaceId" class="rendered-content">
-            <a2ui-v09-surface [surfaceId]="surfaceId"> </a2ui-v09-surface>
+          <div
+            *ngIf="surfaceId()"
+            class="rendered-content"
+            [class.protocol-version-08]="version === Version.V0_8"
+          >
+            <a2ui-v09-surface
+              *ngIf="version === Version.V0_9"
+              [surfaceId]="surfaceId()"
+            ></a2ui-v09-surface>
+            <a2ui-surface *ngIf="version === Version.V0_8" [surfaceId]="surfaceId()"></a2ui-surface>
           </div>
-          <div *ngIf="!surfaceId" class="empty-canvas">
+          <div *ngIf="!surfaceId()" class="empty-canvas">
             Select an example from the sidebar to view.
           </div>
         </div>
@@ -114,6 +140,7 @@ import {ActionDispatcher} from './action-dispatcher.service';
               [value]="currentCreateSurfaceMessageJson"
               (input)="onSurfaceMessageChange($event)"
               (blur)="onSurfaceMessageBlur()"
+              (focus)="onSurfaceMessageFocus()"
             ></textarea>
           </div>
         </div>
@@ -160,6 +187,7 @@ import {ActionDispatcher} from './action-dispatcher.service';
               [value]="currentDataModelJson"
               (input)="onDataModelChange($event)"
               (blur)="onDataModelBlur()"
+              (focus)="onDataModelFocus()"
             ></textarea>
           </div>
         </div>
@@ -193,7 +221,7 @@ import {ActionDispatcher} from './action-dispatcher.service';
               <h4>Events Log</h4>
             </div>
             <div>
-              <button class="clear-btn" (click)="eventsLog = []; $event.stopPropagation()">
+              <button class="clear-btn" (click)="clearEventsLog(); $event.stopPropagation()">
                 Clear
               </button>
             </div>
@@ -232,14 +260,41 @@ import {ActionDispatcher} from './action-dispatcher.service';
         flex-direction: column;
       }
       .sidebar-header {
-        padding: 16px;
-        border-bottom: 1px solid #333;
-        background-color: #1a1a1a;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 0 16px;
+        height: 56px;
+        border-bottom: 1px solid #334155;
+        background-color: #1e293b;
       }
       .sidebar-header h3 {
         margin: 0;
         color: #4dabf7;
-        font-size: 1.1rem;
+        font-size: 1rem;
+      }
+      .version-selector {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+      .version-selector label {
+        font-size: 0.75rem;
+        color: #94a3b8;
+      }
+      .version-selector select {
+        background-color: #0f172a;
+        color: #f8fafc;
+        border: 1px solid #334155;
+        border-radius: 4px;
+        padding: 2px 6px;
+        font-size: 0.75rem;
+        cursor: pointer;
+        outline: none;
+        transition: border-color 0.2s;
+      }
+      .version-selector select:focus {
+        border-color: #3b82f6;
       }
       .example-list {
         list-style: none;
@@ -282,18 +337,22 @@ import {ActionDispatcher} from './action-dispatcher.service';
         overflow: hidden;
       }
       .canvas-header {
-        padding: 16px;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        padding: 0 16px;
+        height: 56px;
         background-color: #1e293b;
         border-bottom: 1px solid #334155;
       }
       .canvas-header h2 {
         margin: 0;
-        font-size: 1.25rem;
+        font-size: 1.1rem;
         color: #f8fafc;
       }
       .subtitle {
-        margin: 4px 0 0;
-        font-size: 0.85rem;
+        margin: 2px 0 0;
+        font-size: 0.75rem;
         color: #94a3b8;
       }
       .canvas-frame {
@@ -311,6 +370,11 @@ import {ActionDispatcher} from './action-dispatcher.service';
         border-radius: 8px;
         box-shadow: 0 4px 24px rgba(0, 0, 0, 0.4);
         padding: 24px;
+      }
+      .rendered-content.protocol-version-08 {
+        --a2ui-color-surface: #1e1e1e;
+        background-color: var(--a2ui-color-surface);
+        color: #e0e0e0;
       }
       .empty-canvas {
         align-self: center;
@@ -366,7 +430,8 @@ import {ActionDispatcher} from './action-dispatcher.service';
         display: flex;
         justify-content: space-between;
         align-items: center;
-        padding: 10px 16px;
+        padding: 0 16px;
+        height: 56px;
         background-color: #1e293b;
         border-bottom: 1px solid #334155;
       }
@@ -496,8 +561,18 @@ import {ActionDispatcher} from './action-dispatcher.service';
   providers: [
     A2uiRendererService,
     {provide: AngularCatalog, useClass: DemoCatalog},
+    {provide: CatalogV08, useValue: DEFAULT_CATALOG_V08},
+    provideMarkdownRenderer(),
     ActionDispatcher,
-    AgentStubService,
+    {
+      provide: AgentStubService,
+      useFactory: (v09: AgentStubV09Service, v08: AgentStubV08Service, version: Version) => {
+        return version === Version.V0_8 ? v08 : v09;
+      },
+      deps: [AgentStubV09Service, AgentStubV08Service, A2UI_VERSION],
+    },
+    AgentStubV08Service,
+    AgentStubV09Service,
     {
       provide: A2UI_RENDERER_CONFIG,
       useFactory: (catalog: AngularCatalog, dispatcher: ActionDispatcher) => ({
@@ -509,21 +584,48 @@ import {ActionDispatcher} from './action-dispatcher.service';
   ],
 })
 export class DemoComponent implements OnInit, OnDestroy {
+  readonly Version = Version;
   private rendererService = inject(A2uiRendererService);
   private agentStub = inject(AgentStubService);
   private cdr = inject(ChangeDetectorRef);
 
-  examples = EXAMPLES;
-  selectedExample: Example | undefined = undefined;
-  surfaceId: string | null = null;
+  readonly version: Version = inject(A2UI_VERSION);
+  readonly examples: Array<A2uiExample> = inject(A2UI_EXAMPLES);
+  selectedExample: A2uiExample | undefined = undefined;
+  readonly surfaceId = this.agentStub.surfaceId;
   inspectTab: 'data' | 'events' = 'data';
 
-  currentDataModel: Record<string, unknown> = {};
-  eventsLog: Array<{timestamp: Date; action: A2uiClientAction}> = [];
+  get eventsLog() {
+    return this.agentStub.eventsLog();
+  }
+  clearEventsLog() {
+    this.agentStub.eventsLog.set([]);
+  }
   currentCreateSurfaceMessageJson: string = '';
   messageError: string | null = null;
   currentDataModelJson: string = '';
   dataModelError: string | null = null;
+  jsonInputFocused = signal(false);
+
+  constructor() {
+    effect(() => {
+      if (this.jsonInputFocused()) {
+        return;
+      }
+      const data = this.agentStub.dataModel();
+      this.currentDataModelJson = JSON.stringify(data, null, 2);
+      this.cdr.detectChanges();
+    });
+
+    effect(() => {
+      if (this.jsonInputFocused()) {
+        return;
+      }
+      const msg = this.agentStub.currentCreateSurfaceMessage();
+      this.currentCreateSurfaceMessageJson = msg ? JSON.stringify(msg, null, 2) : '';
+      this.cdr.detectChanges();
+    });
+  }
 
   isDataModelFolded = false;
   isSurfaceMessageFolded = false;
@@ -544,9 +646,6 @@ export class DemoComponent implements OnInit, OnDestroy {
     localStorage.setItem('isEventsLogFolded', String(this.isEventsLogFolded));
   }
 
-  private actionSub?: {unsubscribe: () => void};
-  private dataModelSub?: {unsubscribe: () => void};
-
   ngOnInit(): void {
     if (typeof window !== 'undefined') {
       this.isDataModelFolded = localStorage.getItem('isDataModelFolded') === 'true';
@@ -557,53 +656,24 @@ export class DemoComponent implements OnInit, OnDestroy {
   }
 
   /**
-   * Loads a selected example configuration into the dashboard canvas dashboard workspace.
-   * - Resets surface identifiers and data payloads triggers.
-   * - Re-initializes incremental playback state sequence into `AgentStubService`.
-   * - Subscribes to path `/` enabling live model inspection updates.
+   * Reloads the page with the selected version.
    */
-  selectExample(example: Example) {
-    this.selectedExample = example;
-    this.surfaceId = null;
-    this.currentDataModel = {};
-    this.eventsLog = [];
-    this.cdr.detectChanges();
+  onVersionChange(event: Event) {
+    const select = event.target as HTMLSelectElement;
+    const newVersion = select.value;
+    if (typeof window !== 'undefined') {
+      const url = new URL(window.location.href);
+      url.searchParams.set('version', newVersion);
+      window.location.href = url.toString();
+    }
+  }
 
+  selectExample(example: A2uiExample) {
+    this.selectedExample = example;
     window.location.hash = this.slugify(example.name);
 
-    // Clean up previous subscriptions
-    if (this.dataModelSub) {
-      this.dataModelSub.unsubscribe();
-    }
-
     this.agentStub.initializeDemo(example.messages);
-
-    // Look for the surfaceId in the first message or use default
-    const createMsg = example.messages.find((m): m is CreateSurfaceMessage => 'createSurface' in m);
-    this.surfaceId = createMsg ? createMsg.createSurface.surfaceId : 'demo-surface';
-    this.currentCreateSurfaceMessageJson = createMsg ? JSON.stringify(createMsg, null, 2) : '';
-
     this.cdr.detectChanges();
-
-    // Set initial surface and  data model
-    if (this.surfaceId) {
-      const surface = this.rendererService.surfaceGroup?.getSurface(this.surfaceId);
-      if (surface) {
-        this.currentDataModel = surface.dataModel.get('/');
-        this.currentDataModelJson = JSON.stringify(this.currentDataModel, null, 2);
-      }
-    }
-
-    // Subscribe to Actions for Events log
-    if (this.rendererService.surfaceGroup) {
-      if (this.actionSub) {
-        this.actionSub.unsubscribe();
-      }
-      this.actionSub = this.rendererService.surfaceGroup.onAction.subscribe(action => {
-        this.eventsLog.unshift({timestamp: new Date(), action});
-        this.cdr.detectChanges();
-      });
-    }
   }
 
   /** Gets a display string for the action type. */
@@ -632,29 +702,6 @@ export class DemoComponent implements OnInit, OnDestroy {
 
       // Re-initialize the demo with the updated messages
       this.agentStub.initializeDemo(updatedMessages);
-
-      const newSurfaceId = parsed.createSurface.surfaceId;
-
-      if (this.dataModelSub) {
-        this.dataModelSub.unsubscribe();
-      }
-
-      // Force recreation of the surface component by nulling the ID temporarily
-      this.surfaceId = null;
-      this.cdr.detectChanges();
-
-      this.surfaceId = newSurfaceId;
-      const surface = this.rendererService.surfaceGroup?.getSurface(this.surfaceId!);
-      if (surface) {
-        this.dataModelSub = surface.dataModel.subscribe('/', data => {
-          this.currentDataModel = data as Record<string, unknown>;
-          this.currentDataModelJson = JSON.stringify(data, null, 2);
-          this.cdr.detectChanges();
-        });
-        this.currentDataModel = surface.dataModel.get('/');
-        this.currentDataModelJson = JSON.stringify(this.currentDataModel, null, 2);
-      }
-
       this.cdr.detectChanges();
     } catch (e) {
       this.messageError = e instanceof Error ? e.message : 'Invalid JSON';
@@ -662,7 +709,12 @@ export class DemoComponent implements OnInit, OnDestroy {
     }
   }
 
+  onSurfaceMessageFocus() {
+    this.jsonInputFocused.set(true);
+  }
+
   onSurfaceMessageBlur() {
+    this.jsonInputFocused.set(false);
     try {
       const parsed = JSON.parse(this.currentCreateSurfaceMessageJson);
       this.currentCreateSurfaceMessageJson = JSON.stringify(parsed, null, 2);
@@ -683,15 +735,19 @@ export class DemoComponent implements OnInit, OnDestroy {
     try {
       const parsed = JSON.parse(newValue);
       this.dataModelError = null;
-      const surface = this.rendererService.surfaceGroup?.getSurface(this.surfaceId!);
+      const surface = this.rendererService.surfaceGroup?.getSurface(this.surfaceId());
       surface?.dataModel.set('/', parsed);
     } catch (e) {
       this.dataModelError = e instanceof Error ? e.message : 'Invalid JSON';
       console.error(e);
     }
   }
+  onDataModelFocus() {
+    this.jsonInputFocused.set(true);
+  }
 
   onDataModelBlur() {
+    this.jsonInputFocused.set(false);
     try {
       const parsed = JSON.parse(this.currentDataModelJson);
       this.currentDataModelJson = JSON.stringify(parsed, null, 2);
@@ -700,14 +756,7 @@ export class DemoComponent implements OnInit, OnDestroy {
     }
   }
 
-  ngOnDestroy(): void {
-    if (this.dataModelSub) {
-      this.dataModelSub.unsubscribe();
-    }
-    if (this.actionSub) {
-      this.actionSub.unsubscribe();
-    }
-  }
+  ngOnDestroy(): void {}
 
   private slugify(text: string): string {
     return text
@@ -718,7 +767,7 @@ export class DemoComponent implements OnInit, OnDestroy {
 
   private selectExampleFromUrl(): void {
     const hash = window.location.hash.substring(1) || '';
-    const example: Example | undefined =
+    const example: A2uiExample | undefined =
       this.examples.find(ex => this.slugify(ex.name) === hash) || this.examples[0];
     if (!example) return;
     this.selectExample(example);

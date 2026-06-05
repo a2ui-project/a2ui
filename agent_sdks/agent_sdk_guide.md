@@ -201,7 +201,7 @@ Once validated, the A2UI payload must be transmitted over the network. In typica
 
 ### Standards for Transport
 
-1.  **MIME Type**: Mark A2UI JSON payloads with `application/json+a2ui`. This tells the frontend renderer (e.g., the browser or mobile app) how to interpret the stream.
+1.  **MIME Type**: Mark A2UI JSON payloads with `application/a2ui+json`. This tells the frontend renderer (e.g., the browser or mobile app) how to interpret the stream.
 2.  **Standard Helpers**: Provide a `createA2uiPart` helper to automate this wrapping process.
 3.  **Yielding Strategy**: Support both complete objects (when the LLM finishes speaking) and incremental streaming parser yielding (for partial JSON display).
 
@@ -262,7 +262,7 @@ Create the helper utilities to wrap JSON in transport Parts (if needed for your 
 
 ### Step 5: Sample Applications
 
-Create a simple sample (like a command-line agent or local server) to verify that the SDK works end-to-end. Refer to the reference Python samples (e.g., `samples/agent/adk/contact_lookup`) for inspiration.
+Create a simple sample (like a command-line agent or local server) to verify that the SDK works end-to-end. Refer to the reference Python samples (e.g., `samples/agent/adk/restaurant_finder`) for inspiration.
 
 > [!IMPORTANT]
 > Keep the SDK idiomatic to your language. Don't force Python-isms if it doesn't make sense (e.g., use builder patterns in Java/Kotlin or macros in C++ if they are more ergonomic).

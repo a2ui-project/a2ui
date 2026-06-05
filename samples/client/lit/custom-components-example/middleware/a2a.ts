@@ -20,7 +20,7 @@ import {A2AClient} from '@a2a-js/sdk/client';
 import {MessageSendParams, Part, SendMessageSuccessResponse, Task} from '@a2a-js/sdk';
 import {v4 as uuidv4} from 'uuid';
 
-const A2UI_MIME_TYPE = 'application/json+a2ui';
+const A2UI_MIME_TYPE = 'application/a2ui+json';
 const enableStreaming = process.env['ENABLE_STREAMING'] === 'true';
 
 const fetchWithCustomHeader: typeof fetch = async (url, init) => {

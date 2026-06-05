@@ -39,6 +39,12 @@ jobs:
         with:
           python-version: "3.x"
 
+      - name: Set up Flutter SDK
+        uses: subosito/flutter-action@fd55f4c5af5b953cc57a2be44cb082c8f6635e8e
+        with:
+          channel: stable
+          cache: true
+
       - name: Install `uv` globally
         run: |
           python -m pip install --upgrade pip

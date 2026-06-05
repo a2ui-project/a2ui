@@ -19,11 +19,8 @@ from typing import override
 from a2a.server.agent_execution import RequestContext
 from a2a.types import AgentCapabilities, AgentCard, AgentExtension, AgentSkill
 from a2ui.a2a.extension import get_a2ui_agent_extension, try_activate_a2ui_extension
-from a2ui.adk.send_a2ui_to_client_toolset import (
-    A2uiEventConverter,
-    A2uiPartConverter,
-    SendA2uiToClientToolset,
-)
+from a2ui.adk.a2a.event_converter import A2uiEventConverter
+from a2ui.adk.send_a2ui_to_client_toolset import SendA2uiToClientToolset
 from a2ui.schema.constants import A2UI_CLIENT_CAPABILITIES_KEY
 from a2ui.schema.manager import A2uiSchemaManager
 

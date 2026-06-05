@@ -16,7 +16,7 @@
 
 package com.google.a2ui.a2a
 
-import com.google.a2ui.core.schema.A2uiConstants
+import com.google.a2ui.schema.A2uiConstants
 import io.a2a.spec.AgentExtension
 import io.a2a.spec.DataPart
 import io.a2a.spec.Part
@@ -26,15 +26,30 @@ import kotlinx.serialization.json.JsonElement
 object A2uiA2a {
   const val A2UI_EXTENSION_BASE_URI = "https://a2ui.org/a2a-extension/a2ui/v"
   const val MIME_TYPE_KEY = "mimeType"
-  const val A2UI_MIME_TYPE = "application/json+a2ui"
+  const val A2UI_MIME_TYPE = "application/a2ui+json"
+  const val DEPRECATED_A2UI_MIME_TYPE = "application/json+a2ui"
 
   /** Creates an A2A Part containing A2UI data. */
-  fun createA2uiPart(a2uiData: JsonElement): Part<*> =
-    DataPart(a2uiData, mapOf(MIME_TYPE_KEY to A2UI_MIME_TYPE))
+  @JvmOverloads
+  fun createA2uiPart(a2uiData: JsonElement, version: String? = null): Part<*> {
+    val mimeType =
+      if (
+        version == null ||
+          version == "0.8" ||
+          version == "0.9" ||
+          version == "v0.8" ||
+          version == "v0.9"
+      )
+        DEPRECATED_A2UI_MIME_TYPE
+      else A2UI_MIME_TYPE
+    return DataPart(a2uiData, mapOf(MIME_TYPE_KEY to mimeType))
+  }
 
   /** Checks if an A2A Part contains A2UI data. */
   fun isA2uiPart(part: Part<*>): Boolean =
-    part is DataPart && part.metadata?.get(MIME_TYPE_KEY) == A2UI_MIME_TYPE
+    part is DataPart &&
+      (part.metadata?.get(MIME_TYPE_KEY) == A2UI_MIME_TYPE ||
+        part.metadata?.get(MIME_TYPE_KEY) == DEPRECATED_A2UI_MIME_TYPE)
 
   /** Extracts the A2UI data from an A2A Part if present. */
   fun getA2uiData(part: Part<*>): JsonElement? =

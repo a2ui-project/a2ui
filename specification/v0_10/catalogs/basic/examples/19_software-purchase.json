@@ -133,8 +133,7 @@
               "call": "formatString",
               "args": {
                 "value": "${formatCurrency(value: ${/total}, currency: 'USD')}/year"
-              },
-              "returnType": "string"
+              }
             },
             "variant": "h2"
           },

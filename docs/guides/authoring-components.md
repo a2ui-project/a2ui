@@ -237,10 +237,10 @@ agent.tools = [
 
 ### 4.3 Tool Execution
 
-Invocations of the tool in [SendA2uiToClientToolset](../../agent_sdks/python/src/a2ui/adk/send_a2ui_to_client_toolset.py) by the LLM are intercepted in the A2A Agent Executor using the [A2uiEventConverter](../../agent_sdks/python/src/a2ui/adk/send_a2ui_to_client_toolset.py). This automatically translates tool calls into A2A Dataparts with the A2UI payload.
+Invocations of the tool in [SendA2uiToClientToolset](../../agent_sdks/python/src/a2ui/adk/send_a2ui_to_client_toolset.py) by the LLM are intercepted in the A2A Agent Executor using the [A2uiEventConverter](../../agent_sdks/python/src/a2ui/adk/a2a/event_converter.py). This automatically translates tool calls into A2A Dataparts with the A2UI payload.
 
 ```python
-from a2ui.adk.send_a2ui_to_client_toolset import (
+from a2ui.adk.a2a.event_converter import (
     A2uiEventConverter,
 )
 

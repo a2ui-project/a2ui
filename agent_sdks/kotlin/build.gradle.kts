@@ -39,7 +39,7 @@ repositories {
 
 dependencies {
   api("org.jetbrains.kotlinx:kotlinx-serialization-json:1.6.3")
-  implementation("com.networknt:json-schema-validator:1.5.1")
+  implementation("com.networknt:json-schema-validator:2.0.1")
   implementation("com.fasterxml.jackson.core:jackson-databind:2.17.2")
 
   // Core Dependencies
@@ -73,8 +73,8 @@ val copySpecs by tasks.registering(Copy::class) {
   from(File(repoRoot, "specification/v0_9/json/common_types.json")) {
     into("com/google/a2ui/assets/0.9")
   }
-  from(File(repoRoot, "specification/v0_9/json/basic_catalog.json")) {
-    into("com/google/a2ui/assets/0.9")
+  from(File(repoRoot, "specification/v0_9/catalogs/basic/catalog.json")) {
+    into("com/google/a2ui/assets/0.9/catalogs/basic")
   }
 
   into(layout.buildDirectory.dir("generated/resources/specs"))

@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import {getCanvas, loadExample} from '../test_utils';
+import {getCanvas, loadExample} from '../utils';
 
 describe('Example: ChildList Template Expansion', () => {
   let textContent: string;

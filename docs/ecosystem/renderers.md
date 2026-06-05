@@ -19,7 +19,7 @@ Community and third-party A2UI renderer implementations.
 | **jem-computer/A2UI-react**                 | React (Web)                                         | ✅   | ❌   | ![Stars](https://img.shields.io/github/stars/jem-computer/A2UI-react?style=flat-square&label=⭐) ![Last commit](https://img.shields.io/github/last-commit/jem-computer/A2UI-react?style=flat-square&label=updated)                           | [GitHub](https://github.com/jem-computer/A2UI-react)                                                                                                   |
 | **BBC6BAE9/a2ui-swift**                     | Apple (iOS, iPadOS, macOS, tvOS, watchOS, visionOS) | ✅   | ✅   | ![Stars](https://img.shields.io/github/stars/BBC6BAE9/a2ui-swift?style=flat-square&label=⭐) ![Last commit](https://img.shields.io/github/last-commit/BBC6BAE9/a2ui-swift?style=flat-square&label=updated)                                   | [GitHub](https://github.com/BBC6BAE9/a2ui-swift)                                                                                                       |
 | **TanXudong-Vivo/A2UI-Android-Renderer**    | Android (Jetpack Compose)                           | ❌   | ✅   | ![Stars](https://img.shields.io/github/stars/TanXudong-Vivo/A2UI-Android-Renderer?style=flat-square&label=⭐) ![Last commit](https://img.shields.io/github/last-commit/TanXudong-Vivo/A2UI-Android-Renderer?style=flat-square&label=updated) | [GitHub](https://github.com/TanXudong-Vivo/A2UI-Android-Renderer)                                                                                      |
-| **a2ui-vue**                                | Vue (Web)                                           | ✅   | ❌   | ![Stars](https://img.shields.io/github/stars/shawnwang15/a2ui-vue?style=flat-square&label=⭐) ![Last commit](https://img.shields.io/github/last-commit/shawnwang15/a2ui-vue?style=flat-square&label=updated)                                 | [GitHub](https://github.com/shawnwang15/a2ui-vue) · [npm](https://www.npmjs.com/package/a2ui-vue) · [Docs](https://shawnwang15.github.io/a2ui-vue/en/) |
+| **a2ui-vue**                                | Vue (Web)                                           | ✅   | ✅   | ![Stars](https://img.shields.io/github/stars/shawnwang15/a2ui-vue?style=flat-square&label=⭐) ![Last commit](https://img.shields.io/github/last-commit/shawnwang15/a2ui-vue?style=flat-square&label=updated)                                 | [GitHub](https://github.com/shawnwang15/a2ui-vue) · [npm](https://www.npmjs.com/package/a2ui-vue) · [Docs](https://shawnwang15.github.io/a2ui-vue/en/) |
 
 ### Notable Mentions
 
@@ -43,7 +43,7 @@ These projects are not directly A2UI renderers but are closely related and do su
 
 ### Highlights
 
-**easyops-cn/a2ui-sdk** (`@a2ui-sdk/react`) is the most fully-featured community React renderer, with 11 published versions, Radix UI primitives, Tailwind CSS styling, and a dedicated docs site. It was [announced on the A2UI discussions](https://github.com/google/A2UI/discussions/489). For the official A2UI React renderer, see [`@a2ui/react`](https://www.npmjs.com/package/@a2ui/react).
+**easyops-cn/a2ui-sdk** (`@a2ui-sdk/react`) is the most fully-featured community React renderer, with 11 published versions, Radix UI primitives, Tailwind CSS styling, and a dedicated docs site. It was [announced on the A2UI discussions](https://github.com/a2ui-project/a2ui/discussions/489). For the official A2UI React renderer, see [`@a2ui/react`](https://www.npmjs.com/package/@a2ui/react).
 
 **lmee/A2UI-Android** fills an important gap — it's currently the only Jetpack Compose renderer, covering Android 5.0+ with 20+ components, data binding, and accessibility support.
 
@@ -61,12 +61,12 @@ If you have built an A2UI renderer, submit it to be listed here.
 
 To submit a renderer, follow these steps:
 
-1. **Fork** the [google/A2UI](https://github.com/google/A2UI) repository
+1. **Fork** the [a2ui-project/a2ui](https://github.com/a2ui-project/a2ui) repository
 2. **Edit** this file (`docs/ecosystem/renderers.md`) — add a row to the Community Renderers table with your renderer's name, platform, npm package (if any), version support, and a link to the source
-3. **Open a PR** against `google/A2UI` with a short description of your renderer
-4. **Post in [GitHub Discussions](https://github.com/google/A2UI/discussions)** — let the community know what you built! A short demo video goes a long way.
+3. **Open a PR** against `a2ui-project/a2ui` with a short description of your renderer
+4. **Post in [GitHub Discussions](https://github.com/a2ui-project/a2ui/discussions)** — let the community know what you built! A short demo video goes a long way.
 
-Need inspiration? Browse the **[community samples](https://github.com/google/A2UI/tree/main/samples)** in the repo — these cover Angular, Lit, and ADK-based agents and are a good starting point.
+Need inspiration? Browse the **[community samples](https://github.com/a2ui-project/a2ui/tree/main/samples)** in the repo — these cover Angular, Lit, and ADK-based agents and are a good starting point.
 
 ### What makes a good community renderer?
 

@@ -67,8 +67,7 @@
               "call": "formatString",
               "args": {
                 "value": "(${formatNumber(value: ${/reviewCount})} ${pluralize(value: ${/reviewCount}, one: 'review', other: 'reviews')})"
-              },
-              "returnType": "string"
+              }
             },
             "variant": "caption"
           },
@@ -88,8 +87,7 @@
                   "path": "/price"
                 },
                 "currency": "USD"
-              },
-              "returnType": "string"
+              }
             },
             "variant": "h2"
           },
@@ -103,8 +101,7 @@
                   "path": "/originalPrice"
                 },
                 "currency": "USD"
-              },
-              "returnType": "string"
+              }
             },
             "variant": "caption"
           },
@@ -140,7 +137,7 @@
         "value": {
           "imageUrl": "https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=300&h=200&fit=crop",
           "name": "Wireless Headphones Pro",
-          "stars": "★★★★★",
+          "stars": "\u2605\u2605\u2605\u2605\u2605",
           "reviewCount": 2847,
           "price": 199.99,
           "originalPrice": 249.99

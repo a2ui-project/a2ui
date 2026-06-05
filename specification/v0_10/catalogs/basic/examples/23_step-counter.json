@@ -52,8 +52,7 @@
                 "value": {
                   "path": "/steps"
                 }
-              },
-              "returnType": "string"
+              }
             },
             "variant": "h1"
           },
@@ -64,8 +63,7 @@
               "call": "formatString",
               "args": {
                 "value": "${/progress}% of ${formatNumber(value: ${/goal})} goal"
-              },
-              "returnType": "string"
+              }
             },
             "variant": "body"
           },
@@ -92,8 +90,7 @@
               "call": "formatString",
               "args": {
                 "value": "${/distance} mi"
-              },
-              "returnType": "string"
+              }
             },
             "variant": "h3"
           },
@@ -118,8 +115,7 @@
                 "value": {
                   "path": "/calories"
                 }
-              },
-              "returnType": "string"
+              }
             },
             "variant": "h3"
           },

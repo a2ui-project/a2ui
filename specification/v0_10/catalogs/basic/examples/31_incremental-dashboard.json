@@ -105,7 +105,9 @@
           {
             "id": "log-template",
             "component": "Text",
-            "text": {"path": "message"},
+            "text": {
+              "path": "message"
+            },
             "variant": "caption"
           }
         ]
@@ -117,9 +119,15 @@
         "surfaceId": "gallery-incremental-dashboard",
         "value": {
           "logs": [
-            {"message": "System boot complete."},
-            {"message": "All services healthy."},
-            {"message": "Waiting for user input."}
+            {
+              "message": "System boot complete."
+            },
+            {
+              "message": "All services healthy."
+            },
+            {
+              "message": "Waiting for user input."
+            }
           ]
         }
       }

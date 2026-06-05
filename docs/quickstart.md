@@ -26,7 +26,7 @@ This demo runs an A2A agent that uses Gemini to generate A2UI responses. The age
 ## Step 1: Clone the Repository
 
 ```bash
-git clone https://github.com/google/a2ui.git
+git clone https://github.com/a2ui-project/a2ui.git
 cd a2ui
 ```
 
@@ -241,7 +241,7 @@ If you see errors about missing API keys:
 
 ### Connection Errors on Startup
 
-If you see `ERR_CONNECTION_REFUSED` errors when the browser opens, **don't worry** — this is a known race condition ([#587](https://github.com/google/A2UI/issues/587)). The web app starts faster than the Python agent backend. Just wait a few seconds and refresh the page.
+If you see `ERR_CONNECTION_REFUSED` errors when the browser opens, **don't worry** — this is a known race condition ([#587](https://github.com/a2ui-project/a2ui/issues/587)). The web app starts faster than the Python agent backend. Just wait a few seconds and refresh the page.
 
 ### Python / uv Issues
 
@@ -268,7 +268,7 @@ uv run .
 
 ### Still Having Issues?
 
-- Check the [GitHub Issues](https://github.com/google/a2ui/issues)
+- Check the [GitHub Issues](https://github.com/a2ui-project/a2ui/issues)
 - Review the [samples/client/lit/README.md](../samples/client/lit)
 - Join the community discussions
 

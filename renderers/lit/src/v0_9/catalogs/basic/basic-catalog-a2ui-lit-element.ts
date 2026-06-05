@@ -14,9 +14,18 @@
  * limitations under the License.
  */
 
-import {ComponentApi} from '@a2ui/web_core/v0_9';
+import {ComponentApi, type ComponentId} from '@a2ui/web_core/v0_9';
 import {A2uiLitElement} from '../../a2ui-lit-element.js';
 import {injectBasicCatalogStyles, computeColorVariant} from '@a2ui/web_core/v0_9/basic_catalog';
+
+export type ResolvedChildRef =
+  | ComponentId
+  | {
+      id: ComponentId;
+      basePath: string;
+    };
+
+export type ResolvedChildList = ResolvedChildRef[];
 
 /**
  * A base class for A2UI basic catalog components.

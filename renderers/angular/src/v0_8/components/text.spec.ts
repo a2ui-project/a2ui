@@ -54,7 +54,7 @@ describe('Text Component', () => {
         {provide: MarkdownRenderer, useValue: mockMarkdownRenderer},
       ],
     })
-      // Text component uses ChangeDetectionStrategy.Eager originally!
+      // Text component uses ChangeDetectionStrategy.OnPush originally!
       .compileComponents();
 
     fixture = TestBed.createComponent(Text);

@@ -210,7 +210,7 @@ class ContactAgent:
 
       return {
           "is_task_complete": True,
-          "parts": parse_response_to_parts(final_response_content),
+          "parts": parse_response_to_parts(final_response_content, version=ui_version),
       }
 
     elif "view_location" in query:
@@ -239,7 +239,7 @@ class ContactAgent:
         return {
             "is_task_complete": True,
             "parts": parse_response_to_parts(
-                f"Failed to load floor plan data: {str(e)}"
+                f"Failed to load floor plan data: {str(e)}", version=ui_version
             ),
         }
 
@@ -252,7 +252,7 @@ class ContactAgent:
 
       return {
           "is_task_complete": True,
-          "parts": parse_response_to_parts(final_response_content),
+          "parts": parse_response_to_parts(final_response_content, version=ui_version),
       }
 
     elif "close_modal" in query:
@@ -266,7 +266,7 @@ class ContactAgent:
 
       return {
           "is_task_complete": True,
-          "parts": parse_response_to_parts(final_response_content),
+          "parts": parse_response_to_parts(final_response_content, version=ui_version),
       }
 
     return None
@@ -418,6 +418,7 @@ class ContactAgent:
         async for part in stream_response_to_parts(
             self._parsers[session_id],
             token_stream(),
+            version=ui_version,
         ):
           yield {
               "is_task_complete": False,
@@ -508,7 +509,7 @@ class ContactAgent:
         )
 
         final_parts = parse_response_to_parts(
-            final_response_content, fallback_text="OK."
+            final_response_content, fallback_text="OK.", version=ui_version
         )
 
         yield {

@@ -20,8 +20,8 @@ import com.fasterxml.jackson.databind.ObjectMapper
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory
 import com.google.a2ui.adk.a2a_extension.A2uiEventConverter
 import com.google.a2ui.adk.a2a_extension.SendA2uiToClientToolset
-import com.google.a2ui.core.schema.A2uiCatalog
-import com.google.a2ui.core.schema.A2uiVersion
+import com.google.a2ui.schema.A2uiCatalog
+import com.google.a2ui.schema.A2uiVersion
 import com.google.adk.a2a.converters.EventConverter
 import com.google.adk.agents.InvocationContext
 import com.google.adk.agents.ReadonlyContext

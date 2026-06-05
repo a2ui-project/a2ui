@@ -16,7 +16,7 @@
 
 import {ComponentFixture} from '@angular/core/testing';
 import {DemoComponent} from '../../demo.component';
-import {getCanvas, loadExample, wait} from '../test_utils';
+import {getCanvas, loadExample, wait} from '../utils';
 
 describe('Example: Incremental Dashboard', () => {
   let fixture: ComponentFixture<DemoComponent>;

@@ -41,7 +41,7 @@ export const componentGeneratorFlow = ai.defineFlow(
 The output MUST be a series of JSON objects, each enclosed in a markdown code block (or a single block with multiple objects).
 
 Standard Instructions:
-1. Generate a 'createSurface' message with surfaceId 'main' and catalogId 'https://a2ui.org/specification/v0_10/basic_catalog.json'.
+1. Generate a 'createSurface' message with surfaceId 'main' and catalogId 'https://a2ui.org/specification/v0_10/catalogs/basic/catalog.json'.
 2. Generate a 'updateComponents' message with surfaceId 'main' containing the requested UI.
 3. Ensure all component children are referenced by ID (using the 'children' or 'child' property with IDs), NOT nested inline as objects.
 4. If the request involves data binding, you may also generate 'updateDataModel' messages.

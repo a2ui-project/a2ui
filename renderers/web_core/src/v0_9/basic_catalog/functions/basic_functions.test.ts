@@ -16,7 +16,7 @@
 
 import {describe, it} from 'node:test';
 import * as assert from 'node:assert';
-import {effect} from '@preact/signals-core';
+import {effect, Signal} from '@preact/signals-core';
 
 import {BASIC_FUNCTIONS} from './basic_functions.js';
 import {DataModel} from '../../state/data-model.js';
@@ -214,11 +214,7 @@ describe('BASIC_FUNCTIONS', () => {
 
   describe('Formatting', () => {
     it('formatString (static literal)', (_, done) => {
-      const result = invoke(
-        'formatString',
-        {value: 'hello world'},
-        context,
-      ) as import('@preact/signals-core').Signal<string>;
+      const result = invoke('formatString', {value: 'hello world'}, context) as Signal<string>;
 
       let cleanup: (() => void) | undefined;
       // Required to pass a reference to cleanup() into th effect(). Probably
@@ -226,21 +222,15 @@ describe('BASIC_FUNCTIONS', () => {
       // eslint-disable-next-line prefer-const
       cleanup = effect(() => {
         const val = result.value;
-        if (val) {
-          assert.strictEqual(val, 'hello world');
-          if (cleanup) cleanup();
-          done();
-        }
+        assert.strictEqual(val, 'hello world');
+        if (cleanup) cleanup();
+        done();
       });
     });
 
     it('formatString (with data binding)', (_, done) => {
       // Assuming dataModel has { "a": 10 } from setup
-      const result = invoke(
-        'formatString',
-        {value: 'Value: ${a}'},
-        context,
-      ) as import('@preact/signals-core').Signal<string>;
+      const result = invoke('formatString', {value: 'Value: ${a}'}, context) as Signal<string>;
 
       let emitCount = 0;
       let cleanup: (() => void) | undefined;
@@ -283,7 +273,7 @@ describe('BASIC_FUNCTIONS', () => {
         'formatString',
         {value: 'Result: ${add(a: 5, b: 7)}'},
         ctxWithInvoker,
-      ) as import('@preact/signals-core').Signal<string>;
+      ) as Signal<string>;
 
       let cleanup: (() => void) | undefined;
       // Required to pass a reference to cleanup() into th effect(). Probably
@@ -291,11 +281,98 @@ describe('BASIC_FUNCTIONS', () => {
       // eslint-disable-next-line prefer-const
       cleanup = effect(() => {
         const val = result.value;
-        if (val) {
-          assert.strictEqual(val, 'Result: 12');
-          if (cleanup) cleanup();
-          done();
-        }
+        assert.strictEqual(val, 'Result: 12');
+        if (cleanup) cleanup();
+        done();
+      });
+    });
+
+    it('formatString (object value is JSON-stringified)', (_, done) => {
+      const objModel = new DataModel({user: {name: 'Alice', age: 30}});
+      const objContext = createTestDataContext(objModel, '/');
+
+      const result = invoke('formatString', {value: 'User: ${user}'}, objContext) as Signal<string>;
+
+      let cleanup: (() => void) | undefined;
+      // eslint-disable-next-line prefer-const
+      cleanup = effect(() => {
+        const val = result.value;
+        assert.strictEqual(val, 'User: {"name":"Alice","age":30}');
+        if (cleanup) cleanup();
+        done();
+      });
+    });
+
+    it('formatString (array value is JSON-stringified)', (_, done) => {
+      const arrModel = new DataModel({tags: ['swift', 'ios']});
+      const arrContext = createTestDataContext(arrModel, '/');
+
+      const result = invoke('formatString', {value: 'Tags: ${tags}'}, arrContext) as Signal<string>;
+
+      let cleanup: (() => void) | undefined;
+      // eslint-disable-next-line prefer-const
+      cleanup = effect(() => {
+        const val = result.value;
+        assert.strictEqual(val, 'Tags: ["swift","ios"]');
+        if (cleanup) cleanup();
+        done();
+      });
+    });
+
+    it('formatString (nested array is JSON-stringified)', (_, done) => {
+      const matrixModel = new DataModel({
+        matrix: [
+          [1, 2],
+          [3, 4],
+        ],
+      });
+      const matrixContext = createTestDataContext(matrixModel, '/');
+
+      const result = invoke(
+        'formatString',
+        {value: 'M = ${matrix}'},
+        matrixContext,
+      ) as Signal<string>;
+
+      let cleanup: (() => void) | undefined;
+      // eslint-disable-next-line prefer-const
+      cleanup = effect(() => {
+        const val = result.value;
+        assert.strictEqual(val, 'M = [[1,2],[3,4]]');
+        if (cleanup) cleanup();
+        done();
+      });
+    });
+
+    it('formatString (array with null is JSON-stringified preserving nulls)', (_, done) => {
+      const nullsModel = new DataModel({vals: [1, null, 3]});
+      const nullsContext = createTestDataContext(nullsModel, '/');
+
+      const result = invoke('formatString', {value: 'V = ${vals}'}, nullsContext) as Signal<string>;
+
+      let cleanup: (() => void) | undefined;
+      // eslint-disable-next-line prefer-const
+      cleanup = effect(() => {
+        const val = result.value;
+        assert.strictEqual(val, 'V = [1,null,3]');
+        if (cleanup) cleanup();
+        done();
+      });
+    });
+
+    it('formatString (null/undefined interpolated as empty string)', (_, done) => {
+      const nullModel = new DataModel({x: null});
+      const nullContext = createTestDataContext(nullModel, '/');
+
+      const result = invoke('formatString', {value: 'val=${x}end'}, nullContext) as Signal<string>;
+
+      let cleanup: (() => void) | undefined;
+      // eslint-disable-next-line prefer-const
+      cleanup = effect(() => {
+        const val = result.value;
+        assert.strictEqual(val, 'val=end');
+        if (cleanup) cleanup();
+        done();
       });
     });
 

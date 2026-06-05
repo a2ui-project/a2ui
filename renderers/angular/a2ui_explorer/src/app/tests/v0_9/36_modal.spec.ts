@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import {loadExample, wait} from '../test_utils';
+import {loadExample, wait} from '../utils';
 
 describe('Example: Modal', () => {
   it('should open and close modal', async () => {

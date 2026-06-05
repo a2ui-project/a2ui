@@ -96,6 +96,13 @@ migrate_working_dir/
 .pub-cache/
 .pub/
 /build/
+
+# iOS/macOS generated files
+**/ios/Runner/GeneratedPluginRegistrant.h
+**/ios/Runner/GeneratedPluginRegistrant.m
+**/ios/Runner/GeneratedPluginRegistrant.swift
+**/macos/Flutter/GeneratedPluginRegistrant.swift
+
 /coverage/
 pubspec.lock
 

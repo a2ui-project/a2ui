@@ -17,8 +17,8 @@
 package com.google.a2ui.samples.rizzcharts
 
 import com.google.a2ui.adk.a2a_extension.SendA2uiToClientToolset
-import com.google.a2ui.core.schema.A2uiCatalog
-import com.google.a2ui.core.schema.A2uiSchemaManager
+import com.google.a2ui.schema.A2uiCatalog
+import com.google.a2ui.schema.A2uiSchemaManager
 import com.google.adk.agents.Instruction
 import com.google.adk.agents.LlmAgent
 import com.google.adk.agents.ReadonlyContext

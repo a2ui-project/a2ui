@@ -16,9 +16,9 @@
 
 package com.google.a2ui.a2a
 
-import com.google.a2ui.core.parser.hasA2uiParts
-import com.google.a2ui.core.parser.parseResponseToParts
-import com.google.a2ui.core.schema.A2uiConstants
+import com.google.a2ui.parser.hasA2uiParts
+import com.google.a2ui.parser.parseResponseToParts
+import com.google.a2ui.schema.A2uiConstants
 import com.google.adk.agents.RunConfig
 import com.google.adk.events.Event
 import com.google.adk.runner.Runner

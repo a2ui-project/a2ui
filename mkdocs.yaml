@@ -42,6 +42,7 @@ nav:
   - A2UI Composer ⭐: composer.md
   - Concepts:
       - Overview: concepts/overview.md
+      - Glossary: concepts/glossary.md
       - Data Flow: concepts/data-flow.md
       - Components & Structure: concepts/components.md
       - Data Binding: concepts/data-binding.md
@@ -81,8 +82,8 @@ exclude_docs: |
   scripts/**
 
 # Repository
-repo_name: google/A2UI
-repo_url: https://github.com/google/A2UI
+repo_name: a2ui-project/a2ui
+repo_url: https://github.com/a2ui-project/a2ui
 edit_uri: raw/main/docs/
 
 # Copyright
@@ -99,7 +100,7 @@ theme:
     text: Google Sans
     code: Roboto Mono
   logo: assets/A2UI_light.svg
-  favicon: assets/A2UI_dark.svg
+  favicon: assets/favicon.svg
   icon:
     repo: fontawesome/brands/github
     # view: material/pencil-box-multiple

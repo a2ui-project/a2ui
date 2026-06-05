@@ -108,18 +108,7 @@
           "$ref": "#/$defs/DataBinding"
         },
         {
-          "allOf": [
-            {
-              "$ref": "#/$defs/FunctionCall"
-            },
-            {
-              "properties": {
-                "returnType": {
-                  "const": "string"
-                }
-              }
-            }
-          ]
+          "$ref": "#/$defs/FunctionCall"
         }
       ]
     },
@@ -133,18 +122,7 @@
           "$ref": "#/$defs/DataBinding"
         },
         {
-          "allOf": [
-            {
-              "$ref": "#/$defs/FunctionCall"
-            },
-            {
-              "properties": {
-                "returnType": {
-                  "const": "number"
-                }
-              }
-            }
-          ]
+          "$ref": "#/$defs/FunctionCall"
         }
       ]
     },
@@ -158,18 +136,7 @@
           "$ref": "#/$defs/DataBinding"
         },
         {
-          "allOf": [
-            {
-              "$ref": "#/$defs/FunctionCall"
-            },
-            {
-              "properties": {
-                "returnType": {
-                  "const": "boolean"
-                }
-              }
-            }
-          ]
+          "$ref": "#/$defs/FunctionCall"
         }
       ]
     },
@@ -186,18 +153,7 @@
           "$ref": "#/$defs/DataBinding"
         },
         {
-          "allOf": [
-            {
-              "$ref": "#/$defs/FunctionCall"
-            },
-            {
-              "properties": {
-                "returnType": {
-                  "const": "array"
-                }
-              }
-            }
-          ]
+          "$ref": "#/$defs/FunctionCall"
         }
       ]
     },
@@ -205,11 +161,6 @@
       "type": "object",
       "description": "Invokes a named function on the client.",
       "properties": {
-        "callableFrom": {
-          "description": "Specifies where this function can be invoked from.",
-          "enum": ["clientOnly", "remoteOnly", "clientOrRemote"],
-          "default": "clientOnly"
-        },
         "call": {
           "type": "string",
           "description": "The name of the function to call."
@@ -228,11 +179,6 @@
               }
             ]
           }
-        },
-        "returnType": {
-          "description": "The expected return type of the function call.",
-          "enum": ["array", "boolean", "number", "object", "string", "void"],
-          "default": "boolean"
         }
       },
       "required": ["call"],

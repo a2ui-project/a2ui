@@ -28,7 +28,7 @@ import {ChangeDetectionStrategy, Component, inject, input, resource} from '@angu
   templateUrl: './a2a-renderer.html',
   styleUrl: './a2a-renderer.scss',
   imports: [NgComponentOutlet],
-  changeDetection: ChangeDetectionStrategy.Eager,
+  changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class A2aRenderer {
   /** The UiMessageContent to be rendered. */

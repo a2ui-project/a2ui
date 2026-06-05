@@ -38,9 +38,8 @@
             "text": {
               "call": "formatString",
               "args": {
-                "value": "${/tempHigh}°"
-              },
-              "returnType": "string"
+                "value": "${/tempHigh}\u00b0"
+              }
             },
             "variant": "h1"
           },
@@ -50,9 +49,8 @@
             "text": {
               "call": "formatString",
               "args": {
-                "value": "${/tempLow}°"
-              },
-              "returnType": "string"
+                "value": "${/tempLow}\u00b0"
+              }
             },
             "variant": "h2"
           },
@@ -97,8 +95,7 @@
                   "path": "date"
                 },
                 "format": "E"
-              },
-              "returnType": "string"
+              }
             },
             "variant": "caption"
           },
@@ -116,9 +113,8 @@
             "text": {
               "call": "formatString",
               "args": {
-                "value": "${temp}°"
-              },
-              "returnType": "string"
+                "value": "${temp}\u00b0"
+              }
             },
             "variant": "caption"
           }
@@ -137,27 +133,27 @@
           "forecast": [
             {
               "date": "2025-12-16",
-              "icon": "☀️",
+              "icon": "\u2600\ufe0f",
               "temp": 74
             },
             {
               "date": "2025-12-17",
-              "icon": "☀️",
+              "icon": "\u2600\ufe0f",
               "temp": 76
             },
             {
               "date": "2025-12-18",
-              "icon": "⛅",
+              "icon": "\u26c5",
               "temp": 71
             },
             {
               "date": "2025-12-19",
-              "icon": "☀️",
+              "icon": "\u2600\ufe0f",
               "temp": 73
             },
             {
               "date": "2025-12-20",
-              "icon": "☀️",
+              "icon": "\u2600\ufe0f",
               "temp": 75
             }
           ]

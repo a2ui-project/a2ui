@@ -50,9 +50,8 @@
             "text": {
               "call": "formatString",
               "args": {
-                "value": "${formatDate(value: ${/start}, format: 'E, MMM d')} • ${formatDate(value: ${/start}, format: 'h:mm a')} - ${formatDate(value: ${/end}, format: 'h:mm a')}"
-              },
-              "returnType": "string"
+                "value": "${formatDate(value: ${/start}, format: 'E, MMM d')} \u2022 ${formatDate(value: ${/start}, format: 'h:mm a')} - ${formatDate(value: ${/end}, format: 'h:mm a')}"
+              }
             },
             "variant": "body"
           },
