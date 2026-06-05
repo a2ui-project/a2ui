@@ -12,18 +12,21 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from ..common.events import EventSource
+from ..common.events import EventSource, Signal
 from .component_model import ComponentModel
+from .component_node import ComponentNode
 from .data_model import DataModel
 from .surface_components_model import SurfaceComponentsModel
-from .surface_model import SurfaceModel
 from .surface_group_model import SurfaceGroupModel
+from .surface_model import SurfaceModel
 
 __all__ = [
-    "EventSource",
     "ComponentModel",
+    "ComponentNode",
     "DataModel",
+    "EventSource",
+    "Signal",
     "SurfaceComponentsModel",
-    "SurfaceModel",
     "SurfaceGroupModel",
+    "SurfaceModel",
 ]

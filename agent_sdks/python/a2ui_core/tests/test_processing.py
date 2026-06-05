@@ -577,30 +577,31 @@ def test_message_processor_xor_conflict_coverage():
 def test_message_processor_missing_data_model_path_reactive_binding(mock_catalog):
     processor = MessageProcessor(catalogs=[mock_catalog])
 
-    processor.process_messages(
-        [
-            {
-                "version": SPEC_VERSION,
-                "createSurface": {
-                    "surfaceId": "s1",
-                    "catalogId": mock_catalog.catalog_id,
+    with pytest.warns(MissingDataBindingWarning):
+        processor.process_messages(
+            [
+                {
+                    "version": SPEC_VERSION,
+                    "createSurface": {
+                        "surfaceId": "s1",
+                        "catalogId": mock_catalog.catalog_id,
+                    },
                 },
-            },
-            {
-                "version": SPEC_VERSION,
-                "updateComponents": {
-                    "surfaceId": "s1",
-                    "components": [
-                        {
-                            "id": "root",
-                            "component": "Text",
-                            "text": {"path": "/missing/username"},
-                        }
-                    ],
+                {
+                    "version": SPEC_VERSION,
+                    "updateComponents": {
+                        "surfaceId": "s1",
+                        "components": [
+                            {
+                                "id": "root",
+                                "component": "Text",
+                                "text": {"path": "/missing/username"},
+                            }
+                        ],
+                    },
                 },
-            },
-        ]
-    )
+            ]
+        )
 
     surface = processor.model.get_surface("s1")
     assert surface is not None
