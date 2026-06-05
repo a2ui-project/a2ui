@@ -89,9 +89,10 @@ export interface ExampleModule {
   default: ExampleData | A2uiMessage[];
 }
 
-export const exampleModules: Record<string, { default: any }> = {
+// Cast is required because JSON imports infer 'version' as 'string' instead of literal '"v0.9"'.
+export const exampleModules: Record<string, ExampleModule> = {
 ${entries.join(',\n')}
-};
+} as Record<string, ExampleModule>;
 `;
 
   const outDir = path.dirname(OUT_FILE);
