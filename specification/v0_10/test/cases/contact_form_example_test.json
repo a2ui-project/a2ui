@@ -46,7 +46,9 @@
               "id": "first_name_field",
               "component": "TextField",
               "label": "First Name",
-              "value": {"path": "/contact/firstName"},
+              "value": {
+                "path": "/contact/firstName"
+              },
               "variant": "shortText"
             },
             {
@@ -58,41 +60,64 @@
               "id": "last_name_field",
               "component": "TextField",
               "label": "Last Name",
-              "value": {"path": "/contact/lastName"},
+              "value": {
+                "path": "/contact/lastName"
+              },
               "variant": "shortText"
             },
-            {"id": "email_label", "component": "Text", "text": "Email"},
+            {
+              "id": "email_label",
+              "component": "Text",
+              "text": "Email"
+            },
             {
               "id": "email_field",
               "component": "TextField",
               "label": "Email",
-              "value": {"path": "/contact/email"},
+              "value": {
+                "path": "/contact/email"
+              },
               "variant": "shortText",
               "checks": [
                 {
                   "condition": {
                     "call": "email",
-                    "args": {"value": {"path": "/contact/email"}},
-                    "returnType": "boolean"
+                    "args": {
+                      "value": {
+                        "path": "/contact/email"
+                      }
+                    }
                   },
                   "message": "Please enter a valid email address."
                 }
               ]
             },
-            {"id": "phone_label", "component": "Text", "text": "Phone"},
+            {
+              "id": "phone_label",
+              "component": "Text",
+              "text": "Phone"
+            },
             {
               "id": "phone_field",
               "component": "TextField",
               "label": "Phone",
-              "value": {"path": "/contact/phone"},
+              "value": {
+                "path": "/contact/phone"
+              },
               "variant": "shortText"
             },
-            {"id": "notes_label", "component": "Text", "text": "Notes"},
+            {
+              "id": "notes_label",
+              "component": "Text",
+              "text": "Notes"
+            },
             {
               "id": "notes_field",
               "component": "TextField",
               "label": "Notes",
-              "value": {"path": "/contact/notes"},
+              "value": {
+                "path": "/contact/notes"
+              },
               "variant": "longText"
             },
             {
@@ -105,7 +130,11 @@
               "component": "Button",
               "child": "submit_button_label",
               "variant": "primary",
-              "action": {"event": {"name": "submitContactForm"}}
+              "action": {
+                "event": {
+                  "name": "submitContactForm"
+                }
+              }
             }
           ]
         }

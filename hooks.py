@@ -15,7 +15,7 @@
 import re
 
 def on_page_markdown(markdown, page, config, files):
-    github_base_url = "https://github.com/google/A2UI/blob/main"
+    github_base_url = "https://github.com/a2ui-project/a2ui/blob/main"
     
     def link_replacer(match):
         if match.group("code"):

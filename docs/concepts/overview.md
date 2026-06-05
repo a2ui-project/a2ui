@@ -2,7 +2,7 @@
 
 This section explains the fundamental architecture of A2UI. Understanding these concepts will help you build effective agent-driven interfaces.
 
-See [Glossary](../glossary.md) for short definitions of key terms.
+See [Glossary](glossary.md) for short definitions of key terms.
 
 ## The Big Picture
 

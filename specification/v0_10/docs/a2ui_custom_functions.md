@@ -21,6 +21,7 @@ Use the `functions` property to define a map of function schemas.
     "trim": {
       "type": "object",
       "description": "Removes whitespace (or other characters) from the beginning and end of a string.",
+      "returnType": "string",
       "properties": {
         "call": {"const": "trim"},
         "args": {
@@ -37,8 +38,7 @@ Use the `functions` property to define a map of function schemas.
           },
           "required": ["value"],
           "unevaluatedProperties": false
-        },
-        "returnType": {"const": "string"}
+        }
       },
       "required": ["call", "args"],
       "unevaluatedProperties": false
@@ -46,6 +46,7 @@ Use the `functions` property to define a map of function schemas.
     "getScreenResolution": {
       "type": "object",
       "description": "Queries hardware for screen resolution.",
+      "returnType": "array",
       "properties": {
         "call": {"const": "getScreenResolution"},
         "args": {
@@ -57,8 +58,7 @@ Use the `functions` property to define a map of function schemas.
             }
           },
           "unevaluatedProperties": false
-        },
-        "returnType": {"const": "array"}
+        }
       },
       "required": ["call", "args"],
       "unevaluatedProperties": false

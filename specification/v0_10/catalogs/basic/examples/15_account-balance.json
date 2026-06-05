@@ -54,8 +54,7 @@
                   "path": "/balance"
                 },
                 "currency": "USD"
-              },
-              "returnType": "string"
+              }
             },
             "variant": "h1"
           },

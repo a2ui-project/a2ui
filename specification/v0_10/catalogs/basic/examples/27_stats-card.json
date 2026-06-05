@@ -56,8 +56,7 @@
                   "path": "/value"
                 },
                 "currency": "USD"
-              },
-              "returnType": "string"
+              }
             },
             "variant": "h1"
           },
@@ -81,8 +80,7 @@
               "call": "formatString",
               "args": {
                 "value": "+${/trendPercent}% from last month"
-              },
-              "returnType": "string"
+              }
             },
             "variant": "body"
           }

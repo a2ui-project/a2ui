@@ -39,7 +39,7 @@ repositories {
 
 dependencies {
   api("org.jetbrains.kotlinx:kotlinx-serialization-json:1.6.3")
-  implementation("com.networknt:json-schema-validator:1.5.1")
+  implementation("com.networknt:json-schema-validator:2.0.1")
   implementation("com.fasterxml.jackson.core:jackson-databind:2.17.2")
 
   // Core Dependencies

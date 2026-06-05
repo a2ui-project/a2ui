@@ -89,8 +89,7 @@
                 "value": {
                   "path": "/calories"
                 }
-              },
-              "returnType": "string"
+              }
             },
             "variant": "h3"
           },
@@ -113,8 +112,7 @@
               "call": "formatString",
               "args": {
                 "value": "${/distance} km"
-              },
-              "returnType": "string"
+              }
             },
             "variant": "h3"
           },
@@ -134,8 +132,7 @@
                   "path": "/date"
                 },
                 "format": "EEEE, MMM d 'at' h:mm a"
-              },
-              "returnType": "string"
+              }
             },
             "variant": "caption"
           }

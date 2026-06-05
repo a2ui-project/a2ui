@@ -5,7 +5,7 @@
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
 #
-#     http://www.apache.org/licenses/LICENSE-2.0
+#     https://www.apache.org/licenses/LICENSE-2.0
 #
 # Unless required by applicable law or agreed to in writing, software
 # distributed under the License is distributed on an "AS IS" BASIS,
@@ -183,6 +183,63 @@ def validate_jsonl_example(jsonl_path):
     finally:
         cleanup_catalog_alias()
 
+def validate_catalogs_structure():
+    """
+    Validates the catalog files directly against the Catalog definition in
+    client_capabilities.json schema.
+    """
+    client_caps_path = os.path.join(SCHEMA_DIR, "client_capabilities.json")
+    if not os.path.exists(client_caps_path):
+        print(f"Error: client_capabilities.json not found at {client_caps_path}")
+        return 0, 1
+
+    temp_validator_path = os.path.join(TEST_DIR, "temp_catalog_validator.json")
+
+    # We reference the absolute ID of client_capabilities.json which gets loaded as a reference
+    validator_schema = {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "$ref": "https://a2ui.org/specification/v0_10/client_capabilities.json#/$defs/Catalog"
+    }
+
+    with open(temp_validator_path, 'w') as f:
+        json.dump(validator_schema, f)
+
+    catalogs_to_validate = [
+        ("catalogs/basic/catalog.json", os.path.join(SPEC_DIR, "catalogs/basic/catalog.json")),
+        ("catalogs/minimal/catalog.json", os.path.join(SPEC_DIR, "catalogs/minimal/catalog.json")),
+        ("test/testing_catalog.json", os.path.join(TEST_DIR, "testing_catalog.json")),
+    ]
+
+    passed = 0
+    failed = 0
+
+    print("\nValidating catalog structural integrity against client_capabilities.json...")
+
+    ref_schemas = {
+        "client_capabilities.json": client_caps_path
+    }
+
+    try:
+        for name, path in catalogs_to_validate:
+            if not os.path.exists(path):
+                print(f"  [FAIL] {name} (File not found)")
+                failed += 1
+                continue
+
+            is_valid, output = validate_ajv(temp_validator_path, path, ref_schemas)
+            if is_valid:
+                passed += 1
+                # print(f"  [PASS] {name}")
+            else:
+                failed += 1
+                print(f"  [FAIL] {name}")
+                print(f"         Output: {output.strip()}")
+
+        return passed, failed
+    finally:
+        if os.path.exists(temp_validator_path):
+            os.remove(temp_validator_path)
+
 def main():
     if not os.path.exists(CASES_DIR):
         print(f"No cases directory found at {CASES_DIR}")
@@ -203,6 +260,11 @@ def main():
         # 2. Run .jsonl example validation
         example_path = os.path.join(CASES_DIR, "contact_form_example.jsonl")
         p, f = validate_jsonl_example(example_path)
+        total_passed += p
+        total_failed += f
+
+        # 3. Validate catalogs structural integrity
+        p, f = validate_catalogs_structure()
         total_passed += p
         total_failed += f
 

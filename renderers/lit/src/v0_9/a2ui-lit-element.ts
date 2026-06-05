@@ -16,24 +16,15 @@
 
 import {LitElement, nothing} from 'lit';
 import {property} from 'lit/decorators.js';
-import {ComponentContext, ComponentApi} from '@a2ui/web_core/v0_9';
+import {ComponentContext, ComponentApi, type ComponentId} from '@a2ui/web_core/v0_9';
 import {renderA2uiNode} from './surface/render-a2ui-node.js';
 import {A2uiController} from '@a2ui/lit/v0_9';
 
 /**
- * Represents a reference to a child component that should be rendered.
- * In A2UI, a child can be provided in one of three ways:
- *
- * 1. A string ID (e.g., "submit_button"). Tells the renderer to look up the component
- *    from the Surface's registry. The child will inherit the parent's data context path.
- * 2. A reference object (e.g., { id: 'foo', basePath: '/bar' }). Tells the renderer where
- *    to find the component AND binds it to a specific slice of the data model.
- * 3. An inline component object (e.g., { type: 'Button', props: { ... } }). Provides the
- *    full component definition directly instead of looking it up by ID.
- *
- * (This probably should come from the binder in web_core!)
+ * A reference to a child component to render. Either a string ID, or an object
+ * pairing an ID with an explicit data context path.
  */
-type A2uiChildRef = string | {id?: string; basePath?: string; type?: string};
+type A2uiChildRef = ComponentId | {id: ComponentId; basePath: string};
 
 /**
  * A base class for A2UI Lit elements that manages the A2uiController lifecycle.
@@ -63,35 +54,33 @@ export abstract class A2uiLitElement<Api extends ComponentApi> extends LitElemen
    * Helper method to render a child A2UI node.
    * Abstracts away the need to manually create a ComponentContext.
    *
-   * @param childRef The reference to the child component to render. Can be a string ID,
-   *                 a reference object containing `{ id, basePath }`, or a full inline component definition.
+   * @param childRef The reference to the child component to render. Either a string ID
+   *                 or a reference object containing `{id, basePath}`.
    * @param customPath An explicit data model path to bind the child to. If provided,
-   *                   this completely overrides any path defined in the `childRef` object.
-   *                   If omitted, it falls back to the `childRef`'s `basePath`, or the current component's path.
+   *                   this overrides any path defined in the `childRef` object. If omitted,
+   *                   falls back to the `childRef`'s `basePath`, or the current component's path.
    *
    * @returns A Lit template result containing the rendered child component, or `nothing` if the reference is empty.
    */
   protected renderNode(childRef?: A2uiChildRef, customPath?: string) {
     if (!childRef) return nothing;
-    let model: any = childRef;
     const {surface, path: parentPath} = this.context.dataContext;
 
-    // Path is resolved in the following order:
-    //   customPath > childRef.basePath > parentPath
+    // Path resolution order: customPath > childRef.basePath > parentPath
+    let componentId: ComponentId;
     let path = customPath;
-
-    // We check !childRef.type because an inline component definition (e.g. { type: 'Button' })
-    // should be passed directly to the ComponentContext. If it doesn't have a .type,
-    // we treat it as a child reference object (e.g. { id: 'foo', basePath: '/bar' }).
-    if (typeof childRef === 'object' && childRef !== null && childRef.id && !childRef.type) {
-      model = childRef.id;
+    if (typeof childRef === 'object') {
+      componentId = childRef.id;
       path = path ?? childRef.basePath;
+    } else {
+      componentId = childRef;
     }
 
-    // Fallback to the current component's context.
+    // Keep this fallback because the previous A2uiChildRef type allowed object
+    // refs without a basePath.
     path = path ?? parentPath;
 
-    return renderA2uiNode(new ComponentContext(surface, model, path), surface.catalog);
+    return renderA2uiNode(new ComponentContext(surface, componentId, path), surface.catalog);
   }
 
   /**

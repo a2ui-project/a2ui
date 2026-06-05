@@ -278,7 +278,7 @@ class SendA2uiToClientToolset(base_toolset.BaseToolset):
         self,
         *,
         tool_context: tool_context.ToolContext,
-        llm_request: models.LlmRequest,
+        llm_request: LlmRequest,
     ) -> None:
       await super().process_llm_request(
           tool_context=tool_context, llm_request=llm_request

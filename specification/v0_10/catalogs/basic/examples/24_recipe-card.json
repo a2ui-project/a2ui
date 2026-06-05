@@ -90,8 +90,7 @@
               "call": "formatString",
               "args": {
                 "value": "(${formatNumber(value: ${/reviewCount})} ${pluralize(value: ${/reviewCount}, one: 'review', other: 'reviews')})"
-              },
-              "returnType": "string"
+              }
             },
             "variant": "caption"
           },
@@ -186,16 +185,32 @@
           "cookTime": "20 min cook",
           "servings": "Serves 4",
           "ingredients": [
-            {"text": "1 cup quinoa"},
-            {"text": "2 cups water"},
-            {"text": "1 cucumber, diced"},
-            {"text": "1 cup cherry tomatoes, halved"}
+            {
+              "text": "1 cup quinoa"
+            },
+            {
+              "text": "2 cups water"
+            },
+            {
+              "text": "1 cucumber, diced"
+            },
+            {
+              "text": "1 cup cherry tomatoes, halved"
+            }
           ],
           "instructions": [
-            {"text": "1. Rinse quinoa and bring to a boil in water."},
-            {"text": "2. Reduce heat and simmer for 15 minutes."},
-            {"text": "3. Fluff with a fork and let cool."},
-            {"text": "4. Mix with diced vegetables."}
+            {
+              "text": "1. Rinse quinoa and bring to a boil in water."
+            },
+            {
+              "text": "2. Reduce heat and simmer for 15 minutes."
+            },
+            {
+              "text": "3. Fluff with a fork and let cool."
+            },
+            {
+              "text": "4. Mix with diced vegetables."
+            }
           ]
         }
       }

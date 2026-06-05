@@ -90,8 +90,7 @@
                   "path": "price"
                 },
                 "currency": "USD"
-              },
-              "returnType": "string"
+              }
             },
             "variant": "body"
           },
@@ -126,8 +125,7 @@
                   "path": "/subtotal"
                 },
                 "currency": "USD"
-              },
-              "returnType": "string"
+              }
             },
             "variant": "body"
           },
@@ -153,8 +151,7 @@
                   "path": "/tax"
                 },
                 "currency": "USD"
-              },
-              "returnType": "string"
+              }
             },
             "variant": "body"
           },
@@ -180,8 +177,7 @@
                   "path": "/total"
                 },
                 "currency": "USD"
-              },
-              "returnType": "string"
+              }
             },
             "variant": "h4"
           },

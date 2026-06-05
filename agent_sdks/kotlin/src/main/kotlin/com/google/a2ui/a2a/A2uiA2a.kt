@@ -33,7 +33,15 @@ object A2uiA2a {
   @JvmOverloads
   fun createA2uiPart(a2uiData: JsonElement, version: String? = null): Part<*> {
     val mimeType =
-      if (version == "0.8" || version == "0.9") DEPRECATED_A2UI_MIME_TYPE else A2UI_MIME_TYPE
+      if (
+        version == null ||
+          version == "0.8" ||
+          version == "0.9" ||
+          version == "v0.8" ||
+          version == "v0.9"
+      )
+        DEPRECATED_A2UI_MIME_TYPE
+      else A2UI_MIME_TYPE
     return DataPart(a2uiData, mapOf(MIME_TYPE_KEY to mimeType))
   }
 
