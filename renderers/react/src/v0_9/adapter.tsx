@@ -20,7 +20,7 @@ import type {
   ComponentApi,
   InferredComponentApiSchemaType,
   ResolveA2uiProps,
-  type ComponentId,
+  ComponentId,
 } from '@a2ui/web_core/v0_9';
 
 export interface ReactComponentImplementation extends ComponentApi {

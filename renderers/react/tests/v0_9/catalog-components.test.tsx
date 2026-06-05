@@ -191,7 +191,7 @@ describe('Basic Catalog Components', () => {
 
     it('delegates child rendering to buildChild', () => {
       const {buildChild} = renderA2uiComponent(Button, 'b1', {child: 'inner1'});
-      expect(buildChild).toHaveBeenCalledWith('inner1');
+      expect(buildChild).toHaveBeenCalledWith('inner1', '/');
       expect(screen.getByTestId('child-inner1')).toBeDefined();
     });
   });
@@ -237,8 +237,8 @@ describe('Basic Catalog Components', () => {
         children: ['c1', 'c2'],
       });
 
-      expect(buildChild).toHaveBeenCalledWith('c1');
-      expect(buildChild).toHaveBeenCalledWith('c2');
+      expect(buildChild).toHaveBeenCalledWith('c1', '/');
+      expect(buildChild).toHaveBeenCalledWith('c2', '/');
       expect(screen.getByTestId('child-c1')).toBeDefined();
       expect(screen.getByTestId('child-c2')).toBeDefined();
     });
@@ -247,7 +247,7 @@ describe('Basic Catalog Components', () => {
       const {buildChild, view} = renderA2uiComponent(Column, 'col1', {
         children: ['c1'],
       });
-      expect(buildChild).toHaveBeenCalledWith('c1');
+      expect(buildChild).toHaveBeenCalledWith('c1', '/');
       expect(view.container.firstChild).toHaveStyle({flexDirection: 'column'});
     });
 
@@ -271,7 +271,7 @@ describe('Basic Catalog Components', () => {
 
     it('Card renders its child', () => {
       const {buildChild} = renderA2uiComponent(Card, 'card1', {child: 'c1'});
-      expect(buildChild).toHaveBeenCalledWith('c1');
+      expect(buildChild).toHaveBeenCalledWith('c1', '/');
       expect(screen.getByTestId('child-c1')).toBeDefined();
     });
 

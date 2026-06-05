@@ -52,7 +52,7 @@ describe('adapter', () => {
       return (
         <div>
           <span>{props.text}</span>
-          {props.child && buildChild(props.child)}
+          {props.child && buildChild(props.child.id, props.child.basePath)}
         </div>
       );
     });
@@ -147,7 +147,11 @@ describe('adapter', () => {
 
     const TestParent = createComponentImplementation(ParentApiDef, ({props, buildChild}) => {
       parentRenderCount++;
-      return <div data-testid="parent">{props.child && buildChild(props.child)}</div>;
+      return (
+        <div data-testid="parent">
+          {props.child && buildChild(props.child.id, props.child.basePath)}
+        </div>
+      );
     });
 
     const TestChild = createComponentImplementation(ChildApiDef, ({props}) => (
