@@ -147,6 +147,7 @@ class TestStrictOutput:
         role_description="Test agent",
     )
     assert "NEVER use markdown tables" not in prompt
+    assert "Between or around these blocks" in prompt
 
   def test_strict_output_false_matches_default(self, manager):
     """Explicitly passing strict_output=False matches default behavior."""

@@ -30,6 +30,7 @@ class InferenceStrategy(ABC):
       include_schema: bool = False,
       include_examples: bool = False,
       validate_examples: bool = False,
+      strict_output: bool = False,
   ) -> str:
     """
     Generates a system prompt for all LLM requests.
@@ -44,6 +45,7 @@ class InferenceStrategy(ABC):
       include_schema: Whether to include the schema.
       include_examples: Whether to include examples.
       validate_examples: Whether to validate examples.
+      strict_output: When True, enforces A2UI-first output ordering.
 
     Returns:
       The system prompt.

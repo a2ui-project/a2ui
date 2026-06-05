@@ -228,7 +228,7 @@ class A2uiSchemaManager(InferenceStrategy):
       include_examples: Whether to include examples in the prompt.
       validate_examples: Whether to validate examples against the schema.
       strict_output: When True, enforces A2UI-first output ordering, bans
-          markdown formatting alternatives, and requires minimum component
+          markdown formatting alternatives, and recommends component
           diversity. Recommended for agents whose primary purpose is visual
           UI generation. Defaults to False.
 
@@ -237,8 +237,7 @@ class A2uiSchemaManager(InferenceStrategy):
     """
     parts = [role_description]
 
-    base_rules = STRICT_WORKFLOW_RULES if strict_output else DEFAULT_WORKFLOW_RULES
-    workflow = base_rules
+    workflow = STRICT_WORKFLOW_RULES if strict_output else DEFAULT_WORKFLOW_RULES
     if workflow_description:
       workflow += f"\n{workflow_description}"
     parts.append(f"## Workflow Description:\n{workflow}")
