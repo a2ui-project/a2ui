@@ -150,11 +150,11 @@ export type ResolveA2uiProp<T> = T extends any
   ? T extends null | undefined
     ? T
     : [T] extends [Action]
-      ? (() => void)
+      ? () => void
       : [T] extends [ChildList]
         ? any
         : [T] extends [ComponentId]
-          ? {id: string; basePath: string}
+          ? {id: ComponentId; basePath: string}
           : T extends (infer U)[]
             ? ResolveA2uiProp<U>[]
             : T extends object

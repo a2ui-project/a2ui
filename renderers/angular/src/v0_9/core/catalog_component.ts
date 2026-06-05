@@ -29,11 +29,13 @@ import {CatalogComponentInstance} from './catalog_component_instance';
 @Directive()
 export abstract class CatalogComponent<
   Api extends ComponentApi,
- > implements CatalogComponentInstance {
+> implements CatalogComponentInstance {
   /**
    * Reactive properties resolved from the A2UI ComponentModel.
    */
-  readonly props: InputSignal<ComponentApiToProps<Api>> = input<ComponentApiToProps<Api>>({} as ComponentApiToProps<Api>);
+  readonly props: InputSignal<ComponentApiToProps<Api>> = input<ComponentApiToProps<Api>>(
+    {} as ComponentApiToProps<Api>,
+  );
   readonly surfaceId = input.required<string>();
   readonly componentId = input.required<string>();
   readonly dataContextPath = input<string>('/');
