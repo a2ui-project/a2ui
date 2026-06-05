@@ -58,16 +58,38 @@ A2UI_CLOSE_TAG = "</a2ui-json>"
 A2UI_SCHEMA_BLOCK_START = "---BEGIN A2UI JSON SCHEMA---"
 A2UI_SCHEMA_BLOCK_END = "---END A2UI JSON SCHEMA---"
 
+_COMMON_JSON_RULES = f"""- The JSON part MUST be a single, raw JSON object (usually a list of A2UI messages) and MUST validate against the provided A2UI JSON SCHEMA.
+- Top-Down Component Ordering: Within the `components` list of a message:
+    - The 'root' component MUST be the FIRST element.
+    - Parent components MUST appear before their child components.
+    This specific ordering allows the streaming parser to yield and render the UI incrementally as it arrives."""
+
 DEFAULT_WORKFLOW_RULES = f"""
 The generated response MUST follow these rules:
 - The response can contain one or more A2UI JSON blocks.
 - Each A2UI JSON block MUST be wrapped in `{A2UI_OPEN_TAG}` and `{A2UI_CLOSE_TAG}` tags.
 - Between or around these blocks, you can provide conversational text.
-- The JSON part MUST be a single, raw JSON object (usually a list of A2UI messages) and MUST validate against the provided A2UI JSON SCHEMA.
-- Top-Down Component Ordering: Within the `components` list of a message:
-    - The 'root' component MUST be the FIRST element.
-    - Parent components MUST appear before their child components.
-    This specific ordering allows the streaming parser to yield and render the UI incrementally as it arrives.
+{_COMMON_JSON_RULES}
+"""
+
+STRICT_WORKFLOW_RULES = f"""
+The generated response MUST follow these rules:
+- Your primary output format is A2UI JSON blocks, NOT conversational text.
+- Each response MUST contain at least one A2UI JSON block wrapped in `{A2UI_OPEN_TAG}` and `{A2UI_CLOSE_TAG}` tags.
+- Output A2UI JSON block(s) FIRST. After the A2UI block(s), you may include at most 1-2 brief sentences of contextual summary.
+- NEVER output conversational text or explanations without an accompanying A2UI JSON block.
+{_COMMON_JSON_RULES}
+
+Formatting constraints (MANDATORY):
+- NEVER use markdown tables — use Row with Card children for tabular data.
+- NEVER use markdown bullet or numbered lists — use List with Card children instead.
+- NEVER use markdown headers (##, ###) as section dividers — use Text with usageHint "h2" or "h3" inside a Column.
+- NEVER use inline code blocks for data display — use Card with Text children.
+- Wrap blocks of related data in Card components — avoid bare Text at the root level.
+- Use Divider components to visually separate major sections.
+
+Recommendations (OPTIONAL):
+- Use at least 3 different component types per response for visual variety.
 """
 
 

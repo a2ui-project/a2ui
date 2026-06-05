@@ -19,6 +19,7 @@ from a2ui.basic_catalog import BasicCatalog
 from a2ui.basic_catalog.constants import BASIC_CATALOG_NAME
 from a2ui.schema.constants import (
     DEFAULT_WORKFLOW_RULES,
+    STRICT_WORKFLOW_RULES,
     INLINE_CATALOG_NAME,
     VERSION_0_8,
     VERSION_0_9,
@@ -125,3 +126,152 @@ def test_schema_manager_fallback_local_assets(mock_importlib_resources):
     assert len(manager._supported_catalogs) >= 1
     catalog = manager._supported_catalogs[0]
     assert "LocalText" in catalog.catalog_schema["components"]
+
+
+# --- Tests for strict_output parameter ---
+
+
+class TestStrictOutput:
+  """Tests for the strict_output parameter on generate_system_prompt()."""
+
+  @pytest.fixture
+  def manager(self):
+    return A2uiSchemaManager(
+        VERSION_0_8,
+        catalogs=[BasicCatalog.get_config(VERSION_0_8)],
+    )
+
+  def test_default_uses_default_rules(self, manager):
+    """Default behavior (strict_output not set) uses DEFAULT_WORKFLOW_RULES."""
+    prompt = manager.generate_system_prompt(
+        role_description="Test agent",
+    )
+    assert "NEVER use markdown tables" not in prompt
+    assert "Between or around these blocks" in prompt
+
+  def test_strict_output_false_matches_default(self, manager):
+    """Explicitly passing strict_output=False matches default behavior."""
+    default_prompt = manager.generate_system_prompt(
+        role_description="Test agent",
+    )
+    explicit_prompt = manager.generate_system_prompt(
+        role_description="Test agent",
+        strict_output=False,
+    )
+    assert default_prompt == explicit_prompt
+
+  def test_strict_uses_strict_rules(self, manager):
+    """strict_output=True uses STRICT_WORKFLOW_RULES."""
+    prompt = manager.generate_system_prompt(
+        role_description="Test agent",
+        strict_output=True,
+    )
+    assert (
+        "Your primary output format is A2UI JSON blocks, NOT conversational text"
+        in prompt
+    )
+
+  def test_strict_contains_anti_markdown_rules(self, manager):
+    """strict_output=True includes anti-markdown formatting rules."""
+    prompt = manager.generate_system_prompt(
+        role_description="Test agent",
+        strict_output=True,
+    )
+    assert "NEVER use markdown tables" in prompt
+    assert "NEVER use markdown bullet" in prompt
+    assert "NEVER use markdown headers" in prompt
+
+  def test_strict_contains_output_ordering(self, manager):
+    """strict_output=True mandates A2UI-first output ordering."""
+    prompt = manager.generate_system_prompt(
+        role_description="Test agent",
+        strict_output=True,
+    )
+    assert "Output A2UI JSON block(s) FIRST" in prompt
+    assert "1-2 brief sentences" in prompt
+
+  def test_strict_contains_component_guidance(self, manager):
+    """strict_output=True includes component usage guidance."""
+    prompt = manager.generate_system_prompt(
+        role_description="Test agent",
+        strict_output=True,
+    )
+    assert "Row with Card children" in prompt
+    assert "List with Card children" in prompt
+    assert "Divider" in prompt
+    assert "at least 3 different component types" in prompt
+
+  def test_strict_preserves_role_description(self, manager):
+    """strict_output=True still includes the role description."""
+    role = "You are a helpful analytics dashboard agent."
+    prompt = manager.generate_system_prompt(
+        role_description=role,
+        strict_output=True,
+    )
+    assert role in prompt
+
+  def test_strict_preserves_ui_description(self, manager):
+    """strict_output=True still includes the UI description."""
+    ui_desc = "Render sales data as Card grids."
+    prompt = manager.generate_system_prompt(
+        role_description="Test agent",
+        ui_description=ui_desc,
+        strict_output=True,
+    )
+    assert ui_desc in prompt
+
+  def test_strict_preserves_workflow_description(self, manager):
+    """strict_output=True appends workflow_description after strict rules."""
+    workflow = "Always confirm before booking."
+    prompt = manager.generate_system_prompt(
+        role_description="Test agent",
+        workflow_description=workflow,
+        strict_output=True,
+    )
+    assert workflow in prompt
+    assert "NEVER use markdown tables" in prompt
+
+  def test_strict_with_schema(self, manager):
+    """strict_output=True works with include_schema=True."""
+    prompt = manager.generate_system_prompt(
+        role_description="Test agent",
+        include_schema=True,
+        strict_output=True,
+    )
+    assert "NEVER use markdown tables" in prompt
+
+  def test_strict_output_differs_from_default(self, manager):
+    """strict_output=True produces different output from default."""
+    default_prompt = manager.generate_system_prompt(
+        role_description="Test agent",
+    )
+    strict_prompt = manager.generate_system_prompt(
+        role_description="Test agent",
+        strict_output=True,
+    )
+    assert default_prompt != strict_prompt
+
+  def test_strict_rules_constant_contains_a2ui_tags(self):
+    """STRICT_WORKFLOW_RULES references the correct A2UI tags."""
+    assert "<a2ui-json>" in STRICT_WORKFLOW_RULES
+    assert "</a2ui-json>" in STRICT_WORKFLOW_RULES
+
+  def test_strict_rules_has_top_down_ordering(self):
+    """STRICT_WORKFLOW_RULES preserves the top-down ordering requirement."""
+    assert "root" in STRICT_WORKFLOW_RULES
+    assert (
+        "Parent components MUST appear before their child" in STRICT_WORKFLOW_RULES
+    )
+
+  def test_strict_works_with_v09(self):
+    """strict_output=True works with v0.9 catalogs."""
+    manager = A2uiSchemaManager(
+        VERSION_0_9,
+        catalogs=[BasicCatalog.get_config(VERSION_0_9)],
+    )
+    prompt = manager.generate_system_prompt(
+        role_description="Test agent",
+        strict_output=True,
+    )
+    assert "NEVER use markdown tables" in prompt
+    assert "Your primary output format is A2UI JSON blocks" in prompt

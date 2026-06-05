@@ -209,11 +209,35 @@ class A2uiSchemaManager(InferenceStrategy):
       include_schema: bool = False,
       include_examples: bool = False,
       validate_examples: bool = False,
+      strict_output: bool = False,
   ) -> str:
-    """Assembles the final system instruction for the LLM."""
+    """Assembles the final system instruction for the LLM.
+
+    Args:
+      role_description: A description of the agent's role.
+      workflow_description: Additional workflow rules appended to the base
+          rules.
+      ui_description: A description of the UI the agent should generate.
+      client_ui_capabilities: A dictionary of client UI capabilities, used
+          for catalog selection.
+      allowed_components: An optional list of component names to include in
+          the prompt. If None, all components are included.
+      allowed_messages: An optional list of message names to include in the
+          prompt. If None, all messages are included.
+      include_schema: Whether to include the JSON schema in the prompt.
+      include_examples: Whether to include examples in the prompt.
+      validate_examples: Whether to validate examples against the schema.
+      strict_output: When True, enforces A2UI-first output ordering, bans
+          markdown formatting alternatives, and recommends component
+          diversity. Recommended for agents whose primary purpose is visual
+          UI generation. Defaults to False.
+
+    Returns:
+      The assembled system prompt string.
+    """
     parts = [role_description]
 
-    workflow = DEFAULT_WORKFLOW_RULES
+    workflow = STRICT_WORKFLOW_RULES if strict_output else DEFAULT_WORKFLOW_RULES
     if workflow_description:
       workflow += f"\n{workflow_description}"
     parts.append(f"## Workflow Description:\n{workflow}")
