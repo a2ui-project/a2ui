@@ -155,14 +155,16 @@ export type ResolveA2uiProp<T> = T extends any
         ? any
         : [T] extends [ComponentId]
           ? {id: ComponentId; basePath: string}
-          : T extends (infer U)[]
-            ? ResolveA2uiProp<U>[]
-            : T extends object
-              ? {[K in keyof T]: ResolveA2uiProp<T[K]>}
-              : Exclude<T, DynamicTypes> extends never
-                ? any
-                : Exclude<T, DynamicTypes>
+          : Exclude<T, DynamicTypes> extends never
+            ? any
+            : ResolveA2uiPropNested<Exclude<T, DynamicTypes>>
   : never;
+
+type ResolveA2uiPropNested<T> = T extends (infer U)[]
+  ? ResolveA2uiProp<U>[]
+  : T extends object
+    ? {[K in keyof T]: ResolveA2uiProp<T[K]>}
+    : T;
 
 /**
  * Automatically generates two-way binding setters for dynamic properties.

@@ -20,19 +20,20 @@ import type {
   ComponentApi,
   InferredComponentApiSchemaType,
   ResolveA2uiProps,
+  type ComponentId,
 } from '@a2ui/web_core/v0_9';
 
 export interface ReactComponentImplementation extends ComponentApi {
   /** The framework-specific rendering wrapper. */
   render: React.FC<{
     context: ComponentContext;
-    buildChild: (id: string, basePath?: string) => React.ReactNode;
+    buildChild: (id: ComponentId, basePath?: string) => React.ReactNode;
   }>;
 }
 
 export type ReactA2uiComponentProps<T> = {
   props: T;
-  buildChild: (id: string, basePath?: string) => React.ReactNode;
+  buildChild: (id: ComponentId, basePath?: string) => React.ReactNode;
   context: ComponentContext;
 };
 
@@ -58,7 +59,7 @@ export function createComponentImplementation<Api extends ComponentApi>(
 
   const ReactWrapper: React.FC<{
     context: ComponentContext;
-    buildChild: (id: string, basePath?: string) => React.ReactNode;
+    buildChild: (id: ComponentId, basePath?: string) => React.ReactNode;
   }> = ({context, buildChild}) => {
     const bindingRef = useRef<GenericBinder<Props> | null>(null);
 
@@ -108,7 +109,7 @@ export function createBinderlessComponentImplementation(
   api: ComponentApi,
   RenderComponent: React.FC<{
     context: ComponentContext;
-    buildChild: (id: string, basePath?: string) => React.ReactNode;
+    buildChild: (id: ComponentId, basePath?: string) => React.ReactNode;
   }>,
 ): ReactComponentImplementation {
   return {
