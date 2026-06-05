@@ -6,7 +6,7 @@ This document is the authoritative guide for all AI agents working within the A2
 
 ## 1. What is A2UI?
 
-**A2UI (Agent-to-User Interface)** is a platform-agnostic, streaming-first UI protocol designed specifically for Large Language Models (LLMs) and autonomous agents.
+**A2UI (Agent-to-User Interface)** is a platform-agnostic, streaming-first UI protocol designed specifically to allow Large Language Models (LLMs) and autonomous agents to generate user interfaces.
 
 Unlike traditional APIs that require hardcoded clients or static responses, A2UI enables an agent/server to progressively stream abstract, JSONL-formatted user interface layouts to a client. The client (which can be web-based, desktop, mobile, or a CLI) parses this stream on the fly and renders it dynamically using native components (e.g., Row, Column, Button, Text, Modals, ChoicePickers) and styling rules.
 
