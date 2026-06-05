@@ -39,6 +39,8 @@ export async function loadExample(filename: string): Promise<LocalGallery> {
 
   const index = gallery.demoItems.findIndex(item => item.filename === filename);
   if (index === -1) {
+    // Avoid polluting the DOM when an example is not found.
+    gallery.remove();
     throw new Error(`Example not found: ${filename}`);
   }
 
