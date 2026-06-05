@@ -56,7 +56,7 @@ describe('Example: Email Compose', () => {
     await whenSettled(gallery);
 
     expect(gallery.actionLog.length).toBe(1);
-    expect(gallery.actionLog[0].action.name).toBe('send');
+    expect(gallery.actionLog[0].name).toBe('send');
   });
 
   it('should handle Discard button click', async () => {
@@ -68,6 +68,6 @@ describe('Example: Email Compose', () => {
     await whenSettled(gallery);
 
     expect(gallery.actionLog.length).toBe(1);
-    expect(gallery.actionLog[0].action.name).toBe('discard');
+    expect(gallery.actionLog[0].name).toBe('discard');
   });
 });
