@@ -117,7 +117,7 @@ export function getDeepTextContent(root: Node): string {
 export function querySelectorAllDeep(root: Node, selector: string): Element[] {
   const results: Element[] = [];
   walkDeep(root, node => {
-    if (node instanceof Element && node.matches(selector)) {
+    if (node !== root && node instanceof Element && node.matches(selector)) {
       results.push(node);
     }
   });

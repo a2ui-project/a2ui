@@ -130,5 +130,18 @@ describe('test-utils', () => {
       expect(matches.length).toBe(2);
       expect(matches.map(m => m.id)).toEqual(['target1', 'target2']);
     });
+
+    it('should not match the root element itself, to match querySelectorAll behavior', () => {
+      const container = document.createElement('div');
+      container.className = 'target';
+
+      const child = document.createElement('div');
+      child.className = 'target';
+      container.appendChild(child);
+
+      const matches = querySelectorAllDeep(container, '.target');
+      expect(matches.length).toBe(1);
+      expect(matches[0]).toBe(child);
+    });
   });
 });
