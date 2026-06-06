@@ -6,6 +6,7 @@
 - (v0_9) Add missing CSS classes to the `Modal`, `Tabs` components to align with the Angular implementation and
   integration tests.
 - (v0_9) Avoid rendering an `A2uiLitElement` when its surface is disposed of or the component is removed.
+- (v0_9) Fix `DateTimeInput` to correctly render `datetime-local`, `date` and `time` input types.
 
 ## 0.10.0
 

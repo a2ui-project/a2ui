@@ -20,6 +20,35 @@ import {DateTimeInputApi} from '@a2ui/web_core/v0_9/basic_catalog';
 import {BasicCatalogA2uiLitElement} from '../basic-catalog-a2ui-lit-element.js';
 import {A2uiController} from '@a2ui/lit/v0_9';
 
+/**
+ * Normalizes an incoming ISO or partial date/time value into a format accepted by HTML5 inputs.
+ *
+ * HTML5 input elements (like type="date", type="time", and type="datetime-local") strictly reject
+ * timezone indicators (like "Z" or "+00:00") and trailing seconds/milliseconds in their .value property.
+ * If these are present, the browser will reset the input to an empty string. This function strips
+ * those specifiers using string splitting and substring manipulation without shifting timezones.
+ */
+function normalizeDateTimeValue(value: string | null | undefined, type: string): string | null {
+  if (!value) return null;
+
+  const hasT = value.includes('T');
+  // If the incoming value is not in ISO format (after a very cursory look), do not attempt to parse.
+  if (!hasT) return null;
+
+  const split = value.split('T');
+  const datePart = split[0].substring(0, 10);
+  const timePart = split[1].substring(0, 5);
+  switch (type) {
+    case 'date':
+      return datePart;
+    case 'time':
+      return timePart;
+    case 'datetime-local':
+      return `${datePart}T${timePart}`;
+  }
+  return null;
+}
+
 @customElement('a2ui-datetimeinput')
 export class A2uiDateTimeInputElement extends BasicCatalogA2uiLitElement<typeof DateTimeInputApi> {
   /**
@@ -58,14 +87,18 @@ export class A2uiDateTimeInputElement extends BasicCatalogA2uiLitElement<typeof 
   render() {
     const props = this.controller.props;
     if (!props) return nothing;
+    // If neither date or time are enabled, render nothing.
+    if (!(props.enableDate || props.enableTime)) return nothing;
 
-    const type =
+    const inputType =
       props.enableDate && props.enableTime ? 'datetime-local' : props.enableDate ? 'date' : 'time';
+    const normalizedValue = normalizeDateTimeValue(props.value, inputType);
+
     return html`
       ${props.label ? html`<label>${props.label}</label>` : nothing}
       <input
-        type=${type}
-        .value=${props.value || ''}
+        type=${inputType}
+        .value=${normalizedValue}
         @input=${(e: Event) => props.setValue?.((e.target as HTMLInputElement).value)}
       />
     `;
