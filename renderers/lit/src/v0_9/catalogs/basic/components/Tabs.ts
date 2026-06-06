@@ -81,6 +81,7 @@ export class A2uiLitTabs extends BasicCatalogA2uiLitElement<typeof TabsApi> {
             <button
               class=${classMap({
                 'a2ui-tabs-header': true,
+                'a2ui-tab-button': true,
                 active: i === this.activeIndex,
               })}
               @click=${() => (this.activeIndex = i)}
