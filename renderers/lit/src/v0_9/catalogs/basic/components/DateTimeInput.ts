@@ -28,16 +28,18 @@ import {A2uiController} from '@a2ui/lit/v0_9';
  * If these are present, the browser will reset the input to an empty string. This function strips
  * those specifiers using string splitting and substring manipulation without shifting timezones.
  */
-function normalizeDateTimeValue(value: string | null | undefined, type: string): string | null {
-  if (!value) return null;
+function normalizeDateTimeValue(value: string | null | undefined, type: string): string {
+  if (!value) return '';
 
   const hasT = value.includes('T');
-  // If the incoming value is not in ISO format (after a very cursory look), do not attempt to parse.
-  if (!hasT) return null;
-
   const split = value.split('T');
-  const datePart = split[0].substring(0, 10);
-  const timePart = split[1].substring(0, 5);
+
+  // If the incoming value is not in ISO format (not hasT), use the incoming value.
+  // It might be just a date: '2010-07-11' or a time: '13:37', so we use value as a
+  // the fallback to the split.
+  const datePart = (hasT ? split[0] : value)?.substring(0, 10) ?? '';
+  const timePart = (hasT ? split[1] : value)?.substring(0, 5) ?? '';
+
   switch (type) {
     case 'date':
       return datePart;
@@ -46,7 +48,7 @@ function normalizeDateTimeValue(value: string | null | undefined, type: string):
     case 'datetime-local':
       return `${datePart}T${timePart}`;
   }
-  return null;
+  return '';
 }
 
 @customElement('a2ui-datetimeinput')
