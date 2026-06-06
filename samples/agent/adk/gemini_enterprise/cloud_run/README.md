@@ -119,7 +119,7 @@ cat <<EOF > agent_request.json
   "displayName": "$AGENT_DISPLAY_NAME",
   "description": "$AGENT_DESCRIPTION",
   "a2aAgentDefinition": {
-     "jsonAgentCard": "{\"protocolVersion\": \"0.3.0\", \"name\": \"$AGENT_NAME\", \"description\": \"$AGENT_DESCRIPTION\", \"url\": \"$AGENT_URL\", \"version\": \"1.0.0\", \"capabilities\": {\"streaming\": false, \"preferredTransport\": \"JSONRPC\", \"extensions\": [{\"uri\": \"https://a2ui.org/a2a-extension/a2ui/v0.8\", \"description\": \"Ability to render A2UI\", \"required\": false, \"params\": {\"supportedCatalogIds\": [\"https://a2ui.org/specification/v0_8/standard_catalog_definition.json\"]}}]}, \"skills\": [], \"defaultInputModes\": [\"text\", \"text/plain\"], \"defaultOutputModes\": [\"text\", \"text/plain\"]}"
+     "jsonAgentCard": "{\"protocolVersion\": \"0.3.0\", \"name\": \"$AGENT_NAME\", \"description\": \"$AGENT_DESCRIPTION\", \"url\": \"$AGENT_URL\", \"version\": \"1.0.0\", \"capabilities\": {\"streaming\": false, \"preferredTransport\": \"JSONRPC\", \"extensions\": [{\"uri\": \"https://a2ui.org/a2a-extension/a2ui/v0.8\", \"description\": \"Ability to render A2UI\", \"required\": false, \"params\": {\"supportedCatalogIds\": [\"https://a2ui.org/specification/v0_8/standard_catalog_definition.json\"]}}]}, \"skills\": [], \"defaultInputModes\": [\"text/plain\"], \"defaultOutputModes\": [\"text/plain\"]}"
   }
 }
 EOF
