@@ -3259,3 +3259,31 @@
                   - id: "root"
                     component: "Text"
                     text: {path: "some/relative/path"}
+
+- name: test_custom_cuttable_keys
+  description: Tests that the streaming parser respects custom cuttable_keys from catalog.
+  catalog:
+    version: "0.9"
+    s2c_schema: "test_data/simplified_s2c_v09.json"
+    catalog_schema: {catalogId: "c1"}
+    custom_cuttable_keys: ["customCuttable"]
+  disable_validation: true
+  action: process_chunk
+  steps:
+    - input: '<a2ui-json>[{"version": "v0.9", "createSurface": {"surfaceId": "s1", "catalogId": "c1"}}]</a2ui-json>'
+      expect:
+        - a2ui:
+            - version: "v0.9"
+              createSurface:
+                surfaceId: "s1"
+                catalogId: "c1"
+    - input: '<a2ui-json>[{"version": "v0.9", "updateComponents": {"surfaceId": "s1", "components": [{"id": "root", "component": "Text", "customCuttable": "partial'
+      expect:
+        - a2ui:
+            - version: "v0.9"
+              updateComponents:
+                surfaceId: "s1"
+                components:
+                  - id: "root"
+                    component: "Text"
+                    customCuttable: "partial"

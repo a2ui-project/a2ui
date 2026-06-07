@@ -461,3 +461,13 @@
     {"$schema":"https://json-schema.org/draft/2020-12/schema","catalog":"schema","catalogId":"id_basic"}
 
     ---END A2UI JSON SCHEMA---
+
+- name: test_custom_cuttable_keys
+  description: Tests that custom cuttable_keys are preserved in A2uiCatalog.
+  catalog:
+    version: "0.9"
+    custom_cuttable_keys: ["customKey1", "customKey2"]
+    catalog_schema: {catalogId: basic}
+  action: verify_cuttable_keys
+  expect:
+    custom_cuttable_keys: ["customKey1", "customKey2"]
