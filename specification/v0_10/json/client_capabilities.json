@@ -101,12 +101,23 @@
       "properties": {
         "$schema": {"type": "string"},
         "$id": {"type": "string"},
-        "title": {"type": "string"},
-        "description": {"type": "string"},
         "$defs": {"type": "object"},
+        "title": {
+          "type": "string",
+          "description": "The title of the catalog."
+        },
+        "description": {
+          "type": "string",
+          "description": "A human-readable description of the catalog."
+        },
         "catalogId": {
           "type": "string",
           "description": "Unique identifier for this catalog."
+        },
+        "instructions": {
+          "type": "string",
+          "format": "uri-reference",
+          "description": "A relative file URI pointing to a Markdown file containing guidelines or instructions specific to this catalog (typically 'instructions.md')."
         },
         "components": {
           "type": "object",

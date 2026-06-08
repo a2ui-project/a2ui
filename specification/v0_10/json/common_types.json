@@ -157,6 +157,29 @@
         }
       ]
     },
+    "indexSystemFunction": {
+      "type": "object",
+      "description": "Returns the 0-based index of the current item when rendering a dynamic list from a template. This function MUST ONLY be available when evaluating template items within a list context.",
+      "returnType": "number",
+      "properties": {
+        "call": {
+          "const": "@index"
+        },
+        "args": {
+          "type": "object",
+          "properties": {
+            "offset": {
+              "$ref": "#/$defs/DynamicNumber",
+              "description": "Optional. An offset to add to the 0-based index (e.g., 1 for 1-based indexing). Defaults to 0.",
+              "default": 0
+            }
+          },
+          "unevaluatedProperties": false
+        }
+      },
+      "required": ["call"],
+      "unevaluatedProperties": false
+    },
     "FunctionCall": {
       "type": "object",
       "description": "Invokes a named function on the client.",
@@ -182,7 +205,10 @@
         }
       },
       "required": ["call"],
-      "oneOf": [{"$ref": "catalog.json#/$defs/anyFunction"}]
+      "oneOf": [
+        {"$ref": "catalog.json#/$defs/anyFunction"},
+        {"$ref": "#/$defs/indexSystemFunction"}
+      ]
     },
     "CheckRule": {
       "type": "object",

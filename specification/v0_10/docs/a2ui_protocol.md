@@ -437,6 +437,38 @@ This structure is designed to be both flexible and strictly validated.
 
 The set of available UI components and functions is defined in a **Catalog**. The basic catalog is defined in [`catalogs/basic/catalog.json`]. While the Basic Catalog is useful for starting out, most production applications will define their own catalog to reflect their specific design system. The server must generate messages that conform to the catalog understood by the client.
 
+#### Catalog structure
+
+Every catalog follows the standard `Catalog` object definition:
+
+- **catalogId** (string, required): A unique identifier URI for this catalog.
+- **instructions** (string, optional): A relative file URI pointing to a Markdown file containing design principles, rules, or developer guidelines specific to this catalog (typically `instructions.md`). These rules guide LLMs when generating UI layouts under this catalog.
+- **components** (object, optional): A map of supported UI components, where each key is the component type (e.g., `Text`) and its value is its JSON Schema definition. All keys MUST conform to the UAX #31 entity naming rules defined below.
+- **functions** (object, optional): A map of client-side validation or utility functions supported by the catalog, where each key is the function name and its value is its definition. All function names MUST conform to the UAX #31 entity naming rules defined below. The client determines a function's execution boundary (e.g., clientOnly status) at runtime by reading its configuration from the active catalog definition.
+- **surfaceProperties** (object, optional): A schema defining the catalog's customizable visual properties.
+
+#### Catalog Entity Naming Rules
+
+To ensure complete cross-language compatibility across client SDKs, parsers, and code generators, all catalog entity identifiers—specifically **component names**, **function names**, and **argument/property names**—MUST adhere strictly to [Unicode Standard Annex #31 (UAX #31)](https://www.unicode.org/reports/tr31/) variable naming rules.
+
+1. **Permitted Characters**: Identifiers must begin with a character in the Unicode property class `XID_Start` or an underscore (`_`, `U+005F`). Subsequent characters must belong to the Unicode property class `XID_Continue`.
+2. **Prohibited Initial Characters**: Identifiers MUST NOT begin with a decimal digit (Unicode general category `Nd`).
+3. **Prohibited Symbols and Whitespace**: Identifiers MUST NOT contain any whitespace or symbols matching the Unicode character property classes `Pattern_Syntax` or `Pattern_White_Space`, other than underscores.
+
+##### Canonical Regular Expression
+
+```regex
+^[\p{XID_Start}_][\p{XID_Continue}]*$
+```
+
+##### Examples
+
+- **Valid**: `UserProfileCard`, `submit_form`, `item_id_1`, `_internal_state`
+- **Invalid**:
+  - `User Card` (violates `Pattern_White_Space`)
+  - `1stItem` (violates initial `Nd`)
+  - `submit-form`, `user#name`, `calc$val` (violates `Pattern_Syntax`)
+
 ### UI composition: the adjacency list model
 
 The A2UI protocol defines the UI as a flat list of components. The tree structure is built implicitly using ID references. This is known as an adjacency list model.
@@ -810,8 +842,11 @@ The [`catalogs/basic/catalog.json`] provides the baseline set of components and 
 
 ### Functions
 
+> **System Namespace Rule (`@` Prefix)**: Function names beginning with `@` (e.g., `@index`) represent universal system context evaluations available across all catalogs. Custom catalogs MUST NOT define functions prefixed with `@`.
+
 | Function           | Description                                                              |
 | :----------------- | :----------------------------------------------------------------------- |
+| **@index**         | Returns the 0-based index of the current item during template rendering. |
 | **required**       | Checks that the value is not null, undefined, or empty.                  |
 | **regex**          | Checks that the value matches a regular expression string.               |
 | **length**         | Checks string length constraints.                                        |
@@ -895,6 +930,35 @@ When a non-string value is interpolated, the client converts it to a string:
 - **Numbers/Booleans**: Standard string representation.
 - **Null/Undefined**: An empty string `""`.
 - **Objects/Arrays**: Stringified as JSON to ensure consistency across different client implementations.
+
+### The `@index` function
+
+The `@index` function returns the 0-based index of the current item when rendering a dynamic list from a template. It is a universal system function available across all catalogs.
+
+#### `@index` scope restriction
+
+The `@index` function MUST ONLY be available when evaluating template items within a list rendering context (Collection Scope). When an expression evaluator encounters `@index()`, it inspects the active Evaluation Context chain. If a Collection Scope is present, it returns the tracked iteration index. If called outside of template iteration (e.g., directly in the Root Scope), the client MUST treat it as an error or evaluate it as invalid.
+
+#### `@index` arguments
+
+- `offset` (Optional, `number`): An offset added to the 0-based index. For example, `@index(offset: 1)` produces 1-based indexing (`1, 2, 3...`). Defaults to `0`.
+
+#### Example usage
+
+Displaying item positions inside a list row template:
+
+```json
+{
+  "id": "todo-index",
+  "component": "Text",
+  "text": {
+    "call": "formatString",
+    "args": {
+      "value": "#${@index(offset: 1)}"
+    }
+  }
+}
+```
 
 ## Usage pattern: the prompt-generate-validate loop
 
