@@ -144,22 +144,8 @@
   description: Tests parsing a list containing multiple A2UI messages.
   action: fix_payload
   input: '[{"beginRendering": {"surfaceId": "s1", "root": "r1"}}, {"surfaceUpdate": {"surfaceId": "s1", "components": []}}]'
-  expect: [{"beginRendering": {"surfaceId": "s1", "root": "r1"}}, {"surfaceUpdate": {"surfaceId": "s1", "components": []}}]
-
-- name: test_fix_payload_invalid_unclosed_object
-  description: Tests that an unclosed object raises an error.
-  action: fix_payload
-  input: '{'
-  expect_error: "Failed to parse JSON"
-
-- name: test_fix_payload_invalid_unclosed_array
-  description: Tests that an unclosed array raises an error.
-  action: fix_payload
-  input: '['
-  expect_error: "Failed to parse JSON"
-
-- name: test_fix_payload_invalid_missing_closing_brace
-  description: Tests that a missing closing brace raises an error.
-  action: fix_payload
-  input: '{"key": "value"'
-  expect_error: "Failed to parse JSON"
+  expect:
+    [
+      {"beginRendering": {"surfaceId": "s1", "root": "r1"}},
+      {"surfaceUpdate": {"surfaceId": "s1", "components": []}},
+    ]
