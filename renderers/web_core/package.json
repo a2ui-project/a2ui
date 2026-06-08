@@ -76,16 +76,16 @@
         "../../specification/v0_8/json/*.json",
         "../../specification/v0_9/json/*.json",
         "../../specification/v0_9/catalogs/**/*.json",
-        "../../specification/v0_10/json/*.json",
-        "../../specification/v0_10/catalogs/**/*.json",
+        "../../specification/v1_0/json/*.json",
+        "../../specification/v1_0/catalogs/**/*.json",
         "scripts/copy-spec.js"
       ],
       "output": [
         "src/v0_8/schemas/*.json",
         "src/v0_9/schemas/*.json",
         "src/v0_9/schemas/catalogs/**/*.json",
-        "src/v0_10/schemas/*.json",
-        "src/v0_10/schemas/catalogs/**/*.json"
+        "src/v1_0/schemas/*.json",
+        "src/v1_0/schemas/catalogs/**/*.json"
       ]
     },
     "build": {
