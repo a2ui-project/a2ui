@@ -1,9 +1,7 @@
 ## Unreleased
 
-- Add `.setA2uiType` and `.setRefPath` chained prototype methods to `ZodType` to easily attach framework metadata to Zod schemas.
 - Make child component resolution schema-driven. Decouple `a2uiType` (runtime binder behavior) from `refPath` (JSON Schema `$ref` paths).
 - Remove legacy `"REF:..."` description prefix parsing hacks from `MessageProcessor` in favor of a clean, standard JSON Schema `override` callback using `refPath` metadata.
-- Refactor generic binder type resolution helper `ResolveA2uiProp` into split named intermediate types to simplify compiler math.
 - Add locale support to `SurfaceModel` and `DataContext` in v0.9.
 - Update `pluralize`, `formatNumber`, and `formatCurrency` to use the context locale instead of hardcoding 'en-US'.
 - Remove `.passthrough()` from `PluralizeApi` schema for stricter validation.
