@@ -78,12 +78,12 @@ class TestAssembleCatalog(unittest.TestCase):
         mock_urlopen.return_value.__enter__.return_value = mock_response
 
         # Assemble without a local basic_catalog_path, it MUST fetch from HTTP
-        assembler = CatalogAssembler(version="0.10", local_basic_catalog_path=None)
+        assembler = CatalogAssembler(version="1.0", local_basic_catalog_path=None)
         result = assembler.assemble("RemoteTest", [str(self.component1_path)])
 
-        # Assert urlopen was called with the 0.10 URL
+        # Assert urlopen was called with the 1.0 URL
         called_req = mock_urlopen.call_args[0][0]
-        self.assertEqual(called_req.full_url, BASIC_CATALOG_URLS["0.10"])
+        self.assertEqual(called_req.full_url, BASIC_CATALOG_URLS["1.0"])
 
         self.assertIn("$defs", result)
         defs_keys = list(result["$defs"].keys())
@@ -163,13 +163,13 @@ class TestAssembleCatalog(unittest.TestCase):
         component3_path = self.fixtures_dir / "component3.json"
 
         # Assemble without a local common_types_path, it MUST fetch from HTTP
-        assembler = CatalogAssembler(version="0.10", local_common_types_path=None)
+        assembler = CatalogAssembler(version="1.0", local_common_types_path=None)
         result = assembler.assemble("RemoteCommonTypes", [str(component3_path)])
 
-        # Assert urlopen was called with the 0.10 URL for common_types.json at least once
+        # Assert urlopen was called with the 1.0 URL for common_types.json at least once
         from assemble_catalog import COMMON_TYPES_URLS
         called_urls = [call.args[0].full_url for call in mock_urlopen.call_args_list]
-        self.assertIn(COMMON_TYPES_URLS["0.10"], called_urls)
+        self.assertIn(COMMON_TYPES_URLS["1.0"], called_urls)
 
         self.assertIn("$defs", result)
         defs_keys = list(result["$defs"].keys())
