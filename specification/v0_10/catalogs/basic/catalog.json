@@ -4,6 +4,7 @@
   "title": "A2UI Basic Catalog",
   "description": "Unified catalog of basic A2UI components and functions.",
   "catalogId": "https://a2ui.org/specification/v0_10/catalogs/basic/catalog.json",
+  "instructions": "./instructions.md",
   "components": {
     "Text": {
       "type": "object",

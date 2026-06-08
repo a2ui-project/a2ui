@@ -240,6 +240,78 @@ def validate_catalogs_structure():
         if os.path.exists(temp_validator_path):
             os.remove(temp_validator_path)
 
+def validate_catalogs_identifiers():
+    """
+    Validates that all entity keys (components, functions) in all catalog files
+    strictly conform to Unicode UAX #31 identifier naming rules.
+    """
+    catalogs_to_validate = [
+        ("catalogs/basic/catalog.json", os.path.join(SPEC_DIR, "catalogs/basic/catalog.json")),
+        ("catalogs/minimal/catalog.json", os.path.join(SPEC_DIR, "catalogs/minimal/catalog.json")),
+        ("test/testing_catalog.json", os.path.join(TEST_DIR, "testing_catalog.json")),
+    ]
+
+    passed = 0
+    failed = 0
+
+    print("\nValidating catalog entities against Unicode UAX #31 identifier rules...")
+
+    for name, path in catalogs_to_validate:
+        if not os.path.exists(path):
+            print(f"  [FAIL] {name} (File not found)")
+            failed += 1
+            continue
+
+        with open(path, 'r') as f:
+            try:
+                catalog = json.load(f)
+            except json.JSONDecodeError as e:
+                print(f"  [FAIL] {name} (JSON Decode Error: {e})")
+                failed += 1
+                continue
+
+        errors = []
+
+        def check_schema_properties(obj):
+            if isinstance(obj, dict):
+                if "properties" in obj and isinstance(obj["properties"], dict):
+                    for prop_name, prop_def in obj["properties"].items():
+                        if not prop_name.isidentifier():
+                            errors.append(f"Invalid argument/property name: '{prop_name}'")
+                        check_schema_properties(prop_def)
+                for k, v in obj.items():
+                    if k != "properties":
+                        if isinstance(v, (dict, list)):
+                            check_schema_properties(v)
+            elif isinstance(obj, list):
+                for item in obj:
+                    if isinstance(item, (dict, list)):
+                        check_schema_properties(item)
+
+        components = catalog.get("components", {})
+        for comp_name, comp_def in components.items():
+            if not comp_name.isidentifier():
+                errors.append(f"Invalid component name: '{comp_name}'")
+            check_schema_properties(comp_def)
+
+        functions = catalog.get("functions", {})
+        if isinstance(functions, dict):
+            for func_name, func_def in functions.items():
+                check_name = func_name[1:] if func_name.startswith("@") else func_name
+                if not check_name.isidentifier():
+                    errors.append(f"Invalid function name: '{func_name}'")
+                check_schema_properties(func_def)
+
+        if errors:
+            failed += 1
+            print(f"  [FAIL] {name}")
+            for err in errors:
+                print(f"         {err}")
+        else:
+            passed += 1
+
+    return passed, failed
+
 def main():
     if not os.path.exists(CASES_DIR):
         print(f"No cases directory found at {CASES_DIR}")
@@ -265,6 +337,11 @@ def main():
 
         # 3. Validate catalogs structural integrity
         p, f = validate_catalogs_structure()
+        total_passed += p
+        total_failed += f
+
+        # 4. Validate catalogs UAX #31 entity identifiers
+        p, f = validate_catalogs_identifiers()
         total_passed += p
         total_failed += f
 

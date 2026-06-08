@@ -1220,6 +1220,81 @@
           ]
         }
       }
+    },
+    {
+      "description": "@index: Valid call",
+      "valid": true,
+      "data": {
+        "version": "v0.10",
+        "updateComponents": {
+          "surfaceId": "test",
+          "components": [
+            {
+              "id": "list1",
+              "component": "List",
+              "children": {
+                "componentId": "slider1",
+                "path": "/items"
+              }
+            },
+            {
+              "id": "slider1",
+              "component": "Slider",
+              "max": 10,
+              "value": {
+                "call": "@index",
+                "args": {
+                  "offset": 1
+                }
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "description": "@index: Invalid args (string offset)",
+      "valid": false,
+      "data": {
+        "version": "v0.10",
+        "updateComponents": {
+          "surfaceId": "test",
+          "components": [
+            {
+              "id": "slider1",
+              "component": "Slider",
+              "max": 10,
+              "value": {
+                "call": "@index",
+                "args": {
+                  "offset": "1"
+                }
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "description": "@index: Invalid returnType",
+      "valid": false,
+      "data": {
+        "version": "v0.10",
+        "updateComponents": {
+          "surfaceId": "test",
+          "components": [
+            {
+              "id": "slider1",
+              "component": "Slider",
+              "max": 10,
+              "value": {
+                "call": "@index",
+                "returnType": "string"
+              }
+            }
+          ]
+        }
+      }
     }
   ]
 }
