@@ -17,7 +17,7 @@ name = "a2ui-mcp-apps-in-a2ui-sample"
 version = "0.1.0"
 description = "Sample MCP App with 2-Way Communication"
 readme = "README.md"
-requires-python = ">=3.10"
+requires-python = ">=3.14"
 dependencies = [
     "a2a-sdk>=0.3.0",
     "google-adk>=1.28.1",

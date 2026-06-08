@@ -17,7 +17,7 @@ name = "a2ui-contactcard-agentengine"
 version = "0.1.0"
 description = "Sample Google ADK-based Contact Lookup agent that uses a2ui extension and is hosted as an A2A agent on Agent Engine."
 readme = "README.md"
-requires-python = ">=3.13"
+requires-python = ">=3.14"
 dependencies = [
     "a2a-sdk==0.3.25",
     "google-cloud-aiplatform[adk,agent-engines]>=1.128.0",

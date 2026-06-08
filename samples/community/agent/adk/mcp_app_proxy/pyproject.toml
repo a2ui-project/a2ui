@@ -19,7 +19,7 @@ description = "A reference agent that proxies an MCP app"
 input-modes = ["text"]
 output-modes = ["text"]
 readme = "README.md"
-requires-python = ">=3.12"
+requires-python = ">=3.14"
 dependencies = [
     "a2a-sdk>=0.3.0",
     "click>=8.1.8",
