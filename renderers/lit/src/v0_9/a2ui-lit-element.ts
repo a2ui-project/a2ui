@@ -66,6 +66,16 @@ export abstract class A2uiLitElement<Api extends ComponentApi> extends LitElemen
     if (!childRef) return nothing;
     const {surface, path: parentPath} = this.context.dataContext;
 
+    // This guard handles cases where a render update is scheduled on a component
+    // (e.g., from a click or text input change), but the example is reloaded or
+    // the surface is deleted/disposed before the microtask runs. In these cases,
+    // the surface components map is cleared, so we return nothing early instead
+    // of attempting to resolve child components on a stale or disposed surface.
+    const surfaceContainsComponent = !!surface.componentsModel.get(this.context.componentModel.id);
+    if (!surfaceContainsComponent) {
+      return nothing;
+    }
+
     // Path resolution order: customPath > childRef.basePath > parentPath
     let componentId: ComponentId;
     let path = customPath;

@@ -70,6 +70,9 @@ export class LocalGallery extends LitElement {
   }
 
   selectItem(index: number) {
+    // Delete the surface of the previous example, if any.
+    this.deleteActiveExampleSurface();
+    // Then load the new one
     this.activeItemIndex = index;
     this.reloadExample();
   }
@@ -85,10 +88,18 @@ export class LocalGallery extends LitElement {
       this.dataModelSubscription.unsubscribe();
       this.dataModelSubscription = undefined;
     }
+    this.deleteActiveExampleSurface();
+  }
 
-    const item = this.demoItems[this.activeItemIndex];
-    if (item && this.processor.model.getSurface(item.id)) {
-      this.processor.processMessages([{version: 'v0.9', deleteSurface: {surfaceId: item.id}}]);
+  /**
+   * Removes the surface of this.activeItemIndex, if still present.
+   */
+  deleteActiveExampleSurface() {
+    const surfaceId = this.demoItems[this.activeItemIndex]?.id;
+    if (surfaceId) {
+      if (this.processor.model.getSurface(surfaceId)) {
+        this.processor.processMessages([{version: 'v0.9', deleteSurface: {surfaceId}}]);
+      }
     }
   }
 

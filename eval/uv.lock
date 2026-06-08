@@ -23,7 +23,7 @@ wheels = [
 
 [[package]]
 name = "a2ui-agent-sdk"
-source = { editable = "../agent_sdks/python" }
+source = { editable = "../agent_sdks/python/a2ui_agent" }
 dependencies = [
     { name = "a2a-sdk" },
     { name = "google-adk" },
@@ -501,7 +501,7 @@ dependencies = [
 
 [package.metadata]
 requires-dist = [
-    { name = "a2ui-agent-sdk", editable = "../agent_sdks/python" },
+    { name = "a2ui-agent-sdk", editable = "../agent_sdks/python/a2ui_agent" },
     { name = "inspect-ai", specifier = ">=0.3.217" },
     { name = "jsonschema", specifier = ">=4.26.0" },
     { name = "pydantic", specifier = ">=2.13.3" },

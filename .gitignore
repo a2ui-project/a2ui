@@ -18,8 +18,9 @@ coverage/
 # Generated spec assets in the agent SDK
 ## old agent SDK path
 a2a_agents/python/a2ui_agent/src/a2ui/assets/**/*.json
-## new agent SDK path
 agent_sdks/python/src/a2ui/assets/**/*.json
+## new agent SDK path
+agent_sdks/python/a2ui_agent/src/a2ui/assets/**/*.json
 ## Generated files for sandbox frame.
 samples/client/angular/projects/mcp_calculator/public/mcp_apps_inner_iframe/
 

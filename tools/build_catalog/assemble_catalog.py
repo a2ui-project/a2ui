@@ -53,12 +53,12 @@ def is_remote_uri(uri: str) -> bool:
 BASIC_CATALOG_URLS = {
     "0.8": "https://raw.githubusercontent.com/a2ui-project/a2ui/refs/heads/main/specification/v0_8/json/standard_catalog_definition.json",
     "0.9": "https://raw.githubusercontent.com/a2ui-project/a2ui/refs/heads/main/specification/v0_9/catalogs/basic/catalog.json",
-    "0.10": "https://raw.githubusercontent.com/a2ui-project/a2ui/refs/heads/main/specification/v0_10/catalogs/basic/catalog.json"
+    "1.0": "https://raw.githubusercontent.com/a2ui-project/a2ui/refs/heads/main/specification/v1_0/catalogs/basic/catalog.json"
 }
 
 COMMON_TYPES_URLS = {
     "0.9": "https://raw.githubusercontent.com/a2ui-project/a2ui/refs/heads/main/specification/v0_9/json/common_types.json",
-    "0.10": "https://raw.githubusercontent.com/a2ui-project/a2ui/refs/heads/main/specification/v0_10/json/common_types.json"
+    "1.0": "https://raw.githubusercontent.com/a2ui-project/a2ui/refs/heads/main/specification/v1_0/json/common_types.json"
 }
 
 
@@ -413,7 +413,7 @@ def main():
   parser.add_argument("inputs", nargs="+", help="Input paths or URLs to A2UI component catalog JSONs")
   parser.add_argument("--output-name", required=True, help="Name of the combined catalog")
   parser.add_argument("--catalog-id", type=str, help="Custom catalogId for the output. Defaults to urn:a2ui:catalog:<base_name>")
-  parser.add_argument("--version", choices=["0.8", "0.9", "0.10"], default="0.9", help="A2UI basic_catalog version to use if remote")
+  parser.add_argument("--version", choices=["0.8", "0.9", "1.0"], default="0.9", help="A2UI basic_catalog version to use if remote")
   parser.add_argument("--extend-basic-catalog", action="store_true", help="Always include the entire basic_catalog.json in the output")
   parser.add_argument("--out-dir", "-o", type=Path, default="dist", help="Output directory (default: dist)")
   parser.add_argument("--verbose", "-v", action="store_true", help="Enable verbose logging")
