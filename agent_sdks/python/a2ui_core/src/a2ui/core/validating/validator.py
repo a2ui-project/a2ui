@@ -14,7 +14,7 @@
 
 import re
 from typing import Any, Dict, Iterator, List, Optional, Set, Tuple, Union
-from pydantic import BaseModel, ValidationError
+from pydantic import BaseModel, ConfigDict, ValidationError
 
 from ..schema import A2uiMessageListWrapper
 from ..schema.constants import (
@@ -42,6 +42,8 @@ class A2uiValidatorError(ValueError):
 class ValidationConfig(BaseModel):
     """Configuration options for A2UI payload and component validation."""
 
+    model_config = ConfigDict(frozen=True)
+
     allow_orphan_components: bool = False
     allow_dangling_references: bool = False
     allow_missing_root: bool = False
@@ -53,6 +55,13 @@ RELAXED_VALIDATION = ValidationConfig(
     allow_orphan_components=True,
     allow_dangling_references=True,
     allow_missing_root=True,
+)
+
+
+# Define the presets as global constants
+STRICT_VALIDATION = ValidationConfig()
+RELAXED_VALIDATION = ValidationConfig(
+    allow_orphan_components=True, allow_dangling_references=True
 )
 
 
@@ -129,7 +138,7 @@ class A2uiValidator:
         self,
         schema_validator: CatalogSchemaValidator,
         components: List[Dict[str, Any]],
-        config: ValidationConfig = ValidationConfig(),
+        config: ValidationConfig = STRICT_VALIDATION,
     ) -> None:
         errors = []
         if components:
@@ -165,12 +174,8 @@ class A2uiValidator:
         self,
         schema_validator: CatalogSchemaValidator,
         a2ui_payload: Union[Dict[str, Any], List[Any]],
-        config: Optional[ValidationConfig] = None,
+        config: ValidationConfig = STRICT_VALIDATION,
     ) -> None:
-        if config is None:
-            config = ValidationConfig(
-                allow_orphan_components=False, allow_dangling_references=False
-            )
 
         messages = a2ui_payload if isinstance(a2ui_payload, list) else [a2ui_payload]
 
