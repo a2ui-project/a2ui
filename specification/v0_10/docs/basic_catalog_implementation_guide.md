@@ -6,6 +6,18 @@ When building your framework-specific adapters (Layer 3) over the generic A2UI b
 
 ---
 
+## Mandatory Identifier Rules for Catalogs
+
+All entities defined in an A2UI v0.10 catalog—including **component types**, **function names**, and **argument/property names**—MUST strictly comply with [Unicode Standard Annex #31 (UAX #31)](https://www.unicode.org/reports/tr31/) rules for variable names:
+
+- Must begin with `XID_Start` or underscore (`_`). Cannot begin with a digit (`Nd`).
+- Must continue with `XID_Continue`.
+- Must strictly exclude symbols and whitespace (`Pattern_Syntax` and `Pattern_White_Space`).
+
+Canonical regex validation: `^[\p{XID_Start}_][\p{XID_Continue}]*$`
+
+---
+
 ## 1. Components
 
 ### Text
