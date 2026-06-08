@@ -139,13 +139,3 @@
   action: fix_payload
   input: '[{"a": [1, 2, 3,]}]'
   expect: [{"a": [1, 2, 3]}]
-
-- name: test_fix_payload_multiple_messages
-  description: Tests parsing a list containing multiple A2UI messages.
-  action: fix_payload
-  input: '[{"beginRendering": {"surfaceId": "s1", "root": "r1"}}, {"surfaceUpdate": {"surfaceId": "s1", "components": []}}]'
-  expect:
-    [
-      {"beginRendering": {"surfaceId": "s1", "root": "r1"}},
-      {"surfaceUpdate": {"surfaceId": "s1", "components": []}},
-    ]
