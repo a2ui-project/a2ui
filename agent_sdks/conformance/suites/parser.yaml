@@ -127,3 +127,15 @@
   action: fix_payload
   input: '{"text": "Hello, world", "array": ["a,b", "c"]}'
   expect: [{"text": "Hello, world", "array": ["a,b", "c"]}]
+
+- name: test_fix_payload_trailing_comma_nested_object
+  description: Tests removing trailing comma in a nested object.
+  action: fix_payload
+  input: '{"a": {"b": 1,}}'
+  expect: [{"a": {"b": 1}}]
+
+- name: test_fix_payload_trailing_comma_nested_array
+  description: Tests removing trailing comma in a nested array.
+  action: fix_payload
+  input: '[{"a": [1, 2, 3,]}]'
+  expect: [{"a": [1, 2, 3]}]
