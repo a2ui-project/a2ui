@@ -45,4 +45,4 @@ function copySchemas(version) {
 
 copySchemas('v0_8');
 copySchemas('v0_9');
-copySchemas('v0_10');
+copySchemas('v1_0');

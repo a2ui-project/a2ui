@@ -1,0 +1,63 @@
+{
+  "schema": "server_to_client.json",
+  "tests": [
+    {
+      "description": "Valid surfaceProperties in createSurface",
+      "valid": true,
+      "data": {
+        "version": "v1.0",
+        "createSurface": {
+          "surfaceId": "test_surface",
+          "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
+          "surfaceProperties": {
+            "agentDisplayName": "Test Agent",
+            "iconUrl": "https://example.com/icon.png"
+          }
+        }
+      }
+    },
+    {
+      "description": "Invalid surfaceProperties property (wrong type for agentDisplayName)",
+      "valid": false,
+      "data": {
+        "version": "v1.0",
+        "createSurface": {
+          "surfaceId": "test_surface",
+          "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
+          "surfaceProperties": {
+            "agentDisplayName": 123
+          }
+        }
+      }
+    },
+    {
+      "description": "Invalid surfaceProperties property (invalid uri for iconUrl)",
+      "valid": false,
+      "data": {
+        "version": "v1.0",
+        "createSurface": {
+          "surfaceId": "test_surface",
+          "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
+          "surfaceProperties": {
+            "iconUrl": "not-a-uri"
+          }
+        }
+      }
+    },
+    {
+      "description": "Additional surfaceProperties properties are allowed",
+      "valid": true,
+      "data": {
+        "version": "v1.0",
+        "createSurface": {
+          "surfaceId": "test_surface",
+          "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
+          "surfaceProperties": {
+            "agentDisplayName": "Test Agent",
+            "customProperty": "customValue"
+          }
+        }
+      }
+    }
+  ]
+}

@@ -32,7 +32,7 @@ else
 fi
 
 echo "Running Pyink for Python SDK..."
-cd "$REPO_ROOT/agent_sdks/python"
+cd "$REPO_ROOT/agent_sdks/python/a2ui_agent"
 if [ "$CHECK_ONLY" = true ]; then
   uv run pyink --check .
 else

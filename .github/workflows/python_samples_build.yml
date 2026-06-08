@@ -56,7 +56,7 @@ jobs:
 
       - name: Validate Sample Examples
         run: |
-          PYTHONPATH=agent_sdks/python/src uv run --project agent_sdks/python pytest -vv samples/agent/adk/tests/test_examples_validation.py
+          PYTHONPATH=agent_sdks/python/a2ui_agent/src uv run --project agent_sdks/python/a2ui_agent pytest -vv samples/agent/adk/tests/test_examples_validation.py
 
       - name: Build orchestrator
         working-directory: samples/agent/adk/orchestrator

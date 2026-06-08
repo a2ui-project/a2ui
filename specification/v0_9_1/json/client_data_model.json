@@ -6,7 +6,7 @@
   "type": "object",
   "properties": {
     "version": {
-      "const": "v0.9"
+      "enum": ["v0.9", "v0.9.1"]
     },
     "surfaces": {
       "type": "object",

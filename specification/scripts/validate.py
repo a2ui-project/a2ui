@@ -185,13 +185,13 @@ def main():
             ],
             "examples": "specification/v0_9/catalogs/basic/examples/*.json"
         },
-        "v0_10": {
-            "root_schema": "specification/v0_10/json/server_to_client.json",
+        "v1_0": {
+            "root_schema": "specification/v1_0/json/server_to_client.json",
             "refs": [
-                "specification/v0_10/json/common_types.json",
-                "specification/v0_10/catalogs/basic/catalog.json"
+                "specification/v1_0/json/common_types.json",
+                "specification/v1_0/catalogs/basic/catalog.json"
             ],
-            "examples": "specification/v0_10/catalogs/basic/examples/*.json"
+            "examples": "specification/v1_0/catalogs/basic/examples/*.json"
         }
     }
     

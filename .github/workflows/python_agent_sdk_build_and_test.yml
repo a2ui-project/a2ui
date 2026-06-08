@@ -50,7 +50,7 @@ jobs:
           pip install uv
 
       - name: Check Formatting
-        working-directory: agent_sdks/python
+        working-directory: agent_sdks/python/a2ui_agent
         run: uv run pyink --check .
 
       - name: Check Formatting for Conformance
@@ -58,7 +58,7 @@ jobs:
         run: uv run --with pyink pyink --check tests/
 
       - name: Run unit tests
-        working-directory: agent_sdks/python
+        working-directory: agent_sdks/python/a2ui_agent
         run: uv run --with pytest pytest tests/
 
       - name: Run conformance YAML validation
@@ -66,9 +66,9 @@ jobs:
         run: uv run pytest
 
       - name: Build the python SDK
-        working-directory: agent_sdks/python
+        working-directory: agent_sdks/python/a2ui_agent
         run: uv build .
 
       - name: Run validation scripts on assets packing
-        working-directory: agent_sdks/python
+        working-directory: agent_sdks/python/a2ui_agent
         run: uv run python tests/integration/verify_load_real.py
