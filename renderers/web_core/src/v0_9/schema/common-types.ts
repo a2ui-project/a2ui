@@ -24,99 +24,105 @@ export interface A2uiTypeDef {
 /**
  * Attaches A2UI metadata to a Zod schema's internal definition safely.
  */
-export function withA2uiMetadata<T extends z.ZodTypeAny>(
-  schema: T,
-  metadata: A2uiTypeDef,
-): T {
+export function withA2uiMetadata<T extends z.ZodTypeAny>(schema: T, metadata: A2uiTypeDef): T {
   Object.assign(schema._def, metadata);
   return schema;
 }
 
 export const DataBindingSchema = withA2uiMetadata(
-  z.object({
-    path: z.string().describe('A JSON Pointer path to a value in the data model.'),
-  })
-  .describe('A JSON Pointer path to a value in the data model.'),
+  z
+    .object({
+      path: z.string().describe('A JSON Pointer path to a value in the data model.'),
+    })
+    .describe('A JSON Pointer path to a value in the data model.'),
   {
     refPath: 'common_types.json#/$defs/DataBinding',
-  }
+  },
 );
 export type DataBindingType = z.infer<typeof DataBindingSchema>;
 
 export const FunctionCallSchema = withA2uiMetadata(
-  z.object({
-    call: z.string().describe('The name of the function to call.'),
-    args: z.record(z.any()).describe('Arguments passed to the function.'),
-    returnType: z
-      .enum(['string', 'number', 'boolean', 'array', 'object', 'any', 'void'])
-      .default('boolean'),
-  })
-  .describe('Invokes a named function on the client.'),
+  z
+    .object({
+      call: z.string().describe('The name of the function to call.'),
+      args: z.record(z.any()).describe('Arguments passed to the function.'),
+      returnType: z
+        .enum(['string', 'number', 'boolean', 'array', 'object', 'any', 'void'])
+        .default('boolean'),
+    })
+    .describe('Invokes a named function on the client.'),
   {
     refPath: 'common_types.json#/$defs/FunctionCall',
-  }
+  },
 );
 export type FunctionCallType = z.infer<typeof FunctionCallSchema>;
 
 export const DynamicBooleanSchema = withA2uiMetadata(
-  z.union([z.boolean(), DataBindingSchema, FunctionCallSchema])
-  .describe('A boolean value that can be a literal, a path, or a function call returning a boolean.'),
+  z
+    .union([z.boolean(), DataBindingSchema, FunctionCallSchema])
+    .describe(
+      'A boolean value that can be a literal, a path, or a function call returning a boolean.',
+    ),
   {
     a2uiType: 'Dynamic',
     refPath: 'common_types.json#/$defs/DynamicBoolean',
-  }
+  },
 );
 
 export const DynamicStringSchema = withA2uiMetadata(
-  z.union([
-    z.string(),
-    DataBindingSchema,
-    // FunctionCall returning string (simplified schema for Zod, stricter in JSON Schema)
-    FunctionCallSchema,
-  ])
-  .describe('Represents a string value that can be a literal, a path, or a function call.'),
+  z
+    .union([
+      z.string(),
+      DataBindingSchema,
+      // FunctionCall returning string (simplified schema for Zod, stricter in JSON Schema)
+      FunctionCallSchema,
+    ])
+    .describe('Represents a string value that can be a literal, a path, or a function call.'),
   {
     a2uiType: 'Dynamic',
     refPath: 'common_types.json#/$defs/DynamicString',
-  }
+  },
 );
 
 export const DynamicNumberSchema = withA2uiMetadata(
-  z.union([z.number(), DataBindingSchema, FunctionCallSchema])
-  .describe(
-    'Represents a value that can be either a literal number, a path to a number in the data model, or a function call returning a number.',
-  ),
+  z
+    .union([z.number(), DataBindingSchema, FunctionCallSchema])
+    .describe(
+      'Represents a value that can be either a literal number, a path to a number in the data model, or a function call returning a number.',
+    ),
   {
     a2uiType: 'Dynamic',
     refPath: 'common_types.json#/$defs/DynamicNumber',
-  }
+  },
 );
 
 export const DynamicStringListSchema = withA2uiMetadata(
-  z.union([z.array(z.string()), DataBindingSchema, FunctionCallSchema])
-  .describe(
-    'Represents a value that can be either a literal array of strings, a path to a string array in the data model, or a function call returning a string array.',
-  ),
+  z
+    .union([z.array(z.string()), DataBindingSchema, FunctionCallSchema])
+    .describe(
+      'Represents a value that can be either a literal array of strings, a path to a string array in the data model, or a function call returning a string array.',
+    ),
   {
     a2uiType: 'Dynamic',
     refPath: 'common_types.json#/$defs/DynamicStringList',
-  }
+  },
 );
 
 export const DynamicValueSchema = withA2uiMetadata(
-  z.union([
-    z.string(),
-    z.number(),
-    z.boolean(),
-    z.array(z.any()),
-    DataBindingSchema,
-    FunctionCallSchema,
-  ])
-  .describe('A value that can be a literal, a path, or a function call returning any type.'),
+  z
+    .union([
+      z.string(),
+      z.number(),
+      z.boolean(),
+      z.array(z.any()),
+      DataBindingSchema,
+      FunctionCallSchema,
+    ])
+    .describe('A value that can be a literal, a path, or a function call returning any type.'),
   {
     a2uiType: 'Dynamic',
     refPath: 'common_types.json#/$defs/DynamicValue',
-  }
+  },
 );
 
 /** A JSON Pointer path to a value in the data model. */
@@ -135,101 +141,104 @@ export type DynamicStringList = z.infer<typeof DynamicStringListSchema>;
 export type DynamicValue = z.infer<typeof DynamicValueSchema>;
 
 export const ComponentIdSchema = withA2uiMetadata(
-  z.string()
-  .brand<'ComponentId'>()
-  .describe('The unique identifier for a component.'),
+  z.string().brand<'ComponentId'>().describe('The unique identifier for a component.'),
   {
     a2uiType: 'ComponentId',
     refPath: 'common_types.json#/$defs/ComponentId',
-  }
+  },
 );
 /** The unique identifier for a component. */
 export type ComponentId = z.infer<typeof ComponentIdSchema>;
 
 export const ChildListSchema = withA2uiMetadata(
-  z.union([
-    z.array(ComponentIdSchema).describe('A static list of child component IDs.'),
-    z
-      .object({
-        componentId: ComponentIdSchema,
-        path: z
-          .string()
-          .describe('The path to the list of component property objects in the data model.'),
-      })
-      .describe('A template for generating a dynamic list of children.'),
-  ])
-  .describe('A static list of child component IDs or a dynamic list template.'),
+  z
+    .union([
+      z.array(ComponentIdSchema).describe('A static list of child component IDs.'),
+      z
+        .object({
+          componentId: ComponentIdSchema,
+          path: z
+            .string()
+            .describe('The path to the list of component property objects in the data model.'),
+        })
+        .describe('A template for generating a dynamic list of children.'),
+    ])
+    .describe('A static list of child component IDs or a dynamic list template.'),
   {
     a2uiType: 'ChildList',
     refPath: 'common_types.json#/$defs/ChildList',
-  }
+  },
 );
 /** A static list of child component IDs or a dynamic list template. */
 export type ChildList = z.infer<typeof ChildListSchema>;
 
 export const ActionSchema = withA2uiMetadata(
-  z.union([
-    z
-      .object({
-        event: z.object({
-          name: z.string(),
-          context: z.record(DynamicValueSchema).optional(),
-        }),
-      })
-      .describe('Triggers a server-side event.'),
-    z
-      .object({
-        functionCall: FunctionCallSchema,
-      })
-      .describe('Executes a local client-side function.'),
-  ])
-  .describe('Triggers a server-side event or a local client-side function.'),
+  z
+    .union([
+      z
+        .object({
+          event: z.object({
+            name: z.string(),
+            context: z.record(DynamicValueSchema).optional(),
+          }),
+        })
+        .describe('Triggers a server-side event.'),
+      z
+        .object({
+          functionCall: FunctionCallSchema,
+        })
+        .describe('Executes a local client-side function.'),
+    ])
+    .describe('Triggers a server-side event or a local client-side function.'),
   {
     a2uiType: 'Action',
     refPath: 'common_types.json#/$defs/Action',
-  }
+  },
 );
 /** Triggers a server-side event or a local client-side function. */
 export type Action = z.infer<typeof ActionSchema>;
 
 export const CheckRuleSchema = withA2uiMetadata(
-  z.object({
-    condition: DynamicBooleanSchema,
-    message: z.string().describe('The error message to display if the check fails.'),
-  })
-  .describe('A check rule consisting of a condition and an error message.'),
+  z
+    .object({
+      condition: DynamicBooleanSchema,
+      message: z.string().describe('The error message to display if the check fails.'),
+    })
+    .describe('A check rule consisting of a condition and an error message.'),
   {
     refPath: 'common_types.json#/$defs/CheckRule',
-  }
+  },
 );
 /** A check rule consisting of a condition and an error message. */
 export type CheckRule = z.infer<typeof CheckRuleSchema>;
 
 export const CheckableSchema = withA2uiMetadata(
-  z.object({
-    checks: z.array(CheckRuleSchema).optional().describe('A list of checks to perform.'),
-  })
-  .describe('Properties for components that support client-side checks.'),
+  z
+    .object({
+      checks: z.array(CheckRuleSchema).optional().describe('A list of checks to perform.'),
+    })
+    .describe('Properties for components that support client-side checks.'),
   {
     refPath: 'common_types.json#/$defs/Checkable',
-  }
+  },
 );
 /** An object that contains checks. */
 export type Checkable = z.infer<typeof CheckableSchema>;
 
 export const AccessibilityAttributesSchema = withA2uiMetadata(
-  z.object({
-    label: DynamicStringSchema.optional().describe(
-      'A short string used by assistive technologies to convey the purpose of an element.',
-    ),
-    description: DynamicStringSchema.optional().describe(
-      'Additional information provided by assistive technologies about an element.',
-    ),
-  })
-  .describe('Attributes to enhance accessibility.'),
+  z
+    .object({
+      label: DynamicStringSchema.optional().describe(
+        'A short string used by assistive technologies to convey the purpose of an element.',
+      ),
+      description: DynamicStringSchema.optional().describe(
+        'Additional information provided by assistive technologies about an element.',
+      ),
+    })
+    .describe('Attributes to enhance accessibility.'),
   {
     refPath: 'common_types.json#/$defs/AccessibilityAttributes',
-  }
+  },
 );
 
 /** Accessibility attributes like label and description. */

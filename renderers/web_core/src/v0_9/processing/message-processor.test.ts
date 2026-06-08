@@ -72,10 +72,9 @@ describe('MessageProcessor', () => {
       const customApi: ComponentApi = {
         name: 'Custom',
         schema: z.object({
-          title: withA2uiMetadata(
-            z.string().describe('The title'),
-            { refPath: 'common_types.json#/$defs/DynamicString' }
-          ),
+          title: withA2uiMetadata(z.string().describe('The title'), {
+            refPath: 'common_types.json#/$defs/DynamicString',
+          }),
         }),
       };
       const cat = new Catalog('cat-ref', [customApi]);
@@ -109,10 +108,9 @@ describe('MessageProcessor', () => {
       };
 
       const themeSchema = z.object({
-        primaryColor: withA2uiMetadata(
-          z.string().describe('The main color'),
-          { refPath: 'common_types.json#/$defs/Color' }
-        ),
+        primaryColor: withA2uiMetadata(z.string().describe('The main color'), {
+          refPath: 'common_types.json#/$defs/Color',
+        }),
       });
 
       const cat = new Catalog('cat-full', [buttonApi], [addFn], themeSchema);
@@ -156,10 +154,9 @@ describe('MessageProcessor', () => {
         schema: z.object({
           items: z.array(
             z.object({
-              action: withA2uiMetadata(
-                z.string().describe('The action to perform'),
-                { refPath: 'common_types.json#/$defs/Action' }
-              ),
+              action: withA2uiMetadata(z.string().describe('The action to perform'), {
+                refPath: 'common_types.json#/$defs/Action',
+              }),
             }),
           ),
         }),
@@ -180,11 +177,10 @@ describe('MessageProcessor', () => {
       const edgeApi: ComponentApi = {
         name: 'EdgeComp',
         schema: z.object({
-          noPipe: withA2uiMetadata(z.string(), { refPath: 'common_types.json#/$defs/NoPipe' }),
-          multiPipe: withA2uiMetadata(
-            z.string().describe('First|Second'),
-            { refPath: 'common_types.json#/$defs/MultiPipe' }
-          ),
+          noPipe: withA2uiMetadata(z.string(), {refPath: 'common_types.json#/$defs/NoPipe'}),
+          multiPipe: withA2uiMetadata(z.string().describe('First|Second'), {
+            refPath: 'common_types.json#/$defs/MultiPipe',
+          }),
         }),
       };
       const cat = new Catalog('cat-edge', [edgeApi]);
