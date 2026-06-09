@@ -62,7 +62,7 @@ class CatalogConfig:
       catalog_path: str,
       examples_path: Optional[str] = None,
       custom_cuttable_keys: Optional[frozenset[str]] = None,
-  ) -> "CatalogConfig":
+  ) -> CatalogConfig:
     """Returns a CatalogConfig that loads from a local path or 'file://' URI."""
     parsed = urlparse(catalog_path)
     if not parsed.scheme or parsed.scheme == "file":
@@ -72,15 +72,12 @@ class CatalogConfig:
     else:
       raise ValueError(f"Unsupported catalog URL scheme: {catalog_path}")
 
-    kwargs = {
-        "name": name,
-        "provider": catalog_provider,
-        "examples_path": resolve_examples_path(examples_path),
-    }
-    if custom_cuttable_keys is not None:
-      kwargs["custom_cuttable_keys"] = custom_cuttable_keys
-
-    return cls(**kwargs)
+    return cls(
+        name=name,
+        provider=catalog_provider,
+        examples_path=resolve_examples_path(examples_path),
+        custom_cuttable_keys=custom_cuttable_keys,
+    )
 
 
 def resolve_examples_path(path: Optional[str]) -> Optional[str]:

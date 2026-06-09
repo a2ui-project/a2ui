@@ -75,18 +75,17 @@ def setup_catalog(catalog_config):
   elif common_types_schema is None:
     common_types_schema = {}
 
-  kwargs = {
-      "version": version,
-      "name": catalog_config.get("name", "test_catalog"),
-      "s2c_schema": s2c_schema,
-      "common_types_schema": common_types_schema,
-      "catalog_schema": catalog_schema,
-  }
   custom_cuttable_keys = catalog_config.get("custom_cuttable_keys")
-  if custom_cuttable_keys is not None:
-    kwargs["custom_cuttable_keys"] = frozenset(custom_cuttable_keys)
-
-  return A2uiCatalog(**kwargs)
+  return A2uiCatalog(
+      version=version,
+      name=catalog_config.get("name", "test_catalog"),
+      s2c_schema=s2c_schema,
+      common_types_schema=common_types_schema,
+      catalog_schema=catalog_schema,
+      custom_cuttable_keys=frozenset(custom_cuttable_keys)
+      if custom_cuttable_keys is not None
+      else None,
+  )
 
 
 def assert_parts_match(actual_parts, expected_parts):

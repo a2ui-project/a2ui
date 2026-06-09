@@ -176,24 +176,14 @@ class ConformanceTest {
       (catalogMap["custom_cuttable_keys"] as? List<*>)?.mapNotNull { it as? String }?.toSet()
 
     val catalog =
-      if (customCuttableKeys != null) {
-        A2uiCatalog(
-          version = version,
-          name = TEST_CATALOG_NAME,
-          serverToClientSchema = s2cSchema,
-          commonTypesSchema = commonTypesSchema,
-          catalogSchema = catalogSchema,
-          customCuttableKeys = customCuttableKeys,
-        )
-      } else {
-        A2uiCatalog(
-          version = version,
-          name = TEST_CATALOG_NAME,
-          serverToClientSchema = s2cSchema,
-          commonTypesSchema = commonTypesSchema,
-          catalogSchema = catalogSchema,
-        )
-      }
+      A2uiCatalog(
+        version = version,
+        name = TEST_CATALOG_NAME,
+        serverToClientSchema = s2cSchema,
+        commonTypesSchema = commonTypesSchema,
+        catalogSchema = catalogSchema,
+        customCuttableKeys = customCuttableKeys,
+      )
 
     return Pair(catalog, schemaMappings)
   }
