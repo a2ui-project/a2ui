@@ -8,7 +8,7 @@ This document is the authoritative guide for AI agents working within the A2UI r
 
 > **INSTRUCTION FOR ALL AGENTS (Gemini CLI, Claude, OpenAI, Antigravity, etc.):**
 > Before performing any specific tasks, load and read the respective skill recipe file in full:
->
+
 - **For maintaining documentation or agent files:** Read [.agents/skills/a2ui-agent-maintenance/SKILL.md](.agents/skills/a2ui-agent-maintenance/SKILL.md)
 - **For designing SDKs, adapters, or libraries:** Read [.agents/skills/a2ui-sdk-design/SKILL.md](.agents/skills/a2ui-sdk-design/SKILL.md)
 
