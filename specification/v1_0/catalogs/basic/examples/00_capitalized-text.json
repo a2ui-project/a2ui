@@ -46,8 +46,7 @@
                 "value": {
                   "path": "/inputValue"
                 }
-              },
-              "returnType": "string"
+              }
             },
             "variant": "h2"
           }
