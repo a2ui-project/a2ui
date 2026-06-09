@@ -205,8 +205,6 @@ Let's peek at what the agent is sending. Here's a simplified example of the JSON
 
     Note: In v0.9, `createSurface` replaces `beginRendering`, components use a flatter format, and the data model uses plain JSON values instead of typed adjacency lists.
 
-
-
 TIP: It's Just JSON
 
 Notice how readable and structured this is? LLMs can generate this easily, and it's safe to transmit and render—no code execution required.

@@ -164,21 +164,21 @@ MCP Apps are typically delivered as a single HTML resource from the MCP Server. 
 > **How to use it:**
 >
 > 1. **Install the plugin**:
->    ```bash
->    npm install -D vite-plugin-singlefile
->    ```
+>     ```bash
+>     npm install -D vite-plugin-singlefile
+>     ```
 > 2. **Configure Vite**: Add the plugin to your `vite.config.ts` (or `.js`):
 >
->    ```typescript
->    import {defineConfig} from 'vite';
->    import {viteSingleFile} from 'vite-plugin-singlefile';
+>     ```typescript
+>     import {defineConfig} from 'vite';
+>     import {viteSingleFile} from 'vite-plugin-singlefile';
 >
->    export default defineConfig({
->      plugins: [viteSingleFile()],
->    });
->    ```
+>     export default defineConfig({
+>       plugins: [viteSingleFile()],
+>     });
+>     ```
 >
->    This will ensure that all JS and CSS assets are inlined into the `index.html` file on build, making it ready to be served by your MCP server as a single resource.
+>     This will ensure that all JS and CSS assets are inlined into the `index.html` file on build, making it ready to be served by your MCP server as a single resource.
 
 ### Step 2: Leveraging A2UI-over-MCP
 
