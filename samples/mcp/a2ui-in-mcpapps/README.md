@@ -54,21 +54,12 @@ sequenceDiagram
 - [Node.js](https://nodejs.org/) (LTS recommended)
 - [Python 3.10+](https://www.python.org/) with `uv`
 
-### ⚠️ IMPORTANT: Pre-build Core Dependencies
+### ⚠️ IMPORTANT: Install Repository Dependencies
 
-The sample apps link to local versions of the A2UI SDK. You **must build the core libraries** before attempting to run `npm install` inside any sample subdirectories.
-
-Run the following from the repository root:
+Run the following from the repository root to link workspace packages:
 
 ```bash
-# 1. Web Core
-cd renderers/web_core && npm install && npm run build && cd ../..
-
-# 2. Markdown Utilities
-cd renderers/markdown/markdown-it && npm install && npm run build && cd ../../..
-
-# 3. Angular Renderer SDK
-cd renderers/angular && npm install && npm run build && cd ../..
+yarn install
 ```
 
 ---
@@ -83,8 +74,8 @@ The sandboxed iframe needs its asset bundle. Run this in the `client/` directory
 
 ```bash
 cd client
-npm install
-npm run build:sandbox
+yarn install
+yarn build:sandbox
 ```
 
 _(Generates `client/public/sandbox_iframe/sandbox.{js,html}`)_
@@ -97,8 +88,8 @@ The server serves single-file HTML artifacts located in `server/apps/public/`. C
 
 ```bash
 cd server/apps/editor
-npm install
-npm run build:all
+yarn install
+yarn build:all
 ```
 
 _(Generates `server/apps/public/editor.html`)_
@@ -107,8 +98,8 @@ _(Generates `server/apps/public/editor.html`)_
 
 ```bash
 cd server/apps/src
-npm install
-npm run build:all
+yarn install
+yarn build:all
 ```
 
 _(Generates `server/apps/public/app.html`)_
@@ -133,7 +124,7 @@ Run this in the `client/` directory:
 
 ```bash
 cd client
-npm run start
+yarn start
 ```
 
 Navigate to `http://localhost:4200` to view the running host.

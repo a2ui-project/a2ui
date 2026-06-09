@@ -31,8 +31,16 @@ else
   npx -y prettier --config .prettierrc --write .
 fi
 
-echo "Running Pyink for Python SDK..."
-cd "$REPO_ROOT/agent_sdks/python/a2ui_agent"
+echo "Running Pyink for Python Agent SDK..."
+cd "$REPO_ROOT/agent_sdks/python/a2ui_agent" || exit 1
+if [ "$CHECK_ONLY" = true ]; then
+  uv run pyink --check .
+else
+  uv run pyink .
+fi
+
+echo "Running Pyink for Python Core SDK..."
+cd "$REPO_ROOT/agent_sdks/python/a2ui_core" || exit 1
 if [ "$CHECK_ONLY" = true ]; then
   uv run pyink --check .
 else

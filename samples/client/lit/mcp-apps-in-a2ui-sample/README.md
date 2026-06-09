@@ -39,7 +39,7 @@ Navigate to the client sample directory and start the dev server:
 
 ```bash
 cd samples/client/lit/mcp-apps-in-a2ui-sample
-npm run dev
+yarn dev
 ```
 
 The client will start (typically on `http://localhost:5173/`). Open this URL in your browser to interact with the sample.

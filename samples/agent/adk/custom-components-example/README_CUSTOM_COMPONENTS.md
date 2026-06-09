@@ -52,7 +52,7 @@ A powerful component that allows embedding external web content or local static 
 2.  **Start the Client**:
     ```bash
     cd samples/client/lit/contact
-    npm run dev
+    yarn dev
     ```
     _Configured to connect to localhost:10004._
 

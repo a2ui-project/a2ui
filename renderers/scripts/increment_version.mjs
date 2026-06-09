@@ -16,12 +16,50 @@
  */
 
 import {readFileSync, writeFileSync} from 'node:fs';
+import {parseArgs} from 'node:util';
 import {getPackageGraph, incrementVersion, runCommand} from './lib/workspace.mjs';
 
-const args = process.argv.slice(2);
-const skipSync = args.includes('--skip-sync');
-const filteredArgs = args.filter(a => a !== '--skip-sync');
-const [targetName, targetVersion] = filteredArgs;
+const {values, positionals} = parseArgs({
+  args: process.argv.slice(2),
+  options: {
+    'skip-sync': {
+      type: 'boolean',
+      default: false,
+    },
+    help: {
+      type: 'boolean',
+      short: 'h',
+      default: false,
+    },
+  },
+  allowPositionals: true,
+});
+
+if (values.help) {
+  console.log(`Usage: increment_version <package-name> [new-version] [options]
+
+Increments the version of a specified package and synchronizes internal dependent packages.
+
+Arguments:
+  <package-name>    The name of the package to update (e.g., 'web_core' or '@a2ui/web_core').
+  [new-version]     The specific new version to set (e.g., '1.0.1'). If omitted, increments
+                    the version automatically based on current version string.
+
+Options:
+  --skip-sync       Skip synchronizing dependent packages (running yarn install in dependents).
+  -h, --help        Show this complete help message.
+
+Examples:
+  # Increment version of web_core and sync dependents
+  ./increment_version.mjs web_core
+
+  # Set a specific version and skip syncing dependents
+  ./increment_version.mjs web_core 1.2.0 --skip-sync`);
+  process.exit(0);
+}
+
+const skipSync = values['skip-sync'];
+const [targetName, targetVersion] = positionals;
 
 if (!targetName) {
   console.error('Usage: increment_version <package-name> [new-version] [--skip-sync]');
@@ -62,8 +100,8 @@ if (dependents.length > 0 && !skipSync) {
       continue;
     }
     console.log(`- Syncing ${dep.name} in ${dep.dir}`);
-    // Update lockfiles normally, but ignore scripts to prevent postinstall esbuild errors
-    runCommand('npm', ['install', '--ignore-scripts', '--no-audit', '--no-fund'], {cwd: dep.dir});
+    // Update lockfiles normally using yarn
+    runCommand('yarn', ['install'], {cwd: dep.dir});
   }
 }
 

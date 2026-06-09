@@ -43,50 +43,37 @@ jobs:
     steps:
       - uses: actions/checkout@v6
 
+      - name: Enable Corepack
+        run: corepack enable
+
       - name: Set up Node.js
         uses: actions/setup-node@v6
         with:
           node-version: "22"
+          cache: "yarn"
 
-      - name: Cache Node modules and Wireit
-        uses: actions/cache@v4
-        with:
-          path: |
-            **/node_modules
-            **/.wireit
-          key: ${{ runner.os }}-node-and-wireit-${{ hashFiles('**/package-lock.json') }}
-          restore-keys: |
-            ${{ runner.os }}-node-and-wireit-
+      - name: Install dependencies
+        run: yarn install --immutable
 
       - name: Build web_core dependency
-        working-directory: ./renderers/web_core
-        run: |
-          npm i
-          npm run build
+        run: yarn workspace @a2ui/web_core build
 
       - name: Build markdown-it dependency
-        working-directory: ./renderers/markdown/markdown-it
-        run: |
-          npm i
-          npm run build
-
-      - name: Install React renderer deps
-        working-directory: ./renderers/react
-        run: npm i
+        run: yarn workspace @a2ui/markdown-it build
 
       - name: Run task
         working-directory: ./renderers/react
         run: |
           case "${{ matrix.task }}" in
             test)
-              npm run build
-              npm test
+              yarn build
+              yarn test
               ;;
             demo)
-              npm run build:demo
-              npm run test:demo
+              yarn build:demo
+              yarn test:demo
               ;;
             lint)
-              npm run lint
+              yarn lint
               ;;
           esac

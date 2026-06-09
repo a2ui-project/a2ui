@@ -27,9 +27,6 @@ on:
       - ".github/workflows/validate_specifications.yml"
       - "specification/scripts/validate.py"
 
-permissions:
-  contents: read
-
 jobs:
   validate:
     runs-on: ubuntu-latest
@@ -37,15 +34,14 @@ jobs:
     steps:
       - uses: actions/checkout@v6
 
-      - name: Install pnpm
-        uses: pnpm/action-setup@v4
-        with:
-          version: 10
+      - name: Enable Corepack
+        run: corepack enable
 
       - name: Set up Node.js
         uses: actions/setup-node@v6
         with:
           node-version: "22"
+          cache: "yarn"
 
       - name: Set up Python
         uses: actions/setup-python@v6
@@ -53,8 +49,7 @@ jobs:
           python-version: "3.12"
 
       - name: Install dependencies
-        working-directory: ./specification/v0_9/test
-        run: pnpm install
+        run: yarn install --immutable
 
       - name: Run validation script
         run: python3 specification/scripts/validate.py

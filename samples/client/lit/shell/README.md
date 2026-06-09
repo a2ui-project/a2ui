@@ -11,20 +11,23 @@ See the [video](https://github.com/user-attachments/assets/2a406115-3a17-4bea-80
 
 ### Run agent
 
-Follow the steps in [agent's README.md](../../../agent/adk/restaurant_finder/README.md) to run agent.
+1. **Install and build dependencies:**
+   From the repository root, install dependencies and build all packages:
 
-### Build dependencies and run client application
+   ```bash
+   yarn install
+   yarn build:all
+   ```
 
-Run from the root of the repository:
+2. **Run this sample:**
 
-```bash
-(cd renderers/web_core/ && npm i && npm run build) && \
-(cd renderers/markdown/markdown-it/ && npm i && npm run build) && \
-(cd renderers/lit/ && npm i && npm run build) && \
-(cd samples/client/lit/shell/ && npm i && npm run dev)
-```
+   ```bash
+   cd samples/client/lit/shell
+   ```
 
-If you hit errors around `npm i` remove the directory `node_modules` and the file `package-lock.json`.
+3. **Run the servers:**
+   - Run the [Restaurant Finder Agent](../../../agent/adk/restaurant_finder/) (Default): `yarn demo:restaurant`
+   - Run the dev server: `yarn dev`
 
 ### Open UI
 

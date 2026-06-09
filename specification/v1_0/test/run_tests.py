@@ -77,11 +77,7 @@ def cleanup_catalog_alias():
 
 def validate_ajv(schema_path, data_path, all_schemas):
     """Runs ajv validate via subprocess."""
-    local_ajv = os.path.join(TEST_DIR, "node_modules", ".bin", "ajv")
-    if os.path.exists(local_ajv):
-        cmd = [local_ajv, "validate", "-s", schema_path, "--spec=draft2020", "--strict=false", "-c", "ajv-formats", "-d", data_path]
-    else:
-        cmd = ["pnpm", "dlx", "ajv-cli", "validate", "-s", schema_path, "--spec=draft2020", "--strict=false", "-c", "ajv-formats", "-d", data_path]
+    cmd = ["yarn", "run", "ajv", "validate", "-s", schema_path, "--spec=draft2020", "--strict=false", "-c", "ajv-formats", "-d", data_path]
 
     # Add all other schemas as references
     for name, path in all_schemas.items():
@@ -89,10 +85,10 @@ def validate_ajv(schema_path, data_path, all_schemas):
             cmd.extend(["-r", path])
 
     try:
-        result = subprocess.run(cmd, capture_output=True, text=True)
+        result = subprocess.run(cmd, capture_output=True, text=True, cwd=TEST_DIR)
         return result.returncode == 0, result.stdout + result.stderr
     except FileNotFoundError:
-        print("Error: 'ajv' command not found. Please ensure dependencies are installed (e.g., 'pnpm install').")
+        print("Error: 'ajv' command not found. Please ensure dependencies are installed (e.g., 'yarn install').")
         sys.exit(1)
 
 def run_suite(suite_path):

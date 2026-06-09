@@ -10,7 +10,6 @@
     "build:sandbox": "npx esbuild ../../../client/shared/mcp_apps_inner_iframe/sandbox.ts --bundle --outfile=public/sandbox_iframe/sandbox.js --format=esm --platform=browser --alias:@modelcontextprotocol/ext-apps/app-bridge=./node_modules/@modelcontextprotocol/ext-apps/dist/src/app-bridge.js && cp ../../../client/shared/mcp_apps_inner_iframe/sandbox.html public/sandbox_iframe/sandbox.html"
   },
   "private": true,
-  "packageManager": "npm@9.2.0",
   "dependencies": {
     "@angular/common": "^21.2.0",
     "@angular/compiler": "^21.2.0",

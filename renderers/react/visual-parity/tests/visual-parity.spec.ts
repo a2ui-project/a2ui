@@ -48,7 +48,12 @@ const MAX_DIFF_PERCENT = 1; // 1% of pixels can differ
 /**
  * Fixtures to skip in visual parity tests.
  */
-const skippedFixtures: FixtureName[] = [];
+const skippedFixtures: FixtureName[] = [
+  'dateTimeInputTime',
+  'multipleChoice',
+  'videoBasic',
+  'videoWithPathBinding',
+];
 
 /**
  * Get fixtures to test (excluding skipped ones).

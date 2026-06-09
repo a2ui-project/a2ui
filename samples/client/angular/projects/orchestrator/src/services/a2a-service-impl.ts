@@ -16,13 +16,15 @@
 
 import {AgentCard, Part, SendMessageSuccessResponse} from '@a2a-js/sdk';
 import {A2aService} from '@a2a_chat_canvas/interfaces/a2a-service';
-import {Injectable} from '@angular/core';
+import {inject, Injectable, PLATFORM_ID} from '@angular/core';
+import {isPlatformBrowser} from '@angular/common';
 
 @Injectable({
   providedIn: 'root',
 })
 export class A2aServiceImpl implements A2aService {
   private contextId?: string;
+  private isBrowser = isPlatformBrowser(inject(PLATFORM_ID));
 
   async sendMessage(parts: Part[], signal?: AbortSignal): Promise<SendMessageSuccessResponse> {
     const response = await fetch('/a2a', {
@@ -47,6 +49,9 @@ export class A2aServiceImpl implements A2aService {
   }
 
   async getAgentCard(): Promise<AgentCard> {
+    if (!this.isBrowser) {
+      return {} as AgentCard;
+    }
     const response = await fetch('/a2a/agent-card');
     if (!response.ok) {
       throw new Error('Failed to fetch agent card');

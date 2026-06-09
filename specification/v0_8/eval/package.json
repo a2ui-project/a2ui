@@ -3,13 +3,13 @@
   "version": "1.0.0",
   "main": "lib/index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
-    "build": "tsc",
+    "test": "echo \"No tests specified for eval package\"",
+    "build": "wireit",
     "eval": "dotenv -- tsx src/index.ts",
-    "evalAll": "pnpm run eval",
-    "evalGemini": "pnpm run eval -- --model=gemini-2.5-flash --prompt=travelItinerary",
-    "evalGpt": "pnpm run eval -- --model=gpt-5-mini --prompt=travelItinerary",
-    "evalClaude": "pnpm run eval -- --model=claude-4-sonnet --prompt=travelItinerary",
+    "evalAll": "yarn eval",
+    "evalGemini": "yarn eval -- --model=gemini-2.5-flash --prompt=travelItinerary",
+    "evalGpt": "yarn eval -- --model=gpt-5-mini --prompt=travelItinerary",
+    "evalClaude": "yarn eval -- --model=claude-4-sonnet --prompt=travelItinerary",
     "start": "genkit start",
     "genkit:dev": "genkit start -- tsx --watch src/dev.ts",
     "format": "prettier --write src/**/*.ts"
@@ -23,7 +23,8 @@
     "dotenv-cli": "^10.0.0",
     "prettier": "^3.6.2",
     "tsx": "^4.20.5",
-    "typescript": "^5.9.2",
+    "typescript": "5.9.3",
+    "wireit": "^0.15.0-pre.2",
     "yargs": "^18.0.0"
   },
   "dependencies": {
@@ -32,5 +33,17 @@
     "@genkit-ai/vertexai": "^1.19.3",
     "genkit": "^1.19.2",
     "genkitx-anthropic": "^0.25.0"
+  },
+  "wireit": {
+    "build": {
+      "command": "tsc",
+      "files": [
+        "src/**/*",
+        "tsconfig.json"
+      ],
+      "output": [
+        "lib/"
+      ]
+    }
   }
 }

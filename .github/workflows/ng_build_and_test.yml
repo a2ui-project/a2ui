@@ -23,54 +23,41 @@ on:
     paths-ignore:
       - "samples/agent/adk/**"
 
-permissions:
-  contents: read
-
 jobs:
   build-and-test:
     runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        task: [test, restaurant, rizzcharts, orchestrator, explorer]
 
     steps:
       - uses: actions/checkout@v6
+
+      - name: Enable Corepack
+        run: corepack enable
 
       - name: Set up Node.js
         uses: actions/setup-node@v6
         with:
           node-version: "22"
-
-      - name: Cache Node modules and Wireit
-        uses: actions/cache@v4
-        with:
-          path: |
-            **/node_modules
-            **/.wireit
-          key: ${{ runner.os }}-node-and-wireit-${{ hashFiles('**/package-lock.json') }}
-          restore-keys: |
-            ${{ runner.os }}-node-and-wireit-
+          cache: "yarn"
 
       - name: Install top-level deps
-        working-directory: ./samples/client/angular
-        run: npm i
+        run: yarn install --immutable
 
-      - name: Run task
-        run: |
-          case "${{ matrix.task }}" in
-            test)
-              cd ./renderers/angular && npm run test:ci
-              ;;
-            explorer)
-              cd ./renderers/angular && npx ng test a2ui_explorer --watch=false --browsers=ChromeHeadless
-              ;;
-            restaurant)
-              cd ./samples/client/angular && npm run build restaurant
-              ;;
-            rizzcharts)
-              cd ./samples/client/angular && npm run build rizzcharts
-              ;;
-            orchestrator)
-              cd ./samples/client/angular && npm run build orchestrator
-              ;;
-          esac
+      - name: Build Angular renderer and its dependencies
+        working-directory: ./samples/client/angular
+        run: yarn build:renderer
+
+      - name: Test Angular renderer
+        working-directory: ./renderers/angular
+        run: yarn test
+
+      - name: Build restaurant sample
+        working-directory: ./samples/client/angular
+        run: yarn ng build restaurant
+
+      - name: Build Rizzchart sample
+        working-directory: ./samples/client/angular
+        run: yarn ng build rizzcharts
+
+      - name: Build Orchestrator
+        working-directory: ./samples/client/angular
+        run: yarn ng build orchestrator
