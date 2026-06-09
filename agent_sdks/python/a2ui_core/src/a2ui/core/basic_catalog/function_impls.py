@@ -194,6 +194,29 @@ FormatCurrencyImplementation = create_function_implementation(
 )
 
 
+_DATE_TOKENS = re.compile(r"yyyy|yy|MMMM|MMM|MM|M|EEEE|E|dd|d|HH|H|hh|h|mm|ss|a|%")
+_DATE_MAP = {
+    "%": "%%",
+    "yyyy": "%Y",
+    "yy": "%y",
+    "MMMM": "%B",
+    "MMM": "%b",
+    "MM": "%m",
+    "M": "%m",
+    "EEEE": "%A",
+    "E": "%a",
+    "dd": "%d",
+    "d": "%d",
+    "HH": "%H",
+    "H": "%H",
+    "hh": "%I",
+    "h": "%I",
+    "mm": "%M",
+    "ss": "%S",
+    "a": "%p",
+}
+
+
 def _format_date(args, context=None, abort_signal=None):
     val = args.get("value")
     fmt = args.get("format", "yyyy-MM-dd")
@@ -203,15 +226,7 @@ def _format_date(args, context=None, abort_signal=None):
         dt = datetime.datetime.fromisoformat(str(val).replace("Z", "+00:00"))
         if fmt == "ISO":
             return dt.isoformat().replace("+00:00", ".000Z")
-        py_fmt = (
-            str(fmt)
-            .replace("yyyy", "%Y")
-            .replace("MM", "%m")
-            .replace("dd", "%d")
-            .replace("HH", "%H")
-            .replace("mm", "%M")
-            .replace("ss", "%S")
-        )
+        py_fmt = _DATE_TOKENS.sub(lambda m: _DATE_MAP[m.group(0)], str(fmt))
         return dt.strftime(py_fmt)
     except Exception:
         return ""
@@ -258,45 +273,47 @@ NotImplementation = create_function_implementation(
     lambda args, context=None, abort_signal=None: not _to_bool(args.get("value")),
 )
 
-AddImplementation = create_function_implementation(
-    AddApi,
-    lambda args, context=None, abort_signal=None: (
-        int(_to_float(args["a"]) + _to_float(args["b"]))
-        if (_to_float(args["a"]) + _to_float(args["b"])).is_integer()
-        else (_to_float(args["a"]) + _to_float(args["b"]))
-    ),
-)
 
-SubtractImplementation = create_function_implementation(
-    SubtractApi,
-    lambda args, context=None, abort_signal=None: (
-        int(_to_float(args["a"]) - _to_float(args["b"]))
-        if (_to_float(args["a"]) - _to_float(args["b"])).is_integer()
-        else (_to_float(args["a"]) - _to_float(args["b"]))
-    ),
-)
+def _add(args, context=None, abort_signal=None):
+    res = _to_float(args["a"]) + _to_float(args["b"])
+    return int(res) if res.is_integer() else res
 
-MultiplyImplementation = create_function_implementation(
-    MultiplyApi,
-    lambda args, context=None, abort_signal=None: (
-        int(_to_float(args["a"]) * _to_float(args["b"]))
-        if (_to_float(args["a"]) * _to_float(args["b"])).is_integer()
-        else (_to_float(args["a"]) * _to_float(args["b"]))
-    ),
-)
 
-DivideImplementation = create_function_implementation(
-    DivideApi,
-    lambda args, context=None, abort_signal=None: (
-        math.inf
-        if _to_float(args["b"]) == 0
-        else (
-            int(_to_float(args["a"]) / _to_float(args["b"]))
-            if (_to_float(args["a"]) / _to_float(args["b"])).is_integer()
-            else (_to_float(args["a"]) / _to_float(args["b"]))
-        )
-    ),
-)
+AddImplementation = create_function_implementation(AddApi, _add)
+
+
+def _subtract(args, context=None, abort_signal=None):
+    res = _to_float(args["a"]) - _to_float(args["b"])
+    return int(res) if res.is_integer() else res
+
+
+SubtractImplementation = create_function_implementation(SubtractApi, _subtract)
+
+
+def _multiply(args, context=None, abort_signal=None):
+    res = _to_float(args["a"]) * _to_float(args["b"])
+    return int(res) if res.is_integer() else res
+
+
+MultiplyImplementation = create_function_implementation(MultiplyApi, _multiply)
+
+
+def _divide(args, context=None, abort_signal=None):
+    a = _to_float(args["a"])
+    b = _to_float(args["b"])
+    if b == 0:
+        if a > 0:
+            return math.inf
+        elif a < 0:
+            return -math.inf
+        else:
+            return math.nan
+    res = a / b
+    return int(res) if res.is_integer() else res
+
+
+DivideImplementation = create_function_implementation(DivideApi, _divide)
+
 
 EqualsImplementation = create_function_implementation(
     EqualsApi,

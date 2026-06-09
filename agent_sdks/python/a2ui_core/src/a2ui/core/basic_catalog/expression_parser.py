@@ -130,6 +130,8 @@ class ExpressionParser:
         return scanner.input[start : scanner.pos - 1]
 
     def parse_expression(self, expr: str, depth: int = 0) -> Any:
+        if depth > self.MAX_DEPTH:
+            raise ValueError("Max recursion depth reached in parse")
         expr = expr.strip()
         if not expr:
             return ""
@@ -156,7 +158,9 @@ class ExpressionParser:
         # 1. Literals
         if scanner.matches_string("'") or scanner.matches_string('"'):
             return self.parse_string_literal(scanner)
-        if self.is_digit(scanner.peek()):
+        if self.is_digit(scanner.peek()) or (
+            scanner.peek() == "-" and self.is_digit(scanner.peek(1))
+        ):
             return self.parse_number_literal(scanner)
         if scanner.matches_keyword("true"):
             return True
@@ -246,12 +250,16 @@ class ExpressionParser:
 
     def parse_number_literal(self, scanner: Scanner) -> Union[int, float]:
         start = scanner.pos
+        if scanner.peek() == "-":
+            scanner.advance()
         while not scanner.is_at_end() and (
             self.is_digit(scanner.peek()) or scanner.peek() == "."
         ):
             scanner.advance()
         num_str = scanner.input[start : scanner.pos]
-        return float(num_str) if "." in num_str else int(num_str)
+        if "." in num_str:
+            return float(num_str)
+        return int(num_str)
 
     def is_alnum(self, c: str) -> bool:
         return ("a" <= c <= "z") or ("A" <= c <= "Z") or ("0" <= c <= "9")
