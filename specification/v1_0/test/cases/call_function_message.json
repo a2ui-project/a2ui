@@ -1,0 +1,131 @@
+{
+  "schema": "server_to_client.json",
+  "catalog": "testing_catalog.json",
+  "tests": [
+    {
+      "description": "CallFunctionMessage: Valid with wantResponse",
+      "valid": true,
+      "data": {
+        "version": "v1.0",
+        "callFunction": {
+          "call": "openUrl",
+          "args": {
+            "url": "https://example.com"
+          }
+        },
+        "functionCallId": "unique-call-id-123",
+        "wantResponse": true
+      }
+    },
+    {
+      "description": "CallFunctionMessage: Valid with remoteOnly",
+      "valid": true,
+      "data": {
+        "version": "v1.0",
+        "callFunction": {
+          "call": "pingServer"
+        },
+        "functionCallId": "unique-call-id-123a",
+        "wantResponse": false
+      }
+    },
+    {
+      "description": "CallFunctionMessage: Valid without wantResponse",
+      "valid": true,
+      "data": {
+        "version": "v1.0",
+        "callFunction": {
+          "call": "openUrl",
+          "args": {
+            "url": "https://example.com"
+          }
+        },
+        "functionCallId": "unique-call-id-124"
+      }
+    },
+    {
+      "description": "CallFunctionMessage: Invalid (missing callId)",
+      "valid": false,
+      "data": {
+        "version": "v1.0",
+        "callFunction": {
+          "call": "required",
+          "args": {
+            "value": "bar"
+          }
+        }
+      }
+    },
+    {
+      "description": "CallFunctionMessage: Invalid (missing callFunction)",
+      "valid": false,
+      "data": {
+        "version": "v1.0",
+        "functionCallId": "unique-call-id-125"
+      }
+    },
+    {
+      "description": "CallFunctionMessage: Invalid args (nested object in a single value)",
+      "valid": false,
+      "data": {
+        "version": "v1.0",
+        "callFunction": {
+          "call": "required",
+          "args": {
+            "value": {
+              "nested": "object"
+            }
+          }
+        },
+        "functionCallId": "unique-call-id-127"
+      }
+    },
+    {
+      "description": "CallFunctionMessage: Invalid args (array of nested objects)",
+      "valid": false,
+      "data": {
+        "version": "v1.0",
+        "callFunction": {
+          "call": "required",
+          "args": {
+            "value": [
+              {
+                "nested": "object"
+              }
+            ]
+          }
+        },
+        "functionCallId": "unique-call-id-128"
+      }
+    },
+    {
+      "description": "CallFunctionMessage: Invalid returnType (not a scalar)",
+      "valid": false,
+      "data": {
+        "version": "v1.0",
+        "callFunction": {
+          "call": "required",
+          "args": {
+            "value": "bar"
+          },
+          "returnType": "object"
+        },
+        "functionCallId": "unique-call-id-129"
+      }
+    },
+    {
+      "description": "CallFunctionMessage: Invalid call to local-only function (required)",
+      "valid": false,
+      "data": {
+        "version": "v1.0",
+        "callFunction": {
+          "call": "required",
+          "args": {
+            "value": "test"
+          }
+        },
+        "functionCallId": "id-3"
+      }
+    }
+  ]
+}

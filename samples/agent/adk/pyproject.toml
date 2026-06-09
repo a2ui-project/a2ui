@@ -20,7 +20,7 @@ default = true
 members = ["custom-components-example", "orchestrator", "restaurant_finder", "rizzcharts/python", "mcp_app_proxy"]
 
 [tool.uv.sources]
-a2ui-agent-sdk = { path = "../../../agent_sdks/python", editable = true }
+a2ui-agent-sdk = { path = "../../../agent_sdks/python/a2ui_agent", editable = true }
 
 [tool.pyink]
 unstable = true

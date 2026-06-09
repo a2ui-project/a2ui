@@ -75,7 +75,7 @@ Each surface has a JSON object holding state:
     }
     ```
 
-=== "v0.9"
+=== "v0.9 and later"
 
     **Literal (fixed):**
     ```json
@@ -101,16 +101,28 @@ When `/user/name` changes from "Alice" to "Bob", the text **automatically update
 
 Components bound to data paths automatically update when the data changes:
 
-```json
-{
-  "id": "status",
-  "component": {
-    "Text": {
+=== "v0.8"
+
+    ```json
+    {
+      "id": "status",
+      "component": {
+        "Text": {
+          "text": {"path": "/order/status"}
+        }
+      }
+    }
+    ```
+
+=== "v0.9 and later"
+
+    ```json
+    {
+      "id": "status",
+      "component": "Text",
       "text": {"path": "/order/status"}
     }
-  }
-}
-```
+    ```
 
 - **Initial:** `/order/status` = "Processing..." → displays "Processing..."
 - **Update:** Send a data model update with `status: "Shipped"` → displays "Shipped"
@@ -121,21 +133,36 @@ No component updates needed—just data updates.
 
 Use templates to render arrays:
 
-```json
-{
-  "id": "product-list",
-  "component": {
-    "Column": {
-      "children": {
-        "template": {
-          "dataBinding": "/products",
-          "componentId": "product-card"
+=== "v0.8"
+
+    ```json
+    {
+      "id": "product-list",
+      "component": {
+        "Column": {
+          "children": {
+            "template": {
+              "dataBinding": "/products",
+              "componentId": "product-card"
+            }
+          }
         }
       }
     }
-  }
-}
-```
+    ```
+
+=== "v0.9 and later"
+
+    ```json
+    {
+      "id": "product-list",
+      "component": "Column",
+      "children": {
+        "path": "/products",
+        "componentId": "product-card"
+      }
+    }
+    ```
 
 **Data:**
 
@@ -154,19 +181,34 @@ Use templates to render arrays:
 
 Inside a template, paths are scoped to the array item:
 
-```json
-{
-  "id": "product-name",
-  "component": {
-    "Text": {
-      "text": {"path": "/name"}
-    }
-  }
-}
-```
+=== "v0.8"
 
-- For `/products/0`, `/name` resolves to `/products/0/name` → "Widget"
-- For `/products/1`, `/name` resolves to `/products/1/name` → "Gadget"
+    ```json
+    {
+      "id": "product-name",
+      "component": {
+        "Text": {
+          "text": {"path": "/name"}
+        }
+      }
+    }
+    ```
+
+    - For `/products/0`, `/name` resolves to `/products/0/name` → "Widget"
+    - For `/products/1`, `/name` resolves to `/products/1/name` → "Gadget"
+
+=== "v0.9 and later"
+
+    ```json
+    {
+      "id": "product-name",
+      "component": "Text",
+      "text": {"path": "name"}
+    }
+    ```
+
+    - For `/products/0`, `name` resolves to `/products/0/name` → "Widget"
+    - For `/products/1`, `name` resolves to `/products/1/name` → "Gadget"
 
 Adding/removing items automatically updates the rendered components.
 
@@ -174,21 +216,46 @@ Adding/removing items automatically updates the rendered components.
 
 Interactive components update the data model bidirectionally:
 
-| Component          | Example                                     | User Action      | Data Update                |
-| ------------------ | ------------------------------------------- | ---------------- | -------------------------- |
-| **TextField**      | `{"text": {"path": "/form/name"}}`          | Types "Alice"    | `/form/name` = `"Alice"`   |
-| **CheckBox**       | `{"value": {"path": "/form/agreed"}}`       | Checks box       | `/form/agreed` = `true`    |
-| **MultipleChoice** | `{"selections": {"path": "/form/country"}}` | Selects "Canada" | `/form/country` = `["ca"]` |
+=== "v0.8"
+
+    | Component          | Example                                     | User Action      | Data Update                |
+    | ------------------ | ------------------------------------------- | ---------------- | -------------------------- |
+    | **TextField**      | `{"text": {"path": "/form/name"}}`          | Types "Alice"    | `/form/name` = `"Alice"`   |
+    | **CheckBox**       | `{"value": {"path": "/form/agreed"}}`       | Checks box       | `/form/agreed` = `true`    |
+    | **MultipleChoice** | `{"selections": {"path": "/form/country"}}` | Selects "Canada" | `/form/country` = `["ca"]` |
+
+=== "v0.9 and later"
+
+    | Component          | Example                                     | User Action      | Data Update                |
+    | ------------------ | ------------------------------------------- | ---------------- | -------------------------- |
+    | **TextField**      | `{"value": {"path": "/form/name"}}`         | Types "Alice"    | `/form/name` = `"Alice"`   |
+    | **CheckBox**       | `{"value": {"path": "/form/agreed"}}`       | Checks box       | `/form/agreed` = `true`    |
+    | **ChoicePicker**   | `{"value": {"path": "/form/country"}}`      | Selects "Canada" | `/form/country` = `["ca"]` |
 
 ## Best Practices
 
 - **Use granular updates**: Update only changed paths.
+
+=== "v0.8"
 
     ```json
     {
       "dataModelUpdate": {
         "path": "/user",
         "contents": [{"key": "name", "valueString": "Alice"}]
+      }
+    }
+    ```
+
+=== "v0.9 and later"
+
+    ```json
+    {
+      "version": "v0.9.1",
+      "updateDataModel": {
+        "surfaceId": "user_profile",
+        "path": "/user/name",
+        "value": "Alice"
       }
     }
     ```
