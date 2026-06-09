@@ -91,16 +91,4 @@ def measured_generate() -> Solver:
         
     return solve
 
-@solver
-def inject_context() -> Solver:
-    """Solver that injects evaluation context into the user prompt."""
-    async def solve(state: TaskState, generate: Generate) -> TaskState:
-        context = state.metadata.get('context')
-        if context:
-            for msg in state.messages:
-                if msg.role == "user":
-                    msg.content = f"Context:\n{context}\n\n{msg.content}"
-                    break
-        return state
-        
-    return solve
+
