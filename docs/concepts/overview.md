@@ -39,9 +39,9 @@ How components connect to application state using JSON Pointer paths. Covers rea
 
     v0.9 separates surface creation from rendering — `createSurface` replaces both `beginRendering` and the implicit surface creation in `surfaceUpdate`. All messages include a `version` field.
 
-=== "v0.10 (Draft)"
+=== "v1.0 (Candidate)"
 
-    Version 0.10 uses the following message types:
+    Version 1.0 uses the following message types:
 
     - **`createSurface`**: Create a new surface and specify its catalog
     - **`updateComponents`**: Add or update UI components in a surface
@@ -49,7 +49,7 @@ How components connect to application state using JSON Pointer paths. Covers rea
     - **`deleteSurface`**: Remove a UI surface
     - **`actionResponse`**: Respond to client-initiated actions
 
-    v0.10 introduces the `actionResponse` message type, enabling robust client-to-server synchronous RPC capabilities.
+    v1.0 introduces the `actionResponse` message type, enabling robust client-to-server synchronous RPC capabilities.
 
 === "v0.8 (Legacy)"
 
