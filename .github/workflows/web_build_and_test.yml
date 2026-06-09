@@ -35,35 +35,46 @@ jobs:
     steps:
       - uses: actions/checkout@v6
 
+      - name: Enable Corepack
+        run: corepack enable
+
       - name: Set up Node.js
         uses: actions/setup-node@v6
         with:
           node-version: "22"
+          cache: "yarn"
 
-      - name: Install web_core dependencies
-        working-directory: ./renderers/web_core
-        run: npm i
+      - name: Install dependencies
+        run: yarn install --immutable
 
       - name: Build web_core
         working-directory: ./renderers/web_core
-        run: npm run build
+        run: yarn build
 
       - name: Lint web_core
         working-directory: ./renderers/web_core
-        run: npm run lint
+        run: yarn lint
 
       - name: Test web_core
         working-directory: ./renderers/web_core
-        run: npm run test
+        run: yarn test
+
   test-scripts:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
 
+      - name: Enable Corepack
+        run: corepack enable
+
       - name: Set up Node.js
         uses: actions/setup-node@v6
         with:
           node-version: "22"
+          cache: "yarn"
+
+      - name: Install dependencies
+        run: yarn install --immutable
 
       - name: Run publish script integration test
         run: node --test renderers/scripts/publish_npm.test.mjs

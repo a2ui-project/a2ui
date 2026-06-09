@@ -4,34 +4,35 @@
   "scripts": {
     "ng": "ng",
     "start": "ng serve",
-    "build": "ng build",
     "watch": "ng build --watch --configuration development",
-    "test": "ng test",
+    "test": "wireit",
     "serve:ssr:angular": "node dist/angular/server/server.mjs",
     "serve:ssr:restaurant": "node dist/restaurant/server/server.mjs",
     "serve:ssr:rizzcharts": "node dist/rizzcharts/server/server.mjs",
-    "build:renderer": "cd ../../../renderers && for dir in 'web_core' 'markdown/markdown-it' 'angular'; do (cd \"$dir\" && npm install && npm run build); done",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "clean": "wireit",
+    "build:renderer": "yarn workspace @a2ui/web_core build && yarn workspace @a2ui/markdown-it build && yarn workspace @a2ui/angular build",
     "serve:agent:restaurant": "cd ../../agent/adk/restaurant_finder && uv run .",
-    "demo:restaurant": "npm run build:renderer && concurrently -k -n \"AGENT,WEB\" -c \"magenta,blue\" \"npm run serve:agent:restaurant\" \"npm start -- restaurant\"",
-    "postinstall": "npm run build:renderer",
+    "demo:restaurant": "yarn build:renderer && concurrently -k -n \"AGENT,WEB\" -c \"magenta,blue\" \"yarn serve:agent:restaurant\" \"yarn start -- restaurant\"",
     "build:sandbox": "esbuild ../shared/mcp_apps_inner_iframe/sandbox.ts --bundle --outfile=projects/mcp_calculator/public/mcp_apps_inner_iframe/sandbox.js --format=esm --platform=browser --alias:@modelcontextprotocol/ext-apps/app-bridge=./node_modules/@modelcontextprotocol/ext-apps/dist/src/app-bridge.js && cp ../shared/mcp_apps_inner_iframe/sandbox.html projects/mcp_calculator/public/mcp_apps_inner_iframe/sandbox.html"
   },
   "private": true,
   "dependencies": {
     "@a2a-js/sdk": "^0.3.4",
-    "@a2ui/markdown-it": "file:../../../renderers/markdown/markdown-it",
-    "@a2ui/web_core": "file:../../../renderers/web_core",
+    "@a2ui/markdown-it": "workspace:*",
+    "@a2ui/web_core": "workspace:*",
     "@angular/cdk": "^20.2.10",
-    "@angular/common": "^21.2.0",
-    "@angular/compiler": "^21.2.0",
-    "@angular/core": "^21.2.0",
-    "@angular/forms": "^21.2.0",
+    "@angular/common": "^21.2.5",
+    "@angular/compiler": "^21.2.5",
+    "@angular/core": "^21.2.5",
+    "@angular/forms": "^21.2.5",
     "@angular/google-maps": "^20.2.11",
     "@angular/material": "^20.2.11",
-    "@angular/platform-browser": "^21.2.0",
-    "@angular/platform-server": "^21.2.0",
-    "@angular/router": "^21.2.3",
-    "@angular/ssr": "^21.2.0",
+    "@angular/platform-browser": "^21.2.5",
+    "@angular/platform-server": "^21.2.5",
+    "@angular/router": "^21.2.5",
+    "@angular/ssr": "^21.2.5",
     "@google/genai": "^1.22.0",
     "@modelcontextprotocol/ext-apps": "^1.2.0",
     "chart.js": "^4.5.1",
@@ -46,9 +47,9 @@
     "zone.js": "~0.15.0"
   },
   "devDependencies": {
-    "@angular/build": "^21.2.0",
-    "@angular/cli": "^21.2.2",
-    "@angular/compiler-cli": "^21.2.0",
+    "@angular/build": "^21.2.5",
+    "@angular/cli": "^21.2.5",
+    "@angular/compiler-cli": "^21.2.5",
     "@types/express": "^5.0.1",
     "@types/jasmine": "~5.1.0",
     "@types/markdown-it": "^14.1.2",
@@ -57,6 +58,8 @@
     "@vitest/browser": "^4.0.15",
     "concurrently": "^9.2.1",
     "cypress": "^15.6.0",
+    "eslint": "^9.37.0",
+    "gts": "^7.0.0",
     "jasmine-core": "~5.9.0",
     "jsdom": "^27.2.0",
     "karma": "^6.4.4",
@@ -71,11 +74,23 @@
     "tslib": "^2.8.1",
     "typescript": "5.9.3",
     "vite": "7.2.7",
-    "vitest": "^4.0.15"
+    "vitest": "^4.0.15",
+    "wireit": "^0.15.0-pre.2"
   },
-  "workspaces": [
-    "projects/*",
-    "../../../renderers/web_core",
-    "../../../renderers/markdown/markdown-it"
-  ]
+  "wireit": {
+    "test": {
+      "command": "ng test --watch=false --browsers=ChromeHeadless",
+      "dependencies": [
+        "../../../renderers/angular:build"
+      ],
+      "files": [
+        "src/**/*",
+        "projects/**/*",
+        "tsconfig.json"
+      ]
+    },
+    "clean": {
+      "command": "rm -rf dist .tsbuildinfo .wireit"
+    }
+  }
 }

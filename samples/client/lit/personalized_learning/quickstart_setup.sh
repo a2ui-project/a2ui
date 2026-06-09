@@ -106,16 +106,9 @@ fi
 if [ "$SKIP_NPM" = false ]; then
     echo -e "${YELLOW}[3/6]${NC} Installing Node.js dependencies..."
 
-    # Build A2UI core library first (lit depends on it)
-    (cd ../../renderers/web_core && npm install --registry https://registry.npmjs.org/ --silent 2>/dev/null && npm run build --silent 2>/dev/null)
-    echo "  A2UI core library built"
-
-    # Build A2UI renderer
-    (cd ../../renderers/lit && npm install --registry https://registry.npmjs.org/ --silent 2>/dev/null && npm run build --silent 2>/dev/null)
-    echo "  A2UI renderer built"
-
-    # Install demo dependencies
-    npm install --registry https://registry.npmjs.org/ --silent 2>/dev/null
+    # Install repository dependencies and link workspaces
+    (cd ../../../.. && yarn install --silent 2>/dev/null)
+    echo "  Workspace dependencies installed and linked"
     echo "  Demo dependencies installed"
 else
     echo -e "${YELLOW}[3/6]${NC} Skipping Node.js dependencies (--skip-npm)"
@@ -167,7 +160,7 @@ echo ""
 echo "Next steps:"
 echo "  1. Run the 'Deploy Agent' cell in the notebook"
 echo "  2. Copy the Resource ID and paste it in the configuration cell"
-echo "  3. Run 'npm run dev' to start the demo"
+echo "  3. Run 'yarn dev' to start the demo"
 echo ""
 
 # Output values for notebook to capture

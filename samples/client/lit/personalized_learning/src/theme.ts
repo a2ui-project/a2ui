@@ -19,7 +19,7 @@
  * Based on the shell sample's default-theme.ts but simplified.
  */
 
-import {v0_8} from '@a2ui/web-lib';
+import {v0_8} from '@a2ui/lit';
 
 // Minimal theme that provides all required component styles
 export const theme: v0_8.Types.Theme = {

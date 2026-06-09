@@ -6,17 +6,49 @@
   "type": "module",
   "scripts": {
     "generate-examples": "node scripts/generate-examples.mjs",
-    "dev": "npm run generate-examples && npm run build:deps && vite",
-    "build:deps": "for dir in '../../web_core' '../../markdown/markdown-it' '../../lit'; do npm install --prefix $dir && npm run build --prefix $dir; done && npm install",
-    "build": "npm run generate-examples && npm run build:deps && tsc && vite build",
-    "test": "npm run generate-examples && karma start karma.conf.cjs --single-run=false --auto-watch=true",
-    "test:debug": "npm run generate-examples && karma start karma.conf.cjs --single-run=false --auto-watch=true --browsers Chrome",
-    "test:ci": "npm run build:deps && npm run generate-examples && karma start karma.conf.cjs --single-run=true"
+    "dev": "yarn generate-examples && vite",
+    "build": "wireit",
+    "test": "wireit",
+    "test:watch": "yarn generate-examples && karma start karma.conf.cjs --single-run=false --auto-watch=true",
+    "test:debug": "yarn generate-examples && karma start karma.conf.cjs --single-run=false --auto-watch=true --browsers Chrome",
+    "test:ci": "wireit",
+    "lint": "gts lint",
+    "lint:fix": "gts fix",
+    "clean": "wireit"
+  },
+  "wireit": {
+    "build": {
+      "command": "yarn generate-examples && tsc && vite build",
+      "dependencies": [
+        "../../web_core:build",
+        "../../markdown/markdown-it:build",
+        "../:build"
+      ]
+    },
+    "test": {
+      "command": "yarn generate-examples && karma start karma.conf.cjs --single-run=true",
+      "dependencies": [
+        "../../web_core:build",
+        "../../markdown/markdown-it:build",
+        "../:build"
+      ]
+    },
+    "test:ci": {
+      "command": "yarn generate-examples && karma start karma.conf.cjs --single-run=true",
+      "dependencies": [
+        "../../web_core:build",
+        "../../markdown/markdown-it:build",
+        "../:build"
+      ]
+    },
+    "clean": {
+      "command": "rm -rf dist .tsbuildinfo .wireit"
+    }
   },
   "dependencies": {
-    "@a2ui/lit": "file:..",
-    "@a2ui/web_core": "file:../../web_core",
-    "@a2ui/markdown-it": "file:../../markdown/markdown-it",
+    "@a2ui/lit": "workspace:*",
+    "@a2ui/markdown-it": "workspace:*",
+    "@a2ui/web_core": "workspace:*",
     "@lit-labs/signals": "^0.1.3",
     "@lit/context": "^1.1.4",
     "lit": "^3.3.1"
@@ -24,6 +56,8 @@
   "devDependencies": {
     "@types/jasmine": "^5.1.5",
     "esbuild": "^0.25.0",
+    "eslint": "^9.37.0",
+    "gts": "^7.0.0",
     "jasmine-core": "^5.6.0",
     "karma": "^6.4.4",
     "karma-chrome-launcher": "^3.2.0",

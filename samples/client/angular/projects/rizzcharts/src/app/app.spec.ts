@@ -14,15 +14,37 @@
  * limitations under the License.
  */
 
-import {provideZonelessChangeDetection} from '@angular/core';
+import {provideZonelessChangeDetection, signal} from '@angular/core';
 import {TestBed} from '@angular/core/testing';
+import {ChatService} from '@a2a_chat_canvas/services/chat-service';
+import {A2aService} from '@rizzcharts/services/a2a_service';
+
 import {App} from './app';
 
 describe('App', () => {
+  let mockChatService: any;
+  let mockA2aService: any;
+
   beforeEach(async () => {
+    mockChatService = {
+      sendMessage: jasmine.createSpy('sendMessage'),
+      history: signal([]),
+      isA2aStreamOpen: signal(false),
+    };
+
+    mockA2aService = {
+      getAgentCard: jasmine
+        .createSpy('getAgentCard')
+        .and.returnValue(Promise.resolve({name: 'Mock Agent'})),
+    };
+
     await TestBed.configureTestingModule({
       imports: [App],
-      providers: [provideZonelessChangeDetection()],
+      providers: [
+        provideZonelessChangeDetection(),
+        {provide: ChatService, useValue: mockChatService},
+        {provide: A2aService, useValue: mockA2aService},
+      ],
     }).compileComponents();
   });
 
@@ -32,10 +54,12 @@ describe('App', () => {
     expect(app).toBeTruthy();
   });
 
-  it('should render title', () => {
+  it('should render agent name', async () => {
     const fixture = TestBed.createComponent(App);
     fixture.detectChanges();
+    await fixture.whenStable();
+    fixture.detectChanges();
     const compiled = fixture.nativeElement as HTMLElement;
-    expect(compiled.querySelector('h1')?.textContent).toContain('Hello, chat_canvas');
+    expect(compiled.querySelector('.agent-name')?.textContent).toContain('Mock Agent');
   });
 });

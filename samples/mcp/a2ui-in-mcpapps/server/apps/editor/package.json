@@ -1,9 +1,9 @@
 {
-  "name": "basic-mcp-app-angular",
+  "name": "basic-mcp-app-angular-editor",
   "version": "1.0.0",
   "dependencies": {
-    "@a2ui/angular": "file:../../../../../../renderers/angular/dist",
-    "@a2ui/markdown-it": "file:../../../../../../renderers/markdown/markdown-it",
+    "@a2ui/angular": "workspace:*",
+    "@a2ui/markdown-it": "workspace:*",
     "@angular/common": "^21.2.0",
     "@angular/compiler": "^21.2.0",
     "@angular/core": "^21.2.0",
@@ -23,6 +23,6 @@
   "scripts": {
     "build": "ng build --output-path=../dist/raw --configuration production",
     "inline": "node ../inline.js --input ../dist/raw --output ../public/editor.html",
-    "build:all": "npm run build && npm run inline"
+    "build:all": "yarn run build && yarn run inline"
   }
 }

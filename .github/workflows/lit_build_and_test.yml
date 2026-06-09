@@ -27,9 +27,6 @@ on:
       - "renderers/web_core/**"
       - ".github/workflows/lit_build_and_test.yml"
 
-permissions:
-  contents: read
-
 jobs:
   build-and-test:
     runs-on: ubuntu-latest
@@ -38,31 +35,21 @@ jobs:
         task: [unit, integration]
     steps:
       - uses: actions/checkout@v6
+      - name: Enable Corepack
+        run: corepack enable
       - name: Set up Node.js
         uses: actions/setup-node@v6
         with:
           node-version: "22"
+          cache: "yarn"
 
-      # Unit tests need to build the Lit renderer
-      - name: Build web_core
-        if: matrix.task == 'unit'
-        working-directory: ./renderers/web_core
-        run: npm i && npm run build
-      - name: Build Lit renderer
-        if: matrix.task == 'unit'
-        working-directory: ./renderers/lit
-        run: npm i && npm run build
-      - name: Run unit tests
-        if: matrix.task == 'unit'
-        working-directory: ./renderers/lit
-        run: npm run test:unit
+      - name: Install dependencies
+        run: yarn install --immutable
 
-      # Integration tests take care of build:deps in the app under test
-      - name: Install Lit deps
+      - name: Run Unit Tests
+        if: matrix.task == 'unit'
+        run: yarn workspace @a2ui/lit test:unit
+
+      - name: Run Integration Tests
         if: matrix.task == 'integration'
-        working-directory: ./renderers/lit
-        run: npm i
-      - name: Run integration tests
-        if: matrix.task == 'integration'
-        working-directory: ./renderers/lit
-        run: npm run test:integration
+        run: yarn workspace @a2ui/lit test:integration

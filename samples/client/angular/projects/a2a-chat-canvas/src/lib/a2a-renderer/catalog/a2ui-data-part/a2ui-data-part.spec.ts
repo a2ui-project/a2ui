@@ -15,20 +15,41 @@
  */
 
 import {ComponentFixture, TestBed} from '@angular/core/testing';
+import {signal} from '@angular/core';
+import {ChatService} from '@a2a_chat_canvas/services/chat-service';
 
 import {A2uiDataPart} from './a2ui-data-part';
 
 describe('A2uiDataPart', () => {
   let component: A2uiDataPart;
   let fixture: ComponentFixture<A2uiDataPart>;
+  let mockChatService: any;
 
   beforeEach(async () => {
+    mockChatService = {
+      a2uiSurfaces: signal(new Map()),
+    };
+
     await TestBed.configureTestingModule({
       imports: [A2uiDataPart],
+      providers: [{provide: ChatService, useValue: mockChatService}],
     }).compileComponents();
 
     fixture = TestBed.createComponent(A2uiDataPart);
     component = fixture.componentInstance;
+
+    fixture.componentRef.setInput('uiMessageContent', {
+      type: 'ui_message_content',
+      id: 'test-id',
+      data: {
+        kind: 'a2a_data',
+        data: {
+          beginRendering: {surfaceId: 'test-surface'},
+        },
+      },
+      variant: 'default_text_part',
+    });
+
     fixture.detectChanges();
   });
 

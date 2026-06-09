@@ -1,14 +1,14 @@
 {
-  "name": "@a2ui/angular",
-  "version": "0.9.0-alpha.0",
+  "name": "@a2ui/angular-sample-lib",
+  "version": "0.8.3",
   "dependencies": {
+    "@a2ui/web_core": "workspace:*",
     "markdown-it": "^14.1.0",
-    "tslib": "^2.3.0",
-    "@a2ui/web_core": "file:../../../../../renderers/web_core"
+    "tslib": "^2.3.0"
   },
   "peerDependencies": {
-    "@angular/common": "^21.2.0",
-    "@angular/core": "^21.2.0"
+    "@angular/common": "^21.2.5",
+    "@angular/core": "^21.2.5"
   },
   "sideEffects": false
 }

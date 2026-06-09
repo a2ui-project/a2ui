@@ -165,8 +165,11 @@ To run the samples, ensure you have the following installed:
 
 - **Python 3.10+** — Required for the agent and MCP server backends
 - **[uv](https://docs.astral.sh/uv/)** — Fast Python package manager (used to run all Python samples)
-- **Node.js 18+** and **npm** — Required for building and running the client apps
+- **Node.js 18+** and **Yarn** — Required for building and running the sample client apps within this monorepo workspace.
 - **A `GEMINI_API_KEY`** — Required by all ADK-based agents. Get one from [Google AI Studio](https://aistudio.google.com/apikey)
+
+> [!NOTE]
+> **Package Manager Usage:** Running the built-in sample applications within the A2UI repository requires Yarn as configured by Corepack workspaces. For your own regular usage and standalone projects outside this repository, use the package manager of your choice (e.g. npm, pnpm).
 
 > ⚠️ **Environment variable setup**: You can either export `GEMINI_API_KEY` in your shell or create a `.env` file in each agent directory. The agents use `dotenv` to load `.env` files automatically.
 >
@@ -205,8 +208,8 @@ In a new terminal, navigate to the client directory and start the dev server (re
 
 ```bash
 cd samples/client/lit/mcp-apps-in-a2ui-sample
-npm install
-npm run dev
+yarn install
+yarn dev
 ```
 
 The client starts at `http://localhost:5173/`.
@@ -252,15 +255,13 @@ In a **new terminal**:
 cd samples/client/angular/
 
 # Build the renderers (required — Angular depends on local renderer packages)
-npm run build:renderer
+yarn build:renderer
 
-npm install --include=dev
-npm run build:sandbox
-npm start -- mcp_calculator
+yarn install
+yarn build:sandbox
+yarn start -- mcp_calculator
 ```
 
-> ⚠️ **`--include=dev` is required**: The Angular CLI (`@angular/cli`) is a dev dependency. Without `--include=dev`, `ng serve` won't be available.
->
 > ⚠️ **`build:renderer` and `build:sandbox` are both required**: `build:renderer` compiles the A2UI renderer packages that the Angular app depends on. `build:sandbox` bundles the sandbox proxy into the Angular project's public assets. Without either, the app won't work.
 
 The client starts at `http://localhost:4200/`.
@@ -301,9 +302,9 @@ http://localhost:4200/?disable_security_self_test=true
 | ------------------------------------------------- | ------------------------------------------------------------------------------------------------ |
 | `GEMINI_API_KEY environment variable not set`     | Export the key or add a `.env` file in the agent directory                                       |
 | Python version error on `restaurant_finder` agent | Install Python 3.13+ (required by that sample's `pyproject.toml`)                                |
-| `npm run build:renderer` fails                    | Make sure you ran `npm install` first in `samples/client/lit/`                                   |
-| Angular client shows blank page                   | Ensure you ran `npm run build:sandbox` before `npm start`                                        |
+| `yarn build:renderer` fails                       | Make sure you ran `yarn install` first in `samples/client/lit/`                                  |
+| Angular client shows blank page                   | Ensure you ran `yarn build:sandbox` before `yarn start`                                          |
 | MCP app iframe doesn't load                       | Check that both the MCP server (port 8000) and proxy agent (port 10006) are running              |
-| `ng serve` not found                              | Run `npm install --include=dev` to install dev dependencies including `@angular/cli`             |
+| `ng serve` not found                              | Run `yarn install` to install dev dependencies including `@angular/cli`                          |
 | "URL with hostname not allowed"                   | Angular 21 restricts allowed hosts. Use `localhost` (the default) — do not pass `--host 0.0.0.0` |
 | Security self-test fails in dev                   | Add `?disable_security_self_test=true` to the URL                                                |

@@ -24,7 +24,7 @@
 import {html, css, nothing, LitElement} from 'lit';
 import {customElement, property, state} from 'lit/decorators.js';
 import {classMap} from 'lit/directives/class-map.js';
-import {v0_8} from '@a2ui/web-lib';
+import {v0_8} from '@a2ui/lit';
 import type {StringValue} from './types.js';
 
 type A2UIModelProcessorInstance = InstanceType<typeof v0_8.Data.A2uiMessageProcessor>;

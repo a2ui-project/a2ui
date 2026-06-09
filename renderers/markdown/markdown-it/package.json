@@ -34,33 +34,41 @@
   ],
   "scripts": {
     "build": "wireit",
+    "lint": "gts lint",
+    "lint:fix": "gts fix",
     "format": "prettier --ignore-path ../.gitignore --write .",
     "format:check": "prettier --ignore-path ../.gitignore --check .",
-    "prepublishOnly": "node -e \"if(!process.cwd().endsWith('dist')) { console.error('Error: This package must be published from the dist/ directory. Run `npm run build` then `npm publish dist/`'); process.exit(1); }\"",
-    "publish:package": "npm run build && node ../../scripts/prepare-publish.mjs && npm publish dist/ --access public",
-    "test": "wireit"
+    "prepublishOnly": "node -e \"if(!process.cwd().endsWith('dist')) { console.error('Error: This package must be published from the dist/ directory. Run `yarn build` then `cd dist && yarn npm publish`'); process.exit(1); }\"",
+    "publish:package": "yarn build && node ../../scripts/prepare-publish.mjs && cd dist && touch yarn.lock && yarn install && yarn npm publish --access public",
+    "test": "wireit",
+    "clean": "wireit"
   },
   "dependencies": {
     "dompurify": "3.3.1",
     "markdown-it": "^14.1.0"
   },
   "devDependencies": {
-    "@a2ui/web_core": "file:../../web_core",
+    "@a2ui/web_core": "workspace:*",
     "@types/dompurify": "^3.0.5",
     "@types/jsdom": "^28.0.0",
     "@types/markdown-it": "^14.1.2",
     "@types/node": "^24.10.1",
+    "eslint": "^9.37.0",
+    "gts": "^7.0.0",
     "jsdom": "^28.1.0",
     "prettier": "^3.4.2",
-    "typescript": "^5.8.3",
+    "typescript": "5.9.3",
     "wireit": "^0.15.0-pre.2"
   },
   "peerDependencies": {
-    "@a2ui/web_core": "file:../../web_core"
+    "@a2ui/web_core": "workspace:*"
   },
   "wireit": {
     "build": {
       "command": "tsc -b --pretty",
+      "dependencies": [
+        "../../../renderers/web_core:build"
+      ],
       "files": [
         "src/**/*.ts",
         "src/**/*.json",
@@ -77,6 +85,9 @@
       "dependencies": [
         "build"
       ]
+    },
+    "clean": {
+      "command": "rm -rf dist .tsbuildinfo .wireit"
     }
   }
 }
