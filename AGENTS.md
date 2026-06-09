@@ -9,8 +9,8 @@ This document is the authoritative guide for AI agents working within the A2UI r
 > **INSTRUCTION FOR ALL AGENTS (Gemini CLI, Claude, OpenAI, Antigravity, etc.):**
 > Before performing any specific tasks, load and read the respective skill recipe file in full:
 >
-> - **For maintaining documentation or agent files:** Read [.gemini/skills/a2ui-agent-maintenance/SKILL.md](.gemini/skills/a2ui-agent-maintenance/SKILL.md)
-> - **For designing SDKs, adapters, or libraries:** Read [.gemini/skills/a2ui-sdk-design/SKILL.md](.gemini/skills/a2ui-sdk-design/SKILL.md)
+- **For maintaining documentation or agent files:** Read [.agents/skills/a2ui-agent-maintenance/SKILL.md](.agents/skills/a2ui-agent-maintenance/SKILL.md)
+- **For designing SDKs, adapters, or libraries:** Read [.agents/skills/a2ui-sdk-design/SKILL.md](.agents/skills/a2ui-sdk-design/SKILL.md)
 
 ---
 
@@ -34,7 +34,7 @@ The repository supports multiple versions of the A2UI protocol:
 - **v0.9**: Stable specification; implemented in SDKs; very minor differences from v0.9.1.
 - **v0.9.1**: **Latest published and active protocol version** implemented by our multi-language SDKs, renderers, and sample clients.
 - **v0.10**: Active **draft status** under development.
-- **Authority Rule:** Default to version **v0.9.1** as the primary authority when working on SDKs or adapters, unless the user specifies otherwise or a different version is requested. This softens the authority constraint so that you default to v0.9.1 automatically when working on SDKs or adapters unless the request specifies otherwise.
+- **Authority Rule:** Default to version **v0.9.1** as the primary authority when working on SDKs or adapters, unless the user specifies otherwise or a different version is requested.
 
 ---
 

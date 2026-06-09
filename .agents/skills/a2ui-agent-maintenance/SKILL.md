@@ -5,7 +5,7 @@ description: Maintenance and synchronization guidelines for A2UI agent instructi
 
 # A2UI Agent Files & Skills Maintenance Skill
 
-Guidelines for keeping agent instruction files (`.gemini/AGENTS.md`) and specialized skills (`.gemini/skills/`) synchronized with codebase developments.
+Guidelines for keeping agent instruction files (`AGENTS.md`) and specialized skills (`.agents/skills/`) synchronized with codebase developments.
 
 ## Core Principles
 
@@ -18,6 +18,6 @@ Guidelines for keeping agent instruction files (`.gemini/AGENTS.md`) and special
 
 1. **Audit the Repository:** Invoke a research helper or subagent to extract codebase, schema, or directory list modifications.
 2. **Analyze Scope:** Determine if modifications alter specifications, major SDK features, or core directory structures.
-3. **Update AGENTS.md:** Surgically edit `.gemini/AGENTS.md`. Maintain a factual, technical, and concise tone.
-4. **Update Skills:** Refactor relevant skill definitions under `.gemini/skills/` without introducing duplicate references.
-5. **Suggest Changes:** Never automatically commit or push updates. Present your recommended documentation updates as a suggestion in your response, explaining _why_ the update is needed.
+3. **Update AGENTS.md:** Surgically edit `AGENTS.md`. Maintain a factual, technical, and concise tone.
+4. **Update Skills:** Refactor relevant skill definitions under `.agents/skills/` without introducing duplicate references.
+5. **Suggest Changes:** Never automatically commit or push updates. Present your recommended documentation updates as a suggestion in your response, explaining *why* the update is needed.
