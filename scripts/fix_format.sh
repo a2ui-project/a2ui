@@ -26,9 +26,9 @@ cd "$REPO_ROOT"
 
 echo "Running Prettier..."
 if [ "$CHECK_ONLY" = true ]; then
-  npx -y prettier --config .prettierrc --check .
+  corepack yarn dlx prettier --config .prettierrc --check .
 else
-  npx -y prettier --config .prettierrc --write .
+  corepack yarn dlx prettier --config .prettierrc --write .
 fi
 
 echo "Running Pyink for Python Agent SDK..."
