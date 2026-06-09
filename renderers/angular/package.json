@@ -61,7 +61,7 @@
     "@types/jasmine": "~5.1.0",
     "@types/node": "^20.17.19",
     "@types/uuid": "^10.0.0",
-    "@vitest/browser": "^4.0.15",
+    "@vitest/browser": "^4.1.6",
     "cypress": "^15.6.0",
     "eslint": "^9.37.0",
     "google-artifactregistry-auth": "^3.5.0",

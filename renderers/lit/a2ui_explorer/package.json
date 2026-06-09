@@ -55,7 +55,7 @@
   },
   "devDependencies": {
     "@types/jasmine": "^5.1.5",
-    "esbuild": "^0.25.0",
+    "esbuild": "^0.28.0",
     "eslint": "^9.37.0",
     "gts": "^7.0.0",
     "jasmine-core": "^5.6.0",
@@ -64,6 +64,6 @@
     "karma-esbuild": "^2.3.0",
     "karma-jasmine": "^5.1.0",
     "typescript": "^5.8.3",
-    "vite": "^7.1.11"
+    "vite": "^6.4.2"
   }
 }
