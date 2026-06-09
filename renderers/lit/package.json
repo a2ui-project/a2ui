@@ -52,14 +52,25 @@
     "build": "wireit",
     "build:tsc": "wireit",
     "test": "wireit",
-    "demo": "cd a2ui_explorer && npm run dev"
+    "test:unit": "wireit",
+    "test:integration": "wireit",
+    "demo": "npm run dev --prefix a2ui_explorer"
   },
   "wireit": {
     "test": {
+      "dependencies": [
+        "test:unit",
+        "test:integration"
+      ]
+    },
+    "test:unit": {
       "command": "node --test --enable-source-maps --test-reporter spec dist/src/0.8/*.test.js dist/src/v0_9/tests/*.test.js dist/src/v0_9/tests/**/*.test.js",
       "dependencies": [
         "build"
       ]
+    },
+    "test:integration": {
+      "command": "npm run test:ci --prefix a2ui_explorer"
     },
     "build": {
       "dependencies": [

@@ -56,12 +56,16 @@ export class A2uiLitModal extends BasicCatalogA2uiLitElement<typeof ModalApi> {
     if (!props) return nothing;
 
     return html`
-      <div @click=${() => this.dialog?.showModal()} style="display: contents;">
+      <div
+        @click=${() => this.dialog?.showModal()}
+        class="a2ui-modal-trigger"
+        style="display: contents;"
+      >
         ${props.trigger ? html`${this.renderNode(props.trigger)}` : nothing}
       </div>
-      <dialog class="a2ui-modal">
+      <dialog class="a2ui-modal a2ui-modal-overlay">
         <form method="dialog" style="text-align: right;">
-          <button>×</button>
+          <button class="a2ui-modal-close">×</button>
         </form>
         ${props.content ? html`${this.renderNode(props.content)}` : nothing}
       </dialog>

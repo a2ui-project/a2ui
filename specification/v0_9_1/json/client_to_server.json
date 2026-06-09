@@ -6,7 +6,7 @@
   "maxProperties": 2,
   "properties": {
     "version": {
-      "const": "v0.9"
+      "enum": ["v0.9", "v0.9.1"]
     },
     "action": {
       "type": "object",

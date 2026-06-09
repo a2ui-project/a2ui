@@ -6,12 +6,12 @@ This roadmap outlines the current state and future plans for the A2UI project. T
 
 ### Protocol
 
-| Version   | Status     | Notes                                   |
-| --------- | ---------- | --------------------------------------- |
-| **v0.8**  | 🆗 Prior   | Initial public release, minimal support |
-| **v0.9**  | ✅ Current | Feature complete, supported             |
-| **v0.10** | 🚧 Draft   | Minimal changes to spec, new features   |
-| **v1.0**  | 🚧 Draft   | Targeting stable and complete release   |
+| Version    | Status       | Notes                                   |
+| ---------- | ------------ | --------------------------------------- |
+| **v0.8**   | 🆗 Prior     | Initial public release, minimal support |
+| **v0.9**   | 🆗 Prior     | Feature complete, legacy support        |
+| **v0.9.1** | 🆗 Current   | stable release                          |
+| **v1.0**   | 📋 Candidate | release candidate                       |
 
 ### Renderers
 
@@ -81,7 +81,7 @@ Many research projects across multiple Google teams, including integration into 
 
 ## Upcoming Milestones
 
-### Q3 2026 v0.9 & v0.10
+### Q3 2026 v0.9 & v1.0
 
 **Jetpack Compose Renderer (Android):**
 

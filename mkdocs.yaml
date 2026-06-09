@@ -66,12 +66,22 @@ nav:
       - Renderers (Clients): reference/renderers.md
       - Agents (Server-side): reference/agents.md
   - Specifications:
-      - v0.8 (Stable):
-          - A2UI Protocol: specification/v0.8-a2ui.md
-          - A2A Extension: specification/v0.8-a2a-extension.md
-      - v0.9 (Draft):
+      - v1.0 (Candidate):
+          - A2UI Protocol: specification/v1.0-a2ui.md
+          - A2A Extension: specification/v1.0-a2ui-extension-specification.md
+          - Evolution Guide: specification/v1.0-evolution-guide.md
+          - Basic Catalog Guide: specification/v1.0-basic-catalog-implementation-guide.md
+      - v0.9.1 (Current):
+          - A2UI Protocol: specification/v0.9.1-a2ui.md
+          - A2A Extension: specification/v0.9.1-a2ui-extension-specification.md
+          - Evolution Guide: specification/v0.9.1-evolution-guide.md
+          - Basic Catalog Guide: specification/v0.9.1-basic-catalog-implementation-guide.md
+      - v0.9 (Previous Stable):
           - A2UI Protocol: specification/v0.9-a2ui.md
           - Evolution Guide: specification/v0.9-evolution-guide.md
+      - v0.8 (Legacy):
+          - A2UI Protocol: specification/v0.8-a2ui.md
+          - A2A Extension: specification/v0.8-a2a-extension.md
   - Ecosystem:
       - A2UI in the World: ecosystem/a2ui-in-the-world.md
       - Community Renderers: ecosystem/renderers.md
@@ -80,6 +90,7 @@ nav:
 
 exclude_docs: |
   scripts/**
+  specification/v*/**/*.md
 
 # Repository
 repo_name: a2ui-project/a2ui

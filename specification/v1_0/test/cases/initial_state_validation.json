@@ -1,0 +1,132 @@
+{
+  "schema": "server_to_client.json",
+  "tests": [
+    {
+      "description": "Valid createSurface with both components list and dataModel update",
+      "valid": true,
+      "data": {
+        "version": "v1.0",
+        "createSurface": {
+          "surfaceId": "test_surface",
+          "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
+          "components": [
+            {
+              "id": "root",
+              "component": "Column",
+              "children": ["welcome_text"]
+            },
+            {
+              "id": "welcome_text",
+              "component": "Text",
+              "text": "Welcome to the application!"
+            }
+          ],
+          "dataModel": {
+            "user": {
+              "name": "John Doe"
+            }
+          }
+        }
+      }
+    },
+    {
+      "description": "Valid createSurface with only components list",
+      "valid": true,
+      "data": {
+        "version": "v1.0",
+        "createSurface": {
+          "surfaceId": "test_surface",
+          "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
+          "components": [
+            {
+              "id": "root",
+              "component": "Text",
+              "text": "Minimal components configuration"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "description": "Valid createSurface with only dataModel update",
+      "valid": true,
+      "data": {
+        "version": "v1.0",
+        "createSurface": {
+          "surfaceId": "test_surface",
+          "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
+          "dataModel": {
+            "themePreference": "dark"
+          }
+        }
+      }
+    },
+    {
+      "description": "Invalid: createSurface contains additional unexpected properties",
+      "valid": false,
+      "data": {
+        "version": "v1.0",
+        "createSurface": {
+          "surfaceId": "test_surface",
+          "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
+          "components": [
+            {
+              "id": "root",
+              "component": "Text",
+              "text": "Invalid extra prop"
+            }
+          ],
+          "extraProp": "should_not_be_here"
+        }
+      }
+    },
+    {
+      "description": "Invalid: components is a string instead of an array",
+      "valid": false,
+      "data": {
+        "version": "v1.0",
+        "createSurface": {
+          "surfaceId": "test_surface",
+          "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
+          "components": "not-an-array"
+        }
+      }
+    },
+    {
+      "description": "Invalid: components contains empty array",
+      "valid": false,
+      "data": {
+        "version": "v1.0",
+        "createSurface": {
+          "surfaceId": "test_surface",
+          "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
+          "components": []
+        }
+      }
+    },
+    {
+      "description": "Invalid: components array contains a null element",
+      "valid": false,
+      "data": {
+        "version": "v1.0",
+        "createSurface": {
+          "surfaceId": "test_surface",
+          "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
+          "components": [null]
+        }
+      }
+    },
+    {
+      "description": "Invalid: dataModel is a string instead of an object",
+      "valid": false,
+      "data": {
+        "version": "v1.0",
+        "createSurface": {
+          "surfaceId": "test_surface",
+          "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
+          "dataModel": "not-an-object"
+        }
+      }
+    }
+  ]
+}

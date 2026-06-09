@@ -372,12 +372,13 @@ Add or update components within a surface.
 
 ### Errors
 
-| Error                  | Cause                                  | Solution                                                                                                               |
-| ---------------------- | -------------------------------------- | ---------------------------------------------------------------------------------------------------------------------- |
-| Surface not found      | `surfaceId` does not exist             | Ensure a unique `surfaceId` is used consistently for a given surface. Surfaces are implicitly created on first update. |
-| Invalid component type | Unknown component type                 | Check component type exists in the negotiated catalog.                                                                 |
-| Invalid property       | Property doesn't exist for this type   | Verify against catalog schema.                                                                                         |
-| Circular reference     | Component references itself as a child | Fix component hierarchy.                                                                                               |
+| Error                  | Cause                                  | Solution                                                                                                                                                                                      |
+| ---------------------- | -------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Surface already exists | `surfaceId` is already in use          | Ensure `surfaceId` is globally unique for the renderer's lifetime. If using an orchestrator with subagents, the orchestrator is empowered to manage surface IDs as needed to avoid conflicts. |
+| Surface not found      | `surfaceId` does not exist             | Ensure `surfaceId` matches the created surface. In v0.8, surfaces are implicit, but v0.9+ requires `createSurface`.                                                                           |
+| Invalid component type | Unknown component type                 | Check component type exists in the negotiated catalog.                                                                                                                                        |
+| Invalid property       | Property doesn't exist for this type   | Verify against catalog schema.                                                                                                                                                                |
+| Circular reference     | Component references itself as a child | Fix component hierarchy.                                                                                                                                                                      |
 
 ---
 

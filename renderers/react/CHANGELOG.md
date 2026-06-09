@@ -1,5 +1,7 @@
 ## Unreleased
 
+- (v0_9) Tighten resolved child list types in the basic catalog layout components.
+
 ## 0.10.0
 
 - **BREAKING CHANGE**: (v0_9) Rename Icon `path` property to `svgPath` and update component to correctly render SVG elements.

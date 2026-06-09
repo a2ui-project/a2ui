@@ -1,4 +1,3 @@
-/// <reference types="vite/client" />
 /*
  * Copyright 2025 Google LLC
  *
@@ -17,6 +16,7 @@
 
 import {basicCatalog} from '@a2ui/lit/v0_9';
 import {A2uiMessage, CreateSurfaceMessage} from '@a2ui/web_core/v0_9';
+import {ExampleData, ExampleModule, exampleModules} from './generated/examples-list';
 
 /**
  * Represents a demo item loaded from an example JSON file.
@@ -45,24 +45,23 @@ export function getDemoItems(): DemoItem[] {
 
   const sortedEntries = getSortedExampleEntries();
 
-  for (const [path, data] of sortedEntries) {
+  for (const [filename, data] of sortedEntries) {
     try {
-      const filename = path.substring(path.lastIndexOf('/') + 1);
       const jsonData = data.default;
 
-      const [messages, description] = extractMessagesAndDescription(jsonData, filename, path);
+      const [messages, description] = extractMessagesAndDescription(jsonData, filename);
 
       const surfaceId = ensureCreateSurfaceMessage(filename, messages);
 
       items.push({
         id: surfaceId,
         title: filenameToTitle(filename),
-        filename: filename,
-        description: description,
-        messages: messages,
+        filename,
+        description,
+        messages,
       });
     } catch (err) {
-      console.error(`Error loading ${path}:`, err);
+      console.error(`Error loading ${filename}:`, err);
     }
   }
 
@@ -106,26 +105,6 @@ function ensureCreateSurfaceMessage(filename: string, messages: A2uiMessage[]): 
 }
 
 /**
- * Represents the expected structure of the example JSON data.
- * It can be a direct array of messages or an object containing messages and metadata.
- */
-interface ExampleData {
-  messages?: A2uiMessage[];
-  description?: string;
-}
-
-/**
- * Represents the module structure returned by Vite when importing a JSON file
- * via import.meta.glob.
- *
- * The `default` property contains the parsed content of the file (in this case,
- * our example data).
- */
-interface ExampleModule {
-  default: ExampleData | A2uiMessage[];
-}
-
-/**
  * Dynamically imports all example JSON files from the specification folder
  * and returns them as an array of entries sorted by their file path.
  *
@@ -133,14 +112,6 @@ interface ExampleModule {
  * second is the ExampleModule.
  */
 function getSortedExampleEntries(): [string, ExampleModule][] {
-  // NOTE: This glob pattern must be a string literal. We cannot use variables or
-  // pass it as a parameter because Vite needs to statically analyze it at build
-  // time.
-  const exampleModules = import.meta.glob<ExampleModule>(
-    '../../../../specification/v0_9/catalogs/basic/examples/*.json',
-    {eager: true},
-  );
-
   return Object.entries(exampleModules).sort((a, b) => a[0].localeCompare(b[0]));
 }
 
@@ -152,14 +123,12 @@ function getSortedExampleEntries(): [string, ExampleModule][] {
  * Logs warnings for unexpected formats or empty messages.
  *
  * @param jsonData The raw JSON data loaded from the file.
- * @param filename The name of the file (used for default description).
- * @param path The full path of the file (used for logging).
+ * @param filename The name of the file (used for default description and logging).
  * @returns A tuple containing the array of messages and the description string.
  */
 function extractMessagesAndDescription(
   jsonData: ExampleData | A2uiMessage[],
   filename: string,
-  path: string,
 ): [A2uiMessage[], string] {
   let messages: A2uiMessage[] = [];
   let description = `Source: ${filename}`;
@@ -172,25 +141,26 @@ function extractMessagesAndDescription(
   }
 
   if (messages.length === 0) {
-    console.warn(`No A2UI messages found in ${path}`, jsonData);
+    console.warn(`No A2UI messages found in ${filename}`, jsonData);
   }
 
   return [messages, description];
 }
 
 /**
- * Converts a filename (e.g., "basic_components.json") to a human-readable title
- * (e.g., "Basic Components").
+ * Converts a filename (e.g., "02_email-compose.json") to a human-readable title
+ * (e.g., "Email Compose").
  *
- * Replaces underscores with spaces and capitalizes each word.
+ * Removes leading numbering prefixes, replaces hyphens and underscores with spaces,
+ * and capitalizes each word.
  *
  * @param filename The filename to convert.
  * @returns The formatted title.
  */
 function filenameToTitle(filename: string): string {
   return filename
-    .split('_')
-    .map(word => word.charAt(0).toUpperCase() + word.slice(1))
-    .join(' ')
-    .replace('.json', '');
+    .replace('.json', '')
+    .replace(/^[0-9]+_/, '')
+    .replace(/[-_]/g, ' ')
+    .replace(/\b\w/g, l => l.toUpperCase());
 }

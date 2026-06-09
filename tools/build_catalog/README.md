@@ -50,7 +50,7 @@ uv run tools/build_catalog/assemble_catalog.py [INPUTS ...] --output-name <OUTPU
   omitted.
 - `--catalog-id`: Custom `catalogId` for the output. Defaults to `urn:a2ui:catalog:<base_name>`.
 - `--version`: The A2UI specification version to use for official catalog
-  fallbacks. Choices are `0.8`, `0.9` or `0.10`. Defaults to `0.9`.
+  fallbacks. Choices are `0.8`, `0.9` or `1.0`. Defaults to `0.9`.
 - `--extend-basic-catalog`: If passed, automatically includes the entirety of
   `basic_catalog.json` in the root output regardless of whether the input
   catalogs explicitly reference it.
@@ -65,10 +65,10 @@ uv run tools/build_catalog/assemble_catalog.py [INPUTS ...] --output-name <OUTPU
 uv run tools/build_catalog/assemble_catalog.py component1.json component2.json --output-name merged_catalog
 ```
 
-**Combine a local catalog with an external URL, enforcing v0.10:**
+**Combine a local catalog with an external URL, enforcing v1.0:**
 
 ```bash
-uv run tools/build_catalog/assemble_catalog.py local_catalog.json https://example.com/remote_catalog.json --output-name hybrid_catalog --version 0.10
+uv run tools/build_catalog/assemble_catalog.py local_catalog.json https://example.com/remote_catalog.json --output-name hybrid_catalog --version 1.0
 ```
 
 **Build a catalog and explicitly inject all `basic_catalog.json` properties:**
