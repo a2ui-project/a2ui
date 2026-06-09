@@ -40,7 +40,7 @@ A2UI: JSON messages describing UI that:
 
 ### Example
 
-=== "v0.9 (Stable)"
+=== "v0.8 (Legacy)"
 
     ```jsonl
     {
@@ -106,18 +106,18 @@ A2UI: JSON messages describing UI that:
     }
     ```
 
-=== "v0.9 (Current)"
+=== "v0.9 (Stable)"
 
     ```jsonl
     {
-      "version": "v0.10",
+      "version": "v0.9",
       "createSurface": {
         "surfaceId": "booking",
         "catalogId": "https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json"
       }
     }
     {
-      "version": "v0.10",
+      "version": "v0.9",
       "updateComponents": {
         "surfaceId": "booking",
         "components": [
@@ -151,7 +151,7 @@ A2UI: JSON messages describing UI that:
       }
     }
     {
-      "version": "v0.10",
+      "version": "v0.9",
       "updateDataModel": {
         "surfaceId": "booking",
         "path": "/booking",

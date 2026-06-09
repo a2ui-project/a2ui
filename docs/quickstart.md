@@ -147,7 +147,7 @@ In the web app, try these prompts:
 
 Let's peek at what the agent is sending. Here's a simplified example of the JSON messages:
 
-=== "v0.9 (Stable)"
+=== "v0.8 (Legacy)"
 
     **Defining the UI:**
 
@@ -178,7 +178,7 @@ Let's peek at what the agent is sending. Here's a simplified example of the JSON
     {"beginRendering": {"surfaceId": "main", "root": "header"}}
     ```
 
-=== "v0.10 (Draft)"
+=== "v0.9 (Stable)"
 
     **Creating the surface:**
 
@@ -205,34 +205,7 @@ Let's peek at what the agent is sending. Here's a simplified example of the JSON
 
     Note: In v0.9, `createSurface` replaces `beginRendering`, components use a flatter format, and the data model uses plain JSON values instead of typed adjacency lists.
 
-=== "v0.10 (Draft)"
 
-    **Creating the surface:**
-
-    ```json
-    {"version": "v0.10", "createSurface": {"surfaceId": "main", "catalogId": "https://a2ui.org/specification/v0_10/basic_catalog.json"}}
-    ```
-
-    **Defining the UI:**
-
-    ```json
-    {"version": "v0.10", "updateComponents": {"surfaceId": "main", "components": [
-      {"id": "header", "component": "Text", "text": "# Book Your Table", "variant": "h1"},
-      {"id": "date-picker", "component": "DateTimeInput", "label": "Select Date", "value": {"path": "/reservation/date"}, "enableDate": true},
-      {"id": "submit-text", "component": "Text", "text": "Confirm Reservation"},
-      {"id": "submit-btn", "component": "Button", "child": "submit-text", "variant": "primary", "action": {"event": {"name": "confirm_booking"}}}
-    ]}}
-    ```
-
-    **Populating data:**
-
-    ```json
-    {"version": "v0.10", "updateDataModel": {"surfaceId": "main", "path": "/reservation", "value": {"date": "2025-12-15", "time": "19:00", "guests": 2}}}
-    ```
-
-    Note: v0.10 continues using the flatter `createSurface` model with support for synchronous client-server `actionResponse` messaging.
-
-=== "v0.8 (Legacy)"
 
 TIP: It's Just JSON
 
