@@ -40,5 +40,5 @@ pyink-annotation-pragmas = [
 [dependency-groups]
 dev = [
     "pyink>=24.10.0",
-    "pytest>=9.0.2",
+    "pytest>=9.0.3",
 ]
