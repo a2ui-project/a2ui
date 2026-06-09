@@ -2,4 +2,4 @@ google-adk>=1.28.1
 google-genai>=1.27.0
 google-cloud-storage>=2.10.0
 certifi>=2023.0.0
-python-dotenv>=1.0.0
+python-dotenv>=1.2.2

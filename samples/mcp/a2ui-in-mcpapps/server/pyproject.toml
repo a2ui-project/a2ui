@@ -22,7 +22,7 @@ dependencies = [
     "mcp[cli]>=1.2.0",
     "python-dotenv>=1.0.0",
     "sse-starlette>=3.3.4",
-    "starlette>=0.45.3",
+    "starlette>=1.0.1",
     "uvicorn>=0.34.0",
 ]
 
