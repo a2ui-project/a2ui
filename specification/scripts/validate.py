@@ -24,14 +24,18 @@ import shutil
 def run_ajv(schema_path, data_paths, refs=None):
     """Runs ajv validate via subprocess. Batch validates multiple data paths."""
     repo_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "../.."))
-    # Try to find local ajv in specification/v0_9/test first
-    local_ajv = os.path.join(repo_root, "specification", "v0_9", "test", "node_modules", ".bin", "ajv")
+    # Try to find local ajv in root node_modules or specification/v0_9/test
+    local_ajvs = [
+        os.path.join(repo_root, "node_modules", ".bin", "ajv"),
+        os.path.join(repo_root, "specification", "v0_9", "test", "node_modules", ".bin", "ajv"),
+    ]
+    local_ajv = next((path for path in local_ajvs if os.path.exists(path)), None)
     
-    if os.path.exists(local_ajv):
+    if local_ajv:
         cmd = [local_ajv, "validate", "-s", schema_path, "--spec=draft2020", "--strict=false", "-c", "ajv-formats"]
     else:
-        # Fallback to pnpm dlx with both packages
-        cmd = ["pnpm", "dlx", "--package=ajv-cli", "--package=ajv-formats", "ajv", "validate", "-s", schema_path, "--spec=draft2020", "--strict=false", "-c", "ajv-formats"]
+        # Fallback to yarn dlx with both packages
+        cmd = ["yarn", "dlx", "--package=ajv-cli", "--package=ajv-formats", "ajv", "validate", "-s", schema_path, "--spec=draft2020", "--strict=false", "-c", "ajv-formats"]
         
     if refs:
         for ref in refs:

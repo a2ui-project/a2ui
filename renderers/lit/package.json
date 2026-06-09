@@ -47,14 +47,18 @@
   },
   "type": "module",
   "scripts": {
-    "prepublishOnly": "node -e \"if(!process.cwd().endsWith('dist')) { console.error('Error: This package must be published from the dist/ directory. Run `npm run build` then `npm publish dist/`'); process.exit(1); }\"",
-    "publish:package": "npm run build && node ../scripts/prepare-publish.mjs && npm publish dist/ --access public",
+    "prepublishOnly": "node -e \"if(!process.cwd().endsWith('dist')) { console.error('Error: This package must be published from the dist/ directory. Run `yarn build` then `cd dist && yarn npm publish`'); process.exit(1); }\"",
+    "publish:package": "yarn build && node ../scripts/prepare-publish.mjs && cd dist && touch yarn.lock && yarn install && yarn npm publish --access public",
     "build": "wireit",
     "build:tsc": "wireit",
+    "dev": "yarn serve --watch",
     "test": "wireit",
     "test:unit": "wireit",
     "test:integration": "wireit",
-    "demo": "npm run dev --prefix a2ui_explorer"
+    "demo": "yarn workspace @a2ui/lit-explorer dev",
+    "lint": "gts lint",
+    "lint:fix": "gts fix",
+    "clean": "wireit"
   },
   "wireit": {
     "test": {
@@ -70,7 +74,7 @@
       ]
     },
     "test:integration": {
-      "command": "npm run test:ci --prefix a2ui_explorer"
+      "command": "yarn workspace @a2ui/lit-explorer test:ci"
     },
     "build": {
       "dependencies": [
@@ -79,6 +83,9 @@
     },
     "build:tsc": {
       "command": "tsc -b --pretty",
+      "dependencies": [
+        "../../renderers/web_core:build"
+      ],
       "env": {
         "FORCE_COLOR": "1"
       },
@@ -92,6 +99,9 @@
         "!dist/**/*.min.js{,.map}"
       ],
       "clean": "if-file-deleted"
+    },
+    "clean": {
+      "command": "rm -rf dist .tsbuildinfo .wireit"
     }
   },
   "files": [
@@ -100,13 +110,15 @@
   "devDependencies": {
     "@types/jsdom": "^28.0.1",
     "@types/node": "^24.10.1",
+    "eslint": "^9.37.0",
     "google-artifactregistry-auth": "^3.5.0",
+    "gts": "^7.0.0",
     "jsdom": "^25.0.0",
-    "typescript": "^5.8.3",
+    "typescript": "5.9.3",
     "wireit": "^0.15.0-pre.2"
   },
   "peerDependencies": {
-    "@a2ui/markdown-it": "file:../markdown/markdown-it"
+    "@a2ui/markdown-it": "*"
   },
   "peerDependenciesMeta": {
     "@a2ui/markdown-it": {
@@ -114,7 +126,7 @@
     }
   },
   "dependencies": {
-    "@a2ui/web_core": "file:../web_core",
+    "@a2ui/web_core": "workspace:*",
     "@lit-labs/signals": "^0.1.3",
     "@lit/context": "^1.1.4",
     "lit": "^3.3.1",

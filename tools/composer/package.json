@@ -4,23 +4,23 @@
   "private": true,
   "scripts": {
     "sync-gallery": "node scripts/sync-gallery.mjs",
-    "predev": "node scripts/sync-gallery.mjs",
-    "prebuild": "node scripts/sync-gallery.mjs",
-    "build": "next build",
-    "dev": "next dev --turbopack --port 3001",
+    "dev": "node scripts/sync-gallery.mjs && next dev --turbopack --port 3001",
+    "build": "wireit",
     "start": "next start",
     "lint": "eslint",
-    "test": "vitest run",
+    "lint:fix": "eslint --fix",
+    "test": "wireit",
     "test:watch": "vitest",
     "format": "prettier --write \"**/*.{ts,tsx,md}\"",
+    "clean": "wireit",
     "preview": "opennextjs-cloudflare build && opennextjs-cloudflare preview",
     "deploy": "opennextjs-cloudflare build && opennextjs-cloudflare deploy",
     "upload": "opennextjs-cloudflare build && opennextjs-cloudflare upload",
     "cf-typegen": "wrangler types --env-interface CloudflareEnv cloudflare-env.d.ts"
   },
   "dependencies": {
-    "@a2ui/react": "0.9.0-alpha.0",
-    "@a2ui/web_core": "0.9.1-alpha.0",
+    "@a2ui/react": "workspace:*",
+    "@a2ui/web_core": "workspace:*",
     "@copilotkit/react-core": "^1.50.1",
     "@copilotkit/react-ui": "^1.50.1",
     "@copilotkit/runtime": "^1.50.1",
@@ -72,6 +72,39 @@
     "typescript": "5.9.3",
     "typescript-eslint": "^8.40.0",
     "vitest": "^4.0.18",
+    "wireit": "^0.15.0-pre.2",
     "wrangler": "^4.73.0"
+  },
+  "wireit": {
+    "build": {
+      "command": "node scripts/sync-gallery.mjs && next build --webpack",
+      "dependencies": [
+        "../../renderers/web_core:build",
+        "../../renderers/lit:build",
+        "../../renderers/react:build"
+      ],
+      "files": [
+        "src/**/*",
+        "public/**/*",
+        "tsconfig.json",
+        "*.config.*"
+      ],
+      "output": [
+        ".next/"
+      ]
+    },
+    "test": {
+      "command": "vitest run",
+      "dependencies": [
+        "build"
+      ],
+      "files": [
+        "src/**/*",
+        "tsconfig.json"
+      ]
+    },
+    "clean": {
+      "command": "rm -rf .next out dist build .tsbuildinfo .wireit"
+    }
   }
 }

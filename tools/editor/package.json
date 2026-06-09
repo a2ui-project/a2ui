@@ -7,11 +7,14 @@
   "types": "./dist/editor.d.ts",
   "type": "module",
   "scripts": {
-    "prepack": "npm run build",
+    "prepack": "yarn build",
     "build": "wireit",
     "build:tsc": "wireit",
-    "dev": "npm run serve --watch",
-    "serve": "wireit"
+    "dev": "yarn serve --watch",
+    "serve": "wireit",
+    "lint": "gts lint",
+    "lint:fix": "gts fix",
+    "clean": "wireit"
   },
   "wireit": {
     "serve": {
@@ -43,6 +46,9 @@
         "!dist/**/*.min.js{,.map}"
       ],
       "clean": "if-file-deleted"
+    },
+    "clean": {
+      "command": "rm -rf dist .tsbuildinfo .wireit"
     }
   },
   "repository": {
@@ -62,13 +68,15 @@
   "homepage": "https://github.com/a2ui-project/a2ui/tree/main/web#readme",
   "devDependencies": {
     "dotenv": "^17.2.3",
-    "typescript": "^5.8.3",
+    "eslint": "^9.37.0",
+    "gts": "^7.0.0",
+    "typescript": "5.9.3",
     "vite": "^7.1.11",
     "wireit": "^0.15.0-pre.2"
   },
   "dependencies": {
-    "@a2ui/lit": "file:../../renderers/lit",
-    "@a2ui/web_core": "file:../../renderers/web_core",
+    "@a2ui/lit": "workspace:*",
+    "@a2ui/web_core": "workspace:*",
     "@google/genai": "^1.22.0",
     "@lit-labs/signals": "^0.1.3",
     "@lit/context": "^1.1.4",

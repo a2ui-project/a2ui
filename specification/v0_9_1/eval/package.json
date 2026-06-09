@@ -1,15 +1,15 @@
 {
-  "name": "a2ui_0_9_eval_llm",
+  "name": "a2ui_0_9_1_eval_llm",
   "version": "1.0.0",
   "main": "lib/index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
+    "test": "echo \"No tests specified for eval package\"",
     "build": "tsc",
     "eval": "dotenv -- tsx src/index.ts",
-    "evalAll": "pnpm run eval --clean-results",
-    "evalGemini": "pnpm run eval --model=gemini-3-flash --clean-results",
-    "evalGpt": "pnpm run eval --model=gpt-5-mini --clean-results",
-    "evalClaude": "pnpm run eval --model=claude-4-sonnet --clean-results",
+    "evalAll": "yarn run eval --clean-results",
+    "evalGemini": "yarn run eval --model=gemini-3-flash --clean-results",
+    "evalGpt": "yarn run eval --model=gpt-5-mini --clean-results",
+    "evalClaude": "yarn run eval --model=claude-4-sonnet --clean-results",
     "start": "genkit start",
     "genkit:dev": "genkit start -- tsx --watch src/dev.ts",
     "format": "prettier --write src/**/*.ts"

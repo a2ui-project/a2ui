@@ -6,7 +6,7 @@
   "scripts": {
     "dev:react": "vite --config react/vite.config.ts --port 5001",
     "dev:lit": "vite --config lit/vite.config.ts --port 5002",
-    "dev": "concurrently \"npm run dev:react\" \"npm run dev:lit\"",
+    "dev": "concurrently \"yarn dev:react\" \"yarn dev:lit\"",
     "build:react": "vite build --config react/vite.config.ts",
     "build:lit": "vite build --config lit/vite.config.ts",
     "test": "playwright test",
@@ -15,9 +15,9 @@
     "test:report": "playwright show-report"
   },
   "dependencies": {
-    "@a2ui/lit": "file:../../lit",
-    "@a2ui/markdown-it": "file:../../markdown/markdown-it",
-    "@a2ui/react": "file:..",
+    "@a2ui/lit": "workspace:*",
+    "@a2ui/markdown-it": "workspace:*",
+    "@a2ui/react": "workspace:*",
     "@lit/context": "^1.1.0",
     "lit": "^3.1.0",
     "markdown-it": "^14.0.0",
@@ -34,7 +34,7 @@
     "concurrently": "^9.2.1",
     "pixelmatch": "^7.1.0",
     "pngjs": "^7.0.0",
-    "typescript": "^5.8.0",
+    "typescript": "5.9.3",
     "vite": "^7.3.1"
   }
 }

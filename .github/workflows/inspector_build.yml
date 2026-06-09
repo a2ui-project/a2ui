@@ -29,9 +29,6 @@ on:
       - "renderers/web_core/**"
       - ".github/workflows/inspector_build.yml"
 
-permissions:
-  contents: read
-
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -39,31 +36,26 @@ jobs:
     steps:
       - uses: actions/checkout@v6
 
+      - name: Enable Corepack
+        run: corepack enable
+
       - name: Set up Node.js
         uses: actions/setup-node@v6
         with:
           node-version: "22"
+          cache: "yarn"
 
-      - name: Install web_core deps
-        working-directory: ./renderers/web_core
-        run: npm ci
+      - name: Install dependencies
+        run: yarn install --immutable
 
       - name: Build web_core
         working-directory: ./renderers/web_core
-        run: npm run build
-
-      - name: Install lib's deps
-        working-directory: ./renderers/lit
-        run: npm ci
+        run: yarn build
 
       - name: Build lib
         working-directory: ./renderers/lit
-        run: npm run build
-
-      - name: Install inspector deps
-        working-directory: ./tools/inspector
-        run: npm install
+        run: yarn build
 
       - name: Build inspector
         working-directory: ./tools/inspector
-        run: npm run build
+        run: yarn build

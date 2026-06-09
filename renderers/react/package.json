@@ -74,25 +74,25 @@
     "*.css"
   ],
   "scripts": {
-    "prepublishOnly": "node -e \"if(!process.cwd().endsWith('dist')) { console.error('Error: This package must be published from the dist/ directory. Run `npm run build` then `npm publish dist/`'); process.exit(1); }\"",
-    "publish:package": "npm run build && node ../scripts/prepare-publish.mjs && npm publish dist/ --access public",
-    "build": "npm run typecheck && tsup && node scripts/postbuild.mjs",
+    "prepublishOnly": "node -e \"if(!process.cwd().endsWith('dist')) { console.error('Error: This package must be published from the dist/ directory. Run `yarn build` then `cd dist && yarn npm publish`'); process.exit(1); }\"",
+    "publish:package": "yarn build && node ../scripts/prepare-publish.mjs && cd dist && touch yarn.lock && yarn install && yarn npm publish --access public",
+    "build": "wireit",
     "dev": "tsup --watch",
-    "test": "vitest run",
+    "test": "wireit",
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit",
     "lint": "eslint src",
     "lint:fix": "eslint src --fix",
     "format": "prettier --write \"src/**/*.{ts,tsx}\"",
     "format:check": "prettier --check \"src/**/*.{ts,tsx}\"",
-    "clean": "rm -rf dist",
+    "clean": "wireit",
     "demo": "cd a2ui_explorer && vite",
     "build:demo": "cd a2ui_explorer && tsc -b && vite build",
     "test:demo": "cd a2ui_explorer && vitest run src"
   },
   "dependencies": {
-    "@a2ui/markdown-it": "file:../markdown/markdown-it",
-    "@a2ui/web_core": "file:../web_core",
+    "@a2ui/markdown-it": "workspace:*",
+    "@a2ui/web_core": "workspace:*",
     "clsx": "^2.1.0",
     "markdown-it": "^14.0.0",
     "zod": "^3.23.8"
@@ -104,6 +104,7 @@
   },
   "devDependencies": {
     "@eslint/js": "^9.0.0",
+    "@testing-library/dom": "^10.4.1",
     "@testing-library/jest-dom": "^6.6.0",
     "@testing-library/react": "^16.0.0",
     "@types/markdown-it": "^14.1.0",
@@ -125,12 +126,42 @@
     "react-dom": "^18.3.0",
     "tsup": "^8.0.0",
     "tsx": "^4.21.0",
-    "typescript": "^5.8.0",
+    "typescript": "5.9.3",
     "typescript-eslint": "^8.0.0",
     "vite": "^7.3.1",
-    "vitest": "^4.0.18"
+    "vitest": "^4.0.18",
+    "wireit": "^0.15.0-pre.2"
   },
   "engines": {
     "node": ">=18.0.0"
+  },
+  "wireit": {
+    "build": {
+      "command": "tsup && node scripts/postbuild.mjs",
+      "dependencies": [
+        "../../renderers/web_core:build"
+      ],
+      "files": [
+        "src/**/*",
+        "tsconfig.json",
+        "scripts/**/*"
+      ],
+      "output": [
+        "dist/"
+      ]
+    },
+    "test": {
+      "command": "vitest run",
+      "dependencies": [
+        "build"
+      ],
+      "files": [
+        "src/**/*",
+        "tsconfig.json"
+      ]
+    },
+    "clean": {
+      "command": "rm -rf dist dist-demo .tsbuildinfo .wireit"
+    }
   }
 }

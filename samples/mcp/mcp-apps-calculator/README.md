@@ -10,8 +10,8 @@ Run this in the `apps/src` directory:
 
 ```bash
 cd apps/src
-npm install
-npm run build
+yarn install
+yarn build
 ```
 
 This will bundle the TypeScript code and generate the self-contained `apps/public/calculator.html` file.

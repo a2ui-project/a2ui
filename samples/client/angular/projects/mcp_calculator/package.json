@@ -1,0 +1,30 @@
+{
+  "name": "@a2ui/mcp_calculator",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "build": "wireit"
+  },
+  "dependencies": {
+    "@a2ui/angular": "workspace:*",
+    "@a2ui/web_core": "workspace:*"
+  },
+  "devDependencies": {
+    "wireit": "^0.15.0-pre.2"
+  },
+  "wireit": {
+    "build": {
+      "command": "yarn workspace angular-a2ui ng build mcp_calculator",
+      "dependencies": [
+        "../../../../../renderers/angular:build"
+      ],
+      "files": [
+        "src/**/*",
+        "tsconfig.app.json"
+      ],
+      "output": [
+        "dist"
+      ]
+    }
+  }
+}

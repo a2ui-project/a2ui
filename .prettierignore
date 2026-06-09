@@ -22,3 +22,5 @@ build
 agent_sdks/conformance/test_data/**
 **/pnpm-lock.yaml
 renderers/angular/a2ui_explorer/src/app/generated/**
+.next
+**/.next

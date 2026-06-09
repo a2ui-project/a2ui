@@ -58,9 +58,9 @@ _Runs on port 10004._
 The client connects to the agent and renders the UI.
 
 ```bash
-# In this directory (samples/client/lit/contact)
-npm install
-npm run dev
+# In this directory (samples/client/lit/custom-components-example)
+yarn install
+yarn dev
 ```
 
 _The client acts as a shell, connecting to localhost:10004 by default._

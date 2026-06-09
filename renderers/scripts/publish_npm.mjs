@@ -178,7 +178,7 @@ function checkNpmVersions(packages, exec) {
     let remoteVersion;
 
     try {
-      remoteVersion = exec(`npm view ${pkg.name} version`, {
+      remoteVersion = exec(`yarn npm info ${pkg.name} --fields version`, {
         encoding: 'utf8',
         stdio: ['pipe', 'pipe', 'ignore'],
       }).trim();
@@ -226,19 +226,19 @@ function buildAndTestPackages(packages, runCmd, skipTests) {
   for (const pkg of packages) {
     console.log(`\n=== Preparing ${pkg.name} (${pkg.version}) ===`);
 
-    console.log(`- Running npm install in ${pkg.dir}`);
-    runCmd('npm', ['install', '--no-save', '--ignore-scripts', '--no-audit', '--no-fund'], {
+    console.log(`- Running yarn install in ${pkg.dir}`);
+    runCmd('yarn', ['install'], {
       cwd: pkg.dir,
     });
 
     if (skipTests) {
-      console.log(`- Skipping npm test for ${pkg.name}`);
+      console.log(`- Skipping yarn test for ${pkg.name}`);
     } else {
       const pkgJson = JSON.parse(readFileSync(join(pkg.dir, 'package.json'), 'utf8'));
       const testScript = pkgJson.scripts && pkgJson.scripts['test:ci'] ? 'test:ci' : 'test';
 
-      console.log(`- Running npm run ${testScript} in ${pkg.dir}`);
-      runCmd('npm', ['run', testScript], {cwd: pkg.dir});
+      console.log(`- Running yarn run ${testScript} in ${pkg.dir}`);
+      runCmd('yarn', ['run', testScript], {cwd: pkg.dir});
     }
   }
 }
@@ -267,9 +267,38 @@ export async function main(args, mocks = {}) {
       type: 'boolean',
       default: false,
     },
+    help: {
+      type: 'boolean',
+      short: 'h',
+      default: false,
+    },
   };
 
   const {values} = parseArgs({args, options, allowNegative: true});
+
+  if (values.help) {
+    console.log(`Usage: publish_npm [options]
+
+Publishes A2UI workspace packages to NPM / Artifact Registry in topological dependency order.
+
+Options:
+  -p, --package <name>                 Package(s) to publish. Can be specified multiple times.
+                                       Accepts short names (e.g., 'web_core') or scoped names (e.g., '@a2ui/web_core').
+  --check-core-dependencies            Verify that core dependencies are also being published.
+  --no-check-core-dependencies         Skip core dependencies verification.
+  --dry-run                            Perform a dry run without actually publishing or obtaining auth tokens (default).
+  --no-dry-run                         Actually publish the packages and obtain fresh auth tokens.
+  --skip-tests                         Skip building and testing packages before publishing.
+  -h, --help                           Show this complete help message.
+
+Examples:
+  # Dry run publishing a single package
+  ./publish_npm.mjs --package=web_core
+
+  # Actually publish multiple packages, skipping tests
+  ./publish_npm.mjs -p web_core -p react --no-dry-run --skip-tests`);
+    return;
+  }
   const packagesToPublish = values.package;
   const checkCoreDeps = values['check-core-dependencies'];
 
@@ -310,16 +339,30 @@ export async function main(args, mocks = {}) {
   buildAndTestPackages(packageObjects, runCmd, skipTests);
 
   console.log('\n--- Proceeding to publish ---');
-  console.log('\n--- Authenticating with Google Artifact Registry ---');
-  maybeRunCommand('npx', ['google-artifactregistry-auth'], {}, {dryRun, runCommand: runCmd});
 
   for (const pkg of packageObjects) {
     console.log(`\n=== Publishing ${pkg.name} (${pkg.version}) ===`);
+
+    let npmToken = process.env.NPM_TOKEN || '';
+    if (!dryRun && !npmToken) {
+      console.log(`- Obtaining fresh Artifact Registry token via gcloud CLI for ${pkg.name}...`);
+      try {
+        npmToken = exec('gcloud auth print-access-token', {encoding: 'utf8'}).trim();
+      } catch (e) {
+        console.warn(
+          `${yellow}⚠️ Could not obtain gcloud access token. Ensure you are logged in (${reset}gcloud auth login${yellow}).${reset}`,
+        );
+      }
+    }
+
     console.log(`- Running publish:package in ${pkg.dir}`);
     maybeRunCommand(
-      'npm',
+      'yarn',
       ['run', 'publish:package'],
-      {cwd: pkg.dir},
+      {
+        cwd: pkg.dir,
+        env: {...process.env, NPM_TOKEN: npmToken},
+      },
       {dryRun, runCommand: runCmd},
     );
   }

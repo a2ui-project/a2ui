@@ -11,7 +11,7 @@ These tests run via the Vite development server used by the contact sample.
 From the `web/lit/samples/contact` directory, run:
 
 ```bash
-npm run dev
+yarn dev
 ```
 
 ### 2. Access the tests

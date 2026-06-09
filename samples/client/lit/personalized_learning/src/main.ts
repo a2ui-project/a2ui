@@ -23,7 +23,7 @@
  */
 
 // Import A2UI web components (registers custom elements, including QuizCard)
-import '@a2ui/web-lib/ui';
+import '@a2ui/lit/ui';
 
 import {ChatOrchestrator} from './chat-orchestrator';
 import {A2UIRenderer} from './a2ui-renderer';

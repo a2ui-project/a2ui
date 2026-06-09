@@ -12,7 +12,7 @@ for total control over the generated code.
 ## Installation
 
 ```bash
-npm install @a2ui/lit @a2ui/web_core
+yarn add @a2ui/lit @a2ui/web_core
 ```
 
 ## Protocol Versioning

@@ -53,6 +53,10 @@ jobs:
         working-directory: agent_sdks/python/a2ui_agent
         run: uv run pyink --check .
 
+      - name: Check Formatting for Core
+        working-directory: agent_sdks/python/a2ui_core
+        run: uv run --with pyink pyink --check .
+
       - name: Check Formatting for Conformance
         working-directory: agent_sdks/conformance
         run: uv run --with pyink pyink --check tests/
@@ -61,12 +65,20 @@ jobs:
         working-directory: agent_sdks/python/a2ui_agent
         run: uv run --with pytest pytest tests/
 
+      - name: Run unit tests for Core
+        working-directory: agent_sdks/python/a2ui_core
+        run: uv run --with pytest pytest tests/
+
       - name: Run conformance YAML validation
         working-directory: agent_sdks/conformance
         run: uv run pytest
 
       - name: Build the python SDK
         working-directory: agent_sdks/python/a2ui_agent
+        run: uv build .
+
+      - name: Build python Core
+        working-directory: agent_sdks/python/a2ui_core
         run: uv build .
 
       - name: Run validation scripts on assets packing

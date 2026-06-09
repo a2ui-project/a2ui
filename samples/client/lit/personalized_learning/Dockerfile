@@ -29,15 +29,18 @@ RUN sed -i 's|file:../../renderers/lit|file:./a2ui-web-lib|g' package.json
 # (the source code imports from @a2ui/web-lib but the actual package is @a2ui/lit)
 RUN sed -i 's|"name": "@a2ui/lit"|"name": "@a2ui/web-lib"|g' a2ui-web-lib/package.json
 
-# Remove prepack script to prevent rebuild during npm install
+# Remove prepack script to prevent rebuild during yarn install
 # (we copy pre-built dist/; the wireit build references ../../specification/ which doesn't exist)
 RUN sed -i '/"prepack":/d' a2ui-web-lib/package.json
 
-# Install dependencies using public npm registry
-RUN npm install --registry https://registry.npmjs.org/
+# Enable Corepack for modern Yarn (v4) support
+RUN corepack enable
+
+# Install dependencies using Yarn
+RUN yarn install
 
 # Build the Vite frontend
-RUN npm run build
+RUN yarn build
 
 # Set production environment
 ENV PORT=8080
@@ -47,4 +50,4 @@ ENV NODE_ENV=production
 EXPOSE 8080
 
 # Run the API server (serves both API and static files in production)
-CMD ["npx", "tsx", "api-server.ts"]
+CMD ["yarn", "tsx", "api-server.ts"]
