@@ -29,11 +29,11 @@ def test_model_catalog_initialization():
         pass
 
     cat = ModelCatalog(
-        version=SPEC_VERSION,
+        spec_version=SPEC_VERSION,
         catalog_id="https://a2ui.org/model-init",
         components={"Empty": EmptyModel},
     )
-    assert cat.version == SPEC_VERSION
+    assert cat.spec_version == SPEC_VERSION
     assert cat.catalog_id == "https://a2ui.org/model-init"
 
 
@@ -50,7 +50,7 @@ def test_model_catalog_additional_properties_handling():
         component: Literal["ForbidBox"] = "ForbidBox"
 
     cat = ModelCatalog(
-        version=SPEC_VERSION,
+        spec_version=SPEC_VERSION,
         catalog_id="https://a2ui.org/model-extra",
         components={
             "DefaultBox": DefaultBox,
@@ -83,7 +83,7 @@ def test_model_catalog_unevaluated_properties_handling():
         component: Literal["ForbidBox"] = "ForbidBox"
 
     cat = ModelCatalog(
-        version=SPEC_VERSION,
+        spec_version=SPEC_VERSION,
         catalog_id="https://a2ui.org/model-unevaluated",
         components={
             "DefaultBox": DefaultBox,
@@ -108,7 +108,7 @@ def test_model_catalog_validate_theme():
         primary: str = Field(..., pattern="^#[0-9A-F]{6}$")
 
     cat = ModelCatalog(
-        version=SPEC_VERSION,
+        spec_version=SPEC_VERSION,
         catalog_id="https://a2ui.org/model",
         components={},
         theme=TestTheme,
@@ -144,7 +144,7 @@ def test_model_catalog_nested_function_validation():
         args: CustomFuncArgs
 
     cat = ModelCatalog(
-        version=SPEC_VERSION,
+        spec_version=SPEC_VERSION,
         catalog_id="https://a2ui.org/model",
         components={"OuterComp": OuterComp},
         functions={"custom": CustomFunc},
@@ -199,7 +199,7 @@ def test_model_catalog_validate_components():
         label: str
 
     cat = ModelCatalog(
-        version=SPEC_VERSION,
+        spec_version=SPEC_VERSION,
         catalog_id="https://a2ui.org/model",
         components={"Button": ButtonComp},
     )
@@ -221,7 +221,7 @@ def test_model_catalog_validate_functions():
         args: Dict[str, Any]
 
     cat = ModelCatalog(
-        version=SPEC_VERSION,
+        spec_version=SPEC_VERSION,
         catalog_id="https://a2ui.org/model",
         components={},
         functions={"regex": RegexFunc},
@@ -243,7 +243,7 @@ def test_model_catalog_custom_reference_fields_coverage():
         secondaryPtrs: List[str] = Field(..., description="Custom list pointers")
 
     catalog = ModelCatalog(
-        version=SPEC_VERSION,
+        spec_version=SPEC_VERSION,
         catalog_id="https://a2ui.org/custom",
         components={"CustomLayout": CustomLayoutComp},
         custom_single_refs=["primaryPtr"],
@@ -330,7 +330,7 @@ def test_model_catalog_unrecognized_type_and_mismatched_properties():
         model_config = {"extra": "forbid"}
 
     catalog = ModelCatalog(
-        version=SPEC_VERSION,
+        spec_version=SPEC_VERSION,
         catalog_id="https://a2ui.org/model-extended",
         components={"Card": CardComp},
     )
@@ -382,7 +382,7 @@ def test_json_catalog_initialization():
             }
         },
     }
-    catalog = JsonCatalog(version=SPEC_VERSION, catalog_schema=schema)
+    catalog = JsonCatalog(spec_version=SPEC_VERSION, catalog_schema=schema)
     assert catalog.catalog_id == "https://a2ui.org/spec/v0.9/catalog.json"
 
 
@@ -409,7 +409,7 @@ def test_json_catalog_extract_ref_fields_dynamic_coverage():
         },
     }
 
-    cat = JsonCatalog(version=SPEC_VERSION, catalog_schema=schema)
+    cat = JsonCatalog(spec_version=SPEC_VERSION, catalog_schema=schema)
     refs = cat.extract_ref_fields()
 
     assert "AdvancedLayout" in refs
@@ -457,7 +457,7 @@ def test_json_catalog_extract_ref_fields_tabs():
         },
     }
 
-    cat = JsonCatalog(version=SPEC_VERSION, catalog_schema=schema)
+    cat = JsonCatalog(spec_version=SPEC_VERSION, catalog_schema=schema)
     refs = cat.extract_ref_fields()
 
     assert "Tabs" in refs
@@ -472,7 +472,7 @@ def test_json_catalog_extract_ref_fields_empty_fallback():
         "catalogId": "https://a2ui.org/json",
         "components": {"EmptyNode": {"type": "object", "properties": {}}},
     }
-    cat = JsonCatalog(version=SPEC_VERSION, catalog_schema=schema)
+    cat = JsonCatalog(spec_version=SPEC_VERSION, catalog_schema=schema)
     refs = cat.extract_ref_fields()
     assert refs == {}
 
@@ -499,7 +499,7 @@ def test_json_catalog_common_types_defs_and_refs_resolution():
     }
 
     catalog = JsonCatalog(
-        version=SPEC_VERSION,
+        spec_version=SPEC_VERSION,
         catalog_schema=catalog_json,
         common_types_schema=common_types,
     )
@@ -547,7 +547,7 @@ def test_json_catalog_custom_reference_fields_coverage():
     }
 
     cat = JsonCatalog(
-        version=SPEC_VERSION,
+        spec_version=SPEC_VERSION,
         catalog_schema=catalog_json,
         custom_single_refs=["masterNode"],
         custom_list_refs=["slaveNodes"],
@@ -574,7 +574,7 @@ def test_json_catalog_validate_theme():
         },
     }
 
-    catalog = JsonCatalog(version=SPEC_VERSION, catalog_schema=catalog_json)
+    catalog = JsonCatalog(spec_version=SPEC_VERSION, catalog_schema=catalog_json)
 
     # 1. Test Valid Theme
     catalog.validate_theme({"primaryColor": "#00FF00"})
@@ -610,7 +610,7 @@ def test_json_catalog_validate_functions():
         },
     }
 
-    catalog = JsonCatalog(version=SPEC_VERSION, catalog_schema=catalog_json)
+    catalog = JsonCatalog(spec_version=SPEC_VERSION, catalog_schema=catalog_json)
 
     # 1. Test validate_function Valid
     # Valid call: regex takes 'value' and 'pattern'
@@ -668,7 +668,7 @@ def test_json_catalog_nested_function_validation():
         },
     }
 
-    catalog = JsonCatalog(version=SPEC_VERSION, catalog_schema=catalog_json)
+    catalog = JsonCatalog(spec_version=SPEC_VERSION, catalog_schema=catalog_json)
 
     # 1. Rejects unrecognized nested catalog function call
     with pytest.raises(ValueError, match="Unknown function: unrecognizedFunctionName"):
@@ -713,7 +713,9 @@ def test_json_catalog_additional_properties_handling():
             }
         },
     }
-    cat_default = JsonCatalog(version=SPEC_VERSION, catalog_schema=cat_default_json)
+    cat_default = JsonCatalog(
+        spec_version=SPEC_VERSION, catalog_schema=cat_default_json
+    )
 
     # Permits extra properties when additionalProperties is not set explicitly
     cat_default.validate_component_properties(
@@ -731,7 +733,7 @@ def test_json_catalog_additional_properties_handling():
             }
         },
     }
-    cat_true = JsonCatalog(version=SPEC_VERSION, catalog_schema=cat_true_json)
+    cat_true = JsonCatalog(spec_version=SPEC_VERSION, catalog_schema=cat_true_json)
 
     # Permits extra properties when additionalProperties is explicitly True
     cat_true.validate_component_properties(
@@ -750,7 +752,9 @@ def test_json_catalog_unevaluated_properties_handling():
             }
         },
     }
-    cat_default = JsonCatalog(version=SPEC_VERSION, catalog_schema=cat_default_json)
+    cat_default = JsonCatalog(
+        spec_version=SPEC_VERSION, catalog_schema=cat_default_json
+    )
 
     # Permits extra properties when unevaluatedProperties is default (omitted/true)
     cat_default.validate_component_properties(
@@ -768,7 +772,7 @@ def test_json_catalog_unevaluated_properties_handling():
             }
         },
     }
-    cat_false = JsonCatalog(version=SPEC_VERSION, catalog_schema=cat_false_json)
+    cat_false = JsonCatalog(spec_version=SPEC_VERSION, catalog_schema=cat_false_json)
 
     # Rejects extra properties when unevaluatedProperties is False
     with pytest.raises(
@@ -789,7 +793,7 @@ def test_json_catalog_unevaluated_properties_handling():
             }
         },
     }
-    cat_true = JsonCatalog(version=SPEC_VERSION, catalog_schema=cat_true_json)
+    cat_true = JsonCatalog(spec_version=SPEC_VERSION, catalog_schema=cat_true_json)
 
     # Permits extra properties when unevaluatedProperties is True
     cat_true.validate_component_properties(
@@ -804,7 +808,7 @@ def test_json_catalog_unevaluated_properties_handling():
 
 def test_basic_catalog_initialization():
     catalog = BasicCatalog()
-    assert catalog.version == SPEC_VERSION
+    assert catalog.spec_version == SPEC_VERSION
     assert "https://a2ui.org/specification" in catalog.catalog_id
 
 

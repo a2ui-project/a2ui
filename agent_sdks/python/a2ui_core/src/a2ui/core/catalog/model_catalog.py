@@ -27,7 +27,7 @@ class ModelCatalog(Catalog):
 
     def __init__(
         self,
-        version: str,
+        spec_version: str,
         catalog_id: str,
         components: Dict[str, Type[BaseModel]],
         functions: Optional[Dict[str, Any]] = None,
@@ -36,7 +36,7 @@ class ModelCatalog(Catalog):
         custom_list_refs: Optional[List[str]] = None,
     ):
         super().__init__(
-            version=version,
+            spec_version=spec_version,
             catalog_id=catalog_id,
             custom_single_refs=custom_single_refs,
             custom_list_refs=custom_list_refs,

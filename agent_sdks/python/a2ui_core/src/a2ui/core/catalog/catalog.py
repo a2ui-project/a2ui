@@ -21,17 +21,17 @@ class Catalog:
 
     def __init__(
         self,
-        version: str,
+        spec_version: str,
         catalog_id: str,
         custom_single_refs: Optional[List[str]] = None,
         custom_list_refs: Optional[List[str]] = None,
     ):
-        if not version:
-            raise ValueError("version must be provided.")
+        if not spec_version:
+            raise ValueError("A2UI specification version must be provided.")
         if not catalog_id:
             raise ValueError("catalog_id must be provided.")
 
-        self.version = version
+        self.spec_version = spec_version
         self.catalog_id = catalog_id
         self.single_refs = set(custom_single_refs or DEFAULT_SINGLE_REF_FIELDS)
         self.list_refs = set(custom_list_refs or DEFAULT_LIST_REF_FIELDS)

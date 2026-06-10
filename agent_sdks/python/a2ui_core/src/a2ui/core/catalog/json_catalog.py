@@ -24,8 +24,8 @@ COMMON_TYPES_SCHEMA_FILE = "common_types.json"
 CATALOG_SCHEMA_FILE = "catalog.json"
 
 
-def _schema_url(version: str, file_name: str) -> str:
-    ver = version if version.startswith("v") else f"v{version}"
+def _schema_url(spec_version: str, file_name: str) -> str:
+    ver = spec_version if spec_version.startswith("v") else f"v{spec_version}"
     return f"{SPEC_BASE_URL}/{ver.replace('.', '_')}/{file_name}"
 
 
@@ -39,7 +39,7 @@ class JsonCatalog(Catalog):
 
     def __init__(
         self,
-        version: str,
+        spec_version: str,
         catalog_schema: Dict[str, Any],
         catalog_id: Optional[str] = None,
         common_types_schema: Optional[Dict[str, Any]] = None,
@@ -51,7 +51,7 @@ class JsonCatalog(Catalog):
         if not catalog_id:
             raise ValueError("catalog_id must be provided or exist in catalog_schema.")
         super().__init__(
-            version=version,
+            spec_version=spec_version,
             catalog_id=catalog_id,
             custom_single_refs=custom_single_refs,
             custom_list_refs=custom_list_refs,
@@ -73,7 +73,7 @@ class JsonCatalog(Catalog):
         )
         resources.append(
             (
-                _schema_url(self.version, CATALOG_SCHEMA_FILE),
+                _schema_url(self.spec_version, CATALOG_SCHEMA_FILE),
                 Resource.from_contents(
                     self.catalog_schema, default_specification=DRAFT202012
                 ),
@@ -90,7 +90,7 @@ class JsonCatalog(Catalog):
             )
             resources.append(
                 (
-                    _schema_url(self.version, COMMON_TYPES_SCHEMA_FILE),
+                    _schema_url(self.spec_version, COMMON_TYPES_SCHEMA_FILE),
                     Resource.from_contents(
                         self.common_types_schema, default_specification=DRAFT202012
                     ),

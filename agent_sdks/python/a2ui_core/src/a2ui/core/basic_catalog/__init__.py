@@ -68,8 +68,10 @@ from ..schema.constants import SPEC_VERSION, SPEC_BASE_URL
 from ..catalog import ModelCatalog
 
 
-def _basic_catalog_id(version: str) -> str:
-    return f"{SPEC_BASE_URL}/{version.replace('.', '_')}/catalogs/basic/catalog.json"
+def _basic_catalog_id(spec_version: str) -> str:
+    return (
+        f"{SPEC_BASE_URL}/{spec_version.replace('.', '_')}/catalogs/basic/catalog.json"
+    )
 
 
 class BasicCatalog(ModelCatalog):
@@ -97,7 +99,7 @@ class BasicCatalog(ModelCatalog):
         }
 
         super().__init__(
-            version=SPEC_VERSION,
+            spec_version=SPEC_VERSION,
             catalog_id=_basic_catalog_id(SPEC_VERSION),
             components=components_map,
             functions=BASIC_FUNCTION_IMPLEMENTATIONS,
