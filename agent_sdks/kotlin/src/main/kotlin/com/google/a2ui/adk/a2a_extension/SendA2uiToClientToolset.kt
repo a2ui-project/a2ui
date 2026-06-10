@@ -38,7 +38,7 @@ typealias A2uiCatalogProvider = (ReadonlyContext) -> A2uiCatalog
 typealias A2uiExamplesProvider = (ReadonlyContext) -> String
 
 /**
- * A toolset that furnishes ADK agents with A2UI (Agent-to-UI) functional tools.
+ * A toolset that furnishes ADK agents with A2UI functional tools.
  *
  * This allows an agent to explicitly decide to render UI components based on the configured schemas
  * and current catalog capabilities. Features dynamic enablement, pulling localized components on

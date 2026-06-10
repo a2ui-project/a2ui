@@ -4,7 +4,7 @@
 <div style="text-align: center;">
   <div class="centered-logo-text-group">
     <img src="../../../assets/A2UI_dark.svg" alt="A2UI Protocol Logo" width="100">
-    <h1>A2UI (Agent to UI) Protocol v1.0</h1>
+    <h1>A2UI Protocol v1.0</h1>
   </div>
 </div>
 

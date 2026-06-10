@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://a2ui.org/specification/v1_0/client_to_server.json",
-  "title": "A2UI (Agent to UI) Client-to-Server Event Schema",
+  "title": "A2UI Client-to-Server Event Schema",
   "description": "Describes a JSON payload for a client-to-server event message.",
   "type": "object",
   "minProperties": 2,
