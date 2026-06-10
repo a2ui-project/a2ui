@@ -32,7 +32,7 @@ Navigate to the client sample directory and start the Vite server:
 
 ```bash
 cd ../../../client/lit/mcp-apps-in-a2ui-sample
-npm run dev
+yarn dev
 ```
 
 This will start the server at `http://localhost:5173`.

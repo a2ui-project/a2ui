@@ -25,7 +25,7 @@ Authentication:
 
 Prerequisites:
   - gcloud CLI installed and authenticated
-  - firebase CLI installed (npm install -g firebase-tools)
+  - firebase CLI installed (yarn global add firebase-tools)
   - Firebase project linked to your GCP project
   - OAuth consent screen configured (script will guide you)
 
@@ -506,7 +506,7 @@ def main():
         sys.exit(1)
 
     if not args.cloud_run_only and not tools["firebase"]:
-        print("ERROR: firebase CLI not found. Install with: npm install -g firebase-tools")
+        print("ERROR: firebase CLI not found. Install with: yarn global add firebase-tools")
         sys.exit(1)
 
     # Change to the demo directory

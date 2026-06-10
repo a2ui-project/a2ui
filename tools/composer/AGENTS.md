@@ -2,11 +2,11 @@
 
 ## Build, Test, and Development Commands
 
-Run `pnpm install` once, then `pnpm dev` for the web server (Next.js watches on port 3001). Build artifacts with `pnpm build`;
+Run `yarn install` once, then `yarn dev` for the web server (Next.js watches on port 3001). Build artifacts with `yarn build`;
 
 ## Coding Style & Naming Conventions
 
-TypeScript and modern React are mandatory; prefer function components and colocate UI logic in `app/components`. Follow Prettier's defaults (two-space indentation, single quotes) by running `pnpm format` before commits. Component files use PascalCase (e.g., `AgentPanel.tsx`); hooks and utilities use camelCase in `*.ts`. The shared ESLint preset (`packages/eslint-config`) enforces `turbo/no-undeclared-env-vars`, so surface new env variables via typed helpers.
+TypeScript and modern React are mandatory; prefer function components and colocate UI logic in `app/components`. Follow Prettier's defaults (two-space indentation, single quotes) by running `yarn format` before commits. Component files use PascalCase (e.g., `AgentPanel.tsx`); hooks and utilities use camelCase in `*.ts`. The shared ESLint preset (`packages/eslint-config`) enforces `turbo/no-undeclared-env-vars`, so surface new env variables via typed helpers.
 
 ## Testing Guidelines
 
@@ -14,7 +14,7 @@ There is no bundled unit-test runner yet, so treat linting and type-checking as 
 
 ## Commit & Pull Request Guidelines
 
-Existing history uses short imperative subjects ("Add themed a2ui surface"); continue that pattern and reference issues in the footer as needed. Each PR should state scope, testing evidence, and any UI screenshots or terminal output that prove the agent path. Link design docs and flag follow-ups; ensure CI (`pnpm build`) is green before requesting review.
+Existing history uses short imperative subjects ("Add themed a2ui surface"); continue that pattern and reference issues in the footer as needed. Each PR should state scope, testing evidence, and any UI screenshots or terminal output that prove the agent path. Link design docs and flag follow-ups; ensure CI (`yarn build`) is green before requesting review.
 
 ## Security & Configuration
 

@@ -59,7 +59,7 @@ function generateExamplesBundle() {
  * Generated file. Do not edit directly.
  *
  * To regenerate this file, run:
- *   npm run generate-examples
+ *   yarn generate-examples
  *
  * Run this command whenever you add, remove, or rename example JSON files
  * in the specification directory.

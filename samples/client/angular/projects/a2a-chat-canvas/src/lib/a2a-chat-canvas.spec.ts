@@ -15,16 +15,25 @@
  */
 
 import {ComponentFixture, TestBed} from '@angular/core/testing';
+import {signal} from '@angular/core';
+import {ChatService} from '@a2a_chat_canvas/services/chat-service';
 
 import {A2aChatCanvas} from './a2a-chat-canvas';
 
 describe('A2aChatCanvas', () => {
   let component: A2aChatCanvas;
   let fixture: ComponentFixture<A2aChatCanvas>;
+  let mockChatService: any;
 
   beforeEach(async () => {
+    mockChatService = {
+      history: signal([]),
+      isA2aStreamOpen: signal(false),
+    };
+
     await TestBed.configureTestingModule({
       imports: [A2aChatCanvas],
+      providers: [{provide: ChatService, useValue: mockChatService}],
     }).compileComponents();
 
     fixture = TestBed.createComponent(A2aChatCanvas);

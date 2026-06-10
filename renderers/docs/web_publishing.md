@@ -8,20 +8,19 @@ The following scripts in `renderers/scripts/` automate the versioning, building,
 
 ### Pre-requirement: Artifact registry configuration
 
-_(Note: Only Googlers will be able to do this. This is a one-time setup.)_
+_(Note: Only Googlers will be able to publish to the internal registry. Authentication is handled automatically when running release scripts.)_
 
-Add the following line to your `~/.npmrc` file:
+Ensure you are logged into `gcloud` with your corporate credentials:
 
+```sh
+gcloud auth login
 ```
-//us-npm.pkg.dev/oss-exit-gate-prod/a2ui--npm/:_authToken=<auth_token>
-```
 
-The `<auth_token>` field gets populated by the `google-artifactregistry-auth`
-command on "Step 2" later.
+The automated release scripts (`publish_npm.mjs`) will automatically acquire an access token via `gcloud auth print-access-token` and pass it to Yarn Modern during publishing.
 
 ### 1. Increment Versions (Local)
 
-To increment a package version and automatically sync all internal dependents (updating their `package-lock.json` files). This should be done in a PR:
+To increment a package version and automatically sync all internal dependents (updating their `yarn.lock` files). This should be done in a PR:
 
 ```sh
 # Automatically increment patch version (e.g. 0.9.5 -> 0.9.6)
@@ -35,50 +34,42 @@ This script will:
 
 - Update the `package.json` of the target package.
 - Scan the entire mono-repo for internal dependents (via `file:` links).
-- Run `npm install` in those dependents to update their lockfiles.
+- Run `yarn install` in those dependents to update their lockfiles.
 
 ### 2. Publish to Staging (Artifact Registry)
 
 Once versions are updated and merged into `main`, use the `publish_npm` script to build, test, and upload the packages to Google's internal Artifact Registry.
 
 ```sh
-# Simulate publishing multiple packages (dry-run by default).
+# Publish multiple packages (they will be sorted automatically by dependency)
 ./renderers/scripts/publish_npm.mjs --package=lit --package=web_core
-
-# Actually publish by passing --no-dry-run.
-./renderers/scripts/publish_npm.mjs --package=lit --package=web_core --no-dry-run
 ```
 
 This script will:
 
-- Run `npx google-artifactregistry-auth` to authenticate.
+- Automatically obtain a Google Artifact Registry token via `gcloud auth print-access-token`.
 - Sort packages topologically (e.g., publishing `web_core` before `lit`).
-- Verify that if a renderer is being published, `web_core` is also included (use `--no-check-core-dependencies` to skip).
-- Run pre-flight checks against existing `npmjs` versions.
-- For each package: `npm install` -> `npm test` -> `npm run publish:package`.
+- Verify that if a renderer is being published, `web_core` is also included (use `--force` to skip).
+- Run pre-flight checks against existing `npmjs` versions and prompt for confirmation.
+- For each package: `yarn install` -> `yarn test` -> `yarn run publish:package`.
 
 **Advanced Flags for publish_npm.mjs:**
 
-- `--no-dry-run`: Disables dry-run mode (enabled by default) to actually authenticate and publish.
-- `--no-check-core-dependencies`: Skips checking for core dependencies (`web_core` and `markdown-it`) being published.
-- `--skip-tests`: Skips the `npm run test` phase.
+- `--force`: Skips the `web_core` inclusion warning.
+- `--yes`: Bypasses the manual user confirmation prompt (useful for CI).
+- `--dry-run`: Simulates the process, printing the commands it _would_ execute without actually running them.
+- `--skip-tests`: Skips the `yarn test` phase before publishing.
+- `--test-only`: Runs the full build and test suite in topological order, but skips the final `yarn run publish:package` step. Useful for verifying that packages build and tests pass before performing a real release.
 
 ### 3. Upload Manifest
 
-Finally, trigger the public release to npmjs.com by uploading a manifest file. By default, this script runs in dry-run mode and targets all packages.
+Finally, trigger the public release to npmjs.com by uploading a manifest file:
 
 ```sh
-# Simulate the preparation of the manifest (dry-run by default).
 ./renderers/scripts/upload_manifest.mjs
-
-# Prepare and upload a manifest to publish ALL packages.
-./renderers/scripts/upload_manifest.mjs --no-dry-run
-
-# Prepare and upload a manifest for specific packages.
-./renderers/scripts/upload_manifest.mjs --package=angular --package=lit --no-dry-run
 ```
 
-This generates a `manifest.json` and uploads it to GCS to trigger the internal release infrastructure. You must pass `--no-dry-run` to actually perform the upload. You should receive an email from exit-gate noting that publishing has commenced.
+This generates a `manifest.json` with the current versions of all renderer packages and uploads it to GCS to trigger the internal release infrastructure. You should receive an email from exit-gate noting that publishing has commenced.
 
 #### Manual alternative
 
@@ -104,38 +95,123 @@ You can also do this step manually, if you are authenticated with `gcloud` with 
 
 The internal release infrastructure monitors the GCS bucket for new manifests. Once a manifest is uploaded, it triggers a series of checks and then publishes the specified versions to the public npm registry.
 
-1. Ensure your local `.npmrc` in the package directory is correctly configured if you are debugging, but the automated scripts handle authentication via `google-artifactregistry-auth`.
-2. If you need to manually overwrite or create an `.npmrc` for local testing:
-   ```sh
-   echo "//registry.npmjs.org/:_authToken=\${NPM_TOKEN}" > .npmrc
-   ```
+Export your token in your terminal:
+
+```sh
+export NPM_TOKEN="npm_YourSecretTokenHere"
+```
+
+### 🏢 Internal Artifact Registry Setup (Exit Gate) - For Yarn Modern
+
+The monorepo is fully configured in `.yarnrc.yml` to route `@a2ui` scoped packages to the internal Google Artifact Registry. Authentication is automatically injected via `gcloud` when running `./renderers/scripts/publish_npm.mjs`.
+
+If you need to manually publish or run commands locally requiring registry access, export a token in your terminal:
+
+```sh
+export NPM_TOKEN=$(gcloud auth print-access-token)
+```
 
 ## About the `publish:package` command
 
-Because these are scoped packages (`@a2ui/`), they require the `--access public` flag to be published to the public registry. The `publish:package` script handles this automatically, as well as replacing the path dependencies with package dependencies.
+Because these are scoped packages (`@a2ui/`), they require the `--access public` flag to be published to the public registry. The `publish:package` script handles this automatically through a three-step isolation and release process:
+
+1. **Build and Strip Workspace Metadata**: It executes `yarn build` and invokes `prepare-publish.mjs` (or equivalent post-processing). This copies the build artifacts into `dist/`, converts internal `workspace:` and `file:` dependency protocols into absolute semver ranges (e.g., `^0.10.1`), and removes `devDependencies`.
+2. **Establish Standalone Package Boundary**: Because the monorepo root configuration explicitly excludes `dist` directories from workspace traversal (`!**/dist`), running Yarn commands directly inside `dist/` would ordinarily fail or traverse upward. To establish `dist/` as an authentic standalone package, the script initializes an empty lockfile (`touch yarn.lock`) inside `dist/` and executes `yarn install`.
+3. **Publish Archive**: Finally, it executes `yarn npm publish --access public` from within the isolated `dist/` directory to upload the clean tarball to the registry.
 
 ```sh
-npm run publish:package
+yarn publish:package
 ```
-
-_Note: This command runs the build, prepares the `dist/` directory, and then executes `npm publish dist/ --access public`._
 
 ---
 
 ### How It Works
 
-**What happens during `npm run publish:package`?**
-Before publishing, the script runs the necessary `build` command which processes the code. Then, a preparation script (usually `prepare-publish.mjs`) runs, which:
+### Pre-flight Checks
 
-1. Copies `package.json`, `README.md`, and `LICENSE` to the `dist/` folder.
-2. It scans all dependencies and peerDependencies for internal `@a2ui/` packages (those using `file:` links) and updates them to the actual current versions in the mono-repo (e.g., `^0.9.0`).
-3. Adjusts exports and paths (removing the `./dist/` prefix) so they are correct when consumed from the package root.
-4. Removes any build scripts (`prepublishOnly`, `scripts`, `wireit`) so they don't interfere with the publish process.
+1. Ensure your working tree is clean and you are on the correct branch (e.g., `main`).
+2. Update the `version` in `renderers/web_core/package.json`.
+3. Verify all tests pass:
+   ```sh
+   yarn workspace @a2ui/web_core run test
+   ```
 
-The `npm publish dist/` command then uploads only the contents of the `dist/` directory to the npm registry.
+### Publish to NPM
+
+Run the automated publish script from the repository root:
+
+```sh
+yarn workspace @a2ui/web_core run publish:package
+```
+
+_Note: The script automatically builds the project, runs `prepare-publish.mjs` to copy artifacts to the `dist/` directory, and publishes from there as public access._
 
 **What exactly gets published?**
-Only the `dist/` directory, `src/` directory (for sourcemaps), `package.json`, `README.md`, and `LICENSE` are included in the published package. This is strictly controlled by the `"files"` array in the original `package.json`.
+Only the `dist/` directory contents are uploaded. This is controlled by the `"files"` array in `package.json` and the `prepare-publish.mjs` script.
 
-**What about the License?**
-The package is automatically published under the `Apache-2.0` open-source license, as defined in `package.json`.
+---
+
+## 📦 2. Publishing `@a2ui/lit`, `@a2ui/angular`, and `@a2ui/markdown-it`
+
+These packages depend on `@a2ui/web_core` via workspace paths for development. They must be published from their generated `dist/` folders. We use specialized scripts to automatically rewrite their `package.json` with the correct `@a2ui/web_core` npm version before publishing.
+
+### Pre-flight Checks
+
+1. Ensure `@a2ui/web_core` is already published (or its version string is correctly updated) since these packages will read that version number.
+2. Update the `version` in the package you want to publish (e.g., `renderers/lit/package.json`).
+3. Verify all tests pass:
+   ```sh
+   yarn workspace @a2ui/lit run test
+   yarn workspace @a2ui/angular run test
+   ```
+
+### Publish to NPM
+
+Run the automated publish script from the repository root:
+
+**For Lit:**
+
+```sh
+yarn workspace @a2ui/lit run publish:package
+```
+
+**For Angular:**
+
+```sh
+yarn workspace @a2ui/angular run publish:package
+```
+
+**For Markdown-it:**
+
+```sh
+yarn workspace @a2ui/markdown-it run publish:package
+```
+
+### How It Works (Explanations)
+
+**What happens during `publish:package`?**
+Before publishing, the script runs the necessary `build` command which processes the code. For Lit and Markdown-it, `prepare-publish.mjs` runs, and for Angular, `postprocess-build.mjs` runs. These scripts:
+
+1. Copy `package.json`, `README.md`, and `LICENSE` to the `dist/` folder.
+2. Read the `version` from `@a2ui/web_core`.
+3. Update the `workspace:` dependency in the `dist/package.json` to the actual core version (e.g., `^0.8.0`).
+4. Adjust exports and paths to be relative to `dist/`.
+5. Remove any build scripts (`prepublishOnly`, `scripts`) so they don't interfere with the publish process.
+
+The script then `cd`s to the `dist/` directory and runs `yarn npm publish` to upload only the contents of the `dist/` directory to the npm registry.
+
+Googlers can visit [go/a2ui-oss-exit-gate-artifacts](https://go/a2ui-oss-exit-gate-artifacts) to see the published artifacts on Exit Gate (staging registry).
+
+---
+
+## 🔖 Post-Publish
+
+1. Tag the release (replace with actual version):
+   ```sh
+   git tag v0.8.0
+   ```
+2. Push the tag:
+   ```sh
+   git push origin v0.8.0
+   ```
+3. Create a GitHub Release mapping to the new tag.

@@ -28,9 +28,6 @@ on:
       - "renderers/web_core/**"
       - ".github/workflows/composer_build_and_test.yml"
 
-permissions:
-  contents: read
-
 jobs:
   build-and-test:
     runs-on: ubuntu-latest
@@ -38,38 +35,32 @@ jobs:
     steps:
       - uses: actions/checkout@v6
 
-      - name: Install pnpm
-        uses: pnpm/action-setup@v4
-        with:
-          version: 10
+      - name: Enable Corepack
+        run: corepack enable
 
       - name: Set up Node.js
         uses: actions/setup-node@v6
         with:
           node-version: "22"
-          cache: "pnpm"
-          cache-dependency-path: "tools/composer/pnpm-lock.yaml"
-
-      - name: Build web_core (dependency of @a2ui/react)
-        working-directory: ./renderers/web_core
-        run: npm ci && npm run build
-
-      - name: Build React renderer (local file dependency)
-        working-directory: ./renderers/react
-        run: npm ci && npm run build
+          cache: "yarn"
 
       - name: Install dependencies
-        working-directory: ./tools/composer
-        run: pnpm install
+        run: yarn install --immutable
+
+      - name: Build web_core (dependency of @a2ui/react)
+        run: yarn workspace @a2ui/web_core build
+
+      - name: Build React renderer (local file dependency)
+        run: yarn workspace @a2ui/react build
 
       - name: Lint
         working-directory: ./tools/composer
-        run: pnpm lint
+        run: yarn lint
 
       - name: Build
         working-directory: ./tools/composer
-        run: pnpm build
+        run: yarn build
 
       - name: Test
         working-directory: ./tools/composer
-        run: pnpm test
+        run: yarn test

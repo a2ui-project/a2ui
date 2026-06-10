@@ -9,16 +9,16 @@ Sample application using the Chat-Canvas component with MCP Calculator Agent.
 
 ## Running
 
-1. Build the shared dependencies by running `npm run build` in the `renderers/web_core` directory
-2. Install the dependencies: `npm i`
+1. Build the shared dependencies by running `yarn build` in the `renderers/web_core` directory
+2. Install local dependencies: `yarn install`
 3. Run the A2A server for all of the agents. ([Link to instructions](../../../../agent/adk/mcp_app_proxy/README.md))
 4. Build the `sandbox.js` for testing MCP Apps in A2UI demo
 
-- `npm run build:sandbox`
+- `yarn build:sandbox`
 
 5. Run the app:
 
-- `npm start -- mcp_calculator`
+- `yarn start -- mcp_calculator`
 
 6. Open http://localhost:4200/
 

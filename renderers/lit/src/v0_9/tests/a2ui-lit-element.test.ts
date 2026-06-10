@@ -20,15 +20,18 @@ import {describe, it, beforeEach, after, before} from 'node:test';
 
 import {ComponentContext, MessageProcessor} from '@a2ui/web_core/v0_9';
 
-let controllerCreatedCount = 0;
-let disposedCount = 0;
-
 /**
  * These tests ensure that:
  * - The element correctly instantiates an `A2uiController` when its ComponentContext is assigned.
  * - Changing the element's ComponentContext safely tears down the old controller and creates a new one.
  */
 describe('A2uiLitElement', () => {
+  let controllerCreatedCount = 0;
+  let disposedCount = 0;
+
+  // Tracks the return value of renderNode() in TestA2uiElement to verify rendering behavior in tests.
+  let lastRenderResult: any = null;
+
   let basicCatalog: any;
   before(async () => {
     setupTestDom();
@@ -50,7 +53,8 @@ describe('A2uiLitElement', () => {
       }
 
       render() {
-        return this.renderNode('child_id');
+        lastRenderResult = this.renderNode('child_id');
+        return lastRenderResult;
       }
     }
 
@@ -151,6 +155,56 @@ describe('A2uiLitElement', () => {
     // should have disposed the old and created a new one
     assert.strictEqual(disposedCount, 1);
     assert.strictEqual(controllerCreatedCount, 2);
+
+    document.body.removeChild(el);
+  });
+
+  it('should return nothing when component is removed from surface', async () => {
+    const {nothing} = await import('lit');
+
+    const el = document.createElement('test-a2ui-element') as any;
+    document.body.appendChild(el);
+
+    const context = new ComponentContext(surface, 'root');
+    await asyncUpdate(el, e => {
+      e.context = context;
+    });
+
+    // Remove the component from the surface components model
+    surface.componentsModel.removeComponent('root');
+
+    // Trigger update/render on the element by requesting an update.
+    // It should return nothing early and not throw.
+    await asyncUpdate(el, e => {
+      e.requestUpdate();
+    });
+
+    assert.strictEqual(lastRenderResult, nothing);
+
+    document.body.removeChild(el);
+  });
+
+  it('should return nothing when surface is disposed', async () => {
+    const {nothing} = await import('lit');
+
+    const el = document.createElement('test-a2ui-element') as any;
+    document.body.appendChild(el);
+
+    const context = new ComponentContext(surface, 'root');
+    await asyncUpdate(el, e => {
+      e.context = context;
+    });
+
+    // Dispose the surface
+    surface.dispose();
+
+    // Trigger update/render on the element by requesting an update.
+    // It should return nothing early and not throw.
+    await asyncUpdate(el, e => {
+      e.requestUpdate();
+    });
+
+    assert.strictEqual(lastRenderResult, nothing);
 
     document.body.removeChild(el);
   });

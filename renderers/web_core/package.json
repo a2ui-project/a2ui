@@ -58,16 +58,18 @@
     "src"
   ],
   "scripts": {
-    "prepublishOnly": "node -e \"if(!process.cwd().endsWith('dist')) { console.error('Error: This package must be published from the dist/ directory. Run `npm run build` then `npm publish dist/`'); process.exit(1); }\"",
-    "publish:package": "npm run build && node ../scripts/prepare-publish.mjs && npm publish dist/ --access public",
-    "prepack": "npm run build",
+    "prepublishOnly": "node -e \"if(!process.cwd().endsWith('dist')) { console.error('Error: This package must be published from the dist/ directory. Run `yarn build` then `cd dist && yarn npm publish`'); process.exit(1); }\"",
+    "publish:package": "yarn build && node ../scripts/prepare-publish.mjs && cd dist && touch yarn.lock && yarn install && yarn npm publish --access public",
+    "prepack": "yarn build",
     "build": "wireit",
     "build:tsc": "wireit",
     "test": "wireit",
     "test:coverage": "c8 node --test \"dist/**/*.test.js\"",
     "compile": "tsc",
     "lint": "gts lint",
-    "fix": "gts fix"
+    "lint:fix": "gts fix",
+    "fix": "gts fix",
+    "clean": "wireit"
   },
   "wireit": {
     "copy-spec": {
@@ -76,16 +78,16 @@
         "../../specification/v0_8/json/*.json",
         "../../specification/v0_9/json/*.json",
         "../../specification/v0_9/catalogs/**/*.json",
-        "../../specification/v0_10/json/*.json",
-        "../../specification/v0_10/catalogs/**/*.json",
+        "../../specification/v1_0/json/*.json",
+        "../../specification/v1_0/catalogs/**/*.json",
         "scripts/copy-spec.js"
       ],
       "output": [
         "src/v0_8/schemas/*.json",
         "src/v0_9/schemas/*.json",
         "src/v0_9/schemas/catalogs/**/*.json",
-        "src/v0_10/schemas/*.json",
-        "src/v0_10/schemas/catalogs/**/*.json"
+        "src/v1_0/schemas/*.json",
+        "src/v1_0/schemas/catalogs/**/*.json"
       ]
     },
     "build": {
@@ -114,6 +116,9 @@
       "dependencies": [
         "build"
       ]
+    },
+    "clean": {
+      "command": "rm -rf dist .tsbuildinfo .wireit"
     }
   },
   "author": "Google",
@@ -122,10 +127,11 @@
     "@angular/core": "^21.2.5",
     "@types/node": "^24.11.0",
     "c8": "^11.0.0",
+    "eslint": "^9.37.0",
     "google-artifactregistry-auth": "^3.5.0",
     "gts": "^7.0.0",
     "rxjs": "^7.8.2",
-    "typescript": "^5.9.3",
+    "typescript": "5.9.3",
     "wireit": "^0.15.0-pre.2"
   },
   "dependencies": {

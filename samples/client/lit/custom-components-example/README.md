@@ -10,19 +10,18 @@ This is a UI to generate and visualize A2UI responses.
 
 This sample depends on the Lit renderer. Before running this sample, you need to build the renderer.
 
-1. **Build the renderer:**
+1. **Install and build dependencies:**
+   From the repository root, install dependencies and build all packages:
 
    ```bash
-   cd ../../../renderers/lit
-   npm install
-   npm run build
+   yarn install
+   yarn build:all
    ```
 
 2. **Run this sample:**
 
    ```bash
-   cd - # back to the sample directory
-   npm install
+   cd samples/client/lit/custom-components-example
    ```
 
 3. **Run the servers:**
@@ -30,7 +29,7 @@ This sample depends on the Lit renderer. Before running this sample, you need to
      - By default, the server uses the `McpAppsCustomComponent` which wraps MCP Apps in a secure, isolated double-iframe sandbox (`sandbox.html`) communicating strictly via JSON-RPC.
      - Optionally run the server using `USE_MCP_SANDBOX=false uv run .` to bypass this security and use the standard `WebFrame` element.
      - **Observing the difference**: Search for "Alex Jordan" in the UI and click the Location button to open the floor plan. If you inspect the DOM using your browser's Developer Tools, you will see that `McpAppsCustomComponent` securely points the iframe `src` to the local proxy (`/sandbox.html`). In contrast, `WebFrame` directly injects the untrusted HTML via a data blob/srcdoc, lacking defense-in-depth origin isolation.
-   - Run the dev server: `npm run dev`
+   - Run the dev server: `yarn dev`
 
 After starting the dev server, you can open http://localhost:5173/ to view the sample.
 

@@ -27,7 +27,7 @@ Maintains compatibility with the initial A2UI specification version, focusing on
 ## Installation
 
 ```bash
-npm install @a2ui/web_core
+yarn install @a2ui/web_core
 ```
 
 ## Development
@@ -37,7 +37,7 @@ npm install @a2ui/web_core
 The package uses `wireit` for optimized build orchestration:
 
 ```bash
-npm run build
+yarn build
 ```
 
 ### Testing
@@ -45,13 +45,13 @@ npm run build
 Run the test suite using the native Node.js test runner:
 
 ```bash
-npm test
+yarn test
 ```
 
 Generate coverage reports:
 
 ```bash
-npm run test:coverage
+yarn test:coverage
 ```
 
 ## Legal Notice
