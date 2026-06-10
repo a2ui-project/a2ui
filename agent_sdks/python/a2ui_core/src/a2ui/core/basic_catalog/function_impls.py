@@ -16,6 +16,8 @@ import re
 import datetime
 import math
 from typing import Any, Dict, List, Optional
+from ..rendering import DataContext
+from ..common.events import AbortSignal
 from ..catalog.functions import create_function_implementation
 from .function_apis import (
     RequiredApi,
@@ -47,6 +49,7 @@ from .operator_apis import (
     EndsWithApi,
 )
 from .expression_parser import ExpressionParser
+from .locale_config import get_locale_rules, CURRENCY_SYMBOLS
 
 
 def _to_float(val: Any) -> float:
@@ -124,7 +127,11 @@ EmailImplementation = create_function_implementation(
 )
 
 
-def _format_string(args, context=None, abort_signal=None):
+def _format_string(
+    args: Dict[str, Any],
+    context: DataContext,
+    abort_signal: Optional[AbortSignal] = None,
+) -> str:
     template = args.get("value", "")
     if not template:
         return ""
@@ -154,18 +161,40 @@ FormatStringImplementation = create_function_implementation(
 )
 
 
-def _format_number(args, context=None, abort_signal=None):
-    val = _to_float(args.get("value", 0))
-    decimals = args.get("decimals")
-    grouping = args.get("grouping")
-    if grouping is None:
-        grouping = True
+def _format_numeric_locale(
+    val: float,
+    decimals: Optional[int],
+    grouping: bool,
+    context: DataContext,
+) -> str:
+    loc_str = context.locale if context and hasattr(context, "locale") else None
+    rules = get_locale_rules(loc_str)
 
     if decimals is not None:
-        fmt_str = f"{{:{',' if grouping else ''}.{int(decimals)}f}}"
+        raw_str = f"{val:{',' if grouping else ''}.{decimals}f}"
     else:
-        fmt_str = f"{{:{',' if grouping else ''}f}}"
-    return fmt_str.format(val)
+        raw_str = f"{val:,}" if grouping else str(val)
+
+    if rules.decimal_separator != "." or (grouping and rules.grouping_separator != ","):
+        if rules.decimal_separator == ",":
+            group_sep = rules.grouping_separator
+            return raw_str.replace(",", "~").replace(".", ",").replace("~", group_sep)
+        elif rules.decimal_separator != ".":
+            return raw_str.replace(",", rules.grouping_separator).replace(
+                ".", rules.decimal_separator
+            )
+    return raw_str
+
+
+def _format_number(
+    args: Dict[str, Any],
+    context: DataContext,
+    abort_signal: Optional[AbortSignal] = None,
+) -> str:
+    val = _to_float(args.get("value", 0))
+    decimals = int(args["decimals"]) if args.get("decimals") is not None else None
+    grouping = True if args.get("grouping") is None else bool(args["grouping"])
+    return _format_numeric_locale(val, decimals, grouping, context)
 
 
 FormatNumberImplementation = create_function_implementation(
@@ -173,20 +202,31 @@ FormatNumberImplementation = create_function_implementation(
 )
 
 
-def _format_currency(args, context=None, abort_signal=None):
+def _format_currency(
+    args: Dict[str, Any],
+    context: DataContext,
+    abort_signal: Optional[AbortSignal] = None,
+) -> str:
     val = _to_float(args.get("value", 0))
-    currency = args.get("currency", "USD")
-    decimals = args.get("decimals")
-    if decimals is None:
-        decimals = 2
-    else:
-        decimals = int(decimals)
-    grouping = args.get("grouping")
-    if grouping is None:
-        grouping = True
-    symbol = "$" if currency == "USD" else (currency + " ")
-    fmt_str = f"{{:{',' if grouping else ''}.{decimals}f}}"
-    return symbol + fmt_str.format(val)
+    currency = str(args.get("currency", "USD")).upper()
+    decimals = int(args["decimals"]) if args.get("decimals") is not None else 2
+    grouping = True if args.get("grouping") is None else bool(args["grouping"])
+
+    num_str = _format_numeric_locale(val, decimals, grouping, context)
+    symbol = CURRENCY_SYMBOLS.get(currency, currency)
+
+    loc_str = context.locale if context and hasattr(context, "locale") else None
+    rules = get_locale_rules(loc_str)
+
+    space = (
+        " "
+        if rules.currency_space_separated
+        or (len(symbol) > 1 and symbol not in {"$", "£", "€", "¥"})
+        else ""
+    )
+    if rules.currency_symbol_after:
+        return f"{num_str}{space}{symbol}"
+    return f"{symbol}{space}{num_str}"
 
 
 FormatCurrencyImplementation = create_function_implementation(
@@ -195,39 +235,66 @@ FormatCurrencyImplementation = create_function_implementation(
 
 
 _DATE_TOKENS = re.compile(r"yyyy|yy|MMMM|MMM|MM|M|EEEE|E|dd|d|HH|H|hh|h|mm|ss|a|%")
-_DATE_MAP = {
-    "%": "%%",
-    "yyyy": "%Y",
-    "yy": "%y",
-    "MMMM": "%B",
-    "MMM": "%b",
-    "MM": "%m",
-    "M": "%m",
-    "EEEE": "%A",
-    "E": "%a",
-    "dd": "%d",
-    "d": "%d",
-    "HH": "%H",
-    "H": "%H",
-    "hh": "%I",
-    "h": "%I",
-    "mm": "%M",
-    "ss": "%S",
-    "a": "%p",
-}
 
 
-def _format_date(args, context=None, abort_signal=None):
+def _format_date(
+    args: Dict[str, Any],
+    context: DataContext,
+    abort_signal: Optional[AbortSignal] = None,
+) -> str:
     val = args.get("value")
-    fmt = args.get("format", "yyyy-MM-dd")
+    fmt = str(args.get("format", "yyyy-MM-dd"))
     if not val:
         return ""
     try:
         dt = datetime.datetime.fromisoformat(str(val).replace("Z", "+00:00"))
         if fmt == "ISO":
             return dt.isoformat().replace("+00:00", ".000Z")
-        py_fmt = _DATE_TOKENS.sub(lambda m: _DATE_MAP[m.group(0)], str(fmt))
-        return dt.strftime(py_fmt)
+
+        loc_str = context.locale if context and hasattr(context, "locale") else None
+        rules = get_locale_rules(loc_str)
+
+        def _sub(m: re.Match) -> str:
+            tok = m.group(0)
+            if tok == "yyyy":
+                return str(dt.year)
+            if tok == "yy":
+                return str(dt.year)[-2:]
+            if tok == "MMMM":
+                return rules.months_long[dt.month]
+            if tok == "MMM":
+                return rules.months_short[dt.month]
+            if tok == "MM":
+                return f"{dt.month:02d}"
+            if tok == "M":
+                return str(dt.month)
+            if tok == "EEEE":
+                return rules.weekdays_long[dt.weekday()]
+            if tok == "E":
+                return rules.weekdays_short[dt.weekday()]
+            if tok == "dd":
+                return f"{dt.day:02d}"
+            if tok == "d":
+                return str(dt.day)
+            if tok == "HH":
+                return f"{dt.hour:02d}"
+            if tok == "H":
+                return str(dt.hour)
+            if tok == "hh":
+                hr = dt.hour % 12
+                return f"{(hr or 12):02d}"
+            if tok == "h":
+                hr = dt.hour % 12
+                return str(hr or 12)
+            if tok == "mm":
+                return f"{dt.minute:02d}"
+            if tok == "ss":
+                return f"{dt.second:02d}"
+            if tok == "a":
+                return "AM" if dt.hour < 12 else "PM"
+            return tok
+
+        return _DATE_TOKENS.sub(_sub, fmt)
     except Exception:
         return ""
 
@@ -235,15 +302,25 @@ def _format_date(args, context=None, abort_signal=None):
 FormatDateImplementation = create_function_implementation(FormatDateApi, _format_date)
 
 
-def _pluralize(args, context=None, abort_signal=None):
+def _pluralize(
+    args: Dict[str, Any],
+    context: DataContext,
+    abort_signal: Optional[AbortSignal] = None,
+) -> str:
     val = _to_float(args.get("value", 0))
+    loc_str = context.locale if context and hasattr(context, "locale") else None
+    rules = get_locale_rules(loc_str)
+
     category = "other"
-    if val == 0:
+    if val == 0 and "zero" in args:
         category = "zero"
-    elif val == 1:
+    elif val == 1 and "one" in args:
         category = "one"
-    elif val == 2:
+    elif val == 2 and "two" in args:
         category = "two"
+    elif rules.plural_category_selector:
+        category = rules.plural_category_selector(val)
+
     res = args.get(category) or args.get("other") or ""
     return str(res)
 
