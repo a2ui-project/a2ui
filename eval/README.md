@@ -46,6 +46,7 @@ uv run main.py
 ```
 
 For a quick 2-sample validation using `gemini-3.1-flash-lite`, use the sanity flag:
+
 ```bash
 uv run main.py --sanity
 ```
