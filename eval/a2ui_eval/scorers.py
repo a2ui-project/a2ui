@@ -41,6 +41,7 @@ def a2ui_scorer(catalog_path: str):
     validator = catalog.validator
 
     async def score(state: TaskState, target: Target) -> Score:  # pylint: disable=unused-argument
+        answer_text = state.output.completion
         try:
             parts = parse_response(state.output.completion)
             all_messages = []
@@ -52,12 +53,13 @@ def a2ui_scorer(catalog_path: str):
                         all_messages.append(part.a2ui_json)
                         
             if not all_messages:
-                return Score(value=0.0, explanation="No A2UI JSON found in response (tags missing or empty)")
+                return Score(value=0.0, answer=answer_text, explanation="No A2UI JSON found in response (tags missing or empty)")
                 
+            answer_text = json.dumps(all_messages, indent=2)
             validator.validate(all_messages)
-            return Score(value=1.0, explanation="Valid A2UI payload")
+            return Score(value=1.0, answer=answer_text, explanation="Valid A2UI payload")
         except Exception as e:
-            return Score(value=0.0, explanation=str(e))
+            return Score(value=0.0, answer=answer_text, explanation=str(e))
             
     return score
 

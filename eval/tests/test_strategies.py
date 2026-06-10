@@ -14,7 +14,7 @@
 
 import pytest
 import os
-from a2ui_eval.solvers import a2ui_system_prompt
+from a2ui_eval.strategies.direct import a2ui_system_prompt
 from inspect_ai.solver import TaskState
 from inspect_ai.model import ChatMessage, ChatMessageUser, ModelName
 
