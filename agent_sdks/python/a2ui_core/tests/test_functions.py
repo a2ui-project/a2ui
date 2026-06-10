@@ -315,3 +315,82 @@ def test_formatting_pluralize():
 def test_actions_open_url():
     # Since openUrl has side effects in browser only and returns None in python, we verify it executes without error.
     assert invoke("openUrl", {"url": "https://google.com"}) is None
+
+
+def test_localized_formatting():
+    class LocalizedContext:
+
+        def __init__(self, loc):
+            self.locale = loc
+
+    # Number
+    assert (
+        invoke(
+            "formatNumber",
+            {"value": 1234.56, "decimals": 2},
+            context=LocalizedContext("en-US"),
+        )
+        == "1,234.56"
+    )
+    assert (
+        invoke(
+            "formatNumber",
+            {"value": 1234.56, "decimals": 2},
+            context=LocalizedContext("de-DE"),
+        )
+        == "1.234,56"
+    )
+    assert (
+        invoke(
+            "formatNumber",
+            {"value": 1234.56, "decimals": 2},
+            context=LocalizedContext("fr-FR"),
+        )
+        == "1 234,56"
+    )
+
+    # Currency
+    assert (
+        invoke(
+            "formatCurrency",
+            {"value": 1234.56, "currency": "EUR", "decimals": 2},
+            context=LocalizedContext("de-DE"),
+        )
+        == "1.234,56 €"
+    )
+    assert (
+        invoke(
+            "formatCurrency",
+            {"value": 1234.56, "currency": "USD", "decimals": 2},
+            context=LocalizedContext("en-US"),
+        )
+        == "$1,234.56"
+    )
+
+    # Date
+    assert (
+        invoke(
+            "formatDate",
+            {"value": "2026-06-10T12:00:00Z", "format": "EEEE, MMMM d, yyyy"},
+            context=LocalizedContext("fr-FR"),
+        )
+        == "mercredi, juin 10, 2026"
+    )
+    assert (
+        invoke(
+            "formatDate",
+            {"value": "2026-06-10T12:00:00Z", "format": "EEEE, MMMM d, yyyy"},
+            context=LocalizedContext("de-DE"),
+        )
+        == "Mittwoch, Juni 10, 2026"
+    )
+
+    # Pluralize (Welsh cy locale)
+    assert (
+        invoke(
+            "pluralize",
+            {"value": 0, "zero": "dim", "one": "un", "other": "llawer"},
+            context=LocalizedContext("cy"),
+        )
+        == "dim"
+    )
