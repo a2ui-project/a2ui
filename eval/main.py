@@ -43,6 +43,7 @@ def main():
         ],
         model=model,
         log_dir=args.log_dir,
+        max_retries=retry_attempts,
         limit=limit,
         sample_shuffle=sample_shuffle
     )

@@ -78,3 +78,14 @@ async def test_extract_subagent_payload():
     
     assert state.output.completion == '{"test": "payload"}'
 
+
+from a2ui_eval.strategies.subagent_tool import subagent_tool_solver
+
+def test_subagent_tool_solver(tmp_path):
+    schema_file = tmp_path / "schema.json"
+    schema_file.write_text("schema content")
+    catalog_file = tmp_path / "catalog.json"
+    catalog_file.write_text('{"catalogId": "test", "components": {}}')
+    
+    solvers = subagent_tool_solver(str(schema_file), str(catalog_file))
+    assert len(solvers) == 4

@@ -33,13 +33,13 @@ def a2ui_specialist(schema_path: str, catalog_path: str) -> Tool:
             input: The UI layout request.
         """
         # Load schema and catalog
-        schema_manager = A2uiSchemaManager(schema_path)
-        catalog = CatalogConfig.from_file(catalog_path)
+        catalog_config = CatalogConfig.from_path("basic_catalog", catalog_path)
+        manager = A2uiSchemaManager(version="0.9", catalogs=[catalog_config])
         
-        system_content = (
-            "You are an A2UI expert. Generate strictly compliant A2UI JSON payloads for the requested UI. Return ONLY the JSON.\n\n"
-            f"Schema:\n{schema_manager.schema}\n\n"
-            f"Catalog:\n{catalog.to_json()}"
+        system_content = manager.generate_system_prompt(
+            role_description="You are an A2UI expert. Generate strictly compliant A2UI JSON payloads for the requested UI. Return ONLY the JSON.",
+            workflow_description=WORKFLOW_OVERRIDE,
+            include_schema=True,
         )
         
         messages = [
@@ -50,8 +50,14 @@ def a2ui_specialist(schema_path: str, catalog_path: str) -> Tool:
         output = await get_model().generate(messages)
         if output.completion:
             parts = parse_response(output.completion)
-            a2ui_json_blocks = [part.a2ui_json for part in parts if part.a2ui_json is not None]
-            return json.dumps(a2ui_json_blocks, indent=2)
+            all_messages = []
+            for part in parts:
+                if part.a2ui_json:
+                    if isinstance(part.a2ui_json, list):
+                        all_messages.extend(part.a2ui_json)
+                    else:
+                        all_messages.append(part.a2ui_json)
+            return json.dumps(all_messages, indent=2)
             
         return ""
         
