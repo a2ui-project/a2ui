@@ -263,16 +263,20 @@ def compile_component_to_pydantic(
     return "\n".join(lines) + "\n"
 
 
-def compile_object_def(class_name: str, spec: Dict[str, Any]) -> str:
+def compile_object_def(
+    class_name: str, spec: Dict[str, Any], base_class: str = None
+) -> str:
     """Generates Python Pydantic class representing a standard JSON Schema object definition."""
     add_props = spec.get("additionalProperties", False)
     if add_props:
+        bcls = base_class or "BaseModel"
         lines = [
-            f"class {class_name}(BaseModel):",
+            f"class {class_name}({bcls}):",
             "    model_config = ConfigDict(populate_by_name=True)",
         ]
     else:
-        lines = [f"class {class_name}(StrictBaseModel):"]
+        bcls = base_class or "StrictBaseModel"
+        lines = [f"class {class_name}({bcls}):"]
     props = spec.get("properties", {})
     required = spec.get("required", [])
     if not props:
@@ -348,8 +352,11 @@ def generate_schema_constants() -> str:
 def generate_common_types(common_data: Dict[str, Any]) -> str:
     """Generates common_types.py dynamically from raw JSON specifications."""
     output = [
-        "from typing import Any, Dict, List, Literal, Optional, Union",
+        "from typing import Annotated, Any, Dict, List, Literal, Optional, Union",
         "from pydantic import BaseModel, Field, ConfigDict\n",
+        'class ComponentReference:\n    """Base marker class for all A2UI component references."""\n',
+        "class SingleReference(str, ComponentReference):\n    @classmethod\n    def __get_pydantic_core_schema__(cls, source_type, handler):\n        from pydantic_core import core_schema\n        return core_schema.no_info_after_validator_function(cls, core_schema.str_schema(), serialization=core_schema.plain_serializer_function_ser_schema(str))\n",
+        'class ListReference(ComponentReference):\n    """Marker class indicating a field holds a list of component references."""\n',
         "class StrictBaseModel(BaseModel):",
         '    model_config = ConfigDict(extra="forbid", populate_by_name=True)\n',
     ]
@@ -357,7 +364,7 @@ def generate_common_types(common_data: Dict[str, Any]) -> str:
     defs = common_data.get("$defs", {})
 
     # 1. Generate ComponentId type alias
-    output.append("ComponentId = str\n")
+    output.append("ComponentId = SingleReference\n")
 
     # 2. Generate DataBinding
     output.append(compile_object_def("DataBinding", defs["DataBinding"]))
@@ -374,7 +381,13 @@ def generate_common_types(common_data: Dict[str, Any]) -> str:
 
     # 5. Generate TemplateChildList & ChildList dynamically
     template_spec = defs["ChildList"]["oneOf"][1]
-    output.append(compile_object_def("TemplateChildList", template_spec))
+    output.append(
+        compile_object_def(
+            "TemplateChildList",
+            template_spec,
+            base_class="StrictBaseModel, ListReference",
+        )
+    )
     output.append("ChildList = Union[List[ComponentId], TemplateChildList]\n")
 
     # 6. Generate AccessibilityAttributes & CheckRule
@@ -778,10 +791,11 @@ def main():
         print(f"Generated: {CONSTANTS_OUT_PATH}")
 
     # 2 Generate catalog/functions.py
-    catalog_functions_code = generate_catalog_functions()
-    with open(CATALOG_FUNCTIONS_OUT_PATH, "w") as f:
-        f.write(FILE_HEADER + catalog_functions_code)
-    print(f"Generated: {CATALOG_FUNCTIONS_OUT_PATH}")
+    if not os.path.exists(CATALOG_FUNCTIONS_OUT_PATH):
+        catalog_functions_code = generate_catalog_functions()
+        with open(CATALOG_FUNCTIONS_OUT_PATH, "w") as f:
+            f.write(FILE_HEADER + catalog_functions_code)
+        print(f"Generated: {CATALOG_FUNCTIONS_OUT_PATH}")
 
     # 3. Generate basic_catalog/components.py
     with open(BASIC_CATALOG_PATH, "r") as f:

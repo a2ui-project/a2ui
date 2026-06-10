@@ -17,6 +17,7 @@ from pydantic import BaseModel, Field, ValidationError
 import pytest
 from a2ui.core.catalog import Catalog, JsonCatalog, ModelCatalog
 from a2ui.core.basic_catalog import BasicCatalog
+from a2ui.core.schema.common_types import ComponentId
 from a2ui.core.schema.constants import SPEC_VERSION
 
 # ==============================================================================
@@ -239,15 +240,15 @@ def test_model_catalog_custom_reference_fields_coverage():
     class CustomLayoutComp(BaseModel):
         id: str
         component: Literal["CustomLayout"] = "CustomLayout"
-        primaryPtr: str = Field(..., description="Custom single pointer")
-        secondaryPtrs: List[str] = Field(..., description="Custom list pointers")
+        primaryPtr: ComponentId = Field(..., description="Custom single pointer")
+        secondaryPtrs: List[ComponentId] = Field(
+            ..., description="Custom list pointers"
+        )
 
     catalog = ModelCatalog(
         spec_version=SPEC_VERSION,
         catalog_id="https://a2ui.org/custom",
         components={"CustomLayout": CustomLayoutComp},
-        custom_single_refs=["primaryPtr"],
-        custom_list_refs=["secondaryPtrs"],
     )
 
     # 1. Verify extract_ref_fields introspection mapping matches our custom ref arguments
@@ -539,8 +540,15 @@ def test_json_catalog_custom_reference_fields_coverage():
                 "type": "object",
                 "properties": {
                     "component": {"const": "CustomContainer"},
-                    "masterNode": {"type": "string"},
-                    "slaveNodes": {"type": "array", "items": {"type": "string"}},
+                    "masterNode": {
+                        "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/ComponentId"
+                    },
+                    "slaveNodes": {
+                        "type": "array",
+                        "items": {
+                            "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/ComponentId"
+                        },
+                    },
                 },
             }
         },
@@ -549,8 +557,6 @@ def test_json_catalog_custom_reference_fields_coverage():
     cat = JsonCatalog(
         spec_version=SPEC_VERSION,
         catalog_schema=catalog_json,
-        custom_single_refs=["masterNode"],
-        custom_list_refs=["slaveNodes"],
     )
 
     refs = cat.extract_ref_fields()

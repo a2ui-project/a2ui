@@ -13,7 +13,6 @@
 # limitations under the License.
 
 from typing import Any, Dict, List, Optional, Set, Tuple
-from ..schema.constants import DEFAULT_SINGLE_REF_FIELDS, DEFAULT_LIST_REF_FIELDS, ROOT_ID, SPEC_BASE_URL
 
 
 class Catalog:
@@ -23,8 +22,6 @@ class Catalog:
         self,
         spec_version: str,
         catalog_id: str,
-        custom_single_refs: Optional[List[str]] = None,
-        custom_list_refs: Optional[List[str]] = None,
     ):
         if not spec_version:
             raise ValueError("A2UI specification version must be provided.")
@@ -33,8 +30,6 @@ class Catalog:
 
         self.spec_version = spec_version
         self.catalog_id = catalog_id
-        self.single_refs = set(custom_single_refs or DEFAULT_SINGLE_REF_FIELDS)
-        self.list_refs = set(custom_list_refs or DEFAULT_LIST_REF_FIELDS)
 
     def validate_components(self, comp_payload: List[Dict[str, Any]]) -> None:
         """Validates a list of component payloads conforming to the catalog's schemas."""

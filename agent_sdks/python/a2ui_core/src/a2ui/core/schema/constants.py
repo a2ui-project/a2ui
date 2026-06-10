@@ -25,13 +25,3 @@ SURFACE_ID_KEY = "surfaceId"
 THEME_KEY = "theme"
 
 ROOT_ID = "root"
-
-DEFAULT_SINGLE_REF_FIELDS = {
-    "child",
-    "contentChild",
-    "entryPointChild",
-    "trigger",
-    "content",
-}
-
-DEFAULT_LIST_REF_FIELDS = {"children", "tabs"}

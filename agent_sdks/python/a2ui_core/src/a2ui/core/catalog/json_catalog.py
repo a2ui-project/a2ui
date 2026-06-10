@@ -43,8 +43,6 @@ class JsonCatalog(Catalog):
         catalog_schema: Dict[str, Any],
         catalog_id: Optional[str] = None,
         common_types_schema: Optional[Dict[str, Any]] = None,
-        custom_single_refs: Optional[List[str]] = None,
-        custom_list_refs: Optional[List[str]] = None,
     ):
         if not catalog_id:
             catalog_id = catalog_schema.get("catalogId")
@@ -53,8 +51,6 @@ class JsonCatalog(Catalog):
         super().__init__(
             spec_version=spec_version,
             catalog_id=catalog_id,
-            custom_single_refs=custom_single_refs,
-            custom_list_refs=custom_list_refs,
         )
         self.catalog_schema = catalog_schema
         self.common_types_schema = common_types_schema
@@ -269,13 +265,28 @@ class JsonCatalog(Catalog):
                     return
                 props = comp_schema.get("properties", {})
                 for prop_name, prop_schema in props.items():
-                    if (
-                        is_component_id_ref(prop_schema)
-                        or prop_name in self.single_refs
-                    ):
+                    if is_component_id_ref(prop_schema):
                         single_refs.add(prop_name)
-                    elif is_child_list_ref(prop_schema) or prop_name in self.list_refs:
+                    elif is_child_list_ref(prop_schema):
                         list_refs.add(prop_name)
+                    else:
+                        if (
+                            prop_schema.get("type") == "array"
+                            and "items" in prop_schema
+                        ):
+                            items = prop_schema["items"]
+                            if isinstance(items, dict):
+                                if is_component_id_ref(items) or is_child_list_ref(
+                                    items
+                                ):
+                                    list_refs.add(prop_name)
+                                elif "properties" in items:
+                                    for sub_schema in items["properties"].values():
+                                        if is_component_id_ref(
+                                            sub_schema
+                                        ) or is_child_list_ref(sub_schema):
+                                            list_refs.add(prop_name)
+                                            break
 
                 for key in ["allOf", "oneOf", "anyOf"]:
                     if key in comp_schema:

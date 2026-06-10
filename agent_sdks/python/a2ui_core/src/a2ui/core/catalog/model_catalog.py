@@ -12,14 +12,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Any, Callable, Dict, List, Optional, Set, Tuple, Type
+from typing import Any, Callable, Dict, List, Optional, Set, Tuple, Type, Union, get_args, get_origin
 from pydantic import BaseModel
 from .catalog import Catalog
-from ..schema.constants import (
-    DEFAULT_SINGLE_REF_FIELDS,
-    DEFAULT_LIST_REF_FIELDS,
-)
 from .functions import FunctionImplementation
+from ..schema.common_types import ComponentReference, SingleReference, ListReference
 
 
 class ModelCatalog(Catalog):
@@ -32,14 +29,10 @@ class ModelCatalog(Catalog):
         components: Dict[str, Type[BaseModel]],
         functions: Optional[Dict[str, Any]] = None,
         theme: Optional[Type[BaseModel]] = None,
-        custom_single_refs: Optional[List[str]] = None,
-        custom_list_refs: Optional[List[str]] = None,
     ):
         super().__init__(
             spec_version=spec_version,
             catalog_id=catalog_id,
-            custom_single_refs=custom_single_refs,
-            custom_list_refs=custom_list_refs,
         )
         self.components = components
         self.theme = theme
@@ -211,27 +204,54 @@ class ModelCatalog(Catalog):
             func_class.model_validate(args)
 
     def extract_ref_fields(self) -> Dict[str, Tuple[Set[str], Set[str]]]:
-        """Inspects concrete Pydantic components dynamically to build the topological reference map."""
+        """Inspects concrete Pydantic components dynamically to build the topological reference map using Reference helper classes."""
+
+        def _is_ref_type(typ: Any) -> Tuple[bool, bool]:
+            if isinstance(typ, type):
+                if issubclass(typ, SingleReference):
+                    return True, False
+                if issubclass(typ, ListReference):
+                    return False, True
+
+            origin = get_origin(typ)
+            if origin in (list, List):
+                args = get_args(typ)
+                if args:
+                    elem = args[0]
+                    if isinstance(elem, type) and issubclass(elem, ComponentReference):
+                        return False, True
+                    if isinstance(elem, type) and issubclass(elem, BaseModel):
+                        for fi in elem.model_fields.values():
+                            s, l = _is_ref_type(fi.annotation)
+                            if s or l:
+                                return False, True
+
+            if origin == Union:
+                args = get_args(typ)
+                has_s, has_l = False, False
+                for arg in args:
+                    s, l = _is_ref_type(arg)
+                    if s:
+                        has_s = True
+                    if l:
+                        has_l = True
+                return has_s, has_l
+
+            return False, False
+
         ref_map = {}
         for comp_name, comp_class in self.components.items():
             single_refs = set()
             list_refs = set()
 
-            # Pydantic V2 model_fields inspection
             if hasattr(comp_class, "model_fields"):
                 for field_name, field_info in comp_class.model_fields.items():
-                    annotation_str = str(field_info.annotation)
-
-                    if (
-                        "ComponentId" in annotation_str
-                        or field_name in self.single_refs
-                    ):
+                    if field_name in ("id", "component"):
+                        continue
+                    s, l = _is_ref_type(field_info.annotation)
+                    if s:
                         single_refs.add(field_name)
-                    elif (
-                        "List[ComponentId]" in annotation_str
-                        or "ChildList" in annotation_str
-                        or field_name in self.list_refs
-                    ):
+                    if l:
                         list_refs.add(field_name)
 
             if single_refs or list_refs:

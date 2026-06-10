@@ -16,12 +16,9 @@ import re
 from typing import Any, Dict, Iterator, List, Optional, Set, Tuple, Union
 from pydantic import ValidationError
 
-from ..basic_catalog.components import TextComponent
 from ..catalog import Catalog, ModelCatalog
 from ..schema import A2uiMessageListWrapper
 from ..schema.constants import (
-    DEFAULT_SINGLE_REF_FIELDS,
-    DEFAULT_LIST_REF_FIELDS,
     MSG_TYPE_CREATE_SURFACE,
     MSG_TYPE_UPDATE_COMPONENTS,
     MSG_TYPE_UPDATE_DATA_MODEL,
@@ -134,16 +131,12 @@ class A2uiValidator:
                         root_id,
                         components,
                         ref_fields,
-                        single_ref_fields=catalog.single_refs,
-                        list_ref_fields=catalog.list_refs,
                         skip_ref_check=not strict_integrity,
                     )
                     analyze_topology(
                         root_id,
                         components,
                         ref_fields,
-                        single_ref_fields=catalog.single_refs,
-                        list_ref_fields=catalog.list_refs,
                         raise_on_orphans=strict_integrity,
                     )
                 except Exception as e:

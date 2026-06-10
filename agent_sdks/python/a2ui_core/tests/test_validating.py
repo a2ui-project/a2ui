@@ -25,10 +25,6 @@ from a2ui.core.validating import (
     get_component_references,
 )
 from a2ui.core.basic_catalog import BasicCatalog
-from a2ui.core.schema.constants import (
-    DEFAULT_SINGLE_REF_FIELDS,
-    DEFAULT_LIST_REF_FIELDS,
-)
 
 
 # ==============================================================================
@@ -52,11 +48,7 @@ def test_get_component_references():
         },
     }
 
-    refs = list(
-        get_component_references(
-            comp, ref_map, DEFAULT_SINGLE_REF_FIELDS, DEFAULT_LIST_REF_FIELDS
-        )
-    )
+    refs = list(get_component_references(comp, ref_map))
     ref_ids = [r[0] for r in refs]
 
     assert "child1" in ref_ids
@@ -77,8 +69,6 @@ def test_validate_component_integrity_valid():
         "root",
         components,
         ref_map,
-        DEFAULT_SINGLE_REF_FIELDS,
-        DEFAULT_LIST_REF_FIELDS,
     )
 
 
@@ -92,8 +82,6 @@ def test_validate_component_integrity_duplicate_id():
             "c1",
             components,
             {},
-            DEFAULT_SINGLE_REF_FIELDS,
-            DEFAULT_LIST_REF_FIELDS,
         )
 
 
@@ -108,8 +96,6 @@ def test_validate_component_integrity_missing_root():
             "root",
             components,
             {},
-            DEFAULT_SINGLE_REF_FIELDS,
-            DEFAULT_LIST_REF_FIELDS,
         )
 
 
@@ -125,8 +111,6 @@ def test_validate_component_integrity_dangling_ref():
             "root",
             components,
             ref_map,
-            DEFAULT_SINGLE_REF_FIELDS,
-            DEFAULT_LIST_REF_FIELDS,
         )
 
 
@@ -181,8 +165,6 @@ def test_analyze_topology_valid():
         "root",
         components,
         ref_map,
-        DEFAULT_SINGLE_REF_FIELDS,
-        DEFAULT_LIST_REF_FIELDS,
         raise_on_orphans=True,
     )
     assert visited == {"root", "n1"}
@@ -201,8 +183,6 @@ def test_analyze_topology_self_ref():
             "root",
             components,
             ref_map,
-            DEFAULT_SINGLE_REF_FIELDS,
-            DEFAULT_LIST_REF_FIELDS,
         )
 
 
@@ -219,8 +199,6 @@ def test_analyze_topology_circular_ref():
             "root",
             components,
             ref_map,
-            DEFAULT_SINGLE_REF_FIELDS,
-            DEFAULT_LIST_REF_FIELDS,
         )
 
 
@@ -237,8 +215,6 @@ def test_analyze_topology_orphans():
             "root",
             components,
             ref_map,
-            DEFAULT_SINGLE_REF_FIELDS,
-            DEFAULT_LIST_REF_FIELDS,
             raise_on_orphans=True,
         )
 
@@ -335,8 +311,6 @@ def test_topology_cyclomatic_orphans_coverage():
             "root",
             components_orphan,
             ref_map,
-            DEFAULT_SINGLE_REF_FIELDS,
-            DEFAULT_LIST_REF_FIELDS,
             raise_on_orphans=True,
         )
 
@@ -350,8 +324,6 @@ def test_topology_cyclomatic_orphans_coverage():
             "root",
             components_cycle,
             ref_map,
-            DEFAULT_SINGLE_REF_FIELDS,
-            DEFAULT_LIST_REF_FIELDS,
         )
 
     components_self = [{"id": "root", "component": "Node", "child": "root"}]
@@ -360,8 +332,6 @@ def test_topology_cyclomatic_orphans_coverage():
             "root",
             components_self,
             ref_map,
-            DEFAULT_SINGLE_REF_FIELDS,
-            DEFAULT_LIST_REF_FIELDS,
         )
 
 
@@ -377,8 +347,6 @@ def test_integrity_dangling_and_duplicate_pointers():
             "root",
             components_dup,
             ref_map,
-            DEFAULT_SINGLE_REF_FIELDS,
-            DEFAULT_LIST_REF_FIELDS,
         )
 
     components_dangle = [{"id": "root", "component": "Node", "child": "MissingNode"}]
@@ -387,8 +355,6 @@ def test_integrity_dangling_and_duplicate_pointers():
             "root",
             components_dangle,
             ref_map,
-            DEFAULT_SINGLE_REF_FIELDS,
-            DEFAULT_LIST_REF_FIELDS,
         )
 
 

@@ -27,28 +27,20 @@ RELAXED_PATH_PATTERN = re.compile(
 def get_component_references(
     component: Dict[str, Any],
     ref_fields_map: Dict[str, Tuple[Set[str], Set[str]]],
-    single_ref_fields: Set[str],
-    list_ref_fields: Set[str],
 ) -> Iterator[Tuple[str, str]]:
     comp_val = component.get("component")
     if isinstance(comp_val, str):
-        yield from _get_refs_recursively(
-            comp_val, component, ref_fields_map, single_ref_fields, list_ref_fields
-        )
+        yield from _get_refs_recursively(comp_val, component, ref_fields_map)
     elif isinstance(comp_val, dict) and comp_val:
         comp_type = next(iter(comp_val.keys()))
         props = comp_val[comp_type]
-        yield from _get_refs_recursively(
-            comp_type, props, ref_fields_map, single_ref_fields, list_ref_fields
-        )
+        yield from _get_refs_recursively(comp_type, props, ref_fields_map)
 
 
 def _get_refs_recursively(
     comp_type: str,
     props: Dict[str, Any],
     ref_fields_map: Dict[str, Tuple[Set[str], Set[str]]],
-    single_ref_fields: Set[str],
-    list_ref_fields: Set[str],
 ) -> Iterator[Tuple[str, str]]:
     if not comp_type or not isinstance(props, dict):
         return
@@ -57,19 +49,24 @@ def _get_refs_recursively(
 
     for key, value in props.items():
         is_ref = False
-        if key in single_refs or key in single_ref_fields:
+        if key in single_refs:
             if isinstance(value, str):
                 yield value, key
                 is_ref = True
             elif isinstance(value, dict) and "componentId" in value:
                 yield value["componentId"], f"{key}.componentId"
                 is_ref = True
-        elif key in list_refs or key in list_ref_fields:
+        elif key in list_refs:
             if isinstance(value, list):
                 for item in value:
                     if isinstance(item, str):
                         yield item, key
                         is_ref = True
+                    elif isinstance(item, dict) and "child" in item:
+                        child_id = item.get("child")
+                        if child_id and isinstance(child_id, str):
+                            yield child_id, f"{key}.child"
+                            is_ref = True
             elif isinstance(value, dict):
                 if "explicitList" in value:
                     for item in value["explicitList"]:
@@ -85,8 +82,8 @@ def _get_refs_recursively(
                     yield value["componentId"], f"{key}.componentId"
                     is_ref = True
 
-        # Special handling for nested tab arrays
-        if isinstance(value, list) and key not in list_refs:
+        # Special handling for nested tab arrays if not already yielded
+        if isinstance(value, list) and key not in list_refs and not is_ref:
             for idx, item in enumerate(value):
                 if isinstance(item, dict):
                     child_id = item.get("child")
@@ -98,8 +95,6 @@ def validate_component_integrity(
     root_id: Optional[str],
     components: List[Dict[str, Any]],
     ref_fields_map: Dict[str, Tuple[Set[str], Set[str]]],
-    single_ref_fields: Set[str],
-    list_ref_fields: Set[str],
     skip_ref_check: bool = False,
 ) -> None:
     ids: Set[str] = set()
@@ -124,9 +119,7 @@ def validate_component_integrity(
     # 3. Check for dangling references using helper
     for comp in components:
         comp_id = comp.get("id", "Unknown")
-        for ref_id, field_name in get_component_references(
-            comp, ref_fields_map, single_ref_fields, list_ref_fields
-        ):
+        for ref_id, field_name in get_component_references(comp, ref_fields_map):
             if ref_id not in ids:
                 raise ValueError(
                     f"Component '{comp_id}' references non-existent component '{ref_id}'"

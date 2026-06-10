@@ -20,8 +20,6 @@ def analyze_topology(
     root_id: Optional[str],
     components: List[Dict[str, Any]],
     ref_fields_map: Dict[str, Tuple[Set[str], Set[str]]],
-    single_ref_fields: Set[str],
-    list_ref_fields: Set[str],
     raise_on_orphans: bool = False,
 ) -> Set[str]:
     adj_list: Dict[str, List[str]] = {}
@@ -37,9 +35,7 @@ def analyze_topology(
         if comp_id not in adj_list:
             adj_list[comp_id] = []
 
-        for ref_id, field_name in get_component_references(
-            comp, ref_fields_map, single_ref_fields, list_ref_fields
-        ):
+        for ref_id, field_name in get_component_references(comp, ref_fields_map):
             if ref_id == comp_id:
                 raise ValueError(
                     f"Self-reference detected: Component '{comp_id}' references itself in field"
