@@ -13,11 +13,12 @@
 # limitations under the License.
 
 import copy
+import inspect
 import re
 import warnings
-from typing import Any, Callable, Dict, List, Optional, Union
+from typing import Any, Callable, Dict, List, Optional, Set, Union
 from ..state import DataModel
-from ..common.events import Subscription, EventSource
+from ..common.events import Subscription, EventSource, Signal, AbortSignal
 
 EXPRESSION_PATTERN = re.compile(r"(\\)?\$\{(.*?)\}")
 
@@ -73,7 +74,19 @@ class DataContext:
             return base_path if base_path else "/"
         return f"{base_path}/{absolute_or_relative}"
 
-    def resolve_dynamic_value(self, value: Any) -> Any:
+    @staticmethod
+    def _peek_value(obj: Any) -> Any:
+        if hasattr(obj, "peek") and callable(obj.peek):
+            return obj.peek()
+        if hasattr(obj, "value"):
+            return obj.value
+        if hasattr(obj, "get_value") and callable(obj.get_value):
+            return obj.get_value()
+        return obj
+
+    def resolve_dynamic_value(
+        self, value: Any, peek: bool = True, abort_signal: Optional[AbortSignal] = None
+    ) -> Any:
         """Recursively evaluates Literals, Data Paths, and Function Calls against the active DataModel."""
         if value is None:
             return None
@@ -109,16 +122,27 @@ class DataContext:
             raw_args = value.get("args", {})
 
             # Recursively resolve function arguments first
-            resolved_args = self.resolve_dynamic_value(raw_args)
-            return self._execute_function(func_name, resolved_args)
+            resolved_args = self.resolve_dynamic_value(
+                raw_args, peek=True, abort_signal=abort_signal
+            )
+            res = self._execute_function(
+                func_name, resolved_args, abort_signal=abort_signal
+            )
+            return self._peek_value(res) if peek else res
 
         # 3. Recurse into lists/arrays
         if isinstance(value, list):
-            return [self.resolve_dynamic_value(item) for item in value]
+            return [
+                self.resolve_dynamic_value(item, peek=peek, abort_signal=abort_signal)
+                for item in value
+            ]
 
         # 4. Recurse into normal objects/dictionaries
         if isinstance(value, dict):
-            return {k: self.resolve_dynamic_value(v) for k, v in value.items()}
+            return {
+                k: self.resolve_dynamic_value(v, peek=peek, abort_signal=abort_signal)
+                for k, v in value.items()
+            }
 
         # 5. Return static literals directly
         return value
@@ -144,38 +168,118 @@ class DataContext:
     def subscribe_dynamic_value(
         self, value: Any, on_change: Callable[[Any], None]
     ) -> Subscription:
-        """Subscribes reactively to a dynamic path or function."""
-        if (
-            isinstance(value, dict)
-            and "path" in value
-            and isinstance(value["path"], str)
-            and "componentId" not in value
-        ):
-            resolved_path = self.resolve_path(value["path"])
+        """Subscribes reactively to dynamic paths, chained function expressions, or active streaming functions."""
+        paths: Set[str] = set()
 
-            # Hybrid Preflight Warning Sniffer
-            if hasattr(self.data_model, "has_path") and not self.data_model.has_path(
-                resolved_path
+        def _extract_paths(val: Any) -> None:
+            if (
+                isinstance(val, dict)
+                and "path" in val
+                and isinstance(val["path"], str)
+                and "componentId" not in val
             ):
-                warnings.warn(
-                    f"Preflight DataBinding Warning: The bound JSON Pointer '{resolved_path}' does not physically exist in the active DataModel. Evaluating to None.",
-                    MissingDataBindingWarning,
-                    stacklevel=2,
-                )
+                paths.add(self.resolve_path(val["path"]))
+            elif isinstance(val, dict):
+                for v in val.values():
+                    _extract_paths(v)
+            elif isinstance(val, list):
+                for item in val:
+                    _extract_paths(item)
 
-            return self.data_model.subscribe(resolved_path, on_change)
+        _extract_paths(value)
 
-        # Headless server-side fallback: If complex function subscription, we run immediately
-        initial = self.resolve_dynamic_value(value)
-        on_change(initial)
-        # Return a dummy subscription
-        return Subscription(lambda: None, initial_value=initial)
+        # Check preflight warnings for all extracted paths
+        if paths and hasattr(self.data_model, "has_path"):
+            for p in paths:
+                if not self.data_model.has_path(p):
+                    warnings.warn(
+                        f"Preflight DataBinding Warning: The bound JSON Pointer '{p}' does not physically exist in the active DataModel. Evaluating to None.",
+                        MissingDataBindingWarning,
+                        stacklevel=2,
+                    )
 
-    def _execute_function(self, name: str, resolved_args: Dict[str, Any]) -> Any:
-        """Invokes standard or catalog functions (e.g., formatString)."""
+        path_subs: List[Subscription] = []
+        stream_sub: List[Any] = []  # Holds subscription to returned EventSource stream
+        abort_controller: List[AbortSignal] = []
+        UNSET = object()
+        current_val: List[Any] = [UNSET]
+        is_sync: List[bool] = [True]
+
+        def _update_output(new_val: Any) -> None:
+            current_val[0] = new_val
+            if not is_sync[0]:
+                on_change(new_val)
+
+        def _run_evaluation(dummy: Any = None) -> None:
+            if abort_controller:
+                abort_controller[0].abort()
+                abort_controller.clear()
+            if stream_sub:
+                for s in stream_sub:
+                    if hasattr(s, "unsubscribe") and callable(s.unsubscribe):
+                        s.unsubscribe()
+                stream_sub.clear()
+
+            sig = AbortSignal()
+            abort_controller.append(sig)
+
+            raw_res = self.resolve_dynamic_value(value, peek=False, abort_signal=sig)
+
+            if hasattr(raw_res, "subscribe") and callable(raw_res.subscribe):
+                # Arm the active stream subscription
+                sub = raw_res.subscribe(_update_output)
+                stream_sub.append(sub)
+
+                # Initialize concrete output if not already emitted by BehaviorSubject/Signal
+                if current_val[0] is UNSET:
+                    init_val = self._peek_value(raw_res)
+                    current_val[0] = init_val
+                    if not is_sync[0]:
+                        on_change(init_val)
+            else:
+                current_val[0] = raw_res
+                if not is_sync[0]:
+                    on_change(raw_res)
+
+        if paths:
+            for p in paths:
+                path_subs.append(self.data_model.subscribe(p, _run_evaluation))
+
+        def _unsubscribe_all() -> None:
+            if abort_controller:
+                abort_controller[0].abort()
+                abort_controller.clear()
+            for s in path_subs:
+                s.unsubscribe()
+            for s in stream_sub:
+                if hasattr(s, "unsubscribe") and callable(s.unsubscribe):
+                    s.unsubscribe()
+            stream_sub.clear()
+
+        # Run evaluation once initially to execute function and arm active streams
+        _run_evaluation()
+        is_sync[0] = False
+
+        return Subscription(_unsubscribe_all, initial_value=current_val[0])
+
+    def _execute_function(
+        self,
+        name: str,
+        resolved_args: Dict[str, Any],
+        abort_signal: Optional[AbortSignal] = None,
+    ) -> Any:
+        """Invokes standard or catalog functions (e.g., formatString or live Metronome)."""
         if self.catalog and getattr(self.catalog, "invoker", None) is not None:
             try:
-                res = self.catalog.invoker(name, resolved_args, self)
+                sig = inspect.signature(self.catalog.invoker)
+                if len(sig.parameters) >= 4 or any(
+                    p.kind == inspect.Parameter.VAR_KEYWORD
+                    or p.kind == inspect.Parameter.VAR_POSITIONAL
+                    for p in sig.parameters.values()
+                ):
+                    res = self.catalog.invoker(name, resolved_args, self, abort_signal)
+                else:
+                    res = self.catalog.invoker(name, resolved_args, self)
                 if res is not None:
                     return res
             except Exception as e:
@@ -187,3 +291,5 @@ class DataContext:
                             "expression": name,
                         }
                     )
+                else:
+                    raise
