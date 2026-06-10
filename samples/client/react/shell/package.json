@@ -34,7 +34,7 @@
     "gts": "^7.0.0",
     "typescript": "5.9.3",
     "typescript-eslint": "^8.20.0",
-    "vite": "^6.0.0",
+    "vite": "^6.4.2",
     "wireit": "^0.15.0-pre.2"
   },
   "wireit": {
