@@ -14,12 +14,12 @@
 
 from typing import Any, Callable, Dict, List, Optional, Set, Tuple, Type, Union, get_args, get_origin
 from pydantic import BaseModel
-from .catalog import Catalog
+from .catalog import CatalogImplementation
 from .functions import FunctionImplementation
 from ..schema.common_types import ComponentReference, SingleReference, ListReference
 
 
-class ModelCatalog(Catalog):
+class ModelCatalog(CatalogImplementation):
     """A Pydantic-compiled concrete Catalog implementation."""
 
     def __init__(
@@ -122,10 +122,10 @@ class ModelCatalog(Catalog):
 
         self.invoker = dynamic_invoker
 
-    def _get_component_class(self, comp_type: str) -> Optional[Type[BaseModel]]:
+    def get_component_class(self, comp_type: str) -> Optional[Type[BaseModel]]:
         return self.components.get(comp_type)
 
-    def _get_function_class(self, func_name: str) -> Optional[Type[BaseModel]]:
+    def get_function_class(self, func_name: str) -> Optional[Type[BaseModel]]:
         if not func_name:
             return None
         normalized = func_name[0].upper() + func_name[1:]
@@ -143,6 +143,36 @@ class ModelCatalog(Catalog):
                 return fn().schema
         return None
 
+    def get_component_schema(self, comp_type: str) -> Optional[Dict[str, Any]]:
+        comp_class = self.get_component_class(comp_type)
+        if comp_class and hasattr(comp_class, "model_json_schema"):
+            return comp_class.model_json_schema()
+        return None
+
+    def get_function_schema(self, func_name: str) -> Optional[Dict[str, Any]]:
+        func_class = self.get_function_class(func_name)
+        if func_class and hasattr(func_class, "model_json_schema"):
+            return func_class.model_json_schema()
+        return None
+
+    def get_theme_schema(self) -> Optional[Dict[str, Any]]:
+        if self.theme and hasattr(self.theme, "model_json_schema"):
+            return self.theme.model_json_schema()
+        return None
+
+    def get_function_implementation(
+        self, func_name: str
+    ) -> Optional[FunctionImplementation]:
+        return self.functions.get(func_name)
+
+    def invoke_function(
+        self,
+        name: str,
+        args: Dict[str, Any],
+        context: Any = None,
+        abort_signal: Optional[Any] = None,
+    ) -> Any:
+        return self.invoker(name, args, context, abort_signal)
 
     def extract_ref_fields(self) -> Dict[str, Tuple[Set[str], Set[str]]]:
         """Inspects concrete Pydantic components dynamically to build the topological reference map using Reference helper classes."""

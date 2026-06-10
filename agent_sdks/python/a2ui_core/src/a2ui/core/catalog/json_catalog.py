@@ -14,10 +14,10 @@
 
 from typing import Any, Dict, List, Optional, Set, Tuple
 from ..schema.constants import CATALOG_COMPONENTS_KEY
-from .catalog import Catalog
+from .catalog import CatalogApi
 
 
-class JsonCatalog(Catalog):
+class JsonCatalog(CatalogApi):
     """A Catalog subclass representing JSON-based catalog specifications.
 
     This is specifically designed for server-side inference prompt building and
@@ -43,15 +43,18 @@ class JsonCatalog(Catalog):
         self.catalog_schema = catalog_schema
         self.common_types_schema = common_types_schema
 
-    def _get_component_schema(self, comp_type: str) -> Optional[Dict[str, Any]]:
+    def get_component_schema(self, comp_type: str) -> Optional[Dict[str, Any]]:
         """Retrieves the raw JSON schema representing a component's properties."""
         components = self.catalog_schema.get("components", {})
         return components.get(comp_type)
 
-    def _get_function_schema(self, func_name: str) -> Optional[Dict[str, Any]]:
+    def get_function_schema(self, func_name: str) -> Optional[Dict[str, Any]]:
         """Retrieves the raw JSON schema representing a function's arguments and returnType."""
         functions = self.catalog_schema.get("functions", {})
         return functions.get(func_name)
+
+    def get_theme_schema(self) -> Optional[Dict[str, Any]]:
+        return self.catalog_schema.get("theme")
 
     def extract_ref_fields(self) -> Dict[str, Tuple[Set[str], Set[str]]]:
         """

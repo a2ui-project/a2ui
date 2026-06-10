@@ -15,14 +15,16 @@
 from typing import Any, Dict, List, Literal, Optional, Set, Tuple
 from pydantic import BaseModel, Field, ValidationError
 import pytest
-from a2ui.core.catalog import Catalog, JsonCatalog, ModelCatalog
+from a2ui.core.catalog import CatalogApi, JsonCatalog, ModelCatalog
 from a2ui.core.validating import CatalogValidator
 from a2ui.core.basic_catalog import BasicCatalog
 from a2ui.core.schema.common_types import ComponentId
 from a2ui.core.schema.constants import SPEC_VERSION
 
-def _val(catalog: Catalog) -> CatalogValidator:
+
+def _val(catalog: CatalogApi) -> CatalogValidator:
     return CatalogValidator.from_catalog(catalog)
+
 
 # ==============================================================================
 # 1. ModelCatalog Implementation Coverage
@@ -65,8 +67,12 @@ def test_model_catalog_additional_properties_handling():
     )
 
     # 1. Permits extra properties when extra is default/ignore or allow
-    _val(cat).validate_components([{"id": "b1", "component": "DefaultBox", "extraProp": 123}])
-    _val(cat).validate_components([{"id": "b2", "component": "AllowBox", "extraProp": 456}])
+    _val(cat).validate_components(
+        [{"id": "b1", "component": "DefaultBox", "extraProp": 123}]
+    )
+    _val(cat).validate_components(
+        [{"id": "b2", "component": "AllowBox", "extraProp": 456}]
+    )
 
     # 2. Rejects extra properties when extra is forbid
     with pytest.raises(ValidationError, match="extraProp|Extra inputs"):
@@ -98,8 +104,12 @@ def test_model_catalog_unevaluated_properties_handling():
     )
 
     # 1. Permits extra properties when unevaluatedProperties is True or default
-    _val(cat).validate_components([{"id": "b1", "component": "DefaultBox", "extraProp": 123}])
-    _val(cat).validate_components([{"id": "b2", "component": "AllowBox", "extraProp": 456}])
+    _val(cat).validate_components(
+        [{"id": "b1", "component": "DefaultBox", "extraProp": 123}]
+    )
+    _val(cat).validate_components(
+        [{"id": "b2", "component": "AllowBox", "extraProp": 456}]
+    )
 
     # 2. Rejects extra properties when unevaluatedProperties is False
     with pytest.raises((ValidationError, ValueError), match="extraProp|Extra inputs"):
@@ -210,7 +220,9 @@ def test_model_catalog_validate_components():
     )
 
     # 1. Test validate_components Valid
-    _val(cat).validate_components([{"id": "b1", "component": "Button", "label": "Click"}])
+    _val(cat).validate_components(
+        [{"id": "b1", "component": "Button", "label": "Click"}]
+    )
 
     # 2. Test validate_components Invalid missing label
     with pytest.raises(ValidationError) as exc_info:
@@ -510,11 +522,15 @@ def test_json_catalog_common_types_defs_and_refs_resolution():
     )
 
     # 1. Test Valid $ref against common_types.json
-    _val(catalog).validate_components([{"id": "b1", "component": "Box", "color": "#00FF00"}])
+    _val(catalog).validate_components(
+        [{"id": "b1", "component": "Box", "color": "#00FF00"}]
+    )
 
     # 2. Test Invalid Pattern in $ref
     with pytest.raises(ValueError, match="does not match"):
-        _val(catalog).validate_components([{"id": "b1", "component": "Box", "color": "red"}])
+        _val(catalog).validate_components(
+            [{"id": "b1", "component": "Box", "color": "red"}]
+        )
 
     # 3. Test Unknown Component in JsonCatalog
     with pytest.raises(ValueError, match="Unknown component"):
@@ -624,7 +640,9 @@ def test_json_catalog_validate_functions():
 
     # 1. Test validate_function Valid
     # Valid call: regex takes 'value' and 'pattern'
-    _val(catalog).validate_function("regex", {"value": "Alice", "pattern": "^[a-zA-Z]+$"})
+    _val(catalog).validate_function(
+        "regex", {"value": "Alice", "pattern": "^[a-zA-Z]+$"}
+    )
 
     # 2. Test validate_function Invalid missing required 'pattern' parameter!
     with pytest.raises(ValueError, match="is a required property|pattern"):

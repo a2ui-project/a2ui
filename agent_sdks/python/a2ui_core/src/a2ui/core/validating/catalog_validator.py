@@ -17,7 +17,7 @@ from jsonschema import Draft202012Validator
 from referencing import Registry, Resource
 from referencing.jsonschema import DRAFT202012
 
-from ..catalog import Catalog, JsonCatalog, ModelCatalog
+from ..catalog import CatalogApi, JsonCatalog, ModelCatalog
 from ..schema.constants import CATALOG_COMPONENTS_KEY, SPEC_BASE_URL
 
 JSON_SCHEMA_DRAFT_2020_12 = "https://json-schema.org/draft/2020-12/schema"
@@ -33,7 +33,7 @@ def _schema_url(spec_version: str, file_name: str) -> str:
 class CatalogValidator:
     """Base abstract Catalog Validator definition."""
 
-    def __init__(self, catalog: Catalog):
+    def __init__(self, catalog: CatalogApi):
         self.catalog = catalog
 
     def validate_components(self, comp_payload: List[Dict[str, Any]]) -> None:
@@ -53,7 +53,7 @@ class CatalogValidator:
         return self.catalog.extract_ref_fields()
 
     @classmethod
-    def from_catalog(cls, catalog: Catalog) -> "CatalogValidator":
+    def from_catalog(cls, catalog: CatalogApi) -> "CatalogValidator":
         if isinstance(catalog, ModelCatalog):
             return ModelCatalogValidator(catalog)
         elif isinstance(catalog, JsonCatalog):
@@ -86,7 +86,7 @@ class ModelCatalogValidator(CatalogValidator):
 
     def _validate_component(self, comp_type: str, comp_payload: Dict[str, Any]) -> None:
         """Validates that a component payload conforms to the catalog's schema for this type."""
-        comp_class = self.catalog._get_component_class(comp_type)
+        comp_class = self.catalog.get_component_class(comp_type)
         if not comp_class:
             raise ValueError(f"Unknown component type: {comp_type}")
 
@@ -121,7 +121,7 @@ class ModelCatalogValidator(CatalogValidator):
 
     def validate_function(self, func_name: str, args: Dict[str, Any]) -> None:
         """Validates that function arguments conform to the catalog's schema for this function."""
-        func_class = self.catalog._get_function_class(func_name)
+        func_class = self.catalog.get_function_class(func_name)
         if not func_class:
             raise ValueError(f"Unknown function: {func_name}")
         if hasattr(func_class, "model_fields") and "call" in func_class.model_fields:
@@ -170,9 +170,7 @@ class JsonCatalogValidator(CatalogValidator):
             )
             resources.append(
                 (
-                    _schema_url(
-                        self.catalog.spec_version, COMMON_TYPES_SCHEMA_FILE
-                    ),
+                    _schema_url(self.catalog.spec_version, COMMON_TYPES_SCHEMA_FILE),
                     Resource.from_contents(
                         self.catalog.common_types_schema,
                         default_specification=DRAFT202012,
@@ -197,7 +195,7 @@ class JsonCatalogValidator(CatalogValidator):
         self, comp_type: str, properties: Dict[str, Any]
     ) -> None:
         """Validates raw component properties dynamically using jsonschema draft 2020-12."""
-        comp_schema = self.catalog._get_component_schema(comp_type)
+        comp_schema = self.catalog.get_component_schema(comp_type)
         if not comp_schema:
             raise ValueError(f"Unknown component type: {comp_type}")
 
@@ -210,7 +208,7 @@ class JsonCatalogValidator(CatalogValidator):
 
     def _validate_component(self, comp_type: str, comp_payload: Dict[str, Any]) -> None:
         """Overrides component validation to validate using raw JSON Schema rules."""
-        comp_schema = self.catalog._get_component_schema(comp_type) or {}
+        comp_schema = self.catalog.get_component_schema(comp_type) or {}
 
         def defines_property(schema: Any, prop_name: str) -> bool:
             if not isinstance(schema, dict):
@@ -266,7 +264,7 @@ class JsonCatalogValidator(CatalogValidator):
 
     def validate_function(self, func_name: str, args: Dict[str, Any]) -> None:
         """Validates function arguments dynamically against raw function specification."""
-        func_spec = self.catalog._get_function_schema(func_name)
+        func_spec = self.catalog.get_function_schema(func_name)
         if not func_spec:
             raise ValueError(f"Unknown function: {func_name}")
 
