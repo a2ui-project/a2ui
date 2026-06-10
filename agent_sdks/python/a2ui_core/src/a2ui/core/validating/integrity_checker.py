@@ -95,7 +95,7 @@ def validate_component_integrity(
     components: List[Dict[str, Any]],
     ref_fields_map: Dict[str, Tuple[Set[str], Set[str]]],
     root_id: Optional[str] = ROOT_ID,
-    skip_ref_check: bool = False,
+    allow_dangling_references: bool = False,
 ) -> None:
     ids: Set[str] = set()
 
@@ -109,7 +109,7 @@ def validate_component_integrity(
         ids.add(comp_id)
 
     # In an incremental update, components may reference IDs already on the client.
-    if skip_ref_check:
+    if allow_dangling_references:
         return
 
     # 2. Check for root component

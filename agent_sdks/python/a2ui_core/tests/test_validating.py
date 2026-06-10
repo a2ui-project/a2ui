@@ -23,6 +23,7 @@ from a2ui.core.validating import (
     validate_component_integrity,
     validate_recursion_and_paths,
     get_component_references,
+    ValidationConfig,
     CatalogValidator,
 )
 from a2ui.core.basic_catalog import BasicCatalog
@@ -161,7 +162,7 @@ def test_analyze_topology_valid():
     visited = analyze_topology(
         components,
         ref_map,
-        raise_on_orphans=True,
+        allow_orphan_components=False,
     )
     assert visited == {"root", "n1"}
 
@@ -208,7 +209,7 @@ def test_analyze_topology_orphans():
         analyze_topology(
             components,
             ref_map,
-            raise_on_orphans=True,
+            allow_orphan_components=False,
         )
 
 
@@ -303,7 +304,7 @@ def test_topology_cyclomatic_orphans_coverage():
         analyze_topology(
             components_orphan,
             ref_map,
-            raise_on_orphans=True,
+            allow_orphan_components=False,
         )
 
     components_cycle = [
@@ -416,39 +417,40 @@ def test_validator_aggregated_pydantic_error_formatting():
     assert "messages.0" in str(exc_info.value)
 
 
-def test_validator_strict_integrity_parameter():
-    # Verify that strict_integrity is respected during validation
-    from a2ui.core.basic_catalog import BasicCatalog
+def test_validator_config_parameter():
+    # Verify that ValidationConfig is respected during validation
 
     catalog = CatalogValidator.from_catalog(BasicCatalog())
     validator = A2uiValidator()
+    strict_config = ValidationConfig(
+        allow_orphan_components=False, allow_dangling_references=False
+    )
+    relaxed_config = ValidationConfig(
+        allow_orphan_components=True, allow_dangling_references=True
+    )
 
-    # 1. Orphan component: with strict_integrity=False, this should pass!
+    # 1. Orphan component: with strict_config, this fails. With relaxed_config, it succeeds!
     orphan_components = [
         {"id": "root", "component": "Column", "children": []},
         {"id": "orphan", "component": "Text", "text": "I am an orphan"},
     ]
-    # Default/strict_integrity=True fails
     with pytest.raises(A2uiValidatorError, match="is not reachable from"):
-        validator.validate_components(catalog, orphan_components, strict_integrity=True)
+        validator.validate_components(catalog, orphan_components, config=strict_config)
 
-    # strict_integrity=False succeeds
-    validator.validate_components(catalog, orphan_components, strict_integrity=False)
+    validator.validate_components(catalog, orphan_components, config=relaxed_config)
 
-    # 2. Dangling reference: with strict_integrity=False, this should pass!
+    # 2. Dangling reference: with strict_config, this fails. With relaxed_config, it succeeds!
     dangling_components = [
         {"id": "root", "component": "Column", "children": ["non_existent_id"]}
     ]
-    # Default/strict_integrity=True fails
     with pytest.raises(A2uiValidatorError, match="references non-existent component"):
         validator.validate_components(
-            catalog, dangling_components, strict_integrity=True
+            catalog, dangling_components, config=strict_config
         )
 
-    # strict_integrity=False succeeds
-    validator.validate_components(catalog, dangling_components, strict_integrity=False)
+    validator.validate_components(catalog, dangling_components, config=relaxed_config)
 
-    # 3. Full message validation with strict_integrity=False
+    # 3. Full message validation
     payload = {
         "version": "v0.9",
         "updateComponents": {
@@ -456,9 +458,7 @@ def test_validator_strict_integrity_parameter():
             "components": dangling_components,
         },
     }
-    # Default/strict_integrity=True fails
     with pytest.raises(A2uiValidatorError, match="references non-existent component"):
-        validator.validate(catalog, payload, strict_integrity=True)
+        validator.validate(catalog, payload, config=strict_config)
 
-    # strict_integrity=False succeeds
-    validator.validate(catalog, payload, strict_integrity=False)
+    validator.validate(catalog, payload, config=relaxed_config)

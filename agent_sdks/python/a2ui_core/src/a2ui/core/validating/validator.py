@@ -14,7 +14,7 @@
 
 import re
 from typing import Any, Dict, Iterator, List, Optional, Set, Tuple, Union
-from pydantic import ValidationError
+from pydantic import BaseModel, ValidationError
 
 from ..schema import A2uiMessageListWrapper
 from ..schema.constants import (
@@ -23,7 +23,6 @@ from ..schema.constants import (
     MSG_TYPE_UPDATE_DATA_MODEL,
     MSG_TYPE_DELETE_SURFACE,
     CATALOG_COMPONENTS_KEY,
-    ROOT_ID,
     THEME_KEY,
 )
 
@@ -37,6 +36,13 @@ from .catalog_validator import CatalogValidator
 
 class A2uiValidatorError(ValueError):
     """Exception raised when an A2UI Catalog payload validation fails."""
+
+
+class ValidationConfig(BaseModel):
+    """Configuration options for A2UI payload and component validation."""
+
+    allow_orphan_components: bool = False
+    allow_dangling_references: bool = False
 
 
 class A2uiValidator:
@@ -112,7 +118,7 @@ class A2uiValidator:
         self,
         catalog_validator: CatalogValidator,
         components: List[Dict[str, Any]],
-        strict_integrity: bool = False,
+        config: ValidationConfig = ValidationConfig(),
     ) -> None:
         errors = []
         if components:
@@ -129,12 +135,12 @@ class A2uiValidator:
                     validate_component_integrity(
                         components,
                         ref_fields,
-                        skip_ref_check=not strict_integrity,
+                        allow_dangling_references=config.allow_dangling_references,
                     )
                     analyze_topology(
                         components,
                         ref_fields,
-                        raise_on_orphans=strict_integrity,
+                        allow_orphan_components=config.allow_orphan_components,
                     )
                 except Exception as e:
                     errors.append(e)
@@ -146,8 +152,13 @@ class A2uiValidator:
         self,
         catalog_validator: CatalogValidator,
         a2ui_payload: Union[Dict[str, Any], List[Any]],
-        strict_integrity: bool = True,
+        config: Optional[ValidationConfig] = None,
     ) -> None:
+        if config is None:
+            config = ValidationConfig(
+                allow_orphan_components=False, allow_dangling_references=False
+            )
+
         messages = a2ui_payload if isinstance(a2ui_payload, list) else [a2ui_payload]
 
         errors = []
@@ -171,7 +182,7 @@ class A2uiValidator:
                             self.validate_components(
                                 catalog_validator,
                                 components,
-                                strict_integrity,
+                                config=config,
                             )
                 except Exception as e:
                     errors.append(e)

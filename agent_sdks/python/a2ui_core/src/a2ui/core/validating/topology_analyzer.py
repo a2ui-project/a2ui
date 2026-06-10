@@ -21,7 +21,7 @@ def analyze_topology(
     components: List[Dict[str, Any]],
     ref_fields_map: Dict[str, Tuple[Set[str], Set[str]]],
     root_id: Optional[str] = ROOT_ID,
-    raise_on_orphans: bool = False,
+    allow_orphan_components: bool = True,
 ) -> Set[str]:
     adj_list: Dict[str, List[str]] = {}
     all_ids: Set[str] = set()
@@ -71,8 +71,8 @@ def analyze_topology(
         if root_id in all_ids:
             dfs(root_id, 0)
 
-        # Check for Orphans if requested
-        if raise_on_orphans:
+        # Check for Orphans if prohibited
+        if not allow_orphan_components:
             orphans = all_ids - visited
             if orphans:
                 sorted_orphans = sorted(list(orphans))
