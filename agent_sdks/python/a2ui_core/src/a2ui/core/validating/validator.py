@@ -42,7 +42,7 @@ class A2uiValidatorError(ValueError):
 class A2uiValidator:
     """Validates the A2UI JSON payload against catalog schemas and checks for layout integrity."""
 
-    def validate_structure(self, messages: List[Dict[str, Any]]) -> None:
+    def validate_protocol_envelope(self, messages: List[Dict[str, Any]]) -> None:
         """Validates the overall A2UI protocol payload structure using Pydantic."""
         struct_errors = []
         for msg in messages:
@@ -152,7 +152,7 @@ class A2uiValidator:
 
         errors = []
         try:
-            self.validate_structure(messages)
+            self.validate_protocol_envelope(messages)
         except Exception as e:
             errors.append(e)
 

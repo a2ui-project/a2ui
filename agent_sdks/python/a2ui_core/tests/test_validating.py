@@ -217,19 +217,19 @@ def test_analyze_topology_orphans():
 # ==============================================================================
 
 
-def test_a2ui_validator_structure_invalid_version():
+def test_a2ui_validator_protocol_envelope_invalid_version():
     validator = A2uiValidator()
     with pytest.raises(
         A2uiValidatorError,
         match="'version' is a required property|'v0.9' was expected|Field required",
     ):
-        validator.validate_structure([{"not_version": "v0.8"}])
+        validator.validate_protocol_envelope([{"not_version": "v0.8"}])
 
 
-def test_a2ui_validator_structure_not_dict():
+def test_a2ui_validator_protocol_envelope_not_dict():
     validator = A2uiValidator()
     with pytest.raises(A2uiValidatorError, match="Message must be an object"):
-        validator.validate_structure(["not_a_dict"])  # type: ignore
+        validator.validate_protocol_envelope(["not_a_dict"])  # type: ignore
 
 
 def test_a2ui_validator_validate_valid_payload():
@@ -411,7 +411,7 @@ def test_validator_aggregated_pydantic_error_formatting():
     invalid_s2c_payload = [{"version": "v0.9"}]
 
     with pytest.raises(A2uiValidatorError) as exc_info:
-        validator.validate_structure(invalid_s2c_payload)
+        validator.validate_protocol_envelope(invalid_s2c_payload)
 
     assert "messages.0" in str(exc_info.value)
 
