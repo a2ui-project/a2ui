@@ -113,7 +113,6 @@ class A2uiValidator:
         catalog_validator: CatalogValidator,
         components: List[Dict[str, Any]],
         strict_integrity: bool = False,
-        root_id: Optional[str] = ROOT_ID,
     ) -> None:
         errors = []
         if components:
@@ -128,13 +127,11 @@ class A2uiValidator:
                 try:
                     ref_fields = catalog_validator.extract_ref_fields()
                     validate_component_integrity(
-                        root_id,
                         components,
                         ref_fields,
                         skip_ref_check=not strict_integrity,
                     )
                     analyze_topology(
-                        root_id,
                         components,
                         ref_fields,
                         raise_on_orphans=strict_integrity,
@@ -149,15 +146,9 @@ class A2uiValidator:
         self,
         catalog_validator: CatalogValidator,
         a2ui_payload: Union[Dict[str, Any], List[Any]],
-        root_id: Optional[str] = None,
         strict_integrity: bool = True,
     ) -> None:
         messages = a2ui_payload if isinstance(a2ui_payload, list) else [a2ui_payload]
-
-        is_initial_surface = any(
-            MSG_TYPE_CREATE_SURFACE in m for m in messages if isinstance(m, dict)
-        )
-        resolved_root_id = root_id or (ROOT_ID if is_initial_surface else None)
 
         errors = []
         try:
@@ -181,7 +172,6 @@ class A2uiValidator:
                                 catalog_validator,
                                 components,
                                 strict_integrity,
-                                root_id=resolved_root_id,
                             )
                 except Exception as e:
                     errors.append(e)

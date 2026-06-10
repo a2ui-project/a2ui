@@ -67,7 +67,6 @@ def test_validate_component_integrity_valid():
     ]
     # Should pass without error
     validate_component_integrity(
-        "root",
         components,
         ref_map,
     )
@@ -80,7 +79,6 @@ def test_validate_component_integrity_duplicate_id():
     ]
     with pytest.raises(ValueError, match="Duplicate component ID: c1"):
         validate_component_integrity(
-            "c1",
             components,
             {},
         )
@@ -94,7 +92,6 @@ def test_validate_component_integrity_missing_root():
         ValueError, match="Missing root component: No component has id='root'"
     ):
         validate_component_integrity(
-            "root",
             components,
             {},
         )
@@ -109,7 +106,6 @@ def test_validate_component_integrity_dangling_ref():
         ValueError, match="references non-existent component 'nonexistent'"
     ):
         validate_component_integrity(
-            "root",
             components,
             ref_map,
         )
@@ -163,7 +159,6 @@ def test_analyze_topology_valid():
         {"id": "n1", "component": {"Node": {}}},
     ]
     visited = analyze_topology(
-        "root",
         components,
         ref_map,
         raise_on_orphans=True,
@@ -181,7 +176,6 @@ def test_analyze_topology_self_ref():
         match="Self-reference detected: Component 'root' references itself",
     ):
         analyze_topology(
-            "root",
             components,
             ref_map,
         )
@@ -197,7 +191,6 @@ def test_analyze_topology_circular_ref():
         ValueError, match="Circular reference detected involving component 'root'"
     ):
         analyze_topology(
-            "root",
             components,
             ref_map,
         )
@@ -213,7 +206,6 @@ def test_analyze_topology_orphans():
         ValueError, match="Component 'orphan' is not reachable from 'root'"
     ):
         analyze_topology(
-            "root",
             components,
             ref_map,
             raise_on_orphans=True,
@@ -309,7 +301,6 @@ def test_topology_cyclomatic_orphans_coverage():
     ]
     with pytest.raises(ValueError, match="is not reachable from 'root'"):
         analyze_topology(
-            "root",
             components_orphan,
             ref_map,
             raise_on_orphans=True,
@@ -322,7 +313,6 @@ def test_topology_cyclomatic_orphans_coverage():
     ]
     with pytest.raises(ValueError, match="Circular reference detected"):
         analyze_topology(
-            "root",
             components_cycle,
             ref_map,
         )
@@ -330,7 +320,6 @@ def test_topology_cyclomatic_orphans_coverage():
     components_self = [{"id": "root", "component": "Node", "child": "root"}]
     with pytest.raises(ValueError, match="Self-reference detected"):
         analyze_topology(
-            "root",
             components_self,
             ref_map,
         )
@@ -345,7 +334,6 @@ def test_integrity_dangling_and_duplicate_pointers():
     ]
     with pytest.raises(ValueError, match="Duplicate component ID"):
         validate_component_integrity(
-            "root",
             components_dup,
             ref_map,
         )
@@ -353,7 +341,6 @@ def test_integrity_dangling_and_duplicate_pointers():
     components_dangle = [{"id": "root", "component": "Node", "child": "MissingNode"}]
     with pytest.raises(ValueError, match="references non-existent component"):
         validate_component_integrity(
-            "root",
             components_dangle,
             ref_map,
         )

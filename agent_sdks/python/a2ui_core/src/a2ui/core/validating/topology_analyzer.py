@@ -14,12 +14,13 @@
 
 from typing import Any, Dict, List, Optional, Set, Tuple
 from .integrity_checker import get_component_references, MAX_GLOBAL_DEPTH
+from ..schema.constants import ROOT_ID
 
 
 def analyze_topology(
-    root_id: Optional[str],
     components: List[Dict[str, Any]],
     ref_fields_map: Dict[str, Tuple[Set[str], Set[str]]],
+    root_id: Optional[str] = ROOT_ID,
     raise_on_orphans: bool = False,
 ) -> Set[str]:
     adj_list: Dict[str, List[str]] = {}

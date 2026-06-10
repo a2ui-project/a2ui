@@ -14,7 +14,7 @@
 
 from typing import Any, Dict, List, Optional, Set, Tuple, Union, Iterator
 import re
-
+from ..schema.constants import ROOT_ID
 
 NUMERIC_PATTERN = re.compile(r"^(?:0|[1-9][0-9]*)$")
 MAX_GLOBAL_DEPTH = 50
@@ -92,9 +92,9 @@ def _get_refs_recursively(
 
 
 def validate_component_integrity(
-    root_id: Optional[str],
     components: List[Dict[str, Any]],
     ref_fields_map: Dict[str, Tuple[Set[str], Set[str]]],
+    root_id: Optional[str] = ROOT_ID,
     skip_ref_check: bool = False,
 ) -> None:
     ids: Set[str] = set()
