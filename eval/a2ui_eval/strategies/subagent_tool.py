@@ -14,7 +14,7 @@
 
 import json
 from inspect_ai.solver import Solver, solver, TaskState, Generate, use_tools, system_message
-from inspect_ai.model import ChatMessageSystem, ChatMessageTool, get_model
+from inspect_ai.model import ChatMessageSystem, ChatMessageTool, get_model, ModelOutput, ChatCompletionChoice, ChatMessageAssistant
 from inspect_ai.agent import Agent, agent, as_tool
 from a2ui.schema.manager import A2uiSchemaManager
 from a2ui.schema.catalog import CatalogConfig
@@ -48,7 +48,11 @@ def a2ui_specialist(schema_path: str, catalog_path: str) -> Agent:
                 parts = parse_response(state.output.completion)
                 a2ui_json_blocks = [part.a2ui_json for part in parts if part.a2ui_json is not None]
                 payload = json.dumps(a2ui_json_blocks, indent=2)
-                state.output.completion = payload
+                if state.output.choices:
+                    state.output = ModelOutput(
+                        model=state.output.model,
+                        choices=[ChatCompletionChoice(message=ChatMessageAssistant(content=payload))]
+                    )
                 # Save it to the shared Inspect AI TaskState store
                 state.store.set(A2UI_PAYLOAD_STORE_KEY, payload)
             
@@ -61,8 +65,11 @@ def extract_subagent_payload() -> Solver:
     """Extracts the A2UI payload from the shared sample storage."""
     async def solve(state: TaskState, generate: Generate) -> TaskState:
         payload = state.store.get(A2UI_PAYLOAD_STORE_KEY)
-        if payload is not None:
-            state.output.completion = payload
+        if payload is not None and state.output and state.output.choices:
+            state.output = ModelOutput(
+                model=state.output.model,
+                choices=[ChatCompletionChoice(message=ChatMessageAssistant(content=payload))]
+            )
         return state
     return solve
 

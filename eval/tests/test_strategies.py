@@ -51,7 +51,7 @@ def test_a2ui_system_prompt_file_not_found():
         a2ui_system_prompt("non_existent_schema.json", "non_existent_catalog.json")
 
 from a2ui_eval.strategies.subagent_tool import extract_subagent_payload, A2UI_PAYLOAD_STORE_KEY
-from inspect_ai.model import ModelOutput
+from inspect_ai.model import ModelOutput, ChatCompletionChoice, ChatMessageAssistant
 
 @pytest.mark.asyncio
 async def test_extract_subagent_payload():
@@ -63,7 +63,10 @@ async def test_extract_subagent_payload():
         epoch=1,
         input="test",
         messages=[],
-        output=ModelOutput(model="mock/model", choices=[])
+        output=ModelOutput(
+            model="mock/model", 
+            choices=[ChatCompletionChoice(message=ChatMessageAssistant(content="old content"))]
+        )
     )
     
     # Simulate the subagent saving a payload to the store
