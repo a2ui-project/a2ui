@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 import pytest
 
 from a2ui.core.state import ComponentModel, SurfaceModel, DataModel
@@ -287,3 +287,104 @@ def test_string_interpolation_complex_execution():
 
     resolved = ctx.resolve_dynamic_value(expr)
     assert resolved == "Calculated: 12"
+
+
+def test_subscribe_dynamic_value_chained_functions():
+    data_model = DataModel({"user": {"name": "   charlie   "}})
+
+    class StringFunctionsCatalog:
+
+        def invoker(self, name, args, context):
+            if name == "trim":
+                val = args.get("value", "")
+                return val.strip() if isinstance(val, str) else val
+            elif name == "capitalize":
+                val = args.get("value", "")
+                return val.capitalize() if isinstance(val, str) else val
+            return None
+
+    ctx = DataContext(path="/", data_model=data_model, catalog=StringFunctionsCatalog())
+
+    # Chained expression: Capitalize(Trim(DataModelSubscription(path: /user/name)))
+    chained_expr = {
+        "call": "capitalize",
+        "args": {"value": {"call": "trim", "args": {"value": {"path": "/user/name"}}}},
+    }
+
+    changes: List[str] = []
+    sub = ctx.subscribe_dynamic_value(
+        chained_expr, lambda new_val: changes.append(new_val)
+    )
+    assert sub.value == "Charlie"
+
+    # Mutate data model; should reactively re-evaluate the whole chained function stack
+    data_model.set("/user/name", "   alice   ")
+    assert changes == ["Alice"]
+
+    sub.unsubscribe()
+
+
+def test_subscribe_dynamic_value_streaming_function():
+    import threading
+    from a2ui.core.common.events import Signal, AbortSignal
+
+    class StreamingFunctionsCatalog:
+
+        def invoker(
+            self,
+            name: str,
+            args: Dict[str, Any],
+            context: Any,
+            abort_signal: Optional[AbortSignal] = None,
+        ) -> Any:
+            if name == "metronome":
+                interval = args.get("interval", 0.01)
+                stream = Signal("tick 0")
+                count = [1]
+                stopped = [False]
+
+                def _tick():
+                    if not stopped[0] and count[0] <= 3:
+                        stream.value = f"tick {count[0]}"
+                        count[0] += 1
+                        if count[0] <= 3:
+                            timer = threading.Timer(interval, _tick)
+                            timer.start()
+
+                timer = threading.Timer(interval, _tick)
+                timer.start()
+
+                if abort_signal:
+                    abort_signal.add_event_listener(
+                        "abort", lambda: stopped.__setitem__(0, True)
+                    )
+
+                return stream
+            return None
+
+    data_model = DataModel()
+    ctx = DataContext(
+        path="/", data_model=data_model, catalog=StreamingFunctionsCatalog()
+    )
+
+    expr = {"call": "metronome", "args": {"interval": 0.01}}
+
+    emitted: List[str] = []
+    received_event = threading.Event()
+
+    def _on_change(val: str) -> None:
+        if val not in emitted:
+            emitted.append(val)
+        if len(emitted) >= 3:
+            received_event.set()
+
+    sub = ctx.subscribe_dynamic_value(expr, _on_change)
+    if sub.value:
+        emitted.append(sub.value)
+    assert sub.value == "tick 0"
+
+    received_event.wait(timeout=2.0)
+    sub.unsubscribe()
+
+    assert len(emitted) >= 3
+    assert emitted[:3] == ["tick 0", "tick 1", "tick 2"]
