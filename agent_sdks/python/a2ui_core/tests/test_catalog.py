@@ -16,9 +16,13 @@ from typing import Any, Dict, List, Literal, Optional, Set, Tuple
 from pydantic import BaseModel, Field, ValidationError
 import pytest
 from a2ui.core.catalog import Catalog, JsonCatalog, ModelCatalog
+from a2ui.core.validating import CatalogValidator
 from a2ui.core.basic_catalog import BasicCatalog
 from a2ui.core.schema.common_types import ComponentId
 from a2ui.core.schema.constants import SPEC_VERSION
+
+def _val(catalog: Catalog) -> CatalogValidator:
+    return CatalogValidator.from_catalog(catalog)
 
 # ==============================================================================
 # 1. ModelCatalog Implementation Coverage
@@ -61,12 +65,12 @@ def test_model_catalog_additional_properties_handling():
     )
 
     # 1. Permits extra properties when extra is default/ignore or allow
-    cat.validate_components([{"id": "b1", "component": "DefaultBox", "extraProp": 123}])
-    cat.validate_components([{"id": "b2", "component": "AllowBox", "extraProp": 456}])
+    _val(cat).validate_components([{"id": "b1", "component": "DefaultBox", "extraProp": 123}])
+    _val(cat).validate_components([{"id": "b2", "component": "AllowBox", "extraProp": 456}])
 
     # 2. Rejects extra properties when extra is forbid
     with pytest.raises(ValidationError, match="extraProp|Extra inputs"):
-        cat.validate_components(
+        _val(cat).validate_components(
             [{"id": "b3", "component": "ForbidBox", "extraProp": 789}]
         )
 
@@ -94,12 +98,12 @@ def test_model_catalog_unevaluated_properties_handling():
     )
 
     # 1. Permits extra properties when unevaluatedProperties is True or default
-    cat.validate_components([{"id": "b1", "component": "DefaultBox", "extraProp": 123}])
-    cat.validate_components([{"id": "b2", "component": "AllowBox", "extraProp": 456}])
+    _val(cat).validate_components([{"id": "b1", "component": "DefaultBox", "extraProp": 123}])
+    _val(cat).validate_components([{"id": "b2", "component": "AllowBox", "extraProp": 456}])
 
     # 2. Rejects extra properties when unevaluatedProperties is False
     with pytest.raises((ValidationError, ValueError), match="extraProp|Extra inputs"):
-        cat.validate_components(
+        _val(cat).validate_components(
             [{"id": "b3", "component": "ForbidBox", "extraProp": 789}]
         )
 
@@ -116,11 +120,11 @@ def test_model_catalog_validate_theme():
     )
 
     # 1. Test Valid Theme
-    cat.validate_theme({"primary": "#00FF00"})
+    _val(cat).validate_theme({"primary": "#00FF00"})
 
     # 2. Test Invalid Theme raises ValidationError
     with pytest.raises(ValidationError) as exc_info:
-        cat.validate_theme({"primary": "blue"})
+        _val(cat).validate_theme({"primary": "blue"})
     error_msg = str(exc_info.value)
     assert "primary" in error_msg
     assert "pattern" in error_msg.lower() or "string" in error_msg.lower()
@@ -152,7 +156,7 @@ def test_model_catalog_nested_function_validation():
     )
 
     # 1. Test validate_components Valid with nested function call
-    cat.validate_components(
+    _val(cat).validate_components(
         [
             {
                 "id": "root",
@@ -167,7 +171,7 @@ def test_model_catalog_nested_function_validation():
 
     # 2. Rejects unrecognized nested catalog function call
     with pytest.raises(ValueError, match="Unknown function: unrecognizedFunctionName"):
-        cat.validate_components(
+        _val(cat).validate_components(
             [
                 {
                     "id": "root",
@@ -179,7 +183,7 @@ def test_model_catalog_nested_function_validation():
 
     # 3. Rejects mismatched parameters inside nested function calls
     with pytest.raises(ValueError, match="Invalid function call 'custom'"):
-        cat.validate_components(
+        _val(cat).validate_components(
             [
                 {
                     "id": "root",
@@ -206,11 +210,11 @@ def test_model_catalog_validate_components():
     )
 
     # 1. Test validate_components Valid
-    cat.validate_components([{"id": "b1", "component": "Button", "label": "Click"}])
+    _val(cat).validate_components([{"id": "b1", "component": "Button", "label": "Click"}])
 
     # 2. Test validate_components Invalid missing label
     with pytest.raises(ValidationError) as exc_info:
-        cat.validate_components([{"id": "b1", "component": "Button"}])
+        _val(cat).validate_components([{"id": "b1", "component": "Button"}])
     error_msg = str(exc_info.value)
     assert "label" in error_msg
     assert "Field required" in error_msg or "missing" in error_msg.lower()
@@ -229,11 +233,11 @@ def test_model_catalog_validate_functions():
     )
 
     # 1. Test validate_function Valid
-    cat.validate_function("regex", {"pattern": "^[A-Z]+$"})
+    _val(cat).validate_function("regex", {"pattern": "^[A-Z]+$"})
 
     # 2. Test validate_function Invalid Unknown Function
     with pytest.raises(ValueError, match="Unknown function"):
-        cat.validate_function("unknownFunc", {})
+        _val(cat).validate_function("unknownFunc", {})
 
 
 def test_model_catalog_custom_reference_fields_coverage():
@@ -290,7 +294,7 @@ def test_model_catalog_custom_reference_fields_coverage():
             "secondaryPtrs": [],
         },
     ]
-    catalog.validate_components(valid_payload)
+    _val(catalog).validate_components(valid_payload)
 
     # 3. Verify validation still passes for layout structures since schema checks are non-topological
     orphan_payload = [
@@ -319,7 +323,7 @@ def test_model_catalog_custom_reference_fields_coverage():
             "secondaryPtrs": [],
         },
     ]
-    catalog.validate_components(orphan_payload)
+    _val(catalog).validate_components(orphan_payload)
 
 
 def test_model_catalog_unrecognized_type_and_mismatched_properties():
@@ -338,11 +342,11 @@ def test_model_catalog_unrecognized_type_and_mismatched_properties():
 
     # 1. Unrecognized Component Type
     with pytest.raises(ValueError, match="Unknown component type: NonExistent"):
-        catalog.validate_components([{"id": "c1", "component": "NonExistent"}])
+        _val(catalog).validate_components([{"id": "c1", "component": "NonExistent"}])
 
     # 2. Unrecognized Properties (extra=forbid)
     with pytest.raises(ValidationError) as exc_info:
-        catalog.validate_components(
+        _val(catalog).validate_components(
             [
                 {
                     "id": "c1",
@@ -359,7 +363,7 @@ def test_model_catalog_unrecognized_type_and_mismatched_properties():
 
     # 3. Mismatched Property Type (Elevation as String instead of Integer)
     with pytest.raises(ValidationError) as exc_info:
-        catalog.validate_components(
+        _val(catalog).validate_components(
             [{"id": "c1", "component": "Card", "elevation": "high"}]
         )
     assert (
@@ -506,21 +510,21 @@ def test_json_catalog_common_types_defs_and_refs_resolution():
     )
 
     # 1. Test Valid $ref against common_types.json
-    catalog.validate_components([{"id": "b1", "component": "Box", "color": "#00FF00"}])
+    _val(catalog).validate_components([{"id": "b1", "component": "Box", "color": "#00FF00"}])
 
     # 2. Test Invalid Pattern in $ref
     with pytest.raises(ValueError, match="does not match"):
-        catalog.validate_components([{"id": "b1", "component": "Box", "color": "red"}])
+        _val(catalog).validate_components([{"id": "b1", "component": "Box", "color": "red"}])
 
     # 3. Test Unknown Component in JsonCatalog
     with pytest.raises(ValueError, match="Unknown component"):
-        catalog.validate_components(
+        _val(catalog).validate_components(
             [{"id": "b1", "component": "UnknownBox", "color": "#000"}]
         )
 
     # 4. Test Extra Property in JsonCatalog
     with pytest.raises(ValueError, match="Additional properties are not allowed"):
-        catalog.validate_components(
+        _val(catalog).validate_components(
             [
                 {
                     "id": "b1",
@@ -583,14 +587,14 @@ def test_json_catalog_validate_theme():
     catalog = JsonCatalog(spec_version=SPEC_VERSION, catalog_schema=catalog_json)
 
     # 1. Test Valid Theme
-    catalog.validate_theme({"primaryColor": "#00FF00"})
+    _val(catalog).validate_theme({"primaryColor": "#00FF00"})
 
     # 2. Test Invalid Theme fails on incorrect color hex code pattern
     with pytest.raises(
         ValueError,
         match="is not valid under any of the given schemas|does not match",
     ):
-        catalog.validate_theme({"primaryColor": "red"})
+        _val(catalog).validate_theme({"primaryColor": "red"})
 
 
 def test_json_catalog_validate_functions():
@@ -620,15 +624,15 @@ def test_json_catalog_validate_functions():
 
     # 1. Test validate_function Valid
     # Valid call: regex takes 'value' and 'pattern'
-    catalog.validate_function("regex", {"value": "Alice", "pattern": "^[a-zA-Z]+$"})
+    _val(catalog).validate_function("regex", {"value": "Alice", "pattern": "^[a-zA-Z]+$"})
 
     # 2. Test validate_function Invalid missing required 'pattern' parameter!
     with pytest.raises(ValueError, match="is a required property|pattern"):
-        catalog.validate_function("regex", {"value": "Alice"})
+        _val(catalog).validate_function("regex", {"value": "Alice"})
 
     # 3. Test validate_function Invalid Unknown Function
     with pytest.raises(ValueError, match="Unknown function"):
-        catalog.validate_function("unknownFunc", {})
+        _val(catalog).validate_function("unknownFunc", {})
 
 
 def test_json_catalog_nested_function_validation():
@@ -678,7 +682,7 @@ def test_json_catalog_nested_function_validation():
 
     # 1. Rejects unrecognized nested catalog function call
     with pytest.raises(ValueError, match="Unknown function: unrecognizedFunctionName"):
-        catalog.validate_components(
+        _val(catalog).validate_components(
             [
                 {
                     "id": "root",
@@ -694,7 +698,7 @@ def test_json_catalog_nested_function_validation():
         ValueError,
         match="Invalid function call 'regex'|pattern|Additional properties",
     ):
-        catalog.validate_components(
+        _val(catalog).validate_components(
             [
                 {
                     "id": "root",
@@ -724,7 +728,7 @@ def test_json_catalog_additional_properties_handling():
     )
 
     # Permits extra properties when additionalProperties is not set explicitly
-    cat_default.validate_component_properties(
+    _val(cat_default).validate_component_properties(
         "SimpleBox", {"component": "SimpleBox", "extraProp": 123}
     )
 
@@ -742,7 +746,7 @@ def test_json_catalog_additional_properties_handling():
     cat_true = JsonCatalog(spec_version=SPEC_VERSION, catalog_schema=cat_true_json)
 
     # Permits extra properties when additionalProperties is explicitly True
-    cat_true.validate_component_properties(
+    _val(cat_true).validate_component_properties(
         "FlexBox", {"component": "FlexBox", "extraProp": 456}
     )
 
@@ -763,7 +767,7 @@ def test_json_catalog_unevaluated_properties_handling():
     )
 
     # Permits extra properties when unevaluatedProperties is default (omitted/true)
-    cat_default.validate_component_properties(
+    _val(cat_default).validate_component_properties(
         "DefaultBox", {"component": "DefaultBox", "extraField": 123}
     )
 
@@ -784,7 +788,7 @@ def test_json_catalog_unevaluated_properties_handling():
     with pytest.raises(
         ValueError, match="Unevaluated properties|Additional properties"
     ):
-        cat_false.validate_component_properties(
+        _val(cat_false).validate_component_properties(
             "StrictBox", {"component": "StrictBox", "extraField": 123}
         )
 
@@ -802,7 +806,7 @@ def test_json_catalog_unevaluated_properties_handling():
     cat_true = JsonCatalog(spec_version=SPEC_VERSION, catalog_schema=cat_true_json)
 
     # Permits extra properties when unevaluatedProperties is True
-    cat_true.validate_component_properties(
+    _val(cat_true).validate_component_properties(
         "FlexBox", {"component": "FlexBox", "extraField": 456}
     )
 
@@ -828,7 +832,7 @@ def test_basic_catalog_validate_components():
         "text": "Hello World",
         "variant": "body",
     }
-    catalog.validate_components([text_comp])
+    _val(catalog).validate_components([text_comp])
 
     # Invalid component payload (wrong type for text)
     invalid_text_comp = {
@@ -837,18 +841,18 @@ def test_basic_catalog_validate_components():
         "text": 12345,  # Should be string / data binding
     }
     with pytest.raises(ValidationError):
-        catalog.validate_components([invalid_text_comp])
+        _val(catalog).validate_components([invalid_text_comp])
 
 
 def test_basic_catalog_validate_theme():
     catalog = BasicCatalog()
 
     # 1. Test Valid Theme
-    catalog.validate_theme({"primaryColor": "#00BFFF"})
+    _val(catalog).validate_theme({"primaryColor": "#00BFFF"})
 
     # 2. Test Invalid Theme raises ValidationError
     with pytest.raises(ValidationError):
-        catalog.validate_theme({"primaryColor": "invalid-color-name"})
+        _val(catalog).validate_theme({"primaryColor": "invalid-color-name"})
 
 
 def test_basic_catalog_validate_functions():
@@ -856,15 +860,15 @@ def test_basic_catalog_validate_functions():
 
     # 1. Test validate_function Valid
     # Valid call: formatString takes named parameter 'value'
-    catalog.validate_function("formatString", {"value": "Hello ${/username}"})
+    _val(catalog).validate_function("formatString", {"value": "Hello ${/username}"})
 
     # 2. Test validate_function Invalid missing required 'value' parameter!
     with pytest.raises(ValidationError):
-        catalog.validate_function("formatString", {"invalid_param": "value"})
+        _val(catalog).validate_function("formatString", {"invalid_param": "value"})
 
     # 3. Test validate_function Invalid Unknown Function
     with pytest.raises(ValueError, match="Unknown function"):
-        catalog.validate_function("unknownFunc", {})
+        _val(catalog).validate_function("unknownFunc", {})
 
 
 def test_basic_catalog_nested_function_validation():
@@ -872,7 +876,7 @@ def test_basic_catalog_nested_function_validation():
 
     # 1. Rejects unrecognized nested catalog function call
     with pytest.raises(ValueError, match="Unknown function: unrecognizedFunctionName"):
-        catalog.validate_components(
+        _val(catalog).validate_components(
             [
                 {
                     "id": "root",
@@ -887,7 +891,7 @@ def test_basic_catalog_nested_function_validation():
     with pytest.raises(
         ValueError, match="Invalid function call 'formatNumber'|decimal"
     ):
-        catalog.validate_components(
+        _val(catalog).validate_components(
             [
                 {
                     "id": "root",

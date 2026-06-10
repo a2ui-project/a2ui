@@ -143,65 +143,6 @@ class ModelCatalog(Catalog):
                 return fn().schema
         return None
 
-    def _check_nested_functions(self, val: Any) -> None:
-        if isinstance(val, List):
-            for item in val:
-                self._check_nested_functions(item)
-        elif isinstance(val, Dict):
-            if "call" in val and "args" in val:
-                func_name = val["call"]
-                try:
-                    self.validate_function(func_name, val["args"])
-                except Exception as e:
-                    raise ValueError(f"Invalid function call '{func_name}': {e}")
-            for value in val.values():
-                self._check_nested_functions(value)
-
-    def _validate_component(self, comp_type: str, comp_payload: Dict[str, Any]) -> None:
-        """Validates that a component payload conforms to the catalog's schema for this type."""
-        comp_class = self._get_component_class(comp_type)
-        if not comp_class:
-            raise ValueError(f"Unknown component type: {comp_type}")
-
-        schema = (
-            comp_class.model_json_schema()
-            if hasattr(comp_class, "model_json_schema")
-            else {}
-        )
-        if schema.get("unevaluatedProperties") is False:
-            defined = (
-                set(comp_class.model_fields.keys())
-                if hasattr(comp_class, "model_fields")
-                else set()
-            )
-            extra = [k for k in comp_payload if k not in defined and k != "component"]
-            if extra:
-                raise ValueError(f"Extra inputs are not permitted: {extra}")
-
-        comp_class.model_validate(comp_payload)
-        self._check_nested_functions(comp_payload)
-
-    def validate_components(self, comp_payload: List[Dict[str, Any]]) -> None:
-        """Validates a list of component payloads conforming to the catalog's schemas."""
-        for comp in comp_payload:
-            if isinstance(comp, dict) and "component" in comp:
-                self._validate_component(comp["component"], comp)
-
-    def validate_theme(self, theme_payload: Dict[str, Any]) -> None:
-        """Validates that theme properties conform to the catalog's theme schema."""
-        if self.theme:
-            self.theme.model_validate(theme_payload)
-
-    def validate_function(self, func_name: str, args: Dict[str, Any]) -> None:
-        """Validates that function arguments conform to the catalog's schema for this function."""
-        func_class = self._get_function_class(func_name)
-        if not func_class:
-            raise ValueError(f"Unknown function: {func_name}")
-        if hasattr(func_class, "model_fields") and "call" in func_class.model_fields:
-            payload = {"call": func_name, "args": args}
-            func_class.model_validate(payload)
-        else:
-            func_class.model_validate(args)
 
     def extract_ref_fields(self) -> Dict[str, Tuple[Set[str], Set[str]]]:
         """Inspects concrete Pydantic components dynamically to build the topological reference map using Reference helper classes."""

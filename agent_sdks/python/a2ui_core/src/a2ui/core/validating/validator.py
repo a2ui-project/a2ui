@@ -16,7 +16,6 @@ import re
 from typing import Any, Dict, Iterator, List, Optional, Set, Tuple, Union
 from pydantic import ValidationError
 
-from ..catalog import Catalog, ModelCatalog
 from ..schema import A2uiMessageListWrapper
 from ..schema.constants import (
     MSG_TYPE_CREATE_SURFACE,
@@ -33,6 +32,7 @@ from .integrity_checker import (
     validate_recursion_and_paths,
 )
 from .topology_analyzer import analyze_topology
+from .catalog_validator import CatalogValidator
 
 
 class A2uiValidatorError(ValueError):
@@ -110,7 +110,7 @@ class A2uiValidator:
 
     def validate_components(
         self,
-        catalog: Catalog,
+        catalog_validator: CatalogValidator,
         components: List[Dict[str, Any]],
         strict_integrity: bool = False,
         root_id: Optional[str] = ROOT_ID,
@@ -121,12 +121,12 @@ class A2uiValidator:
             # invalid component and collect all schema validation errors across the payload.
             for c in components:
                 try:
-                    catalog.validate_components([c])
+                    catalog_validator.validate_components([c])
                 except Exception as ce:
                     errors.append(ce)
             if not errors:
                 try:
-                    ref_fields = catalog.extract_ref_fields()
+                    ref_fields = catalog_validator.extract_ref_fields()
                     validate_component_integrity(
                         root_id,
                         components,
@@ -147,7 +147,7 @@ class A2uiValidator:
 
     def validate(
         self,
-        catalog: Catalog,
+        catalog_validator: CatalogValidator,
         a2ui_payload: Union[Dict[str, Any], List[Any]],
         root_id: Optional[str] = None,
         strict_integrity: bool = True,
@@ -171,14 +171,14 @@ class A2uiValidator:
                     if MSG_TYPE_CREATE_SURFACE in msg:
                         theme = msg[MSG_TYPE_CREATE_SURFACE].get(THEME_KEY)
                         if theme:
-                            catalog.validate_theme(theme)
+                            catalog_validator.validate_theme(theme)
                     elif MSG_TYPE_UPDATE_COMPONENTS in msg:
                         components = msg[MSG_TYPE_UPDATE_COMPONENTS].get(
                             CATALOG_COMPONENTS_KEY
                         )
                         if isinstance(components, list):
                             self.validate_components(
-                                catalog,
+                                catalog_validator,
                                 components,
                                 strict_integrity,
                                 root_id=resolved_root_id,

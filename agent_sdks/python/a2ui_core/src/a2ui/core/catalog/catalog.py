@@ -31,17 +31,6 @@ class Catalog:
         self.spec_version = spec_version
         self.catalog_id = catalog_id
 
-    def validate_components(self, comp_payload: List[Dict[str, Any]]) -> None:
-        """Validates a list of component payloads conforming to the catalog's schemas."""
-        raise NotImplementedError("Subclasses must implement validate_components()")
-
-    def validate_function(self, func_name: str, args: Dict[str, Any]) -> None:
-        """Validates that function arguments conform to the catalog's schema for this function."""
-        raise NotImplementedError("Subclasses must implement validate_function()")
-
-    def validate_theme(self, theme_payload: Dict[str, Any]) -> None:
-        """Validates that theme properties conform to the catalog's theme schema."""
-        raise NotImplementedError("Subclasses must implement validate_theme()")
 
     def extract_ref_fields(self) -> Dict[str, Tuple[Set[str], Set[str]]]:
         """Inspects and retrieves the topological reference pointer map for the active catalog components."""

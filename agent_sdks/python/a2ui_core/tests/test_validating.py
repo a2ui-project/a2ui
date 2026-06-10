@@ -23,6 +23,7 @@ from a2ui.core.validating import (
     validate_component_integrity,
     validate_recursion_and_paths,
     get_component_references,
+    CatalogValidator,
 )
 from a2ui.core.basic_catalog import BasicCatalog
 
@@ -272,7 +273,7 @@ def test_a2ui_validator_validate_valid_payload():
         },
     ]
 
-    validator.validate(catalog, messages)
+    validator.validate(CatalogValidator.from_catalog(catalog), messages)
 
 
 def test_a2ui_validator_validate_components_error():
@@ -295,7 +296,7 @@ def test_a2ui_validator_validate_components_error():
     ]
 
     with pytest.raises(A2uiValidatorError):
-        validator.validate(catalog, messages)
+        validator.validate(CatalogValidator.from_catalog(catalog), messages)
 
 
 def test_topology_cyclomatic_orphans_coverage():
@@ -432,7 +433,7 @@ def test_validator_strict_integrity_parameter():
     # Verify that strict_integrity is respected during validation
     from a2ui.core.basic_catalog import BasicCatalog
 
-    catalog = BasicCatalog()
+    catalog = CatalogValidator.from_catalog(BasicCatalog())
     validator = A2uiValidator()
 
     # 1. Orphan component: with strict_integrity=False, this should pass!
