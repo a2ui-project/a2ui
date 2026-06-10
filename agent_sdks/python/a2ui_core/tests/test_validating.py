@@ -36,7 +36,7 @@ from a2ui.core.basic_catalog import BasicCatalog
 
 def test_get_component_references():
     ref_map = {
-        "Container": ({"singleChild"}, {"childrenList"}),
+        "Container": ({"singleChild", "nestedObj"}, {"childrenList", "tabs"}),
     }
     comp = {
         "id": "c1",
@@ -56,6 +56,7 @@ def test_get_component_references():
     assert "child1" in ref_ids
     assert "child2" in ref_ids
     assert "child3" in ref_ids
+    assert "child4" in ref_ids
     assert "tab1" in ref_ids
     assert "tab2" in ref_ids
 

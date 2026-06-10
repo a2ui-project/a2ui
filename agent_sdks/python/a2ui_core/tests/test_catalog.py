@@ -939,3 +939,89 @@ def test_basic_catalog_extract_ref_fields():
     assert "Column" in ref_map
     col_single, col_list = ref_map["Column"]
     assert "children" in col_list
+
+
+def test_basic_catalog_tabs_ref():
+    catalog = BasicCatalog()
+    ref_map = catalog.extract_ref_fields()
+    assert "Tabs" in ref_map
+    single_refs, list_refs = ref_map["Tabs"]
+    assert "tabs" in list_refs
+
+
+def test_model_catalog_tabs_ref():
+    class CustomTab(BaseModel):
+        title: str
+        child: ComponentId
+
+    class CustomTabsComponent(BaseModel):
+        component: Literal["CustomTabs"] = "CustomTabs"
+        tabs: List[CustomTab]
+
+    catalog = ModelCatalog(
+        spec_version=SPEC_VERSION,
+        catalog_id="https://a2ui.org/tabs-test",
+        components={"CustomTabs": CustomTabsComponent},
+    )
+    ref_map = catalog.extract_ref_fields()
+    assert "CustomTabs" in ref_map
+    single_refs, list_refs = ref_map["CustomTabs"]
+    assert "tabs" in list_refs
+
+
+def test_json_catalog_custom_tabs_ref():
+    catalog_schema = {
+        "$defs": {
+            "ComponentId": {"type": "string"},
+            "CustomTab": {
+                "type": "object",
+                "properties": {
+                    "title": {"type": "string"},
+                    "child": {"$ref": "#/$defs/ComponentId"},
+                },
+            },
+        },
+        "components": {
+            "CustomTabs": {
+                "type": "object",
+                "properties": {
+                    "component": {"const": "CustomTabs"},
+                    "tabs": {
+                        "type": "array",
+                        "items": {"$ref": "#/$defs/CustomTab"},
+                    },
+                },
+            }
+        },
+    }
+    catalog = JsonCatalog(
+        spec_version=SPEC_VERSION,
+        catalog_schema=catalog_schema,
+        catalog_id="https://a2ui.org/json-tabs",
+    )
+    ref_map = catalog.extract_ref_fields()
+    assert "CustomTabs" in ref_map
+    single_refs, list_refs = ref_map["CustomTabs"]
+    assert "tabs" in list_refs
+
+
+def test_json_catalog_basic_spec_tabs_ref():
+    import json
+    from pathlib import Path
+
+    repo_root = Path(__file__).parent.parent.parent.parent.parent
+    catalog_path = (
+        repo_root / "specification" / "v0_9" / "catalogs" / "basic" / "catalog.json"
+    )
+    with open(catalog_path, "r", encoding="utf-8") as f:
+        catalog_schema = json.load(f)
+
+    catalog = JsonCatalog(
+        spec_version=SPEC_VERSION,
+        catalog_schema=catalog_schema,
+        catalog_id="https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json",
+    )
+    ref_map = catalog.extract_ref_fields()
+    assert "Tabs" in ref_map
+    single_refs, list_refs = ref_map["Tabs"]
+    assert "tabs" in list_refs

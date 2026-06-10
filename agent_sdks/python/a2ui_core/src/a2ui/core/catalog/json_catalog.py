@@ -95,6 +95,32 @@ class JsonCatalog(CatalogApi):
                             return True
             return False
 
+        def resolve_ref(schema: Any, visited: Optional[Set[str]] = None) -> Any:
+            if not isinstance(schema, dict) or "$ref" not in schema:
+                return schema
+            visited = visited or set()
+            ref = schema.get("$ref", "")
+            if (
+                not isinstance(ref, str)
+                or not ref.startswith("#/")
+                or ref in visited
+                or ref.endswith("/ComponentId")
+                or ref.endswith("/ChildList")
+            ):
+                return schema
+            visited.add(ref)
+
+            parts = ref.split("/")[1:]
+            cur = self.catalog_schema
+            for p in parts:
+                if isinstance(cur, dict):
+                    cur = cur.get(p, {})
+                else:
+                    return schema
+            if isinstance(cur, dict) and cur:
+                return resolve_ref(cur, visited)
+            return schema
+
         ref_map = {}
         for comp_name, comp_schema in all_components.items():
             single_refs = set()
@@ -105,16 +131,17 @@ class JsonCatalog(CatalogApi):
                     return
                 props = comp_schema.get("properties", {})
                 for prop_name, prop_schema in props.items():
-                    if is_component_id_ref(prop_schema):
+                    resolved_prop = resolve_ref(prop_schema)
+                    if is_component_id_ref(resolved_prop):
                         single_refs.add(prop_name)
-                    elif is_child_list_ref(prop_schema):
+                    elif is_child_list_ref(resolved_prop):
                         list_refs.add(prop_name)
                     else:
                         if (
-                            prop_schema.get("type") == "array"
-                            and "items" in prop_schema
+                            resolved_prop.get("type") == "array"
+                            and "items" in resolved_prop
                         ):
-                            items = prop_schema["items"]
+                            items = resolve_ref(resolved_prop["items"])
                             if isinstance(items, dict):
                                 if is_component_id_ref(items) or is_child_list_ref(
                                     items
@@ -122,9 +149,10 @@ class JsonCatalog(CatalogApi):
                                     list_refs.add(prop_name)
                                 elif "properties" in items:
                                     for sub_schema in items["properties"].values():
+                                        resolved_sub = resolve_ref(sub_schema)
                                         if is_component_id_ref(
-                                            sub_schema
-                                        ) or is_child_list_ref(sub_schema):
+                                            resolved_sub
+                                        ) or is_child_list_ref(resolved_sub):
                                             list_refs.add(prop_name)
                                             break
 

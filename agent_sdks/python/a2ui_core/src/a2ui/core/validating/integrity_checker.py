@@ -47,48 +47,24 @@ def _get_refs_recursively(
 
     single_refs, list_refs = ref_fields_map.get(comp_type, (set(), set()))
 
-    for key, value in props.items():
-        is_ref = False
-        if key in single_refs:
-            if isinstance(value, str):
-                yield value, key
-                is_ref = True
-            elif isinstance(value, dict) and "componentId" in value:
-                yield value["componentId"], f"{key}.componentId"
-                is_ref = True
-        elif key in list_refs:
-            if isinstance(value, list):
-                for item in value:
-                    if isinstance(item, str):
-                        yield item, key
-                        is_ref = True
-                    elif isinstance(item, dict) and "child" in item:
-                        child_id = item.get("child")
-                        if child_id and isinstance(child_id, str):
-                            yield child_id, f"{key}.child"
-                            is_ref = True
-            elif isinstance(value, dict):
-                if "explicitList" in value:
-                    for item in value["explicitList"]:
-                        if isinstance(item, str):
-                            yield item, f"{key}.explicitList"
-                            is_ref = True
-                elif "template" in value:
-                    template = value["template"]
-                    if isinstance(template, dict) and "componentId" in template:
-                        yield template["componentId"], f"{key}.template.componentId"
-                        is_ref = True
-                elif "componentId" in value:
-                    yield value["componentId"], f"{key}.componentId"
-                    is_ref = True
+    def extract_pointers(val: Any, current_path: str) -> Iterator[Tuple[str, str]]:
+        if isinstance(val, str):
+            yield val, current_path
+        elif isinstance(val, list):
+            for idx, item in enumerate(val):
+                sub_path = (
+                    current_path
+                    if isinstance(item, str) and "[" not in current_path
+                    else f"{current_path}[{idx}]"
+                )
+                yield from extract_pointers(item, sub_path)
+        elif isinstance(val, dict):
+            for sub_key, sub_val in val.items():
+                yield from extract_pointers(sub_val, f"{current_path}.{sub_key}")
 
-        # Special handling for nested tab arrays if not already yielded
-        if isinstance(value, list) and key not in list_refs and not is_ref:
-            for idx, item in enumerate(value):
-                if isinstance(item, dict):
-                    child_id = item.get("child")
-                    if child_id and isinstance(child_id, str):
-                        yield child_id, f"{key}[{idx}].child"
+    for key, value in props.items():
+        if key in single_refs or key in list_refs:
+            yield from extract_pointers(value, key)
 
 
 def validate_component_integrity(
