@@ -26,16 +26,17 @@ def a2ui_specialist(schema_path: str, catalog_path: str) -> Agent:
         state = await system_prompt_solver(state, None)
         
         state.output = await get_model().generate(state.messages)
-        state.messages.append(state.output.message)
+        if state.output and state.output.message:
+            state.messages.append(state.output.message)
         
-        # Parse and isolate the A2UI JSON payload
-        if state.output and state.output.completion:
-            parts = parse_response(state.output.completion)
-            a2ui_json_blocks = [part.a2ui_json for part in parts if part.a2ui_json is not None]
-            payload = json.dumps(a2ui_json_blocks, indent=2)
-            state.output.completion = payload
-            # Save it to the shared Inspect AI TaskState store
-            state.store.set(A2UI_PAYLOAD_STORE_KEY, payload)
+            # Parse and isolate the A2UI JSON payload
+            if state.output.completion:
+                parts = parse_response(state.output.completion)
+                a2ui_json_blocks = [part.a2ui_json for part in parts if part.a2ui_json is not None]
+                payload = json.dumps(a2ui_json_blocks, indent=2)
+                state.output.completion = payload
+                # Save it to the shared Inspect AI TaskState store
+                state.store.set(A2UI_PAYLOAD_STORE_KEY, payload)
             
         return state
         

@@ -22,7 +22,7 @@ def main():
     sample_shuffle = None if args.sanity else args.sample_shuffle
 
     print("Starting evaluation for multiple strategies...")
-    success, logs = eval_set(
+    logs = eval_set(
         tasks=[
             a2ui_v0_9_eval(strategy="direct", grading_model=args.grading_model),
             a2ui_v0_9_eval(strategy="subagent_tool", grading_model=args.grading_model)
@@ -34,6 +34,7 @@ def main():
         sample_shuffle=sample_shuffle
     )
     
+    success = all(log.status == "success" for log in logs)
     if not success:
         print("Evaluation returned failure status!")
         sys.exit(1)

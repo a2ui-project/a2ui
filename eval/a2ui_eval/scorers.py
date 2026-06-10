@@ -41,6 +41,9 @@ def a2ui_scorer(catalog_path: str):
     validator = catalog.validator
 
     async def score(state: TaskState, target: Target) -> Score:  # pylint: disable=unused-argument
+        if not state.output:
+            return Score(value=0.0, explanation="No model output (generation failed or was interrupted)")
+            
         answer_text = state.output.completion
         try:
             parts = parse_response(state.output.completion)
