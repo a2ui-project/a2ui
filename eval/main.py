@@ -16,7 +16,7 @@ import os
 import sys
 import traceback
 import argparse
-from inspect_ai import eval_set
+from inspect_ai import eval
 from tasks import a2ui_v0_9_eval
 
 def main():
@@ -36,14 +36,13 @@ def main():
     sample_shuffle = None if args.sanity else args.sample_shuffle
 
     print("Starting evaluation for multiple strategies...")
-    logs = eval_set(
+    logs = eval(
         tasks=[
             a2ui_v0_9_eval(strategy="direct", grading_model=args.grading_model),
             a2ui_v0_9_eval(strategy="subagent_tool", grading_model=args.grading_model)
         ],
         model=model,
         log_dir=args.log_dir,
-        retry_attempts=retry_attempts,
         limit=limit,
         sample_shuffle=sample_shuffle
     )

@@ -44,9 +44,9 @@ def a2ui_scorer(catalog_path: str):
         if not state.output:
             return Score(value=0.0, explanation="No model output (generation failed or was interrupted)")
             
-        answer_text = state.output.completion
+        answer_text = state.output.completion or ""
         try:
-            parts = parse_response(state.output.completion)
+            parts = parse_response(answer_text)
             all_messages = []
             for part in parts:
                 if part.a2ui_json:
