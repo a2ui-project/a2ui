@@ -74,9 +74,10 @@ def extract_subagent_payload() -> Solver:
                 break
                 
         if payload is not None and state.output and state.output.choices:
+            formatted_payload = f"<a2ui-json>\n{payload}\n</a2ui-json>"
             state.output = ModelOutput(
                 model=state.output.model,
-                choices=[ChatCompletionChoice(message=ChatMessageAssistant(content=payload))]
+                choices=[ChatCompletionChoice(message=ChatMessageAssistant(content=formatted_payload))]
             )
         return state
     return solve

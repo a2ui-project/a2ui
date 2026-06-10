@@ -75,8 +75,7 @@ async def test_extract_subagent_payload():
         return state
 
     state = await solver(state, dummy_generate)
-    
-    assert state.output.completion == '{"test": "payload"}'
+    assert state.output.completion == '<a2ui-json>\n{"test": "payload"}\n</a2ui-json>'
 
 
 from a2ui_eval.strategies.subagent_tool import subagent_tool_solver
