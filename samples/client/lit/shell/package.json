@@ -77,8 +77,8 @@
     "eslint": "^9.37.0",
     "gts": "^7.0.0",
     "typescript": "5.9.3",
-    "uuid": "^13.0.0",
-    "vite": "^7.1.11",
+    "uuid": "^14.0.0",
+    "vite": "^6.4.2",
     "wireit": "^0.15.0-pre.2"
   },
   "dependencies": {
