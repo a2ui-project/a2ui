@@ -77,18 +77,17 @@
     "prepublishOnly": "node -e \"if(!process.cwd().endsWith('dist')) { console.error('Error: This package must be published from the dist/ directory. Run `yarn build` then `cd dist && yarn npm publish`'); process.exit(1); }\"",
     "publish:package": "yarn build && node ../scripts/prepare-publish.mjs && cd dist && touch yarn.lock && yarn install && yarn npm publish --access public",
     "build": "wireit",
-    "dev": "tsup --watch",
+    "demo": "yarn workspace @a2ui/react-explorer dev",
     "test": "wireit",
+    "test:unit": "wireit",
+    "test:integration": "wireit",
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit",
     "lint": "eslint src",
     "lint:fix": "eslint src --fix",
     "format": "prettier --write \"src/**/*.{ts,tsx}\"",
     "format:check": "prettier --check \"src/**/*.{ts,tsx}\"",
-    "clean": "wireit",
-    "demo": "cd a2ui_explorer && vite",
-    "build:demo": "cd a2ui_explorer && tsc -b && vite build",
-    "test:demo": "cd a2ui_explorer && vitest run src"
+    "clean": "wireit"
   },
   "dependencies": {
     "@a2ui/markdown-it": "workspace:*",
@@ -111,7 +110,6 @@
     "@types/node": "^24.10.1",
     "@types/react": "^18.3.0",
     "@types/react-dom": "^18.3.0",
-    "@vitejs/plugin-react": "^5.1.1",
     "eslint": "^9.0.0",
     "eslint-config-prettier": "^10.0.0",
     "eslint-plugin-react": "^7.37.0",
@@ -121,14 +119,12 @@
     "gts": "^7.0.0",
     "jsdom": "^28.1.0",
     "prettier": "^3.4.0",
-    "puppeteer": "^24.39.0",
     "react": "^18.3.0",
     "react-dom": "^18.3.0",
     "tsup": "^8.0.0",
     "tsx": "^4.21.0",
     "typescript": "5.9.3",
     "typescript-eslint": "^8.0.0",
-    "vite": "^7.3.1",
     "vitest": "^4.0.18",
     "wireit": "^0.15.0-pre.2"
   },
@@ -151,6 +147,12 @@
       ]
     },
     "test": {
+      "dependencies": [
+        "test:unit",
+        "test:integration"
+      ]
+    },
+    "test:unit": {
       "command": "vitest run",
       "dependencies": [
         "build"
@@ -160,8 +162,11 @@
         "tsconfig.json"
       ]
     },
+    "test:integration": {
+      "command": "yarn workspace @a2ui/react-explorer test:ci"
+    },
     "clean": {
-      "command": "rm -rf dist dist-demo .tsbuildinfo .wireit"
+      "command": "rm -rf dist .tsbuildinfo .wireit"
     }
   }
 }
