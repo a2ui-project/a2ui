@@ -2,6 +2,10 @@
 
 Get hands-on with A2UI by running the restaurant finder demo. This guide will have you experiencing agent-generated UI in less than 5 minutes.
 
+!!! tip "Using an existing agent app?"
+
+    If you already have an agent in ADK, LangGraph, CrewAI, Mastra, or a custom service, use the [A2UI + AG-UI guide](guides/a2ui-with-any-agent-framework.md) to add A2UI through CopilotKit.
+
 ## What You'll Build
 
 By the end of this quickstart, you'll have:

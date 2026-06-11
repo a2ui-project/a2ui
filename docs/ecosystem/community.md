@@ -22,7 +22,7 @@ The best way to share your work is to **post in [GitHub Discussions](https://git
 
 ## Project Partners
 
-A2UI is developed in collaboration with Google Opal, Flutter (GenUI SDK), Gemini Enterprise, AG UI / CopilotKit, and the A2A team. For full details and case studies, see [A2UI in the World](a2ui-in-the-world.md).
+A2UI is developed in collaboration with Google Opal, Flutter (GenUI SDK), Gemini Enterprise, AG-UI / CopilotKit, and the A2A team. For full details and case studies, see [A2UI in the World](a2ui-in-the-world.md).
 
 If you have made significant contributions to A2UI, please submit your name to this list.
 

@@ -33,7 +33,7 @@ In multi-agent systems, agents often run remotely (different servers, organizati
 A2UI: JSON messages describing UI that:
 
 - LLMs generate as structured output.
-- Travel over any transport (A2A, AG UI, SSE, WebSockets).
+- Travel over any transport (A2A, AG-UI, SSE, WebSockets).
 - Client renders using its own native components.
 
 **Result:** Client controls security and styling, agent-generated UI feels native.
