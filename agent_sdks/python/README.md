@@ -2,9 +2,9 @@
 
 ## Detect non-released changes
 
-To check if there are new changes after last release, run the command from any directory:
+To check if there are new changes after [last release](https://pypi.org/project/a2ui-agent-sdk/#history), run the command from any directory:
 
-```
+```bash
 export LAST_RELEASE_TIME=$(curl -s "https://pypi.org/pypi/a2ui-agent-sdk/json" | python3 -c "
 import sys, json
 d = json.load(sys.stdin)
