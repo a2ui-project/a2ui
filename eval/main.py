@@ -16,7 +16,7 @@ import os
 import sys
 import traceback
 import argparse
-from inspect_ai import eval
+from inspect_ai import eval_set
 from tasks import a2ui_v0_9_eval
 
 def main():
@@ -36,19 +36,17 @@ def main():
     sample_shuffle = None if args.sanity else args.sample_shuffle
 
     print("Starting evaluation for multiple strategies...")
-    logs = eval(
+    success, logs = eval_set(
         tasks=[
             a2ui_v0_9_eval(strategy="direct", grading_model=args.grading_model),
             a2ui_v0_9_eval(strategy="subagent_tool", grading_model=args.grading_model)
         ],
         model=model,
         log_dir=args.log_dir,
-        max_retries=retry_attempts,
+        retry_attempts=retry_attempts,
         limit=limit,
         sample_shuffle=sample_shuffle
     )
-    
-    success = all(log.status == "success" for log in logs)
     if not success:
         print("Evaluation returned failure status!")
         sys.exit(1)
