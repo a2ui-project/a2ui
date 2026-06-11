@@ -32,7 +32,7 @@ from .integrity_checker import (
     validate_recursion_and_paths,
 )
 from .topology_analyzer import analyze_topology
-from .catalog_validator import CatalogValidator
+from .catalog_schema_validator import CatalogSchemaValidator
 
 
 class A2uiValidatorError(ValueError):
@@ -127,7 +127,7 @@ class A2uiValidator:
 
     def validate_components(
         self,
-        catalog_validator: CatalogValidator,
+        schema_validator: CatalogSchemaValidator,
         components: List[Dict[str, Any]],
         config: ValidationConfig = ValidationConfig(),
     ) -> None:
@@ -137,12 +137,12 @@ class A2uiValidator:
             # invalid component and collect all schema validation errors across the payload.
             for c in components:
                 try:
-                    catalog_validator.validate_components([c])
+                    schema_validator.validate_components([c])
                 except Exception as ce:
                     errors.append(ce)
             if not errors:
                 try:
-                    ref_fields = catalog_validator.extract_ref_fields()
+                    ref_fields = schema_validator.extract_ref_fields()
                     validate_component_integrity(
                         components,
                         ref_fields,
@@ -163,7 +163,7 @@ class A2uiValidator:
 
     def validate(
         self,
-        catalog_validator: CatalogValidator,
+        schema_validator: CatalogSchemaValidator,
         a2ui_payload: Union[Dict[str, Any], List[Any]],
         config: Optional[ValidationConfig] = None,
     ) -> None:
@@ -193,14 +193,14 @@ class A2uiValidator:
                     if MSG_TYPE_CREATE_SURFACE in msg:
                         theme = msg[MSG_TYPE_CREATE_SURFACE].get(THEME_KEY)
                         if theme:
-                            catalog_validator.validate_theme(theme)
+                            schema_validator.validate_theme(theme)
                     elif MSG_TYPE_UPDATE_COMPONENTS in msg:
                         components = msg[MSG_TYPE_UPDATE_COMPONENTS].get(
                             CATALOG_COMPONENTS_KEY
                         )
                         if isinstance(components, list):
                             self.validate_components(
-                                catalog_validator,
+                                schema_validator,
                                 components,
                                 config=config,
                             )

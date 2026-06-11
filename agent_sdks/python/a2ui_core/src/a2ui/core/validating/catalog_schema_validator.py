@@ -19,6 +19,7 @@ from referencing import Registry, Resource
 from referencing.jsonschema import DRAFT202012
 
 from ..catalog import Catalog, ComponentApi, ModelComponentApi
+from ..catalog.catalog import TComponent, TFunction
 from ..schema.common_types import (
     ComponentReference,
     ListReference,
@@ -36,8 +37,8 @@ def _schema_url(spec_version: str, file_name: str) -> str:
     return f"{SPEC_BASE_URL}/{ver.replace('.', '_')}/{file_name}"
 
 
-class CatalogValidator:
-    """Consolidated Catalog Validator for A2UI catalogs using jsonschema engine."""
+class CatalogSchemaValidator:
+    """Consolidated Catalog Schema Validator for A2UI catalogs using jsonschema engine."""
 
     def __init__(self, catalog: Catalog[TComponent, TFunction]):
         self.catalog = catalog
@@ -339,8 +340,8 @@ class CatalogValidator:
         return extract_ref_fields(self.catalog)
 
     @classmethod
-    def from_catalog(cls, catalog: Any) -> "CatalogValidator":
-        if isinstance(catalog, CatalogValidator):
+    def from_catalog(cls, catalog: Any) -> "CatalogSchemaValidator":
+        if isinstance(catalog, CatalogSchemaValidator):
             return catalog
         return cls(catalog)
 

@@ -21,14 +21,14 @@ from a2ui.core.catalog import (
     ModelComponentApi,
     FunctionImplementation,
 )
-from a2ui.core.validating import CatalogValidator
+from a2ui.core.validating import CatalogSchemaValidator
 from a2ui.core.basic_catalog import BasicCatalog
 from a2ui.core.schema.common_types import ComponentId
 from a2ui.core.schema.constants import SPEC_VERSION
 
 
-def _val(catalog: Catalog[Any, Any]) -> CatalogValidator:
-    return CatalogValidator.from_catalog(catalog)
+def _val(catalog: Catalog[Any, Any]) -> CatalogSchemaValidator:
+    return CatalogSchemaValidator.from_catalog(catalog)
 
 
 # ==============================================================================
@@ -867,7 +867,7 @@ def test_seamless_mixed_catalogs():
         ],
     )
 
-    validator = CatalogValidator(catalog)
+    validator = CatalogSchemaValidator(catalog)
 
     # 1. Validate payload conforming to ModelComponentApi
     validator.validate_components(
