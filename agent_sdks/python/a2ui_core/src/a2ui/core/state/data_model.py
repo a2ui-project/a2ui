@@ -29,7 +29,7 @@ class DataModel:
         self._listeners: Dict[str, Set[Callable[[Any], None]]] = {}
 
     @staticmethod
-    def parse_pointer(path: str) -> List[str]:
+    def _parse_pointer(path: str) -> List[str]:
         """Splits a JSON Pointer path into individual unescaped tokens."""
         if not path or path == "/":
             return []
@@ -41,7 +41,7 @@ class DataModel:
         return [t.replace("~1", "/").replace("~0", "~") for t in tokens]
 
     @staticmethod
-    def build_pointer(tokens: List[str]) -> str:
+    def _build_pointer(tokens: List[str]) -> str:
         """Assembles unescaped tokens back into an absolute JSON Pointer."""
         if not tokens:
             return "/"
@@ -50,7 +50,7 @@ class DataModel:
 
     def get(self, path: str) -> Any:
         """Resolves the JSON Pointer path to its current value."""
-        tokens = self.parse_pointer(path)
+        tokens = self._parse_pointer(path)
         if not tokens:
             return self._data
 
@@ -70,7 +70,7 @@ class DataModel:
 
     def has_path(self, path: str) -> bool:
         """Checks if a JSON Pointer path physically exists in the data model."""
-        tokens = self.parse_pointer(path)
+        tokens = self._parse_pointer(path)
         if not tokens:
             return True
 
@@ -90,7 +90,7 @@ class DataModel:
 
     def set(self, path: str, value: Any) -> None:
         """Sets a value atomically at a JSON Pointer path with auto-vivification."""
-        tokens = self.parse_pointer(path)
+        tokens = self._parse_pointer(path)
         if not tokens:
             self._data = copy.deepcopy(value)
             self._trigger_listeners("/", value)
@@ -138,7 +138,7 @@ class DataModel:
     def subscribe(self, path: str, on_change: Callable[[Any], None]) -> Subscription:
         """Registers a listener to monitor changes reactive to this path."""
         # Normalize path pointer
-        norm_path = self.build_pointer(self.parse_pointer(path))
+        norm_path = self._build_pointer(self._parse_pointer(path))
         self._listeners.setdefault(norm_path, set()).add(on_change)
 
         # Return subscription armed with unsubscription and initial value
@@ -161,12 +161,12 @@ class DataModel:
         # 1. Bubble Up: Notify all parent paths
         for length in range(len(tokens) + 1):
             parent_tokens = tokens[:length]
-            parent_path = self.build_pointer(parent_tokens)
+            parent_path = self._build_pointer(parent_tokens)
             self._trigger_listeners(parent_path, self.get(parent_path))
 
         # 2. Cascade Down: Find and notify all nested descendants
         for registered_path in list(self._listeners.keys()):
-            reg_tokens = self.parse_pointer(registered_path)
+            reg_tokens = self._parse_pointer(registered_path)
             if len(reg_tokens) > len(tokens) and reg_tokens[: len(tokens)] == tokens:
                 self._trigger_listeners(registered_path, self.get(registered_path))
 
