@@ -26,7 +26,7 @@ class RequiredArgs(StrictBaseModel):
 
 class RequiredApi(FunctionApi):
     name = "required"
-    args = RequiredArgs
+    schema = RequiredArgs
     return_type = "boolean"
 
 
@@ -37,7 +37,7 @@ class RegexArgs(StrictBaseModel):
 
 class RegexApi(FunctionApi):
     name = "regex"
-    args = RegexArgs
+    schema = RegexArgs
     return_type = "boolean"
 
 
@@ -49,7 +49,7 @@ class LengthArgs(StrictBaseModel):
 
 class LengthApi(FunctionApi):
     name = "length"
-    args = LengthArgs
+    schema = LengthArgs
     return_type = "boolean"
 
 
@@ -61,7 +61,7 @@ class NumericArgs(StrictBaseModel):
 
 class NumericApi(FunctionApi):
     name = "numeric"
-    args = NumericArgs
+    schema = NumericArgs
     return_type = "boolean"
 
 
@@ -71,7 +71,7 @@ class EmailArgs(StrictBaseModel):
 
 class EmailApi(FunctionApi):
     name = "email"
-    args = EmailArgs
+    schema = EmailArgs
     return_type = "boolean"
 
 
@@ -81,7 +81,7 @@ class FormatStringArgs(StrictBaseModel):
 
 class FormatStringApi(FunctionApi):
     name = "formatString"
-    args = FormatStringArgs
+    schema = FormatStringArgs
     return_type = "string"
 
 
@@ -99,7 +99,7 @@ class FormatNumberArgs(StrictBaseModel):
 
 class FormatNumberApi(FunctionApi):
     name = "formatNumber"
-    args = FormatNumberArgs
+    schema = FormatNumberArgs
     return_type = "string"
 
 
@@ -120,7 +120,7 @@ class FormatCurrencyArgs(StrictBaseModel):
 
 class FormatCurrencyApi(FunctionApi):
     name = "formatCurrency"
-    args = FormatCurrencyArgs
+    schema = FormatCurrencyArgs
     return_type = "string"
 
 
@@ -134,7 +134,7 @@ class FormatDateArgs(StrictBaseModel):
 
 class FormatDateApi(FunctionApi):
     name = "formatDate"
-    args = FormatDateArgs
+    schema = FormatDateArgs
     return_type = "string"
 
 
@@ -166,7 +166,7 @@ class PluralizeArgs(StrictBaseModel):
 
 class PluralizeApi(FunctionApi):
     name = "pluralize"
-    args = PluralizeArgs
+    schema = PluralizeArgs
     return_type = "string"
 
 
@@ -176,7 +176,7 @@ class OpenUrlArgs(StrictBaseModel):
 
 class OpenUrlApi(FunctionApi):
     name = "openUrl"
-    args = OpenUrlArgs
+    schema = OpenUrlArgs
     return_type = "void"
 
 
@@ -188,7 +188,7 @@ class AndArgs(StrictBaseModel):
 
 class AndApi(FunctionApi):
     name = "and"
-    args = AndArgs
+    schema = AndArgs
     return_type = "boolean"
 
 
@@ -200,7 +200,7 @@ class OrArgs(StrictBaseModel):
 
 class OrApi(FunctionApi):
     name = "or"
-    args = OrArgs
+    schema = OrArgs
     return_type = "boolean"
 
 
@@ -210,5 +210,5 @@ class NotArgs(StrictBaseModel):
 
 class NotApi(FunctionApi):
     name = "not"
-    args = NotArgs
+    schema = NotArgs
     return_type = "boolean"

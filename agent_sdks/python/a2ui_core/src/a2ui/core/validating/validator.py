@@ -24,6 +24,7 @@ from ..schema.constants import (
     MSG_TYPE_DELETE_SURFACE,
     CATALOG_COMPONENTS_KEY,
     THEME_KEY,
+    ROOT_ID,
 )
 
 from .integrity_checker import (
@@ -43,6 +44,16 @@ class ValidationConfig(BaseModel):
 
     allow_orphan_components: bool = False
     allow_dangling_references: bool = False
+    allow_missing_root: bool = False
+
+
+# Define the presets as global constants
+STRICT_VALIDATION = ValidationConfig()
+RELAXED_VALIDATION = ValidationConfig(
+    allow_orphan_components=True,
+    allow_dangling_references=True,
+    allow_missing_root=True,
+)
 
 
 class A2uiValidator:
@@ -136,11 +147,13 @@ class A2uiValidator:
                         components,
                         ref_fields,
                         allow_dangling_references=config.allow_dangling_references,
+                        allow_missing_root=config.allow_missing_root,
                     )
                     analyze_topology(
                         components,
                         ref_fields,
                         allow_orphan_components=config.allow_orphan_components,
+                        allow_missing_root=config.allow_missing_root,
                     )
                 except Exception as e:
                     errors.append(e)
@@ -166,6 +179,13 @@ class A2uiValidator:
             self.validate_protocol_envelope(messages)
         except Exception as e:
             errors.append(e)
+
+        # Automatically enable allow_missing_root if it's an incremental update (no createSurface)
+        has_create = any(
+            isinstance(m, dict) and MSG_TYPE_CREATE_SURFACE in m for m in messages
+        )
+        if not has_create and not config.allow_missing_root:
+            config = config.model_copy(update={"allow_missing_root": True})
 
         for msg in messages:
             if isinstance(msg, dict):

@@ -19,11 +19,7 @@ from .integrity_checker import (
     validate_recursion_and_paths,
     get_component_references,
 )
-from .catalog_validator import (
-    CatalogValidator,
-    ModelCatalogValidator,
-    JsonCatalogValidator,
-)
+from .catalog_validator import CatalogValidator
 
 __all__ = [
     "A2uiValidator",
@@ -34,6 +30,4 @@ __all__ = [
     "validate_recursion_and_paths",
     "get_component_references",
     "CatalogValidator",
-    "ModelCatalogValidator",
-    "JsonCatalogValidator",
 ]
