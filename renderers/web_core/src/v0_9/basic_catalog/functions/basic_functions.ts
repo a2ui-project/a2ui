@@ -307,11 +307,10 @@ function getNumberFormat(
  * Creates the number formatting function implementation.
  */
 export function createFormatNumberImplementation(locale?: string): FunctionImplementation {
-  return createFunctionImplementation(FormatNumberApi, (args, context) => {
+  return createFunctionImplementation(FormatNumberApi, args => {
     if (isNaN(args.value)) return '';
     try {
-      const activeLocale = locale ?? context.locale;
-      return getNumberFormat(activeLocale, args.decimals, args.grouping).format(args.value);
+      return getNumberFormat(locale, args.decimals, args.grouping).format(args.value);
     } catch (e) {
       console.warn('Error formatting number:', e);
       return args.decimals !== undefined ? args.value.toFixed(args.decimals) : String(args.value);
@@ -352,11 +351,10 @@ function getCurrencyFormat(
  * Creates the currency formatting function implementation.
  */
 export function createFormatCurrencyImplementation(locale?: string): FunctionImplementation {
-  return createFunctionImplementation(FormatCurrencyApi, (args, context) => {
+  return createFunctionImplementation(FormatCurrencyApi, args => {
     if (isNaN(args.value)) return '';
     try {
-      const activeLocale = locale ?? context.locale;
-      return getCurrencyFormat(activeLocale, args.currency, args.decimals, args.grouping).format(
+      return getCurrencyFormat(locale, args.currency, args.decimals, args.grouping).format(
         args.value,
       );
     } catch (e) {
@@ -405,10 +403,9 @@ function getPluralRules(locale: string | undefined): Intl.PluralRules {
  * Creates the pluralization function implementation.
  */
 export function createPluralizeImplementation(locale?: string): FunctionImplementation {
-  return createFunctionImplementation(PluralizeApi, (args, context) => {
+  return createFunctionImplementation(PluralizeApi, args => {
     try {
-      const activeLocale = locale ?? context.locale;
-      const rule = getPluralRules(activeLocale).select(args.value);
+      const rule = getPluralRules(locale).select(args.value);
       return String((args as Record<string, unknown>)[rule] ?? args.other ?? '');
     } catch (e) {
       console.warn('Error in pluralize:', e);

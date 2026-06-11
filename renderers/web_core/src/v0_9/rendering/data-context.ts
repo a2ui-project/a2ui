@@ -53,14 +53,7 @@ export class DataContext {
     this.functionInvoker = surface.catalog.invoker;
   }
 
-  /**
-   * Gets the locale for this context, inherited from the surface.
-   *
-   * @deprecated The locale property on DataContext is deprecated and will be removed in a future release.
-   */
-  get locale(): string | undefined {
-    return this.surface.locale;
-  }
+
 
   /**
    * Mutates the underlying DataModel at the specified path.
