@@ -79,7 +79,7 @@ interface LogEntry {
 
 export const App = ({initialExampleId, onAction}: AppProps) => {
   const [selectedExampleId, setSelectedExampleId] = useState(initialExampleId ?? demoItems[0].id);
-  const selectedItem = demoItems.find(e => e.id === selectedExampleId)!;
+  const selectedItem = demoItems.find(e => e.id === selectedExampleId);
 
   const [logs, setLogs] = useState<LogEntry[]>([]);
   const [processor, setProcessor] = useState<MessageProcessor<ReactComponentImplementation> | null>(
@@ -110,7 +110,7 @@ export const App = ({initialExampleId, onAction}: AppProps) => {
           },
         );
 
-        const msgs = selectedItem.messages;
+        const msgs = selectedItem?.messages;
         if (advanceToEnd && msgs) {
           newProcessor.processMessages(msgs);
         }
@@ -120,7 +120,7 @@ export const App = ({initialExampleId, onAction}: AppProps) => {
       setLogs([]);
       setSurfaces([]);
 
-      const msgs = selectedItem.messages;
+      const msgs = selectedItem?.messages;
       if (advanceToEnd && msgs) {
         setCurrentMessageIndex(msgs.length - 1);
       } else {
@@ -165,7 +165,7 @@ export const App = ({initialExampleId, onAction}: AppProps) => {
   }, [processor]);
 
   const advanceToMessage = (index: number) => {
-    const msgs = selectedItem.messages;
+    const msgs = selectedItem?.messages;
     if (!processor || !msgs) return;
 
     // Process messages from currentMessageIndex + 1 to index
@@ -180,7 +180,7 @@ export const App = ({initialExampleId, onAction}: AppProps) => {
     resetProcessor(false);
   };
 
-  const messages = selectedItem.messages;
+  const messages = selectedItem?.messages ?? [];
 
   return (
     <div className={styles.app}>
