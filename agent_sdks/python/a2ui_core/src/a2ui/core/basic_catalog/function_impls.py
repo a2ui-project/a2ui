@@ -74,7 +74,7 @@ def _to_str(val: Any) -> str:
 
 RequiredImplementation = create_function_implementation(
     RequiredApi,
-    lambda args, context=None, abort_signal=None: _to_bool(
+    lambda args, context, abort_signal: _to_bool(
         args.get("value") is not None
         and args.get("value") != ""
         and args.get("value") != []
@@ -83,14 +83,14 @@ RequiredImplementation = create_function_implementation(
 
 RegexImplementation = create_function_implementation(
     RegexApi,
-    lambda args, context=None, abort_signal=None: bool(
+    lambda args, context, abort_signal: bool(
         re.search(_to_str(args.get("pattern", "")), _to_str(args.get("value", "")))
     ),
 )
 
 LengthImplementation = create_function_implementation(
     LengthApi,
-    lambda args, context=None, abort_signal=None: (
+    lambda args, context, abort_signal: (
         (
             args.get("min") is None
             or len(_to_str(args.get("value", ""))) >= int(args["min"])
@@ -104,7 +104,7 @@ LengthImplementation = create_function_implementation(
 
 NumericImplementation = create_function_implementation(
     NumericApi,
-    lambda args, context=None, abort_signal=None: (
+    lambda args, context, abort_signal: (
         (args.get("min") is None or _to_float(args["value"]) >= _to_float(args["min"]))
         and (
             args.get("max") is None
@@ -115,7 +115,7 @@ NumericImplementation = create_function_implementation(
 
 EmailImplementation = create_function_implementation(
     EmailApi,
-    lambda args, context=None, abort_signal=None: bool(
+    lambda args, context, abort_signal: bool(
         re.match(
             r"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$",
             _to_str(args.get("value", "")),
@@ -126,7 +126,7 @@ EmailImplementation = create_function_implementation(
 
 def _format_string(
     args: Dict[str, Any],
-    context: Optional[Dict[str, Any]] = None,
+    context: Optional[Any] = None,
     abort_signal: Optional[Any] = None,
 ) -> Any:
     template = args.get("value", "")
@@ -160,7 +160,7 @@ FormatStringImplementation = create_function_implementation(
 
 def _format_number(
     args: Dict[str, Any],
-    context: Optional[Dict[str, Any]] = None,
+    context: Optional[Any] = None,
     abort_signal: Optional[Any] = None,
 ) -> Any:
     val = _to_float(args.get("value", 0))
@@ -183,7 +183,7 @@ FormatNumberImplementation = create_function_implementation(
 
 def _format_currency(
     args: Dict[str, Any],
-    context: Optional[Dict[str, Any]] = None,
+    context: Optional[Any] = None,
     abort_signal: Optional[Any] = None,
 ) -> Any:
     val = _to_float(args.get("value", 0))
@@ -231,7 +231,7 @@ _DATE_MAP = {
 
 def _format_date(
     args: Dict[str, Any],
-    context: Optional[Dict[str, Any]] = None,
+    context: Optional[Any] = None,
     abort_signal: Optional[Any] = None,
 ) -> Any:
     val = args.get("value")
@@ -253,7 +253,7 @@ FormatDateImplementation = create_function_implementation(FormatDateApi, _format
 
 def _pluralize(
     args: Dict[str, Any],
-    context: Optional[Dict[str, Any]] = None,
+    context: Optional[Any] = None,
     abort_signal: Optional[Any] = None,
 ) -> Any:
     val = _to_float(args.get("value", 0))
@@ -271,32 +271,32 @@ def _pluralize(
 PluralizeImplementation = create_function_implementation(PluralizeApi, _pluralize)
 
 OpenUrlImplementation = create_function_implementation(
-    OpenUrlApi, lambda args, context=None, abort_signal=None: None
+    OpenUrlApi, lambda args, context, abort_signal: None
 )
 
 AndImplementation = create_function_implementation(
     AndApi,
-    lambda args, context=None, abort_signal=None: all(
+    lambda args, context, abort_signal: all(
         _to_bool(v) for v in args.get("values", [])
     ),
 )
 
 OrImplementation = create_function_implementation(
     OrApi,
-    lambda args, context=None, abort_signal=None: any(
+    lambda args, context, abort_signal: any(
         _to_bool(v) for v in args.get("values", [])
     ),
 )
 
 NotImplementation = create_function_implementation(
     NotApi,
-    lambda args, context=None, abort_signal=None: not _to_bool(args.get("value")),
+    lambda args, context, abort_signal: not _to_bool(args.get("value")),
 )
 
 
 def _add(
     args: Dict[str, Any],
-    context: Optional[Dict[str, Any]] = None,
+    context: Optional[Any] = None,
     abort_signal: Optional[Any] = None,
 ) -> Any:
     res = _to_float(args["a"]) + _to_float(args["b"])
@@ -308,7 +308,7 @@ AddImplementation = create_function_implementation(AddApi, _add)
 
 def _subtract(
     args: Dict[str, Any],
-    context: Optional[Dict[str, Any]] = None,
+    context: Optional[Any] = None,
     abort_signal: Optional[Any] = None,
 ) -> Any:
     res = _to_float(args["a"]) - _to_float(args["b"])
@@ -320,7 +320,7 @@ SubtractImplementation = create_function_implementation(SubtractApi, _subtract)
 
 def _multiply(
     args: Dict[str, Any],
-    context: Optional[Dict[str, Any]] = None,
+    context: Optional[Any] = None,
     abort_signal: Optional[Any] = None,
 ) -> Any:
     res = _to_float(args["a"]) * _to_float(args["b"])
@@ -332,7 +332,7 @@ MultiplyImplementation = create_function_implementation(MultiplyApi, _multiply)
 
 def _divide(
     args: Dict[str, Any],
-    context: Optional[Dict[str, Any]] = None,
+    context: Optional[Any] = None,
     abort_signal: Optional[Any] = None,
 ) -> Any:
     a = _to_float(args["a"])
@@ -353,44 +353,44 @@ DivideImplementation = create_function_implementation(DivideApi, _divide)
 
 EqualsImplementation = create_function_implementation(
     EqualsApi,
-    lambda args, context=None, abort_signal=None: args.get("a") == args.get("b"),
+    lambda args, context, abort_signal: args.get("a") == args.get("b"),
 )
 
 NotEqualsImplementation = create_function_implementation(
     NotEqualsApi,
-    lambda args, context=None, abort_signal=None: args.get("a") != args.get("b"),
+    lambda args, context, abort_signal: args.get("a") != args.get("b"),
 )
 
 GreaterThanImplementation = create_function_implementation(
     GreaterThanApi,
-    lambda args, context=None, abort_signal=None: _to_float(args.get("a"))
+    lambda args, context, abort_signal: _to_float(args.get("a"))
     > _to_float(args.get("b")),
 )
 
 LessThanImplementation = create_function_implementation(
     LessThanApi,
-    lambda args, context=None, abort_signal=None: _to_float(args.get("a"))
+    lambda args, context, abort_signal: _to_float(args.get("a"))
     < _to_float(args.get("b")),
 )
 
 ContainsImplementation = create_function_implementation(
     ContainsApi,
-    lambda args, context=None, abort_signal=None: _to_str(args.get("substring", ""))
+    lambda args, context, abort_signal: _to_str(args.get("substring", ""))
     in _to_str(args.get("string", "")),
 )
 
 StartsWithImplementation = create_function_implementation(
     StartsWithApi,
-    lambda args, context=None, abort_signal=None: _to_str(
-        args.get("string", "")
-    ).startswith(_to_str(args.get("prefix", ""))),
+    lambda args, context, abort_signal: _to_str(args.get("string", "")).startswith(
+        _to_str(args.get("prefix", ""))
+    ),
 )
 
 EndsWithImplementation = create_function_implementation(
     EndsWithApi,
-    lambda args, context=None, abort_signal=None: _to_str(
-        args.get("string", "")
-    ).endswith(_to_str(args.get("suffix", ""))),
+    lambda args, context, abort_signal: _to_str(args.get("string", "")).endswith(
+        _to_str(args.get("suffix", ""))
+    ),
 )
 
 BASIC_FUNCTION_IMPLEMENTATIONS = [

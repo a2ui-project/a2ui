@@ -63,7 +63,7 @@ class FunctionImplementation(FunctionApi):
     def execute(
         self,
         args: Dict[str, Any],
-        context: Optional[Dict[str, Any]] = None,
+        context: Optional[Any] = None,
         abort_signal: Optional[Any] = None,
     ) -> Any:
         """Executes the functional implementation with validated, coerced arguments."""
@@ -71,7 +71,7 @@ class FunctionImplementation(FunctionApi):
 
 
 def create_function_implementation(
-    api: Any, execute: Callable[..., Any]
+    api: Any, execute: Callable[[Dict[str, Any], Optional[Any], Optional[Any]], Any]
 ) -> FunctionImplementation:
     """Utility helper to dynamically compose an API specification with an executable closure."""
 
@@ -109,7 +109,7 @@ def create_function_implementation(
         def execute(
             self,
             args: Dict[str, Any],
-            context: Optional[Dict[str, Any]] = None,
+            context: Optional[Any] = None,
             abort_signal: Optional[Any] = None,
         ) -> Any:
             return execute(args, context, abort_signal)

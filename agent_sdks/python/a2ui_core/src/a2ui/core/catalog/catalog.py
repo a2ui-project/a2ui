@@ -74,7 +74,7 @@ class CatalogImplementation(CatalogApi):
         self,
         name: str,
         args: Dict[str, Any],
-        context: Optional[Dict[str, Any]] = None,
+        context: Optional[Any] = None,
         abort_signal: Optional[Any] = None,
     ) -> Any:
         """Executes a catalog function dynamically."""

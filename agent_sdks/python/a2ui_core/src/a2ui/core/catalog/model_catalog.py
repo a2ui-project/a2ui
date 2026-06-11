@@ -37,7 +37,7 @@ class ModelCatalog(CatalogImplementation):
         self.components = components
         self.theme = theme
 
-        self.functions: Dict[str, Any] = {}
+        self.functions: Dict[str, Union[FunctionImplementation, FunctionApi]] = {}
         if functions:
             source_dict = (
                 functions
@@ -61,8 +61,8 @@ class ModelCatalog(CatalogImplementation):
                         def execute(
                             self,
                             args: Dict[str, Any],
-                            context: Any = None,
-                            abort_signal: Any = None,
+                            context: Optional[Any] = None,
+                            abort_signal: Optional[Any] = None,
                         ) -> Any:
                             return None
 
@@ -166,7 +166,10 @@ class ModelCatalog(CatalogImplementation):
     def get_function_implementation(
         self, func_name: str
     ) -> Optional[FunctionImplementation]:
-        return self.functions.get(func_name)
+        fn = self.functions.get(func_name)
+        if isinstance(fn, FunctionImplementation):
+            return fn
+        return None
 
     def invoke_function(
         self,
