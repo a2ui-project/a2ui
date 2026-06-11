@@ -411,7 +411,7 @@ myCustomCatalog = Catalog(
 
 ## 6. The Binder Layer Pattern (State Bridge)
 
-For complex applications, scattering manual A2UI subscription logic across all view components becomes repetitive and error-prone. 
+For complex applications, scattering manual A2UI subscription logic across all view components becomes repetitive and error-prone.
 
 The **Binder Layer** is a framework-agnostic intermediate abstraction inside the Core SDK. It takes raw component configurations and transforms the reactive A2UI bindings into a single, cohesive stream of strongly-typed `ResolvedProps`. The native UI components (described in the [Framework Adapter Specification](framework_adapter_spec.md)) simply listen to this generic stream.
 
@@ -440,9 +440,9 @@ This provides the ultimate "happy path" developer experience. The developer writ
 
 // Conceptually, the inferred type looks like this:
 interface ButtonResolvedProps {
-  label?: string;      // Resolved from DynamicString
-  action: () => void;  // Resolved from Action
-  child?: { id: string; basePath: string };  // Resolved structural ComponentId
+  label?: string; // Resolved from DynamicString
+  action: () => void; // Resolved from Action
+  child?: {id: string; basePath: string}; // Resolved structural ComponentId
 }
 ```
 

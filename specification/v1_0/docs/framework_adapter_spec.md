@@ -97,7 +97,7 @@ Widget build(ComponentContext context, ChildBuilderCallback buildChild) {
 
 ### Strategy 2: Binder-Based UI Components
 
-For complex applications, scattering manual A2UI subscription logic across all view components becomes repetitive and error-prone. The **Binder Layer** in the Core SDK abstractly resolves and evaluates reactive inputs into a standard stream of `ResolvedProps`. 
+For complex applications, scattering manual A2UI subscription logic across all view components becomes repetitive and error-prone. The **Binder Layer** in the Core SDK abstractly resolves and evaluates reactive inputs into a standard stream of `ResolvedProps`.
 
 The framework-specific UI component simply subscribes to this generic stream and updates the rendering.
 
@@ -284,12 +284,14 @@ If you are an AI Agent tasked with building a new Renderer/Framework Adapter for
 ### Phase 1: Context & Core Ingest
 
 Thoroughly review:
+
 - [A2UI Core SDK Specification](core_sdk_spec.md) (for state and message structures).
 - `specification/v1_0/docs/basic_catalog_implementation_guide.md` (for rendering, typography, alignment, and spacing rules).
 
 ### Phase 2: Key Architecture Decisions (Write a Plan Document)
 
 Create a comprehensive design document detailing:
+
 - **Component Architecture**: How will you define the `ComponentImplementation` base class or interface in this framework?
 - **Surface Architecture**: How will the `Surface` framework entry point function to recursively build children?
 - **Binding Strategy**: Will you use Strategy 1 (Direct), Strategy 2 (Predefined binders), or Strategy 3 (Automated TypeScript/Zod wrappers)?
