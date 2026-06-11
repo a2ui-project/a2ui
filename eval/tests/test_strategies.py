@@ -50,7 +50,7 @@ def test_a2ui_system_prompt_file_not_found():
     with pytest.raises(OSError): # SDK raises OSError/IOError
         a2ui_system_prompt("non_existent_schema.json", "non_existent_catalog.json")
 
-from a2ui_eval.strategies.subagent_tool import extract_subagent_payload
+from a2ui_eval.strategies.subagent_tool import extract_subagent_payload, PAYLOAD_STORE_KEY
 from inspect_ai.model import ModelOutput, ChatCompletionChoice, ChatMessageAssistant, ChatMessageTool
 
 @pytest.mark.asyncio
@@ -70,6 +70,7 @@ async def test_extract_subagent_payload():
             choices=[ChatCompletionChoice(message=ChatMessageAssistant(content="old content"))]
         )
     )
+    state.store.set(PAYLOAD_STORE_KEY, '{"test": "payload"}')
     
     async def dummy_generate(state, **kwargs):
         return state
