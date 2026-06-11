@@ -16,8 +16,9 @@ import copy
 from typing import Any, Callable, Dict, List, Optional, Union
 
 from ..state import SurfaceGroupModel, SurfaceModel, ComponentModel
-from ..validating import A2uiValidator, CatalogValidator, ValidationConfig
-from ..catalog import CatalogApi
+from ..validating import A2uiValidator, CatalogSchemaValidator, ValidationConfig
+from ..catalog import Catalog
+from ..catalog.catalog import TComponent, TFunction
 from ..schema.constants import (
     MSG_TYPE_CREATE_SURFACE,
     MSG_TYPE_DELETE_SURFACE,
@@ -31,7 +32,7 @@ class MessageProcessor:
 
     def __init__(
         self,
-        catalogs: List[CatalogApi],
+        catalogs: List[Catalog[TComponent, TFunction]],
         action_handler: Optional[Callable[[Dict[str, Any]], None]] = None,
         strict_mode: bool = False,
     ):
@@ -135,7 +136,7 @@ class MessageProcessor:
 
         if self.strict_mode and theme:
             try:
-                CatalogValidator.from_catalog(catalog).validate_theme(theme)
+                CatalogSchemaValidator.from_catalog(catalog).validate_theme(theme)
             except Exception as e:
                 raise ValueError(
                     f"Validation failed for theme on surface '{surface_id}': {e}"
@@ -176,7 +177,7 @@ class MessageProcessor:
                     allow_orphan_components=False, allow_dangling_references=False
                 )
                 self.validator.validate_components(
-                    CatalogValidator.from_catalog(catalog),
+                    CatalogSchemaValidator.from_catalog(catalog),
                     components,
                     config=strict_cfg,
                 )

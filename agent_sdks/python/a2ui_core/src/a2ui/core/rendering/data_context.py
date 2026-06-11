@@ -269,6 +269,36 @@ class DataContext:
         abort_signal: Optional[AbortSignal] = None,
     ) -> Any:
         """Invokes standard or catalog functions (e.g., formatString or live Metronome)."""
+        if self.catalog:
+            fn = getattr(self.catalog, "get_function", lambda n: None)(name)
+            if fn is None and hasattr(self.catalog, "functions"):
+                fn = self.catalog.functions.get(name)
+
+            if fn is not None:
+                try:
+                    if hasattr(fn, "execute") and callable(fn.execute):
+                        res = fn.execute(resolved_args, self, abort_signal)
+                    elif hasattr(fn, "execute_func") and callable(fn.execute_func):
+                        res = fn.execute_func(resolved_args, self, abort_signal)
+                    elif callable(fn):
+                        res = fn(resolved_args, self, abort_signal)
+                    else:
+                        res = None
+
+                    if res is not None:
+                        return res
+                except Exception as e:
+                    if self.surface and hasattr(self.surface, "dispatch_error"):
+                        self.surface.dispatch_error(
+                            {
+                                "code": "EXPRESSION_ERROR",
+                                "message": str(e),
+                                "expression": name,
+                            }
+                        )
+                    else:
+                        raise
+
         if self.catalog and getattr(self.catalog, "invoker", None) is not None:
             try:
                 sig = inspect.signature(self.catalog.invoker)

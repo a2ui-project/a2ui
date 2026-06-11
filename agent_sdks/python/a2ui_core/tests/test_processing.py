@@ -23,9 +23,12 @@ from a2ui.core.rendering import (
     GenericBinder,
     MissingDataBindingWarning,
 )
-from a2ui.core.state import SurfaceModel
 from a2ui.core.basic_catalog import BasicCatalog
-from a2ui.core.catalog import ModelCatalog, JsonCatalog
+from a2ui.core.catalog import (
+    Catalog,
+    ComponentApi,
+    ModelComponentApi,
+)
 from a2ui.core.schema.constants import SPEC_VERSION
 
 
@@ -636,13 +639,13 @@ def test_message_processor_custom_catalog_component_validation():
         title: str = Field(..., description="Chart title.")
         value: float = Field(..., description="Chart numeric value.")
 
-    class CustomCatalog(ModelCatalog):
+    class CustomCatalog(Catalog):
 
         def __init__(self):
             super().__init__(
-                spec_version=SPEC_VERSION,
                 catalog_id="https://rizzcharts.com/catalog.json",
-                components={"Chart": ChartComponent},
+                spec_version=SPEC_VERSION,
+                components=[ModelComponentApi(ChartComponent, "Chart")],
             )
 
     catalog = CustomCatalog()
@@ -685,7 +688,7 @@ def test_message_processor_custom_catalog_component_validation():
 
     with pytest.raises(
         ValueError,
-        match="Components validation failed for surface 's1': 1 validation error for ChartComponent",
+        match=r"Components validation failed for surface 's1': \[value\] Field required",
     ):
         processor.process_messages(
             [
@@ -744,7 +747,7 @@ def test_message_processor_json_catalog_validation():
         },
     }
 
-    catalog = JsonCatalog(spec_version=SPEC_VERSION, catalog_schema=catalog_json)
+    catalog = Catalog.from_json(catalog_json, spec_version=SPEC_VERSION)
     processor = MessageProcessor(catalogs=[catalog], strict_mode=True)
 
     # 2. Process surface creation
@@ -858,7 +861,7 @@ def test_message_processor_json_catalog_theme_validation():
         },
     }
 
-    catalog = JsonCatalog(spec_version=SPEC_VERSION, catalog_schema=catalog_json)
+    catalog = Catalog.from_json(catalog_json, spec_version=SPEC_VERSION)
     processor = MessageProcessor(catalogs=[catalog], strict_mode=True)
 
     # Dynamic JSON Theme validation fails on incorrect color hex code pattern
