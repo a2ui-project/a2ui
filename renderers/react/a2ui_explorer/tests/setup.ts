@@ -14,13 +14,10 @@
  * limitations under the License.
  */
 
-import {render, screen} from '@testing-library/react';
-import {describe, it, expect} from 'vitest';
-import App from './App';
+declare global {
+  var IS_REACT_ACT_ENVIRONMENT: boolean | undefined;
+}
 
-describe('App Smoke Test', () => {
-  it('renders without crashing and shows MESSAGES header', () => {
-    render(<App />);
-    expect(screen.getByText('MESSAGES')).toBeDefined();
-  });
-});
+// Configures the React 18 testing environment to expect and support act() blocks.
+// Without this flag, React warns in the console during state transitions and mounting.
+globalThis.IS_REACT_ACT_ENVIRONMENT = true;

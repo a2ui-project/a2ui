@@ -1,0 +1,100 @@
+{
+  "name": "@a2ui/react-explorer",
+  "private": true,
+  "version": "0.9.0",
+  "description": "A2UI React Explorer",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "wireit",
+    "test": "wireit",
+    "test:ci": "wireit",
+    "test:watch": "wireit",
+    "test:debug": "wireit",
+    "lint": "eslint src tests",
+    "lint:fix": "eslint src tests --fix",
+    "clean": "wireit"
+  },
+  "wireit": {
+    "generate-examples": {
+      "command": "node scripts/generate-examples.mjs",
+      "files": [
+        "../../../specification/v0_9/catalogs/basic/examples/*.json",
+        "scripts/generate-examples.mjs"
+      ],
+      "output": [
+        "src/generated/examples-list.ts"
+      ]
+    },
+    "build": {
+      "command": "tsc -b && vite build",
+      "dependencies": [
+        "../:build",
+        "generate-examples"
+      ]
+    },
+    "test": {
+      "command": "karma start karma.conf.cjs --single-run=true",
+      "dependencies": [
+        "test:base"
+      ]
+    },
+    "test:base": {
+      "dependencies": [
+        "../:build",
+        "generate-examples"
+      ],
+      "files": [
+        "src/**/*",
+        "tsconfig.json",
+        "tests/**/*",
+        "karma.conf.cjs"
+      ]
+    },
+    "test:ci": {
+      "dependencies": [
+        "test"
+      ]
+    },
+    "test:watch": {
+      "command": "karma start karma.conf.cjs --single-run=false --auto-watch=true",
+      "dependencies": [
+        "test:base"
+      ]
+    },
+    "test:debug": {
+      "command": "karma start karma.conf.cjs --single-run=false --auto-watch=true --browsers Chrome",
+      "dependencies": [
+        "test:base"
+      ]
+    },
+    "clean": {
+      "command": "rm -rf dist .tsbuildinfo .wireit src/generated"
+    }
+  },
+  "dependencies": {
+    "@a2ui/markdown-it": "workspace:*",
+    "@a2ui/react": "workspace:*",
+    "@a2ui/web_core": "workspace:*",
+    "react": "^18.3.0",
+    "react-dom": "^18.3.0"
+  },
+  "devDependencies": {
+    "@types/jasmine": "^5.1.5",
+    "@types/react": "^18.3.0",
+    "@types/react-dom": "^18.3.0",
+    "@vitejs/plugin-react": "^5.1.1",
+    "eslint": "^9.0.0",
+    "jasmine-core": "^5.9.0",
+    "karma": "^6.4.4",
+    "karma-chrome-launcher": "^3.2.0",
+    "karma-esbuild": "^2.3.0",
+    "karma-jasmine": "^5.1.0",
+    "typescript": "5.9.3",
+    "vite": "^7.3.1",
+    "wireit": "^0.15.0-pre.2"
+  },
+  "engines": {
+    "node": ">=20.11.0"
+  }
+}
