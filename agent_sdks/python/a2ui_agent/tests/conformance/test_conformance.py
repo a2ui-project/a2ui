@@ -75,12 +75,16 @@ def setup_catalog(catalog_config):
   elif common_types_schema is None:
     common_types_schema = {}
 
+  custom_cuttable_keys = catalog_config.get("custom_cuttable_keys")
   return A2uiCatalog(
       version=version,
-      name="test_catalog",
+      name=catalog_config.get("name", "test_catalog"),
       s2c_schema=s2c_schema,
       common_types_schema=common_types_schema,
       catalog_schema=catalog_schema,
+      custom_cuttable_keys=frozenset(custom_cuttable_keys)
+      if custom_cuttable_keys is not None
+      else None,
   )
 
 
@@ -107,6 +111,8 @@ def test_parser_conformance(name, test_case):
   catalog_config = test_case["catalog"]
   catalog = setup_catalog(catalog_config)
   parser = A2uiStreamParser(catalog=catalog)
+  if test_case.get("disable_validation"):
+    parser._validator = None
 
   steps = test_case.get("steps")
   if steps is None and "process_chunk" in test_case:
@@ -246,6 +252,10 @@ def test_catalog_conformance(name, test_case):
     schema = args["schema"]
     modified = remove_strict_validation(schema)
     assert modified == test_case["expect"]["schema"]
+
+  elif action == "verify_cuttable_keys":
+    expected = test_case["expect"]["custom_cuttable_keys"]
+    assert set(catalog.cuttable_keys) == set(expected)
 
 
 # --- Schema Manager Conformance ---

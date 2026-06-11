@@ -94,6 +94,7 @@ class A2uiSchemaManager(InferenceStrategy):
           catalog_schema=catalog_schema,
           s2c_schema=self._server_to_client_schema,
           common_types_schema=self._common_types_schema,
+          custom_cuttable_keys=config.custom_cuttable_keys,
       )
       self._supported_catalogs.append(catalog)
       self._catalog_example_paths[catalog.catalog_id] = config.examples_path

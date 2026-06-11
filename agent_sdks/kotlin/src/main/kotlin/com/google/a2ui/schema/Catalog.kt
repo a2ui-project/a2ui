@@ -41,12 +41,18 @@ data class CatalogConfig(
   @JvmField val name: String,
   @JvmField val provider: A2uiCatalogProvider,
   @JvmField val examplesPath: String? = null,
+  @JvmField val customCuttableKeys: Set<String>? = null,
 ) {
   companion object {
     /** Create a [CatalogConfig] using a [FileSystemCatalogProvider]. */
     @JvmStatic
     @JvmOverloads
-    fun fromPath(name: String, catalogPath: String, examplesPath: String? = null): CatalogConfig {
+    fun fromPath(
+      name: String,
+      catalogPath: String,
+      examplesPath: String? = null,
+      customCuttableKeys: Set<String>? = null,
+    ): CatalogConfig {
       val uri =
         try {
           URI(catalogPath)
@@ -66,7 +72,7 @@ data class CatalogConfig(
           else -> throw IllegalArgumentException("Unsupported catalog URL scheme: $catalogPath")
         }
 
-      return CatalogConfig(name, provider, resolveExamplesPath(examplesPath))
+      return CatalogConfig(name, provider, resolveExamplesPath(examplesPath), customCuttableKeys)
     }
   }
 }
@@ -95,11 +101,15 @@ data class A2uiCatalog(
   @JvmField val serverToClientSchema: JsonObject,
   @JvmField val commonTypesSchema: JsonObject,
   @JvmField val catalogSchema: JsonObject,
+  @JvmField val customCuttableKeys: Set<String>? = null,
 ) {
 
   companion object {
     private val logger = Logger.getLogger(A2uiCatalog::class.java.name)
   }
+
+  val cuttableKeys: Set<String>
+    get() = customCuttableKeys ?: A2uiConstants.DEFAULT_CUTTABLE_KEYS
 
   val validator: A2uiValidator by lazy { A2uiValidator(this) }
 

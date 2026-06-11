@@ -21,6 +21,19 @@ CATALOG_ID_KEY = "catalogId"
 CATALOG_STYLES_KEY = "styles"
 SURFACE_ID_KEY = "surfaceId"
 
+# Keys whose string values can be safely auto-closed (healed) if fragmented in the stream.
+# Structural or atomic keys (e.g., id, surfaceId, path) are NOT cuttable to prevent
+# incorrect parsing or data binding.
+DEFAULT_CUTTABLE_KEYS = frozenset({
+    "literalString",
+    "valueString",
+    "label",
+    "hint",
+    "caption",
+    "altText",
+    "text",
+})
+
 # Protocol constants
 SUPPORTED_CATALOG_IDS_KEY = "supportedCatalogIds"
 INLINE_CATALOGS_KEY = "inlineCatalogs"

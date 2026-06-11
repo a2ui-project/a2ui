@@ -64,3 +64,44 @@ from .operator_apis import (
 )
 from .styles import Theme
 from .function_impls import BASIC_FUNCTION_IMPLEMENTATIONS
+from ..schema.constants import SPEC_VERSION, SPEC_BASE_URL
+from ..catalog import ModelCatalog
+
+
+def _basic_catalog_id(spec_version: str) -> str:
+    return (
+        f"{SPEC_BASE_URL}/{spec_version.replace('.', '_')}/catalogs/basic/catalog.json"
+    )
+
+
+class BasicCatalog(ModelCatalog):
+
+    def __init__(self):
+        components_map = {
+            "Text": TextComponent,
+            "Image": ImageComponent,
+            "Icon": IconComponent,
+            "Video": VideoComponent,
+            "AudioPlayer": AudioPlayerComponent,
+            "Row": RowComponent,
+            "Column": ColumnComponent,
+            "List": ListComponent,
+            "Card": CardComponent,
+            "Tabs": TabsComponent,
+            "Modal": ModalComponent,
+            "Divider": DividerComponent,
+            "Button": ButtonComponent,
+            "TextField": TextFieldComponent,
+            "CheckBox": CheckBoxComponent,
+            "ChoicePicker": ChoicePickerComponent,
+            "Slider": SliderComponent,
+            "DateTimeInput": DateTimeInputComponent,
+        }
+
+        super().__init__(
+            spec_version=SPEC_VERSION,
+            catalog_id=_basic_catalog_id(SPEC_VERSION),
+            components=components_map,
+            functions=BASIC_FUNCTION_IMPLEMENTATIONS,
+            theme=Theme,
+        )

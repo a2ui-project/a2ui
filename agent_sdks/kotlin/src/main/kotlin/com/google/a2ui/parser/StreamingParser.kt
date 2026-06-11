@@ -43,7 +43,8 @@ abstract class StreamingParser(
     catalog?.let { TopologyAnalyzer.extractComponentRefFields(it) } ?: emptyMap()
   protected val requiredFieldsMap: Map<String, Set<String>> =
     catalog?.let { TopologyAnalyzer.extractComponentRequiredFields(it) } ?: emptyMap()
-  protected val validator: A2uiValidator? = catalog?.let { A2uiValidator(it, schemaMappings) }
+  protected val cuttableKeys: Set<String> = catalog?.cuttableKeys ?: emptySet()
+  internal var validator: A2uiValidator? = catalog?.let { A2uiValidator(it, schemaMappings) }
 
   protected var foundDelimiter = false
   protected val buffer = StringBuilder()
@@ -186,7 +187,7 @@ abstract class StreamingParser(
         val keyMatch = KEY_MATCH_REGEX.find(prefix)
         if (keyMatch != null) {
           val key = keyMatch.groupValues[1]
-          if (key !in CUTTABLE_KEYS) {
+          if (key !in cuttableKeys) {
             return ""
           }
 
@@ -262,9 +263,10 @@ abstract class StreamingParser(
         continue
       }
 
-      if (validator != null) {
+      val currentValidator = validator
+      if (currentValidator != null) {
         try {
-          validator.validate(m, strictIntegrity = strictIntegrity)
+          currentValidator.validate(m, strictIntegrity = strictIntegrity)
         } catch (e: Exception) {
           if (strictIntegrity) {
             throw e
@@ -1087,9 +1089,6 @@ abstract class StreamingParser(
   }
 
   companion object {
-    internal val CUTTABLE_KEYS =
-      setOf("literalString", "valueString", "label", "hint", "caption", "altText", "text")
-
     @JvmStatic internal val logger: Logger = Logger.getLogger(StreamingParser::class.java.name)
 
     private val KEY_MATCH_REGEX = Regex("\"([^\"]+)\"\\s*:\\s*$")

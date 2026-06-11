@@ -240,7 +240,7 @@ def test_generate_common_types():
     }
     code = generate_schemas.generate_common_types(mock_common_data)
     assert "class StrictBaseModel(BaseModel):" in code
-    assert "ComponentId = str" in code
+    assert "ComponentId = SingleReference" in code
     assert "class DataBinding(StrictBaseModel):" in code
     assert "class FunctionCall(StrictBaseModel):" in code
     assert "DynamicValue = Union[str]" in code

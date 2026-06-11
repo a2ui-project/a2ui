@@ -19,7 +19,7 @@ import json
 import logging
 import os
 from dataclasses import dataclass, field, replace
-from typing import Any, Dict, List, Optional, TYPE_CHECKING
+from typing import Any, Dict, List, Optional, Union, TYPE_CHECKING
 from urllib.parse import urlparse
 
 from .catalog_provider import A2uiCatalogProvider, FileSystemCatalogProvider
@@ -28,9 +28,11 @@ from .constants import (
     A2UI_SCHEMA_BLOCK_END,
     CATALOG_COMPONENTS_KEY,
     CATALOG_ID_KEY,
+    DEFAULT_CUTTABLE_KEYS,
     VERSION_0_8,
     ENCODING,
 )
+from .validator import A2uiValidator
 
 
 @dataclass
@@ -45,16 +47,22 @@ class CatalogConfig:
     name: The name of the catalog.
     provider: The provider to use to load the catalog schema.
     examples_path: The path or glob pattern to the examples.
+    custom_cuttable_keys: The optional custom set of cuttable keys.
   """
 
   name: str
   provider: A2uiCatalogProvider
   examples_path: Optional[str] = None
+  custom_cuttable_keys: Optional[frozenset[str]] = None
 
   @classmethod
   def from_path(
-      cls, name: str, catalog_path: str, examples_path: Optional[str] = None
-  ) -> "CatalogConfig":
+      cls,
+      name: str,
+      catalog_path: str,
+      examples_path: Optional[str] = None,
+      custom_cuttable_keys: Optional[frozenset[str]] = None,
+  ) -> CatalogConfig:
     """Returns a CatalogConfig that loads from a local path or 'file://' URI."""
     parsed = urlparse(catalog_path)
     if not parsed.scheme or parsed.scheme == "file":
@@ -68,6 +76,7 @@ class CatalogConfig:
         name=name,
         provider=catalog_provider,
         examples_path=resolve_examples_path(examples_path),
+        custom_cuttable_keys=custom_cuttable_keys,
     )
 
 
@@ -137,6 +146,8 @@ class A2uiCatalog:
     s2c_schema: The server-to-client schema.
     common_types_schema: The common types schema.
     catalog_schema: The catalog schema.
+    custom_cuttable_keys: The optional set of keys whose string values can be safely auto-closed
+      (healed) if fragmented in the stream. If None, the default set is used.
   """
 
   version: str
@@ -144,6 +155,13 @@ class A2uiCatalog:
   s2c_schema: Dict[str, Any]
   common_types_schema: Dict[str, Any]
   catalog_schema: Dict[str, Any]
+  custom_cuttable_keys: Optional[frozenset[str]] = None
+
+  @property
+  def cuttable_keys(self) -> frozenset[str]:
+    if self.custom_cuttable_keys is not None:
+      return frozenset(self.custom_cuttable_keys)
+    return DEFAULT_CUTTABLE_KEYS
 
   @property
   def catalog_id(self) -> str:
@@ -152,12 +170,10 @@ class A2uiCatalog:
     return self.catalog_schema[CATALOG_ID_KEY]
 
   @property
-  def validator(self) -> "A2uiValidator":
-    from .validator import A2uiValidator
-
+  def validator(self) -> A2uiValidator:
     return A2uiValidator(self)
 
-  def _with_pruned_components(self, allowed_components: List[str]) -> "A2uiCatalog":
+  def _with_pruned_components(self, allowed_components: List[str]) -> A2uiCatalog:
     """Returns a new catalog with only allowed components.
 
     Args:
@@ -202,7 +218,7 @@ class A2uiCatalog:
 
     return replace(self, catalog_schema=schema_copy)
 
-  def _with_pruned_messages(self, allowed_messages: List[str]) -> "A2uiCatalog":
+  def _with_pruned_messages(self, allowed_messages: List[str]) -> A2uiCatalog:
     """Returns a new catalog with only allowed messages.
 
     Args:
@@ -250,7 +266,7 @@ class A2uiCatalog:
       self,
       allowed_components: Optional[List[str]] = None,
       allowed_messages: Optional[List[str]] = None,
-  ) -> "A2uiCatalog":
+  ) -> A2uiCatalog:
     """Returns a new catalog with pruned components and messages.
 
     Args:
@@ -269,7 +285,7 @@ class A2uiCatalog:
 
     return catalog._with_pruned_common_types()
 
-  def _with_pruned_common_types(self) -> "A2uiCatalog":
+  def _with_pruned_common_types(self) -> A2uiCatalog:
     """Returns a new catalog with unused common types pruned from the schema."""
     if not self.common_types_schema or "$defs" not in self.common_types_schema:
       return self
