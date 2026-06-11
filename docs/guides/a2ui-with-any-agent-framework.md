@@ -78,7 +78,7 @@ can compose interfaces from primitives you already trust. A catalog has
 three pieces:
 
 1. **Definitions**: Zod schemas plus a natural-language description. This
-   is what the agent sees in its system prompt.
+   is what the agent sees in its system prompt. Note that for client-side functions, the client determines the function's execution boundary (such as clientOnly status) at runtime by reading its configuration from the active catalog definition.
 2. **Renderers**: Typed React components, one per definition. This is
    what the user sees.
 3. **Registration**: Pass the catalog through the provider so the A2UI
