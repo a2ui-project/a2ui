@@ -49,29 +49,6 @@ def test_catalog_initialization_with_models():
     assert cat.catalog_id == "https://a2ui.org/model-init"
 
 
-def test_print_catalog_schema_text():
-    import json
-
-    class EmptyModel(BaseModel):
-        value: str
-
-    cat = Catalog(
-        catalog_id="https://a2ui.org/print-test",
-        spec_version=SPEC_VERSION,
-        components=[ModelComponentApi(EmptyModel, "Empty")],
-    )
-    schema_text = json.dumps(cat.catalog_schema, indent=2)
-
-    assert "https://a2ui.org/print-test" in schema_text
-    schema_dict = cat.catalog_schema
-    assert "$defs" in schema_dict
-    assert "anyComponent" in schema_dict["$defs"]
-    assert "oneOf" in schema_dict["$defs"]["anyComponent"]
-    assert {"$ref": "#/components/Empty"} in schema_dict["$defs"]["anyComponent"][
-        "oneOf"
-    ]
-
-
 def test_catalog_initialization_from_json():
     schema = {
         "catalogId": "https://a2ui.org/spec/v0.9/catalog.json",
@@ -229,7 +206,7 @@ def test_unevaluated_properties_handling_with_models():
 
     # 2. Rejects extra properties when unevaluatedProperties is False
     with pytest.raises(
-        (ValidationError, ValueError), match="Extra inputs are not permitted"
+        (ValidationError, ValueError), match="Additional properties are not allowed"
     ):
         _val(cat).validate_components(
             [{"id": "b3", "component": "ForbidBox", "extraProp": 789}]
