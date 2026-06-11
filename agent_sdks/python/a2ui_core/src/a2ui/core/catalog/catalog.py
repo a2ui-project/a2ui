@@ -50,9 +50,6 @@ class Catalog(Generic[TComponent, TFunction]):
         if functions:
             for fn in functions:
                 self.functions[fn.name] = fn
-                if fn.name:
-                    self.functions[fn.name[0].lower() + fn.name[1:]] = fn
-                    self.functions[fn.name[0].upper() + fn.name[1:]] = fn
 
         self.theme_schema = theme_schema
         self.theme_class = theme_class
@@ -61,9 +58,6 @@ class Catalog(Generic[TComponent, TFunction]):
 
     @property
     def catalog_schema(self) -> Dict[str, Any]:
-        if self._catalog_schema is not None:
-            return self._catalog_schema
-
         components_dict = {}
         defs = {}
 
@@ -99,20 +93,36 @@ class Catalog(Generic[TComponent, TFunction]):
         elif self.theme_class and hasattr(self.theme_class, "model_json_schema"):
             base["theme"] = _hoist_defs(self.theme_class.model_json_schema())
 
+        if self.components and "anyComponent" not in defs:
+            any_comp_refs = []
+            for name in sorted(list(self.components.keys())):
+                any_comp_refs.append({"$ref": f"#/components/{name}"})
+            defs["anyComponent"] = {
+                "oneOf": any_comp_refs,
+                "discriminator": {"propertyName": "component"},
+            }
+
+        if self.functions and "anyFunction" not in defs:
+            any_func_refs = []
+            original_funcs = set()
+            for fn_obj in self.functions.values():
+                if hasattr(fn_obj, "name") and fn_obj.name:
+                    original_funcs.add(fn_obj.name)
+            for name in sorted(list(original_funcs)):
+                any_func_refs.append({"$ref": f"#/functions/{name}"})
+            if any_func_refs:
+                defs["anyFunction"] = {"oneOf": any_func_refs}
+
         if defs:
             base["$defs"] = defs
 
         return base
 
-    @catalog_schema.setter
-    def catalog_schema(self, val: Dict[str, Any]) -> None:
-        self._catalog_schema = val
-
-    def get_component(self, name: str) -> Optional[Any]:
+    def get_component(self, name: str) -> Optional[TComponent]:
         """Directly retrieves a component by name."""
         return self.components.get(name)
 
-    def get_function(self, name: str) -> Optional[Any]:
+    def get_function(self, name: str) -> Optional[TFunction]:
         """Directly retrieves a function by name."""
         if not name:
             return None
@@ -199,34 +209,9 @@ class Catalog(Generic[TComponent, TFunction]):
             functions=functions,
             theme_schema=catalog_schema.get("theme"),
         )
-        cat.catalog_schema = catalog_schema
         cat.common_types_schema = common_types_schema
         return cat
 
     @property
     def theme(self) -> Optional[Any]:
         return self.theme_class or self.theme_schema
-
-    def get_component_schema(self, comp_type: str) -> Optional[Dict[str, Any]]:
-        comp = self.get_component(comp_type)
-        if hasattr(comp, "schema"):
-            return comp.schema
-        if isinstance(comp, dict):
-            return comp
-        if comp and hasattr(comp, "model_json_schema"):
-            return comp.model_json_schema()
-        return None
-
-    def get_function_schema(self, func_name: str) -> Optional[Dict[str, Any]]:
-        fn = self.get_function(func_name)
-        if fn is not None:
-            if hasattr(fn, "schema"):
-                if isinstance(fn.schema, dict):
-                    return fn.schema
-                if hasattr(fn.schema, "model_json_schema"):
-                    return fn.schema.model_json_schema()
-            if isinstance(fn, dict):
-                return fn
-        if fn and hasattr(fn, "model_json_schema"):
-            return fn.model_json_schema()
-        return None

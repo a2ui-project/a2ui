@@ -49,6 +49,29 @@ def test_catalog_initialization_with_models():
     assert cat.catalog_id == "https://a2ui.org/model-init"
 
 
+def test_print_catalog_schema_text():
+    import json
+
+    class EmptyModel(BaseModel):
+        value: str
+
+    cat = Catalog(
+        catalog_id="https://a2ui.org/print-test",
+        spec_version=SPEC_VERSION,
+        components=[ModelComponentApi(EmptyModel, "Empty")],
+    )
+    schema_text = json.dumps(cat.catalog_schema, indent=2)
+
+    assert "https://a2ui.org/print-test" in schema_text
+    schema_dict = cat.catalog_schema
+    assert "$defs" in schema_dict
+    assert "anyComponent" in schema_dict["$defs"]
+    assert "oneOf" in schema_dict["$defs"]["anyComponent"]
+    assert {"$ref": "#/components/Empty"} in schema_dict["$defs"]["anyComponent"][
+        "oneOf"
+    ]
+
+
 def test_catalog_initialization_from_json():
     schema = {
         "catalogId": "https://a2ui.org/spec/v0.9/catalog.json",
@@ -775,16 +798,6 @@ def test_extract_ref_fields_tabs_model():
 
 def test_extract_ref_fields_custom_tabs_json():
     catalog_schema = {
-        "$defs": {
-            "ComponentId": {"type": "string"},
-            "CustomTab": {
-                "type": "object",
-                "properties": {
-                    "title": {"type": "string"},
-                    "child": {"$ref": "#/$defs/ComponentId"},
-                },
-            },
-        },
         "components": {
             "CustomTabs": {
                 "type": "object",
@@ -793,6 +806,16 @@ def test_extract_ref_fields_custom_tabs_json():
                     "tabs": {
                         "type": "array",
                         "items": {"$ref": "#/$defs/CustomTab"},
+                    },
+                },
+                "$defs": {
+                    "ComponentId": {"type": "string"},
+                    "CustomTab": {
+                        "type": "object",
+                        "properties": {
+                            "title": {"type": "string"},
+                            "child": {"$ref": "#/$defs/ComponentId"},
+                        },
                     },
                 },
             }

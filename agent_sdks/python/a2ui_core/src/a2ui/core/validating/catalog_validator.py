@@ -98,11 +98,35 @@ class CatalogValidator:
                 raise ValueError(str(e))
         return self._validators[key]
 
+    def _get_component_schema(self, comp_type: str) -> Optional[Dict[str, Any]]:
+        comp = self.catalog.get_component(comp_type)
+        if hasattr(comp, "schema"):
+            return comp.schema
+        if isinstance(comp, dict):
+            return comp
+        if comp and hasattr(comp, "model_json_schema"):
+            return comp.model_json_schema()
+        return None
+
+    def _get_function_schema(self, func_name: str) -> Optional[Dict[str, Any]]:
+        fn = self.catalog.get_function(func_name)
+        if fn is not None:
+            if hasattr(fn, "schema"):
+                if isinstance(fn.schema, dict):
+                    return fn.schema
+                if hasattr(fn.schema, "model_json_schema"):
+                    return fn.schema.model_json_schema()
+            if isinstance(fn, dict):
+                return fn
+        if fn and hasattr(fn, "model_json_schema"):
+            return fn.model_json_schema()
+        return None
+
     def validate_component_properties(
         self, comp_type: str, properties: Dict[str, Any]
     ) -> None:
         """Validates raw component properties dynamically using jsonschema draft 2020-12."""
-        comp_schema = self.catalog.get_component_schema(comp_type)
+        comp_schema = self._get_component_schema(comp_type)
         if not comp_schema:
             raise ValueError(f"Unknown component type: {comp_type}")
 
@@ -133,7 +157,7 @@ class CatalogValidator:
         if not comp_obj:
             raise ValueError(f"Unknown component type: {comp_type}")
 
-        comp_schema = self.catalog.get_component_schema(comp_type) or {}
+        comp_schema = self._get_component_schema(comp_type) or {}
 
         # 1. Run pure jsonschema validation
         if comp_schema:
@@ -229,7 +253,7 @@ class CatalogValidator:
         if not func_obj:
             raise ValueError(f"Unknown function: {func_name}")
 
-        func_spec = self.catalog.get_function_schema(func_name)
+        func_spec = self._get_function_schema(func_name)
         if func_spec:
             validator = self._get_validator(
                 f"func:{func_name}",
