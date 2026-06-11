@@ -1,53 +1,25 @@
 # A2UI Core SDK Specification
 
-This document describes the specification and architecture of the A2UI Core SDK. The design separates concerns into distinct layers to maximize code reuse, ensure memory safety, and provide a unified, language-agnostic data layer.
+This document describes the detailed programmatic specification and architecture of the A2UI Core SDK. The Core SDK serves as the foundational data, state, and processing layer of A2UI.
 
-The Core SDK covers everything related to JSON parsing, state management, JSON pointers, catalogs, and schemas. This logic remains completely framework-agnostic, allowing it to be implemented identically across all target environments (including server-side or headless languages where there is no renderer).
+This layer handles JSON parsing, state models, JSON pointers, catalogs, and schemas. This logic remains completely framework-agnostic, allowing it to be implemented identically across all target environments (including server-side or headless languages where there is no renderer).
 
-For details on how the Core SDK connects to visual UI frameworks and renders pixels, see the [A2UI Framework Adapter Specification](framework_adapter_spec.md).
+For a high-level overview of the entire A2UI ecosystem (including the Inference SDK and Framework Adapter structure), see the [A2UI Unified SDK Architecture](sdks_spec.md). For UI framework integration and rendering details, see the [A2UI Framework Adapter Specification](framework_adapter_spec.md).
 
 ---
 
-## 1. Unified Architecture Overview
+## 1. Core SDK Role & Architecture
 
-The A2UI client architecture has a well-defined data flow that bridges language-agnostic data structures with native UI frameworks.
+The A2UI Core SDK acts as the central state coordinator. It is designed to represent core concepts and behaviors described in the A2UI specification, without any UI rendering logic.
 
-1. **A2UI Messages** arrive from the server (JSON).
-2. The **`MessageProcessor`** parses these and updates the **`SurfaceModel`** (Agnostic State).
-3. The **`Surface`** (Framework Entry View) listens to the `SurfaceModel` and begins rendering (detailed in the [Framework Adapter Specification](framework_adapter_spec.md)).
-4. The `Surface` instantiates and renders individual **`ComponentImplementation`** nodes to build the UI tree.
+Its core responsibilities include:
 
-This establishes a fundamental split:
-
-- **The Framework-Agnostic Layer (Data Layer / Core SDK)**: Handles JSON parsing, state management, JSON pointers, and schemas. This logic is identical across all UI frameworks within a given language.
-- **The Framework-Specific Layer (View Layer / Framework Adapter)**: Handles turning the structured state into actual pixels (React Nodes, Flutter Widgets, iOS Views).
-
-### Implementation Topologies
-
-Because A2UI spans multiple languages and UI paradigms, the strictness and location of these architectural boundaries will vary depending on the target ecosystem.
-
-#### Dynamic Languages (e.g., TypeScript / JavaScript)
-
-In highly dynamic ecosystems like the web, the architecture is typically split across multiple packages to maximize code reuse across diverse UI frameworks (React, Angular, Vue, Lit).
-
-- **Core Library (`web_core`)**: Implements the Core Data Layer, Component Schemas, and a Generic Binder Layer. Because TS/JS has powerful runtime reflection, the core library can provide a generic binder that automatically handles all data binding without framework-specific code.
-- **Framework Library (`react_renderer`, `angular_renderer`)**: Implements the Framework-Specific Adapters and the actual view implementations (the React `Button`, `Text`, etc.). See [Framework Adapter Specification](framework_adapter_spec.md).
-
-#### Static Languages (e.g., Kotlin, Swift, Dart)
-
-In statically typed languages (and AOT-compiled languages like Dart), runtime reflection is often limited or discouraged for performance reasons.
-
-- **Core Library (e.g., `kotlin_core`)**: Implements the Core Data Layer and Component Schemas. The core library typically provides a manually implemented **Binder Layer** for the standard Basic Catalog components. This ensures that even in static environments, basic components have a standardized, framework-agnostic reactive state definition.
-- **Code Generation (Future/Optional)**: While the core library starts with manual binders, it may eventually offer Code Generation (e.g., KSP, Swift Macros) to automate the creation of Binders for custom components.
-- **Custom Components**: In the absence of code generation, developers implementing new, ad-hoc components typically utilize a **"Binderless" Implementation** flow, which allows for direct binding to the data model without intermediate boilerplate.
-- **Framework Library (e.g., `compose_renderer`)**: Uses the predefined Binders to connect to native UI state and implements the actual visual components.
-
-#### Combined Core + Framework Libraries (e.g., Swift + SwiftUI)
-
-In ecosystems dominated by a single UI framework (like iOS with SwiftUI), developers often build a single, unified library rather than splitting Core and Framework into separate packages.
-
-- **Relaxed Boundaries**: The strict separation between Core and Framework libraries can be relaxed. The generic `ComponentContext` and the framework-specific adapter logic are often tightly integrated.
-- **Why Keep the Binder Layer?**: Even in a combined library, defining the intermediate Binder Layer remains highly recommended. It standardizes how A2UI data resolves into reactive state. This allows developers adopting the library to easily write alternative implementations of well-known components without having to rewrite the complex, boilerplate-heavy A2UI data subscription logic.
+1. **Catalog Representation:** Define `Catalog` structures and pure technical component metadata/schemas (`ComponentApi`, `FunctionApi`).
+2. **Protocol Definitions:** Model strongly-typed inbound and outbound message structures (e.g., `ClientToServer`, `ServerToClient`, etc.).
+3. **Surface State Containers:** Track mutable, long-lived rendering states via `SurfaceModel`, `ComponentModel`, and `DataModel`.
+4. **Message Processor:** Parse inbound message sequences to mutate local state containers via `MessageProcessor`.
+5. **JSON Pointer Scope:** Standardize relative pointer evaluation and reactivity via scoped context managers (`ComponentContext`, `DataContext`).
+6. **Validation:** Throw strict schema and reference-resolution errors.
 
 ---
 
@@ -514,6 +486,7 @@ If you are an AI Agent tasked with building a new Core SDK for A2UI, you MUST fo
 
 Thoroughly review:
 
+- `specification/v1_0/docs/sdks_spec.md` (unified topologies and layer context)
 - `specification/v1_0/docs/a2ui_protocol.md` (protocol rules)
 - `specification/v1_0/json/common_types.json` (dynamic binding types)
 - `specification/v1_0/json/server_to_client.json` (message envelopes)
