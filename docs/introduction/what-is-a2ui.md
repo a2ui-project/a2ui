@@ -106,18 +106,18 @@ A2UI: JSON messages describing UI that:
     }
     ```
 
-=== "v0.9 (Stable)"
+=== "v0.9.1 (Current)"
 
     ```jsonl
     {
-      "version": "v0.9",
+      "version": "v0.9.1",
       "createSurface": {
         "surfaceId": "booking",
-        "catalogId": "https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json"
+        "catalogId": "https://a2ui.org/specification/v0_9_1/catalogs/basic/catalog.json"
       }
     }
     {
-      "version": "v0.9",
+      "version": "v0.9.1",
       "updateComponents": {
         "surfaceId": "booking",
         "components": [
@@ -151,7 +151,7 @@ A2UI: JSON messages describing UI that:
       }
     }
     {
-      "version": "v0.9",
+      "version": "v0.9.1",
       "updateDataModel": {
         "surfaceId": "booking",
         "path": "/booking",
@@ -162,7 +162,7 @@ A2UI: JSON messages describing UI that:
     }
     ```
 
-    In v0.9 (Stable), `createSurface` replaces `beginRendering`, components use a flatter structure with `"component": "Text"` instead of nested objects, and all messages include a `version` field.
+    Key differences in v0.9 and later: `createSurface` replaces `beginRendering`, components use a flatter structure with `"component": "Text"` instead of nested objects, and all messages include a `version` field.
 
 Client renders these messages as native components (Angular, Flutter, React, etc.).
 

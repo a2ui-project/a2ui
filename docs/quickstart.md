@@ -178,18 +178,18 @@ Let's peek at what the agent is sending. Here's a simplified example of the JSON
     {"beginRendering": {"surfaceId": "main", "root": "header"}}
     ```
 
-=== "v0.9 (Stable)"
+=== "v0.9.1 (Current)"
 
     **Creating the surface:**
 
     ```json
-    {"version": "v0.9", "createSurface": {"surfaceId": "main", "catalogId": "https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json"}}
+    {"version": "v0.9.1", "createSurface": {"surfaceId": "main", "catalogId": "https://a2ui.org/specification/v0_9_1/catalogs/basic/catalog.json"}}
     ```
 
     **Defining the UI:**
 
     ```json
-    {"version": "v0.9", "updateComponents": {"surfaceId": "main", "components": [
+    {"version": "v0.9.1", "updateComponents": {"surfaceId": "main", "components": [
       {"id": "header", "component": "Text", "text": "# Book Your Table", "variant": "h1"},
       {"id": "date-picker", "component": "DateTimeInput", "label": "Select Date", "value": {"path": "/reservation/date"}, "enableDate": true},
       {"id": "submit-text", "component": "Text", "text": "Confirm Reservation"},
@@ -200,10 +200,10 @@ Let's peek at what the agent is sending. Here's a simplified example of the JSON
     **Populating data:**
 
     ```json
-    {"version": "v0.9", "updateDataModel": {"surfaceId": "main", "path": "/reservation", "value": {"date": "2025-12-15", "time": "19:00", "guests": 2}}}
+    {"version": "v0.9.1", "updateDataModel": {"surfaceId": "main", "path": "/reservation", "value": {"date": "2025-12-15", "time": "19:00", "guests": 2}}}
     ```
 
-    Note: In v0.9, `createSurface` replaces `beginRendering`, components use a flatter format, and the data model uses plain JSON values instead of typed adjacency lists.
+    Note: In v0.9 and later, `createSurface` replaces `beginRendering`, components use a flatter format, and the data model uses plain JSON values instead of typed adjacency lists.
 
 TIP: It's Just JSON
 

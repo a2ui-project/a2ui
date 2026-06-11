@@ -1,6 +1,6 @@
 # Specification v0.9
 
-This directory contains the specification for version 0.9 of A2UI, is the currently published specification, and is no longer under active development.
+This directory contains the specification for version 0.9 of A2UI, the previous stable release. It is no longer under active development.
 
 **This specification is closed.**
 
