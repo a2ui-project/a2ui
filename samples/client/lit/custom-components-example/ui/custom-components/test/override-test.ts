@@ -15,8 +15,6 @@
  */
 
 import {componentRegistry, Root} from '@a2ui/lit/ui';
-import {html, css} from 'lit';
-import {property} from 'lit/decorators.js';
 // 1. Define the override
 import {PremiumTextField} from '../premium-text-field.js';
 

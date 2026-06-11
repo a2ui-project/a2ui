@@ -18,7 +18,6 @@ import js from '@eslint/js';
 import eslintConfigPrettier from 'eslint-config-prettier';
 import turboPlugin from 'eslint-plugin-turbo';
 import tseslint from 'typescript-eslint';
-import onlyWarn from 'eslint-plugin-only-warn';
 import pluginReactHooks from 'eslint-plugin-react-hooks';
 import pluginReact from 'eslint-plugin-react';
 import globals from 'globals';
@@ -39,11 +38,6 @@ export default [
     },
     rules: {
       'turbo/no-undeclared-env-vars': 'warn',
-    },
-  },
-  {
-    plugins: {
-      onlyWarn,
     },
   },
   // Next.js specific config
@@ -77,6 +71,14 @@ export default [
     },
   },
   {
-    ignores: ['dist/**', '.next/**', 'out/**', 'build/**', 'next-env.d.ts'],
+    ignores: [
+      'dist/**',
+      '.next/**',
+      'out/**',
+      'build/**',
+      'next-env.d.ts',
+      '.wireit/**',
+      '**/generated.ts',
+    ],
   },
 ];

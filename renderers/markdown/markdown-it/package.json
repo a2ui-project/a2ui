@@ -34,8 +34,8 @@
   ],
   "scripts": {
     "build": "wireit",
-    "lint": "gts lint",
-    "lint:fix": "gts fix",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
     "format": "prettier --ignore-path ../.gitignore --write .",
     "format:check": "prettier --ignore-path ../.gitignore --check .",
     "prepublishOnly": "node -e \"if(!process.cwd().endsWith('dist')) { console.error('Error: This package must be published from the dist/ directory. Run `yarn build` then `cd dist && yarn npm publish`'); process.exit(1); }\"",

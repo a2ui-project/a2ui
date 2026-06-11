@@ -59,11 +59,12 @@ class MarkdownDirective extends Directive {
 
     const dynamicRendererPromise = (async () => {
       try {
+        // eslint-disable-next-line @typescript-eslint/ban-ts-comment
         // @ts-ignore - optional peer dependency
         const {renderMarkdown} = await import('@a2ui/markdown-it');
         const rendered = await renderMarkdown(value, markdownOptions);
         return unsafeHTML(rendered);
-      } catch (e) {
+      } catch {
         if (!MarkdownDirective.defaultMarkdownWarningLogged) {
           console.warn(
             '[MarkdownDirective] Failed to load optional `@a2ui/markdown-it` renderer. Using fallback regex.',

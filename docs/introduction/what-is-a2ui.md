@@ -40,7 +40,7 @@ A2UI: JSON messages describing UI that:
 
 ### Example
 
-=== "v0.8 (Stable)"
+=== "v0.8 (Legacy)"
 
     ```jsonl
     {
@@ -106,7 +106,7 @@ A2UI: JSON messages describing UI that:
     }
     ```
 
-=== "v0.9 (Current)"
+=== "v0.9 (Stable)"
 
     ```jsonl
     {
@@ -162,7 +162,7 @@ A2UI: JSON messages describing UI that:
     }
     ```
 
-    Key differences in v0.9: `createSurface` replaces `beginRendering`, components use a flatter structure with `"component": "Text"` instead of nested objects, and all messages include a `version` field.
+    In v0.9 (Stable), `createSurface` replaces `beginRendering`, components use a flatter structure with `"component": "Text"` instead of nested objects, and all messages include a `version` field.
 
 Client renders these messages as native components (Angular, Flutter, React, etc.).
 

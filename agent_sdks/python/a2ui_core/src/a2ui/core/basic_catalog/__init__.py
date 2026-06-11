@@ -49,4 +49,18 @@ from .function_apis import (
     OrApi,
     NotApi,
 )
+from .operator_apis import (
+    AddApi,
+    SubtractApi,
+    MultiplyApi,
+    DivideApi,
+    EqualsApi,
+    NotEqualsApi,
+    GreaterThanApi,
+    LessThanApi,
+    ContainsApi,
+    StartsWithApi,
+    EndsWithApi,
+)
 from .styles import Theme
+from .function_impls import BASIC_FUNCTION_IMPLEMENTATIONS

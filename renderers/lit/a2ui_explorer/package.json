@@ -12,9 +12,11 @@
     "test:watch": "yarn generate-examples && karma start karma.conf.cjs --single-run=false --auto-watch=true",
     "test:debug": "yarn generate-examples && karma start karma.conf.cjs --single-run=false --auto-watch=true --browsers Chrome",
     "test:ci": "wireit",
-    "lint": "gts lint",
-    "lint:fix": "gts fix",
-    "clean": "wireit"
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "clean": "wireit",
+    "format": "prettier --write .",
+    "format:check": "prettier --check ."
   },
   "wireit": {
     "build": {
@@ -64,6 +66,7 @@
     "karma-esbuild": "^2.3.0",
     "karma-jasmine": "^5.1.0",
     "typescript": "^5.8.3",
-    "vite": "^7.1.11"
+    "vite": "^7.1.11",
+    "wireit": "^0.15.0-pre.2"
   }
 }

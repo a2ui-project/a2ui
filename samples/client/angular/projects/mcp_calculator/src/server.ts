@@ -73,7 +73,7 @@ app.post('/a2a', (req, res) => {
     let client: A2AClient;
     try {
       client = await createOrGetClient();
-    } catch (error) {
+    } catch (_error) {
       res.status(500).json({error: 'Failed to create A2A client.'});
       return;
     }
@@ -81,7 +81,7 @@ app.post('/a2a', (req, res) => {
     let response: SendMessageResponse;
     try {
       response = await client.sendMessage(sendParams);
-    } catch (error) {
+    } catch (_error) {
       res.status(500).json({error: 'Failed to send message.'});
       return;
     }
@@ -108,8 +108,8 @@ app.get('/a2a/agent-card', async (req, res) => {
     }
     const card = await response.json();
     res.json(card);
-  } catch (error) {
-    console.error('Error fetching agent card:', error);
+  } catch (_error) {
+    console.error('Error fetching agent card:', _error);
     res.status(500).json({error: 'Internal server error'});
   }
 });
@@ -148,7 +148,7 @@ async function createOrGetClient() {
   return client;
 }
 
-function isJson(str: string): boolean {
+function _isJson(str: string): boolean {
   try {
     const parsed = JSON.parse(str);
     return typeof parsed === 'object' && parsed !== null && !Array.isArray(parsed);

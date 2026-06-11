@@ -164,11 +164,9 @@ MCP Apps are typically delivered as a single HTML resource from the MCP Server. 
 > **How to use it:**
 >
 > 1. **Install the plugin**:
->
 >     ```bash
 >     npm install -D vite-plugin-singlefile
 >     ```
->
 > 2. **Configure Vite**: Add the plugin to your `vite.config.ts` (or `.js`):
 >
 >     ```typescript

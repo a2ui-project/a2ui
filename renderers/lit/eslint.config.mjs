@@ -14,26 +14,6 @@
  * limitations under the License.
  */
 
-import gts from 'gts';
+import preset from '../../eslint.preset.mjs';
 
-export default [
-  ...gts,
-  {
-    rules: {
-      'prettier/prettier': 'off',
-      eqeqeq: 'off',
-      'no-undef': 'off',
-    },
-  },
-  {
-    files: ['**/*.ts', '**/*.tsx', '**/*.mts', '**/*.cts'],
-    rules: {
-      '@typescript-eslint/no-explicit-any': 'off',
-      '@typescript-eslint/no-floating-promises': 'off',
-      '@typescript-eslint/no-unused-vars': 'warn',
-    },
-  },
-  {
-    ignores: ['dist/**', 'node_modules/**', '.wireit/**', '**/*.d.ts', 'a2ui_explorer/**'],
-  },
-];
+export default [...preset, {ignores: ['a2ui_explorer/**']}];

@@ -12,7 +12,12 @@
     "tslib": "^2.3.0"
   },
   "scripts": {
-    "build": "wireit"
+    "build": "wireit",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "lint": "yarn --cwd ../.. lint",
+    "test": "yarn --cwd ../.. test",
+    "lint:fix": "yarn --cwd ../.. lint:fix"
   },
   "devDependencies": {
     "wireit": "^0.15.0-pre.2"

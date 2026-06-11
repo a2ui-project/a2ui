@@ -29,8 +29,8 @@ import * as UI from '@a2ui/lit/ui';
 // Demo elements.
 import './ui/ui.js';
 import {registerContactComponents} from './ui/custom-components/register-components.js';
-import {Context} from '@a2ui/lit/ui';
-// @ts-ignore
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+// @ts-ignore - optional peer dependency
 import {renderMarkdown} from '@a2ui/markdown-it';
 
 // Register custom components for the contact app

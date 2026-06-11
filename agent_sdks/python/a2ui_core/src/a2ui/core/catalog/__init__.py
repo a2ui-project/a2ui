@@ -12,4 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from .functions import FunctionApi
+from .functions import (
+    FunctionApi,
+    FunctionImplementation,
+    create_function_implementation,
+    FunctionInvoker,
+)
