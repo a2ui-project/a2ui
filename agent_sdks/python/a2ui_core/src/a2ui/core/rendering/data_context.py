@@ -18,6 +18,7 @@ import re
 import warnings
 from typing import Any, Callable, Dict, List, Optional, Set, Union
 from ..state import DataModel
+from ..validating import CatalogSchemaValidator
 from ..common.events import Subscription, EventSource, Signal, AbortSignal
 
 EXPRESSION_PATTERN = re.compile(r"(\\)?\$\{(.*?)\}")
@@ -270,6 +271,24 @@ class DataContext:
     ) -> Any:
         """Invokes standard or catalog functions (e.g., formatString or live Metronome)."""
         if self.catalog:
+            if hasattr(self.catalog, "catalog_schema") and self.catalog.catalog_schema:
+                try:
+                    CatalogSchemaValidator.from_catalog(self.catalog).validate_function(
+                        name, resolved_args
+                    )
+                except Exception as e:
+                    if self.surface and hasattr(self.surface, "dispatch_error"):
+                        self.surface.dispatch_error(
+                            {
+                                "code": "EXPRESSION_ERROR",
+                                "message": str(e),
+                                "expression": name,
+                            }
+                        )
+                        return None
+                    else:
+                        raise
+
             fn = getattr(self.catalog, "get_function", lambda n: None)(name)
             if fn is None and hasattr(self.catalog, "functions"):
                 fn = self.catalog.functions.get(name)

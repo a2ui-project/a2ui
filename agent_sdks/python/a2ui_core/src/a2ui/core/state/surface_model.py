@@ -20,7 +20,8 @@ from .data_model import DataModel
 from .surface_components_model import SurfaceComponentsModel
 from .component_model import ComponentModel
 from .component_node import ComponentNode
-from ..catalog.catalog import CatalogApi
+from ..catalog import Catalog
+from ..validating import CatalogSchemaValidator
 
 
 class SurfaceModel:
@@ -29,7 +30,7 @@ class SurfaceModel:
     def __init__(
         self,
         surface_id: str,
-        catalog: CatalogApi,
+        catalog: Catalog[Any, Any],
         theme: Optional[Dict[str, Any]] = None,
         send_data_model: bool = False,
         locale: Optional[str] = None,
@@ -163,7 +164,9 @@ class SurfaceModel:
                     new_props[k] = make_action_closure
 
             # Get reference fields from catalog
-            ref_map = self.catalog.extract_ref_fields()
+            ref_map = CatalogSchemaValidator.from_catalog(
+                self.catalog
+            ).extract_ref_fields()
             comp_type = component_model.type if component_model else ""
             single_refs, list_refs = ref_map.get(comp_type, (set(), set()))
 
