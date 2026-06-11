@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import {Injectable} from '@angular/core';
+import {Inject, Injectable, InjectionToken, Optional} from '@angular/core';
 import {AngularCatalog, AngularComponentImplementation} from '../types';
 import {TextComponent} from './text.component';
 import {RowComponent} from './row.component';
@@ -152,6 +152,10 @@ export class BasicCatalogBase extends AngularCatalog {
   }
 }
 
+export const BASIC_CATALOG_OPTIONS = new InjectionToken<BasicCatalogOptions>(
+  'BASIC_CATALOG_OPTIONS',
+);
+
 /**
  * A basic catalog of components and functions for v0.9 verification.
  *
@@ -163,7 +167,7 @@ export class BasicCatalogBase extends AngularCatalog {
   providedIn: 'root',
 })
 export class BasicCatalog extends BasicCatalogBase {
-  constructor() {
-    super();
+  constructor(@Optional() @Inject(BASIC_CATALOG_OPTIONS) options?: BasicCatalogOptions) {
+    super(options ?? {});
   }
 }
