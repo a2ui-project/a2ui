@@ -11,6 +11,8 @@
     "test:ci": "wireit",
     "test:watch": "wireit",
     "test:debug": "wireit",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
     "lint": "eslint src tests",
     "lint:fix": "eslint src tests --fix",
     "clean": "wireit"
