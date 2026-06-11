@@ -16,3 +16,5 @@ echo "LAST_RELEASE_TIME=$LAST_RELEASE_TIME"
 
 curl -s "https://api.github.com/repos/a2ui-project/a2ui/commits?path=agent_sdks/python&since=$LAST_RELEASE_TIME"
 ```
+
+The command will return an empty list if no changes are related to the Python agent SDKs, otherwise, it returns a list of commits.
