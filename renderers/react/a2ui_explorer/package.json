@@ -5,7 +5,7 @@
   "description": "A2UI React Explorer",
   "type": "module",
   "scripts": {
-    "dev": "vite",
+    "dev": "wireit",
     "build": "wireit",
     "test": "wireit",
     "test:ci": "wireit",
@@ -16,39 +16,40 @@
     "clean": "wireit"
   },
   "wireit": {
-    "generate-examples": {
-      "command": "node scripts/generate-examples.mjs",
-      "files": [
-        "../../../specification/v0_9/catalogs/basic/examples/*.json",
-        "scripts/generate-examples.mjs"
-      ],
-      "output": [
-        "src/generated/examples-list.ts"
+    "_build-deps": {
+      "dependencies": [
+        "../:build",
+        "../../markdown/markdown-it:build",
+        "generate-examples"
       ]
     },
     "build": {
       "command": "tsc -b && vite build",
       "dependencies": [
-        "../:build",
-        "generate-examples"
+        "_build-deps"
       ]
     },
-    "test": {
-      "command": "karma start karma.conf.cjs --single-run=true",
+    "dev": {
+      "command": "vite",
       "dependencies": [
-        "test:base"
+        "_build-deps"
       ]
     },
-    "test:base": {
+    "_test-deps": {
       "dependencies": [
-        "../:build",
-        "generate-examples"
+        "_build-deps"
       ],
       "files": [
         "src/**/*",
         "tsconfig.json",
         "tests/**/*",
         "karma.conf.cjs"
+      ]
+    },
+    "test": {
+      "command": "karma start karma.conf.cjs --single-run=true",
+      "dependencies": [
+        "_test-deps"
       ]
     },
     "test:ci": {
@@ -59,13 +60,23 @@
     "test:watch": {
       "command": "karma start karma.conf.cjs --single-run=false --auto-watch=true",
       "dependencies": [
-        "test:base"
+        "_test-deps"
       ]
     },
     "test:debug": {
       "command": "karma start karma.conf.cjs --single-run=false --auto-watch=true --browsers Chrome",
       "dependencies": [
-        "test:base"
+        "_test-deps"
+      ]
+    },
+    "generate-examples": {
+      "command": "node scripts/generate-examples.mjs",
+      "files": [
+        "../../../specification/v0_9/catalogs/basic/examples/*.json",
+        "scripts/generate-examples.mjs"
+      ],
+      "output": [
+        "src/generated/examples-list.ts"
       ]
     },
     "clean": {
