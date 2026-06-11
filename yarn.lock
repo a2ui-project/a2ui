@@ -316,7 +316,6 @@ __metadata:
     karma-chrome-launcher: "npm:^3.2.0"
     karma-esbuild: "npm:^2.3.0"
     karma-jasmine: "npm:^5.1.0"
-    prettier: "npm:^3.4.0"
     react: "npm:^18.3.0"
     react-dom: "npm:^18.3.0"
     typescript: "npm:5.9.3"
