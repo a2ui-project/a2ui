@@ -307,19 +307,16 @@ function getNumberFormat(
  * Creates the number formatting function implementation.
  */
 export function createFormatNumberImplementation(locale?: string): FunctionImplementation {
-  return createFunctionImplementation(
-    FormatNumberApi,
-    (args, context) => {
-      if (isNaN(args.value)) return '';
-      try {
-        const activeLocale = locale ?? context.locale;
-        return getNumberFormat(activeLocale, args.decimals, args.grouping).format(args.value);
-      } catch (e) {
-        console.warn('Error formatting number:', e);
-        return args.decimals !== undefined ? args.value.toFixed(args.decimals) : String(args.value);
-      }
-    },
-  );
+  return createFunctionImplementation(FormatNumberApi, (args, context) => {
+    if (isNaN(args.value)) return '';
+    try {
+      const activeLocale = locale ?? context.locale;
+      return getNumberFormat(activeLocale, args.decimals, args.grouping).format(args.value);
+    } catch (e) {
+      console.warn('Error formatting number:', e);
+      return args.decimals !== undefined ? args.value.toFixed(args.decimals) : String(args.value);
+    }
+  });
 }
 
 /**
@@ -355,21 +352,18 @@ function getCurrencyFormat(
  * Creates the currency formatting function implementation.
  */
 export function createFormatCurrencyImplementation(locale?: string): FunctionImplementation {
-  return createFunctionImplementation(
-    FormatCurrencyApi,
-    (args, context) => {
-      if (isNaN(args.value)) return '';
-      try {
-        const activeLocale = locale ?? context.locale;
-        return getCurrencyFormat(activeLocale, args.currency, args.decimals, args.grouping).format(
-          args.value,
-        );
-      } catch (e) {
-        console.warn('Error formatting currency:', e);
-        return args.value.toFixed(args.decimals ?? 2);
-      }
-    },
-  );
+  return createFunctionImplementation(FormatCurrencyApi, (args, context) => {
+    if (isNaN(args.value)) return '';
+    try {
+      const activeLocale = locale ?? context.locale;
+      return getCurrencyFormat(activeLocale, args.currency, args.decimals, args.grouping).format(
+        args.value,
+      );
+    } catch (e) {
+      console.warn('Error formatting currency:', e);
+      return args.value.toFixed(args.decimals ?? 2);
+    }
+  });
 }
 
 /**
@@ -411,19 +405,16 @@ function getPluralRules(locale: string | undefined): Intl.PluralRules {
  * Creates the pluralization function implementation.
  */
 export function createPluralizeImplementation(locale?: string): FunctionImplementation {
-  return createFunctionImplementation(
-    PluralizeApi,
-    (args, context) => {
-      try {
-        const activeLocale = locale ?? context.locale;
-        const rule = getPluralRules(activeLocale).select(args.value);
-        return String((args as Record<string, unknown>)[rule] ?? args.other ?? '');
-      } catch (e) {
-        console.warn('Error in pluralize:', e);
-        return String(args.other ?? '');
-      }
-    },
-  );
+  return createFunctionImplementation(PluralizeApi, (args, context) => {
+    try {
+      const activeLocale = locale ?? context.locale;
+      const rule = getPluralRules(activeLocale).select(args.value);
+      return String((args as Record<string, unknown>)[rule] ?? args.other ?? '');
+    } catch (e) {
+      console.warn('Error in pluralize:', e);
+      return String(args.other ?? '');
+    }
+  });
 }
 
 /**
@@ -449,7 +440,7 @@ export const OpenUrlImplementation = createFunctionImplementation(OpenUrlApi, ar
  * @param options Configuration options.
  * @param options.locale Optional locale to close-over.
  */
-export function createBasicCatalogFunctions(options?: { locale?: string }): FunctionImplementation[] {
+export function createBasicCatalogFunctions(options?: {locale?: string}): FunctionImplementation[] {
   const locale = options?.locale;
   return [
     AddImplementation,

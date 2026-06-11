@@ -433,7 +433,11 @@ describe('BASIC_FUNCTIONS', () => {
     });
 
     it('pluralize with Welsh locale', () => {
-      const cyCatalog = new Catalog<ComponentApi>('test-cy', [], createBasicCatalogFunctions({ locale: 'cy' }));
+      const cyCatalog = new Catalog<ComponentApi>(
+        'test-cy',
+        [],
+        createBasicCatalogFunctions({locale: 'cy'}),
+      );
       const cyContext = createTestDataContext(dataModel, '/', cyCatalog.invoker);
       // Welsh for various numbers of "cat".  Welsh because all six cases have different rules.
       const args = {

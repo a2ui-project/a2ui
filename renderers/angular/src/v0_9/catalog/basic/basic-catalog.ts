@@ -137,7 +137,7 @@ export {BASIC_FUNCTIONS};
 export class BasicCatalogBase extends AngularCatalog {
   constructor(options: BasicCatalogOptions = {}) {
     const id = options.id ?? 'https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json';
-    const functions = options.functions ?? createBasicCatalogFunctions({ locale: options.locale });
+    const functions = options.functions ?? createBasicCatalogFunctions({locale: options.locale});
 
     const overrides = options.components ?? {};
     const components: AngularComponentImplementation[] = [
