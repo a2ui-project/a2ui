@@ -448,7 +448,7 @@ def test_generate_client_capabilities() -> None:
     assert "class FunctionDefinition(StrictBaseModel):" in code
     assert "class V09Capabilities(StrictBaseModel):" in code
     assert "class A2uiClientCapabilities(StrictBaseModel):" in code
-    assert "v0_9: Optional[V09Capabilities] = Field(None, alias=SPEC_VERSION)" in code
+    assert 'v0_9: Optional[V09Capabilities] = Field(None, alias="v0.9")' in code
 
 
 def test_generate_client_to_server() -> None:
