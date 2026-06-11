@@ -66,9 +66,11 @@
     "test": "wireit",
     "test:coverage": "c8 node --test \"dist/**/*.test.js\"",
     "compile": "tsc",
-    "lint": "gts lint",
-    "lint:fix": "gts fix",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
     "fix": "gts fix",
+    "format": "wireit",
+    "format:check": "wireit",
     "clean": "wireit"
   },
   "wireit": {
@@ -119,6 +121,26 @@
     },
     "clean": {
       "command": "rm -rf dist .tsbuildinfo .wireit"
+    },
+    "format": {
+      "command": "prettier --write .",
+      "files": [
+        "src/**/*.ts",
+        "src/**/*.json",
+        "scripts/**/*.js",
+        "package.json",
+        "tsconfig.json"
+      ]
+    },
+    "format:check": {
+      "command": "prettier --check .",
+      "files": [
+        "src/**/*.ts",
+        "src/**/*.json",
+        "scripts/**/*.js",
+        "package.json",
+        "tsconfig.json"
+      ]
     }
   },
   "author": "Google",

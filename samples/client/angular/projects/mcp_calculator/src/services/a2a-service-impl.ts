@@ -25,7 +25,7 @@ import {isPlatformBrowser} from '@angular/common';
 export class A2aServiceImpl implements A2aService {
   private isBrowser: boolean;
 
-  constructor(@Inject(PLATFORM_ID) platformId: Object) {
+  constructor(@Inject(PLATFORM_ID) platformId: object) {
     this.isBrowser = isPlatformBrowser(platformId);
   }
 

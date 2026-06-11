@@ -12,9 +12,18 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from .functions import (
-    FunctionApi,
-    FunctionImplementation,
-    create_function_implementation,
-    FunctionInvoker,
-)
+from .catalog import CatalogApi, CatalogImplementation
+from .model_catalog import ModelCatalog
+from .json_catalog import JsonCatalog
+from .functions import FunctionApi, FunctionImplementation, FunctionInvoker, create_function_implementation
+
+__all__ = [
+    "CatalogApi",
+    "CatalogImplementation",
+    "ModelCatalog",
+    "JsonCatalog",
+    "FunctionApi",
+    "FunctionImplementation",
+    "FunctionInvoker",
+    "create_function_implementation",
+]

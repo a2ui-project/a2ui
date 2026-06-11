@@ -12,7 +12,11 @@
     "build:tsc": "wireit",
     "dev": "yarn serve --watch",
     "test": "wireit",
-    "serve": "wireit"
+    "serve": "wireit",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "lint": "echo \"Workspace has no lint configuration.\"",
+    "lint:fix": "echo \"Workspace has no lint configuration.\""
   },
   "wireit": {
     "serve": {

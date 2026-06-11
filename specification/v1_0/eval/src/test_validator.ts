@@ -17,7 +17,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import {Validator} from './validator';
-import {GeneratedResult} from './types';
+import {GeneratedResult, ProtocolSchemas} from './types';
 
 const schemaFiles = [
   '../../json/common_types.json',
@@ -25,8 +25,8 @@ const schemaFiles = [
   '../../json/server_to_client.json',
 ];
 
-function loadSchemas(): Record<string, any> {
-  const schemas: Record<string, any> = {};
+function loadSchemas(): ProtocolSchemas {
+  const schemas: ProtocolSchemas = {};
   for (const file of schemaFiles) {
     const schemaString = fs.readFileSync(path.join(__dirname, file), 'utf-8');
     const schema = JSON.parse(schemaString);

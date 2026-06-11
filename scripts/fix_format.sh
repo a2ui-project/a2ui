@@ -24,11 +24,21 @@ fi
 REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$REPO_ROOT"
 
-echo "Running Prettier..."
-if [ "$CHECK_ONLY" = true ]; then
-  npx -y prettier --config .prettierrc --check .
+echo "Running Prettier formatting for Node/Web assets..."
+if [ -f ".yarn/install-state.gz" ]; then
+  # Local Node environment already installed; invoke standard script targets
+  if [ "$CHECK_ONLY" = true ]; then
+    yarn format:check:all
+  else
+    yarn format:all
+  fi
 else
-  npx -y prettier --config .prettierrc --write .
+  # Non-Node contributor or CI; run standalone Prettier via dlx without full monorepo install
+  if [ "$CHECK_ONLY" = true ]; then
+    yarn dlx prettier@^3.5.0 --config .prettierrc --check .
+  else
+    yarn dlx prettier@^3.5.0 --config .prettierrc --write .
+  fi
 fi
 
 echo "Running Pyink for Python Agent SDK..."

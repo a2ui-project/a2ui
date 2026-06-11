@@ -20,8 +20,6 @@ import {IconApi} from '@a2ui/web_core/v0_9/basic_catalog';
 import {BasicCatalogA2uiLitElement} from '../basic-catalog-a2ui-lit-element.js';
 import {A2uiController} from '@a2ui/lit/v0_9';
 
-import {classMap} from 'lit/directives/class-map.js';
-
 const ICON_NAME_OVERRIDES: Record<string, string> = {
   play: 'play_arrow',
   rewind: 'fast_rewind',

@@ -26,7 +26,7 @@ export class A2aService implements A2aServiceInterface {
   private isBrowser: boolean;
 
   constructor(
-    @Inject(PLATFORM_ID) platformId: Object,
+    @Inject(PLATFORM_ID) platformId: object,
     private catalogService: CatalogService,
   ) {
     this.isBrowser = isPlatformBrowser(platformId);

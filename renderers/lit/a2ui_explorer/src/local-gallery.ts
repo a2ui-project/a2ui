@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import {LitElement, html, css, nothing} from 'lit';
+import {LitElement, html, nothing} from 'lit';
 import {provide} from '@lit/context';
 import {customElement, state} from 'lit/decorators.js';
 import {MessageProcessor, A2uiMessage, A2uiClientAction} from '@a2ui/web_core/v0_9';
@@ -65,7 +65,7 @@ export class LocalGallery extends LitElement {
         this.selectItem(0);
       }
     } catch (err) {
-      console.error(`Failed to initiate gallery:`, err);
+      console.error('Failed to initiate gallery:', err);
     }
   }
 

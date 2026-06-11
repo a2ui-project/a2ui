@@ -35,7 +35,7 @@ const isJson = (str: string) => {
   try {
     const parsed = JSON.parse(str);
     return typeof parsed === 'object' && parsed !== null && !Array.isArray(parsed);
-  } catch (err) {
+  } catch (_err) {
     return false;
   }
 };

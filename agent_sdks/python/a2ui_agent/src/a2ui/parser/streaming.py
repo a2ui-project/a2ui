@@ -41,20 +41,6 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
-# Keys whose string values can be safely auto-closed (healed) if fragmented in the stream.
-# Structural or atomic keys (e.g., id, surfaceId, path) are NOT cuttable to prevent
-# incorrect parsing or data binding.
-CUTTABLE_KEYS = {
-    "literalString",
-    "valueString",
-    "label",
-    "hint",
-    "caption",
-    "altText",
-    "text",
-}
-
-
 class A2uiStreamParser:
   """Parses a stream of text for A2UI JSON messages with fine-grained component yielding.
 
@@ -77,6 +63,9 @@ class A2uiStreamParser:
 
   def __init__(self, catalog: "A2uiCatalog" = None):
     self._version = getattr(catalog, "version", None) if catalog else None
+    self._cuttable_keys = (
+        getattr(catalog, "cuttable_keys", None) if catalog else frozenset()
+    )
     self._ref_fields_map = extract_component_ref_fields(catalog) if catalog else {}
     self._required_fields_map = (
         extract_component_required_fields(catalog) if catalog else {}
@@ -413,7 +402,7 @@ class A2uiStreamParser:
         key_match = re.findall(r'"([^"]+)"\s*:\s*$', prefix)
         if key_match:
           key = key_match[0]
-          if key not in CUTTABLE_KEYS:
+          if key not in self._cuttable_keys:
             return ""
 
           # Special case: don't cut URL bindings, as partial URLs break images/links

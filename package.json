@@ -27,10 +27,13 @@
     "test:all": "yarn workspaces foreach -A -p --topological-dev run test",
     "lint:all": "yarn workspaces foreach -A -p --topological-dev run lint",
     "lint:fix:all": "yarn workspaces foreach -A -p --topological-dev run lint:fix",
+    "format:all": "prettier --config .prettierrc --write .",
+    "format:check:all": "prettier --config .prettierrc --check .",
     "clean:all": "yarn workspaces foreach -A -p run clean"
   },
   "devDependencies": {
     "google-artifactregistry-auth": "^3.5.0",
+    "prettier": "^3.5.0",
     "typescript": "5.9.3",
     "wireit": "^0.15.0-pre.2"
   },

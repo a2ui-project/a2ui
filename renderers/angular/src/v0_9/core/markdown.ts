@@ -32,10 +32,11 @@ export class DefaultMarkdownRenderer extends MarkdownRenderer {
 
   override async render(markdown: string, options?: MarkdownRendererOptions): Promise<string> {
     try {
-      // @ts-ignore - optional peer dependency
+      // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+      // @ts-ignore - optional peer dependency throws TS1323 under Angular compiler but not under NodeNext
       const {renderMarkdown} = await import('@a2ui/markdown-it');
       return await renderMarkdown(markdown, options as any);
-    } catch (e) {
+    } catch {
       if (!DefaultMarkdownRenderer.warningLogged) {
         console.warn(
           '[DefaultMarkdownRenderer] Failed to load optional `@a2ui/markdown-it` renderer. Using fallback.',

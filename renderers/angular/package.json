@@ -29,7 +29,9 @@
     "test:watch": "yarn generate-examples && ng test lib --browsers=ChromeHeadless",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
-    "clean": "wireit"
+    "clean": "wireit",
+    "format": "prettier --write .",
+    "format:check": "prettier --check ."
   },
   "dependencies": {
     "@a2ui/web_core": "workspace:*",

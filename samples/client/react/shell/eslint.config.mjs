@@ -14,45 +14,6 @@
  * limitations under the License.
  */
 
-import js from '@eslint/js';
-import tseslint from 'typescript-eslint';
-import reactPlugin from 'eslint-plugin-react';
-import reactHooksPlugin from 'eslint-plugin-react-hooks';
-import prettierConfig from 'eslint-config-prettier';
-import gts from 'gts';
+import preset from '../../../../eslint.preset.mjs';
 
-export default tseslint.config(
-  ...gts,
-  {
-    files: ['**/*.{ts,tsx}'],
-    plugins: {
-      react: reactPlugin,
-      'react-hooks': reactHooksPlugin,
-    },
-    languageOptions: {
-      parserOptions: {
-        ecmaFeatures: {
-          jsx: true,
-        },
-      },
-    },
-    settings: {
-      react: {
-        version: 'detect',
-      },
-    },
-    rules: {
-      'react-hooks/rules-of-hooks': 'error',
-      'react-hooks/exhaustive-deps': 'warn',
-      'react/jsx-uses-react': 'off',
-      'react/react-in-jsx-scope': 'off',
-      'react/prop-types': 'off',
-      '@typescript-eslint/no-explicit-any': 'off',
-      '@typescript-eslint/no-floating-promises': 'off',
-    },
-  },
-  prettierConfig,
-  {
-    ignores: ['dist/**', 'node_modules/**', '**/*.d.ts'],
-  },
-);
+export default [...preset, {ignores: ['vite.config.ts']}];

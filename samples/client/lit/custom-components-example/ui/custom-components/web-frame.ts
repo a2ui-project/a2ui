@@ -14,15 +14,11 @@
  * limitations under the License.
  */
 
-import {html, css, PropertyValues, nothing} from 'lit';
+import {html, css} from 'lit';
 import {customElement, property, query} from 'lit/decorators.js';
 import {ifDefined} from 'lit/directives/if-defined.js';
 import {Root} from '@a2ui/lit/ui';
 import {v0_8} from '@a2ui/lit';
-
-interface WebFrameConfig {
-  [key: string]: unknown;
-}
 
 @customElement('a2ui-web-frame')
 export class WebFrame extends Root {
@@ -156,7 +152,7 @@ export class WebFrame extends Root {
       } else {
         return 'allow-scripts allow-same-origin';
       }
-    } catch (e) {
+    } catch {
       // Invalid URL -> Lockdown
       return '';
     }

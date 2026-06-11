@@ -147,7 +147,7 @@ In the web app, try these prompts:
 
 Let's peek at what the agent is sending. Here's a simplified example of the JSON messages:
 
-=== "v0.8 (Stable)"
+=== "v0.8 (Legacy)"
 
     **Defining the UI:**
 
@@ -178,7 +178,7 @@ Let's peek at what the agent is sending. Here's a simplified example of the JSON
     {"beginRendering": {"surfaceId": "main", "root": "header"}}
     ```
 
-=== "v0.9 (Draft)"
+=== "v0.9 (Stable)"
 
     **Creating the surface:**
 

@@ -257,7 +257,7 @@ class CatalogAssembler:
     return str(uri) if is_remote_uri(str(uri)) else str(Path(uri).resolve())
 
   def _merge_categories(self, source: dict[str, Any], target: dict[str, Any]) -> None:
-    """Merges components and functions from source catalog into target."""
+    """Merges components, functions, and instructions from source catalog into target."""
     category_singular_map = {"components": "Component", "functions": "Function"}
     for category, label in category_singular_map.items():
       if category in source:
@@ -265,6 +265,12 @@ class CatalogAssembler:
           if k in target[category]:
             logger.warning(f"{label} collision: '{k}' already exists. Overwriting.")
           target[category][k] = v
+
+    if "instructions" in source and isinstance(source["instructions"], str):
+      if "instructions" not in target:
+        target["instructions"] = source["instructions"]
+      else:
+        target["instructions"] += f"\n\n{source['instructions']}"
 
   def _init_combined_catalog(self, base_name: str, file_name: str, input_uris: list[str], custom_catalog_id: Optional[str] = None) -> dict[str, Any]:
     """Initializes the skeleton for the newly combined catalog."""
@@ -346,7 +352,7 @@ class CatalogAssembler:
       if synthesized_name == "anyComponent":
         self.definitions[synthesized_name]["discriminator"] = {"propertyName": "component"}
 
-  def assemble(self, name: str, input_uris: list[str], extend_basic: bool = False, catalog_id: Optional[str] = None) -> dict[str, Any]:
+  def assemble(self, name: str, input_uris: list[str], extend_basic: bool = False, catalog_id: Optional[str] = None, additional_instructions: Optional[list[Path]] = None) -> dict[str, Any]:
     """Assembles a list of catalog URIs into a single, unified catalog JSON."""
     if not input_uris:
       return {}
@@ -377,6 +383,20 @@ class CatalogAssembler:
 
     self._synthesize_union_types(combined_catalog, merged_theme)
     combined_catalog["$defs"] = self.definitions
+
+    if additional_instructions:
+      for instr_path in additional_instructions:
+        if instr_path.exists():
+          content = instr_path.read_text(encoding="utf-8").strip()
+          if content:
+            logger.info(f"  + Including instructions file: {instr_path}")
+            if "instructions" not in combined_catalog:
+              combined_catalog["instructions"] = content
+            else:
+              combined_catalog["instructions"] += f"\n\n{content}"
+        else:
+          logger.warning(f"Instructions file not found: {instr_path}")
+
     return combined_catalog
 
 
@@ -415,6 +435,7 @@ def main():
   parser.add_argument("--catalog-id", type=str, help="Custom catalogId for the output. Defaults to urn:a2ui:catalog:<base_name>")
   parser.add_argument("--version", choices=["0.8", "0.9", "1.0"], default="0.9", help="A2UI basic_catalog version to use if remote")
   parser.add_argument("--extend-basic-catalog", action="store_true", help="Always include the entire basic_catalog.json in the output")
+  parser.add_argument("--instructions", action="extend", nargs="*", type=Path, help="Additional Markdown instructions file(s) to include in the combined catalog (can be specified multiple times)")
   parser.add_argument("--out-dir", "-o", type=Path, default="dist", help="Output directory (default: dist)")
   parser.add_argument("--verbose", "-v", action="store_true", help="Enable verbose logging")
 
@@ -437,7 +458,7 @@ def main():
         local_basic_catalog_path=local_basic,
         local_common_types_path=local_common,
     )
-    final_schema = assembler.assemble(output_filename, args.inputs, extend_basic=args.extend_basic_catalog, catalog_id=args.catalog_id)
+    final_schema = assembler.assemble(output_filename, args.inputs, extend_basic=args.extend_basic_catalog, catalog_id=args.catalog_id, additional_instructions=args.instructions)
 
     validate_catalog(final_schema)
 

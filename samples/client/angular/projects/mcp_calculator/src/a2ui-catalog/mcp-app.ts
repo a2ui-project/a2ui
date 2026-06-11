@@ -33,10 +33,9 @@ import {
   OnDestroy,
   OnInit,
   signal,
-  Signal,
   viewChild,
 } from '@angular/core';
-import {DomSanitizer, SafeHtml, SafeResourceUrl} from '@angular/platform-browser';
+import {DomSanitizer, SafeResourceUrl} from '@angular/platform-browser';
 
 @Component({
   selector: 'a2ui-mcp-app',

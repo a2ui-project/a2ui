@@ -16,17 +16,6 @@
 
 import {v0_8} from '@a2ui/lit';
 import {registerContactComponents} from './ui/custom-components/register-components.js';
-type A2TextPayload = {
-  kind: 'text';
-  text: string;
-};
-
-type A2DataPayload = {
-  kind: 'data';
-  data: v0_8.Types.ServerToClientMessage;
-};
-
-type A2AServerPayload = Array<A2DataPayload | A2TextPayload> | {error: string};
 
 import {componentRegistry} from '@a2ui/lit/ui';
 
