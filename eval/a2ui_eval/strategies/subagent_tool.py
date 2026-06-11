@@ -35,7 +35,6 @@ def a2ui_specialist(schema_path: str, catalog_path: str) -> Tool:
         Args:
             input: The UI layout request.
         """
-        # Load schema and catalog
         catalog_config = CatalogConfig.from_path("basic_catalog", catalog_path)
         manager = A2uiSchemaManager(version="0.9", catalogs=[catalog_config])
         

@@ -74,7 +74,6 @@ def a2ui_v0_9_eval(
                 print(f"- {m.name}")
         except errors.APIError as e:
             print(f"Error listing models: {e}")
-        # Return a dummy task to exit gracefully without errors
 
         @scorer(metrics=[])
         def dummy_scorer():
