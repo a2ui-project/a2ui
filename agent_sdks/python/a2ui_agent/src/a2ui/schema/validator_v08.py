@@ -243,6 +243,10 @@ class LegacyA2uiValidatorV08:
           msg += f"\n  - {sub_error.message}"
       raise ValueError(msg)
 
+    has_begin = any(isinstance(m, dict) and "beginRendering" in m for m in messages)
+    if not has_begin and not config.allow_missing_root:
+      config = config.model_copy(update={"allow_missing_root": True})
+
     for message in messages:
       if not isinstance(message, dict):
         continue
@@ -257,16 +261,18 @@ class LegacyA2uiValidatorV08:
         ref_map = extract_component_ref_fields(self._catalog)
         root_id = _find_root_id(messages, surface_id)
         core_validate_component_integrity(
-            root_id,
             components,
             ref_map,
+            root_id=root_id,
             allow_dangling_references=config.allow_dangling_references,
+            allow_missing_root=config.allow_missing_root,
         )
         core_analyze_topology(
-            root_id,
             components,
             ref_map,
+            root_id=root_id,
             allow_orphan_components=config.allow_orphan_components,
+            allow_missing_root=config.allow_missing_root,
         )
 
       core_validate_recursion_and_paths(message)

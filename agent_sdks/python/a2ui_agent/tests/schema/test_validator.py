@@ -568,16 +568,16 @@ class TestValidator:
     ]
     with pytest.raises(ValueError, match="Circular reference detected"):
       analyze_topology(
-          "c1",
           components,
           ref_fields_map,
+          root_id="c1",
       )
 
   def test_analyze_topology_self_ref(self):
     ref_fields_map = {"Node": ({"next"}, set())}
     components = [{"id": "c1", "component": "Node", "next": "c1"}]
     with pytest.raises(ValueError, match="Self-reference detected"):
-      analyze_topology("c1", components, ref_fields_map)
+      analyze_topology(components, ref_fields_map, root_id="c1")
 
   def test_analyze_topology_reachable(self):
     ref_fields_map = {"Node": ({"next"}, set())}
@@ -587,7 +587,9 @@ class TestValidator:
         {"id": "c2", "component": "Node"},
         {"id": "orphan", "component": "Node"},
     ]
-    reachable = analyze_topology("root", components, ref_fields_map)
+    reachable = analyze_topology(
+        components, ref_fields_map, root_id="root", allow_orphan_components=True
+    )
     assert reachable == {"root", "c1", "c2"}
 
   def test_extract_component_ref_fields(self):

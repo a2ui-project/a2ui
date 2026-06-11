@@ -25,7 +25,7 @@ from a2ui.core.validating import A2uiValidator as CoreValidator
 from a2ui.core.validating.integrity_checker import get_component_references
 from a2ui.core.validating.topology_analyzer import analyze_topology
 from a2ui.core.validating.validator import ValidationConfig, STRICT_VALIDATION
-
+from a2ui.core.validating.catalog_schema_validator import CatalogSchemaValidator
 
 if TYPE_CHECKING:
   from .catalog import A2uiCatalog
@@ -49,7 +49,11 @@ def extract_component_ref_fields(
 ) -> Dict[str, Tuple[Set[str], Set[str]]]:
   if catalog.version == VERSION_0_8:
     return v08_ref(catalog)
-  return catalog.core_catalog.extract_ref_fields()
+  result = CatalogSchemaValidator(
+      catalog.core_catalog,
+      catalog.common_types_schema,
+  ).extract_ref_fields()
+  return result
 
 
 class A2uiValidatorWrapper:
@@ -66,9 +70,11 @@ class A2uiValidatorWrapper:
       config: ValidationConfig = STRICT_VALIDATION,
   ) -> None:
     self._validator.validate(
-        catalog=self._catalog.core_catalog,
+        schema_validator=CatalogSchemaValidator(
+            self._catalog.core_catalog,
+            self._catalog.common_types_schema,
+        ),
         a2ui_payload=a2ui_json,
-        root_id=root_id,
         config=config,
     )
 

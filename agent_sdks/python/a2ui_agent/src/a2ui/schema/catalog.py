@@ -23,7 +23,7 @@ import os
 from dataclasses import dataclass, field, replace
 from typing import Any, Dict, List, Optional, Union, TYPE_CHECKING
 from urllib.parse import urlparse
-from a2ui.core.catalog import JsonCatalog
+from a2ui.core.catalog import Catalog
 
 from .catalog_provider import A2uiCatalogProvider, FileSystemCatalogProvider
 from .constants import (
@@ -175,16 +175,17 @@ class A2uiCatalog:
     return self.catalog_schema[CATALOG_ID_KEY]
 
   @property
-  def validator(self) -> A2uiValidator:
+  def validator(self) -> "A2uiValidator":
+    from .validator import A2uiValidator
+
     return A2uiValidator(self)
 
   @property
-  def core_catalog(self) -> JsonCatalog:
-    return JsonCatalog(
-        version=self.version,
+  def core_catalog(self) -> Catalog[Any, Any]:
+    return Catalog.from_json(
         catalog_schema=self.catalog_schema,
+        spec_version=self.version,
         catalog_id=self.catalog_id,
-        common_types_schema=self.common_types_schema,
     )
 
   def _with_pruned_components(self, allowed_components: List[str]) -> A2uiCatalog:
