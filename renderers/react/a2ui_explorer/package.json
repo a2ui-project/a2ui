@@ -44,6 +44,8 @@
       "files": [
         "src/**/*",
         "tsconfig.json",
+        "tsconfig.app.json",
+        "tsconfig.spec.json",
         "tests/**/*",
         "karma.conf.cjs"
       ]
