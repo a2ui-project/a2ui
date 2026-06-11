@@ -29,6 +29,7 @@ dev = [
     "pytest>=8.0.0",
     "pyink>=24.10.0",
     "mypy>=1.14.0",
+    "types-jsonschema>=4.26.0",
 ]
 
 [build-system]
