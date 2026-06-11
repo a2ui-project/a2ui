@@ -54,12 +54,16 @@ export class SurfaceModel<T extends ComponentApi = ComponentApi> {
    * @param theme The theme to apply to this surface.
    * @param sendDataModel If true, the client will send the full data model.
    * @param locale The locale to use in locale-sensitive functions.
+   * @deprecated Configure the locale parameter at the catalog level instead.
    */
   constructor(
     readonly id: string,
     readonly catalog: Catalog<T>,
     readonly theme: any = {},
     readonly sendDataModel: boolean = false,
+    /**
+     * @deprecated Configure the locale parameter at the catalog level instead.
+     */
     readonly locale?: string,
   ) {
     this.dataModel = new DataModel({});

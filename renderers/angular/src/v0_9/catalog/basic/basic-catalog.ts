@@ -37,6 +37,7 @@ import {DateTimeInputComponent} from './date-time-input.component';
 
 import {
   BASIC_FUNCTIONS,
+  createBasicCatalogFunctions,
   TextApi,
   RowApi,
   ColumnApi,
@@ -95,6 +96,11 @@ export interface BasicCatalogOptions {
   id?: string;
 
   /**
+   * An optional locale to configure catalog-level formatting.
+   */
+  locale?: string;
+
+  /**
    * Optional overrides for individual components in the catalog.
    */
   components?: Partial<{
@@ -131,7 +137,7 @@ export {BASIC_FUNCTIONS};
 export class BasicCatalogBase extends AngularCatalog {
   constructor(options: BasicCatalogOptions = {}) {
     const id = options.id ?? 'https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json';
-    const functions = options.functions ?? BASIC_FUNCTIONS;
+    const functions = options.functions ?? createBasicCatalogFunctions({ locale: options.locale });
 
     const overrides = options.components ?? {};
     const components: AngularComponentImplementation[] = [
