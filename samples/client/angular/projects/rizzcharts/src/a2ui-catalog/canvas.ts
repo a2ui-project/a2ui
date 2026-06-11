@@ -36,7 +36,7 @@ import {CanvasService} from '@a2a_chat_canvas/services/canvas-service';
       flex-direction: row;
     }
   `,
-  template: `<section></section>`,
+  template: '<section></section>',
 })
 export class Canvas extends DynamicComponent<Types.CustomNode> implements OnInit {
   private readonly canvasService = inject(CanvasService);

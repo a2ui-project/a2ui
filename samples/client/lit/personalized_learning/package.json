@@ -13,7 +13,11 @@
     "test": "node tests/unit-tests.mjs && node tests/integration-tests.mjs",
     "test:unit": "node tests/unit-tests.mjs",
     "test:integration": "node tests/integration-tests.mjs",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "lint": "echo \"Workspace has no lint configuration.\"",
+    "lint:fix": "echo \"Workspace has no lint configuration.\""
   },
   "dependencies": {
     "@a2ui/lit": "workspace:*",

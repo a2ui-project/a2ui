@@ -14,21 +14,6 @@
  * limitations under the License.
  */
 
-import {getCanvas, loadExample} from '../utils';
+import preset from '../../eslint.preset.mjs';
 
-describe('Example: Login Form with Validation', () => {
-  let textContent: string;
-
-  beforeEach(async () => {
-    await loadExample('Login Form with Validation');
-    textContent = getCanvas().textContent;
-  });
-
-  it('should render text content', async () => {
-    expect(textContent).toContain('Welcome back');
-    expect(textContent).toContain('Sign in to your account');
-    expect(textContent).toContain('Sign in');
-    expect(textContent).toContain("Don't have an account?");
-    expect(textContent).toContain('Sign up');
-  });
-});
+export default [...preset, {ignores: ['visual-parity/**']}];

@@ -15,7 +15,7 @@
  */
 
 import {html, css} from 'lit';
-import {customElement, property, query, state} from 'lit/decorators.js';
+import {customElement, property, query} from 'lit/decorators.js';
 import {Root} from '@a2ui/lit/ui';
 import {v0_8} from '@a2ui/lit';
 import {AppBridge, PostMessageTransport} from '@modelcontextprotocol/ext-apps/app-bridge';

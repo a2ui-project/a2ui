@@ -28,13 +28,13 @@ describe('Example: Step Counter', () => {
   });
 
   it('should render text content', async () => {
-    expect(textContent).toContain(`Today's Steps`);
-    expect(textContent).toContain(`Distance`);
-    expect(textContent).toContain(`Calories`);
+    expect(textContent).toContain("Today's Steps");
+    expect(textContent).toContain('Distance');
+    expect(textContent).toContain('Calories');
   });
 
   it('should render icon', async () => {
     expect(fixture.nativeElement.querySelector('.a2ui-icon')).toBeTruthy();
-    expect(textContent).toContain(`person`);
+    expect(textContent).toContain('person');
   });
 });

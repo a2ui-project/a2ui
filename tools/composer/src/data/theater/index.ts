@@ -24,7 +24,7 @@ export const scenarios = {
   'restaurant-finder': restaurantFinder,
   'restaurant-booking': restaurantBooking,
   'restaurant-confirmation': restaurantConfirmation,
-  // 'floor-plan': floorPlan,
+  'floor-plan': floorPlan,
 };
 
 export type ScenarioId = keyof typeof scenarios;

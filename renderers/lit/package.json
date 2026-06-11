@@ -56,9 +56,11 @@
     "test:unit": "wireit",
     "test:integration": "wireit",
     "demo": "yarn workspace @a2ui/lit-explorer dev",
-    "lint": "gts lint",
-    "lint:fix": "gts fix",
-    "clean": "wireit"
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "clean": "wireit",
+    "format": "prettier --write .",
+    "format:check": "prettier --check ."
   },
   "wireit": {
     "test": {

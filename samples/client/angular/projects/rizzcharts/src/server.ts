@@ -24,7 +24,7 @@ import express from 'express';
 import {join} from 'node:path';
 import {v4 as uuidv4} from 'uuid';
 import {A2AClient} from '@a2a-js/sdk/client';
-import {Message, MessageSendParams, Part, SendMessageSuccessResponse, Task} from '@a2a-js/sdk';
+import {MessageSendParams, Part} from '@a2a-js/sdk';
 
 const browserDistFolder = join(import.meta.dirname, '../browser');
 const app = express();
@@ -132,7 +132,7 @@ async function createOrGetClient() {
   return client;
 }
 
-function isJson(str: string): boolean {
+function _isJson(str: string): boolean {
   try {
     const parsed = JSON.parse(str);
     return typeof parsed === 'object' && parsed !== null && !Array.isArray(parsed);

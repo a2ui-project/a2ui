@@ -20,7 +20,7 @@ import {MarkdownPipe} from './markdown.pipe';
 
 describe('MarkdownPipe', () => {
   let pipe: MarkdownPipe;
-  let sanitizer: DomSanitizer;
+  let _sanitizer: DomSanitizer;
 
   beforeEach(() => {
     TestBed.configureTestingModule({
@@ -35,7 +35,7 @@ describe('MarkdownPipe', () => {
       ],
     });
     pipe = TestBed.inject(MarkdownPipe);
-    sanitizer = TestBed.inject(DomSanitizer);
+    _sanitizer = TestBed.inject(DomSanitizer);
   });
 
   it('create an instance', () => {
