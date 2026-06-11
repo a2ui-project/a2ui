@@ -28,6 +28,7 @@ dependencies = [
 dev = [
     "pytest>=8.0.0",
     "pyink>=24.10.0",
+    "mypy>=1.14.0",
 ]
 
 [build-system]
@@ -40,3 +41,17 @@ packages = ["src/a2ui"]
 [[tool.uv.index]]
 url = "https://pypi.org/simple"
 default = true
+
+[tool.mypy]
+mypy_path = ["src", "scripts"]
+explicit_package_bases = true
+strict = true
+plugins = [
+  "pydantic.mypy"
+]
+
+[tool.pydantic-mypy]
+init_forbid_extra = true
+init_typed = true
+warn_required_dynamic_aliases = true
+warn_untyped_fields = true

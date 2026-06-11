@@ -12,10 +12,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Any, Callable, Dict, List, Optional, Set, Tuple, Type, Union, get_args, get_origin
+from typing import Any, Callable, Dict, List, Optional, Set, Tuple, Type, Union, get_args, get_origin, cast
 from pydantic import BaseModel
 from .catalog import CatalogImplementation
-from .functions import FunctionImplementation
+from .functions import FunctionImplementation, FunctionApi
 from ..schema.common_types import ComponentReference, SingleReference, ListReference
 
 
@@ -27,7 +27,7 @@ class ModelCatalog(CatalogImplementation):
         spec_version: str,
         catalog_id: str,
         components: Dict[str, Type[BaseModel]],
-        functions: Optional[Dict[str, Any]] = None,
+        functions: Optional[Union[Dict[str, Any], List[Any]]] = None,
         theme: Optional[Type[BaseModel]] = None,
     ):
         super().__init__(
@@ -37,9 +37,7 @@ class ModelCatalog(CatalogImplementation):
         self.components = components
         self.theme = theme
 
-        from .functions import FunctionImplementation, FunctionApi
-
-        self.functions: Dict[str, FunctionImplementation] = {}
+        self.functions: Dict[str, Any] = {}
         if functions:
             source_dict = (
                 functions
@@ -55,12 +53,17 @@ class ModelCatalog(CatalogImplementation):
                     # Coerce Pydantic Model into FunctionImplementation
                     class CoercedFunctionImplementation(FunctionImplementation):
 
-                        def __init__(self, name_str, schema_class):
+                        def __init__(self, name_str: str, schema_class: Any) -> None:
                             super().__init__(
                                 name=name_str, return_type="any", schema=schema_class
                             )
 
-                        def execute(self, args, context=None, abort_signal=None):
+                        def execute(
+                            self,
+                            args: Dict[str, Any],
+                            context: Any = None,
+                            abort_signal: Any = None,
+                        ) -> Any:
                             return None
 
                     self.functions[name] = CoercedFunctionImplementation(name, fn)
@@ -136,11 +139,11 @@ class ModelCatalog(CatalogImplementation):
         )
         if fn is not None:
             if hasattr(fn, "schema"):
-                return fn.schema
+                return cast(Type[BaseModel], fn.schema)
             if isinstance(fn, type) and issubclass(fn, BaseModel):
                 return fn
             if isinstance(fn, type) and issubclass(fn, FunctionApi):
-                return fn().schema
+                return cast(Type[BaseModel], fn().schema)
         return None
 
     def get_component_schema(self, comp_type: str) -> Optional[Dict[str, Any]]:

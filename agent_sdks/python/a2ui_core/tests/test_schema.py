@@ -1,3 +1,4 @@
+from typing import Any
 # Copyright 2026 Google LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -28,7 +29,7 @@ from a2ui.core.schema import (
 )
 
 
-def test_valid_action_message():
+def test_valid_action_message() -> None:
     valid_action = {
         "version": "v0.9",
         "action": {
@@ -45,7 +46,7 @@ def test_valid_action_message():
     assert msg.action.context == {"foo": "bar"}
 
 
-def test_valid_validation_error_message():
+def test_valid_validation_error_message() -> None:
     valid_error = {
         "version": "v0.9",
         "error": {
@@ -62,7 +63,7 @@ def test_valid_validation_error_message():
     assert msg.error.path == "/components/0/text"
 
 
-def test_valid_generic_error_message():
+def test_valid_generic_error_message() -> None:
     valid_error = {
         "version": "v0.9",
         "error": {
@@ -78,7 +79,7 @@ def test_valid_generic_error_message():
     assert msg.error.message == "Something went wrong"
 
 
-def test_valid_data_model_message():
+def test_valid_data_model_message() -> None:
     valid_data_model = {
         "version": "v0.9",
         "surfaces": {
@@ -92,7 +93,7 @@ def test_valid_data_model_message():
     assert msg.surfaces["s2"] == {"cart": []}
 
 
-def test_fails_on_invalid_version():
+def test_fails_on_invalid_version() -> None:
     invalid_action = {
         "version": "v0.8",
         "action": {
@@ -107,7 +108,7 @@ def test_fails_on_invalid_version():
         A2uiClientActionMessage.model_validate(invalid_action)
 
 
-def test_valid_delete_surface_server_message():
+def test_valid_delete_surface_server_message() -> None:
     msg = {
         "version": "v0.9",
         "deleteSurface": {"surfaceId": "surface-1"},
@@ -117,7 +118,7 @@ def test_valid_delete_surface_server_message():
     assert parsed.delete_surface.surface_id == "surface-1"
 
 
-def test_seamless_programmatic_construction_snake_or_alias():
+def test_seamless_programmatic_construction_snake_or_alias() -> None:
     from a2ui.core.schema import CreateSurface
 
     # 1. Construct using snake_case keyword arguments
@@ -127,7 +128,7 @@ def test_seamless_programmatic_construction_snake_or_alias():
     assert obj_snake.model_dump(by_alias=True)["surfaceId"] == "surf-snake"
 
     # 2. Construct using external camelCase alias keyword arguments
-    obj_alias = CreateSurface(surfaceId="surf-alias", catalogId="cat-alias")
+    obj_alias = CreateSurface(surfaceId="surf-alias", catalogId="cat-alias")  # type: ignore[call-arg]
     assert obj_alias.surface_id == "surf-alias"
     assert obj_alias.catalog_id == "cat-alias"
     assert obj_alias.model_dump(by_alias=True)["surfaceId"] == "surf-alias"

@@ -15,7 +15,7 @@
 import json
 import os
 import re
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 # Base directories
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -86,16 +86,18 @@ def map_json_type_to_python(prop_name: str, prop: Dict[str, Any]) -> str:
         return f"Literal[{cval}]"
 
     if "$ref" in prop:
-        ref = prop["$ref"]
+        ref = str(prop["$ref"])
         if "common_types.json" in ref:
             ref_name = ref.split("/")[-1]
-            return ref_name
+            return str(ref_name)
         elif ref.startswith("#/"):
-            return ref.split("/")[-1]
+            return str(ref.split("/")[-1])
         return "Any"
 
     if "oneOf" in prop or "anyOf" in prop:
         union_items = prop.get("oneOf") or prop.get("anyOf")
+        if not union_items:
+            return "Any"
         mapped_items = []
         for item in union_items:
             mapped = map_json_type_to_python(prop_name, item)
@@ -227,7 +229,7 @@ def compile_component_to_pydantic(
     name: str,
     schema: Dict[str, Any],
     base_class: str = "ComponentCommon",
-    common_data: Dict[str, Any] = None,
+    common_data: Optional[Dict[str, Any]] = None,
 ) -> str:
     """Generates Python Pydantic class string representing one Component."""
     lines = [
@@ -264,7 +266,7 @@ def compile_component_to_pydantic(
 
 
 def compile_object_def(
-    class_name: str, spec: Dict[str, Any], base_class: str = None
+    class_name: str, spec: Dict[str, Any], base_class: Optional[str] = None
 ) -> str:
     """Generates Python Pydantic class representing a standard JSON Schema object definition."""
     add_props = spec.get("additionalProperties", False)
@@ -422,7 +424,7 @@ def generate_common_types(common_data: Dict[str, Any]) -> str:
 
 
 def generate_basic_catalog_components(
-    catalog_data: Dict[str, Any], common_data: Dict[str, Any] = None
+    catalog_data: Dict[str, Any], common_data: Optional[Dict[str, Any]] = None
 ) -> tuple[str, List[str]]:
     """Generates components.py containing all component schemas extending CatalogComponentCommon."""
     global ALLOW_INLINE_COMPILATION
@@ -616,7 +618,9 @@ def generate_server_to_client(s2c_data: Dict[str, Any]) -> tuple[str, List[str]]
             f', alias="{envelope_key}"' if snake_envelope != envelope_key else ""
         )
         output.append(f"class {mname}(StrictBaseModel):")
-        output.append(f"    version: Literal[SPEC_VERSION] = SPEC_VERSION")
+        output.append(
+            f'    version: Literal["{SPEC_VERSION_DOT}"] = "{SPEC_VERSION_DOT}"'
+        )
         output.append(f"    {snake_envelope}: {payload_name} = Field(...{alias_opt})")
         output.append("\n")
 
@@ -663,7 +667,7 @@ def generate_client_capabilities(capabilities_data: Dict[str, Any]) -> str:
 
     output.append("class A2uiClientCapabilities(StrictBaseModel):")
     output.append(
-        "    v0_9: Optional[V09Capabilities] = Field(None, alias=SPEC_VERSION)"
+        f'    v0_9: Optional[V09Capabilities] = Field(None, alias="{SPEC_VERSION_DOT}")'
     )
 
     code = "\n".join(output)
@@ -702,12 +706,12 @@ def generate_client_to_server(c2s_data: Dict[str, Any]) -> str:
         output.append(f"A2uiClientError = Union[{', '.join(error_class_names)}]\n")
 
     output.append("class A2uiClientActionMessage(StrictBaseModel):")
-    output.append(f"    version: Literal[SPEC_VERSION] = SPEC_VERSION")
+    output.append(f'    version: Literal["{SPEC_VERSION_DOT}"] = "{SPEC_VERSION_DOT}"')
     output.append("    action: A2uiClientAction = Field(...)")
     output.append("\n")
 
     output.append("class A2uiClientErrorMessage(StrictBaseModel):")
-    output.append(f"    version: Literal[SPEC_VERSION] = SPEC_VERSION")
+    output.append(f'    version: Literal["{SPEC_VERSION_DOT}"] = "{SPEC_VERSION_DOT}"')
     output.append("    error: A2uiClientError = Field(...)")
     output.append("\n")
 
@@ -717,7 +721,7 @@ def generate_client_to_server(c2s_data: Dict[str, Any]) -> str:
 
     # Client Data Model
     output.append("class A2uiClientDataModel(StrictBaseModel):")
-    output.append(f"    version: Literal[SPEC_VERSION] = SPEC_VERSION")
+    output.append(f'    version: Literal["{SPEC_VERSION_DOT}"] = "{SPEC_VERSION_DOT}"')
     output.append(
         '    surfaces: Dict[str, Dict[str, Any]] = Field(..., description="A map of surface IDs to their current data models.")\n'
     )
@@ -769,7 +773,7 @@ def generate_schema_init(msg_names: List[str]) -> str:
     return "\n".join(output)
 
 
-def main():
+def main() -> None:
     print("Compiling modular and symmetrical A2UI schemas mirroring web_core...")
 
     os.makedirs(SCHEMA_DIR, exist_ok=True)

@@ -124,7 +124,11 @@ EmailImplementation = create_function_implementation(
 )
 
 
-def _format_string(args, context=None, abort_signal=None):
+def _format_string(
+    args: Dict[str, Any],
+    context: Optional[Dict[str, Any]] = None,
+    abort_signal: Optional[Any] = None,
+) -> Any:
     template = args.get("value", "")
     if not template:
         return ""
@@ -154,7 +158,11 @@ FormatStringImplementation = create_function_implementation(
 )
 
 
-def _format_number(args, context=None, abort_signal=None):
+def _format_number(
+    args: Dict[str, Any],
+    context: Optional[Dict[str, Any]] = None,
+    abort_signal: Optional[Any] = None,
+) -> Any:
     val = _to_float(args.get("value", 0))
     decimals = args.get("decimals")
     grouping = args.get("grouping")
@@ -173,7 +181,11 @@ FormatNumberImplementation = create_function_implementation(
 )
 
 
-def _format_currency(args, context=None, abort_signal=None):
+def _format_currency(
+    args: Dict[str, Any],
+    context: Optional[Dict[str, Any]] = None,
+    abort_signal: Optional[Any] = None,
+) -> Any:
     val = _to_float(args.get("value", 0))
     currency = args.get("currency", "USD")
     decimals = args.get("decimals")
@@ -217,7 +229,11 @@ _DATE_MAP = {
 }
 
 
-def _format_date(args, context=None, abort_signal=None):
+def _format_date(
+    args: Dict[str, Any],
+    context: Optional[Dict[str, Any]] = None,
+    abort_signal: Optional[Any] = None,
+) -> Any:
     val = args.get("value")
     fmt = args.get("format", "yyyy-MM-dd")
     if not val:
@@ -235,7 +251,11 @@ def _format_date(args, context=None, abort_signal=None):
 FormatDateImplementation = create_function_implementation(FormatDateApi, _format_date)
 
 
-def _pluralize(args, context=None, abort_signal=None):
+def _pluralize(
+    args: Dict[str, Any],
+    context: Optional[Dict[str, Any]] = None,
+    abort_signal: Optional[Any] = None,
+) -> Any:
     val = _to_float(args.get("value", 0))
     category = "other"
     if val == 0:
@@ -274,7 +294,11 @@ NotImplementation = create_function_implementation(
 )
 
 
-def _add(args, context=None, abort_signal=None):
+def _add(
+    args: Dict[str, Any],
+    context: Optional[Dict[str, Any]] = None,
+    abort_signal: Optional[Any] = None,
+) -> Any:
     res = _to_float(args["a"]) + _to_float(args["b"])
     return int(res) if res.is_integer() else res
 
@@ -282,7 +306,11 @@ def _add(args, context=None, abort_signal=None):
 AddImplementation = create_function_implementation(AddApi, _add)
 
 
-def _subtract(args, context=None, abort_signal=None):
+def _subtract(
+    args: Dict[str, Any],
+    context: Optional[Dict[str, Any]] = None,
+    abort_signal: Optional[Any] = None,
+) -> Any:
     res = _to_float(args["a"]) - _to_float(args["b"])
     return int(res) if res.is_integer() else res
 
@@ -290,7 +318,11 @@ def _subtract(args, context=None, abort_signal=None):
 SubtractImplementation = create_function_implementation(SubtractApi, _subtract)
 
 
-def _multiply(args, context=None, abort_signal=None):
+def _multiply(
+    args: Dict[str, Any],
+    context: Optional[Dict[str, Any]] = None,
+    abort_signal: Optional[Any] = None,
+) -> Any:
     res = _to_float(args["a"]) * _to_float(args["b"])
     return int(res) if res.is_integer() else res
 
@@ -298,7 +330,11 @@ def _multiply(args, context=None, abort_signal=None):
 MultiplyImplementation = create_function_implementation(MultiplyApi, _multiply)
 
 
-def _divide(args, context=None, abort_signal=None):
+def _divide(
+    args: Dict[str, Any],
+    context: Optional[Dict[str, Any]] = None,
+    abort_signal: Optional[Any] = None,
+) -> Any:
     a = _to_float(args["a"])
     b = _to_float(args["b"])
     if b == 0:

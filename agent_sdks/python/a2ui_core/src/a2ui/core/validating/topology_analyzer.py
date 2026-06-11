@@ -48,7 +48,7 @@ def analyze_topology(
     visited: Set[str] = set()
     recursion_stack: Set[str] = set()
 
-    def dfs(node_id: str, depth: int):
+    def dfs(node_id: str, depth: int) -> None:
         if depth > MAX_GLOBAL_DEPTH:
             raise ValueError(
                 f"Global recursion limit exceeded: logical depth > {MAX_GLOBAL_DEPTH}"

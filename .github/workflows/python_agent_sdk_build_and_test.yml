@@ -69,6 +69,10 @@ jobs:
         working-directory: agent_sdks/python/a2ui_core
         run: uv run --with pytest pytest tests/
 
+      - name: Typecheck Core
+        working-directory: agent_sdks/python/a2ui_core
+        run: uv run mypy src/ tests/
+
       - name: Run conformance YAML validation
         working-directory: agent_sdks/conformance
         run: uv run pytest

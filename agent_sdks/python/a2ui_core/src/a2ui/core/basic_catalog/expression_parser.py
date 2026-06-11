@@ -55,7 +55,7 @@ class Scanner:
                 return True
         return False
 
-    def skip_whitespace(self):
+    def skip_whitespace(self) -> None:
         while not self.is_at_end() and self.peek().isspace():
             self.advance()
 

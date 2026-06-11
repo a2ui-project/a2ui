@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Any, Dict, List, Optional, Set, Tuple
+from typing import Any, Dict, List, Optional, Set, Tuple, Type
 
 
 class CatalogApi:
@@ -56,11 +56,11 @@ class CatalogImplementation(CatalogApi):
     local function evaluation.
     """
 
-    def get_component_class(self, comp_type: str) -> Optional[Any]:
+    def get_component_class(self, comp_type: str) -> Optional[Type[Any]]:
         """Retrieves the concrete model class representing a component."""
         raise NotImplementedError("Subclasses must implement get_component_class()")
 
-    def get_function_class(self, func_name: str) -> Optional[Any]:
+    def get_function_class(self, func_name: str) -> Optional[Type[Any]]:
         """Retrieves the concrete model class representing a function's schema."""
         raise NotImplementedError("Subclasses must implement get_function_class()")
 
@@ -74,7 +74,7 @@ class CatalogImplementation(CatalogApi):
         self,
         name: str,
         args: Dict[str, Any],
-        context: Any = None,
+        context: Optional[Dict[str, Any]] = None,
         abort_signal: Optional[Any] = None,
     ) -> Any:
         """Executes a catalog function dynamically."""

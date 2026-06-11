@@ -1,3 +1,4 @@
+from typing import Any, Dict
 # Copyright 2026 Google LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -23,9 +24,10 @@ from a2ui.core.basic_catalog import (
     AnyComponent,
 )
 from a2ui.core.schema import UpdateComponentsMessage, A2uiMessageListWrapper
+from a2ui.core.schema.common_types import ActionEventWrapper, SingleReference
 
 
-def test_image_component_valid_with_description():
+def test_image_component_valid_with_description() -> None:
     valid_image = {
         "id": "img-1",
         "component": "Image",
@@ -38,7 +40,7 @@ def test_image_component_valid_with_description():
     assert parsed.description == "An example image"
 
 
-def test_image_component_valid_without_description():
+def test_image_component_valid_without_description() -> None:
     valid_image = {
         "id": "img-2",
         "component": "Image",
@@ -50,7 +52,7 @@ def test_image_component_valid_without_description():
     assert parsed.description is None
 
 
-def test_image_component_invalid_field_type():
+def test_image_component_invalid_field_type() -> None:
     invalid_image = {
         "id": "img-3",
         "component": "Image",
@@ -60,8 +62,8 @@ def test_image_component_invalid_field_type():
         ImageComponent.model_validate(invalid_image)
 
 
-def test_any_component_discriminated_union():
-    adapter = TypeAdapter(AnyComponent)
+def test_any_component_discriminated_union() -> None:
+    adapter: TypeAdapter[AnyComponent] = TypeAdapter(AnyComponent)
 
     # 1. Test TextComponent routing
     text_data = {
@@ -103,11 +105,12 @@ def test_any_component_discriminated_union():
     assert isinstance(comp, ButtonComponent)
     assert comp.component == "Button"
     assert comp.child == "text-1"
+    assert isinstance(comp.action, ActionEventWrapper)
     assert comp.action.event.name == "click"
 
 
-def test_any_component_invalid_discriminator():
-    adapter = TypeAdapter(AnyComponent)
+def test_any_component_invalid_discriminator() -> None:
+    adapter: TypeAdapter[AnyComponent] = TypeAdapter(AnyComponent)
     invalid_data = {
         "id": "unknown-1",
         "component": "UnknownComponentType",
@@ -116,10 +119,10 @@ def test_any_component_invalid_discriminator():
         adapter.validate_python(invalid_data)
 
 
-def test_text_component_validation():
+def test_text_component_validation() -> None:
     # 1. Valid Text component instantiation
     comp = TextComponent(
-        id="welcome_text",
+        id=SingleReference("welcome_text"),
         component="Text",
         text="Hello World!",
         variant="h1",
@@ -130,40 +133,42 @@ def test_text_component_validation():
 
     # 2. Validation Fails on missing required properties
     with pytest.raises(ValidationError):
-        TextComponent(id="bad")  # type: ignore
+        TextComponent(id="bad")  # type: ignore[call-arg, arg-type]
 
 
-def test_text_component_variant_enum():
+def test_text_component_variant_enum() -> None:
     # 1. Omitted variant uses default value "body"
-    comp_default = TextComponent(id="text_1", component="Text", text="Hello Default")
+    comp_default = TextComponent(
+        id=SingleReference("text_1"), component="Text", text="Hello Default"
+    )
     assert comp_default.variant == "body"
 
     # 2. Validation fails on invalid variant value
     with pytest.raises(ValidationError) as exc_info:
         TextComponent(
-            id="text_2",
+            id=SingleReference("text_2"),
             component="Text",
             text="Hello Mismatch",
-            variant="bold",  # type: ignore
+            variant="bold",  # type: ignore[arg-type]
         )
     assert "Input should be 'h1', 'h2', 'h3', 'h4', 'h5', 'caption' or 'body'" in str(
         exc_info.value
     )
 
 
-def test_button_component_strict_extra_forbid():
+def test_button_component_strict_extra_forbid() -> None:
     # StrictBaseModel forbids extra fields
     with pytest.raises(ValidationError):
         ButtonComponent(
-            id="btn",
+            id="btn",  # type: ignore[arg-type]
             component="Button",
-            child="welcome_text",
-            action={"event": {"name": "click"}},  # type: ignore
-            extra_invalid_field="not allowed",  # type: ignore
-        )
+            child="welcome_text",  # type: ignore[arg-type]
+            action={"event": {"name": "click"}},  # type: ignore[arg-type]
+            extra_invalid_field="not allowed",
+        )  # type: ignore[call-arg]
 
 
-def test_message_payload_parsing():
+def test_message_payload_parsing() -> None:
     payload = {
         "version": "v0.9",
         "updateComponents": {
@@ -188,14 +193,14 @@ def test_message_payload_parsing():
     assert msg.update_components.components[1]["component"] == "Button"
 
 
-def test_model_json_schema_generation():
+def test_model_json_schema_generation() -> None:
     schema = A2uiMessageListWrapper.model_json_schema()
     assert schema is not None
     assert "properties" in schema
     assert "messages" in schema["properties"]
 
 
-def test_theme_allows_additional_properties():
+def test_theme_allows_additional_properties() -> None:
     # 1. Valid theme instantiation with documented properties
     theme = Theme(primary_color="#00BFFF")
     assert theme.primary_color == "#00BFFF"
@@ -207,24 +212,26 @@ def test_theme_allows_additional_properties():
     theme_extra = Theme(
         primary_color="#00BFFF",
         extra_custom_color="#FF0000",
-    )
+    )  # type: ignore[call-arg]
     assert theme_extra.primary_color == "#00BFFF"
 
     # 3. For comparison, a strict model (like ButtonComponent) must throw ValidationError
     with pytest.raises(ValidationError):
         ButtonComponent(
-            id="btn",
+            id="btn",  # type: ignore[arg-type]
             component="Button",
-            child="text",
-            action={"event": {"name": "click"}},  # type: ignore
-            extra_garbage_property="forbidden",  # type: ignore
-        )
+            child="text",  # type: ignore[arg-type]
+            action={"event": {"name": "click"}},  # type: ignore[arg-type]
+            extra_garbage_property="forbidden",
+        )  # type: ignore[call-arg]
 
 
-def test_text_component_discriminator_behavior():
+def test_text_component_discriminator_behavior() -> None:
     # 1. Direct Python Instantiation succeeds WITHOUT passing component name explicitly
     # because Pydantic applies the Literal default value.
-    comp = TextComponent(id="text_1", text="Direct Instantiation works!")
+    comp = TextComponent(
+        id=SingleReference("text_1"), text="Direct Instantiation works!"
+    )
     assert comp.component == "Text"
     assert comp.text == "Direct Instantiation works!"
 
@@ -235,7 +242,9 @@ def test_text_component_discriminator_behavior():
         "component": "Text",
         "text": "Payload works!",
     }
-    comp_validated = TypeAdapter(AnyComponent).validate_python(valid_payload)
+    comp_validated: AnyComponent = TypeAdapter(AnyComponent).validate_python(
+        valid_payload
+    )
     assert isinstance(comp_validated, TextComponent)
     assert comp_validated.component == "Text"
 

@@ -13,59 +13,59 @@
 # limitations under the License.
 
 from .components import (
-    AudioPlayerComponent,
-    ButtonComponent,
-    CardComponent,
-    CheckBoxComponent,
-    ChoicePickerComponent,
-    ColumnComponent,
-    DateTimeInputComponent,
-    DividerComponent,
-    IconComponent,
-    ImageComponent,
-    ListComponent,
-    ModalComponent,
-    RowComponent,
-    SliderComponent,
-    TabsComponent,
-    TextComponent,
-    TextFieldComponent,
-    VideoComponent,
-    AnyComponent,
+    AudioPlayerComponent as AudioPlayerComponent,
+    ButtonComponent as ButtonComponent,
+    CardComponent as CardComponent,
+    CheckBoxComponent as CheckBoxComponent,
+    ChoicePickerComponent as ChoicePickerComponent,
+    ColumnComponent as ColumnComponent,
+    DateTimeInputComponent as DateTimeInputComponent,
+    DividerComponent as DividerComponent,
+    IconComponent as IconComponent,
+    ImageComponent as ImageComponent,
+    ListComponent as ListComponent,
+    ModalComponent as ModalComponent,
+    RowComponent as RowComponent,
+    SliderComponent as SliderComponent,
+    TabsComponent as TabsComponent,
+    TextComponent as TextComponent,
+    TextFieldComponent as TextFieldComponent,
+    VideoComponent as VideoComponent,
+    AnyComponent as AnyComponent,
 )
 from .function_apis import (
-    RequiredApi,
-    RegexApi,
-    LengthApi,
-    NumericApi,
-    EmailApi,
-    FormatStringApi,
-    FormatNumberApi,
-    FormatCurrencyApi,
-    FormatDateApi,
-    PluralizeApi,
-    OpenUrlApi,
-    AndApi,
-    OrApi,
-    NotApi,
+    RequiredApi as RequiredApi,
+    RegexApi as RegexApi,
+    LengthApi as LengthApi,
+    NumericApi as NumericApi,
+    EmailApi as EmailApi,
+    FormatStringApi as FormatStringApi,
+    FormatNumberApi as FormatNumberApi,
+    FormatCurrencyApi as FormatCurrencyApi,
+    FormatDateApi as FormatDateApi,
+    PluralizeApi as PluralizeApi,
+    OpenUrlApi as OpenUrlApi,
+    AndApi as AndApi,
+    OrApi as OrApi,
+    NotApi as NotApi,
 )
 from .operator_apis import (
-    AddApi,
-    SubtractApi,
-    MultiplyApi,
-    DivideApi,
-    EqualsApi,
-    NotEqualsApi,
-    GreaterThanApi,
-    LessThanApi,
-    ContainsApi,
-    StartsWithApi,
-    EndsWithApi,
+    AddApi as AddApi,
+    SubtractApi as SubtractApi,
+    MultiplyApi as MultiplyApi,
+    DivideApi as DivideApi,
+    EqualsApi as EqualsApi,
+    NotEqualsApi as NotEqualsApi,
+    GreaterThanApi as GreaterThanApi,
+    LessThanApi as LessThanApi,
+    ContainsApi as ContainsApi,
+    StartsWithApi as StartsWithApi,
+    EndsWithApi as EndsWithApi,
 )
-from .styles import Theme
-from .function_impls import BASIC_FUNCTION_IMPLEMENTATIONS
-from ..schema.constants import SPEC_VERSION, SPEC_BASE_URL
-from ..catalog import ModelCatalog
+from .styles import Theme as Theme
+from .function_impls import BASIC_FUNCTION_IMPLEMENTATIONS as BASIC_FUNCTION_IMPLEMENTATIONS
+from ..schema.constants import SPEC_VERSION as SPEC_VERSION, SPEC_BASE_URL as SPEC_BASE_URL
+from ..catalog import ModelCatalog as ModelCatalog
 
 
 def _basic_catalog_id(spec_version: str) -> str:
@@ -74,10 +74,14 @@ def _basic_catalog_id(spec_version: str) -> str:
     )
 
 
+from typing import Dict, Type
+from pydantic import BaseModel
+
+
 class BasicCatalog(ModelCatalog):
 
-    def __init__(self):
-        components_map = {
+    def __init__(self) -> None:
+        components_map: Dict[str, Type[BaseModel]] = {
             "Text": TextComponent,
             "Image": ImageComponent,
             "Icon": IconComponent,

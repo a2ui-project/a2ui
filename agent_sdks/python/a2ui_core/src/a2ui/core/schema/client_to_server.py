@@ -78,12 +78,12 @@ A2uiClientError = Union[A2uiValidationError, A2uiGenericError]
 
 
 class A2uiClientActionMessage(StrictBaseModel):
-    version: Literal[SPEC_VERSION] = SPEC_VERSION
+    version: Literal["v0.9"] = "v0.9"
     action: A2uiClientAction = Field(...)
 
 
 class A2uiClientErrorMessage(StrictBaseModel):
-    version: Literal[SPEC_VERSION] = SPEC_VERSION
+    version: Literal["v0.9"] = "v0.9"
     error: A2uiClientError = Field(...)
 
 
@@ -91,7 +91,7 @@ A2uiClientMessage = Union[A2uiClientActionMessage, A2uiClientErrorMessage]
 
 
 class A2uiClientDataModel(StrictBaseModel):
-    version: Literal[SPEC_VERSION] = SPEC_VERSION
+    version: Literal["v0.9"] = "v0.9"
     surfaces: Dict[str, Dict[str, Any]] = Field(
         ..., description="A map of surface IDs to their current data models."
     )

@@ -29,15 +29,20 @@ class FunctionApi:
         return_type: Optional[str] = None,
         schema: Optional[Type[Any]] = None,
     ):
-        self.name = name or getattr(self.__class__, "name", "")
-        self.return_type = return_type or getattr(
-            self.__class__, "return_type", getattr(self.__class__, "returnType", "any")
+        self.name = str(name or getattr(self.__class__, "name", ""))
+        self.return_type = str(
+            return_type
+            or getattr(
+                self.__class__,
+                "return_type",
+                getattr(self.__class__, "returnType", "any"),
+            )
         )
         self.schema = schema or getattr(
             self.__class__, "schema", getattr(self.__class__, "args", None)
         )
 
-    def __init_subclass__(cls, **kwargs):
+    def __init_subclass__(cls, **kwargs: Any) -> None:
         super().__init_subclass__(**kwargs)
         if not getattr(cls, "name", None):
             cls.name = getattr(cls, "call", "")
@@ -58,7 +63,7 @@ class FunctionImplementation(FunctionApi):
     def execute(
         self,
         args: Dict[str, Any],
-        context: Any = None,
+        context: Optional[Dict[str, Any]] = None,
         abort_signal: Optional[Any] = None,
     ) -> Any:
         """Executes the functional implementation with validated, coerced arguments."""
@@ -66,13 +71,13 @@ class FunctionImplementation(FunctionApi):
 
 
 def create_function_implementation(
-    api: Any, execute: Callable[[Dict[str, Any], Any, Optional[Any]], Any]
+    api: Any, execute: Callable[..., Any]
 ) -> FunctionImplementation:
     """Utility helper to dynamically compose an API specification with an executable closure."""
 
     class DynamicFunctionImplementation(FunctionImplementation):
 
-        def __init__(self):
+        def __init__(self) -> None:
             # Extract attributes from Api class or Api instance
             name = getattr(api, "name", getattr(api.__class__, "name", ""))
             return_type = getattr(
@@ -104,7 +109,7 @@ def create_function_implementation(
         def execute(
             self,
             args: Dict[str, Any],
-            context: Any = None,
+            context: Optional[Dict[str, Any]] = None,
             abort_signal: Optional[Any] = None,
         ) -> Any:
             return execute(args, context, abort_signal)
@@ -124,4 +129,6 @@ Parameters:
 Returns:
     The result of the function call (e.g. literal, list, dict, or None).
 """
-FunctionInvoker = Callable[[str, Dict[str, Any], Any, Optional[Any]], Any]
+FunctionInvoker = Callable[
+    [str, Dict[str, Any], Optional[Dict[str, Any]], Optional[Any]], Any
+]

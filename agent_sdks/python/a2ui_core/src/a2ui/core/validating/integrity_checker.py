@@ -104,7 +104,7 @@ def validate_component_integrity(
 
 
 def validate_recursion_and_paths(data: Any) -> None:
-    def traverse(item: Any, global_depth: int, func_depth: int):
+    def traverse(item: Any, global_depth: int, func_depth: int) -> None:
         if global_depth > MAX_GLOBAL_DEPTH:
             raise ValueError(
                 f"Global recursion limit exceeded: Depth > {MAX_GLOBAL_DEPTH}"

@@ -66,4 +66,4 @@ class V09Capabilities(StrictBaseModel):
 
 
 class A2uiClientCapabilities(StrictBaseModel):
-    v0_9: Optional[V09Capabilities] = Field(None, alias=SPEC_VERSION)
+    v0_9: Optional[V09Capabilities] = Field(None, alias="v0.9")

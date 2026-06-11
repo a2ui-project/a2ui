@@ -22,7 +22,7 @@ from a2ui.core.schema.common_types import ComponentId
 from a2ui.core.schema.constants import SPEC_VERSION
 
 
-def _val(catalog: CatalogApi) -> CatalogValidator:
+def _val(catalog: CatalogApi) -> Any:
     return CatalogValidator.from_catalog(catalog)
 
 
@@ -31,7 +31,7 @@ def _val(catalog: CatalogApi) -> CatalogValidator:
 # ==============================================================================
 
 
-def test_model_catalog_initialization():
+def test_model_catalog_initialization() -> None:
     class EmptyModel(BaseModel):
         pass
 
@@ -44,7 +44,7 @@ def test_model_catalog_initialization():
     assert cat.catalog_id == "https://a2ui.org/model-init"
 
 
-def test_model_catalog_additional_properties_handling():
+def test_model_catalog_additional_properties_handling() -> None:
     class DefaultBox(BaseModel):
         component: Literal["DefaultBox"] = "DefaultBox"
 
@@ -81,7 +81,7 @@ def test_model_catalog_additional_properties_handling():
         )
 
 
-def test_model_catalog_unevaluated_properties_handling():
+def test_model_catalog_unevaluated_properties_handling() -> None:
     class DefaultBox(BaseModel):
         component: Literal["DefaultBox"] = "DefaultBox"
 
@@ -118,7 +118,7 @@ def test_model_catalog_unevaluated_properties_handling():
         )
 
 
-def test_model_catalog_validate_theme():
+def test_model_catalog_validate_theme() -> None:
     class TestTheme(BaseModel):
         primary: str = Field(..., pattern="^#[0-9A-F]{6}$")
 
@@ -140,7 +140,7 @@ def test_model_catalog_validate_theme():
     assert "pattern" in error_msg.lower() or "string" in error_msg.lower()
 
 
-def test_model_catalog_nested_function_validation():
+def test_model_catalog_nested_function_validation() -> None:
     class InnerComp(BaseModel):
         component: Literal["InnerComp"] = "InnerComp"
         call: str
@@ -207,7 +207,7 @@ def test_model_catalog_nested_function_validation():
         )
 
 
-def test_model_catalog_validate_components():
+def test_model_catalog_validate_components() -> None:
     class ButtonComp(BaseModel):
         id: str
         component: Literal["Button"] = "Button"
@@ -232,7 +232,7 @@ def test_model_catalog_validate_components():
     assert "Field required" in error_msg or "missing" in error_msg.lower()
 
 
-def test_model_catalog_validate_functions():
+def test_model_catalog_validate_functions() -> None:
     class RegexFunc(BaseModel):
         call: Literal["regex"] = "regex"
         args: Dict[str, Any]
@@ -252,7 +252,7 @@ def test_model_catalog_validate_functions():
         _val(cat).validate_function("unknownFunc", {})
 
 
-def test_model_catalog_custom_reference_fields_coverage():
+def test_model_catalog_custom_reference_fields_coverage() -> None:
     class CustomLayoutComp(BaseModel):
         id: str
         component: Literal["CustomLayout"] = "CustomLayout"
@@ -338,7 +338,7 @@ def test_model_catalog_custom_reference_fields_coverage():
     _val(catalog).validate_components(orphan_payload)
 
 
-def test_model_catalog_unrecognized_type_and_mismatched_properties():
+def test_model_catalog_unrecognized_type_and_mismatched_properties() -> None:
     class CardComp(BaseModel):
         id: str
         component: Literal["Card"] = "Card"
@@ -388,7 +388,7 @@ def test_model_catalog_unrecognized_type_and_mismatched_properties():
 # ==============================================================================
 
 
-def test_json_catalog_initialization():
+def test_json_catalog_initialization() -> None:
     schema = {
         "catalogId": "https://a2ui.org/spec/v0.9/catalog.json",
         "components": {
@@ -403,7 +403,7 @@ def test_json_catalog_initialization():
     assert catalog.catalog_id == "https://a2ui.org/spec/v0.9/catalog.json"
 
 
-def test_json_catalog_extract_ref_fields_dynamic_coverage():
+def test_json_catalog_extract_ref_fields_dynamic_coverage() -> None:
     schema = {
         "catalogId": "https://a2ui.org/json",
         "components": {
@@ -441,7 +441,7 @@ def test_json_catalog_extract_ref_fields_dynamic_coverage():
     assert "regularProp" not in list_refs
 
 
-def test_json_catalog_extract_ref_fields_tabs():
+def test_json_catalog_extract_ref_fields_tabs() -> None:
     schema = {
         "catalogId": "https://a2ui.org/json",
         "components": {
@@ -484,7 +484,7 @@ def test_json_catalog_extract_ref_fields_tabs():
     assert "child" not in single
 
 
-def test_json_catalog_extract_ref_fields_empty_fallback():
+def test_json_catalog_extract_ref_fields_empty_fallback() -> None:
     schema = {
         "catalogId": "https://a2ui.org/json",
         "components": {"EmptyNode": {"type": "object", "properties": {}}},
@@ -494,7 +494,7 @@ def test_json_catalog_extract_ref_fields_empty_fallback():
     assert refs == {}
 
 
-def test_json_catalog_common_types_defs_and_refs_resolution():
+def test_json_catalog_common_types_defs_and_refs_resolution() -> None:
     common_types = {
         "$id": "https://a2ui.org/specification/v0_9/common_types.json",
         "$defs": {"ColorHex": {"type": "string", "pattern": "^#[0-9a-fA-F]{6}$"}},
@@ -552,7 +552,7 @@ def test_json_catalog_common_types_defs_and_refs_resolution():
         )
 
 
-def test_json_catalog_custom_reference_fields_coverage():
+def test_json_catalog_custom_reference_fields_coverage() -> None:
     catalog_json = {
         "catalogId": "https://a2ui.org/custom-json",
         "components": {
@@ -585,7 +585,7 @@ def test_json_catalog_custom_reference_fields_coverage():
     assert "slaveNodes" in refs["CustomContainer"][1]
 
 
-def test_json_catalog_validate_theme():
+def test_json_catalog_validate_theme() -> None:
     catalog_json = {
         "catalogId": "https://rizzcharts.com/catalog.json",
         "theme": {
@@ -613,7 +613,7 @@ def test_json_catalog_validate_theme():
         _val(catalog).validate_theme({"primaryColor": "red"})
 
 
-def test_json_catalog_validate_functions():
+def test_json_catalog_validate_functions() -> None:
     catalog_json = {
         "catalogId": "https://rizzcharts.com/catalog.json",
         "functions": {
@@ -653,7 +653,7 @@ def test_json_catalog_validate_functions():
         _val(catalog).validate_function("unknownFunc", {})
 
 
-def test_json_catalog_nested_function_validation():
+def test_json_catalog_nested_function_validation() -> None:
     catalog_json = {
         "catalogId": "https://rizzcharts.com/catalog.json",
         "components": {
@@ -730,7 +730,7 @@ def test_json_catalog_nested_function_validation():
         )
 
 
-def test_json_catalog_additional_properties_handling():
+def test_json_catalog_additional_properties_handling() -> None:
     # 1. additionalProperties is not set explicitly (defaults to True)
     cat_default_json = {
         "catalogId": "https://a2ui.org/default",
@@ -769,7 +769,7 @@ def test_json_catalog_additional_properties_handling():
     )
 
 
-def test_json_catalog_unevaluated_properties_handling():
+def test_json_catalog_unevaluated_properties_handling() -> None:
     # 1. unevaluatedProperties with the default settings (omitted/true)
     cat_default_json = {
         "catalogId": "https://a2ui.org/unevaluated-default",
@@ -834,13 +834,13 @@ def test_json_catalog_unevaluated_properties_handling():
 # ==============================================================================
 
 
-def test_basic_catalog_initialization():
+def test_basic_catalog_initialization() -> None:
     catalog = BasicCatalog()
     assert catalog.spec_version == SPEC_VERSION
     assert "https://a2ui.org/specification" in catalog.catalog_id
 
 
-def test_basic_catalog_validate_components():
+def test_basic_catalog_validate_components() -> None:
     catalog = BasicCatalog()
 
     # Valid component payload
@@ -862,7 +862,7 @@ def test_basic_catalog_validate_components():
         _val(catalog).validate_components([invalid_text_comp])
 
 
-def test_basic_catalog_validate_theme():
+def test_basic_catalog_validate_theme() -> None:
     catalog = BasicCatalog()
 
     # 1. Test Valid Theme
@@ -873,7 +873,7 @@ def test_basic_catalog_validate_theme():
         _val(catalog).validate_theme({"primaryColor": "invalid-color-name"})
 
 
-def test_basic_catalog_validate_functions():
+def test_basic_catalog_validate_functions() -> None:
     catalog = BasicCatalog()
 
     # 1. Test validate_function Valid
@@ -889,7 +889,7 @@ def test_basic_catalog_validate_functions():
         _val(catalog).validate_function("unknownFunc", {})
 
 
-def test_basic_catalog_nested_function_validation():
+def test_basic_catalog_nested_function_validation() -> None:
     catalog = BasicCatalog()
 
     # 1. Rejects unrecognized nested catalog function call
@@ -926,7 +926,7 @@ def test_basic_catalog_nested_function_validation():
         )
 
 
-def test_basic_catalog_extract_ref_fields():
+def test_basic_catalog_extract_ref_fields() -> None:
     catalog = BasicCatalog()
     ref_map = catalog.extract_ref_fields()
 
@@ -941,7 +941,7 @@ def test_basic_catalog_extract_ref_fields():
     assert "children" in col_list
 
 
-def test_basic_catalog_tabs_ref():
+def test_basic_catalog_tabs_ref() -> None:
     catalog = BasicCatalog()
     ref_map = catalog.extract_ref_fields()
     assert "Tabs" in ref_map
@@ -949,7 +949,7 @@ def test_basic_catalog_tabs_ref():
     assert "tabs" in list_refs
 
 
-def test_model_catalog_tabs_ref():
+def test_model_catalog_tabs_ref() -> None:
     class CustomTab(BaseModel):
         title: str
         child: ComponentId
@@ -969,7 +969,7 @@ def test_model_catalog_tabs_ref():
     assert "tabs" in list_refs
 
 
-def test_json_catalog_custom_tabs_ref():
+def test_json_catalog_custom_tabs_ref() -> None:
     catalog_schema = {
         "$defs": {
             "ComponentId": {"type": "string"},
@@ -1005,7 +1005,7 @@ def test_json_catalog_custom_tabs_ref():
     assert "tabs" in list_refs
 
 
-def test_json_catalog_basic_spec_tabs_ref():
+def test_json_catalog_basic_spec_tabs_ref() -> None:
     import json
     from pathlib import Path
 

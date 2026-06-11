@@ -34,8 +34,8 @@ from a2ui.core.basic_catalog import BasicCatalog
 # ==============================================================================
 
 
-def test_get_component_references():
-    ref_map = {
+def test_get_component_references() -> None:
+    ref_map: dict[str, Any] = {
         "Container": ({"singleChild", "nestedObj"}, {"childrenList", "tabs"}),
     }
     comp = {
@@ -61,8 +61,8 @@ def test_get_component_references():
     assert "tab2" in ref_ids
 
 
-def test_validate_component_integrity_valid():
-    ref_map = {"Box": ({"child"}, set())}
+def test_validate_component_integrity_valid() -> None:
+    ref_map: dict[str, Any] = {"Box": ({"child"}, set())}
     components = [
         {"id": "root", "component": {"Box": {"child": "c1"}}},
         {"id": "c1", "component": {"Box": {}}},
@@ -74,7 +74,7 @@ def test_validate_component_integrity_valid():
     )
 
 
-def test_validate_component_integrity_duplicate_id():
+def test_validate_component_integrity_duplicate_id() -> None:
     components = [
         {"id": "c1", "component": "Box"},
         {"id": "c1", "component": "Text"},
@@ -86,7 +86,7 @@ def test_validate_component_integrity_duplicate_id():
         )
 
 
-def test_validate_component_integrity_missing_root():
+def test_validate_component_integrity_missing_root() -> None:
     components = [
         {"id": "c1", "component": "Box"},
     ]
@@ -99,8 +99,8 @@ def test_validate_component_integrity_missing_root():
         )
 
 
-def test_validate_component_integrity_dangling_ref():
-    ref_map = {"Box": ({"child"}, set())}
+def test_validate_component_integrity_dangling_ref() -> None:
+    ref_map: dict[str, Any] = {"Box": ({"child"}, set())}
     components = [
         {"id": "root", "component": {"Box": {"child": "nonexistent"}}},
     ]
@@ -113,18 +113,18 @@ def test_validate_component_integrity_dangling_ref():
         )
 
 
-def test_validate_recursion_and_paths_valid():
+def test_validate_recursion_and_paths_valid() -> None:
     data = {"path": "/valid/path", "nested": [{"path": "/another"}]}
     validate_recursion_and_paths(data)
 
 
-def test_validate_recursion_and_paths_invalid_path():
+def test_validate_recursion_and_paths_invalid_path() -> None:
     data = {"path": "invalid~path//double"}
     with pytest.raises(ValueError, match="Invalid path syntax"):
         validate_recursion_and_paths(data)
 
 
-def test_validate_recursion_and_paths_global_depth():
+def test_validate_recursion_and_paths_global_depth() -> None:
     # Construct a nested structure deeper than 50
     deep_list: Any = []
     for _ in range(52):
@@ -134,7 +134,7 @@ def test_validate_recursion_and_paths_global_depth():
         validate_recursion_and_paths(deep_list)
 
 
-def test_validate_recursion_and_paths_func_depth():
+def test_validate_recursion_and_paths_func_depth() -> None:
     # Construct functionCall nesting deeper than 5
     deep_call: Dict[str, Any] = {}
     curr = deep_call
@@ -154,8 +154,8 @@ def test_validate_recursion_and_paths_func_depth():
 # ==============================================================================
 
 
-def test_analyze_topology_valid():
-    ref_map = {"Node": ({"next"}, set())}
+def test_analyze_topology_valid() -> None:
+    ref_map: dict[str, Any] = {"Node": ({"next"}, set())}
     components = [
         {"id": "root", "component": {"Node": {"next": "n1"}}},
         {"id": "n1", "component": {"Node": {}}},
@@ -168,8 +168,8 @@ def test_analyze_topology_valid():
     assert visited == {"root", "n1"}
 
 
-def test_analyze_topology_self_ref():
-    ref_map = {"Node": ({"next"}, set())}
+def test_analyze_topology_self_ref() -> None:
+    ref_map: dict[str, Any] = {"Node": ({"next"}, set())}
     components = [
         {"id": "root", "component": {"Node": {"next": "root"}}},
     ]
@@ -183,8 +183,8 @@ def test_analyze_topology_self_ref():
         )
 
 
-def test_analyze_topology_circular_ref():
-    ref_map = {"Node": ({"next"}, set())}
+def test_analyze_topology_circular_ref() -> None:
+    ref_map: dict[str, Any] = {"Node": ({"next"}, set())}
     components = [
         {"id": "root", "component": {"Node": {"next": "n1"}}},
         {"id": "n1", "component": {"Node": {"next": "root"}}},
@@ -198,8 +198,8 @@ def test_analyze_topology_circular_ref():
         )
 
 
-def test_analyze_topology_orphans():
-    ref_map = {"Node": ({"next"}, set())}
+def test_analyze_topology_orphans() -> None:
+    ref_map: dict[str, Any] = {"Node": ({"next"}, set())}
     components = [
         {"id": "root", "component": {"Node": {}}},
         {"id": "orphan", "component": {"Node": {}}},
@@ -219,7 +219,7 @@ def test_analyze_topology_orphans():
 # ==============================================================================
 
 
-def test_a2ui_validator_protocol_envelope_invalid_version():
+def test_a2ui_validator_protocol_envelope_invalid_version() -> None:
     validator = A2uiValidator()
     with pytest.raises(
         A2uiValidatorError,
@@ -228,13 +228,13 @@ def test_a2ui_validator_protocol_envelope_invalid_version():
         validator.validate_protocol_envelope([{"not_version": "v0.8"}])
 
 
-def test_a2ui_validator_protocol_envelope_not_dict():
+def test_a2ui_validator_protocol_envelope_not_dict() -> None:
     validator = A2uiValidator()
     with pytest.raises(A2uiValidatorError, match="Message must be an object"):
-        validator.validate_protocol_envelope(["not_a_dict"])  # type: ignore
+        validator.validate_protocol_envelope(["not_a_dict"])  # type: ignore[list-item]
 
 
-def test_a2ui_validator_validate_valid_payload():
+def test_a2ui_validator_validate_valid_payload() -> None:
     catalog = BasicCatalog()
     validator = A2uiValidator()
 
@@ -270,7 +270,7 @@ def test_a2ui_validator_validate_valid_payload():
     validator.validate(CatalogValidator.from_catalog(catalog), messages)
 
 
-def test_a2ui_validator_validate_components_error():
+def test_a2ui_validator_validate_components_error() -> None:
     catalog = BasicCatalog()
     validator = A2uiValidator()
 
@@ -293,8 +293,8 @@ def test_a2ui_validator_validate_components_error():
         validator.validate(CatalogValidator.from_catalog(catalog), messages)
 
 
-def test_topology_cyclomatic_orphans_coverage():
-    ref_map = {"Node": ({"child"}, set())}
+def test_topology_cyclomatic_orphans_coverage() -> None:
+    ref_map: dict[str, Any] = {"Node": ({"child"}, set())}
 
     components_orphan = [
         {"id": "root", "component": "Node", "child": "A"},
@@ -327,8 +327,8 @@ def test_topology_cyclomatic_orphans_coverage():
         )
 
 
-def test_integrity_dangling_and_duplicate_pointers():
-    ref_map = {"Node": ({"child"}, set())}
+def test_integrity_dangling_and_duplicate_pointers() -> None:
+    ref_map: dict[str, Any] = {"Node": ({"child"}, set())}
 
     components_dup = [
         {"id": "root", "component": "Node"},
@@ -348,7 +348,7 @@ def test_integrity_dangling_and_duplicate_pointers():
         )
 
 
-def test_validate_recursion_and_paths_syntax_coverage():
+def test_validate_recursion_and_paths_syntax_coverage() -> None:
     # 1. Realistic A2UI v0.9 Payload with Invalid Pointer Syntax
     invalid_path_payload = {
         "version": "v0.9",
@@ -407,7 +407,7 @@ def test_validate_recursion_and_paths_syntax_coverage():
         validate_recursion_and_paths(payload_deep_func)
 
 
-def test_validator_aggregated_pydantic_error_formatting():
+def test_validator_aggregated_pydantic_error_formatting() -> None:
     validator = A2uiValidator()
 
     invalid_s2c_payload = [{"version": "v0.9"}]
@@ -418,7 +418,7 @@ def test_validator_aggregated_pydantic_error_formatting():
     assert "messages.0" in str(exc_info.value)
 
 
-def test_validator_config_parameter():
+def test_validator_config_parameter() -> None:
     # Verify that ValidationConfig is respected during validation
 
     catalog = CatalogValidator.from_catalog(BasicCatalog())
@@ -431,7 +431,7 @@ def test_validator_config_parameter():
     )
 
     # 1. Orphan component: with strict_config, this fails. With relaxed_config, it succeeds!
-    orphan_components = [
+    orphan_components: list[dict[str, Any]] = [
         {"id": "root", "component": "Column", "children": []},
         {"id": "orphan", "component": "Text", "text": "I am an orphan"},
     ]
@@ -441,7 +441,7 @@ def test_validator_config_parameter():
     validator.validate_components(catalog, orphan_components, config=relaxed_config)
 
     # 2. Dangling reference: with strict_config, this fails. With relaxed_config, it succeeds!
-    dangling_components = [
+    dangling_components: list[dict[str, Any]] = [
         {"id": "root", "component": "Column", "children": ["non_existent_id"]}
     ]
     with pytest.raises(A2uiValidatorError, match="references non-existent component"):

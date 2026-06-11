@@ -1,3 +1,4 @@
+from typing import Any
 # Copyright 2026 Google LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -25,7 +26,7 @@ if SCRIPTS_PATH not in sys.path:
 import generate_schemas
 
 
-def test_map_json_type_to_python():
+def test_map_json_type_to_python() -> None:
     # Ref mappings
     assert (
         generate_schemas.map_json_type_to_python(
@@ -105,9 +106,9 @@ def test_map_json_type_to_python():
     assert generate_schemas.map_json_type_to_python("prop", {}) == "Any"
 
 
-def test_compile_properties_to_pydantic():
+def test_compile_properties_to_pydantic() -> None:
     # Required property
-    props = {"title": {"type": "string", "description": "Simple title"}}
+    props: dict[str, Any] = {"title": {"type": "string", "description": "Simple title"}}
     lines = generate_schemas.compile_properties_to_pydantic(props, ["title"])
     assert len(lines) == 1
     assert lines[0] == '    title: str = Field(..., description="Simple title")'
@@ -134,7 +135,7 @@ def test_compile_properties_to_pydantic():
     assert len(lines) == 0
 
 
-def test_compile_component_to_pydantic():
+def test_compile_component_to_pydantic() -> None:
     schema = {
         "properties": {
             "component": {"const": "MyComp"},
@@ -152,9 +153,9 @@ def test_compile_component_to_pydantic():
     assert "accessibility: " not in code
 
 
-def test_compile_object_def():
+def test_compile_object_def() -> None:
     # Extends StrictBaseModel by default
-    spec = {"properties": {"x": {"type": "number"}}, "required": ["x"]}
+    spec: dict[str, Any] = {"properties": {"x": {"type": "number"}}, "required": ["x"]}
     code = generate_schemas.compile_object_def("Point", spec)
     assert "class Point(StrictBaseModel):" in code
     assert "    x: float = Field(...)" in code
@@ -170,15 +171,15 @@ def test_compile_object_def():
     assert "    pass" in code
 
 
-def test_compile_union_def():
-    spec = {
+def test_compile_union_def() -> None:
+    spec: dict[str, Any] = {
         "oneOf": [{"type": "string"}, {"$ref": "common_types.json#/$defs/DataBinding"}]
     }
     code = generate_schemas.compile_union_def("StringOrBinding", spec)
     assert code == "StringOrBinding = Union[str, DataBinding]\n"
 
 
-def test_compile_function_to_pydantic():
+def test_compile_function_to_pydantic() -> None:
     # Function with args
     schema = {
         "properties": {
@@ -205,7 +206,7 @@ def test_compile_function_to_pydantic():
     assert '    return_type = "number"' in code
 
 
-def test_generate_common_types():
+def test_generate_common_types() -> None:
     mock_common_data = {
         "$defs": {
             "DataBinding": {"properties": {"path": {"type": "string"}}},
@@ -247,7 +248,7 @@ def test_generate_common_types():
     assert "ChildList = Union[List[ComponentId], TemplateChildList]" in code
 
 
-def test_generate_basic_catalog_components():
+def test_generate_basic_catalog_components() -> None:
     # Scenario A: No $defs/anyComponent/oneOf provided (fallback to all components)
     mock_catalog_data = {
         "components": {
@@ -332,7 +333,7 @@ def test_generate_basic_catalog_components():
     assert 'Union[Literal["add", "close"], SvgPath]' in code_svg
 
 
-def test_generate_basic_catalog_functions():
+def test_generate_basic_catalog_functions() -> None:
     # Scenario A: Fallback to all functions
     mock_catalog_data = {
         "functions": {
@@ -372,7 +373,7 @@ def test_generate_basic_catalog_functions():
     assert "class PrivateFuncApi(FunctionApi):" in code_defs
 
 
-def test_generate_basic_catalog_styles():
+def test_generate_basic_catalog_styles() -> None:
     mock_catalog_data = {
         "$defs": {
             "theme": {
@@ -392,7 +393,7 @@ def test_generate_basic_catalog_styles():
     )
 
 
-def test_generate_server_to_client():
+def test_generate_server_to_client() -> None:
     mock_s2c_data = {
         "$defs": {
             "CreateSurfaceMessage": {
@@ -412,7 +413,7 @@ def test_generate_server_to_client():
     assert "class CreateSurfaceMessage(StrictBaseModel):" in code
 
 
-def test_generate_schema_init():
+def test_generate_schema_init() -> None:
     code = generate_schemas.generate_schema_init(["CreateSurfaceMessage"])
     assert "from .common_types import (" in code
     assert "from .constants import *" in code
@@ -420,7 +421,7 @@ def test_generate_schema_init():
     assert "    CreateSurface," in code
 
 
-def test_generate_client_capabilities():
+def test_generate_client_capabilities() -> None:
     mock_capabilities_data = {
         "properties": {
             "v0.9": {
@@ -450,7 +451,7 @@ def test_generate_client_capabilities():
     assert "v0_9: Optional[V09Capabilities] = Field(None, alias=SPEC_VERSION)" in code
 
 
-def test_generate_client_to_server():
+def test_generate_client_to_server() -> None:
     mock_c2s_data = {
         "properties": {
             "action": {
@@ -481,7 +482,7 @@ def test_generate_client_to_server():
     )
 
 
-def test_const_keyword_mapping():
+def test_const_keyword_mapping() -> None:
     assert (
         generate_schemas.map_json_type_to_python("code", {"const": "SUCCESS"})
         == "Literal['SUCCESS']"
@@ -491,19 +492,19 @@ def test_const_keyword_mapping():
         == "Literal[404]"
     )
 
-    props = {"code": {"const": "FAIL"}}
+    props: dict[str, Any] = {"code": {"const": "FAIL"}}
     lines = generate_schemas.compile_properties_to_pydantic(props, ["code"])
     assert len(lines) == 1
     assert "    code: Literal['FAIL'] = Field(\"FAIL\")" in lines[0]
 
 
-def test_file_header_preamble():
+def test_file_header_preamble() -> None:
     header = generate_schemas.FILE_HEADER
     assert "Copyright 2026 Google LLC" in header
     assert "Auto-generated. Do not edit manually." in header
 
 
-def test_generate_catalog_functions():
+def test_generate_catalog_functions() -> None:
     code = generate_schemas.generate_catalog_functions()
     assert "class FunctionApi:" in code
     assert 'name: str = ""' in code

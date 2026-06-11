@@ -14,7 +14,7 @@
 
 import pytest
 import math
-from typing import Any
+from typing import Any, Dict, Callable, Optional, Union
 from pydantic import ValidationError
 
 from a2ui.core.basic_catalog.function_impls import BASIC_FUNCTION_IMPLEMENTATIONS
@@ -22,7 +22,7 @@ from a2ui.core.basic_catalog.function_impls import BASIC_FUNCTION_IMPLEMENTATION
 IMPLS_MAP = {impl.name: impl for impl in BASIC_FUNCTION_IMPLEMENTATIONS}
 
 
-def invoke(name: str, args: dict, context: Any = None) -> Any:
+def invoke(name: str, args: Dict[str, Any], context: Any = None) -> Any:
     impl = IMPLS_MAP.get(name)
     if not impl:
         raise ValueError(f"Function {name} not found")
@@ -33,7 +33,7 @@ def invoke(name: str, args: dict, context: Any = None) -> Any:
     return impl.execute(validated_args, context)
 
 
-def test_arithmetic_add():
+def test_arithmetic_add() -> None:
     assert invoke("add", {"a": 1, "b": 2}) == 3
     assert invoke("add", {"a": "1", "b": "2"}) == 3
     with pytest.raises(ValidationError):
@@ -42,7 +42,7 @@ def test_arithmetic_add():
         invoke("add", {"a": 10})
 
 
-def test_arithmetic_subtract():
+def test_arithmetic_subtract() -> None:
     assert invoke("subtract", {"a": 5, "b": 3}) == 2
     with pytest.raises(ValidationError):
         invoke("subtract", {"a": 10, "b": None})
@@ -50,7 +50,7 @@ def test_arithmetic_subtract():
         invoke("subtract", {"a": 10})
 
 
-def test_arithmetic_multiply():
+def test_arithmetic_multiply() -> None:
     assert invoke("multiply", {"a": 4, "b": 2}) == 8
     with pytest.raises(ValidationError):
         invoke("multiply", {"a": 10, "b": None})
@@ -58,7 +58,7 @@ def test_arithmetic_multiply():
         invoke("multiply", {"a": 10})
 
 
-def test_arithmetic_divide():
+def test_arithmetic_divide() -> None:
     assert invoke("divide", {"a": 10, "b": 2}) == 5
     assert invoke("divide", {"a": 10, "b": 0}) == math.inf
     with pytest.raises(ValidationError):
@@ -69,7 +69,7 @@ def test_arithmetic_divide():
     assert invoke("divide", {"a": "10", "b": "2"}) == 5
 
 
-def test_comparison_equals():
+def test_comparison_equals() -> None:
     assert invoke("equals", {"a": 1, "b": 1}) is True
     assert invoke("equals", {"a": 1, "b": 2}) is False
     with pytest.raises(ValidationError):
@@ -78,14 +78,14 @@ def test_comparison_equals():
         invoke("equals", {"b": 1})
 
 
-def test_comparison_not_equals():
+def test_comparison_not_equals() -> None:
     assert invoke("not_equals", {"a": 1, "b": 2}) is True
     assert invoke("not_equals", {"a": 1, "b": 1}) is False
     with pytest.raises(ValidationError):
         invoke("not_equals", {"a": 1})
 
 
-def test_comparison_greater_than():
+def test_comparison_greater_than() -> None:
     assert invoke("greater_than", {"a": 5, "b": 3}) is True
     assert invoke("greater_than", {"a": 3, "b": 5}) is False
     with pytest.raises(ValidationError):
@@ -94,7 +94,7 @@ def test_comparison_greater_than():
         invoke("greater_than", {"a": 10})
 
 
-def test_comparison_less_than():
+def test_comparison_less_than() -> None:
     assert invoke("less_than", {"a": 3, "b": 5}) is True
     assert invoke("less_than", {"a": 5, "b": 3}) is False
     with pytest.raises(ValidationError):
@@ -103,25 +103,25 @@ def test_comparison_less_than():
         invoke("less_than", {"a": 3})
 
 
-def test_logical_and():
+def test_logical_and() -> None:
     assert invoke("and", {"values": [True, True]}) is True
     assert invoke("and", {"values": [True, False]}) is False
     assert invoke("and", {"values": [True]}) is True
 
 
-def test_logical_or():
+def test_logical_or() -> None:
     assert invoke("or", {"values": [False, True]}) is True
     assert invoke("or", {"values": [False, False]}) is False
 
 
-def test_logical_not():
+def test_logical_not() -> None:
     assert invoke("not", {"value": False}) is True
     assert invoke("not", {"value": True}) is False
     with pytest.raises(ValidationError):
         invoke("not", {})
 
 
-def test_string_contains():
+def test_string_contains() -> None:
     assert invoke("contains", {"string": "hello world", "substring": "world"}) is True
     assert invoke("contains", {"string": "hello world", "substring": "foo"}) is False
     with pytest.raises(ValidationError):
@@ -130,21 +130,21 @@ def test_string_contains():
         invoke("contains", {"substring": "hello"})
 
 
-def test_string_starts_with():
+def test_string_starts_with() -> None:
     assert invoke("starts_with", {"string": "hello", "prefix": "he"}) is True
     assert invoke("starts_with", {"string": "hello", "prefix": "lo"}) is False
     with pytest.raises(ValidationError):
         invoke("starts_with", {"string": "hello"})
 
 
-def test_string_ends_with():
+def test_string_ends_with() -> None:
     assert invoke("ends_with", {"string": "hello", "suffix": "lo"}) is True
     assert invoke("ends_with", {"string": "hello", "suffix": "he"}) is False
     with pytest.raises(ValidationError):
         invoke("ends_with", {"string": "hello"})
 
 
-def test_validation_required():
+def test_validation_required() -> None:
     assert invoke("required", {"value": "a"}) is True
     assert invoke("required", {"value": ""}) is False
     assert invoke("required", {"value": None}) is False
@@ -152,21 +152,21 @@ def test_validation_required():
         invoke("required", {})
 
 
-def test_validation_length():
+def test_validation_length() -> None:
     assert invoke("length", {"value": "abc", "min": 2}) is True
     assert invoke("length", {"value": "abc", "max": 2}) is False
     with pytest.raises(ValidationError):
         invoke("length", {})
 
 
-def test_validation_numeric():
+def test_validation_numeric() -> None:
     assert invoke("numeric", {"value": 10, "min": 5, "max": 15}) is True
     assert invoke("numeric", {"value": 3, "min": 5}) is False
     with pytest.raises(ValidationError):
         invoke("numeric", {})
 
 
-def test_validation_email():
+def test_validation_email() -> None:
     assert invoke("email", {"value": "test@example.com"}) is True
     assert invoke("email", {"value": "test.name@example.com"}) is True
     assert invoke("email", {"value": "test+label@example.com"}) is True
@@ -181,7 +181,7 @@ def test_validation_email():
         invoke("email", {})
 
 
-def test_validation_regex():
+def test_validation_regex() -> None:
     assert invoke("regex", {"value": "abc", "pattern": "^[a-z]+$"}) is True
     assert invoke("regex", {"value": "123", "pattern": "^[a-z]+$"}) is False
     # In python, re.match/re.search throws re.error if pattern is invalid.
@@ -194,11 +194,15 @@ def test_validation_regex():
 
 class MockDataContext:
 
-    def __init__(self, data_model: dict, invoker=None):
+    def __init__(
+        self,
+        data_model: Dict[str, Any],
+        invoker: Optional[Callable[[str, Dict[str, Any]], Any]] = None,
+    ) -> None:
         self.data_model = data_model
         self.invoker = invoker
 
-    def resolve_dynamic_value(self, part: Any) -> Any:
+    def resolve_dynamic_value(self, part: Union[str, Dict[str, Any]]) -> Any:
         if isinstance(part, dict) and "path" in part:
             path = part["path"].lstrip("/")
             return self.data_model.get(path)
@@ -209,19 +213,19 @@ class MockDataContext:
         return part
 
 
-def test_formatting_format_string_static():
+def test_formatting_format_string_static() -> None:
     assert invoke("formatString", {"value": "hello world"}) == "hello world"
 
 
-def test_formatting_format_string_data_binding():
+def test_formatting_format_string_data_binding() -> None:
     context = MockDataContext({"a": 10})
     assert (
         invoke("formatString", {"value": "Value: ${a}"}, context=context) == "Value: 10"
     )
 
 
-def test_formatting_format_string_function_call():
-    def mock_invoker(name, args):
+def test_formatting_format_string_function_call() -> None:
+    def mock_invoker(name: str, args: Dict[str, Any]) -> Any:
         if name == "add":
             return int(args["a"]) + int(args["b"])
         return None
@@ -233,7 +237,7 @@ def test_formatting_format_string_function_call():
     )
 
 
-def test_formatting_format_string_serialization():
+def test_formatting_format_string_serialization() -> None:
     # Test dictionary serialization
     context = MockDataContext({"user": {"name": "Alice", "age": 30}})
     assert (
@@ -262,7 +266,7 @@ def test_formatting_format_string_serialization():
     )
 
 
-def test_formatting_format_number():
+def test_formatting_format_number() -> None:
     assert invoke("formatNumber", {"value": 1234.56, "decimals": 1}) == "1,234.6"
     assert (
         invoke("formatNumber", {"value": 1234.56, "decimals": 1, "grouping": False})
@@ -270,7 +274,7 @@ def test_formatting_format_number():
     )
 
 
-def test_formatting_format_currency():
+def test_formatting_format_currency() -> None:
     assert (
         invoke("formatCurrency", {"value": 1234.56, "currency": "USD", "decimals": 2})
         == "$1,234.56"
@@ -285,7 +289,7 @@ def test_formatting_format_currency():
     )
 
 
-def test_formatting_format_date():
+def test_formatting_format_date() -> None:
     assert (
         invoke("formatDate", {"value": "2025-01-01T12:00:00Z", "format": "yyyy-MM-dd"})
         == "2025-01-01"
@@ -299,7 +303,7 @@ def test_formatting_format_date():
     assert invoke("formatDate", {"value": "invalid-date", "format": "yyyy"}) == ""
 
 
-def test_formatting_pluralize():
+def test_formatting_pluralize() -> None:
     assert (
         invoke("pluralize", {"value": 1, "one": "apple", "other": "apples"}) == "apple"
     )
@@ -312,6 +316,6 @@ def test_formatting_pluralize():
     assert invoke("pluralize", {"value": 1, "other": "apples"}) == "apples"
 
 
-def test_actions_open_url():
+def test_actions_open_url() -> None:
     # Since openUrl has side effects in browser only and returns None in python, we verify it executes without error.
     assert invoke("openUrl", {"url": "https://google.com"}) is None
