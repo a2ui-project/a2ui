@@ -16,12 +16,15 @@ import json
 from inspect_ai.solver import Solver, solver, TaskState, Generate, use_tools, system_message
 from inspect_ai.model import ChatMessageSystem, ChatMessageTool, get_model, ModelOutput, ChatCompletionChoice, ChatMessageAssistant, ChatMessageUser
 from inspect_ai.tool import tool, Tool
+from inspect_ai.util import store
 from a2ui.schema.manager import A2uiSchemaManager
 from a2ui.schema.catalog import CatalogConfig
 from a2ui.parser.parser import parse_response
 from ..shared.utils import WORKFLOW_OVERRIDE, measured_generate
 
 from .direct import a2ui_system_prompt
+
+PAYLOAD_STORE_KEY = "a2ui_payload"
 
 
 @tool
@@ -57,9 +60,11 @@ def a2ui_specialist(schema_path: str, catalog_path: str) -> Tool:
                         all_messages.extend(part.a2ui_json)
                     else:
                         all_messages.append(part.a2ui_json)
-            return json.dumps(all_messages, indent=2)
+            payload = json.dumps(all_messages, indent=2)
+            store().set(PAYLOAD_STORE_KEY, payload)
+            return "Success: The UI has been generated and saved out-of-band."
             
-        return ""
+        return "Error: Failed to generate the UI."
         
     return execute
 
@@ -67,11 +72,7 @@ def a2ui_specialist(schema_path: str, catalog_path: str) -> Tool:
 def extract_subagent_payload() -> Solver:
     """Extracts the A2UI payload from the tool response messages."""
     async def solve(state: TaskState, generate: Generate) -> TaskState:
-        payload = None
-        for msg in reversed(state.messages):
-            if isinstance(msg, ChatMessageTool):
-                payload = msg.text
-                break
+        payload = state.store.get(PAYLOAD_STORE_KEY)
                 
         if payload is not None and state.output and state.output.choices:
             formatted_payload = f"<a2ui-json>\n{payload}\n</a2ui-json>"
