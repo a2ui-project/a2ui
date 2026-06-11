@@ -37,7 +37,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        task: [test, demo, lint]
+        task: [unit, integration, lint]
       fail-fast: false
 
     steps:
@@ -55,25 +55,18 @@ jobs:
       - name: Install dependencies
         run: yarn install --immutable
 
-      - name: Build web_core dependency
-        run: yarn workspace @a2ui/web_core build
-
-      - name: Build markdown-it dependency
-        run: yarn workspace @a2ui/markdown-it build
-
       - name: Run task
         working-directory: ./renderers/react
         run: |
           case "${{ matrix.task }}" in
-            test)
-              yarn build
-              yarn test
+            unit)
+              yarn test:unit
               ;;
-            demo)
-              yarn build:demo
-              yarn test:demo
+            integration)
+              yarn test:integration
               ;;
             lint)
               yarn lint
+              yarn workspace @a2ui/react-explorer lint
               ;;
           esac
