@@ -20,4 +20,5 @@ For the targeted version, analyze these core files to inform your design, typica
 1. **JSON Schemas (`json/*.json`)**: Absolute authority for message format compliance. Check `server_to_client.json` for stream envelopes, `client_to_server.json` for action events, and `common_types.json` for dynamic binding primitives and other schema `$defs`.
 2. **Component & Function Catalogs (`catalogs/<catalog-name>/catalog.json`)**: Authoritative definitions of supported visual components and registered evaluation/validation functions.
 3. **Protocol Semantics (`docs/a2ui_protocol.md`)**: Semantic foundation covering message stream structures, pointer scopes, and two-way binding agreements.
-4. **SDK APIs and architecture design (`docs/renderer_guide.md`)**: Required mechanics for state layer separation, reactive models, and component subscription lifecycles to prevent memory leaks.
+4. **Core SDK Specification (`docs/core_sdk_spec.md`)**: Agnostic state management, reactive models, JSON processing, and validation rules.
+5. **Framework Adapter Specification (`docs/framework_adapter_spec.md`)**: Component rendering strategy, framework-specific lifecycle adapters, and memory leak prevention.
