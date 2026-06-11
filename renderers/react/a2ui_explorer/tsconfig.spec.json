@@ -23,5 +23,10 @@
       "@a2ui/markdown-it": ["../../markdown/markdown-it/src/markdown.ts"]
     }
   },
-  "include": ["tests/**/*.ts", "tests/**/*.tsx", "src/generated/examples-list.ts"]
+  "include": [
+    "tests/**/*.ts",
+    "tests/**/*.tsx",
+    "src/generated/examples-list.ts",
+    "src/global.d.ts"
+  ]
 }
