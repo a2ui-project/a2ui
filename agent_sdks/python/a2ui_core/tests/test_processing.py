@@ -646,6 +646,7 @@ def test_message_processor_custom_catalog_component_validation():
                 catalog_id="https://rizzcharts.com/catalog.json",
                 spec_version=SPEC_VERSION,
                 components=[ModelComponentApi(ChartComponent, "Chart")],
+                functions=[],
             )
 
     catalog = CustomCatalog()
