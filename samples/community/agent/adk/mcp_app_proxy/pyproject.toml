@@ -28,7 +28,7 @@ dependencies = [
     "python-dotenv>=1.1.0",
     "litellm",
     "jsonschema>=4.0.0",
-    "a2ui-agent-sdk",
+    "a2ui-agent-sdk==0.2.4",
     "uvicorn",
     "starlette",
     "mcp",
@@ -45,5 +45,3 @@ build-backend = "hatchling.build"
 [tool.hatch.build.targets.wheel]
 packages = ["."]
 
-[tool.uv.sources]
-a2ui-agent-sdk = { path = "../../../../agent_sdks/python/a2ui_agent", editable = true }

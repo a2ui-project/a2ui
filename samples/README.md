@@ -4,6 +4,14 @@ This is the registry of examples and dev tools for A2UI.
 
 If the video is outdated, please, contribute the update.
 
+## Requirements for the code
+
+All samples should have primary CUJ:
+
+- documented in the README
+- minimally test covered
+- illustrated by a video
+
 ## Samples
 
 | Demo                             | Agent  | Renderer | e2e             | Video                    |
