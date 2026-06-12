@@ -40,8 +40,13 @@ def _schema_url(spec_version: str, file_name: str) -> str:
 class CatalogSchemaValidator:
     """Consolidated Catalog Schema Validator for A2UI catalogs using jsonschema engine."""
 
-    def __init__(self, catalog: Catalog[TComponent, TFunction]):
+    def __init__(
+        self,
+        catalog: Catalog[TComponent, TFunction],
+        common_types_schema: Dict[str, Any] = {},
+    ):
         self.catalog = catalog
+        self.common_types_schema = common_types_schema
         self._validators: Dict[str, Draft202012Validator] = {}
         self._registry = self._build_registry()
 
@@ -78,12 +83,12 @@ class CatalogSchemaValidator:
                 ),
             )
         )
-        if self.catalog.common_types_schema:
+        if self.common_types_schema:
             resources.append(
                 (
                     COMMON_TYPES_SCHEMA_FILE,
                     Resource.from_contents(
-                        self.catalog.common_types_schema,
+                        self.common_types_schema,
                         default_specification=DRAFT202012,
                     ),
                 )
@@ -92,7 +97,7 @@ class CatalogSchemaValidator:
                 (
                     _schema_url(self.catalog.spec_version, COMMON_TYPES_SCHEMA_FILE),
                     Resource.from_contents(
-                        self.catalog.common_types_schema,
+                        self.common_types_schema,
                         default_specification=DRAFT202012,
                     ),
                 )
@@ -336,10 +341,14 @@ class CatalogSchemaValidator:
         return extract_ref_fields(self.catalog)
 
     @classmethod
-    def from_catalog(cls, catalog: Any) -> "CatalogSchemaValidator":
+    def from_catalog(
+        cls,
+        catalog: Any,
+        common_types_schema: Optional[Dict[str, Any]] = None,
+    ) -> "CatalogSchemaValidator":
         if isinstance(catalog, CatalogSchemaValidator):
             return catalog
-        return cls(catalog)
+        return cls(catalog, common_types_schema=common_types_schema)
 
 
 def _extract_ref_fields_pydantic(

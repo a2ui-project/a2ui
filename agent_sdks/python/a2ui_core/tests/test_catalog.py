@@ -21,14 +21,20 @@ from a2ui.core.catalog import (
     ModelComponentApi,
     FunctionImplementation,
 )
+from a2ui.core.catalog.catalog import TComponent, TFunction
 from a2ui.core.validating import CatalogSchemaValidator
 from a2ui.core.basic_catalog import BasicCatalog
 from a2ui.core.schema.common_types import ComponentId
 from a2ui.core.schema.constants import SPEC_VERSION
 
 
-def _val(catalog: Catalog[Any, Any]) -> CatalogSchemaValidator:
-    return CatalogSchemaValidator.from_catalog(catalog)
+def _val(
+    catalog: Catalog[TComponent, TFunction],
+    common_types_schema: Dict[str, Any] = {},
+) -> CatalogSchemaValidator:
+    return CatalogSchemaValidator.from_catalog(
+        catalog, common_types_schema=common_types_schema
+    )
 
 
 # ==============================================================================
@@ -745,17 +751,16 @@ def test_extract_ref_fields_common_types_resolution():
     catalog = Catalog.from_json(
         catalog_json,
         spec_version=SPEC_VERSION,
-        common_types_schema=common_types,
     )
 
     # 1. Test Valid $ref against common_types.json
-    _val(catalog).validate_components(
+    _val(catalog, common_types_schema=common_types).validate_components(
         [{"id": "b1", "component": "Box", "color": "#00FF00"}]
     )
 
     # 2. Test Invalid Pattern in $ref
     with pytest.raises(ValueError, match="does not match"):
-        _val(catalog).validate_components(
+        _val(catalog, common_types_schema=common_types).validate_components(
             [{"id": "b1", "component": "Box", "color": "red"}]
         )
 

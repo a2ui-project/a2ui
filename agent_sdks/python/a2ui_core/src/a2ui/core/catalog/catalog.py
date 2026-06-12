@@ -49,11 +49,6 @@ class Catalog(Generic[TComponent, TFunction]):
 
         self.theme_schema = theme_schema
         self._catalog_schema: Optional[Dict[str, Any]] = None
-        self._common_types_schema: Optional[Dict[str, Any]] = None
-
-    @property
-    def common_types_schema(self) -> Optional[Dict[str, Any]]:
-        return self._common_types_schema
 
     @property
     def catalog_schema(self) -> Dict[str, Any]:
@@ -82,7 +77,6 @@ class Catalog(Generic[TComponent, TFunction]):
         catalog_schema: Dict[str, Any],
         spec_version: str,
         catalog_id: Optional[str] = None,
-        common_types_schema: Optional[Dict[str, Any]] = None,
     ) -> "Catalog[ComponentApi, FunctionApi]":
         """Constructs a schema-only Catalog directly from raw JSON Schema."""
         catalog_id = catalog_id or catalog_schema.get("catalogId")
@@ -145,5 +139,4 @@ class Catalog(Generic[TComponent, TFunction]):
             theme_schema=catalog_schema.get("theme") or {},
         )
         cat._catalog_schema = catalog_schema
-        cat._common_types_schema = common_types_schema
         return cat
