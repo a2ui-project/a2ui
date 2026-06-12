@@ -16,8 +16,8 @@
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
     "clean": "wireit",
-    "format": "prettier --write .",
-    "format:check": "prettier --check ."
+    "format": "prettier --ignore-path ../../../.prettierignore --write .",
+    "format:check": "prettier --ignore-path ../../../.prettierignore --check ."
   },
   "wireit": {
     "build": {
@@ -68,6 +68,7 @@
     "karma-chrome-launcher": "^3.2.0",
     "karma-esbuild": "^2.3.0",
     "karma-jasmine": "^5.1.0",
+    "prettier": "^3.5.0",
     "typescript": "5.9.3",
     "vite": "^8.0.16",
     "vitest": "^3.0.0",
