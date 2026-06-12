@@ -30,7 +30,7 @@ Communication occurs via a stream of JSON objects. The client parses each object
 
 ## Changes from previous versions
 
-Version 0.9.1 of the A2UI protocol is the current prompt-first specification. While v0.8 was optimized for LLMs that support structured output, v0.9.1 is designed to be embedded directly within a model's prompt. The LLM is then asked to produce JSON that matches the provided examples and schema descriptions.
+Version 0.9 introduced A2UI's prompt-first protocol family. While v0.8 was optimized for LLMs that support structured output, v0.9 is designed to be embedded directly within a model's prompt. The LLM is then asked to produce JSON that matches the provided examples and schema descriptions.
 
 This "prompt-first" approach offers several advantages:
 
@@ -586,7 +586,7 @@ When `sendDataModel` is set to `true` for a surface, the client automatically ap
 
 ## Client-side logic & validation
 
-A2UI v0.9.1 generalizes client-side logic into **Functions**. These can be used for validation, data transformation, and dynamic property binding.
+A2UI v0.9 generalizes client-side logic into **Functions**. These can be used for validation, data transformation, and dynamic property binding.
 
 ### Registered functions
 
@@ -825,7 +825,7 @@ This message is sent when the user interacts with a component that has an `actio
 
 ### Capabilities & metadata
 
-In A2UI v0.9.1, capabilities and other metadata are exchanged via **Transport metadata** or initialization payloads (e.g., A2A metadata, Agent Cards, or MCP initialization), rather than as first-class A2UI messages.
+In A2UI v0.9, capabilities and other metadata are exchanged via **Transport metadata** or initialization payloads (e.g., A2A metadata, Agent Cards, or MCP initialization), rather than as first-class A2UI messages.
 
 #### Server capabilities
 

@@ -28,16 +28,16 @@ How components connect to application state using JSON Pointer paths. Covers rea
 
 ## Message Types
 
-=== "v0.9 / v0.9.1 (Current)"
+=== "v0.9 (Stable)"
 
-    Versions 0.9 and 0.9.1 use the following message types:
+    Version 0.9 uses the following message types:
 
     - **`createSurface`**: Create a new surface and specify its catalog
     - **`updateComponents`**: Add or update UI components in a surface
     - **`updateDataModel`**: Update application state
     - **`deleteSurface`**: Remove a UI surface
 
-    v0.9 and later separate surface creation from rendering — `createSurface` replaces both `beginRendering` and the implicit surface creation in `surfaceUpdate`. All messages include a `version` field.
+    v0.9 separates surface creation from rendering — `createSurface` replaces both `beginRendering` and the implicit surface creation in `surfaceUpdate`. All messages include a `version` field.
 
 === "v1.0 (Candidate)"
 

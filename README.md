@@ -11,9 +11,9 @@ _A gallery of A2UI rendered cards, showing a variety of UI compositions that A2U
 
 ## ⚠️ Status: Early stage public preview
 
-> **Note:** A2UI's current production release is **v0.9.1**. The v1.0
-> specification is a release candidate, while v0.9 is the previous stable
-> release and v0.8 is legacy. The specification and implementations are
+> **Note:** A2UI's current production release is **v0.9.1**, a patch release in
+> the stable v0.9 protocol family. The v1.0 specification is a release
+> candidate, while v0.8 is legacy. The specification and implementations are
 > functional but are still evolving. We are opening the project to foster
 > collaboration, gather feedback, and solicit contributions (e.g., on client
 > renderers). Expect changes.
