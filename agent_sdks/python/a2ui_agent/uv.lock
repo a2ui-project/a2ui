@@ -54,7 +54,6 @@ dev = [
 
 [[package]]
 name = "a2ui-core"
-version = "0.1.0"
 source = { editable = "../a2ui_core" }
 dependencies = [
     { name = "jsonschema" },

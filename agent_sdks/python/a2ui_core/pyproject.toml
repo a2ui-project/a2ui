@@ -14,7 +14,7 @@
 
 [project]
 name = "a2ui-core"
-version = "0.1.0"
+dynamic = ["version"]
 description = "A2UI Python SDK - Core Library"
 readme = "README.md"
 requires-python = ">=3.14"
@@ -34,6 +34,9 @@ dev = [
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
+
+[tool.hatch.version]
+path = "src/a2ui/core/version.py"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/a2ui"]
