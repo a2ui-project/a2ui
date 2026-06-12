@@ -577,38 +577,37 @@ def test_message_processor_xor_conflict_coverage():
 def test_message_processor_missing_data_model_path_reactive_binding(mock_catalog):
     processor = MessageProcessor(catalogs=[mock_catalog])
 
-    with pytest.warns(MissingDataBindingWarning):
-        processor.process_messages(
-            [
-                {
-                    "version": SPEC_VERSION,
-                    "createSurface": {
-                        "surfaceId": "s1",
-                        "catalogId": mock_catalog.catalog_id,
-                    },
+    processor.process_messages(
+        [
+            {
+                "version": SPEC_VERSION,
+                "createSurface": {
+                    "surfaceId": "s1",
+                    "catalogId": mock_catalog.catalog_id,
                 },
-                {
-                    "version": SPEC_VERSION,
-                    "updateComponents": {
-                        "surfaceId": "s1",
-                        "components": [
-                            {
-                                "id": "root",
-                                "component": "Text",
-                                "text": {"path": "/missing/username"},
-                            }
-                        ],
-                    },
+            },
+            {
+                "version": SPEC_VERSION,
+                "updateComponents": {
+                    "surfaceId": "s1",
+                    "components": [
+                        {
+                            "id": "root",
+                            "component": "Text",
+                            "text": {"path": "/missing/username"},
+                        }
+                    ],
                 },
-            ]
-        )
+            },
+        ]
+    )
 
     surface = processor.model.get_surface("s1")
     assert surface is not None
     text_comp = surface.components_model.get("root")
     assert text_comp is not None
 
-    ctx = DataContext(path="/", data_model=surface.data_model)
+    ctx = DataContext(surface, path="/")
     context = ComponentContext(text_comp, ctx)
 
     with pytest.warns(MissingDataBindingWarning):

@@ -22,6 +22,7 @@ from a2ui.core.rendering import (
     GenericBinder,
     MissingDataBindingWarning,
 )
+from a2ui.core.catalog import Catalog
 from a2ui.core.basic_catalog import BasicCatalog
 
 
@@ -48,12 +49,11 @@ def test_component_context_from_surface():
     surface.dispose()
 
 
-def test_data_context_resolve_action_and_locale():
-    surface = SurfaceModel("s1", BasicCatalog(), locale="fr-FR")
+def test_data_context_resolve_action():
+    surface = SurfaceModel("s1", BasicCatalog())
     surface.data_model.set("/username", "Alice")
 
     ctx = DataContext(surface=surface)
-    assert ctx.locale == "fr-FR"
 
     # Resolve event action containing dynamic context binding
     action = {
@@ -73,7 +73,8 @@ def test_data_context_resolve_action_and_locale():
 
 
 def test_data_context_missing_binding_warning():
-    ctx = DataContext()
+    surface = SurfaceModel("s1", BasicCatalog())
+    ctx = DataContext(surface)
     with pytest.warns(MissingDataBindingWarning, match="does not physically exist"):
         val = ctx.resolve_dynamic_value({"path": "/missing/pointer"})
     assert val is None
@@ -120,9 +121,10 @@ def test_generic_binder_reactive_checks():
 def test_data_context_relative_scoping():
     data_model = DataModel()
     data_model.set("/users/0/name", "Alice")
+    surface = SurfaceModel("s1", BasicCatalog(), data_model=data_model)
 
     # Root context
-    root_ctx = DataContext(path="/", data_model=data_model)
+    root_ctx = DataContext(surface, path="/")
     assert root_ctx.resolve_path("users/0/name") == "/users/0/name"
 
     # Nested context scope
@@ -134,7 +136,8 @@ def test_data_context_relative_scoping():
 
 def test_resolve_dynamic_values():
     data_model = DataModel({"user": {"name": "Bob", "age": 25}})
-    ctx = DataContext(path="/", data_model=data_model)
+    surface = SurfaceModel("s1", BasicCatalog(), data_model=data_model)
+    ctx = DataContext(surface, path="/")
 
     # 1. Literal
     assert ctx.resolve_dynamic_value("hello") == "hello"
@@ -158,7 +161,8 @@ def test_string_interpolation_format_string():
     from a2ui.core.basic_catalog import BasicCatalog
 
     data_model = DataModel({"user": {"name": "Charlie"}})
-    ctx = DataContext(path="/", data_model=data_model, catalog=BasicCatalog())
+    surface = SurfaceModel("s1", BasicCatalog(), data_model=data_model)
+    ctx = DataContext(surface, path="/")
 
     # Test basic formatString execution
     expr = {"call": "formatString", "args": {"value": "Hello ${user/name}!"}}
@@ -171,7 +175,8 @@ def test_string_interpolation_with_escapes():
     from a2ui.core.basic_catalog import BasicCatalog
 
     data_model = DataModel({"user": {"name": "Charlie"}})
-    ctx = DataContext(path="/", data_model=data_model, catalog=BasicCatalog())
+    surface = SurfaceModel("s1", BasicCatalog(), data_model=data_model)
+    ctx = DataContext(surface, path="/")
 
     # Escaped block resolving to literal string
     expr = {
@@ -186,7 +191,8 @@ def test_string_interpolation_with_escapes():
 def test_generic_binder_reactive_property_changes():
     data_model = DataModel({"item": {"title": "Original"}})
     comp = ComponentModel("text_1", "Text", {"text": {"path": "item/title"}})
-    ctx = DataContext(path="/", data_model=data_model)
+    surface = SurfaceModel("s1", BasicCatalog(), data_model=data_model)
+    ctx = DataContext(surface, path="/")
     context = ComponentContext(comp, ctx)
 
     binder = GenericBinder(context)
@@ -213,7 +219,8 @@ def test_generic_binder_checks_validation():
             ]
         },
     )
-    ctx = DataContext(path="/", data_model=data_model)
+    surface = SurfaceModel("s1", BasicCatalog(), data_model=data_model)
+    ctx = DataContext(surface, path="/")
     context = ComponentContext(comp, ctx)
 
     binder = GenericBinder(context)
@@ -271,18 +278,21 @@ def test_expression_parser_parse_errors():
 def test_string_interpolation_complex_execution():
     data_model = DataModel({"a": 10, "b": 20})
 
-    class MockCatalog:
+    class MockCatalog(Catalog):
 
-        def invoker(self, name, args, context):
-            if name == "add":
-                return args["a"] + args["b"]
-            elif name == "formatString":
-                from a2ui.core.basic_catalog.function_impls import _format_string
+        def __init__(self):
+            super().__init__("mock", "v0_9_1", [], [])
+            from a2ui.core.basic_catalog.function_impls import _format_string
 
-                return _format_string(args, context)
-            return None
+            self.functions["add"] = (
+                lambda args, context, abort_signal=None: args["a"] + args["b"]
+            )
+            self.functions["formatString"] = (
+                lambda args, context, abort_signal=None: _format_string(args, context)
+            )
 
-    ctx = DataContext(path="/", data_model=data_model, catalog=MockCatalog())
+    surface = SurfaceModel("s1", MockCatalog(), data_model=data_model)
+    ctx = DataContext(surface, path="/")
     expr = {"call": "formatString", "args": {"value": "Calculated: ${add(a: 5, b: 7)}"}}
 
     resolved = ctx.resolve_dynamic_value(expr)
@@ -292,18 +302,25 @@ def test_string_interpolation_complex_execution():
 def test_subscribe_dynamic_value_chained_functions():
     data_model = DataModel({"user": {"name": "   charlie   "}})
 
-    class StringFunctionsCatalog:
+    class StringFunctionsCatalog(Catalog):
 
-        def invoker(self, name, args, context):
-            if name == "trim":
-                val = args.get("value", "")
-                return val.strip() if isinstance(val, str) else val
-            elif name == "capitalize":
-                val = args.get("value", "")
-                return val.capitalize() if isinstance(val, str) else val
-            return None
+        def __init__(self):
+            super().__init__("string", "v0_9_1", [], [])
+            self.functions["trim"] = (
+                lambda args, context, abort_signal=None: args.get("value", "").strip()
+                if isinstance(args.get("value", ""), str)
+                else args.get("value", "")
+            )
+            self.functions["capitalize"] = (
+                lambda args, context, abort_signal=None: args.get(
+                    "value", ""
+                ).capitalize()
+                if isinstance(args.get("value", ""), str)
+                else args.get("value", "")
+            )
 
-    ctx = DataContext(path="/", data_model=data_model, catalog=StringFunctionsCatalog())
+    surface = SurfaceModel("s1", StringFunctionsCatalog(), data_model=data_model)
+    ctx = DataContext(surface, path="/")
 
     # Chained expression: Capitalize(Trim(DataModelSubscription(path: /user/name)))
     chained_expr = {
@@ -328,44 +345,44 @@ def test_subscribe_dynamic_value_streaming_function():
     import threading
     from a2ui.core.common.events import Signal, AbortSignal
 
-    class StreamingFunctionsCatalog:
+    class StreamingFunctionsCatalog(Catalog):
 
-        def invoker(
+        def __init__(self):
+            super().__init__("stream", "v0_9_1", [], [])
+            self.functions["metronome"] = self._metronome
+
+        def _metronome(
             self,
-            name: str,
             args: Dict[str, Any],
             context: Any,
             abort_signal: Optional[AbortSignal] = None,
         ) -> Any:
-            if name == "metronome":
-                interval = args.get("interval", 0.01)
-                stream = Signal("tick 0")
-                count = [1]
-                stopped = [False]
+            interval = args.get("interval", 0.01)
+            stream = Signal("tick 0")
+            count = [1]
+            stopped = [False]
 
-                def _tick():
-                    if not stopped[0] and count[0] <= 3:
-                        stream.value = f"tick {count[0]}"
-                        count[0] += 1
-                        if count[0] <= 3:
-                            timer = threading.Timer(interval, _tick)
-                            timer.start()
+            def _tick():
+                if not stopped[0] and count[0] <= 3:
+                    stream.value = f"tick {count[0]}"
+                    count[0] += 1
+                    if count[0] <= 3:
+                        timer = threading.Timer(interval, _tick)
+                        timer.start()
 
-                timer = threading.Timer(interval, _tick)
-                timer.start()
+            timer = threading.Timer(interval, _tick)
+            timer.start()
 
-                if abort_signal:
-                    abort_signal.add_event_listener(
-                        "abort", lambda: stopped.__setitem__(0, True)
-                    )
+            if abort_signal:
+                abort_signal.add_event_listener(
+                    "abort", lambda: stopped.__setitem__(0, True)
+                )
 
-                return stream
-            return None
+            return stream
 
     data_model = DataModel()
-    ctx = DataContext(
-        path="/", data_model=data_model, catalog=StreamingFunctionsCatalog()
-    )
+    surface = SurfaceModel("s1", StreamingFunctionsCatalog(), data_model=data_model)
+    ctx = DataContext(surface, path="/")
 
     expr = {"call": "metronome", "args": {"interval": 0.01}}
 

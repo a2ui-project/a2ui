@@ -16,7 +16,7 @@ from typing import Any, List, Dict, Optional, TYPE_CHECKING
 from a2ui.core.state import Signal, ComponentNode
 
 if TYPE_CHECKING:
-    from a2ui.core.state import SurfaceModel
+    from a2ui.core.state import SurfaceModel, NodeGraph
 
 
 class A2uiTextRenderer:
@@ -26,8 +26,9 @@ class A2uiTextRenderer:
     into structured textual UI layouts, reactively updating whenever properties or templates change.
     """
 
-    def __init__(self, surface: "SurfaceModel"):
-        self.surface = surface
+    def __init__(self, node_graph: "NodeGraph"):
+        self.node_graph = node_graph
+        self.surface = node_graph.surface
         self.output: Signal[str] = Signal("")
         self._root_sub = None
         self._node_subs: Dict[str, Any] = {}  # Map of node instanceId to Subscription
@@ -35,8 +36,8 @@ class A2uiTextRenderer:
             {}
         )  # Map of sub_id to active Signal instance
 
-        # Subscribe reactively to the rootNode of the surface
-        self._root_sub = self.surface.rootNode.subscribe(self._on_root_node_changed)
+        # Subscribe reactively to the rootNode of the node graph
+        self._root_sub = self.node_graph.rootNode.subscribe(self._on_root_node_changed)
 
     def _on_root_node_changed(self, root_node: Optional[ComponentNode]) -> None:
         self._updating = False

@@ -17,7 +17,10 @@ import math
 from typing import Any
 from pydantic import ValidationError
 
-from a2ui.core.basic_catalog.function_impls import BASIC_FUNCTION_IMPLEMENTATIONS
+from a2ui.core.basic_catalog.function_impls import (
+    BASIC_FUNCTION_IMPLEMENTATIONS,
+    create_basic_catalog_functions,
+)
 
 IMPLS_MAP = {impl.name: impl for impl in BASIC_FUNCTION_IMPLEMENTATIONS}
 
@@ -318,79 +321,74 @@ def test_actions_open_url():
 
 
 def test_localized_formatting():
-    class LocalizedContext:
-
-        def __init__(self, loc):
-            self.locale = loc
+    def invoke_localized(locale: str, name: str, args: dict) -> Any:
+        impls = create_basic_catalog_functions(locale)
+        impls_map = {impl.name: impl for impl in impls}
+        impl = impls_map.get(name)
+        if not impl:
+            raise ValueError(f"Function {name} not found")
+        if impl.schema:
+            validated_args = impl.schema.model_validate(args).model_dump()
+        else:
+            validated_args = {}
+        return impl.execute(validated_args, None)
 
     # Number
     assert (
-        invoke(
-            "formatNumber",
-            {"value": 1234.56, "decimals": 2},
-            context=LocalizedContext("en-US"),
-        )
+        invoke_localized("en-US", "formatNumber", {"value": 1234.56, "decimals": 2})
         == "1,234.56"
     )
     assert (
-        invoke(
-            "formatNumber",
-            {"value": 1234.56, "decimals": 2},
-            context=LocalizedContext("de-DE"),
-        )
+        invoke_localized("de-DE", "formatNumber", {"value": 1234.56, "decimals": 2})
         == "1.234,56"
     )
     assert (
-        invoke(
-            "formatNumber",
-            {"value": 1234.56, "decimals": 2},
-            context=LocalizedContext("fr-FR"),
-        )
+        invoke_localized("fr-FR", "formatNumber", {"value": 1234.56, "decimals": 2})
         == "1 234,56"
     )
 
     # Currency
     assert (
-        invoke(
+        invoke_localized(
+            "de-DE",
             "formatCurrency",
             {"value": 1234.56, "currency": "EUR", "decimals": 2},
-            context=LocalizedContext("de-DE"),
         )
         == "1.234,56 €"
     )
     assert (
-        invoke(
+        invoke_localized(
+            "en-US",
             "formatCurrency",
             {"value": 1234.56, "currency": "USD", "decimals": 2},
-            context=LocalizedContext("en-US"),
         )
         == "$1,234.56"
     )
 
     # Date
     assert (
-        invoke(
+        invoke_localized(
+            "fr-FR",
             "formatDate",
             {"value": "2026-06-10T12:00:00Z", "format": "EEEE, MMMM d, yyyy"},
-            context=LocalizedContext("fr-FR"),
         )
         == "mercredi, juin 10, 2026"
     )
     assert (
-        invoke(
+        invoke_localized(
+            "de-DE",
             "formatDate",
             {"value": "2026-06-10T12:00:00Z", "format": "EEEE, MMMM d, yyyy"},
-            context=LocalizedContext("de-DE"),
         )
         == "Mittwoch, Juni 10, 2026"
     )
 
     # Pluralize (Welsh cy locale)
     assert (
-        invoke(
+        invoke_localized(
+            "cy",
             "pluralize",
             {"value": 0, "zero": "dim", "one": "un", "other": "llawer"},
-            context=LocalizedContext("cy"),
         )
         == "dim"
     )

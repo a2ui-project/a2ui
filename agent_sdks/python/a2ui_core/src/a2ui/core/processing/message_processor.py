@@ -16,7 +16,7 @@ import copy
 from typing import Any, Callable, Dict, List, Optional, Union
 
 from ..state import SurfaceGroupModel, SurfaceModel, ComponentModel
-from ..validating import A2uiValidator, CatalogSchemaValidator, ValidationConfig
+from ..validating import A2uiValidator, CatalogSchemaValidator, ValidationConfig, STRICT_VALIDATION
 from ..catalog import Catalog
 from ..catalog.catalog import TComponent, TFunction
 from ..schema.constants import (
@@ -173,13 +173,10 @@ class MessageProcessor:
 
         if self.strict_mode:
             try:
-                strict_cfg = ValidationConfig(
-                    allow_orphan_components=False, allow_dangling_references=False
-                )
                 self.validator.validate_components(
                     CatalogSchemaValidator.from_catalog(catalog),
                     components,
-                    config=strict_cfg,
+                    config=STRICT_VALIDATION,
                 )
             except Exception as e:
                 err_msg = str(e)

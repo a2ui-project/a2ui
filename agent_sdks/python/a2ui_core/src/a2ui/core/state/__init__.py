@@ -19,6 +19,7 @@ from .data_model import DataModel
 from .surface_components_model import SurfaceComponentsModel
 from .surface_group_model import SurfaceGroupModel
 from .surface_model import SurfaceModel
+from .node_graph import NodeGraph
 
 __all__ = [
     "ComponentModel",
@@ -29,4 +30,5 @@ __all__ = [
     "SurfaceComponentsModel",
     "SurfaceGroupModel",
     "SurfaceModel",
+    "NodeGraph",
 ]

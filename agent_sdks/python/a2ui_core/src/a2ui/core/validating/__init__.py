@@ -12,7 +12,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from .validator import A2uiValidator, A2uiValidatorError, ValidationConfig
+from .validator import (
+    A2uiValidator,
+    A2uiValidatorError,
+    ValidationConfig,
+    STRICT_VALIDATION,
+    RELAXED_VALIDATION,
+)
 from .topology_analyzer import analyze_topology
 from .integrity_checker import (
     validate_component_integrity,
@@ -25,6 +31,8 @@ __all__ = [
     "A2uiValidator",
     "A2uiValidatorError",
     "ValidationConfig",
+    "STRICT_VALIDATION",
+    "RELAXED_VALIDATION",
     "analyze_topology",
     "validate_component_integrity",
     "validate_recursion_and_paths",

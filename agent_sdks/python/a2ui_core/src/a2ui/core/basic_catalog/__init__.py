@@ -64,7 +64,7 @@ from .operator_apis import (
     EndsWithApi,
 )
 from .styles import Theme
-from .function_impls import BASIC_FUNCTION_IMPLEMENTATIONS
+from .function_impls import BASIC_FUNCTION_IMPLEMENTATIONS, create_basic_catalog_functions
 from ..schema.constants import SPEC_VERSION, SPEC_BASE_URL
 from ..catalog import Catalog, ModelComponentApi, FunctionImplementation
 
@@ -77,11 +77,11 @@ def _basic_catalog_id(spec_version: str) -> str:
 
 class BasicCatalog(Catalog[ModelComponentApi, FunctionImplementation]):
 
-    def __init__(self):
+    def __init__(self, locale: Optional[str] = None):
         super().__init__(
             catalog_id=_basic_catalog_id(SPEC_VERSION),
             spec_version=SPEC_VERSION,
             components=BASIC_COMPONENTS,
-            functions=BASIC_FUNCTION_IMPLEMENTATIONS,
+            functions=create_basic_catalog_functions(locale),
             theme_schema=Theme.model_json_schema(),
         )
