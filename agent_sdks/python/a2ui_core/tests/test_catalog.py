@@ -557,7 +557,7 @@ def test_theme_validation_with_models():
         spec_version=SPEC_VERSION,
         components=[],
         functions=[],
-        theme_class=TestTheme,
+        theme_schema=TestTheme.model_json_schema(),
     )
 
     # 1. Test Valid Theme

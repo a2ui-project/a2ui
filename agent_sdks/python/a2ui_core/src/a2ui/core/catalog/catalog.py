@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Any, Callable, Dict, Generic, List, Optional, Type, TypeVar, Union
+from typing import Any, Callable, Dict, Generic, List, Optional, TypeVar, Union
 from pydantic import BaseModel
 
 from .functions import (
@@ -37,7 +37,6 @@ class Catalog(Generic[TComponent, TFunction]):
         components: List[TComponent],
         functions: List[TFunction],
         theme_schema: Optional[Dict[str, Any]] = None,
-        theme_class: Optional[Type[BaseModel]] = None,
     ):
         self.catalog_id = catalog_id
         self.spec_version = spec_version
@@ -49,13 +48,8 @@ class Catalog(Generic[TComponent, TFunction]):
         self.functions: Dict[str, TFunction] = {fn.name: fn for fn in functions}
 
         self.theme_schema = theme_schema
-        self.theme_class = theme_class
         self._catalog_schema: Optional[Dict[str, Any]] = None
         self._common_types_schema: Optional[Dict[str, Any]] = None
-
-    @property
-    def theme(self) -> Optional[Any]:
-        return self.theme_class or self.theme_schema
 
     @property
     def common_types_schema(self) -> Optional[Dict[str, Any]]:
@@ -80,13 +74,7 @@ class Catalog(Generic[TComponent, TFunction]):
         )
 
     def get_theme_schema(self) -> Optional[Dict[str, Any]]:
-        if isinstance(self.theme_schema, dict):
-            return self.theme_schema
-        if self.theme_class and hasattr(self.theme_class, "model_json_schema"):
-            return self.theme_class.model_json_schema()
-        if hasattr(self.theme, "model_json_schema"):
-            return self.theme.model_json_schema()
-        return None
+        return self.theme_schema
 
     @classmethod
     def from_json(

@@ -58,6 +58,9 @@ class CatalogSchemaValidator:
                 "catalogId": self.catalog.catalog_id,
                 "components": components_dict,
             }
+            theme_schema = self.catalog.get_theme_schema()
+            if theme_schema:
+                catalog_schema["theme"] = theme_schema
 
         resources.append(
             (
@@ -268,29 +271,22 @@ class CatalogSchemaValidator:
 
     def validate_theme(self, theme_payload: Dict[str, Any]) -> None:
         """Validates theme properties dynamically against catalog theme specification."""
-        if self.catalog.theme_class:
+        theme_spec = self.catalog.get_theme_schema()
+        if theme_spec:
+            ref_path = (
+                f"{CATALOG_SCHEMA_FILE}#/$defs/theme"
+                if self.catalog.catalog_schema is not None
+                and "$defs" in self.catalog.catalog_schema
+                and "theme" in self.catalog.catalog_schema["$defs"]
+                else f"{CATALOG_SCHEMA_FILE}#/theme"
+            )
             try:
-                self.catalog.theme_class.model_validate(theme_payload)
-            except ValidationError as ve:
-                raise ValueError(self._format_pydantic_errors(ve))
+                validator = self._get_validator("theme:schema", ref_path)
+                errors = list(validator.iter_errors(theme_payload))
+                if errors:
+                    raise ValueError(self._format_errors(errors))
             except Exception as e:
                 raise ValueError(str(e))
-        else:
-            theme_spec = self.catalog.get_theme_schema()
-            if theme_spec:
-                ref_path = (
-                    f"{CATALOG_SCHEMA_FILE}#/$defs/theme"
-                    if "$defs" in self.catalog.catalog_schema
-                    and "theme" in self.catalog.catalog_schema["$defs"]
-                    else f"{CATALOG_SCHEMA_FILE}#/theme"
-                )
-                try:
-                    validator = self._get_validator("theme:schema", ref_path)
-                    errors = list(validator.iter_errors(theme_payload))
-                    if errors:
-                        raise ValueError(self._format_errors(errors))
-                except Exception as e:
-                    raise ValueError(str(e))
 
     def validate_function(self, func_name: str, args: Dict[str, Any]) -> None:
         """Validates function arguments dynamically against raw function specification."""

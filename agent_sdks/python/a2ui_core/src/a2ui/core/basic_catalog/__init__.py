@@ -83,5 +83,5 @@ class BasicCatalog(Catalog[ModelComponentApi, FunctionImplementation]):
             spec_version=SPEC_VERSION,
             components=BASIC_COMPONENTS,
             functions=BASIC_FUNCTION_IMPLEMENTATIONS,
-            theme_class=Theme,
+            theme_schema=Theme.model_json_schema(),
         )
