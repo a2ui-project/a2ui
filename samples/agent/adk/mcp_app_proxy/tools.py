@@ -49,23 +49,22 @@ async def get_calculator_app(tool_context: ToolContext):
           encoded_html = "url_encoded:" + urllib.parse.quote(html_content)
           messages = [
               {
-                  "beginRendering": {
+                  "version": "v0.9",
+                  "createSurface": {
                       "surfaceId": "calculator_surface",
-                      "root": "calculator_app_root",
+                      "catalogId": "a2ui.org:a2ui/v0.9/mcp_app_catalog.json",
                   },
               },
               {
-                  "surfaceUpdate": {
+                  "version": "v0.9",
+                  "updateComponents": {
                       "surfaceId": "calculator_surface",
                       "components": [{
-                          "id": "calculator_app_root",
-                          "component": {
-                              "McpApp": {
-                                  "content": {"literalString": encoded_html},
-                                  "title": {"literalString": "Calculator"},
-                                  "allowedTools": ["calculate"],
-                              }
-                          },
+                          "id": "root",
+                          "component": "McpApp",
+                          "content": encoded_html,
+                          "title": "Calculator",
+                          "allowedTools": ["calculate"],
                       }],
                   },
               },
@@ -173,56 +172,44 @@ async def get_pong_app_a2ui_json(tool_context: ToolContext):
 
   messages = [
       {
-          "beginRendering": {
+          "version": "v0.9",
+          "createSurface": {
               "surfaceId": PONG_SURFACE_ID,
-              "root": "pong_layout_root",
+              "catalogId": "a2ui.org:a2ui/v0.9/mcp_app_catalog.json",
           },
       },
       {
-          "dataModelUpdate": {
+          "version": "v0.9",
+          "updateDataModel": {
               "surfaceId": PONG_SURFACE_ID,
               "path": "/",
-              "contents": [{
-                  "key": "pong_state",
-                  "valueMap": [
-                      {
-                          "key": "player_score",
-                          "valueNumber": PONG_CURRENT_SCORE["player"],
-                      },
-                      {"key": "cpu_score", "valueNumber": PONG_CURRENT_SCORE["cpu"]},
-                  ],
-              }],
-          }
+              "value": {
+                  "pong_state": {
+                      "player_score": PONG_CURRENT_SCORE["player"],
+                      "cpu_score": PONG_CURRENT_SCORE["cpu"],
+                  }
+              },
+          },
       },
       {
-          "surfaceUpdate": {
+          "version": "v0.9",
+          "updateComponents": {
               "surfaceId": PONG_SURFACE_ID,
               "components": [{
-                  "id": "pong_layout_root",
-                  "component": {
-                      "PongLayout": {
-                          "mcpComponent": {
-                              "id": "mcp_app_root",
-                              "component": {
-                                  "McpApp": {
-                                      "content": {"literalString": encoded_html},
-                                      "title": {"literalString": "Neon Pong"},
-                                      "allowedTools": ["score_update"],
-                                  }
-                              },
-                          },
-                          "scoreboardComponent": {
-                              "id": "scoreboard_root",
-                              "component": {
-                                  "PongScoreBoard": {
-                                      "playerScore": {
-                                          "path": "/pong_state/player_score"
-                                      },
-                                      "cpuScore": {"path": "/pong_state/cpu_score"},
-                                  }
-                              },
-                          },
-                      }
+                  "id": "root",
+                  "component": "PongLayout",
+                  "mcpComponent": {
+                      "id": "mcp_app_root",
+                      "component": "McpApp",
+                      "content": encoded_html,
+                      "title": "Neon Pong",
+                      "allowedTools": ["score_update"],
+                  },
+                  "scoreboardComponent": {
+                      "id": "scoreboard_root",
+                      "component": "PongScoreBoard",
+                      "playerScore": {"path": "/pong_state/player_score"},
+                      "cpuScore": {"path": "/pong_state/cpu_score"},
                   },
               }],
           },
