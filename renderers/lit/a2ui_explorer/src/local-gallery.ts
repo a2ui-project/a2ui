@@ -120,7 +120,7 @@ export class LocalGallery extends LitElement {
 
     const modifiedToProcess = this.applyPrimaryColorToMessages(toProcess);
 
-    this.processor.processMessages(modifiedToProcess);
+    this.processor.processMessages(structuredClone(modifiedToProcess));
     this.processedMessageCount += toProcess.length;
 
     // Subscribe to data model on first advance if not already subscribed
