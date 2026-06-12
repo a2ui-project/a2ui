@@ -111,12 +111,14 @@
               "$ref": "https://json-schema.org/draft/2020-12/schema"
             },
             "anyComponent": {
-              "type": "object",
-              "description": "Unified validation schema for all components."
+              "title": "A2UI Any Component Schema",
+              "description": "Unified validation schema for all components.",
+              "$ref": "https://json-schema.org/draft/2020-12/schema"
             },
             "anyFunction": {
-              "type": "object",
-              "description": "Unified validation schema for all functions."
+              "title": "A2UI Any Function Schema",
+              "description": "Unified validation schema for all functions.",
+              "$ref": "https://json-schema.org/draft/2020-12/schema"
             }
           },
           "required": ["anyComponent", "anyFunction"],

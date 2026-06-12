@@ -498,6 +498,9 @@ To ensure catalog schemas can be translated reliably into alternative, LLM-frien
      - `DynamicStringList`
      - `DynamicValue`
      - `CheckRule`
+     - `ComponentCommon`
+     - `Checkable`
+     - `Action`
 4. **Mandatory Dynamic Wrappers (No Raw Primitives):**
    - Every leaf node in a component's properties or a function's arguments schema MUST be a dynamic type wrapper (e.g., `DynamicString`, `DynamicNumber`, `DynamicBoolean`, `DynamicValue`) instead of a literal raw primitive (e.g., raw `string`, `number`, `boolean`). This guarantees that any slot can be bound to a data model path.
 5. **Prompt-Level Mitigation:**
