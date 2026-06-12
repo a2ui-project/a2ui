@@ -53,8 +53,6 @@ export class DataContext {
     this.functionInvoker = surface.catalog.invoker;
   }
 
-
-
   /**
    * Mutates the underlying DataModel at the specified path.
    *
