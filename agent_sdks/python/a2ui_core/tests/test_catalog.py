@@ -44,6 +44,7 @@ def test_catalog_initialization_with_models():
         catalog_id="https://a2ui.org/model-init",
         spec_version=SPEC_VERSION,
         components=[ModelComponentApi(EmptyModel, "Empty")],
+        functions=[],
     )
     assert cat.spec_version == SPEC_VERSION
     assert cat.catalog_id == "https://a2ui.org/model-init"
@@ -79,6 +80,7 @@ def test_component_validation_with_models():
         catalog_id="https://a2ui.org/model",
         spec_version=SPEC_VERSION,
         components=[ModelComponentApi(ButtonComp, "Button")],
+        functions=[],
     )
 
     # 1. Test validate_components Valid
@@ -118,6 +120,7 @@ def test_additional_properties_handling_with_models():
             ModelComponentApi(AllowBox, "AllowBox"),
             ModelComponentApi(ForbidBox, "ForbidBox"),
         ],
+        functions=[],
     )
 
     # 1. Permits extra properties when extra is default/ignore or allow
@@ -194,6 +197,7 @@ def test_unevaluated_properties_handling_with_models():
             ModelComponentApi(AllowBox, "AllowBox"),
             ModelComponentApi(ForbidBox, "ForbidBox"),
         ],
+        functions=[],
     )
 
     # 1. Permits extra properties when unevaluatedProperties is True or default
@@ -283,6 +287,7 @@ def test_unrecognized_type_and_mismatched_properties_with_models():
         catalog_id="https://a2ui.org/model-extended",
         spec_version=SPEC_VERSION,
         components=[ModelComponentApi(CardComp, "Card")],
+        functions=[],
     )
 
     # 1. Unrecognized Component Type
@@ -551,6 +556,7 @@ def test_theme_validation_with_models():
         catalog_id="https://a2ui.org/model",
         spec_version=SPEC_VERSION,
         components=[],
+        functions=[],
         theme_class=TestTheme,
     )
 
@@ -615,6 +621,7 @@ def test_extract_ref_fields_custom_models():
         catalog_id="https://a2ui.org/custom",
         spec_version=SPEC_VERSION,
         components=[ModelComponentApi(CustomLayoutComp, "CustomLayout")],
+        functions=[],
     )
 
     refs = _val(catalog).extract_ref_fields()
@@ -766,6 +773,7 @@ def test_extract_ref_fields_tabs_model():
         catalog_id="https://a2ui.org/tabs-test",
         spec_version=SPEC_VERSION,
         components=[ModelComponentApi(CustomTabsComponent, "CustomTabs")],
+        functions=[],
     )
     ref_map = _val(catalog).extract_ref_fields()
     assert "CustomTabs" in ref_map
@@ -865,6 +873,7 @@ def test_seamless_mixed_catalogs():
             ModelComponentApi(ModelCompA),
             ComponentApi("CompB", dict_comp_b),
         ],
+        functions=[],
     )
 
     validator = CatalogSchemaValidator(catalog)

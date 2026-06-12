@@ -35,7 +35,7 @@ class Catalog(Generic[TComponent, TFunction]):
         catalog_id: str,
         spec_version: str,
         components: List[TComponent],
-        functions: Optional[List[TFunction]] = None,
+        functions: List[TFunction],
         theme_schema: Optional[Dict[str, Any]] = None,
         theme_class: Optional[Type[BaseModel]] = None,
     ):
@@ -46,10 +46,7 @@ class Catalog(Generic[TComponent, TFunction]):
         self.components: Dict[str, TComponent] = {c.name: c for c in components}
 
         # Symmetrical map to Catalog.functions in TypeScript
-        self.functions: Dict[str, TFunction] = {}
-        if functions:
-            for fn in functions:
-                self.functions[fn.name] = fn
+        self.functions: Dict[str, TFunction] = {fn.name: fn for fn in functions}
 
         self.theme_schema = theme_schema
         self.theme_class = theme_class
