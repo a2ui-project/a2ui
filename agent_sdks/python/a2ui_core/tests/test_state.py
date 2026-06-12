@@ -17,12 +17,17 @@ import pytest
 
 from a2ui.core.state import (
     ComponentModel,
+    ComponentNode,
     DataModel,
+    EventSource,
+    Signal,
     SurfaceComponentsModel,
     SurfaceModel,
     SurfaceGroupModel,
-    EventSource,
 )
+from a2ui.core.basic_catalog import BasicCatalog
+
+dummy_catalog = BasicCatalog()
 
 
 def test_component_model_lifecycle():
@@ -60,11 +65,9 @@ def test_surface_model_action_and_error_dispatch():
     actions: List[Dict[str, Any]] = []
     errors: List[Dict[str, Any]] = []
 
-    surface = SurfaceModel("main", {}, locale="en-US")
+    surface = SurfaceModel("main", dummy_catalog)
     surface.on_action.subscribe(lambda act: actions.append(act))
     surface.on_error.subscribe(lambda err: errors.append(err))
-
-    assert surface.locale == "en-US"
 
     surface.dispatch_action({"name": "click", "context": {"x": 1}}, "btn1")
     assert len(actions) == 1
@@ -85,7 +88,7 @@ def test_surface_group_model_unsubscription():
     actions: List[Dict[str, Any]] = []
     group.on_action.subscribe(lambda act: actions.append(act))
 
-    s1 = SurfaceModel("s1", {})
+    s1 = SurfaceModel("s1", dummy_catalog)
     group.add_surface(s1)
 
     s1.dispatch_action({"name": "a1"}, "c1")
@@ -211,3 +214,60 @@ def copy_dict(d):
     import copy
 
     return copy.deepcopy(d) if d is not None else None
+
+
+def test_signal_reactivity():
+    sig = Signal(10)
+    assert sig.value == 10
+    assert repr(sig) == "Signal(10)"
+
+    emitted = []
+    sub = sig.subscribe(lambda val: emitted.append(val))
+    # Initially calls listener with 10
+    assert emitted == [10]
+
+    sig.value = 20
+    assert sig.value == 20
+    assert emitted == [10, 20]
+
+    # Assigning identical value should not re-emit
+    sig.value = 20
+    assert emitted == [10, 20]
+
+    sub.unsubscribe()
+    sig.value = 30
+    assert emitted == [10, 20]
+
+
+def test_component_node_lifecycle():
+    sig = Signal({"text": "Initial"})
+    node = ComponentNode(
+        instance_id="inst_1",
+        component_id="comp_1",
+        node_type="Text",
+        data_path="/",
+        props=sig,
+    )
+    assert node.instance_id == "inst_1"
+    assert node.component_id == "comp_1"
+    assert node.type == "Text"
+    assert node.data_path == "/"
+    assert str(node) == "comp_1"
+    assert (
+        repr(node)
+        == "ComponentNode(instance_id='inst_1', component_id='comp_1', type='Text')"
+    )
+
+    cleanup_executed = []
+    node.add_cleanup(lambda: cleanup_executed.append(True))
+
+    destroyed = []
+    node.on_destroyed.subscribe(lambda _: destroyed.append(True))
+
+    node.dispose()
+    assert cleanup_executed == [True]
+    assert destroyed == [True]
+
+    # Double dispose is idempotent
+    node.dispose()
+    assert len(cleanup_executed) == 1

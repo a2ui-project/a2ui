@@ -165,10 +165,9 @@ def _format_numeric_locale(
     val: float,
     decimals: Optional[int],
     grouping: bool,
-    context: DataContext,
+    locale: Optional[str],
 ) -> str:
-    loc_str = context.locale if context and hasattr(context, "locale") else None
-    rules = get_locale_rules(loc_str)
+    rules = get_locale_rules(locale)
 
     if decimals is not None:
         raw_str = f"{val:{',' if grouping else ''}.{decimals}f}"
@@ -186,146 +185,159 @@ def _format_numeric_locale(
     return raw_str
 
 
-def _format_number(
-    args: Dict[str, Any],
-    context: DataContext,
-    abort_signal: Optional[AbortSignal] = None,
-) -> str:
-    val = _to_float(args.get("value", 0))
-    decimals = int(args["decimals"]) if args.get("decimals") is not None else None
-    grouping = True if args.get("grouping") is None else bool(args["grouping"])
-    return _format_numeric_locale(val, decimals, grouping, context)
+def create_format_number_implementation(
+    locale: Optional[str] = None,
+) -> FunctionImplementation:
+    def _format_number(
+        args: Dict[str, Any],
+        context: DataContext,
+        abort_signal: Optional[AbortSignal] = None,
+    ) -> str:
+        val = _to_float(args.get("value", 0))
+        decimals = int(args["decimals"]) if args.get("decimals") is not None else None
+        grouping = True if args.get("grouping") is None else bool(args["grouping"])
+        return _format_numeric_locale(val, decimals, grouping, locale)
+
+    return create_function_implementation(FormatNumberApi, _format_number)
 
 
-FormatNumberImplementation = create_function_implementation(
-    FormatNumberApi, _format_number
-)
+FormatNumberImplementation = create_format_number_implementation(None)
 
 
-def _format_currency(
-    args: Dict[str, Any],
-    context: DataContext,
-    abort_signal: Optional[AbortSignal] = None,
-) -> str:
-    val = _to_float(args.get("value", 0))
-    currency = str(args.get("currency", "USD")).upper()
-    decimals = int(args["decimals"]) if args.get("decimals") is not None else 2
-    grouping = True if args.get("grouping") is None else bool(args["grouping"])
+def create_format_currency_implementation(
+    locale: Optional[str] = None,
+) -> FunctionImplementation:
+    def _format_currency(
+        args: Dict[str, Any],
+        context: DataContext,
+        abort_signal: Optional[AbortSignal] = None,
+    ) -> str:
+        val = _to_float(args.get("value", 0))
+        currency = str(args.get("currency", "USD")).upper()
+        decimals = int(args["decimals"]) if args.get("decimals") is not None else 2
+        grouping = True if args.get("grouping") is None else bool(args["grouping"])
 
-    num_str = _format_numeric_locale(val, decimals, grouping, context)
-    symbol = CURRENCY_SYMBOLS.get(currency, currency)
+        num_str = _format_numeric_locale(val, decimals, grouping, locale)
+        symbol = CURRENCY_SYMBOLS.get(currency, currency)
 
-    loc_str = context.locale if context and hasattr(context, "locale") else None
-    rules = get_locale_rules(loc_str)
+        rules = get_locale_rules(locale)
 
-    space = (
-        " "
-        if rules.currency_space_separated
-        or (len(symbol) > 1 and symbol not in {"$", "£", "€", "¥"})
-        else ""
-    )
-    if rules.currency_symbol_after:
-        return f"{num_str}{space}{symbol}"
-    return f"{symbol}{space}{num_str}"
+        space = (
+            " "
+            if rules.currency_space_separated
+            or (len(symbol) > 1 and symbol not in {"$", "£", "€", "¥"})
+            else ""
+        )
+        if rules.currency_symbol_after:
+            return f"{num_str}{space}{symbol}"
+        return f"{symbol}{space}{num_str}"
+
+    return create_function_implementation(FormatCurrencyApi, _format_currency)
 
 
-FormatCurrencyImplementation = create_function_implementation(
-    FormatCurrencyApi, _format_currency
-)
+FormatCurrencyImplementation = create_format_currency_implementation(None)
 
 
 _DATE_TOKENS = re.compile(r"yyyy|yy|MMMM|MMM|MM|M|EEEE|E|dd|d|HH|H|hh|h|mm|ss|a|%")
 
 
-def _format_date(
-    args: Dict[str, Any],
-    context: DataContext,
-    abort_signal: Optional[AbortSignal] = None,
-) -> str:
-    val = args.get("value")
-    fmt = str(args.get("format", "yyyy-MM-dd"))
-    if not val:
-        return ""
-    try:
-        dt = datetime.datetime.fromisoformat(str(val).replace("Z", "+00:00"))
-        if fmt == "ISO":
-            return dt.isoformat().replace("+00:00", ".000Z")
+def create_format_date_implementation(
+    locale: Optional[str] = None,
+) -> FunctionImplementation:
+    def _format_date(
+        args: Dict[str, Any],
+        context: DataContext,
+        abort_signal: Optional[AbortSignal] = None,
+    ) -> str:
+        val = args.get("value")
+        fmt = str(args.get("format", "yyyy-MM-dd"))
+        if not val:
+            return ""
+        try:
+            dt = datetime.datetime.fromisoformat(str(val).replace("Z", "+00:00"))
+            if fmt == "ISO":
+                return dt.isoformat().replace("+00:00", ".000Z")
 
-        loc_str = context.locale if context and hasattr(context, "locale") else None
-        rules = get_locale_rules(loc_str)
+            rules = get_locale_rules(locale)
 
-        def _sub(m: re.Match) -> str:
-            tok = m.group(0)
-            if tok == "yyyy":
-                return str(dt.year)
-            if tok == "yy":
-                return str(dt.year)[-2:]
-            if tok == "MMMM":
-                return rules.months_long[dt.month]
-            if tok == "MMM":
-                return rules.months_short[dt.month]
-            if tok == "MM":
-                return f"{dt.month:02d}"
-            if tok == "M":
-                return str(dt.month)
-            if tok == "EEEE":
-                return rules.weekdays_long[dt.weekday()]
-            if tok == "E":
-                return rules.weekdays_short[dt.weekday()]
-            if tok == "dd":
-                return f"{dt.day:02d}"
-            if tok == "d":
-                return str(dt.day)
-            if tok == "HH":
-                return f"{dt.hour:02d}"
-            if tok == "H":
-                return str(dt.hour)
-            if tok == "hh":
-                hr = dt.hour % 12
-                return f"{(hr or 12):02d}"
-            if tok == "h":
-                hr = dt.hour % 12
-                return str(hr or 12)
-            if tok == "mm":
-                return f"{dt.minute:02d}"
-            if tok == "ss":
-                return f"{dt.second:02d}"
-            if tok == "a":
-                return "AM" if dt.hour < 12 else "PM"
-            return tok
+            def _sub(m: re.Match) -> str:
+                tok = m.group(0)
+                if tok == "yyyy":
+                    return str(dt.year)
+                if tok == "yy":
+                    return str(dt.year)[-2:]
+                if tok == "MMMM":
+                    return rules.months_long[dt.month]
+                if tok == "MMM":
+                    return rules.months_short[dt.month]
+                if tok == "MM":
+                    return f"{dt.month:02d}"
+                if tok == "M":
+                    return str(dt.month)
+                if tok == "EEEE":
+                    return rules.weekdays_long[dt.weekday()]
+                if tok == "E":
+                    return rules.weekdays_short[dt.weekday()]
+                if tok == "dd":
+                    return f"{dt.day:02d}"
+                if tok == "d":
+                    return str(dt.day)
+                if tok == "HH":
+                    return f"{dt.hour:02d}"
+                if tok == "H":
+                    return str(dt.hour)
+                if tok == "hh":
+                    hr = dt.hour % 12
+                    return f"{(hr or 12):02d}"
+                if tok == "h":
+                    hr = dt.hour % 12
+                    return str(hr or 12)
+                if tok == "mm":
+                    return f"{dt.minute:02d}"
+                if tok == "ss":
+                    return f"{dt.second:02d}"
+                if tok == "a":
+                    return "AM" if dt.hour < 12 else "PM"
+                return tok
 
-        return _DATE_TOKENS.sub(_sub, fmt)
-    except Exception:
-        return ""
+            return _DATE_TOKENS.sub(_sub, fmt)
+        except Exception:
+            return ""
 
-
-FormatDateImplementation = create_function_implementation(FormatDateApi, _format_date)
-
-
-def _pluralize(
-    args: Dict[str, Any],
-    context: DataContext,
-    abort_signal: Optional[AbortSignal] = None,
-) -> str:
-    val = _to_float(args.get("value", 0))
-    loc_str = context.locale if context and hasattr(context, "locale") else None
-    rules = get_locale_rules(loc_str)
-
-    category = "other"
-    if val == 0 and "zero" in args:
-        category = "zero"
-    elif val == 1 and "one" in args:
-        category = "one"
-    elif val == 2 and "two" in args:
-        category = "two"
-    elif rules.plural_category_selector:
-        category = rules.plural_category_selector(val)
-
-    res = args.get(category) or args.get("other") or ""
-    return str(res)
+    return create_function_implementation(FormatDateApi, _format_date)
 
 
-PluralizeImplementation = create_function_implementation(PluralizeApi, _pluralize)
+FormatDateImplementation = create_format_date_implementation(None)
+
+
+def create_pluralize_implementation(
+    locale: Optional[str] = None,
+) -> FunctionImplementation:
+    def _pluralize(
+        args: Dict[str, Any],
+        context: DataContext,
+        abort_signal: Optional[AbortSignal] = None,
+    ) -> str:
+        val = _to_float(args.get("value", 0))
+        rules = get_locale_rules(locale)
+
+        category = "other"
+        if val == 0 and "zero" in args:
+            category = "zero"
+        elif val == 1 and "one" in args:
+            category = "one"
+        elif val == 2 and "two" in args:
+            category = "two"
+        elif rules.plural_category_selector:
+            category = rules.plural_category_selector(val)
+
+        res = args.get(category) or args.get("other") or ""
+        return str(res)
+
+    return create_function_implementation(PluralizeApi, _pluralize)
+
+
+PluralizeImplementation = create_pluralize_implementation(None)
 
 OpenUrlImplementation = create_function_implementation(
     OpenUrlApi, lambda args, context=None, abort_signal=None: None
@@ -434,30 +446,37 @@ EndsWithImplementation = create_function_implementation(
     ).endswith(_to_str(args.get("suffix", ""))),
 )
 
-BASIC_FUNCTION_IMPLEMENTATIONS = [
-    RequiredImplementation,
-    RegexImplementation,
-    LengthImplementation,
-    NumericImplementation,
-    EmailImplementation,
-    FormatStringImplementation,
-    FormatNumberImplementation,
-    FormatCurrencyImplementation,
-    FormatDateImplementation,
-    PluralizeImplementation,
-    OpenUrlImplementation,
-    AndImplementation,
-    OrImplementation,
-    NotImplementation,
-    AddImplementation,
-    SubtractImplementation,
-    MultiplyImplementation,
-    DivideImplementation,
-    EqualsImplementation,
-    NotEqualsImplementation,
-    GreaterThanImplementation,
-    LessThanImplementation,
-    ContainsImplementation,
-    StartsWithImplementation,
-    EndsWithImplementation,
-]
+
+def create_basic_catalog_functions(
+    locale: Optional[str] = None,
+) -> List[FunctionImplementation]:
+    return [
+        RequiredImplementation,
+        RegexImplementation,
+        LengthImplementation,
+        NumericImplementation,
+        EmailImplementation,
+        FormatStringImplementation,
+        create_format_number_implementation(locale),
+        create_format_currency_implementation(locale),
+        create_format_date_implementation(locale),
+        create_pluralize_implementation(locale),
+        OpenUrlImplementation,
+        AndImplementation,
+        OrImplementation,
+        NotImplementation,
+        AddImplementation,
+        SubtractImplementation,
+        MultiplyImplementation,
+        DivideImplementation,
+        EqualsImplementation,
+        NotEqualsImplementation,
+        GreaterThanImplementation,
+        LessThanImplementation,
+        ContainsImplementation,
+        StartsWithImplementation,
+        EndsWithImplementation,
+    ]
+
+
+BASIC_FUNCTION_IMPLEMENTATIONS = create_basic_catalog_functions(None)

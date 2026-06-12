@@ -607,7 +607,7 @@ def test_message_processor_missing_data_model_path_reactive_binding(mock_catalog
     text_comp = surface.components_model.get("root")
     assert text_comp is not None
 
-    ctx = DataContext(path="/", data_model=surface.data_model)
+    ctx = DataContext(surface, path="/")
     context = ComponentContext(text_comp, ctx)
 
     with pytest.warns(MissingDataBindingWarning):

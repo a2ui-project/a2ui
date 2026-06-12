@@ -13,7 +13,7 @@
 # limitations under the License.
 
 from typing import Any, Callable, Dict, Optional
-from ..state import ComponentModel, SurfaceComponentsModel
+from ..state import ComponentModel, SurfaceComponentsModel, SurfaceModel
 from .data_context import DataContext
 
 
@@ -38,7 +38,7 @@ class ComponentContext:
     @classmethod
     def from_surface(
         cls,
-        surface: Any,
+        surface: SurfaceModel,
         component_id: str,
         data_model_base_path: str = "/",
     ) -> "ComponentContext":
@@ -48,10 +48,8 @@ class ComponentContext:
             raise ValueError(f"Component not found: {component_id}")
 
         data_ctx = DataContext(
-            path=data_model_base_path,
-            data_model=surface.data_model,
-            catalog=surface.catalog,
             surface=surface,
+            path=data_model_base_path,
         )
         inst = cls(
             component_model=model,

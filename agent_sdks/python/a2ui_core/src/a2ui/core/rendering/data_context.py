@@ -18,6 +18,8 @@ import re
 import warnings
 from typing import Any, Callable, Dict, List, Optional, Set, Union
 from ..state import DataModel
+from ..state.surface_model import SurfaceModel
+from ..validating import CatalogSchemaValidator
 from ..common.events import Subscription, EventSource, Signal, AbortSignal
 
 EXPRESSION_PATTERN = re.compile(r"(\\)?\$\{(.*?)\}")
@@ -34,35 +36,24 @@ class DataContext:
 
     def __init__(
         self,
+        surface: SurfaceModel,
         path: str = "/",
-        data_model: Optional[DataModel] = None,
-        catalog: Optional[Any] = None,
-        surface: Optional[Any] = None,
     ):
         self.surface = surface
         self.path = path if path.endswith("/") else f"{path}/"
-        if self.surface:
-            self.data_model = getattr(
-                self.surface, "data_model", data_model or DataModel()
-            )
-            self.catalog = getattr(self.surface, "catalog", catalog)
-        else:
-            self.data_model = data_model or DataModel()
-            self.catalog = catalog
+        self.data_model = surface.data_model
 
     @property
     def locale(self) -> Optional[str]:
         """Gets the locale for this context, inherited from the surface."""
-        return getattr(self.surface, "locale", None) if self.surface else None
+        return getattr(self.surface, "locale", None)
 
     def nested(self, relative_path: str) -> "DataContext":
         """Creates a nested child context scope (e.g. for template item bindings)."""
         norm_rel = relative_path[1:] if relative_path.startswith("/") else relative_path
         return DataContext(
-            path=f"{self.path}{norm_rel}",
-            data_model=self.data_model,
-            catalog=self.catalog,
             surface=self.surface,
+            path=f"{self.path}{norm_rel}",
         )
 
     def resolve_path(self, absolute_or_relative: str) -> str:
@@ -268,11 +259,27 @@ class DataContext:
         resolved_args: Dict[str, Any],
         abort_signal: Optional[AbortSignal] = None,
     ) -> Any:
-        """Invokes standard or catalog functions (e.g., formatString or live Metronome)."""
-        if self.catalog:
-            fn = getattr(self.catalog, "get_function", lambda n: None)(name)
-            if fn is None and hasattr(self.catalog, "functions"):
-                fn = self.catalog.functions.get(name)
+        """Invokes standard or catalog functions (e.g., formatString)."""
+        if self.surface.catalog:
+            if self.surface.catalog.catalog_schema:
+                try:
+                    CatalogSchemaValidator.from_catalog(
+                        self.surface.catalog
+                    ).validate_function(name, resolved_args)
+                except Exception as e:
+                    if self.surface and hasattr(self.surface, "dispatch_error"):
+                        self.surface.dispatch_error(
+                            {
+                                "code": "EXPRESSION_ERROR",
+                                "message": str(e),
+                                "expression": name,
+                            }
+                        )
+                        return None
+                    else:
+                        raise
+
+            fn = self.surface.catalog.get_function(name)
 
             if fn is not None:
                 try:
@@ -299,27 +306,4 @@ class DataContext:
                     else:
                         raise
 
-        if self.catalog and getattr(self.catalog, "invoker", None) is not None:
-            try:
-                sig = inspect.signature(self.catalog.invoker)
-                if len(sig.parameters) >= 4 or any(
-                    p.kind == inspect.Parameter.VAR_KEYWORD
-                    or p.kind == inspect.Parameter.VAR_POSITIONAL
-                    for p in sig.parameters.values()
-                ):
-                    res = self.catalog.invoker(name, resolved_args, self, abort_signal)
-                else:
-                    res = self.catalog.invoker(name, resolved_args, self)
-                if res is not None:
-                    return res
-            except Exception as e:
-                if self.surface and hasattr(self.surface, "dispatch_error"):
-                    self.surface.dispatch_error(
-                        {
-                            "code": "EXPRESSION_ERROR",
-                            "message": str(e),
-                            "expression": name,
-                        }
-                    )
-                else:
-                    raise
+        return None
