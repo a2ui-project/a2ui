@@ -4,6 +4,7 @@
   "version": "0.8.1",
   "description": "A2UI Lit Samples",
   "workspaces": [
+    "custom-components-example",
     "shell"
   ],
   "scripts": {
