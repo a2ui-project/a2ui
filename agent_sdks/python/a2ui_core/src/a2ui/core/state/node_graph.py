@@ -42,6 +42,11 @@ class NodeGraph:
         if self.surface.components_model.get("root"):
             self.rootNode.value = self.get_or_create_node("root", "/")
 
+    def to_dict(self) -> Optional[Dict[str, Any]]:
+        """Returns the serialized dict layout of the root component node tree."""
+        root_node = self.rootNode.value
+        return root_node.to_dict() if root_node else None
+
     def get_or_create_node(self, component_id: str, data_path: str) -> ComponentNode:
         """Gets or reactively creates a living Node for a component ID at a given data path."""
         # Calculate unique instance_id

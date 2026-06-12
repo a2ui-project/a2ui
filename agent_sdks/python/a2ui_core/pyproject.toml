@@ -28,6 +28,7 @@ dependencies = [
 dev = [
     "pytest>=8.0.0",
     "pyink>=24.10.0",
+    "pyyaml>=6.0.3",
 ]
 
 [build-system]

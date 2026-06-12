@@ -58,3 +58,37 @@ class ComponentNode:
 
     def __repr__(self) -> str:
         return f"ComponentNode(instance_id={self.instance_id!r}, component_id={self.component_id!r}, type={self.type!r})"
+
+    def to_dict(self) -> Dict[str, Any]:
+        """Serializes this node and its children recursively to a standard dict layout."""
+        if self.type == "Placeholder":
+            return {
+                "instance_id": self.instance_id,
+                "component_id": self.component_id,
+                "type": "Placeholder",
+            }
+
+        def serialize_value(v: Any) -> Any:
+            if isinstance(v, ComponentNode):
+                return v.to_dict()
+            elif isinstance(v, list):
+                return [serialize_value(item) for item in v]
+            elif isinstance(v, dict):
+                return {dk: serialize_value(dv) for dk, dv in v.items()}
+            elif isinstance(v, Signal):
+                return serialize_value(v.value)
+            elif callable(v):
+                return "<Action>"
+            else:
+                return v
+
+        resolved_props = {}
+        for k, val in self.props.value.items():
+            resolved_props[k] = serialize_value(val)
+
+        return {
+            "instance_id": self.instance_id,
+            "component_id": self.component_id,
+            "type": self.type,
+            "props": resolved_props,
+        }

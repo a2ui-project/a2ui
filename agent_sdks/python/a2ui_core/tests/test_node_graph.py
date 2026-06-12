@@ -731,3 +731,65 @@ def test_a2ui_text_renderer_reactive_layouts():
     renderer.dispose()
     node_graph.dispose()
     surface.dispose()
+
+
+def test_node_graph_yaml_serialization():
+    import yaml
+
+    catalog = BasicCatalog()
+    surface = SurfaceModel("surf-1", catalog)
+    node_graph = NodeGraph(surface)
+
+    # 1. Set up initial static surface components
+    root_comp = ComponentModel(
+        "root", "Column", {"children": ["title-comp", "card-comp"]}
+    )
+    title_comp = ComponentModel(
+        "title-comp",
+        "Text",
+        {"text": "My App Dashboard", "variant": "h1"},
+    )
+    card_comp = ComponentModel("card-comp", "Card", {"child": "card-content"})
+    card_content = ComponentModel(
+        "card-content", "Text", {"text": "User Session Active"}
+    )
+
+    surface.components_model.add_component(root_comp)
+    surface.components_model.add_component(title_comp)
+    surface.components_model.add_component(card_comp)
+    surface.components_model.add_component(card_content)
+
+    # 2. Serialize to dictionary
+    node_dict = node_graph.to_dict()
+    assert node_dict is not None
+
+    # 3. Dump to YAML string
+    yaml_str = yaml.dump(node_dict, sort_keys=False)
+
+    expected_yaml = """\
+instance_id: root
+component_id: root
+type: Column
+props:
+  children:
+  - instance_id: title-comp
+    component_id: title-comp
+    type: Text
+    props:
+      text: My App Dashboard
+      variant: h1
+  - instance_id: card-comp
+    component_id: card-comp
+    type: Card
+    props:
+      child:
+        instance_id: card-content
+        component_id: card-content
+        type: Text
+        props:
+          text: User Session Active
+"""
+    assert yaml_str.strip() == expected_yaml.strip()
+
+    node_graph.dispose()
+    surface.dispose()
