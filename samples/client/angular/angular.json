@@ -104,7 +104,6 @@
         }
       }
     },
-          "builder": "@angular/build:application",
     "orchestrator": {
       "projectType": "application",
       "schematics": {
