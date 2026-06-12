@@ -385,14 +385,12 @@ describe('Component Updates', () => {
     // Wait for reorder to complete
     await waitFor(() => {
       expect(screen.getByTestId('stage')).toHaveTextContent('reordered');
+      const textElements = container.querySelectorAll('.a2ui-text');
+      expect(textElements).toHaveLength(3);
+      expect(textElements[0]).toHaveTextContent('C');
+      expect(textElements[1]).toHaveTextContent('A');
+      expect(textElements[2]).toHaveTextContent('B');
     });
-
-    // Verify new order: C, A, B
-    const textElements = container.querySelectorAll('.a2ui-text');
-    expect(textElements).toHaveLength(3);
-    expect(textElements[0]).toHaveTextContent('C');
-    expect(textElements[1]).toHaveTextContent('A');
-    expect(textElements[2]).toHaveTextContent('B');
   });
 
   it('should NOT empty the surface when invalid surfaceUpdate is rejected (requires deleteSurface)', async () => {

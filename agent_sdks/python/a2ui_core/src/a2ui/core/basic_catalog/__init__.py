@@ -13,6 +13,7 @@
 # limitations under the License.
 
 from .components import (
+    BASIC_COMPONENTS,
     AudioPlayerComponent,
     ButtonComponent,
     CardComponent,
@@ -65,7 +66,7 @@ from .operator_apis import (
 from .styles import Theme
 from .function_impls import BASIC_FUNCTION_IMPLEMENTATIONS
 from ..schema.constants import SPEC_VERSION, SPEC_BASE_URL
-from ..catalog import ModelCatalog
+from ..catalog import Catalog, ModelComponentApi, FunctionImplementation
 
 
 def _basic_catalog_id(spec_version: str) -> str:
@@ -74,34 +75,13 @@ def _basic_catalog_id(spec_version: str) -> str:
     )
 
 
-class BasicCatalog(ModelCatalog):
+class BasicCatalog(Catalog[ModelComponentApi, FunctionImplementation]):
 
     def __init__(self):
-        components_map = {
-            "Text": TextComponent,
-            "Image": ImageComponent,
-            "Icon": IconComponent,
-            "Video": VideoComponent,
-            "AudioPlayer": AudioPlayerComponent,
-            "Row": RowComponent,
-            "Column": ColumnComponent,
-            "List": ListComponent,
-            "Card": CardComponent,
-            "Tabs": TabsComponent,
-            "Modal": ModalComponent,
-            "Divider": DividerComponent,
-            "Button": ButtonComponent,
-            "TextField": TextFieldComponent,
-            "CheckBox": CheckBoxComponent,
-            "ChoicePicker": ChoicePickerComponent,
-            "Slider": SliderComponent,
-            "DateTimeInput": DateTimeInputComponent,
-        }
-
         super().__init__(
-            spec_version=SPEC_VERSION,
             catalog_id=_basic_catalog_id(SPEC_VERSION),
-            components=components_map,
+            spec_version=SPEC_VERSION,
+            components=BASIC_COMPONENTS,
             functions=BASIC_FUNCTION_IMPLEMENTATIONS,
-            theme=Theme,
+            theme_schema=Theme.model_json_schema(),
         )

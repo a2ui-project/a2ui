@@ -1,7 +1,6 @@
 ## Unreleased
 
-- Add locale support to `SurfaceModel` and `DataContext` in v0.9.
-- Update `pluralize`, `formatNumber`, and `formatCurrency` to use the context locale instead of hardcoding 'en-US'.
+- Add locale support to basic catalog functions (`pluralize`, `formatNumber`, `formatCurrency`) in v0.9 via catalog-level configuration.
 - Remove `.passthrough()` from `PluralizeApi` schema for stricter validation.
 - Allow overriding hard-coded recursion depth in `DataValueSchema` for v0.8 by introducing `createDataValueSchema` factory function.
 - Fix `formatString` to JSON-stringify objects/arrays per spec instead of using JS default coercion.

@@ -1,37 +1,39 @@
 # Use A2UI with Any Agent Framework (Using AG-UI)
 
 A2UI is a declarative UI format. [AG-UI](https://ag-ui.com/) is the transport
-that carries A2UI messages between an agent and the browser. CopilotKit's
+that carries A2UI messages between an agent and an app. CopilotKit's
 AG-UI implementation is the fastest path to putting A2UI in front of users
-today — any agent framework CopilotKit supports (ADK, LangGraph, CrewAI,
+today. Any agent framework CopilotKit supports (ADK, LangGraph, CrewAI,
 Mastra, custom Python/TS services, etc.) can emit A2UI and render it in a
-React app with no transport glue.
+supported app surface with no transport glue.
 
 !!! info "Source of truth"
 
     This guide mirrors the key steps from CopilotKit's
-    [ADK + A2UI docs](https://docs.copilotkit.ai/adk/generative-ui/a2ui).
+    [A2UI docs](https://docs.copilotkit.ai/generative-ui/a2ui).
+    For Google ADK-specific setup, see the
+    [Google ADK + A2UI guide](https://docs.copilotkit.ai/google-adk/generative-ui/a2ui).
     Refer to the CopilotKit docs for the latest API surface.
 
 ## 1. Set up CopilotKit
 
-Install CopilotKit into a React/Next.js app with the framework of your
-choice (ADK, LangGraph, CrewAI, Mastra, etc.):
+Install CopilotKit into your app with the agent framework of your choice
+(ADK, LangGraph, CrewAI, Mastra, etc.):
 
 ```bash
 npx copilotkit@latest init
 ```
 
 Or follow the [CopilotKit quickstart](https://docs.copilotkit.ai/quickstart)
-to wire it into an existing project. This is the standard CopilotKit setup —
-no A2UI-specific scaffold.
+to wire it into an existing project. This is the standard CopilotKit setup,
+with no A2UI-specific scaffold.
 
 ## 2. Enable A2UI
 
 ### Backend
 
-Turn on A2UI in `CopilotRuntime` and inject the `render_a2ui` tool so your
-agent can produce A2UI surfaces:
+Turn on A2UI in `CopilotRuntime`. For dynamic-schema flows, inject the
+`render_a2ui` tool so your agent can produce A2UI surfaces:
 
 ```ts title="app/api/copilotkit/route.ts"
 import {CopilotRuntime} from '@copilotkit/runtime';
@@ -43,10 +45,15 @@ const runtime = new CopilotRuntime({
 ```
 
 Scope to specific agents with `a2ui: { injectA2UITool: true, agents: ["my-agent"] }`.
+For fixed-schema flows where your agent already returns `a2ui_operations`,
+`a2ui: true` or `a2ui: {}` is enough.
 
 ### Frontend
 
-The A2UI renderer activates automatically. Optionally pass a theme:
+The A2UI renderer activates automatically. This guide uses React/Next.js
+snippets; CopilotKit also supports A2UI through additional app surfaces,
+including Vue, Angular, and React Native/headless clients. Optionally pass
+a theme:
 
 {% raw %}
 
@@ -66,15 +73,15 @@ import {myCustomTheme} from '@copilotkit/a2ui-renderer';
 
 A2UI ships with a built-in catalog (Text, Image, Card, …) that gets you a
 working surface immediately. The real power is extending it with _your_
-React components — your design system, your data shapes — so the agent
+React components from your design system and data shapes, so the agent
 can compose interfaces from primitives you already trust. A catalog has
 three pieces:
 
-1. **Definitions** — Zod schemas plus a natural-language description. This
-   is what the agent sees in its system prompt.
-2. **Renderers** — typed React components, one per definition. This is
+1. **Definitions**: Zod schemas plus a natural-language description. This
+   is what the agent sees in its system prompt. Note that for client-side functions, the client determines the function's execution boundary (such as clientOnly status) at runtime by reading its configuration from the active catalog definition.
+2. **Renderers**: Typed React components, one per definition. This is
    what the user sees.
-3. **Registration** — pass the catalog through the provider so the A2UI
+3. **Registration**: Pass the catalog through the provider so the A2UI
    renderer knows how to draw your components.
 
 #### 1. Define component schemas
@@ -111,7 +118,7 @@ export type MyDefinitions = typeof myDefinitions;
 
 Map each definition to a React component. `createCatalog` is generic over
 the definitions type, so the props your renderer receives are type-checked
-against the Zod schema — a typo in `props.text` is a compile error.
+against the Zod schema, so a typo in `props.text` is a compile error.
 
 {% raw %}
 
@@ -193,7 +200,7 @@ can use them in any A2UI surface they emit.
 
 For the full BYOC reference (multiple catalogs, theming hooks, advanced
 patterns), see CopilotKit's
-[Custom Components (BYOC) section](https://docs.copilotkit.ai/adk/generative-ui/a2ui#custom-components-byoc).
+[Custom Components (BYOC) section](https://docs.copilotkit.ai/generative-ui/a2ui).
 
 ## 3. Advanced usage
 
@@ -203,6 +210,6 @@ advanced patterns), see CopilotKit's
 
 ## What's next
 
-- **[A2UI Composer](https://a2ui-composer.ag-ui.com/)** — build widgets visually.
-- **[Concepts › Transports](../concepts/transports.md)** — how A2UI maps onto AG-UI.
-- **[v0.9 specification](../specification/v0.9-a2ui.md)** — the underlying protocol.
+- **[A2UI Composer](https://a2ui-composer.ag-ui.com/)**: Build widgets visually.
+- **[Concepts › Transports](../concepts/transports.md)**: How A2UI maps onto AG-UI.
+- **[v0.9 specification](../specification/v0.9-a2ui.md)**: The underlying protocol.

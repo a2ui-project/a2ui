@@ -33,7 +33,7 @@ This roadmap outlines the current state and future plans for the A2UI project. T
 | Transport                        | Status      | Notes                      |
 | -------------------------------- | ----------- | -------------------------- |
 | **A2A Protocol**                 | ✅ Complete | Native A2A transport       |
-| **AG UI**                        | ✅ Complete | Day-zero compatibility     |
+| **AG-UI**                        | ✅ Complete | Day-zero compatibility     |
 | **REST API**                     | ✅ Complete | Request/response over HTTP |
 | **WebSockets**                   | ✅ Complete | Bidirectional WS           |
 | **MCP (Model Context Protocol)** | ✅ Complete | Context sharing            |
@@ -43,7 +43,7 @@ This roadmap outlines the current state and future plans for the A2UI project. T
 | Integration                      | Status         | Notes                                                                              |
 | -------------------------------- | -------------- | ---------------------------------------------------------------------------------- |
 | **Any agent with A2A support**   | ✅ Complete    | Day-zero compatibility thanks to A2A protocol                                      |
-| **Any agent with AG-UI support** | ✅ Complete    | Day-zero compatibility thanks to AG UI protocol                                    |
+| **Any agent with AG-UI support** | ✅ Complete    | Day-zero compatibility thanks to AG-UI protocol                                    |
 | **AG2**                          | ✅ Complete    | [A2UIAgent](https://docs.ag2.ai/latest/docs/user-guide/reference-agents/a2uiagent) |
 | **ADK**                          | 🚧 In Progress | Still designing developer ergonomics, see [samples](../samples/agent/adk)          |
 | **Genkit**                       | 💡 Proposed    | Community interest                                                                 |
@@ -67,7 +67,7 @@ Many research projects across multiple Google teams, including integration into 
 - Flutter renderer (thanks Flutter team!)
 - Angular renderer (thanks Angular team!)
 - Web components (Lit) renderer (thanks Opal team & friends!)
-- AG UI / CopilotKit integration (thanks CopilotKit team!)
+- AG-UI / CopilotKit integration (thanks CopilotKit team!)
 - Github public release (Apache 2.0)
 
 ### Q2 2026 v0.9

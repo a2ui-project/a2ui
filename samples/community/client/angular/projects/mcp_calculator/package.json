@@ -11,15 +11,18 @@
     "lint:fix": "yarn --cwd ../.. lint:fix"
   },
   "dependencies": {
-    "@a2ui/angular": "^0.10.0",
-    "@a2ui/web_core": "^0.10.0"
+    "@a2ui/angular": "workspace:*",
+    "@a2ui/web_core": "workspace:*"
   },
   "devDependencies": {
     "wireit": "^0.15.0-pre.2"
   },
   "wireit": {
     "build": {
-      "command": "ng build mcp_calculator",
+      "command": "yarn workspace community-angular ng build mcp_calculator",
+      "dependencies": [
+        "../../../../../../renderers/angular:build"
+      ],
       "files": [
         "src/**/*",
         "tsconfig.app.json"
