@@ -36,7 +36,7 @@ class Catalog(Generic[TComponent, TFunction]):
         spec_version: str,
         components: List[TComponent],
         functions: List[TFunction],
-        theme_schema: Optional[Dict[str, Any]] = None,
+        theme_schema: Dict[str, Any] = {},
     ):
         self.catalog_id = catalog_id
         self.spec_version = spec_version
@@ -73,7 +73,7 @@ class Catalog(Generic[TComponent, TFunction]):
             or self.functions.get(name[0].upper() + name[1:])
         )
 
-    def get_theme_schema(self) -> Optional[Dict[str, Any]]:
+    def get_theme_schema(self) -> Dict[str, Any]:
         return self.theme_schema
 
     @classmethod
@@ -142,7 +142,7 @@ class Catalog(Generic[TComponent, TFunction]):
             spec_version=spec_version,
             components=components,
             functions=functions,
-            theme_schema=catalog_schema.get("theme"),
+            theme_schema=catalog_schema.get("theme") or {},
         )
         cat._catalog_schema = catalog_schema
         cat._common_types_schema = common_types_schema
