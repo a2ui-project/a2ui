@@ -65,7 +65,3 @@ jobs:
       - name: Build restaurant_finder
         working-directory: samples/agent/adk/restaurant_finder
         run: uv build .
-
-      - name: Build rizzcharts
-        working-directory: samples/agent/adk/rizzcharts/python
-        run: uv build .

@@ -229,27 +229,6 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@a2ui/mcp_calculator@workspace:samples/client/angular/projects/mcp_calculator":
-  version: 0.0.0-use.local
-  resolution: "@a2ui/mcp_calculator@workspace:samples/client/angular/projects/mcp_calculator"
-  dependencies:
-    "@a2ui/angular": "workspace:*"
-    "@a2ui/web_core": "workspace:*"
-    wireit: "npm:^0.15.0-pre.2"
-  languageName: unknown
-  linkType: soft
-
-"@a2ui/orchestrator@workspace:samples/client/angular/projects/orchestrator":
-  version: 0.0.0-use.local
-  resolution: "@a2ui/orchestrator@workspace:samples/client/angular/projects/orchestrator"
-  dependencies:
-    "@a2ui/angular": "workspace:*"
-    "@a2ui/markdown-it": "workspace:*"
-    "@a2ui/web_core": "workspace:*"
-    wireit: "npm:^0.15.0-pre.2"
-  languageName: unknown
-  linkType: soft
-
 "@a2ui/react-explorer@workspace:renderers/react/a2ui_explorer":
   version: 0.0.0-use.local
   resolution: "@a2ui/react-explorer@workspace:renderers/react/a2ui_explorer"

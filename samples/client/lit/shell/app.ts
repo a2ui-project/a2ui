@@ -17,9 +17,7 @@
 import {SignalWatcher} from '@lit-labs/signals';
 import {provide} from '@lit/context';
 import {LitElement, html, css, nothing} from 'lit';
-import {customElement, state, query} from 'lit/decorators.js';
-import {SnackbarMessage, SnackType} from '../custom-components-example/types/types.js';
-import {Snackbar} from '../custom-components-example/ui/snackbar.js';
+import {customElement, state} from 'lit/decorators.js';
 import {repeat} from 'lit/directives/repeat.js';
 
 // A2UI
@@ -538,13 +536,6 @@ export class A2UILayoutEditor extends SignalWatcher(LitElement) {
     },
   );
   #a2uiClient = new A2UIClient();
-  @query('ui-snackbar')
-  private accessor snackbar!: Snackbar;
-
-  #pendingSnackbarMessages: Array<{
-    message: SnackbarMessage;
-    replaceAll: boolean;
-  }> = [];
 
   #error: string | undefined;
 
@@ -561,15 +552,10 @@ export class A2UILayoutEditor extends SignalWatcher(LitElement) {
     const urlParams = new URLSearchParams(window.location.search);
     const appKey = urlParams.get('app');
     if (appKey && !configs[appKey]) {
-      this.#pendingSnackbarMessages.push({
-        message: {
-          id: crypto.randomUUID(),
-          message: `App "${appKey}" is not available. Falling back to Restaurant Finder.`,
-          type: SnackType.WARNING,
-          persistent: false,
-        },
-        replaceAll: false,
-      });
+      this.showToast(
+        `App "${appKey}" is not available. Falling back to Restaurant Finder.`,
+        'warning',
+      );
     }
     this.config = (appKey && configs[appKey]) || restaurantConfig;
 
@@ -586,15 +572,6 @@ export class A2UILayoutEditor extends SignalWatcher(LitElement) {
     this.#a2uiClient = new A2UIClient(this.config.serverUrl);
   }
 
-  protected firstUpdated() {
-    if (this.#pendingSnackbarMessages.length > 0) {
-      for (const {message, replaceAll} of this.#pendingSnackbarMessages) {
-        this.snackbar.show(message, replaceAll);
-      }
-      this.#pendingSnackbarMessages = [];
-    }
-  }
-
   render() {
     return [
       this.#renderLocalModeHeader(),
@@ -603,7 +580,6 @@ export class A2UILayoutEditor extends SignalWatcher(LitElement) {
       this.#maybeRenderData(),
       this.#maybeRenderError(),
       this.#renderToast(),
-      html`<ui-snackbar></ui-snackbar>`,
     ];
   }
 

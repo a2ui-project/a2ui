@@ -53,11 +53,3 @@ jobs:
       - name: Build restaurant sample
         working-directory: ./samples/client/angular
         run: yarn ng build restaurant
-
-      - name: Build Rizzchart sample
-        working-directory: ./samples/client/angular
-        run: yarn ng build rizzcharts
-
-      - name: Build Orchestrator
-        working-directory: ./samples/client/angular
-        run: yarn ng build orchestrator

@@ -73,7 +73,6 @@ export default defineConfig({
         resolve(__dirname, '.'),
         resolve(__dirname, '../node_modules'),
         resolve(__dirname, '../../shared'),
-        resolve(__dirname, '../../../../renderers/lit'),
       ],
     },
   },

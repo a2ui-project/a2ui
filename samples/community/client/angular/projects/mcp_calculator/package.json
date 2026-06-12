@@ -1,5 +1,5 @@
 {
-  "name": "@a2ui/orchestrator",
+  "name": "@a2ui/mcp_calculator",
   "version": "0.1.0",
   "private": true,
   "scripts": {
@@ -11,19 +11,15 @@
     "lint:fix": "yarn --cwd ../.. lint:fix"
   },
   "dependencies": {
-    "@a2ui/angular": "workspace:*",
-    "@a2ui/markdown-it": "workspace:*",
-    "@a2ui/web_core": "workspace:*"
+    "@a2ui/angular": "^0.10.0",
+    "@a2ui/web_core": "^0.10.0"
   },
   "devDependencies": {
     "wireit": "^0.15.0-pre.2"
   },
   "wireit": {
     "build": {
-      "command": "yarn workspace angular-a2ui ng build orchestrator",
-      "dependencies": [
-        "../../../../../renderers/angular:build"
-      ],
+      "command": "ng build mcp_calculator",
       "files": [
         "src/**/*",
         "tsconfig.app.json"
