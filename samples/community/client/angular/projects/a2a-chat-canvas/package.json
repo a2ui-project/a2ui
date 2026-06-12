@@ -2,8 +2,8 @@
   "name": "a2a-chat-canvas",
   "version": "0.0.1",
   "peerDependencies": {
-    "@a2ui/angular": "workspace:*",
-    "@a2ui/web_core": "workspace:*",
+    "@a2ui/angular": "^0.10.0",
+    "@a2ui/web_core": "^0.10.0",
     "@angular/common": "^21.2.5",
     "@angular/core": "^21.2.5",
     "@angular/platform-browser": "^21.2.5"
@@ -26,9 +26,6 @@
   "wireit": {
     "build": {
       "command": "yarn workspace angular-a2ui ng build a2a-chat-canvas",
-      "dependencies": [
-        "../../../../../renderers/angular:build"
-      ],
       "files": [
         "src/**/*",
         "tsconfig.lib.json",

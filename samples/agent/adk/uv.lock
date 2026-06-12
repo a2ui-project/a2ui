@@ -10,9 +10,6 @@ resolution-markers = [
 members = [
     "a2ui-custom-components-example",
     "a2ui-restaurant-finder",
-    "mcp-app-proxy",
-    "orchestrator",
-    "rizzcharts",
 ]
 
 [manifest.dependency-groups]
@@ -1071,41 +1068,6 @@ wheels = [
 ]
 
 [[package]]
-name = "mcp-app-proxy"
-version = "0.1.0"
-source = { editable = "mcp_app_proxy" }
-dependencies = [
-    { name = "a2a-sdk" },
-    { name = "a2ui-agent-sdk" },
-    { name = "anyio" },
-    { name = "click" },
-    { name = "google-adk" },
-    { name = "google-genai" },
-    { name = "jsonschema" },
-    { name = "litellm" },
-    { name = "mcp" },
-    { name = "python-dotenv" },
-    { name = "starlette" },
-    { name = "uvicorn" },
-]
-
-[package.metadata]
-requires-dist = [
-    { name = "a2a-sdk", specifier = ">=0.3.0" },
-    { name = "a2ui-agent-sdk", editable = "../../../agent_sdks/python/a2ui_agent" },
-    { name = "anyio" },
-    { name = "click", specifier = ">=8.1.8" },
-    { name = "google-adk", specifier = ">=1.28.1" },
-    { name = "google-genai", specifier = ">=1.27.0" },
-    { name = "jsonschema", specifier = ">=4.0.0" },
-    { name = "litellm" },
-    { name = "mcp" },
-    { name = "python-dotenv", specifier = ">=1.1.0" },
-    { name = "starlette" },
-    { name = "uvicorn" },
-]
-
-[[package]]
 name = "mdurl"
 version = "0.1.2"
 source = { registry = "https://pypi.org/simple" }
@@ -1261,33 +1223,6 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/aa/1b/90701d91e6300d9f2fb352153fb1721ed99ed1f6ea14fa992c756016e63a/opentelemetry_semantic_conventions-0.58b0.tar.gz", hash = "sha256:6bd46f51264279c433755767bb44ad00f1c9e2367e1b42af563372c5a6fa0c25", size = 129867, upload-time = "2025-09-11T10:29:12.597Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/07/90/68152b7465f50285d3ce2481b3aec2f82822e3f52e5152eeeaf516bab841/opentelemetry_semantic_conventions-0.58b0-py3-none-any.whl", hash = "sha256:5564905ab1458b96684db1340232729fce3b5375a06e140e8904c78e4f815b28", size = 207954, upload-time = "2025-09-11T10:28:59.218Z" },
-]
-
-[[package]]
-name = "orchestrator"
-version = "0.1.0"
-source = { editable = "orchestrator" }
-dependencies = [
-    { name = "a2a-sdk" },
-    { name = "a2ui-agent-sdk" },
-    { name = "click" },
-    { name = "google-adk" },
-    { name = "google-genai" },
-    { name = "jsonschema" },
-    { name = "litellm" },
-    { name = "python-dotenv" },
-]
-
-[package.metadata]
-requires-dist = [
-    { name = "a2a-sdk", specifier = ">=0.3.0" },
-    { name = "a2ui-agent-sdk", editable = "../../../agent_sdks/python/a2ui_agent" },
-    { name = "click", specifier = ">=8.1.8" },
-    { name = "google-adk", specifier = ">=1.28.1" },
-    { name = "google-genai", specifier = ">=1.27.0" },
-    { name = "jsonschema", specifier = ">=4.0.0" },
-    { name = "litellm" },
-    { name = "python-dotenv", specifier = ">=1.1.0" },
 ]
 
 [[package]]
@@ -1805,33 +1740,6 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/74/99/a4cab2acbb884f80e558b0771e97e21e939c5dfb460f488d19df485e8298/rich-14.3.2.tar.gz", hash = "sha256:e712f11c1a562a11843306f5ed999475f09ac31ffb64281f73ab29ffdda8b3b8", size = 230143, upload-time = "2026-02-01T16:20:47.908Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/ef/45/615f5babd880b4bd7d405cc0dc348234c5ffb6ed1ea33e152ede08b2072d/rich-14.3.2-py3-none-any.whl", hash = "sha256:08e67c3e90884651da3239ea668222d19bea7b589149d8014a21c633420dbb69", size = 309963, upload-time = "2026-02-01T16:20:46.078Z" },
-]
-
-[[package]]
-name = "rizzcharts"
-version = "0.1.0"
-source = { editable = "rizzcharts/python" }
-dependencies = [
-    { name = "a2a-sdk" },
-    { name = "a2ui-agent-sdk" },
-    { name = "click" },
-    { name = "google-adk" },
-    { name = "google-genai" },
-    { name = "jsonschema" },
-    { name = "litellm" },
-    { name = "python-dotenv" },
-]
-
-[package.metadata]
-requires-dist = [
-    { name = "a2a-sdk", specifier = ">=0.3.0" },
-    { name = "a2ui-agent-sdk", editable = "../../../agent_sdks/python/a2ui_agent" },
-    { name = "click", specifier = ">=8.1.8" },
-    { name = "google-adk", specifier = ">=1.28.1" },
-    { name = "google-genai", specifier = ">=1.27.0" },
-    { name = "jsonschema", specifier = ">=4.0.0" },
-    { name = "litellm" },
-    { name = "python-dotenv", specifier = ">=1.1.0" },
 ]
 
 [[package]]

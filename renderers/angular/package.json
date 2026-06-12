@@ -124,7 +124,7 @@
       ]
     },
     "clean": {
-      "command": "rm -rf dist projects/mcp_calculator/dist projects/orchestrator/dist .tsbuildinfo .wireit"
+      "command": "rm -rf dist .tsbuildinfo .wireit"
     }
   }
 }

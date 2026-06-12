@@ -90,7 +90,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        sample: [orchestrator, restaurant_finder, rizzcharts/python]
+        sample: [restaurant_finder]
     steps:
       - uses: actions/checkout@v6
       - uses: ./.github/actions/setup-python

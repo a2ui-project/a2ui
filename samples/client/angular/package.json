@@ -9,14 +9,12 @@
     "test": "wireit",
     "serve:ssr:angular": "node dist/angular/server/server.mjs",
     "serve:ssr:restaurant": "node dist/restaurant/server/server.mjs",
-    "serve:ssr:rizzcharts": "node dist/rizzcharts/server/server.mjs",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
     "clean": "wireit",
     "build:renderer": "yarn workspace @a2ui/web_core build && yarn workspace @a2ui/markdown-it build && yarn workspace @a2ui/angular build",
     "serve:agent:restaurant": "cd ../../agent/adk/restaurant_finder && uv run .",
     "demo:restaurant": "yarn build:renderer && concurrently -k -n \"AGENT,WEB\" -c \"magenta,blue\" \"yarn serve:agent:restaurant\" \"yarn start -- restaurant\"",
-    "build:sandbox": "esbuild ../shared/mcp_apps_inner_iframe/sandbox.ts --bundle --outfile=projects/mcp_calculator/public/mcp_apps_inner_iframe/sandbox.js --format=esm --platform=browser --alias:@modelcontextprotocol/ext-apps/app-bridge=./node_modules/@modelcontextprotocol/ext-apps/dist/src/app-bridge.js && cp ../shared/mcp_apps_inner_iframe/sandbox.html projects/mcp_calculator/public/mcp_apps_inner_iframe/sandbox.html",
     "format": "prettier --write .",
     "format:check": "prettier --check ."
   },
@@ -82,7 +80,7 @@
   },
   "wireit": {
     "build": {
-      "command": "ng build restaurant && ng build rizzcharts && ng build orchestrator",
+      "command": "ng build restaurant",
       "dependencies": [
         "../../../renderers/angular:build"
       ]

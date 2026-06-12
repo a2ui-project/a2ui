@@ -4,16 +4,13 @@
   "version": "0.8.1",
   "description": "A2UI Lit Samples",
   "workspaces": [
-    "custom-components-example",
     "shell"
   ],
   "scripts": {
     "serve:agent:restaurant": "cd ../../agent/adk/restaurant_finder && uv run .",
-    "serve:agent:orchestrator": "cd ../../agent/adk/orchestrator && uv run .",
     "serve:shell": "yarn workspace @a2ui/shell dev",
     "build:renderer": "yarn workspace @a2ui/web_core build && yarn workspace @a2ui/markdown-it build && yarn workspace @a2ui/lit build",
     "demo:restaurant": "yarn build:renderer && concurrently -k -n \"SHELL,REST\" -c \"magenta,blue\" \"yarn serve:shell\" \"yarn serve:agent:restaurant\"",
-    "demo:orchestrator": "yarn build:renderer && concurrently -k -n \"SHELL,ORCH\" -c \"magenta,cyan\" \"yarn serve:shell\" \"yarn serve:agent:orchestrator\"",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "test": "node -e 'const fs=require(\"fs\"); const path=require(\"path\"); function find(d){for(const f of fs.readdirSync(d)){const p=path.join(d,f);if(f===\"node_modules\"||f===\"dist\")continue;if(fs.statSync(p).isDirectory()){if(find(p))return true;}else if(f.includes(\".test.\")||f.includes(\".spec.\"))return true;}return false;} if(find(\".\")){require(\"child_process\").execSync(\"vitest run\",{stdio:\"inherit\"});}else{console.log(\"Workspace has no tests.\");}'",

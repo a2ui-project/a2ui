@@ -42,9 +42,6 @@
       "env": {
         "FORCE_COLOR": "1"
       },
-      "dependencies": [
-        "../../../../renderers/lit:build:tsc"
-      ],
       "files": [
         "**/*.ts",
         "tsconfig.json"
@@ -80,8 +77,8 @@
   },
   "dependencies": {
     "@a2a-js/sdk": "^0.3.13",
-    "@a2ui/lit": "workspace:*",
-    "@a2ui/web_core": "workspace:*",
+    "@a2ui/lit": "^0.10.0",
+    "@a2ui/web_core": "^0.10.0",
     "@lit-labs/signals": "^0.3.0",
     "@lit/context": "^1.1.6",
     "@modelcontextprotocol/ext-apps": "^1.7.4",
