@@ -46,16 +46,21 @@ export default defineConfig({
     },
   ],
 
-  // Start both React and Lit dev servers
+  // Start both React and Lit dev servers.
+  // Invoke vite directly rather than via `yarn dev:*`: the yarn wrapper spawns
+  // vite as a grandchild process that Playwright's teardown fails to kill,
+  // leaving orphaned dev servers that keep `playwright test` (and the
+  // consolidated `yarn test:all`) hanging until the job timeout. Running vite
+  // directly lets Playwright terminate the server cleanly so the run exits.
   webServer: [
     {
-      command: 'yarn dev:react',
+      command: 'vite --config react/vite.config.ts --port 5001',
       url: 'http://localhost:5001',
       reuseExistingServer: !process.env.CI,
       timeout: 120 * 1000,
     },
     {
-      command: 'yarn dev:lit',
+      command: 'vite --config lit/vite.config.ts --port 5002',
       url: 'http://localhost:5002',
       reuseExistingServer: !process.env.CI,
       timeout: 120 * 1000,
