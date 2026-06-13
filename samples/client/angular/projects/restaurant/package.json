@@ -12,7 +12,7 @@
   },
   "dependencies": {
     "@a2ui/angular": "workspace:*",
-    "@a2ui/markdown-it": "*",
+    "@a2ui/markdown-it": "workspace:*",
     "@a2ui/web_core": "workspace:*"
   },
   "devDependencies": {

@@ -25,8 +25,7 @@
                 "input": "public"
               }
             ],
-            "styles": [],
-            "allowedCommonJsDependencies": ["ajv", "ajv-formats"]
+            "styles": []
           },
           "configurations": {
             "production": {

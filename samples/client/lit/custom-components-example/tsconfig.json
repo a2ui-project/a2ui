@@ -30,6 +30,7 @@
     "noUnusedLocals": false,
     "noUnusedParameters": true,
     "noFallthroughCasesInSwitch": true,
+    "baseUrl": ".",
     "paths": {
       "lit": ["../../../../renderers/lit/node_modules/lit"],
       "lit-html": ["../../../../renderers/lit/node_modules/lit-html"],
