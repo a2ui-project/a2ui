@@ -42,8 +42,13 @@ concurrency:
 permissions:
   contents: read
 
+env:
+  RENDERERS_INC: "--include 'renderers/**'"
+  TOOLS_INC: "--include 'tools/**'"
+  SAMPLES_INC: "--include 'samples/client/**' --include 'samples/mcp/**'"
+
 jobs:
-  build-and-test:
+  ci-renderers:
     runs-on: ubuntu-latest
     # Healthy runs finish in ~20 min. Cap the job so a hung test fails fast
     # instead of running to the default 6h timeout (see issue #1637).
@@ -51,11 +56,43 @@ jobs:
     steps:
       - uses: actions/checkout@v6
       - uses: ./.github/actions/setup-node
-      - name: Build all JS/TS workspaces
-        run: yarn build:all
-      - name: Install Playwright browsers
-        run: npx playwright install --with-deps chromium
-      - name: Run all JS/TS tests
-        run: yarn test:all
-      - name: Run publish script integration test
+      - name: Build Renderers
+        run: eval "yarn workspaces foreach -A $RENDERERS_INC -p --topological-dev run build"
+      - name: Test Renderers
+        run: eval "yarn workspaces foreach -A $RENDERERS_INC -p run test"
+      - name: Verify NPM Publish Script
         run: node --test renderers/scripts/publish_npm.test.mjs
+
+  ci-tools:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: ./.github/actions/setup-node
+      - name: Build Tools
+        run: eval "yarn workspaces foreach $TOOLS_INC -p --topological-dev -R run build"
+      - name: Test Tools
+        run: eval "yarn workspaces foreach -A $TOOLS_INC -p run test"
+
+  ci-samples:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: ./.github/actions/setup-node
+      - name: Build Samples
+        run: eval "yarn workspaces foreach $SAMPLES_INC -p --topological-dev -R run build"
+      - name: Test Samples
+        run: eval "yarn workspaces foreach -A $SAMPLES_INC -p run test"
+
+  ci-other:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: ./.github/actions/setup-node
+      - name: Build Other Workspaces
+        run: |
+          EXCLUDE=$(echo "$RENDERERS_INC $TOOLS_INC $SAMPLES_INC" | sed 's/--include/--exclude/g')
+          eval "yarn workspaces foreach -A $EXCLUDE -p --topological-dev run build"
+      - name: Test Other Workspaces
+        run: |
+          EXCLUDE=$(echo "$RENDERERS_INC $TOOLS_INC $SAMPLES_INC" | sed 's/--include/--exclude/g')
+          eval "yarn workspaces foreach -A $EXCLUDE -p run test"

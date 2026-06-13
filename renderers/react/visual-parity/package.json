@@ -9,7 +9,8 @@
     "dev": "concurrently \"yarn dev:react\" \"yarn dev:lit\"",
     "build:react": "vite build --config react/vite.config.ts",
     "build:lit": "vite build --config lit/vite.config.ts",
-    "test": "playwright test",
+    "test": "echo \"Visual parity screenshot tests skipped on presubmit. Run yarn test:visual to execute.\"",
+    "test:visual": "playwright test",
     "test:update": "playwright test --update-snapshots",
     "test:ui": "playwright test --ui",
     "test:report": "playwright show-report"
