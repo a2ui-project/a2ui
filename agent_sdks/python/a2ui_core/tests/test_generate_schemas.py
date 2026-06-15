@@ -192,7 +192,7 @@ def test_compile_function_to_pydantic():
     assert "    x: int = Field(...)" in code
     assert "class AddApi(FunctionApi):" in code
     assert '    name = "add"' in code
-    assert "    args = AddArgs" in code
+    assert "    schema = AddArgs" in code
     assert '    return_type = "boolean"' in code
 
     # Function with no args
@@ -201,7 +201,7 @@ def test_compile_function_to_pydantic():
     assert class_name == "RandomApi"
     assert "class RandomApi(FunctionApi):" in code
     assert '    name = "random"' in code
-    assert "    args = None" in code
+    assert "    schema = None" in code
     assert '    return_type = "number"' in code
 
 
@@ -255,11 +255,18 @@ def test_generate_basic_catalog_components():
         }
     }
     code, names = generate_schemas.generate_basic_catalog_components(mock_catalog_data)
-    assert names == ["CatalogComponentCommon", "TextComponent", "AnyComponent"]
+    assert names == [
+        "CatalogComponentCommon",
+        "TextComponent",
+        "AnyComponent",
+        "BASIC_COMPONENTS",
+        "TEXT_COMPONENT_API",
+    ]
     assert "class CatalogComponentCommon(ComponentCommon):" in code
     assert "class TextComponent(CatalogComponentCommon):" in code
     assert "AnyComponent = Annotated[" in code
     assert "TextComponent," in code
+    assert "TEXT_COMPONENT_API = ModelComponentApi(TextComponent)" in code
 
     # Scenario B: $defs/anyComponent/oneOf is defined.
     # It must intersect: only components BOTH generated AND in oneOf are exported/included.
@@ -285,7 +292,14 @@ def test_generate_basic_catalog_components():
     # "PrivateHelperComponent" is not in oneOf, so it shouldn't be in any_comp_names.
     # "NonExistentComponent" is not in components map, so it shouldn't be in any_comp_names.
     # Only "TextComponent" is in both! (and AnyComponent is always appended to any_comp_names)
-    assert names_defs == ["CatalogComponentCommon", "TextComponent", "AnyComponent"]
+    assert names_defs == [
+        "CatalogComponentCommon",
+        "TextComponent",
+        "AnyComponent",
+        "BASIC_COMPONENTS",
+        "TEXT_COMPONENT_API",
+        "PRIVATE_HELPER_COMPONENT_API",
+    ]
     assert "class CatalogComponentCommon(ComponentCommon):" in code_defs
     assert "class TextComponent(CatalogComponentCommon):" in code_defs
     assert (
@@ -501,11 +515,3 @@ def test_file_header_preamble():
     header = generate_schemas.FILE_HEADER
     assert "Copyright 2026 Google LLC" in header
     assert "Auto-generated. Do not edit manually." in header
-
-
-def test_generate_catalog_functions():
-    code = generate_schemas.generate_catalog_functions()
-    assert "class FunctionApi:" in code
-    assert 'name: str = ""' in code
-    assert "args: Optional[Any] = None" in code
-    assert 'return_type: str = "void"' in code

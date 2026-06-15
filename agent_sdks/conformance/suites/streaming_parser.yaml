@@ -1316,7 +1316,8 @@
           type: object
           properties:
             component: {const: "Column"}
-            children: {type: array, items: {type: string}}
+            children:
+              $ref: "https://a2ui.org/specification/v0_9/common_types.json#/$defs/ChildList"
           required: ["component"]
         Text:
           type: object
@@ -1328,7 +1329,8 @@
           type: object
           properties:
             component: {const: "Row"}
-            children: {type: array, items: {type: string}}
+            children:
+              $ref: "https://a2ui.org/specification/v0_9/common_types.json#/$defs/ChildList"
           required: ["component"]
       $defs:
         anyComponent:
@@ -1448,7 +1450,8 @@
           type: object
           properties:
             component: {const: "Card"}
-            child: {type: string}
+            child:
+              $ref: "https://a2ui.org/specification/v0_9/common_types.json#/$defs/ComponentId"
           required: ["component"]
       $defs:
         anyComponent:
@@ -1523,7 +1526,8 @@
         Card:
           type: object
           properties:
-            child: {type: string}
+            child:
+              $ref: "https://a2ui.org/specification/v0_9/common_types.json#/$defs/ComponentId"
       $defs:
         anyComponent:
           oneOf:
@@ -1549,7 +1553,8 @@
         Card:
           type: object
           properties:
-            child: {type: string}
+            child:
+              $ref: "https://a2ui.org/specification/v0_9/common_types.json#/$defs/ComponentId"
       $defs:
         anyComponent:
           oneOf:
@@ -1769,7 +1774,8 @@
           type: object
           properties:
             component: {const: "Card"}
-            child: {type: string}
+            child:
+              $ref: "https://a2ui.org/specification/v0_9/common_types.json#/$defs/ComponentId"
           required: ["component"]
       $defs:
         anyComponent:
@@ -1822,11 +1828,7 @@
           properties:
             component: {const: "List"}
             children:
-              type: object
-              properties:
-                componentId: {type: string}
-                path: {type: string}
-              required: ["componentId", "path"]
+              $ref: "https://a2ui.org/specification/v0_9/common_types.json#/$defs/ChildList"
           required: ["component"]
       $defs:
         anyComponent:
@@ -2079,7 +2081,8 @@
           type: object
           properties:
             component: {const: "Card"}
-            child: {type: string}
+            child:
+              $ref: "https://a2ui.org/specification/v0_9/common_types.json#/$defs/ComponentId"
           required: ["component"]
       $defs:
         anyComponent:
@@ -2170,258 +2173,6 @@
 
 - name: test_message_ordering_buffering_v09
   description: Tests that updateComponents is buffered until createSurface arrives.
-  catalog:
-    version: "0.9"
-    common_types_schema: "test_data/simplified_common_types_v09.json"
-    s2c_schema: "test_data/simplified_s2c_v09.json"
-    catalog_schema:
-      catalogId: "test_catalog"
-      components:
-        Text:
-          type: object
-          properties:
-            component: {const: "Text"}
-            text: {type: string}
-          required: ["component"]
-      $defs:
-        anyComponent:
-          oneOf:
-            - {$ref: "#/components/Text"}
-          discriminator: {propertyName: "component"}
-  action: process_chunk
-  steps:
-    - input: "<a2ui-json>["
-      expect: []
-    - input: '{"version": "v0.9", "updateComponents": {"surfaceId": "s1", "components": [{"id": "root", "component": "Text", "text": "hi"}]}}, '
-      expect: []
-    - input: '{"version": "v0.9", "createSurface": {"catalogId": "test_catalog", "surfaceId": "s1"}}]</a2ui-json>'
-      expect:
-        - a2ui:
-            - version: "v0.9"
-              createSurface:
-                surfaceId: "s1"
-                catalogId: "test_catalog"
-            - version: "v0.9"
-              updateComponents:
-                surfaceId: "s1"
-                components:
-                  - id: "root"
-                    component: "Text"
-                    text: "hi"
-
-- name: test_data_model_after_components_v09
-  description: Tests that data model after components works.
-  catalog:
-    version: "0.9"
-    common_types_schema: "test_data/simplified_common_types_v09.json"
-    s2c_schema: "test_data/simplified_s2c_v09.json"
-    catalog_schema:
-      catalogId: "test_catalog"
-      components:
-        Text:
-          type: object
-          properties:
-            component: {const: "Text"}
-            text:
-              oneOf:
-                - {type: string}
-                - type: object
-                  properties:
-                    path: {type: string}
-          required: ["component"]
-      $defs:
-        anyComponent:
-          oneOf:
-            - {$ref: "#/components/Text"}
-          discriminator: {propertyName: "component"}
-  action: process_chunk
-  steps:
-    - input: "<a2ui-json>["
-      expect: []
-    - input: '{"version": "v0.9", "createSurface": {"catalogId": "test_catalog", "surfaceId": "s1"}}, '
-      expect:
-        - a2ui:
-            - version: "v0.9"
-              createSurface:
-                surfaceId: "s1"
-                catalogId: "test_catalog"
-    - input: '{"version": "v0.9", "updateComponents": {"surfaceId": "s1", "components": [{"id": "root", "component": "Text", "text": {"path": "/name"}}]}}, '
-      expect:
-        - a2ui:
-            - version: "v0.9"
-              updateComponents:
-                surfaceId: "s1"
-                components:
-                  - id: "root"
-                    component: "Text"
-                    text: {path: "/name"}
-    - input: '{"version": "v0.9", "updateDataModel": {"surfaceId": "s1", "value": {"name": "Alice"}}}]</a2ui-json>'
-      expect:
-        - a2ui:
-            - version: "v0.9"
-              updateDataModel:
-                surfaceId: "s1"
-                value: {name: "Alice"}
-
-- name: test_partial_paths_v09
-  description: Tests that partial paths are handled correctly.
-  catalog:
-    version: "0.9"
-    common_types_schema: "test_data/simplified_common_types_v09.json"
-    s2c_schema: "test_data/simplified_s2c_v09.json"
-    catalog_schema:
-      catalogId: "test_catalog"
-      components:
-        Text:
-          type: object
-          properties:
-            component: {const: "Text"}
-            text:
-              oneOf:
-                - {type: string}
-                - type: object
-                  properties:
-                    path: {type: string}
-          required: ["component"]
-      $defs:
-        anyComponent:
-          oneOf:
-            - {$ref: "#/components/Text"}
-          discriminator: {propertyName: "component"}
-  action: process_chunk
-  steps:
-    - input: "<a2ui-json>["
-      expect: []
-    - input: '{"version": "v0.9", "createSurface": {"catalogId": "test_catalog", "surfaceId": "s1"}}, '
-      expect:
-        - a2ui:
-            - version: "v0.9"
-              createSurface:
-                surfaceId: "s1"
-                catalogId: "test_catalog"
-    - input: '{"version": "v0.9", "updateComponents": {"surfaceId": "s1", "components": [{"id": "root", "component": "Text", "text": {"path": "/loca'
-      expect: []
-    - input: 'tion"}]}}]</a2ui-json>'
-      expect:
-        - a2ui:
-            - version: "v0.9"
-              updateComponents:
-                surfaceId: "s1"
-                components:
-                  - id: "root"
-                    component: "Text"
-                    text: {path: "/location"}
-
-- name: test_cut_atomic_id_v09
-  description: Tests that cutting atomic ID buffers the component.
-  catalog:
-    version: "0.9"
-    common_types_schema: "test_data/simplified_common_types_v09.json"
-    s2c_schema: "test_data/simplified_s2c_v09.json"
-    catalog_schema:
-      catalogId: "test_catalog"
-      components:
-        Text:
-          type: object
-          properties:
-            component: {const: "Text"}
-            text: {type: string}
-          required: ["component"]
-        Card:
-          type: object
-          properties:
-            component: {const: "Card"}
-            child: {type: string}
-          required: ["component"]
-      $defs:
-        anyComponent:
-          oneOf:
-            - {$ref: "#/components/Text"}
-            - {$ref: "#/components/Card"}
-          discriminator: {propertyName: "component"}
-  action: process_chunk
-  steps:
-    - input: "<a2ui-json>["
-      expect: []
-    - input: '{"version": "v0.9", "createSurface": {"catalogId": "test_catalog", "surfaceId": "contact'
-      expect: []
-    - input: '-card"}}, {"version": "v0.9", "updateComponents": {"surfaceId": "contact-card", "components": [{"id": "button'
-      expect:
-        - a2ui:
-            - version: "v0.9"
-              createSurface:
-                surfaceId: "contact-card"
-                catalogId: "test_catalog"
-    - input: '-text"'
-      expect: []
-    - input: ', "component": "Text", "text": "hi"}, {"id": "root", "component": "Card", "child": "button-text"}]}}]</a2ui-json>'
-      expect:
-        - a2ui:
-            - version: "v0.9"
-              updateComponents:
-                surfaceId: "contact-card"
-                components:
-                  - id: "button-text"
-                    component: "Text"
-                    text: "hi"
-                  - id: "root"
-                    component: "Card"
-                    child: "button-text"
-
-- name: test_cut_cuttable_text_v09
-  description: Tests that cutting cuttable text yields partial text.
-  catalog:
-    version: "0.9"
-    common_types_schema: "test_data/simplified_common_types_v09.json"
-    s2c_schema: "test_data/simplified_s2c_v09.json"
-    catalog_schema:
-      catalogId: "test_catalog"
-      components:
-        Text:
-          type: object
-          properties:
-            component: {const: "Text"}
-            text: {type: string}
-          required: ["component"]
-      $defs:
-        anyComponent:
-          oneOf:
-            - {$ref: "#/components/Text"}
-          discriminator: {propertyName: "component"}
-  action: process_chunk
-  steps:
-    - input: "<a2ui-json>["
-      expect: []
-    - input: '{"version": "v0.9", "createSurface": {"catalogId": "test_catalog", "surfaceId": "s1"}}, '
-      expect:
-        - a2ui:
-            - version: "v0.9"
-              createSurface:
-                surfaceId: "s1"
-                catalogId: "test_catalog"
-    - input: '{"version": "v0.9", "updateComponents": {"surfaceId": "s1", "components": [{"id": "root", "component": "Text", "text": "Em'
-      expect:
-        - a2ui:
-            - version: "v0.9"
-              updateComponents:
-                surfaceId: "s1"
-                components:
-                  - id: "root"
-                    component: "Text"
-                    text: "Em"
-    - input: 'ail"}]}}]</a2ui-json>'
-      expect:
-        - a2ui:
-            - version: "v0.9"
-              updateComponents:
-                surfaceId: "s1"
-                components:
-                  - id: "root"
-                    component: "Text"
-                    text: "Email"
-
-- name: test_message_ordering_buffering_v09
-  description: Tests that updateComponents before createSurface is buffered.
   catalog:
     version: "0.9"
     common_types_schema: "test_data/simplified_common_types_v09.json"
@@ -2654,7 +2405,8 @@
           type: object
           properties:
             component: {const: "Container"}
-            children: {type: array, items: {type: string}}
+            children:
+              $ref: "https://a2ui.org/specification/v0_9/common_types.json#/$defs/ChildList"
           required: ["component"]
         Text:
           type: object
@@ -2729,10 +2481,7 @@
           properties:
             component: {const: "List"}
             children:
-              type: object
-              properties:
-                componentId: {type: string}
-                path: {type: string}
+              $ref: "https://a2ui.org/specification/v0_9/common_types.json#/$defs/ChildList"
           required: ["component"]
         Text:
           type: object
@@ -3010,10 +2759,7 @@
           properties:
             component: {const: "Column"}
             children:
-              type: object
-              properties:
-                componentId: {type: string}
-                path: {type: string}
+              $ref: "https://a2ui.org/specification/v0_9/common_types.json#/$defs/ChildList"
           required: ["component"]
         Text:
           type: object
@@ -3109,7 +2855,8 @@
           type: object
           properties:
             component: {const: "Card"}
-            child: {type: string}
+            child:
+              $ref: "https://a2ui.org/specification/v0_9/common_types.json#/$defs/ComponentId"
           required: ["component"]
         Text:
           type: object
@@ -3121,7 +2868,8 @@
           type: object
           properties:
             component: {const: "Row"}
-            children: {type: array, items: {type: string}}
+            children:
+              $ref: "https://a2ui.org/specification/v0_9/common_types.json#/$defs/ChildList"
           required: ["component"]
       $defs:
         anyComponent:

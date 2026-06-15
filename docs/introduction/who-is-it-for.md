@@ -65,6 +65,6 @@ Do not use A2UI for:
 - **Static websites**: Use HTML/CSS.
 - **Simple text-only chat**: Use Markdown.
 - **Remote widgets not integrated with client**: Use iframes, like [MCP Apps](../introduction/agent-ui-ecosystem.md).
-- **Rapid UI + Agent app built together**: Use [AG UI / CopilotKit](../introduction/agent-ui-ecosystem.md).
+- **Rapid UI + Agent app built together**: Use [AG-UI / CopilotKit](../introduction/agent-ui-ecosystem.md).
 
 See [Agent UI Ecosystem](../introduction/agent-ui-ecosystem.md) for a detailed comparison.

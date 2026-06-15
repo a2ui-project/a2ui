@@ -17,7 +17,7 @@ name = "a2ui-mcp-recipe-demo"
 version = "0.1.0"
 description = "A demo of A2UI running over MCP for recipe tools"
 readme = "README.md"
-requires-python = ">=3.10"
+requires-python = ">=3.14"
 keywords = ["mcp", "llm", "automation", "a2ui", "agent"]
 license = { text = "MIT" }
 dependencies = ["anyio>=4.5", "click>=8.2.0", "httpx>=0.27", "mcp", "a2ui-agent-sdk>=0.1.1"]

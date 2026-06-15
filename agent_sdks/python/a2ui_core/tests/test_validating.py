@@ -24,7 +24,7 @@ from a2ui.core.validating import (
     validate_recursion_and_paths,
     get_component_references,
     ValidationConfig,
-    CatalogValidator,
+    CatalogSchemaValidator,
 )
 from a2ui.core.basic_catalog import BasicCatalog
 
@@ -267,7 +267,7 @@ def test_a2ui_validator_validate_valid_payload():
         },
     ]
 
-    validator.validate(CatalogValidator.from_catalog(catalog), messages)
+    validator.validate(CatalogSchemaValidator.from_catalog(catalog), messages)
 
 
 def test_a2ui_validator_validate_components_error():
@@ -290,7 +290,7 @@ def test_a2ui_validator_validate_components_error():
     ]
 
     with pytest.raises(A2uiValidatorError):
-        validator.validate(CatalogValidator.from_catalog(catalog), messages)
+        validator.validate(CatalogSchemaValidator.from_catalog(catalog), messages)
 
 
 def test_topology_cyclomatic_orphans_coverage():
@@ -421,7 +421,7 @@ def test_validator_aggregated_pydantic_error_formatting():
 def test_validator_config_parameter():
     # Verify that ValidationConfig is respected during validation
 
-    catalog = CatalogValidator.from_catalog(BasicCatalog())
+    catalog = CatalogSchemaValidator.from_catalog(BasicCatalog())
     validator = A2uiValidator()
     strict_config = ValidationConfig(
         allow_orphan_components=False, allow_dangling_references=False

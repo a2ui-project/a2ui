@@ -17,7 +17,10 @@ import math
 from typing import Any
 from pydantic import ValidationError
 
-from a2ui.core.basic_catalog.function_impls import BASIC_FUNCTION_IMPLEMENTATIONS
+from a2ui.core.basic_catalog.function_impls import (
+    BASIC_FUNCTION_IMPLEMENTATIONS,
+    create_basic_catalog_functions,
+)
 
 IMPLS_MAP = {impl.name: impl for impl in BASIC_FUNCTION_IMPLEMENTATIONS}
 
@@ -315,3 +318,77 @@ def test_formatting_pluralize():
 def test_actions_open_url():
     # Since openUrl has side effects in browser only and returns None in python, we verify it executes without error.
     assert invoke("openUrl", {"url": "https://google.com"}) is None
+
+
+def test_localized_formatting():
+    def invoke_localized(locale: str, name: str, args: dict) -> Any:
+        impls = create_basic_catalog_functions(locale)
+        impls_map = {impl.name: impl for impl in impls}
+        impl = impls_map.get(name)
+        if not impl:
+            raise ValueError(f"Function {name} not found")
+        if impl.schema:
+            validated_args = impl.schema.model_validate(args).model_dump()
+        else:
+            validated_args = {}
+        return impl.execute(validated_args, None)
+
+    # Number
+    assert (
+        invoke_localized("en-US", "formatNumber", {"value": 1234.56, "decimals": 2})
+        == "1,234.56"
+    )
+    assert (
+        invoke_localized("de-DE", "formatNumber", {"value": 1234.56, "decimals": 2})
+        == "1.234,56"
+    )
+    assert (
+        invoke_localized("fr-FR", "formatNumber", {"value": 1234.56, "decimals": 2})
+        == "1 234,56"
+    )
+
+    # Currency
+    assert (
+        invoke_localized(
+            "de-DE",
+            "formatCurrency",
+            {"value": 1234.56, "currency": "EUR", "decimals": 2},
+        )
+        == "1.234,56 €"
+    )
+    assert (
+        invoke_localized(
+            "en-US",
+            "formatCurrency",
+            {"value": 1234.56, "currency": "USD", "decimals": 2},
+        )
+        == "$1,234.56"
+    )
+
+    # Date
+    assert (
+        invoke_localized(
+            "fr-FR",
+            "formatDate",
+            {"value": "2026-06-10T12:00:00Z", "format": "EEEE, MMMM d, yyyy"},
+        )
+        == "mercredi, juin 10, 2026"
+    )
+    assert (
+        invoke_localized(
+            "de-DE",
+            "formatDate",
+            {"value": "2026-06-10T12:00:00Z", "format": "EEEE, MMMM d, yyyy"},
+        )
+        == "Mittwoch, Juni 10, 2026"
+    )
+
+    # Pluralize (Welsh cy locale)
+    assert (
+        invoke_localized(
+            "cy",
+            "pluralize",
+            {"value": 0, "zero": "dim", "one": "un", "other": "llawer"},
+        )
+        == "dim"
+    )

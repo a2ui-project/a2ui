@@ -22,20 +22,20 @@
   "license": "ISC",
   "description": "",
   "devDependencies": {
-    "@types/yargs": "^17.0.34",
-    "dotenv-cli": "^10.0.0",
-    "prettier": "^3.6.2",
-    "tsx": "^4.20.5",
+    "@types/yargs": "^17.0.35",
+    "dotenv-cli": "^11.0.0",
+    "prettier": "^3.8.4",
+    "tsx": "^4.22.4",
     "typescript": "5.9.3",
     "wireit": "^0.15.0-pre.2",
     "yargs": "^18.0.0"
   },
   "dependencies": {
-    "@genkit-ai/compat-oai": "^1.19.2",
-    "@genkit-ai/google-genai": "^1.19.3",
-    "@genkit-ai/vertexai": "^1.19.3",
-    "genkit": "^1.19.2",
-    "genkitx-anthropic": "^0.25.0"
+    "@genkit-ai/compat-oai": "^1.36.0",
+    "@genkit-ai/google-genai": "^1.36.0",
+    "@genkit-ai/vertexai": "^1.36.0",
+    "genkit": "^1.36.0",
+    "genkitx-anthropic": "^0.30.0"
   },
   "wireit": {
     "build": {

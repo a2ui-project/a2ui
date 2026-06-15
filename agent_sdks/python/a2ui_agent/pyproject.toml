@@ -17,13 +17,21 @@ name = "a2ui-agent-sdk"
 dynamic = ["version"]
 description = "A2UI Agent SDK"
 readme = "README.md"
-requires-python = ">=3.10"
+requires-python = ">=3.14"
 dependencies = [
-  "a2a-sdk>=0.3.0",
+  "a2a-sdk>=0.3.0,<0.4.0",
+  "a2ui-core>=0.1.0",
   "google-adk>=1.28.1",
   "google-genai>=1.27.0",
   "jsonschema>=4.0.0"
 ]
+
+[project.scripts]
+pyink = "pyink:patched_main"
+
+[tool.uv.sources]
+
+a2ui-core = { path = "../a2ui_core", editable = true }
 
 [build-system]
 requires = ["hatchling", "jsonschema"]

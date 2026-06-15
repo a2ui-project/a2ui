@@ -32,7 +32,9 @@ from ..schema.validator import (
     extract_component_ref_fields,
     extract_component_required_fields,
 )
+from ..schema.validator import A2uiValidator
 from .response_part import ResponsePart
+from a2ui.core.validating.validator import RELAXED_VALIDATION, STRICT_VALIDATION, ValidationConfig
 
 
 if TYPE_CHECKING:
@@ -48,31 +50,27 @@ class A2uiStreamParser:
   (V08 or V09) depending on the catalog version.
   """
 
-  def __new__(cls, catalog: "A2uiCatalog" = None, *args, **kwargs):
+  def __new__(cls, catalog: A2uiCatalog):
     if cls is A2uiStreamParser:
-      version = getattr(catalog, "version", None) if catalog else None
-      if version == VERSION_0_9:
-        from .streaming_v09 import A2uiStreamParserV09
-
-        return A2uiStreamParserV09(catalog=catalog, *args, **kwargs)
-      else:
+      version = catalog.version
+      # Lazy import inside __new__ to prevent circular import errors, as the
+      # version-specific subclass modules import A2uiStreamParser from this module.
+      if version == VERSION_0_8:
         from .streaming_v08 import A2uiStreamParserV08
 
-        return A2uiStreamParserV08(catalog=catalog, *args, **kwargs)
+        return A2uiStreamParserV08(catalog=catalog)
+      else:
+        from .streaming_v09 import A2uiStreamParserV09
+
+        return A2uiStreamParserV09(catalog=catalog)
     return super().__new__(cls)
 
-  def __init__(self, catalog: "A2uiCatalog" = None):
-    self._version = getattr(catalog, "version", None) if catalog else None
-    self._cuttable_keys = (
-        getattr(catalog, "cuttable_keys", None) if catalog else frozenset()
-    )
-    self._ref_fields_map = extract_component_ref_fields(catalog) if catalog else {}
-    self._required_fields_map = (
-        extract_component_required_fields(catalog) if catalog else {}
-    )
-    from ..schema.validator import A2uiValidator
-
-    self._validator = A2uiValidator(catalog) if catalog else None
+  def __init__(self, catalog: A2uiCatalog):
+    self._version = catalog.version
+    self._cuttable_keys = catalog.cuttable_keys
+    self._ref_fields_map = extract_component_ref_fields(catalog)
+    self._required_fields_map = extract_component_required_fields(catalog)
+    self._validator = A2uiValidator(catalog)
 
     self._found_delimiter = False
     self._buffer = ""
@@ -197,7 +195,7 @@ class A2uiStreamParser:
         "Subclasses must implement _get_active_msg_type_for_components"
     )
 
-  def _deduplicate_data_model(self, m: Dict[str, Any], strict_integrity: bool) -> bool:
+  def _deduplicate_data_model(self, m: Dict[str, Any]) -> bool:
     """Returns True if message should be yielded, False if skipped."""
     return True
 
@@ -205,21 +203,19 @@ class A2uiStreamParser:
       self,
       messages_to_yield: List[Dict[str, Any]],
       messages: List[ResponsePart],
-      strict_integrity: bool = True,
+      config: ValidationConfig = STRICT_VALIDATION,
   ):
     """Validates and appends messages to the final output list."""
     for m in messages_to_yield:
-      if not self._deduplicate_data_model(m, strict_integrity):
+      if not self._deduplicate_data_model(m):
         continue
 
       # Each surface update message must specify a surfaceId and satisfy catalog validation.
       if self._validator:
         try:
-          self._validator.validate(
-              m, root_id=self.root_id, strict_integrity=strict_integrity
-          )
+          self._validator.validate(m, root_id=self.root_id, config=config)
         except ValueError as e:
-          if strict_integrity:
+          if config == STRICT_VALIDATION:
             raise e
           else:
             logger.debug(f"Validation failed for partial/sniffed message: {e}")
@@ -665,7 +661,7 @@ class A2uiStreamParser:
                 delta_msg = self._construct_sniffed_data_model_message(
                     active_msg_type, delta_msg_payload
                 )
-                self._yield_messages([delta_msg], messages, strict_integrity=False)
+                self._yield_messages([delta_msg], messages, config=RELAXED_VALIDATION)
 
                 self._yielded_data_model.update(contents_dict)
                 # Update internal model for path resolution
@@ -875,10 +871,10 @@ class A2uiStreamParser:
         )
 
       reachable_ids = analyze_topology(
-          self.root_id,
           components_to_analyze,
           self._ref_fields_map,
-          raise_on_orphans=raise_on_orphans,
+          root_id=self.root_id,
+          allow_orphan_components=not raise_on_orphans,
       )
 
       # We only yield components we actually have in our "seen" cache
@@ -931,9 +927,7 @@ class A2uiStreamParser:
             self._buffered_start_message
             and current_sid not in self._yielded_start_messages
         ):
-          self._yield_messages(
-              [self._buffered_start_message], messages, strict_integrity=True
-          )
+          self._yield_messages([self._buffered_start_message], messages)
           self._yielded_start_messages.add(current_sid)
           self._yielded_surfaces_set.add(current_sid)
 
@@ -942,8 +936,8 @@ class A2uiStreamParser:
             processed_components, active_msg_type
         )
 
-        # Use strict_integrity=False for partial fragments yielded during streaming
-        self._yield_messages([partial_msg], messages, strict_integrity=False)
+        # Use RELAXED_VALIDATION for partial fragments yielded during streaming
+        self._yield_messages([partial_msg], messages, config=RELAXED_VALIDATION)
         self._yielded_ids.setdefault(surface_id, set()).update(available_reachable)
 
         # Update content/placeholder tracking

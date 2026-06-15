@@ -13,6 +13,7 @@
     "target": "es2022",
     "module": "esnext",
     "lib": ["es2023", "DOM", "DOM.Iterable"],
+    "types": ["node"],
     "skipLibCheck": true,
     "useDefineForClassFields": false,
     "rootDir": ".",
@@ -30,7 +31,6 @@
     "noUnusedParameters": true,
     "noFallthroughCasesInSwitch": true,
 
-    "baseUrl": ".",
     "paths": {
       "rxjs/operators": ["./node_modules/rxjs/operators/index.js"]
     }

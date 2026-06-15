@@ -1,6 +1,6 @@
 # Transports (Message Passing)
 
-Transports deliver A2UI messages from agents to clients. A2UI is transport-agnostic—use any method that can send JSON.
+Transports deliver A2UI messages from agents to clients. A2UI is transport-agnostic: use any method that can send JSON.
 
 The actual component rendering is done by the [renderer](../reference/renderers.md),
 and the [agents](../reference/agents.md) are responsible for generating the A2UI messages.
@@ -16,13 +16,13 @@ A2UI defines a sequence of JSON messages. The transport layer is responsible for
 
 ## Available Transports
 
-| Transport                    | Status      | Use Case                               |
-| ---------------------------- | ----------- | -------------------------------------- |
-| **A2A Protocol**             | ✅ Stable   | Multi-agent systems, enterprise meshes |
-| **AG UI**                    | ✅ Stable   | Full-stack React applications          |
-| **REST API**                 | 📋 Planned  | Simple HTTP endpoints                  |
-| **WebSockets**               | 💡 Proposed | Real-time bidirectional                |
-| **SSE (Server-Sent Events)** | 💡 Proposed | Web streaming                          |
+| Transport                    | Status      | Use Case                                                 |
+| ---------------------------- | ----------- | -------------------------------------------------------- |
+| **A2A Protocol**             | ✅ Stable   | Multi-agent systems, enterprise meshes                   |
+| **AG-UI**                    | ✅ Stable   | Full stack React, Vue, Angular applications (CopilotKit) |
+| **REST API**                 | 📋 Planned  | Simple HTTP endpoints                                    |
+| **WebSockets**               | 💡 Proposed | Real-time bidirectional                                  |
+| **SSE (Server-Sent Events)** | 💡 Proposed | Web streaming                                            |
 
 ## A2A Protocol
 
@@ -41,11 +41,11 @@ TODO: Add a detailed guide.
 
 **See:** [A2A Extension Specification](../specification/v0.8-a2a-extension.md)
 
-## AG UI
+## AG-UI
 
-[AG UI](https://ag-ui.com/) translates A2UI messages to AG UI events and handles transport and state sync automatically. It is the recommended transport for React / Next.js clients.
+[AG-UI](https://ag-ui.com/) translates A2UI messages to AG-UI events and handles transport and state sync automatically. It is commonly used for full stack React, Vue, and Angular applications. CopilotKit is AG-UI's creator and primary consumer.
 
-**See:** [Use A2UI with Any Agent Framework (Using AG-UI)](../guides/a2ui-with-any-agent-framework.md) — guide to setting up CopilotKit with your agent framework of choice and enabling A2UI rendering.
+**See:** [Use A2UI with Any Agent Framework (Using AG-UI)](../guides/a2ui-with-any-agent-framework.md): Set up CopilotKit with your agent framework of choice and enable A2UI rendering.
 
 ## Custom Transports
 

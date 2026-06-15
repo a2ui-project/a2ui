@@ -12,6 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from __future__ import annotations
+
 import collections
 import copy
 import glob
@@ -21,6 +23,7 @@ import os
 from dataclasses import dataclass, field, replace
 from typing import Any, Dict, List, Optional, Union, TYPE_CHECKING
 from urllib.parse import urlparse
+from a2ui.core.catalog import Catalog
 
 from .catalog_provider import A2uiCatalogProvider, FileSystemCatalogProvider
 from .constants import (
@@ -32,7 +35,9 @@ from .constants import (
     VERSION_0_8,
     ENCODING,
 )
-from .validator import A2uiValidator
+
+if TYPE_CHECKING:
+  from .validator import A2uiValidator
 
 
 @dataclass
@@ -170,8 +175,18 @@ class A2uiCatalog:
     return self.catalog_schema[CATALOG_ID_KEY]
 
   @property
-  def validator(self) -> A2uiValidator:
+  def validator(self) -> "A2uiValidator":
+    from .validator import A2uiValidator
+
     return A2uiValidator(self)
+
+  @property
+  def core_catalog(self) -> Catalog[Any, Any]:
+    return Catalog.from_json(
+        catalog_schema=self.catalog_schema,
+        spec_version=self.version,
+        catalog_id=self.catalog_id,
+    )
 
   def _with_pruned_components(self, allowed_components: List[str]) -> A2uiCatalog:
     """Returns a new catalog with only allowed components.

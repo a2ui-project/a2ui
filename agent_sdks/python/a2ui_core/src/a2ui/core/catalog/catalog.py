@@ -12,70 +12,131 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Any, Dict, List, Optional, Set, Tuple
+from typing import Any, Callable, Dict, Generic, List, Optional, TypeVar, Union
+from pydantic import BaseModel
+
+from .functions import (
+    FunctionApi,
+    FunctionImplementation,
+    create_function_implementation,
+)
+from .components import ComponentApi, ComponentImplementation, ModelComponentApi
 
 
-class CatalogApi:
-    """Base abstract Catalog API definition representing the schemas of an A2UI Catalog."""
+TComponent = TypeVar("TComponent", bound=ComponentApi)
+TFunction = TypeVar("TFunction", bound=FunctionApi)
+
+
+class Catalog(Generic[TComponent, TFunction]):
+    """A unified collection of available components and functions."""
 
     def __init__(
         self,
-        spec_version: str,
         catalog_id: str,
+        spec_version: str,
+        components: List[TComponent],
+        functions: List[TFunction],
+        theme_schema: Dict[str, Any] = {},
     ):
-        if not spec_version:
-            raise ValueError("A2UI specification version must be provided.")
-        if not catalog_id:
-            raise ValueError("catalog_id must be provided.")
-
-        self.spec_version = spec_version
         self.catalog_id = catalog_id
+        self.spec_version = spec_version
 
-    def get_component_schema(self, comp_type: str) -> Optional[Dict[str, Any]]:
-        """Retrieves the JSON Schema representing a component's properties."""
-        raise NotImplementedError("Subclasses must implement get_component_schema()")
+        # Symmetrical map to Catalog.components in TypeScript
+        self.components: Dict[str, TComponent] = {c.name: c for c in components}
 
-    def get_function_schema(self, func_name: str) -> Optional[Dict[str, Any]]:
-        """Retrieves the JSON Schema representing a function's arguments."""
-        raise NotImplementedError("Subclasses must implement get_function_schema()")
+        # Symmetrical map to Catalog.functions in TypeScript
+        self.functions: Dict[str, TFunction] = {fn.name: fn for fn in functions}
 
-    def get_theme_schema(self) -> Optional[Dict[str, Any]]:
-        """Retrieves the JSON Schema representing the catalog's theme."""
-        raise NotImplementedError("Subclasses must implement get_theme_schema()")
+        self.theme_schema = theme_schema
+        self._catalog_schema: Optional[Dict[str, Any]] = None
 
-    def extract_ref_fields(self) -> Dict[str, Tuple[Set[str], Set[str]]]:
-        """Inspects and retrieves the topological reference pointer map for the active catalog components."""
-        raise NotImplementedError("Subclasses must implement extract_ref_fields()")
+    @property
+    def catalog_schema(self) -> Dict[str, Any]:
+        return self._catalog_schema
 
+    def get_component(self, name: str) -> Optional[TComponent]:
+        """Directly retrieves a component by name."""
+        return self.components.get(name)
 
-class CatalogImplementation(CatalogApi):
-    """Abstract Catalog subclass that extends CatalogApi with concrete runtime implementations.
-
-    In addition to schemas, a CatalogImplementation provides executable function
-    invokers and component model classes, serving client-side rendering and
-    local function evaluation.
-    """
-
-    def get_component_class(self, comp_type: str) -> Optional[Any]:
-        """Retrieves the concrete model class representing a component."""
-        raise NotImplementedError("Subclasses must implement get_component_class()")
-
-    def get_function_class(self, func_name: str) -> Optional[Any]:
-        """Retrieves the concrete model class representing a function's schema."""
-        raise NotImplementedError("Subclasses must implement get_function_class()")
-
-    def get_function_implementation(self, func_name: str) -> Optional[Any]:
-        """Retrieves the concrete FunctionImplementation object for a function."""
-        raise NotImplementedError(
-            "Subclasses must implement get_function_implementation()"
+    def get_function(self, name: str) -> Optional[TFunction]:
+        """Directly retrieves a function by name."""
+        if not name:
+            return None
+        return (
+            self.functions.get(name)
+            or self.functions.get(name[0].lower() + name[1:])
+            or self.functions.get(name[0].upper() + name[1:])
         )
 
-    def invoke_function(
-        self,
-        name: str,
-        args: Dict[str, Any],
-        context: Any = None,
-        abort_signal: Optional[Any] = None,
-    ) -> Any:
-        """Executes a catalog function dynamically."""
-        raise NotImplementedError("Subclasses must implement invoke_function()")
+    def get_theme_schema(self) -> Dict[str, Any]:
+        return self.theme_schema
+
+    @classmethod
+    def from_json(
+        cls,
+        catalog_schema: Dict[str, Any],
+        spec_version: str,
+        catalog_id: Optional[str] = None,
+    ) -> "Catalog[ComponentApi, FunctionApi]":
+        """Constructs a schema-only Catalog directly from raw JSON Schema."""
+        catalog_id = catalog_id or catalog_schema.get("catalogId")
+        if not catalog_id:
+            raise ValueError("catalog_id must be provided or exist in catalog_schema.")
+
+        components_map = catalog_schema.get("components", {})
+        any_comp_refs = (
+            catalog_schema.get("$defs", {}).get("anyComponent", {}).get("oneOf", [])
+        )
+        permitted_names = set()
+        for item in any_comp_refs:
+            if isinstance(item, dict):
+                ref = item.get("$ref", "")
+                if isinstance(ref, str) and ref.startswith("#/components/"):
+                    permitted_names.add(ref.split("/")[-1])
+        if permitted_names:
+            components = [
+                ComponentApi(name, schema)
+                for name, schema in components_map.items()
+                if name in permitted_names
+            ]
+        else:
+            components = [
+                ComponentApi(name, schema) for name, schema in components_map.items()
+            ]
+
+        functions = []
+        raw_functions = catalog_schema.get("functions", {})
+        any_func_refs = (
+            catalog_schema.get("$defs", {}).get("anyFunction", {}).get("oneOf", [])
+        )
+        permitted_func_names = set()
+        for item in any_func_refs:
+            ref = item.get("$ref", "")
+            if ref.startswith("#/functions/"):
+                permitted_func_names.add(ref.split("/")[-1])
+
+        if isinstance(raw_functions, dict):
+            for name, spec in raw_functions.items():
+                if not permitted_func_names or name in permitted_func_names:
+                    return_type = (
+                        spec.get("returnType", "any")
+                        if isinstance(spec, dict)
+                        else "any"
+                    )
+                    functions.append(
+                        FunctionApi(
+                            name,
+                            return_type,
+                            spec,
+                        )
+                    )
+
+        cat = cls(
+            catalog_id=catalog_id,
+            spec_version=spec_version,
+            components=components,
+            functions=functions,
+            theme_schema=catalog_schema.get("theme") or {},
+        )
+        cat._catalog_schema = catalog_schema
+        return cat

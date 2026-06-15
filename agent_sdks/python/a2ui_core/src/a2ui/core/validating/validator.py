@@ -14,7 +14,7 @@
 
 import re
 from typing import Any, Dict, Iterator, List, Optional, Set, Tuple, Union
-from pydantic import BaseModel, ValidationError
+from pydantic import BaseModel, ConfigDict, ValidationError
 
 from ..schema import A2uiMessageListWrapper
 from ..schema.constants import (
@@ -24,6 +24,7 @@ from ..schema.constants import (
     MSG_TYPE_DELETE_SURFACE,
     CATALOG_COMPONENTS_KEY,
     THEME_KEY,
+    ROOT_ID,
 )
 
 from .integrity_checker import (
@@ -31,7 +32,7 @@ from .integrity_checker import (
     validate_recursion_and_paths,
 )
 from .topology_analyzer import analyze_topology
-from .catalog_validator import CatalogValidator
+from .catalog_schema_validator import CatalogSchemaValidator
 
 
 class A2uiValidatorError(ValueError):
@@ -41,8 +42,27 @@ class A2uiValidatorError(ValueError):
 class ValidationConfig(BaseModel):
     """Configuration options for A2UI payload and component validation."""
 
+    model_config = ConfigDict(frozen=True)
+
     allow_orphan_components: bool = False
     allow_dangling_references: bool = False
+    allow_missing_root: bool = False
+
+
+# Define the presets as global constants
+STRICT_VALIDATION = ValidationConfig()
+RELAXED_VALIDATION = ValidationConfig(
+    allow_orphan_components=True,
+    allow_dangling_references=True,
+    allow_missing_root=True,
+)
+
+
+# Define the presets as global constants
+STRICT_VALIDATION = ValidationConfig()
+RELAXED_VALIDATION = ValidationConfig(
+    allow_orphan_components=True, allow_dangling_references=True
+)
 
 
 class A2uiValidator:
@@ -116,9 +136,9 @@ class A2uiValidator:
 
     def validate_components(
         self,
-        catalog_validator: CatalogValidator,
+        schema_validator: CatalogSchemaValidator,
         components: List[Dict[str, Any]],
-        config: ValidationConfig = ValidationConfig(),
+        config: ValidationConfig = STRICT_VALIDATION,
     ) -> None:
         errors = []
         if components:
@@ -126,21 +146,23 @@ class A2uiValidator:
             # invalid component and collect all schema validation errors across the payload.
             for c in components:
                 try:
-                    catalog_validator.validate_components([c])
+                    schema_validator.validate_components([c])
                 except Exception as ce:
                     errors.append(ce)
             if not errors:
                 try:
-                    ref_fields = catalog_validator.extract_ref_fields()
+                    ref_fields = schema_validator.extract_ref_fields()
                     validate_component_integrity(
                         components,
                         ref_fields,
                         allow_dangling_references=config.allow_dangling_references,
+                        allow_missing_root=config.allow_missing_root,
                     )
                     analyze_topology(
                         components,
                         ref_fields,
                         allow_orphan_components=config.allow_orphan_components,
+                        allow_missing_root=config.allow_missing_root,
                     )
                 except Exception as e:
                     errors.append(e)
@@ -150,14 +172,10 @@ class A2uiValidator:
 
     def validate(
         self,
-        catalog_validator: CatalogValidator,
+        schema_validator: CatalogSchemaValidator,
         a2ui_payload: Union[Dict[str, Any], List[Any]],
-        config: Optional[ValidationConfig] = None,
+        config: ValidationConfig = STRICT_VALIDATION,
     ) -> None:
-        if config is None:
-            config = ValidationConfig(
-                allow_orphan_components=False, allow_dangling_references=False
-            )
 
         messages = a2ui_payload if isinstance(a2ui_payload, list) else [a2ui_payload]
 
@@ -167,20 +185,27 @@ class A2uiValidator:
         except Exception as e:
             errors.append(e)
 
+        # Automatically enable allow_missing_root if it's an incremental update (no createSurface)
+        has_create = any(
+            isinstance(m, dict) and MSG_TYPE_CREATE_SURFACE in m for m in messages
+        )
+        if not has_create and not config.allow_missing_root:
+            config = config.model_copy(update={"allow_missing_root": True})
+
         for msg in messages:
             if isinstance(msg, dict):
                 try:
                     if MSG_TYPE_CREATE_SURFACE in msg:
                         theme = msg[MSG_TYPE_CREATE_SURFACE].get(THEME_KEY)
                         if theme:
-                            catalog_validator.validate_theme(theme)
+                            schema_validator.validate_theme(theme)
                     elif MSG_TYPE_UPDATE_COMPONENTS in msg:
                         components = msg[MSG_TYPE_UPDATE_COMPONENTS].get(
                             CATALOG_COMPONENTS_KEY
                         )
                         if isinstance(components, list):
                             self.validate_components(
-                                catalog_validator,
+                                schema_validator,
                                 components,
                                 config=config,
                             )

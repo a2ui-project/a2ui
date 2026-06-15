@@ -59,8 +59,13 @@ def _get_refs_recursively(
                 )
                 yield from extract_pointers(item, sub_path)
         elif isinstance(val, dict):
-            for sub_key, sub_val in val.items():
-                yield from extract_pointers(sub_val, f"{current_path}.{sub_key}")
+            if "componentId" in val:
+                val_id = val["componentId"]
+                if isinstance(val_id, str):
+                    yield val_id, f"{current_path}.componentId"
+            else:
+                for sub_key, sub_val in val.items():
+                    yield from extract_pointers(sub_val, f"{current_path}.{sub_key}")
 
     for key, value in props.items():
         if key in single_refs or key in list_refs:
@@ -70,8 +75,9 @@ def _get_refs_recursively(
 def validate_component_integrity(
     components: List[Dict[str, Any]],
     ref_fields_map: Dict[str, Tuple[Set[str], Set[str]]],
-    root_id: Optional[str] = ROOT_ID,
+    root_id: str = ROOT_ID,
     allow_dangling_references: bool = False,
+    allow_missing_root: bool = False,
 ) -> None:
     ids: Set[str] = set()
 
@@ -89,7 +95,7 @@ def validate_component_integrity(
         return
 
     # 2. Check for root component
-    if root_id is not None and root_id not in ids:
+    if not allow_missing_root and root_id not in ids:
         raise ValueError(f"Missing root component: No component has id='{root_id}'")
 
     # 3. Check for dangling references using helper

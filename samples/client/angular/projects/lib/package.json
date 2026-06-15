@@ -3,8 +3,8 @@
   "version": "0.8.3",
   "dependencies": {
     "@a2ui/web_core": "workspace:*",
-    "markdown-it": "^14.1.0",
-    "tslib": "^2.3.0"
+    "markdown-it": "^14.2.0",
+    "tslib": "^2.8.1"
   },
   "peerDependencies": {
     "@angular/common": "^21.2.5",

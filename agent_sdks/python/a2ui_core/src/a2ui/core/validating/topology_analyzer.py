@@ -20,8 +20,9 @@ from ..schema.constants import ROOT_ID
 def analyze_topology(
     components: List[Dict[str, Any]],
     ref_fields_map: Dict[str, Tuple[Set[str], Set[str]]],
-    root_id: Optional[str] = ROOT_ID,
-    allow_orphan_components: bool = True,
+    root_id: str = ROOT_ID,
+    allow_orphan_components: bool = False,
+    allow_missing_root: bool = False,
 ) -> Set[str]:
     adj_list: Dict[str, List[str]] = {}
     all_ids: Set[str] = set()
@@ -67,7 +68,12 @@ def analyze_topology(
 
         recursion_stack.remove(node_id)
 
-    if root_id is not None:
+    if allow_missing_root:
+        # No root provided or allowed missing (e.g. partial update): we traverse everything to check for cycles
+        for node_id in sorted(list(all_ids)):
+            if node_id not in visited:
+                dfs(node_id, 0)
+    else:
         if root_id in all_ids:
             dfs(root_id, 0)
 
@@ -79,10 +85,5 @@ def analyze_topology(
                 raise ValueError(
                     f"Component '{sorted_orphans[0]}' is not reachable from '{root_id}'"
                 )
-    else:
-        # No root provided (e.g. partial update): we traverse everything to check for cycles
-        for node_id in sorted(list(all_ids)):
-            if node_id not in visited:
-                dfs(node_id, 0)
 
     return visited
