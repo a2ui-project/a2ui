@@ -28,16 +28,16 @@ echo "Running Prettier formatting for Node/Web assets..."
 if [ -f ".yarn/install-state.gz" ]; then
   # Local Node environment already installed; invoke standard script targets
   if [ "$CHECK_ONLY" = true ]; then
-    yarn format:check:all
+    corepack yarn format:check:all
   else
-    yarn format:all
+    corepack yarn format:all
   fi
 else
   # Non-Node contributor or CI; run standalone Prettier via dlx without full monorepo install
   if [ "$CHECK_ONLY" = true ]; then
-    yarn dlx prettier@^3.5.0 --config .prettierrc --check .
+    corepack yarn dlx prettier@^3.5.0 --config .prettierrc --check .
   else
-    yarn dlx prettier@^3.5.0 --config .prettierrc --write .
+    corepack yarn dlx prettier@^3.5.0 --config .prettierrc --write .
   fi
 fi
 
