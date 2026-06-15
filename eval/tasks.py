@@ -23,7 +23,7 @@ from inspect_ai import task, Task
 from inspect_ai.dataset import MemoryDataset, Sample
 from inspect_ai.scorer import scorer, Score
 from a2ui_eval.dataset import load_a2ui_dataset
-from a2ui_eval.solvers import a2ui_system_prompt, measured_generate
+from a2ui_eval.strategies import get_solver
 from a2ui_eval.scorers import a2ui_scorer, measured_model_graded_qa
 
 # Paths relative to the eval directory where we run inspect
@@ -50,11 +50,17 @@ Notes for grading:
 """
 
 @task
-def a2ui_v0_9_eval(list_models: bool = False, grading_model: str = "google/gemini-3-flash-preview") -> Task:
+def a2ui_v0_9_eval(
+    list_models: bool = False, 
+    grading_model: str = "google/gemini-3-flash-preview",
+    strategy: str = "direct"
+) -> Task:
     """Evaluation task for A2UI v0.9 protocol generation.
 
     Args:
         list_models: Whether to list available Gemini models and exit.
+        grading_model: The model to use for LLM-as-a-judge grading.
+        strategy: The evaluation strategy to use (e.g., 'direct').
 
     Returns:
         An Inspect Task object configured for A2UI v0.9 evaluation.
@@ -68,7 +74,6 @@ def a2ui_v0_9_eval(list_models: bool = False, grading_model: str = "google/gemin
                 print(f"- {m.name}")
         except errors.APIError as e:
             print(f"Error listing models: {e}")
-        # Return a dummy task to exit gracefully without errors
 
         @scorer(metrics=[])
         def dummy_scorer():
@@ -86,10 +91,7 @@ def a2ui_v0_9_eval(list_models: bool = False, grading_model: str = "google/gemin
 
     return Task(
         dataset=dataset,
-        solver=[
-            a2ui_system_prompt(SCHEMA_PATH, CATALOG_PATH),
-            measured_generate()
-        ],
+        solver=get_solver(strategy, SCHEMA_PATH, CATALOG_PATH),
         scorer=[
             a2ui_scorer(CATALOG_PATH),
             measured_model_graded_qa(

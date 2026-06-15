@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import {Injectable} from '@angular/core';
+import {Inject, Injectable, InjectionToken, Optional} from '@angular/core';
 import {AngularCatalog, AngularComponentImplementation} from '../types';
 import {TextComponent} from './text.component';
 import {RowComponent} from './row.component';
@@ -37,6 +37,7 @@ import {DateTimeInputComponent} from './date-time-input.component';
 
 import {
   BASIC_FUNCTIONS,
+  createBasicCatalogFunctions,
   TextApi,
   RowApi,
   ColumnApi,
@@ -95,6 +96,11 @@ export interface BasicCatalogOptions {
   id?: string;
 
   /**
+   * An optional locale to configure catalog-level formatting.
+   */
+  locale?: string;
+
+  /**
    * Optional overrides for individual components in the catalog.
    */
   components?: Partial<{
@@ -131,7 +137,7 @@ export {BASIC_FUNCTIONS};
 export class BasicCatalogBase extends AngularCatalog {
   constructor(options: BasicCatalogOptions = {}) {
     const id = options.id ?? 'https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json';
-    const functions = options.functions ?? BASIC_FUNCTIONS;
+    const functions = options.functions ?? createBasicCatalogFunctions({locale: options.locale});
 
     const overrides = options.components ?? {};
     const components: AngularComponentImplementation[] = [
@@ -146,6 +152,10 @@ export class BasicCatalogBase extends AngularCatalog {
   }
 }
 
+export const BASIC_CATALOG_OPTIONS = new InjectionToken<BasicCatalogOptions>(
+  'BASIC_CATALOG_OPTIONS',
+);
+
 /**
  * A basic catalog of components and functions for v0.9 verification.
  *
@@ -157,7 +167,7 @@ export class BasicCatalogBase extends AngularCatalog {
   providedIn: 'root',
 })
 export class BasicCatalog extends BasicCatalogBase {
-  constructor() {
-    super();
+  constructor(@Optional() @Inject(BASIC_CATALOG_OPTIONS) options?: BasicCatalogOptions) {
+    super(options ?? {});
   }
 }

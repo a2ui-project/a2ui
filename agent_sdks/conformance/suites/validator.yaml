@@ -545,9 +545,7 @@
             component:
               const: Column
             children:
-              type: array
-              items:
-                type: string
+              $ref: "https://a2ui.org/specification/v0_9/common_types.json#/$defs/ChildList"
           required:
             - component
             - children
@@ -557,7 +555,7 @@
             component:
               const: Card
             child:
-              type: string
+              $ref: "https://a2ui.org/specification/v0_9/common_types.json#/$defs/ComponentId"
           required:
             - component
             - child
@@ -640,7 +638,7 @@
             component:
               const: Card
             child:
-              type: string
+              $ref: "https://a2ui.org/specification/v0_9/common_types.json#/$defs/ComponentId"
           required:
             - component
             - child
@@ -920,15 +918,7 @@
             component:
               const: List
             children:
-              type: object
-              properties:
-                componentId:
-                  type: string
-                path:
-                  type: string
-              required:
-                - componentId
-                - path
+              $ref: "https://a2ui.org/specification/v0_9/common_types.json#/$defs/ChildList"
           required:
             - component
             - children
@@ -1370,7 +1360,7 @@
             component:
               const: Card
             child:
-              type: string
+              $ref: "https://a2ui.org/specification/v0_9/common_types.json#/$defs/ComponentId"
           required:
             - component
             - child
@@ -1784,7 +1774,7 @@
             component:
               const: Card
             child:
-              type: string
+              $ref: "https://a2ui.org/specification/v0_9/common_types.json#/$defs/ComponentId"
           required:
             - component
             - child
@@ -2081,7 +2071,8 @@
           type: object
           properties:
             component: {const: "Card"}
-            child: {type: string}
+            child:
+              $ref: "https://a2ui.org/specification/v0_9/common_types.json#/$defs/ComponentId"
           required: ["component", "child"]
       $defs:
         anyComponent:
@@ -2237,7 +2228,7 @@
             component:
               const: Card
             child:
-              type: string
+              $ref: "https://a2ui.org/specification/v0_9/common_types.json#/$defs/ComponentId"
           required:
             - component
             - child
@@ -2337,7 +2328,7 @@
             component:
               const: Card
             child:
-              type: string
+              $ref: "https://a2ui.org/specification/v0_9/common_types.json#/$defs/ComponentId"
           required:
             - component
             - child
@@ -2401,7 +2392,7 @@
             component:
               const: Card
             child:
-              type: string
+              $ref: "https://a2ui.org/specification/v0_9/common_types.json#/$defs/ComponentId"
           required:
             - component
             - child

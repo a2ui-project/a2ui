@@ -76,7 +76,7 @@ export const plugin = (): Plugin => {
                     res.setHeader('Content-Type', 'application/json');
                     res.end(
                       JSON.stringify({
-                        error: `Invalid message - No payload or catalog`,
+                        error: 'Invalid message - No payload or catalog',
                       }),
                     );
                     return;

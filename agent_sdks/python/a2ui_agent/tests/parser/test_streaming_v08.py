@@ -242,8 +242,8 @@ def assertResponseContainsText(response, expected_text):
   )
 
 
-def test_add_msg_type_deduplication():
-  parser = A2uiStreamParser()
+def test_add_msg_type_deduplication(mock_catalog):
+  parser = A2uiStreamParser(catalog=mock_catalog)
   parser.add_msg_type(MSG_TYPE_SURFACE_UPDATE)
   parser.add_msg_type(MSG_TYPE_SURFACE_UPDATE)
   assert parser.msg_types == [MSG_TYPE_SURFACE_UPDATE]

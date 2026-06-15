@@ -1,0 +1,32 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "useDefineForClassFields": true,
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "module": "ESNext",
+    "types": ["jasmine", "node"],
+    "skipLibCheck": true,
+    "moduleResolution": "bundler",
+    "allowImportingTsExtensions": true,
+    "verbatimModuleSyntax": true,
+    "moduleDetection": "force",
+    "noEmit": true,
+    "jsx": "react-jsx",
+    "resolveJsonModule": true,
+    "strict": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "erasableSyntaxOnly": true,
+    "paths": {
+      "@a2ui/react": ["../src/index.ts"],
+      "@a2ui/react/*": ["../src/*"],
+      "@a2ui/markdown-it": ["../../markdown/markdown-it/src/markdown.ts"]
+    }
+  },
+  "include": [
+    "tests/**/*.ts",
+    "tests/**/*.tsx",
+    "src/generated/examples-list.ts",
+    "src/global.d.ts"
+  ]
+}

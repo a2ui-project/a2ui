@@ -35,6 +35,7 @@ export * from './state/surface-components-model.js';
 export * from './state/surface-group-model.js';
 export * from './state/surface-model.js';
 export * from './errors.js';
+export * from './basic_catalog/index.js';
 
 export {effect, Signal, signal, computed} from '@preact/signals-core';
 

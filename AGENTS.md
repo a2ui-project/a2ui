@@ -48,7 +48,22 @@ The repository supports multiple versions of the A2UI protocol:
 
 ---
 
-## 4. Running the Demos and Tools
+## 4. Yarn Workspaces & Standard Script Targets
+
+All Node.js and TypeScript projects inside the repository must be managed as **Yarn workspaces** registered inside the `"workspaces"` array of the root `package.json`.
+
+When creating or modifying workspaces, guarantee strict script uniformity by implementing canonical targets:
+
+- **`"build"`**: TypeScript compilation via `wireit` or `tsc -b`.
+- **`"lint"` / `"lint:fix"`**: Standardized to `"eslint ."` / `"eslint . --fix"` extending root `eslint.preset.mjs` via modern `eslint.config.mjs` flat configs. Pure container folders lacking code must cleanly echo `"Workspace has no lint configuration."`.
+- **`"test"`**: Unit test execution (`vitest`, `node --test`). Packages lacking tests must implement the standard auto-detecting Node fallback script to cleanly emit `"Workspace has no tests."` and exit 0.
+- **`"format"` / `"format:check"`**: Natively runs local Prettier formatting (`"prettier --write ."` / `"prettier --check ."`).
+
+**New Node Projects:** Guarantee that any newly initialized Node/TypeScript project uses Yarn Berry, is situated within the monorepo directory structure, is correctly registered in root `"workspaces"`, and fully defines these five canonical script targets.
+
+---
+
+## 5. Running the Demos and Tools
 
 Do not use hardcoded or guessed build/run sequences. Each subdirectory contains detailed setup, build, dependency resolution, and execution steps.
 
@@ -57,9 +72,10 @@ Do not use hardcoded or guessed build/run sequences. Each subdirectory contains 
 
 ---
 
-## 5. Maintenance & Update Policy
+## 6. Maintenance & Update Policy
 
 As A2UI evolves, keep agent documentation and skills perfectly synchronized with specification and codebase changes:
 
 - Update `AGENTS.md` and associated skill files when specifications, schemas, or directory layouts are added, modified, or removed.
+- Enforce Yarn workspace script hygiene across all Node packages.
 - Suggest updates to the user at the end of your task if any changes affect documented files.

@@ -296,7 +296,7 @@ A sequence of self-contained JSON objects is streaming-friendly, easy for LLMs t
 A2UI is transport-agnostic — any mechanism that can deliver JSON messages works:
 
 - **[A2A Protocol](https://a2a-protocol.org/)**: Standardized agent-to-agent communication, also used for agent-to-UI delivery
-- **[AG UI](https://docs.ag-ui.com/)**: Bidirectional, real-time agent-UI protocol
+- **[AG-UI](https://ag-ui.com/)**: Bidirectional, real-time agent-UI protocol
 - **REST / HTTP**: Simple request-response or Server-Sent Events (SSE) for one-way streaming
 - **WebSocket**: Persistent bidirectional connection, ideal for real-time updates and user actions
 - **Any other transport**: gRPC, message queues, custom protocols — if it can carry JSON, it works

@@ -406,7 +406,6 @@ def verify():
                 'catalogId': (
                     'https://a2ui.dev/specification/v0_9/catalogs/basic/catalog.json'
                 ),
-                'fakeProperty': 'should be allowed',
             },
         },
         {
@@ -443,6 +442,7 @@ def verify():
                         'component': 'Text',
                         'text': '# Contact Us',
                         'variant': 'h2',
+                        'fakeProperty': 'should be allowed',
                     },
                     {
                         'id': 'name_row',

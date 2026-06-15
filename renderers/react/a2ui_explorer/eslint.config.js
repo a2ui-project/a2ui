@@ -14,91 +14,19 @@
  * limitations under the License.
  */
 
-import globals from 'globals';
-import tseslint from 'typescript-eslint';
-import reactHooksPlugin from 'eslint-plugin-react-hooks';
-import reactRefreshPlugin from 'eslint-plugin-react-refresh';
-import prettierConfig from 'eslint-config-prettier';
-import gts from 'gts';
+import parentConfig from '../eslint.config.js';
 
-export default tseslint.config(
-  // Google TypeScript style guide plugin.
-  ...gts.map(config => ({
-    ...config,
-    // Override the project for a2ui_explorer since it has its own tsconfig
-    ...(config.languageOptions?.parserOptions?.project
-      ? {
-          languageOptions: {
-            ...config.languageOptions,
-            parserOptions: {
-              ...config.languageOptions.parserOptions,
-              project: ['./tsconfig.app.json', './tsconfig.node.json'],
-            },
-          },
-        }
-      : {}),
-  })),
-
+export default [
+  ...parentConfig,
   {
-    files: ['**/*.{ts,tsx}'],
-    plugins: {
-      'react-hooks': reactHooksPlugin,
-      'react-refresh': reactRefreshPlugin,
-    },
     languageOptions: {
-      ecmaVersion: 2020,
-      globals: {
-        ...globals.browser,
-      },
       parserOptions: {
-        ecmaFeatures: {
-          jsx: true,
-        },
+        project: ['./tsconfig.app.json', './tsconfig.spec.json', './tsconfig.node.json'],
+        tsconfigRootDir: import.meta.dirname,
       },
     },
-    rules: {
-      // React Hooks rules (errors)
-      ...reactHooksPlugin.configs.recommended.rules,
-
-      // React Refresh rules
-      'react-refresh/only-export-components': ['warn', {allowConstantExport: true}],
-
-      // TypeScript rules
-      '@typescript-eslint/no-unused-vars': [
-        'error',
-        {
-          argsIgnorePattern: '^_',
-          varsIgnorePattern: '^_',
-        },
-      ],
-      '@typescript-eslint/no-explicit-any': 'warn',
-      '@typescript-eslint/consistent-type-imports': [
-        'warn',
-        {
-          prefer: 'type-imports',
-          fixStyle: 'inline-type-imports',
-        },
-      ],
-
-      // General rules
-      'no-console': ['warn', {allow: ['warn', 'error']}],
-      'prefer-arrow-callback': 'off',
-    },
   },
-
-  // Test files - relaxed rules
   {
-    files: ['tests/**/*.{ts,tsx}', '**/*.test.{ts,tsx}', 'src/setupTests.ts'],
-    rules: {
-      '@typescript-eslint/no-explicit-any': 'off',
-      'no-console': 'off',
-    },
+    ignores: ['src/generated/**', 'dist/**', 'node_modules/**'],
   },
-
-  // Prettier config
-  prettierConfig,
-
-  {
-    ignores: ['dist/**', 'node_modules/**', '**/*.d.ts'],
-  },
-);
+];

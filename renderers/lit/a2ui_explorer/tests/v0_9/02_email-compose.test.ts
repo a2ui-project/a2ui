@@ -18,7 +18,6 @@ import {
   loadExample,
   getSurface,
   getDeepTextContent,
-  querySelectorAllDeep,
   whenSettled,
   findButtonByText,
 } from '../utils/test-utils';
