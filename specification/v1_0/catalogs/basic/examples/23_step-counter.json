@@ -40,8 +40,7 @@
           {
             "id": "title",
             "component": "Text",
-            "text": "Today's Steps",
-            "variant": "h4"
+            "text": "#### Today's Steps"
           },
           {
             "id": "steps-display",
@@ -53,8 +52,7 @@
                   "path": "/steps"
                 }
               }
-            },
-            "variant": "h1"
+            }
           },
           {
             "id": "goal-text",
@@ -91,8 +89,7 @@
               "args": {
                 "value": "${/distance} mi"
               }
-            },
-            "variant": "h3"
+            }
           },
           {
             "id": "distance-label",
@@ -116,8 +113,7 @@
                   "path": "/calories"
                 }
               }
-            },
-            "variant": "h3"
+            }
           },
           {
             "id": "calories-label",

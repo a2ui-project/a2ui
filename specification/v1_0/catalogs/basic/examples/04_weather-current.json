@@ -40,8 +40,7 @@
               "args": {
                 "value": "${/tempHigh}\u00b0"
               }
-            },
-            "variant": "h1"
+            }
           },
           {
             "id": "temp-low",
@@ -51,16 +50,14 @@
               "args": {
                 "value": "${/tempLow}\u00b0"
               }
-            },
-            "variant": "h2"
+            }
           },
           {
             "id": "location",
             "component": "Text",
             "text": {
               "path": "/location"
-            },
-            "variant": "h3"
+            }
           },
           {
             "id": "description",
@@ -104,8 +101,7 @@
             "component": "Text",
             "text": {
               "path": "icon"
-            },
-            "variant": "h3"
+            }
           },
           {
             "id": "day-temp",

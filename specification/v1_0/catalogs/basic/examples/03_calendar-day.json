@@ -61,8 +61,7 @@
                 },
                 "format": "d"
               }
-            },
-            "variant": "h1"
+            }
           },
           {
             "id": "events-col",

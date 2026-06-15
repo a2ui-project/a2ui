@@ -31,8 +31,7 @@
             "component": "Text",
             "text": {
               "path": "/eventName"
-            },
-            "variant": "h3"
+            }
           },
           {
             "id": "countdown-row",
@@ -51,8 +50,7 @@
             "component": "Text",
             "text": {
               "path": "/days"
-            },
-            "variant": "h1"
+            }
           },
           {
             "id": "days-label",
@@ -71,8 +69,7 @@
             "component": "Text",
             "text": {
               "path": "/hours"
-            },
-            "variant": "h1"
+            }
           },
           {
             "id": "hours-label",
@@ -91,8 +88,7 @@
             "component": "Text",
             "text": {
               "path": "/minutes"
-            },
-            "variant": "h1"
+            }
           },
           {
             "id": "minutes-label",

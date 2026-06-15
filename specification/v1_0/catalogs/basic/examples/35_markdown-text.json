@@ -29,8 +29,7 @@
           {
             "id": "title-text",
             "component": "Text",
-            "text": "Markdown Rendering",
-            "variant": "h3"
+            "text": "### Markdown Rendering"
           },
           {
             "id": "markdown-content",

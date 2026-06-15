@@ -42,16 +42,14 @@
             "component": "Text",
             "text": {
               "path": "/cardType"
-            },
-            "variant": "h4"
+            }
           },
           {
             "id": "card-number",
             "component": "Text",
             "text": {
               "path": "/cardNumber"
-            },
-            "variant": "h2"
+            }
           },
           {
             "id": "card-details",

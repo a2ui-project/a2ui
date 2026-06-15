@@ -27,7 +27,6 @@ Displays text content.
 **Rendering Guidelines:** Text should be rendered using a Markdown parser when possible. If markdown rendering is unavailable or fails, gracefully fallback to rendering the raw text. In such cases, renderers should ideally attempt to strip common Markdown markers (like `**` or `#`) to ensure the text remains legible and aesthetically consistent with the intended presentation.
 **Property Mapping:**
 
-- `variant="h1"` through `variant="h5"`: Apply heading styling. Suggested relative font sizes: `h1` (2.5x base), `h2` (2x base), `h3` (1.75x base), `h4` (1.5x base), `h5` (1.25x base).
 - `variant="caption"`: Render as smaller text, typically italicized or in a lighter/muted color. Suggested font size: 0.8x base.
 - `variant="body"` (default): Standard body text. Uses the base font size (e.g., 16dp/16px).
 

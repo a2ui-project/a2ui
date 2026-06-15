@@ -48,8 +48,7 @@
                 }
               },
               "returnType": "string"
-            },
-            "variant": "h2"
+            }
           }
         ]
       }
