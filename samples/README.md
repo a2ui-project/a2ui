@@ -1,5 +1,8 @@
 # A2UI Samples and Dev Tools
 
+
+:)
+
 This is the registry of examples and dev tools for A2UI.
 
 If the video is outdated, please, contribute the update.
