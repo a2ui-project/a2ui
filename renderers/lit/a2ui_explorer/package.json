@@ -9,7 +9,7 @@
     "dev": "yarn generate-examples && vite",
     "build": "wireit",
     "test": "wireit",
-    "test:smoke-test": "wireit",
+    "test:vite-compilation": "wireit",
     "test:watch": "yarn generate-examples && karma start karma.conf.cjs --single-run=false --auto-watch=true",
     "test:debug": "yarn generate-examples && karma start karma.conf.cjs --single-run=false --auto-watch=true --browsers Chrome",
     "test:ci": "wireit",
@@ -34,19 +34,15 @@
         "../../web_core:build",
         "../../markdown/markdown-it:build",
         "../:build",
-        "test:smoke-test"
+        "test:vite-compilation"
       ]
     },
-    "test:smoke-test": {
-      "command": "../../../node_modules/.bin/vitest run --environment jsdom tests/smoke-test.spec.ts"
+    "test:vite-compilation": {
+      "command": "vitest run --environment jsdom tests/smoke-test.spec.ts"
     },
     "test:ci": {
-      "command": "yarn generate-examples && karma start karma.conf.cjs --single-run=true",
       "dependencies": [
-        "../../web_core:build",
-        "../../markdown/markdown-it:build",
-        "../:build",
-        "test:smoke-test"
+        "test"
       ]
     },
     "clean": {
@@ -73,6 +69,7 @@
     "karma-jasmine": "^5.1.0",
     "typescript": "5.9.3",
     "vite": "^8.0.16",
+    "vitest": "^3.0.0",
     "wireit": "^0.15.0-pre.2"
   }
 }
