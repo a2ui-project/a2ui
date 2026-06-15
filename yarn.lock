@@ -153,6 +153,7 @@ __metadata:
     eslint: "npm:^10.4.1"
     gts: "npm:^7.0.0"
     jasmine-core: "npm:^6.3.0"
+    jsdom: "npm:^29.1.1"
     karma: "npm:^6.4.4"
     karma-chrome-launcher: "npm:^3.2.0"
     karma-esbuild: "npm:^2.3.0"
