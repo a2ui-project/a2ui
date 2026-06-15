@@ -38,7 +38,7 @@
             "text": {
               "call": "formatString",
               "args": {
-                "value": "${/tempHigh}\u00b0"
+                "value": "# ${/tempHigh}°"
               }
             }
           },
@@ -48,7 +48,7 @@
             "text": {
               "call": "formatString",
               "args": {
-                "value": "${/tempLow}\u00b0"
+                "value": "## ${/tempLow}°"
               }
             }
           },
@@ -56,7 +56,10 @@
             "id": "location",
             "component": "Text",
             "text": {
-              "path": "/location"
+              "call": "formatString",
+              "args": {
+                "value": "### ${/location}"
+              }
             }
           },
           {

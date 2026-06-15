@@ -75,7 +75,10 @@
             "id": "origin",
             "component": "Text",
             "text": {
-              "path": "/origin"
+              "call": "formatString",
+              "args": {
+                "value": "## ${/origin}"
+              }
             }
           },
           {
@@ -87,7 +90,10 @@
             "id": "destination",
             "component": "Text",
             "text": {
-              "path": "/destination"
+              "call": "formatString",
+              "args": {
+                "value": "## ${/destination}"
+              }
             }
           },
           {
