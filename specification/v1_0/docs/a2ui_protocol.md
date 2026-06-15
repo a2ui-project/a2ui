@@ -486,7 +486,7 @@ To ensure catalog schemas can be translated reliably into alternative, LLM-frien
 2. **No Custom `$defs` or Helpers:**
    - To prevent unconstrained branching, custom definitions or shared helper schemas inside a catalog are strictly prohibited under `"$defs"`.
    - The only allowed keys within the catalog's `"$defs"` object are `anyComponent`, `anyFunction`, and `surfaceProperties`.
-   - All helper properties (such as the relative layout `weight` property) MUST be inlined directly inside the properties block of each supporting component schema rather than referenced from a shared helper.
+   - All helper properties (such as common properties factored out of catalog items) MUST be inlined directly inside the properties block of each supporting component schema rather than referenced from a shared helper.
 3. **Restricted `$ref` Targets:**
    - Local `$ref` targets are restricted to referencing the catalog's top-level components or functions (e.g., `#/components/Text`, `#/functions/required`).
    - External `$ref` targets MUST reference the standard types inside `common_types.json` (`https://a2ui.org/specification/v1_0/common_types.json#/$defs/...`), limited to the following allowed schemas:
