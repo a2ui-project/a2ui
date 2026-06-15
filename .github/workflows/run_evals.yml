@@ -52,6 +52,11 @@ jobs:
         with:
           python-version: "3.12"
 
+      - name: Decrypt dataset
+        working-directory: eval
+        if: ${{ env.TRANSCRYPT_PASSWORD != '' }}
+        run: ./bin/transcrypt -p "$TRANSCRYPT_PASSWORD" -y
+
       - name: Install `uv` globally
         run: |
           python -m pip install --upgrade pip
@@ -60,11 +65,6 @@ jobs:
       - name: Run Unit Tests
         working-directory: eval
         run: uv run python -m pytest
-
-      - name: Decrypt dataset
-        working-directory: eval
-        if: ${{ env.TRANSCRYPT_PASSWORD != '' }}
-        run: ./bin/transcrypt -p "$TRANSCRYPT_PASSWORD" -y
 
       - name: Run Evals
         working-directory: eval
