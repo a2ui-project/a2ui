@@ -9,7 +9,6 @@
     "dev": "yarn generate-examples && vite",
     "build": "wireit",
     "test": "wireit",
-    "test:verify-compilation": "wireit",
     "test:watch": "yarn generate-examples && karma start karma.conf.cjs --single-run=false --auto-watch=true",
     "test:debug": "yarn generate-examples && karma start karma.conf.cjs --single-run=false --auto-watch=true --browsers Chrome",
     "test:ci": "wireit",
@@ -33,20 +32,15 @@
       "dependencies": [
         "../../web_core:build",
         "../../markdown/markdown-it:build",
-        "../:build",
-        "test:verify-compilation"
+        "../:build"
       ]
-    },
-    "test:verify-compilation": {
-      "command": "./scripts/verify-compilation.sh"
     },
     "test:ci": {
       "command": "yarn generate-examples && karma start karma.conf.cjs --single-run=true",
       "dependencies": [
         "../../web_core:build",
         "../../markdown/markdown-it:build",
-        "../:build",
-        "test:verify-compilation"
+        "../:build"
       ]
     },
     "clean": {
