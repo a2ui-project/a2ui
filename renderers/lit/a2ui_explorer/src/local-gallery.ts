@@ -35,7 +35,7 @@ export class LocalGallery extends LitElement {
   actionLog: A2uiClientAction[] = [];
 
   @provide({context: Context.markdown})
-  private accessor markdownRenderer = renderMarkdown;
+  private markdownRenderer = renderMarkdown;
 
   private processor = new MessageProcessor([basicCatalog], (action: A2uiClientAction) => {
     this.log(`Action dispatched: ${action.surfaceId}`, action);
