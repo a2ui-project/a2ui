@@ -92,26 +92,26 @@ ADK integrated the A2UI v0.8 basic catalog to automatically render spec-complian
 
 ## Partner Integrations
 
-### AG UI / CopilotKit: Full-Stack Agentic Framework
+### AG-UI / CopilotKit: Full-Stack Agentic Framework
 
-[AG UI](https://ag-ui.com/) and [CopilotKit](https://www.copilotkit.ai/) provide a comprehensive framework for building agentic applications, with **day-zero A2UI compatibility**.
+[AG-UI](https://ag-ui.com/) provides the protocol and [CopilotKit](https://www.copilotkit.ai/) provides the primary full-stack framework for building agentic applications, with **day-zero A2UI compatibility**.
 
 **How they work together:**
 
-AG UI excels at creating high-bandwidth connections between custom frontends and their dedicated agents. By adding A2UI support, developers get the best of both worlds:
+AG-UI excels at creating high-bandwidth connections between custom frontends and their dedicated agents. By adding A2UI support, developers get the best of both worlds:
 
-- **State synchronization**: AG UI handles app state and chat history.
+- **State synchronization**: AG-UI handles app state and chat history.
 - **A2UI rendering**: Render dynamic UIs from third-party agents.
 - **Multi-agent support**: Coordinate UIs from multiple agents.
-- **React integration**: Seamless integration with React applications.
+- **Framework integrations**: React, Vue, Angular, and other app surfaces through CopilotKit.
 
-> "AG UI excels at creating a high-bandwidth connection between a custom-built front-end and its dedicated agent. By adding support for A2UI, we're giving developers the best of both worlds. They can now build rich, state-synced applications that can also render dynamic UIs from third-party agents via A2UI. It's a perfect match for a multi-agent world."
+> "AG-UI excels at creating a high-bandwidth connection between a custom-built front-end and its dedicated agent. By adding support for A2UI, we're giving developers the best of both worlds. They can now build rich, state-synced applications that can also render dynamic UIs from third-party agents via A2UI. It's a perfect match for a multi-agent world."
 >
-> **— Atai Barkai**, Founder of CopilotKit and AG UI
+> **— Atai Barkai**, Founder of CopilotKit and AG-UI
 
 **Learn more:**
 
-- [AG UI](https://ag-ui.com/)
+- [AG-UI](https://ag-ui.com/)
 - [CopilotKit](https://www.copilotkit.ai/)
 
 ---

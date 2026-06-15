@@ -4,7 +4,7 @@
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
 #
-#      https://www.apache.org/licenses/LICENSE-2.0
+#     http://www.apache.org/licenses/LICENSE-2.0
 #
 # Unless required by applicable law or agreed to in writing, software
 # distributed under the License is distributed on an "AS IS" BASIS,
@@ -23,8 +23,6 @@ on:
     branches:
       - main
   schedule:
-    # Tests may fail due to new dependency releases.
-    # Regular execution provides early detection of such regressions.
     - cron: "0 * * * *" # hourly
 
 concurrency:
@@ -39,16 +37,15 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       matrix: ${{ steps.generate_matrix.outputs.matrix }}
+      flutter_version: ${{ steps.generate_matrix.outputs.flutter_version }}
     steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
+      - uses: actions/checkout@v6
 
       - name: Generate testing matrix
         id: generate_matrix
         run: |
-          # Test all packages with a pubspec.yaml, except those named 'e2e_test'.
           DIRS_TO_TEST=$(find samples -name pubspec.yaml -not -path "*/.dart_tool/*" -not -path "*/e2e_test/*" -exec dirname {} \;)
 
-          # Build a JSON array of package objects for the matrix.
           JSON_MATRIX="["
           FIRST=true
           for dir in $DIRS_TO_TEST; do
@@ -56,15 +53,33 @@ jobs:
               JSON_MATRIX="$JSON_MATRIX,"
             fi
             FIRST=false
-            # The name for the job (path with '/' -> '_')
             package_name=$(echo "$dir" | tr '/' '_')
-            # The actual path to the package
             package_path="$dir"
             JSON_MATRIX="$JSON_MATRIX{\"name\":\"$package_name\",\"path\":\"$package_path\"}"
           done
           JSON_MATRIX="$JSON_MATRIX]"
 
           echo "matrix=$JSON_MATRIX" >> $GITHUB_OUTPUT
+
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            echo 'flutter_version=["stable"]' >> $GITHUB_OUTPUT
+          else
+            echo 'flutter_version=["beta", "stable"]' >> $GITHUB_OUTPUT
+          fi
+
+  cycle-check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: ./.github/actions/setup-dart
+      - name: Check for cycles across packages
+        run: |
+          dart pub global activate layerlens
+          DIRS=$(find samples -name pubspec.yaml -not -path "*/.dart_tool/*" -not -path "*/e2e_test/*" -exec dirname {} \;)
+          for dir in $DIRS; do
+            echo "Checking cycles in $dir..."
+            (cd "$dir" && dart pub get && layerlens --fail-on-cycles --except "lib/src/schema" --except "lib/src/core")
+          done
 
   analyze_and_test:
     needs: matrix
@@ -74,29 +89,15 @@ jobs:
       fail-fast: false
       matrix:
         package: ${{ fromJson(needs.matrix.outputs.matrix) }}
-        flutter_version: [beta, stable]
+        flutter_version: ${{ fromJson(needs.matrix.outputs.flutter_version) }}
         os: [ubuntu-latest]
     steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
-      - uses: actions/setup-java@be666c2fcd27ec809703dec50e508c2fdc7f6654
-        with:
-          distribution: "zulu"
-          java-version: "17"
-          cache: "gradle"
-      # Before bumping, verify the new version is on the flutter org's
-      # enterprise actions allowlist, or CI will fail with startup_failure.
-      - uses: subosito/flutter-action@fd55f4c5af5b953cc57a2be44cb082c8f6635e8e
+      - uses: actions/checkout@v6
+      - uses: ./.github/actions/setup-dart
         with:
           channel: ${{ matrix.flutter_version }}
-          cache: true
       - name: Print Flutter version
         run: flutter --version
-      - name: Cache Pub dependencies
-        uses: actions/cache@668228422ae6a00e4ad889ee87cd7109ec5666a7
-        with:
-          path: ${{ env.PUB_CACHE }}
-          key: ${{ runner.os }}-pub-${{ hashFiles('**/pubspec.lock') }}
-          restore-keys: ${{ runner.os }}-pub-
       - name: Update submodules
         working-directory: ${{ matrix.package.path }}
         run: git submodule update --init --recursive
@@ -117,9 +118,3 @@ jobs:
           else
             echo "No 'test' directory found in ${{ matrix.package.path }}, skipping tests."
           fi
-
-      - name: Check for cycles
-        working-directory: ${{ matrix.package.path }}
-        run: |
-          dart pub global activate layerlens
-          layerlens --fail-on-cycles  --except "lib/src/schema" --except "lib/src/core"

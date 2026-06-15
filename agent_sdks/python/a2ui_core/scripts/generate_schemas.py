@@ -263,16 +263,20 @@ def compile_component_to_pydantic(
     return "\n".join(lines) + "\n"
 
 
-def compile_object_def(class_name: str, spec: Dict[str, Any]) -> str:
+def compile_object_def(
+    class_name: str, spec: Dict[str, Any], base_class: str = None
+) -> str:
     """Generates Python Pydantic class representing a standard JSON Schema object definition."""
     add_props = spec.get("additionalProperties", False)
     if add_props:
+        bcls = base_class or "BaseModel"
         lines = [
-            f"class {class_name}(BaseModel):",
+            f"class {class_name}({bcls}):",
             "    model_config = ConfigDict(populate_by_name=True)",
         ]
     else:
-        lines = [f"class {class_name}(StrictBaseModel):"]
+        bcls = base_class or "StrictBaseModel"
+        lines = [f"class {class_name}({bcls}):"]
     props = spec.get("properties", {})
     required = spec.get("required", [])
     if not props:
@@ -329,9 +333,9 @@ def compile_function_to_pydantic(name: str, schema: Dict[str, Any]) -> tuple[str
     lines.append(f"class {func_class}(FunctionApi):")
     lines.append(f'    name = "{name}"')
     if args_class != "None":
-        lines.append(f"    args = {args_class}")
+        lines.append(f"    schema = {args_class}")
     else:
-        lines.append("    args = None")
+        lines.append("    schema = None")
     lines.append(f'    return_type = "{return_type}"\n')
 
     return "\n".join(lines), func_class
@@ -348,8 +352,11 @@ def generate_schema_constants() -> str:
 def generate_common_types(common_data: Dict[str, Any]) -> str:
     """Generates common_types.py dynamically from raw JSON specifications."""
     output = [
-        "from typing import Any, Dict, List, Literal, Optional, Union",
+        "from typing import Annotated, Any, Dict, List, Literal, Optional, Union",
         "from pydantic import BaseModel, Field, ConfigDict\n",
+        'class ComponentReference:\n    """Base marker class for all A2UI component references."""\n',
+        "class SingleReference(str, ComponentReference):\n    @classmethod\n    def __get_pydantic_core_schema__(cls, source_type, handler):\n        from pydantic_core import core_schema\n        return core_schema.no_info_after_validator_function(cls, core_schema.str_schema(), serialization=core_schema.plain_serializer_function_ser_schema(str))\n",
+        'class ListReference(ComponentReference):\n    """Marker class indicating a field holds a list of component references."""\n',
         "class StrictBaseModel(BaseModel):",
         '    model_config = ConfigDict(extra="forbid", populate_by_name=True)\n',
     ]
@@ -357,7 +364,7 @@ def generate_common_types(common_data: Dict[str, Any]) -> str:
     defs = common_data.get("$defs", {})
 
     # 1. Generate ComponentId type alias
-    output.append("ComponentId = str\n")
+    output.append("ComponentId = SingleReference\n")
 
     # 2. Generate DataBinding
     output.append(compile_object_def("DataBinding", defs["DataBinding"]))
@@ -374,7 +381,13 @@ def generate_common_types(common_data: Dict[str, Any]) -> str:
 
     # 5. Generate TemplateChildList & ChildList dynamically
     template_spec = defs["ChildList"]["oneOf"][1]
-    output.append(compile_object_def("TemplateChildList", template_spec))
+    output.append(
+        compile_object_def(
+            "TemplateChildList",
+            template_spec,
+            base_class="StrictBaseModel, ListReference",
+        )
+    )
     output.append("ChildList = Union[List[ComponentId], TemplateChildList]\n")
 
     # 6. Generate AccessibilityAttributes & CheckRule
@@ -422,7 +435,8 @@ def generate_basic_catalog_components(
         "from ..schema.common_types import (",
         "    StrictBaseModel, ComponentCommon, AccessibilityAttributes, DynamicString, DynamicNumber, ",
         "    DynamicBoolean, DynamicStringList, ChildList, Action, CheckRule, DataBinding, ComponentId",
-        ")\n",
+        ")",
+        "from ..catalog.components import ModelComponentApi\n",
     ]
 
     # Generate CatalogComponentCommon extending ComponentCommon
@@ -491,7 +505,22 @@ def generate_basic_catalog_components(
     output.append('    Field(..., discriminator="component")')
     output.append("]\n")
 
+    wrapped_names = []
+    for cname in comp_names:
+        if cname.endswith("Component"):
+            base_name = cname[:-9]
+            api_const_name = f"{to_snake_case(base_name).upper()}_COMPONENT_API"
+            output.append(f"{api_const_name} = ModelComponentApi({cname})\n")
+            wrapped_names.append(api_const_name)
+
+    output.append("BASIC_COMPONENTS = [")
+    for wname in wrapped_names:
+        output.append(f"    {wname},")
+    output.append("]\n")
+
     any_comp_names.append("AnyComponent")
+    any_comp_names.append("BASIC_COMPONENTS")
+    any_comp_names.extend(wrapped_names)
     for iname in reversed(inline_names):
         any_comp_names.insert(0, iname)
     any_comp_names.insert(0, "CatalogComponentCommon")
@@ -549,18 +578,6 @@ def generate_basic_catalog_styles(catalog_data: Dict[str, Any]) -> str:
     else:
         output.append("class Theme(BaseModel):\n    pass\n")
 
-    return "\n".join(output)
-
-
-def generate_catalog_functions() -> str:
-    """Generates catalog/functions.py containing the FunctionApi base class."""
-    output = [
-        "from typing import Any, Optional\n",
-        "class FunctionApi:",
-        '    name: str = ""',
-        "    args: Optional[Any] = None",
-        '    return_type: str = "void"\n',
-    ]
     return "\n".join(output)
 
 
@@ -777,13 +794,7 @@ def main():
             f.write(FILE_HEADER + constants_code)
         print(f"Generated: {CONSTANTS_OUT_PATH}")
 
-    # 2 Generate catalog/functions.py
-    catalog_functions_code = generate_catalog_functions()
-    with open(CATALOG_FUNCTIONS_OUT_PATH, "w") as f:
-        f.write(FILE_HEADER + catalog_functions_code)
-    print(f"Generated: {CATALOG_FUNCTIONS_OUT_PATH}")
-
-    # 3. Generate basic_catalog/components.py
+    # 2. Generate basic_catalog/components.py
     with open(BASIC_CATALOG_PATH, "r") as f:
         catalog_data = json.load(f)
     catalog_code, comp_names = generate_basic_catalog_components(
@@ -793,19 +804,19 @@ def main():
         f.write(FILE_HEADER + catalog_code)
     print(f"Generated: {COMPONENTS_OUT_PATH}")
 
-    # 4. Generate basic_catalog/function_apis.py
+    # 3. Generate basic_catalog/function_apis.py
     functions_code, func_names = generate_basic_catalog_functions(catalog_data)
     with open(FUNCTION_APIS_OUT_PATH, "w") as f:
         f.write(FILE_HEADER + functions_code)
     print(f"Generated: {FUNCTION_APIS_OUT_PATH}")
 
-    # 5. Generate basic_catalog/styles.py
+    # 4. Generate basic_catalog/styles.py
     styles_code = generate_basic_catalog_styles(catalog_data)
     with open(STYLES_OUT_PATH, "w") as f:
         f.write(FILE_HEADER + styles_code)
     print(f"Generated: {STYLES_OUT_PATH}")
 
-    # 6. Generate schema/server_to_client.py
+    # 5.1. Generate schema/server_to_client.py
     with open(SERVER_TO_CLIENT_PATH, "r") as f:
         s2c_data = json.load(f)
     s2c_code, msg_names = generate_server_to_client(s2c_data)
@@ -813,7 +824,7 @@ def main():
         f.write(FILE_HEADER + s2c_code)
     print(f"Generated: {SERVER_TO_CLIENT_OUT_PATH}")
 
-    # 6.1 Generate schema/client_capabilities.py
+    # 5.2 Generate schema/client_capabilities.py
     with open(CLIENT_CAPABILITIES_PATH, "r") as f:
         cc_data = json.load(f)
     cc_code = generate_client_capabilities(cc_data)
@@ -821,7 +832,7 @@ def main():
         f.write(FILE_HEADER + cc_code)
     print(f"Generated: {CLIENT_CAPABILITIES_OUT_PATH}")
 
-    # 6.2 Generate schema/client_to_server.py
+    # 5.3 Generate schema/client_to_server.py
     with open(CLIENT_TO_SERVER_PATH, "r") as f:
         cts_data = json.load(f)
     cts_code = generate_client_to_server(cts_data)
@@ -829,13 +840,13 @@ def main():
         f.write(FILE_HEADER + cts_code)
     print(f"Generated: {CLIENT_TO_SERVER_OUT_PATH}")
 
-    # 7. Generate schema/__init__.py
+    # 6. Generate schema/__init__.py
     schema_init_code = generate_schema_init(msg_names)
     with open(SCHEMA_INIT_OUT_PATH, "w") as f:
         f.write(FILE_HEADER + schema_init_code)
     print(f"Generated: {SCHEMA_INIT_OUT_PATH}")
 
-    # 8. Auto-format all generated files with pyink
+    # 7. Auto-format all generated files with pyink
     try:
         import subprocess
 
@@ -849,7 +860,6 @@ def main():
             CLIENT_CAPABILITIES_OUT_PATH,
             CLIENT_TO_SERVER_OUT_PATH,
             SCHEMA_INIT_OUT_PATH,
-            CATALOG_FUNCTIONS_OUT_PATH,
         ]
         # Format files using pyink via isolated environment
         cmd = ["uvx", "pyink"] + generated_files

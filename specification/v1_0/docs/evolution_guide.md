@@ -31,7 +31,7 @@ Version 1.0 differs from 0.9 in the following ways:
 - Added `posterUrl` property to the `Video` component in `catalogs/basic/catalog.json`, allowing a preview image to be displayed before the video plays.
 - Added `placeholder` prop to the `TextField` component schema.
 - Added a `steps` property to the `Slider` component schema to snap values to discrete intervals.
-- Added an optional `instructions` field to the `Catalog` schema (`catalogs/basic/catalog.json`) to refer to an external guidelines/rules file (`instructions.md`) via relative file URI, renaming and updating the previous `rules.txt` file.
+- Added an optional `instructions` field to the `Catalog` schema (`catalogs/basic/catalog.json`) to embed Markdown guidelines/rules directly, replacing the external `rules.txt` file.
 - Renamed `svgPath` to `path` in the custom SVG icon definition object schema.
 - Renamed `$defs/theme` to `$defs/surfaceProperties` in both the basic and minimal catalogs.
 
@@ -51,7 +51,7 @@ Version 1.0 differs from 0.9 in the following ways:
 
 ### 2.5. Client capabilities schema
 
-- Added an optional `instructions` field to the `Catalog` object definition (`client_capabilities.json`) as a relative file URI reference (with format hint of `uri-reference`) to support external rules files associated with a catalog.
+- Added an optional `instructions` field to the `Catalog` object definition (`client_capabilities.json`) as a plain Markdown string to embed design guidelines directly.
 - Renamed `theme` capability block to `surfaceProperties` within the Catalog definition in `client_capabilities.json`.
 - Added static `callableFrom` and `returnType` metadata properties to `FunctionDefinition` inside `client_capabilities.json` to advertise execution boundaries and return types to the server.
 

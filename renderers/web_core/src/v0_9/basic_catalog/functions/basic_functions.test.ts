@@ -18,7 +18,7 @@ import {describe, it} from 'node:test';
 import * as assert from 'node:assert';
 import {effect, Signal} from '@preact/signals-core';
 
-import {BASIC_FUNCTIONS} from './basic_functions.js';
+import {BASIC_FUNCTIONS, createBasicCatalogFunctions} from './basic_functions.js';
 import {DataModel} from '../../state/data-model.js';
 import {DataContext} from '../../rendering/data-context.js';
 import {A2uiExpressionError} from '../../errors.js';
@@ -34,13 +34,11 @@ const createTestDataContext = (
   model: DataModel,
   path: string,
   functionInvoker: any = testCatalog.invoker,
-  locale?: string,
 ) => {
   const mockSurface = {
     dataModel: model,
     catalog: {invoker: functionInvoker},
     dispatchError: () => {},
-    locale: locale,
   } as any;
   return new DataContext(mockSurface, path);
 };
@@ -435,7 +433,12 @@ describe('BASIC_FUNCTIONS', () => {
     });
 
     it('pluralize with Welsh locale', () => {
-      const cyContext = createTestDataContext(dataModel, '/', testCatalog.invoker, 'cy');
+      const cyCatalog = new Catalog<ComponentApi>(
+        'test-cy',
+        [],
+        createBasicCatalogFunctions({locale: 'cy'}),
+      );
+      const cyContext = createTestDataContext(dataModel, '/', cyCatalog.invoker);
       // Welsh for various numbers of "cat".  Welsh because all six cases have different rules.
       const args = {
         zero: 'cathod',
@@ -446,12 +449,12 @@ describe('BASIC_FUNCTIONS', () => {
         other: 'cath',
       };
 
-      assert.strictEqual(invoke('pluralize', {...args, value: 0}, cyContext), 'cathod');
-      assert.strictEqual(invoke('pluralize', {...args, value: 1}, cyContext), 'gath');
-      assert.strictEqual(invoke('pluralize', {...args, value: 2}, cyContext), 'gath');
-      assert.strictEqual(invoke('pluralize', {...args, value: 3}, cyContext), 'cath');
-      assert.strictEqual(invoke('pluralize', {...args, value: 6}, cyContext), 'chath');
-      assert.strictEqual(invoke('pluralize', {...args, value: 4}, cyContext), 'cath');
+      assert.strictEqual(cyCatalog.invoker('pluralize', {...args, value: 0}, cyContext), 'cathod');
+      assert.strictEqual(cyCatalog.invoker('pluralize', {...args, value: 1}, cyContext), 'gath');
+      assert.strictEqual(cyCatalog.invoker('pluralize', {...args, value: 2}, cyContext), 'gath');
+      assert.strictEqual(cyCatalog.invoker('pluralize', {...args, value: 3}, cyContext), 'cath');
+      assert.strictEqual(cyCatalog.invoker('pluralize', {...args, value: 6}, cyContext), 'chath');
+      assert.strictEqual(cyCatalog.invoker('pluralize', {...args, value: 4}, cyContext), 'cath');
     });
 
     it('pluralize fallback to other', () => {

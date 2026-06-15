@@ -19,6 +19,7 @@ import {ai} from './ai';
 import {ModelConfiguration} from './models';
 import {rateLimiter} from './rateLimiter';
 import {logger} from './logger';
+import {ProtocolSchemas} from './types';
 
 // Define a UI component generator flow
 export const componentGeneratorFlow = ai.defineFlow(
@@ -26,8 +27,8 @@ export const componentGeneratorFlow = ai.defineFlow(
     name: 'componentGeneratorFlow',
     inputSchema: z.object({
       prompt: z.string(),
-      modelConfig: z.any(), // Ideally, we'd have a Zod schema for ModelConfiguration
-      schemas: z.any(),
+      modelConfig: z.custom<ModelConfiguration>(),
+      schemas: z.custom<ProtocolSchemas>(),
       catalogRules: z.string().optional(),
     }),
     outputSchema: z.any(),

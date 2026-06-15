@@ -66,9 +66,11 @@
     "test": "wireit",
     "test:coverage": "c8 node --test \"dist/**/*.test.js\"",
     "compile": "tsc",
-    "lint": "gts lint",
-    "lint:fix": "gts fix",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
     "fix": "gts fix",
+    "format": "wireit",
+    "format:check": "wireit",
     "clean": "wireit"
   },
   "wireit": {
@@ -119,15 +121,35 @@
     },
     "clean": {
       "command": "rm -rf dist .tsbuildinfo .wireit"
+    },
+    "format": {
+      "command": "prettier --write .",
+      "files": [
+        "src/**/*.ts",
+        "src/**/*.json",
+        "scripts/**/*.js",
+        "package.json",
+        "tsconfig.json"
+      ]
+    },
+    "format:check": {
+      "command": "prettier --check .",
+      "files": [
+        "src/**/*.ts",
+        "src/**/*.json",
+        "scripts/**/*.js",
+        "package.json",
+        "tsconfig.json"
+      ]
     }
   },
   "author": "Google",
   "license": "Apache-2.0",
   "devDependencies": {
     "@angular/core": "^21.2.5",
-    "@types/node": "^24.11.0",
+    "@types/node": "^25.9.3",
     "c8": "^11.0.0",
-    "eslint": "^9.37.0",
+    "eslint": "^10.4.1",
     "google-artifactregistry-auth": "^3.5.0",
     "gts": "^7.0.0",
     "rxjs": "^7.8.2",
@@ -135,9 +157,9 @@
     "wireit": "^0.15.0-pre.2"
   },
   "dependencies": {
-    "@preact/signals-core": "^1.13.0",
-    "date-fns": "^4.1.0",
+    "@preact/signals-core": "^1.14.2",
+    "date-fns": "^4.4.0",
     "zod": "^3.25.76",
-    "zod-to-json-schema": "^3.25.1"
+    "zod-to-json-schema": "^3.25.2"
   }
 }

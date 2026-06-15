@@ -3,11 +3,16 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "build": "wireit"
+    "build": "wireit",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "lint": "yarn --cwd ../.. lint",
+    "test": "yarn --cwd ../.. test",
+    "lint:fix": "yarn --cwd ../.. lint:fix"
   },
   "dependencies": {
     "@a2ui/angular": "workspace:*",
-    "@a2ui/markdown-it": "workspace:*",
+    "@a2ui/markdown-it": "*",
     "@a2ui/web_core": "workspace:*"
   },
   "devDependencies": {

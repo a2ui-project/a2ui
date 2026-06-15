@@ -1,0 +1,17 @@
+{
+  "name": "@a2ui/mcp_calculator",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "build": "echo \"mcp_calculator is excluded from the build: it imports the renderer's internal v0.8 source (projects/lib) which the published @a2ui/angular package does not expose.\"",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "lint": "yarn --cwd ../.. lint",
+    "test": "yarn --cwd ../.. test",
+    "lint:fix": "yarn --cwd ../.. lint:fix"
+  },
+  "dependencies": {
+    "@a2ui/angular": "^0.10.0",
+    "@a2ui/web_core": "^0.10.0"
+  }
+}

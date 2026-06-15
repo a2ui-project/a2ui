@@ -19,6 +19,7 @@ import {ai} from './ai';
 import {rateLimiter} from './rateLimiter';
 import {logger} from './logger';
 import * as yaml from 'js-yaml';
+import {ProtocolSchemas} from './types';
 
 // Define an evaluation flow
 export const evaluationFlow = ai.defineFlow(
@@ -28,7 +29,7 @@ export const evaluationFlow = ai.defineFlow(
       originalPrompt: z.string(),
       generatedOutput: z.string(),
       evalModel: z.string(),
-      schemas: z.any(),
+      schemas: z.custom<ProtocolSchemas>(),
     }),
     outputSchema: z.object({
       pass: z.boolean(),

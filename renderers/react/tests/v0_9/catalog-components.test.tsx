@@ -66,9 +66,9 @@ describe('Basic Catalog Components', () => {
 
     it('renders with correct heading tag based on variant', () => {
       const {view} = renderA2uiComponent(Text, 't1', {text: 'Title', variant: 'h1'});
-      const h1 = view.container.querySelector('div.h1');
+      const h1 = view.container.querySelector('div.h1 h1');
       expect(h1).not.toBeNull();
-      expect(h1?.textContent).toBe('# Title');
+      expect(h1?.textContent).toBe('Title');
     });
   });
 

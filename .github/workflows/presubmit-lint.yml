@@ -1,0 +1,92 @@
+# Copyright 2026 Google LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+name: Presubmit Lint
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.head_ref || github.run_id }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  static-checks:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Check for private index URL in uv.lock files
+        run: |
+          FORBIDDEN_URL="us-python.pkg.dev"
+          FOUND_FILES=$(find . -type f -name "uv.lock" -print)
+          if [ -n "$FOUND_FILES" ]; then
+            if echo "$FOUND_FILES" | xargs grep -q "$FORBIDDEN_URL"; then
+              echo "::error::Found private index URL ($FORBIDDEN_URL) in the following uv.lock files:"
+              echo "$FOUND_FILES" | xargs grep -H "$FORBIDDEN_URL"
+              exit 1
+            else
+              echo "No private index URLs found in uv.lock files."
+            fi
+          else
+            echo "No uv.lock files found to check."
+          fi
+
+      - name: Set up Go
+        uses: actions/setup-go@v6
+        with:
+          go-version: "1.21"
+
+      - name: Install addlicense
+        run: go install github.com/google/addlicense@latest
+
+      - name: Check license headers
+        run: |
+          if ! addlicense -check \
+            -l apache \
+            -c "Google LLC" \
+            -ignore "**/pnpm-lock.yaml" \
+            -ignore "**/package-lock.json" \
+            -ignore "**/yarn.lock" \
+            -ignore "eval/datasets/*.yaml" \
+            .; then
+            echo "License check failed."
+            exit 1
+          fi
+
+  format-check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: ./.github/actions/setup-node
+      - uses: ./.github/actions/setup-python
+      - uses: ./.github/actions/setup-dart
+      - name: Run enforce-formatting check
+        run: ./scripts/fix_format.sh --check
+
+  workspace-lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: ./.github/actions/setup-node
+      - name: Build all workspaces
+        run: yarn build:all
+      - name: Run yarn lint:all
+        run: yarn lint:all

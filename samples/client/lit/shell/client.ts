@@ -16,7 +16,6 @@
 
 import {Part, SendMessageSuccessResponse, Task} from '@a2a-js/sdk';
 import {A2AClient} from '@a2a-js/sdk/client';
-import * as v0_9 from '@a2ui/web_core/v0_9';
 
 const A2UI_MIME_TYPE = 'application/a2ui+json';
 

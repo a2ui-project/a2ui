@@ -28,5 +28,5 @@
       "@a2ui/markdown-it": ["../../markdown/markdown-it/src/markdown.ts"]
     }
   },
-  "include": ["src"]
+  "include": ["src/**/*"]
 }
