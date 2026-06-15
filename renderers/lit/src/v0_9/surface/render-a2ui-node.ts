@@ -15,9 +15,8 @@
  */
 
 import {nothing} from 'lit';
-import {html, unsafeStatic} from 'lit/static-html.js';
 import {ComponentContext, Catalog} from '@a2ui/web_core/v0_9';
-import {LitComponentApi} from '@a2ui/lit/v0_9';
+import {LitComponentApi} from '../types.js';
 
 /**
  * Pure function that acts as a generic container for A2UI components.
@@ -43,6 +42,7 @@ export function renderA2uiNode(context: ComponentContext, catalog: Catalog<LitCo
     return nothing;
   }
 
-  const tag = unsafeStatic(implementation.tagName);
-  return html`<${tag} .context=${context}></${tag}>`;
+  const element = document.createElement(implementation.tagName);
+  (element as any).context = context;
+  return element;
 }
