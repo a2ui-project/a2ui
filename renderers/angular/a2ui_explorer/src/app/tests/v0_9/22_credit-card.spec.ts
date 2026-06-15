@@ -28,16 +28,16 @@ describe('Example: Credit Card', () => {
   });
 
   it('should render text content', async () => {
-    expect(textContent).toContain(`CARD HOLDER`);
-    expect(textContent).toContain(`EXPIRES`);
-    expect(textContent).toContain(`VISA`);
-    expect(textContent).toContain(`•••• •••• •••• 4242`);
-    expect(textContent).toContain(`SARAH JOHNSON`);
-    expect(textContent).toContain(`09/27`);
+    expect(textContent).toContain('CARD HOLDER');
+    expect(textContent).toContain('EXPIRES');
+    expect(textContent).toContain('VISA');
+    expect(textContent).toContain('•••• •••• •••• 4242');
+    expect(textContent).toContain('SARAH JOHNSON');
+    expect(textContent).toContain('09/27');
   });
 
   it('should render icon', async () => {
     expect(fixture.nativeElement.querySelector('.a2ui-icon')).toBeTruthy();
-    expect(textContent).toContain(`payment`);
+    expect(textContent).toContain('payment');
   });
 });

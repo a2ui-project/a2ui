@@ -170,7 +170,7 @@ export class Renderer {
       for (const [key, value] of Object.entries(props)) {
         try {
           componentRef.setInput(key, value);
-        } catch (e) {
+        } catch {
           console.warn(
             `[Renderer] Property "${key}" could not be set on component ${node.type}. If this property is required by the specification, ensure the component declares it as an input.`,
           );

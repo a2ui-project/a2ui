@@ -33,14 +33,14 @@ In multi-agent systems, agents often run remotely (different servers, organizati
 A2UI: JSON messages describing UI that:
 
 - LLMs generate as structured output.
-- Travel over any transport (A2A, AG UI, SSE, WebSockets).
+- Travel over any transport (A2A, AG-UI, SSE, WebSockets).
 - Client renders using its own native components.
 
 **Result:** Client controls security and styling, agent-generated UI feels native.
 
 ### Example
 
-=== "v0.8 (Stable)"
+=== "v0.8 (Legacy)"
 
     ```jsonl
     {
@@ -106,18 +106,18 @@ A2UI: JSON messages describing UI that:
     }
     ```
 
-=== "v0.9 (Current)"
+=== "v0.9 (Stable)"
 
     ```jsonl
     {
-      "version": "v0.9",
+      "version": "v0.9.1",
       "createSurface": {
         "surfaceId": "booking",
-        "catalogId": "https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json"
+        "catalogId": "https://a2ui.org/specification/v0_9_1/catalogs/basic/catalog.json"
       }
     }
     {
-      "version": "v0.9",
+      "version": "v0.9.1",
       "updateComponents": {
         "surfaceId": "booking",
         "components": [
@@ -151,7 +151,7 @@ A2UI: JSON messages describing UI that:
       }
     }
     {
-      "version": "v0.9",
+      "version": "v0.9.1",
       "updateDataModel": {
         "surfaceId": "booking",
         "path": "/booking",

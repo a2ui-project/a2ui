@@ -52,7 +52,7 @@ Include the A2UI schema in your LLM prompts, generate JSONL messages, and stream
 
 Use A2UI through frameworks with built-in support:
 
-- **[AG UI / CopilotKit](https://ag-ui.com/)** - Full-stack React framework with A2UI rendering.
+- **[AG-UI / CopilotKit](https://ag-ui.com/)** - Full-stack agentic app framework with A2UI rendering.
 - **[Flutter GenUI SDK](https://docs.flutter.dev/ai/genui)** - Cross-platform generative UI (uses A2UI internally).
 
 **Next:** [Agent UI Ecosystem](agent-ui-ecosystem.md) | [Where is A2UI Used?](../ecosystem/a2ui-in-the-world.md)

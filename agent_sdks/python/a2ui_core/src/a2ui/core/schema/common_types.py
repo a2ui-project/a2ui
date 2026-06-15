@@ -13,15 +13,36 @@
 # limitations under the License.
 
 # Auto-generated. Do not edit manually.
-from typing import Any, Dict, List, Literal, Optional, Union
+from typing import Annotated, Any, Dict, List, Literal, Optional, Union
 from pydantic import BaseModel, Field, ConfigDict
+
+
+class ComponentReference:
+    """Base marker class for all A2UI component references."""
+
+
+class SingleReference(str, ComponentReference):
+
+    @classmethod
+    def __get_pydantic_core_schema__(cls, source_type, handler):
+        from pydantic_core import core_schema
+
+        return core_schema.no_info_after_validator_function(
+            cls,
+            core_schema.str_schema(),
+            serialization=core_schema.plain_serializer_function_ser_schema(str),
+        )
+
+
+class ListReference(ComponentReference):
+    """Marker class indicating a field holds a list of component references."""
 
 
 class StrictBaseModel(BaseModel):
     model_config = ConfigDict(extra="forbid", populate_by_name=True)
 
 
-ComponentId = str
+ComponentId = SingleReference
 
 
 class DataBinding(StrictBaseModel):
@@ -55,7 +76,7 @@ DynamicBoolean = Union[bool, DataBinding, FunctionCall]
 DynamicStringList = Union[List[str], DataBinding, FunctionCall]
 
 
-class TemplateChildList(StrictBaseModel):
+class TemplateChildList(StrictBaseModel, ListReference):
     component_id: ComponentId = Field(..., alias="componentId")
     path: str = Field(
         ...,

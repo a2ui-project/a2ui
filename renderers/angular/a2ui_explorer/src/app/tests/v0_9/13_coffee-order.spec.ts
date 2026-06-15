@@ -30,21 +30,21 @@ describe('Example: Coffee Order', () => {
   });
 
   it('should render text content', async () => {
-    expect(textContent).toContain(`Subtotal`);
-    expect(textContent).toContain(`Tax`);
-    expect(textContent).toContain(`Total`);
-    expect(textContent).toContain(`Purchase`);
-    expect(textContent).toContain(`Add to cart`);
-    expect(textContent).toContain(`Sunrise Coffee`);
-    expect(textContent).toContain(`Oat Milk Latte`);
-    expect(textContent).toContain(`Grande, Extra Shot`);
-    expect(textContent).toContain(`Chocolate Croissant`);
-    expect(textContent).toContain(`Warmed`);
+    expect(textContent).toContain('Subtotal');
+    expect(textContent).toContain('Tax');
+    expect(textContent).toContain('Total');
+    expect(textContent).toContain('Purchase');
+    expect(textContent).toContain('Add to cart');
+    expect(textContent).toContain('Sunrise Coffee');
+    expect(textContent).toContain('Oat Milk Latte');
+    expect(textContent).toContain('Grande, Extra Shot');
+    expect(textContent).toContain('Chocolate Croissant');
+    expect(textContent).toContain('Warmed');
   });
 
   it('should render icon', async () => {
     expect(fixture.nativeElement.querySelector('.a2ui-icon')).toBeTruthy();
-    expect(textContent).toContain(`favorite`);
+    expect(textContent).toContain('favorite');
   });
 
   it('should handle Purchase button click', async () => {

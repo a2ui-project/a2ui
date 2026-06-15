@@ -69,9 +69,7 @@ class StreamingParserV09(
     sid: String?,
     messages: MutableList<ResponsePart>,
   ): Boolean {
-    if (validator != null) {
-      validator.validate(obj, strictIntegrity = false)
-    }
+    validator?.validate(obj, strictIntegrity = false)
 
     var currentSid = obj["surfaceId"]?.jsonPrimitive?.content ?: surfaceId
     when {

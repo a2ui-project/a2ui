@@ -21,6 +21,11 @@ def remove_strict_validation(schema):
         and new_schema['additionalProperties'] is False
     ):
       del new_schema['additionalProperties']
+    if (
+        'unevaluatedProperties' in new_schema
+        and new_schema['unevaluatedProperties'] is False
+    ):
+      del new_schema['unevaluatedProperties']
     return new_schema
   elif isinstance(schema, list):
     return [remove_strict_validation(item) for item in schema]

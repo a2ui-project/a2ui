@@ -20,7 +20,7 @@ import pytest
 
 # Add bin directory to path to import run_ci_evals
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../bin')))
-from run_ci_evals import check_threshold, build_inspect_command
+from run_ci_evals import check_threshold, build_main_command
 from report_evals import extract_accuracy, print_results_summary
 import argparse
 
@@ -80,33 +80,32 @@ def test_check_threshold_pass():
 def test_check_threshold_fail():
     assert check_threshold(75.0, 80.0) is False
 
-def test_build_inspect_command_default():
+def test_build_main_command_default():
     args = argparse.Namespace(
         model="google/gemini-3-flash-preview",
         max_samples=100,
         grading_model="google/gemini-3-flash-preview"
     )
     seed = "20260507"
-    cmd = build_inspect_command(args, seed)
+    cmd = build_main_command(args, seed)
     assert cmd == [
-        "uv", "run", "inspect", "eval", "tasks.py",
+        "uv", "run", "python", "main.py",
         "--model", "google/gemini-3-flash-preview",
         "--sample-shuffle", seed,
-        "--display", "plain",
         "--log-dir", f"logs/{seed}",
         "--max-retries", "10",
-        "-T", "grading_model=google/gemini-3-flash-preview",
+        "--grading-model", "google/gemini-3-flash-preview",
         "--limit", "100"
     ]
 
-def test_build_inspect_command_no_limit():
+def test_build_main_command_no_limit():
     args = argparse.Namespace(
         model="google/gemini-3-flash-preview",
         max_samples=0,
         grading_model="google/gemini-3-flash-preview"
     )
     seed = "20260507"
-    cmd = build_inspect_command(args, seed)
+    cmd = build_main_command(args, seed)
     assert "--limit" not in cmd
 
 def test_print_results_summary_valid(capsys):

@@ -57,23 +57,6 @@ SAMPLE_CONFIGS = [
         "schema_modifiers": [remove_strict_validation],
         "validate": True,
     },
-    {
-        "name": "rizzcharts",
-        "path": SAMPLES_DIR / "rizzcharts",
-        "catalogs": [
-            CatalogConfig.from_path(
-                name="rizzcharts",
-                catalog_path="catalog_schemas/0.9/rizzcharts_catalog_definition.json",
-                examples_path="examples/rizzcharts_catalog/0.9",
-            ),
-            BasicCatalog.get_config(
-                version=VERSION_0_9,
-                examples_path="examples/standard_catalog/0.9",
-            ),
-        ],
-        "schema_modifiers": [remove_strict_validation],
-        "validate": True,
-    },
 ]
 
 

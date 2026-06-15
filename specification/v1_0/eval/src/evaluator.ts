@@ -15,17 +15,16 @@
  */
 
 import {evaluationFlow} from './evaluation_flow';
-import {ValidatedResult, EvaluatedResult} from './types';
+import {ValidatedResult, EvaluatedResult, ProtocolSchemas, IssueSeverity} from './types';
 import {logger} from './logger';
 import {rateLimiter} from './rateLimiter';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as yaml from 'js-yaml';
-import {IssueSeverity} from './types';
 
 export class Evaluator {
   constructor(
-    private schemas: any,
+    private schemas: ProtocolSchemas,
     private evalModel: string,
     private outputDir?: string,
   ) {}

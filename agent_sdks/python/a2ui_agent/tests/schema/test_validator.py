@@ -20,11 +20,11 @@ from a2ui.schema.manager import A2uiSchemaManager, A2uiCatalog, CatalogConfig
 from a2ui.schema.common_modifiers import remove_strict_validation
 from a2ui.schema.constants import VERSION_0_8, VERSION_0_9
 from a2ui.schema.validator import (
-    _find_root_id as find_root_id,
     extract_component_ref_fields,
     analyze_topology,
     get_component_references,
 )
+from a2ui.schema.validator_v08 import _find_root_id as find_root_id
 
 
 class TestValidator:
@@ -507,16 +507,16 @@ class TestValidator:
     err_text = str(excinfo.value)
     print(f"\nVALIDATOR_OUTPUT_START\n{err_text}\nVALIDATOR_OUTPUT_END")
 
-    assert "Unknown component: Row" in err_text
+    assert "Unknown component type: Row" in err_text
     assert "'usageHint' was unexpected" in err_text
     assert "'gap' was unexpected" in err_text
     assert "'altText', 'fit' were unexpected" in err_text
-    assert "'surfaceId' is a required property" in err_text
+    assert "DeleteSurfaceMessage.deleteSurface.surfaceId: Field required" in err_text
     assert "{'path': '/image'} is not of type 'string'" in err_text
-    assert "Unknown message type with keys ['unknownMessage']" in err_text
+    assert "'version' is a required property" in err_text
 
   def test_bundle_0_8(self, catalog_0_8):
-    bundled = catalog_0_8.validator._bundle_0_8_schemas()
+    bundled = catalog_0_8.validator._delegator._bundle_0_8_schemas()
 
     # Verify styles injection
     styles_node = bundled["properties"]["beginRendering"]["properties"]["styles"]
@@ -538,14 +538,6 @@ class TestValidator:
         {"surfaceUpdate": {"surfaceId": "s1", "components": []}},
     ]
     assert find_root_id(messages) == "custom-root"
-
-  def test_find_root_id_v09(self):
-    # For v0.9, if createSurface is provided, the root is 'root'
-    messages = [
-        {"createSurface": {"surfaceId": "s1"}},
-        {"updateComponents": {"surfaceId": "s1", "components": []}},
-    ]
-    assert find_root_id(messages) == "root"
 
     # For an incremental update, there is no root
     messages = [{"updateComponents": {"surfaceId": "s1", "components": []}}]
@@ -575,13 +567,17 @@ class TestValidator:
         {"id": "c2", "component": "Node", "next": "c1"},
     ]
     with pytest.raises(ValueError, match="Circular reference detected"):
-      analyze_topology("c1", components, ref_fields_map)
+      analyze_topology(
+          components,
+          ref_fields_map,
+          root_id="c1",
+      )
 
   def test_analyze_topology_self_ref(self):
     ref_fields_map = {"Node": ({"next"}, set())}
     components = [{"id": "c1", "component": "Node", "next": "c1"}]
     with pytest.raises(ValueError, match="Self-reference detected"):
-      analyze_topology("c1", components, ref_fields_map)
+      analyze_topology(components, ref_fields_map, root_id="c1")
 
   def test_analyze_topology_reachable(self):
     ref_fields_map = {"Node": ({"next"}, set())}
@@ -591,39 +587,48 @@ class TestValidator:
         {"id": "c2", "component": "Node"},
         {"id": "orphan", "component": "Node"},
     ]
-    reachable = analyze_topology("root", components, ref_fields_map)
+    reachable = analyze_topology(
+        components, ref_fields_map, root_id="root", allow_orphan_components=True
+    )
     assert reachable == {"root", "c1", "c2"}
 
-  def test_extract_component_ref_fields_mock(self):
-    # Test with a mock catalog
-    catalog = MagicMock(spec=A2uiCatalog)
-    catalog.version = VERSION_0_9
-    catalog.common_types_schema = {
-        "$defs": {
-            "ComponentId": {"type": "string"},
-            "ChildList": {
-                "oneOf": [
-                    {"type": "array", "items": {"$ref": "#/$defs/ComponentId"}},
-                    {
-                        "type": "object",
-                        "properties": {"componentId": {"$ref": "#/$defs/ComponentId"}},
-                    },
-                ]
-            },
-        }
-    }
-    catalog.catalog_schema = {
-        "components": {
-            "MyComp": {
-                "properties": {
-                    "ref": {"$ref": "common_types.json#/$defs/ComponentId"},
-                    "multi": {"$ref": "common_types.json#/$defs/ChildList"},
-                }
+  def test_extract_component_ref_fields(self):
+    # Test extraction with concrete A2uiCatalog
+    catalog = A2uiCatalog(
+        name="test",
+        version=VERSION_0_9,
+        common_types_schema={
+            "$defs": {
+                "ComponentId": {"type": "string"},
+                "ChildList": {
+                    "oneOf": [
+                        {
+                            "type": "array",
+                            "items": {"$ref": "#/$defs/ComponentId"},
+                        },
+                        {
+                            "type": "object",
+                            "properties": {
+                                "componentId": {"$ref": "#/$defs/ComponentId"}
+                            },
+                        },
+                    ]
+                },
             }
-        }
-    }
-    # Mock s2c_schema to avoid errors in extraction
-    catalog.s2c_schema = {}
+        },
+        catalog_schema={
+            "catalogId": "c1",
+            "components": {
+                "MyComp": {
+                    "properties": {
+                        "ref": {"$ref": "common_types.json#/$defs/ComponentId"},
+                        "multi": {"$ref": "common_types.json#/$defs/ChildList"},
+                    }
+                }
+            },
+        },
+        s2c_schema={},
+    )
 
     ref_map = extract_component_ref_fields(catalog)
     assert "MyComp" in ref_map

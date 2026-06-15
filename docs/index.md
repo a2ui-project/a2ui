@@ -83,11 +83,11 @@ This repository contains:
 
     [:octicons-arrow-right-24: Run the demo](quickstart.md)
 
-- :material-react:{ .lg .middle } **[A2UI + AG-UI (React)](guides/a2ui-with-any-agent-framework.md)**
+- :material-react:{ .lg .middle } **[A2UI + AG-UI (CopilotKit)](guides/a2ui-with-any-agent-framework.md)**
 
     ***
 
-    Scaffold a Next.js app wired to any agent framework via AG-UI. This is a React + A2UI app, ready to ship.
+    Scaffold an app with CopilotKit, wire it to any agent framework via AG-UI, then enable A2UI rendering.
 
     [:octicons-arrow-right-24: Use with any agent](guides/a2ui-with-any-agent-framework.md)
 

@@ -12,48 +12,35 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# Auto-generated. Do not edit manually.
-from typing import Any, Callable, Dict, Optional, Type
+from typing import Any, Callable, Dict, Optional
 
 
 class FunctionApi:
-    """Represents a specification for a catalog function schema."""
-
-    name: str = ""
-    return_type: str = "any"
-    schema: Any = None
+    """The API definition of a catalog function (schema-only)."""
 
     def __init__(
         self,
-        name: Optional[str] = None,
-        return_type: Optional[str] = None,
-        schema: Optional[Type[Any]] = None,
+        name: str,
+        return_type: str,
+        schema: Any,
     ):
-        self.name = name or getattr(self.__class__, "name", "")
-        self.return_type = return_type or getattr(
-            self.__class__, "return_type", getattr(self.__class__, "returnType", "any")
-        )
-        self.schema = schema or getattr(
-            self.__class__, "schema", getattr(self.__class__, "args", None)
-        )
-
-    def __init_subclass__(cls, **kwargs):
-        super().__init_subclass__(**kwargs)
-        if not getattr(cls, "name", None):
-            cls.name = getattr(cls, "call", "")
-        if not getattr(cls, "return_type", None):
-            cls.return_type = getattr(cls, "returnType", "any")
-        if not getattr(cls, "schema", None):
-            cls.schema = getattr(cls, "args", None)
-            if not cls.schema and hasattr(cls, "__annotations__"):
-                cls.schema = cls.__annotations__.get("args", None)
+        self.name = name
+        self.return_type = return_type
+        self.schema = schema
 
 
 class FunctionImplementation(FunctionApi):
-    """A Function Api combined with an executable execution implementation."""
+    """Extends FunctionApi with executable Python logic and runtime validation."""
 
-    def __init__(self, name: str, return_type: str, schema: Any):
-        super().__init__(name=name, return_type=return_type, schema=schema)
+    def __init__(
+        self,
+        name: str,
+        return_type: str,
+        schema: Any,
+        execute: Callable[[Dict[str, Any], Any, Optional[Any]], Any],
+    ):
+        super().__init__(name, return_type, schema)
+        self.execute_func = execute
 
     def execute(
         self,
@@ -61,55 +48,22 @@ class FunctionImplementation(FunctionApi):
         context: Any = None,
         abort_signal: Optional[Any] = None,
     ) -> Any:
-        """Executes the functional implementation with validated, coerced arguments."""
-        raise NotImplementedError("Subclasses must override and implement execute()")
+        if self.schema and hasattr(self.schema, "model_validate"):
+            safe_args = self.schema.model_validate(args).model_dump(by_alias=True)
+        else:
+            safe_args = args
+        return self.execute_func(safe_args, context, abort_signal)
 
 
 def create_function_implementation(
     api: Any, execute: Callable[[Dict[str, Any], Any, Optional[Any]], Any]
 ) -> FunctionImplementation:
-    """Utility helper to dynamically compose an API specification with an executable closure."""
+    """Creates a FunctionImplementation from a FunctionApi specification and an executable closure."""
+    name = getattr(api, "name", "")
+    return_type = getattr(api, "return_type", "any")
+    schema = getattr(api, "schema", None)
 
-    class DynamicFunctionImplementation(FunctionImplementation):
-
-        def __init__(self):
-            # Extract attributes from Api class or Api instance
-            name = getattr(api, "name", getattr(api.__class__, "name", ""))
-            return_type = getattr(
-                api,
-                "return_type",
-                getattr(
-                    api,
-                    "returnType",
-                    getattr(
-                        api.__class__,
-                        "return_type",
-                        getattr(api.__class__, "returnType", "any"),
-                    ),
-                ),
-            )
-            schema = getattr(
-                api,
-                "schema",
-                getattr(
-                    api,
-                    "args",
-                    getattr(
-                        api.__class__, "schema", getattr(api.__class__, "args", None)
-                    ),
-                ),
-            )
-            super().__init__(name=name, return_type=return_type, schema=schema)
-
-        def execute(
-            self,
-            args: Dict[str, Any],
-            context: Any = None,
-            abort_signal: Optional[Any] = None,
-        ) -> Any:
-            return execute(args, context, abort_signal)
-
-    return DynamicFunctionImplementation()
+    return FunctionImplementation(name, return_type, schema, execute)
 
 
 """
