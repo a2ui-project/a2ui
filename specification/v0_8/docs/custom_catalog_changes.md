@@ -31,7 +31,7 @@ Your responsibilities are to process the client's declared capabilities and make
 
 1.  **Advertise capability**: In the agent's capability card, add the `supportedCatalogIds` array and the `acceptsInlineCatalogs: true` parameter within the A2UI extension block to declare which catalogs you support and whether you can handle dynamic ones.
 
-2.  **Parse client capabilities**: On every incoming A2A `Message`, your library must parse the `a2uiClientCapabilities` object in the `metadata` field of the A2A `Message`'s metadata field to determine which catalogs the client supports. You will get a list of `supportedCatalogIds` and potentially a list of `inlineCatalogs`.
+2.  **Parse client capabilities**: On every incoming A2A `Message`, your library must parse the `a2uiClientCapabilities` object in the `metadata` field of the A2A `Message` to determine which catalogs the client supports. You will get a list of `supportedCatalogIds` and potentially a list of `inlineCatalogs`.
 
 3.  **Choose a Catalog**: Before rendering a UI, decide which catalog to use. Your choice must be one of the catalogs advertised by the client in the capabilities object.
 
