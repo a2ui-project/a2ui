@@ -1,0 +1,99 @@
+# Copyright 2026 Google LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#      https://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+from __future__ import annotations
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Set, Tuple, Union
+
+from .constants import VERSION_0_8, VERSION_0_9
+from .validator_v08 import (
+    LegacyA2uiValidatorV08,
+    extract_component_required_fields as v08_req,
+    extract_component_ref_fields as v08_ref,
+)
+from a2ui.core.validating import A2uiValidator as CoreValidator
+from a2ui.core.validating.integrity_checker import get_component_references
+from a2ui.core.validating.topology_analyzer import analyze_topology
+from a2ui.core.validating.validator import ValidationConfig, STRICT_VALIDATION
+from a2ui.core.validating.catalog_schema_validator import CatalogSchemaValidator
+
+if TYPE_CHECKING:
+  from .catalog import A2uiCatalog
+
+
+def extract_component_required_fields(catalog: A2uiCatalog) -> Dict[str, Set[str]]:
+  if catalog.version == VERSION_0_8:
+    return v08_req(catalog)
+  cs = catalog.catalog_schema
+  all_components = cs.get("components", {}) if isinstance(cs, dict) else {}
+  req_map = {}
+  for comp_name, comp_schema in all_components.items():
+    reqs = set(comp_schema.get("required", [])) - {"component"}
+    if reqs:
+      req_map[comp_name] = reqs
+  return req_map
+
+
+def extract_component_ref_fields(
+    catalog: A2uiCatalog,
+) -> Dict[str, Tuple[Set[str], Set[str]]]:
+  if catalog.version == VERSION_0_8:
+    return v08_ref(catalog)
+  result = CatalogSchemaValidator(
+      catalog.core_catalog,
+      catalog.common_types_schema,
+  ).extract_ref_fields()
+  return result
+
+
+class A2uiValidatorWrapper:
+  """Validates v0.9+ payloads using a2ui_core."""
+
+  def __init__(self, catalog: A2uiCatalog):
+    self._catalog = catalog
+    self._validator = CoreValidator()
+
+  def validate(
+      self,
+      a2ui_json: Union[Dict[str, Any], List[Any]],
+      root_id: Optional[str] = None,
+      config: ValidationConfig = STRICT_VALIDATION,
+  ) -> None:
+    self._validator.validate(
+        schema_validator=CatalogSchemaValidator(
+            self._catalog.core_catalog,
+            self._catalog.common_types_schema,
+        ),
+        a2ui_payload=a2ui_json,
+        config=config,
+    )
+
+
+class A2uiValidator:
+  """Version-aware validation facade dispatching to v0.8 or v0.9+ engines."""
+
+  def __init__(self, catalog: A2uiCatalog):
+    ver = catalog.version
+    self.version = ver if isinstance(ver, str) else VERSION_0_8
+    if self.version == VERSION_0_8:
+      self._delegator = LegacyA2uiValidatorV08(catalog)
+    else:
+      self._delegator = A2uiValidatorWrapper(catalog)
+
+  def validate(
+      self,
+      a2ui_json: Union[Dict[str, Any], List[Any]],
+      root_id: Optional[str] = None,
+      config: ValidationConfig = STRICT_VALIDATION,
+  ) -> None:
+    self._delegator.validate(a2ui_json, root_id=root_id, config=config)

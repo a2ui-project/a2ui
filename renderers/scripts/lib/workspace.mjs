@@ -101,7 +101,7 @@ export function getPackageGraph() {
 
     const allDeps = {...pkg.dependencies, ...pkg.devDependencies, ...pkg.peerDependencies};
     for (const depName in allDeps) {
-      if (packages[depName] && allDeps[depName].startsWith('file:')) {
+      if (packages[depName]) {
         pkg.internalDependencies.push(depName);
       }
     }

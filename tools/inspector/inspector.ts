@@ -16,7 +16,6 @@
 
 import {LitElement, html, css, HTMLTemplateResult, unsafeCSS} from 'lit';
 import {customElement, state} from 'lit/decorators.js';
-import {repeat} from 'lit/directives/repeat.js';
 import {SignalWatcher} from '@lit-labs/signals';
 import {provide} from '@lit/context';
 import {theme as uiTheme} from './theme/theme.js';

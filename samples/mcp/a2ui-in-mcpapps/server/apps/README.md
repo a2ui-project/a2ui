@@ -38,8 +38,8 @@ Run this in the `src/` directory:
 
 ```bash
 cd src
-npm install
-npm run build:all
+yarn install
+yarn build:all
 ```
 
 _(Runs Angular compilation and triggers `node inline.js` to single-file inline it into `public/app.html`)_

@@ -379,7 +379,7 @@ describe('A2uiMessageProcessor', () => {
   });
 
   it('throws A2uiValidationError for malformed components', () => {
-    processor.processMessages([{beginRendering: {surfaceId: `s_bad_comp`, root: 'bad'}}]);
+    processor.processMessages([{beginRendering: {surfaceId: 's_bad_comp', root: 'bad'}}]);
     const surface = processor.getSurfaces().get('s_bad_comp')!;
     surface.rootComponentId = 'bad';
 

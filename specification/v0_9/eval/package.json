@@ -3,45 +3,61 @@
   "version": "1.0.0",
   "main": "lib/index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
-    "build": "tsc",
+    "test": "node -e 'const fs=require(\"fs\"); const path=require(\"path\"); function find(d){for(const f of fs.readdirSync(d)){const p=path.join(d,f);if(f===\"node_modules\"||f===\"dist\")continue;if(fs.statSync(p).isDirectory()){if(find(p))return true;}else if(f.includes(\".test.\")||f.includes(\".spec.\"))return true;}return false;} if(find(\".\")){require(\"child_process\").execSync(\"vitest run\",{stdio:\"inherit\"});}else{console.log(\"Workspace has no tests.\");}'",
+    "build": "wireit",
     "eval": "dotenv -- tsx src/index.ts",
-    "evalAll": "pnpm run eval --clean-results",
-    "evalGemini": "pnpm run eval --model=gemini-3-flash --clean-results",
-    "evalGpt": "pnpm run eval --model=gpt-5-mini --clean-results",
-    "evalClaude": "pnpm run eval --model=claude-4-sonnet --clean-results",
+    "evalAll": "yarn eval --clean-results",
+    "evalGemini": "yarn eval --model=gemini-3-flash --clean-results",
+    "evalGpt": "yarn eval --model=gpt-5-mini --clean-results",
+    "evalClaude": "yarn eval --model=claude-4-sonnet --clean-results",
     "start": "genkit start",
     "genkit:dev": "genkit start -- tsx --watch src/dev.ts",
-    "format": "prettier --write src/**/*.ts"
+    "format": "prettier --write src/**/*.ts",
+    "format:check": "prettier --check .",
+    "lint": "echo \"Workspace has no lint configuration.\"",
+    "lint:fix": "echo \"Workspace has no lint configuration.\""
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "description": "",
   "devDependencies": {
-    "@types/node": "^20.19.33",
+    "@types/node": "^25.9.3",
     "@types/yargs": "^17.0.35",
-    "dotenv-cli": "^10.0.0",
-    "prettier": "^3.8.1",
-    "tsx": "^4.21.0",
-    "typescript": "^5.9.3",
+    "dotenv-cli": "^11.0.0",
+    "prettier": "^3.8.4",
+    "tsx": "^4.22.4",
+    "typescript": "5.9.3",
+    "wireit": "^0.15.0-pre.2",
     "yargs": "^18.0.0"
   },
   "dependencies": {
-    "@genkit-ai/ai": "^1.29.0",
-    "@genkit-ai/compat-oai": "^1.29.0",
-    "@genkit-ai/core": "^1.29.0",
+    "@genkit-ai/ai": "^1.36.0",
+    "@genkit-ai/compat-oai": "^1.36.0",
+    "@genkit-ai/core": "^1.36.0",
     "@genkit-ai/dotprompt": "^0.9.12",
-    "@genkit-ai/firebase": "^1.29.0",
-    "@genkit-ai/google-cloud": "^1.29.0",
-    "@genkit-ai/google-genai": "^1.29.0",
+    "@genkit-ai/firebase": "^1.36.0",
+    "@genkit-ai/google-cloud": "^1.36.0",
+    "@genkit-ai/google-genai": "^1.36.0",
     "@types/js-yaml": "^4.0.9",
-    "ajv": "^8.18.0",
+    "ajv": "^8.20.0",
     "ajv-formats": "^3.0.1",
-    "genkit": "^1.29.0",
-    "genkitx-anthropic": "^0.25.0",
-    "js-yaml": "^4.1.1",
+    "genkit": "^1.36.0",
+    "genkitx-anthropic": "^0.30.0",
+    "js-yaml": "^4.2.0",
     "winston": "^3.19.0",
     "zod": "^3.25.76"
+  },
+  "wireit": {
+    "build": {
+      "command": "tsc",
+      "files": [
+        "src/**/*",
+        "tsconfig.json"
+      ],
+      "output": [
+        "lib/"
+      ]
+    }
   }
 }

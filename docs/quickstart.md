@@ -15,7 +15,7 @@ By the end of this quickstart, you'll have:
 
 Before you begin, make sure you have:
 
-- **Node.js** (v18 or later) — [Download here](https://nodejs.org/)
+- **Node.js** (v18 or later with [Corepack](https://nodejs.org/api/corepack.html) enabled) — [Download here](https://nodejs.org/)
 - **uv** (Python package manager) — [Install here](https://docs.astral.sh/uv/getting-started/installation/) (used to run the Python agent backend)
 - **A Gemini API key** — [Get one free from Google AI Studio](https://aistudio.google.com/apikey)
 
@@ -48,11 +48,24 @@ cd samples/client/lit
 
 ## Step 4: Install and Run
 
-Run the one-command demo launcher:
+Run the demo launcher (ensuring Corepack is enabled so Node automatically fetches the correct Yarn version):
 
 ```bash
-npm run demo:restaurant
+# Enable Corepack (macOS Homebrew users: see tip below)
+corepack enable
+
+yarn install
+yarn demo:restaurant
 ```
+
+> [!TIP]
+> **macOS Homebrew Users:** If you have standalone package managers installed, unlink conflicts before installing Corepack so Corepack can manage versions per-project:
+>
+> ```bash
+> brew unlink yarn pnpm
+> brew install corepack
+> corepack enable
+> ```
 
 This command will:
 
@@ -63,6 +76,9 @@ This command will:
 5. Open your browser to `http://localhost:5173`
 
 The source code for the Restaurant Finder agent is located in [`samples/agent/adk/restaurant_finder`](../samples/agent/adk/restaurant_finder).
+
+> [!NOTE]
+> **Package Manager Usage:** Running the quickstart demo application within the A2UI repository requires Yarn as configured by Corepack workspaces. For your own regular usage and standalone projects outside this repository, use the package manager of your choice (e.g. npm, pnpm).
 
 ### Running Manually (Alternative)
 
@@ -79,7 +95,7 @@ uv run .
 
 ```bash
 cd samples/client/lit/shell
-npm run dev
+yarn dev
 ```
 
 NOTE: Demo Running
@@ -131,7 +147,7 @@ In the web app, try these prompts:
 
 Let's peek at what the agent is sending. Here's a simplified example of the JSON messages:
 
-=== "v0.8 (Stable)"
+=== "v0.8 (Legacy)"
 
     **Defining the UI:**
 
@@ -162,18 +178,18 @@ Let's peek at what the agent is sending. Here's a simplified example of the JSON
     {"beginRendering": {"surfaceId": "main", "root": "header"}}
     ```
 
-=== "v0.9 (Draft)"
+=== "v0.9 (Stable)"
 
     **Creating the surface:**
 
     ```json
-    {"version": "v0.9", "createSurface": {"surfaceId": "main", "catalogId": "https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json"}}
+    {"version": "v0.9.1", "createSurface": {"surfaceId": "main", "catalogId": "https://a2ui.org/specification/v0_9_1/catalogs/basic/catalog.json"}}
     ```
 
     **Defining the UI:**
 
     ```json
-    {"version": "v0.9", "updateComponents": {"surfaceId": "main", "components": [
+    {"version": "v0.9.1", "updateComponents": {"surfaceId": "main", "components": [
       {"id": "header", "component": "Text", "text": "# Book Your Table", "variant": "h1"},
       {"id": "date-picker", "component": "DateTimeInput", "label": "Select Date", "value": {"path": "/reservation/date"}, "enableDate": true},
       {"id": "submit-text", "component": "Text", "text": "Confirm Reservation"},
@@ -184,7 +200,7 @@ Let's peek at what the agent is sending. Here's a simplified example of the JSON
     **Populating data:**
 
     ```json
-    {"version": "v0.9", "updateDataModel": {"surfaceId": "main", "path": "/reservation", "value": {"date": "2025-12-15", "time": "19:00", "guests": 2}}}
+    {"version": "v0.9.1", "updateDataModel": {"surfaceId": "main", "path": "/reservation", "value": {"date": "2025-12-15", "time": "19:00", "guests": 2}}}
     ```
 
     Note: In v0.9, `createSurface` replaces `beginRendering`, components use a flatter format, and the data model uses plain JSON values instead of typed adjacency lists.
@@ -202,7 +218,7 @@ The repository includes several other demos:
 See all available A2UI components:
 
 ```bash
-npm start -- gallery
+yarn start gallery
 ```
 
 This runs a client-only demo showcasing every standard component (Card, Button, TextField, Timeline, etc.) with live examples and code samples.
@@ -223,6 +239,7 @@ Now that you've seen A2UI in action, you're ready to:
 - **[Learn Core Concepts](concepts/overview.md)**: Understand surfaces, components, and data binding
 - **[Set Up Your Own Client](guides/client-setup.md)**: Integrate A2UI into your own app
 - **[Build an Agent](guides/agent-development.md)**: Create agents that generate A2UI responses
+- **[Use an Existing Agent App](guides/a2ui-with-any-agent-framework.md)**: Add A2UI through CopilotKit + AG-UI for ADK, LangGraph, CrewAI, Mastra, or a custom service
 - **[Explore the Protocol](reference/messages.md)**: Dive into the technical specification
 
 ## Troubleshooting

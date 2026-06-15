@@ -172,6 +172,9 @@ class ConformanceTest {
         else -> JsonObject(emptyMap())
       }
 
+    val customCuttableKeys =
+      (catalogMap["custom_cuttable_keys"] as? List<*>)?.mapNotNull { it as? String }?.toSet()
+
     val catalog =
       A2uiCatalog(
         version = version,
@@ -179,6 +182,7 @@ class ConformanceTest {
         serverToClientSchema = s2cSchema,
         commonTypesSchema = commonTypesSchema,
         catalogSchema = catalogSchema,
+        customCuttableKeys = customCuttableKeys,
       )
 
     return Pair(catalog, schemaMappings)
@@ -304,6 +308,11 @@ class ConformanceTest {
             val output = catalog!!.renderAsLlmInstructions()
             val expectOutput = case["expect_output"] as String
             assertEquals(expectOutput.trim(), output.trim())
+          }
+          "verify_cuttable_keys" -> {
+            val expect = case[ConformanceTestHelper.KEY_EXPECT] as Map<*, *>
+            val expectCuttableKeys = expect["custom_cuttable_keys"] as List<String>
+            assertEquals(expectCuttableKeys.toSet(), catalog!!.cuttableKeys)
           }
           else -> assert(false, { "Unknown action: $action" })
         }
@@ -583,6 +592,9 @@ class ConformanceTest {
           catalogMap?.let { buildCatalog(it, conformanceDir, baseSchemaMappings) }
             ?: (null to emptyMap())
         val parser = StreamingParser.create(catalog, schemaMappings)
+        if (case["disable_validation"] as? Boolean == true) {
+          parser.validator = null
+        }
 
         for ((stepIdx, stepObj) in steps.withIndex()) {
           val step = stepObj as Map<*, *>

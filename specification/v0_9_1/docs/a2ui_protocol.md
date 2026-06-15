@@ -4,14 +4,14 @@
 <div style="text-align: center;">
   <div class="centered-logo-text-group">
     <img src="../../../assets/A2UI_dark.svg" alt="A2UI Protocol Logo" width="100">
-    <h1>A2UI (Agent to UI) Protocol v0.9</h1>
+    <h1>A2UI (Agent to UI) Protocol v0.9.1</h1>
   </div>
 </div>
 
 A Specification for a JSON-Based, Streaming UI Protocol.
 
-**Version:** 0.9
-**Status:** Draft
+**Version:** 0.9.1
+**Status:** Current Production
 **Created:** Nov 20, 2025
 **Last Updated:** Dec 3, 2025
 
@@ -30,7 +30,7 @@ Communication occurs via a stream of JSON objects. The client parses each object
 
 ## Changes from previous versions
 
-Version 0.9 of the A2UI protocol represents a philosophical shift from previous versions. While v0.8 was optimized for LLMs that support structured output, v0.9 is designed to be embedded directly within a model's prompt. The LLM is then asked to produce JSON that matches the provided examples and schema descriptions.
+Version 0.9 introduced A2UI's prompt-first protocol family. While v0.8 was optimized for LLMs that support structured output, v0.9 is designed to be embedded directly within a model's prompt. The LLM is then asked to produce JSON that matches the provided examples and schema descriptions.
 
 This "prompt-first" approach offers several advantages:
 
@@ -39,7 +39,7 @@ This "prompt-first" approach offers several advantages:
 
 The main disadvantage of this approach is that it requires more complex post-generation validation, as the LLM is not strictly constrained by the schema. This requires robust error handling and correction, so the system can identify discrepancies and attempt to fix them before rendering, or request a retry or correction from the LLM.
 
-See [the evolution guide](evolution_guide.md) for a detailed explanation of the differences between v0.8 and v0.9.
+See [the evolution guide](evolution_guide.md) for a detailed explanation of the differences between v0.9 and v0.9.1.
 
 ## Protocol overview & data flow
 
@@ -123,7 +123,7 @@ A2UI can also be carried over:
 
 ## The protocol schemas
 
-A2UI v0.9 is defined by three interacting JSON schemas.
+A2UI v0.9.1 is defined by three interacting JSON schemas.
 
 ### Common types
 
@@ -189,10 +189,10 @@ This message signals the client to create a new surface and begin rendering it. 
 
 ```json
 {
-  "version": "v0.9",
+  "version": "v0.9.1",
   "createSurface": {
     "surfaceId": "user_profile_card",
-    "catalogId": "https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json",
+    "catalogId": "https://a2ui.org/specification/v0_9_1/catalogs/basic/catalog.json",
     "theme": {
       "primaryColor": "#00BFFF"
     },
@@ -214,7 +214,7 @@ This message provides a list of UI components to be added to or updated within a
 
 ```json
 {
-  "version": "v0.9",
+  "version": "v0.9.1",
   "updateComponents": {
     "surfaceId": "user_profile_card",
     "components": [
@@ -252,7 +252,7 @@ This message is used to send or update the data that populates the UI components
 
 ```json
 {
-  "version": "v0.9",
+  "version": "v0.9.1",
   "updateDataModel": {
     "surfaceId": "user_profile_card",
     "path": "/user/name",
@@ -273,7 +273,7 @@ This message instructs the client to remove a surface and all its associated com
 
 ```json
 {
-  "version": "v0.9",
+  "version": "v0.9.1",
   "deleteSurface": {
     "surfaceId": "user_profile_card"
   }
@@ -285,10 +285,10 @@ This message instructs the client to remove a surface and all its associated com
 The following example demonstrates a complete interaction to render a Contact Form, expressed as a JSONL stream.
 
 ```jsonl
-{"version": "v0.9", "createSurface":{"surfaceId":"contact_form_1","catalogId":"https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json"}}
-{"version": "v0.9", "updateComponents":{"surfaceId":"contact_form_1","components":[{"id":"root","component":"Card","child":"form_container"},{"id":"form_container","component":"Column","children":["header_row","name_row","email_group","phone_group","pref_group","divider_1","newsletter_checkbox","submit_button"],"justify":"start","align":"stretch"},{"id":"header_row","component":"Row","children":["header_icon","header_text"],"align":"center"},{"id":"header_icon","component":"Icon","name":"mail"},{"id":"header_text","component":"Text","text":"# Contact Us","variant":"h2"},{"id":"name_row","component":"Row","children":["first_name_group","last_name_group"],"justify":"spaceBetween"},{"id":"first_name_group","component":"Column","children":["first_name_label","first_name_field"],"weight":1},{"id":"first_name_label","component":"Text","text":"First Name","variant":"caption"},{"id":"first_name_field","component":"TextField","label":"First Name","value":{"path":"/contact/firstName"},"variant":"shortText"},{"id":"last_name_group","component":"Column","children":["last_name_label","last_name_field"],"weight":1},{"id":"last_name_label","component":"Text","text":"Last Name","variant":"caption"},{"id":"last_name_field","component":"TextField","label":"Last Name","value":{"path":"/contact/lastName"},"variant":"shortText"},{"id":"email_group","component":"Column","children":["email_label","email_field"]},{"id":"email_label","component":"Text","text":"Email Address","variant":"caption"},{"id":"email_field","component":"TextField","label":"Email","value":{"path":"/contact/email"},"variant":"shortText","checks":[{"call":"required","args":{"value":{"path":"/contact/email"}},"message":"Email is required."},{"call":"email","args":{"value":{"path":"/contact/email"}},"message":"Please enter a valid email address."}]},{"id":"phone_group","component":"Column","children":["phone_label","phone_field"]},{"id":"phone_label","component":"Text","text":"Phone Number","variant":"caption"},{"id":"phone_field","component":"TextField","label":"Phone","value":{"path":"/contact/phone"},"variant":"shortText","checks":[{"call":"regex","args":{"value":{"path":"/contact/phone"},"pattern":"^\\d{10}$"},"message":"Phone number must be 10 digits."}]},{"id":"pref_group","component":"Column","children":["pref_label","pref_picker"]},{"id":"pref_label","component":"Text","text":"Preferred Contact Method","variant":"caption"},{"id":"pref_picker","component":"ChoicePicker","variant":"mutuallyExclusive","options":[{"label":"Email","value":"email"},{"label":"Phone","value":"phone"},{"label":"SMS","value":"sms"}],"value":{"path":"/contact/preference"}},{"id":"divider_1","component":"Divider","axis":"horizontal"},{"id":"newsletter_checkbox","component":"CheckBox","label":"Subscribe to our newsletter","value":{"path":"/contact/subscribe"}},{"id":"submit_button_label","component":"Text","text":"Send Message"},{"id":"submit_button","component":"Button","child":"submit_button_label","variant":"primary","action":{"event":{"name":"submitContactForm","context":{"formId":"contact_form_1","clientTime":{"call":"formatDate","args":{"value": "2026-02-02T15:17:00Z", "format": "E MMM d, YYYY h:mm a"},"returnType":"string"},"isNewsletterSubscribed":{"path":"/contact/subscribe"}}}}}]}}
-{"version": "v0.9", "updateDataModel":{"surfaceId":"contact_form_1","path":"/contact","value":{"firstName":"John","lastName":"Doe","email":"john.doe@example.com","phone":"1234567890","preference":["email"],"subscribe":true}}}
-{"version": "v0.9", "deleteSurface":{"surfaceId":"contact_form_1"}}
+{"version": "v0.9.1", "createSurface":{"surfaceId":"contact_form_1","catalogId":"https://a2ui.org/specification/v0_9_1/catalogs/basic/catalog.json"}}
+{"version": "v0.9.1", "updateComponents":{"surfaceId":"contact_form_1","components":[{"id":"root","component":"Card","child":"form_container"},{"id":"form_container","component":"Column","children":["header_row","name_row","email_group","phone_group","pref_group","divider_1","newsletter_checkbox","submit_button"],"justify":"start","align":"stretch"},{"id":"header_row","component":"Row","children":["header_icon","header_text"],"align":"center"},{"id":"header_icon","component":"Icon","name":"mail"},{"id":"header_text","component":"Text","text":"# Contact Us","variant":"h2"},{"id":"name_row","component":"Row","children":["first_name_group","last_name_group"],"justify":"spaceBetween"},{"id":"first_name_group","component":"Column","children":["first_name_label","first_name_field"],"weight":1},{"id":"first_name_label","component":"Text","text":"First Name","variant":"caption"},{"id":"first_name_field","component":"TextField","label":"First Name","value":{"path":"/contact/firstName"},"variant":"shortText"},{"id":"last_name_group","component":"Column","children":["last_name_label","last_name_field"],"weight":1},{"id":"last_name_label","component":"Text","text":"Last Name","variant":"caption"},{"id":"last_name_field","component":"TextField","label":"Last Name","value":{"path":"/contact/lastName"},"variant":"shortText"},{"id":"email_group","component":"Column","children":["email_label","email_field"]},{"id":"email_label","component":"Text","text":"Email Address","variant":"caption"},{"id":"email_field","component":"TextField","label":"Email","value":{"path":"/contact/email"},"variant":"shortText","checks":[{"call":"required","args":{"value":{"path":"/contact/email"}},"message":"Email is required."},{"call":"email","args":{"value":{"path":"/contact/email"}},"message":"Please enter a valid email address."}]},{"id":"phone_group","component":"Column","children":["phone_label","phone_field"]},{"id":"phone_label","component":"Text","text":"Phone Number","variant":"caption"},{"id":"phone_field","component":"TextField","label":"Phone","value":{"path":"/contact/phone"},"variant":"shortText","checks":[{"call":"regex","args":{"value":{"path":"/contact/phone"},"pattern":"^\\d{10}$"},"message":"Phone number must be 10 digits."}]},{"id":"pref_group","component":"Column","children":["pref_label","pref_picker"]},{"id":"pref_label","component":"Text","text":"Preferred Contact Method","variant":"caption"},{"id":"pref_picker","component":"ChoicePicker","variant":"mutuallyExclusive","options":[{"label":"Email","value":"email"},{"label":"Phone","value":"phone"},{"label":"SMS","value":"sms"}],"value":{"path":"/contact/preference"}},{"id":"divider_1","component":"Divider","axis":"horizontal"},{"id":"newsletter_checkbox","component":"CheckBox","label":"Subscribe to our newsletter","value":{"path":"/contact/subscribe"}},{"id":"submit_button_label","component":"Text","text":"Send Message"},{"id":"submit_button","component":"Button","child":"submit_button_label","variant":"primary","action":{"event":{"name":"submitContactForm","context":{"formId":"contact_form_1","clientTime":{"call":"formatDate","args":{"value": "2026-02-02T15:17:00Z", "format": "E MMM d, YYYY h:mm a"},"returnType":"string"},"isNewsletterSubscribed":{"path":"/contact/subscribe"}}}}}]}}
+{"version": "v0.9.1", "updateDataModel":{"surfaceId":"contact_form_1","path":"/contact","value":{"firstName":"John","lastName":"Doe","email":"john.doe@example.com","phone":"1234567890","preference":["email"],"subscribe":true}}}
+{"version": "v0.9.1", "deleteSurface":{"surfaceId":"contact_form_1"}}
 ```
 
 ## Component model
@@ -539,7 +539,7 @@ _Update a specific field:_
 
 ```json
 {
-  "version": "v0.9",
+  "version": "v0.9.1",
   "updateDataModel": {
     "surfaceId": "surface_123",
     "path": "/user/firstName",
@@ -552,7 +552,7 @@ _Remove a field:_
 
 ```json
 {
-  "version": "v0.9",
+  "version": "v0.9.1",
   "updateDataModel": {
     "surfaceId": "surface_123",
     "path": "/user/tempData"
@@ -564,7 +564,7 @@ _Replace the entire data model:_
 
 ```json
 {
-  "version": "v0.9",
+  "version": "v0.9.1",
   "updateDataModel": {
     "surfaceId": "surface_123",
     "value": {
@@ -590,7 +590,7 @@ A2UI v0.9 generalizes client-side logic into **Functions**. These can be used fo
 
 ### Registered functions
 
-The client supports a set of named **Functions** (e.g., `required`, `regex`, `email`, `add`, `concat`) which are defined in the JSON schema (e.g. `catalogs/basic/catalog.json`) alongside the component definitions. The server references these functions by name in `FunctionCall` objects. This avoids sending executable code.
+The client supports a set of named **Functions** (e.g., `required`, `regex`, `email`, `add`, `concat`) which are defined in the JSON schema (e.g. `catalogs/basic/catalog.json`) alongside the component definitions. The server references these functions by name in `FunctionCall` objects. This avoids sending executable code. The client determines each function's execution boundary at runtime by reading its configuration from the active catalog definition.
 
 Input components (like `TextField`, `CheckBox`) can define a list of checks. Each failure produces a specific error message that can be displayed when the component is rendered. Note that for validation checks, the function must return a boolean.
 

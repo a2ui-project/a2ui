@@ -718,7 +718,7 @@ export class DemoComponent implements OnInit, OnDestroy {
     try {
       const parsed = JSON.parse(this.currentCreateSurfaceMessageJson);
       this.currentCreateSurfaceMessageJson = JSON.stringify(parsed, null, 2);
-    } catch (e) {
+    } catch {
       // Ignore if invalid, don't format
     }
   }
@@ -751,7 +751,7 @@ export class DemoComponent implements OnInit, OnDestroy {
     try {
       const parsed = JSON.parse(this.currentDataModelJson);
       this.currentDataModelJson = JSON.stringify(parsed, null, 2);
-    } catch (e) {
+    } catch {
       // Ignore if invalid, don't format
     }
   }

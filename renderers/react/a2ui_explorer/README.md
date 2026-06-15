@@ -11,18 +11,16 @@ This application depends on the following local libraries in this repository:
 
 ## Building Dependencies
 
-Before running the gallery app, you must build the local renderer library:
+Before running the gallery app, you must install and build packages:
 
 ```bash
-# Navigate to the React renderer library
-cd ../..
+# Navigate to the monorepo root
+cd ../../..
 
-# Install and build the library
-npm install
-npm run build
+# Install and build the workspace packages
+yarn install
+yarn build:all
 ```
-
-_Note: Ensure `@a2ui/web_core` is also built if you have made changes to the core logic._
 
 ## Setup and Development
 
@@ -32,11 +30,8 @@ Once the dependencies are built, you can start the gallery app:
 # Navigate to this directory
 cd renderers/react/a2ui_explorer
 
-# Install dependencies
-npm install
-
 # Start the development server
-npm run dev
+yarn dev
 ```
 
 ## Building for Production
@@ -44,7 +39,7 @@ npm run dev
 To create a production build of the gallery app:
 
 ```bash
-npm run build
+yarn build
 ```
 
 ## Running Tests
@@ -52,7 +47,7 @@ npm run build
 To run the integration tests:
 
 ```bash
-npm test
+yarn test
 ```
 
 ## Gallery Features

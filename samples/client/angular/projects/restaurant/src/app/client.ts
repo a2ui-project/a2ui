@@ -38,7 +38,7 @@ export class Client {
   async makeRequest(
     request: Types.A2UIClientEventMessage | string,
   ): Promise<Types.ServerToClientMessage[]> {
-    let messages: Types.ServerToClientMessage[] = [];
+    const messages: Types.ServerToClientMessage[] = [];
     try {
       this.isLoading.set(true);
 
@@ -137,7 +137,7 @@ export class Client {
     messages: Types.ServerToClientMessage[],
   ): Promise<void> {
     const responseData = await response.json();
-    console.log(`[client] Received JSON response:`, responseData);
+    console.log('[client] Received JSON response:', responseData);
 
     if (responseData.contextId) {
       this.contextId = responseData.contextId;

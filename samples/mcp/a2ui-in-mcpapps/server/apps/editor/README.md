@@ -25,29 +25,12 @@ source ~/.bashrc
 nvm install --lts
 ```
 
-### 2. Build Core A2UI Libraries
+### 2. Install Repository Dependencies
 
-This application has file-based dependencies on the core A2UI packages which reside elsewhere in this repository. You **must build these packages first** in specific order before this application's `npm install` will succeed.
-
-Run the following commands from the **root of the repository**:
+Run the following command from the **root of the repository** to link all workspaces:
 
 ```bash
-# 1. Build Web Core
-cd renderers/web_core
-npm install
-npm run build
-
-# 2. Build Markdown Utilities
-cd renderers/markdown/markdown-it
-npm install
-npm run build
-
-# 3. Build Angular Renderer
-cd renderers/angular
-npm install
-npm run build
-
-cd ../../
+yarn install
 ```
 
 ---
@@ -62,10 +45,10 @@ From inside this directory (`samples/mcp/a2ui-in-mcpapps/server/apps/editor`):
 
 ```bash
 # Install local package dependencies
-npm install --legacy-peer-deps
+yarn install
 
 # Build Angular project AND generate the single self-contained HTML file
-npm run build:all
+yarn build:all
 ```
 
 _This outputs the final static artifact into `../public/editor.html` which the Python server reads._
@@ -76,8 +59,8 @@ Navigate to the client host directory and build its security-sandbox bridge:
 
 ```bash
 cd ../../../client
-npm install
-npm run build:sandbox
+yarn install
+yarn build:sandbox
 ```
 
 ### Step 3: Run the Full Local Environment
@@ -96,7 +79,7 @@ uv run python server.py --transport sse --port 8000
 
 ```bash
 cd samples/mcp/a2ui-in-mcpapps/client
-npm run start
+yarn start
 ```
 
 #### Access the Application

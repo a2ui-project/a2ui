@@ -49,6 +49,9 @@ constructor(
       builder.schemaIdResolvers { schemaIdResolvers ->
         schemaMappings.forEach { (prefix, target) -> schemaIdResolvers.mapPrefix(prefix, target) }
       }
+      builder.resourceLoaders { resourceLoaders ->
+        resourceLoaders.add(com.networknt.schema.resource.IriResourceLoader.getInstance())
+      }
     }
   }
   private val sharedConfig: SchemaRegistryConfig by lazy { SchemaRegistryConfig.builder().build() }
@@ -136,6 +139,9 @@ constructor(
         builder.schemaIdResolvers { schemaIdResolvers ->
           schemaMappings.forEach { (prefix, target) -> schemaIdResolvers.mapPrefix(prefix, target) }
           schemaIdResolvers.mapPrefix(FILE_COMMON_TYPES, commonTypesUri)
+        }
+        builder.resourceLoaders { resourceLoaders ->
+          resourceLoaders.add(com.networknt.schema.resource.IriResourceLoader.getInstance())
         }
         builder.schemaRegistryConfig(sharedConfig)
       }

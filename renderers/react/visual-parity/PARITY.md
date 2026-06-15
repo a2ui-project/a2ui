@@ -178,7 +178,7 @@ This happens when Vite's dependency optimization cache becomes stale, typically 
 ```bash
 # From renderers/react/visual-parity/
 rm -rf node_modules/.vite react/node_modules/.vite lit/node_modules/.vite ../node_modules/.vite
-npm run dev:react  # or dev:lit
+yarn dev:react  # or dev:lit
 ```
 
 ### React Renderer Changes Not Picked Up
@@ -199,12 +199,12 @@ If you edit files in `renderers/react/src/` but the visual parity app doesn't re
 
 # 1. Rebuild the React renderer
 cd ../
-npm run build
+yarn build
 
 # 2. Clear Vite cache and restart
 cd visual-parity
 rm -rf react/node_modules/.vite node_modules/.vite
-npm run dev:react
+yarn dev:react
 ```
 
 **Note:** Vite's HMR works for changes _within_ the visual parity app, but changes to workspace dependencies require rebuilding + cache clearing.
@@ -215,13 +215,13 @@ This directory contains the visual parity test suite:
 
 ```bash
 # Run all tests
-npm test
+yarn test
 
 # Run specific component tests
-npm test -- --grep "button"
+yarn test -g "button"
 
 # Run dev servers for manual inspection
-npm run dev
+yarn dev
 ```
 
 The tests:
