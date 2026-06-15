@@ -202,7 +202,6 @@ def validate_catalogs_structure():
 
     catalogs_to_validate = [
         ("catalogs/basic/catalog.json", os.path.join(SPEC_DIR, "catalogs/basic/catalog.json")),
-        ("catalogs/minimal/catalog.json", os.path.join(SPEC_DIR, "catalogs/minimal/catalog.json")),
         ("test/testing_catalog.json", os.path.join(TEST_DIR, "testing_catalog.json")),
     ]
 
@@ -243,7 +242,6 @@ def validate_catalogs_identifiers():
     """
     catalogs_to_validate = [
         ("catalogs/basic/catalog.json", os.path.join(SPEC_DIR, "catalogs/basic/catalog.json")),
-        ("catalogs/minimal/catalog.json", os.path.join(SPEC_DIR, "catalogs/minimal/catalog.json")),
         ("test/testing_catalog.json", os.path.join(TEST_DIR, "testing_catalog.json")),
     ]
 
