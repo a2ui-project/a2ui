@@ -15,6 +15,7 @@
  */
 
 import {nothing} from 'lit';
+import {html, unsafeStatic} from 'lit/static-html.js';
 import {ComponentContext, Catalog} from '@a2ui/web_core/v0_9';
 import {LitComponentApi} from '../types.js';
 
@@ -42,11 +43,6 @@ export function renderA2uiNode(context: ComponentContext, catalog: Catalog<LitCo
     return nothing;
   }
 
-  let element = (context.componentModel as any)._cachedElement as HTMLElement | undefined;
-  if (!element || element.tagName.toLowerCase() !== implementation.tagName.toLowerCase()) {
-    element = document.createElement(implementation.tagName);
-    (context.componentModel as any)._cachedElement = element;
-  }
-  (element as any).context = context;
-  return element;
+  const tag = unsafeStatic(implementation.tagName);
+  return html`<${tag} .context=${context}></${tag}>`;
 }
