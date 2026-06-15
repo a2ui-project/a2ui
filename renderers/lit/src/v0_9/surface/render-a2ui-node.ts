@@ -42,7 +42,11 @@ export function renderA2uiNode(context: ComponentContext, catalog: Catalog<LitCo
     return nothing;
   }
 
-  const element = document.createElement(implementation.tagName);
+  let element = (context.componentModel as any)._cachedElement as HTMLElement | undefined;
+  if (!element || element.tagName.toLowerCase() !== implementation.tagName.toLowerCase()) {
+    element = document.createElement(implementation.tagName);
+    (context.componentModel as any)._cachedElement = element;
+  }
   (element as any).context = context;
   return element;
 }
