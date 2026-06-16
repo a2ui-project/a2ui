@@ -1,13 +1,15 @@
 {
-  "name": "basic-mcp-app-angular",
+  "name": "basic-mcp-app-angular-editor",
   "version": "1.0.0",
   "dependencies": {
-    "@a2ui/angular": "workspace:*",
+    "@a2ui/angular": "^0.10.0",
     "@a2ui/markdown-it": "*",
     "@angular/common": "^21.2.5",
     "@angular/compiler": "^21.2.5",
     "@angular/core": "^21.2.5",
     "@angular/platform-browser": "^21.2.5",
+    "@editorjs/editorjs": "^2.31.6",
+    "@editorjs/paragraph": "^2.11.7",
     "rxjs": "^7.8.2",
     "tslib": "^2.8.1",
     "zone.js": "~0.16.2"
@@ -20,7 +22,7 @@
   },
   "scripts": {
     "build": "ng build --output-path=../dist/raw --configuration production",
-    "inline": "node ../inline.js --input ../dist/raw --output ../public/app.html",
+    "inline": "node ../inline.js --input ../dist/raw --output ../public/editor.html",
     "build:all": "yarn run build && yarn run inline",
     "format": "prettier --write .",
     "format:check": "prettier --check .",

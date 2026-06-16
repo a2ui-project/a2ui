@@ -14,9 +14,9 @@
     "lint:fix": "echo \"Workspace has no lint configuration.\""
   },
   "dependencies": {
-    "@a2ui/lit": "workspace:*",
+    "@a2ui/lit": "^0.10.0",
     "@a2ui/markdown-it": "*",
-    "@a2ui/web_core": "workspace:*",
+    "@a2ui/web_core": "^0.10.0",
     "@lit-labs/signals": "^0.3.0",
     "@lit/context": "^1.1.6",
     "@modelcontextprotocol/sdk": "^1.29.0",
