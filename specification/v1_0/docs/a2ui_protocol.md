@@ -475,7 +475,7 @@ To ensure complete cross-language compatibility across client SDKs, parsers, and
 
 #### Catalog Schema Rules and Conventions
 
-To ensure catalog schemas can be translated reliably into alternative, LLM-friendly DSL formats (e.g., HTML-like XML, functional, or compact inline formats), cleanly mapped to type-safe client SDK representations, automatically parsed, and bound seamlessly across platforms, all v1.0 component and function catalog definitions MUST conform to the following strict structural rules and conventions:
+To ensure catalog schemas can be translated reliably into alternative, LLM-friendly DSL formats (e.g., HTML-like XML, functional, or compact inline formats), cleanly mapped to type-safe client SDK representations, automatically parsed, and bound seamlessly across platforms, all v1.0 component and function catalog definitions MUST conform to the following strict structural constraints and conventions:
 
 1. **Strict Top-Level vs. `$defs` Boundary:**
    - **Top-Level components and functions:** All component and function schemas MUST be declared directly under the top-level keys `"components"` and `"functions"` respectively.
@@ -506,7 +506,7 @@ To ensure catalog schemas can be translated reliably into alternative, LLM-frien
    - _Prompt-Level Mitigation:_ The increased verbosity of dynamic wrappers is resolved during inference by the prompt generator, which detects shared structures in memory and condenses them into clean, concise instructions for the LLM.
 5. **Component Discriminator Rule:**
    - Every component schema defined inside the `components` map must have a required property named `component` whose value is a constant (`const`) matching the key under which it is defined.
-   - _Example:_ The component defined at `components.Text` must declare:
+   - Example: The component defined at `components.Text` must declare:
      ```json
      "properties": {
        "component": {
@@ -540,6 +540,115 @@ To ensure catalog schemas can be translated reliably into alternative, LLM-frien
      - `$defs`
    - No other top-level keys are permitted.
 
+##### Example Schema Template
+
+Below is an annotated, fully compliant `catalog.json` schema template (written in JSONC format with comments) representing a visual, complete model of these rules in action:
+
+```jsonc
+{
+  // Rule 8: Strict Top-Level Schema Keys
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
+  "title": "A2UI Basic Catalog Template",
+  "description": "An annotated example showcasing structural rules and conventions.",
+  "catalogId": "https://example.com/catalogs/custom-v1",
+  "instructions": "Design instructions for LLMs when generating layouts under this catalog.",
+
+  // Rule 1: Top-level components declared under top-level "components" map.
+  "components": {
+    "Text": {
+      "type": "object",
+      // Rule 6: Components must combine ComponentCommon and local properties using "allOf".
+      "allOf": [
+        {
+          // Rule 3: External references must reference standard types in common_types.json.
+          "$ref": "https://a2ui.org/specification/v1_0/common_types.json#/$defs/ComponentCommon",
+        },
+        {
+          "type": "object",
+          "properties": {
+            // Rule 5: Required "component" property must be a constant matching the component key.
+            "component": {
+              "const": "Text",
+            },
+            // Rule 4: Every leaf property must be a dynamic wrapper type instead of a raw primitive.
+            "text": {
+              "$ref": "https://a2ui.org/specification/v1_0/common_types.json#/$defs/DynamicString",
+              "description": "Text content to display.",
+            },
+          },
+          "required": ["component", "text"],
+        },
+      ],
+      "unevaluatedProperties": false,
+    },
+  },
+
+  // Rule 1: Top-level functions declared under top-level "functions" map.
+  "functions": {
+    "required": {
+      "type": "object",
+      "description": "Checks that the value is not null, undefined, or empty.",
+      // Rule 7: Strict function metadata defined outside the properties block.
+      "returnType": "boolean",
+      "callableFrom": "clientOnly",
+      "properties": {
+        // Rule 7: Function call schema requires constant with function's name.
+        "call": {
+          "const": "required",
+        },
+        "args": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "description": "The value to check (uses dynamic wrapper target).",
+            },
+          },
+          "required": ["value"],
+          "additionalProperties": false,
+        },
+      },
+      "required": ["call", "args"],
+      "unevaluatedProperties": false,
+    },
+  },
+
+  // Rule 1 & Rule 2: $defs is restricted strictly to surfaceProperties, anyComponent, and anyFunction.
+  // Custom definitions or helpers inside a catalog are strictly prohibited under $defs.
+  "$defs": {
+    "surfaceProperties": {
+      "type": "object",
+      "properties": {
+        "agentDisplayName": {
+          "type": "string",
+        },
+      },
+    },
+    "anyComponent": {
+      "oneOf": [
+        {
+          // Rule 3: Local refs restricted to top-level components map.
+          "$ref": "#/components/Text",
+        },
+      ],
+      "discriminator": {
+        "propertyName": "component",
+      },
+    },
+    "anyFunction": {
+      "oneOf": [
+        {
+          // Rule 3: Local refs restricted to top-level functions map.
+          "$ref": "#/functions/required",
+        },
+      ],
+    },
+  },
+}
+```
+
+````
+
 ### UI composition: the adjacency list model
 
 The A2UI protocol defines the UI as a flat list of components. The tree structure is built implicitly using ID references. This is known as an adjacency list model.
@@ -571,7 +680,7 @@ flowchart TD
     A -- "Parsed and stored" --> D
     A -- "Parsed and stored" --> E
 
-```
+````
 
 ### Defining actions
 
