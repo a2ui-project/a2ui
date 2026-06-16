@@ -473,9 +473,9 @@ To ensure complete cross-language compatibility across client SDKs, parsers, and
   - `1stItem` (violates initial `Nd`)
   - `submit-form`, `user#name`, `calc$val` (violates `Pattern_Syntax`)
 
-#### Catalog JSON Schema Structural Restrictions
+#### Catalog Schema Rules and Conventions
 
-To ensure catalog schemas can be translated reliably into alternative, LLM-friendly DSL formats (e.g., HTML-like XML, functional, or compact inline formats) and cleanly mapped to type-safe client SDK representations, all v1.0 component and function catalog definitions MUST conform to the following strict structural constraints:
+To ensure catalog schemas can be translated reliably into alternative, LLM-friendly DSL formats (e.g., HTML-like XML, functional, or compact inline formats), cleanly mapped to type-safe client SDK representations, automatically parsed, and bound seamlessly across platforms, all v1.0 component and function catalog definitions MUST conform to the following strict structural rules and conventions:
 
 1. **Strict Top-Level vs. `$defs` Boundary:**
    - **Top-Level components and functions:** All component and function schemas MUST be declared directly under the top-level keys `"components"` and `"functions"` respectively.
@@ -503,16 +503,10 @@ To ensure catalog schemas can be translated reliably into alternative, LLM-frien
      - `Action`
 4. **Mandatory Dynamic Wrappers (No Raw Primitives):**
    - Every leaf node in a component's properties or a function's arguments schema MUST be a dynamic type wrapper (e.g., `DynamicString`, `DynamicNumber`, `DynamicBoolean`, `DynamicValue`) instead of a literal raw primitive (e.g., raw `string`, `number`, `boolean`). This guarantees that any slot can be bound to a data model path.
-5. **Prompt-Level Mitigation:**
-   - The increased verbosity of dynamic wrappers is resolved during inference by the prompt generator, which detects shared structures in memory and condenses them into clean, concise instructions for the LLM.
-
-#### Catalog Conventions (The "Unwritten Rules")
-
-To ensure automatic parsing and seamless cross-platform SDK bindings, every catalog MUST also follow these core conventions:
-
-1. **Component Discriminator Rule:**
+   - _Prompt-Level Mitigation:_ The increased verbosity of dynamic wrappers is resolved during inference by the prompt generator, which detects shared structures in memory and condenses them into clean, concise instructions for the LLM.
+5. **Component Discriminator Rule:**
    - Every component schema defined inside the `components` map must have a required property named `component` whose value is a constant (`const`) matching the key under which it is defined.
-   - Example: The component defined at `components.Text` must declare:
+   - _Example:_ The component defined at `components.Text` must declare:
      ```json
      "properties": {
        "component": {
@@ -520,20 +514,20 @@ To ensure automatic parsing and seamless cross-platform SDK bindings, every cata
        }
      }
      ```
-   - This enables route-dispatch matching via the `discriminator` block inside `anyComponent` (designating `"propertyName": "component"`).
-2. **Standard Component Structure:**
+     This enables route-dispatch matching via the `discriminator` block inside `anyComponent` (designating `"propertyName": "component"`).
+6. **Standard Component Structure:**
    - All components defined in the `components` object must use an `allOf` structure that combines:
      1. An external reference to the baseline identity and accessibility attributes:
         `{"$ref": "https://a2ui.org/specification/v1_0/common_types.json#/$defs/ComponentCommon"}`
      2. A local object schema defining the unique properties of that specific component (e.g., its children, variant, specific layouts).
-3. **Strict Function Interface Pattern:**
+7. **Strict Function Interface Pattern:**
    - Every function schema defined inside the `functions` map must validate a wire-level `FunctionCall` object. This requires:
      - A `properties` block with a `call` property containing a constant of the function's name (e.g., `"call": { "const": "email" }`).
      - An optional `args` property representing arguments (or absent if the function accepts no arguments).
      - Mandatory metadata fields outside the strict JSON validation properties to advertise interface details:
        - **`returnType`**: Must be a string enum indicating the return type (`string`, `number`, `boolean`, `array`, `object`, `any`, or `void`).
        - **`callableFrom`**: Must be a string enum indicating the execution boundary (`clientOnly`, `remoteOnly`, or `clientOrRemote`). If omitted, it defaults to `clientOnly`.
-4. **Strict Top-Level Schema Keys:**
+8. **Strict Top-Level Schema Keys:**
    - To keep catalog schemas predictable and prevent custom extensions from polluting the global file space, a `catalog.json` file is restricted to the following root-level keys:
      - `$schema`
      - `$id`
