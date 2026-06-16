@@ -41,8 +41,7 @@
           {
             "id": "title",
             "component": "Text",
-            "text": "Purchase Complete",
-            "variant": "h2"
+            "text": "## Purchase Complete"
           },
           {
             "id": "product-row",
@@ -68,8 +67,7 @@
             "component": "Text",
             "text": {
               "path": "/productName"
-            },
-            "variant": "h4"
+            }
           },
           {
             "id": "product-price",

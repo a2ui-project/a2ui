@@ -36,16 +36,14 @@
           {
             "id": "title",
             "component": "Text",
-            "text": "Purchase License",
-            "variant": "h3"
+            "text": "### Purchase License"
           },
           {
             "id": "product-name",
             "component": "Text",
             "text": {
               "path": "/productName"
-            },
-            "variant": "h2"
+            }
           },
           {
             "id": "divider1",
@@ -74,8 +72,7 @@
             "component": "Text",
             "text": {
               "path": "/seats"
-            },
-            "variant": "h4"
+            }
           },
           {
             "id": "period-row",
@@ -123,8 +120,7 @@
           {
             "id": "total-label",
             "component": "Text",
-            "text": "Total",
-            "variant": "h4"
+            "text": "#### Total"
           },
           {
             "id": "total-value",
@@ -134,8 +130,7 @@
               "args": {
                 "value": "${formatCurrency(value: ${/total}, currency: 'USD')}/year"
               }
-            },
-            "variant": "h2"
+            }
           },
           {
             "id": "actions",

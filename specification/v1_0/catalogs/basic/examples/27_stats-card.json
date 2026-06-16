@@ -57,8 +57,7 @@
                 },
                 "currency": "USD"
               }
-            },
-            "variant": "h1"
+            }
           },
           {
             "id": "trend-row",

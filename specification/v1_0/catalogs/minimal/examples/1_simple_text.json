@@ -17,8 +17,7 @@
           {
             "id": "root",
             "component": "Text",
-            "text": "Hello, Minimal Catalog!",
-            "variant": "h1"
+            "text": "# Hello, Minimal Catalog!"
           }
         ]
       }

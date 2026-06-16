@@ -24,7 +24,10 @@ class MarkdownDirective extends Directive {
   private lastValue: string | null = null;
   private lastTagClassMap: string | null = null;
 
-  update(_part: Part, [value, markdownRenderer, markdownOptions]: DirectiveParameters<this>) {
+  override update(
+    _part: Part,
+    [value, markdownRenderer, markdownOptions]: DirectiveParameters<this>,
+  ) {
     const jsonTagClassMap = JSON.stringify(markdownOptions?.tagClassMap);
     if (this.lastValue === value && jsonTagClassMap === this.lastTagClassMap) {
       return noChange;

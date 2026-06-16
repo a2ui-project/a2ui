@@ -48,7 +48,7 @@ describe('BasicCatalogA2uiLitElement', () => {
         return controllerMock;
       }
 
-      render() {
+      override render() {
         return null;
       }
     }

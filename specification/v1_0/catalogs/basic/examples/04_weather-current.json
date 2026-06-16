@@ -38,10 +38,9 @@
             "text": {
               "call": "formatString",
               "args": {
-                "value": "${/tempHigh}\u00b0"
+                "value": "# ${/tempHigh}°"
               }
-            },
-            "variant": "h1"
+            }
           },
           {
             "id": "temp-low",
@@ -49,18 +48,19 @@
             "text": {
               "call": "formatString",
               "args": {
-                "value": "${/tempLow}\u00b0"
+                "value": "## ${/tempLow}°"
               }
-            },
-            "variant": "h2"
+            }
           },
           {
             "id": "location",
             "component": "Text",
             "text": {
-              "path": "/location"
-            },
-            "variant": "h3"
+              "call": "formatString",
+              "args": {
+                "value": "### ${/location}"
+              }
+            }
           },
           {
             "id": "description",
@@ -104,8 +104,7 @@
             "component": "Text",
             "text": {
               "path": "icon"
-            },
-            "variant": "h3"
+            }
           },
           {
             "id": "day-temp",

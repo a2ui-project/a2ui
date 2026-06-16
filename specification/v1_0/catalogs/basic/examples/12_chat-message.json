@@ -41,8 +41,7 @@
             "component": "Text",
             "text": {
               "path": "/channelName"
-            },
-            "variant": "h3"
+            }
           },
           {
             "id": "divider",
@@ -88,8 +87,7 @@
             "component": "Text",
             "text": {
               "path": "username"
-            },
-            "variant": "h4"
+            }
           },
           {
             "id": "msg-time",

@@ -45,8 +45,7 @@
             "component": "Text",
             "text": {
               "path": "/playerName"
-            },
-            "variant": "h2"
+            }
           },
           {
             "id": "player-details",
@@ -59,8 +58,7 @@
             "component": "Text",
             "text": {
               "path": "/number"
-            },
-            "variant": "h3"
+            }
           },
           {
             "id": "player-team",
@@ -91,8 +89,7 @@
             "component": "Text",
             "text": {
               "path": "/stat1/value"
-            },
-            "variant": "h3"
+            }
           },
           {
             "id": "stat1-label",
@@ -113,8 +110,7 @@
             "component": "Text",
             "text": {
               "path": "/stat2/value"
-            },
-            "variant": "h3"
+            }
           },
           {
             "id": "stat2-label",
@@ -135,8 +131,7 @@
             "component": "Text",
             "text": {
               "path": "/stat3/value"
-            },
-            "variant": "h3"
+            }
           },
           {
             "id": "stat3-label",

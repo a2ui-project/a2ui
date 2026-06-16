@@ -43,8 +43,7 @@
             "component": "Text",
             "text": {
               "path": "/name"
-            },
-            "variant": "h3"
+            }
           },
           {
             "id": "rating-row",
@@ -88,8 +87,7 @@
                 },
                 "currency": "USD"
               }
-            },
-            "variant": "h2"
+            }
           },
           {
             "id": "original-price",
