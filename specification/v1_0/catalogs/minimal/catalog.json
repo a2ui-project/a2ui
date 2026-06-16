@@ -22,20 +22,14 @@
             },
             "variant": {
               "type": "string",
-              "enum": [
-                "caption",
-                "body"
-              ]
+              "enum": ["caption", "body"]
             },
             "weight": {
               "type": "number",
               "description": "The relative weight of this component within a Row or Column. This is similar to the CSS 'flex-grow' property. Note: this may ONLY be set when the component is a direct descendant of a Row or Column."
             }
           },
-          "required": [
-            "component",
-            "text"
-          ]
+          "required": ["component", "text"]
         }
       ],
       "unevaluatedProperties": false
@@ -69,22 +63,14 @@
             },
             "align": {
               "type": "string",
-              "enum": [
-                "start",
-                "center",
-                "end",
-                "stretch"
-              ]
+              "enum": ["start", "center", "end", "stretch"]
             },
             "weight": {
               "type": "number",
               "description": "The relative weight of this component within a Row or Column. This is similar to the CSS 'flex-grow' property. Note: this may ONLY be set when the component is a direct descendant of a Row or Column."
             }
           },
-          "required": [
-            "component",
-            "children"
-          ]
+          "required": ["component", "children"]
         }
       ],
       "unevaluatedProperties": false
@@ -118,22 +104,14 @@
             },
             "align": {
               "type": "string",
-              "enum": [
-                "center",
-                "end",
-                "start",
-                "stretch"
-              ]
+              "enum": ["center", "end", "start", "stretch"]
             },
             "weight": {
               "type": "number",
               "description": "The relative weight of this component within a Row or Column. This is similar to the CSS 'flex-grow' property. Note: this may ONLY be set when the component is a direct descendant of a Row or Column."
             }
           },
-          "required": [
-            "component",
-            "children"
-          ]
+          "required": ["component", "children"]
         }
       ],
       "unevaluatedProperties": false
@@ -158,10 +136,7 @@
             },
             "variant": {
               "type": "string",
-              "enum": [
-                "primary",
-                "borderless"
-              ]
+              "enum": ["primary", "borderless"]
             },
             "action": {
               "$ref": "https://a2ui.org/specification/v1_0/common_types.json#/$defs/Action"
@@ -171,11 +146,7 @@
               "description": "The relative weight of this component within a Row or Column. This is similar to the CSS 'flex-grow' property. Note: this may ONLY be set when the component is a direct descendant of a Row or Column."
             }
           },
-          "required": [
-            "component",
-            "child",
-            "action"
-          ]
+          "required": ["component", "child", "action"]
         }
       ],
       "unevaluatedProperties": false
@@ -203,12 +174,7 @@
             },
             "variant": {
               "type": "string",
-              "enum": [
-                "longText",
-                "number",
-                "shortText",
-                "obscured"
-              ]
+              "enum": ["longText", "number", "shortText", "obscured"]
             },
             "validationRegexp": {
               "type": "string"
@@ -218,10 +184,7 @@
               "description": "The relative weight of this component within a Row or Column. This is similar to the CSS 'flex-grow' property. Note: this may ONLY be set when the component is a direct descendant of a Row or Column."
             }
           },
-          "required": [
-            "component",
-            "label"
-          ]
+          "required": ["component", "label"]
         }
       ],
       "unevaluatedProperties": false
@@ -243,16 +206,11 @@
               "$ref": "https://a2ui.org/specification/v1_0/common_types.json#/$defs/DynamicString"
             }
           },
-          "required": [
-            "value"
-          ],
+          "required": ["value"],
           "unevaluatedProperties": false
         }
       },
-      "required": [
-        "call",
-        "args"
-      ],
+      "required": ["call", "args"],
       "unevaluatedProperties": false
     }
   },

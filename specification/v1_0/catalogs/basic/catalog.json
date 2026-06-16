@@ -25,10 +25,7 @@
             "variant": {
               "type": "string",
               "description": "A hint for the base text style.",
-              "enum": [
-                "caption",
-                "body"
-              ],
+              "enum": ["caption", "body"],
               "default": "body"
             },
             "weight": {
@@ -36,10 +33,7 @@
               "description": "The relative weight of this component within a Row or Column. This is similar to the CSS 'flex-grow' property. Note: this may ONLY be set when the component is a direct descendant of a Row or Column."
             }
           },
-          "required": [
-            "component",
-            "text"
-          ]
+          "required": ["component", "text"]
         }
       ],
       "unevaluatedProperties": false
@@ -67,26 +61,13 @@
             "fit": {
               "type": "string",
               "description": "Specifies how the image should be resized to fit its container. This corresponds to the CSS 'object-fit' property.",
-              "enum": [
-                "contain",
-                "cover",
-                "fill",
-                "none",
-                "scaleDown"
-              ],
+              "enum": ["contain", "cover", "fill", "none", "scaleDown"],
               "default": "fill"
             },
             "variant": {
               "type": "string",
               "description": "A hint for the image size and style.",
-              "enum": [
-                "icon",
-                "avatar",
-                "smallFeature",
-                "mediumFeature",
-                "largeFeature",
-                "header"
-              ],
+              "enum": ["icon", "avatar", "smallFeature", "mediumFeature", "largeFeature", "header"],
               "default": "mediumFeature"
             },
             "weight": {
@@ -94,10 +75,7 @@
               "description": "The relative weight of this component within a Row or Column. This is similar to the CSS 'flex-grow' property. Note: this may ONLY be set when the component is a direct descendant of a Row or Column."
             }
           },
-          "required": [
-            "component",
-            "url"
-          ]
+          "required": ["component", "url"]
         }
       ],
       "unevaluatedProperties": false
@@ -188,9 +166,7 @@
                       "type": "string"
                     }
                   },
-                  "required": [
-                    "path"
-                  ],
+                  "required": ["path"],
                   "additionalProperties": false
                 }
               ]
@@ -200,10 +176,7 @@
               "description": "The relative weight of this component within a Row or Column. This is similar to the CSS 'flex-grow' property. Note: this may ONLY be set when the component is a direct descendant of a Row or Column."
             }
           },
-          "required": [
-            "component",
-            "name"
-          ]
+          "required": ["component", "name"]
         }
       ],
       "unevaluatedProperties": false
@@ -233,10 +206,7 @@
               "description": "The relative weight of this component within a Row or Column. This is similar to the CSS 'flex-grow' property. Note: this may ONLY be set when the component is a direct descendant of a Row or Column."
             }
           },
-          "required": [
-            "component",
-            "url"
-          ]
+          "required": ["component", "url"]
         }
       ],
       "unevaluatedProperties": false
@@ -266,10 +236,7 @@
               "description": "The relative weight of this component within a Row or Column. This is similar to the CSS 'flex-grow' property. Note: this may ONLY be set when the component is a direct descendant of a Row or Column."
             }
           },
-          "required": [
-            "component",
-            "url"
-          ]
+          "required": ["component", "url"]
         }
       ],
       "unevaluatedProperties": false
@@ -308,12 +275,7 @@
             "align": {
               "type": "string",
               "description": "Defines the alignment of children along the cross axis (vertically). This is similar to the CSS 'align-items' property, but uses camelCase values (e.g., 'start').",
-              "enum": [
-                "start",
-                "center",
-                "end",
-                "stretch"
-              ],
+              "enum": ["start", "center", "end", "stretch"],
               "default": "stretch"
             },
             "weight": {
@@ -321,10 +283,7 @@
               "description": "The relative weight of this component within a Row or Column. This is similar to the CSS 'flex-grow' property. Note: this may ONLY be set when the component is a direct descendant of a Row or Column."
             }
           },
-          "required": [
-            "component",
-            "children"
-          ]
+          "required": ["component", "children"]
         }
       ],
       "unevaluatedProperties": false
@@ -363,12 +322,7 @@
             "align": {
               "type": "string",
               "description": "Defines the alignment of children along the cross axis (horizontally). This is similar to the CSS 'align-items' property.",
-              "enum": [
-                "center",
-                "end",
-                "start",
-                "stretch"
-              ],
+              "enum": ["center", "end", "start", "stretch"],
               "default": "stretch"
             },
             "weight": {
@@ -376,10 +330,7 @@
               "description": "The relative weight of this component within a Row or Column. This is similar to the CSS 'flex-grow' property. Note: this may ONLY be set when the component is a direct descendant of a Row or Column."
             }
           },
-          "required": [
-            "component",
-            "children"
-          ]
+          "required": ["component", "children"]
         }
       ],
       "unevaluatedProperties": false
@@ -403,21 +354,13 @@
             "direction": {
               "type": "string",
               "description": "The direction in which the list items are laid out.",
-              "enum": [
-                "vertical",
-                "horizontal"
-              ],
+              "enum": ["vertical", "horizontal"],
               "default": "vertical"
             },
             "align": {
               "type": "string",
               "description": "Defines the alignment of children along the cross axis.",
-              "enum": [
-                "start",
-                "center",
-                "end",
-                "stretch"
-              ],
+              "enum": ["start", "center", "end", "stretch"],
               "default": "stretch"
             },
             "weight": {
@@ -425,10 +368,7 @@
               "description": "The relative weight of this component within a Row or Column. This is similar to the CSS 'flex-grow' property. Note: this may ONLY be set when the component is a direct descendant of a Row or Column."
             }
           },
-          "required": [
-            "component",
-            "children"
-          ]
+          "required": ["component", "children"]
         }
       ],
       "unevaluatedProperties": false
@@ -454,10 +394,7 @@
               "description": "The relative weight of this component within a Row or Column. This is similar to the CSS 'flex-grow' property. Note: this may ONLY be set when the component is a direct descendant of a Row or Column."
             }
           },
-          "required": [
-            "component",
-            "child"
-          ]
+          "required": ["component", "child"]
         }
       ],
       "unevaluatedProperties": false
@@ -490,10 +427,7 @@
                     "description": "The ID of the child component. Do NOT define the component inline."
                   }
                 },
-                "required": [
-                  "title",
-                  "child"
-                ],
+                "required": ["title", "child"],
                 "additionalProperties": false
               }
             },
@@ -502,10 +436,7 @@
               "description": "The relative weight of this component within a Row or Column. This is similar to the CSS 'flex-grow' property. Note: this may ONLY be set when the component is a direct descendant of a Row or Column."
             }
           },
-          "required": [
-            "component",
-            "tabs"
-          ]
+          "required": ["component", "tabs"]
         }
       ],
       "unevaluatedProperties": false
@@ -535,11 +466,7 @@
               "description": "The relative weight of this component within a Row or Column. This is similar to the CSS 'flex-grow' property. Note: this may ONLY be set when the component is a direct descendant of a Row or Column."
             }
           },
-          "required": [
-            "component",
-            "trigger",
-            "content"
-          ]
+          "required": ["component", "trigger", "content"]
         }
       ],
       "unevaluatedProperties": false
@@ -559,10 +486,7 @@
             "axis": {
               "type": "string",
               "description": "The orientation of the divider.",
-              "enum": [
-                "horizontal",
-                "vertical"
-              ],
+              "enum": ["horizontal", "vertical"],
               "default": "horizontal"
             },
             "weight": {
@@ -570,9 +494,7 @@
               "description": "The relative weight of this component within a Row or Column. This is similar to the CSS 'flex-grow' property. Note: this may ONLY be set when the component is a direct descendant of a Row or Column."
             }
           },
-          "required": [
-            "component"
-          ]
+          "required": ["component"]
         }
       ],
       "unevaluatedProperties": false
@@ -599,11 +521,7 @@
             "variant": {
               "type": "string",
               "description": "A hint for the button style. If omitted, a default button style is used. 'primary' indicates this is the main call-to-action button. 'borderless' means the button has no visual border or background, making its child content appear like a clickable link.",
-              "enum": [
-                "default",
-                "primary",
-                "borderless"
-              ],
+              "enum": ["default", "primary", "borderless"],
               "default": "default"
             },
             "action": {
@@ -614,11 +532,7 @@
               "description": "The relative weight of this component within a Row or Column. This is similar to the CSS 'flex-grow' property. Note: this may ONLY be set when the component is a direct descendant of a Row or Column."
             }
           },
-          "required": [
-            "component",
-            "child",
-            "action"
-          ]
+          "required": ["component", "child", "action"]
         }
       ],
       "unevaluatedProperties": false
@@ -653,12 +567,7 @@
             "variant": {
               "type": "string",
               "description": "The type of input field to display.",
-              "enum": [
-                "longText",
-                "number",
-                "shortText",
-                "obscured"
-              ],
+              "enum": ["longText", "number", "shortText", "obscured"],
               "default": "shortText"
             },
             "weight": {
@@ -666,10 +575,7 @@
               "description": "The relative weight of this component within a Row or Column. This is similar to the CSS 'flex-grow' property. Note: this may ONLY be set when the component is a direct descendant of a Row or Column."
             }
           },
-          "required": [
-            "component",
-            "label"
-          ]
+          "required": ["component", "label"]
         }
       ],
       "unevaluatedProperties": false
@@ -702,11 +608,7 @@
               "description": "The relative weight of this component within a Row or Column. This is similar to the CSS 'flex-grow' property. Note: this may ONLY be set when the component is a direct descendant of a Row or Column."
             }
           },
-          "required": [
-            "component",
-            "label",
-            "value"
-          ]
+          "required": ["component", "label", "value"]
         }
       ],
       "unevaluatedProperties": false
@@ -734,10 +636,7 @@
             "variant": {
               "type": "string",
               "description": "A hint for how the choice picker should be displayed and behave.",
-              "enum": [
-                "multipleSelection",
-                "mutuallyExclusive"
-              ],
+              "enum": ["multipleSelection", "mutuallyExclusive"],
               "default": "mutuallyExclusive"
             },
             "options": {
@@ -755,10 +654,7 @@
                     "description": "The stable value associated with this option."
                   }
                 },
-                "required": [
-                  "label",
-                  "value"
-                ],
+                "required": ["label", "value"],
                 "additionalProperties": false
               }
             },
@@ -769,10 +665,7 @@
             "displayStyle": {
               "type": "string",
               "description": "The display style of the component.",
-              "enum": [
-                "checkbox",
-                "chips"
-              ],
+              "enum": ["checkbox", "chips"],
               "default": "checkbox"
             },
             "filterable": {
@@ -785,11 +678,7 @@
               "description": "The relative weight of this component within a Row or Column. This is similar to the CSS 'flex-grow' property. Note: this may ONLY be set when the component is a direct descendant of a Row or Column."
             }
           },
-          "required": [
-            "component",
-            "options",
-            "value"
-          ]
+          "required": ["component", "options", "value"]
         }
       ],
       "unevaluatedProperties": false
@@ -836,11 +725,7 @@
               "description": "The relative weight of this component within a Row or Column. This is similar to the CSS 'flex-grow' property. Note: this may ONLY be set when the component is a direct descendant of a Row or Column."
             }
           },
-          "required": [
-            "component",
-            "value",
-            "max"
-          ]
+          "required": ["component", "value", "max"]
         }
       ],
       "unevaluatedProperties": false
@@ -935,10 +820,7 @@
               "description": "The relative weight of this component within a Row or Column. This is similar to the CSS 'flex-grow' property. Note: this may ONLY be set when the component is a direct descendant of a Row or Column."
             }
           },
-          "required": [
-            "component",
-            "value"
-          ]
+          "required": ["component", "value"]
         }
       ],
       "unevaluatedProperties": false
@@ -960,16 +842,11 @@
               "description": "The value to check."
             }
           },
-          "required": [
-            "value"
-          ],
+          "required": ["value"],
           "additionalProperties": false
         }
       },
-      "required": [
-        "call",
-        "args"
-      ],
+      "required": ["call", "args"],
       "unevaluatedProperties": false
     },
     "regex": {
@@ -991,17 +868,11 @@
               "description": "The regex pattern to match against."
             }
           },
-          "required": [
-            "value",
-            "pattern"
-          ],
+          "required": ["value", "pattern"],
           "unevaluatedProperties": false
         }
       },
-      "required": [
-        "call",
-        "args"
-      ],
+      "required": ["call", "args"],
       "unevaluatedProperties": false
     },
     "length": {
@@ -1029,28 +900,19 @@
               "description": "The maximum allowed length."
             }
           },
-          "required": [
-            "value"
-          ],
+          "required": ["value"],
           "anyOf": [
             {
-              "required": [
-                "min"
-              ]
+              "required": ["min"]
             },
             {
-              "required": [
-                "max"
-              ]
+              "required": ["max"]
             }
           ],
           "unevaluatedProperties": false
         }
       },
-      "required": [
-        "call",
-        "args"
-      ],
+      "required": ["call", "args"],
       "unevaluatedProperties": false
     },
     "numeric": {
@@ -1076,28 +938,19 @@
               "description": "The maximum allowed value."
             }
           },
-          "required": [
-            "value"
-          ],
+          "required": ["value"],
           "anyOf": [
             {
-              "required": [
-                "min"
-              ]
+              "required": ["min"]
             },
             {
-              "required": [
-                "max"
-              ]
+              "required": ["max"]
             }
           ],
           "unevaluatedProperties": false
         }
       },
-      "required": [
-        "call",
-        "args"
-      ],
+      "required": ["call", "args"],
       "unevaluatedProperties": false
     },
     "email": {
@@ -1115,16 +968,11 @@
               "$ref": "https://a2ui.org/specification/v1_0/common_types.json#/$defs/DynamicString"
             }
           },
-          "required": [
-            "value"
-          ],
+          "required": ["value"],
           "unevaluatedProperties": false
         }
       },
-      "required": [
-        "call",
-        "args"
-      ],
+      "required": ["call", "args"],
       "unevaluatedProperties": false
     },
     "formatString": {
@@ -1142,16 +990,11 @@
               "$ref": "https://a2ui.org/specification/v1_0/common_types.json#/$defs/DynamicString"
             }
           },
-          "required": [
-            "value"
-          ],
+          "required": ["value"],
           "unevaluatedProperties": false
         }
       },
-      "required": [
-        "call",
-        "args"
-      ],
+      "required": ["call", "args"],
       "unevaluatedProperties": false
     },
     "formatNumber": {
@@ -1178,16 +1021,11 @@
               "description": "Optional. If true, uses locale-specific grouping separators (e.g. '1,000'). If false, returns raw digits (e.g. '1000'). Defaults to true."
             }
           },
-          "required": [
-            "value"
-          ],
+          "required": ["value"],
           "unevaluatedProperties": false
         }
       },
-      "required": [
-        "call",
-        "args"
-      ],
+      "required": ["call", "args"],
       "unevaluatedProperties": false
     },
     "formatCurrency": {
@@ -1218,17 +1056,11 @@
               "description": "Optional. If true, uses locale-specific grouping separators (e.g. '1,000'). If false, returns raw digits (e.g. '1000'). Defaults to true."
             }
           },
-          "required": [
-            "currency",
-            "value"
-          ],
+          "required": ["currency", "value"],
           "unevaluatedProperties": false
         }
       },
-      "required": [
-        "call",
-        "args"
-      ],
+      "required": ["call", "args"],
       "unevaluatedProperties": false
     },
     "formatDate": {
@@ -1251,17 +1083,11 @@
               "description": "A Unicode TR35 date pattern string.\n\nToken Reference:\n- Year: 'yy' (26), 'yyyy' (2026)\n- Month: 'M' (1), 'MM' (01), 'MMM' (Jan), 'MMMM' (January)\n- Day: 'd' (1), 'dd' (01), 'E' (Tue), 'EEEE' (Tuesday)\n- Hour (12h): 'h' (1-12), 'hh' (01-12) - requires 'a' for AM/PM\n- Hour (24h): 'H' (0-23), 'HH' (00-23) - Military Time\n- Minute: 'mm' (00-59)\n- Second: 'ss' (00-59)\n- Period: 'a' (AM/PM)\n\nExamples:\n- 'MMM dd, yyyy' -> 'Jan 16, 2026'\n- 'HH:mm' -> '14:30' (Military)\n- 'h:mm a' -> '2:30 PM'\n- 'EEEE, d MMMM' -> 'Friday, 16 January'"
             }
           },
-          "required": [
-            "format",
-            "value"
-          ],
+          "required": ["format", "value"],
           "unevaluatedProperties": false
         }
       },
-      "required": [
-        "call",
-        "args"
-      ],
+      "required": ["call", "args"],
       "unevaluatedProperties": false
     },
     "pluralize": {
@@ -1304,17 +1130,11 @@
               "description": "The default/fallback string (used for general plural cases)."
             }
           },
-          "required": [
-            "value",
-            "other"
-          ],
+          "required": ["value", "other"],
           "unevaluatedProperties": false
         }
       },
-      "required": [
-        "call",
-        "args"
-      ],
+      "required": ["call", "args"],
       "unevaluatedProperties": false
     },
     "openUrl": {
@@ -1334,16 +1154,11 @@
               "description": "The URL to open."
             }
           },
-          "required": [
-            "url"
-          ],
+          "required": ["url"],
           "additionalProperties": false
         }
       },
-      "required": [
-        "call",
-        "args"
-      ],
+      "required": ["call", "args"],
       "unevaluatedProperties": false
     },
     "and": {
@@ -1366,16 +1181,11 @@
               "minItems": 2
             }
           },
-          "required": [
-            "values"
-          ],
+          "required": ["values"],
           "unevaluatedProperties": false
         }
       },
-      "required": [
-        "call",
-        "args"
-      ],
+      "required": ["call", "args"],
       "unevaluatedProperties": false
     },
     "or": {
@@ -1398,16 +1208,11 @@
               "minItems": 2
             }
           },
-          "required": [
-            "values"
-          ],
+          "required": ["values"],
           "unevaluatedProperties": false
         }
       },
-      "required": [
-        "call",
-        "args"
-      ],
+      "required": ["call", "args"],
       "unevaluatedProperties": false
     },
     "not": {
@@ -1426,16 +1231,11 @@
               "description": "The boolean value to negate."
             }
           },
-          "required": [
-            "value"
-          ],
+          "required": ["value"],
           "unevaluatedProperties": false
         }
       },
-      "required": [
-        "call",
-        "args"
-      ],
+      "required": ["call", "args"],
       "unevaluatedProperties": false
     }
   },
