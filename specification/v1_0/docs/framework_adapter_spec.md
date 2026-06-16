@@ -317,7 +317,7 @@ Target the `minimal_catalog.json` first.
 
 Build the Gallery App following the requirements in **Section 7**.
 
-- Load JSON samples from `specification/v1_0/json/catalogs/minimal/examples/`.
+- Load JSON samples from `specification/v1_0/catalogs/minimal/examples/`.
 - Verify progressive rendering, stepping, and visual reactivity.
 - **STOP HERE. Ask the user for approval of the architecture and gallery application before proceeding.**
 
@@ -327,4 +327,4 @@ Once the minimal architecture is proven robust, refer to the [Basic Catalog Impl
 
 - **Framework Library**: Implement all remaining UI widgets and traits (such as `Checkable`).
 - **Tests**: Formulate and run comprehensive unit and integration test cases to verify static rendering, layout alignment, two-way bindings, and scoped actions.
-- Update the Gallery App to load samples from `specification/v1_0/json/catalogs/basic/examples/`.
+- Update the Gallery App to load samples from `specification/v1_0/catalogs/basic/examples/`.

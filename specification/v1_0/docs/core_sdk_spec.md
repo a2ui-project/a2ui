@@ -490,7 +490,7 @@ Thoroughly review:
 - `specification/v1_0/docs/a2ui_protocol.md` (protocol rules)
 - `specification/v1_0/json/common_types.json` (dynamic binding types)
 - `specification/v1_0/json/server_to_client.json` (message envelopes)
-- `specification/v1_0/json/catalogs/minimal/minimal_catalog.json` (your initial target)
+- `specification/v1_0/catalogs/minimal/catalog.json` (your initial target)
 - `specification/v1_0/docs/basic_catalog_implementation_guide.md` (for functional specs and spacing rules for when you get to the basic catalog)
 
 ### Phase 2: Key Architecture Decisions (Write a Plan Document)

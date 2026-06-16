@@ -139,7 +139,7 @@ class SurfaceGroupModel<T extends ComponentApi> {
 }
 
 /**
- * Matches 'action' in specification/v0_9/json/client_to_server.json.
+ * Matches 'action' in specification/v0_9_1/json/client_to_server.json.
  */
 interface A2uiClientAction {
   name: string;
@@ -487,11 +487,11 @@ If you are an AI Agent tasked with building a new Core SDK for A2UI, you MUST fo
 Thoroughly review:
 
 - `specification/v0_9_1/docs/sdks_spec.md` (unified topologies and layer context)
-- `specification/v0_9/docs/a2ui_protocol.md` (protocol rules)
-- `specification/v0_9/json/common_types.json` (dynamic binding types)
-- `specification/v0_9/json/server_to_client.json` (message envelopes)
-- `specification/v0_9/json/catalogs/minimal/minimal_catalog.json` (your initial target)
-- `specification/v0_9/docs/basic_catalog_implementation_guide.md` (for functional specs and spacing rules for when you get to the basic catalog)
+- `specification/v0_9_1/docs/a2ui_protocol.md` (protocol rules)
+- `specification/v0_9_1/json/common_types.json` (dynamic binding types)
+- `specification/v0_9_1/json/server_to_client.json` (message envelopes)
+- `specification/v0_9_1/catalogs/minimal/catalog.json` (your initial target)
+- `specification/v0_9_1/docs/basic_catalog_implementation_guide.md` (for functional specs and spacing rules for when you get to the basic catalog)
 
 ### Phase 2: Key Architecture Decisions (Write a Plan Document)
 
