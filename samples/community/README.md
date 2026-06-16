@@ -13,10 +13,3 @@ rather than on the monorepo workspace, and the folder carries its own
   `orchestrator`) and Lit (`mcp-apps-in-a2ui-sample`, `personalized_learning`)
   samples.
 - **python** — `uv sync` for each agent under `agent/adk`.
-
-### Not built
-
-`client/angular/projects/mcp_calculator` is excluded from the build: it imports
-the renderer's internal v0.8 source (`Renderer` from `@a2ui/angular`'s
-`src/v0_8`), which the published package does not expose. Building it standalone
-would require vendoring the renderer source.
