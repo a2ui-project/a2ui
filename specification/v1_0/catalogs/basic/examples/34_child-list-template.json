@@ -29,8 +29,7 @@
           {
             "id": "title-text",
             "component": "Text",
-            "text": "Dynamic Item List",
-            "variant": "h3"
+            "text": "### Dynamic Item List"
           },
           {
             "id": "item-list",

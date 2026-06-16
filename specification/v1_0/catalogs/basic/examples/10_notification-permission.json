@@ -38,8 +38,7 @@
             "component": "Text",
             "text": {
               "path": "/title"
-            },
-            "variant": "h3"
+            }
           },
           {
             "id": "description",

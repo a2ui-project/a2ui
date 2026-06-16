@@ -52,8 +52,7 @@
             "component": "Text",
             "text": {
               "path": "/episodeTitle"
-            },
-            "variant": "h4"
+            }
           },
           {
             "id": "meta-row",

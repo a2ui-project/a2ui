@@ -18,8 +18,8 @@ import {SignalWatcher} from '@lit-labs/signals';
 import {provide} from '@lit/context';
 import {LitElement, html, css, nothing} from 'lit';
 import {customElement, state, query} from 'lit/decorators.js';
-import {SnackbarMessage, SnackType} from '../custom-components-example/types/types.js';
-import {Snackbar} from '../custom-components-example/ui/snackbar.js';
+import {SnackbarMessage, SnackType} from './types/types.js';
+import {Snackbar} from './ui/snackbar.js';
 import {repeat} from 'lit/directives/repeat.js';
 
 // A2UI

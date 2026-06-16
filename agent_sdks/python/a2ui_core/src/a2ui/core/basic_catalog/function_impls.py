@@ -16,6 +16,8 @@ import re
 import datetime
 import math
 from typing import Any, Dict, List, Optional
+from ..rendering import DataContext
+from ..common.events import AbortSignal
 from ..catalog.functions import create_function_implementation
 from .function_apis import (
     RequiredApi,
@@ -47,6 +49,7 @@ from .operator_apis import (
     EndsWithApi,
 )
 from .expression_parser import ExpressionParser
+from .locale_config import get_locale_rules, CURRENCY_SYMBOLS
 
 
 def _to_float(val: Any) -> float:
@@ -124,7 +127,11 @@ EmailImplementation = create_function_implementation(
 )
 
 
-def _format_string(args, context=None, abort_signal=None):
+def _format_string(
+    args: Dict[str, Any],
+    context: DataContext,
+    abort_signal: Optional[AbortSignal] = None,
+) -> str:
     template = args.get("value", "")
     if not template:
         return ""
@@ -154,101 +161,183 @@ FormatStringImplementation = create_function_implementation(
 )
 
 
-def _format_number(args, context=None, abort_signal=None):
-    val = _to_float(args.get("value", 0))
-    decimals = args.get("decimals")
-    grouping = args.get("grouping")
-    if grouping is None:
-        grouping = True
+def _format_numeric_locale(
+    val: float,
+    decimals: Optional[int],
+    grouping: bool,
+    locale: Optional[str],
+) -> str:
+    rules = get_locale_rules(locale)
 
     if decimals is not None:
-        fmt_str = f"{{:{',' if grouping else ''}.{int(decimals)}f}}"
+        raw_str = f"{val:{',' if grouping else ''}.{decimals}f}"
     else:
-        fmt_str = f"{{:{',' if grouping else ''}f}}"
-    return fmt_str.format(val)
+        raw_str = f"{val:,}" if grouping else str(val)
+
+    if rules.decimal_separator != "." or (grouping and rules.grouping_separator != ","):
+        if rules.decimal_separator == ",":
+            group_sep = rules.grouping_separator
+            return raw_str.replace(",", "~").replace(".", ",").replace("~", group_sep)
+        elif rules.decimal_separator != ".":
+            return raw_str.replace(",", rules.grouping_separator).replace(
+                ".", rules.decimal_separator
+            )
+    return raw_str
 
 
-FormatNumberImplementation = create_function_implementation(
-    FormatNumberApi, _format_number
-)
+def create_format_number_implementation(
+    locale: Optional[str] = None,
+) -> FunctionImplementation:
+    def _format_number(
+        args: Dict[str, Any],
+        context: DataContext,
+        abort_signal: Optional[AbortSignal] = None,
+    ) -> str:
+        val = _to_float(args.get("value", 0))
+        decimals = int(args["decimals"]) if args.get("decimals") is not None else None
+        grouping = True if args.get("grouping") is None else bool(args["grouping"])
+        return _format_numeric_locale(val, decimals, grouping, locale)
+
+    return create_function_implementation(FormatNumberApi, _format_number)
 
 
-def _format_currency(args, context=None, abort_signal=None):
-    val = _to_float(args.get("value", 0))
-    currency = args.get("currency", "USD")
-    decimals = args.get("decimals")
-    if decimals is None:
-        decimals = 2
-    else:
-        decimals = int(decimals)
-    grouping = args.get("grouping")
-    if grouping is None:
-        grouping = True
-    symbol = "$" if currency == "USD" else (currency + " ")
-    fmt_str = f"{{:{',' if grouping else ''}.{decimals}f}}"
-    return symbol + fmt_str.format(val)
+FormatNumberImplementation = create_format_number_implementation(None)
 
 
-FormatCurrencyImplementation = create_function_implementation(
-    FormatCurrencyApi, _format_currency
-)
+def create_format_currency_implementation(
+    locale: Optional[str] = None,
+) -> FunctionImplementation:
+    def _format_currency(
+        args: Dict[str, Any],
+        context: DataContext,
+        abort_signal: Optional[AbortSignal] = None,
+    ) -> str:
+        val = _to_float(args.get("value", 0))
+        currency = str(args.get("currency", "USD")).upper()
+        decimals = int(args["decimals"]) if args.get("decimals") is not None else 2
+        grouping = True if args.get("grouping") is None else bool(args["grouping"])
+
+        num_str = _format_numeric_locale(val, decimals, grouping, locale)
+        symbol = CURRENCY_SYMBOLS.get(currency, currency)
+
+        rules = get_locale_rules(locale)
+
+        space = (
+            " "
+            if rules.currency_space_separated
+            or (len(symbol) > 1 and symbol not in {"$", "£", "€", "¥"})
+            else ""
+        )
+        if rules.currency_symbol_after:
+            return f"{num_str}{space}{symbol}"
+        return f"{symbol}{space}{num_str}"
+
+    return create_function_implementation(FormatCurrencyApi, _format_currency)
+
+
+FormatCurrencyImplementation = create_format_currency_implementation(None)
 
 
 _DATE_TOKENS = re.compile(r"yyyy|yy|MMMM|MMM|MM|M|EEEE|E|dd|d|HH|H|hh|h|mm|ss|a|%")
-_DATE_MAP = {
-    "%": "%%",
-    "yyyy": "%Y",
-    "yy": "%y",
-    "MMMM": "%B",
-    "MMM": "%b",
-    "MM": "%m",
-    "M": "%m",
-    "EEEE": "%A",
-    "E": "%a",
-    "dd": "%d",
-    "d": "%d",
-    "HH": "%H",
-    "H": "%H",
-    "hh": "%I",
-    "h": "%I",
-    "mm": "%M",
-    "ss": "%S",
-    "a": "%p",
-}
 
 
-def _format_date(args, context=None, abort_signal=None):
-    val = args.get("value")
-    fmt = args.get("format", "yyyy-MM-dd")
-    if not val:
-        return ""
-    try:
-        dt = datetime.datetime.fromisoformat(str(val).replace("Z", "+00:00"))
-        if fmt == "ISO":
-            return dt.isoformat().replace("+00:00", ".000Z")
-        py_fmt = _DATE_TOKENS.sub(lambda m: _DATE_MAP[m.group(0)], str(fmt))
-        return dt.strftime(py_fmt)
-    except Exception:
-        return ""
+def create_format_date_implementation(
+    locale: Optional[str] = None,
+) -> FunctionImplementation:
+    def _format_date(
+        args: Dict[str, Any],
+        context: DataContext,
+        abort_signal: Optional[AbortSignal] = None,
+    ) -> str:
+        val = args.get("value")
+        fmt = str(args.get("format", "yyyy-MM-dd"))
+        if not val:
+            return ""
+        try:
+            dt = datetime.datetime.fromisoformat(str(val).replace("Z", "+00:00"))
+            if fmt == "ISO":
+                return dt.isoformat().replace("+00:00", ".000Z")
+
+            rules = get_locale_rules(locale)
+
+            def _sub(m: re.Match) -> str:
+                tok = m.group(0)
+                if tok == "yyyy":
+                    return str(dt.year)
+                if tok == "yy":
+                    return str(dt.year)[-2:]
+                if tok == "MMMM":
+                    return rules.months_long[dt.month]
+                if tok == "MMM":
+                    return rules.months_short[dt.month]
+                if tok == "MM":
+                    return f"{dt.month:02d}"
+                if tok == "M":
+                    return str(dt.month)
+                if tok == "EEEE":
+                    return rules.weekdays_long[dt.weekday()]
+                if tok == "E":
+                    return rules.weekdays_short[dt.weekday()]
+                if tok == "dd":
+                    return f"{dt.day:02d}"
+                if tok == "d":
+                    return str(dt.day)
+                if tok == "HH":
+                    return f"{dt.hour:02d}"
+                if tok == "H":
+                    return str(dt.hour)
+                if tok == "hh":
+                    hr = dt.hour % 12
+                    return f"{(hr or 12):02d}"
+                if tok == "h":
+                    hr = dt.hour % 12
+                    return str(hr or 12)
+                if tok == "mm":
+                    return f"{dt.minute:02d}"
+                if tok == "ss":
+                    return f"{dt.second:02d}"
+                if tok == "a":
+                    return "AM" if dt.hour < 12 else "PM"
+                return tok
+
+            return _DATE_TOKENS.sub(_sub, fmt)
+        except Exception:
+            return ""
+
+    return create_function_implementation(FormatDateApi, _format_date)
 
 
-FormatDateImplementation = create_function_implementation(FormatDateApi, _format_date)
+FormatDateImplementation = create_format_date_implementation(None)
 
 
-def _pluralize(args, context=None, abort_signal=None):
-    val = _to_float(args.get("value", 0))
-    category = "other"
-    if val == 0:
-        category = "zero"
-    elif val == 1:
-        category = "one"
-    elif val == 2:
-        category = "two"
-    res = args.get(category) or args.get("other") or ""
-    return str(res)
+def create_pluralize_implementation(
+    locale: Optional[str] = None,
+) -> FunctionImplementation:
+    def _pluralize(
+        args: Dict[str, Any],
+        context: DataContext,
+        abort_signal: Optional[AbortSignal] = None,
+    ) -> str:
+        val = _to_float(args.get("value", 0))
+        rules = get_locale_rules(locale)
+
+        category = "other"
+        if val == 0 and "zero" in args:
+            category = "zero"
+        elif val == 1 and "one" in args:
+            category = "one"
+        elif val == 2 and "two" in args:
+            category = "two"
+        elif rules.plural_category_selector:
+            category = rules.plural_category_selector(val)
+
+        res = args.get(category) or args.get("other") or ""
+        return str(res)
+
+    return create_function_implementation(PluralizeApi, _pluralize)
 
 
-PluralizeImplementation = create_function_implementation(PluralizeApi, _pluralize)
+PluralizeImplementation = create_pluralize_implementation(None)
 
 OpenUrlImplementation = create_function_implementation(
     OpenUrlApi, lambda args, context=None, abort_signal=None: None
@@ -357,30 +446,37 @@ EndsWithImplementation = create_function_implementation(
     ).endswith(_to_str(args.get("suffix", ""))),
 )
 
-BASIC_FUNCTION_IMPLEMENTATIONS = [
-    RequiredImplementation,
-    RegexImplementation,
-    LengthImplementation,
-    NumericImplementation,
-    EmailImplementation,
-    FormatStringImplementation,
-    FormatNumberImplementation,
-    FormatCurrencyImplementation,
-    FormatDateImplementation,
-    PluralizeImplementation,
-    OpenUrlImplementation,
-    AndImplementation,
-    OrImplementation,
-    NotImplementation,
-    AddImplementation,
-    SubtractImplementation,
-    MultiplyImplementation,
-    DivideImplementation,
-    EqualsImplementation,
-    NotEqualsImplementation,
-    GreaterThanImplementation,
-    LessThanImplementation,
-    ContainsImplementation,
-    StartsWithImplementation,
-    EndsWithImplementation,
-]
+
+def create_basic_catalog_functions(
+    locale: Optional[str] = None,
+) -> List[FunctionImplementation]:
+    return [
+        RequiredImplementation,
+        RegexImplementation,
+        LengthImplementation,
+        NumericImplementation,
+        EmailImplementation,
+        FormatStringImplementation,
+        create_format_number_implementation(locale),
+        create_format_currency_implementation(locale),
+        create_format_date_implementation(locale),
+        create_pluralize_implementation(locale),
+        OpenUrlImplementation,
+        AndImplementation,
+        OrImplementation,
+        NotImplementation,
+        AddImplementation,
+        SubtractImplementation,
+        MultiplyImplementation,
+        DivideImplementation,
+        EqualsImplementation,
+        NotEqualsImplementation,
+        GreaterThanImplementation,
+        LessThanImplementation,
+        ContainsImplementation,
+        StartsWithImplementation,
+        EndsWithImplementation,
+    ]
+
+
+BASIC_FUNCTION_IMPLEMENTATIONS = create_basic_catalog_functions(None)

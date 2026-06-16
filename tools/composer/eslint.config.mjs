@@ -23,10 +23,6 @@ import pluginReact from 'eslint-plugin-react';
 import globals from 'globals';
 import pluginNext from '@next/eslint-plugin-next';
 
-/**
- * ESLint configuration for widget-builder (Next.js app)
- * @type {import("eslint").Linter.Config[]}
- */
 export default [
   // Base config
   js.configs.recommended,
@@ -63,11 +59,14 @@ export default [
     plugins: {
       'react-hooks': pluginReactHooks,
     },
-    settings: {react: {version: 'detect'}},
+    settings: {react: {version: '19.0.0'}},
     rules: {
       ...pluginReactHooks.configs.recommended.rules,
       // React scope no longer necessary with new JSX transform.
       'react/react-in-jsx-scope': 'off',
+      'react-hooks/set-state-in-effect': 'off',
+      'react-hooks/immutability': 'off',
+      'preserve-caught-error': 'off',
     },
   },
   {

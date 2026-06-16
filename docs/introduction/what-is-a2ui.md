@@ -33,7 +33,7 @@ In multi-agent systems, agents often run remotely (different servers, organizati
 A2UI: JSON messages describing UI that:
 
 - LLMs generate as structured output.
-- Travel over any transport (A2A, AG UI, SSE, WebSockets).
+- Travel over any transport (A2A, AG-UI, SSE, WebSockets).
 - Client renders using its own native components.
 
 **Result:** Client controls security and styling, agent-generated UI feels native.
@@ -110,14 +110,14 @@ A2UI: JSON messages describing UI that:
 
     ```jsonl
     {
-      "version": "v0.9",
+      "version": "v0.9.1",
       "createSurface": {
         "surfaceId": "booking",
-        "catalogId": "https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json"
+        "catalogId": "https://a2ui.org/specification/v0_9_1/catalogs/basic/catalog.json"
       }
     }
     {
-      "version": "v0.9",
+      "version": "v0.9.1",
       "updateComponents": {
         "surfaceId": "booking",
         "components": [
@@ -151,7 +151,7 @@ A2UI: JSON messages describing UI that:
       }
     }
     {
-      "version": "v0.9",
+      "version": "v0.9.1",
       "updateDataModel": {
         "surfaceId": "booking",
         "path": "/booking",
@@ -162,7 +162,7 @@ A2UI: JSON messages describing UI that:
     }
     ```
 
-    In v0.9 (Stable), `createSurface` replaces `beginRendering`, components use a flatter structure with `"component": "Text"` instead of nested objects, and all messages include a `version` field.
+    Key differences in v0.9: `createSurface` replaces `beginRendering`, components use a flatter structure with `"component": "Text"` instead of nested objects, and all messages include a `version` field.
 
 Client renders these messages as native components (Angular, Flutter, React, etc.).
 

@@ -54,13 +54,6 @@ export class DataContext {
   }
 
   /**
-   * Gets the locale for this context, inherited from the surface.
-   */
-  get locale(): string | undefined {
-    return this.surface.locale;
-  }
-
-  /**
    * Mutates the underlying DataModel at the specified path.
    *
    * This is the primary method for components to push state changes (e.g. user input)

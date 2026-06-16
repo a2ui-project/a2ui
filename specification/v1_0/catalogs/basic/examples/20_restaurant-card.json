@@ -50,8 +50,7 @@
             "component": "Text",
             "text": {
               "path": "/name"
-            },
-            "variant": "h3"
+            }
           },
           {
             "id": "price-range",

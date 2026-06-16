@@ -41,8 +41,7 @@
             "component": "Text",
             "text": {
               "path": "/accountName"
-            },
-            "variant": "h4"
+            }
           },
           {
             "id": "balance",
@@ -55,8 +54,7 @@
                 },
                 "currency": "USD"
               }
-            },
-            "variant": "h1"
+            }
           },
           {
             "id": "updated",

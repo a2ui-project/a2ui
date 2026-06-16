@@ -30,6 +30,7 @@ from ..schema.common_types import (
     DataBinding,
     ComponentId,
 )
+from ..catalog.components import ModelComponentApi
 
 
 class CatalogComponentCommon(ComponentCommon):
@@ -425,4 +426,61 @@ AnyComponent = Annotated[
         DateTimeInputComponent,
     ],
     Field(..., discriminator="component"),
+]
+
+TEXT_COMPONENT_API = ModelComponentApi(TextComponent)
+
+IMAGE_COMPONENT_API = ModelComponentApi(ImageComponent)
+
+ICON_COMPONENT_API = ModelComponentApi(IconComponent)
+
+VIDEO_COMPONENT_API = ModelComponentApi(VideoComponent)
+
+AUDIO_PLAYER_COMPONENT_API = ModelComponentApi(AudioPlayerComponent)
+
+ROW_COMPONENT_API = ModelComponentApi(RowComponent)
+
+COLUMN_COMPONENT_API = ModelComponentApi(ColumnComponent)
+
+LIST_COMPONENT_API = ModelComponentApi(ListComponent)
+
+CARD_COMPONENT_API = ModelComponentApi(CardComponent)
+
+TABS_COMPONENT_API = ModelComponentApi(TabsComponent)
+
+MODAL_COMPONENT_API = ModelComponentApi(ModalComponent)
+
+DIVIDER_COMPONENT_API = ModelComponentApi(DividerComponent)
+
+BUTTON_COMPONENT_API = ModelComponentApi(ButtonComponent)
+
+TEXT_FIELD_COMPONENT_API = ModelComponentApi(TextFieldComponent)
+
+CHECK_BOX_COMPONENT_API = ModelComponentApi(CheckBoxComponent)
+
+CHOICE_PICKER_COMPONENT_API = ModelComponentApi(ChoicePickerComponent)
+
+SLIDER_COMPONENT_API = ModelComponentApi(SliderComponent)
+
+DATE_TIME_INPUT_COMPONENT_API = ModelComponentApi(DateTimeInputComponent)
+
+BASIC_COMPONENTS = [
+    TEXT_COMPONENT_API,
+    IMAGE_COMPONENT_API,
+    ICON_COMPONENT_API,
+    VIDEO_COMPONENT_API,
+    AUDIO_PLAYER_COMPONENT_API,
+    ROW_COMPONENT_API,
+    COLUMN_COMPONENT_API,
+    LIST_COMPONENT_API,
+    CARD_COMPONENT_API,
+    TABS_COMPONENT_API,
+    MODAL_COMPONENT_API,
+    DIVIDER_COMPONENT_API,
+    BUTTON_COMPONENT_API,
+    TEXT_FIELD_COMPONENT_API,
+    CHECK_BOX_COMPONENT_API,
+    CHOICE_PICKER_COMPONENT_API,
+    SLIDER_COMPONENT_API,
+    DATE_TIME_INPUT_COMPONENT_API,
 ]

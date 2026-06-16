@@ -19,7 +19,8 @@ import {customElement} from 'lit/decorators.js';
 import {consume} from '@lit/context';
 import {TextApi} from '@a2ui/web_core/v0_9/basic_catalog';
 import {BasicCatalogA2uiLitElement} from '../basic-catalog-a2ui-lit-element.js';
-import {A2uiController, Context} from '@a2ui/lit/v0_9';
+import {A2uiController} from '../../../a2ui-controller.js';
+import {Context} from '../../../context/context.js';
 import * as Types from '@a2ui/web_core/types/types';
 
 import {markdown} from '../../../directives/directives.js';
@@ -35,7 +36,7 @@ export class A2uiBasicTextElement extends BasicCatalogA2uiLitElement<typeof Text
    *
    * It also supports `--_a2ui-text-color` override from parent components (like Button).
    */
-  static styles = css`
+  static override styles = css`
     :host {
       display: inline-block;
       color: var(--_a2ui-text-color, var(--a2ui-text-color-text, var(--a2ui-color-on-background)));
@@ -106,7 +107,7 @@ export class A2uiBasicTextElement extends BasicCatalogA2uiLitElement<typeof Text
     return new A2uiController(this, TextApi);
   }
 
-  render() {
+  override render() {
     const props = this.controller.props;
     if (!props) return nothing;
 

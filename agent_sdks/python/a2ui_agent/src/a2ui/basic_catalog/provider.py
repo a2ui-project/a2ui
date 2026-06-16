@@ -19,6 +19,7 @@ from ..schema.catalog_provider import A2uiCatalogProvider
 from ..schema.utils import load_from_bundled_resource
 from ..schema.constants import BASE_SCHEMA_URL, CATALOG_ID_KEY, CATALOG_SCHEMA_KEY
 from .constants import BASIC_CATALOG_NAME, BASIC_CATALOG_PATHS
+from a2ui.core.validating.catalog_schema_validator import JSON_SCHEMA_DRAFT_2020_12
 
 
 class BundledCatalogProvider(A2uiCatalogProvider):
@@ -43,7 +44,7 @@ class BundledCatalogProvider(A2uiCatalogProvider):
         resource[CATALOG_ID_KEY] = BASE_SCHEMA_URL + catalog_file
 
     if "$schema" not in resource:
-      resource["$schema"] = "https://json-schema.org/draft/2020-12/schema"
+      resource["$schema"] = JSON_SCHEMA_DRAFT_2020_12
 
     return resource
 

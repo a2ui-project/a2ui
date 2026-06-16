@@ -1,6 +1,6 @@
 {
   "dependencies": {
-    "@modelcontextprotocol/inspector": "^0.21.2"
+    "@modelcontextprotocol/inspector": "^0.22.0"
   },
   "scripts": {
     "format": "prettier --write .",

@@ -104,10 +104,13 @@ describe('Example: Live Invitation Builder', () => {
     expect(textInputs.length).toBeGreaterThanOrEqual(2);
 
     const nameInput = textInputs[0];
+    expect(nameInput.value).withContext('nameInput initial value').toBe('Summer Gala');
+    const guestInput = textInputs[1];
+    expect(guestInput.value).withContext('guestInput initial value').toBe('Alex Johnson');
+
     nameInput.value = 'Awesome Party';
     nameInput.dispatchEvent(new Event('input'));
 
-    const guestInput = textInputs[1];
     guestInput.value = 'Alex Johnson';
     guestInput.dispatchEvent(new Event('input'));
 
@@ -124,10 +127,13 @@ describe('Example: Live Invitation Builder', () => {
     expect(textInputs.length).toBeGreaterThanOrEqual(2);
 
     const nameInput = textInputs[0];
+    expect(nameInput.value).withContext('nameInput initial value 2').toBe('Summer Gala');
+    const guestInput = textInputs[1];
+    expect(guestInput.value).withContext('guestInput initial value 2').toBe('Alex Johnson');
+
     nameInput.value = 'Summer Gala';
     nameInput.dispatchEvent(new Event('input'));
 
-    const guestInput = textInputs[1];
     guestInput.value = 'John Doe';
     guestInput.dispatchEvent(new Event('input'));
 

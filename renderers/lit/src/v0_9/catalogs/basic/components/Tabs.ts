@@ -19,7 +19,7 @@ import {customElement, state} from 'lit/decorators.js';
 import {classMap} from 'lit/directives/class-map.js';
 import {TabsApi} from '@a2ui/web_core/v0_9/basic_catalog';
 import {BasicCatalogA2uiLitElement} from '../basic-catalog-a2ui-lit-element.js';
-import {A2uiController} from '@a2ui/lit/v0_9';
+import {A2uiController} from '../../../a2ui-controller.js';
 
 @customElement('a2ui-tabs')
 export class A2uiLitTabs extends BasicCatalogA2uiLitElement<typeof TabsApi> {
@@ -34,7 +34,7 @@ export class A2uiLitTabs extends BasicCatalogA2uiLitElement<typeof TabsApi> {
    * - `--a2ui-tabs-border`: Default `--a2ui-border-width` solid `--a2ui-color-border`.
    * - `--a2ui-tabs-content-padding`: Default `0 var(--a2ui-spacing-m, 0.5rem)`.
    */
-  static styles = css`
+  static override styles = css`
     :host {
       display: block;
     }
@@ -71,7 +71,7 @@ export class A2uiLitTabs extends BasicCatalogA2uiLitElement<typeof TabsApi> {
 
   @state() accessor activeIndex = 0;
 
-  render() {
+  override render() {
     const props = this.controller.props;
     if (!props || !props.tabs) return nothing;
     return html`

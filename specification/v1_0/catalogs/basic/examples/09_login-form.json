@@ -41,8 +41,7 @@
           {
             "id": "title",
             "component": "Text",
-            "text": "Welcome back",
-            "variant": "h2"
+            "text": "## Welcome back"
           },
           {
             "id": "subtitle",

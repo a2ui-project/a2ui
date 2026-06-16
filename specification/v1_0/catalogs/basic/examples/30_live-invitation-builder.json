@@ -24,8 +24,7 @@
           {
             "id": "header",
             "component": "Text",
-            "text": "# Invitation Builder",
-            "variant": "h1"
+            "text": "# Invitation Builder"
           },
           {
             "id": "main-content",
@@ -49,8 +48,7 @@
           {
             "id": "editor-title",
             "component": "Text",
-            "text": "Customize your invitation",
-            "variant": "h3"
+            "text": "### Customize your invitation"
           },
           {
             "id": "event-name-input",
@@ -143,8 +141,7 @@
             "component": "Text",
             "text": {
               "path": "/event/name"
-            },
-            "variant": "h2"
+            }
           },
           {
             "id": "invite-guest-row",
@@ -163,8 +160,7 @@
             "component": "Text",
             "text": {
               "path": "/event/guest"
-            },
-            "variant": "h3"
+            }
           },
           {
             "id": "invite-date-text",

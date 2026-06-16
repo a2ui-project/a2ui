@@ -88,25 +88,25 @@
     }
   },
   "dependencies": {
-    "@a2ui/markdown-it": "workspace:*",
+    "@a2ui/markdown-it": "*",
     "@a2ui/react": "workspace:*",
     "@a2ui/web_core": "workspace:*",
-    "react": "^18.3.0",
-    "react-dom": "^18.3.0"
+    "react": "^19.2.7",
+    "react-dom": "^19.2.7"
   },
   "devDependencies": {
-    "@types/jasmine": "^5.1.5",
-    "@types/react": "^18.3.0",
-    "@types/react-dom": "^18.3.0",
-    "@vitejs/plugin-react": "^5.1.1",
-    "eslint": "^9.0.0",
-    "jasmine-core": "^5.9.0",
+    "@types/jasmine": "^6.0.0",
+    "@types/react": "^19.2.17",
+    "@types/react-dom": "^19.2.3",
+    "@vitejs/plugin-react": "^6.0.2",
+    "eslint": "^10.4.1",
+    "jasmine-core": "^6.3.0",
     "karma": "^6.4.4",
     "karma-chrome-launcher": "^3.2.0",
     "karma-esbuild": "^2.3.0",
     "karma-jasmine": "^5.1.0",
     "typescript": "5.9.3",
-    "vite": "^7.3.1",
+    "vite": "^8.0.16",
     "wireit": "^0.15.0-pre.2"
   },
   "engines": {

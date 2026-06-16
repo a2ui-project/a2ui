@@ -207,7 +207,7 @@ Note that this is not a strict contract and purely included as a signal to help 
 
 #### 2. Client Declares Supported Catalogs
 
-In **every** message sent to the server, the client includes an `a2uiClientCapabilities` object within the A2A `Message` metadata. This object informs the agent server of all catalogs the client can render.
+In **every** message sent to the server, the client includes an `a2uiClientCapabilities` object within the A2A `Message`'s `metadata` field. This object informs the agent server of all catalogs the client can render.
 
 - `supportedCatalogIds` (array of strings, required): A list of identifiers for all pre-defined catalogs the client supports. The client must explicitly include the standard catalog ID here if it supports the standard catalog. The contents of these catalogs are expected to be compiled into the agent server and not downloaded at runtime, in order to prevent malicious content being injected into the prompt dynamically, and ensure predictable results.
 - `inlineCatalogs` (array of objects, optional): An array of full Catalog Definition Documents. This allows a client to provide custom, on-the-fly catalogs, typically for use in local development workflows where it is faster to update a catalog in one place on the client. This may only be provided if the server has advertised `acceptsInlineCatalogs: true`.

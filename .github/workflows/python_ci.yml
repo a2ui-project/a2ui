@@ -1,0 +1,105 @@
+# Copyright 2026 Google LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+name: Python CI
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "agent_sdks/python/**"
+      - "specification/**/json/**"
+      - "agent_sdks/conformance/**"
+      - "samples/agent/adk/**"
+      - ".github/workflows/python_ci.yml"
+      - ".github/actions/setup-python/**"
+  pull_request:
+    paths:
+      - "agent_sdks/python/**"
+      - "specification/**/json/**"
+      - "agent_sdks/conformance/**"
+      - "samples/agent/adk/**"
+      - ".github/workflows/python_ci.yml"
+      - ".github/actions/setup-python/**"
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.head_ref || github.run_id }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  agent-sdk:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: ./.github/actions/setup-python
+      - name: Check Formatting
+        working-directory: agent_sdks/python/a2ui_agent
+        run: uv run pyink --check .
+      - name: Run Unit Tests
+        working-directory: agent_sdks/python/a2ui_agent
+        run: uv run --with pytest pytest tests/
+      - name: Build
+        working-directory: agent_sdks/python/a2ui_agent
+        run: uv build .
+      - name: Verify Load Real
+        working-directory: agent_sdks/python/a2ui_agent
+        run: uv run python tests/integration/verify_load_real.py
+
+  core-sdk:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: ./.github/actions/setup-python
+      - name: Check Formatting
+        working-directory: agent_sdks/python/a2ui_core
+        run: uv run --with pyink pyink --check .
+      - name: Run Unit Tests
+        working-directory: agent_sdks/python/a2ui_core
+        run: uv run --with pytest pytest tests/
+      - name: Build
+        working-directory: agent_sdks/python/a2ui_core
+        run: uv build .
+
+  conformance:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: ./.github/actions/setup-python
+      - name: Check Formatting
+        working-directory: agent_sdks/conformance
+        run: uv run --with pyink pyink --check tests/
+      - name: Validate YAML Conformance
+        working-directory: agent_sdks/conformance
+        run: uv run pytest
+
+  adk-samples:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        sample: [restaurant_finder]
+    steps:
+      - uses: actions/checkout@v6
+      - uses: ./.github/actions/setup-python
+      - name: Check Formatting
+        working-directory: samples/agent/adk
+        run: uv run pyink --check .
+      - name: Validate Sample Examples
+        run: |
+          PYTHONPATH=agent_sdks/python/a2ui_agent/src uv run --project agent_sdks/python/a2ui_agent pytest -vv samples/agent/adk/tests/test_examples_validation.py
+      - name: Build Sample
+        working-directory: samples/agent/adk/${{ matrix.sample }}
+        run: uv build .

@@ -304,21 +304,26 @@ function getNumberFormat(
 }
 
 /**
- * Implementation of the number formatting function.
- * Formats a number using Intl.NumberFormat with specified decimals and grouping.
+ * Creates the number formatting function implementation.
  */
-export const FormatNumberImplementation = createFunctionImplementation(
-  FormatNumberApi,
-  (args, context) => {
+export function createFormatNumberImplementation(locale?: string): FunctionImplementation {
+  return createFunctionImplementation(FormatNumberApi, args => {
     if (isNaN(args.value)) return '';
     try {
-      return getNumberFormat(context.locale, args.decimals, args.grouping).format(args.value);
+      return getNumberFormat(locale, args.decimals, args.grouping).format(args.value);
     } catch (e) {
       console.warn('Error formatting number:', e);
       return args.decimals !== undefined ? args.value.toFixed(args.decimals) : String(args.value);
     }
-  },
-);
+  });
+}
+
+/**
+ * Implementation of the number formatting function.
+ * Formats a number using Intl.NumberFormat with specified decimals and grouping.
+ */
+export const FormatNumberImplementation = createFormatNumberImplementation();
+
 const currencyFormatCache = new Map<string, Intl.NumberFormat>();
 
 function getCurrencyFormat(
@@ -343,24 +348,28 @@ function getCurrencyFormat(
 }
 
 /**
- * Implementation of the currency formatting function.
- * Formats a number as currency using Intl.NumberFormat.
- * Falls back to toFixed if formatting fails.
+ * Creates the currency formatting function implementation.
  */
-export const FormatCurrencyImplementation = createFunctionImplementation(
-  FormatCurrencyApi,
-  (args, context) => {
+export function createFormatCurrencyImplementation(locale?: string): FunctionImplementation {
+  return createFunctionImplementation(FormatCurrencyApi, args => {
     if (isNaN(args.value)) return '';
     try {
-      return getCurrencyFormat(context.locale, args.currency, args.decimals, args.grouping).format(
+      return getCurrencyFormat(locale, args.currency, args.decimals, args.grouping).format(
         args.value,
       );
     } catch (e) {
       console.warn('Error formatting currency:', e);
       return args.value.toFixed(args.decimals ?? 2);
     }
-  },
-);
+  });
+}
+
+/**
+ * Implementation of the currency formatting function.
+ * Formats a number as currency using Intl.NumberFormat.
+ * Falls back to toFixed if formatting fails.
+ */
+export const FormatCurrencyImplementation = createFormatCurrencyImplementation();
 /**
  * Implementation of the date formatting function.
  * Formats a date using date-fns or returns ISO string.
@@ -391,21 +400,25 @@ function getPluralRules(locale: string | undefined): Intl.PluralRules {
 }
 
 /**
- * Implementation of the pluralization function.
- * Selects the appropriate plural form based on the value using Intl.PluralRules.
+ * Creates the pluralization function implementation.
  */
-export const PluralizeImplementation = createFunctionImplementation(
-  PluralizeApi,
-  (args, context) => {
+export function createPluralizeImplementation(locale?: string): FunctionImplementation {
+  return createFunctionImplementation(PluralizeApi, args => {
     try {
-      const rule = getPluralRules(context.locale).select(args.value);
+      const rule = getPluralRules(locale).select(args.value);
       return String((args as Record<string, unknown>)[rule] ?? args.other ?? '');
     } catch (e) {
       console.warn('Error in pluralize:', e);
       return String(args.other ?? '');
     }
-  },
-);
+  });
+}
+
+/**
+ * Implementation of the pluralization function.
+ * Selects the appropriate plural form based on the value using Intl.PluralRules.
+ */
+export const PluralizeImplementation = createPluralizeImplementation();
 
 // Actions
 /**
@@ -419,33 +432,44 @@ export const OpenUrlImplementation = createFunctionImplementation(OpenUrlApi, ar
 });
 
 /**
+ * Creates standard function implementations for the Basic Catalog.
+ *
+ * @param options Configuration options.
+ * @param options.locale Optional locale to close-over.
+ */
+export function createBasicCatalogFunctions(options?: {locale?: string}): FunctionImplementation[] {
+  const locale = options?.locale;
+  return [
+    AddImplementation,
+    SubtractImplementation,
+    MultiplyImplementation,
+    DivideImplementation,
+    EqualsImplementation,
+    NotEqualsImplementation,
+    GreaterThanImplementation,
+    LessThanImplementation,
+    AndImplementation,
+    OrImplementation,
+    NotImplementation,
+    ContainsImplementation,
+    StartsWithImplementation,
+    EndsWithImplementation,
+    RequiredImplementation,
+    RegexImplementation,
+    LengthImplementation,
+    NumericImplementation,
+    EmailImplementation,
+    FormatStringImplementation,
+    createFormatNumberImplementation(locale),
+    createFormatCurrencyImplementation(locale),
+    FormatDateImplementation,
+    createPluralizeImplementation(locale),
+    OpenUrlImplementation,
+  ];
+}
+
+/**
  * Standard function implementations for the Basic Catalog.
  * These functions cover arithmetic, comparison, logic, string manipulation, validation, and formatting.
  */
-export const BASIC_FUNCTIONS: FunctionImplementation[] = [
-  AddImplementation,
-  SubtractImplementation,
-  MultiplyImplementation,
-  DivideImplementation,
-  EqualsImplementation,
-  NotEqualsImplementation,
-  GreaterThanImplementation,
-  LessThanImplementation,
-  AndImplementation,
-  OrImplementation,
-  NotImplementation,
-  ContainsImplementation,
-  StartsWithImplementation,
-  EndsWithImplementation,
-  RequiredImplementation,
-  RegexImplementation,
-  LengthImplementation,
-  NumericImplementation,
-  EmailImplementation,
-  FormatStringImplementation,
-  FormatNumberImplementation,
-  FormatCurrencyImplementation,
-  FormatDateImplementation,
-  PluralizeImplementation,
-  OpenUrlImplementation,
-];
+export const BASIC_FUNCTIONS: FunctionImplementation[] = createBasicCatalogFunctions();

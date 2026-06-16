@@ -41,8 +41,7 @@
           {
             "id": "title",
             "component": "Text",
-            "text": "Workout Complete",
-            "variant": "h3"
+            "text": "### Workout Complete"
           },
           {
             "id": "divider",
@@ -65,8 +64,7 @@
             "component": "Text",
             "text": {
               "path": "/duration"
-            },
-            "variant": "h3"
+            }
           },
           {
             "id": "duration-label",
@@ -90,8 +88,7 @@
                   "path": "/calories"
                 }
               }
-            },
-            "variant": "h3"
+            }
           },
           {
             "id": "calories-label",
@@ -113,8 +110,7 @@
               "args": {
                 "value": "${/distance} km"
               }
-            },
-            "variant": "h3"
+            }
           },
           {
             "id": "distance-label",

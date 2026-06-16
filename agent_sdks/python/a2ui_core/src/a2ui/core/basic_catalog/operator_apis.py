@@ -29,7 +29,7 @@ class AddArgs(StrictBaseModel):
 
 class AddApi(FunctionApi):
     name = "add"
-    args = AddArgs
+    schema = AddArgs
     return_type = "number"
 
 
@@ -40,7 +40,7 @@ class SubtractArgs(StrictBaseModel):
 
 class SubtractApi(FunctionApi):
     name = "subtract"
-    args = SubtractArgs
+    schema = SubtractArgs
     return_type = "number"
 
 
@@ -51,7 +51,7 @@ class MultiplyArgs(StrictBaseModel):
 
 class MultiplyApi(FunctionApi):
     name = "multiply"
-    args = MultiplyArgs
+    schema = MultiplyArgs
     return_type = "number"
 
 
@@ -62,7 +62,7 @@ class DivideArgs(StrictBaseModel):
 
 class DivideApi(FunctionApi):
     name = "divide"
-    args = DivideArgs
+    schema = DivideArgs
     return_type = "number"
 
 
@@ -73,7 +73,7 @@ class EqualsArgs(StrictBaseModel):
 
 class EqualsApi(FunctionApi):
     name = "equals"
-    args = EqualsArgs
+    schema = EqualsArgs
     return_type = "boolean"
 
 
@@ -84,7 +84,7 @@ class NotEqualsArgs(StrictBaseModel):
 
 class NotEqualsApi(FunctionApi):
     name = "not_equals"
-    args = NotEqualsArgs
+    schema = NotEqualsArgs
     return_type = "boolean"
 
 
@@ -95,7 +95,7 @@ class GreaterThanArgs(StrictBaseModel):
 
 class GreaterThanApi(FunctionApi):
     name = "greater_than"
-    args = GreaterThanArgs
+    schema = GreaterThanArgs
     return_type = "boolean"
 
 
@@ -106,7 +106,7 @@ class LessThanArgs(StrictBaseModel):
 
 class LessThanApi(FunctionApi):
     name = "less_than"
-    args = LessThanArgs
+    schema = LessThanArgs
     return_type = "boolean"
 
 
@@ -117,7 +117,7 @@ class ContainsArgs(StrictBaseModel):
 
 class ContainsApi(FunctionApi):
     name = "contains"
-    args = ContainsArgs
+    schema = ContainsArgs
     return_type = "boolean"
 
 
@@ -128,7 +128,7 @@ class StartsWithArgs(StrictBaseModel):
 
 class StartsWithApi(FunctionApi):
     name = "starts_with"
-    args = StartsWithArgs
+    schema = StartsWithArgs
     return_type = "boolean"
 
 
@@ -139,5 +139,5 @@ class EndsWithArgs(StrictBaseModel):
 
 class EndsWithApi(FunctionApi):
     name = "ends_with"
-    args = EndsWithArgs
+    schema = EndsWithArgs
     return_type = "boolean"

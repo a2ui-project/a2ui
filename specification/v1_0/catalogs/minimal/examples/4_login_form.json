@@ -25,8 +25,7 @@
           {
             "id": "form_title",
             "component": "Text",
-            "text": "Login",
-            "variant": "h2"
+            "text": "## Login"
           },
           {
             "id": "username_field",

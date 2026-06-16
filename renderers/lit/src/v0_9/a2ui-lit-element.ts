@@ -18,7 +18,7 @@ import {LitElement, nothing} from 'lit';
 import {property} from 'lit/decorators.js';
 import {ComponentContext, ComponentApi, type ComponentId} from '@a2ui/web_core/v0_9';
 import {renderA2uiNode} from './surface/render-a2ui-node.js';
-import {A2uiController} from '@a2ui/lit/v0_9';
+import {A2uiController} from './a2ui-controller.js';
 
 /**
  * A reference to a child component to render. Either a string ID, or an object
@@ -100,7 +100,7 @@ export abstract class A2uiLitElement<Api extends ComponentApi> extends LitElemen
    * cleans up any existing controller and invokes `createController()` to bind to
    * the new context.
    */
-  willUpdate(changedProperties: Map<string, any>) {
+  override willUpdate(changedProperties: Map<string, any>) {
     super.willUpdate(changedProperties);
     if (changedProperties.has('context') && this.context) {
       if (this.controller) {
