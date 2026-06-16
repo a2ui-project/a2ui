@@ -7,7 +7,7 @@
     "build": "ng build",
     "watch": "ng build --watch --configuration development",
     "test": "ng test",
-    "build:sandbox": "npx esbuild ../../../../client/shared/mcp_apps_inner_iframe/sandbox.ts --bundle --outfile=public/sandbox_iframe/sandbox.js --format=esm --platform=browser && cp ../../../../client/shared/mcp_apps_inner_iframe/sandbox.html public/sandbox_iframe/sandbox.html",
+    "build:sandbox": "npx esbuild ../../../client/shared/mcp_apps_inner_iframe/sandbox.ts --bundle --outfile=public/sandbox_iframe/sandbox.js --format=esm --platform=browser && cp ../../../client/shared/mcp_apps_inner_iframe/sandbox.html public/sandbox_iframe/sandbox.html",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "lint": "echo \"Workspace has no lint configuration.\"",

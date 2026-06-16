@@ -36,9 +36,6 @@ packages = ["."]
 url = "https://pypi.org/simple"
 default = true
 
-[tool.uv.sources]
-a2ui-agent-sdk = { path = "../../../agent_sdks/python/a2ui_agent", editable = true }
-
 [tool.pyright]
 include = ["."]
 venvPath = "."
