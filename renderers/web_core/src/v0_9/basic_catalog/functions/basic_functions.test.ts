@@ -474,7 +474,7 @@ describe('BASIC_FUNCTIONS', () => {
       let openedUrl = '';
       let windowOpenSpecs = '';
       (global as any).window = {
-        location: { href: 'https://example.com/sub/page' },
+        location: {href: 'https://example.com/sub/page'},
         open: (url: string, _target: string, specs: string) => {
           openedUrl = url;
           windowOpenSpecs = specs;
@@ -483,13 +483,16 @@ describe('BASIC_FUNCTIONS', () => {
 
       try {
         const validCases = [
-          { input: 'https://example.com', expected: 'https://example.com/' },
-          { input: 'http://example.com/path', expected: 'http://example.com/path' },
-          { input: 'https://sub.domain.co.uk:8080/p?q=1', expected: 'https://sub.domain.co.uk:8080/p?q=1' },
-          { input: '/relative-path', expected: 'https://example.com/relative-path' },
-          { input: 'relative/nested/path', expected: 'https://example.com/sub/relative/nested/path' },
-          { input: '../parent-path', expected: 'https://example.com/parent-path' },
-          { input: '?tab=profile', expected: 'https://example.com/sub/page?tab=profile' },
+          {input: 'https://example.com', expected: 'https://example.com/'},
+          {input: 'http://example.com/path', expected: 'http://example.com/path'},
+          {
+            input: 'https://sub.domain.co.uk:8080/p?q=1',
+            expected: 'https://sub.domain.co.uk:8080/p?q=1',
+          },
+          {input: '/relative-path', expected: 'https://example.com/relative-path'},
+          {input: 'relative/nested/path', expected: 'https://example.com/sub/relative/nested/path'},
+          {input: '../parent-path', expected: 'https://example.com/parent-path'},
+          {input: '?tab=profile', expected: 'https://example.com/sub/page?tab=profile'},
         ];
 
         const invalidCases = [
@@ -504,20 +507,25 @@ describe('BASIC_FUNCTIONS', () => {
         ];
 
         // Verify valid cases
-        for (const { input, expected } of validCases) {
+        for (const {input, expected} of validCases) {
           openedUrl = '';
           windowOpenSpecs = '';
-          invoke('openUrl', { url: input }, context);
-          assert.strictEqual(openedUrl, expected, `Expected input "${input}" to resolve to "${expected}"`);
+          invoke('openUrl', {url: input}, context);
+          assert.strictEqual(
+            openedUrl,
+            expected,
+            `Expected input "${input}" to resolve to "${expected}"`,
+          );
           assert.strictEqual(windowOpenSpecs, 'noopener,noreferrer');
         }
 
         // Verify invalid cases
         for (const input of invalidCases) {
           assert.throws(
-            () => invoke('openUrl', { url: input }, context),
-            (err: any) => err instanceof A2uiExpressionError && err.message.includes('Unsupported URL scheme'),
-            `Expected input "${input}" to throw an Unsupported URL scheme error`
+            () => invoke('openUrl', {url: input}, context),
+            (err: any) =>
+              err instanceof A2uiExpressionError && err.message.includes('Unsupported URL scheme'),
+            `Expected input "${input}" to throw an Unsupported URL scheme error`,
           );
         }
 

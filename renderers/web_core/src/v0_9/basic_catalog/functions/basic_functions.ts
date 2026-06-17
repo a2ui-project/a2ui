@@ -427,10 +427,11 @@ export const PluralizeImplementation = createPluralizeImplementation();
  */
 export const OpenUrlImplementation = createFunctionImplementation(OpenUrlApi, args => {
   if (args.url && typeof window !== 'undefined' && window.open) {
-    const baseHref = typeof window.location !== 'undefined' && window.location.href
-      ? window.location.href
-      : undefined;
-    
+    const baseHref =
+      typeof window.location !== 'undefined' && window.location.href
+        ? window.location.href
+        : undefined;
+
     let url: URL;
     try {
       url = baseHref ? new URL(args.url, baseHref) : new URL(args.url);
