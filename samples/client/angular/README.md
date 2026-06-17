@@ -38,6 +38,7 @@ The restaurant app has two parts that run separately: the **agent backend** (a P
    - Angular frontend — serves on `http://localhost:4200`:
 
      ```bash
+     cd samples/client/angular
      yarn start restaurant
      ```
 
