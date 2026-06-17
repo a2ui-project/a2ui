@@ -2,16 +2,22 @@
 
 This is the registry of examples and dev tools for A2UI.
 
-If the video is outdated, please, contribute the update.
-
 ## Samples
+
+Please, help us maintain samples in this table. Contribute the update to the table below if:
+
+- video is outdated or old
+- e2e test is missing
+- the example is broken
 
 | Sample                           | Agent  | Renderer | e2e             | Video                    | Issues |
 | -------------------------------- | ------ | -------- | --------------- | ------------------------ | ------ |
-| [Restaurant finder][rf-f-readme] | Python | Flutter  | [yes][rf-f-e2e] | [2026-05-02][rf-f-video] |  |
-| [Restaurant finder][rf-l-readme] | Python | Lit      |                 | [2026-04-14][rf-l-video] |  |
 | [Simple Chat][sc-f-readme]       | Dart   | Flutter  | [yes][sc-f-e2e] | [2026-05-11][sc-f-video] |  |
+| [Restaurant finder][rf-a-readme] | Python | Angular  |                 | [2026-06-17][rf-a-video] |  |
+| [Restaurant finder][rf-f-readme] | Python | Flutter  | [yes][rf-f-e2e] | [2026-05-02][rf-f-video] |  |
 | [Verdure][vr-f-readme]           | Python | Flutter  |                 | [2026-05-11][vr-f-video] |  |
+| [Restaurant finder][rf-l-readme] | Python | Lit      |                 | [2026-04-14][rf-l-video] |  |
+| [Restaurant finder][rf-r-readme] | Python | React    |                 | [2026-06-17][rf-r-video] |  |
 
 <!-- Restaurant finder, Flutter -->
 
@@ -23,6 +29,16 @@ If the video is outdated, please, contribute the update.
 
 [rf-l-video]: https://github.com/user-attachments/assets/2a406115-3a17-4bea-8000-ac12e0b7b9bd
 [rf-l-readme]: client/lit/shell/README.md
+
+<!-- Restaurant finder, React -->
+
+[rf-r-video]: https://github.com/user-attachments/assets/18d3e57d-8817-4b27-a31c-3a4018b87eea
+[rf-r-readme]: client/react/shell/README.md
+
+<!-- Restaurant finder, Angular -->
+
+[rf-a-video]: https://github.com/user-attachments/assets/1ba25c6f-f49a-4000-a8cd-c7692d15ab5e
+[rf-a-readme]: client/angular/README.md
 
 <!-- Simple Chat, Flutter -->
 
