@@ -66,7 +66,7 @@ Contribute the fix to the code and/or table below if:
 
 ## Community samples
 
-Have you built an sample using A2UI? Please feel free to open a pull request to add your project here!
+Have you built and open-sourced a sample using A2UI? Please feel free to open a pull request to add your project here!
 
 | Link to sample | Agent | Renderer | Video |
 | -------------- | ----- | -------- | ----- |
