@@ -644,7 +644,6 @@ Below is an annotated, fully compliant `catalog.json` schema template (written i
 }
 ```
 
-````
 
 ### UI composition: the adjacency list model
 
@@ -677,7 +676,7 @@ flowchart TD
     A -- "Parsed and stored" --> D
     A -- "Parsed and stored" --> E
 
-````
+```
 
 ### Defining actions
 
