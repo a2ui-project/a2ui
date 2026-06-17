@@ -1,0 +1,34 @@
+# Configuration for the lychee Markdown link checker.
+# Used by .github/workflows/docs_test.yml. See https://lychee.cli.rs/usage/config/
+
+# HTTP status codes treated as success. 403/429 are frequent false negatives
+# from sites that block or throttle automated checkers rather than real breakage.
+accept = [200, 206, 403, 429]
+
+# Skip mailto: links.
+exclude_mail = true
+
+# Be patient with flaky/slow endpoints before failing the link.
+max_retries = 3
+retry_wait_time = 2
+timeout = 20
+
+# Send a realistic User-Agent so fewer hosts reject the request outright.
+user_agent = "Mozilla/5.0 (compatible; lychee link checker)"
+
+# Placeholder / illustrative URLs that intentionally do not resolve.
+exclude = [
+  "example\\.com",
+  "trusted-host\\.com",
+  "localhost",
+  "127\\.0\\.0\\.1",
+  "0\\.0\\.0\\.0",
+]
+
+# Don't descend into dependency or build-output directories.
+exclude_path = [
+  "node_modules",
+  ".git",
+  "dist",
+  "build",
+]
