@@ -5,7 +5,7 @@ This is the registry of examples and dev tools for A2UI.
 ## Samples
 
 Please, help us maintain samples in this table.
-Contribute the update to the table below and/or fix the sample if:
+Contribute the fix to the code and/or table below if:
 
 - video is outdated or old
 - e2e test is missing
