@@ -7,8 +7,6 @@ These are sample implementations of A2UI in Angular.
 1. [nodejs](https://nodejs.org/en)
 2. [uv](https://docs.astral.sh/uv/getting-started/installation/)
 
-NOTE: [For the rizzcharts app](../../agent/adk/rizzcharts/python/), you will need GoogleMap API ([How to get the API key](https://developers.google.com/maps/documentation/javascript/get-api-key)) to display Google Map custome components. Please refer to [Rizzcharts README](./projects/rizzcharts/README.md)
-
 ## Running
 
 Here is the quickstart for the restaurant app:
@@ -26,28 +24,16 @@ yarn demo:restaurant
 Here are the instructions if you want to do each step manually.
 
 1. **Install dependencies:** `yarn install`
-2. **Run the relevant client app (also requires running the relevant backend A2A service):**
-   - **Restaurant app:**
-     - Run backend server in [restaurant_finder](../../agent/adk/restaurant_finder/README.md)
-     - Run client: `yarn start restaurant`
-   - **Rizzcharts app:**
-     - Run backend server in [rizzcharts](../../agent/adk/rizzcharts/python/README.md)
-     - Run client: `yarn start rizzcharts`
-   - **Orchestrator app:**
-     - Run backend server in [orchestrator](../../agent/adk/orchestrator/README.md)
-     - Run client: `yarn start orchestrator`
-   - **MCP Calculator app:**
-     - Run client: `yarn build:sandbox && yarn start mcp_calculator`
-   - **Gallery app:** (Client-only, no server required)
-     - Run client: `yarn start gallery`
-3. **Open** http://localhost:4200/
+2. **Start the backend A2A service:** run the [restaurant_finder](../../agent/adk/restaurant_finder/README.md) agent (listens on port 10002).
+3. **Run the client:** `yarn start restaurant`
+4. **Open** http://localhost:4200/
 
 ## Streaming
 
-By default, the Angular client uses the non-streaming API to communicate with the agent. To enable streaming, set the `ENABLE_STREAMING` environment variable to `true`:
+By default, the Angular client uses the streaming API to communicate with the agent. To disable streaming, set the `ENABLE_STREAMING` environment variable to `false`:
 
 ```bash
-export ENABLE_STREAMING=true
+export ENABLE_STREAMING=false
 yarn start restaurant
 ```
 
