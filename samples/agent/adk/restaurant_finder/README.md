@@ -4,7 +4,7 @@ This sample uses the Agent Development Kit (ADK) along with the A2A protocol to 
 
 ## Prerequisites
 
-- Python 3.9 or higher
+- Python — see `requires-python` in `pyproject.toml`
 - [UV](https://docs.astral.sh/uv/)
 - Access to an LLM and API Key
 
