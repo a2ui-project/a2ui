@@ -6,7 +6,7 @@ Agent-to-Agent (A2A) protocol.
 
 ## Prerequisites
 
-- [nodejs](https://nodejs.org/en)
+- [Node.js](https://nodejs.org/en)
 - [uv](https://docs.astral.sh/uv/getting-started/installation/)
 - Python — see `requires-python` in the agent's
   [pyproject.toml](../../../agent/adk/restaurant_finder/pyproject.toml)
@@ -46,7 +46,7 @@ yarn dev
 Vite serves the app on http://localhost:5003 and proxies `/a2a` requests to the
 agent running on `localhost:10002`.
 
-### Open UI
+### 4. Open the UI
 
 Open http://localhost:5003 in your browser (or follow the link printed in the
 console).
