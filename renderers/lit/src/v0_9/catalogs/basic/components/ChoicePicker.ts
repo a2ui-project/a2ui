@@ -19,7 +19,7 @@ import {customElement, state} from 'lit/decorators.js';
 import {classMap} from 'lit/directives/class-map.js';
 import {ChoicePickerApi} from '@a2ui/web_core/v0_9/basic_catalog';
 import {BasicCatalogA2uiLitElement} from '../basic-catalog-a2ui-lit-element.js';
-import {A2uiController} from '@a2ui/lit/v0_9';
+import {A2uiController} from '../../../a2ui-controller.js';
 
 @customElement('a2ui-choicepicker')
 export class A2uiChoicePickerElement extends BasicCatalogA2uiLitElement<typeof ChoicePickerApi> {
@@ -35,7 +35,7 @@ export class A2uiChoicePickerElement extends BasicCatalogA2uiLitElement<typeof C
    * - `--a2ui-choicepicker-chip-padding`: Padding for chips. Defaults to `--a2ui-spacing-s` and `--a2ui-spacing-m` (4px 8px).
    * - `--a2ui-choicepicker-chip-border-radius`: Border radius for chips. Defaults to `999px`.
    */
-  static styles = css`
+  static override styles = css`
     :host {
       display: flex;
       flex-direction: column;
@@ -105,7 +105,7 @@ export class A2uiChoicePickerElement extends BasicCatalogA2uiLitElement<typeof C
     return new A2uiController(this, ChoicePickerApi);
   }
 
-  render() {
+  override render() {
     const props = this.controller.props;
     if (!props) return nothing;
 

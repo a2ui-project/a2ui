@@ -24,8 +24,7 @@
           {
             "id": "header",
             "component": "Text",
-            "text": "User Profile Form",
-            "variant": "h1"
+            "text": "# User Profile Form"
           },
           {
             "id": "form_row",

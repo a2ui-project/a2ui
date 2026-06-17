@@ -19,7 +19,7 @@ import {customElement} from 'lit/decorators.js';
 import {classMap} from 'lit/directives/class-map.js';
 import {CheckBoxApi} from '@a2ui/web_core/v0_9/basic_catalog';
 import {BasicCatalogA2uiLitElement} from '../basic-catalog-a2ui-lit-element.js';
-import {A2uiController} from '@a2ui/lit/v0_9';
+import {A2uiController} from '../../../a2ui-controller.js';
 
 @customElement('a2ui-checkbox')
 export class A2uiCheckBoxElement extends BasicCatalogA2uiLitElement<typeof CheckBoxApi> {
@@ -35,7 +35,7 @@ export class A2uiCheckBoxElement extends BasicCatalogA2uiLitElement<typeof Check
    * - `--a2ui-checkbox-label-font-size`: Font size of the label. Defaults to `--a2ui-label-font-size` then `--a2ui-font-size-s`.
    * - `--a2ui-checkbox-label-font-weight`: Font weight of the label. Defaults to `--a2ui-label-font-weight` then `bold`.
    */
-  static styles = css`
+  static override styles = css`
     :host {
       display: block;
     }
@@ -79,7 +79,7 @@ export class A2uiCheckBoxElement extends BasicCatalogA2uiLitElement<typeof Check
     return new A2uiController(this, CheckBoxApi);
   }
 
-  render() {
+  override render() {
     const props = this.controller.props;
     if (!props) return nothing;
 

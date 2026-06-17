@@ -48,8 +48,8 @@ describe('Example: Email Compose', () => {
 
     await act(async () => {
       sendBtn.click();
+      await whenSettled();
     });
-    await whenSettled();
 
     expect(actionSpy).toHaveBeenCalledTimes(1);
     expect(actionSpy.calls.mostRecent().args[0].name).toBe('send');
@@ -60,8 +60,8 @@ describe('Example: Email Compose', () => {
 
     await act(async () => {
       discardBtn.click();
+      await whenSettled();
     });
-    await whenSettled();
 
     expect(actionSpy).toHaveBeenCalledTimes(1);
     expect(actionSpy.calls.mostRecent().args[0].name).toBe('discard');

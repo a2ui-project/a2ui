@@ -400,7 +400,7 @@ agent_card = AgentCard(
 
 #### Setting or Propagating Client Capabilities on Remote A2A Agents
 
-When calling remote A2A agents (such as delegating to a sub-agent or proxying to a backend A2A stubby agent) via ADK `RemoteA2aAgent`, you must ensure that the remote agent receives the client's UI capabilities in its request metadata under `a2uiClientCapabilities`.
+When calling remote A2A agents (such as delegating to a sub-agent or proxying to a backend A2A stubby agent) via ADK `RemoteA2aAgent`, you must ensure that the remote agent receives the client's UI capabilities in the `metadata` field of the A2A `Message` under the key `a2uiClientCapabilities`.
 
 You can configure an `A2aRemoteAgentConfig` with a `before_request` interceptor (`RequestInterceptor`) to inject this metadata. There are two common scenarios:
 

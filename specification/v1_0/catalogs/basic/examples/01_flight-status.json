@@ -49,8 +49,7 @@
             "component": "Text",
             "text": {
               "path": "/flightNumber"
-            },
-            "variant": "h3"
+            }
           },
           {
             "id": "date",
@@ -76,23 +75,26 @@
             "id": "origin",
             "component": "Text",
             "text": {
-              "path": "/origin"
-            },
-            "variant": "h2"
+              "call": "formatString",
+              "args": {
+                "value": "## ${/origin}"
+              }
+            }
           },
           {
             "id": "arrow",
             "component": "Text",
-            "text": "\u2192",
-            "variant": "h2"
+            "text": "## \u2192"
           },
           {
             "id": "destination",
             "component": "Text",
             "text": {
-              "path": "/destination"
-            },
-            "variant": "h2"
+              "call": "formatString",
+              "args": {
+                "value": "## ${/destination}"
+              }
+            }
           },
           {
             "id": "divider",
@@ -127,8 +129,7 @@
                 },
                 "format": "h:mm a"
               }
-            },
-            "variant": "h3"
+            }
           },
           {
             "id": "status-col",
@@ -173,8 +174,7 @@
                 },
                 "format": "h:mm a"
               }
-            },
-            "variant": "h3"
+            }
           }
         ]
       }

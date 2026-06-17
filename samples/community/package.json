@@ -6,10 +6,14 @@
   "workspaces": [
     "client/angular",
     "client/angular/projects/*",
-    "client/lit/*"
+    "client/lit/*",
+    "mcp/*",
+    "mcp/*/client",
+    "mcp/*/apps/src",
+    "mcp/a2ui-in-mcpapps/server/apps/*"
   ],
   "scripts": {
-    "build:web": "yarn workspace angular-a2ui run build && yarn workspace @a2ui/mcp-apps-in-a2ui-sample run build && yarn workspace personalized-learning-demo run build"
+    "build:web": "yarn workspace angular-a2ui run build && yarn workspace @a2ui/mcp-apps-in-a2ui-sample run build && yarn workspace personalized-learning-demo run build && yarn workspace a2ui-in-mcpapps-client run build && yarn workspace a2ui-in-mcpapps-client run build:sandbox && yarn workspace basic-mcp-app-angular run build:all && yarn workspace basic-mcp-app-angular-editor run build:all && yarn workspace a2ui-over-mcp-recipe-client run build && yarn workspace mcp-calculator-app run build"
   },
   "resolutions": {
     "typescript": "5.9.3",

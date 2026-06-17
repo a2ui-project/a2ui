@@ -19,7 +19,7 @@ description = "Sample Contact Lookup agent that uses a2ui extension and is hoste
 readme = "README.md"
 requires-python = ">=3.14"
 dependencies = [
-    "a2a-sdk==0.3.25",
+    "a2a-sdk[http-server]==0.3.25",
     "google-adk>=1.28.0",
     "google-genai>=1.27.0",
     "python-dotenv>=1.1.0",

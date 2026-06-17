@@ -1,5 +1,7 @@
 ## Unreleased
 
+## 0.10.1
+
 - Add locale support to basic catalog functions (`pluralize`, `formatNumber`, `formatCurrency`) in v0.9 via catalog-level configuration.
 - Remove `.passthrough()` from `PluralizeApi` schema for stricter validation.
 - Allow overriding hard-coded recursion depth in `DataValueSchema` for v0.8 by introducing `createDataValueSchema` factory function.
