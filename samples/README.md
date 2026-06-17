@@ -47,7 +47,9 @@ If the video is outdated, please, contribute the update.
 
 ## Community samples
 
+Have you built an application or sample using A2UI? Please feel free to open a pull request to add your project here!
 
 ## Usage in published applications
 
+If you are using A2UI in a published application, please let us know by adding it to this list.
 
