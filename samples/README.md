@@ -65,7 +65,3 @@ Have you built and open-sourced a sample using A2UI? Please feel free to add you
 [gallery-video]: https://github.com/user-attachments/assets/0cc82b93-5a27-490a-b960-f3fa6ee8280d
 [composer-readme]: https://github.com/flutter/genui/blob/main/dev_tools/composer/README.md
 [composer-video]: https://github.com/user-attachments/assets/18745f7c-e563-4a1b-80c1-39f1bc3ac606
-
-
-
-
