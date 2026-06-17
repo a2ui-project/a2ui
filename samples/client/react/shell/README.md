@@ -6,7 +6,7 @@ Agent-to-Agent (A2A) protocol.
 
 ## Prerequisites
 
-- [nodejs](https://nodejs.org/en)
+- [Node.js](https://nodejs.org/en)
 - [uv](https://docs.astral.sh/uv/getting-started/installation/)
 - Python — see `requires-python` in the agent's
   [pyproject.toml](../../../agent/adk/restaurant_finder/pyproject.toml)
