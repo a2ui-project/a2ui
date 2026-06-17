@@ -101,7 +101,29 @@
       "properties": {
         "$schema": {"type": "string"},
         "$id": {"type": "string"},
-        "$defs": {"type": "object"},
+        "$defs": {
+          "type": "object",
+          "description": "Standardized schema definitions referenced from outside the catalog file.",
+          "properties": {
+            "surfaceProperties": {
+              "title": "A2UI Surface Properties Schema",
+              "description": "A JSON Schema that defines the catalog's surface properties.",
+              "$ref": "https://json-schema.org/draft/2020-12/schema"
+            },
+            "anyComponent": {
+              "title": "A2UI Any Component Schema",
+              "description": "Unified validation schema for all components.",
+              "$ref": "https://json-schema.org/draft/2020-12/schema"
+            },
+            "anyFunction": {
+              "title": "A2UI Any Function Schema",
+              "description": "Unified validation schema for all functions.",
+              "$ref": "https://json-schema.org/draft/2020-12/schema"
+            }
+          },
+          "required": ["anyComponent", "anyFunction"],
+          "additionalProperties": false
+        },
         "title": {
           "type": "string",
           "description": "The title of the catalog."
@@ -130,14 +152,6 @@
           "description": "Definitions for functions supported by this catalog.",
           "additionalProperties": {
             "$ref": "#/$defs/FunctionDefinition"
-          }
-        },
-        "surfaceProperties": {
-          "title": "A2UI Surface Properties",
-          "description": "A schema that defines a catalog of A2UI surface properties. Each key is a surface property name, and each value is the JSON schema for that property.",
-          "type": "object",
-          "additionalProperties": {
-            "$ref": "https://json-schema.org/draft/2020-12/schema"
           }
         }
       },

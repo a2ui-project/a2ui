@@ -7,7 +7,7 @@ These are sample implementations of A2UI in Angular.
 1. [nodejs](https://nodejs.org/en)
 2. [uv](https://docs.astral.sh/uv/getting-started/installation/)
 
-NOTE: [For the rizzcharts app](../../agent/adk/rizzcharts/python/), you will need GoogleMap API ([How to get the API key](https://developers.google.com/maps/documentation/javascript/get-api-key)) to display Google Map custome components. Please refer to [Rizzcharts README](./projects/rizzcharts/README.md)
+NOTE: [For the rizzcharts app](../../community/agent/adk/rizzcharts/python/), you will need GoogleMap API ([How to get the API key](https://developers.google.com/maps/documentation/javascript/get-api-key)) to display Google Map custome components. Please refer to [Orchestrator README](../../community/client/angular/projects/orchestrator/README.md)
 
 ## Running
 
@@ -31,10 +31,10 @@ Here are the instructions if you want to do each step manually.
      - Run backend server in [restaurant_finder](../../agent/adk/restaurant_finder/README.md)
      - Run client: `yarn start restaurant`
    - **Rizzcharts app:**
-     - Run backend server in [rizzcharts](../../agent/adk/rizzcharts/python/README.md)
+     - Run backend server in [rizzcharts](../../community/agent/adk/rizzcharts/python/README.md)
      - Run client: `yarn start rizzcharts`
    - **Orchestrator app:**
-     - Run backend server in [orchestrator](../../agent/adk/orchestrator/README.md)
+     - Run backend server in [orchestrator](../../community/agent/adk/orchestrator/README.md)
      - Run client: `yarn start orchestrator`
    - **MCP Calculator app:**
      - Run client: `yarn build:sandbox && yarn start mcp_calculator`

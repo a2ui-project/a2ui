@@ -72,7 +72,6 @@ Browser → API Server → Agent Engine → OpenStax → A2UI Response
 | [src/chat-orchestrator.ts](src/chat-orchestrator.ts) | Frontend routing logic                    |
 | [src/flashcard.ts](src/flashcard.ts)                 | Custom Flashcard component                |
 | [src/quiz-card.ts](src/quiz-card.ts)                 | Custom QuizCard component                 |
-| [learner_context/](learner_context/)                 | Sample learner profiles                   |
 
 ---
 
@@ -98,14 +97,6 @@ This demo extends A2UI with two Lit web components that agents can generate at r
 ```
 
 Both components are registered in [src/main.ts](src/main.ts) and rendered by the standard A2UI Lit renderer.
-
----
-
-## Personalization
-
-Learner profiles live in GCS at `gs://{PROJECT_ID}-learner-context/learner_context/`. The demo includes a sample student "Maria" — a pre-med student preparing for the MCAT who responds well to sports analogies and has a common misconception about ATP bond energy.
-
-To personalize for a different student, edit the files in [learner_context/](learner_context/) and upload to GCS. The agent picks up changes on the next request—no redeployment required.
 
 ---
 
@@ -166,6 +157,6 @@ Educational content from [OpenStax](https://openstax.org/), licensed under [CC B
 
 ## Related
 
-- [A2UI Specification](../../docs/)
-- [A2UI Lit Renderer](../../renderers/lit/)
-- [Main A2UI README](../../README.md)
+- [A2UI Specification](../../../../../docs/)
+- [A2UI Lit Renderer](../../../../../renderers/lit/)
+- [Main A2UI README](../../../../../README.md)
