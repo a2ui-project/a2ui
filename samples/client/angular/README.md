@@ -21,16 +21,9 @@ yarn install
 yarn demo:restaurant
 ```
 
-Here are the instructions if you want to do each step manually.
-
-1. **Install dependencies:** `yarn install`
-2. **Start the backend A2A service:** run the [restaurant_finder](../../agent/adk/restaurant_finder/README.md) agent (listens on port 10002).
-3. **Run the client:** `yarn start restaurant`
-4. **Open** http://localhost:4200/
-
 ## Streaming
 
-By default, the Angular client uses the streaming API to communicate with the agent. To disable streaming, set the `ENABLE_STREAMING` environment variable to `false`:
+By default, the Angular client uses the streaming API to communicate with the agent. To disable streaming, set the `ENABLE_STREAMING` environment variable to `false`.
 
 ```bash
 export ENABLE_STREAMING=false
