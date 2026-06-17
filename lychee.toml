@@ -41,9 +41,16 @@ exclude = [
 ]
 
 # Don't descend into dependency or build-output directories.
+# Note: entries are matched as regexes against the path.
 exclude_path = [
   "node_modules",
   ".git",
   "dist",
   "build",
+  # The specification/ tree is copied into docs/specification/ at build time
+  # (see the "Copy schemas" step in docs.yml). Check only the published copies:
+  # the source files use asset paths that resolve only after that copy, so
+  # checking them directly is a false positive. Anchored to the source root so
+  # the docs/specification/ copies are still verified.
+  "^specification",
 ]

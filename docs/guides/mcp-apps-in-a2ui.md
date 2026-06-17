@@ -23,7 +23,7 @@ To prevent this, A2UI strictly excludes `allow-same-origin` for the inner iframe
 ### The Architecture
 
 1.  **[Sandbox Proxy (`sandbox.html`)](https://github.com/a2ui-project/a2ui/blob/main/samples/client/shared/mcp_apps_inner_iframe/sandbox.html)**: An intermediate `iframe` served from the same origin. It isolates raw DOM injection from the main app while maintaining a structured JSON-RPC channel.
-    - Permissions: **Do not sandbox** in the host template (e.g., [`mcp-app.ts`](https://github.com/a2ui-project/a2ui/blob/main/samples/client/angular/projects/mcp_calculator/src/a2ui-catalog/mcp-app.ts) or [`mcp-apps-component.ts`](https://github.com/a2ui-project/a2ui/blob/main/samples/client/lit/custom-components-example/ui/custom-components/mcp-apps-component.ts)).
+    - Permissions: **Do not sandbox** in the host template (e.g., [`mcp-app.ts`](https://github.com/a2ui-project/a2ui/blob/main/samples/community/client/lit/mcp-apps-in-a2ui-sample/mcp-app.ts) or [`mcp-apps-component.ts`](https://github.com/a2ui-project/a2ui/blob/main/samples/community/client/lit/mcp-apps-in-a2ui-sample/ui/custom-components/mcp-apps-component.ts)).
     - Host origin validation: Validates that messages come from the expected host origin.
 2.  **Embedded App (Inner Iframe)**: The innermost `iframe`. Injected dynamically via `srcdoc` with restricted permissions.
     - Permissions: `sandbox="allow-scripts allow-forms allow-popups allow-modals"` (**MUST NOT** include `allow-same-origin`).
