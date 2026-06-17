@@ -52,7 +52,7 @@ sequenceDiagram
 ## Prerequisites
 
 - [Node.js](https://nodejs.org/) (LTS recommended)
-- [Python 3.10+](https://www.python.org/) with `uv`
+- [Python](https://www.python.org/) with [`uv`](https://docs.astral.sh/uv/) (the required version is pinned in `server/.python-version`; `uv` fetches it automatically)
 
 ### ⚠️ IMPORTANT: Install Repository Dependencies
 
@@ -80,9 +80,9 @@ yarn build:sandbox
 
 _(Generates `client/public/sandbox_iframe/sandbox.{js,html}`)_
 
-### 2. Rebuild Micro-Apps (Optional)
+### 2. Build the Micro-Apps
 
-The server serves single-file HTML artifacts located in `server/apps/public/`. Choose the app you want to build:
+The server serves single-file HTML artifacts from `server/apps/public/`. These artifacts are git-ignored and are **not** included in a fresh checkout, so you must build at least one app before its surface can load (the server itself still starts without them). Choose the app(s) you want to build:
 
 #### Option A: The Editor App
 
