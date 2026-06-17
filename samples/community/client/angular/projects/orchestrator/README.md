@@ -18,6 +18,6 @@ This angular app connects to an Orchastrator Agent which takes user messages and
 4. Run the A2A server for all of the agents. ([Link to instructions](../../../../agent/adk/orchestrator/README.md))
 5. Run the app:
 
-- `yarn start -- orchestrator`
+- `yarn start orchestrator`
 
 6. Open http://localhost:4200/

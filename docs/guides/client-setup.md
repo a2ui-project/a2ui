@@ -90,7 +90,7 @@ By default, the Angular client uses the streaming API. To disable streaming, set
 
 ```bash
 export ENABLE_STREAMING=false
-yarn start -- restaurant
+yarn start restaurant
 ```
 
 > [!NOTE]

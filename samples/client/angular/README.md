@@ -9,17 +9,38 @@ These are sample implementations of A2UI in Angular.
 
 ## Running
 
-Here is the quickstart for the restaurant app:
+The restaurant app has two parts that run separately: the **agent backend** (a Python A2A server) and the **Angular frontend**.
 
-```bash
-# Set up your Gemini API key
-cp ../../agent/adk/restaurant_finder/.env.example ../../agent/adk/restaurant_finder/.env
-# Edit the .env file with your actual API key (.env is gitignored for security reasons)
+1. **Install and build dependencies.** From the repository root:
 
-# Start the restaurant app frontend
-yarn install
-yarn demo:restaurant
-```
+   ```bash
+   yarn install
+   yarn build:all
+   ```
+
+2. **Set up your Gemini API key:**
+
+   ```bash
+   cd samples/client/angular
+   cp ../../agent/adk/restaurant_finder/.env.example ../../agent/adk/restaurant_finder/.env
+   # Edit the .env file with your actual API key (.env is gitignored for security reasons)
+   ```
+
+3. **Start the servers in two separate terminals** (both from `samples/client/angular`):
+
+   - Agent backend — the Restaurant Finder agent, serves on `http://localhost:10002`:
+
+     ```bash
+     yarn serve:agent:restaurant
+     ```
+
+   - Angular frontend — serves on `http://localhost:4200`:
+
+     ```bash
+     yarn start restaurant
+     ```
+
+Then open the URL shown in the frontend output (typically http://localhost:4200).
 
 ## Streaming
 
