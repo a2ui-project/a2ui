@@ -8,25 +8,10 @@ This architecture enables high code reuse, strict conformance, and unified behav
 
 Historically, A2UI maintained separate, isolated codebases for server-side agent SDKs (which generate UI messages) and client-side rendering SDKs (which paint pixels). We are now building a unified, shared-code structure across each language:
 
-```
-+-------------------------------------------------------------+
-|                     FRAMEWORK ADAPTER                       |
-|   (Renders surface state to pixels using a native UI)      |
-+------------------------------+------------------------------+
-                               |
-                               | (Depends on)
-                               v
-+-------------------------------------------------------------+
-|                        A2UI CORE SDK                        |
-|   (Maintains surface state, message processing, validation) |
-+------------------------------+------------------------------+
-                               ^
-                               | (Depends on)
-                               |
-+-------------------------------------------------------------+
-|                        INFERENCE SDK                        |
-|   (Generates serverToClient messages using LLM engines)      |
-+-------------------------------------------------------------+
+```mermaid
+flowchart TD
+    FA[Framework Adapter<br>Renders surface state to pixels using a native UI] -->|Depends on| Core[A2UI Core SDK<br>Maintains surface state, message processing, and validation]
+    Inference[Inference SDK<br>Generates serverToClient messages using LLM engines] -->|Depends on| Core
 ```
 
 ## 2. Library Responsibilities
