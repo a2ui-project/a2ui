@@ -501,10 +501,7 @@ To ensure catalog schemas can be translated reliably into alternative, LLM-frien
      - `ComponentCommon`
      - `Checkable`
      - `Action`
-4. **Mandatory Dynamic Wrappers (No Raw Primitives):**
-   - Every leaf node in a component's properties or a function's arguments schema MUST be a dynamic type wrapper (e.g., `DynamicString`, `DynamicNumber`, `DynamicBoolean`, `DynamicValue`) instead of a literal raw primitive (e.g., raw `string`, `number`, `boolean`). This guarantees that any slot can be bound to a data model path.
-   - _Prompt-Level Mitigation:_ The increased verbosity of dynamic wrappers is resolved during inference by the prompt generator, which detects shared structures in memory and condenses them into clean, concise instructions for the LLM.
-5. **Component Discriminator Rule:**
+4. **Component Discriminator Rule:**
    - Every component schema defined inside the `components` map must have a required property named `component` whose value is a constant (`const`) matching the key under which it is defined.
    - Example: The component defined at `components.Text` must declare:
      ```json
@@ -515,19 +512,19 @@ To ensure catalog schemas can be translated reliably into alternative, LLM-frien
      }
      ```
      This enables route-dispatch matching via the `discriminator` block inside `anyComponent` (designating `"propertyName": "component"`).
-6. **Standard Component Structure:**
+5. **Standard Component Structure:**
    - All components defined in the `components` object must use an `allOf` structure that combines:
      1. An external reference to the baseline identity and accessibility attributes:
         `{"$ref": "https://a2ui.org/specification/v1_0/common_types.json#/$defs/ComponentCommon"}`
      2. A local object schema defining the unique properties of that specific component (e.g., its children, variant, specific layouts).
-7. **Strict Function Interface Pattern:**
+6. **Strict Function Interface Pattern:**
    - Every function schema defined inside the `functions` map must validate a wire-level `FunctionCall` object. This requires:
      - A `properties` block with a `call` property containing a constant of the function's name (e.g., `"call": { "const": "email" }`).
      - An optional `args` property representing arguments (or absent if the function accepts no arguments).
      - Mandatory metadata fields outside the strict JSON validation properties to advertise interface details:
        - **`returnType`**: Must be a string enum indicating the return type (`string`, `number`, `boolean`, `array`, `object`, `any`, or `void`).
        - **`callableFrom`**: Must be a string enum indicating the execution boundary (`clientOnly`, `remoteOnly`, or `clientOrRemote`). If omitted, it defaults to `clientOnly`.
-8. **Strict Top-Level Schema Keys:**
+7. **Strict Top-Level Schema Keys:**
    - To keep catalog schemas predictable and prevent custom extensions from polluting the global file space, a `catalog.json` file is restricted to the following root-level keys:
      - `$schema`
      - `$id`
@@ -546,7 +543,7 @@ Below is an annotated, fully compliant `catalog.json` schema template (written i
 
 ```jsonc
 {
-  // Rule 8: Strict Top-Level Schema Keys
+  // Rule 7: Strict Top-Level Schema Keys
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
   "title": "A2UI Basic Catalog Template",
@@ -558,7 +555,7 @@ Below is an annotated, fully compliant `catalog.json` schema template (written i
   "components": {
     "Text": {
       "type": "object",
-      // Rule 6: Components must combine ComponentCommon and local properties using "allOf".
+      // Rule 5: Components must combine ComponentCommon and local properties using "allOf".
       "allOf": [
         {
           // Rule 3: External references must reference standard types in common_types.json.
@@ -567,11 +564,11 @@ Below is an annotated, fully compliant `catalog.json` schema template (written i
         {
           "type": "object",
           "properties": {
-            // Rule 5: Required "component" property must be a constant matching the component key.
+            // Rule 4: Required "component" property must be a constant matching the component key.
             "component": {
               "const": "Text",
             },
-            // Rule 4: Every leaf property must be a dynamic wrapper type instead of a raw primitive.
+            // Leaf properties can be standard JSON primitives or Dynamic wrappers
             "text": {
               "$ref": "https://a2ui.org/specification/v1_0/common_types.json#/$defs/DynamicString",
               "description": "Text content to display.",
@@ -589,11 +586,11 @@ Below is an annotated, fully compliant `catalog.json` schema template (written i
     "required": {
       "type": "object",
       "description": "Checks that the value is not null, undefined, or empty.",
-      // Rule 7: Strict function metadata defined outside the properties block.
+      // Rule 6: Strict function metadata defined outside the properties block.
       "returnType": "boolean",
       "callableFrom": "clientOnly",
       "properties": {
-        // Rule 7: Function call schema requires constant with function's name.
+        // Rule 6: Function call schema requires constant with function's name.
         "call": {
           "const": "required",
         },
@@ -601,7 +598,7 @@ Below is an annotated, fully compliant `catalog.json` schema template (written i
           "type": "object",
           "properties": {
             "value": {
-              "description": "The value to check (uses dynamic wrapper target).",
+              "description": "The value to check.",
             },
           },
           "required": ["value"],
