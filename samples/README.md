@@ -20,6 +20,8 @@ Contribute the fix to the code and/or table below if:
 | [Restaurant finder][rf-l-readme] | Python | Lit      |                 | [2026-04-14][rf-l-video] |        |
 | [Restaurant finder][rf-r-readme] | Python | React    |                 | [2026-06-17][rf-r-video] |        |
 
+Have you built and open-sourced a sample using A2UI? Please feel free to add your project [here](../docs/ecosystem/renderers.md).
+
 <!-- Restaurant finder, Flutter -->
 
 [rf-f-video]: https://github.com/user-attachments/assets/a2ac7024-e56e-4502-9db4-29ab37d8eef3
@@ -64,18 +66,6 @@ Contribute the fix to the code and/or table below if:
 [composer-readme]: https://github.com/flutter/genui/blob/main/dev_tools/composer/README.md
 [composer-video]: https://github.com/user-attachments/assets/18745f7c-e563-4a1b-80c1-39f1bc3ac606
 
-## Community samples
 
-Have you built and open-sourced a sample using A2UI? Please feel free to open a pull request to add your project here!
 
-| Link to sample | Agent | Renderer | Video |
-| -------------- | ----- | -------- | ----- |
-| ?              | ?     | ?        | ?     |
 
-## Usage in published applications
-
-If you are using A2UI in a published application, please let us know by adding it to this list.
-
-| Link to app | Agent | Renderer | Video |
-| ----------- | ----- | -------- | ----- |
-| ?           | ?     | ?        | ?     |
