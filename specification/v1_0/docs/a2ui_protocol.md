@@ -644,7 +644,6 @@ Below is an annotated, fully compliant `catalog.json` schema template (written i
 }
 ```
 
-
 ### UI composition: the adjacency list model
 
 The A2UI protocol defines the UI as a flat list of components. The tree structure is built implicitly using ID references. This is known as an adjacency list model.
