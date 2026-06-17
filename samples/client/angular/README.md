@@ -26,12 +26,13 @@ The restaurant app has two parts that run separately: the **agent backend** (a P
    # Edit the .env file with your actual API key (.env is gitignored for security reasons)
    ```
 
-3. **Start the servers in two separate terminals** (both from `samples/client/angular`):
+3. **Start the servers in two separate terminals**:
 
    - Agent backend — the Restaurant Finder agent, serves on `http://localhost:10002`:
 
      ```bash
-     yarn serve:agent:restaurant
+     cd samples/agent/adk/restaurant_finder
+     uv run .
      ```
 
    - Angular frontend — serves on `http://localhost:4200`:
