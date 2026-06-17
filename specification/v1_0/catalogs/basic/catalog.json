@@ -13,9 +13,6 @@
           "$ref": "https://a2ui.org/specification/v1_0/common_types.json#/$defs/ComponentCommon"
         },
         {
-          "$ref": "#/$defs/CatalogComponentCommon"
-        },
-        {
           "type": "object",
           "properties": {
             "component": {
@@ -30,6 +27,10 @@
               "description": "A hint for the base text style.",
               "enum": ["caption", "body"],
               "default": "body"
+            },
+            "weight": {
+              "type": "number",
+              "description": "The relative weight of this component within a Row or Column. This is similar to the CSS 'flex-grow' property. Note: this may ONLY be set when the component is a direct descendant of a Row or Column."
             }
           },
           "required": ["component", "text"]
@@ -42,9 +43,6 @@
       "allOf": [
         {
           "$ref": "https://a2ui.org/specification/v1_0/common_types.json#/$defs/ComponentCommon"
-        },
-        {
-          "$ref": "#/$defs/CatalogComponentCommon"
         },
         {
           "type": "object",
@@ -71,6 +69,10 @@
               "description": "A hint for the image size and style.",
               "enum": ["icon", "avatar", "smallFeature", "mediumFeature", "largeFeature", "header"],
               "default": "mediumFeature"
+            },
+            "weight": {
+              "type": "number",
+              "description": "The relative weight of this component within a Row or Column. This is similar to the CSS 'flex-grow' property. Note: this may ONLY be set when the component is a direct descendant of a Row or Column."
             }
           },
           "required": ["component", "url"]
@@ -83,9 +85,6 @@
       "allOf": [
         {
           "$ref": "https://a2ui.org/specification/v1_0/common_types.json#/$defs/ComponentCommon"
-        },
-        {
-          "$ref": "#/$defs/CatalogComponentCommon"
         },
         {
           "type": "object",
@@ -171,6 +170,10 @@
                   "additionalProperties": false
                 }
               ]
+            },
+            "weight": {
+              "type": "number",
+              "description": "The relative weight of this component within a Row or Column. This is similar to the CSS 'flex-grow' property. Note: this may ONLY be set when the component is a direct descendant of a Row or Column."
             }
           },
           "required": ["component", "name"]
@@ -185,9 +188,6 @@
           "$ref": "https://a2ui.org/specification/v1_0/common_types.json#/$defs/ComponentCommon"
         },
         {
-          "$ref": "#/$defs/CatalogComponentCommon"
-        },
-        {
           "type": "object",
           "properties": {
             "component": {
@@ -200,6 +200,10 @@
             "posterUrl": {
               "$ref": "https://a2ui.org/specification/v1_0/common_types.json#/$defs/DynamicString",
               "description": "The URL of the poster image to display before the video plays."
+            },
+            "weight": {
+              "type": "number",
+              "description": "The relative weight of this component within a Row or Column. This is similar to the CSS 'flex-grow' property. Note: this may ONLY be set when the component is a direct descendant of a Row or Column."
             }
           },
           "required": ["component", "url"]
@@ -214,9 +218,6 @@
           "$ref": "https://a2ui.org/specification/v1_0/common_types.json#/$defs/ComponentCommon"
         },
         {
-          "$ref": "#/$defs/CatalogComponentCommon"
-        },
-        {
           "type": "object",
           "properties": {
             "component": {
@@ -229,6 +230,10 @@
             "description": {
               "description": "A description of the audio, such as a title or summary.",
               "$ref": "https://a2ui.org/specification/v1_0/common_types.json#/$defs/DynamicString"
+            },
+            "weight": {
+              "type": "number",
+              "description": "The relative weight of this component within a Row or Column. This is similar to the CSS 'flex-grow' property. Note: this may ONLY be set when the component is a direct descendant of a Row or Column."
             }
           },
           "required": ["component", "url"]
@@ -241,9 +246,6 @@
       "allOf": [
         {
           "$ref": "https://a2ui.org/specification/v1_0/common_types.json#/$defs/ComponentCommon"
-        },
-        {
-          "$ref": "#/$defs/CatalogComponentCommon"
         },
         {
           "type": "object",
@@ -275,6 +277,10 @@
               "description": "Defines the alignment of children along the cross axis (vertically). This is similar to the CSS 'align-items' property, but uses camelCase values (e.g., 'start').",
               "enum": ["start", "center", "end", "stretch"],
               "default": "stretch"
+            },
+            "weight": {
+              "type": "number",
+              "description": "The relative weight of this component within a Row or Column. This is similar to the CSS 'flex-grow' property. Note: this may ONLY be set when the component is a direct descendant of a Row or Column."
             }
           },
           "required": ["component", "children"]
@@ -287,9 +293,6 @@
       "allOf": [
         {
           "$ref": "https://a2ui.org/specification/v1_0/common_types.json#/$defs/ComponentCommon"
-        },
-        {
-          "$ref": "#/$defs/CatalogComponentCommon"
         },
         {
           "type": "object",
@@ -321,6 +324,10 @@
               "description": "Defines the alignment of children along the cross axis (horizontally). This is similar to the CSS 'align-items' property.",
               "enum": ["center", "end", "start", "stretch"],
               "default": "stretch"
+            },
+            "weight": {
+              "type": "number",
+              "description": "The relative weight of this component within a Row or Column. This is similar to the CSS 'flex-grow' property. Note: this may ONLY be set when the component is a direct descendant of a Row or Column."
             }
           },
           "required": ["component", "children"]
@@ -333,9 +340,6 @@
       "allOf": [
         {
           "$ref": "https://a2ui.org/specification/v1_0/common_types.json#/$defs/ComponentCommon"
-        },
-        {
-          "$ref": "#/$defs/CatalogComponentCommon"
         },
         {
           "type": "object",
@@ -358,6 +362,10 @@
               "description": "Defines the alignment of children along the cross axis.",
               "enum": ["start", "center", "end", "stretch"],
               "default": "stretch"
+            },
+            "weight": {
+              "type": "number",
+              "description": "The relative weight of this component within a Row or Column. This is similar to the CSS 'flex-grow' property. Note: this may ONLY be set when the component is a direct descendant of a Row or Column."
             }
           },
           "required": ["component", "children"]
@@ -372,9 +380,6 @@
           "$ref": "https://a2ui.org/specification/v1_0/common_types.json#/$defs/ComponentCommon"
         },
         {
-          "$ref": "#/$defs/CatalogComponentCommon"
-        },
-        {
           "type": "object",
           "properties": {
             "component": {
@@ -383,6 +388,10 @@
             "child": {
               "$ref": "https://a2ui.org/specification/v1_0/common_types.json#/$defs/ComponentId",
               "description": "The ID of the single child component to be rendered inside the card. To display multiple elements, you MUST wrap them in a layout component (like Column or Row) and pass that container's ID here. Do NOT pass multiple IDs or a non-existent ID. Do NOT define the child component inline."
+            },
+            "weight": {
+              "type": "number",
+              "description": "The relative weight of this component within a Row or Column. This is similar to the CSS 'flex-grow' property. Note: this may ONLY be set when the component is a direct descendant of a Row or Column."
             }
           },
           "required": ["component", "child"]
@@ -395,9 +404,6 @@
       "allOf": [
         {
           "$ref": "https://a2ui.org/specification/v1_0/common_types.json#/$defs/ComponentCommon"
-        },
-        {
-          "$ref": "#/$defs/CatalogComponentCommon"
         },
         {
           "type": "object",
@@ -424,6 +430,10 @@
                 "required": ["title", "child"],
                 "additionalProperties": false
               }
+            },
+            "weight": {
+              "type": "number",
+              "description": "The relative weight of this component within a Row or Column. This is similar to the CSS 'flex-grow' property. Note: this may ONLY be set when the component is a direct descendant of a Row or Column."
             }
           },
           "required": ["component", "tabs"]
@@ -438,9 +448,6 @@
           "$ref": "https://a2ui.org/specification/v1_0/common_types.json#/$defs/ComponentCommon"
         },
         {
-          "$ref": "#/$defs/CatalogComponentCommon"
-        },
-        {
           "type": "object",
           "properties": {
             "component": {
@@ -453,6 +460,10 @@
             "content": {
               "$ref": "https://a2ui.org/specification/v1_0/common_types.json#/$defs/ComponentId",
               "description": "The ID of the component to be displayed inside the modal. Do NOT define the component inline."
+            },
+            "weight": {
+              "type": "number",
+              "description": "The relative weight of this component within a Row or Column. This is similar to the CSS 'flex-grow' property. Note: this may ONLY be set when the component is a direct descendant of a Row or Column."
             }
           },
           "required": ["component", "trigger", "content"]
@@ -467,9 +478,6 @@
           "$ref": "https://a2ui.org/specification/v1_0/common_types.json#/$defs/ComponentCommon"
         },
         {
-          "$ref": "#/$defs/CatalogComponentCommon"
-        },
-        {
           "type": "object",
           "properties": {
             "component": {
@@ -480,6 +488,10 @@
               "description": "The orientation of the divider.",
               "enum": ["horizontal", "vertical"],
               "default": "horizontal"
+            },
+            "weight": {
+              "type": "number",
+              "description": "The relative weight of this component within a Row or Column. This is similar to the CSS 'flex-grow' property. Note: this may ONLY be set when the component is a direct descendant of a Row or Column."
             }
           },
           "required": ["component"]
@@ -492,9 +504,6 @@
       "allOf": [
         {
           "$ref": "https://a2ui.org/specification/v1_0/common_types.json#/$defs/ComponentCommon"
-        },
-        {
-          "$ref": "#/$defs/CatalogComponentCommon"
         },
         {
           "$ref": "https://a2ui.org/specification/v1_0/common_types.json#/$defs/Checkable"
@@ -517,6 +526,10 @@
             },
             "action": {
               "$ref": "https://a2ui.org/specification/v1_0/common_types.json#/$defs/Action"
+            },
+            "weight": {
+              "type": "number",
+              "description": "The relative weight of this component within a Row or Column. This is similar to the CSS 'flex-grow' property. Note: this may ONLY be set when the component is a direct descendant of a Row or Column."
             }
           },
           "required": ["component", "child", "action"]
@@ -529,9 +542,6 @@
       "allOf": [
         {
           "$ref": "https://a2ui.org/specification/v1_0/common_types.json#/$defs/ComponentCommon"
-        },
-        {
-          "$ref": "#/$defs/CatalogComponentCommon"
         },
         {
           "$ref": "https://a2ui.org/specification/v1_0/common_types.json#/$defs/Checkable"
@@ -559,6 +569,10 @@
               "description": "The type of input field to display.",
               "enum": ["longText", "number", "shortText", "obscured"],
               "default": "shortText"
+            },
+            "weight": {
+              "type": "number",
+              "description": "The relative weight of this component within a Row or Column. This is similar to the CSS 'flex-grow' property. Note: this may ONLY be set when the component is a direct descendant of a Row or Column."
             }
           },
           "required": ["component", "label"]
@@ -571,9 +585,6 @@
       "allOf": [
         {
           "$ref": "https://a2ui.org/specification/v1_0/common_types.json#/$defs/ComponentCommon"
-        },
-        {
-          "$ref": "#/$defs/CatalogComponentCommon"
         },
         {
           "$ref": "https://a2ui.org/specification/v1_0/common_types.json#/$defs/Checkable"
@@ -591,6 +602,10 @@
             "value": {
               "$ref": "https://a2ui.org/specification/v1_0/common_types.json#/$defs/DynamicBoolean",
               "description": "The current state of the checkbox (true for checked, false for unchecked)."
+            },
+            "weight": {
+              "type": "number",
+              "description": "The relative weight of this component within a Row or Column. This is similar to the CSS 'flex-grow' property. Note: this may ONLY be set when the component is a direct descendant of a Row or Column."
             }
           },
           "required": ["component", "label", "value"]
@@ -603,9 +618,6 @@
       "allOf": [
         {
           "$ref": "https://a2ui.org/specification/v1_0/common_types.json#/$defs/ComponentCommon"
-        },
-        {
-          "$ref": "#/$defs/CatalogComponentCommon"
         },
         {
           "$ref": "https://a2ui.org/specification/v1_0/common_types.json#/$defs/Checkable"
@@ -660,6 +672,10 @@
               "type": "boolean",
               "description": "If true, displays a search input to filter the options.",
               "default": false
+            },
+            "weight": {
+              "type": "number",
+              "description": "The relative weight of this component within a Row or Column. This is similar to the CSS 'flex-grow' property. Note: this may ONLY be set when the component is a direct descendant of a Row or Column."
             }
           },
           "required": ["component", "options", "value"]
@@ -672,9 +688,6 @@
       "allOf": [
         {
           "$ref": "https://a2ui.org/specification/v1_0/common_types.json#/$defs/ComponentCommon"
-        },
-        {
-          "$ref": "#/$defs/CatalogComponentCommon"
         },
         {
           "$ref": "https://a2ui.org/specification/v1_0/common_types.json#/$defs/Checkable"
@@ -706,6 +719,10 @@
               "type": "integer",
               "minimum": 1,
               "description": "The number of discrete divisions in the slider range. If specified, the slider will snap to discrete values."
+            },
+            "weight": {
+              "type": "number",
+              "description": "The relative weight of this component within a Row or Column. This is similar to the CSS 'flex-grow' property. Note: this may ONLY be set when the component is a direct descendant of a Row or Column."
             }
           },
           "required": ["component", "value", "max"]
@@ -718,9 +735,6 @@
       "allOf": [
         {
           "$ref": "https://a2ui.org/specification/v1_0/common_types.json#/$defs/ComponentCommon"
-        },
-        {
-          "$ref": "#/$defs/CatalogComponentCommon"
         },
         {
           "$ref": "https://a2ui.org/specification/v1_0/common_types.json#/$defs/Checkable"
@@ -800,6 +814,10 @@
             "label": {
               "$ref": "https://a2ui.org/specification/v1_0/common_types.json#/$defs/DynamicString",
               "description": "The text label for the input field."
+            },
+            "weight": {
+              "type": "number",
+              "description": "The relative weight of this component within a Row or Column. This is similar to the CSS 'flex-grow' property. Note: this may ONLY be set when the component is a direct descendant of a Row or Column."
             }
           },
           "required": ["component", "value"]
@@ -1222,15 +1240,6 @@
     }
   },
   "$defs": {
-    "CatalogComponentCommon": {
-      "type": "object",
-      "properties": {
-        "weight": {
-          "type": "number",
-          "description": "The relative weight of this component within a Row or Column. This is similar to the CSS 'flex-grow' property. Note: this may ONLY be set when the component is a direct descendant of a Row or Column."
-        }
-      }
-    },
     "surfaceProperties": {
       "type": "object",
       "properties": {
