@@ -46,7 +46,7 @@
                 "value": "You typed: ${/inputValue}"
               }
             },
-            "variant": "h2"
+            "variant": "body"
           }
         ]
       }

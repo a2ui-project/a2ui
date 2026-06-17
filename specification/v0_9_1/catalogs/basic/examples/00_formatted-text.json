@@ -47,7 +47,7 @@
               },
               "returnType": "string"
             },
-            "variant": "h2"
+            "variant": "body"
           }
         ]
       }
