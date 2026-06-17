@@ -28,7 +28,7 @@ This sample uses the Agent Development Kit (ADK) along with the A2A protocol to 
    uv run .
    ```
 
-   The server listens on `http://localhost:10004` by default (override with `uv run . --port <port>`).
+   The server listens on `http://localhost:10004` by default (override with `uv run . --port <port>`). It uses the Gemini `gemini-3-flash-preview` model by default; override it via the `LITELLM_MODEL` environment variable (e.g. `LITELLM_MODEL=gemini/gemini-2.5-flash`).
 
 4. Verify the server is running by fetching its agent card:
 
