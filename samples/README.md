@@ -37,13 +37,15 @@ If the video is outdated, please, contribute the update.
 
 ## Dev tools
 
-| Tool                                      | Language | Video |
-| ----------------------------------------- | -------- | ----- |
-| [Catalog Gallery][catalog-gallery-readme] | Flutter  |       |
-| [Composer][composer-readme]               | Flutter  |       |
+| Tool                          | Language | Video                                   |
+| ----------------------------- | -------- | --------------------------------------- |
+| [Catalog Gallery][gallery-readme] | Flutter  | [2026-06-17][gallery-video] |
+| [Composer][composer-readme]       | Flutter  | [2026-06-17][composer-video] |
 
-[catalog-gallery-readme]: https://github.com/flutter/genui/blob/main/dev_tools/catalog_gallery/README.md
+[gallery-readme]: https://github.com/flutter/genui/blob/main/dev_tools/catalog_gallery/README.md
+[gallery-video]: https://github.com/user-attachments/assets/0cc82b93-5a27-490a-b960-f3fa6ee8280d
 [composer-readme]: https://github.com/flutter/genui/blob/main/dev_tools/composer/README.md
+[composer-video]: https://github.com/user-attachments/assets/18745f7c-e563-4a1b-80c1-39f1bc3ac606
 
 ## Community samples
 
