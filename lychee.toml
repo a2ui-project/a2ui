@@ -13,14 +13,15 @@
 # limitations under the License.
 
 # Configuration for the lychee Markdown link checker.
-# Used by .github/workflows/docs_test.yml. See https://lychee.cli.rs/usage/config/
+# Used by the "Verify Markdown links" step in .github/workflows/docs.yml.
+# See https://lychee.cli.rs/usage/config/
 
 # HTTP status codes treated as success. 403/429 are frequent false negatives
 # from sites that block or throttle automated checkers rather than real breakage.
 accept = [200, 206, 403, 429]
 
-# Skip mailto: links.
-exclude_mail = true
+# Skip mailto: links (this is lychee's default; stated explicitly for clarity).
+include_mail = false
 
 # Be patient with flaky/slow endpoints before failing the link.
 max_retries = 3
