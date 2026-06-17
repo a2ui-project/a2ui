@@ -14,7 +14,7 @@ Here is the quickstart for the restaurant app:
 ```bash
 # Set up your Gemini API key
 cp ../../agent/adk/restaurant_finder/.env.example ../../agent/adk/restaurant_finder/.env
-# Edit the .env file with your actual API key (do not commit .env)
+# Edit the .env file with your actual API key (.env is gitignored for security reasons)
 
 # Start the restaurant app frontend
 yarn install
