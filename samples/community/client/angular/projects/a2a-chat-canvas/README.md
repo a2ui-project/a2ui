@@ -333,9 +333,9 @@ Include the `a2a-chat-canvas` in the template passing inputs as desired
 
 #### Types
 
-- [`MessageDecoratorComponent`]('lib/components/chat/chat-history/message-decorator/types.ts')
+- [`MessageDecoratorComponent`](src/lib/components/chat/chat-history/message-decorator/types.ts)
 
-- [`MessageDecorator`]('lib/components/chat/chat-history/message-decorator/types.ts')
+- [`MessageDecorator`](src/lib/components/chat/chat-history/message-decorator/types.ts)
 
 #### Inputs
 
