@@ -52,7 +52,7 @@ sequenceDiagram
 ## Prerequisites
 
 - [Node.js](https://nodejs.org/) (LTS recommended)
-- [Python](https://www.python.org/) with [`uv`](https://docs.astral.sh/uv/) (the required version is pinned in `server/.python-version`; `uv` fetches it automatically)
+- [uv](https://docs.astral.sh/uv/) (Python is managed automatically by uv using the version pinned in server/.python-version)
 
 ### ⚠️ IMPORTANT: Install Repository Dependencies
 
