@@ -6,18 +6,18 @@ If the video is outdated, please, contribute the update.
 
 ## Samples
 
-| Demo                             | Agent  | Renderer | e2e             | Video                    |
-| -------------------------------- | ------ | -------- | --------------- | ------------------------ |
-| [Restaurant finder][rf-f-readme] | Python | Flutter  | [yes][rf-f-e2e] | [2026-05-02][rf-f-video] |
-| [Restaurant finder][rf-l-readme] | Python | Lit      |                 | [2026-04-14][rf-l-video] |
-| [Simple Chat][sc-f-readme]       | Dart   | Flutter  | [yes][sc-f-e2e] | [2026-05-11][sc-f-video] |
-| [Verdure][vr-f-readme]           | Python | Flutter  |                 | [2026-05-11][vr-f-video] |
+| Sample                           | Agent  | Renderer | e2e             | Video                    | Issues |
+| -------------------------------- | ------ | -------- | --------------- | ------------------------ | ------ |
+| [Restaurant finder][rf-f-readme] | Python | Flutter  | [yes][rf-f-e2e] | [2026-05-02][rf-f-video] |  |
+| [Restaurant finder][rf-l-readme] | Python | Lit      |                 | [2026-04-14][rf-l-video] |  |
+| [Simple Chat][sc-f-readme]       | Dart   | Flutter  | [yes][sc-f-e2e] | [2026-05-11][sc-f-video] |  |
+| [Verdure][vr-f-readme]           | Python | Flutter  |                 | [2026-05-11][vr-f-video] |  |
 
 <!-- Restaurant finder, Flutter -->
 
 [rf-f-video]: https://github.com/user-attachments/assets/a2ac7024-e56e-4502-9db4-29ab37d8eef3
 [rf-f-readme]: client/flutter/restaurant_finder/README.md
-[rf-f-e2e]: client/flutter/restaurant_finder/e2e_test/README.md
+[rf-f-e2e]: client/flutter/restaurant_finder/e2e_test/README.md 
 
 <!-- Restaurant finder, Lit -->
 
@@ -49,9 +49,16 @@ If the video is outdated, please, contribute the update.
 
 ## Community samples
 
-Have you built an application or sample using A2UI? Please feel free to open a pull request to add your project here!
+Have you built an sample using A2UI? Please feel free to open a pull request to add your project here!
+
+| Link to sample     | Agent  | Renderer |  Video           |
+| ------------------ | ------ | -------- |  --------------- |
+| ?                  | ?      | ?        |  ?               |
 
 ## Usage in published applications
 
 If you are using A2UI in a published application, please let us know by adding it to this list.
 
+| Link to app        | Agent  | Renderer |  Video           |
+| ------------------ | ------ | -------- |  --------------- |
+| ?                  | ?      | ?        |  ?               |
