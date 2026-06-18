@@ -20,7 +20,7 @@ Contribute the fix to the code and/or table below if:
 | [Restaurant finder][rf-l-readme] | Python | Lit      |                 | [2026-04-14][rf-l-video] |        |
 | [Restaurant finder][rf-r-readme] | Python | React    |                 | [2026-06-17][rf-r-video] |        |
 
-Have you built and open-sourced a sample using A2UI? Please feel free to add your project [here](../docs/ecosystem/renderers.md).
+Have you built and open-sourced a sample using A2UI? Show it on our [Community Showcase](https://a2ui.org/ecosystem/community/#community-showcase).
 
 <!-- Restaurant finder, Flutter -->
 
