@@ -266,7 +266,7 @@ class ExpressPromptGenerator:
           f"\n\n## Catalog Instructions\n\n{catalog_instructions}"
       )
 
-    prompt_template = """# A2UI Express Output Contract
+    prompt_template = r'''# A2UI Express Output Contract
 
 You must output the user interface using the compact A2UI Express DSL notation.
 You MUST surround the entire A2UI Express DSL block with the sentinel tags `<a2ui>` and `</a2ui>`.
@@ -283,7 +283,8 @@ IMPORTANT: You must ALWAYS output A2UI Express DSL notation wrapped inside `<a2u
 2. The interface tree must have a single entry point assigned to the reserved variable 'root'.
 
 3. Primitives:
-   - Strings: enclose in double quotes, e.g., "label"
+   - Strings: Quoted with `"` or `"""`. Support for `\n`, `\t`, `\\`, and `\"` escapes.
+     Raw Strings: Prefaced by `r` (e.g., `r"..."` or `r"""..."""`), with no escape processing.
    - Numbers: write as integers or decimals, e.g., 42
    - Booleans: write true or false
    - Null values: write null
@@ -323,7 +324,7 @@ Use these exact positional signatures to instantiate components. Do not output p
 ## Positional Function Signatures
 
 Use these exact positional signatures to instantiate check rules or logic functions:
-[FUNC_SIGS][CATALOG_INSTRUCTIONS_BLOCK]"""
+[FUNC_SIGS][CATALOG_INSTRUCTIONS_BLOCK]'''
 
     prompt = (
         prompt_template.replace("[COMP_SIGS]", comp_sigs)

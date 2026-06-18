@@ -105,6 +105,9 @@ def is_check_expression(val: Any) -> bool:
 
 # Scanner rules for lexical tokenizing
 TOKEN_SPEC = [
+    ("RAW_TRIPLE_STRING", r'[rR]"""(?:(?!"""(?!"))[\s\S])*"""(?!")'),
+    ("RAW_STRING", r'[rR]"[^"]*"'),
+    ("TRIPLE_STRING", r'"""(?:(?!"""(?!"))(?:[^\\]|\\[\s\S]))*"""(?!")'),
     ("STRING", r'"(?:[^"\\]|\\.)*"'),
     ("COMMENT", r"(?:#|//).*"),
     ("PATH", r"\$[a-zA-Z0-9_/]*"),
@@ -124,6 +127,26 @@ TOKEN_SPEC = [
     ("RBRACE", r"\}"),
     ("WS", r"\s+"),
 ]
+
+
+def _unescape_string(val: str) -> str:
+  """Resolves only standard escape sequences: \\n, \\t, \\\\, and \\\".
+
+  Any other escape sequences are treated as literal characters.
+  """
+  def repl(m):
+    seq = m.group(0)
+    char = m.group(1)
+    if char == "n":
+      return "\n"
+    if char == "t":
+      return "\t"
+    if char == "\\":
+      return "\\"
+    if char == '"':
+      return '"'
+    return seq
+  return re.sub(r"\\(.)", repl, val)
 
 
 def tokenize(text: str) -> list[tuple[str, Any]]:
@@ -146,8 +169,17 @@ def tokenize(text: str) -> list[tuple[str, Any]]:
     last_end = mo.end()
     if kind in ("WS", "COMMENT"):
       continue
+    elif kind == "RAW_TRIPLE_STRING":
+      kind = "STRING"
+      val = val[4:-3]
+    elif kind == "RAW_STRING":
+      kind = "STRING"
+      val = val[2:-1]
+    elif kind == "TRIPLE_STRING":
+      kind = "STRING"
+      val = _unescape_string(val[3:-3])
     elif kind == "STRING":
-      val = val[1:-1].replace('\\"', '"')
+      val = _unescape_string(val[1:-1])
     elif kind == "NUMBER":
       val = float(val) if "." in val else int(val)
     elif kind == "BOOLEAN":

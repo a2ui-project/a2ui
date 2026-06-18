@@ -1,11 +1,11 @@
 root = Card(main-column)
 main-column = Column([title-text, markdown-content], _, "stretch")
 title-text = Text("### Markdown Rendering")
-markdown-content = Text("# Heading 1
+markdown-content = Text("""# Heading 1
 
 This is **bold** text and *italic* text.
 
 - List item 1
 - List item 2
 
-[Link to Google](https://google.com)")
+[Link to Google](https://google.com)""")

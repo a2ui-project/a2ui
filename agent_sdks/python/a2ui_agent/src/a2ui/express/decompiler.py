@@ -38,6 +38,38 @@ def _flatten_data_model(data_dict: dict) -> list[tuple[str, Any]]:
   return results
 
 
+def _decompile_string(val: str) -> str:
+  """Formats a string literal using the cleanest/most readable representation."""
+  has_newline = "\n" in val or "\r" in val
+  has_tab = "\t" in val
+  has_quote = '"' in val
+  has_backslash = "\\" in val
+
+  # 1. Use triple-quotes for multi-line or strings containing double quotes
+  if has_quote or has_newline:
+    if '"""' not in val:
+      # Use raw triple quotes if there are backslashes but no tabs
+      if has_backslash and not has_tab:
+        return f'r"""{val}"""'
+      # Otherwise standard triple quotes
+      escaped = val.replace("\\", "\\\\").replace("\t", "\\t")
+      return f'"""{escaped}"""'
+
+  # 2. Use single-line raw string if it has backslashes but no quotes/tabs/newlines
+  if has_backslash and not has_newline and not has_tab and not has_quote:
+    return f'r"{val}"'
+
+  # 3. Fall back to standard double-quoted string with escapes
+  escaped = (
+      val.replace("\\", "\\\\")
+      .replace('"', '\\"')
+      .replace("\n", "\\n")
+      .replace("\t", "\\t")
+  )
+  return f'"{escaped}"'
+
+
+
 class ExpressDecompiler:
   """Converts standard A2UI wire JSON trees back into A2UI Express syntax.
 
@@ -293,8 +325,7 @@ class ExpressDecompiler:
       if is_ref and val in comp_ids:
         return val
       # Otherwise quote as string literal
-      escaped = val.replace('"', '\\"')
-      return f'"{escaped}"'
+      return _decompile_string(val)
 
     if isinstance(val, bool):
       return "true" if val else "false"

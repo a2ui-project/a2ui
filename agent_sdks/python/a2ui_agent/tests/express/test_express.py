@@ -976,6 +976,89 @@ This is bold.
     helper = CatalogSchemaHelper(self.catalog_path)
     self.assertIsNotNone(helper.components)
 
+  def test_string_quoting_and_escaping(self):
+    """Verifies parsing, compilation, and decompilation of various string quoting forms."""
+    compiler = ExpressCompiler(self.catalog_path)
+    decompiler = ExpressDecompiler(self.catalog_path)
+
+    # Helper to compile and retrieve a Text component's value
+    def get_compiled_text(dsl_body: str) -> str:
+      dsl = f"root = Column([t1])\nt1 = Text({dsl_body})"
+      res = compiler.compile(dsl)
+      return res["createSurface"]["components"][1]["text"]
+
+    # 1. Standard Single-Quoted Strings & Escaping
+    self.assertEqual(get_compiled_text('"hello"'), "hello")
+    self.assertEqual(get_compiled_text('"hello \\"world\\""'), 'hello "world"')
+    self.assertEqual(get_compiled_text('"hello \\n world"'), 'hello \n world')
+    self.assertEqual(get_compiled_text('"hello \\t world"'), 'hello \t world')
+    self.assertEqual(get_compiled_text('"hello \\\\ world"'), 'hello \\ world')
+    # Unsupported escape sequence is treated as literal
+    self.assertEqual(get_compiled_text('"hello \\x world"'), 'hello \\x world')
+
+    # 2. Standard Triple-Quoted Strings
+    self.assertEqual(get_compiled_text('"""hello"""'), "hello")
+    self.assertEqual(get_compiled_text('"""hello\nworld"""'), "hello\nworld")
+    self.assertEqual(get_compiled_text('"""hello \\"world\\" """'), 'hello "world" ')
+
+    # 3. Raw Strings (Single Quoted)
+    self.assertEqual(get_compiled_text('r"hello\\nworld"'), 'hello\\nworld')
+    self.assertEqual(get_compiled_text('r"C:\\path\\to\\file"'), 'C:\\path\\to\\file')
+
+    # 4. Raw Strings (Triple Quoted)
+    self.assertEqual(get_compiled_text('r"""hello\\nworld"""'), 'hello\\nworld')
+    self.assertEqual(get_compiled_text('r"""hello "world" """'), 'hello "world" ')
+
+    # 5. Decompiler Formatting Choices
+    # Standard string with quotes -> triple-quoted decompiled output
+    envelope_quote = compiler.compile('root = Text("hello \\"world\\"")')
+    decompiled_quote = decompiler.decompile(envelope_quote)
+    self.assertIn('root = Text("""hello "world"""")', decompiled_quote)
+
+    # Standard string with newline -> triple-quoted decompiled output
+    envelope_nl = compiler.compile('root = Text("hello \\n world")')
+    decompiled_nl = decompiler.decompile(envelope_nl)
+    self.assertIn('root = Text("""hello \n world""")', decompiled_nl)
+
+    # Standard string with backslashes but no quotes/newlines -> raw single-quoted output
+    envelope_raw = compiler.compile('root = Text("C:\\\\path\\\\to\\\\file")')
+    decompiled_raw = decompiler.decompile(envelope_raw)
+    self.assertIn('root = Text(r"C:\\path\\to\\file")', decompiled_raw)
+
+    # 6. Additional Edge Cases
+    # Empty strings
+    self.assertEqual(get_compiled_text('""'), "")
+    self.assertEqual(get_compiled_text('""""""'), "")
+    self.assertEqual(get_compiled_text('r""'), "")
+    self.assertEqual(get_compiled_text('r""""""'), "")
+
+    # Raw string ending in a backslash
+    self.assertEqual(get_compiled_text('r"hello\\"'), 'hello\\')
+    self.assertEqual(get_compiled_text('r"""hello\\"""'), 'hello\\')
+
+    # Uppercase R prefix
+    self.assertEqual(get_compiled_text('R"hello\\nworld"'), 'hello\\nworld')
+    self.assertEqual(get_compiled_text('R"""hello\\nworld"""'), 'hello\\nworld')
+
+    # Literal double escape vs single escape in standard string
+    self.assertEqual(get_compiled_text('"hello \\\\n world"'), 'hello \\n world')
+
+    # Standard string ending in a backslash (unterminated quote syntax error)
+    with self.assertRaises(SyntaxError):
+      compiler.compile('root = Text("hello\\")')
+
+    # Standard string with unescaped nested quote (should raise ValueError wrapping parser error)
+    with self.assertRaises(ValueError):
+      compiler.compile('root = Text("hello "world"")')
+
+    # Raw single-quoted string with unescaped nested quote (should raise ValueError wrapping parser error)
+    with self.assertRaises(ValueError):
+      compiler.compile('root = Text(r"hello "world"")')
+
+    # Triple-quoted raw string with nested triple-quotes (should raise SyntaxError due to early termination and unexpected characters)
+    with self.assertRaises(SyntaxError):
+      compiler.compile('root = Text(r"""hello """world""")')
+
 
 if __name__ == "__main__":
   unittest.main()
