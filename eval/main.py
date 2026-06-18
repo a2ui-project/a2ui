@@ -22,7 +22,7 @@ from tasks import a2ui_v0_9_eval
 def main():
     parser = argparse.ArgumentParser(description="Run A2UI evaluations")
     parser.add_argument("--sanity", action="store_true", help="Run a quick sanity check (2 samples, gemini-3.1-flash-lite, 0 retry)")
-    parser.add_argument("--model", type=str, default="google/gemini-3-flash-preview", help="Model(s) used to evaluate tasks. Can be a comma-separated list.")
+    parser.add_argument("--model", action="append", help="Model(s) used to evaluate tasks. Can be specified multiple times.")
     parser.add_argument("--grading-model", type=str, default="google/gemini-3-flash-preview", help="Model used for grading")
     parser.add_argument("--max-retries", type=int, default=0, help="Maximum number of retries")
     parser.add_argument("--limit", type=int, default=None, help="Maximum number of samples to evaluate")
@@ -30,7 +30,10 @@ def main():
     parser.add_argument("--sample-shuffle", type=int, default=None, help="Seed for shuffling samples")
     args = parser.parse_args()
 
-    models = ["google/gemini-3.1-flash-lite"] if args.sanity else [m.strip() for m in args.model.split(',')]
+    if args.model is None:
+        args.model = ["google/gemini-3-flash-preview"]
+
+    models = ["google/gemini-3.1-flash-lite"] if args.sanity else args.model
     limit = 2 if args.sanity else args.limit
     retry_attempts = 0 if args.sanity else args.max_retries
     sample_shuffle = None if args.sanity else args.sample_shuffle
