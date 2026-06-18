@@ -34,7 +34,7 @@ import os
 import subprocess
 import argparse
 from pathlib import Path
-from datetime import datetime
+from datetime import datetime, timezone
 from inspect_ai.log import read_eval_log
 
 def main():
@@ -53,13 +53,16 @@ def main():
     
     cmd = [
         "uv", "run", "python3", str(main_script),
-        "--model", args.models,
         "--log-dir", args.log_dir
     ]
+    for m in args.models.split(","):
+        cmd.extend(["--model", m.strip()])
+
     if args.limit > 0:
         cmd.extend(["--limit", str(args.limit)])
     
     print(f"Executing: {' '.join(cmd)}")
+    bench_start_time = datetime.now(timezone.utc)
     subprocess.run(cmd, check=True)
     
     # Analyze logs
@@ -93,6 +96,8 @@ def main():
             
             key = (task_name, model_name)
             # Save the latest duration
+            if started_at < bench_start_time:
+                continue
             if key not in model_stats or model_stats[key]['started_at'] < started_at:
                 model_stats[key] = {
                     'started_at': started_at,
