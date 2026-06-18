@@ -1,0 +1,13 @@
+$/description = "Get alerts for order status changes"
+$/icon = "check"
+$/title = "Enable notification"
+root = Card(main-column)
+main-column = Column([icon, title, description, actions], _, "center")
+icon = Icon($/icon)
+title = Text($/title)
+description = Text($/description, "body")
+actions = Row([yes-btn, no-btn], "center")
+yes-btn-text = Text("Yes")
+yes-btn = Button(yes-btn-text, _, Event("accept"))
+no-btn-text = Text("No")
+no-btn = Button(no-btn-text, _, Event("decline"))

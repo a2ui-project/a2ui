@@ -70,7 +70,13 @@ def print_results_summary(log_data: dict):
         qa_score = scores.get("measured_model_graded_qa", {})
         qa_val = qa_score.get("value", "N/A")
 
-        inference_time = sample.get("metadata", {}).get("evaluation_duration_seconds")
+        inference_time = None
+        for event in sample.get("events", []):
+            if event.get("event") == "model":
+                inference_time = event.get("time") or event.get("working_time")
+                break
+        if inference_time is None:
+            inference_time = sample.get("metadata", {}).get("evaluation_duration_seconds")
         inference_time_str = f"{float(inference_time):.2f}s" if inference_time is not None else "N/A"
 
         print(f"{name:<25} | Algorithmic: {a2ui_str:<4} | Judging: {qa_val:<2} | Inference Time: {inference_time_str}")

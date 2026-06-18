@@ -25,7 +25,7 @@ REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$REPO_ROOT"
 
 echo "Running Prettier formatting for Node/Web assets..."
-corepack enable
+corepack enable 2>/dev/null || true
 if [ -f ".yarn/install-state.gz" ]; then
   # Local Node environment already installed; invoke standard script targets
   if [ "$CHECK_ONLY" = true ]; then
@@ -64,6 +64,14 @@ if [ "$CHECK_ONLY" = true ]; then
   uv run pyink --check .
 else
   uv run pyink .
+fi
+
+echo "Running Pyink for Python Specification Proposals..."
+cd "$REPO_ROOT"
+if [ "$CHECK_ONLY" = true ]; then
+  uv run --default-index https://pypi.org/simple --with pyink pyink --check "$REPO_ROOT/specification/proposals"
+else
+  uv run --default-index https://pypi.org/simple --with pyink pyink "$REPO_ROOT/specification/proposals"
 fi
 
 echo "Running Dart format..."

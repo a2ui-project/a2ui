@@ -1,0 +1,17 @@
+$/description = "Clear skies with light breeze"
+$/forecast = [{date: "2025-12-16", icon: "☀️", temp: 74}, {date: "2025-12-17", icon: "☀️", temp: 76}, {date: "2025-12-18", icon: "⛅", temp: 71}, {date: "2025-12-19", icon: "☀️", temp: 73}, {date: "2025-12-20", icon: "☀️", temp: 75}]
+$/location = "Austin, TX"
+$/tempHigh = 72
+$/tempLow = 58
+root = Card(main-column)
+main-column = Column([temp-row, location, description, forecast-row], _, "center")
+temp-row = Row([temp-high, temp-low], _, "start")
+temp-high = Text(formatString("# ${/tempHigh}°"))
+temp-low = Text(formatString("## ${/tempLow}°"))
+location = Text(formatString("### ${/location}"))
+description = Text($/description, "caption")
+forecast-row = Row(_template($/forecast, forecast-day-template), "spaceAround")
+forecast-day-template = Column([day-name, day-icon, day-temp], _, "center")
+day-name = Text(formatDate($date, "E"), "caption")
+day-icon = Text($icon)
+day-temp = Text(formatString("${temp}°"), "caption")

@@ -1,0 +1,9 @@
+$/items = [{name: "Apple", quantity: 10}, {name: "Banana", quantity: 5}, {name: "Cherry", quantity: 20}]
+root = Card(main-column)
+main-column = Column([title-text, item-list], _, "stretch")
+title-text = Text("### Dynamic Item List")
+item-list = List(_template($/items, item-row))
+item-row = Row([item-name, qty-label, item-qty])
+item-name = Text($name)
+qty-label = Text(" - Qty: ")
+item-qty = Text($quantity)

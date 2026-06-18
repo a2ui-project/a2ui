@@ -1,0 +1,24 @@
+$/deliveryDate = "Arrives Dec 18 - Dec 20"
+$/price = 199.99
+$/productImage = "https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=100&h=100&fit=crop"
+$/productName = "Wireless Headphones Pro"
+$/seller = "TechStore Official"
+root = Card(main-column)
+main-column = Column([success-icon, title, product-row, divider, details-col, view-btn], _, "center")
+success-icon = Icon("check")
+title = Text("## Purchase Complete")
+product-row = Row([product-image, product-info], _, "center")
+product-image = Image($/productImage, _, "cover")
+product-info = Column([product-name, product-price])
+product-name = Text($/productName)
+product-price = Text(formatCurrency($/price, "USD"), "body")
+divider = Divider()
+details-col = Column([delivery-row, seller-row])
+delivery-row = Row([delivery-icon, delivery-text], _, "center")
+delivery-icon = Icon("arrowForward")
+delivery-text = Text($/deliveryDate, "body")
+seller-row = Row([seller-label, seller-name])
+seller-label = Text("Sold by:", "caption")
+seller-name = Text($/seller, "body")
+view-btn-text = Text("View Order Details")
+view-btn = Button(view-btn-text, _, Event("view_details"))

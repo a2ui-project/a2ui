@@ -84,7 +84,7 @@ def test_build_main_command_default():
     args = argparse.Namespace(
         model="google/gemini-3-flash-preview",
         max_samples=100,
-        grading_model="google/gemini-3-flash-preview"
+        grading_model="google/gemini-3.5-flash"
     )
     seed = "20260507"
     cmd = build_main_command(args, seed)
@@ -94,7 +94,7 @@ def test_build_main_command_default():
         "--sample-shuffle", seed,
         "--log-dir", f"logs/{seed}",
         "--max-retries", "10",
-        "--grading-model", "google/gemini-3-flash-preview",
+        "--grading-model", "google/gemini-3.5-flash",
         "--limit", "100"
     ]
 
@@ -102,7 +102,7 @@ def test_build_main_command_no_limit():
     args = argparse.Namespace(
         model="google/gemini-3-flash-preview",
         max_samples=0,
-        grading_model="google/gemini-3-flash-preview"
+        grading_model="google/gemini-3.5-flash"
     )
     seed = "20260507"
     cmd = build_main_command(args, seed)

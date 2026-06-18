@@ -1,0 +1,17 @@
+$/eta = "Estimated delivery: Today by 8 PM"
+$/steps = [{icon: "check", label: "Order Placed"}, {icon: "check", label: "Shipped"}, {icon: "send", label: "Out for Delivery"}, {icon: "check", label: "Delivered"}]
+$/trackingNumber = "Tracking: 1Z999AA10123456784"
+root = Card(main-column)
+main-column = Column([header, tracking-number, divider, steps-list, eta])
+header = Row([package-icon, title], _, "center")
+package-icon = Icon("info")
+title = Text("### Package Status")
+tracking-number = Text($/trackingNumber, "caption")
+divider = Divider()
+steps-list = Column(_template($/steps, step-item-template))
+step-item-template = Row([step-icon, step-text], _, "center")
+step-icon = Icon($icon)
+step-text = Text($label, "body")
+eta = Row([eta-icon, eta-text], _, "center")
+eta-icon = Icon("calendarToday")
+eta-text = Text($/eta, "body")

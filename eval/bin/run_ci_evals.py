@@ -24,6 +24,9 @@ import shutil
 import subprocess
 import sys
 
+# Automatically override Inspect AI's connection rate-limiter limit to prevent queuing delays in latency measurements
+os.environ["INSPECT_MAX_CONNECTIONS"] = "50"
+
 from report_evals import extract_accuracy, print_results_summary, load_log_data
 
 
@@ -68,8 +71,8 @@ def main():
     parser = argparse.ArgumentParser(description="Run A2UI evals for CI.")
     parser.add_argument("--max-samples", type=int, default=100, help="Maximum number of samples to evaluate. Set to 0 for all samples. Default is 100.")
     parser.add_argument("--threshold", type=float, default=0.0, help="Pass percentage threshold (0-100). Default is 0.0.")
-    parser.add_argument("--model", type=str, default="google/gemini-3-flash-preview", help="Model used to evaluate tasks. Default is google/gemini-3-flash-preview.")
-    parser.add_argument("--grading-model", type=str, default="google/gemini-3-flash-preview", help="Model used for grading. Default is google/gemini-3-flash-preview.")
+    parser.add_argument("--model", type=str, default="google/gemini-3.5-flash", help="Model used to evaluate tasks. Default is google/gemini-3.5-flash.")
+    parser.add_argument("--grading-model", type=str, default="google/gemini-3.5-flash", help="Model used for grading. Default is google/gemini-3.5-flash.")
     args = parser.parse_args()
 
     # Find eval root (directory above bin)

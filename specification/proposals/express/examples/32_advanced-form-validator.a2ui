@@ -1,0 +1,14 @@
+$/formData/agree = false
+$/formData/email = ""
+$/formData/phone = ""
+$/formData/zip = ""
+$/now = "2025-12-15T12:00:00Z"
+root = Card(main-column)
+main-column = Column([welcome-text, email-field, phone-field, zip-field, terms-checkbox, submit-btn], _, "stretch")
+welcome-text = Text(formatString("Hello! Today is ${formatDate(value: ${/now}, format: 'EEEE, MMMM d')}."))
+email-field = TextField("Email Address", $/formData/email, ?email("Invalid email format"))
+phone-field = TextField("Phone Number", $/formData/phone, ?regex("^\+?[0-9]{10,15}$", "Invalid phone format"))
+zip-field = TextField("Zip Code", $/formData/zip, ?regex("^[0-9]{5}$", "Must be exactly 5 digits"))
+terms-checkbox = CheckBox("I agree to the terms and conditions", $/formData/agree)
+submit-btn-text = Text("Submit Registration")
+submit-btn = Button(submit-btn-text, _, Event("register", {data: $/formData}), ?and([$/formData/agree, or([required($/formData/email), required($/formData/phone)]), required($/formData/zip)], "You must agree to terms AND provide either Email or Phone, plus a Zip code."))

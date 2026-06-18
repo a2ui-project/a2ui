@@ -1,0 +1,25 @@
+$/genre = "Sci-Fi • Adventure • Drama"
+$/poster = "https://images.unsplash.com/photo-1536440136628-849c177e76a1?w=200&h=300&fit=crop"
+$/rating = "8.7/10"
+$/runtime = "2h 49min"
+$/title = "Interstellar"
+$/trailerUrl = "https://www.w3schools.com/html/mov_bbb.mp4"
+$/year = "(2014)"
+root = Card(main-column)
+main-column = Column([poster, content, trailer-modal])
+poster = Image($/poster, _, "cover")
+content = Column([title-row, genre, rating-row, runtime, watch-trailer-btn])
+title-row = Row([movie-title, year], _, "start")
+movie-title = Text($/title)
+year = Text($/year, "caption")
+genre = Text($/genre, "caption")
+rating-row = Row([star-icon, rating-value], _, "center")
+star-icon = Icon("star")
+rating-value = Text($/rating, "body")
+runtime = Row([time-icon, runtime-text], _, "center")
+time-icon = Icon("calendarToday")
+runtime-text = Text($/runtime, "caption")
+watch-trailer-btn-text = Text("Watch Trailer")
+watch-trailer-btn = Button(watch-trailer-btn-text, _, Event("open_trailer"))
+trailer-modal = Modal(watch-trailer-btn, trailer-video)
+trailer-video = Video($/trailerUrl)
