@@ -1059,6 +1059,39 @@ This is bold.
     with self.assertRaises(SyntaxError):
       compiler.compile('root = Text(r"""hello """world""")')
 
+    # 7. Unescaped nested parentheses in multi-line strings
+    self.assertEqual(
+        get_compiled_text('"""hello ) world\nline 2"""'), "hello ) world\nline 2"
+    )
+
+    # 8. Streaming Compatibility and Tolerance (is_final=False)
+    # Standalone model updates with a trailing incomplete string
+    incomplete_dsl = '$/foo = 123\n$/bar = """unclosed string...\n'
+    # Default (is_final=True) should raise SyntaxError
+    with self.assertRaises(SyntaxError):
+      compiler.compile(incomplete_dsl)
+
+    # is_final=False should compile $/foo and discard the incomplete $/bar
+    res_partial = compiler.compile(incomplete_dsl, is_final=False)
+    self.assertEqual(res_partial["updateDataModel"]["value"]["foo"], 123)
+    self.assertNotIn("bar", res_partial["updateDataModel"]["value"])
+
+    # Early parser errors in completed statements should still raise ValueError even when is_final=False
+    invalid_dsl_early = '$/foo = Event("save", {rep})\n$/bar = """unclosed string...\n'
+    with self.assertRaises(ValueError):
+      compiler.compile(invalid_dsl_early, is_final=False)
+
+    # Standalone model updates with a trailing unbalanced structure (brackets/parentheses)
+    incomplete_dsl_brackets = '$/foo = 123\n$/bar = Column([\n'
+    # Default (is_final=True) should raise SyntaxError due to unbalanced symbols
+    with self.assertRaises(SyntaxError):
+      compiler.compile(incomplete_dsl_brackets)
+
+    # is_final=False should compile $/foo and discard the unbalanced $/bar
+    res_partial_brackets = compiler.compile(incomplete_dsl_brackets, is_final=False)
+    self.assertEqual(res_partial_brackets["updateDataModel"]["value"]["foo"], 123)
+    self.assertNotIn("bar", res_partial_brackets["updateDataModel"]["value"])
+
 
 if __name__ == "__main__":
   unittest.main()

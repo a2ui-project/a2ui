@@ -39,9 +39,12 @@ To eliminate syntax errors from complex bracket structures and enable line-orien
 
 The syntax supports three literal primitive types:
 
-- Strings are enclosed in straight double quotes, for example `"Enter your name"`.
-- Numbers are written as plain integers or decimals, for example `42` or `3.14`.
-- Booleans are represented by `true` or `false`.
+- **Strings** are represented in two formats:
+  - **Standard Strings**: Enclosed in single double quotes (e.g., `"Enter your name"`) or triple double quotes (e.g., `"""Line 1\nLine 2"""`). Standard strings support common escape sequences: `\n` (newline), `\t` (tab), `\\` (backslash), and `\"` (double quote). Embedded newlines are allowed.
+  - **Raw Strings**: Prefaced by `r` (e.g., `r"^[a-zA-Z]+$"` or `r"""Raw multi-line content"""`). In raw strings, no escape sequences are processed, and backslashes are interpreted as literal characters. This is particularly useful for validation regex patterns containing backslashes. Embedded newlines are allowed.
+- **Numbers** are written as plain integers or decimals, for example `42` or `3.14` or `-1`.
+- **Booleans** are represented by `true` or `false`.
+- **Null values** are represented by `null`.
 
 Omitted or skipped arguments are not represented by a literal type; instead, they are handled via syntax rules (see [Schema-driven key mapping](#schema-driven-key-mapping)).
 
@@ -159,7 +162,7 @@ openUrl("https://example.com")
 
 ## Compilation pipeline
 
-The compilation pipeline runs on the host application. It takes the plain text stream of A2UI Express, processes it, and emits a standard A2UI v1.0 JSON payload.
+The compilation runs as part of the inference pipeline. It takes the plain text stream of A2UI Express, processes it, and emits a standard A2UI v1.0 JSON payload to send to the client.
 
 ```mermaid
 flowchart TD
@@ -179,8 +182,8 @@ The compiler reads the input text line-by-line. It discards empty lines and pars
 If the compiler encounters a syntax error or catalog schema mismatch during parsing, it triggers a structured error recovery workflow:
 
 1. Isolation. The compiler flags the invalid line, discards that sub-branch of the AST, and continues parsing the remaining lines to avoid collapsing the user interface.
-2. Server-side micro-refinement. The host application packages the invalid line, the targeted component signature, and the parser error message into a tiny correction prompt.
-3. Fast foundation model correction. This correction prompt is sent to a fast, cloud-based foundation model (such as Gemini Flash or Gemini Flash Lite) on the server before converting the A2UI Express syntax to proper A2UI. Because the prompt is small and targets a single line, execution is fast.
+2. Agent-side micro-refinement. The agent packages the invalid line, the targeted component signature, and the parser error message into a tiny correction prompt.
+3. Fast model-based correction. This correction prompt is sent to a fast foundation model before converting the A2UI Express syntax to proper A2UI. Because the prompt is small and targets a single line, execution is fast.
 4. Hot swapping. The model returns the corrected statement, which the compiler hot-swaps into the active AST before finalizing the render output.
 
 ### Schema-driven key mapping

@@ -109,6 +109,11 @@ TOKEN_SPEC = [
     ("RAW_STRING", r'[rR]"[^"]*"'),
     ("TRIPLE_STRING", r'"""(?:(?!"""(?!"))(?:[^\\]|\\[\s\S]))*"""(?!")'),
     ("STRING", r'"(?:[^"\\]|\\.)*"'),
+    # Unclosed string fallback rules (must be defined AFTER closed strings)
+    ("UNCLOSED_RAW_TRIPLE_STRING", r'[rR]"""[\s\S]*'),
+    ("UNCLOSED_RAW_STRING", r'[rR]"[^"]*'),
+    ("UNCLOSED_TRIPLE_STRING", r'"""[\s\S]*'),
+    ("UNCLOSED_STRING", r'"(?:[^"\\]|\\.)*'),
     ("COMMENT", r"(?:#|//).*"),
     ("PATH", r"\$[a-zA-Z0-9_/]*"),
     ("CHECK", r"\?[a-zA-Z_][a-zA-Z0-9_]*"),
@@ -125,7 +130,8 @@ TOKEN_SPEC = [
     ("COLON", r":"),
     ("LBRACE", r"\{"),
     ("RBRACE", r"\}"),
-    ("WS", r"\s+"),
+    ("WS", r"[ \t]+"),
+    ("NEWLINE", r"[\r\n]+"),
 ]
 
 
@@ -151,7 +157,7 @@ def _unescape_string(val: str) -> str:
   return re.sub(r"\\(.)", repl, val)
 
 
-def tokenize(text: str) -> list[tuple[str, Any]]:
+def tokenize(text: str, is_final: bool = True) -> list[tuple[str, Any]]:
   """Tokenizes plain text into a list of scanning tokens.
 
   Args:
@@ -182,6 +188,18 @@ def tokenize(text: str) -> list[tuple[str, Any]]:
       val = _unescape_string(val[3:-3])
     elif kind == "STRING":
       val = _unescape_string(val[1:-1])
+    elif kind == "UNCLOSED_RAW_TRIPLE_STRING":
+      kind = "INCOMPLETE_STRING"
+      val = val[4:]
+    elif kind == "UNCLOSED_RAW_STRING":
+      kind = "INCOMPLETE_STRING"
+      val = val[2:]
+    elif kind == "UNCLOSED_TRIPLE_STRING":
+      kind = "INCOMPLETE_STRING"
+      val = _unescape_string(val[3:])
+    elif kind == "UNCLOSED_STRING":
+      kind = "INCOMPLETE_STRING"
+      val = _unescape_string(val[1:])
     elif kind == "NUMBER":
       val = float(val) if "." in val else int(val)
     elif kind == "BOOLEAN":
@@ -190,7 +208,8 @@ def tokenize(text: str) -> list[tuple[str, Any]]:
       val = None
     tokens.append((kind, val))
   if last_end < len(text):
-    raise SyntaxError(f"Unexpected character: {text[last_end:]!r}")
+    if is_final:
+      raise SyntaxError(f"Unexpected character: {text[last_end:]!r}")
   return tokens
 
 
@@ -389,7 +408,11 @@ class ExpressCompiler:
     self.helper = CatalogSchemaHelper(catalog_path)
 
   def compile(
-      self, dsl_text: str, surface_id: str = "default_surface", catalog_id: str = ""
+      self,
+      dsl_text: str,
+      surface_id: str = "default_surface",
+      catalog_id: str = "",
+      is_final: bool = True,
   ) -> dict:
     """Compiles plain A2UI Express DSL into standard A2UI v1.0 wire JSON.
 
@@ -424,42 +447,69 @@ class ExpressCompiler:
       if inside_a2ui:
         lines.append(line)
 
+    dsl_body = "\n".join(lines)
+
+    # Tokenize the entire text block
+    tokens = tokenize(dsl_body, is_final=is_final)
+
     statements = []
     current_statement = []
     open_p = 0
     open_b = 0
     open_c = 0
-    for line in lines:
-      if not current_statement and not line.strip():
+    has_incomplete_token = False
+
+    for tok_kind, tok_val in tokens:
+      if tok_kind == "NEWLINE":
+        if (
+            current_statement
+            and open_p <= 0
+            and open_b <= 0
+            and open_c <= 0
+            and not has_incomplete_token
+        ):
+          statements.append(current_statement)
+          current_statement = []
         continue
-      current_statement.append(line)
-      open_p += line.count("(") - line.count(")")
-      open_b += line.count("[") - line.count("]")
-      open_c += line.count("{") - line.count("}")
-      if open_p <= 0 and open_b <= 0 and open_c <= 0:
-        statements.append("\n".join(current_statement))
-        current_statement = []
-        open_p = 0
-        open_b = 0
-        open_c = 0
+
+      if tok_kind == "LPAREN":
+        open_p += 1
+      elif tok_kind == "RPAREN":
+        open_p -= 1
+      elif tok_kind == "LBRACKET":
+        open_b += 1
+      elif tok_kind == "RBRACKET":
+        open_b -= 1
+      elif tok_kind == "LBRACE":
+        open_c += 1
+      elif tok_kind == "RBRACE":
+        open_c -= 1
+      elif tok_kind == "INCOMPLETE_STRING":
+        has_incomplete_token = True
+        if is_final:
+          raise SyntaxError("Unterminated string literal.")
+
+      current_statement.append((tok_kind, tok_val))
+
+    # For streaming compatibility: compile the last statement only if complete and balanced
     if current_statement:
-      statements.append("\n".join(current_statement))
+      if open_p <= 0 and open_b <= 0 and open_c <= 0 and not has_incomplete_token:
+        statements.append(current_statement)
+      elif is_final:
+        if has_incomplete_token:
+          raise SyntaxError("Unterminated string literal at end of input.")
+        raise SyntaxError(
+            f"Unbalanced symbols at end of input (open parentheses: {open_p}, "
+            f"open brackets: {open_b}, open braces: {open_c})."
+        )
 
     raw_symbols = {}
     data_path_assignments = {}
     target_delete_surface_id = None
     standalone_function_calls = []
 
-    # Line parser and error recovery loop
-    for stmt in statements:
-      trimmed = stmt.strip()
-      try:
-        tokens = tokenize(trimmed)
-      except SyntaxError:
-        raise
-      except Exception:
-        continue
-
+    # Token parser loop
+    for tokens in statements:
       if not tokens:
         continue
 
