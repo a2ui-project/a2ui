@@ -25,37 +25,37 @@ import {parseArgs} from 'node:util';
 const {yellow, red, green, reset} = ansi;
 
 /**
- * Topologically sorts package names based on their internal dependencies.
+ * Topologically sorts package objects based on their internal dependencies.
  *
- * @param {string[]} packageNames - The package names to sort.
- * @param {Object} graph - The package graph.
- * @returns {string[]} The sorted package names.
+ * @param {Object[]} packageObjects - The package objects to sort.
+ * @returns {Object[]} The incoming package objects topologically sorted.
  */
-function topologicalSort(packageNames, graph) {
+function topologicalSort(packageObjects) {
   const sorted = [];
   const visited = new Set();
   const temp = new Set();
 
-  function visit(name) {
+  // Create a map from package name to its package object.
+  const objectMap = Object.fromEntries(packageObjects.map(p => [p.name, p]));
+
+  function visit(pkg) {
+    const name = pkg.name;
     if (temp.has(name)) throw new Error(`Circular dependency detected involving ${name}`);
     if (visited.has(name)) return;
 
     temp.add(name);
-    const pkg = graph[name];
-    if (pkg) {
-      for (const dep of pkg.internalDependencies) {
-        if (packageNames.includes(dep)) {
-          visit(dep);
-        }
+    for (const dep of pkg.internalDependencies) {
+      if (dep in objectMap) {
+        visit(objectMap[dep]);
       }
     }
     temp.delete(name);
     visited.add(name);
-    sorted.push(name);
+    sorted.push(pkg);
   }
 
-  for (const name of packageNames) {
-    visit(name);
+  for (const pkg of packageObjects) {
+    visit(pkg);
   }
   return sorted;
 }
@@ -63,11 +63,12 @@ function topologicalSort(packageNames, graph) {
 /**
  * Calculates the difference between two version strings.
  *
- * @param {string} oldV - The old version string.
+ * @param {string | null} oldV - The old version string.
  * @param {string} newV - The new version string.
  * @returns {string} The diff type (e.g., 'MAJOR', 'MINOR', 'PATCH', 'SAME', etc.)
  */
 function getVersionDiff(oldV, newV) {
+  if (oldV == null) return 'NEW';
   if (oldV === newV) return 'SAME';
   const [oCore, ...oPreArr] = oldV.split('-');
   const [nCore, ...nPreArr] = newV.split('-');
@@ -135,83 +136,87 @@ function checkGitProvenance(exec) {
 }
 
 /**
- * Validates that core dependencies are included when publishing renderers.
+ * Ensures that web_core and markdown-it are present in artifact registry so they can be resolved
+ * when preparing the dist build of packageNames.
  *
  * @param {string[]} packageNames - The package names to check.
+ * @returns {string[]} The package names including web_core and markdown-it.
  */
-function checkCoreDependencies(packageNames) {
-  const webCoreName = '@a2ui/web_core';
-  const markdownItName = '@a2ui/markdown-it';
-  const renderers = ['@a2ui/lit', '@a2ui/angular', '@a2ui/react'];
-  const requestedRenderers = packageNames.filter(p => renderers.includes(p));
+function ensureCoreDependencies(packageNames) {
+  const corePackages = ['@a2ui/markdown-it', '@a2ui/web_core'];
 
-  if (requestedRenderers.length > 0) {
-    const missingCores = [];
-    if (!packageNames.includes(webCoreName)) missingCores.push(webCoreName);
-    if (!packageNames.includes(markdownItName)) missingCores.push(markdownItName);
+  const resolvedPackages = [...packageNames];
+  const missingCore = corePackages.filter(name => !resolvedPackages.includes(name));
 
-    if (missingCores.length > 0) {
-      console.warn(
-        `${yellow}WARNING: You are publishing renderers but NOT ${missingCores.join(' and ')}.${reset}`,
-      );
-      console.warn(
-        `${yellow}This can lead to broken versions if shared dependencies have changed.${reset}`,
-      );
-      console.warn(`${yellow}Use --no-check-core-dependencies to override this check.${reset}`);
-      throw new Error(
-        `Safety check failed: ${missingCores.join(' and ')} missing from publish list.`,
-      );
-    }
+  resolvedPackages.push(...missingCore);
+  if (missingCore.length > 0) {
+    console.warn(
+      `${yellow}Automatically added: ${missingCore.join(' and ')} to packages to publish.${reset}`,
+    );
+  }
+  return resolvedPackages;
+}
+
+/**
+ * Gets the version of a package on npm.
+ *
+ * @param {Object} pkg - The package to check.
+ * @param {Function} exec - The execSync function to use.
+ * @returns {string|null} The version of the package on npm, or null if it does not exist.
+ */
+function getNpmVersion(pkg, npmToken, exec) {
+  try {
+    const remoteVersionJson = exec(`yarn npm info ${pkg.name} --fields version --json`, {
+      encoding: 'utf8',
+      stdio: ['pipe', 'pipe', 'ignore'],
+      env: {...process.env, NPM_TOKEN: npmToken},
+    }).trim();
+    const remoteVersion = JSON.parse(remoteVersionJson)?.version;
+    return remoteVersion;
+  } catch (e) {
+    return null;
   }
 }
 
 /**
- * Checks package versions against npmjs.
+ * Filters the incoming packages list, and returns another one with the packages that should be published.
+ *
+ * This method skips packages that are published in the same version, fails if the published version
+ * is newwer than the local version, and congratulates the user in other cases.
  *
  * @param {Object[]} packages - The package objects to check.
  * @param {Function} exec - The execSync function to use.
  */
-function checkNpmVersions(packages, exec) {
-  console.log('--- Pre-flight Version Checks ---');
+function filterPublishablePackages(packages, npmToken, exec) {
+  const packagesToPublish = [];
   for (const pkg of packages) {
     const localVersion = pkg.version;
-    let remoteVersion;
-
-    try {
-      remoteVersion = exec(`yarn npm info ${pkg.name} --fields version`, {
-        encoding: 'utf8',
-        stdio: ['pipe', 'pipe', 'ignore'],
-      }).trim();
-    } catch (e) {
-      remoteVersion = null;
-    }
-
-    if (!remoteVersion) {
-      console.log(
-        `✅ [NEW PACKAGE] ${pkg.name}: Will be published for the first time as ${localVersion}`,
-      );
-      continue;
-    }
-
-    if (remoteVersion === localVersion) {
-      console.error(`\n❌ ERROR: ${pkg.name} version ${localVersion} is already published on npm!`);
-      console.error(
-        `Please increment the version (e.g., using increment_version.mjs) before publishing.`,
-      );
-      throw new Error(`Version ${localVersion} already published.`);
-    }
-
+    const remoteVersion = getNpmVersion(pkg, npmToken, exec);
     const diff = getVersionDiff(remoteVersion, localVersion);
-    if (diff === 'OLDER_OR_UNKNOWN') {
-      console.error(
-        `\n❌ ERROR: ${pkg.name} local version (${localVersion}) appears older or invalid compared to npm version (${remoteVersion})!`,
-      );
-      throw new Error(`Invalid version progression for ${pkg.name}.`);
+    switch (diff) {
+      case 'NEW':
+        console.log(
+          `✅ [NEW PACKAGE] ${pkg.name}: Will be published for the first time as ${localVersion}`,
+        );
+        packagesToPublish.push(pkg);
+        break;
+      case 'SAME':
+        console.warn(
+          `⚠️ WARNING: ${pkg.name} version ${localVersion} is already published on npm. Skipping.`,
+        );
+        break;
+      case 'OLDER_OR_UNKNOWN':
+        console.error(
+          `❌ ERROR: ${pkg.name} local version (${localVersion}) appears older or invalid compared to npm version (${remoteVersion})!`,
+        );
+        throw new Error(`Invalid version progression for ${pkg.name}.`);
+      default:
+        console.log(`✅ [${diff}] ${pkg.name}: ${remoteVersion} -> ${localVersion}`);
+        packagesToPublish.push(pkg);
+        break;
     }
-
-    console.log(`✅ [${diff}] ${pkg.name}: ${remoteVersion} -> ${localVersion}`);
   }
-  console.log('\nPre-flight checks passed.');
+  return packagesToPublish;
 }
 
 /**
@@ -254,11 +259,6 @@ export async function main(args, mocks = {}) {
       multiple: true,
       default: [],
     },
-    'check-core-dependencies': {
-      type: 'boolean',
-      default: true,
-    },
-
     'dry-run': {
       type: 'boolean',
       default: true,
@@ -299,8 +299,7 @@ Examples:
   ./publish_npm.mjs -p web_core -p react --no-dry-run --skip-tests`);
     return;
   }
-  const packagesToPublish = values.package;
-  const checkCoreDeps = values['check-core-dependencies'];
+  let packagesToPublish = values.package;
 
   const dryRun = values['dry-run'];
   const skipTests = values['skip-tests'];
@@ -310,6 +309,9 @@ Examples:
       'Usage: publish_npm --package=pkg1 --package=pkg2 [--no-check-core-dependencies] [--no-dry-run] [--skip-tests]',
     );
   }
+
+  // Ensure the core packages are published.
+  packagesToPublish = ensureCoreDependencies(packagesToPublish);
 
   // Checks the status of the current git branch.
   const commitHash = checkGitProvenance(exec);
@@ -322,19 +324,26 @@ Examples:
     if (!pkg) {
       throw new Error(`Package "${name}" not found in workspace.`);
     }
-    return pkg.name;
+    return pkg;
   });
 
-  // Check that core dependencies are being published.
-  if (checkCoreDeps) {
-    checkCoreDependencies(resolvedPackages);
+  let npmToken = process.env.NPM_TOKEN;
+  if (!npmToken) {
+    console.log(`- Obtaining fresh Artifact Registry token via gcloud CLI`);
+    try {
+      npmToken = exec('gcloud auth print-access-token', {encoding: 'utf8'}).trim();
+    } catch (e) {
+      console.warn(
+        `${yellow}⚠️ Could not obtain gcloud access token. Ensure you are logged in (${reset}gcloud auth login${yellow}).${reset}`,
+      );
+    }
   }
-  // Sort package names topologically (by dependency graph order).
-  const sortedPackages = topologicalSort(resolvedPackages, graph);
-  // Expands the list of topologically-sorted package names to package objects with additional dependency graph info.
-  const packageObjects = sortedPackages.map(name => graph[name]);
-  // Check the NPM versions of the packages we're about to publish.
-  checkNpmVersions(packageObjects, exec);
+
+  // Sort packages topologically (by dependency graph order).
+  const packageObjects = topologicalSort(
+    filterPublishablePackages(resolvedPackages, npmToken, exec),
+  );
+
   // Ensure packages can be built and tested.
   buildAndTestPackages(packageObjects, runCmd, skipTests);
 
@@ -342,18 +351,6 @@ Examples:
 
   for (const pkg of packageObjects) {
     console.log(`\n=== Publishing ${pkg.name} (${pkg.version}) ===`);
-
-    let npmToken = process.env.NPM_TOKEN || '';
-    if (!dryRun && !npmToken) {
-      console.log(`- Obtaining fresh Artifact Registry token via gcloud CLI for ${pkg.name}...`);
-      try {
-        npmToken = exec('gcloud auth print-access-token', {encoding: 'utf8'}).trim();
-      } catch (e) {
-        console.warn(
-          `${yellow}⚠️ Could not obtain gcloud access token. Ensure you are logged in (${reset}gcloud auth login${yellow}).${reset}`,
-        );
-      }
-    }
 
     console.log(`- Running publish:package in ${pkg.dir}`);
     maybeRunCommand(
@@ -367,7 +364,10 @@ Examples:
     );
   }
 
-  console.log(`\n${green}Done.${reset}`);
+  if (!dryRun) {
+    console.log('Uploaded artifacts to: go/a2ui-oss-exit-gate-artifacts');
+  }
+  console.log(`${green}Done.${reset}`);
 }
 
 // Only run the script if this file is executed directly.
