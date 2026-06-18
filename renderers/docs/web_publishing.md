@@ -90,7 +90,6 @@ gcloud storage cp manifest.json gs://oss-exit-gate-prod-projects-bucket/a2ui/npm
 
 The internal release infrastructure monitors the GCS bucket for new manifests. Once a manifest is uploaded, it triggers a series of checks and then publishes the specified versions to the public npm registry.
 
-
 ### 🏢 Internal Artifact Registry Setup (Exit Gate) - For Yarn Modern
 
 The monorepo is fully configured in `.yarnrc.yml` to route `@a2ui` scoped packages to the internal Google Artifact Registry. Authentication is automatically injected via `gcloud` when running `./renderers/scripts/publish_npm.mjs`.
@@ -208,7 +207,7 @@ Googlers can visit [go/a2ui-oss-exit-gate-artifacts](https://go/a2ui-oss-exit-ga
 
 ## Troubleshooting
 
-* If you get authorization errors, make sure you're logged in in the `gcloud` CLI. This can take
+- If you get authorization errors, make sure you're logged in in the `gcloud` CLI. This can take
   a few seconds to propagate after you're authenticated.
-* If you get weird build errors but everything passed in CI, your working copy is probably dirty.
+- If you get weird build errors but everything passed in CI, your working copy is probably dirty.
   Try running `yarn clean:all` to remove old build artifacts.
