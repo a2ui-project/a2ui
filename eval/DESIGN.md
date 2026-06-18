@@ -167,7 +167,7 @@ By implementing these strategies, the A2UI project ensures that its evaluation d
 - [How to securely handle API keys and secrets in a GitHub repository? \- GitHub Discussions](https://github.com/orgs/community/discussions/190912)
 - [How to Test and Evaluate AI? \- GitHub Pages](https://testing-ai-standards.github.io/cross-gov-ai-testing-framework/)
 - [Inspect AI](https://inspect.aisi.org.uk/)
-- [LatestEval: Addressing Data Contamination in Language Model Evaluation \- AAAI Publications](https://ojs.aaai.org/index.php/AAAI/article/view/29822/31427)
+- [LatestEval: Addressing Data Contamination in Language Model Evaluation \- AAAI Publications](https://ojs.aaai.org/index.php/AAAI/article/view/29822)
 - [LLM Evaluation: Frameworks, Metrics, and Best Practices \- SuperAnnotate](https://www.superannotate.com/blog/llm-evaluation-guide)
 - [LLM Evaluation: Key Concepts & Best Practices \- Nexla](https://nexla.com/ai-readiness/llm-evaluation/)
 - [LLM Testing: A Practical Guide to Automated Testing for LLM Applications \- Langfuse](https://langfuse.com/blog/2025-10-21-testing-llm-applications)
