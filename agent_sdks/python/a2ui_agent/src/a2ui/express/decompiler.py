@@ -78,7 +78,7 @@ class ExpressDecompiler:
       dsl_lines = []
       if data_val:
         for path, val in sorted(_flatten_data_model(data_val)):
-          val_str = self._decompile_value(val, set())
+          val_str = self._decompile_value(val, set(), False)
           dsl_lines.append(f"${path} = {val_str}")
       dsl_body = "\n".join(dsl_lines)
       return f"<a2ui>\n{dsl_body}\n</a2ui>"
@@ -93,13 +93,13 @@ class ExpressDecompiler:
         fn_props = self.helper.get_function_properties(fn_name)
         for prop_name in fn_props:
           if prop_name in fn_args:
-            val_str = self._decompile_value(fn_args[prop_name], set())
+            val_str = self._decompile_value(fn_args[prop_name], set(), False)
             args_list.append(val_str)
           else:
             args_list.append("_")
       else:
         for k, v in fn_args.items():
-          val_str = self._decompile_value(v, set())
+          val_str = self._decompile_value(v, set(), False)
           args_list.append(val_str)
       while args_list and args_list[-1] == "_":
         args_list.pop()
@@ -184,7 +184,8 @@ class ExpressDecompiler:
         # Map other regular properties
         if prop_name in c:
           val = c[prop_name]
-          args_reprs.append(self._decompile_value(val, comp_ids))
+          is_prop_ref = prop_name in ("child", "children", "trigger", "content")
+          args_reprs.append(self._decompile_value(val, comp_ids, is_prop_ref))
         else:
           # Only append "_" if there is a subsequent regular property that has a value
           idx = properties.index(prop_name)
@@ -205,12 +206,13 @@ class ExpressDecompiler:
     dsl_body = "\n".join(dsl_lines)
     return f"<a2ui>\n{dsl_body}\n</a2ui>"
 
-  def _decompile_value(self, val: Any, comp_ids: set[str]) -> str:
+  def _decompile_value(self, val: Any, comp_ids: set[str], is_ref: bool = False) -> str:
     """Decompiles a single value node back to A2UI Express notation.
 
     Args:
         val: The JSON-serialized property value structure.
         comp_ids: A set of all component IDs registered in the surface context.
+        is_ref: Whether this value is a component reference.
 
     Returns:
         A plain-text representation of the value.
@@ -218,7 +220,7 @@ class ExpressDecompiler:
     if isinstance(val, dict):
       if "path" in val:
         if "componentId" in val:
-          path_repr = self._decompile_value({"path": val["path"]}, comp_ids)
+          path_repr = self._decompile_value({"path": val["path"]}, comp_ids, False)
           comp_id_repr = val["componentId"]
           return f"_template({path_repr}, {comp_id_repr})"
         # Decompile path: prefixed by $
@@ -234,7 +236,7 @@ class ExpressDecompiler:
         ctx = evt.get("context", {})
         ctx_reprs = []
         for k, v in ctx.items():
-          ctx_reprs.append(f"{k}: {self._decompile_value(v, comp_ids)}")
+          ctx_reprs.append(f"{k}: {self._decompile_value(v, comp_ids, False)}")
         if ctx_reprs:
           return f'Event("{name}", {{{", ".join(ctx_reprs)}}})'
         return f'Event("{name}")'
@@ -249,7 +251,7 @@ class ExpressDecompiler:
         args_reprs = []
         for p in fn_props:
           if p in args:
-            args_reprs.append(self._decompile_value(args[p], comp_ids))
+            args_reprs.append(self._decompile_value(args[p], comp_ids, False))
           else:
             args_reprs.append("_")
 
@@ -265,7 +267,7 @@ class ExpressDecompiler:
         args_reprs = []
         for p in fn_props:
           if p in args:
-            args_reprs.append(self._decompile_value(args[p], comp_ids))
+            args_reprs.append(self._decompile_value(args[p], comp_ids, False))
           else:
             args_reprs.append("_")
 
@@ -276,18 +278,19 @@ class ExpressDecompiler:
       # General dict
       items_reprs = []
       for k, v in val.items():
-        items_reprs.append(f"{k}: {self._decompile_value(v, comp_ids)}")
+        item_is_ref = is_ref or k in ("child", "componentId")
+        items_reprs.append(f"{k}: {self._decompile_value(v, comp_ids, item_is_ref)}")
       return f'{{{", ".join(items_reprs)}}}'
 
     if isinstance(val, list):
       # Decompile array
-      list_reprs = [self._decompile_value(item, comp_ids) for item in val]
+      list_reprs = [self._decompile_value(item, comp_ids, is_ref) for item in val]
       return f"[{', '.join(list_reprs)}]"
 
     if isinstance(val, str):
       # If it matches a component ID reference, keep it as a variable identifier
       # (if it is a structural variable name)
-      if val in comp_ids:
+      if is_ref and val in comp_ids:
         return val
       # Otherwise quote as string literal
       escaped = val.replace('"', '\\"')

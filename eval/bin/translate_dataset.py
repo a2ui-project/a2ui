@@ -15,8 +15,9 @@
 import yaml
 import os
 
-source_path = "/Users/gspencer/code/a2ui/a2ui_express/eval/datasets/v0_9_prompts.yaml"
-dest_path = "/Users/gspencer/code/a2ui/a2ui_express/eval/datasets/v1_0_prompts.yaml"
+CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
+source_path = os.path.abspath(os.path.join(CURRENT_DIR, "../datasets/v0_9_prompts.yaml"))
+dest_path = os.path.abspath(os.path.join(CURRENT_DIR, "../datasets/v1_0_prompts.yaml"))
 
 with open(source_path, "r") as f:
     data = yaml.safe_load(f)

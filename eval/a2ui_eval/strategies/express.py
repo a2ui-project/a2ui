@@ -14,6 +14,7 @@
 
 import json
 import os
+import re
 os.environ["A2UI_EXPRESS_ENABLED"] = "true"
 from inspect_ai.solver import Solver, solver, TaskState, Generate
 from inspect_ai.model import ChatMessageSystem, ModelOutput, ChatCompletionChoice, ChatMessageAssistant, ChatMessageUser
@@ -68,7 +69,6 @@ def a2ui_express_prompt(catalog_path: str) -> Solver:
         
     return solve
 
-import re
 
 @solver
 def compile_express_dsl(catalog_path: str) -> Solver:

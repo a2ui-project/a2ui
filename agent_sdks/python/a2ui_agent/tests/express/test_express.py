@@ -930,6 +930,52 @@ btnLabel = Text("Click Thread 2")
 
     self.assertEqual(errors, [], f"Concurrency errors encountered: {errors}")
 
+  def test_pr_fixes_regression(self):
+    """Regression tests for sentinel spacing, decompiler string refs, empty lines."""
+    from a2ui.express.compiler import ExpressCompiler
+    from a2ui.express.decompiler import ExpressDecompiler
+    from a2ui.express.schema_helper import CatalogSchemaHelper
+
+    compiler = ExpressCompiler(self.catalog_path)
+    decompiler = ExpressDecompiler(self.catalog_path)
+
+    # 1. Regression test: Sentinel tag on the same line as a statement
+    dsl_sentinel = '<a2ui>root = Column([text1])\ntext1 = Text("Hello")\n</a2ui>'
+    res = compiler.compile(dsl_sentinel)
+    self.assertIn("createSurface", res)
+    components = res["createSurface"]["components"]
+    self.assertEqual(len(components), 2)
+
+    # 2. Regression test: Decompiler string literals matching component IDs but not references
+    wire_json = {
+        "createSurface": {
+            "surfaceId": "test_surf",
+            "components": [
+                {"id": "root", "component": "Column", "children": ["text1"]},
+                {"id": "text1", "component": "Text", "text": "text1"},
+            ],
+        }
+    }
+    decompiled_dsl = decompiler.decompile(wire_json)
+    self.assertIn('text1 = Text("text1")', decompiled_dsl)
+
+    # 3. Regression test: Preserve empty lines in multi-line strings
+    dsl_multiline = """
+root = Column([text1])
+text1 = Text("# Heading 1
+
+This is bold.
+
+- Item 1")
+"""
+    res_multiline = compiler.compile(dsl_multiline)
+    compiled_text = res_multiline["createSurface"]["components"][1]["text"]
+    self.assertEqual(compiled_text, "# Heading 1\n\nThis is bold.\n\n- Item 1")
+
+    # 4. Regression test: Boolean schemas inside allOf in CatalogSchemaHelper
+    helper = CatalogSchemaHelper(self.catalog_path)
+    self.assertIsNotNone(helper.components)
+
 
 if __name__ == "__main__":
   unittest.main()

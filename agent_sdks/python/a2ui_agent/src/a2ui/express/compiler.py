@@ -379,9 +379,13 @@ class ExpressCompiler:
       trimmed = line.strip()
       if "<a2ui>" in trimmed:
         inside_a2ui = True
-        continue
+        line = line.replace("<a2ui>", "")
+        trimmed = line.strip()
       if "</a2ui>" in trimmed:
         inside_a2ui = False
+        line = line.split("</a2ui>")[0]
+        if line.strip():
+          lines.append(line)
         continue
       if inside_a2ui:
         lines.append(line)

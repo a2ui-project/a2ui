@@ -66,6 +66,8 @@ class CatalogSchemaHelper:
         sub_schemas.extend(schema["allOf"])
 
       for sub in sub_schemas:
+        if not isinstance(sub, dict):
+          continue
         if "$ref" in sub:
           ref = sub["$ref"]
           if "Checkable" in ref:
