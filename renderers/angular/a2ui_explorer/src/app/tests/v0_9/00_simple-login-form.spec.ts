@@ -35,7 +35,7 @@ describe('Example: Simple Login Form', () => {
   it('should dispatch login_submitted action with the form contents on button click', async () => {
     const component = fixture.componentInstance;
 
-    const inputs = fixture.nativeElement.querySelectorAll('input');
+    const inputs = fixture.nativeElement.querySelectorAll('input') as NodeListOf<HTMLInputElement>;
     expect(inputs.length).toBeGreaterThanOrEqual(2);
 
     inputs[0].value = 'testuser';
@@ -46,7 +46,9 @@ describe('Example: Simple Login Form', () => {
 
     fixture.detectChanges();
 
-    const buttons = fixture.nativeElement.querySelectorAll('a2ui-v09-button button');
+    const buttons = fixture.nativeElement.querySelectorAll(
+      '.a2ui-button',
+    ) as NodeListOf<HTMLButtonElement>;
     expect(buttons.length).toBeGreaterThan(0);
     const btn = buttons[0];
     expect(btn).toBeTruthy();

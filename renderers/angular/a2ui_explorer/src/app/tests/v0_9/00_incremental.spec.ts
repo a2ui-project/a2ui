@@ -35,14 +35,18 @@ describe('Example: Incremental', () => {
   });
 
   it('should render Book now button for each restaurant', async () => {
-    const buttons = fixture.nativeElement.querySelectorAll('a2ui-v09-button button');
+    const buttons = fixture.nativeElement.querySelectorAll(
+      '.a2ui-button',
+    ) as NodeListOf<HTMLButtonElement>;
     expect(buttons.length).toBe(4);
     expect(buttons[0].textContent).toContain('Book now');
   });
 
   it('should dispatch book_now action when a Book now button is clicked', async () => {
     const component = fixture.componentInstance;
-    const buttons = fixture.nativeElement.querySelectorAll('a2ui-v09-button button');
+    const buttons = fixture.nativeElement.querySelectorAll(
+      '.a2ui-button',
+    ) as NodeListOf<HTMLButtonElement>;
 
     // Click the Book now button for "The Golden Fork" (first restaurant)
     buttons[0].click();

@@ -33,7 +33,7 @@ describe('Example: Formatted Text', () => {
   });
 
   it('should update result text when typing in the input field', async () => {
-    const input = fixture.nativeElement.querySelector('input');
+    const input = fixture.nativeElement.querySelector('input') as HTMLInputElement;
     expect(input).toBeTruthy();
 
     input.value = 'hello world';

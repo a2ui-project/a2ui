@@ -35,7 +35,9 @@ describe('Example: Interactive Button', () => {
   it('should dispatch button_clicked action on button click', async () => {
     const component = fixture.componentInstance;
 
-    const buttons = fixture.nativeElement.querySelectorAll('a2ui-v09-button button');
+    const buttons = fixture.nativeElement.querySelectorAll(
+      '.a2ui-button',
+    ) as NodeListOf<HTMLButtonElement>;
     expect(buttons.length).toBeGreaterThan(0);
     const btn = buttons[0];
     expect(btn).toBeTruthy();
