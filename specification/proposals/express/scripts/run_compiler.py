@@ -40,7 +40,7 @@ sys.path.insert(
         )
     ),
 )
-from a2ui.express.compiler import ExpressCompiler
+from a2ui.experimental.express.compiler import ExpressCompiler
 
 
 def compile_dsl_file(

@@ -69,7 +69,6 @@ def _decompile_string(val: str) -> str:
   return f'"{escaped}"'
 
 
-
 class ExpressDecompiler:
   """Converts standard A2UI wire JSON trees back into A2UI Express syntax.
 

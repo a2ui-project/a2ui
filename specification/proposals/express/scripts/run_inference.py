@@ -56,8 +56,8 @@ sys.path.insert(
 )
 
 # pylint: disable=import-error, wrong-import-position
-from a2ui.express.compiler import ExpressCompiler
-from a2ui.express.prompt_generator import ExpressPromptGenerator
+from a2ui.experimental.express.compiler import ExpressCompiler
+from a2ui.experimental.express.prompt_generator import ExpressPromptGenerator
 # pylint: enable=import-error, wrong-import-position
 
 

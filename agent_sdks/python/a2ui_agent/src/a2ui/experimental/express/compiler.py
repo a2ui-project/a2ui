@@ -134,6 +134,7 @@ def _unescape_string(val: str) -> str:
 
   Any other escape sequences are treated as literal characters.
   """
+
   def repl(m):
     seq = m.group(0)
     char = m.group(1)
@@ -146,6 +147,7 @@ def _unescape_string(val: str) -> str:
     if char == '"':
       return '"'
     return seq
+
   return re.sub(r"\\(.)", repl, val)
 
 

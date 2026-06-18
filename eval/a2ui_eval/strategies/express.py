@@ -18,8 +18,11 @@ import re
 os.environ["A2UI_EXPRESS_ENABLED"] = "true"
 from inspect_ai.solver import Solver, solver, TaskState, Generate
 from inspect_ai.model import ChatMessageSystem, ModelOutput, ChatCompletionChoice, ChatMessageAssistant, ChatMessageUser
-from a2ui.express.prompt_generator import ExpressPromptGenerator
-from a2ui.express.compiler import ExpressCompiler
+from a2ui.experimental.express.prompt_generator import ExpressPromptGenerator
+from a2ui.experimental.express.compiler import ExpressCompiler
+from a2ui.experimental.express.parser import parse_express_response
+from a2ui.schema.manager import A2uiSchemaManager
+from a2ui.schema.catalog import CatalogConfig
 from ..shared.utils import measured_generate
 
 @solver
@@ -30,41 +33,6 @@ def a2ui_express_prompt(catalog_path: str) -> Solver:
 
     async def solve(state: TaskState, generate: Generate) -> TaskState:
         state.messages.insert(0, ChatMessageSystem(content=prompt))
-        for message in state.messages:
-            if message.role == "user" and isinstance(message.content, str):
-                content = message.content
-                content = re.sub(
-                    r"(?i)generate a JSON message containing a?|generate a JSON payload containing a?",
-                    "Generate a",
-                    content
-                )
-                content = re.sub(
-                    r"(?i)generate a JSON message|generate a JSON payload",
-                    "generate A2UI Express DSL",
-                    content
-                )
-                content = re.sub(
-                    r"(?i)generate a? 'createSurface' message (?:and|followed by) a? 'updateComponents' message",
-                    "generate A2UI Express DSL",
-                    content
-                )
-                content = re.sub(
-                    r"(?i)generate a? 'createSurface' (?:message )?and a? 'updateComponents' (?:message)?",
-                    "generate A2UI Express DSL",
-                    content
-                )
-                content = re.sub(
-                    r"(?i)generate 'createSurface' and 'updateComponents' messages?",
-                    "generate A2UI Express DSL",
-                    content
-                )
-                message.content = (
-                    "Translate the following request into A2UI Express DSL wrapped inside <a2ui> and </a2ui> sentinels:\n\n"
-                    + content
-                    + "\n\nREMINDER: You must output ONLY A2UI Express DSL wrapped in <a2ui> and </a2ui> sentinels. "
-                    "Do NOT output JSON or <a2ui-json> blocks under any circumstances. Directly generating JSON will fail compilation."
-                )
-        print("MESSAGES PATH:", [(m.role, m.content[:40]) for m in state.messages])
         return state
         
     return solve
@@ -73,11 +41,7 @@ def a2ui_express_prompt(catalog_path: str) -> Solver:
 @solver
 def compile_express_dsl(catalog_path: str) -> Solver:
     """Solver to compile generated A2UI Express DSL back to standard JSON."""
-    compiler = ExpressCompiler(catalog_path)
-
     # Initialize the catalog schema validator for parsing
-    from a2ui.schema.manager import A2uiSchemaManager
-    from a2ui.schema.catalog import CatalogConfig
     catalog_config = CatalogConfig.from_path("basic_catalog", catalog_path)
     manager = A2uiSchemaManager(version="1.0", catalogs=[catalog_config])
     catalog = manager.get_selected_catalog()
@@ -98,27 +62,17 @@ def compile_express_dsl(catalog_path: str) -> Solver:
         )
         surface_id = surface_id_match.group(1) if surface_id_match else "main"
 
-        # Extract DSL content inside <a2ui> tags if present, or clean markdown blocks
-        dsl_content = completion
-        if "<a2ui>" in completion:
-            start_idx = completion.find("<a2ui>") + len("<a2ui>")
-            end_idx = completion.find("</a2ui>")
-            if end_idx != -1:
-                dsl_content = completion[start_idx:end_idx].strip()
-            else:
-                dsl_content = completion[start_idx:].strip()
-        else:
-            if dsl_content.startswith("```"):
-                lines = dsl_content.splitlines()
-                if lines[0].startswith("```"):
-                    lines = lines[1:]
-                if lines and lines[-1].startswith("```"):
-                    lines = lines[:-1]
-                dsl_content = "\n".join(lines).strip()
-
         try:
-            # 1. Compile DSL to JSON
-            compiled_json = compiler.compile(dsl_content, surface_id=surface_id)
+            # 1. Parse and compile DSL to JSON
+            parts = parse_express_response(completion, catalog_path, surface_id=surface_id)
+            compiled_json = None
+            for p in parts:
+                if p.a2ui_json:
+                    compiled_json = p.a2ui_json[0]
+                    break
+            
+            if not compiled_json:
+                raise ValueError("No compiled A2UI Express DSL JSON payload found in parsed parts.")
             
             # 2. Validate using catalog schema validator (runs integrity checker too)
             validator.validate([compiled_json])
@@ -135,7 +89,7 @@ def compile_express_dsl(catalog_path: str) -> Solver:
             state.output = ModelOutput(
                 model=state.output.model,
                 choices=[ChatCompletionChoice(message=ChatMessageAssistant(
-                    content=f"Compilation/validation failed: {e}\nRaw output:\n{dsl_content}"
+                    content=f"Compilation/validation failed: {e}\nRaw output:\n{completion}"
                 ))]
             )
 

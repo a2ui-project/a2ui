@@ -37,6 +37,7 @@ EXPRESS_DIR = os.path.abspath(
         "specification",
         "proposals",
         "express",
+        "scripts",
     )
 )
 sys.path.insert(0, EXPRESS_DIR)

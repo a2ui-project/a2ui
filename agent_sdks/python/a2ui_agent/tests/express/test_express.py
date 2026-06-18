@@ -24,10 +24,10 @@ os.environ["A2UI_EXPRESS_ENABLED"] = "true"
 import json
 import glob
 import unittest
-from a2ui.express.prompt_generator import ExpressPromptGenerator
-from a2ui.express.compiler import ExpressCompiler
-from a2ui.express.decompiler import ExpressDecompiler
-from a2ui.express.schema_helper import CatalogSchemaHelper
+from a2ui.experimental.express.prompt_generator import ExpressPromptGenerator
+from a2ui.experimental.express.compiler import ExpressCompiler
+from a2ui.experimental.express.decompiler import ExpressDecompiler
+from a2ui.experimental.express.schema_helper import CatalogSchemaHelper
 
 SPEC_DIR = os.path.abspath(
     os.path.join(
@@ -890,7 +890,7 @@ $/age = 25"""
   def test_compiler_concurrency(self):
     """Verifies that ExpressCompiler is thread-safe and supports concurrent compilation."""
     import threading
-    from a2ui.express.compiler import ExpressCompiler
+    from a2ui.experimental.express.compiler import ExpressCompiler
 
     compiler = ExpressCompiler(self.catalog_path)
     errors = []
@@ -932,9 +932,9 @@ btnLabel = Text("Click Thread 2")
 
   def test_pr_fixes_regression(self):
     """Regression tests for sentinel spacing, decompiler string refs, empty lines."""
-    from a2ui.express.compiler import ExpressCompiler
-    from a2ui.express.decompiler import ExpressDecompiler
-    from a2ui.express.schema_helper import CatalogSchemaHelper
+    from a2ui.experimental.express.compiler import ExpressCompiler
+    from a2ui.experimental.express.decompiler import ExpressDecompiler
+    from a2ui.experimental.express.schema_helper import CatalogSchemaHelper
 
     compiler = ExpressCompiler(self.catalog_path)
     decompiler = ExpressDecompiler(self.catalog_path)
@@ -990,11 +990,11 @@ This is bold.
     # 1. Standard Single-Quoted Strings & Escaping
     self.assertEqual(get_compiled_text('"hello"'), "hello")
     self.assertEqual(get_compiled_text('"hello \\"world\\""'), 'hello "world"')
-    self.assertEqual(get_compiled_text('"hello \\n world"'), 'hello \n world')
-    self.assertEqual(get_compiled_text('"hello \\t world"'), 'hello \t world')
-    self.assertEqual(get_compiled_text('"hello \\\\ world"'), 'hello \\ world')
+    self.assertEqual(get_compiled_text('"hello \\n world"'), "hello \n world")
+    self.assertEqual(get_compiled_text('"hello \\t world"'), "hello \t world")
+    self.assertEqual(get_compiled_text('"hello \\\\ world"'), "hello \\ world")
     # Unsupported escape sequence is treated as literal
-    self.assertEqual(get_compiled_text('"hello \\x world"'), 'hello \\x world')
+    self.assertEqual(get_compiled_text('"hello \\x world"'), "hello \\x world")
 
     # 2. Standard Triple-Quoted Strings
     self.assertEqual(get_compiled_text('"""hello"""'), "hello")
@@ -1002,11 +1002,11 @@ This is bold.
     self.assertEqual(get_compiled_text('"""hello \\"world\\" """'), 'hello "world" ')
 
     # 3. Raw Strings (Single Quoted)
-    self.assertEqual(get_compiled_text('r"hello\\nworld"'), 'hello\\nworld')
-    self.assertEqual(get_compiled_text('r"C:\\path\\to\\file"'), 'C:\\path\\to\\file')
+    self.assertEqual(get_compiled_text('r"hello\\nworld"'), "hello\\nworld")
+    self.assertEqual(get_compiled_text('r"C:\\path\\to\\file"'), "C:\\path\\to\\file")
 
     # 4. Raw Strings (Triple Quoted)
-    self.assertEqual(get_compiled_text('r"""hello\\nworld"""'), 'hello\\nworld')
+    self.assertEqual(get_compiled_text('r"""hello\\nworld"""'), "hello\\nworld")
     self.assertEqual(get_compiled_text('r"""hello "world" """'), 'hello "world" ')
 
     # 5. Decompiler Formatting Choices
@@ -1033,15 +1033,15 @@ This is bold.
     self.assertEqual(get_compiled_text('r""""""'), "")
 
     # Raw string ending in a backslash
-    self.assertEqual(get_compiled_text('r"hello\\"'), 'hello\\')
-    self.assertEqual(get_compiled_text('r"""hello\\"""'), 'hello\\')
+    self.assertEqual(get_compiled_text('r"hello\\"'), "hello\\")
+    self.assertEqual(get_compiled_text('r"""hello\\"""'), "hello\\")
 
     # Uppercase R prefix
-    self.assertEqual(get_compiled_text('R"hello\\nworld"'), 'hello\\nworld')
-    self.assertEqual(get_compiled_text('R"""hello\\nworld"""'), 'hello\\nworld')
+    self.assertEqual(get_compiled_text('R"hello\\nworld"'), "hello\\nworld")
+    self.assertEqual(get_compiled_text('R"""hello\\nworld"""'), "hello\\nworld")
 
     # Literal double escape vs single escape in standard string
-    self.assertEqual(get_compiled_text('"hello \\\\n world"'), 'hello \\n world')
+    self.assertEqual(get_compiled_text('"hello \\\\n world"'), "hello \\n world")
 
     # Standard string ending in a backslash (unterminated quote syntax error)
     with self.assertRaises(SyntaxError):

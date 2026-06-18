@@ -270,13 +270,14 @@ breedTemplate = Image($url)
 ````
 
 ### User Request / Input:
+
 ```text
 Translate the following request into A2UI Express DSL wrapped inside <a2ui> and </a2ui> sentinels:
 
 Generate a single 'createSurface' message with components inline with surfaceId 'main' for a weather forecast UI. It should have a 'Text' with the city name, "New York". Below it, a 'Row' with the current temperature as a 'Text' component ("68°F") and an 'Image' for the weather icon (e.g., a sun). Below that, a 'Divider'. Then, a 'List' component to display the 5-day forecast. Each item in the list should be a 'Row' with the day, an icon, and high/low temperatures.
 
 REMINDER: You must output ONLY A2UI Express DSL wrapped in <a2ui> and </a2ui> sentinels. Do NOT output JSON or <a2ui-json> blocks under any circumstances. Directly generating JSON will fail compilation.
-````
+```
 
 ---
 
@@ -318,12 +319,7 @@ The A2UI Express compiler parsed the compact DSL above, dynamically generated co
         {
           "id": "root",
           "component": "Column",
-          "children": [
-            "cityName",
-            "currentRow",
-            "divider",
-            "forecastList"
-          ]
+          "children": ["cityName", "currentRow", "divider", "forecastList"]
         },
         {
           "id": "cityName",
@@ -333,10 +329,7 @@ The A2UI Express compiler parsed the compact DSL above, dynamically generated co
         {
           "id": "currentRow",
           "component": "Row",
-          "children": [
-            "currentTemp",
-            "currentIcon"
-          ],
+          "children": ["currentTemp", "currentIcon"],
           "justify": "center",
           "align": "center"
         },
@@ -368,11 +361,7 @@ The A2UI Express compiler parsed the compact DSL above, dynamically generated co
         {
           "id": "forecastItem",
           "component": "Row",
-          "children": [
-            "itemDay",
-            "itemIcon",
-            "itemTemp"
-          ],
+          "children": ["itemDay", "itemIcon", "itemTemp"],
           "align": "center"
         },
         {

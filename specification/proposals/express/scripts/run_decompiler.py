@@ -40,7 +40,7 @@ sys.path.insert(
         )
     ),
 )
-from a2ui.express.decompiler import ExpressDecompiler
+from a2ui.experimental.express.decompiler import ExpressDecompiler
 
 
 def decompile_example(example_path: str, catalog_path: str) -> str:

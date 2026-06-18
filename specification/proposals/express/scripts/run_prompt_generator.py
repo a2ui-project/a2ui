@@ -39,7 +39,7 @@ sys.path.insert(
         )
     ),
 )
-from a2ui.express.prompt_generator import ExpressPromptGenerator
+from a2ui.experimental.express.prompt_generator import ExpressPromptGenerator
 
 
 def generate_prompt_text(catalog_path: str) -> str:

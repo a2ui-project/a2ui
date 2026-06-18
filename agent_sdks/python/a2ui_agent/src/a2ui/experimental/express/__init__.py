@@ -30,10 +30,12 @@ from .compiler import ExpressCompiler
 from .decompiler import ExpressDecompiler
 from .prompt_generator import ExpressPromptGenerator
 from .constants import SurfaceOperation
+from .parser import parse_express_response
 
 __all__ = [
     "ExpressCompiler",
     "ExpressDecompiler",
     "ExpressPromptGenerator",
     "SurfaceOperation",
+    "parse_express_response",
 ]
