@@ -15,6 +15,9 @@
 # Auto-assigns every newly opened issue to a maintainer. The assignee is picked
 # round-robin from a hardcoded list in scripts/auto-assignment.mjs, so triage
 # always has a clear owner without anyone watching the queue.
+
+# TODO(polina-c): decide if we need this automation
+
 name: A2UI Issue Auto-Assignment
 
 # Runs only when an issue is first opened (not on edits, comments, or reopens).
