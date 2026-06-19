@@ -12,17 +12,67 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# Auto-assigns every newly opened issue to a maintainer. The assignee is picked
-# round-robin from a hardcoded list in scripts/auto-assignment.mjs, so triage
-# always has a clear owner without anyone watching the queue.
+# This automation adds/removes the 'triage-flag' label to issues and PRs,
+# making sure that this label is assigned to:
+#
+# 1. Issues, without ‘waiting-for-user-response’ that are:
+#    1. without priority
+#    2. P0 and P1 without assignment
+#    3. P0 and stale for more than 3 days
+#    4. P1 and stale for more than 30 days
+#    5. P2 and stale for more than 90 days
+# 2. PRs stale for more than month
+# 3. External comments, not responded for more than a day
+#
+# "Stale" is measured from the last human comment (or the open date if there are
+# none), not from `updated_at`, so the bot's own label edits don't reset the
+# clock. The label is fully owned by this automation and is removed once an item
+# no longer matches any rule. The reconciliation logic lives in
+# scripts/triage-flag.mjs.
 
-# This automation adds/removes the 'triage-flag' label to issues and PRs.
-# 
-# 1. Issues, without ‘waiting-for-user-response’ that are:  
-#    1. without priority  
-#    2. P0 and P1 without assignment  
-#    3. P0 and stale for more than 3 days  
-#    4. P1 and stale for more than 30 days  
-#    5. P2 and stale for more than 90 days  
-# 2. PRs stale for more than month  
-# 3. External comments, not responded for more than a day 
+name: A2UI Triage Flag
+
+on:
+  # Daily sweep of the whole open backlog. Staleness is measured in days, so a
+  # once-a-day cadence is sufficient.
+  schedule:
+    - cron: '0 8 * * *'
+  # Allow maintainers to run the sweep on demand (e.g. after tweaking the rules).
+  workflow_dispatch:
+
+# Least-privilege token: read the repo, write labels on issues and PRs.
+permissions:
+  contents: read
+  issues: write
+  pull-requests: write
+
+# Never run two sweeps at once; a newer run supersedes an in-flight one.
+concurrency:
+  group: triage-flag
+  cancel-in-progress: true
+
+jobs:
+  triage-flag:
+    runs-on: ubuntu-latest
+
+    steps:
+      # The reconciliation logic lives in a repo script, so we need it on disk.
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # Dynamically import that script and run it, handing it the authenticated
+      # `github` client, the event `context`, and `core` for logging.
+      - name: Run triage-flag script
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const path = require('path');
+            const { pathToFileURL } = require('url');
+
+            // Resolve the script to a file:// URL so dynamic import() accepts it.
+            const filePath = path.resolve('./scripts/triage-flag.mjs');
+            const fileUrl = pathToFileURL(filePath).href;
+
+            const importedModule = await import(fileUrl);
+            await importedModule.default({ github, context, core });
+
