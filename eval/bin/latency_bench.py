@@ -26,7 +26,6 @@ Options:
                 no limit and all samples are evaluated. Passing a limit (e.g. --limit 2) 
                 can make the evaluation significantly faster for debugging or quick benchmarking.
   --models      Comma-separated list of model names to evaluate.
-  --log-dir     Directory where the inspect logs are saved and analyzed.
 """
 
 import sys
@@ -40,12 +39,12 @@ from inspect_ai.log import read_eval_log
 def main():
     parser = argparse.ArgumentParser(description="Run benchmarks for multiple models and report latency.")
     parser.add_argument("--models", type=str, default="google/gemini-3-flash-preview,google/gemini-3.1-flash-lite,google/gemini-3.1-pro-preview", help="Comma-separated list of models to evaluate.")
-    parser.add_argument("--log-dir", type=str, default="bench_logs", help="Directory to save logs.")
     parser.add_argument("--limit", type=int, default=0, help="Number of samples to evaluate. 0 for no limit.")
     args = parser.parse_args()
 
+    log_dir = "logs/latency_bench/"
     # Create log directory if it doesn't exist
-    os.makedirs(args.log_dir, exist_ok=True)
+    os.makedirs(log_dir, exist_ok=True)
 
     print(f"Running main.py with models: {args.models}")
     # Run main.py using uv
@@ -53,7 +52,7 @@ def main():
     
     cmd = [
         "uv", "run", "python3", str(main_script),
-        "--log-dir", args.log_dir
+        "--log-dir", log_dir
     ]
     for m in args.models.split(","):
         cmd.extend(["--model", m.strip()])
@@ -69,7 +68,7 @@ def main():
     print("\n" + "="*40)
     print("Latency Benchmark Results")
     print("="*40)
-    log_files = list(Path(args.log_dir).glob("*.eval")) + list(Path(args.log_dir).glob("*.json"))
+    log_files = list(Path(log_dir).glob("*.eval")) + list(Path(log_dir).glob("*.json"))
     
     # Keep track of the most recent log per task and model
     model_stats = {}
