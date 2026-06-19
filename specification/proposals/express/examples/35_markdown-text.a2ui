@@ -1,7 +1,7 @@
-root = Card(main-column)
-main-column = Column([title-text, markdown-content], _, "stretch")
-title-text = Text("### Markdown Rendering")
-markdown-content = Text("""# Heading 1
+root = Card(main_column)
+main_column = Column([title_text, markdown_content], _, "stretch")
+title_text = Text("### Markdown Rendering")
+markdown_content = Text("""# Heading 1
 
 This is **bold** text and *italic* text.
 

@@ -120,7 +120,7 @@ TOKEN_SPEC = [
     ("NUMBER", r"-?\d+(?:\.\d+)?"),
     ("BOOLEAN", r"\b(?:true|false)\b"),
     ("NULL", r"\bnull\b"),
-    ("IDENTIFIER", r"[a-zA-Z_][a-zA-Z0-9_-]*"),
+    ("IDENTIFIER", r"[^\W\d]\w*"),
     ("LPAREN", r"\("),
     ("RPAREN", r"\)"),
     ("LBRACKET", r"\["),

@@ -19,6 +19,7 @@ comprehensive semantic round-trip checks on standard v1.0 catalog examples.
 """
 
 import os
+from typing import Any
 
 os.environ["A2UI_EXPRESS_ENABLED"] = "true"
 import json
@@ -338,8 +339,8 @@ closeAction = Event("close")"""
 $/title = "Enable notification"
 $/user/firstName = "Alice"
 $/user/age = 30
-root = Card(main-column)
-main-column = Column([icon, title], _, "center")
+root = Card(main_column)
+main_column = Column([icon, title], _, "center")
 icon = Icon($/icon)
 title = Text($/title, "h3")"""
 
@@ -361,7 +362,7 @@ title = Text($/title, "h3")"""
     self.assertIn('$/title = "Enable notification"', decompiled_dsl)
     self.assertIn("$/user/age = 30", decompiled_dsl)
     self.assertIn('$/user/firstName = "Alice"', decompiled_dsl)
-    self.assertIn("root = Card(main-column)", decompiled_dsl)
+    self.assertIn("root = Card(main_column)", decompiled_dsl)
 
     # Round-trip check
     compiled_envelope_2 = compiler.compile(decompiled_dsl, surface_id="test_data_surf")
@@ -373,10 +374,10 @@ title = Text($/title, "h3")"""
     decompiler = ExpressDecompiler(self.catalog_path)
 
     dsl = """root = Column([btn1, btn2])
-btn1 = Button(btn1-label, _, Event("click"))
-btn1-label = Text("Click")
-btn2 = Button(btn2-label)
-btn2-label = Text("Submit")"""
+btn1 = Button(btn1_label, _, Event("click"))
+btn1_label = Text("Click")
+btn2 = Button(btn2_label)
+btn2_label = Text("Submit")"""
 
     envelope = compiler.compile(dsl)
     components = envelope["createSurface"]["components"]
@@ -386,13 +387,13 @@ btn2-label = Text("Submit")"""
     self.assertEqual(btn1_comp["action"], {"event": {"name": "click", "context": {}}})
 
     btn2_comp = next(c for c in components if c["id"] == "btn2")
-    self.assertEqual(btn2_comp["child"], "btn2-label")
+    self.assertEqual(btn2_comp["child"], "btn2_label")
     self.assertNotIn("variant", btn2_comp)
     self.assertNotIn("action", btn2_comp)
 
     decompiled_dsl = decompiler.decompile(envelope)
-    self.assertIn('btn1 = Button(btn1-label, _, Event("click"))', decompiled_dsl)
-    self.assertIn("btn2 = Button(btn2-label)", decompiled_dsl)
+    self.assertIn('btn1 = Button(btn1_label, _, Event("click"))', decompiled_dsl)
+    self.assertIn("btn2 = Button(btn2_label)", decompiled_dsl)
     # Ensure no nulls are decompiled
     self.assertNotIn("null", decompiled_dsl)
 
@@ -727,6 +728,8 @@ $/age = 25"""
       for msg in messages:
         if "createSurface" in msg:
           surface_id = msg["createSurface"].get("surfaceId", surface_id)
+          if "components" in msg["createSurface"]:
+            expected_components = msg["createSurface"]["components"]
         if "updateComponents" in msg:
           expected_components = msg["updateComponents"].get("components", [])
 
@@ -1082,7 +1085,7 @@ This is bold.
       compiler.compile(invalid_dsl_early, is_final=False)
 
     # Standalone model updates with a trailing unbalanced structure (brackets/parentheses)
-    incomplete_dsl_brackets = '$/foo = 123\n$/bar = Column([\n'
+    incomplete_dsl_brackets = "$/foo = 123\n$/bar = Column([\n"
     # Default (is_final=True) should raise SyntaxError due to unbalanced symbols
     with self.assertRaises(SyntaxError):
       compiler.compile(incomplete_dsl_brackets)

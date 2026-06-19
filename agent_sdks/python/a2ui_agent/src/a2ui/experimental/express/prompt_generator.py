@@ -280,6 +280,8 @@ IMPORTANT: You must ALWAYS output A2UI Express DSL notation wrapped inside `<a2u
 
    CRITICAL: Component constructors can ONLY appear on the right-hand side of a variable assignment. They CANNOT be passed directly as positional arguments to other components. You must assign every component to a variable on its own line and reference that variable name instead.
 
+   Variable names MUST start with a letter or underscore, and only contain letters, digits, and underscores.
+
 2. The interface tree must have a single entry point assigned to the reserved variable 'root'.
 
 3. Primitives:

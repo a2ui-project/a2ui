@@ -18,23 +18,23 @@
           {
             "id": "root",
             "component": "Card",
-            "child": "main-column"
+            "child": "main_column"
           },
           {
-            "id": "main-column",
+            "id": "main_column",
             "component": "Column",
             "children": [
-              "welcome-text",
-              "email-field",
-              "phone-field",
-              "zip-field",
-              "terms-checkbox",
-              "submit-btn"
+              "welcome_text",
+              "email_field",
+              "phone_field",
+              "zip_field",
+              "terms_checkbox",
+              "submit_btn"
             ],
             "align": "stretch"
           },
           {
-            "id": "welcome-text",
+            "id": "welcome_text",
             "component": "Text",
             "text": {
               "call": "formatString",
@@ -44,7 +44,7 @@
             }
           },
           {
-            "id": "email-field",
+            "id": "email_field",
             "component": "TextField",
             "label": "Email Address",
             "value": {
@@ -65,7 +65,7 @@
             ]
           },
           {
-            "id": "phone-field",
+            "id": "phone_field",
             "component": "TextField",
             "label": "Phone Number",
             "value": {
@@ -87,7 +87,7 @@
             ]
           },
           {
-            "id": "zip-field",
+            "id": "zip_field",
             "component": "TextField",
             "label": "Zip Code",
             "value": {
@@ -109,7 +109,7 @@
             ]
           },
           {
-            "id": "terms-checkbox",
+            "id": "terms_checkbox",
             "component": "CheckBox",
             "label": "I agree to the terms and conditions",
             "value": {
@@ -117,14 +117,14 @@
             }
           },
           {
-            "id": "submit-btn-text",
+            "id": "submit_btn_text",
             "component": "Text",
             "text": "Submit Registration"
           },
           {
-            "id": "submit-btn",
+            "id": "submit_btn",
             "component": "Button",
-            "child": "submit-btn-text",
+            "child": "submit_btn_text",
             "checks": [
               {
                 "condition": {

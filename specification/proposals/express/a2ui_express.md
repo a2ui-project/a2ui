@@ -31,7 +31,12 @@ The syntax rules define how types, structures, data paths, and validation action
 
 ### Variable declarations
 
-Every component definition is assigned to a unique, alphanumeric variable. The compiler uses these variables to resolve parent-child hierarchies. A reserved variable named `root` acts as the primary entry point for the interface tree.
+Every component definition is assigned to a unique variable identifier. The compiler uses these variables to resolve parent-child hierarchies. A reserved variable named `root` acts as the primary entry point for the interface tree.
+
+To support multi-lingual models while ensuring syntax safety for future extensions (such as math or conditional expressions), all variable identifiers MUST conform to the Unicode Identifier standard ([UAX #31](https://www.unicode.org/reports/tr31/)):
+
+- An identifier must start with a Unicode letter or an underscore `_`.
+- Subsequent characters must be Unicode letters, digits (`0-9`), or underscores `_`.
 
 To eliminate syntax errors from complex bracket structures and enable line-oriented streaming compilation, A2UI Express prohibits inline component nesting. Component constructor calls (e.g., `Text(...)`, `Column(...)`) can **only** appear on the right-hand side of a variable assignment (`var = ComponentName(...)`). They **cannot** be passed directly as positional arguments to other components. Instead, you must declare them separately and reference their variable names.
 
@@ -193,7 +198,7 @@ Because A2UI Express omits property keys, the compiler relies entirely on the JS
 1. The compiler looks up the component or function name in the catalog schema, discarding structural keys like `component` and `id`.
 2. It reads the declared properties in their strict definition order.
 3. It maps the positional arguments of the A2UI Express statement to these property keys in sequence.
-4. Trailing optional arguments can be omitted from the end of the statement. For example, if a component signature is `Button(child, action?)` where `action` is optional, `Button(label-text)` is compiled with `action` as null/omitted.
+4. Trailing optional arguments can be omitted from the end of the statement. For example, if a component signature is `Button(child, action?)` where `action` is optional, `Button(label_text)` is compiled with `action` as null/omitted.
 5. Skipped optional arguments (where a subsequent argument must be specified) are represented by an underscore `_` placeholder. For example, if `justify` is optional in `Column(children, justify?, align?)`, `Column([icon, title], _, "center")` maps the array to `children` and `"center"` to `align`, leaving `justify` unspecified.
 
 ### Adjacency list flattening
@@ -232,16 +237,16 @@ The input file defines a notification permission card, using positional argument
 
 ```
 <a2ui>
-root = Card(main-column)
-main-column = Column([icon, title, description, actions], _, "center")
+root = Card(main_column)
+main_column = Column([icon, title, description, actions], _, "center")
 icon = Icon($/icon)
 title = Text($/title, "h3")
 description = Text($/description, "body")
-actions = Row([yes-btn, no-btn], "center")
-yes-btn-text = Text("Yes")
-yes-btn = Button(yes-btn-text, _, Event("accept"))
-no-btn-text = Text("No")
-no-btn = Button(no-btn-text, _, Event("decline"))
+actions = Row([yes_btn, no_btn], "center")
+yes_btn_text = Text("Yes")
+yes_btn = Button(yes_btn_text, _, Event("accept"))
+no_btn_text = Text("No")
+no_btn = Button(no_btn_text, _, Event("decline"))
 </a2ui>
 ```
 
@@ -259,10 +264,10 @@ The compiler parses the text stream, resolves the parent-child references, maps 
       {
         "id": "root",
         "component": "Card",
-        "child": "main-column"
+        "child": "main_column"
       },
       {
-        "id": "main-column",
+        "id": "main_column",
         "component": "Column",
         "children": ["icon", "title", "description", "actions"],
         "justify": null,
@@ -294,18 +299,18 @@ The compiler parses the text stream, resolves the parent-child references, maps 
       {
         "id": "actions",
         "component": "Row",
-        "children": ["yes-btn", "no-btn"],
+        "children": ["yes_btn", "no_btn"],
         "justify": "center"
       },
       {
-        "id": "yes-btn-text",
+        "id": "yes_btn_text",
         "component": "Text",
         "text": "Yes"
       },
       {
-        "id": "yes-btn",
+        "id": "yes_btn",
         "component": "Button",
-        "child": "yes-btn-text",
+        "child": "yes_btn_text",
         "variant": null,
         "action": {
           "event": {
@@ -315,14 +320,14 @@ The compiler parses the text stream, resolves the parent-child references, maps 
         }
       },
       {
-        "id": "no-btn-text",
+        "id": "no_btn_text",
         "component": "Text",
         "text": "No"
       },
       {
-        "id": "no-btn",
+        "id": "no_btn",
         "component": "Button",
-        "child": "no-btn-text",
+        "child": "no_btn_text",
         "variant": null,
         "action": {
           "event": {
