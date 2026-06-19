@@ -12,12 +12,17 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+# Auto-assigns every newly opened issue to a maintainer. The assignee is picked
+# round-robin from a hardcoded list in scripts/auto-assignment.mjs, so triage
+# always has a clear owner without anyone watching the queue.
 name: A2UI Issue Auto-Assignment
 
+# Runs only when an issue is first opened (not on edits, comments, or reopens).
 on:
   issues:
     types: [opened]
 
+# Least-privilege token: read the repo, write to issues only to set the assignee.
 permissions:
   contents: read
   issues: write
@@ -27,9 +32,12 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+      # The assignment logic lives in a repo script, so we need the code on disk.
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      # Dynamically import that script and run it, handing it the authenticated
+      # `github` client and the event `context` so it can assign the issue.
       - name: Run auto-assignment script
         uses: actions/github-script@v7
         with:
@@ -37,6 +45,7 @@ jobs:
             const path = require('path');
             const { pathToFileURL } = require('url');
 
+            // Resolve the script to a file:// URL so dynamic import() accepts it.
             const filePath = path.resolve('./scripts/auto-assignment.mjs');
             const fileUrl = pathToFileURL(filePath).href;
 
