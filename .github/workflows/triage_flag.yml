@@ -1,0 +1,28 @@
+# Copyright 2026 Google LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#      https://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+# Auto-assigns every newly opened issue to a maintainer. The assignee is picked
+# round-robin from a hardcoded list in scripts/auto-assignment.mjs, so triage
+# always has a clear owner without anyone watching the queue.
+
+# This automation adds/removes the 'triage-flag' label to issues and PRs.
+# 
+# 1. Issues, without ‘waiting-for-user-response’ that are:  
+#    1. without priority  
+#    2. P0 and P1 without assignment  
+#    3. P0 and stale for more than 3 days  
+#    4. P1 and stale for more than 30 days  
+#    5. P2 and stale for more than 90 days  
+# 2. PRs stale for more than month  
+# 3. External comments, not responded for more than a day 
