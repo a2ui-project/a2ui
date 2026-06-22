@@ -1,9 +1,5 @@
 ## Unreleased
 
-## 0.10.2
-
-- Version bump and dependency updates.
-
 ## 0.10.1
 
 - (v0_9) Tighten resolved child list types in the basic catalog layout components.
