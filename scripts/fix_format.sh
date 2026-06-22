@@ -57,25 +57,25 @@ fi
 echo "Running Pyink for Python Agent SDK..."
 cd "$REPO_ROOT/agent_sdks/python/a2ui_agent" || exit 1
 if [ "$CHECK_ONLY" = true ]; then
-  uv run --default-index https://pypi.org/simple pyink --check .
+  uv run pyink --check .
 else
-  uv run --default-index https://pypi.org/simple pyink .
+  uv run pyink .
 fi
 
 echo "Running Pyink for Python Core SDK..."
 cd "$REPO_ROOT/agent_sdks/python/a2ui_core" || exit 1
 if [ "$CHECK_ONLY" = true ]; then
-  uv run --default-index https://pypi.org/simple pyink --check .
+  uv run pyink --check .
 else
-  uv run --default-index https://pypi.org/simple pyink .
+  uv run pyink .
 fi
 
 echo "Running Pyink for Python Samples..."
 cd "$REPO_ROOT/samples/agent/adk"
 if [ "$CHECK_ONLY" = true ]; then
-  uv run --default-index https://pypi.org/simple pyink --check .
+  uv run pyink --check .
 else
-  uv run --default-index https://pypi.org/simple pyink .
+  uv run pyink .
 fi
 
 echo "Running Dart format..."
