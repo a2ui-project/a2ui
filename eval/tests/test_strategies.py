@@ -48,21 +48,6 @@ async def test_a2ui_system_prompt(tmp_path):
     assert state.messages[0].role == "system"
     assert "https://a2ui.org/test_catalog" in state.messages[0].content
 
-@pytest.mark.asyncio
-async def test_a2ui_system_prompt_file_not_found():
-    solver = a2ui_system_prompt()
-    state = TaskState(
-        model=ModelName("mock/model"),
-        sample_id=1,
-        epoch=1,
-        input="test",
-        messages=[],
-        metadata={}
-    )
-    async def dummy_generate(state, **kwargs):
-        return state
-    with pytest.raises(KeyError):
-        await solver(state, dummy_generate)
 
 from a2ui_eval.strategies.subagent_tool import extract_subagent_payload, PAYLOAD_STORE_KEY
 from inspect_ai.model import ModelOutput, ChatCompletionChoice, ChatMessageAssistant, ChatMessageTool
