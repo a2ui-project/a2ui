@@ -13,7 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-set -euo pipefail
+set -eEuo pipefail
 
 failure() {
   local exit_code=$?
@@ -41,9 +41,9 @@ fi
 if [ -f ".yarn/install-state.gz" ]; then
   # Local Node environment already installed; invoke standard script targets
   if [ "$CHECK_ONLY" = true ]; then
-    yarn format:check:all
+    yarn format:check:all > /dev/null
   else
-    yarn format:all
+    yarn format:all > /dev/null
   fi
 else
   # Non-Node contributor or CI; run standalone Prettier via dlx without full monorepo install
