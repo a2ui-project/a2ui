@@ -15,12 +15,8 @@
  */
 
 import {ExpressionParser} from '../expressions/expression_parser.js';
-import {computed} from '@preact/signals-core';
-import {
-  createFunctionImplementation,
-  FunctionImplementation,
-  isSignal,
-} from '../../catalog/types.js';
+import {computed, isSignal, getValue} from '../../reactivity/signals.js';
+import {createFunctionImplementation, FunctionImplementation} from '../../catalog/types.js';
 import {format} from 'date-fns';
 import {
   AddApi,
@@ -276,7 +272,7 @@ export const FormatStringImplementation = createFunctionImplementation(
     return computed(() => {
       return dynamicParts
         .map(p => {
-          const resolved = isSignal(p) ? p.value : p;
+          const resolved = isSignal(p) ? getValue(p) : p;
           return coerceToString(resolved);
         })
         .join('');

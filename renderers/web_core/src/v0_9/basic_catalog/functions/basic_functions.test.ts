@@ -16,7 +16,7 @@
 
 import {describe, it} from 'node:test';
 import * as assert from 'node:assert';
-import {effect, Signal} from '@preact/signals-core';
+import {effect, Signal, getValue} from '../../reactivity/signals.js';
 
 import {BASIC_FUNCTIONS, createBasicCatalogFunctions} from './basic_functions.js';
 import {DataModel} from '../../state/data-model.js';
@@ -219,7 +219,7 @@ describe('BASIC_FUNCTIONS', () => {
       // worth cleaning up at some point.
       // eslint-disable-next-line prefer-const
       cleanup = effect(() => {
-        const val = result.value;
+        const val = getValue(result);
         assert.strictEqual(val, 'hello world');
         if (cleanup) cleanup();
         done();
@@ -236,7 +236,7 @@ describe('BASIC_FUNCTIONS', () => {
       // worth cleaning up at some point.
       // eslint-disable-next-line prefer-const
       cleanup = effect(() => {
-        const val = result.value;
+        const val = getValue(result);
         try {
           if (emitCount === 0) {
             assert.strictEqual(val, 'Value: 10');
@@ -278,7 +278,7 @@ describe('BASIC_FUNCTIONS', () => {
       // worth cleaning up at some point.
       // eslint-disable-next-line prefer-const
       cleanup = effect(() => {
-        const val = result.value;
+        const val = getValue(result);
         assert.strictEqual(val, 'Result: 12');
         if (cleanup) cleanup();
         done();
@@ -294,7 +294,7 @@ describe('BASIC_FUNCTIONS', () => {
       let cleanup: (() => void) | undefined;
       // eslint-disable-next-line prefer-const
       cleanup = effect(() => {
-        const val = result.value;
+        const val = getValue(result);
         assert.strictEqual(val, 'User: {"name":"Alice","age":30}');
         if (cleanup) cleanup();
         done();
@@ -310,7 +310,7 @@ describe('BASIC_FUNCTIONS', () => {
       let cleanup: (() => void) | undefined;
       // eslint-disable-next-line prefer-const
       cleanup = effect(() => {
-        const val = result.value;
+        const val = getValue(result);
         assert.strictEqual(val, 'Tags: ["swift","ios"]');
         if (cleanup) cleanup();
         done();
@@ -335,7 +335,7 @@ describe('BASIC_FUNCTIONS', () => {
       let cleanup: (() => void) | undefined;
       // eslint-disable-next-line prefer-const
       cleanup = effect(() => {
-        const val = result.value;
+        const val = getValue(result);
         assert.strictEqual(val, 'M = [[1,2],[3,4]]');
         if (cleanup) cleanup();
         done();
@@ -351,7 +351,7 @@ describe('BASIC_FUNCTIONS', () => {
       let cleanup: (() => void) | undefined;
       // eslint-disable-next-line prefer-const
       cleanup = effect(() => {
-        const val = result.value;
+        const val = getValue(result);
         assert.strictEqual(val, 'V = [1,null,3]');
         if (cleanup) cleanup();
         done();
@@ -367,7 +367,7 @@ describe('BASIC_FUNCTIONS', () => {
       let cleanup: (() => void) | undefined;
       // eslint-disable-next-line prefer-const
       cleanup = effect(() => {
-        const val = result.value;
+        const val = getValue(result);
         assert.strictEqual(val, 'val=end');
         if (cleanup) cleanup();
         done();

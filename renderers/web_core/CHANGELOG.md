@@ -1,5 +1,7 @@
 ## Unreleased
 
+- Added the ability to swap out the signals implementation through the `setSignalImplementation` function.
+
 ## 0.10.2
 
 - Updated `openUrl` to reject URLs with schema other than HTTP or HTTPs to fix a security issue where agents could execute arbitrary Javascript code.
