@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # Copyright 2026 Google LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -41,9 +41,9 @@ fi
 if [ -f ".yarn/install-state.gz" ]; then
   # Local Node environment already installed; invoke standard script targets
   if [ "$CHECK_ONLY" = true ]; then
-    yarn format:check:all > /dev/null
+    yarn format:check:all
   else
-    yarn format:all > /dev/null
+    yarn format:all
   fi
 else
   # Non-Node contributor or CI; run standalone Prettier via dlx without full monorepo install
