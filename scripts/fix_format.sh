@@ -25,7 +25,7 @@ REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$REPO_ROOT"
 
 echo "Running Prettier formatting for Node/Web assets..."
-corepack enable
+corepack enable 2>/dev/null || true
 if [ -f ".yarn/install-state.gz" ]; then
   # Local Node environment already installed; invoke standard script targets
   if [ "$CHECK_ONLY" = true ]; then
