@@ -128,7 +128,12 @@ class NodeGraph:
                 self.surface.catalog
             ).extract_ref_fields()
             comp_type = component_model.type if component_model else ""
-            single_refs, list_refs = ref_map.get(comp_type, (set(), set()))
+            ref_tuple = ref_map.get(comp_type)
+            if ref_tuple:
+                single_refs, list_refs = ref_tuple[0], ref_tuple[1]
+                nested_refs = getattr(ref_tuple, "nested_refs", {})
+            else:
+                single_refs, list_refs, nested_refs = set(), set(), {}
 
             # Resolve single-child references
             for single_ref in single_refs:
@@ -153,14 +158,26 @@ class NodeGraph:
                                 child_list.append(
                                     self.get_or_create_node(item, data_path)
                                 )
-                            elif isinstance(item, dict) and "child" in item:
+                            elif isinstance(item, dict):
                                 resolved_item = copy.deepcopy(item)
-                                item_child_id = item["child"]
-                                if isinstance(item_child_id, str) and item_child_id:
-                                    resolved_item["child"] = self.get_or_create_node(
-                                        item_child_id, data_path
-                                    )
-                                child_list.append(resolved_item)
+                                has_resolved = False
+                                for sub_key in nested_refs.get(list_ref, {"child"}):
+                                    if sub_key in item:
+                                        item_child_id = item[sub_key]
+                                        if (
+                                            isinstance(item_child_id, str)
+                                            and item_child_id
+                                        ):
+                                            resolved_item[sub_key] = (
+                                                self.get_or_create_node(
+                                                    item_child_id, data_path
+                                                )
+                                            )
+                                            has_resolved = True
+                                if has_resolved:
+                                    child_list.append(resolved_item)
+                                else:
+                                    child_list.append(item)
                             else:
                                 child_list.append(item)
                         current_resolved[list_ref] = child_list
