@@ -70,7 +70,7 @@ def _get_refs_recursively(
                     yield val_id, f"{current_path}.componentId"
             else:
                 top_prop = current_path.split("[")[0].split(".")[0]
-                if top_prop in nested_refs:
+                if top_prop in nested_refs and "." not in current_path:
                     allowed_sub_keys = nested_refs[top_prop]
                     for sub_key, sub_val in val.items():
                         if sub_key in allowed_sub_keys:

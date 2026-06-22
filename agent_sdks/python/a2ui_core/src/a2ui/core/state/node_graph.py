@@ -158,6 +158,14 @@ class NodeGraph:
                                 child_list.append(
                                     self.get_or_create_node(item, data_path)
                                 )
+                            elif isinstance(item, dict) and "componentId" in item:
+                                cid = item["componentId"]
+                                if isinstance(cid, str) and cid:
+                                    child_list.append(
+                                        self.get_or_create_node(cid, data_path)
+                                    )
+                                else:
+                                    child_list.append(item)
                             elif isinstance(item, dict):
                                 resolved_item = copy.deepcopy(item)
                                 has_resolved = False
@@ -174,6 +182,18 @@ class NodeGraph:
                                                 )
                                             )
                                             has_resolved = True
+                                        elif (
+                                            isinstance(item_child_id, dict)
+                                            and "componentId" in item_child_id
+                                        ):
+                                            cid = item_child_id["componentId"]
+                                            if isinstance(cid, str) and cid:
+                                                resolved_item[sub_key] = (
+                                                    self.get_or_create_node(
+                                                        cid, data_path
+                                                    )
+                                                )
+                                                has_resolved = True
                                 if has_resolved:
                                     child_list.append(resolved_item)
                                 else:
@@ -271,10 +291,10 @@ class NodeGraph:
                     for node_in_list in item:
                         if isinstance(node_in_list, ComponentNode):
                             node_in_list.dispose()
-                        elif isinstance(node_in_list, dict) and isinstance(
-                            node_in_list.get("child"), ComponentNode
-                        ):
-                            node_in_list["child"].dispose()
+                        elif isinstance(node_in_list, dict):
+                            for sub_key, sub_val in node_in_list.items():
+                                if isinstance(sub_val, ComponentNode):
+                                    sub_val.dispose()
             child_nodes_by_prop.clear()
             self.active_nodes.pop(instance_id, None)
 
