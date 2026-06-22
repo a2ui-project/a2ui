@@ -60,6 +60,20 @@ class NodeGraph:
         if instance_id in self.active_nodes:
             return self.active_nodes[instance_id]
 
+        def collect_nodes(value):
+            nodes = set()
+            if isinstance(value, ComponentNode):
+                nodes.add(value)
+            elif isinstance(value, list):
+                for item in value:
+                    nodes.update(collect_nodes(item))
+            elif isinstance(value, dict):
+                for v in value.values():
+                    nodes.update(collect_nodes(v))
+            elif isinstance(value, Signal):
+                nodes.update(collect_nodes(value.value))
+            return nodes
+
         component_model = self.surface.components_model.get(component_id)
         props_signal = Signal({})
 
@@ -247,19 +261,6 @@ class NodeGraph:
                         current_resolved[list_ref] = spawned_nodes_signal
 
             # Compare current_resolved with child_nodes_by_prop to dispose of no-longer-referenced nodes
-            def collect_nodes(value):
-                nodes = set()
-                if isinstance(value, ComponentNode):
-                    nodes.add(value)
-                elif isinstance(value, list):
-                    for item in value:
-                        nodes.update(collect_nodes(item))
-                elif isinstance(value, dict):
-                    for v in value.values():
-                        nodes.update(collect_nodes(v))
-                elif isinstance(value, Signal):
-                    nodes.update(collect_nodes(value.value))
-                return nodes
 
             old_referenced_nodes = collect_nodes(list(child_nodes_by_prop.values()))
             new_referenced_nodes = collect_nodes(list(current_resolved.values()))
@@ -284,17 +285,8 @@ class NodeGraph:
                 sub.unsubscribe()
             template_subs.clear()
 
-            for item in list(child_nodes_by_prop.values()):
-                if isinstance(item, ComponentNode):
-                    item.dispose()
-                elif isinstance(item, list):
-                    for node_in_list in item:
-                        if isinstance(node_in_list, ComponentNode):
-                            node_in_list.dispose()
-                        elif isinstance(node_in_list, dict):
-                            for sub_key, sub_val in node_in_list.items():
-                                if isinstance(sub_val, ComponentNode):
-                                    sub_val.dispose()
+            for child_node in collect_nodes(list(child_nodes_by_prop.values())):
+                child_node.dispose()
             child_nodes_by_prop.clear()
             self.active_nodes.pop(instance_id, None)
 
