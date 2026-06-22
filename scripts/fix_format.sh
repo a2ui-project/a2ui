@@ -17,13 +17,13 @@ set -eEuo pipefail
 
 failure() {
   local exit_code=$?
-  local line_no=$1
   echo "===================================================="
-  echo "❌ ERROR: fix_format.sh failed on line $line_no with exit status $exit_code"
+  echo "❌ ERROR: fix_format.sh failed on line ${BASH_LINENO[0]} with exit status $exit_code"
+  echo "Command: ${BASH_COMMAND}"
   echo "===================================================="
   exit "$exit_code"
 }
-trap 'failure $LINENO' ERR
+trap 'failure' ERR
 
 CHECK_ONLY=false
 if [[ "${1:-}" == "--check" ]]; then
