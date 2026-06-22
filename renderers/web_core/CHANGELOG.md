@@ -1,4 +1,4 @@
-## Unreleased
+## 0.10.7
 
 - Added the ability to swap out the signals implementation through the `setSignalImplementation` function.
 
