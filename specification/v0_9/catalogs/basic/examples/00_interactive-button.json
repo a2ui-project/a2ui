@@ -1,18 +1,18 @@
 {
   "name": "Interactive Button",
-  "description": "Button with click event",
+  "description": "Simple example demonstrating basic catalog components.",
   "messages": [
     {
       "version": "v0.9",
       "createSurface": {
-        "surfaceId": "example_3",
-        "catalogId": "https://a2ui.org/specification/v0_9/catalogs/minimal/catalog.json"
+        "surfaceId": "gallery-interactive-button",
+        "catalogId": "https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json"
       }
     },
     {
       "version": "v0.9",
       "updateComponents": {
-        "surfaceId": "example_3",
+        "surfaceId": "gallery-interactive-button",
         "components": [
           {
             "id": "root",

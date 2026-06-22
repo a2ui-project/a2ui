@@ -427,7 +427,25 @@ export const PluralizeImplementation = createPluralizeImplementation();
  */
 export const OpenUrlImplementation = createFunctionImplementation(OpenUrlApi, args => {
   if (args.url && typeof window !== 'undefined' && window.open) {
-    window.open(args.url, '_blank');
+    const baseHref =
+      typeof window.location !== 'undefined' && window.location.href
+        ? window.location.href
+        : undefined;
+
+    let url: URL;
+    try {
+      url = baseHref ? new URL(args.url, baseHref) : new URL(args.url);
+    } catch (e: any) {
+      throw new A2uiExpressionError(`Invalid URL specified: ${args.url}`, 'openUrl', e);
+    }
+
+    // Strict protocol allowlist: Only HTTP and HTTPS are permitted.
+    if (url.protocol !== 'https:' && url.protocol !== 'http:') {
+      throw new A2uiExpressionError(`Unsupported URL scheme: ${url.protocol}`, 'openUrl');
+    }
+
+    // Always use noopener and noreferrer to prevent reverse tab-nabbing
+    window.open(url.href, '_blank', 'noopener,noreferrer');
   }
 });
 

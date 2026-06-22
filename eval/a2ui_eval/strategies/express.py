@@ -26,12 +26,14 @@ from a2ui.schema.catalog import CatalogConfig
 from ..shared.utils import measured_generate
 
 @solver
-def a2ui_express_prompt(catalog_path: str) -> Solver:
+def a2ui_express_prompt() -> Solver:
     """Solver to inject A2UI Express prompt contract instructions."""
-    generator = ExpressPromptGenerator(catalog_path)
-    prompt = generator.generate_prompt()
 
     async def solve(state: TaskState, generate: Generate) -> TaskState:
+        catalog_path = state.metadata['catalog']
+        resolved_catalog_path = str(GIT_ROOT / catalog_path)
+        generator = ExpressPromptGenerator(resolved_catalog_path)
+        prompt = generator.generate_prompt()
         state.messages.insert(0, ChatMessageSystem(content=prompt))
         return state
         
@@ -39,17 +41,21 @@ def a2ui_express_prompt(catalog_path: str) -> Solver:
 
 
 @solver
-def compile_express_dsl(catalog_path: str) -> Solver:
+def compile_express_dsl() -> Solver:
     """Solver to compile generated A2UI Express DSL back to standard JSON."""
-    # Initialize the catalog schema validator for parsing
-    catalog_config = CatalogConfig.from_path("basic_catalog", catalog_path)
-    manager = A2uiSchemaManager(version="1.0", catalogs=[catalog_config])
-    catalog = manager.get_selected_catalog()
-    validator = catalog.validator
 
     async def solve(state: TaskState, generate: Generate) -> TaskState:
         if not state.output or not state.output.completion:
             return state
+
+        catalog_path = state.metadata['catalog']
+        resolved_catalog_path = str(GIT_ROOT / catalog_path)
+
+        # Initialize the catalog schema validator for parsing
+        catalog_config = CatalogConfig.from_path("basic_catalog", resolved_catalog_path)
+        manager = A2uiSchemaManager(version="1.0", catalogs=[catalog_config])
+        catalog = manager.get_selected_catalog()
+        validator = catalog.validator
 
         completion = state.output.completion.strip()
 
@@ -64,7 +70,7 @@ def compile_express_dsl(catalog_path: str) -> Solver:
 
         try:
             # 1. Parse and compile DSL to JSON
-            parts = parse_express_response(completion, catalog_path, surface_id=surface_id)
+            parts = parse_express_response(completion, resolved_catalog_path, surface_id=surface_id)
             compiled_json = None
             for p in parts:
                 if p.a2ui_json:
@@ -97,10 +103,10 @@ def compile_express_dsl(catalog_path: str) -> Solver:
 
     return solve
 
-def express_solver(schema_path: str, catalog_path: str) -> list[Solver]:
+def express_solver() -> list[Solver]:
     """Returns the solver chain for the 'express' evaluation strategy."""
     return [
-        a2ui_express_prompt(catalog_path),
+        a2ui_express_prompt(),
         measured_generate(),
-        compile_express_dsl(catalog_path)
+        compile_express_dsl()
     ]

@@ -26,14 +26,14 @@ Version 1.0 differs from 0.9 in the following ways:
 - Supported standard JSON Schema metadata fields (`$schema`, `$id`, `title`, and `description`) in the Catalog object definition. Since the Catalog schema restricts properties with `additionalProperties: false`, this ensures inline catalogs containing standard schema metadata do not fail schema validation.
 - Enforced Unicode Standard Annex #31 (UAX #31) identifier naming constraints (`XID_Start`, `XID_Continue`) across component names, function names, and argument keys.
 
-### 2.2. Standard catalogs (basic and minimal)
+### 2.2. Standard catalogs (basic)
 
 - Added `posterUrl` property to the `Video` component in `catalogs/basic/catalog.json`, allowing a preview image to be displayed before the video plays.
 - Added `placeholder` prop to the `TextField` component schema.
 - Added a `steps` property to the `Slider` component schema to snap values to discrete intervals.
 - Added an optional `instructions` field to the `Catalog` schema (`catalogs/basic/catalog.json`) to embed Markdown guidelines/rules directly, replacing the external `rules.txt` file.
 - Renamed `svgPath` to `path` in the custom SVG icon definition object schema.
-- Renamed `$defs/theme` to `$defs/surfaceProperties` in both the basic and minimal catalogs.
+- Renamed `$defs/theme` to `$defs/surfaceProperties` in the basic catalog.
 
 ### 2.3. Server-to-client messages
 

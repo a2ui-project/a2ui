@@ -1,18 +1,18 @@
 {
   "name": "Simple Text",
-  "description": "Basic text rendering",
+  "description": "Simple example demonstrating basic catalog components.",
   "messages": [
     {
       "version": "v0.9",
       "createSurface": {
-        "surfaceId": "example_1",
-        "catalogId": "https://a2ui.org/specification/v0_9/catalogs/minimal/catalog.json"
+        "surfaceId": "gallery-simple-text",
+        "catalogId": "https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json"
       }
     },
     {
       "version": "v0.9",
       "updateComponents": {
-        "surfaceId": "example_1",
+        "surfaceId": "gallery-simple-text",
         "components": [
           {
             "id": "root",

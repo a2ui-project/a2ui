@@ -1,19 +1,19 @@
 {
-  "name": "Capitalized Text",
-  "description": "Client-side function example",
+  "name": "Formatted Text",
+  "description": "Simple example demonstrating basic catalog components.",
   "messages": [
     {
-      "version": "v1.0",
+      "version": "v0.9",
       "createSurface": {
-        "surfaceId": "example_6",
-        "catalogId": "https://a2ui.org/specification/v1_0/catalogs/minimal/catalog.json",
+        "surfaceId": "gallery-formatted-text",
+        "catalogId": "https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json",
         "sendDataModel": true
       }
     },
     {
-      "version": "v1.0",
+      "version": "v0.9",
       "updateComponents": {
-        "surfaceId": "example_6",
+        "surfaceId": "gallery-formatted-text",
         "components": [
           {
             "id": "root",
@@ -25,7 +25,7 @@
           {
             "id": "input_field",
             "component": "TextField",
-            "label": "Type something in lowercase:",
+            "label": "Type something:",
             "value": {
               "path": "/inputValue"
             },
@@ -34,21 +34,20 @@
           {
             "id": "result_label",
             "component": "Text",
-            "text": "Capitalized output:",
+            "text": "Formatted output:",
             "variant": "caption"
           },
           {
             "id": "result_text",
             "component": "Text",
             "text": {
-              "call": "capitalize",
+              "call": "formatString",
               "args": {
-                "value": {
-                  "path": "/inputValue"
-                }
+                "value": "You typed: ${/inputValue}"
               },
               "returnType": "string"
-            }
+            },
+            "variant": "body"
           }
         ]
       }

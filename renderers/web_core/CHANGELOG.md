@@ -1,5 +1,9 @@
 ## Unreleased
 
+## 0.10.2
+
+- Updated `openUrl` to reject URLs with schema other than HTTP or HTTPs to fix a security issue where agents could execute arbitrary Javascript code.
+
 ## 0.10.1
 
 - Add locale support to basic catalog functions (`pluralize`, `formatNumber`, `formatCurrency`) in v0.9 via catalog-level configuration.

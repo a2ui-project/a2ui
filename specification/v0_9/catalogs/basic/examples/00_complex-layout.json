@@ -1,18 +1,18 @@
 {
   "name": "Complex Layout",
-  "description": "Nested rows and columns",
+  "description": "Simple example demonstrating basic catalog components.",
   "messages": [
     {
-      "version": "v1.0",
+      "version": "v0.9",
       "createSurface": {
-        "surfaceId": "example_5",
-        "catalogId": "https://a2ui.org/specification/v1_0/catalogs/minimal/catalog.json"
+        "surfaceId": "gallery-complex-layout",
+        "catalogId": "https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json"
       }
     },
     {
-      "version": "v1.0",
+      "version": "v0.9",
       "updateComponents": {
-        "surfaceId": "example_5",
+        "surfaceId": "gallery-complex-layout",
         "components": [
           {
             "id": "root",
@@ -24,7 +24,8 @@
           {
             "id": "header",
             "component": "Text",
-            "text": "# User Profile Form"
+            "text": "User Profile Form",
+            "variant": "h1"
           },
           {
             "id": "form_row",

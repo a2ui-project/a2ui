@@ -1,18 +1,18 @@
 {
-  "name": "Incremental List",
-  "description": "Demonstrates progressive rendering of a list with templates and data model reactivity.",
+  "name": "Incremental",
+  "description": "Simple example demonstrating basic catalog components.",
   "messages": [
     {
       "version": "v0.9",
       "createSurface": {
-        "surfaceId": "example_7",
-        "catalogId": "https://a2ui.org/specification/v0_9/catalogs/minimal/catalog.json"
+        "surfaceId": "gallery-incremental",
+        "catalogId": "https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json"
       }
     },
     {
       "version": "v0.9",
       "updateDataModel": {
-        "surfaceId": "example_7",
+        "surfaceId": "gallery-incremental",
         "path": "/",
         "value": {
           "restaurants": [
@@ -38,7 +38,7 @@
     {
       "version": "v0.9",
       "updateComponents": {
-        "surfaceId": "example_7",
+        "surfaceId": "gallery-incremental",
         "components": [
           {
             "id": "root",
@@ -54,7 +54,7 @@
     {
       "version": "v0.9",
       "updateComponents": {
-        "surfaceId": "example_7",
+        "surfaceId": "gallery-incremental",
         "components": [
           {
             "id": "restaurant_card",
@@ -88,7 +88,7 @@
     {
       "version": "v0.9",
       "updateDataModel": {
-        "surfaceId": "example_7",
+        "surfaceId": "gallery-incremental",
         "path": "/restaurants/3",
         "value": {
           "title": "Spice Route",
@@ -100,7 +100,7 @@
     {
       "version": "v0.9",
       "updateComponents": {
-        "surfaceId": "example_7",
+        "surfaceId": "gallery-incremental",
         "components": [
           {
             "id": "restaurant_card",

@@ -10,7 +10,7 @@ The following scripts in `renderers/scripts/` automate the versioning, building,
 
 _(Note: Only Googlers will be able to publish to the internal registry. Authentication is handled automatically when running release scripts.)_
 
-Ensure you are logged into `gcloud` with your corporate credentials:
+In addition to being able to build the package (using `yarn` through `corepack`), ensure you are logged into `gcloud` CLI with your corporate credentials:
 
 ```sh
 gcloud auth login
@@ -36,6 +36,8 @@ This script will:
 - Scan the entire mono-repo for internal dependents (via `file:` links).
 - Run `yarn install` in those dependents to update their lockfiles.
 
+Then, prepare a PR with the changes to the `package.json` files, and have it landed into `main`.
+
 ### 2. Publish to Staging (Artifact Registry)
 
 Once versions are updated and merged into `main`, use the `publish_npm` script to build, test, and upload the packages to Google's internal Artifact Registry.
@@ -47,19 +49,17 @@ Once versions are updated and merged into `main`, use the `publish_npm` script t
 
 This script will:
 
-- Automatically obtain a Google Artifact Registry token via `gcloud auth print-access-token`.
+- Obtain a token to interact with registry via `gcloud auth print-access-token`.
 - Sort packages topologically (e.g., publishing `web_core` before `lit`).
-- Verify that if a renderer is being published, `web_core` is also included (use `--force` to skip).
-- Run pre-flight checks against existing `npmjs` versions and prompt for confirmation.
+- Verify that core packages (`web_core` and `markdown-it`) are available on the registry, and publish them if they're not.
+- Skip packages that already exist on the registry, with a warning.
 - For each package: `yarn install` -> `yarn test` -> `yarn run publish:package`.
 
-**Advanced Flags for publish_npm.mjs:**
+**CLI parameters for publish_npm.mjs:**
 
-- `--force`: Skips the `web_core` inclusion warning.
-- `--yes`: Bypasses the manual user confirmation prompt (useful for CI).
-- `--dry-run`: Simulates the process, printing the commands it _would_ execute without actually running them.
-- `--skip-tests`: Skips the `yarn test` phase before publishing.
-- `--test-only`: Runs the full build and test suite in topological order, but skips the final `yarn run publish:package` step. Useful for verifying that packages build and tests pass before performing a real release.
+- `--package=<name>`: The name of the package to publish (e.g: `--package=lit`). It can be passed multiple times to publish more than one package at a time.
+- `--no-dry-run`: Actually uploads the packages to the artifact registry. By default, the script runs in dry-run mode.
+- `--skip-tests`: Skips the `yarn test` phase before publishing. Not recommended.
 
 ### 3. Upload Manifest
 
@@ -71,41 +71,30 @@ Finally, trigger the public release to npmjs.com by uploading a manifest file:
 
 This generates a `manifest.json` with the current versions of all renderer packages and uploads it to GCS to trigger the internal release infrastructure. You should receive an email from exit-gate noting that publishing has commenced.
 
+**CLI parameters for upload_manifest.mjs:**
+
+- `--package=<name>`: The name of the package to include in the manifest (e.g: `--package=lit`). It can be passed multiple times to publish more than one package at a time.
+- `--no-dry-run`: Actually uploads the manifest to trigger the exit gate process. By default, the script runs in dry-run mode.
+
 #### Manual alternative
 
-You can also do this step manually, if you are authenticated with `gcloud` with a corporate Google account in the correct groups:
+You can upload the manifest manually, being authenticated with `gcloud` with:
 
-1. Create a new manifest.json file with these contents:
-
-   ```json
-   {
-     "publish_all": true
-   }
-   ```
-
-2. Upload the file
-
-   ```sh
-   gcloud storage cp manifest.json gs://oss-exit-gate-prod-projects-bucket/a2ui/npm/manifests/manifest.json
-   ```
+```sh
+gcloud storage cp manifest.json gs://oss-exit-gate-prod-projects-bucket/a2ui/npm/manifests/manifest.json
+```
 
 ---
 
-## Internal Release Process
+## Internal Release Process (Exit Gate)
 
 The internal release infrastructure monitors the GCS bucket for new manifests. Once a manifest is uploaded, it triggers a series of checks and then publishes the specified versions to the public npm registry.
-
-Export your token in your terminal:
-
-```sh
-export NPM_TOKEN="npm_YourSecretTokenHere"
-```
 
 ### 🏢 Internal Artifact Registry Setup (Exit Gate) - For Yarn Modern
 
 The monorepo is fully configured in `.yarnrc.yml` to route `@a2ui` scoped packages to the internal Google Artifact Registry. Authentication is automatically injected via `gcloud` when running `./renderers/scripts/publish_npm.mjs`.
 
-If you need to manually publish or run commands locally requiring registry access, export a token in your terminal:
+If you need to manually `yarn` publish or info commands that require registry access, export a token in your terminal:
 
 ```sh
 export NPM_TOKEN=$(gcloud auth print-access-token)
@@ -215,3 +204,10 @@ Googlers can visit [go/a2ui-oss-exit-gate-artifacts](https://go/a2ui-oss-exit-ga
    git push origin v0.8.0
    ```
 3. Create a GitHub Release mapping to the new tag.
+
+## Troubleshooting
+
+- If you get authorization errors, make sure you're logged in in the `gcloud` CLI. This can take
+  a few seconds to propagate after you're authenticated.
+- If you get weird build errors but everything passed in CI, your working copy is probably dirty.
+  Try running `yarn clean:all` to remove old build artifacts.

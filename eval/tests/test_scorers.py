@@ -14,6 +14,7 @@
 
 import os
 import pytest
+
 from a2ui_eval.scorers import a2ui_scorer
 from inspect_ai.scorer import Target
 from inspect_ai.solver import TaskState
@@ -24,7 +25,7 @@ CATALOG_PATH = os.path.abspath(os.path.join(CURRENT_DIR, "../../specification/v0
 
 @pytest.mark.asyncio
 async def test_scorer_valid_json():
-    scorer = a2ui_scorer(CATALOG_PATH)
+    scorer = a2ui_scorer()
     valid_json = """
     <a2ui-json>
     {
@@ -42,7 +43,10 @@ async def test_scorer_valid_json():
         epoch=1,
         input="test",
         messages=[],
-        output=ModelOutput(model="mock/model", completion=valid_json)
+        output=ModelOutput(model="mock/model", completion=valid_json),
+        metadata={
+            "catalog": str(CATALOG_PATH)
+        }
     )
     
     score = await scorer(state, Target(""))
@@ -51,14 +55,17 @@ async def test_scorer_valid_json():
 
 @pytest.mark.asyncio
 async def test_scorer_invalid_json():
-    scorer = a2ui_scorer(CATALOG_PATH)
+    scorer = a2ui_scorer()
     state = TaskState(
         model=ModelName("mock/model"),
         sample_id=1,
         epoch=1,
         input="test",
         messages=[],
-        output=ModelOutput(model="mock/model", completion="invalid json")
+        output=ModelOutput(model="mock/model", completion="invalid json"),
+        metadata={
+            "catalog": str(CATALOG_PATH)
+        }
     )
     score = await scorer(state, Target(""))
     assert score.value == 0.0
@@ -66,7 +73,7 @@ async def test_scorer_invalid_json():
 
 @pytest.mark.asyncio
 async def test_scorer_missing_root():
-    scorer = a2ui_scorer(CATALOG_PATH)
+    scorer = a2ui_scorer()
     payload = """
     <a2ui-json>
     [
@@ -95,7 +102,10 @@ async def test_scorer_missing_root():
         epoch=1,
         input="test",
         messages=[],
-        output=ModelOutput(model="mock/model", completion=payload)
+        output=ModelOutput(model="mock/model", completion=payload),
+        metadata={
+            "catalog": str(CATALOG_PATH)
+        }
     )
     score = await scorer(state, Target(""))
     assert score.value == 0.0
@@ -103,7 +113,7 @@ async def test_scorer_missing_root():
 
 @pytest.mark.asyncio
 async def test_scorer_duplicate_ids():
-    scorer = a2ui_scorer(CATALOG_PATH)
+    scorer = a2ui_scorer()
     payload = """
     <a2ui-json>
     {
@@ -125,7 +135,10 @@ async def test_scorer_duplicate_ids():
         epoch=1,
         input="test",
         messages=[],
-        output=ModelOutput(model="mock/model", completion=payload)
+        output=ModelOutput(model="mock/model", completion=payload),
+        metadata={
+            "catalog": str(CATALOG_PATH)
+        }
     )
     score = await scorer(state, Target(""))
     assert score.value == 0.0
@@ -133,7 +146,7 @@ async def test_scorer_duplicate_ids():
 
 @pytest.mark.asyncio
 async def test_scorer_broken_relationship():
-    scorer = a2ui_scorer(CATALOG_PATH)
+    scorer = a2ui_scorer()
     payload = """
     <a2ui-json>
     [
@@ -163,7 +176,10 @@ async def test_scorer_broken_relationship():
         epoch=1,
         input="test",
         messages=[],
-        output=ModelOutput(model="mock/model", completion=payload)
+        output=ModelOutput(model="mock/model", completion=payload),
+        metadata={
+            "catalog": str(CATALOG_PATH)
+        }
     )
     score = await scorer(state, Target(""))
     assert score.value == 0.0
@@ -171,7 +187,7 @@ async def test_scorer_broken_relationship():
 
 @pytest.mark.asyncio
 async def test_scorer_circular_reference():
-    scorer = a2ui_scorer(CATALOG_PATH)
+    scorer = a2ui_scorer()
     payload = """
     <a2ui-json>
     {
@@ -193,7 +209,10 @@ async def test_scorer_circular_reference():
         epoch=1,
         input="test",
         messages=[],
-        output=ModelOutput(model="mock/model", completion=payload)
+        output=ModelOutput(model="mock/model", completion=payload),
+        metadata={
+            "catalog": str(CATALOG_PATH)
+        }
     )
     score = await scorer(state, Target(""))
     assert score.value == 0.0

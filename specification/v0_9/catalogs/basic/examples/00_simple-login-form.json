@@ -1,19 +1,19 @@
 {
-  "name": "Login Form",
-  "description": "Form with input fields and action",
+  "name": "Simple Login Form",
+  "description": "Simple example demonstrating basic catalog components.",
   "messages": [
     {
       "version": "v0.9",
       "createSurface": {
-        "surfaceId": "example_4",
-        "catalogId": "https://a2ui.org/specification/v0_9/catalogs/minimal/catalog.json",
+        "surfaceId": "gallery-simple-login-form",
+        "catalogId": "https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json",
         "sendDataModel": true
       }
     },
     {
       "version": "v0.9",
       "updateComponents": {
-        "surfaceId": "example_4",
+        "surfaceId": "gallery-simple-login-form",
         "components": [
           {
             "id": "root",

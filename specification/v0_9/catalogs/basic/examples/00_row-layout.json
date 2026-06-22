@@ -1,18 +1,18 @@
 {
   "name": "Row Layout",
-  "description": "Two components side-by-side",
+  "description": "Simple example demonstrating basic catalog components.",
   "messages": [
     {
       "version": "v0.9",
       "createSurface": {
-        "surfaceId": "example_2",
-        "catalogId": "https://a2ui.org/specification/v0_9/catalogs/minimal/catalog.json"
+        "surfaceId": "gallery-row-layout",
+        "catalogId": "https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json"
       }
     },
     {
       "version": "v0.9",
       "updateComponents": {
-        "surfaceId": "example_2",
+        "surfaceId": "gallery-row-layout",
         "components": [
           {
             "id": "root",

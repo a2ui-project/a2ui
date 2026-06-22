@@ -15,8 +15,8 @@
 """Tasks for A2UI evaluation."""
 # pylint: disable=duplicate-code
 
-import os
 import sys
+from pathlib import Path
 from google import genai
 from google.genai import errors
 from inspect_ai import task, Task
@@ -27,11 +27,9 @@ from a2ui_eval.strategies import get_solver
 from a2ui_eval.scorers import a2ui_scorer, measured_model_graded_qa
 
 # Paths relative to the eval directory where we run inspect
-CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
-DATASET_PATH_V09 = os.path.abspath(os.path.join(CURRENT_DIR, "datasets/v0_9_prompts.yaml"))
-DATASET_PATH_V10 = os.path.abspath(os.path.join(CURRENT_DIR, "datasets/v1_0_prompts.yaml"))
-SCHEMA_PATH = os.path.abspath(os.path.join(CURRENT_DIR, "../specification/v0_9_1/json/server_to_client.json"))
-CATALOG_PATH = os.path.abspath(os.path.join(CURRENT_DIR, "../specification/v0_9_1/catalogs/basic/catalog.json"))
+CURRENT_DIR = Path(__file__).resolve().parent
+DATASET_PATH_V09 = (CURRENT_DIR / "datasets/v0_9_prompts.yaml").resolve()
+DATASET_PATH_V10 = (CURRENT_DIR / "datasets/v1_0_prompts.yaml").resolve()
 
 GRADER_INSTRUCTIONS = """
 After assessing the submitted answer, reply with 'GRADE: $LETTER' (without quotes) where LETTER is one of C, P or I.  Please choose ONE option for the grade: either "C" for correct answers, "P" for partial credit, or "I" for incorrect answers.
@@ -89,23 +87,21 @@ def a2ui_v0_9_1_eval(
         )
 
     active_dataset_path = DATASET_PATH_V09
-    active_schema = SCHEMA_PATH
-    active_catalog = CATALOG_PATH
-    active_version = "0.9.1"
+    active_version = "0.9"
+    default_catalog_path = "specification/v0_9/catalogs/basic/catalog.json"
 
     if strategy == "express":
         active_dataset_path = DATASET_PATH_V10
-        active_schema = os.path.abspath(os.path.join(CURRENT_DIR, "../specification/v1_0/json/server_to_client.json"))
-        active_catalog = os.path.abspath(os.path.join(CURRENT_DIR, "../specification/v1_0/catalogs/basic/catalog.json"))
         active_version = "1.0"
+        default_catalog_path = "specification/v1_0/catalogs/basic/catalog.json"
 
-    dataset = load_a2ui_dataset(active_dataset_path)
+    dataset = load_a2ui_dataset(str(active_dataset_path), default_catalog_path=default_catalog_path)
 
     return Task(
         dataset=dataset,
-        solver=get_solver(strategy, active_schema, active_catalog),
+        solver=get_solver(strategy),
         scorer=[
-            a2ui_scorer(active_catalog, version=active_version),
+            a2ui_scorer(version=active_version),
             measured_model_graded_qa(
                 model=grading_model,
                 instructions=GRADER_INSTRUCTIONS
