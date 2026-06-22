@@ -15,8 +15,13 @@
 import time
 from inspect_ai.solver import Solver, solver, TaskState, Generate
 from inspect_ai.model._model import sample_model_usage
+from pathlib import Path
 
-WORKFLOW_OVERRIDE = """
+GIT_ROOT = (Path(__file__).resolve().parent / "../../..").resolve()
+DEFAULT_CATALOG_PATH = "specification/v0_9/catalogs/basic/catalog.json"
+DEFAULT_ROLE_DESCRIPTION = "You are an AI assistant. Based on the following request, generate a stream of JSON messages that conform to the provided JSON Schemas."
+
+DEFAULT_WORKFLOW_DESCRIPTION = """
 Additional Rules:
 1. Generate a 'createSurface' message with surfaceId 'main' and catalogId 'https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json'.
 2. Generate a 'updateComponents' message with surfaceId 'main' containing the requested UI.

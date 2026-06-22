@@ -21,9 +21,9 @@ STRATEGIES = {
     "subagent_tool": subagent_tool_solver,
 }
 
-def get_solver(strategy: str, schema_path: str, catalog_path: str) -> list[Solver]:
+def get_solver(strategy: str) -> list[Solver]:
     """Returns the solver chain for the specified evaluation strategy."""
     if strategy not in STRATEGIES:
         raise ValueError(f"Unknown evaluation strategy: {strategy}")
         
-    return STRATEGIES[strategy](schema_path, catalog_path)
+    return STRATEGIES[strategy]()
