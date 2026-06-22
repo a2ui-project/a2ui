@@ -15,6 +15,16 @@
 
 set -euo pipefail
 
+failure() {
+  local exit_code=$?
+  local line_no=$1
+  echo "===================================================="
+  echo "❌ ERROR: fix_format.sh failed on line $line_no with exit status $exit_code"
+  echo "===================================================="
+  exit "$exit_code"
+}
+trap 'failure $LINENO' ERR
+
 CHECK_ONLY=false
 if [[ "${1:-}" == "--check" ]]; then
   CHECK_ONLY=true
@@ -25,7 +35,9 @@ REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$REPO_ROOT"
 
 echo "Running Prettier formatting for Node/Web assets..."
-corepack enable
+if command -v corepack >/dev/null 2>&1; then
+  corepack enable 2>/dev/null || true
+fi
 if [ -f ".yarn/install-state.gz" ]; then
   # Local Node environment already installed; invoke standard script targets
   if [ "$CHECK_ONLY" = true ]; then
@@ -45,25 +57,25 @@ fi
 echo "Running Pyink for Python Agent SDK..."
 cd "$REPO_ROOT/agent_sdks/python/a2ui_agent" || exit 1
 if [ "$CHECK_ONLY" = true ]; then
-  uv run pyink --check .
+  uv run --default-index https://pypi.org/simple pyink --check .
 else
-  uv run pyink .
+  uv run --default-index https://pypi.org/simple pyink .
 fi
 
 echo "Running Pyink for Python Core SDK..."
 cd "$REPO_ROOT/agent_sdks/python/a2ui_core" || exit 1
 if [ "$CHECK_ONLY" = true ]; then
-  uv run pyink --check .
+  uv run --default-index https://pypi.org/simple pyink --check .
 else
-  uv run pyink .
+  uv run --default-index https://pypi.org/simple pyink .
 fi
 
 echo "Running Pyink for Python Samples..."
 cd "$REPO_ROOT/samples/agent/adk"
 if [ "$CHECK_ONLY" = true ]; then
-  uv run pyink --check .
+  uv run --default-index https://pypi.org/simple pyink --check .
 else
-  uv run pyink .
+  uv run --default-index https://pypi.org/simple pyink .
 fi
 
 echo "Running Dart format..."
