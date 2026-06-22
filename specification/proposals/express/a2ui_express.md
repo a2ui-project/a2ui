@@ -117,7 +117,7 @@ To support catalog flexibility and avoid hardcoding specific formatting or actio
 
 ### Validation and logic expressions
 
-Validation checks are defined using the `?` prefix. If a component expects validation rules, the compiler converts these expressions into standard client-side functions:
+Form validation checks are defined using the `?` prefix. If a component expects validation rules, the compiler converts these expressions into standard client-side functions:
 
 - Simple checks are written with the function name, for example `?required`.
 - Parameterized checks accept arguments in parentheses, for example `?regex("^[0-9]{5}$", "Must be a valid zip code")`.

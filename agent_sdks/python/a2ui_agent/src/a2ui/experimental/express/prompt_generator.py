@@ -31,10 +31,10 @@ def _schema_allows_databinding(prop_schema: Any) -> bool:
     return False
   if "$ref" in prop_schema:
     ref = prop_schema["$ref"]
-    if "DataBinding" in ref or "Dynamic" in ref:
+    if "DataBinding" in ref or "Dynamic" in ref or "ChildList" in ref:
       return True
-  if "oneOf" in prop_schema or "anyOf" in prop_schema:
-    subs = prop_schema.get("oneOf", []) + prop_schema.get("anyOf", [])
+  if "oneOf" in prop_schema or "anyOf" in prop_schema or "allOf" in prop_schema:
+    subs = prop_schema.get("oneOf", []) + prop_schema.get("anyOf", []) + prop_schema.get("allOf", [])
     for sub in subs:
       if _schema_allows_databinding(sub):
         return True

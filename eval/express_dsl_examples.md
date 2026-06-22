@@ -91,13 +91,13 @@ Use these exact positional signatures to instantiate components. Do not output p
   - displayStyle: The display style of the component. Must be one of: 'checkbox', 'chips'
   - filterable: If true, displays a search input to filter the options.
   - weight: The relative weight of this component within a Row or Column. This is similar to the CSS 'flex-grow' property. Note: this may ONLY be set when the component is a direct descendant of a Row or Column.
-• Column(children (static only), justify? (static only), align? (static only), weight? (static only))
+• Column(children, justify? (static only), align? (static only), weight? (static only))
   - Description: A layout component that arranges its children vertically. To create a grid layout, nest Rows within this Column.
   - children: Defines the children. Use an array of strings for a fixed set of children, or a template object to generate children from a data list. Children cannot be defined inline, they must be referred to by ID.
   - justify: Defines the arrangement of children along the main axis (vertically). Use 'spaceBetween' to push items to the edges (e.g. header at top, footer at bottom), or 'start'/'end'/'center' to pack them together. Must be one of: 'start', 'center', 'end', 'spaceBetween', 'spaceAround', 'spaceEvenly', 'stretch'
   - align: Defines the alignment of children along the cross axis (horizontally). This is similar to the CSS 'align-items' property. Must be one of: 'center', 'end', 'start', 'stretch'
   - weight: The relative weight of this component within a Row or Column. This is similar to the CSS 'flex-grow' property. Note: this may ONLY be set when the component is a direct descendant of a Row or Column.
-• DateTimeInput(value, enableDate? (static only), enableTime? (static only), min? (static only), max? (static only), label?, weight? (static only), checks? (static only))
+• DateTimeInput(value, enableDate? (static only), enableTime? (static only), min?, max?, label?, weight? (static only), checks? (static only))
   - value: The selected date and/or time value in ISO 8601 format. If not yet set, initialize with an empty string.
   - enableDate: If true, allows the user to select a date.
   - enableTime: If true, allows the user to select a time.
@@ -117,7 +117,7 @@ Use these exact positional signatures to instantiate components. Do not output p
   - fit: Specifies how the image should be resized to fit its container. This corresponds to the CSS 'object-fit' property. Must be one of: 'contain', 'cover', 'fill', 'none', 'scaleDown'
   - variant: A hint for the image size and style. Must be one of: 'icon', 'avatar', 'smallFeature', 'mediumFeature', 'largeFeature', 'header'
   - weight: The relative weight of this component within a Row or Column. This is similar to the CSS 'flex-grow' property. Note: this may ONLY be set when the component is a direct descendant of a Row or Column.
-• List(children (static only), direction? (static only), align? (static only), weight? (static only))
+• List(children, direction? (static only), align? (static only), weight? (static only))
   - children: Defines the children. Use an array of strings for a fixed set of children, or a template object to generate children from a data list.
   - direction: The direction in which the list items are laid out. Must be one of: 'vertical', 'horizontal'
   - align: Defines the alignment of children along the cross axis. Must be one of: 'start', 'center', 'end', 'stretch'
@@ -126,7 +126,7 @@ Use these exact positional signatures to instantiate components. Do not output p
   - trigger: The ID of the component that opens the modal when interacted with (e.g., a button). Do NOT define the component inline.
   - content: The ID of the component to be displayed inside the modal. Do NOT define the component inline.
   - weight: The relative weight of this component within a Row or Column. This is similar to the CSS 'flex-grow' property. Note: this may ONLY be set when the component is a direct descendant of a Row or Column.
-• Row(children (static only), justify? (static only), align? (static only), weight? (static only))
+• Row(children, justify? (static only), align? (static only), weight? (static only))
   - Description: A layout component that arranges its children horizontally. To create a grid layout, nest Columns within this Row.
   - children: Defines the children. Use an array of strings for a fixed set of children, or a template object to generate children from a data list. Children cannot be defined inline, they must be referred to by ID.
   - justify: Defines the arrangement of children along the main axis (horizontally). Use 'spaceBetween' to push items to the edges, or 'start'/'end'/'center' to pack them together. Must be one of: 'center', 'end', 'spaceAround', 'spaceBetween', 'spaceEvenly', 'start', 'stretch'
