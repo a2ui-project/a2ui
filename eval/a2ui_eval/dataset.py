@@ -21,7 +21,8 @@ import jsonschema
 import yaml
 from inspect_ai.dataset import MemoryDataset, Sample
 
-from a2ui_eval.shared.utils import DEFAULT_CATALOG_PATH, DEFAULT_WORKFLOW_DESCRIPTION, DEFAULT_ROLE_DESCRIPTION, GIT_ROOT
+from datasets.defaults import DEFAULT_CATALOG_PATH, DEFAULT_WORKFLOW_DESCRIPTION, DEFAULT_ROLE_DESCRIPTION
+from a2ui_eval.shared.utils import GIT_ROOT
 
 SCHEMA_PATH = GIT_ROOT / "eval" / "datasets" / "dataset_schema.json"
 
