@@ -17,11 +17,11 @@
 package com.google.a2ui.schema
 
 import com.google.a2ui.InferenceStrategy
+import com.google.a2ui.exceptions.A2uiCatalogException
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
-import com.google.a2ui.exceptions.A2uiCatalogException
 
 /** Represents the supported A2UI specification versions. */
 enum class A2uiVersion(

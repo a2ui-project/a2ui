@@ -18,7 +18,6 @@ from ..schema.constants import ROOT_ID
 from ..exceptions import A2uiRecursionError, A2uiIntegrityError
 
 
-
 def analyze_topology(
     components: List[Dict[str, Any]],
     ref_fields_map: Dict[str, Tuple[Set[str], Set[str]]],

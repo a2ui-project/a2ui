@@ -278,9 +278,7 @@ internal object SchemaInspector {
       if (neighbor !in visited) {
         dfs(neighbor, visited, adjList, recursionStack, depth + 1)
       } else if (neighbor in recursionStack) {
-        throw A2uiRecursionException(
-          "Circular reference detected involving component '$neighbor'"
-        )
+        throw A2uiRecursionException("Circular reference detected involving component '$neighbor'")
       }
     }
 

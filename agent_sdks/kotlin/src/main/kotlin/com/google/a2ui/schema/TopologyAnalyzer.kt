@@ -17,7 +17,6 @@
 package com.google.a2ui.schema
 
 import com.google.a2ui.exceptions.A2uiIntegrityException
-
 import java.util.logging.Logger
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement

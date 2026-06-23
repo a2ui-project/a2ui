@@ -20,55 +20,55 @@ import dataclasses
 
 @dataclasses.dataclass(frozen=True)
 class A2uiErrorDetail:
-  """Represents a single structured error or diagnostic detail."""
-  path: str
-  code: str
-  message: str
+    """Represents a single structured error or diagnostic detail."""
 
-  def to_dict(self) -> dict:
-    return dataclasses.asdict(self)
+    path: str
+    code: str
+    message: str
+
+    def to_dict(self) -> dict:
+        return dataclasses.asdict(self)
 
 
 class A2uiError(ValueError):
-  """Base exception class for all A2UI SDK failures."""
+    """Base exception class for all A2UI SDK failures."""
 
-  def __init__(self, message: str, details: list = None):
-    super().__init__(message)
-    self.details = details or []
+    def __init__(self, message: str, details: list = None):
+        super().__init__(message)
+        self.details = details or []
 
 
 class A2uiParseError(A2uiError):
-  """Exception raised when failing to parse or extract A2UI payloads."""
+    """Exception raised when failing to parse or extract A2UI payloads."""
 
-  pass
+    pass
 
 
 class A2uiValidationError(A2uiError):
-  """Exception raised when A2UI payload violates schema constraints."""
+    """Exception raised when A2UI payload violates schema constraints."""
 
-  pass
+    pass
 
 
 class A2uiCatalogError(A2uiError):
-  """Exception raised during catalog management or loading."""
+    """Exception raised during catalog management or loading."""
 
-  pass
+    pass
 
 
 class A2uiIntegrityError(A2uiError):
-  """Exception raised when layout graph integrity or relationship checks fail."""
+    """Exception raised when layout graph integrity or relationship checks fail."""
 
-  pass
+    pass
 
 
 class A2uiRecursionError(A2uiError):
-  """Exception raised when recursive or traversal limits are exceeded."""
+    """Exception raised when recursive or traversal limits are exceeded."""
 
-  pass
+    pass
 
 
 class A2uiCompileError(A2uiError):
-  """Exception raised when compiling or translating alternative UI formats/DSLs."""
+    """Exception raised when compiling or translating alternative UI formats/DSLs."""
 
-  pass
-
+    pass

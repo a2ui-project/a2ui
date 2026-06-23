@@ -16,8 +16,8 @@
 
 package com.google.a2ui.adk.a2a_extension
 
-import com.google.a2ui.schema.A2uiCatalog
 import com.google.a2ui.exceptions.A2uiValidationException
+import com.google.a2ui.schema.A2uiCatalog
 import com.google.adk.agents.ReadonlyContext
 import com.google.adk.models.LlmRequest
 import com.google.adk.tools.BaseTool

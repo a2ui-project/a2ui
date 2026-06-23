@@ -24,7 +24,6 @@ from .constants import A2UI_ASSET_PACKAGE, SPECIFICATION_DIR, ENCODING
 from .catalog_provider import FileSystemCatalogProvider
 
 
-
 def find_repo_root(start_path: str) -> str | None:
   """Finds the repository root by looking for the 'specification' directory."""
   current = os.path.abspath(start_path)
@@ -46,6 +45,7 @@ def load_from_bundled_resource(
   spec_map = spec_map.get(version)
   if not spec_map:
     from a2ui.core import A2uiCatalogError
+
     raise A2uiCatalogError(f"Unknown A2UI version: {version}")
 
   if resource_key not in spec_map:
@@ -118,6 +118,7 @@ def wrap_as_json_array(a2ui_schema: dict[str, Any]) -> dict[str, Any]:
   """
   if not a2ui_schema:
     from a2ui.core import A2uiCatalogError
+
     raise A2uiCatalogError("A2UI schema is empty")
   return {"type": "array", "items": a2ui_schema}
 

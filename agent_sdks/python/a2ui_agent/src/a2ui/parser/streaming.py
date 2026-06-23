@@ -38,7 +38,6 @@ from a2ui.core.validating.validator import RELAXED_VALIDATION, STRICT_VALIDATION
 from a2ui.core import A2uiParseError, A2uiIntegrityError
 
 
-
 if TYPE_CHECKING:
   from ..schema.catalog import A2uiCatalog
 

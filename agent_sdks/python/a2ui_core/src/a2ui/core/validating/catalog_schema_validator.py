@@ -201,7 +201,10 @@ class CatalogSchemaValidator:
                     comp_obj.model_class.model_validate(comp_payload)
             except ValidationError as ve:
                 details = self._format_pydantic_errors(ve)
-                raise A2uiValidationError("\n".join(f"[{d.path}] {d.message}" for d in details), details=details)
+                raise A2uiValidationError(
+                    "\n".join(f"[{d.path}] {d.message}" for d in details),
+                    details=details,
+                )
             except Exception as e:
                 raise A2uiValidationError(str(e))
 
@@ -244,7 +247,10 @@ class CatalogSchemaValidator:
                     errors = list(validator.iter_errors(properties))
                     if errors:
                         details = self._format_errors(errors)
-                        raise A2uiValidationError("\n".join(f"[{d.path}] {d.message}" for d in details), details=details)
+                        raise A2uiValidationError(
+                            "\n".join(f"[{d.path}] {d.message}" for d in details),
+                            details=details,
+                        )
                 except Exception as e:
                     if isinstance(e, A2uiValidationError):
                         raise e
@@ -282,7 +288,11 @@ class CatalogSchemaValidator:
                 code = "missing_field"
             elif err_type == "extra_forbidden":
                 code = "extra_field"
-            elif err_type.endswith("_type") or err_type.endswith("_parsing") or "type" in err_type:
+            elif (
+                err_type.endswith("_type")
+                or err_type.endswith("_parsing")
+                or "type" in err_type
+            ):
                 code = "type_mismatch"
             else:
                 code = "invalid_value"
@@ -313,7 +323,10 @@ class CatalogSchemaValidator:
                 errors = list(validator.iter_errors(theme_payload))
                 if errors:
                     details = self._format_errors(errors)
-                    raise A2uiValidationError("\n".join(f"[{d.path}] {d.message}" for d in details), details=details)
+                    raise A2uiValidationError(
+                        "\n".join(f"[{d.path}] {d.message}" for d in details),
+                        details=details,
+                    )
             except Exception as e:
                 if isinstance(e, A2uiValidationError):
                     raise e
@@ -338,7 +351,10 @@ class CatalogSchemaValidator:
                 func_obj.schema.model_validate(payload)
             except ValidationError as ve:
                 details = self._format_pydantic_errors(ve)
-                raise A2uiValidationError("\n".join(f"[{d.path}] {d.message}" for d in details), details=details)
+                raise A2uiValidationError(
+                    "\n".join(f"[{d.path}] {d.message}" for d in details),
+                    details=details,
+                )
             except Exception as e:
                 raise A2uiValidationError(str(e))
         else:
@@ -362,7 +378,10 @@ class CatalogSchemaValidator:
                 errors = list(validator.iter_errors(payload))
                 if errors:
                     details = self._format_errors(errors)
-                    raise A2uiValidationError("\n".join(f"[{d.path}] {d.message}" for d in details), details=details)
+                    raise A2uiValidationError(
+                        "\n".join(f"[{d.path}] {d.message}" for d in details),
+                        details=details,
+                    )
 
     def extract_ref_fields(self) -> Dict[str, Tuple[Set[str], Set[str]]]:
         """Inspects and retrieves the topological reference pointer map from the underlying catalog."""

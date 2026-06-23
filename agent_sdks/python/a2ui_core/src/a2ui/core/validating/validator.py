@@ -40,7 +40,6 @@ class A2uiValidatorError(A2uiValidationError):
     """Exception raised when an A2UI Catalog payload validation fails."""
 
 
-
 class ValidationConfig(BaseModel):
     """Configuration options for A2UI payload and component validation."""
 
@@ -93,8 +92,7 @@ class A2uiValidator:
 
         try:
             A2uiMessageListWrapper.model_validate({"messages": messages})
-            for msg in messages:
-                validate_recursion_and_paths(messages)
+            validate_recursion_and_paths(messages)
         except ValidationError as e:
             details.extend(self._format_validation_errors(e, messages))
         except A2uiValidationError as e:
@@ -148,8 +146,10 @@ class A2uiValidator:
                         ):
                             continue
             clean_loc_parts = [
-                x for x in loc_parts
-                if x not in (
+                x
+                for x in loc_parts
+                if x
+                not in (
                     "CreateSurfaceMessage",
                     "UpdateComponentsMessage",
                     "UpdateDataModelMessage",
@@ -163,7 +163,11 @@ class A2uiValidator:
                 code = "missing_field"
             elif err_type == "extra_forbidden":
                 code = "extra_field"
-            elif err_type.endswith("_type") or err_type.endswith("_parsing") or "type" in err_type:
+            elif (
+                err_type.endswith("_type")
+                or err_type.endswith("_parsing")
+                or "type" in err_type
+            ):
                 code = "type_mismatch"
             else:
                 code = "invalid_value"
@@ -257,4 +261,6 @@ class A2uiValidator:
             for err in errors:
                 if hasattr(err, "details") and err.details:
                     details.extend(err.details)
-            raise A2uiValidatorError("\n".join(str(err) for err in errors), details=details)
+            raise A2uiValidatorError(
+                "\n".join(str(err) for err in errors), details=details
+            )

@@ -16,12 +16,12 @@
 
 package com.google.a2ui.parser
 
+import com.google.a2ui.exceptions.A2uiParseException
 import java.util.logging.Logger
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
-import com.google.a2ui.exceptions.A2uiParseException
 
 /** Validates and applies autofixes to raw JSON strings. */
 object PayloadFixer {

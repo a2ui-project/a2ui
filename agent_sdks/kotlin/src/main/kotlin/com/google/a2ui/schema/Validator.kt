@@ -16,11 +16,10 @@
 
 package com.google.a2ui.schema
 
-import com.google.a2ui.exceptions.A2uiValidationException
 import com.google.a2ui.exceptions.A2uiErrorDetail
 import com.google.a2ui.exceptions.A2uiIntegrityException
 import com.google.a2ui.exceptions.A2uiRecursionException
-
+import com.google.a2ui.exceptions.A2uiValidationException
 import com.networknt.schema.InputFormat
 import com.networknt.schema.Schema
 import com.networknt.schema.SchemaRegistry
@@ -187,11 +186,12 @@ constructor(
 
       val errors = validator.validate(messagesString, InputFormat.JSON)
       if (errors.isNotEmpty()) {
-        val details = errors.map { err ->
-          val path = normalizePath(err.instanceLocation.toString(), "")
-          val code = mapNetworkntErrorCode(err.keyword)
-          A2uiErrorDetail(path, code, err.message)
-        }
+        val details =
+          errors.map { err ->
+            val path = normalizePath(err.instanceLocation.toString(), "")
+            val code = mapNetworkntErrorCode(err.keyword)
+            A2uiErrorDetail(path, code, err.message)
+          }
         val msg = buildString {
           append("Validation failed:")
           for (err in details) {
@@ -256,11 +256,7 @@ constructor(
       val basePath = "messages[$idx]"
       if (messageElem !is JsonObject) {
         allErrors.add(
-          A2uiErrorDetail(
-            path = basePath,
-            code = "type_mismatch",
-            message = "Is not an object"
-          )
+          A2uiErrorDetail(path = basePath, code = "type_mismatch", message = "Is not an object")
         )
         continue
       }
@@ -287,7 +283,7 @@ constructor(
             A2uiErrorDetail(
               path = basePath,
               code = "invalid_value",
-              message = "Unknown message type with keys $keys"
+              message = "Unknown message type with keys $keys",
             )
           )
         }
@@ -342,17 +338,14 @@ constructor(
       val path = normalizePath(err.instanceLocation.toString(), basePath)
       val code = mapNetworkntErrorCode(err.keyword)
       val msg = err.toString()
-      val unexpectedRegex =
-        Regex(
-          "property '(.*?)' is not defined in the schema and the schema does not allow additional properties"
-        )
-      val match = unexpectedRegex.find(msg)
-      val cleanMsg = if (match != null) {
-        val prop = match.groupValues[1]
-        "'$prop' was unexpected"
-      } else {
-        msg.removePrefix(": ").removePrefix("$.").removePrefix("$")
-      }
+      val match = UNEXPECTED_PROPERTY_PATTERN.find(msg)
+      val cleanMsg =
+        if (match != null) {
+          val prop = match.groupValues[1]
+          "'$prop' was unexpected"
+        } else {
+          msg.removePrefix(": ").removePrefix("$.").removePrefix("$")
+        }
       A2uiErrorDetail(path, code, cleanMsg)
     }
   }
@@ -366,7 +359,7 @@ constructor(
         A2uiErrorDetail(
           path = normalizePath("version", path),
           code = "invalid_value",
-          message = "Invalid version, expected 'v0.9'"
+          message = "Invalid version, expected 'v0.9'",
         )
       )
     }
@@ -377,7 +370,7 @@ constructor(
         A2uiErrorDetail(
           path = normalizePath("updateComponents", path),
           code = "type_mismatch",
-          message = "Expected updateComponents to be an object"
+          message = "Expected updateComponents to be an object",
         )
       )
       return errors
@@ -389,7 +382,7 @@ constructor(
         A2uiErrorDetail(
           path = normalizePath("updateComponents.surfaceId", path),
           code = "missing_field",
-          message = "Invalid or missing surfaceId"
+          message = "Invalid or missing surfaceId",
         )
       )
     }
@@ -400,7 +393,7 @@ constructor(
         A2uiErrorDetail(
           path = normalizePath("updateComponents.components", path),
           code = "type_mismatch",
-          message = "Expected components to be an array"
+          message = "Expected components to be an array",
         )
       )
       return errors
@@ -414,7 +407,7 @@ constructor(
         A2uiErrorDetail(
           path = normalizePath("updateComponents.components", path),
           code = "invalid_value",
-          message = "Duplicate component IDs found: ${duplicateIds.joinToString()}"
+          message = "Duplicate component IDs found: ${duplicateIds.joinToString()}",
         )
       )
     }
@@ -424,7 +417,7 @@ constructor(
           A2uiErrorDetail(
             path = normalizePath("updateComponents.components[$idx]", path),
             code = "type_mismatch",
-            message = "Component is not an object"
+            message = "Component is not an object",
           )
         )
         continue
@@ -444,13 +437,14 @@ constructor(
 
   private fun getSingleComponentErrors(comp: JsonObject, path: String): List<A2uiErrorDetail> {
     val compType =
-      comp["component"]?.jsonPrimitive?.content ?: return listOf(
-        A2uiErrorDetail(
-          path = path,
-          code = "missing_field",
-          message = "Missing 'component' field"
+      comp["component"]?.jsonPrimitive?.content
+        ?: return listOf(
+          A2uiErrorDetail(
+            path = path,
+            code = "missing_field",
+            message = "Missing 'component' field",
+          )
         )
-      )
 
     val catalogSchema = catalog.catalogSchema
     val componentsObj =
@@ -459,17 +453,19 @@ constructor(
           A2uiErrorDetail(
             path = path,
             code = "invalid_value",
-            message = "Catalog schema or components missing"
+            message = "Catalog schema or components missing",
           )
         )
 
-    val compSchema = componentsObj[compType] ?: return listOf(
-      A2uiErrorDetail(
-        path = path,
-        code = "invalid_value",
-        message = "Unknown component: $compType"
-      )
-    )
+    val compSchema =
+      componentsObj[compType]
+        ?: return listOf(
+          A2uiErrorDetail(
+            path = path,
+            code = "invalid_value",
+            message = "Unknown component: $compType",
+          )
+        )
 
     val validator =
       subValidators.getOrPut("comp_$compType") {
@@ -654,7 +650,7 @@ constructor(
   private fun normalizePath(path: String, basePath: String): String {
     var clean = path.trim().removePrefix("$").removePrefix(".").removePrefix("/")
     clean = clean.replace("/", ".")
-    clean = clean.replace(Regex("\\[(\\d+)\\]"), ".$1")
+    clean = clean.replace(INDEX_PATH_PATTERN, ".$1")
     clean = clean.replace("..", ".")
     val full = if (basePath.isEmpty()) clean else "$basePath.$clean"
     return full.trim().removePrefix(".").removeSuffix(".")
@@ -665,12 +661,18 @@ constructor(
       "required" -> "missing_field"
       "type" -> "type_mismatch"
       "additionalProperties" -> "extra_field"
-      "const", "enum" -> "invalid_value"
+      "const",
+      "enum" -> "invalid_value"
       else -> "invalid_value"
     }
   }
 
   private companion object {
+    private val INDEX_PATH_PATTERN = Regex("\\[(\\d+)\\]")
+    private val UNEXPECTED_PROPERTY_PATTERN =
+      Regex(
+        "property '(.*?)' is not defined in the schema and the schema does not allow additional properties"
+      )
     private val JSON_POINTER_PATTERN =
       Regex("^(?:(?:/(?:[^~/]|~[01])*)*|(?:[^~/]|~[01])+(?:/(?:[^~/]|~[01])*)*)$")
     private const val MAX_FUNC_CALL_DEPTH = 5

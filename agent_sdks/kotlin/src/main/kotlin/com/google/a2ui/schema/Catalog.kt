@@ -19,7 +19,6 @@
 package com.google.a2ui.schema
 
 import com.google.a2ui.exceptions.A2uiCatalogException
-
 import java.io.File
 import java.net.URI
 import java.nio.file.FileSystems

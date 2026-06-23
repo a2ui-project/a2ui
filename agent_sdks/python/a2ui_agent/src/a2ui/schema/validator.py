@@ -144,8 +144,19 @@ class A2uiValidatorWrapperV10:
         details.append(A2uiErrorDetail(path_str, code, err.message))
         if err.context:
           for sub_error in err.context:
-            sub_path = ".".join(map(str, sub_error.path)) if sub_error.path else path_str
-            details.append(A2uiErrorDetail(sub_path, code, sub_error.message))
+            sub_path = (
+                ".".join(map(str, sub_error.path)) if sub_error.path else path_str
+            )
+            sub_validator = getattr(sub_error, "validator", "")
+            if sub_validator == "required":
+              sub_code = "missing_field"
+            elif sub_validator == "type":
+              sub_code = "type_mismatch"
+            elif sub_validator == "additionalProperties":
+              sub_code = "extra_field"
+            else:
+              sub_code = "invalid_value"
+            details.append(A2uiErrorDetail(sub_path, sub_code, sub_error.message))
 
       msg = f"Validation failed: {errors[0].message}"
       if errors[0].context:

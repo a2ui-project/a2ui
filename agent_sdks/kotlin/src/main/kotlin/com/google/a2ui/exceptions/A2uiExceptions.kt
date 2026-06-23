@@ -19,64 +19,60 @@ package com.google.a2ui.exceptions
 import java.lang.IllegalArgumentException
 
 /** Represents a single structured error or diagnostic detail. */
-data class A2uiErrorDetail(
-    val path: String,
-    val code: String,
-    val message: String
-) {
-    companion object {
-        const val CODE_MISSING_FIELD = "missing_field"
-        const val CODE_TYPE_MISMATCH = "type_mismatch"
-        const val CODE_EXTRA_FIELD = "extra_field"
-        const val CODE_INVALID_VALUE = "invalid_value"
-    }
+data class A2uiErrorDetail(val path: String, val code: String, val message: String) {
+  companion object {
+    const val CODE_MISSING_FIELD = "missing_field"
+    const val CODE_TYPE_MISMATCH = "type_mismatch"
+    const val CODE_EXTRA_FIELD = "extra_field"
+    const val CODE_INVALID_VALUE = "invalid_value"
+  }
 }
 
 /** Base exception class for all A2UI SDK failures. */
 open class A2uiException(
-    message: String,
-    cause: Throwable? = null,
-    val details: List<A2uiErrorDetail> = emptyList()
+  message: String,
+  cause: Throwable? = null,
+  val details: List<A2uiErrorDetail> = emptyList(),
 ) : IllegalArgumentException(message, cause)
 
 /** Exception raised when failing to parse or extract A2UI payloads. */
 class A2uiParseException(
-    message: String,
-    cause: Throwable? = null,
-    details: List<A2uiErrorDetail> = emptyList()
+  message: String,
+  cause: Throwable? = null,
+  details: List<A2uiErrorDetail> = emptyList(),
 ) : A2uiException(message, cause, details)
 
 /** Exception raised when A2UI payload violates schema constraints. */
 class A2uiValidationException(
-    message: String,
-    cause: Throwable? = null,
-    details: List<A2uiErrorDetail> = emptyList()
+  message: String,
+  cause: Throwable? = null,
+  details: List<A2uiErrorDetail> = emptyList(),
 ) : A2uiException(message, cause, details)
 
 /** Exception raised during catalog management or loading. */
 class A2uiCatalogException(
-    message: String,
-    cause: Throwable? = null,
-    details: List<A2uiErrorDetail> = emptyList()
+  message: String,
+  cause: Throwable? = null,
+  details: List<A2uiErrorDetail> = emptyList(),
 ) : A2uiException(message, cause, details)
 
 /** Exception raised when layout graph integrity or relationship checks fail. */
 class A2uiIntegrityException(
-    message: String,
-    cause: Throwable? = null,
-    details: List<A2uiErrorDetail> = emptyList()
+  message: String,
+  cause: Throwable? = null,
+  details: List<A2uiErrorDetail> = emptyList(),
 ) : A2uiException(message, cause, details)
 
 /** Exception raised when recursive or traversal limits are exceeded. */
 class A2uiRecursionException(
-    message: String,
-    cause: Throwable? = null,
-    details: List<A2uiErrorDetail> = emptyList()
+  message: String,
+  cause: Throwable? = null,
+  details: List<A2uiErrorDetail> = emptyList(),
 ) : A2uiException(message, cause, details)
 
 /** Exception raised when compiling or translating alternative UI formats/DSLs. */
 class A2uiCompileException(
-    message: String,
-    cause: Throwable? = null,
-    details: List<A2uiErrorDetail> = emptyList()
+  message: String,
+  cause: Throwable? = null,
+  details: List<A2uiErrorDetail> = emptyList(),
 ) : A2uiException(message, cause, details)

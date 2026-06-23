@@ -16,13 +16,13 @@
 
 package com.google.a2ui.parser
 
+import com.google.a2ui.exceptions.A2uiIntegrityException
+import com.google.a2ui.exceptions.A2uiParseException
 import com.google.a2ui.schema.A2uiCatalog
 import com.google.a2ui.schema.A2uiConstants
 import com.google.a2ui.schema.A2uiValidator
 import com.google.a2ui.schema.A2uiVersion
 import com.google.a2ui.schema.TopologyAnalyzer
-import com.google.a2ui.exceptions.A2uiParseException
-import com.google.a2ui.exceptions.A2uiIntegrityException
 import java.util.logging.Logger
 import kotlinx.serialization.SerializationException
 import kotlinx.serialization.json.Json

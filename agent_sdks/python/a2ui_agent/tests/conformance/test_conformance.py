@@ -81,7 +81,8 @@ def assert_raises(expect_error):
           break
       assert found, (
           f"Expected validation error detail with path '{exp_path}' and code"
-          f" '{exp_code}' not found in: {[getattr(d, 'to_dict', lambda: d)() for d in actual_details]}"
+          f" '{exp_code}' not found in:"
+          f" {[getattr(d, 'to_dict', lambda: d)() for d in actual_details]}"
       )
 
 

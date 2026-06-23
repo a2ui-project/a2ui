@@ -16,9 +16,9 @@
 
 package com.google.a2ui.parser
 
+import com.google.a2ui.exceptions.A2uiParseException
 import com.google.a2ui.schema.A2uiConstants
 import com.google.a2ui.schema.A2uiValidator
-import com.google.a2ui.exceptions.A2uiParseException
 import java.util.logging.Logger
 import kotlinx.serialization.json.JsonElement
 

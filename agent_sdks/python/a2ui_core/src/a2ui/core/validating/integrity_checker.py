@@ -114,7 +114,9 @@ def validate_component_integrity(
 
     # 2. Check for root component
     if not allow_missing_root and root_id not in ids:
-        raise A2uiIntegrityError(f"Missing root component: No component has id='{root_id}'")
+        raise A2uiIntegrityError(
+            f"Missing root component: No component has id='{root_id}'"
+        )
 
     # 3. Check for dangling references using helper
     for comp in components:

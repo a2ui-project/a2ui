@@ -63,19 +63,20 @@ class ConformanceTest {
 
   private fun assertExceptionMatches(exception: Throwable, expect: ExpectError) {
     if (expect.category != null) {
-      val expectedClassName = when (expect.category) {
-        "ParseError" -> "A2uiParseException"
-        "ValidationError" -> "A2uiValidationException"
-        "CatalogError" -> "A2uiCatalogException"
-        "IntegrityError" -> "A2uiIntegrityException"
-        "RecursionError" -> "A2uiRecursionException"
-        "CompileError" -> "A2uiCompileException"
-        else -> "A2uiException"
-      }
+      val expectedClassName =
+        when (expect.category) {
+          "ParseError" -> "A2uiParseException"
+          "ValidationError" -> "A2uiValidationException"
+          "CatalogError" -> "A2uiCatalogException"
+          "IntegrityError" -> "A2uiIntegrityException"
+          "RecursionError" -> "A2uiRecursionException"
+          "CompileError" -> "A2uiCompileException"
+          else -> "A2uiException"
+        }
       assertEquals(
         expectedClassName,
         exception.javaClass.simpleName,
-        "Expected exception category '${expect.category}' (${expectedClassName}), but got: ${exception.javaClass.name}"
+        "Expected exception category '${expect.category}' (${expectedClassName}), but got: ${exception.javaClass.name}",
       )
     }
     if (expect.message != null) {
@@ -83,23 +84,26 @@ class ConformanceTest {
       val msg = exception.message ?: ""
       val causeMsg = exception.cause?.message ?: ""
       assertTrue(
-        regex.containsMatchIn(msg) || regex.containsMatchIn(causeMsg) ||
-        msg.contains("Validation failed") || msg.contains("Invalid JSON Pointer syntax"),
-        "Expected error message matching '${expect.message}', but got: ${exception.message} (cause: ${exception.cause?.message})"
+        regex.containsMatchIn(msg) ||
+          regex.containsMatchIn(causeMsg) ||
+          msg.contains("Validation failed") ||
+          msg.contains("Invalid JSON Pointer syntax"),
+        "Expected error message matching '${expect.message}', but got: ${exception.message} (cause: ${exception.cause?.message})",
       )
     }
     if (expect.details != null) {
       val a2uiException = exception as? com.google.a2ui.exceptions.A2uiException
       assertNotNull(a2uiException, "Expected an A2uiException carrying structured details")
       val actualDetails = a2uiException.details
-      
+
       for (expected in expect.details) {
-        val found = actualDetails.any { actual ->
-          actual.path == expected.path && actual.code == expected.code
-        }
+        val found =
+          actualDetails.any { actual ->
+            actual.path == expected.path && actual.code == expected.code
+          }
         assertTrue(
           found,
-          "Expected error detail with path '${expected.path}' and code '${expected.code}' not found in actual details: $actualDetails"
+          "Expected error detail with path '${expected.path}' and code '${expected.code}' not found in actual details: $actualDetails",
         )
       }
     }
@@ -159,10 +163,11 @@ class ConformanceTest {
 
           ValidateStep(
             payload = payload,
-            expectError = parseExpectError(
-              step[ConformanceTestHelper.KEY_EXPECT_ERROR]
-                ?: case[ConformanceTestHelper.KEY_EXPECT_ERROR]
-            ),
+            expectError =
+              parseExpectError(
+                step[ConformanceTestHelper.KEY_EXPECT_ERROR]
+                  ?: case[ConformanceTestHelper.KEY_EXPECT_ERROR]
+              ),
           )
         }
 
@@ -333,9 +338,7 @@ class ConformanceTest {
             if (expectErrorObj != null) {
               val expectError = parseExpectError(expectErrorObj)!!
               val exception =
-                assertFailsWith<Exception> {
-                  catalog!!.loadExamples(fullPath, validate = validate)
-                }
+                assertFailsWith<Exception> { catalog!!.loadExamples(fullPath, validate = validate) }
               assertExceptionMatches(exception, expectError)
             } else {
               val output = catalog!!.loadExamples(fullPath, validate = validate)
@@ -411,8 +414,7 @@ class ConformanceTest {
             val expectErrorObj = case[ConformanceTestHelper.KEY_EXPECT_ERROR]
             if (expectErrorObj != null) {
               val expectError = parseExpectError(expectErrorObj)!!
-              val exception =
-                assertFailsWith<Exception> { manager.getSelectedCatalog(capsJson) }
+              val exception = assertFailsWith<Exception> { manager.getSelectedCatalog(capsJson) }
               assertExceptionMatches(exception, expectError)
             } else {
               val selected = manager.getSelectedCatalog(capsJson)
@@ -551,8 +553,7 @@ class ConformanceTest {
             val expectErrorObj = case[ConformanceTestHelper.KEY_EXPECT_ERROR]
             if (expectErrorObj != null) {
               val expectError = parseExpectError(expectErrorObj)!!
-              val exception =
-                assertFailsWith<Exception> { parseResponseToParts(input) }
+              val exception = assertFailsWith<Exception> { parseResponseToParts(input) }
               assertExceptionMatches(exception, expectError)
             } else {
               val parts = parseResponseToParts(input)
@@ -743,10 +744,7 @@ private data class ValidateStep(val payload: JsonElement, val expectError: Expec
 private data class ExpectError(
   val category: String?,
   val message: String?,
-  val details: List<ExpectErrorDetail>? = null
+  val details: List<ExpectErrorDetail>? = null,
 )
 
-private data class ExpectErrorDetail(
-  val path: String,
-  val code: String
-)
+private data class ExpectErrorDetail(val path: String, val code: String)
