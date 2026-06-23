@@ -12,12 +12,12 @@ If you have proposed changes or new features, please open an issue or submit a p
 
 These documents describe the pure, transport-agnostic A2UI protocol:
 
-* [Protocol specification](file:///Users/gspencer/code/a2ui/main/specification/v1_0/docs/a2ui_protocol.md): The core wire-level protocol envelopes, UI composition model, data binding rules, and execution boundaries.
-* [Custom functions guide](file:///Users/gspencer/code/a2ui/main/specification/v1_0/docs/a2ui_custom_functions.md): How to define custom, application-specific client-side functions within your catalogs.
-* [Evolution guide](file:///Users/gspencer/code/a2ui/main/specification/v1_0/docs/evolution_guide.md): The differences and migration paths between v0.9 and v1.0.
+* [Protocol specification](docs/a2ui_protocol.md): The core wire-level protocol envelopes, UI composition model, data binding rules, and execution boundaries.
+* [Custom functions guide](docs/a2ui_custom_functions.md): How to define custom, application-specific client-side functions within your catalogs.
+* [Evolution guide](docs/evolution_guide.md): The differences and migration paths between v0.9 and v1.0.
 
 ## Transport extensions
 
 For integrations using specific communication channels, A2UI defines transport-specific extensions:
 
-* [A2A (Agent-to-Agent) extension](file:///Users/gspencer/code/a2ui/main/specification/v1_0/extensions/a2a/docs/a2ui_extension_specification.md): The specification mapping A2UI envelopes into A2A messages, including Agent Card metadata and two-way data model synchronization.
+* [A2A (Agent-to-Agent) extension](extensions/a2a/docs/a2ui_extension_specification.md): The specification mapping A2UI envelopes into A2A messages, including Agent Card metadata and two-way data model synchronization.
