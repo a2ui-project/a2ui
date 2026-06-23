@@ -322,12 +322,7 @@ The A2UI Express compiler parsed the compact DSL above, dynamically generated co
       {
         "id": "root",
         "component": "Column",
-        "children": [
-          "cityName",
-          "currentRow",
-          "divider",
-          "forecastList"
-        ]
+        "children": ["cityName", "currentRow", "divider", "forecastList"]
       },
       {
         "id": "cityName",
@@ -337,10 +332,7 @@ The A2UI Express compiler parsed the compact DSL above, dynamically generated co
       {
         "id": "currentRow",
         "component": "Row",
-        "children": [
-          "currentTemp",
-          "currentIcon"
-        ],
+        "children": ["currentTemp", "currentIcon"],
         "justify": "center",
         "align": "center"
       },
@@ -372,11 +364,7 @@ The A2UI Express compiler parsed the compact DSL above, dynamically generated co
       {
         "id": "forecastItem",
         "component": "Row",
-        "children": [
-          "itemDay",
-          "itemIcon",
-          "itemTemp"
-        ],
+        "children": ["itemDay", "itemIcon", "itemTemp"],
         "justify": "spaceBetween",
         "align": "center"
       },

@@ -85,39 +85,3 @@ Regenerate the dynamic [express_dsl_examples.md](express_dsl_examples.md) file c
 ```bash
 A2UI_EXPRESS_ENABLED=true uv run --project ../../../agent_sdks/python/a2ui_agent scripts/recreate_dsl_examples.py
 ```
-
----
-
-## Optional: Local model setup
-
-If you prefer to run generation locally using Apple Silicon hardware acceleration, you can setup a local completions server.
-
-### Installing the framework
-
-Install the `mlx-vlm` package globally:
-
-```bash
-uv tool install --force mlx-vlm
-```
-
-This registers standard CLI utilities in your path, including `mlx_vlm.server`.
-
-### Starting the Gemma 4 completions server
-
-Spin up the local completions server using the 4-bit quantized Gemma 4 E2B model:
-
-```bash
-mlx_vlm.server --model mlx-community/gemma-4-e2b-it-4bit --port 8080
-```
-
-On startup, the server retrieves weights and boots an OpenAI-compatible completions API endpoint on `http://localhost:8080`.
-
-### Running local inference
-
-Once the local server is active, you can test compilation correctness by passing the `--mlx` flag:
-
-```bash
-A2UI_EXPRESS_ENABLED=true uv run --project ../../../agent_sdks/python/a2ui_agent scripts/run_inference.py \
-  ../../v1_0/catalogs/basic/examples/01_flight-status.json \
-  --mlx
-```
