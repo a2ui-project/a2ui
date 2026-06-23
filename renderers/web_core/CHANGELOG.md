@@ -12,6 +12,7 @@
 - Updated `openUrl` to reject URLs with schema other than HTTP or HTTPs to fix a security issue where agents could execute arbitrary Javascript code.
 
 ## 0.10.1
+
 - Add locale support to basic catalog functions (`pluralize`, `formatNumber`, `formatCurrency`) in v0.9 via catalog-level configuration.
 - Remove `.passthrough()` from `PluralizeApi` schema for stricter validation.
 - Allow overriding hard-coded recursion depth in `DataValueSchema` for v0.8 by introducing `createDataValueSchema` factory function.
