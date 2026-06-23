@@ -2,6 +2,8 @@
 
 *Status: Draft*
 
+*Author: Jacob Simionato*
+
 *Created: 2026-06-18 Modified: 2026-06-18*
 
 # **Background**
@@ -39,14 +41,17 @@ Under this model:
 2. **Feature Blueprints** describe specific feature additions or behavioral changes to a module.
 3. **Codebase Blueprints** reside within each platform's implementation folder, tracking implemented features and documenting local design decisions or deviations.
 
-Spec-driven development is primarily used for major features, e.g. the addition of a new public API, behavior, protocol version or architectural change. By requiring these specifications to be checked into the codebase, we create a natural opportunity for review of feature designs before they are implemented. We also ensure that when we add a feature to one SDK codebase, we are also giving that feature an explicit name and specification that can be used to port it to other languages.
+Formal blueprints are primarily used for major features, e.g. the addition of a new public API, behavior, protocol version or architectural change. By having these specifications to be checked into the codebase, we create a natural opportunity for review of feature designs before they are implemented. We also ensure that when we add a feature to one SDK codebase, we can be easily port it to other languages.
 
-Smaller features can still be implemented ad-hoc with no feature specification, if they are:
+### **Smaller features**
 
-* Making changes to functionality that is not explicitly documented in the module blueprint, or
-* Addressing local bugs, refactorings, or performance optimizations that do not affect the public API or cross-language protocol compliance, or
-* Adding codebase-specific utility functions or internal helpers that do not impact compatibility with other SDKs.
+Smaller features can still be implemented ad-hoc with no formal blueprint. These small feature typically:
 
+* Make changes to functionality that is not explicitly documented in the module blueprint, or  
+* Address local bugs, refactorings, or performance optimizations that do not affect the public API or cross-language protocol compliance, or  
+* Add codebase-specific utility functions or internal helpers that do not impact compatibility or consistency with other SDKs.
+
+Specification-driven development is still useful for these features, but the specifications don’t always need to be checked into the file system. They could be checked in as blueprints, or written in Github issues, or exist as temporary files on a developer’s file system.
 # **Document types**
 
 ## **Feature blueprint**
