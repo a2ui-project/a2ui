@@ -16,7 +16,7 @@
 
 import assert from 'node:assert';
 import {describe, it, beforeEach} from 'node:test';
-import {signal, computed} from '@preact/signals-core';
+import {signal, computed, peekValue, getValue, setValue} from '../reactivity/signals.js';
 import {z} from 'zod';
 import {DataModel} from '../state/data-model.js';
 import {DataContext} from './data-context.js';
@@ -171,11 +171,11 @@ describe('DataContext', () => {
     const sig = context.resolveSignal(obj as any);
 
     // It should be a literal signal containing the object
-    assert.deepStrictEqual(sig.peek(), obj);
+    assert.deepStrictEqual(peekValue(sig), obj);
 
     // Updating the path should NOT affect it
     context.set('name', 'Bob');
-    assert.deepStrictEqual(sig.peek(), obj);
+    assert.deepStrictEqual(peekValue(sig), obj);
   });
 
   it('subscribes to function calls with no args', () => {
@@ -374,7 +374,7 @@ describe('DataContext', () => {
       const fnInvoker = (name: string) => {
         if (name === 'inner') {
           return computed(() => {
-            if (trigger.value) throw new A2uiExpressionError('Inner failure', 'inner_func');
+            if (getValue(trigger)) throw new A2uiExpressionError('Inner failure', 'inner_func');
             return 'ok';
           });
         }
@@ -400,7 +400,7 @@ describe('DataContext', () => {
       assert.strictEqual(sub.value, 'outer-result');
       assert.strictEqual(dispatchedError, null);
 
-      trigger.value = true;
+      setValue(trigger, true);
       // Accessing sub.value or the effect running triggers the catch.
       assert.strictEqual(sub.value, undefined);
       assert.ok(dispatchedError);
@@ -412,7 +412,7 @@ describe('DataContext', () => {
       const fnInvoker = (name: string) => {
         if (name === 'inner') {
           return computed(() => {
-            if (trigger.value) throw new Error('Generic inner failure');
+            if (getValue(trigger)) throw new Error('Generic inner failure');
             return 'ok';
           });
         }
@@ -438,7 +438,7 @@ describe('DataContext', () => {
       assert.strictEqual(sub.value, 'outer-result');
       assert.strictEqual(dispatchedError, null);
 
-      trigger.value = true;
+      setValue(trigger, true);
       assert.strictEqual(sub.value, undefined);
       assert.ok(dispatchedError);
       assert.strictEqual((dispatchedError as any).code, 'EXPRESSION_ERROR');

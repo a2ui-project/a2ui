@@ -24,7 +24,7 @@ dependencies = [
     "google-adk>=1.28.1",
     "google-genai>=1.27.0",
     "python-dotenv>=1.1.0",
-    "litellm",
+    "litellm>=1.83.7",
     "jsonschema>=4.0.0",
     "a2ui-agent-sdk>=0.2.4",
     "uvicorn>=0.40.0",

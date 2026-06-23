@@ -15,131 +15,94 @@
  */
 
 import assert from 'node:assert';
-import {describe, it} from 'node:test';
-import {Signal as PSignal, computed as pComputed, effect as pEffect} from '@preact/signals-core';
+import {after, describe, it} from 'node:test';
 import {
   signal as aSignal,
   computed as aComputed,
   Signal as ASignal,
   WritableSignal as AWritableSignal,
-  isSignal,
+  isSignal as aIsSignal,
   effect as aEffect,
+  untracked as auntracked,
 } from '@angular/core';
 
-import {FrameworkSignal} from './signals';
+import {
+  setSignalImplementation,
+  signal,
+  computed,
+  effect,
+  isSignal,
+  Signal,
+  getValue,
+  setValue,
+  PREACT_SIGNAL_IMPLEMENTATION,
+} from './signals.js';
 
-declare module './signals' {
-  interface SignalKinds<T> {
-    angular: ASignal<T>;
-    preact: PSignal<T>;
-  }
-  interface WritableSignalKinds<T> {
-    angular: AWritableSignal<T>;
-    preact: PSignal<T>;
-  }
-}
+describe('Signals abstraction', () => {
+  after(() => {
+    setSignalImplementation(PREACT_SIGNAL_IMPLEMENTATION);
+  });
 
-describe('FrameworkSignal', () => {
-  // Test FrameworkSignal with two sample implemenations that wrap Angular and
-  // Preact signals. Angular and Preact signals are good representitive samples,
-  // because the two common patterns - `()` vs. `.value` - are represented by
-  // Angular and Preact respectively.
+  it('uses default (preact) implementation correctly', () => {
+    const s = signal('hello');
+    assert.strictEqual(getValue(s), 'hello');
 
-  describe('Angular variation', () => {
-    const AngularSignal: FrameworkSignal<'angular'> = {
-      computed: <T>(fn: () => T) => aComputed(fn),
-      isSignal: (val: unknown) => isSignal(val),
-      wrap: <T>(val: T) => aSignal(val),
-      unwrap: <T>(val: ASignal<T>) => val(),
-      set: <T>(signal: AWritableSignal<T>, value: T) => signal.set(value),
-      effect: (fn: () => void, cleanupCallback: () => void) => {
+    const c = computed(() => getValue(s) + ' world');
+    assert.strictEqual(getValue(c), 'hello world');
+
+    let effectCount = 0;
+    const cleanup = effect(() => {
+      getValue(s);
+      effectCount++;
+    });
+
+    assert.strictEqual(effectCount, 1);
+    setValue(s, 'bye');
+    assert.strictEqual(effectCount, 2);
+
+    cleanup();
+    assert.ok(isSignal(s));
+  });
+
+  it('can be overridden with Angular variation', () => {
+    setSignalImplementation({
+      computed: <T>(fn: () => T) => {
+        const c = aComputed(fn);
+        return c as unknown as Signal<T>;
+      },
+      isSignal: (val: any): val is Signal<any> => aIsSignal(val),
+      signal: <T>(initialValue: T) => {
+        const s = aSignal(initialValue);
+        return s as unknown as Signal<T>;
+      },
+      effect: (fn: () => void | (() => void)) => {
         const e = aEffect(cleanupRegisterFn => {
-          cleanupRegisterFn(cleanupCallback);
-          fn();
+          const cleanup = fn();
+          if (typeof cleanup === 'function') {
+            cleanupRegisterFn(cleanup);
+          }
         });
         return () => e.destroy();
       },
-    };
-
-    it('round trip wraps and unwraps successfully', () => {
-      const val = 'hello';
-      const wrapped = AngularSignal.wrap(val);
-      assert.strictEqual(AngularSignal.unwrap(wrapped), val);
+      getValue: <T>(s: Signal<T>) => (s as ASignal<T>)(),
+      setValue: <T>(s: Signal<T>, v: T) => (s as AWritableSignal<T>).set(v),
+      peekValue: <T>(s: Signal<T>) => auntracked(() => (s as ASignal<T>)()),
+      batchWrite: (batchFn: () => void) => {
+        batchFn();
+      },
     });
 
-    it('handles updates well', () => {
-      const signal = AngularSignal.wrap('first');
-      const computedVal = AngularSignal.computed(() => `prefix ${signal()}`);
+    const s = signal('first');
+    const computedVal = computed(() => `prefix ${getValue(s)}`);
 
-      assert.strictEqual(signal(), 'first');
-      assert.strictEqual(AngularSignal.unwrap(signal), 'first');
-      assert.strictEqual(computedVal(), 'prefix first');
-      assert.strictEqual(AngularSignal.unwrap(computedVal), 'prefix first');
+    assert.strictEqual(getValue(s), 'first');
+    assert.strictEqual(getValue(computedVal), 'prefix first');
 
-      AngularSignal.set(signal, 'second');
+    setValue(s, 'second');
 
-      assert.strictEqual(signal(), 'second');
-      assert.strictEqual(AngularSignal.unwrap(signal), 'second');
-      assert.strictEqual(computedVal(), 'prefix second');
-      assert.strictEqual(AngularSignal.unwrap(computedVal), 'prefix second');
-    });
+    assert.strictEqual(getValue(s), 'second');
+    assert.strictEqual(getValue(computedVal), 'prefix second');
 
-    describe('.isSignal()', () => {
-      it('validates a signal', () => {
-        const val = 'hello';
-        const wrapped = AngularSignal.wrap(val);
-        assert.ok(AngularSignal.isSignal(wrapped));
-      });
-
-      it('rejects a non-signal', () => {
-        assert.strictEqual(AngularSignal.isSignal('hello'), false);
-      });
-    });
-  });
-
-  describe('Preact variation', () => {
-    const PreactSignal: FrameworkSignal<'preact'> = {
-      computed: <T>(fn: () => T) => pComputed(fn),
-      isSignal: (val: unknown) => val instanceof PSignal,
-      wrap: <T>(val: T) => new PSignal(val),
-      unwrap: <T>(val: PSignal<T>) => val.value,
-      set: <T>(signal: PSignal<T>, value: T) => (signal.value = value),
-      effect: (fn: () => void) => pEffect(fn),
-    };
-
-    it('round trip wraps and unwraps successfully', () => {
-      const val = 'hello';
-      const wrapped = PreactSignal.wrap(val);
-      assert.strictEqual(PreactSignal.unwrap(wrapped), val);
-    });
-
-    it('handles updates well', () => {
-      const signal = PreactSignal.wrap('first');
-      const computed = PreactSignal.computed(() => `prefix ${signal.value}`);
-
-      assert.strictEqual(signal.value, 'first');
-      assert.strictEqual(PreactSignal.unwrap(signal), 'first');
-      assert.strictEqual(computed.value, 'prefix first');
-      assert.strictEqual(PreactSignal.unwrap(computed), 'prefix first');
-
-      PreactSignal.set(signal, 'second');
-
-      assert.strictEqual(signal.value, 'second');
-      assert.strictEqual(PreactSignal.unwrap(signal), 'second');
-      assert.strictEqual(computed.value, 'prefix second');
-      assert.strictEqual(PreactSignal.unwrap(computed), 'prefix second');
-    });
-
-    describe('.isSignal()', () => {
-      it('validates a signal', () => {
-        const val = 'hello';
-        const wrapped = PreactSignal.wrap(val);
-        assert.ok(PreactSignal.isSignal(wrapped));
-      });
-
-      it('rejects a non-signal', () => {
-        assert.strictEqual(PreactSignal.isSignal('hello'), false);
-      });
-    });
+    assert.ok(isSignal(s));
   });
 });

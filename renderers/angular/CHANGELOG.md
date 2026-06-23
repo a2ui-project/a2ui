@@ -1,5 +1,9 @@
 ## Unreleased
 
+## 0.10.2
+
+- (v0_9) Align with signal implementation changes in `@a2ui/web_core`.
+
 ## 0.10.1
 
 - (v0_8) Export `MarkdownRenderer` in public API of v0.8. [#1658](https://github.com/a2ui-project/a2ui/pull/1658)

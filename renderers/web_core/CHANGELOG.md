@@ -1,5 +1,13 @@
 ## Unreleased
 
+## 0.10.3
+
+- Added the ability to swap out the signals implementation through the `setSignalImplementation` function.
+
+## 0.10.2
+
+- Updated `openUrl` to reject URLs with schema other than HTTP or HTTPs to fix a security issue where agents could execute arbitrary Javascript code.
+
 ## 0.10.1
 
 - Add locale support to basic catalog functions (`pluralize`, `formatNumber`, `formatCurrency`) in v0.9 via catalog-level configuration.

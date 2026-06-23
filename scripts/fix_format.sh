@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # Copyright 2026 Google LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -13,7 +13,17 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-set -euo pipefail
+set -eEuo pipefail
+
+failure() {
+  local exit_code=$?
+  echo "===================================================="
+  echo "❌ ERROR: fix_format.sh failed on line ${BASH_LINENO[0]} with exit status $exit_code"
+  echo "Command: ${BASH_COMMAND}"
+  echo "===================================================="
+  exit "$exit_code"
+}
+trap 'failure' ERR
 
 CHECK_ONLY=false
 if [[ "${1:-}" == "--check" ]]; then
@@ -25,7 +35,9 @@ REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$REPO_ROOT"
 
 echo "Running Prettier formatting for Node/Web assets..."
-corepack enable
+if command -v corepack >/dev/null 2>&1; then
+  corepack enable 2>/dev/null || true
+fi
 if [ -f ".yarn/install-state.gz" ]; then
   # Local Node environment already installed; invoke standard script targets
   if [ "$CHECK_ONLY" = true ]; then
