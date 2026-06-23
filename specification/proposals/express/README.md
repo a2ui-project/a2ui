@@ -32,8 +32,8 @@ To run inference and compiler validation using a standard remote Gemini model (e
    # Navigate to the express directory
    cd specification/proposals/express
 
-   # Run inference against Gemini API
-   A2UI_EXPRESS_ENABLED=true uv run ./run_inference.py \
+   # Run inference against Gemini API (using the a2ui_agent project environment)
+   A2UI_EXPRESS_ENABLED=true uv run --project ../../../agent_sdks/python/a2ui_agent scripts/run_inference.py \
      ../../v1_0/catalogs/basic/examples/01_flight-status.json \
      --model gemini-3.1-flash-lite
    ```
@@ -50,14 +50,14 @@ The script will:
 
 ## CLI utility reference
 
-The `express` package provides three standalone developer scripts in `specification/proposals/express/`. Each script dynamically adjusts python paths during execution, allowing them to run directly from any directory.
+The `express` package provides standalone developer scripts in `specification/proposals/express/scripts/`. Each script dynamically adjusts python paths during execution, allowing them to run directly from any directory when invoked with the appropriate project environment.
 
 ### Direct prompt generation
 
 Generate the model prompt contract, containing positional component signatures and rules compiled from the active catalog schema:
 
 ```bash
-A2UI_EXPRESS_ENABLED=true uv run ./run_prompt_generator.py --catalog ../../v1_0/catalogs/basic/catalog.json
+A2UI_EXPRESS_ENABLED=true uv run --project ../../../agent_sdks/python/a2ui_agent scripts/run_prompt_generator.py --catalog ../../v1_0/catalogs/basic/catalog.json
 ```
 
 ### Plain DSL compiler
@@ -65,7 +65,7 @@ A2UI_EXPRESS_ENABLED=true uv run ./run_prompt_generator.py --catalog ../../v1_0/
 Compile an offline A2UI Express DSL file directly into standard pretty-printed v1.0 JSON:
 
 ```bash
-A2UI_EXPRESS_ENABLED=true uv run ./run_compiler.py \
+A2UI_EXPRESS_ENABLED=true uv run --project ../../../agent_sdks/python/a2ui_agent scripts/run_compiler.py \
   path/to/sample.a2ui \
   --surface-id "dashboard_surface"
 ```
@@ -75,7 +75,15 @@ A2UI_EXPRESS_ENABLED=true uv run ./run_compiler.py \
 Convert standard A2UI v1.0 JSON envelopes back into compact A2UI Express code:
 
 ```bash
-A2UI_EXPRESS_ENABLED=true uv run ./run_decompiler.py ../../v1_0/catalogs/basic/examples/01_flight-status.json
+A2UI_EXPRESS_ENABLED=true uv run --project ../../../agent_sdks/python/a2ui_agent scripts/run_decompiler.py ../../v1_0/catalogs/basic/examples/01_flight-status.json
+```
+
+### Regenerate documentation examples
+
+Regenerate the dynamic [express_dsl_examples.md](express_dsl_examples.md) file containing the system prompt contract and compiled weather forecast examples directly from the active code:
+
+```bash
+A2UI_EXPRESS_ENABLED=true uv run --project ../../../agent_sdks/python/a2ui_agent scripts/recreate_dsl_examples.py
 ```
 
 ---
@@ -109,7 +117,7 @@ On startup, the server retrieves weights and boots an OpenAI-compatible completi
 Once the local server is active, you can test compilation correctness by passing the `--mlx` flag:
 
 ```bash
-A2UI_EXPRESS_ENABLED=true uv run ./run_inference.py \
+A2UI_EXPRESS_ENABLED=true uv run --project ../../../agent_sdks/python/a2ui_agent scripts/run_inference.py \
   ../../v1_0/catalogs/basic/examples/01_flight-status.json \
   --mlx
 ```
