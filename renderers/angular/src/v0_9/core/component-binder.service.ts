@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import {DestroyRef, Injectable, inject, NgZone} from '@angular/core';
+import { DestroyRef, Injectable, inject, NgZone } from '@angular/core';
 import {
   ComponentContext,
   computed,
@@ -24,9 +24,9 @@ import {
   signal,
   getValue,
 } from '@a2ui/web_core/v0_9';
-import {z} from 'zod';
-import {toAngularSignal} from './utils';
-import {BoundProperty, ComponentTemplate} from './types';
+import { z } from 'zod';
+import { toAngularSignal } from './utils';
+import { BoundProperty, ComponentTemplate } from './types';
 
 /** Represents a reference to a child component. */
 export interface Child {
@@ -66,7 +66,7 @@ export class ComponentBinder {
       let template: ComponentTemplate | undefined = undefined;
       const behavior: BehaviorNode = (behaviorTree.type === 'OBJECT'
         ? behaviorTree.shape[key]
-        : null) || {type: 'STATIC'};
+        : null) || { type: 'STATIC' };
 
       const resolvedPreactSig = this.resolveNested(value, behavior, context);
       const angSig = toAngularSignal(resolvedPreactSig as any, this.destroyRef, this.ngZone);
@@ -77,7 +77,7 @@ export class ComponentBinder {
         typeof value === 'object' &&
         'componentId' in value
       ) {
-        template = {id: value.componentId, path: value.path};
+        template = { id: value.componentId, path: value.path };
       }
 
       const isBoundPath =
@@ -99,7 +99,7 @@ export class ComponentBinder {
           const condition = rule.condition || rule;
           const message = rule.message || 'Validation failed';
           const conditionSig = context.dataContext.resolveSignal(condition);
-          return {conditionSig, message};
+          return { conditionSig, message };
         });
 
         const isValidPreactSig = computed(() => {
@@ -107,7 +107,9 @@ export class ComponentBinder {
         });
 
         const validationErrorsPreactSig = computed(() => {
-          return ruleResults.filter((r: any) => !getValue(r.conditionSig)).map((r: any) => r.message);
+          return ruleResults
+            .filter((r: any) => !getValue(r.conditionSig))
+            .map((r: any) => r.message);
         });
 
         bound['isValid'] = {
@@ -148,12 +150,12 @@ export class ComponentBinder {
           if (typeof val === 'object' && val !== null && 'id' in val) {
             return val;
           }
-          return {id: val, basePath: context.dataContext.path};
+          return { id: val, basePath: context.dataContext.path };
         });
       }
       case 'STRUCTURAL': {
         if (value && typeof value === 'object' && 'componentId' in value && 'path' in value) {
-          const listSig = context.dataContext.resolveSignal({path: value.path});
+          const listSig = context.dataContext.resolveSignal({ path: value.path });
           const listContext = context.dataContext.nested(value.path);
           return computed(() => {
             const arr = getValue(listSig);
@@ -168,11 +170,11 @@ export class ComponentBinder {
           return computed(() => {
             const val = getValue(listSig);
             const arr = Array.isArray(val) ? val : [];
-            return arr.map(item => {
+            return arr.map((item) => {
               if (typeof item === 'object' && item !== null && 'id' in item) {
                 return item;
               }
-              return {id: item, basePath: context.dataContext.path};
+              return { id: item, basePath: context.dataContext.path };
             });
           });
         }
@@ -182,14 +184,16 @@ export class ComponentBinder {
       }
       case 'ARRAY': {
         if (!Array.isArray(value)) return signal(value);
-        const itemSignals = value.map(item => this.resolveNested(item, behavior.element, context));
-        return computed(() => itemSignals.map(sig => getValue(sig)));
+        const itemSignals = value.map((item) =>
+          this.resolveNested(item, behavior.element, context),
+        );
+        return computed(() => itemSignals.map((sig) => getValue(sig)));
       }
       case 'OBJECT': {
         if (typeof value !== 'object' || Array.isArray(value)) return signal(value);
         const resolvedProps: Record<string, Signal<any>> = {};
         for (const [k, v] of Object.entries(value)) {
-          const childBehavior = behavior.shape[k] || {type: 'STATIC'};
+          const childBehavior = behavior.shape[k] || { type: 'STATIC' };
           resolvedProps[k] = this.resolveNested(v, childBehavior, context);
         }
         return computed(() => {
