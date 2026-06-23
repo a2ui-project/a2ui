@@ -68,7 +68,9 @@
             catalogId: standard
       expect_error:
         category: "ValidationError"
-        message: "'version' is a required property"
+        details:
+          - path: "messages.0.version"
+            code: "missing_field"
     - payload:
         - version: v0.8
           createSurface:
@@ -76,7 +78,9 @@
             catalogId: standard
       expect_error:
         category: "ValidationError"
-        message: "'v0.9' was expected"
+        details:
+          - path: "messages.0.version"
+            code: "invalid_value"
     - payload:
         - version: v0.9
           createSurface:
@@ -84,14 +88,18 @@
             catalogId: standard
       expect_error:
         category: "ValidationError"
-        message: "123 is not of type 'string'"
+        details:
+          - path: "messages.0.createSurface.surfaceId"
+            code: "type_mismatch"
     - payload:
         - version: v0.9
           createSurface:
             surfaceId: "123"
       expect_error:
         category: "ValidationError"
-        message: "'catalogId' is a required property"
+        details:
+          - path: "messages.0.createSurface.catalogId"
+            code: "missing_field"
 
 - name: test_validator_0_8
   description: Tests validation of v0.8 messages.

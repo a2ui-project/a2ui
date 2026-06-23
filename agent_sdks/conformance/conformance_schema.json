@@ -478,6 +478,17 @@
             "message": {
               "type": "string",
               "description": "Expected error message (regex) if this step/action should fail."
+            },
+            "details": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "path": {"type": "string"},
+                  "code": {"type": "string"}
+                },
+                "required": ["path", "code"]
+              }
             }
           },
           "required": ["category"]

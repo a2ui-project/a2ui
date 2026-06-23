@@ -208,7 +208,7 @@ class ValidatorTest {
 
     val msg = exception.message!!
     assertTrue(
-      msg.contains("messages[0]: /createSurface"),
+      msg.contains("messages[0].createSurface"),
       "Expected missing catalogId error path, got: " + msg,
     )
     assertTrue(

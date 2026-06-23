@@ -127,13 +127,32 @@ class A2uiValidatorWrapperV10:
     # 1. Run schema validation
     errors = list(self._schema_validator.iter_errors(messages))
     if errors:
-      error = errors[0]
-      msg = f"Validation failed: {error.message}"
-      if error.context:
+      from a2ui.core import A2uiErrorDetail
+
+      details = []
+      for err in errors:
+        path_str = ".".join(map(str, err.path)) if err.path else "root"
+        err_validator = getattr(err, "validator", "")
+        if err_validator == "required":
+          code = "missing_field"
+        elif err_validator == "type":
+          code = "type_mismatch"
+        elif err_validator == "additionalProperties":
+          code = "extra_field"
+        else:
+          code = "invalid_value"
+        details.append(A2uiErrorDetail(path_str, code, err.message))
+        if err.context:
+          for sub_error in err.context:
+            sub_path = ".".join(map(str, sub_error.path)) if sub_error.path else path_str
+            details.append(A2uiErrorDetail(sub_path, code, sub_error.message))
+
+      msg = f"Validation failed: {errors[0].message}"
+      if errors[0].context:
         msg += "\nContext failures:"
-        for sub_error in error.context:
+        for sub_error in errors[0].context:
           msg += f"\n  - {sub_error.message}"
-      raise A2uiValidationError(msg)
+      raise A2uiValidationError(msg, details=details)
 
     # 2. Run component integrity validation
     from a2ui.core.validating.integrity_checker import (

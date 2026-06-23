@@ -15,10 +15,24 @@
 """Custom exceptions for the A2UI SDK."""
 
 
+class A2uiErrorDetail:
+  """Represents a single structured error or diagnostic detail."""
+
+  def __init__(self, path: str, code: str, message: str):
+    self.path = path
+    self.code = code
+    self.message = message
+
+  def to_dict(self) -> dict:
+    return {"path": self.path, "code": self.code, "message": self.message}
+
+
 class A2uiError(ValueError):
   """Base exception class for all A2UI SDK failures."""
 
-  pass
+  def __init__(self, message: str, details: list = None):
+    super().__init__(message)
+    self.details = details or []
 
 
 class A2uiParseError(A2uiError):

@@ -36,6 +36,9 @@ from a2ui.core import (
 import json
 import re
 
+import contextlib
+
+
 CATEGORY_TO_EXCEPTION = {
     "ParseError": A2uiParseError,
     "ValidationError": A2uiValidationError,
@@ -46,15 +49,40 @@ CATEGORY_TO_EXCEPTION = {
 }
 
 
+@contextlib.contextmanager
 def assert_raises(expect_error):
   if isinstance(expect_error, dict):
     category = expect_error.get("category")
     message = expect_error.get("message", "")
     expected_class = CATEGORY_TO_EXCEPTION.get(category, A2uiError)
+    expected_details = expect_error.get("details", None)
   else:
     expected_class = ValueError
     message = expect_error
-  return pytest.raises(expected_class, match=_align_error_match(message))
+    expected_details = None
+
+  with pytest.raises(expected_class) as excinfo:
+    yield
+
+  if message:
+    assert re.search(_align_error_match(message), str(excinfo.value))
+
+  if expected_details is not None:
+    actual_details = getattr(excinfo.value, "details", [])
+    for expected in expected_details:
+      exp_path = expected["path"]
+      exp_code = expected["code"]
+      found = False
+      for actual in actual_details:
+        act_path = getattr(actual, "path", None) or actual.get("path")
+        act_code = getattr(actual, "code", None) or actual.get("code")
+        if act_path == exp_path and act_code == exp_code:
+          found = True
+          break
+      assert found, (
+          f"Expected validation error detail with path '{exp_path}' and code"
+          f" '{exp_code}' not found in: {[getattr(d, 'to_dict', lambda: d)() for d in actual_details]}"
+      )
 
 
 class MemoryCatalogProvider:

@@ -88,6 +88,21 @@ class ConformanceTest {
         "Expected error message matching '${expect.message}', but got: ${exception.message} (cause: ${exception.cause?.message})"
       )
     }
+    if (expect.details != null) {
+      val a2uiException = exception as? com.google.a2ui.exceptions.A2uiException
+      assertNotNull(a2uiException, "Expected an A2uiException carrying structured details")
+      val actualDetails = a2uiException.details
+      
+      for (expected in expect.details) {
+        val found = actualDetails.any { actual ->
+          actual.path == expected.path && actual.code == expected.code
+        }
+        assertTrue(
+          found,
+          "Expected error detail with path '${expected.path}' and code '${expected.code}' not found in actual details: $actualDetails"
+        )
+      }
+    }
   }
 
   private fun loadJsonFile(file: File): JsonObject {
@@ -724,4 +739,14 @@ private data class ConformanceTestCase(
 )
 
 private data class ValidateStep(val payload: JsonElement, val expectError: ExpectError?)
-private data class ExpectError(val category: String?, val message: String?)
+
+private data class ExpectError(
+  val category: String?,
+  val message: String?,
+  val details: List<ExpectErrorDetail>? = null
+)
+
+private data class ExpectErrorDetail(
+  val path: String,
+  val code: String
+)

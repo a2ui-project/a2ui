@@ -15,7 +15,7 @@
 from typing import Any, Dict, List, Optional, Set, Tuple, Union, Iterator
 import re
 from ..schema.constants import ROOT_ID
-from ..exceptions import A2uiValidationError, A2uiIntegrityError, A2uiRecursionError
+from ..exceptions import A2uiValidationError, A2uiErrorDetail, A2uiIntegrityError, A2uiRecursionError
 
 
 NUMERIC_PATTERN = re.compile(r"^(?:0|[1-9][0-9]*)$")
@@ -143,7 +143,16 @@ def validate_recursion_and_paths(data: Any) -> None:
             if "path" in item and isinstance(item["path"], str):
                 path = item["path"]
                 if not re.fullmatch(RELAXED_PATH_PATTERN, path):
-                    raise A2uiValidationError(f"Invalid path syntax: '{path}'")
+                    raise A2uiValidationError(
+                        f"Invalid path syntax: '{path}'",
+                        details=[
+                            A2uiErrorDetail(
+                                path="path",
+                                code="invalid_pointer",
+                                message=f"Invalid path syntax: '{path}'",
+                            )
+                        ],
+                    )
 
             is_func_v08 = "functionCall" in item and isinstance(
                 item["functionCall"], dict
