@@ -95,9 +95,11 @@ To support A2UI, a transport layer must fulfill the following contract:
 
 ### Transport bindings
 
-While A2UI is agnostic, it is most commonly used with the following transports.
+While A2UI is transport agnostic, it is most commonly used with the following transports.
 
 #### AG UI (Agent to User Interface) binding
+
+The **[A2A Extension](../extensions/a2a/docs/a2ui_extension_specification.md)** maps A2UI over the **[A2A Protocol](https://a2a-protocol.org)**, standardizing metadata placement, client/server capability negotiation, and bidirectional data model synchronization.
 
 **[AG-UI](https://docs.ag-ui.com/introduction)** is also an excellent transport option for A2UI Agent–User Interaction protocol.
 AG UI provides convenient integrations into many agent frameworks and frontends. AG UI provides low latency and shared state message passing between front ends and agentic backends.
