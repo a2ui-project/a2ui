@@ -14,4 +14,4 @@
  * limitations under the License.
  */
 
-export {ComponentToProps, setComponentProps, createBoundProperty} from './test-utils';
+export {type ComponentToProps, setComponentProps, createBoundProperty} from './test-utils';
