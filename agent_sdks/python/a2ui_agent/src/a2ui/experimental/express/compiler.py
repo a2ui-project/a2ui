@@ -17,44 +17,15 @@
 Tokenizes, lexes, and parses A2UI Express plain-text statements into a clean
 AST, compiling it directly into standard A2UI v1.0 JSON messages.
 
-================================================================================
-A2UI EXPRESS EBNF GRAMMAR
-================================================================================
-NOTE TO DEVELOPERS / CODING AGENTS:
-If you modify the scanner rules (_TOKEN_SPEC) or the recursive-descent parser
-methods (_TokenParser), you MUST keep this EBNF grammar definition synchronized.
-
-program              = { statement } ;
-statement            = [ assignment | expression ] ;
-assignment           = ( identifier | path ) "=" expression ;
-expression           = array
-                     | map
-                     | path
-                     | check
-                     | call
-                     | variable
-                     | literal ;
-array                = "[" [ expression { "," expression } ] [ "," ] "]" ;
-map                  = "{" [ map_entry { "," map_entry } ] [ "," ] "}" ;
-map_entry            = ( identifier | string ) ":" expression ;
-path                 = "$" { path_char } ;  (* path_char = a-zA-Z0-9_/ *)
-check                = "?" identifier [ "(" [ expression { "," expression } ] [ "," ] ")" ] ;
-call                 = identifier "(" [ expression { "," expression } ] [ "," ] ")" ;
-variable             = "_"  (* skipped argument sentinel *)
-                     | identifier ;
-literal              = string
-                     | number
-                     | boolean
-                     | "null" ;
-identifier           = letter { letter | digit | "_" } ;
-string               = raw_triple_string | raw_string | triple_string | standard_string ;
-number               = [ "-" ] digit { digit } [ "." digit { digit } ] ;
-boolean              = "true" | "false" ;
-================================================================================
+The grammar for A2UI Express is defined in Express.g4.
 """
 
 import re
 from typing import Any, Optional
+from antlr4 import InputStream, CommonTokenStream
+from .generated.express_lexer import ExpressLexer
+from .generated.express_parser import ExpressParser
+from .visitor import ExpressAstVisitor, ExpressErrorListener
 from .schema_helper import CatalogSchemaHelper
 from .constants import SurfaceOperation
 
@@ -141,312 +112,7 @@ def _is_check_expression(val: Any) -> bool:
   return False
 
 
-# Scanner rules for lexical tokenizing
-_TOKEN_SPEC = [
-    # Triple-quoted strings (must be matched before single-quoted strings)
-    ("RAW_TRIPLE_STRING", r'[rR]"""(?:(?!"""(?!"))[\s\S])*"""(?!")'),
-    ("UNCLOSED_RAW_TRIPLE_STRING", r'[rR]"""[\s\S]*'),
-    ("TRIPLE_STRING", r'"""(?:(?!"""(?!"))(?:[^\\]|\\[\s\S]))*"""(?!")'),
-    ("UNCLOSED_TRIPLE_STRING", r'"""[\s\S]*'),
-    # Single-quoted strings
-    ("RAW_STRING", r'[rR]"[^"]*"'),
-    ("UNCLOSED_RAW_STRING", r'[rR]"[^"]*'),
-    ("STRING", r'"(?:[^"\\]|\\.)*"'),
-    ("UNCLOSED_STRING", r'"(?:[^"\\]|\\.)*'),
-    # Comments & symbols
-    ("COMMENT", r"(?:#|//).*"),
-    ("PATH", r"\$[a-zA-Z0-9_/]*"),
-    ("CHECK", r"\?[a-zA-Z_][a-zA-Z0-9_]*"),
-    ("NUMBER", r"-?\d+(?:\.\d+)?"),
-    ("BOOLEAN", r"\b(?:true|false)\b"),
-    ("NULL", r"\bnull\b"),
-    ("IDENTIFIER", r"[^\W\d]\w*"),
-    ("LPAREN", r"\("),
-    ("RPAREN", r"\)"),
-    ("LBRACKET", r"\["),
-    ("RBRACKET", r"\]"),
-    ("COMMA", r","),
-    ("EQUALS", r"="),
-    ("COLON", r":"),
-    ("LBRACE", r"\{"),
-    ("RBRACE", r"\}"),
-    ("SEMICOLON", r";"),
-    ("WS", r"[ \t]+"),
-    ("NEWLINE", r"[\r\n]+"),
-]
-
-
-def _unescape_string(val: str) -> str:
-  """Resolves only standard escape sequences: \\n, \\r, \\t, \\\\, and \\\".
-
-  Any other escape sequences are treated as literal characters.
-  """
-
-  def repl(m):
-    seq = m.group(0)
-    char = m.group(1)
-    if char == "n":
-      return "\n"
-    if char == "r":
-      return "\r"
-    if char == "t":
-      return "\t"
-    if char == "\\":
-      return "\\"
-    if char == '"':
-      return '"'
-    return seq
-
-  return re.sub(r"\\([\s\S])", repl, val)
-
-
-def _tokenize(text: str, is_final: bool = True) -> list[tuple[str, Any]]:
-  """Tokenizes plain text into a list of scanning tokens.
-
-  Args:
-      text: The source line to tokenize.
-
-  Returns:
-      A list of token tuples matching (TokenKind, TokenValue).
-  """
-  tok_regex = "|".join(f"(?P<{name}>{pattern})" for name, pattern in _TOKEN_SPEC)
-  tokens = []
-  last_end = 0
-  for mo in re.finditer(tok_regex, text):
-    if mo.start() != last_end:
-      raise SyntaxError(f"Unexpected character: {text[last_end:mo.start()]!r}")
-    kind = mo.lastgroup
-    val = mo.group()
-    last_end = mo.end()
-    if kind in ("WS", "COMMENT", "NEWLINE", "SEMICOLON"):
-      continue
-    elif kind == "RAW_TRIPLE_STRING":
-      kind = "STRING"
-      val = val[4:-3]
-    elif kind == "RAW_STRING":
-      kind = "STRING"
-      val = val[2:-1]
-    elif kind == "TRIPLE_STRING":
-      kind = "STRING"
-      val = _unescape_string(val[3:-3])
-    elif kind == "STRING":
-      val = _unescape_string(val[1:-1])
-    elif kind == "UNCLOSED_RAW_TRIPLE_STRING":
-      kind = "INCOMPLETE_STRING"
-      val = val[4:]
-    elif kind == "UNCLOSED_RAW_STRING":
-      kind = "INCOMPLETE_STRING"
-      val = val[2:]
-    elif kind == "UNCLOSED_TRIPLE_STRING":
-      kind = "INCOMPLETE_STRING"
-      val = _unescape_string(val[3:])
-    elif kind == "UNCLOSED_STRING":
-      kind = "INCOMPLETE_STRING"
-      val = _unescape_string(val[1:])
-    elif kind == "NUMBER":
-      val = float(val) if "." in val else int(val)
-    elif kind == "BOOLEAN":
-      val = val == "true"
-    elif kind == "NULL":
-      val = None
-    tokens.append((kind, val))
-  if last_end < len(text):
-    if is_final:
-      raise SyntaxError(f"Unexpected character: {text[last_end:]!r}")
-  return tokens
-
-
-class _TokenParser:
-  """Recursive-descent parser for A2UI Express expressions.
-
-  Parses tokenized structures (calls, arrays, maps, data paths, primitives)
-  into intermediate syntax trees.
-  """
-
-  def __init__(self, tokens: list[tuple[str, Any]]):
-    """Initializes the parser with the scanner token list.
-
-    Args:
-        tokens: The scanner token list.
-    """
-    self.tokens = tokens
-    self.pos = 0
-
-  def peek(self) -> Optional[tuple[str, Any]]:
-    """Returns the current token without consuming it.
-
-    Returns:
-        The current token tuple, or None if at EOF.
-    """
-    if self.pos < len(self.tokens):
-      return self.tokens[self.pos]
-    return None
-
-  def consume(self, kind: Optional[str] = None) -> tuple[str, Any]:
-    """Consumes the current token, asserting its type if requested.
-
-    Args:
-        kind: Optional token kind to assert.
-
-    Returns:
-        The consumed token tuple.
-
-    Raises:
-        SyntaxError: If the token is missing or does not match kind.
-    """
-    tok = self.peek()
-    if not tok:
-      raise SyntaxError("Unexpected end of input")
-    if kind and tok[0] != kind:
-      raise SyntaxError(f"Expected {kind}, got {tok[0]}: {tok[1]}")
-    self.pos += 1
-    return tok
-
-  def parse_statement(self) -> tuple[str, Any, Any]:
-    """Parses a single statement from the token stream.
-
-    A statement is either:
-    1. An assignment: target = expression (where target is IDENTIFIER or PATH)
-    2. A standalone expression
-
-    Returns:
-        A tuple of (StatementKind, *StatementArgs).
-    """
-    tok = self.peek()
-    if not tok:
-      raise SyntaxError("Unexpected end of input")
-
-    if tok[0] in ("IDENTIFIER", "PATH"):
-      if self.pos + 1 < len(self.tokens) and self.tokens[self.pos + 1][0] == "EQUALS":
-        target_tok = self.consume()
-        self.consume("EQUALS")
-        expr = self.parse_expression()
-        return ("ASSIGN", target_tok[1], expr)
-
-    expr = self.parse_expression()
-    return ("EXPR", expr)
-
-  def parse_expression(self) -> Any:
-    """Parses a standalone expression.
-
-    Returns:
-        The parsed expression AST node.
-
-    Raises:
-        SyntaxError: If the expression structure is invalid.
-    """
-    tok = self.peek()
-    if not tok:
-      raise SyntaxError("Expected expression")
-
-    kind, val = tok
-    if kind == "LBRACKET":
-      return self.parse_array()
-    if kind == "LBRACE":
-      return self.parse_map()
-    if kind == "PATH":
-      self.consume()
-      return {"path": val[1:]}
-    if kind == "CHECK":
-      return self.parse_check()
-    if kind == "IDENTIFIER":
-      self.consume()
-      next_tok = self.peek()
-      if next_tok and next_tok[0] == "LPAREN":
-        return self.parse_call(val)
-      if val == "_":
-        return {"skipped": True}
-      return {"variable": val}
-    if kind in ("STRING", "NUMBER", "BOOLEAN", "NULL"):
-      self.consume()
-      return val
-    raise SyntaxError(f"Unexpected token {kind}: {val}")
-
-  def parse_array(self) -> list:
-    """Parses an array of expressions with optional trailing comma."""
-    self.consume("LBRACKET")
-    items = []
-    if self.peek() and self.peek()[0] != "RBRACKET":
-      items.append(self.parse_expression())
-      while self.peek() and self.peek()[0] == "COMMA":
-        self.consume("COMMA")
-        if self.peek() and self.peek()[0] == "RBRACKET":
-          break
-        items.append(self.parse_expression())
-    self.consume("RBRACKET")
-    return items
-
-  def parse_check(self) -> dict:
-    """Parses a check validation expression with optional trailing comma."""
-    tok = self.consume("CHECK")
-    name = tok[1][1:]  # strip ?
-    next_tok = self.peek()
-    args = []
-    if next_tok and next_tok[0] == "LPAREN":
-      self.consume("LPAREN")
-      if self.peek() and self.peek()[0] != "RPAREN":
-        args.append(self.parse_expression())
-        while self.peek() and self.peek()[0] == "COMMA":
-          self.consume("COMMA")
-          if self.peek() and self.peek()[0] == "RPAREN":
-            break
-          args.append(self.parse_expression())
-      self.consume("RPAREN")
-    return {"check": name, "args": args}
-
-  def parse_call(self, name: str) -> dict:
-    """Parses a component or function call with optional trailing comma.
-
-    Args:
-        name: The identifier name of the component or function.
-
-    Returns:
-        A call AST dictionary.
-    """
-    self.consume("LPAREN")
-    args = []
-    if self.peek() and self.peek()[0] != "RPAREN":
-      args.append(self.parse_expression())
-
-      while self.peek() and self.peek()[0] == "COMMA":
-        self.consume("COMMA")
-        if self.peek() and self.peek()[0] == "RPAREN":
-          break
-        args.append(self.parse_expression())
-    self.consume("RPAREN")
-    return {"call": name, "args": args}
-
-  def parse_map(self) -> dict:
-    """Parses a key-value dictionary block with optional trailing comma.
-
-    Returns:
-        A dictionary mapping string keys to parsed expressions.
-    """
-    self.consume("LBRACE")
-    res = {}
-    if self.peek() and self.peek()[0] != "RBRACE":
-      next_tok = self.peek()
-      if next_tok[0] not in ("IDENTIFIER", "STRING"):
-        raise SyntaxError(f"Expected IDENTIFIER or STRING key, got {next_tok[0]}")
-      k_tok = self.consume()
-      self.consume("COLON")
-      v = self.parse_expression()
-      res[k_tok[1]] = v
-      while self.peek() and self.peek()[0] == "COMMA":
-        self.consume("COMMA")
-        if self.peek() and self.peek()[0] == "RBRACE":
-          break
-        next_tok = self.peek()
-        if not next_tok:
-          raise SyntaxError("Expected IDENTIFIER or STRING key, got end of input")
-        if next_tok[0] not in ("IDENTIFIER", "STRING"):
-          raise SyntaxError(f"Expected IDENTIFIER or STRING key, got {next_tok[0]}")
-        k_tok = self.consume()
-        self.consume("COLON")
-        v = self.parse_expression()
-        res[k_tok[1]] = v
-    self.consume("RBRACE")
-    return res
+# ANTLR-generated lexer, parser, and custom visitor are used for compilation.
 
 
 class _CompileContext:
@@ -518,42 +184,61 @@ class ExpressCompiler:
 
     dsl_body = "\n".join(lines)
 
-    # Tokenize the entire text block
-    tokens = _tokenize(dsl_body, is_final=is_final)
+    # Use ANTLR to parse and construct the AST
+    input_stream = InputStream(dsl_body)
+    lexer = ExpressLexer(input_stream)
+    error_listener = ExpressErrorListener()
+    lexer.removeErrorListeners()
+    lexer.addErrorListener(error_listener)
 
-    if is_final:
-      for tok_kind, _ in tokens:
-        if tok_kind == "INCOMPLETE_STRING":
-          raise SyntaxError("Unterminated string literal.")
+    token_stream = CommonTokenStream(lexer)
+    parser = ExpressParser(token_stream)
+    parser.removeErrorListeners()
+    parser.addErrorListener(error_listener)
+
+    try:
+      tree = parser.program()
+      if is_final and error_listener.errors:
+        line, col, msg, is_lexer = error_listener.errors[0]
+        err = SyntaxError(f"Syntax error at line {line}:{col}: {msg}")
+        err._is_lexer = is_lexer
+        raise err
+
+      visitor = ExpressAstVisitor(
+          first_error_line=error_listener.errors[0][0]
+          if error_listener.errors
+          else None
+      )
+      statements = visitor.visit(tree)
+    except Exception as e:
+      if not is_final:
+        statements = []
+      else:
+        if isinstance(e, SyntaxError) and getattr(e, "_is_lexer", False):
+          raise e
+        raise ValueError(f"Failed to parse expression: {e}") from e
 
     raw_symbols = {}
     data_path_assignments = {}
     target_delete_surface_id = None
     standalone_function_calls = []
 
-    parser = _TokenParser(tokens)
-    while parser.pos < len(tokens):
-      try:
-        stmt_type, *stmt_args = parser.parse_statement()
-        if stmt_type == "ASSIGN":
-          var_name, parsed_val = stmt_args
-          if var_name.startswith("$"):
-            data_path_assignments[var_name] = parsed_val
-          else:
-            raw_symbols[var_name] = parsed_val
-        elif stmt_type == "EXPR":
-          parsed_val = stmt_args[0]
-          if isinstance(parsed_val, dict) and parsed_val.get("call") == "deleteSurface":
-            args = parsed_val.get("args", [])
-            if args and isinstance(args[0], str):
-              target_delete_surface_id = args[0]
-          elif isinstance(parsed_val, dict) and "call" in parsed_val:
-            standalone_function_calls.append(parsed_val)
-      except Exception as e:
-        if not is_final:
-          # During streaming, ignore any trailing incomplete statement/tokens gracefully
-          break
-        raise ValueError(f"Failed to parse expression: {e}") from e
+    for stmt in statements:
+      stmt_type, *stmt_args = stmt
+      if stmt_type == "ASSIGN":
+        var_name, parsed_val = stmt_args
+        if var_name.startswith("$"):
+          data_path_assignments[var_name] = parsed_val
+        else:
+          raw_symbols[var_name] = parsed_val
+      elif stmt_type == "EXPR":
+        parsed_val = stmt_args[0]
+        if isinstance(parsed_val, dict) and parsed_val.get("call") == "deleteSurface":
+          args = parsed_val.get("args", [])
+          if args and isinstance(args[0], str):
+            target_delete_surface_id = args[0]
+        elif isinstance(parsed_val, dict) and "call" in parsed_val:
+          standalone_function_calls.append(parsed_val)
 
     # Compile data model paths
     data_model = {}

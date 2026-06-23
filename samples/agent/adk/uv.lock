@@ -43,6 +43,7 @@ source = { editable = "../../../agent_sdks/python/a2ui_agent" }
 dependencies = [
     { name = "a2a-sdk" },
     { name = "a2ui-core" },
+    { name = "antlr4-python3-runtime" },
     { name = "google-adk" },
     { name = "google-genai" },
     { name = "jsonschema" },
@@ -52,6 +53,7 @@ dependencies = [
 requires-dist = [
     { name = "a2a-sdk", specifier = ">=0.3.0,<0.4.0" },
     { name = "a2ui-core", editable = "../../../agent_sdks/python/a2ui_core" },
+    { name = "antlr4-python3-runtime", specifier = ">=4.13.0,<4.14.0" },
     { name = "google-adk", specifier = ">=1.28.1" },
     { name = "google-genai", specifier = ">=1.27.0" },
     { name = "jsonschema", specifier = ">=4.0.0" },
@@ -59,6 +61,8 @@ requires-dist = [
 
 [package.metadata.requires-dev]
 dev = [
+    { name = "antlr4-tools", specifier = ">=0.2.1" },
+    { name = "hatchling", specifier = ">=1.30.1" },
     { name = "pyink", specifier = ">=24.10.0" },
     { name = "pytest", specifier = ">=9.0.2" },
     { name = "pytest-asyncio", specifier = ">=1.3.0" },
@@ -255,6 +259,15 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/ee/67/531ea369ba64dcff5ec9c3402f9f51bf748cec26dde048a2f973a4eea7f5/annotated_types-0.7.0.tar.gz", hash = "sha256:aff07c09a53a08bc8cfccb9c85b05f1aa9a2a6f23728d790723543408344ce89", size = 16081, upload-time = "2024-05-20T21:33:25.928Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/78/b6/6307fbef88d9b5ee7421e68d78a9f162e0da4900bc5f5793f6d3d0e34fb8/annotated_types-0.7.0-py3-none-any.whl", hash = "sha256:1f02e8b43a8fbbc3f3e0d4f0f4bfc8131bcb4eebe8849b8e5c773f3a1c582a53", size = 13643, upload-time = "2024-05-20T21:33:24.1Z" },
+]
+
+[[package]]
+name = "antlr4-python3-runtime"
+version = "4.13.2"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/33/5f/2cdf6f7aca3b20d3f316e9f505292e1f256a32089bd702034c29ebde6242/antlr4_python3_runtime-4.13.2.tar.gz", hash = "sha256:909b647e1d2fc2b70180ac586df3933e38919c85f98ccc656a96cd3f25ef3916", size = 117467, upload-time = "2024-08-03T19:00:12.757Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/89/03/a851e84fcbb85214dc637b6378121ef9a0dd61b4c65264675d8a5c9b1ae7/antlr4_python3_runtime-4.13.2-py3-none-any.whl", hash = "sha256:fe3835eb8d33daece0e799090eda89719dbccee7aa39ef94eed3818cafa5a7e8", size = 144462, upload-time = "2024-08-03T19:00:11.134Z" },
 ]
 
 [[package]]

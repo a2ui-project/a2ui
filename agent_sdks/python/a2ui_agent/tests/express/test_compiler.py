@@ -347,10 +347,12 @@ $/breeds = [{"url": "https://example.com/poodle.jpg"}]"""
     self.assertEqual(row_comp["component"], "Row")
     self.assertEqual(row_comp["children"], ["_inline_1", "_inline_2"])
 
-    # 11. Verify comment line skipping (# and //)
+    # 11. Verify comment line skipping (#, // and /* */)
     comment_dsl = """
     # This is a comment at the top
-    root = Row([btn]) # Inline comment here
+    /* Multi-line block comment
+       that spans multiple lines */
+    root = Row([btn]) /* Inline block comment */ # Inline comment here
     // Another comment block
     btn = Button("Submit") // Inline comment 2
     """
