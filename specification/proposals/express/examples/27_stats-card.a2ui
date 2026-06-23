@@ -1,0 +1,14 @@
+$/icon = "trending_up"
+$/metricName = "Monthly Revenue"
+$/trendIcon = "arrow_upward"
+$/trendPercent = 12.5
+$/value = 48294
+root = Card(main_column)
+main_column = Column([header, value, trend_row])
+header = Row([metric_icon, metric_name], _, "center")
+metric_icon = Icon($/icon)
+metric_name = Text($/metricName, "caption")
+value = Text(formatCurrency($/value, "USD"))
+trend_row = Row([trend_icon, trend_text], _, "center")
+trend_icon = Icon($/trendIcon)
+trend_text = Text(formatString("+${/trendPercent}% from last month"), "body")

@@ -16,6 +16,7 @@
     "skipLibCheck": true,
     "useDefineForClassFields": false,
 
+    "rootDir": "..",
     "outDir": "dist",
     "tsBuildInfoFile": "dist/.tsbuildinfo",
 

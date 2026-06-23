@@ -86,7 +86,7 @@ export abstract class DynamicComponent<T extends AnyComponentNode = AnyComponent
 
     if (!value || typeof value !== 'object') {
       return null;
-    } else if ('literal' in value && value.literal != null) {
+    } else if ('literal' in value && value.literal !== null && value.literal !== undefined) {
       return value.literal;
     } else if (value.path) {
       return this.processor.getData(component, value.path, surfaceId ?? undefined) as any;

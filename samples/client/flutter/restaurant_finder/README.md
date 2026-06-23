@@ -4,6 +4,6 @@ See [demo video](https://github.com/user-attachments/assets/a2ac7024-e56e-4502-9
 
 ## To run this example
 
-1. Start [service](../../../agent/adk/restaurant_finder/README.md)
+Start [service](../../../agent/adk/restaurant_finder/README.md)
 
-2. Run flutter client by selecting `restaurant finder, Flutter renderer` run configuration in VS Code UI. See [launch.json](../.vscode/launch.json) for run configuration details.
+2. Run flutter client by selecting `restaurant finder, Flutter renderer` run configuration in VS Code UI. See [launch.json](../../../../.vscode/launch.json) for run configuration details.

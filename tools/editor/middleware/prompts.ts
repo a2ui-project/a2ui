@@ -47,7 +47,7 @@ export function createImageParsePrompt(
 
     Here's everything you need:`,
 
-      `The user's layout image is: `,
+      "The user's layout image is: ",
       content,
       `The Component Catalog you can refer to is: ${componentTypes.join(', ')}`,
     ].map(item => {

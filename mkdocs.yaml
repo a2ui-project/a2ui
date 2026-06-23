@@ -57,9 +57,10 @@ nav:
       - Defining Your Own Catalog: guides/defining-your-own-catalog.md
       - Authoring Custom Components: guides/authoring-components.md
       - Theming & Styling: guides/theming.md
-      - A2UI over MCP: guides/a2ui_over_mcp.md
-      - MCP Apps in A2UI: guides/mcp-apps-in-a2ui.md
-      - A2UI in MCP Apps: guides/a2ui-in-mcp-apps.md
+      - A2UI + MCP:
+          - A2UI over MCP: guides/a2ui_over_mcp.md
+          - MCP Apps in A2UI: guides/mcp-apps-in-a2ui.md
+          - A2UI in MCP Apps: guides/a2ui-in-mcp-apps.md
   - Reference:
       - Component Gallery: reference/components.md
       - Message Reference: reference/messages.md
@@ -214,8 +215,3 @@ plugins:
         "introduction/where-is-it-used.md": "ecosystem/a2ui-in-the-world.md"
         "guides/guide_a2ui_dynamic_mcp.md": "guides/a2ui-in-mcp-apps.md"
         "guides/mcp-apps-in-a2ui-surface.md": "guides/mcp-apps-in-a2ui.md"
-  # - llmstxt:
-  #     full_output: llms-full.txt
-  #     sections:
-  #       "Specification":
-  #         - a2ui_protocol.md

@@ -9,12 +9,15 @@
     "dev": "yarn generate-examples && vite",
     "build": "wireit",
     "test": "wireit",
+    "test:vite-compilation": "wireit",
     "test:watch": "yarn generate-examples && karma start karma.conf.cjs --single-run=false --auto-watch=true",
     "test:debug": "yarn generate-examples && karma start karma.conf.cjs --single-run=false --auto-watch=true --browsers Chrome",
     "test:ci": "wireit",
-    "lint": "gts lint",
-    "lint:fix": "gts fix",
-    "clean": "wireit"
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "clean": "wireit",
+    "format": "prettier --ignore-path ../../../.prettierignore --write .",
+    "format:check": "prettier --ignore-path ../../../.prettierignore --check ."
   },
   "wireit": {
     "build": {
@@ -26,19 +29,21 @@
       ]
     },
     "test": {
-      "command": "yarn generate-examples && karma start karma.conf.cjs --single-run=true",
+      "command": "karma start karma.conf.cjs --single-run=true",
       "dependencies": [
-        "../../web_core:build",
-        "../../markdown/markdown-it:build",
-        "../:build"
+        "build",
+        "test:vite-compilation"
+      ]
+    },
+    "test:vite-compilation": {
+      "command": "vitest run --environment jsdom tests/smoke-test.spec.ts",
+      "dependencies": [
+        "build"
       ]
     },
     "test:ci": {
-      "command": "yarn generate-examples && karma start karma.conf.cjs --single-run=true",
       "dependencies": [
-        "../../web_core:build",
-        "../../markdown/markdown-it:build",
-        "../:build"
+        "test"
       ]
     },
     "clean": {
@@ -47,23 +52,27 @@
   },
   "dependencies": {
     "@a2ui/lit": "workspace:*",
-    "@a2ui/markdown-it": "workspace:*",
+    "@a2ui/markdown-it": "*",
     "@a2ui/web_core": "workspace:*",
-    "@lit-labs/signals": "^0.1.3",
-    "@lit/context": "^1.1.4",
-    "lit": "^3.3.1"
+    "@lit-labs/signals": "^0.3.0",
+    "@lit/context": "^1.1.6",
+    "lit": "^3.3.3"
   },
   "devDependencies": {
-    "@types/jasmine": "^5.1.5",
-    "esbuild": "^0.25.0",
-    "eslint": "^9.37.0",
+    "@types/jasmine": "^6.0.0",
+    "esbuild": "^0.28.1",
+    "eslint": "^10.4.1",
     "gts": "^7.0.0",
-    "jasmine-core": "^5.6.0",
+    "jasmine-core": "^6.3.0",
+    "jsdom": "^29.1.1",
     "karma": "^6.4.4",
     "karma-chrome-launcher": "^3.2.0",
     "karma-esbuild": "^2.3.0",
     "karma-jasmine": "^5.1.0",
-    "typescript": "^5.8.3",
-    "vite": "^7.1.11"
+    "prettier": "^3.5.0",
+    "typescript": "5.9.3",
+    "vite": "^8.0.16",
+    "vitest": "^3.0.0",
+    "wireit": "^0.15.0-pre.2"
   }
 }

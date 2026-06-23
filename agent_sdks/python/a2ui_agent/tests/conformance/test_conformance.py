@@ -75,13 +75,31 @@ def setup_catalog(catalog_config):
   elif common_types_schema is None:
     common_types_schema = {}
 
+  custom_cuttable_keys = catalog_config.get("custom_cuttable_keys")
   return A2uiCatalog(
       version=version,
-      name="test_catalog",
+      name=catalog_config.get("name", "test_catalog"),
       s2c_schema=s2c_schema,
       common_types_schema=common_types_schema,
       catalog_schema=catalog_schema,
+      custom_cuttable_keys=frozenset(custom_cuttable_keys)
+      if custom_cuttable_keys is not None
+      else None,
   )
+
+
+def _align_error_match(expect_error: str) -> str:
+  if not expect_error:
+    return expect_error
+  if "required property" in expect_error:
+    return f"({expect_error}|Field required)"
+  if "'v0.9' was expected" in expect_error:
+    return f"({expect_error}|Input should be 'v0.9')"
+  if "is not of type" in expect_error:
+    return f"({expect_error}|Input should be a valid)"
+  if "Validation failed" in expect_error:
+    return f"({expect_error}|Field required|Extra inputs are not permitted)"
+  return expect_error
 
 
 def assert_parts_match(actual_parts, expected_parts):
@@ -107,6 +125,8 @@ def test_parser_conformance(name, test_case):
   catalog_config = test_case["catalog"]
   catalog = setup_catalog(catalog_config)
   parser = A2uiStreamParser(catalog=catalog)
+  if test_case.get("disable_validation"):
+    parser._validator = None
 
   steps = test_case.get("steps")
   if steps is None and "process_chunk" in test_case:
@@ -118,7 +138,7 @@ def test_parser_conformance(name, test_case):
   for step in steps:
     expect_error = step.get("expect_error") or test_case.get("expect_error")
     if expect_error:
-      with pytest.raises(ValueError, match=expect_error):
+      with pytest.raises(ValueError, match=_align_error_match(expect_error)):
         parser.process_chunk(step["input"])
     else:
       parts = parser.process_chunk(step["input"])
@@ -191,7 +211,7 @@ def test_validator_conformance(name, test_case):
     validator = A2uiValidator(catalog=catalog)
     expect_error = step.get("expect_error") or test_case.get("expect_error")
     if expect_error:
-      with pytest.raises(ValueError, match=expect_error):
+      with pytest.raises(ValueError, match=_align_error_match(expect_error)):
         validator.validate(step["payload"])
     else:
       validator.validate(step["payload"])
@@ -246,6 +266,10 @@ def test_catalog_conformance(name, test_case):
     schema = args["schema"]
     modified = remove_strict_validation(schema)
     assert modified == test_case["expect"]["schema"]
+
+  elif action == "verify_cuttable_keys":
+    expected = test_case["expect"]["custom_cuttable_keys"]
+    assert set(catalog.cuttable_keys) == set(expected)
 
 
 # --- Schema Manager Conformance ---

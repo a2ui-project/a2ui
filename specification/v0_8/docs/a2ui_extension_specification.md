@@ -26,7 +26,7 @@ Server-to-Client Message Schema: The core wire format for messages sent from the
 
 Client-to-Server Event Schema: The core wire format for messages sent from the client to the agent (e.g., userAction).
 
-Client Capabilities: The client sends its capabilities to the server in an `a2uiClientCapabilities` object. This object is included in the `metadata` field of every A2A `Message` sent from the client to the server.This object allows the client to declare which catalogs it supports.
+Client Capabilities: The client sends its capabilities to the server in an `a2uiClientCapabilities` object. This object is included in the `metadata` field of every A2A `Message` sent from the client to the server. This object allows the client to declare which catalogs it supports.
 
 ## Agent Card details
 

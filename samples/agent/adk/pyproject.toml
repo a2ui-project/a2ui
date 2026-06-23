@@ -17,7 +17,7 @@ url = "https://pypi.org/simple"
 default = true
 
 [tool.uv.workspace]
-members = ["custom-components-example", "orchestrator", "restaurant_finder", "rizzcharts/python", "mcp_app_proxy"]
+members = ["custom-components-example", "restaurant_finder"]
 
 [tool.uv.sources]
 a2ui-agent-sdk = { path = "../../../agent_sdks/python/a2ui_agent", editable = true }
@@ -40,5 +40,5 @@ pyink-annotation-pragmas = [
 [dependency-groups]
 dev = [
     "pyink>=24.10.0",
-    "pytest>=9.0.2",
+    "pytest>=9.1.0",
 ]

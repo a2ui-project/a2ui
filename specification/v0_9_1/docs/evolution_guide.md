@@ -1,6 +1,6 @@
 # A2UI Protocol Evolution Guide: v0.9 to v0.9.1
 
-This document describes the changes between A2UI version 0.9 and version 0.9.1. For changes from version 0.8 to 0.9, please refer to the [v0.9 Evolution Guide](v0.9-evolution-guide.md).
+This document describes the changes between A2UI version 0.9 and version 0.9.1. For changes from version 0.8 to 0.9, please refer to the [v0.9 Evolution Guide](../../v0_9/docs/evolution_guide.md).
 
 ## 1. Executive Summary
 

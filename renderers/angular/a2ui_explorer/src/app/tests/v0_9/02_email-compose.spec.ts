@@ -30,20 +30,20 @@ describe('Example: Email Compose', () => {
   });
 
   it('should render text content', async () => {
-    expect(textContent).toContain(`FROM`);
-    expect(textContent).toContain(`TO`);
-    expect(textContent).toContain(`SUBJECT`);
-    expect(textContent).toContain(`Send email`);
-    expect(textContent).toContain(`Discard`);
-    expect(textContent).toContain(`alex@acme.com`);
-    expect(textContent).toContain(`jordan@acme.com`);
-    expect(textContent).toContain(`Q4 Revenue Forecast`);
-    expect(textContent).toContain(`Hi Jordan,`);
+    expect(textContent).toContain('FROM');
+    expect(textContent).toContain('TO');
+    expect(textContent).toContain('SUBJECT');
+    expect(textContent).toContain('Send email');
+    expect(textContent).toContain('Discard');
+    expect(textContent).toContain('alex@acme.com');
+    expect(textContent).toContain('jordan@acme.com');
+    expect(textContent).toContain('Q4 Revenue Forecast');
+    expect(textContent).toContain('Hi Jordan,');
     expect(textContent).toContain(
-      `Following up on our call. Please review the attached Q4 forecast and let me know if you have questions before the board meeting.`,
+      'Following up on our call. Please review the attached Q4 forecast and let me know if you have questions before the board meeting.',
     );
-    expect(textContent).toContain(`Best,`);
-    expect(textContent).toContain(`Alex`);
+    expect(textContent).toContain('Best,');
+    expect(textContent).toContain('Alex');
   });
 
   it('should handle Send button click', async () => {

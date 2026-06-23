@@ -490,7 +490,7 @@ Thoroughly review:
 - `specification/v0_9_1/docs/a2ui_protocol.md` (protocol rules)
 - `specification/v0_9_1/json/common_types.json` (dynamic binding types)
 - `specification/v0_9_1/json/server_to_client.json` (message envelopes)
-- `specification/v0_9_1/catalogs/minimal/catalog.json` (your initial target)
+- `specification/v0_9_1/catalogs/basic/catalog.json` (your target)
 - `specification/v0_9_1/docs/basic_catalog_implementation_guide.md` (for functional specs and spacing rules for when you get to the basic catalog)
 
 ### Phase 2: Key Architecture Decisions (Write a Plan Document)
@@ -514,10 +514,45 @@ Implement the framework-agnostic Data Layer (Section 3 & 4).
 - Implement `MessageProcessor` and ClientCapabilities generation.
 - **Action**: Write unit tests for JSON validation, the `DataModel` (especially pointer resolution/cascade logic), and `MessageProcessor`. Ensure they pass before continuing.
 
+<<<<<<< HEAD:specification/v0_9_1/docs/core_sdk_spec.md
 ### Phase 4: Basic Catalog Core Support
+=======
+### 4. Framework-Specific Layer
 
-Once the minimal architecture is proven robust, refer to the [Basic Catalog Implementation Guide](basic_catalog_implementation_guide.md) and:
+Implement the bridge between models and native UI (Section 5 & 6).
 
-- **Core Library**: Implement the full suite of basic functions. It is crucial to note that string interpolation and expression parsing should ONLY happen within the `formatString` function. Do not attempt to add global string interpolation to all strings.
+- Define the concrete `ComponentImplementation` base class/interface.
+- Implement the `Surface` view/widget that recurses through components.
+- Implement subscription lifecycle management (lazy mounting, unmounting disposal).
+
+### 5. Initial Basic Catalog Support
+
+Target a foundational subset of components in `basic/catalog.json` first to bootstrap your implementation.
+
+- Implement the pure API schemas for `Text`, `Row`, `Column`, `Button`, `TextField` (which are part of the standard Basic Catalog).
+- Implement the specific native UI rendering components for these.
+- Implement the `formatString` function (which is required for basic text rendering, see Section 7).
+- Bundle these into a `Catalog`.
+- **Action**: Write unit tests verifying that properties update reactively when data changes.
+
+### 6. Gallery Application (Milestone)
+
+Build the Gallery App following the requirements in **Section 8**.
+
+- Load JSON samples from `specification/v0_9_1/catalogs/basic/examples/` (focusing on the simpler ones first, such as those using only the bootstrapped components).
+- Verify progressive rendering and reactivity.
+- **STOP HERE. Ask the user for approval of the architecture and gallery application before proceeding to step 7.**
+
+### 7. Complete Basic Catalog Support
+>>>>>>> main:specification/v0_9_1/docs/renderer_guide.md
+
+Once the initial architecture is proven robust, complete the implementation of the Basic Catalog:
+
+- **Core Library**: Implement the remaining basic functions. It is crucial to note that string interpolation and expression parsing should ONLY happen within the `formatString` function. Do not attempt to add global string interpolation to all strings.
 - **Core Library**: Create definitions/binders for the remaining Basic Catalog components.
+<<<<<<< HEAD:specification/v0_9_1/docs/core_sdk_spec.md
 - **Tests**: Look at existing reference implementations (e.g., `web_core`) to formulate and run comprehensive unit test cases for data coercion and function logic.
+=======
+- **Framework Library**: Implement all remaining UI widgets.
+- **Tests**: Look at existing reference implementations (e.g., `web_core`) to formulate and run comprehensive unit and integration test cases for data coercion and function logic.
+>>>>>>> main:specification/v0_9_1/docs/renderer_guide.md

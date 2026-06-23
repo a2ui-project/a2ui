@@ -76,7 +76,7 @@ export class Text extends DynamicComponent<TextNode> {
     const usageHint = this.usageHint();
     let value = super.resolvePrimitive(this.text());
 
-    if (value == null) {
+    if (value === null || value === undefined) {
       return Promise.resolve('');
     }
 

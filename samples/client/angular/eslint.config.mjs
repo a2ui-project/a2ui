@@ -14,26 +14,15 @@
  * limitations under the License.
  */
 
-import gts from 'gts';
+import preset from '../../../eslint.preset.mjs';
 
 export default [
-  ...gts,
+  ...preset,
   {
-    rules: {
-      'prettier/prettier': 'off',
-      eqeqeq: 'off',
-      'no-undef': 'off',
+    languageOptions: {
+      parserOptions: {
+        project: false,
+      },
     },
-  },
-  {
-    files: ['**/*.ts', '**/*.tsx', '**/*.mts', '**/*.cts'],
-    rules: {
-      '@typescript-eslint/no-explicit-any': 'off',
-      '@typescript-eslint/no-floating-promises': 'off',
-      '@typescript-eslint/no-unused-vars': 'warn',
-    },
-  },
-  {
-    ignores: ['dist/**', 'node_modules/**', '.wireit/**', '**/*.d.ts', 'projects/**'],
   },
 ];

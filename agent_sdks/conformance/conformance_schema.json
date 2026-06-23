@@ -89,7 +89,8 @@
           "execute_tool",
           "get_extension",
           "try_activate",
-          "select_newest"
+          "select_newest",
+          "verify_cuttable_keys"
         ]
       }
     },
@@ -117,7 +118,8 @@
           {"$ref": "#/$defs/ExecuteToolTest"},
           {"$ref": "#/$defs/GetExtensionTest"},
           {"$ref": "#/$defs/TryActivateTest"},
-          {"$ref": "#/$defs/SelectNewestTest"}
+          {"$ref": "#/$defs/SelectNewestTest"},
+          {"$ref": "#/$defs/VerifyCuttableKeysTest"}
         ]
       }
     ]
@@ -444,6 +446,23 @@
         "expect": {"type": "object"}
       },
       "required": ["action", "args", "expect"]
+    },
+    "VerifyCuttableKeysTest": {
+      "type": "object",
+      "properties": {
+        "action": {"const": "verify_cuttable_keys"},
+        "expect": {
+          "type": "object",
+          "properties": {
+            "custom_cuttable_keys": {
+              "type": "array",
+              "items": {"type": "string"}
+            }
+          },
+          "required": ["custom_cuttable_keys"]
+        }
+      },
+      "required": ["action", "expect"]
     }
   }
 }

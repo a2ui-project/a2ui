@@ -1,0 +1,98 @@
+# Copyright 2026 Google LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+name: Web and Node.js CI
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "renderers/**"
+      - "tools/**"
+      - "samples/client/**"
+      - "package.json"
+      - "yarn.lock"
+      - ".github/workflows/web_ci.yml"
+      - ".github/actions/setup-node/**"
+  pull_request:
+    paths:
+      - "renderers/**"
+      - "tools/**"
+      - "samples/client/**"
+      - "package.json"
+      - "yarn.lock"
+      - ".github/workflows/web_ci.yml"
+      - ".github/actions/setup-node/**"
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.head_ref || github.run_id }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  RENDERERS_INC: "--include 'renderers/**'"
+  TOOLS_INC: "--include 'tools/**'"
+  SAMPLES_INC: "--include 'samples/client/**'"
+
+jobs:
+  ci-renderers:
+    runs-on: ubuntu-latest
+    # Healthy runs finish in ~20 min. Cap the job so a hung test fails fast
+    # instead of running to the default 6h timeout (see issue #1637).
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v6
+      - uses: ./.github/actions/setup-node
+      - name: Build Renderers
+        run: eval "yarn workspaces foreach -A $RENDERERS_INC -p --topological-dev run build"
+      - name: Test Renderers
+        run: eval "yarn workspaces foreach -A $RENDERERS_INC -p run test"
+      - name: Verify NPM Publish Script
+        run: node --test renderers/scripts/publish_npm.test.mjs
+
+  ci-tools:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: ./.github/actions/setup-node
+      - name: Build Tools
+        run: eval "yarn workspaces foreach $TOOLS_INC -p --topological-dev -R run build"
+      - name: Test Tools
+        run: eval "yarn workspaces foreach -A $TOOLS_INC -p run test"
+
+  ci-samples:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: ./.github/actions/setup-node
+      - name: Build Samples
+        run: eval "yarn workspaces foreach $SAMPLES_INC -p --topological-dev -R run build"
+      - name: Test Samples
+        run: eval "yarn workspaces foreach -A $SAMPLES_INC -p run test"
+
+  ci-other:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: ./.github/actions/setup-node
+      - name: Build Other Workspaces
+        run: |
+          EXCLUDE=$(echo "$RENDERERS_INC $TOOLS_INC $SAMPLES_INC" | sed 's/--include/--exclude/g')
+          eval "yarn workspaces foreach -A $EXCLUDE -p --topological-dev run build"
+      - name: Test Other Workspaces
+        run: |
+          EXCLUDE=$(echo "$RENDERERS_INC $TOOLS_INC $SAMPLES_INC" | sed 's/--include/--exclude/g')
+          eval "yarn workspaces foreach -A $EXCLUDE -p run test"

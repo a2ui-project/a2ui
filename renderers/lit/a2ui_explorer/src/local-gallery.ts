@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import {LitElement, html, css, nothing} from 'lit';
+import {LitElement, html, nothing} from 'lit';
 import {provide} from '@lit/context';
 import {customElement, state} from 'lit/decorators.js';
 import {MessageProcessor, A2uiMessage, A2uiClientAction} from '@a2ui/web_core/v0_9';
@@ -25,17 +25,17 @@ import {appStyles} from './local-gallery.css';
 
 @customElement('local-gallery')
 export class LocalGallery extends LitElement {
-  @state() accessor mockLogs: string[] = [];
-  @state() accessor demoItems: DemoItem[] = [];
-  @state() accessor activeItemIndex = 0;
-  @state() accessor processedMessageCount = 0;
-  @state() accessor currentDataModelText = '{}';
-  @state() accessor primaryColor = '#1177ee';
+  @state() mockLogs: string[] = [];
+  @state() demoItems: DemoItem[] = [];
+  @state() activeItemIndex = 0;
+  @state() processedMessageCount = 0;
+  @state() currentDataModelText = '{}';
+  @state() primaryColor = '#1177ee';
   // Expose the dispatched actions log for automated integration tests to inspect
   actionLog: A2uiClientAction[] = [];
 
   @provide({context: Context.markdown})
-  private accessor markdownRenderer = renderMarkdown;
+  private markdownRenderer = renderMarkdown;
 
   private processor = new MessageProcessor([basicCatalog], (action: A2uiClientAction) => {
     this.log(`Action dispatched: ${action.surfaceId}`, action);
@@ -65,7 +65,7 @@ export class LocalGallery extends LitElement {
         this.selectItem(0);
       }
     } catch (err) {
-      console.error(`Failed to initiate gallery:`, err);
+      console.error('Failed to initiate gallery:', err);
     }
   }
 
@@ -120,7 +120,7 @@ export class LocalGallery extends LitElement {
 
     const modifiedToProcess = this.applyPrimaryColorToMessages(toProcess);
 
-    this.processor.processMessages(modifiedToProcess);
+    this.processor.processMessages(structuredClone(modifiedToProcess));
     this.processedMessageCount += toProcess.length;
 
     // Subscribe to data model on first advance if not already subscribed

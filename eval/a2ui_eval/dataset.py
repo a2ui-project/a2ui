@@ -14,9 +14,17 @@
 
 """Dataset loader for A2UI evaluation."""
 
+import json
 import os
+
+import jsonschema
 import yaml
 from inspect_ai.dataset import MemoryDataset, Sample
+
+from datasets.defaults import DEFAULT_CATALOG_PATH, DEFAULT_WORKFLOW_DESCRIPTION, DEFAULT_ROLE_DESCRIPTION
+from a2ui_eval.shared.utils import GIT_ROOT
+
+SCHEMA_PATH = GIT_ROOT / "eval" / "datasets" / "dataset_schema.json"
 
 def load_a2ui_dataset(file_path: str) -> MemoryDataset:
     """Loads A2UI evaluation samples from a YAML file.
@@ -35,17 +43,23 @@ def load_a2ui_dataset(file_path: str) -> MemoryDataset:
         
     with open(file_path, 'r', encoding='utf-8') as f:
         data = yaml.safe_load(f)
+
+    with open(SCHEMA_PATH, 'r', encoding='utf-8') as f:
+        schema = json.load(f)
+        
+    jsonschema.validate(instance=data, schema=schema)
         
     samples = []
     for item in data:
         samples.append(Sample(
-            input=item.get('promptText') or item.get('input'),
+            input=item['promptText'],
             target=item.get('target') or item.get('description'),
             metadata={
                 'name': item.get('name'),
                 'description': item.get('description'),
-                'context': item.get('context'),
-                **(item.get('metadata', {}))
+                'catalog': item.get('catalog') or DEFAULT_CATALOG_PATH,
+                'role_description': item.get('role_description') or DEFAULT_ROLE_DESCRIPTION,
+                'workflow_description': item.get('workflow_description') or DEFAULT_WORKFLOW_DESCRIPTION,
             }
         ))
         

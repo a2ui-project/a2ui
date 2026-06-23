@@ -15,7 +15,7 @@
  */
 
 import {DestroyRef, Injectable, inject, NgZone} from '@angular/core';
-import {ComponentContext, computed} from '@a2ui/web_core/v0_9';
+import {ComponentContext, computed, getValue} from '@a2ui/web_core/v0_9';
 import {toAngularSignal} from './utils';
 import {BoundProperty, ComponentTemplate} from './types';
 
@@ -64,7 +64,7 @@ export class ComponentBinder {
         const listSig = context.dataContext.resolveSignal({path: value.path});
         const listContext = context.dataContext.nested(value.path);
         preactSig = computed(() => {
-          const arr = listSig.value;
+          const arr = getValue(listSig);
           const currentArr = Array.isArray(arr) ? arr : [];
           return currentArr.map((_, i) => ({
             id: value.componentId,
@@ -78,7 +78,7 @@ export class ComponentBinder {
       if (['child', 'trigger', 'content'].includes(key)) {
         const originalSig = preactSig;
         preactSig = computed(() => {
-          const val = originalSig.value;
+          const val = getValue(originalSig);
           if (!val) return null;
           if (typeof val === 'object' && val !== null && 'id' in val) {
             return val;
@@ -93,7 +93,7 @@ export class ComponentBinder {
           template = {id, path};
         }
         preactSig = computed(() => {
-          const val = originalSig.value;
+          const val = getValue(originalSig);
           const arr = Array.isArray(val) ? val : [];
           return arr.map(item => {
             if (typeof item === 'object' && item !== null && 'id' in item) {

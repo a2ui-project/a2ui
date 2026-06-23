@@ -38,6 +38,7 @@ The community is building A2UI renderers for additional platforms:
 - **[json-render](https://json-render.dev/docs/a2ui)** — Vercel's React library for rendering A2UI catalogs via Zod schemas ([comparison](https://dipjyotimetia.medium.com/vercels-json-render-vs-google-s-a2ui-the-head-to-head-6f213cf1a23b))
 - **[A2UI-Android](https://github.com/lmee/A2UI-Android)** — Community Jetpack Compose renderer, 20+ components (~15 ⭐, v0.8)
 - **[a2ui-react-native](https://github.com/sivamrudram-eng/a2ui-react-native)** — React Native renderer for iOS/Android (~9 ⭐, v0.8)
+- **[Lynx A2UI](https://lynxjs.org/next/react/genui/a2ui.html)** — ReactLynx renderer for A2UI (v0.9)
 
 See the **[full ecosystem renderers list](../ecosystem/renderers.md)** for more community projects and how to submit your own.
 

@@ -56,7 +56,7 @@ Notes:
 - The provided catalogs must be freestanding, i.e. they should not reference any
   external schemas or components, except for the common types.
 - If you have a modular catalog that references other catalogs, refer
-  to [Freestanding Catalogs](../../../docs/catalogs.md#freestanding-catalogs)
+  to [Freestanding Catalogs](../../../docs/concepts/catalogs.md#freestanding-catalogs)
   for more information.
 - You can define multiple `A2uiSchemaManager` instances (one for each protocol version)
   and select the active one at runtime based on the client request.
@@ -259,7 +259,7 @@ user's request, client capabilities, or conversational context. This is common
 for dashboard-style agents that support multiple distinct visualization types (
 e.g., Charts vs. Maps).
 
-**Example Sample:** [rizzcharts](../../../samples/agent/adk/rizzcharts/python)
+**Example Sample:** [rizzcharts](../../../samples/community/agent/adk/rizzcharts/python)
 
 #### 2a. Injecting Catalogs into Session State
 
@@ -370,7 +370,7 @@ else:
 Orchestrator agents delegate work to sub-agents. They often need to propagate UI
 capabilities and handle cross-agent UI state.
 
-**Example Sample:** [orchestrator](../../../samples/agent/adk/orchestrator)
+**Example Sample:** [orchestrator](../../../samples/community/agent/adk/orchestrator)
 
 The orchestrator inspects sub-agent capabilities and aggregates their supported
 catalog IDs into its own `AgentCard`.
@@ -400,7 +400,7 @@ agent_card = AgentCard(
 
 #### Setting or Propagating Client Capabilities on Remote A2A Agents
 
-When calling remote A2A agents (such as delegating to a sub-agent or proxying to a backend A2A stubby agent) via ADK `RemoteA2aAgent`, you must ensure that the remote agent receives the client's UI capabilities in its request metadata under `a2uiClientCapabilities`.
+When calling remote A2A agents (such as delegating to a sub-agent or proxying to a backend A2A stubby agent) via ADK `RemoteA2aAgent`, you must ensure that the remote agent receives the client's UI capabilities in the `metadata` field of the A2A `Message` under the key `a2uiClientCapabilities`.
 
 You can configure an `A2aRemoteAgentConfig` with a `before_request` interceptor (`RequestInterceptor`) to inject this metadata. There are two common scenarios:
 

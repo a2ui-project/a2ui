@@ -15,47 +15,52 @@
  * limitations under the License.
  */
 
-import {ansi, getPackageGraph, maybeRunCommand, runCommand} from './lib/workspace.mjs';
+import {
+  ansi,
+  getPackageGraph,
+  maybeRunCommand,
+  runCommand as defaultRunCommand,
+} from './lib/workspace.mjs';
 import {execSync} from 'node:child_process';
 import {readFileSync} from 'node:fs';
 import {join} from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {parseArgs} from 'node:util';
 
-const {yellow, red, green, reset} = ansi;
+const {yellow, red, green, reset, bold} = ansi;
 
 /**
- * Topologically sorts package names based on their internal dependencies.
+ * Topologically sorts package objects based on their internal dependencies.
  *
- * @param {string[]} packageNames - The package names to sort.
- * @param {Object} graph - The package graph.
- * @returns {string[]} The sorted package names.
+ * @param {Object[]} packageObjects - The package objects to sort.
+ * @returns {Object[]} The incoming package objects topologically sorted.
  */
-function topologicalSort(packageNames, graph) {
+function topologicalSort(packageObjects) {
   const sorted = [];
   const visited = new Set();
   const temp = new Set();
 
-  function visit(name) {
+  // Create a map from package name to its package object.
+  const objectMap = Object.fromEntries(packageObjects.map(p => [p.name, p]));
+
+  function visit(pkg) {
+    const name = pkg.name;
     if (temp.has(name)) throw new Error(`Circular dependency detected involving ${name}`);
     if (visited.has(name)) return;
 
     temp.add(name);
-    const pkg = graph[name];
-    if (pkg) {
-      for (const dep of pkg.internalDependencies) {
-        if (packageNames.includes(dep)) {
-          visit(dep);
-        }
+    for (const dep of pkg.internalDependencies) {
+      if (dep in objectMap) {
+        visit(objectMap[dep]);
       }
     }
     temp.delete(name);
     visited.add(name);
-    sorted.push(name);
+    sorted.push(pkg);
   }
 
-  for (const name of packageNames) {
-    visit(name);
+  for (const pkg of packageObjects) {
+    visit(pkg);
   }
   return sorted;
 }
@@ -63,11 +68,12 @@ function topologicalSort(packageNames, graph) {
 /**
  * Calculates the difference between two version strings.
  *
- * @param {string} oldV - The old version string.
+ * @param {string | null} oldV - The old version string.
  * @param {string} newV - The new version string.
  * @returns {string} The diff type (e.g., 'MAJOR', 'MINOR', 'PATCH', 'SAME', etc.)
  */
 function getVersionDiff(oldV, newV) {
+  if (oldV == null) return 'NEW';
   if (oldV === newV) return 'SAME';
   const [oCore, ...oPreArr] = oldV.split('-');
   const [nCore, ...nPreArr] = newV.split('-');
@@ -99,7 +105,7 @@ function getVersionDiff(oldV, newV) {
  * @returns {string} The current commit hash.
  */
 function checkGitProvenance(exec) {
-  console.log('\n--- Git Provenance Check ---');
+  console.log(`\n${bold}Checking Git provenance${reset}\n`);
   let currentBranch = 'unknown';
   let commitHash = 'unknown';
   let isDirty = false;
@@ -110,141 +116,211 @@ function checkGitProvenance(exec) {
     const status = exec('git status --porcelain', {encoding: 'utf8'}).trim();
     isDirty = status.length > 0;
   } catch (e) {
-    // TODO: Should this throw an Error with {cause: e}?
+    // Should this throw an Error with {cause: e}?
     console.warn(
       `${yellow}⚠️ Could not verify Git status. Ensure you are in a valid Git repository.${reset}`,
     );
   }
 
   if (isDirty) {
+    // Should this block the process unless --no-git-check or similar is passed?
     console.warn(
-      `${yellow}\n⚠️  WARNING: Your Git working tree is DIRTY (you have uncommitted changes).${reset}`,
+      `${yellow}⚠️  WARNING: Your Git working tree is DIRTY (you have uncommitted changes).${reset}`,
     );
     console.warn(
-      `${yellow}Publishing from a dirty tree means the published code will NOT exactly match the commit history.${reset}`,
+      `   Publishing from a dirty tree means the published code will NOT exactly match the commit history.`,
     );
     console.warn(
-      `${yellow}It is highly recommended to commit or stash your changes before publishing.${reset}`,
+      `   It is highly recommended to commit or stash your changes before publishing.\n`,
     );
   }
 
-  console.log(`Publishing from branch: ${currentBranch}`);
-  console.log(`Commit hash: ${commitHash}`);
+  console.log(`- Publishing from branch: ${currentBranch}`);
+  console.log(`- Commit hash: ${commitHash}`);
 
   return commitHash;
 }
 
 /**
- * Validates that core dependencies are included when publishing renderers.
+ * Adds missing internal workspace dependencies for the given package objects.
  *
- * @param {string[]} packageNames - The package names to check.
+ * @param {Object[]} packageObjects - The list of starting package objects.
+ * @param {Object} graph - The package graph.
+ * @returns {Object[]} The list of package objects including all transitively required workspace dependencies.
  */
-function checkCoreDependencies(packageNames) {
-  const webCoreName = '@a2ui/web_core';
-  const markdownItName = '@a2ui/markdown-it';
-  const renderers = ['@a2ui/lit', '@a2ui/angular', '@a2ui/react'];
-  const requestedRenderers = packageNames.filter(p => renderers.includes(p));
+function ensureWorkspaceDependencies(packageObjects, graph) {
+  console.log(`\n${bold}Checking package dependencies${reset}\n`);
 
-  if (requestedRenderers.length > 0) {
-    const missingCores = [];
-    if (!packageNames.includes(webCoreName)) missingCores.push(webCoreName);
-    if (!packageNames.includes(markdownItName)) missingCores.push(markdownItName);
-
-    if (missingCores.length > 0) {
-      console.warn(
-        `${yellow}WARNING: You are publishing renderers but NOT ${missingCores.join(' and ')}.${reset}`,
-      );
-      console.warn(
-        `${yellow}This can lead to broken versions if shared dependencies have changed.${reset}`,
-      );
-      console.warn(`${yellow}Use --no-check-core-dependencies to override this check.${reset}`);
-      throw new Error(
-        `Safety check failed: ${missingCores.join(' and ')} missing from publish list.`,
-      );
+  const result = [...packageObjects];
+  // A set of the packages we've seen so far (the original packages plus any discovered dependencies)
+  const names = new Set(packageObjects.map(p => p.name));
+  // The queue of packages whose dependencies we need to check
+  const queue = [...packageObjects];
+  while (queue.length > 0) {
+    const pkg = queue.shift();
+    for (const depName of pkg.internalDependencies) {
+      if (!names.has(depName)) {
+        const depPkg = graph[depName];
+        if (depPkg) {
+          names.add(depName);
+          result.push(depPkg);
+          queue.push(depPkg);
+          console.warn(
+            `${yellow}⚠️  Added:${reset} ${depName} ${yellow}as a required workspace dependency of${reset} ${pkg.name}.`,
+          );
+        }
+      }
     }
+  }
+  if (result.length == packageObjects.length) {
+    console.log('All workspace dependencies are present.');
+  }
+  return result;
+}
+
+/**
+ * Gets the version of a package on npm.
+ *
+ * @param {Object} pkg - The package to check.
+ * @param {Object} options - Options.
+ * @param {string|null} options.npmToken - The NPM token to use.
+ * @param {Function} options.exec - The execSync function to use.
+ * @returns {string|null} The version of the package on npm, or null if it does not exist.
+ */
+function getNpmVersion(pkg, {npmToken, exec}) {
+  try {
+    const remoteVersionJson = exec(`yarn npm info ${pkg.name} --fields version --json`, {
+      encoding: 'utf8',
+      stdio: ['pipe', 'pipe', 'ignore'],
+      env: {...process.env, NPM_TOKEN: npmToken},
+    }).trim();
+    const remoteVersion = JSON.parse(remoteVersionJson)?.version;
+    return remoteVersion;
+  } catch (e) {
+    return null;
   }
 }
 
 /**
- * Checks package versions against npmjs.
+ * Obtains an Artifact Registry token via gcloud if NPM_TOKEN is not in env.
+ *
+ * @param {Function} exec - The execSync function to use.
+ * @returns {string|null} The token string, or null if it could not be obtained.
+ */
+function getRegistryToken(exec) {
+  let npmToken = process.env.NPM_TOKEN;
+  if (!npmToken) {
+    console.log(`\n${bold}Obtaining Artifact Registry authentication token${reset}\n`);
+    try {
+      npmToken = exec('gcloud auth print-access-token', {encoding: 'utf8'}).trim();
+      console.log(
+        `Using token: ${npmToken.substring(0, 5)}...${npmToken.substring(npmToken.length - 5)}`,
+      );
+    } catch (e) {
+      console.warn(
+        `${yellow}⚠️ Could not obtain gcloud access token. Ensure you are logged in (${reset}gcloud auth login${yellow}).${reset}`,
+      );
+    }
+  }
+  return npmToken || null;
+}
+
+/**
+ * Filters the incoming packages list, and returns another one with the packages that should be published.
+ *
+ * This method skips packages that are published in the same version, fails if the published version
+ * is newwer than the local version, and congratulates the user in other cases.
  *
  * @param {Object[]} packages - The package objects to check.
- * @param {Function} exec - The execSync function to use.
+ * @param {Object} options - Option parameters.
+ * @param {string|null} options.npmToken - The NPM token to use.
+ * @param {Function} options.exec - The execSync function to use.
  */
-function checkNpmVersions(packages, exec) {
-  console.log('--- Pre-flight Version Checks ---');
+function filterPublishablePackages(packages, {npmToken, exec}) {
+  console.log(`\n${bold}Checking package versions${reset}\n`);
+
+  const packagesToPublish = [];
   for (const pkg of packages) {
     const localVersion = pkg.version;
-    let remoteVersion;
-
-    try {
-      remoteVersion = exec(`yarn npm info ${pkg.name} --fields version`, {
-        encoding: 'utf8',
-        stdio: ['pipe', 'pipe', 'ignore'],
-      }).trim();
-    } catch (e) {
-      remoteVersion = null;
-    }
-
-    if (!remoteVersion) {
-      console.log(
-        `✅ [NEW PACKAGE] ${pkg.name}: Will be published for the first time as ${localVersion}`,
-      );
-      continue;
-    }
-
-    if (remoteVersion === localVersion) {
-      console.error(`\n❌ ERROR: ${pkg.name} version ${localVersion} is already published on npm!`);
-      console.error(
-        `Please increment the version (e.g., using increment_version.mjs) before publishing.`,
-      );
-      throw new Error(`Version ${localVersion} already published.`);
-    }
-
+    const remoteVersion = getNpmVersion(pkg, {npmToken, exec});
     const diff = getVersionDiff(remoteVersion, localVersion);
-    if (diff === 'OLDER_OR_UNKNOWN') {
-      console.error(
-        `\n❌ ERROR: ${pkg.name} local version (${localVersion}) appears older or invalid compared to npm version (${remoteVersion})!`,
-      );
-      throw new Error(`Invalid version progression for ${pkg.name}.`);
+    switch (diff) {
+      case 'NEW':
+        console.log(
+          `✅ [NEW PACKAGE] ${pkg.name}: Will be published for the first time as ${localVersion}`,
+        );
+        packagesToPublish.push(pkg);
+        break;
+      case 'SAME':
+        console.warn(
+          `⚠️ WARNING: ${pkg.name} version ${localVersion} is already published on npm. Skipping.`,
+        );
+        break;
+      case 'OLDER_OR_UNKNOWN':
+        console.error(
+          `❌ ERROR: ${pkg.name} local version (${localVersion}) appears older or invalid compared to npm version (${remoteVersion})!`,
+        );
+        throw new Error(`Invalid version progression for ${pkg.name}.`);
+      default:
+        console.log(`✅ [${diff}] ${pkg.name}: ${remoteVersion} -> ${localVersion}`);
+        packagesToPublish.push(pkg);
+        break;
     }
-
-    console.log(`✅ [${diff}] ${pkg.name}: ${remoteVersion} -> ${localVersion}`);
   }
-  console.log('\nPre-flight checks passed.');
+  return packagesToPublish;
 }
 
 /**
  * Builds and tests all targeted packages.
  *
  * @param {Object[]} packages - The package objects to build and test.
- * @param {Function} runCmd - The runCommand function to use.
  * @param {boolean} skipTests - Whether to skip tests.
+ * @param {Object} options - Options.
+ * @param {Function} options.runCommand - The runCommand function to use.
  */
-function buildAndTestPackages(packages, runCmd, skipTests) {
-  console.log('\n--- Building and Testing all packages ---');
+function buildAndTestPackages(packages, skipTests, {runCommand}) {
   for (const pkg of packages) {
-    console.log(`\n=== Preparing ${pkg.name} (${pkg.version}) ===`);
-
-    console.log(`- Running yarn install in ${pkg.dir}`);
-    runCmd('yarn', ['install'], {
+    console.log(`\n${bold}Testing ${pkg.name} (${pkg.version})${reset}\n`);
+    runCommand('yarn', ['install'], {
       cwd: pkg.dir,
     });
 
     if (skipTests) {
-      console.log(`- Skipping yarn test for ${pkg.name}`);
+      console.warn(`${yellow}⚠️  Skipping yarn test for ${pkg.name}${reset}`);
     } else {
       const pkgJson = JSON.parse(readFileSync(join(pkg.dir, 'package.json'), 'utf8'));
       const testScript = pkgJson.scripts && pkgJson.scripts['test:ci'] ? 'test:ci' : 'test';
-
-      console.log(`- Running yarn run ${testScript} in ${pkg.dir}`);
-      runCmd('yarn', ['run', testScript], {cwd: pkg.dir});
+      runCommand('yarn', ['run', testScript], {cwd: pkg.dir});
     }
   }
 }
 
+/**
+ * Publishes the topologically-sorted packages.
+ *
+ * @param {Object[]} packages - The package objects to publish.
+ * @param {Object} options - Options.
+ * @param {string|null} options.npmToken - The NPM token to use.
+ * @param {boolean} options.dryRun - Whether to perform a dry run.
+ * @param {Function} options.runCommand - The runner command to execute.
+ */
+function publishPackages(packages, {npmToken, dryRun, runCommand}) {
+  for (const pkg of packages) {
+    console.log(`\n${bold}Publishing ${pkg.name} (${pkg.version})${reset}\n`);
+    maybeRunCommand(
+      'yarn',
+      ['run', 'publish:package'],
+      {
+        cwd: pkg.dir,
+        env: {...process.env, NPM_TOKEN: npmToken},
+      },
+      {dryRun, runCommand},
+    );
+  }
+}
+
 export async function main(args, mocks = {}) {
-  const runCmd = mocks.runCommand || runCommand;
+  const runCommand = mocks.runCommand || defaultRunCommand;
   const exec = mocks.execSync || execSync;
 
   const options = {
@@ -254,11 +330,6 @@ export async function main(args, mocks = {}) {
       multiple: true,
       default: [],
     },
-    'check-core-dependencies': {
-      type: 'boolean',
-      default: true,
-    },
-
     'dry-run': {
       type: 'boolean',
       default: true,
@@ -299,8 +370,7 @@ Examples:
   ./publish_npm.mjs -p web_core -p react --no-dry-run --skip-tests`);
     return;
   }
-  const packagesToPublish = values.package;
-  const checkCoreDeps = values['check-core-dependencies'];
+  let packagesToPublish = values.package;
 
   const dryRun = values['dry-run'];
   const skipTests = values['skip-tests'];
@@ -310,6 +380,8 @@ Examples:
       'Usage: publish_npm --package=pkg1 --package=pkg2 [--no-check-core-dependencies] [--no-dry-run] [--skip-tests]',
     );
   }
+
+  const npmToken = getRegistryToken(exec);
 
   // Checks the status of the current git branch.
   const commitHash = checkGitProvenance(exec);
@@ -322,52 +394,24 @@ Examples:
     if (!pkg) {
       throw new Error(`Package "${name}" not found in workspace.`);
     }
-    return pkg.name;
+    return pkg;
   });
 
-  // Check that core dependencies are being published.
-  if (checkCoreDeps) {
-    checkCoreDependencies(resolvedPackages);
-  }
-  // Sort package names topologically (by dependency graph order).
-  const sortedPackages = topologicalSort(resolvedPackages, graph);
-  // Expands the list of topologically-sorted package names to package objects with additional dependency graph info.
-  const packageObjects = sortedPackages.map(name => graph[name]);
-  // Check the NPM versions of the packages we're about to publish.
-  checkNpmVersions(packageObjects, exec);
+  // Ensure all workspace dependencies of the resolvedPackages are included.
+  const allPackages = ensureWorkspaceDependencies(resolvedPackages, graph);
+
+  // Sort packages topologically (by dependency graph order).
+  const packageObjects = topologicalSort(filterPublishablePackages(allPackages, {npmToken, exec}));
+
   // Ensure packages can be built and tested.
-  buildAndTestPackages(packageObjects, runCmd, skipTests);
+  buildAndTestPackages(packageObjects, skipTests, {runCommand});
 
-  console.log('\n--- Proceeding to publish ---');
+  publishPackages(packageObjects, {npmToken, dryRun, runCommand});
 
-  for (const pkg of packageObjects) {
-    console.log(`\n=== Publishing ${pkg.name} (${pkg.version}) ===`);
-
-    let npmToken = process.env.NPM_TOKEN || '';
-    if (!dryRun && !npmToken) {
-      console.log(`- Obtaining fresh Artifact Registry token via gcloud CLI for ${pkg.name}...`);
-      try {
-        npmToken = exec('gcloud auth print-access-token', {encoding: 'utf8'}).trim();
-      } catch (e) {
-        console.warn(
-          `${yellow}⚠️ Could not obtain gcloud access token. Ensure you are logged in (${reset}gcloud auth login${yellow}).${reset}`,
-        );
-      }
-    }
-
-    console.log(`- Running publish:package in ${pkg.dir}`);
-    maybeRunCommand(
-      'yarn',
-      ['run', 'publish:package'],
-      {
-        cwd: pkg.dir,
-        env: {...process.env, NPM_TOKEN: npmToken},
-      },
-      {dryRun, runCommand: runCmd},
-    );
+  if (!dryRun) {
+    console.log(`\nUploaded artifacts to: ${bold}go/a2ui-oss-exit-gate-artifacts${reset}`);
   }
-
-  console.log(`\n${green}Done.${reset}`);
+  console.log(`${green}Done.${reset}`);
 }
 
 // Only run the script if this file is executed directly.

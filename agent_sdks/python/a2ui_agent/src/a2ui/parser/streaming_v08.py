@@ -14,18 +14,22 @@
 
 import re
 import json
-from typing import Any, List, Dict, Optional, Set
+from typing import Any, List, Dict, Optional, Set, TYPE_CHECKING
 
 from .streaming import A2uiStreamParser
 from .response_part import ResponsePart
 from .constants import *
 from ..schema.constants import VERSION_0_8, SURFACE_ID_KEY, CATALOG_COMPONENTS_KEY
+from a2ui.core.validating.validator import ValidationConfig, RELAXED_VALIDATION, STRICT_VALIDATION
+
+if TYPE_CHECKING:
+  from ..schema.catalog import A2uiCatalog
 
 
 class A2uiStreamParserV08(A2uiStreamParser):
   """Streaming parser implementation for A2UI v0.8 specification."""
 
-  def __init__(self, catalog=None):
+  def __init__(self, catalog: A2uiCatalog):
     super().__init__(catalog=catalog)
     self._yielded_begin_rendering_surfaces: Set[str] = set()
 
@@ -101,7 +105,7 @@ class A2uiStreamParserV08(A2uiStreamParser):
       return False
 
     if self._validator:
-      self._validator.validate(obj, root_id=sid, strict_integrity=False)
+      self._validator.validate(obj, root_id=sid, config=RELAXED_VALIDATION)
 
     # Update state based on the message content
     surface_id = obj.get(SURFACE_ID_KEY, self.surface_id)
@@ -206,7 +210,7 @@ class A2uiStreamParserV08(A2uiStreamParser):
         return mt
     return self._msg_types[0] if self._msg_types else None
 
-  def _deduplicate_data_model(self, m: Dict[str, Any], strict_integrity: bool) -> bool:
+  def _deduplicate_data_model(self, m: Dict[str, Any]) -> bool:
     if MSG_TYPE_DATA_MODEL_UPDATE in m:
       dm = m[MSG_TYPE_DATA_MODEL_UPDATE]
       raw_contents = dm.get('contents', {})
@@ -232,7 +236,7 @@ class A2uiStreamParserV08(A2uiStreamParser):
           if self._yielded_data_model.get(k) != v:
             is_new = True
             break
-        if not is_new and strict_integrity:
+        if not is_new:
           return False
         self._yielded_data_model.update(contents_dict)
     return True

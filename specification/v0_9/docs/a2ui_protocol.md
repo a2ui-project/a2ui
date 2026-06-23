@@ -11,9 +11,8 @@
 A Specification for a JSON-Based, Streaming UI Protocol.
 
 **Version:** 0.9
-**Status:** Draft
+**Status:** Stable
 **Created:** Nov 20, 2025
-**Last Updated:** Dec 3, 2025
 
 A Specification for a JSON-Based, Streaming UI Protocol
 
@@ -104,7 +103,7 @@ A2A is uniquely capable of handling remote agent communication, and can also pro
 - **Message mapping**: Each A2UI envelope (e.g., `updateComponents`) corresponds to the payload of a single A2A message Part.
 - **Metadata**:
   - **Data model**: When `sendDataModel` is active, the client's `a2uiClientDataModel` object is placed in the `metadata` field of the A2A message.
-  - **Capabilities**: The `a2uiClientCapabilities` object is placed in the `metadata` field of every A2A message sent from the client to the server.
+  - **Capabilities**: The `a2uiClientCapabilities` object is placed in the `metadata` field of every A2A `Message` sent from the client to the server.
 - **Context**: A2UI sessions typically map to A2A `contextId`. All messages for a set of related surfaces should share the same `contextId`.
 
 #### AG UI (Agent to User Interface) binding

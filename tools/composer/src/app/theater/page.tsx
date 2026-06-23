@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */ // TODO: remediate legacy any types
 /**
  * Copyright 2026 Google LLC
  *
@@ -105,6 +106,7 @@ export default function TheaterPage() {
     if (url.renderer && RENDERERS.includes(url.renderer as RendererType))
       setRenderer(url.renderer as RendererType);
     if (url.step !== undefined) seek(url.step);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
@@ -136,8 +138,11 @@ export default function TheaterPage() {
 
       switch (e.key) {
         case ' ':
-          e.preventDefault();
-          playbackState === 'playing' ? pause() : play();
+          if (playbackState === 'playing') {
+            pause();
+          } else {
+            play();
+          }
           break;
         case 'ArrowRight':
           e.preventDefault();
