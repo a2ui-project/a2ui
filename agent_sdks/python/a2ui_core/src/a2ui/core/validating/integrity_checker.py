@@ -45,7 +45,12 @@ def _get_refs_recursively(
     if not comp_type or not isinstance(props, dict):
         return
 
-    single_refs, list_refs = ref_fields_map.get(comp_type, (set(), set()))
+    ref_tuple = ref_fields_map.get(comp_type)
+    if ref_tuple:
+        single_refs, list_refs = ref_tuple[0], ref_tuple[1]
+        nested_refs = getattr(ref_tuple, "nested_refs", {})
+    else:
+        single_refs, list_refs, nested_refs = set(), set(), {}
 
     def extract_pointers(val: Any, current_path: str) -> Iterator[Tuple[str, str]]:
         if isinstance(val, str):
@@ -64,8 +69,19 @@ def _get_refs_recursively(
                 if isinstance(val_id, str):
                     yield val_id, f"{current_path}.componentId"
             else:
-                for sub_key, sub_val in val.items():
-                    yield from extract_pointers(sub_val, f"{current_path}.{sub_key}")
+                top_prop = current_path.split("[")[0].split(".")[0]
+                if top_prop in nested_refs and "." not in current_path:
+                    allowed_sub_keys = nested_refs[top_prop]
+                    for sub_key, sub_val in val.items():
+                        if sub_key in allowed_sub_keys:
+                            yield from extract_pointers(
+                                sub_val, f"{current_path}.{sub_key}"
+                            )
+                else:
+                    for sub_key, sub_val in val.items():
+                        yield from extract_pointers(
+                            sub_val, f"{current_path}.{sub_key}"
+                        )
 
     for key, value in props.items():
         if key in single_refs or key in list_refs:

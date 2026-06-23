@@ -60,6 +60,20 @@ class NodeGraph:
         if instance_id in self.active_nodes:
             return self.active_nodes[instance_id]
 
+        def collect_nodes(value):
+            nodes = set()
+            if isinstance(value, ComponentNode):
+                nodes.add(value)
+            elif isinstance(value, list):
+                for item in value:
+                    nodes.update(collect_nodes(item))
+            elif isinstance(value, dict):
+                for v in value.values():
+                    nodes.update(collect_nodes(v))
+            elif isinstance(value, Signal):
+                nodes.update(collect_nodes(value.value))
+            return nodes
+
         component_model = self.surface.components_model.get(component_id)
         props_signal = Signal({})
 
@@ -128,7 +142,12 @@ class NodeGraph:
                 self.surface.catalog
             ).extract_ref_fields()
             comp_type = component_model.type if component_model else ""
-            single_refs, list_refs = ref_map.get(comp_type, (set(), set()))
+            ref_tuple = ref_map.get(comp_type)
+            if ref_tuple:
+                single_refs, list_refs = ref_tuple[0], ref_tuple[1]
+                nested_refs = getattr(ref_tuple, "nested_refs", {})
+            else:
+                single_refs, list_refs, nested_refs = set(), set(), {}
 
             # Resolve single-child references
             for single_ref in single_refs:
@@ -153,14 +172,46 @@ class NodeGraph:
                                 child_list.append(
                                     self.get_or_create_node(item, data_path)
                                 )
-                            elif isinstance(item, dict) and "child" in item:
-                                resolved_item = copy.deepcopy(item)
-                                item_child_id = item["child"]
-                                if isinstance(item_child_id, str) and item_child_id:
-                                    resolved_item["child"] = self.get_or_create_node(
-                                        item_child_id, data_path
+                            elif isinstance(item, dict) and "componentId" in item:
+                                cid = item["componentId"]
+                                if isinstance(cid, str) and cid:
+                                    child_list.append(
+                                        self.get_or_create_node(cid, data_path)
                                     )
-                                child_list.append(resolved_item)
+                                else:
+                                    child_list.append(item)
+                            elif isinstance(item, dict):
+                                resolved_item = copy.deepcopy(item)
+                                has_resolved = False
+                                for sub_key in nested_refs.get(list_ref, {"child"}):
+                                    if sub_key in item:
+                                        item_child_id = item[sub_key]
+                                        if (
+                                            isinstance(item_child_id, str)
+                                            and item_child_id
+                                        ):
+                                            resolved_item[sub_key] = (
+                                                self.get_or_create_node(
+                                                    item_child_id, data_path
+                                                )
+                                            )
+                                            has_resolved = True
+                                        elif (
+                                            isinstance(item_child_id, dict)
+                                            and "componentId" in item_child_id
+                                        ):
+                                            cid = item_child_id["componentId"]
+                                            if isinstance(cid, str) and cid:
+                                                resolved_item[sub_key] = (
+                                                    self.get_or_create_node(
+                                                        cid, data_path
+                                                    )
+                                                )
+                                                has_resolved = True
+                                if has_resolved:
+                                    child_list.append(resolved_item)
+                                else:
+                                    child_list.append(item)
                             else:
                                 child_list.append(item)
                         current_resolved[list_ref] = child_list
@@ -210,19 +261,6 @@ class NodeGraph:
                         current_resolved[list_ref] = spawned_nodes_signal
 
             # Compare current_resolved with child_nodes_by_prop to dispose of no-longer-referenced nodes
-            def collect_nodes(value):
-                nodes = set()
-                if isinstance(value, ComponentNode):
-                    nodes.add(value)
-                elif isinstance(value, list):
-                    for item in value:
-                        nodes.update(collect_nodes(item))
-                elif isinstance(value, dict):
-                    for v in value.values():
-                        nodes.update(collect_nodes(v))
-                elif isinstance(value, Signal):
-                    nodes.update(collect_nodes(value.value))
-                return nodes
 
             old_referenced_nodes = collect_nodes(list(child_nodes_by_prop.values()))
             new_referenced_nodes = collect_nodes(list(current_resolved.values()))
@@ -247,17 +285,8 @@ class NodeGraph:
                 sub.unsubscribe()
             template_subs.clear()
 
-            for item in list(child_nodes_by_prop.values()):
-                if isinstance(item, ComponentNode):
-                    item.dispose()
-                elif isinstance(item, list):
-                    for node_in_list in item:
-                        if isinstance(node_in_list, ComponentNode):
-                            node_in_list.dispose()
-                        elif isinstance(node_in_list, dict) and isinstance(
-                            node_in_list.get("child"), ComponentNode
-                        ):
-                            node_in_list["child"].dispose()
+            for child_node in collect_nodes(list(child_nodes_by_prop.values())):
+                child_node.dispose()
             child_nodes_by_prop.clear()
             self.active_nodes.pop(instance_id, None)
 

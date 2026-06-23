@@ -412,14 +412,24 @@ def _extract_ref_fields_pydantic(
                 list_refs.add(field_name)
 
         if single_refs or list_refs:
-            ref_map[comp_name] = (single_refs, list_refs)
+            ref_map[comp_name] = RefFieldsTuple(single_refs, list_refs)
 
     return ref_map
 
 
+class RefFieldsTuple(tuple):
+    """A backwards-compatible 2-tuple carrying nested reference field mappings."""
+
+    def __new__(cls, single_refs, list_refs, nested_refs=None):
+        return super().__new__(cls, (single_refs, list_refs))
+
+    def __init__(self, single_refs, list_refs, nested_refs=None):
+        self.nested_refs = nested_refs or {}
+
+
 def _extract_ref_fields_json(
     catalog: Catalog[Any, Any],
-) -> Dict[str, Tuple[Set[str], Set[str]]]:
+) -> Dict[str, RefFieldsTuple]:
     ref_map = {}
 
     def is_component_id_ref(prop_schema: Any) -> bool:
@@ -494,6 +504,7 @@ def _extract_ref_fields_json(
     for comp_name, comp_obj in catalog.components.items():
         single_refs = set()
         list_refs = set()
+        nested_refs = {}
 
         comp_schema = (
             comp_obj.schema
@@ -522,13 +533,15 @@ def _extract_ref_fields_json(
                             if is_component_id_ref(items) or is_child_list_ref(items):
                                 list_refs.add(prop_name)
                             elif "properties" in items:
-                                for sub_schema in items["properties"].values():
+                                for sub_key, sub_schema in items["properties"].items():
                                     resolved_sub = resolve_ref(sub_schema, comp_schema)
                                     if is_component_id_ref(
                                         resolved_sub
                                     ) or is_child_list_ref(resolved_sub):
                                         list_refs.add(prop_name)
-                                        break
+                                        if prop_name not in nested_refs:
+                                            nested_refs[prop_name] = set()
+                                        nested_refs[prop_name].add(sub_key)
 
             for key in ["allOf", "oneOf", "anyOf"]:
                 if key in comp_schema and isinstance(comp_schema[key], list):
@@ -538,7 +551,7 @@ def _extract_ref_fields_json(
         extract_from_props(comp_schema)
 
         if single_refs or list_refs:
-            ref_map[comp_name] = (single_refs, list_refs)
+            ref_map[comp_name] = RefFieldsTuple(single_refs, list_refs, nested_refs)
 
     return ref_map
 
