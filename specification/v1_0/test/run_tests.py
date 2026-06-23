@@ -211,7 +211,8 @@ def validate_catalogs_structure():
     print("\nValidating catalog structural integrity against catalog_definition.json...")
 
     ref_schemas = {
-        "catalog_definition.json": catalog_def_path
+        "catalog_definition.json": catalog_def_path,
+        "common_types.json": os.path.join(SCHEMA_DIR, "common_types.json")
     }
 
     try:
