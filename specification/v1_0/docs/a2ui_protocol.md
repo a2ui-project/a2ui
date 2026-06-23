@@ -97,17 +97,6 @@ To support A2UI, a transport layer must fulfill the following contract:
 
 While A2UI is agnostic, it is most commonly used with the following transports.
 
-#### A2A (Agent2Agent) binding
-
-[A2A (Agent-to-Agent)](https://a2a-protocol.org/latest/) is an excellent transport option for A2UI in agentic systems, extending A2A with additional payloads.
-A2A is uniquely capable of handling remote agent communication, and can also provide a secure and efficient transport between an agentic backend and front end application.
-
-- **Message mapping**: Each A2UI envelope (e.g., `updateComponents`) corresponds to the payload of a single A2A message Part.
-- **Metadata**:
-  - **Data model**: When `sendDataModel` is active, the client's `a2uiClientDataModel` object is placed in the `metadata` field of the A2A `Message`.
-  - **Capabilities**: The `a2uiClientCapabilities` object is placed in the `metadata` field of every A2A `Message` sent from the client to the server.
-- **Context**: A2UI sessions typically map to A2A `contextId`. All messages for a set of related surfaces should share the same `contextId`.
-
 #### AG UI (Agent to User Interface) binding
 
 **[AG-UI](https://docs.ag-ui.com/introduction)** is also an excellent transport option for A2UI Agent–User Interaction protocol.
@@ -911,7 +900,7 @@ _Replace the entire data model:_
 
 ### Client to server updates
 
-When `sendDataModel` is set to `true` for a surface, the client automatically appends the **entire data model** of that surface to the metadata of every message (such as `action` or user query) sent to the server that created the surface. The data model is included using the transport's metadata facility (e.g., the `metadata` field in A2A or a header in HTTP). The payload follows the schema in [`client_data_model.json`](../json/client_data_model.json).
+When `sendDataModel` is set to `true` for a surface, the client automatically appends the **entire data model** of that surface to the metadata of every message (such as `action` or user query) sent to the server that created the surface. The data model is included using the transport's metadata facility (the exact location and format are defined by the specific transport binding).
 
 - **Targeted Delivery**: The data model is sent exclusively to the server that created the surface. Data cannot leak to other agents or servers.
 - **Trigger:** Data is sent only when a client-to-server message is triggered (e.g., by a user action like a button click). Passive data changes (like typing in a text field) do not trigger a network request on their own; they simply update the local state, which will be sent with the next action.
@@ -1255,48 +1244,5 @@ This message is sent by the client to report runtime or execution errors to the 
   }
 }
 ```
-
----
-
-## Capabilities and metadata
-
-In A2UI v1.0, capabilities and other metadata are exchanged via **transport metadata** or initialization payloads (e.g., A2A metadata, Agent Cards, or MCP initialization) rather than as first-class A2UI messages.
-
-### Server capabilities
-
-A server (or agent) advertises its capabilities using the [`server_capabilities.json`] schema. This indicates which catalogs it can generate UI for, and whether it accepts inline catalogs from the client. The exact mechanism depends on the transport (e.g., the `params` object in an A2A AgentCard, or server capabilities in MCP).
-
-**Properties:**
-
-- `v1.0` (object, required): The capability structure for version 1.0 of the A2UI protocol.
-  - `supportedCatalogIds` (array of strings, required): An array of strings identifying the Catalog Definition Schemas the server can generate.
-  - `acceptsInlineCatalogs` (boolean, optional, default `false`): Indicates if the server can accept custom inline component/function catalogs in the client's capabilities metadata.
-
-### Client capabilities
-
-The `a2uiClientCapabilities` object in the transport metadata follows the [`client_capabilities.json`] schema to describe the client's rendering capabilities.
-
-**Properties:**
-
-- `v1.0` (object, required): The capability structure for version 1.0 of the A2UI protocol.
-  - `supportedCatalogIds` (array of strings, required): The URIs of supported component and function catalogs.
-  - `inlineCatalogs` (array, optional): An array of custom catalog definitions provided inline by the client. Functions defined within inline catalogs support declaring execution boundaries (`callableFrom: "clientOnly" | "remoteOnly" | "clientOrRemote"`) to statically specify remote invocation safety.
-
-### Client data model
-
-When `sendDataModel` is enabled for a surface, the client includes the `a2uiClientDataModel` object in the transport metadata, following the [`client_data_model.json`] schema.
-
-**Properties:**
-
-- `version` (string, required): Must be the constant `"v1.0"`.
-- `surfaces` (object, required): A map of surface IDs to their current local data models.
-
-[`catalogs/basic/catalog.json`]: ../catalogs/basic/catalog.json
-[`common_types.json`]: ../json/common_types.json
-[`server_to_client.json`]: ../json/server_to_client.json
-[`client_to_server.json`]: ../json/client_to_server.json
-[`server_capabilities.json`]: ../json/server_capabilities.json
-[`client_capabilities.json`]: ../json/client_capabilities.json
-[`client_data_model.json`]: ../json/client_data_model.json
 [JSON Pointer]: https://datatracker.ietf.org/doc/html/rfc6901
 [RFC 6901]: https://datatracker.ietf.org/doc/html/rfc6901

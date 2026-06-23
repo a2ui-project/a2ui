@@ -182,19 +182,19 @@ def validate_jsonl_example(jsonl_path):
 def validate_catalogs_structure():
     """
     Validates the catalog files directly against the Catalog definition in
-    client_capabilities.json schema.
+    catalog_definition.json schema.
     """
-    client_caps_path = os.path.join(SCHEMA_DIR, "client_capabilities.json")
-    if not os.path.exists(client_caps_path):
-        print(f"Error: client_capabilities.json not found at {client_caps_path}")
+    catalog_def_path = os.path.join(SCHEMA_DIR, "catalog_definition.json")
+    if not os.path.exists(catalog_def_path):
+        print(f"Error: catalog_definition.json not found at {catalog_def_path}")
         return 0, 1
 
     temp_validator_path = os.path.join(TEST_DIR, "temp_catalog_validator.json")
 
-    # We reference the absolute ID of client_capabilities.json which gets loaded as a reference
+    # We reference the absolute ID of catalog_definition.json which gets loaded as a reference
     validator_schema = {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
-        "$ref": "https://a2ui.org/specification/v1_0/client_capabilities.json#/$defs/Catalog"
+        "$ref": "https://a2ui.org/specification/v1_0/catalog_definition.json"
     }
 
     with open(temp_validator_path, 'w') as f:
@@ -208,10 +208,10 @@ def validate_catalogs_structure():
     passed = 0
     failed = 0
 
-    print("\nValidating catalog structural integrity against client_capabilities.json...")
+    print("\nValidating catalog structural integrity against catalog_definition.json...")
 
     ref_schemas = {
-        "client_capabilities.json": client_caps_path
+        "catalog_definition.json": catalog_def_path
     }
 
     try:

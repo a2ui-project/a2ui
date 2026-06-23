@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://a2ui.org/specification/v1_0/server_capabilities.json",
+  "$id": "https://a2ui.org/specification/v1_0/extensions/a2a/json/server_capabilities.json",
   "title": "A2UI Server Capabilities Schema",
   "description": "A schema for the server capabilities object, which is used by an A2UI server (or Agent) to advertise its supported UI features to clients. This can be embedded in an Agent Card for A2A or used in other transport protocols like MCP.",
   "type": "object",
