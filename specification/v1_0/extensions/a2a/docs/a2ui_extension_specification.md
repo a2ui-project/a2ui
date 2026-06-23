@@ -18,7 +18,7 @@ The A2UI extension is built on the following main concepts:
 * **Surfaces**: A "Surface" is a distinct, controllable region of the client's UI. The spec uses a `surfaceId` to direct updates to specific surfaces (e.g., a main content area, a side panel, or a new chat bubble). This allows a single agent stream to manage multiple UI areas independently.
 * **Catalog Definition Document**: The A2UI extension is catalog-agnostic. All UI components (e.g., Text, Row, Button) and functions (e.g., required, email) are defined in a separate Catalog Definition Schema. This allows clients and servers to negotiate which catalog to use.
 * **Schemas**: The A2UI extension is defined by several primary JSON schemas:
-  * **Catalog Definition Schema**: A standard format for defining a library of components and functions ([catalog_definition.json](../../json/catalog_definition.json)).
+  * **Catalog Definition Schema**: A standard format for defining a library of components and functions ([catalog_definition.json](../../../json/catalog_definition.json)).
   * **Server-to-Client Message List Schema**: The core wire format for messages sent from the agent to the client ([server_to_client_list.json](../json/server_to_client_list.json)).
   * **Client-to-Server Message List Schema**: The core wire format for messages sent from the client to the agent ([client_to_server_list.json](../json/client_to_server_list.json)).
   * **Server Capabilities Schema**: The schema for the `a2uiServerCapabilities` object, used by servers to declare their UI generation capabilities ([server_capabilities.json](../json/server_capabilities.json)).
