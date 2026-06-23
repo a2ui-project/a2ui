@@ -623,7 +623,18 @@ constructor(
             ?.takeIf { it.isString }
             ?.let { pathElem ->
               if (!pathElem.content.matches(JSON_POINTER_PATTERN)) {
-                throw A2uiValidationException("Invalid path syntax: '${pathElem.content}'")
+                val details =
+                  listOf(
+                    A2uiErrorDetail(
+                      path = "path",
+                      code = "invalid_pointer",
+                      message = "Invalid path syntax: '${pathElem.content}'",
+                    )
+                  )
+                throw A2uiValidationException(
+                  "Invalid path syntax: '${pathElem.content}'",
+                  details = details,
+                )
               }
             }
 
@@ -650,10 +661,9 @@ constructor(
   private fun normalizePath(path: String, basePath: String): String {
     var clean = path.trim().removePrefix("$").removePrefix(".").removePrefix("/")
     clean = clean.replace("/", ".")
-    clean = clean.replace(INDEX_PATH_PATTERN, ".$1")
-    clean = clean.replace("..", ".")
     val full = if (basePath.isEmpty()) clean else "$basePath.$clean"
-    return full.trim().removePrefix(".").removeSuffix(".")
+    val normalized = full.replace(INDEX_PATH_PATTERN, ".$1").replace("..", ".")
+    return normalized.trim().removePrefix(".").removeSuffix(".")
   }
 
   private fun mapNetworkntErrorCode(type: String): String {
