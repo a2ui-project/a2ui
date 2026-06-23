@@ -1246,5 +1246,6 @@ This message is sent by the client to report runtime or execution errors to the 
   }
 }
 ```
+
 [JSON Pointer]: https://datatracker.ietf.org/doc/html/rfc6901
 [RFC 6901]: https://datatracker.ietf.org/doc/html/rfc6901

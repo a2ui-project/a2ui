@@ -15,15 +15,15 @@ This is the only URI accepted for this extension.
 
 The A2UI extension is built on the following main concepts:
 
-* **Surfaces**: A "Surface" is a distinct, controllable region of the client's UI. The spec uses a `surfaceId` to direct updates to specific surfaces (e.g., a main content area, a side panel, or a new chat bubble). This allows a single agent stream to manage multiple UI areas independently.
-* **Catalog Definition Document**: The A2UI extension is catalog-agnostic. All UI components (e.g., Text, Row, Button) and functions (e.g., required, email) are defined in a separate Catalog Definition Schema. This allows clients and servers to negotiate which catalog to use.
-* **Schemas**: The A2UI extension is defined by several primary JSON schemas:
-  * **Catalog Definition Schema**: A standard format for defining a library of components and functions ([catalog_definition.json](../../../json/catalog_definition.json)).
-  * **Server-to-Client Message List Schema**: The core wire format for messages sent from the agent to the client ([server_to_client_list.json](../json/server_to_client_list.json)).
-  * **Client-to-Server Message List Schema**: The core wire format for messages sent from the client to the agent ([client_to_server_list.json](../json/client_to_server_list.json)).
-  * **Server Capabilities Schema**: The schema for the `a2uiServerCapabilities` object, used by servers to declare their UI generation capabilities ([server_capabilities.json](../json/server_capabilities.json)).
-  * **Client Capabilities Schema**: The schema for the `a2uiClientCapabilities` object ([client_capabilities.json](../json/client_capabilities.json)).
-  * **Client Data Model Schema**: The schema for the `a2uiClientDataModel` object, used for two-way synchronization ([client_data_model.json](../json/client_data_model.json)).
+- **Surfaces**: A "Surface" is a distinct, controllable region of the client's UI. The spec uses a `surfaceId` to direct updates to specific surfaces (e.g., a main content area, a side panel, or a new chat bubble). This allows a single agent stream to manage multiple UI areas independently.
+- **Catalog Definition Document**: The A2UI extension is catalog-agnostic. All UI components (e.g., Text, Row, Button) and functions (e.g., required, email) are defined in a separate Catalog Definition Schema. This allows clients and servers to negotiate which catalog to use.
+- **Schemas**: The A2UI extension is defined by several primary JSON schemas:
+  - **Catalog Definition Schema**: A standard format for defining a library of components and functions ([catalog_definition.json](../../../json/catalog_definition.json)).
+  - **Server-to-Client Message List Schema**: The core wire format for messages sent from the agent to the client ([server_to_client_list.json](../json/server_to_client_list.json)).
+  - **Client-to-Server Message List Schema**: The core wire format for messages sent from the client to the agent ([client_to_server_list.json](../json/client_to_server_list.json)).
+  - **Server Capabilities Schema**: The schema for the `a2uiServerCapabilities` object, used by servers to declare their UI generation capabilities ([server_capabilities.json](../json/server_capabilities.json)).
+  - **Client Capabilities Schema**: The schema for the `a2uiClientCapabilities` object ([client_capabilities.json](../json/client_capabilities.json)).
+  - **Client Data Model Schema**: The schema for the `a2uiClientDataModel` object, used for two-way synchronization ([client_data_model.json](../json/client_data_model.json)).
 
 ---
 
@@ -56,8 +56,8 @@ Agents advertise their A2UI capabilities in their AgentCard within the `AgentCap
 
 The `params` object corresponds to the `v1.0` object in the `server_capabilities.json` schema:
 
-* `params.supportedCatalogIds` (array of strings, optional): An array of strings, where each string is an ID identifying a Catalog Definition Schema that the agent can generate. This is not necessarily a resolvable URI.
-* `params.acceptsInlineCatalogs` (boolean, optional): A boolean indicating if the agent can accept an `inlineCatalogs` array in the client's `a2uiClientCapabilities`. If omitted, this defaults to `false`.
+- `params.supportedCatalogIds` (array of strings, optional): An array of strings, where each string is an ID identifying a Catalog Definition Schema that the agent can generate. This is not necessarily a resolvable URI.
+- `params.acceptsInlineCatalogs` (boolean, optional): A boolean indicating if the agent can accept an `inlineCatalogs` array in the client's `a2uiClientCapabilities`. If omitted, this defaults to `false`.
 
 ### Client capabilities in message metadata
 
@@ -67,14 +67,14 @@ The client sends its capabilities to the server in an `a2uiClientCapabilities` o
 
 The `a2uiClientCapabilities` object contains a `v1.0` object with the following properties:
 
-* `v1.0.supportedCatalogIds` (array of strings, required): The URIs of supported component and function catalogs.
-* `v1.0.inlineCatalogs` (array, optional): An array of custom catalog definitions provided inline by the client. Functions defined within inline catalogs support declaring execution boundaries (`callableFrom: "clientOnly" | "remoteOnly" | "clientOrRemote"`) to statically specify remote invocation safety.
+- `v1.0.supportedCatalogIds` (array of strings, required): The URIs of supported component and function catalogs.
+- `v1.0.inlineCatalogs` (array, optional): An array of custom catalog definitions provided inline by the client. Functions defined within inline catalogs support declaring execution boundaries (`callableFrom: "clientOnly" | "remoteOnly" | "clientOrRemote"`) to statically specify remote invocation safety.
 
 ---
 
 ## Client-to-server data model synchronization
 
-When `sendDataModel` is enabled for a surface (via the `createSurface` message), the client automatically appends the **entire data model** of that surface to the metadata of every message (such as an `action` or user query) sent to the server that created the surface. 
+When `sendDataModel` is enabled for a surface (via the `createSurface` message), the client automatically appends the **entire data model** of that surface to the metadata of every message (such as an `action` or user query) sent to the server that created the surface.
 
 In A2A transport, the data model is serialized to the `a2uiClientDataModel` format and placed in the `metadata` field of the A2A `Message` envelope, following the **Client Data Model Schema** ([client_data_model.json](../json/client_data_model.json)).
 
@@ -82,14 +82,14 @@ In A2A transport, the data model is serialized to the `a2uiClientDataModel` form
 
 The `a2uiClientDataModel` object contains:
 
-* `version` (string, required): Must be the constant `"v1.0"`.
-* `surfaces` (object, required): A map of surface IDs to their current local data models.
+- `version` (string, required): Must be the constant `"v1.0"`.
+- `surfaces` (object, required): A map of surface IDs to their current local data models.
 
 ### Synchronization rules
 
-* **Targeted Delivery**: The data model is sent exclusively to the server that created the surface. Data cannot leak to other agents or servers.
-* **Trigger**: Data is sent only when a client-to-server message is triggered (e.g., by a user action like a button click). Passive data changes (like typing in a text field) do not trigger a network request on their own; they simply update the local state, which will be sent with the next action.
-* **Convergence**: The server treats the received data model as the current state of the client at the time of the action.
+- **Targeted Delivery**: The data model is sent exclusively to the server that created the surface. Data cannot leak to other agents or servers.
+- **Trigger**: Data is sent only when a client-to-server message is triggered (e.g., by a user action like a button click). Passive data changes (like typing in a text field) do not trigger a network request on their own; they simply update the local state, which will be sent with the next action.
+- **Convergence**: The server treats the received data model as the current state of the client at the time of the action.
 
 ---
 
@@ -97,8 +97,8 @@ The `a2uiClientDataModel` object contains:
 
 Clients indicate their desire to use the A2UI extension by specifying it via the transport-defined A2A extension activation mechanism.
 
-* For **JSON-RPC and HTTP** transports, this is indicated via the `X-A2A-Extensions` HTTP header.
-* For **gRPC**, this is indicated via the `X-A2A-Extensions` metadata value.
+- For **JSON-RPC and HTTP** transports, this is indicated via the `X-A2A-Extensions` HTTP header.
+- For **gRPC**, this is indicated via the `X-A2A-Extensions` metadata value.
 
 Activating this extension implies that the server can send A2UI-specific messages (like `updateComponents`) and the client is expected to send A2UI-specific events (like `action`).
 
@@ -108,7 +108,7 @@ Activating this extension implies that the server can send A2UI-specific message
 
 A2UI messages are encoded as an A2A `DataPart`. To identify a `DataPart` as containing A2UI data, it must have the following metadata:
 
-* `mimeType`: `application/a2ui+json`
+- `mimeType`: `application/a2ui+json`
 
 The `data` field of the `DataPart` contains a **list** of A2UI JSON messages (e.g., `createSurface`, `updateComponents`, `action`). It MUST be an array of messages.
 
