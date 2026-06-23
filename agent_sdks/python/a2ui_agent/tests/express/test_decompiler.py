@@ -159,13 +159,7 @@ class TestExpressDecompiler(unittest.TestCase):
     decompiled_nl = decompiler.decompile(envelope_nl)
     self.assertIn('root = Text("""hello \n world""")', decompiled_nl)
 
-    envelope_cr = {
-        "version": "v1.0",
-        "createSurface": {
-            "surfaceId": "default_surface",
-            "components": [{"id": "root", "component": "Text", "text": 'hello \r "'}],
-        },
-    }
+    envelope_cr = compiler.compile('root = Text("hello \\r \\"")')
     decompiled_cr = decompiler.decompile(envelope_cr)
     self.assertIn('root = Text("hello \\r \\"")', decompiled_cr)
 

@@ -177,7 +177,7 @@ TOKEN_SPEC = [
 
 
 def _unescape_string(val: str) -> str:
-  """Resolves only standard escape sequences: \\n, \\t, \\\\, and \\\".
+  """Resolves only standard escape sequences: \\n, \\r, \\t, \\\\, and \\\".
 
   Any other escape sequences are treated as literal characters.
   """
@@ -187,6 +187,8 @@ def _unescape_string(val: str) -> str:
     char = m.group(1)
     if char == "n":
       return "\n"
+    if char == "r":
+      return "\r"
     if char == "t":
       return "\t"
     if char == "\\":
@@ -195,7 +197,7 @@ def _unescape_string(val: str) -> str:
       return '"'
     return seq
 
-  return re.sub(r"\\(.)", repl, val)
+  return re.sub(r"\\([\s\S])", repl, val)
 
 
 def tokenize(text: str, is_final: bool = True) -> list[tuple[str, Any]]:
