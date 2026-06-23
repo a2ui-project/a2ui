@@ -18,7 +18,7 @@ import {ComponentFixture, TestBed} from '@angular/core/testing';
 import {ImageComponent} from './image.component';
 import {A2uiRendererService} from '../../core/a2ui-renderer.service';
 import {ComponentBinder} from '../../core/component-binder.service';
-import {setComponentProps, createBoundProperty, ComponentToProps} from '../../core/test-utils';
+import {setComponentProps, createBoundProperty, ComponentToProps} from '../../testing/test-utils';
 
 describe('ImageComponent', () => {
   let component: ImageComponent;
