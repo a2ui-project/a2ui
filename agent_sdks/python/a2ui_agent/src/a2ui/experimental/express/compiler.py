@@ -21,8 +21,8 @@ AST, compiling it directly into standard A2UI v1.0 JSON messages.
 A2UI EXPRESS EBNF GRAMMAR
 ================================================================================
 NOTE TO DEVELOPERS / CODING AGENTS:
-If you modify the scanner rules (TOKEN_SPEC) or the recursive-descent parser
-methods (TokenParser), you MUST keep this EBNF grammar definition synchronized.
+If you modify the scanner rules (_TOKEN_SPEC) or the recursive-descent parser
+methods (_TokenParser), you MUST keep this EBNF grammar definition synchronized.
 
 program              = { statement } ;
 statement            = [ assignment | expression ] ;
@@ -80,7 +80,7 @@ def _set_nested_path(d: dict, path_str: str, val: Any) -> None:
   current[keys[-1]] = val
 
 
-def schema_allows_databinding(schema: Any) -> bool:
+def _schema_allows_databinding(schema: Any) -> bool:
   """Recursively checks if a property's schema allows a dynamic DataBinding ref."""
   if not isinstance(schema, dict):
     return False
@@ -92,17 +92,17 @@ def schema_allows_databinding(schema: Any) -> bool:
     if "componentId" not in schema["properties"]:
       return True
   if "items" in schema:
-    if schema_allows_databinding(schema["items"]):
+    if _schema_allows_databinding(schema["items"]):
       return True
   for key in ["allOf", "oneOf", "anyOf"]:
     if key in schema and isinstance(schema[key], list):
       for sub in schema[key]:
-        if schema_allows_databinding(sub):
+        if _schema_allows_databinding(sub):
           return True
   return False
 
 
-def schema_expects_option_objects(schema: Any) -> bool:
+def _schema_expects_option_objects(schema: Any) -> bool:
   """Checks if a property's schema expects a list of objects with label/value properties."""
   if not isinstance(schema, dict):
     return False
@@ -127,22 +127,22 @@ def schema_expects_option_objects(schema: Any) -> bool:
     return has_label_value(items_schema)
   for key in ["allOf", "oneOf", "anyOf"]:
     if key in schema and isinstance(schema[key], list):
-      if any(schema_expects_option_objects(sub) for sub in schema[key]):
+      if any(_schema_expects_option_objects(sub) for sub in schema[key]):
         return True
   return False
 
 
-def is_check_expression(val: Any) -> bool:
+def _is_check_expression(val: Any) -> bool:
   """Checks if a parsed AST value represents a validation check expression."""
   if isinstance(val, dict) and "check" in val:
     return True
   if isinstance(val, list) and val:
-    return all(is_check_expression(item) for item in val)
+    return all(_is_check_expression(item) for item in val)
   return False
 
 
 # Scanner rules for lexical tokenizing
-TOKEN_SPEC = [
+_TOKEN_SPEC = [
     # Triple-quoted strings (must be matched before single-quoted strings)
     ("RAW_TRIPLE_STRING", r'[rR]"""(?:(?!"""(?!"))[\s\S])*"""(?!")'),
     ("UNCLOSED_RAW_TRIPLE_STRING", r'[rR]"""[\s\S]*'),
@@ -200,7 +200,7 @@ def _unescape_string(val: str) -> str:
   return re.sub(r"\\([\s\S])", repl, val)
 
 
-def tokenize(text: str, is_final: bool = True) -> list[tuple[str, Any]]:
+def _tokenize(text: str, is_final: bool = True) -> list[tuple[str, Any]]:
   """Tokenizes plain text into a list of scanning tokens.
 
   Args:
@@ -209,7 +209,7 @@ def tokenize(text: str, is_final: bool = True) -> list[tuple[str, Any]]:
   Returns:
       A list of token tuples matching (TokenKind, TokenValue).
   """
-  tok_regex = "|".join(f"(?P<{name}>{pattern})" for name, pattern in TOKEN_SPEC)
+  tok_regex = "|".join(f"(?P<{name}>{pattern})" for name, pattern in _TOKEN_SPEC)
   tokens = []
   last_end = 0
   for mo in re.finditer(tok_regex, text):
@@ -256,7 +256,7 @@ def tokenize(text: str, is_final: bool = True) -> list[tuple[str, Any]]:
   return tokens
 
 
-class TokenParser:
+class _TokenParser:
   """Recursive-descent parser for A2UI Express expressions.
 
   Parses tokenized structures (calls, arrays, maps, data paths, primitives)
@@ -519,7 +519,7 @@ class ExpressCompiler:
     dsl_body = "\n".join(lines)
 
     # Tokenize the entire text block
-    tokens = tokenize(dsl_body, is_final=is_final)
+    tokens = _tokenize(dsl_body, is_final=is_final)
 
     if is_final:
       for tok_kind, _ in tokens:
@@ -531,7 +531,7 @@ class ExpressCompiler:
     target_delete_surface_id = None
     standalone_function_calls = []
 
-    parser = TokenParser(tokens)
+    parser = _TokenParser(tokens)
     while parser.pos < len(tokens):
       try:
         stmt_type, *stmt_args = parser.parse_statement()
@@ -658,7 +658,7 @@ class ExpressCompiler:
     # Map positional arguments
     prop_idx = 0
     for arg in args:
-      if is_check_expression(arg):
+      if _is_check_expression(arg):
         if isinstance(arg, list):
           raw_checks.extend(arg)
         else:
@@ -677,7 +677,7 @@ class ExpressCompiler:
             arg, raw_symbols, ctx, is_action=(prop_name in ["action", "submitAction"])
         )
         prop_schema = self.helper.get_property_schema(comp_name, prop_name)
-        if prop_schema and not schema_allows_databinding(prop_schema):
+        if prop_schema and not _schema_allows_databinding(prop_schema):
 
           def has_databinding(v: Any) -> bool:
             if isinstance(v, dict):
@@ -696,7 +696,7 @@ class ExpressCompiler:
                 " dynamic data bindings (paths). You must provide a static value/array"
                 " instead."
             )
-          if isinstance(mapped_val, list) and schema_expects_option_objects(
+          if isinstance(mapped_val, list) and _schema_expects_option_objects(
               prop_schema
           ):
             mapped_val = [
