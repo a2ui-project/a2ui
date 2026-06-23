@@ -153,7 +153,7 @@ class ExpressDecompiler:
             args_list.append("_")
       else:
         if isinstance(fn_args, dict):
-          for k, v in fn_args.items():
+          for v in fn_args.values():
             val_str = self._decompile_value(v, set(), False)
             args_list.append(val_str)
         elif isinstance(fn_args, list):
