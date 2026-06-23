@@ -515,44 +515,24 @@ Implement the framework-agnostic Data Layer (Section 3 & 4).
 - **Action**: Write unit tests for JSON validation, the `DataModel` (especially pointer resolution/cascade logic), and `MessageProcessor`. Ensure they pass before continuing.
 
 <<<<<<< HEAD:specification/v0_9_1/docs/core_sdk_spec.md
-### Phase 4: Basic Catalog Core Support
-=======
-### 4. Framework-Specific Layer
+### Phase 4: Foundational Basic Catalog Support
 
-Implement the bridge between models and native UI (Section 5 & 6).
+Target a foundational subset of the Basic Catalog (equivalent to the former minimal catalog) to bootstrap your implementation:
 
-- Define the concrete `ComponentImplementation` base class/interface.
-- Implement the `Surface` view/widget that recurses through components.
-- Implement subscription lifecycle management (lazy mounting, unmounting disposal).
+- **Components**: Define the pure API schemas and binders for:
+  - `Text`
+  - `Row`
+  - `Column`
+  - `Button`
+  - `TextField`
+- **Functions**: Implement the `formatString` function (which is required for basic text rendering and expression resolution, see Section 7).
+- **Bundle**: Group these components and functions into a `Catalog` instance.
+- **Verification**: Write unit tests to verify that `DataModel` updates and expressions resolve reactively when the underlying data changes, and that binders/bindings correctly propagate resolved props.
 
-### 5. Initial Basic Catalog Support
+### Phase 5: Complete Basic Catalog Support
 
-Target a foundational subset of components in `basic/catalog.json` first to bootstrap your implementation.
+Once the foundational architecture and subset are proven robust, complete the implementation of the Basic Catalog:
 
-- Implement the pure API schemas for `Text`, `Row`, `Column`, `Button`, `TextField` (which are part of the standard Basic Catalog).
-- Implement the specific native UI rendering components for these.
-- Implement the `formatString` function (which is required for basic text rendering, see Section 7).
-- Bundle these into a `Catalog`.
-- **Action**: Write unit tests verifying that properties update reactively when data changes.
-
-### 6. Gallery Application (Milestone)
-
-Build the Gallery App following the requirements in **Section 8**.
-
-- Load JSON samples from `specification/v0_9_1/catalogs/basic/examples/` (focusing on the simpler ones first, such as those using only the bootstrapped components).
-- Verify progressive rendering and reactivity.
-- **STOP HERE. Ask the user for approval of the architecture and gallery application before proceeding to step 7.**
-
-### 7. Complete Basic Catalog Support
->>>>>>> main:specification/v0_9_1/docs/renderer_guide.md
-
-Once the initial architecture is proven robust, complete the implementation of the Basic Catalog:
-
-- **Core Library**: Implement the remaining basic functions. It is crucial to note that string interpolation and expression parsing should ONLY happen within the `formatString` function. Do not attempt to add global string interpolation to all strings.
-- **Core Library**: Create definitions/binders for the remaining Basic Catalog components.
-<<<<<<< HEAD:specification/v0_9_1/docs/core_sdk_spec.md
-- **Tests**: Look at existing reference implementations (e.g., `web_core`) to formulate and run comprehensive unit test cases for data coercion and function logic.
-=======
-- **Framework Library**: Implement all remaining UI widgets.
-- **Tests**: Look at existing reference implementations (e.g., `web_core`) to formulate and run comprehensive unit and integration test cases for data coercion and function logic.
->>>>>>> main:specification/v0_9_1/docs/renderer_guide.md
+- **Core Binders**: Create definitions and binders for all remaining components in `basic/catalog.json`.
+- **Core Functions**: Implement the remaining basic functions (e.g., math, logical, and array operations). Note that string interpolation and expression parsing should ONLY happen within the `formatString` function. Do not attempt to add global string interpolation to all strings.
+- **Verification & Tests**: Look at existing reference implementations (e.g., `web_core`) to formulate and run comprehensive unit tests for data coercion, JSON pointer bubble/cascade notifications, and all function execution paths.

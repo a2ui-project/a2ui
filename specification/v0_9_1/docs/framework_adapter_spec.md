@@ -305,26 +305,37 @@ Implement the bridge between Core SDK models and native UI.
 - Implement the `Surface` view/widget that recurses through components.
 - Implement subscription lifecycle management (lazy mounting, unmounting disposal, path stability).
 
-### Phase 4: Minimal Catalog Support
+### Phase 4: Foundational Basic Catalog Support
 
-Target the `minimal_catalog.json` first.
+Target a foundational subset of components in `basic/catalog.json` (equivalent to the former minimal catalog) first to bootstrap your framework renderer:
 
-- Implement the specific native UI rendering components for `Text`, `Row`, `Column`, `Button`, and `TextField`.
-- Bundle these visual widgets into a catalog adapter.
-- **Action**: Write unit tests verifying that properties update reactively in the UI when underlying data model changes.
+- **Components**: Implement the specific native UI rendering components for:
+  - `Text`
+  - `Row`
+  - `Column`
+  - `Button`
+  - `TextField`
+- **Catalog Adapter**: Bundle these visual widgets into a catalog adapter.
+- **Verification**: Write unit/widget tests verifying that properties update reactively in the UI when the underlying data model changes.
 
 ### Phase 5: Gallery Application (Milestone)
 
-Build the Gallery App following the requirements in **Section 7**.
+Build the Gallery App following the requirements in **Section 7** to verify your bootstrapped renderer.
 
-- Load JSON samples from `specification/v0_9_1/catalogs/minimal/examples/`.
-- Verify progressive rendering, stepping, and visual reactivity.
+- **Examples**: Load the following 5 JSON samples from `specification/v0_9_1/catalogs/basic/examples/` (which serve as the verification suite for the foundational subset):
+  - `00_simple-text.json`
+  - `00_row-layout.json`
+  - `00_complex-layout.json`
+  - `00_interactive-button.json`
+  - `00_simple-login-form.json`
+- **Verification**: Verify progressive rendering, stepping, and visual reactivity.
 - **STOP HERE. Ask the user for approval of the architecture and gallery application before proceeding.**
 
-### Phase 6: Basic Catalog Support
+### Phase 6: Complete Basic Catalog Support
 
-Once the minimal architecture is proven robust, refer to the [Basic Catalog Implementation Guide](basic_catalog_implementation_guide.md) and:
+Once the foundational architecture and gallery application are proven robust, refer to the [Basic Catalog Implementation Guide](basic_catalog_implementation_guide.md) and:
 
-- **Framework Library**: Implement all remaining UI widgets and traits (such as `Checkable`).
+- **Framework Library**: Implement all remaining UI widgets and traits (such as `Checkable`) defined in the Basic Catalog.
 - **Tests**: Formulate and run comprehensive unit and integration test cases to verify static rendering, layout alignment, two-way bindings, and scoped actions.
-- Update the Gallery App to load samples from `specification/v0_9_1/catalogs/basic/examples/`.
+- **Gallery Update**: Update the Gallery App to load all samples from `specification/v0_9_1/catalogs/basic/examples/`.
+
