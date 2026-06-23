@@ -2,6 +2,16 @@
 
 - Make child component resolution schema-driven. Decouple `a2uiType` (runtime binder behavior) from `refPath` (JSON Schema `$ref` paths).
 - Remove legacy `"REF:..."` description prefix parsing hacks from `MessageProcessor` in favor of a clean, standard JSON Schema `override` callback using `refPath` metadata.
+
+## 0.10.3
+
+- Added the ability to swap out the signals implementation through the `setSignalImplementation` function.
+
+## 0.10.2
+
+- Updated `openUrl` to reject URLs with schema other than HTTP or HTTPs to fix a security issue where agents could execute arbitrary Javascript code.
+
+## 0.10.1
 - Add locale support to basic catalog functions (`pluralize`, `formatNumber`, `formatCurrency`) in v0.9 via catalog-level configuration.
 - Remove `.passthrough()` from `PluralizeApi` schema for stricter validation.
 - Allow overriding hard-coded recursion depth in `DataValueSchema` for v0.8 by introducing `createDataValueSchema` factory function.

@@ -12,7 +12,7 @@ create a simple "MCP Apps Proxy" agent that is hosted as an A2A server.
 ## Running the sample
 
 1. Run the MCP Server that serves the MCP Apps. ([Link to
-   instructions](../../mcp/mcp-apps-calculator/README.md))
+   instructions](../../../mcp/mcp-apps-calculator/README.md))
 
 2. Navigate to the samples directory:
 

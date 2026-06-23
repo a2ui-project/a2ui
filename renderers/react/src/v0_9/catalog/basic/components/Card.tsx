@@ -36,6 +36,8 @@ export const Card = createComponentImplementation(CardApi, ({props, buildChild})
   };
 
   return (
-    <div style={style}>{props.child ? buildChild(props.child.id, props.child.basePath) : null}</div>
+    <div className="a2ui-card" style={style}>
+      {props.child ? buildChild(props.child.id, props.child.basePath) : null}
+    </div>
   );
 });

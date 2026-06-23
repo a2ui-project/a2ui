@@ -45,7 +45,7 @@ permissions:
 env:
   RENDERERS_INC: "--include 'renderers/**'"
   TOOLS_INC: "--include 'tools/**'"
-  SAMPLES_INC: "--include 'samples/client/**' --include 'samples/mcp/**'"
+  SAMPLES_INC: "--include 'samples/client/**'"
 
 jobs:
   ci-renderers:

@@ -82,6 +82,7 @@ export class ComponentBinder {
       const isBoundPath =
         value && typeof value === 'object' && 'path' in value && !('componentId' in value);
 
+
       bound[key] = {
         value: angSig,
         raw: value,

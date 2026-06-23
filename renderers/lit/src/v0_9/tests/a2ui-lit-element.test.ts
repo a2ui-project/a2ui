@@ -52,7 +52,7 @@ describe('A2uiLitElement', () => {
         } as any;
       }
 
-      render() {
+      override render() {
         lastRenderResult = this.renderNode('child_id' as ComponentId);
         return lastRenderResult;
       }

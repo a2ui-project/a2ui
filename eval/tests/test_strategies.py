@@ -13,7 +13,6 @@
 # limitations under the License.
 
 import pytest
-import os
 from a2ui_eval.strategies.direct import a2ui_system_prompt
 from inspect_ai.solver import TaskState
 from inspect_ai.model import ChatMessage, ChatMessageUser, ModelName
@@ -25,14 +24,19 @@ async def test_a2ui_system_prompt(tmp_path):
     catalog_file = tmp_path / "catalog.json"
     catalog_file.write_text('{"catalogId": "https://a2ui.org/test_catalog", "components": {}}')
 
-    solver = a2ui_system_prompt(str(schema_file), str(catalog_file))
+    solver = a2ui_system_prompt()
 
     state = TaskState(
         model=ModelName("mock/model"),
         sample_id=1,
         epoch=1,
         input="test",
-        messages=[]
+        messages=[],
+        metadata={
+            "catalog": str(catalog_file),
+            "role_description": "mock role",
+            "workflow_description": "mock workflow"
+        }
     )
 
     async def dummy_generate(state, **kwargs):
@@ -44,9 +48,6 @@ async def test_a2ui_system_prompt(tmp_path):
     assert state.messages[0].role == "system"
     assert "https://a2ui.org/test_catalog" in state.messages[0].content
 
-def test_a2ui_system_prompt_file_not_found():
-    with pytest.raises(OSError): # SDK raises OSError/IOError
-        a2ui_system_prompt("non_existent_schema.json", "non_existent_catalog.json")
 
 from a2ui_eval.strategies.subagent_tool import extract_subagent_payload, PAYLOAD_STORE_KEY
 from inspect_ai.model import ModelOutput, ChatCompletionChoice, ChatMessageAssistant, ChatMessageTool
@@ -85,5 +86,5 @@ def test_subagent_tool_solver(tmp_path):
     catalog_file = tmp_path / "catalog.json"
     catalog_file.write_text('{"catalogId": "test", "components": {}}')
     
-    solvers = subagent_tool_solver(str(schema_file), str(catalog_file))
-    assert len(solvers) == 4
+    solvers = subagent_tool_solver()
+    assert len(solvers) == 5

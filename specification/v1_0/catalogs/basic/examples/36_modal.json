@@ -23,8 +23,7 @@
           {
             "id": "title",
             "component": "Text",
-            "text": "Modal Component Sample",
-            "variant": "h2"
+            "text": "## Modal Component Sample"
           },
           {
             "id": "modal-comp",

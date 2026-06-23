@@ -18,7 +18,7 @@ import {html, nothing, css} from 'lit';
 import {customElement} from 'lit/decorators.js';
 import {DateTimeInputApi} from '@a2ui/web_core/v0_9/basic_catalog';
 import {BasicCatalogA2uiLitElement} from '../basic-catalog-a2ui-lit-element.js';
-import {A2uiController} from '@a2ui/lit/v0_9';
+import {A2uiController} from '../../../a2ui-controller.js';
 
 /**
  * Normalizes an incoming ISO or partial date/time value into a format accepted by HTML5 inputs.
@@ -60,7 +60,7 @@ export class A2uiDateTimeInputElement extends BasicCatalogA2uiLitElement<typeof 
    * - `--a2ui-datetimeinput-label-font-size`: Font size of the label. Defaults to `--a2ui-label-font-size` then `--a2ui-font-size-s`.
    * - `--a2ui-datetimeinput-label-font-weight`: Font weight of the label. Defaults to `--a2ui-label-font-weight` then `bold`.
    */
-  static styles = css`
+  static override styles = css`
     :host {
       display: flex;
       flex-direction: column;
@@ -86,7 +86,7 @@ export class A2uiDateTimeInputElement extends BasicCatalogA2uiLitElement<typeof 
     return new A2uiController(this, DateTimeInputApi);
   }
 
-  render() {
+  override render() {
     const props = this.controller.props;
     if (!props) return nothing;
     // If neither date or time are enabled, render nothing.

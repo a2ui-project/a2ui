@@ -20,7 +20,7 @@ from inspect_ai.util import store
 from a2ui.schema.manager import A2uiSchemaManager
 from a2ui.schema.catalog import CatalogConfig
 from a2ui.parser.parser import parse_response
-from ..shared.utils import WORKFLOW_OVERRIDE, measured_generate
+from ..shared.utils import GIT_ROOT, measured_generate
 
 from .direct import a2ui_system_prompt
 
@@ -28,19 +28,25 @@ PAYLOAD_STORE_KEY = "a2ui_payload"
 
 
 @tool
-def a2ui_specialist(schema_path: str, catalog_path: str) -> Tool:
+def a2ui_specialist() -> Tool:
     async def execute(input: str) -> str:
         """Generates strictly compliant A2UI JSON payloads. Call this tool when the user requests a UI layout.
         
         Args:
             input: The UI layout request.
         """
-        catalog_config = CatalogConfig.from_path("basic_catalog", catalog_path)
+        catalog_path = store().get("catalog")
+        resolved_catalog_path = str(GIT_ROOT / catalog_path)
+
+        catalog_config = CatalogConfig.from_path("basic_catalog", resolved_catalog_path)
         manager = A2uiSchemaManager(version="0.9", catalogs=[catalog_config])
         
+        role_description = store().get("role_description")
+        workflow_description = store().get("workflow_description")
+
         system_content = manager.generate_system_prompt(
-            role_description="You are an A2UI expert. Generate strictly compliant A2UI JSON payloads for the requested UI. Return ONLY the JSON.",
-            workflow_description=WORKFLOW_OVERRIDE,
+            role_description=role_description,
+            workflow_description=workflow_description,
             include_schema=True,
         )
         
@@ -68,6 +74,16 @@ def a2ui_specialist(schema_path: str, catalog_path: str) -> Tool:
     return execute
 
 @solver
+def push_metadata_to_store() -> Solver:
+    """Pushes metadata from the TaskState to the global store for tools to access."""
+    async def solve(state: TaskState, generate: Generate) -> TaskState:
+        state.store.set("catalog", state.metadata.get('catalog'))
+        state.store.set("role_description", state.metadata.get('role_description'))
+        state.store.set("workflow_description", state.metadata.get('workflow_description'))
+        return state
+    return solve
+
+@solver
 def extract_subagent_payload() -> Solver:
     """Extracts the A2UI payload from the tool response messages."""
     async def solve(state: TaskState, generate: Generate) -> TaskState:
@@ -82,11 +98,13 @@ def extract_subagent_payload() -> Solver:
         return state
     return solve
 
-def subagent_tool_solver(schema_path: str, catalog_path: str) -> list[Solver]:
+def subagent_tool_solver() -> list[Solver]:
     """Returns the solver chain for the 'subagent_tool' evaluation strategy."""
     return [
         system_message("You are a helpful assistant. To fulfill UI requests, you MUST delegate to the `a2ui_specialist` tool."),
-        use_tools([a2ui_specialist(schema_path, catalog_path)]),
+        # Tools cannot access TaskState directly, so we must bridge the metadata into the store
+        push_metadata_to_store(),
+        use_tools([a2ui_specialist()]),
         measured_generate(),
         extract_subagent_payload()
     ]

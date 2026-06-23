@@ -59,7 +59,7 @@ describe('publish_npm script integration test', () => {
     assert.ok(markdownItInstallIndex < litInstallIndex, 'markdown-it must be prepared before lit');
   });
 
-  it('should default to dry-run mode (skip auth and publish)', async () => {
+  it('should default to dry-run mode (skip publish)', async () => {
     const executedCommands = [];
     let gcloudCalled = false;
     const mocks = {
@@ -78,7 +78,7 @@ describe('publish_npm script integration test', () => {
     const hasPublish = executedCommands.some(cmd => cmd.includes('publish:package'));
     const hasInstall = executedCommands.some(cmd => cmd.includes('yarn install'));
 
-    assert.strictEqual(gcloudCalled, false, 'Should NOT authenticate in dry-run');
+    assert.strictEqual(gcloudCalled, true, 'Should authenticate in dry-run to query yarn npm info');
     assert.strictEqual(hasPublish, false, 'Should NOT publish in dry-run');
     assert.ok(hasInstall, 'Should still run yarn install in dry-run by default');
   });
@@ -123,37 +123,31 @@ describe('publish_npm script integration test', () => {
     assert.strictEqual(hasTest, false, 'Should NOT run tests when --skip-tests is passed');
   });
 
-  it('should fail safety check if core dependencies are missing', async () => {
-    const mocks = {
-      runCommand: () => {},
-      execSync: () => '',
-    };
-
-    await assert.rejects(
-      async () => {
-        await main(['--package=lit'], mocks);
-      },
-      /.*/, // The script will emit an error with some details.
-      'Should fail when web_core and markdown-it are missing',
-    );
-  });
-
-  it('should bypass safety check when --no-check-core-dependencies is passed', async () => {
+  it('should automatically add core dependencies if missing', async () => {
     const executedCommands = [];
     const mocks = {
-      runCommand: (cmd, args) => {
-        executedCommands.push(`${cmd} ${args.join(' ')}`);
+      runCommand: (cmd, args, options) => {
+        executedCommands.push(
+          `${cmd} ${args.join(' ')} (in ${options?.cwd ? options.cwd.split('/').pop() : 'root'})`,
+        );
       },
       execSync: cmd => {
-        if (cmd.includes('npm info')) return '0.0.1\n';
+        if (cmd.includes('npm info')) return '{"version":"0.0.1"}\n';
         return '';
       },
     };
 
-    await main(['--package=lit', '--no-check-core-dependencies'], mocks);
+    await main(['--package=lit'], mocks);
 
-    const hasInstall = executedCommands.some(cmd => cmd.includes('yarn install'));
-    assert.ok(hasInstall, 'Should proceed to install with yarn');
+    const hasLitInstall = executedCommands.some(cmd => cmd.includes('yarn install (in lit)'));
+    const hasCoreInstall = executedCommands.some(cmd => cmd.includes('yarn install (in web_core)'));
+    const hasMdInstall = executedCommands.some(cmd =>
+      cmd.includes('yarn install (in markdown-it)'),
+    );
+
+    assert.ok(hasLitInstall, 'Should run yarn install in lit');
+    assert.ok(hasCoreInstall, 'Should run yarn install in web_core');
+    assert.ok(hasMdInstall, 'Should run yarn install in markdown-it');
   });
 
   it('should output help message and return early when --help is passed', async () => {

@@ -39,8 +39,7 @@
           {
             "id": "title",
             "component": "Text",
-            "text": "Package Status",
-            "variant": "h3"
+            "text": "### Package Status"
           },
           {
             "id": "tracking-number",

@@ -16,7 +16,7 @@
 
 import {describe, it} from 'node:test';
 import * as assert from 'node:assert';
-import {effect, Signal} from '@preact/signals-core';
+import {effect, Signal, getValue} from '../../reactivity/signals.js';
 
 import {BASIC_FUNCTIONS, createBasicCatalogFunctions} from './basic_functions.js';
 import {DataModel} from '../../state/data-model.js';
@@ -219,7 +219,7 @@ describe('BASIC_FUNCTIONS', () => {
       // worth cleaning up at some point.
       // eslint-disable-next-line prefer-const
       cleanup = effect(() => {
-        const val = result.value;
+        const val = getValue(result);
         assert.strictEqual(val, 'hello world');
         if (cleanup) cleanup();
         done();
@@ -236,7 +236,7 @@ describe('BASIC_FUNCTIONS', () => {
       // worth cleaning up at some point.
       // eslint-disable-next-line prefer-const
       cleanup = effect(() => {
-        const val = result.value;
+        const val = getValue(result);
         try {
           if (emitCount === 0) {
             assert.strictEqual(val, 'Value: 10');
@@ -278,7 +278,7 @@ describe('BASIC_FUNCTIONS', () => {
       // worth cleaning up at some point.
       // eslint-disable-next-line prefer-const
       cleanup = effect(() => {
-        const val = result.value;
+        const val = getValue(result);
         assert.strictEqual(val, 'Result: 12');
         if (cleanup) cleanup();
         done();
@@ -294,7 +294,7 @@ describe('BASIC_FUNCTIONS', () => {
       let cleanup: (() => void) | undefined;
       // eslint-disable-next-line prefer-const
       cleanup = effect(() => {
-        const val = result.value;
+        const val = getValue(result);
         assert.strictEqual(val, 'User: {"name":"Alice","age":30}');
         if (cleanup) cleanup();
         done();
@@ -310,7 +310,7 @@ describe('BASIC_FUNCTIONS', () => {
       let cleanup: (() => void) | undefined;
       // eslint-disable-next-line prefer-const
       cleanup = effect(() => {
-        const val = result.value;
+        const val = getValue(result);
         assert.strictEqual(val, 'Tags: ["swift","ios"]');
         if (cleanup) cleanup();
         done();
@@ -335,7 +335,7 @@ describe('BASIC_FUNCTIONS', () => {
       let cleanup: (() => void) | undefined;
       // eslint-disable-next-line prefer-const
       cleanup = effect(() => {
-        const val = result.value;
+        const val = getValue(result);
         assert.strictEqual(val, 'M = [[1,2],[3,4]]');
         if (cleanup) cleanup();
         done();
@@ -351,7 +351,7 @@ describe('BASIC_FUNCTIONS', () => {
       let cleanup: (() => void) | undefined;
       // eslint-disable-next-line prefer-const
       cleanup = effect(() => {
-        const val = result.value;
+        const val = getValue(result);
         assert.strictEqual(val, 'V = [1,null,3]');
         if (cleanup) cleanup();
         done();
@@ -367,7 +367,7 @@ describe('BASIC_FUNCTIONS', () => {
       let cleanup: (() => void) | undefined;
       // eslint-disable-next-line prefer-const
       cleanup = effect(() => {
-        const val = result.value;
+        const val = getValue(result);
         assert.strictEqual(val, 'val=end');
         if (cleanup) cleanup();
         done();
@@ -472,15 +472,64 @@ describe('BASIC_FUNCTIONS', () => {
       // Set up mock window object
       const originalWindow = (global as any).window;
       let openedUrl = '';
+      let windowOpenSpecs = '';
       (global as any).window = {
-        open: (url: string) => {
+        location: {href: 'https://example.com/sub/page'},
+        open: (url: string, _target: string, specs: string) => {
           openedUrl = url;
+          windowOpenSpecs = specs;
         },
       };
 
       try {
-        invoke('openUrl', {url: 'https://google.com'}, context);
-        assert.strictEqual(openedUrl, 'https://google.com');
+        const validCases = [
+          {input: 'https://example.com', expected: 'https://example.com/'},
+          {input: 'http://example.com/path', expected: 'http://example.com/path'},
+          {
+            input: 'https://sub.domain.co.uk:8080/p?q=1',
+            expected: 'https://sub.domain.co.uk:8080/p?q=1',
+          },
+          {input: '/relative-path', expected: 'https://example.com/relative-path'},
+          {input: 'relative/nested/path', expected: 'https://example.com/sub/relative/nested/path'},
+          {input: '../parent-path', expected: 'https://example.com/parent-path'},
+          {input: '?tab=profile', expected: 'https://example.com/sub/page?tab=profile'},
+        ];
+
+        const invalidCases = [
+          'javascript:alert(document.domain)',
+          '  javascript:alert(1)',
+          'javascript://%0Aalert(1)',
+          'data:text/html,<script>alert(1)</script>',
+          'vbscript:msgbox("hello")',
+          'file:///etc/passwd',
+          'chrome://settings',
+          'about:blank',
+        ];
+
+        // Verify valid cases
+        for (const {input, expected} of validCases) {
+          openedUrl = '';
+          windowOpenSpecs = '';
+          invoke('openUrl', {url: input}, context);
+          assert.strictEqual(
+            openedUrl,
+            expected,
+            `Expected input "${input}" to resolve to "${expected}"`,
+          );
+          assert.strictEqual(windowOpenSpecs, 'noopener,noreferrer');
+        }
+
+        // Verify invalid cases
+        for (const input of invalidCases) {
+          assert.throws(
+            () => invoke('openUrl', {url: input}, context),
+            (err: any) =>
+              err instanceof A2uiExpressionError && err.message.includes('Unsupported URL scheme'),
+            `Expected input "${input}" to throw an Unsupported URL scheme error`,
+          );
+        }
+
+        // Verify invalid structures cause error
         assert.throws(() => invoke('openUrl', {}, context), A2uiExpressionError);
       } finally {
         (global as any).window = originalWindow;

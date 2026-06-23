@@ -68,6 +68,7 @@ export const Tabs = createComponentImplementation(TabsApi, ({props, buildChild})
         {tabs.map((tab: _Tab, i: number) => (
           <button
             key={i}
+            className={`a2ui-tabs-header a2ui-tab-button ${selectedIndex === i ? 'active' : ''}`}
             onClick={() => setSelectedIndex(i)}
             style={{
               ...tabsHeaderBase,

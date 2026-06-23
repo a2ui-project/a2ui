@@ -41,8 +41,7 @@
               "args": {
                 "value": "Hello! Today is ${formatDate(value: ${/now}, format: 'EEEE, MMMM d')}."
               }
-            },
-            "variant": "h3"
+            }
           },
           {
             "id": "email-field",
