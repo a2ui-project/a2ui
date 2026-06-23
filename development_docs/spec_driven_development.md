@@ -266,14 +266,9 @@ To keep specifications organized, all language-agnostic blueprints will reside i
 
 To support automated execution of spec-driven tasks, we will maintain a set of specialized AI agent skills in the `.agents/skills/` directory. Each skill represents a distinct, non-overlapping operational mode for the AI agents:
 
-### 1. **`a2ui-blueprint-navigator`**
-* **Role**: A read-only analytical guide. It is responsible for discovering, reading, and auditing blueprints and their codebase implementations to understand the repository.
-
-### 2. **`a2ui-feature-implementer`)**
-* **Role**: A hands-on coding executor. It is responsible for translating blueprints into functional, platform-compliant code in a specific codebase.
-
-### 3. **`a2ui-blueprint-maintenance`**
-* **Role**: A project-level administrator. It manages the evolution, promotion, validation, and cleanup of specifications across the workspace.
+* **`a2ui-blueprint-navigator`**: A read-only analytical guide. It is responsible for discovering, reading, and auditing blueprints and their codebase implementations to understand the repository.
+* **`a2ui-feature-implementer`**: A hands-on coding executor. It is responsible for translating blueprints into functional, platform-compliant code in a specific codebase.
+* **`a2ui-blueprint-maintenance`**: A project-level administrator. It manages the evolution, promotion, validation, and cleanup of specifications across the workspace.
 
 ## **Blueprint validation**
 
