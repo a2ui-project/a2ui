@@ -18,7 +18,7 @@
           "type": "array",
           "description": "An array of inline catalog definitions, which can contain both components and functions. This should only be provided if the agent declares 'acceptsInlineCatalogs: true' in its capabilities.",
           "items": {
-            "$ref": "../../../json/catalog_definition.json"
+            "$ref": "https://a2ui.org/specification/v1_0/catalog_definition.json"
           }
         }
       },

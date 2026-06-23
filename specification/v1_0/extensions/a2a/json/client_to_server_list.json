@@ -5,6 +5,6 @@
   "description": "A list of A2UI Client-to-Server messages.",
   "type": "array",
   "items": {
-    "$ref": "../../../json/client_to_server.json"
+    "$ref": "https://a2ui.org/specification/v1_0/client_to_server.json"
   }
 }
