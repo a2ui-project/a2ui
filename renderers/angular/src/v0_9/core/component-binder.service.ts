@@ -22,6 +22,7 @@ import {
   BehaviorNode,
   Signal,
   signal,
+  getValue,
 } from '@a2ui/web_core/v0_9';
 import {z} from 'zod';
 import {toAngularSignal} from './utils';
@@ -102,11 +103,11 @@ export class ComponentBinder {
         });
 
         const isValidPreactSig = computed(() => {
-          return ruleResults.every((r: any) => !!r.conditionSig.value);
+          return ruleResults.every((r: any) => !!getValue(r.conditionSig));
         });
 
         const validationErrorsPreactSig = computed(() => {
-          return ruleResults.filter((r: any) => !r.conditionSig.value).map((r: any) => r.message);
+          return ruleResults.filter((r: any) => !getValue(r.conditionSig)).map((r: any) => r.message);
         });
 
         bound['isValid'] = {
@@ -142,7 +143,7 @@ export class ComponentBinder {
       case 'CHILD': {
         const rawSig = context.dataContext.resolveSignal(value);
         return computed(() => {
-          const val = rawSig.value;
+          const val = getValue(rawSig);
           if (!val) return null;
           if (typeof val === 'object' && val !== null && 'id' in val) {
             return val;
@@ -155,7 +156,7 @@ export class ComponentBinder {
           const listSig = context.dataContext.resolveSignal({path: value.path});
           const listContext = context.dataContext.nested(value.path);
           return computed(() => {
-            const arr = listSig.value;
+            const arr = getValue(listSig);
             const currentArr = Array.isArray(arr) ? arr : [];
             return currentArr.map((_, i) => ({
               id: value.componentId,
@@ -165,7 +166,7 @@ export class ComponentBinder {
         } else {
           const listSig = context.dataContext.resolveSignal(value);
           return computed(() => {
-            const val = listSig.value;
+            const val = getValue(listSig);
             const arr = Array.isArray(val) ? val : [];
             return arr.map(item => {
               if (typeof item === 'object' && item !== null && 'id' in item) {
@@ -182,7 +183,7 @@ export class ComponentBinder {
       case 'ARRAY': {
         if (!Array.isArray(value)) return signal(value);
         const itemSignals = value.map(item => this.resolveNested(item, behavior.element, context));
-        return computed(() => itemSignals.map(sig => sig.value));
+        return computed(() => itemSignals.map(sig => getValue(sig)));
       }
       case 'OBJECT': {
         if (typeof value !== 'object' || Array.isArray(value)) return signal(value);
@@ -194,7 +195,7 @@ export class ComponentBinder {
         return computed(() => {
           const result: any = {};
           for (const [k, sig] of Object.entries(resolvedProps)) {
-            result[k] = sig.value;
+            result[k] = getValue(sig);
           }
           return result;
         });
