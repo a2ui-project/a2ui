@@ -60,7 +60,7 @@ def compile_express_dsl() -> Solver:
         completion = state.output.completion.strip()
 
         # Try to extract target surface ID from the prompt input
-        prompt_text = state.input if isinstance(state.input, str) else str(state.input)
+        prompt_text = state.input_text
         surface_id_match = re.search(
             r"surface(?:Id|\s+Id)?(?:\s+of)?\s+['\"]([^'\"]+)['\"]",
             prompt_text,
