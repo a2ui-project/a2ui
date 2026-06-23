@@ -503,7 +503,7 @@ class ExpressCompiler:
         return ref_name
       if "check" in val:
         check_name = val["check"]
-        check_args = val.get("args", [])
+        check_args = val["args"]
 
         compiled_args = {}
         check_props = self.helper.get_function_properties(check_name)
