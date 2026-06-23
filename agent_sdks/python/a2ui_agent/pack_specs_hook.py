@@ -185,8 +185,28 @@ class PackSpecsBuildHook(BuildHookInterface):
         with open(visitor_path, "w", encoding="utf-8") as f:
           f.write(content)
 
+      # Run pyink to format the newly generated files, overriding any global exclusions
+      print("Formatting generated parser files with pyink...")
+      pyink_cmd = [
+          sys.executable,
+          "-m",
+          "pyink",
+          "--exclude",
+          "",
+          "express_lexer.py",
+          "express_parser.py",
+          "express_visitor.py",
+          "__init__.py",
+      ]
+      subprocess.run(
+          pyink_cmd,
+          cwd=generated_dir,
+          capture_output=True,
+          text=True,
+      )
+
       print(
-          "ANTLR parser generated, renamed to snake_case, and post-processed"
+          "ANTLR parser generated, renamed to snake_case, post-processed, and formatted"
           " successfully."
       )
 
