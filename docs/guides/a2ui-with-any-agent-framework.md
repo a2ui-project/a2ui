@@ -71,7 +71,7 @@ supports AG-UI.
 </div>
 
 <video id="agui-demo-video" class="agui-demo-video" controls playsinline preload="metadata">
-  <source id="agui-demo-video-source" src="../../assets/ag-ui-a2ui-demo.mp4" data-default-src="../../assets/ag-ui-a2ui-demo.mp4" data-slack-src="../../assets/ag-ui-slack-demo.mp4" type="video/mp4">
+  <source id="agui-demo-video-source" src="/assets/ag-ui-a2ui-demo.mp4" data-default-src="/assets/ag-ui-a2ui-demo.mp4" data-slack-src="/assets/ag-ui-slack-demo.mp4" type="video/mp4">
   Your browser does not support the video tag.
 </video>
 
@@ -187,11 +187,10 @@ from langgraph.graph import END, MessagesState, StateGraph
 from langgraph.prebuilt import ToolNode
 
 gemini = ChatGoogleGenerativeAI(
-    model="gemini-3.1-pro",
+    model="gemini-3.1-pro-preview",
     thinking_budget=1024,
 )
-a2ui_tool = get_a2ui_tools({"model": gemini})
-TOOLS = [a2ui_tool]
+TOOLS = get_a2ui_tools({"model": gemini})
 
 class AgentState(MessagesState):
     tools: list[Any]
@@ -324,7 +323,7 @@ class MyFlow(Flow[CopilotKitState]):
     async def chat(self):
         response = await copilotkit_stream(
             await acompletion(
-                model="gemini/gemini-3.1-pro",
+                model="gemini/gemini-3.1-pro-preview",
                 messages=[
                     {"role": "system", "content": "You are a helpful assistant."},
                     *self.state.messages,
