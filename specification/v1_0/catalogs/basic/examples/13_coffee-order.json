@@ -18,53 +18,53 @@
           {
             "id": "root",
             "component": "Card",
-            "child": "main-column"
+            "child": "main_column"
           },
           {
-            "id": "main-column",
+            "id": "main_column",
             "component": "Column",
-            "children": ["header", "items-list", "divider", "totals", "actions"]
+            "children": ["header", "items_list", "divider", "totals", "actions"]
           },
           {
             "id": "header",
             "component": "Row",
-            "children": ["coffee-icon", "store-name"],
+            "children": ["coffee_icon", "store_name"],
             "align": "center"
           },
           {
-            "id": "coffee-icon",
+            "id": "coffee_icon",
             "component": "Icon",
             "name": "favorite"
           },
           {
-            "id": "store-name",
+            "id": "store_name",
             "component": "Text",
             "text": {
               "path": "/storeName"
             }
           },
           {
-            "id": "items-list",
+            "id": "items_list",
             "component": "Column",
             "children": {
               "path": "/items",
-              "componentId": "order-item-template"
+              "componentId": "order_item_template"
             }
           },
           {
-            "id": "order-item-template",
+            "id": "order_item_template",
             "component": "Row",
-            "children": ["item-details", "item-price"],
+            "children": ["item_details", "item_price"],
             "justify": "spaceBetween",
             "align": "start"
           },
           {
-            "id": "item-details",
+            "id": "item_details",
             "component": "Column",
-            "children": ["item-name", "item-size"]
+            "children": ["item_name", "item_size"]
           },
           {
-            "id": "item-name",
+            "id": "item_name",
             "component": "Text",
             "text": {
               "path": "name"
@@ -72,7 +72,7 @@
             "variant": "body"
           },
           {
-            "id": "item-size",
+            "id": "item_size",
             "component": "Text",
             "text": {
               "path": "size"
@@ -80,7 +80,7 @@
             "variant": "caption"
           },
           {
-            "id": "item-price",
+            "id": "item_price",
             "component": "Text",
             "text": {
               "call": "formatCurrency",
@@ -100,22 +100,22 @@
           {
             "id": "totals",
             "component": "Column",
-            "children": ["subtotal-row", "tax-row", "total-row"]
+            "children": ["subtotal_row", "tax_row", "total_row"]
           },
           {
-            "id": "subtotal-row",
+            "id": "subtotal_row",
             "component": "Row",
-            "children": ["subtotal-label", "subtotal-value"],
+            "children": ["subtotal_label", "subtotal_value"],
             "justify": "spaceBetween"
           },
           {
-            "id": "subtotal-label",
+            "id": "subtotal_label",
             "component": "Text",
             "text": "Subtotal",
             "variant": "caption"
           },
           {
-            "id": "subtotal-value",
+            "id": "subtotal_value",
             "component": "Text",
             "text": {
               "call": "formatCurrency",
@@ -129,19 +129,19 @@
             "variant": "body"
           },
           {
-            "id": "tax-row",
+            "id": "tax_row",
             "component": "Row",
-            "children": ["tax-label", "tax-value"],
+            "children": ["tax_label", "tax_value"],
             "justify": "spaceBetween"
           },
           {
-            "id": "tax-label",
+            "id": "tax_label",
             "component": "Text",
             "text": "Tax",
             "variant": "caption"
           },
           {
-            "id": "tax-value",
+            "id": "tax_value",
             "component": "Text",
             "text": {
               "call": "formatCurrency",
@@ -155,18 +155,18 @@
             "variant": "body"
           },
           {
-            "id": "total-row",
+            "id": "total_row",
             "component": "Row",
-            "children": ["total-label", "total-value"],
+            "children": ["total_label", "total_value"],
             "justify": "spaceBetween"
           },
           {
-            "id": "total-label",
+            "id": "total_label",
             "component": "Text",
             "text": "#### Total"
           },
           {
-            "id": "total-value",
+            "id": "total_value",
             "component": "Text",
             "text": {
               "call": "formatCurrency",
@@ -181,17 +181,17 @@
           {
             "id": "actions",
             "component": "Row",
-            "children": ["purchase-btn", "add-btn"]
+            "children": ["purchase_btn", "add_btn"]
           },
           {
-            "id": "purchase-btn-text",
+            "id": "purchase_btn_text",
             "component": "Text",
             "text": "Purchase"
           },
           {
-            "id": "purchase-btn",
+            "id": "purchase_btn",
             "component": "Button",
-            "child": "purchase-btn-text",
+            "child": "purchase_btn_text",
             "action": {
               "event": {
                 "name": "purchase",
@@ -200,14 +200,14 @@
             }
           },
           {
-            "id": "add-btn-text",
+            "id": "add_btn_text",
             "component": "Text",
             "text": "Add to cart"
           },
           {
-            "id": "add-btn",
+            "id": "add_btn",
             "component": "Button",
-            "child": "add-btn-text",
+            "child": "add_btn_text",
             "action": {
               "event": {
                 "name": "add_to_cart",

@@ -78,6 +78,14 @@ else
   uv run pyink .
 fi
 
+echo "Running Pyink for Python Specification Proposals..."
+cd "$REPO_ROOT"
+if [ "$CHECK_ONLY" = true ]; then
+  uv run --with pyink pyink --check "$REPO_ROOT/specification/proposals"
+else
+  uv run --with pyink pyink "$REPO_ROOT/specification/proposals"
+fi
+
 echo "Running Dart format..."
 cd "$REPO_ROOT"
 # Check if dart is available before running
