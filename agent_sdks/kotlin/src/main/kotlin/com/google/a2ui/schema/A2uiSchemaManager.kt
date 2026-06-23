@@ -21,6 +21,7 @@ import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
+import com.google.a2ui.exceptions.A2uiCatalogException
 
 /** Represents the supported A2UI specification versions. */
 enum class A2uiVersion(
@@ -120,7 +121,7 @@ constructor(
       } ?: emptyList()
 
     if (!acceptsInlineCatalogs && inlineCatalogs.isNotEmpty()) {
-      throw IllegalArgumentException(
+      throw A2uiCatalogException(
         "Inline catalog '${A2uiConstants.INLINE_CATALOGS_KEY}' is provided in client UI capabilities. However, the agent does not accept inline catalogs."
       )
     }
@@ -170,7 +171,7 @@ constructor(
       }
     }
 
-    throw IllegalArgumentException(
+    throw A2uiCatalogException(
       "No client-supported catalog found on the agent side. Agent-supported catalogs are: ${supportedCatalogs.map { it.catalogId }}"
     )
   }

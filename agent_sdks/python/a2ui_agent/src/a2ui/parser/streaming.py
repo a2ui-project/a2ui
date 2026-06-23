@@ -35,6 +35,8 @@ from ..schema.validator import (
 from ..schema.validator import A2uiValidator
 from .response_part import ResponsePart
 from a2ui.core.validating.validator import RELAXED_VALIDATION, STRICT_VALIDATION, ValidationConfig
+from a2ui.core import A2uiParseError, A2uiIntegrityError
+
 
 
 if TYPE_CHECKING:
@@ -291,7 +293,7 @@ class A2uiStreamParser:
           json_fragment = parts[0]
           self._process_json_chunk(json_fragment, messages)
           if not self._found_valid_json_in_block:
-            raise ValueError(
+            raise A2uiParseError(
                 "Failed to parse JSON: No valid JSON object found in A2UI block."
             )
 
@@ -863,7 +865,7 @@ class A2uiStreamParser:
       components_to_analyze = list(self._seen_components.values())
 
       if check_root and self.root_id not in self._seen_components:
-        raise ValueError(
+        raise A2uiIntegrityError(
             f"No root component (id='{self.root_id}') found in {active_msg_type}"
         )
 
@@ -878,7 +880,7 @@ class A2uiStreamParser:
       available_reachable = reachable_ids & set(self._seen_components.keys())
 
       if check_root and not available_reachable:
-        raise ValueError(
+        raise A2uiIntegrityError(
             f"No root component (id='{self.root_id}') found in {active_msg_type}"
         )
 

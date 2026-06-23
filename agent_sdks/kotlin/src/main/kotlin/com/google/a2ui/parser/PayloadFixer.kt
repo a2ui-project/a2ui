@@ -21,6 +21,7 @@ import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
+import com.google.a2ui.exceptions.A2uiParseException
 
 /** Validates and applies autofixes to raw JSON strings. */
 object PayloadFixer {
@@ -67,13 +68,13 @@ object PayloadFixer {
           listOf(element)
         }
         else ->
-          throw IllegalArgumentException(
+          throw A2uiParseException(
             "Payload must be a JSON Array or Object, got: ${element::class.simpleName}"
           )
       }
     } catch (e: Exception) {
       logger.severe("Failed to parse JSON: ${e.message}")
-      throw IllegalArgumentException("Failed to parse JSON: ${e.message}", e)
+      throw A2uiParseException("Failed to parse JSON: ${e.message}", e)
     }
 
   /**

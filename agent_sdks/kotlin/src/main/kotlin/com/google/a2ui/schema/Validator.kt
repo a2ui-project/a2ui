@@ -16,6 +16,10 @@
 
 package com.google.a2ui.schema
 
+import com.google.a2ui.exceptions.A2uiValidationException
+import com.google.a2ui.exceptions.A2uiIntegrityException
+import com.google.a2ui.exceptions.A2uiRecursionException
+
 import com.networknt.schema.InputFormat
 import com.networknt.schema.Schema
 import com.networknt.schema.SchemaRegistry
@@ -188,7 +192,7 @@ constructor(
             append("\n  - ${error.message}")
           }
         }
-        throw IllegalArgumentException(msg)
+        throw A2uiValidationException(msg)
       }
     }
 
@@ -279,7 +283,7 @@ constructor(
           append("\n  - $err")
         }
       }
-      throw IllegalArgumentException(msg)
+      throw A2uiValidationException(msg)
     }
   }
 
@@ -287,10 +291,10 @@ constructor(
     return subValidators.getOrPut(defName) {
       val defs =
         catalog.serverToClientSchema["\$defs"] as? JsonObject
-          ?: throw IllegalArgumentException("No \$defs found in schema")
+          ?: throw A2uiValidationException("No \$defs found in schema")
       val subSchema =
         defs[defName] as? JsonObject
-          ?: throw IllegalArgumentException("Definition $defName not found in schema")
+          ?: throw A2uiValidationException("Definition $defName not found in schema")
 
       val tempSchema =
         JsonObject(
@@ -486,12 +490,12 @@ constructor(
         val compId = comp[ID]?.jsonPrimitive?.content ?: continue
 
         if (!ids.add(compId)) {
-          throw IllegalArgumentException("Duplicate component ID: $compId")
+          throw A2uiIntegrityException("Duplicate component ID: $compId")
         }
       }
 
       if (rootId != null && rootId !in ids) {
-        throw IllegalArgumentException("Missing root component: No component has id='$rootId'")
+        throw A2uiIntegrityException("Missing root component: No component has id='$rootId'")
       }
 
       for (compElem in components) {
@@ -499,7 +503,7 @@ constructor(
         for ((refId, fieldName) in SchemaInspector.getComponentReferences(comp, refFieldsMap)) {
           if (refId !in ids) {
             val cId = comp[ID]?.jsonPrimitive?.content
-            throw IllegalArgumentException(
+            throw A2uiIntegrityException(
               "Component '$cId' references non-existent component '$refId' in field '$fieldName'"
             )
           }
@@ -525,7 +529,7 @@ constructor(
         val orphans = allIds - visited
         if (orphans.isNotEmpty()) {
           val firstOrphan = orphans.minOf { it }
-          throw IllegalArgumentException("Component '$firstOrphan' is not reachable from '$rootId'")
+          throw A2uiIntegrityException("Component '$firstOrphan' is not reachable from '$rootId'")
         }
       } else {
         // No root provided: traverse everything to check for cycles
@@ -545,7 +549,7 @@ constructor(
 
     private fun traverse(item: JsonElement, globalDepth: Int, funcDepth: Int) {
       if (globalDepth > MAX_GLOBAL_DEPTH) {
-        throw IllegalArgumentException("Global recursion limit exceeded: Depth > $MAX_GLOBAL_DEPTH")
+        throw A2uiRecursionException("Global recursion limit exceeded: Depth > $MAX_GLOBAL_DEPTH")
       }
 
       when (item) {
@@ -555,14 +559,14 @@ constructor(
             ?.takeIf { it.isString }
             ?.let { pathElem ->
               if (!pathElem.content.matches(JSON_POINTER_PATTERN)) {
-                throw IllegalArgumentException("Invalid path syntax: '${pathElem.content}'")
+                throw A2uiValidationException("Invalid path syntax: '${pathElem.content}'")
               }
             }
 
           val isFunc = CALL in item && ARGS in item
           if (isFunc) {
             if (funcDepth >= MAX_FUNC_CALL_DEPTH) {
-              throw IllegalArgumentException(
+              throw A2uiRecursionException(
                 "Recursion limit exceeded: $FUNCTION_CALL depth > $MAX_FUNC_CALL_DEPTH"
               )
             }

@@ -26,6 +26,8 @@ from a2ui.core.validating.integrity_checker import get_component_references
 from a2ui.core.validating.topology_analyzer import analyze_topology
 from a2ui.core.validating.validator import ValidationConfig, STRICT_VALIDATION
 from a2ui.core.validating.catalog_schema_validator import CatalogSchemaValidator
+from a2ui.core import A2uiValidationError, A2uiCatalogError
+
 
 if TYPE_CHECKING:
   from .catalog import A2uiCatalog
@@ -131,7 +133,7 @@ class A2uiValidatorWrapperV10:
         msg += "\nContext failures:"
         for sub_error in error.context:
           msg += f"\n  - {sub_error.message}"
-      raise ValueError(msg)
+      raise A2uiValidationError(msg)
 
     # 2. Run component integrity validation
     from a2ui.core.validating.integrity_checker import (
@@ -188,7 +190,7 @@ class A2uiValidator:
       if v1_0_enabled or express_enabled:
         self._delegator = A2uiValidatorWrapperV10(catalog)
       else:
-        raise ValueError(
+        raise A2uiCatalogError(
             "A2UI v1.0 validation is experimental and is disabled by default. "
             "To enable it, set the environment variable A2UI_VERSION_1_0=true."
         )

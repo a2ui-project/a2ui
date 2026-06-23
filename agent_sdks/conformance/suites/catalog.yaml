@@ -255,7 +255,9 @@
   args:
     path: "test_data/load_examples/bad_json"
     validate: true
-  expect_error: "Failed to validate example"
+  expect_error:
+    category: "CatalogError"
+    message: "Failed to validate example"
 
 - name: test_load_examples_validation_fails_on_schema_error
   description: Tests that loading fails on schema error when validate is true.
@@ -270,7 +272,9 @@
   args:
     path: "test_data/load_examples/schema_error"
     validate: true
-  expect_error: "Failed to validate example"
+  expect_error:
+    category: "CatalogError"
+    message: "Failed to validate example"
 
 - name: test_load_examples_with_glob
   description: Tests loading examples with glob patterns.

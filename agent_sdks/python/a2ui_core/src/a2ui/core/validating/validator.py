@@ -16,6 +16,7 @@ import re
 from typing import Any, Dict, Iterator, List, Optional, Set, Tuple, Union
 from pydantic import BaseModel, ConfigDict, ValidationError
 
+from ..exceptions import A2uiValidationError
 from ..schema import A2uiMessageListWrapper
 from ..schema.constants import (
     MSG_TYPE_CREATE_SURFACE,
@@ -35,8 +36,9 @@ from .topology_analyzer import analyze_topology
 from .catalog_schema_validator import CatalogSchemaValidator
 
 
-class A2uiValidatorError(ValueError):
+class A2uiValidatorError(A2uiValidationError):
     """Exception raised when an A2UI Catalog payload validation fails."""
+
 
 
 class ValidationConfig(BaseModel):

@@ -100,6 +100,8 @@ from a2ui.adk.a2a.event_converter import A2uiEventConverter
 from a2ui.adk.a2a.part_converter import A2uiPartConverter
 from a2ui.parser.payload_fixer import parse_and_fix
 from a2ui.schema import catalog
+from a2ui.core import A2uiValidationError
+
 from a2ui.schema import constants
 from a2ui.schema.catalog import A2uiCatalog
 from a2ui.schema.constants import (
@@ -299,7 +301,7 @@ class SendA2uiToClientToolset(base_toolset.BaseToolset):
       try:
         a2ui_json = args.get(self.A2UI_JSON_ARG_NAME)
         if not a2ui_json:
-          raise ValueError(
+          raise A2uiValidationError(
               f"Failed to call tool {self.TOOL_NAME} because missing required"
               f" arg {self.A2UI_JSON_ARG_NAME} "
           )
