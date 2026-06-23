@@ -71,9 +71,9 @@ def print_results_summary(log_data: dict):
         qa_val = qa_score.get("value", "N/A")
 
         inference_time = None
-        for event in sample.get("events", []):
-            if event.get("event") == "model":
-                inference_time = event.get("time") or event.get("working_time")
+        for event in sample["events"]:
+            if event["event"] == "model":
+                inference_time = event.get("working_time") or event.get("duration")
                 break
         if inference_time is None:
             inference_time = sample.get("metadata", {}).get("evaluation_duration_seconds")

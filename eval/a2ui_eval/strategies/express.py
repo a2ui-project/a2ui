@@ -74,7 +74,7 @@ def compile_express_dsl() -> Solver:
             compiled_json = None
             for p in parts:
                 if p.a2ui_json:
-                    compiled_json = p.a2ui_json[0]
+                    compiled_json = p.a2ui_json[0] if isinstance(p.a2ui_json, list) else p.a2ui_json
                     break
             
             if not compiled_json:

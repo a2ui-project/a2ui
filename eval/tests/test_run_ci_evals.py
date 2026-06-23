@@ -117,7 +117,8 @@ def test_print_results_summary_valid(capsys):
                 "scores": {
                     "a2ui_scorer": {"value": 1.0, "explanation": "Perfect"},
                     "measured_model_graded_qa": {"value": "C", "explanation": "Correct"}
-                }
+                },
+                "events": []
             },
             {
                 "id": 2,
@@ -125,7 +126,8 @@ def test_print_results_summary_valid(capsys):
                 "scores": {
                     "a2ui_scorer": {"value": 1.0, "explanation": "Perfect"},
                     "measured_model_graded_qa": {"value": "C", "explanation": "Correct"}
-                }
+                },
+                "events": []
             }
         ]
     }
@@ -144,7 +146,8 @@ def test_print_results_summary_fail(capsys):
                 "scores": {
                     "a2ui_scorer": {"value": 0.0, "explanation": "Missing component"},
                     "measured_model_graded_qa": {"value": "I", "explanation": "Incorrect"}
-                }
+                },
+                "events": []
             }
         ]
     }
