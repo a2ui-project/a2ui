@@ -15,16 +15,18 @@
 """Custom exceptions for the A2UI SDK."""
 
 
+import dataclasses
+
+
+@dataclasses.dataclass(frozen=True)
 class A2uiErrorDetail:
   """Represents a single structured error or diagnostic detail."""
-
-  def __init__(self, path: str, code: str, message: str):
-    self.path = path
-    self.code = code
-    self.message = message
+  path: str
+  code: str
+  message: str
 
   def to_dict(self) -> dict:
-    return {"path": self.path, "code": self.code, "message": self.message}
+    return dataclasses.asdict(self)
 
 
 class A2uiError(ValueError):

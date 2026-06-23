@@ -23,7 +23,14 @@ data class A2uiErrorDetail(
     val path: String,
     val code: String,
     val message: String
-)
+) {
+    companion object {
+        const val CODE_MISSING_FIELD = "missing_field"
+        const val CODE_TYPE_MISMATCH = "type_mismatch"
+        const val CODE_EXTRA_FIELD = "extra_field"
+        const val CODE_INVALID_VALUE = "invalid_value"
+    }
+}
 
 /** Base exception class for all A2UI SDK failures. */
 open class A2uiException(
