@@ -65,6 +65,7 @@ unstable = true
 target-version = []
 pyink-indentation = 2
 pyink-use-majority-quotes = true
+extend-exclude = '/generated/'
 pyink-annotation-pragmas = [
   "noqa",
   "pylint:",
