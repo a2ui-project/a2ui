@@ -66,6 +66,7 @@ jobs:
             -ignore "**/package-lock.json" \
             -ignore "**/yarn.lock" \
             -ignore "eval/datasets/*.yaml" \
+            -ignore "**/generated/**" \
             .; then
             echo "License check failed."
             exit 1
