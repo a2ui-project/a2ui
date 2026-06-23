@@ -6,6 +6,10 @@
 
 # **Background**
 
+The A2UI team has adopted recent development practices of using agents to write the majority of our code, using designs, specifications, prompts and other codebases as inputs to guide it. In this paradigm, the job of human developers is primarily to write and maintain the documentation that agents use to write code. This spec-driven development (SDD) approach is being adopted across the software industry in various ways. Members of the A2UI team have tried many different approaches, including generating detailed design docs which are then reviewed by humans for implementation, maintaining markdown guides which can be used to implement multiple variants of a codebase (e.g. `renderer_guide.md` for web renderers) or creating detailed Github issues that are used by agents to implement features.
+
+The A2UI team is aims to write and maintain a several codebases across multiple languages with a small team. We have an opportunity to do this more efficiently by formalizing our adoption of spec-driven development patterns, so that we can 
+
 We need to adapt existing spec-driven development approaches to a family of codebases which implement the same specification across different languages.
 
 # **Goals**
@@ -15,18 +19,32 @@ We need to adapt existing spec-driven development approaches to a family of code
 * Allow the A2UI team to collaborate more efficiently by standardizing the way that we record SDK and feature specifications.  
 * Increase the productivity of agents working in our codebase on any task by giving them better access to relevant design documentation.  
 * Make it easier for humans and agents to understand the discrepancies between different SDK codebases by emphasizing better definition of features and a clear separation between required features and optional (a.k.a. new or experimental) features.
+* Avoid disrupting existing workflows used by team members and ensure they still have freedom to experiment with novel techniques.
 
 # **Overview**
 
-TODO: Summarize the rest of the doc in this section
+This document outlines the **Spec-Driven Development (SDD)** methodology for the A2UI repository. The goal of SDD is to streamline the implementation of the A2UI protocol and its features across multiple programming languages and UI frameworks by establishing clear, language-agnostic specifications (called **Blueprints**) and leveraging AI coding agents to scale development.
 
-We will implement spec-driven development across the team by standardizing the specification format and location within our repository, and maintaining shared SKILLs that understand how the codebases and specification relate. We will call these agent-targeted specifications “blueprints”, to differentiate them from other specifications we work with, such as the A2UI protocol specification. We separately define module specifications which describe an entire module, from feature specifications which describe modifications to a module.
+```mermaid
+graph TD
+    FB[Feature Blueprint] -->|Merges into| MB[Module Blueprint]
+    FB -->|Guides implementation of| CB[Codebase Blueprint]
+    MB -->|Specifies architecture of| CB
+    CB -->|Documents| C[Codebase Implementation]
+```
+
+Under this model:
+1. **Module Blueprints** define the high-level architecture, core interfaces, and behavior of repository modules (e.g., `a2ui_core`, `a2ui_inference`, `a2ui_react`, etc.).
+2. **Feature Blueprints** describe specific feature additions or behavioral changes to a module.
+3. **Codebase Blueprints** reside within each platform's implementation folder, tracking implemented features and documenting local design decisions or deviations.
 
 Spec-driven development is primarily used for major features, e.g. the addition of a new public API, behavior, protocol version or architectural change.
 
 Smaller features can still be implemented ad-hoc with no feature specification, if they are:
 
 * Making changes to functionality that is not explicitly documented in the module blueprint, or
+* Addressing local bugs, refactorings, or performance optimizations that do not affect the public API or cross-language protocol compliance, or
+* Adding codebase-specific utility functions or internal helpers that do not impact compatibility with other SDKs.
 
 # **Document types**
 
@@ -34,73 +52,116 @@ Smaller features can still be implemented ad-hoc with no feature specification, 
 
 ### **Required vs optional features**
 
-A required feature blueprint describes a feature that is expected to be implemented in all codebases for a specific module blueprint. When a required feature blueprint is added, the associated module blueprint is updated at the same time to completely include the information required to implement the feature. The purpose of also preserving the required feature blueprint in version control is to help agents implement the feature in existing module codebases based on previous versions of the module blueprint.
+A **Required Feature Blueprint** describes a feature that is expected to be implemented in all codebases for a specific module. When a required feature blueprint is added, the associated module blueprint is updated at the same time to completely include the information required to implement the feature. The purpose of preserving the required feature blueprint in version control is to help agents implement the feature in existing module codebases based on previous versions of the module blueprint.
 
-An optional feature is similar to a required feature, except that the description of the feature is not baked into the module blueprint and is not expected to be implemented in all codebases.
-
-### **Lifecycle**
-
-Feature blueprints are typically never modified after they are created. Instead, extensions to a feature should be described by additional feature blueprints, so that they can be used to update codebases which already contain the initial version of the feature.
-
-Feature blueprints eventually become obsolete once the feature is implemented in all codebases and can be deleted. New codebases do not need the feature blueprint, because the module blueprint contains all the information necessary to implement the feature.
+An **Optional Feature Blueprint** describes a feature that is not baked into the module blueprint and is not expected to be implemented in all codebases. It allows platforms to support experimental or framework-specific features without forcing compliance across all SDKs.
 
 ### **my\_feature.blueprint.md structure**
 
-TODO: Convert this to an example blueprint in a codeblock
+Every feature blueprint must follow a standardized Markdown structure with YAML frontmatter. Below is an example feature blueprint for a dynamic theming feature, written in a language-agnostic way:
 
-Headers
+```markdown
+---
+feature_name: dynamic_theming
+module_blueprints:
+  - a2ui_core
+  - a2ui_react
+  - a2ui_lit
+  - a2ui_angular
+required: false
+date_added: 2026-06-23
+status: active
+---
 
-* Feature name: The canonical name of the feature, used to identify it. This should be in snake case. The name of the file should exactly match the feature name.
+# **Dynamic Theming Feature Blueprint**
 
-* Module blueprints: The names of the module(s) that this feature will be implemented in. This is typically one module, but could be multiple modules e.g. for a cross-cutting feature requiring changes to the Core SDK *and* inference SDK for example.
+## **Requirements**
+Allow agents or clients to dynamically adjust the visual theme of an active surface without recreating the surface. The client must parse theme updates in the incoming message stream and apply the new styling parameters in real time using common reactivity interfaces.
 
-* Required feature: No
+## **Detailed Description of Changes**
+1. **Protocol Schema**: Add an optional `updateTheme` object to the `A2uiMessage` envelope schema.
+2. **Message Ingestion**: The `MessageProcessor` must parse the `updateTheme` message and update the associated `SurfaceModel` state.
+3. **State Layer**: The `SurfaceModel` must expose a reactive `theme` property/stream that emits theme updates to subscribers.
+4. **Context Propagation**: The `ComponentContext` must provide access to the resolved theme parameters from the parent `SurfaceModel`.
+5. **Widget Rendering**: The `ComponentImplementation` must observe the theme via its `ComponentContext` and apply styling rules dynamically during the `build()` / `render()` execution.
 
-* Date added
+## **Links**
+* RFC/Discussion: [Issue #452](https://github.com/a2ui-project/a2ui/issues/452)
+* Protocol Specification: [a2ui_protocol.md](file:///Users/jsimionato/development/a2ui_repos/spec-driven/a2ui/specification/v1_0/docs/a2ui_protocol.md)
 
-Content
+## **Test Cases & Conformance**
+* **Test Case 1: Simple Theme Apply**: Verify that sending `updateTheme` with a new background color updates the `theme` signal on `SurfaceModel` and triggers a re-render.
+* **Test Case 2: Theme Reset**: Verify that passing a `null` theme resets the `SurfaceModel` theme to default values.
+* Conformance data located at: `specification/v1_0/test/conformance/dynamic_theming/`
 
-* Requirements
+## **Implementation Steps**
+1. Update the `server_to_client.json` schema to include the `updateTheme` envelope.
+2. Implement parsing and state propagation in the `a2ui_core` codebase implementations (updating `MessageProcessor` and `SurfaceModel`).
+3. Update framework-specific renderers (`a2ui_react`, `a2ui_lit`, etc.) to bind to the new `theme` stream in their adapters and update native widgets dynamically.
+4. Update respective codebase blueprints.
 
-* Detailed description of changes
-
-* Links
-
-* Test cases, including references to platform-agnostic conformance test data
-
-* Implementation steps
-
-* Checklist
+## **Checklist**
+- [ ] Schema updated and validated
+- [ ] `MessageProcessor` parses `updateTheme` and updates `SurfaceModel`
+- [ ] `SurfaceModel` exposes reactive `theme` stream
+- [ ] Framework-specific adapters observe `theme` and trigger native re-renders
+- [ ] Conformance tests passing
+```
 
 ## **Optional feature blueprint**
 
+An **Optional Feature Blueprint** follows the exact same structure as a required feature blueprint, but with the header `required: false` in its YAML frontmatter. It has the following characteristics:
+* **Decoupled Lifecycle**: It is not integrated into the base Module Blueprint. Instead, it exists as a standalone specification file.
+* **Ad-hoc Implementation**: Each codebase implementation can decide independently whether to support the feature based on platform capabilities and user needs.
+* **Discovery**: Codebases that implement the feature must list it in their `codebase.blueprint.md` under `implemented_features` to let clients and agents know it is supported.
+
 ## **Module blueprint**
 
-This is a blueprint that can be used to implement a new codebase. It describes the codebase in a language-agnostic way.
+A **Module Blueprint** describes an entire architectural module in a language-agnostic way. It serves as the primary source of truth for building a new codebase from scratch or verifying the correctness of an existing one.
 
 ### **Blueprint file content**
 
-* Name  
-* Code location  
-* Included features
+Module blueprints are stored in `blueprints/modules/` and must follow this structure:
+
+* **YAML Frontmatter**:
+  * `name`: The canonical name of the module (e.g., `a2ui_core`).
+  * `code_location`: The directory pattern where implementations reside (e.g., `renderers/web_core`, `agent_sdks/kotlin/core`).
+  * `protocol_version`: The target protocol version (e.g., `v1.0`).
+  * `included_features`: A list of required feature blueprint names that are fully integrated into this module.
+
+* **Core Sections**:
+  * **Architecture Overview**: High-level explanation of the module's responsibilities and data flow.
+  * **Core Interfaces**: Abstract definitions of key classes, interfaces, methods, and types (e.g., `MessageProcessor`, `SurfaceModel`, `ComponentContext`, `ComponentImplementation`, `Surface`).
+  * **Behavioral Rules**: Detailed rules for state transition, event emission, error boundaries, and resource management (e.g., subscription lifecycle).
 
 ### **Conformance test content**
 
+* **Verification Suite**: Defines the contract of conformance that all implementations of this module must satisfy.
+* **Mock Data**: Specifies the path to the JSON payloads, mock actions, and expected output states used for validation.
+* **Test Plan**: Instructions on how to execute the test suite in a new language/ecosystem.
+
 ## **Codebase**
+
+A **Codebase** is a concrete, language-specific or framework-specific implementation of a module. Examples of codebases in this repository include:
+* `renderers/web_core` (TypeScript implementation of `a2ui_core`)
+* `renderers/lit` (Lit/HTML implementation of `a2ui_lit`)
+* `agent_sdks/kotlin` (Kotlin implementation of `a2ui_inference` and `a2ui_core`)
 
 ## **Codebase blueprint**
 
-This file is stored in the actual codebase that it is relevant to, so that it can be discovered easily, and to allow for some code to be stored in different repos than the main repo.
+Each codebase must contain a `codebase.blueprint.md` file in its root directory. This file maps the concrete implementation back to the language-agnostic module blueprint, tracking its feature support and local engineering decisions.
 
-Headers
+### **File Structure**
 
-* Included features  
-* Name of the associated module blueprint  
-* list of required and optional features that are implemented
+* **YAML Frontmatter**:
+  * `associated_module`: The name of the module blueprint it implements (e.g., `a2ui_core`).
+  * `implemented_features`: A list of required and optional feature blueprint names that are fully implemented in this codebase.
+  * `protocol_compliance`: The version of the protocol implemented.
 
-Content
-
-Explains any technical decisions that were made for this codebase that are not directly specified in the module blueprint. E.g. because the module blueprint was ambiguous, or there was a reason to override it for codebase-specific reasons.
+* **Core Sections**:
+  * **Architecture & Styling**: Explanation of how the codebase maps the abstract module interfaces to concrete platform patterns (e.g., using Lit signals, React hooks, or Kotlin flows).
+  * **Technical Decisions & Overrides**: Documentation of any intentional deviations from the module blueprint, along with their engineering rationale (e.g., handling platform limitations, performance optimizations).
+  * **Dependencies**: External libraries used for reactivity, parsing, or UI components.
 
 # **Developer journeys**
 
@@ -156,29 +217,125 @@ This section explains what steps will be taken by developers and agents to perfo
 
 ## **Clean up feature blueprints**
 
+Feature blueprints undergo a clean, Git-centric lifecycle to prevent the blueprints directory from becoming cluttered with obsolete specifications.
+
+1. **Required Features**: Once a required feature has been fully implemented in all active codebases and its requirements have been integrated into the base Module Blueprint, the feature blueprint file is **deleted** from the workspace. Because the file was committed to Git, it remains preserved in the repository's Git history forever, allowing anyone to easily retrieve it if needed.
+2. **Optional Features**: Optional feature blueprints remain in `blueprints/features/` as long as they are actively supported. If they are promoted to required, they are integrated into the Module Blueprint and deleted. If they are deprecated or abandoned, they are simply deleted.
+
+# **Workflow Integration & Minimizing Disruption**
+
+To ensure a smooth transition to Spec-Driven Development without interrupting the team's velocity or disrupting existing workflows, we will adopt the following strategies:
+
+## **Non-Disruptive Migration of Existing Docs**
+We are not throwing away or rewriting our existing documentation. The bootstrap process primarily involves **relocating and refactoring** our current guides—specifically migrating the framework-agnostic parts of [renderer_guide.md](file:///Users/jsimionato/development/a2ui_repos/spec-driven/a2ui/specification/v1_0/docs/renderer_guide.md) into `a2ui_core.blueprint.md` and the framework-specific parts into their respective renderer blueprints. By **essentially just moving and reorganizing** existing specifications into the new directory structure, we minimize cognitive load and preserve all existing engineering decisions and context.
+
+## **Flexible Prototyping & Iteration Channels**
+The introduction of official blueprints does not force developers to write formal blueprints from day one. We recognize that design is an iterative process. To keep workflows lightweight and agile, we support a multi-stage, flexible prototyping flow:
+
+1. **Ideation & Discussion (GitHub Issues & RFCs)**:
+   * Teams can continue to brainstorm, discuss, and refine feature ideas using GitHub Issues or pull request discussions.
+   * This is the recommended channel for early-stage iteration before any formal blueprint is created. It allows developers to align on the *why* and *what* of a feature without the overhead of formalizing the *how*.
+2. **Task-Specific Local Specifications**:
+   * During the implementation phase of a task, developers and agents are encouraged to write and use **local, temporary specification files** or design drafts.
+   * These files can be stored in `.gitignored` workspace folders or local scratch directories. They allow developers to map out platform-specific code structures, class diagrams, and local variables at a high velocity without creating version control noise.
+3. **Draft Blueprints**:
+   * Once a feature design is finalized and ready for multi-platform implementation, it is checked in as a formal blueprint in `blueprints/features/` with `status: draft` in its YAML frontmatter. This signals that it is open for cross-platform review before implementation begins.
+
+## **Automation via AI Agent Skills**
+To completely eliminate administrative overhead for human developers, our specialized AI agent skills will handle the lifecycle of blueprints automatically:
+
+* **Automated Draft Generation**:
+   * The `a2ui-blueprint-maintenance` skill can automatically read a GitHub Issue thread, extract the design consensus, and generate a fully structured, schema-compliant `my_feature.blueprint.md` file.
+   * It can also ingest local, informal design drafts and format them into official feature blueprints.
+* **Auto-Bootstrapping Codebases**:
+   * When setting up a new repository or codebase, the `a2ui-feature-implementer` skill can automatically generate the initial `codebase.blueprint.md` file, pre-populated with the target module's required features.
+* **Auto-Validation & Deletion**:
+   * Our agent skills will run local validation checks during development to catch blueprint drift.
+   * Upon the merge of a pull request that completes a feature across all platforms, the maintenance agent will automatically **delete** the feature blueprint from `blueprints/features/` and update the respective module blueprints, ensuring the specification remains perfectly synchronized with the code with zero manual effort.
+
 # **Implementation**
 
 ## **Folder structure**
 
-TODO: include a detailed proposal of where specs should live.
+To keep specifications organized, all language-agnostic blueprints will reside in a top-level `/blueprints/` directory, while codebase-specific blueprints will reside in the root of their respective implementation directories.
 
-* I think it should be in a top-level “blueprints” folder which has all module blueprints and feature blueprints
+```
+/
+├── blueprints/
+│   ├── README.md                 # SDD guidelines and workflow documentation
+│   ├── modules/                  # Language-agnostic Module Blueprints
+│   │   ├── a2ui_core.blueprint.md
+│   │   ├── a2ui_inference.blueprint.md
+│   │   ├── a2ui_react.blueprint.md
+│   │   └── a2ui_lit.blueprint.md
+│   └── features/                 # Feature Blueprints (active or optional)
+│       └── dynamic_theming.blueprint.md
+│
+├── renderers/
+│   ├── web_core/
+│   │   └── codebase.blueprint.md # Web Core codebase blueprint (implements a2ui_core)
+│   ├── lit/
+│   │   └── codebase.blueprint.md # Lit Renderer codebase blueprint (implements a2ui_lit)
+│   └── react/
+│       └── codebase.blueprint.md # React Renderer codebase blueprint (implements a2ui_react)
+│
+└── agent_sdks/
+    └── kotlin/
+        └── codebase.blueprint.md # Kotlin SDK codebase blueprint (implements a2ui_inference + a2ui_core)
+```
 
 ## **Skills**
 
-TODO: describe a set of skills that should be  
+To support automated execution of spec-driven tasks, we will maintain a set of specialized AI agent skills in the `.agents/skills/` directory. Each skill represents a distinct, non-overlapping operational mode for the AI agents:
+
+### 1. **`a2ui-blueprint-navigator` (The Explorer)**
+* **Role**: A read-only analytical guide. It is responsible for discovering, reading, and auditing blueprints and their codebase implementations to ensure compliance.
+* **Key Tasks**:
+  * **Discovery**: Crawls `/blueprints/` and codebase directories to establish a map of specifications and implementations.
+  * **Compliance Audits**: Compares a concrete codebase's files against its `codebase.blueprint.md` and the associated module blueprint.
+  * **Gap Analysis**: Identifies missing required features, protocol version mismatches, and architectural deviations, producing a comprehensive, read-only report.
+  * **Deviations Log**: Verifies that any codebase deviations are explicitly and correctly documented in the codebase blueprint.
+
+### 2. **`a2ui-feature-implementer` (The Programmer)**
+* **Role**: A hands-on coding executor. It is responsible for translating blueprints into functional, platform-compliant code in a specific codebase.
+* **Key Tasks**:
+  * **Plan Creation**: Reads active feature blueprints and drafts a temporary, codebase-specific design document before starting execution.
+  * **Code Generation**: Writes high-quality, type-safe code that implements the specified interfaces (e.g., `MessageProcessor`, `SurfaceModel`, `ComponentContext`, etc.) according to the target framework's idioms.
+  * **Testing**: Implements local unit tests and hooks up platform-agnostic conformance tests.
+  * **Codebase Registration**: Updates the local `codebase.blueprint.md` file to add the feature name to `implemented_features` and log any local engineering decisions made during implementation.
+
+### 3. **`a2ui-blueprint-maintenance` (The Coordinator)**
+* **Role**: A project-level administrator. It manages the evolution, promotion, validation, and cleanup of specifications across the workspace.
+* **Key Tasks**:
+  * **Feature Promotion**: Merges the requirements, description, and steps of an active required feature blueprint directly into the base Module Blueprint's sections, adding the feature name to the module's `included_features`.
+  * **Spec Cleanup**: Deletes completed feature blueprints from `blueprints/features/` once they are integrated into the module blueprints and all active codebases are verified as compliant.
+  * **Validation Suite**: Executes the blueprint validation script (`scripts/validate_blueprints.py`) to verify frontmatter compliance, entity naming rules, and reference integrity.
+  * **Global Alignments**: Recommends updates to the workspace guides (e.g., `AGENTS.md`) when architectural changes alter development flows.
 
 ## **Blueprint validation**
 
 We will implement a blueprint validator script that verifies that all blueprints conform to the format described above, e.g. they include all the required headers in the expected format, and follow the expected file structure (e.g. name and filename match). This should be easy to trigger via a script, and should be run on CI to block submission of invalid blueprints.
 
+The validation script (`scripts/validate_blueprints.py`) will check:
+* **Frontmatter compliance**: Verify all mandatory YAML fields are present and correctly typed.
+* **Entity naming rules**: Ensure feature names and module names use snake_case and match their filenames.
+* **Integrity of references**: Validate that `associated_module` and `implemented_features` in codebase blueprints point to valid, existing blueprints.
+* **CI Integration**: Integrate the validator as a GitHub Action block on pull requests targeting `main`.
+
 ## **Bootstrap tasks**
 
-Lists the tasks that are necessary to set up this system.
+Setting up spec-driven development requires a systematic migration and setup process:
 
-TODO: Fill this out, including
+### **Phase 1: Foundation & Tooling**
+1. **Directory Setup**: Create the `/blueprints/`, `/blueprints/modules/`, and `/blueprints/features/` folders and check in the initial `/blueprints/README.md`.
+2. **Write Validator Script**: Implement `scripts/validate_blueprints.py` to validate frontmatter and reference integrity.
+3. **CI Integration**: Set up `.github/workflows/validate-blueprints.yml` to run the validator on PRs.
 
-* Setting up folders, with readmes  
-* Setting up validation  
-* Write skills  
-* Migrating existing module specifications, e.g from specification/v1\_0/docs/renderer\_guide.md etc to be module specifications.
+### **Phase 2: Specification Migration**
+1. **Core State Layer Blueprint (`a2ui_core`)**: Refactor the framework-agnostic portions of [renderer_guide.md](file:///Users/jsimionato/development/a2ui_repos/spec-driven/a2ui/specification/v1_0/docs/renderer_guide.md) (e.g., state models, JSON pointer rules, message processor) into `blueprints/modules/a2ui_core.blueprint.md`.
+2. **Renderer Framework Blueprints (`a2ui_react`, `a2ui_lit`, etc.)**: Refactor the framework-specific portions of [renderer_guide.md](file:///Users/jsimionato/development/a2ui_repos/spec-driven/a2ui/specification/v1_0/docs/renderer_guide.md) (e.g., surface component, native widget rendering, binder patterns, lifecycle rules) into respective renderer module blueprints (e.g., `a2ui_react.blueprint.md`, `a2ui_lit.blueprint.md`).
+3. **Agent Inference SDK Blueprint (`a2ui_inference`)**: Migrate [agent_sdk_guide.md](file:///Users/jsimionato/development/a2ui_repos/spec-driven/a2ui/agent_sdks/agent_sdk_guide.md) into `blueprints/modules/a2ui_inference.blueprint.md`.
+
+### **Phase 3: Codebase Bootstrapping & Skills**
+1. **Create Codebase Blueprints**: Write initial `codebase.blueprint.md` files for all active codebases (`web_core` mapping to `a2ui_core`, `lit` mapping to `a2ui_lit`, `react` mapping to `a2ui_react`, `kotlin` mapping to `a2ui_inference` + `a2ui_core`, etc.), documenting their current feature set and architectural decisions.
+2. **Write Agent Skills**: Implement the specialized skills under `.agents/skills/` (`a2ui-blueprint-navigator`, `a2ui-feature-implementer`, `a2ui-blueprint-maintenance`) to codify the SDD workflow.
