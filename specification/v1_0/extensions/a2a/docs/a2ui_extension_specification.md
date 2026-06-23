@@ -21,9 +21,9 @@ The A2UI extension is built on the following main concepts:
   - **Catalog Definition Schema**: A standard format for defining a library of components and functions ([catalog_definition.json](../../../json/catalog_definition.json)).
   - **Server-to-Client Message List Schema**: The core wire format for messages sent from the agent to the client ([server_to_client_list.json](../json/server_to_client_list.json)).
   - **Client-to-Server Message List Schema**: The core wire format for messages sent from the client to the agent ([client_to_server_list.json](../json/client_to_server_list.json)).
-  - **Server Capabilities Schema**: The schema for the `a2uiServerCapabilities` object, used by servers to declare their UI generation capabilities ([server_capabilities.json](../json/server_capabilities.json)).
-  - **Client Capabilities Schema**: The schema for the `a2uiClientCapabilities` object ([client_capabilities.json](../json/client_capabilities.json)).
-  - **Client Data Model Schema**: The schema for the `a2uiClientDataModel` object, used for two-way synchronization ([client_data_model.json](../json/client_data_model.json)).
+  - **Server Capabilities Schema**: The schema for the `a2uiServerCapabilities` object, used by servers to declare their UI generation capabilities ([server_capabilities.json](../../../json/server_capabilities.json)).
+  - **Client Capabilities Schema**: The schema for the `a2uiClientCapabilities` object ([client_capabilities.json](../../../json/client_capabilities.json)).
+  - **Client Data Model Schema**: The schema for the `a2uiClientDataModel` object, used for two-way synchronization ([client_data_model.json](../../../json/client_data_model.json)).
 
 ---
 
@@ -33,7 +33,7 @@ In A2UI v1.0, capabilities and other session metadata are exchanged via **transp
 
 ### Server capabilities in Agent Cards
 
-Agents advertise their A2UI capabilities in their AgentCard within the `AgentCapabilities.extensions` list. The `params` object defines the agent's specific UI support and corresponds directly to the **Server Capabilities Schema** ([server_capabilities.json](../json/server_capabilities.json)).
+Agents advertise their A2UI capabilities in their AgentCard within the `AgentCapabilities.extensions` list. The `params` object defines the agent's specific UI support and corresponds directly to the **Server Capabilities Schema** ([server_capabilities.json](../../../json/server_capabilities.json)).
 
 #### Example AgentExtension block
 
@@ -61,7 +61,7 @@ The `params` object corresponds to the `v1.0` object in the `server_capabilities
 
 ### Client capabilities in message metadata
 
-The client sends its capabilities to the server in an `a2uiClientCapabilities` object. This object is included in the `metadata` field of every A2A `Message` sent from the client to the server, following the **Client Capabilities Schema** ([client_capabilities.json](../json/client_capabilities.json)).
+The client sends its capabilities to the server in an `a2uiClientCapabilities` object. This object is included in the `metadata` field of every A2A `Message` sent from the client to the server, following the **Client Capabilities Schema** ([client_capabilities.json](../../../json/client_capabilities.json)).
 
 #### Parameter definitions
 
@@ -76,7 +76,7 @@ The `a2uiClientCapabilities` object contains a `v1.0` object with the following 
 
 When `sendDataModel` is enabled for a surface (via the `createSurface` message), the client automatically appends the **entire data model** of that surface to the metadata of every message (such as an `action` or user query) sent to the server that created the surface.
 
-In A2A transport, the data model is serialized to the `a2uiClientDataModel` format and placed in the `metadata` field of the A2A `Message` envelope, following the **Client Data Model Schema** ([client_data_model.json](../json/client_data_model.json)).
+In A2A transport, the data model is serialized to the `a2uiClientDataModel` format and placed in the `metadata` field of the A2A `Message` envelope, following the **Client Data Model Schema** ([client_data_model.json](../../../json/client_data_model.json)).
 
 ### Parameter definitions
 

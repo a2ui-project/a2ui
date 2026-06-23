@@ -97,18 +97,22 @@ To support A2UI, a transport layer must fulfill the following contract:
 
 While A2UI is transport agnostic, it is most commonly used with the following transports.
 
-#### AG UI (Agent to User Interface) binding
+#### AG-UI (Agent-to-User Interface) binding
 
-The **[A2A Extension](../extensions/a2a/docs/a2ui_extension_specification.md)** maps A2UI over the **[A2A Protocol](https://a2a-protocol.org)**, standardizing metadata placement, client/server capability negotiation, and bidirectional data model synchronization.
+**[AG-UI](https://docs.ag-ui.com/introduction)** is the standard transport binding for Agent-to-User Interaction. It provides convenient integrations into many agent frameworks and frontends, offering low-latency and shared-state message passing between frontends and agentic backends.
 
-**[AG-UI](https://docs.ag-ui.com/introduction)** is also an excellent transport option for A2UI Agent–User Interaction protocol.
-AG UI provides convenient integrations into many agent frameworks and frontends. AG UI provides low latency and shared state message passing between front ends and agentic backends.
+#### A2A (Agent-to-Agent) binding
+
+The **[A2A Extension](../extensions/a2a/docs/a2ui_extension_specification.md)** maps A2UI over the **[A2A Protocol](https://a2a-protocol.org)**. It standardizes metadata placement, client-to-server capability negotiation, and bidirectional data model synchronization for agent-to-agent interactions.
+
+#### MCP (Model Context Protocol) binding
+
+**[MCP](https://modelcontextprotocol.io/docs/getting-started/intro)** is a standard protocol for exposing data and tools to LLMs. A2UI can be carried over MCP tool calls, tool outputs, or resource subscriptions, allowing agents to dynamically render rich user interfaces for client-side applications.
 
 #### Other transports
 
 A2UI can also be carried over:
 
-- **[MCP (Model Context Protocol)](https://modelcontextprotocol.io/docs/getting-started/intro)**: Delivered as tool outputs or resource subscriptions.
 - **[SSE](https://en.wikipedia.org/wiki/Server-sent_events) with [JSON RPC](https://www.jsonrpc.org/)**: Standard server-sent events for web integrations that support streaming, and JSON RPC for client-server communication.
 - **[WebSockets](https://en.wikipedia.org/wiki/WebSocket)**: For bidirectional, real-time sessions.
 - **[REST](https://cloud.google.com/discover/what-is-rest-api?hl=en)**: For simple use case, REST APIs will work but lack streaming capabilities.
@@ -902,7 +906,7 @@ _Replace the entire data model:_
 
 ### Client to server updates
 
-When `sendDataModel` is set to `true` for a surface, the client automatically appends the **entire data model** of that surface to the metadata of every message (such as `action` or user query) sent to the server that created the surface. The data model is included using the transport's metadata facility (the exact location and format are defined by the specific transport binding).
+When `sendDataModel` is set to `true` for a surface, the client automatically appends the **entire data model** of that surface to the metadata of every message (such as `action` or user query) sent to the server that created the surface. The data model is included using the transport's metadata facility (the exact location and format are defined by the specific transport binding). The payload follows the schema in [`client_data_model.json`](../json/client_data_model.json).
 
 - **Targeted Delivery**: The data model is sent exclusively to the server that created the surface. Data cannot leak to other agents or servers.
 - **Trigger:** Data is sent only when a client-to-server message is triggered (e.g., by a user action like a button click). Passive data changes (like typing in a text field) do not trigger a network request on their own; they simply update the local state, which will be sent with the next action.
@@ -1247,5 +1251,47 @@ This message is sent by the client to report runtime or execution errors to the 
 }
 ```
 
+---
+
+## Capabilities and metadata
+
+In A2UI v1.0, capabilities and other metadata are exchanged via **transport metadata** or initialization payloads (e.g., A2A metadata, Agent Cards, or MCP initialization) rather than as first-class A2UI messages.
+
+### Server capabilities
+
+A server (or agent) advertises its capabilities using the [`server_capabilities.json`] schema. This indicates which catalogs it can generate UI for, and whether it accepts inline catalogs from the client. The exact mechanism depends on the transport (e.g., the `params` object in an A2A AgentCard, or server capabilities in MCP).
+
+**Properties:**
+
+- `v1.0` (object, required): The capability structure for version 1.0 of the A2UI protocol.
+  - `supportedCatalogIds` (array of strings, required): An array of strings identifying the Catalog Definition Schemas the server can generate.
+  - `acceptsInlineCatalogs` (boolean, optional, default `false`): Indicates if the server can accept custom inline component/function catalogs in the client's capabilities metadata.
+
+### Client capabilities
+
+The `a2uiClientCapabilities` object in the transport metadata follows the [`client_capabilities.json`] schema to describe the client's rendering capabilities.
+
+**Properties:**
+
+- `v1.0` (object, required): The capability structure for version 1.0 of the A2UI protocol.
+  - `supportedCatalogIds` (array of strings, required): The URIs of supported component and function catalogs.
+  - `inlineCatalogs` (array, optional): An array of custom catalog definitions provided inline by the client. Functions defined within inline catalogs support declaring execution boundaries (`callableFrom: "clientOnly" | "remoteOnly" | "clientOrRemote"`) to statically specify remote invocation safety.
+
+### Client data model
+
+When `sendDataModel` is enabled for a surface, the client includes the `a2uiClientDataModel` object in the transport metadata, following the [`client_data_model.json`] schema.
+
+**Properties:**
+
+- `version` (string, required): Must be the constant `"v1.0"`.
+- `surfaces` (object, required): A map of surface IDs to their current local data models.
+
+[`catalogs/basic/catalog.json`]: ../catalogs/basic/catalog.json
+[`common_types.json`]: ../json/common_types.json
+[`server_to_client.json`]: ../json/server_to_client.json
+[`client_to_server.json`]: ../json/client_to_server.json
+[`server_capabilities.json`]: ../json/server_capabilities.json
+[`client_capabilities.json`]: ../json/client_capabilities.json
+[`client_data_model.json`]: ../json/client_data_model.json
 [JSON Pointer]: https://datatracker.ietf.org/doc/html/rfc6901
 [RFC 6901]: https://datatracker.ietf.org/doc/html/rfc6901

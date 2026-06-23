@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://a2ui.org/specification/v1_0/extensions/a2a/json/client_capabilities.json",
+  "$id": "https://a2ui.org/specification/v1_0/client_capabilities.json",
   "title": "A2UI Client Capabilities Schema",
   "description": "A schema for the a2uiClientCapabilities object, which is sent from the client to the server as part of the A2A metadata to describe the client's UI rendering capabilities.",
   "type": "object",

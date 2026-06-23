@@ -383,7 +383,7 @@ def validate_a2a_schemas():
     tests = [
         {
             "name": "client_capabilities.json",
-            "schema_path": os.path.join(a2a_json_dir, "client_capabilities.json"),
+            "schema_path": os.path.join(SCHEMA_DIR, "client_capabilities.json"),
             "data": {
                 "v1.0": {
                     "supportedCatalogIds": ["https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"],
@@ -396,7 +396,7 @@ def validate_a2a_schemas():
         },
         {
             "name": "server_capabilities.json",
-            "schema_path": os.path.join(a2a_json_dir, "server_capabilities.json"),
+            "schema_path": os.path.join(SCHEMA_DIR, "server_capabilities.json"),
             "data": {
                 "v1.0": {
                     "supportedCatalogIds": ["https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"],
@@ -407,7 +407,7 @@ def validate_a2a_schemas():
         },
         {
             "name": "client_data_model.json",
-            "schema_path": os.path.join(a2a_json_dir, "client_data_model.json"),
+            "schema_path": os.path.join(SCHEMA_DIR, "client_data_model.json"),
             "data": {
                 "version": "v1.0",
                 "surfaces": {
