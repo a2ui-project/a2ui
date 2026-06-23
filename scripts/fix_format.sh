@@ -93,4 +93,17 @@ else
   echo "Warning: dart command not found. Skipping Dart formatting."
 fi
 
+echo "Running swift-format..."
+if command -v swift-format >/dev/null 2>&1; then
+  if [ "$CHECK_ONLY" = true ]; then
+    echo "Linting Swift files..."
+    swift-format lint -r Package.swift swift/core
+  else
+    echo "Formatting Swift files..."
+    swift-format format -i -r Package.swift swift/core
+  fi
+else
+  echo "Warning: swift-format command not found. Skipping Swift formatting."
+fi
+
 echo "Done."
