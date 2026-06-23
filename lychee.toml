@@ -1,0 +1,68 @@
+# Copyright 2026 Google LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+# Configuration for the lychee Markdown link checker.
+# Used by the "Verify Markdown links" step in .github/workflows/docs.yml.
+# See https://lychee.cli.rs/usage/config/
+
+# HTTP status codes treated as success. 403/429 are frequent false negatives
+# from sites that block or throttle automated checkers rather than real breakage.
+accept = [200, 206, 403, 429]
+
+# Skip mailto: links (this is lychee's default; stated explicitly for clarity).
+include_mail = false
+
+# Be patient with flaky/slow endpoints before failing the link.
+max_retries = 3
+retry_wait_time = 2
+timeout = 20
+
+# Send a realistic User-Agent so fewer hosts reject the request outright.
+user_agent = "Mozilla/5.0 (compatible; lychee link checker)"
+
+exclude = [
+  # Placeholder / illustrative URLs that intentionally do not resolve.
+  "example\\.com",
+  "trusted-host\\.com",
+  "localhost",
+  "127\\.0\\.0\\.1",
+  "0\\.0\\.0\\.0",
+  # A2A extension URIs are namespace identifiers, not browsable pages: a2ui.org
+  # is live but intentionally returns 404 for these /a2a-extension/ paths.
+  "a2ui\\.org/a2a-extension",
+  # Internal Google "go/" short links — only reachable by Googlers, by design.
+  "^https?://go/",
+  # Valid Google vanity domain (Opal) that rejects/blocks automated checkers.
+  "opal\\.google",
+  # Known-dead external references (verified 404, no published replacement).
+  # Excluded to keep CI green; drop the referencing content if gone for good.
+  "github\\.com/TanXudong-Vivo/A2UI-Android-Renderer",
+  "github\\.com/orgs/community/discussions/187776",
+  "flutter/genui/blob/main/examples/e2e/",
+]
+
+# Don't descend into dependency or build-output directories.
+# Note: entries are matched as regexes against the path.
+exclude_path = [
+  "node_modules",
+  ".git",
+  "dist",
+  "build",
+  # The specification/ tree is copied into docs/specification/ at build time
+  # (see the "Copy schemas" step in docs.yml). Check only the published copies:
+  # the source files use asset paths that resolve only after that copy, so
+  # checking them directly is a false positive. Anchored to the source root so
+  # the docs/specification/ copies are still verified.
+  "^specification",
+]

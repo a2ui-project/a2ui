@@ -27,7 +27,6 @@ Displays text content.
 **Rendering Guidelines:** Text should be rendered using a Markdown parser when possible. If markdown rendering is unavailable or fails, gracefully fallback to rendering the raw text. In such cases, renderers should ideally attempt to strip common Markdown markers (like `**` or `#`) to ensure the text remains legible and aesthetically consistent with the intended presentation.
 **Property Mapping:**
 
-- `variant="h1"` through `variant="h5"`: Apply heading styling. Suggested relative font sizes: `h1` (2.5x base), `h2` (2x base), `h3` (1.75x base), `h4` (1.5x base), `h5` (1.25x base).
 - `variant="caption"`: Render as smaller text, typically italicized or in a lighter/muted color. Suggested font size: 0.8x base.
 - `variant="body"` (default): Standard body text. Uses the base font size (e.g., 16dp/16px).
 
@@ -288,6 +287,13 @@ Because `formatString` contains dynamic expressions embedded _within_ a string l
 **Description:** Opens a URL.
 
 **Logic:** Open `args.url` using the native platform's URL handler (e.g., opening in the system browser or deep-linking to an app). This function returns `void` and is executed as a side-effect.
+
+**Security Constraints & Implementation Requirements (Mandatory):**
+To prevent DOM-Based Cross-Site Scripting (XSS) via `javascript:`, `data:`, or other non-HTTP schemes:
+
+1. **Resolve Relative URLs:** Before validation, resolve relative paths against the current environment context (e.g., `window.location.href` in browsers) using standard URL parsing.
+2. **Enforce Scheme Allowlist:** Strictly validate that the resolved URL protocol/scheme is either `https:` or `http:`. Throw an execution or runtime error (such as `A2uiExpressionError`) and abort the action if any other scheme is used.
+3. **Tab-Nabbing Protection:** When opening URLs in a new browser window/tab, always supply security attributes: `noopener,noreferrer` (e.g. `window.open(url, '_blank', 'noopener,noreferrer')`).
 
 ### `and`
 

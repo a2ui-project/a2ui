@@ -18,7 +18,7 @@ version = "0.1.0"
 description = "Validation tests for A2UI conformance YAML files. Note: this package is for internal validation of conformance test files and is not an SDK."
 requires-python = ">=3.10"
 dependencies = [
-    "pytest>=9.0.2",
+    "pytest>=9.0.3",
     "jsonschema>=4.0.0",
     "pyyaml>=6.0.1",
 ]

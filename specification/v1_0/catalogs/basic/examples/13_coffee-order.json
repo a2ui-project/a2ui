@@ -41,8 +41,7 @@
             "component": "Text",
             "text": {
               "path": "/storeName"
-            },
-            "variant": "h3"
+            }
           },
           {
             "id": "items-list",
@@ -164,8 +163,7 @@
           {
             "id": "total-label",
             "component": "Text",
-            "text": "Total",
-            "variant": "h4"
+            "text": "#### Total"
           },
           {
             "id": "total-value",
@@ -178,8 +176,7 @@
                 },
                 "currency": "USD"
               }
-            },
-            "variant": "h4"
+            }
           },
           {
             "id": "actions",

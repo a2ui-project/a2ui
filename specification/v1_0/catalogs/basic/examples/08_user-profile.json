@@ -46,8 +46,7 @@
             "component": "Text",
             "text": {
               "path": "/name"
-            },
-            "variant": "h2"
+            }
           },
           {
             "id": "username",
@@ -87,8 +86,7 @@
                   "path": "/followers"
                 }
               }
-            },
-            "variant": "h3"
+            }
           },
           {
             "id": "followers-label",
@@ -112,8 +110,7 @@
                   "path": "/following"
                 }
               }
-            },
-            "variant": "h3"
+            }
           },
           {
             "id": "following-label",
@@ -137,8 +134,7 @@
                   "path": "/posts"
                 }
               }
-            },
-            "variant": "h3"
+            }
           },
           {
             "id": "posts-label",

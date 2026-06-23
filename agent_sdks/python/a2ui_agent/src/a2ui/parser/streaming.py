@@ -436,14 +436,11 @@ class A2uiStreamParser:
   def _process_json_chunk(self, chunk: str, messages: List[ResponsePart]):
     for char in chunk:
       char_handled = False
-      if not self._in_top_level_list:
+      if self._brace_count == 0:
         if char == "[":
-          if self._brace_count == 0:
-            self._in_top_level_list = True
-          self._brace_stack.append(("[", len(self._json_buffer)))
-          self._json_buffer += "["
-          self._brace_count += 1
-          char_handled = True
+          self._in_top_level_list = True
+        elif char == "{":
+          pass
         else:
           continue
 

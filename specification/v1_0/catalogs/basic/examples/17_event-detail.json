@@ -30,8 +30,7 @@
             "component": "Text",
             "text": {
               "path": "/title"
-            },
-            "variant": "h2"
+            }
           },
           {
             "id": "time-row",

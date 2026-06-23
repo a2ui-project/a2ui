@@ -112,7 +112,7 @@ export const App = ({initialExampleId, onAction}: AppProps) => {
 
         const msgs = selectedItem?.messages;
         if (advanceToEnd && msgs) {
-          newProcessor.processMessages(msgs);
+          newProcessor.processMessages(structuredClone(msgs));
         }
         return newProcessor;
       });
@@ -171,7 +171,7 @@ export const App = ({initialExampleId, onAction}: AppProps) => {
     // Process messages from currentMessageIndex + 1 to index
     const messagesToProcess = msgs.slice(currentMessageIndex + 1, index + 1);
     if (messagesToProcess.length > 0) {
-      processor.processMessages(messagesToProcess);
+      processor.processMessages(structuredClone(messagesToProcess));
       setCurrentMessageIndex(index);
     }
   };

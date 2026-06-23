@@ -48,12 +48,10 @@ export async function loadExample(
   const root = createRoot(container);
   activeRoot = root;
 
-  act(() => {
+  await act(async () => {
     root.render(<App initialExampleId={id} onAction={onAction} />);
+    await whenSettled();
   });
-
-  // Wait a short macrotask to ensure React state and message processing settle
-  await whenSettled();
 
   return container;
 }
@@ -65,7 +63,8 @@ export async function cleanup() {
   if (activeRoot) {
     try {
       await act(async () => {
-        activeRoot!.unmount();
+        activeRoot?.unmount();
+        await whenSettled();
       });
     } finally {
       activeRoot = null;
@@ -78,13 +77,12 @@ export async function cleanup() {
  * Awaits React state updates and yields thread execution to let async side-effects settle.
  */
 export async function whenSettled(): Promise<void> {
-  // Awaiting an async `act()` block ensures React flushes its microtask queue and
-  // applies state changes. By nesting a `setTimeout` macrotask yield inside it, we let
-  // any asynchronous message processor cycles or event callbacks complete and render
-  // before the test assertion proceeds.
-  await act(async () => {
-    await new Promise(resolve => setTimeout(resolve, 0));
-  });
+  // Yield thread execution to let any asynchronous message processor cycles, Preact signals
+  // effects, or event callbacks complete and render before proceeding.
+  // Originally we had this inside an `act` block, but that breaks some of our
+  // tests. This function needs to be called from within `act` blocks, and those
+  // can't be nested.
+  await new Promise(resolve => setTimeout(resolve, 0));
 }
 
 /**

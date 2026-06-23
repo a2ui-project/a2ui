@@ -1,5 +1,12 @@
 ## Unreleased
 
+## 0.10.2
+
+- (v0_9) Align with signal implementation changes in `@a2ui/web_core`.
+
+## 0.10.1
+
+- (v0_8) Export `MarkdownRenderer` in public API of v0.8. [#1658](https://github.com/a2ui-project/a2ui/pull/1658)
 - (v0_9) Fix null de-referencing TypeError in `ComponentBinder` when `children` property is null or undefined. [#1472](https://github.com/a2ui-project/a2ui/pull/1472)
 - (v0_8) Fix Icon component to handle camelCase and TitleCase names by converting them to snake_case for `g-icon`.
 - (v0_8) Fix Modal component styling and position fixed for overlay.

@@ -96,10 +96,6 @@ describe('Card Component', () => {
     fixture.componentRef.setInput('child', childNode);
     fixture.detectChanges();
 
-    console.log('--- CARD INNER HTML ---');
-    console.log(fixture.nativeElement.innerHTML);
-    console.log('--- END CARD INNER HTML ---');
-
     // Use Static instances tracker instead of debug query!
     expect(MockRenderer.instances.length).toBe(1);
   });

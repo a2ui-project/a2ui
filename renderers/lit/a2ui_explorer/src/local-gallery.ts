@@ -25,17 +25,17 @@ import {appStyles} from './local-gallery.css';
 
 @customElement('local-gallery')
 export class LocalGallery extends LitElement {
-  @state() accessor mockLogs: string[] = [];
-  @state() accessor demoItems: DemoItem[] = [];
-  @state() accessor activeItemIndex = 0;
-  @state() accessor processedMessageCount = 0;
-  @state() accessor currentDataModelText = '{}';
-  @state() accessor primaryColor = '#1177ee';
+  @state() mockLogs: string[] = [];
+  @state() demoItems: DemoItem[] = [];
+  @state() activeItemIndex = 0;
+  @state() processedMessageCount = 0;
+  @state() currentDataModelText = '{}';
+  @state() primaryColor = '#1177ee';
   // Expose the dispatched actions log for automated integration tests to inspect
   actionLog: A2uiClientAction[] = [];
 
   @provide({context: Context.markdown})
-  private accessor markdownRenderer = renderMarkdown;
+  private markdownRenderer = renderMarkdown;
 
   private processor = new MessageProcessor([basicCatalog], (action: A2uiClientAction) => {
     this.log(`Action dispatched: ${action.surfaceId}`, action);
@@ -120,7 +120,7 @@ export class LocalGallery extends LitElement {
 
     const modifiedToProcess = this.applyPrimaryColorToMessages(toProcess);
 
-    this.processor.processMessages(modifiedToProcess);
+    this.processor.processMessages(structuredClone(modifiedToProcess));
     this.processedMessageCount += toProcess.length;
 
     // Subscribe to data model on first advance if not already subscribed

@@ -37,7 +37,19 @@ export * from './state/surface-model.js';
 export * from './errors.js';
 export * from './basic_catalog/index.js';
 
-export {effect, Signal, signal, computed} from '@preact/signals-core';
+export {
+  type Signal,
+  effect,
+  signal,
+  computed,
+  getValue,
+  peekValue,
+  batchWrite,
+  isSignal,
+  setValue,
+  setSignalImplementation,
+  type SignalImplementations,
+} from './reactivity/signals.js';
 
 import A2uiMessageSchemaRaw from './schemas/server_to_client.json' with {type: 'json'};
 

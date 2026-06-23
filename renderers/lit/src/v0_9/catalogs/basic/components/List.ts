@@ -22,11 +22,11 @@ import {
   BasicCatalogA2uiLitElement,
   type ResolvedChildList,
 } from '../basic-catalog-a2ui-lit-element.js';
-import {A2uiController} from '@a2ui/lit/v0_9';
+import {A2uiController} from '../../../a2ui-controller.js';
 
 @customElement('a2ui-list')
 export class A2uiListElement extends BasicCatalogA2uiLitElement<typeof ListApi> {
-  static styles = css`
+  static override styles = css`
     :host {
       display: flex;
       overflow: auto;
@@ -39,7 +39,7 @@ export class A2uiListElement extends BasicCatalogA2uiLitElement<typeof ListApi> 
     return new A2uiController(this, ListApi);
   }
 
-  updated(changedProperties: PropertyValues) {
+  override updated(changedProperties: PropertyValues) {
     super.updated(changedProperties);
     const props = this.controller.props;
     if (props) {
@@ -47,7 +47,7 @@ export class A2uiListElement extends BasicCatalogA2uiLitElement<typeof ListApi> 
     }
   }
 
-  render() {
+  override render() {
     const props = this.controller.props;
     if (!props) return nothing;
 

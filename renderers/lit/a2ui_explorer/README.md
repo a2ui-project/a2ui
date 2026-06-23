@@ -18,8 +18,8 @@ yarn build:all
 
 For more details on building the renderers, see:
 
-- [Web Core README](../../../../renderers/web_core/README.md)
-- [Lit Renderer README](../../../../renderers/lit/README.md)
+- [Web Core README](../../web_core/README.md)
+- [Lit Renderer README](../README.md)
 
 ## Getting Started
 

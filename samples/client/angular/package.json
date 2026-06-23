@@ -14,7 +14,7 @@
     "clean": "wireit",
     "build:renderer": "yarn workspace @a2ui/web_core build && yarn workspace @a2ui/markdown-it build && yarn workspace @a2ui/angular build",
     "serve:agent:restaurant": "cd ../../agent/adk/restaurant_finder && uv run .",
-    "demo:restaurant": "yarn build:renderer && concurrently -k -n \"AGENT,WEB\" -c \"magenta,blue\" \"yarn serve:agent:restaurant\" \"yarn start -- restaurant\"",
+    "demo:restaurant": "yarn build:renderer && concurrently -k -n \"AGENT,WEB\" -c \"magenta,blue\" \"yarn serve:agent:restaurant\" \"yarn start restaurant\"",
     "format": "prettier --write .",
     "format:check": "prettier --check ."
   },

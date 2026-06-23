@@ -12,6 +12,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+# Builds and publishes the MkDocs documentation site.
+#
+# On a pull request that touches docs sources, it runs a build-only check to
+# catch errors without publishing. On a push to `main`, it builds and deploys
+# the site to GitHub Pages via `mkdocs gh-deploy`. Before building, it copies
+# the specification schemas into the docs tree (flattening versioned JSON to the
+# version root for clean URLs) and converts GitHub-style admonitions to the
+# MkDocs format. Runs only on the upstream `a2ui-project/a2ui` repository.
 name: Docs
 
 on:
@@ -30,7 +38,10 @@ on:
       - ".github/workflows/docs.yml"
       - "requirements-docs.txt"
       - "mkdocs.yml"
+      - "lychee.toml"
       - "docs/**"
+      # Any Markdown change triggers the pre-submit link check below.
+      - "**.md"
 
 jobs:
   build_and_deploy:
@@ -88,6 +99,32 @@ jobs:
       - name: Build Documentation (PR Check)
         if: github.event_name == 'pull_request'
         run: mkdocs build
+
+      # Pre-submit only: verify that links in every Markdown file resolve,
+      # catching broken internal paths and dead external URLs. Placeholder URLs
+      # and tuning live in lychee.toml at the repository root.
+      - name: Restore lychee link-check cache
+        if: github.event_name == 'pull_request'
+        uses: actions/cache@v5
+        with:
+          path: .lycheecache
+          key: lychee-${{ github.sha }}
+          restore-keys: lychee-
+
+      - name: Verify Markdown links (PR Check)
+        if: github.event_name == 'pull_request'
+        uses: lycheeverse/lychee-action@v2
+        with:
+          args: >-
+            --config lychee.toml
+            --cache
+            --max-cache-age 1d
+            --no-progress
+            "**/*.md"
+          fail: true
+        env:
+          # Authenticated GitHub API requests avoid rate limits on github.com links.
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Deploy development version from main branch
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
