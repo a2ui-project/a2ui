@@ -50,6 +50,8 @@ exclude = [
   "github\\.com/TanXudong-Vivo/A2UI-Android-Renderer",
   "github\\.com/orgs/community/discussions/187776",
   "flutter/genui/blob/main/examples/e2e/",
+  # AAAI OJS server returns flaky HTTP/2 protocol errors to automated checkers.
+  "ojs\\.aaai\\.org",
 ]
 
 # Don't descend into dependency or build-output directories.

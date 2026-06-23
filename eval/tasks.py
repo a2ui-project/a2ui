@@ -28,8 +28,8 @@ from a2ui_eval.scorers import a2ui_scorer, measured_model_graded_qa
 
 # Paths relative to the eval directory where we run inspect
 CURRENT_DIR = Path(__file__).resolve().parent
-DATASET_PATH = (CURRENT_DIR / "datasets/v0_9_prompts.yaml").resolve()
-SCHEMA_PATH = (CURRENT_DIR / "../specification/v0_9/json/server_to_client.json").resolve()
+DATASET_PATH_V09 = (CURRENT_DIR / "datasets/v0_9_prompts.yaml").resolve()
+DATASET_PATH_V10 = (CURRENT_DIR / "datasets/v1_0_prompts.yaml").resolve()
 
 GRADER_INSTRUCTIONS = """
 After assessing the submitted answer, reply with 'GRADE: $LETTER' (without quotes) where LETTER is one of C, P or I.  Please choose ONE option for the grade: either "C" for correct answers, "P" for partial credit, or "I" for incorrect answers.
@@ -49,12 +49,12 @@ Notes for grading:
 """
 
 @task
-def a2ui_v0_9_eval(
+def a2ui_v0_9_1_eval(
     list_models: bool = False, 
-    grading_model: str = "google/gemini-3-flash-preview",
+    grading_model: str = "google/gemini-3.5-flash",
     strategy: str = "direct"
 ) -> Task:
-    """Evaluation task for A2UI v0.9 protocol generation.
+    """Evaluation task for A2UI v0.9.1 protocol generation.
 
     Args:
         list_models: Whether to list available Gemini models and exit.
@@ -62,7 +62,7 @@ def a2ui_v0_9_eval(
         strategy: The evaluation strategy to use (e.g., 'direct').
 
     Returns:
-        An Inspect Task object configured for A2UI v0.9 evaluation.
+        An Inspect Task object configured for A2UI v0.9.1 evaluation.
     """
 
     if list_models:
@@ -86,13 +86,22 @@ def a2ui_v0_9_eval(
             scorer=[dummy_scorer()]
         )
 
-    dataset = load_a2ui_dataset(str(DATASET_PATH))
+    active_dataset_path = DATASET_PATH_V09
+    active_version = "0.9"
+    default_catalog_path = "specification/v0_9/catalogs/basic/catalog.json"
+
+    if strategy == "express":
+        active_dataset_path = DATASET_PATH_V10
+        active_version = "1.0"
+        default_catalog_path = "specification/v1_0/catalogs/basic/catalog.json"
+
+    dataset = load_a2ui_dataset(str(active_dataset_path), default_catalog_path=default_catalog_path)
 
     return Task(
         dataset=dataset,
         solver=get_solver(strategy),
         scorer=[
-            a2ui_scorer(),
+            a2ui_scorer(version=active_version),
             measured_model_graded_qa(
                 model=grading_model,
                 instructions=GRADER_INSTRUCTIONS

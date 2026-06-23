@@ -26,8 +26,12 @@ from a2ui.parser.parser import parse_response
 from .shared.utils import GIT_ROOT
 
 @scorer(metrics=[accuracy()])
-def a2ui_scorer():
+def a2ui_scorer(version: str | None = None):
     """Scorer for A2UI evaluation using the Python SDK.
+
+    Args:
+        version: Optional schema version to load (e.g. '0.9' or '1.0').
+                 If None, it will be inferred from the catalog path.
 
     Returns:
         An Inspect Scorer that validates the response against the schema and integrity rules.
@@ -40,8 +44,13 @@ def a2ui_scorer():
         catalog_path = state.metadata['catalog']
         resolved_catalog_path = str(GIT_ROOT / catalog_path)
 
+        # Determine version
+        active_version = version
+        if not active_version:
+            active_version = "1.0" if "v1_0" in catalog_path or "v1.0" in catalog_path else "0.9"
+
         catalog_config = CatalogConfig.from_path("basic_catalog", resolved_catalog_path)
-        manager = A2uiSchemaManager(version="0.9", catalogs=[catalog_config])
+        manager = A2uiSchemaManager(version=active_version, catalogs=[catalog_config])
         catalog = manager.get_selected_catalog()
         validator = catalog.validator
             
