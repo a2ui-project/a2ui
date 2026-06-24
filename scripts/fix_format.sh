@@ -78,6 +78,14 @@ else
   uv run pyink .
 fi
 
+echo "Running Pyink for Python Specification Proposals..."
+cd "$REPO_ROOT"
+if [ "$CHECK_ONLY" = true ]; then
+  uv run --with pyink pyink --check "$REPO_ROOT/specification/proposals"
+else
+  uv run --with pyink pyink "$REPO_ROOT/specification/proposals"
+fi
+
 echo "Running Dart format..."
 cd "$REPO_ROOT"
 # Check if dart is available before running
@@ -91,6 +99,19 @@ if command -v dart >/dev/null 2>&1; then
   fi
 else
   echo "Warning: dart command not found. Skipping Dart formatting."
+fi
+
+echo "Running swift-format..."
+if command -v swift-format >/dev/null 2>&1; then
+  if [ "$CHECK_ONLY" = true ]; then
+    echo "Linting Swift files..."
+    swift-format lint -r Package.swift swift/core
+  else
+    echo "Formatting Swift files..."
+    swift-format format -i -r Package.swift swift/core
+  fi
+else
+  echo "Warning: swift-format command not found. Skipping Swift formatting."
 fi
 
 echo "Done."

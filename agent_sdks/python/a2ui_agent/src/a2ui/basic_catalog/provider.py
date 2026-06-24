@@ -20,6 +20,7 @@ from ..schema.utils import load_from_bundled_resource
 from ..schema.constants import BASE_SCHEMA_URL, CATALOG_ID_KEY, CATALOG_SCHEMA_KEY
 from .constants import BASIC_CATALOG_NAME, BASIC_CATALOG_PATHS
 from a2ui.core.validating.catalog_schema_validator import JSON_SCHEMA_DRAFT_2020_12
+from a2ui.core import A2uiCatalogError
 
 
 class BundledCatalogProvider(A2uiCatalogProvider):
@@ -65,7 +66,7 @@ class BasicCatalog:
   def get_catalog_id(version: str) -> str:
     """Returns the basic catalog ID based on the specification version."""
     if version not in BASIC_CATALOG_PATHS:
-      raise ValueError(f"Unsupported version: {version}")
+      raise A2uiCatalogError(f"Unsupported version: {version}")
     rel_path = BASIC_CATALOG_PATHS[version][CATALOG_SCHEMA_KEY]
     catalog_file = rel_path.replace("/json/", "/")
     return f"{BASE_SCHEMA_URL}{catalog_file}"

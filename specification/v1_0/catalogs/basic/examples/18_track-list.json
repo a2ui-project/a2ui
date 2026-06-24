@@ -18,26 +18,26 @@
           {
             "id": "root",
             "component": "Card",
-            "child": "main-column"
+            "child": "main_column"
           },
           {
-            "id": "main-column",
+            "id": "main_column",
             "component": "Column",
-            "children": ["header", "divider", "tracks-list"]
+            "children": ["header", "divider", "tracks_list"]
           },
           {
             "id": "header",
             "component": "Row",
-            "children": ["playlist-icon", "playlist-name"],
+            "children": ["playlist_icon", "playlist_name"],
             "align": "center"
           },
           {
-            "id": "playlist-icon",
+            "id": "playlist_icon",
             "component": "Icon",
             "name": "play"
           },
           {
-            "id": "playlist-name",
+            "id": "playlist_name",
             "component": "Text",
             "text": {
               "path": "/playlistName"
@@ -48,21 +48,21 @@
             "component": "Divider"
           },
           {
-            "id": "tracks-list",
+            "id": "tracks_list",
             "component": "Column",
             "children": {
               "path": "/tracks",
-              "componentId": "track-item-template"
+              "componentId": "track_item_template"
             }
           },
           {
-            "id": "track-item-template",
+            "id": "track_item_template",
             "component": "Row",
-            "children": ["track-num", "track-art", "track-info", "track-duration"],
+            "children": ["track_num", "track_art", "track_info", "track_duration"],
             "align": "center"
           },
           {
-            "id": "track-num",
+            "id": "track_num",
             "component": "Text",
             "text": {
               "call": "formatNumber",
@@ -75,7 +75,7 @@
             "variant": "caption"
           },
           {
-            "id": "track-art",
+            "id": "track_art",
             "component": "Image",
             "url": {
               "path": "art"
@@ -83,12 +83,12 @@
             "fit": "cover"
           },
           {
-            "id": "track-info",
+            "id": "track_info",
             "component": "Column",
-            "children": ["track-title", "track-artist"]
+            "children": ["track_title", "track_artist"]
           },
           {
-            "id": "track-title",
+            "id": "track_title",
             "component": "Text",
             "text": {
               "path": "title"
@@ -96,7 +96,7 @@
             "variant": "body"
           },
           {
-            "id": "track-artist",
+            "id": "track_artist",
             "component": "Text",
             "text": {
               "path": "artist"
@@ -104,7 +104,7 @@
             "variant": "caption"
           },
           {
-            "id": "track-duration",
+            "id": "track_duration",
             "component": "Text",
             "text": {
               "path": "duration"

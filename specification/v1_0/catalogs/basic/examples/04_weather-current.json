@@ -18,22 +18,22 @@
           {
             "id": "root",
             "component": "Card",
-            "child": "main-column"
+            "child": "main_column"
           },
           {
-            "id": "main-column",
+            "id": "main_column",
             "component": "Column",
-            "children": ["temp-row", "location", "description", "forecast-row"],
+            "children": ["temp_row", "location", "description", "forecast_row"],
             "align": "center"
           },
           {
-            "id": "temp-row",
+            "id": "temp_row",
             "component": "Row",
-            "children": ["temp-high", "temp-low"],
+            "children": ["temp_high", "temp_low"],
             "align": "start"
           },
           {
-            "id": "temp-high",
+            "id": "temp_high",
             "component": "Text",
             "text": {
               "call": "formatString",
@@ -43,7 +43,7 @@
             }
           },
           {
-            "id": "temp-low",
+            "id": "temp_low",
             "component": "Text",
             "text": {
               "call": "formatString",
@@ -71,22 +71,22 @@
             "variant": "caption"
           },
           {
-            "id": "forecast-row",
+            "id": "forecast_row",
             "component": "Row",
             "children": {
               "path": "/forecast",
-              "componentId": "forecast-day-template"
+              "componentId": "forecast_day_template"
             },
             "justify": "spaceAround"
           },
           {
-            "id": "forecast-day-template",
+            "id": "forecast_day_template",
             "component": "Column",
-            "children": ["day-name", "day-icon", "day-temp"],
+            "children": ["day_name", "day_icon", "day_temp"],
             "align": "center"
           },
           {
-            "id": "day-name",
+            "id": "day_name",
             "component": "Text",
             "text": {
               "call": "formatDate",
@@ -100,14 +100,14 @@
             "variant": "caption"
           },
           {
-            "id": "day-icon",
+            "id": "day_icon",
             "component": "Text",
             "text": {
               "path": "icon"
             }
           },
           {
-            "id": "day-temp",
+            "id": "day_temp",
             "component": "Text",
             "text": {
               "call": "formatString",

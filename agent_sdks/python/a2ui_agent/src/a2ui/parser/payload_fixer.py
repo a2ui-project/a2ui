@@ -16,6 +16,7 @@ import json
 import logging
 import re
 from typing import Any, Dict, List
+from a2ui.core import A2uiParseError
 
 
 logger = logging.getLogger(__name__)
@@ -54,7 +55,7 @@ def _parse(payload: str) -> List[Dict[str, Any]]:
     return a2ui_json
   except json.JSONDecodeError as e:
     logger.error(f"Failed to parse JSON: {e}")
-    raise ValueError(f"Failed to parse JSON: {e}")
+    raise A2uiParseError(f"Failed to parse JSON: {e}")
 
 
 def _normalize_smart_quotes(json_str: str) -> str:

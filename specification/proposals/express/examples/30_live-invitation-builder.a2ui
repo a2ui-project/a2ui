@@ -1,0 +1,24 @@
+$/event/date = "2025-07-15T19:00:00Z"
+$/event/guest = "Alex Johnson"
+$/event/location = ["terrace"]
+$/event/name = "Summer Gala"
+root = Column([header, main_content], _, "stretch")
+header = Text("# Invitation Builder")
+main_content = Row([editor_col, preview_col], _, "start")
+editor_col = Column([editor_title, event_name_input, guest_input, date_input, location_picker], _, "stretch", 1)
+editor_title = Text("### Customize your invitation")
+event_name_input = TextField("Event Name", $/event/name)
+guest_input = TextField("Guest of Honor", $/event/guest)
+date_input = DateTimeInput($/event/date, true, true, _, _, "Event Date & Time")
+location_picker = ChoicePicker("Location", "mutuallyExclusive", [{label: "Grand Ballroom", value: "ballroom"}, {label: "Sunset Terrace", value: "terrace"}, {label: "Garden Pavillion", value: "garden"}], $/event/location, "chips")
+preview_col = Column([preview_title, invitation_card], _, "center", 1)
+preview_title = Text("Live Preview", "caption")
+invitation_card = Card(invitation_content)
+invitation_content = Column([invite_image, invite_event_name, invite_guest_row, invite_date_text, invite_location_text], _, "center")
+invite_image = Image("https://images.unsplash.com/photo-1511795409834-ef04bbd61622?w=400&h=200&fit=crop", _, _, "mediumFeature")
+invite_event_name = Text($/event/name)
+invite_guest_row = Row([invite_for_text, invite_guest_name], _, "center")
+invite_for_text = Text("Celebrating", "body")
+invite_guest_name = Text($/event/guest)
+invite_date_text = Text(formatDate($/event/date, "EEEE, MMMM d, yyyy 'at' h:mm a"), "body")
+invite_location_text = Text(formatString("Location: ${/event/location/0}"), "caption")

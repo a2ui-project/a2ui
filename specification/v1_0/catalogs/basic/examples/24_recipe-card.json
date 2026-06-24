@@ -18,33 +18,33 @@
           {
             "id": "root",
             "component": "Card",
-            "child": "tabs-container"
+            "child": "tabs_container"
           },
           {
-            "id": "tabs-container",
+            "id": "tabs_container",
             "component": "Tabs",
             "tabs": [
               {
                 "title": "Overview",
-                "child": "overview-col"
+                "child": "overview_col"
               },
               {
                 "title": "Ingredients",
-                "child": "ingredients-list"
+                "child": "ingredients_list"
               },
               {
                 "title": "Instructions",
-                "child": "instructions-list"
+                "child": "instructions_list"
               }
             ]
           },
           {
-            "id": "overview-col",
+            "id": "overview_col",
             "component": "Column",
-            "children": ["recipe-image", "overview-content"]
+            "children": ["recipe_image", "overview_content"]
           },
           {
-            "id": "recipe-image",
+            "id": "recipe_image",
             "component": "Image",
             "url": {
               "path": "/image"
@@ -52,9 +52,9 @@
             "fit": "cover"
           },
           {
-            "id": "overview-content",
+            "id": "overview_content",
             "component": "Column",
-            "children": ["title", "rating-row", "times-row", "servings"]
+            "children": ["title", "rating_row", "times_row", "servings"]
           },
           {
             "id": "title",
@@ -64,13 +64,13 @@
             }
           },
           {
-            "id": "rating-row",
+            "id": "rating_row",
             "component": "Row",
-            "children": ["star-icon", "rating", "review-count"],
+            "children": ["star_icon", "rating", "review_count"],
             "align": "center"
           },
           {
-            "id": "star-icon",
+            "id": "star_icon",
             "component": "Icon",
             "name": "star"
           },
@@ -83,7 +83,7 @@
             "variant": "body"
           },
           {
-            "id": "review-count",
+            "id": "review_count",
             "component": "Text",
             "text": {
               "call": "formatString",
@@ -94,23 +94,23 @@
             "variant": "caption"
           },
           {
-            "id": "times-row",
+            "id": "times_row",
             "component": "Row",
-            "children": ["prep-time", "cook-time"]
+            "children": ["prep_time", "cook_time"]
           },
           {
-            "id": "prep-time",
+            "id": "prep_time",
             "component": "Row",
-            "children": ["prep-icon", "prep-text"],
+            "children": ["prep_icon", "prep_text"],
             "align": "center"
           },
           {
-            "id": "prep-icon",
+            "id": "prep_icon",
             "component": "Icon",
             "name": "calendarToday"
           },
           {
-            "id": "prep-text",
+            "id": "prep_text",
             "component": "Text",
             "text": {
               "path": "/prepTime"
@@ -118,18 +118,18 @@
             "variant": "caption"
           },
           {
-            "id": "cook-time",
+            "id": "cook_time",
             "component": "Row",
-            "children": ["cook-icon", "cook-text"],
+            "children": ["cook_icon", "cook_text"],
             "align": "center"
           },
           {
-            "id": "cook-icon",
+            "id": "cook_icon",
             "component": "Icon",
             "name": "warning"
           },
           {
-            "id": "cook-text",
+            "id": "cook_text",
             "component": "Text",
             "text": {
               "path": "/cookTime"
@@ -145,23 +145,23 @@
             "variant": "caption"
           },
           {
-            "id": "ingredients-list",
+            "id": "ingredients_list",
             "component": "Column",
             "children": {
               "path": "/ingredients",
-              "componentId": "item-template"
+              "componentId": "item_template"
             }
           },
           {
-            "id": "instructions-list",
+            "id": "instructions_list",
             "component": "Column",
             "children": {
               "path": "/instructions",
-              "componentId": "item-template"
+              "componentId": "item_template"
             }
           },
           {
-            "id": "item-template",
+            "id": "item_template",
             "component": "Text",
             "text": {
               "path": "text"

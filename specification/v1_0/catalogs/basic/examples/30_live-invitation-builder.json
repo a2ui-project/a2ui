@@ -18,7 +18,7 @@
           {
             "id": "root",
             "component": "Column",
-            "children": ["header", "main-content"],
+            "children": ["header", "main_content"],
             "align": "stretch"
           },
           {
@@ -27,31 +27,31 @@
             "text": "# Invitation Builder"
           },
           {
-            "id": "main-content",
+            "id": "main_content",
             "component": "Row",
-            "children": ["editor-col", "preview-col"],
+            "children": ["editor_col", "preview_col"],
             "align": "start"
           },
           {
-            "id": "editor-col",
+            "id": "editor_col",
             "component": "Column",
             "children": [
-              "editor-title",
-              "event-name-input",
-              "guest-input",
-              "date-input",
-              "location-picker"
+              "editor_title",
+              "event_name_input",
+              "guest_input",
+              "date_input",
+              "location_picker"
             ],
             "weight": 1,
             "align": "stretch"
           },
           {
-            "id": "editor-title",
+            "id": "editor_title",
             "component": "Text",
             "text": "### Customize your invitation"
           },
           {
-            "id": "event-name-input",
+            "id": "event_name_input",
             "component": "TextField",
             "label": "Event Name",
             "value": {
@@ -59,7 +59,7 @@
             }
           },
           {
-            "id": "guest-input",
+            "id": "guest_input",
             "component": "TextField",
             "label": "Guest of Honor",
             "value": {
@@ -67,7 +67,7 @@
             }
           },
           {
-            "id": "date-input",
+            "id": "date_input",
             "component": "DateTimeInput",
             "label": "Event Date & Time",
             "value": {
@@ -77,7 +77,7 @@
             "enableTime": true
           },
           {
-            "id": "location-picker",
+            "id": "location_picker",
             "component": "ChoicePicker",
             "label": "Location",
             "options": [
@@ -101,69 +101,69 @@
             "displayStyle": "chips"
           },
           {
-            "id": "preview-col",
+            "id": "preview_col",
             "component": "Column",
-            "children": ["preview-title", "invitation-card"],
+            "children": ["preview_title", "invitation_card"],
             "weight": 1,
             "align": "center"
           },
           {
-            "id": "preview-title",
+            "id": "preview_title",
             "component": "Text",
             "text": "Live Preview",
             "variant": "caption"
           },
           {
-            "id": "invitation-card",
+            "id": "invitation_card",
             "component": "Card",
-            "child": "invitation-content"
+            "child": "invitation_content"
           },
           {
-            "id": "invitation-content",
+            "id": "invitation_content",
             "component": "Column",
             "children": [
-              "invite-image",
-              "invite-event-name",
-              "invite-guest-row",
-              "invite-date-text",
-              "invite-location-text"
+              "invite_image",
+              "invite_event_name",
+              "invite_guest_row",
+              "invite_date_text",
+              "invite_location_text"
             ],
             "align": "center"
           },
           {
-            "id": "invite-image",
+            "id": "invite_image",
             "component": "Image",
             "url": "https://images.unsplash.com/photo-1511795409834-ef04bbd61622?w=400&h=200&fit=crop",
             "variant": "mediumFeature"
           },
           {
-            "id": "invite-event-name",
+            "id": "invite_event_name",
             "component": "Text",
             "text": {
               "path": "/event/name"
             }
           },
           {
-            "id": "invite-guest-row",
+            "id": "invite_guest_row",
             "component": "Row",
-            "children": ["invite-for-text", "invite-guest-name"],
+            "children": ["invite_for_text", "invite_guest_name"],
             "align": "center"
           },
           {
-            "id": "invite-for-text",
+            "id": "invite_for_text",
             "component": "Text",
             "text": "Celebrating",
             "variant": "body"
           },
           {
-            "id": "invite-guest-name",
+            "id": "invite_guest_name",
             "component": "Text",
             "text": {
               "path": "/event/guest"
             }
           },
           {
-            "id": "invite-date-text",
+            "id": "invite_date_text",
             "component": "Text",
             "text": {
               "call": "formatDate",
@@ -177,7 +177,7 @@
             "variant": "body"
           },
           {
-            "id": "invite-location-text",
+            "id": "invite_location_text",
             "component": "Text",
             "text": {
               "call": "formatString",
