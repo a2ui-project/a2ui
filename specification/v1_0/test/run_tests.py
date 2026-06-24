@@ -339,11 +339,8 @@ def validate_sample_schema():
     with open(temp_sample_data_path, 'w') as f:
         json.dump(sample_data, f)
 
-    # We must provide the relocated A2A schemas as references so AJV can resolve the $ref
-    a2a_json_dir = os.path.join(SPEC_DIR, "extensions", "a2a", "json")
-    
     ref_schemas = {
-        "server_to_client_list.json": os.path.join(a2a_json_dir, "server_to_client_list.json"),
+        "server_to_client_list.json": os.path.join(SCHEMA_DIR, "server_to_client_list.json"),
         "server_to_client.json": os.path.join(SCHEMA_DIR, "server_to_client.json"),
         "common_types.json": os.path.join(SCHEMA_DIR, "common_types.json"),
         "catalog.json": TEMP_CATALOG_FILE
@@ -369,11 +366,6 @@ def validate_a2a_schemas():
     Validates all A2A-specific schemas (capabilities, data model, and message lists)
     against mock payloads to ensure structural integrity and correct references.
     """
-    a2a_json_dir = os.path.join(SPEC_DIR, "extensions", "a2a", "json")
-    if not os.path.exists(a2a_json_dir):
-        print(f"Error: A2A JSON directory not found at {a2a_json_dir}")
-        return 0, 1
-
     print("\nValidating A2A-specific schemas and references...")
 
     passed = 0
@@ -420,7 +412,7 @@ def validate_a2a_schemas():
         },
         {
             "name": "server_to_client_list_wrapper.json",
-            "schema_path": os.path.join(a2a_json_dir, "server_to_client_list_wrapper.json"),
+            "schema_path": os.path.join(SCHEMA_DIR, "server_to_client_list_wrapper.json"),
             "data": {
                 "messages": [
                     {
@@ -433,7 +425,7 @@ def validate_a2a_schemas():
                 ]
             },
             "refs": {
-                "server_to_client_list.json": os.path.join(a2a_json_dir, "server_to_client_list.json"),
+                "server_to_client_list.json": os.path.join(SCHEMA_DIR, "server_to_client_list.json"),
                 "server_to_client.json": os.path.join(SCHEMA_DIR, "server_to_client.json"),
                 "common_types.json": os.path.join(SCHEMA_DIR, "common_types.json"),
                 "catalog.json": TEMP_CATALOG_FILE
@@ -441,7 +433,7 @@ def validate_a2a_schemas():
         },
         {
             "name": "client_to_server_list_wrapper.json",
-            "schema_path": os.path.join(a2a_json_dir, "client_to_server_list_wrapper.json"),
+            "schema_path": os.path.join(SCHEMA_DIR, "client_to_server_list_wrapper.json"),
             "data": {
                 "messages": [
                     {
@@ -457,7 +449,7 @@ def validate_a2a_schemas():
                 ]
             },
             "refs": {
-                "client_to_server_list.json": os.path.join(a2a_json_dir, "client_to_server_list.json"),
+                "client_to_server_list.json": os.path.join(SCHEMA_DIR, "client_to_server_list.json"),
                 "client_to_server.json": os.path.join(SCHEMA_DIR, "client_to_server.json"),
                 "common_types.json": os.path.join(SCHEMA_DIR, "common_types.json")
             }

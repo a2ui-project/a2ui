@@ -19,8 +19,8 @@ The A2UI extension is built on the following main concepts:
 - **Catalog Definition Document**: The A2UI extension is catalog-agnostic. All UI components (e.g., Text, Row, Button) and functions (e.g., required, email) are defined in a separate Catalog Definition Schema. This allows clients and servers to negotiate which catalog to use.
 - **Schemas**: The A2UI extension is defined by several primary JSON schemas:
   - **Catalog Definition Schema**: A standard format for defining a library of components and functions ([catalog_definition.json](../../../json/catalog_definition.json)).
-  - **Server-to-Client Message List Schema**: The core wire format for messages sent from the agent to the client ([server_to_client_list.json](../json/server_to_client_list.json)).
-  - **Client-to-Server Message List Schema**: The core wire format for messages sent from the client to the agent ([client_to_server_list.json](../json/client_to_server_list.json)).
+  - **Server-to-Client Message List Schema**: The core wire format for messages sent from the agent to the client ([server_to_client_list.json](../../../json/server_to_client_list.json)).
+  - **Client-to-Server Message List Schema**: The core wire format for messages sent from the client to the agent ([client_to_server_list.json](../../../json/client_to_server_list.json)).
   - **Server Capabilities Schema**: The schema for the `a2uiServerCapabilities` object, used by servers to declare their UI generation capabilities ([server_capabilities.json](../../../json/server_capabilities.json)).
   - **Client Capabilities Schema**: The schema for the `a2uiClientCapabilities` object ([client_capabilities.json](../../../json/client_capabilities.json)).
   - **Client Data Model Schema**: The schema for the `a2uiClientDataModel` object, used for two-way synchronization ([client_data_model.json](../../../json/client_data_model.json)).
@@ -122,7 +122,7 @@ Atomicity is guaranteed only at the **individual message** level. However, for a
 
 ### Server-to-client messages
 
-When an agent sends a message to a client (or another agent acting as a client/renderer), the `data` payload must validate against the **Server-to-Client Message List Schema** ([server_to_client_list.json](../json/server_to_client_list.json)).
+When an agent sends a message to a client (or another agent acting as a client/renderer), the `data` payload must validate against the **Server-to-Client Message List Schema** ([server_to_client_list.json](../../../json/server_to_client_list.json)).
 
 #### Example DataPart
 
@@ -159,7 +159,7 @@ When an agent sends a message to a client (or another agent acting as a client/r
 
 ### Client-to-server events
 
-When a client (or an agent forwarding an event) sends a message to an agent, it also uses a `DataPart` with the same `application/a2ui+json` MIME type. However, the `data` payload must validate against the **Client-to-Server Message List Schema** ([client_to_server_list.json](../json/client_to_server_list.json)).
+When a client (or an agent forwarding an event) sends a message to an agent, it also uses a `DataPart` with the same `application/a2ui+json` MIME type. However, the `data` payload must validate against the **Client-to-Server Message List Schema** ([client_to_server_list.json](../../../json/client_to_server_list.json)).
 
 #### Example `action` DataPart
 
