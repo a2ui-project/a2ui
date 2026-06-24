@@ -18,18 +18,18 @@
           {
             "id": "root",
             "component": "Card",
-            "child": "main-column"
+            "child": "main_column"
           },
           {
-            "id": "main-column",
+            "id": "main_column",
             "component": "Column",
             "children": [
               "title",
-              "product-name",
+              "product_name",
               "divider1",
               "options",
               "divider2",
-              "total-row",
+              "total_row",
               "actions"
             ]
           },
@@ -39,7 +39,7 @@
             "text": "### Purchase License"
           },
           {
-            "id": "product-name",
+            "id": "product_name",
             "component": "Text",
             "text": {
               "path": "/productName"
@@ -52,43 +52,43 @@
           {
             "id": "options",
             "component": "Column",
-            "children": ["seats-row", "period-row"]
+            "children": ["seats_row", "period_row"]
           },
           {
-            "id": "seats-row",
+            "id": "seats_row",
             "component": "Row",
-            "children": ["seats-label", "seats-value"],
+            "children": ["seats_label", "seats_value"],
             "justify": "spaceBetween",
             "align": "center"
           },
           {
-            "id": "seats-label",
+            "id": "seats_label",
             "component": "Text",
             "text": "Number of seats",
             "variant": "body"
           },
           {
-            "id": "seats-value",
+            "id": "seats_value",
             "component": "Text",
             "text": {
               "path": "/seats"
             }
           },
           {
-            "id": "period-row",
+            "id": "period_row",
             "component": "Row",
-            "children": ["period-label", "period-picker"],
+            "children": ["period_label", "period_picker"],
             "justify": "spaceBetween",
             "align": "center"
           },
           {
-            "id": "period-label",
+            "id": "period_label",
             "component": "Text",
             "text": "Billing period",
             "variant": "body"
           },
           {
-            "id": "period-picker",
+            "id": "period_picker",
             "component": "ChoicePicker",
             "options": [
               {
@@ -111,19 +111,19 @@
             "component": "Divider"
           },
           {
-            "id": "total-row",
+            "id": "total_row",
             "component": "Row",
-            "children": ["total-label", "total-value"],
+            "children": ["total_label", "total_value"],
             "justify": "spaceBetween",
             "align": "center"
           },
           {
-            "id": "total-label",
+            "id": "total_label",
             "component": "Text",
             "text": "#### Total"
           },
           {
-            "id": "total-value",
+            "id": "total_value",
             "component": "Text",
             "text": {
               "call": "formatString",
@@ -135,17 +135,17 @@
           {
             "id": "actions",
             "component": "Row",
-            "children": ["confirm-btn", "cancel-btn"]
+            "children": ["confirm_btn", "cancel_btn"]
           },
           {
-            "id": "confirm-btn-text",
+            "id": "confirm_btn_text",
             "component": "Text",
             "text": "Confirm Purchase"
           },
           {
-            "id": "confirm-btn",
+            "id": "confirm_btn",
             "component": "Button",
-            "child": "confirm-btn-text",
+            "child": "confirm_btn_text",
             "action": {
               "event": {
                 "name": "confirm",
@@ -154,14 +154,14 @@
             }
           },
           {
-            "id": "cancel-btn-text",
+            "id": "cancel_btn_text",
             "component": "Text",
             "text": "Cancel"
           },
           {
-            "id": "cancel-btn",
+            "id": "cancel_btn",
             "component": "Button",
-            "child": "cancel-btn-text",
+            "child": "cancel_btn_text",
             "action": {
               "event": {
                 "name": "cancel",

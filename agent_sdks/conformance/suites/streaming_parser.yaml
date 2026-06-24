@@ -117,7 +117,9 @@
     - input: '<a2ui-json>[{"beginRendering": {"root": "c1", "surfaceId": "s1"}},'
       expect: [{a2ui: [{beginRendering: {root: "c1", surfaceId: "s1"}}]}]
     - input: '{"surfaceUpdate": {"surfaceId": "s1", "components": [{"id": "c1", "component": {"Card": {"child": "c2"}}}]}},{"surfaceUpdate": {"surfaceId": "s1", "components": [{"id": "c2", "component": {"Card": {"child": "c1"}}}]}}]}} </a2ui-json>'
-      expect_error: "Circular reference detected"
+      expect_error:
+        category: "RecursionError"
+        message: "Circular reference detected"
 
 - name: test_self_reference_detection
   description: Tests that self-references are detected during streaming.
@@ -136,7 +138,9 @@
     - input: '<a2ui-json>[{"beginRendering": {"root": "c1", "surfaceId": "s1"}},'
       expect: [{a2ui: [{beginRendering: {root: "c1", surfaceId: "s1"}}]}]
     - input: '{"surfaceUpdate": {"surfaceId": "s1", "components": [{"id": "c1", "component": {"Card": {"child": "c1"}}}]}}]}} </a2ui-json>'
-      expect_error: "Self-reference detected"
+      expect_error:
+        category: "RecursionError"
+        message: "Self-reference detected"
 
 - name: test_interleaved_conversational_text
   description: Tests that conversational text and A2UI content are interleaved correctly.

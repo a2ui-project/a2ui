@@ -18,15 +18,15 @@
           {
             "id": "root",
             "component": "Card",
-            "child": "main-column"
+            "child": "main_column"
           },
           {
-            "id": "main-column",
+            "id": "main_column",
             "component": "Column",
-            "children": ["restaurant-image", "content"]
+            "children": ["restaurant_image", "content"]
           },
           {
-            "id": "restaurant-image",
+            "id": "restaurant_image",
             "component": "Image",
             "url": {
               "path": "/image"
@@ -36,24 +36,24 @@
           {
             "id": "content",
             "component": "Column",
-            "children": ["name-row", "cuisine", "rating-row", "details-row"]
+            "children": ["name_row", "cuisine", "rating_row", "details_row"]
           },
           {
-            "id": "name-row",
+            "id": "name_row",
             "component": "Row",
-            "children": ["restaurant-name", "price-range"],
+            "children": ["restaurant_name", "price_range"],
             "justify": "spaceBetween",
             "align": "center"
           },
           {
-            "id": "restaurant-name",
+            "id": "restaurant_name",
             "component": "Text",
             "text": {
               "path": "/name"
             }
           },
           {
-            "id": "price-range",
+            "id": "price_range",
             "component": "Text",
             "text": {
               "path": "/priceRange"
@@ -69,13 +69,13 @@
             "variant": "caption"
           },
           {
-            "id": "rating-row",
+            "id": "rating_row",
             "component": "Row",
-            "children": ["star-icon", "rating", "reviews"],
+            "children": ["star_icon", "rating", "reviews"],
             "align": "center"
           },
           {
-            "id": "star-icon",
+            "id": "star_icon",
             "component": "Icon",
             "name": "star"
           },
@@ -96,9 +96,9 @@
             "variant": "caption"
           },
           {
-            "id": "details-row",
+            "id": "details_row",
             "component": "Row",
-            "children": ["distance", "delivery-time"]
+            "children": ["distance", "delivery_time"]
           },
           {
             "id": "distance",
@@ -109,7 +109,7 @@
             "variant": "caption"
           },
           {
-            "id": "delivery-time",
+            "id": "delivery_time",
             "component": "Text",
             "text": {
               "path": "/deliveryTime"

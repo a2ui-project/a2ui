@@ -25,6 +25,7 @@ from a2ui.core.validating.integrity_checker import (
 )
 from a2ui.core.validating.topology_analyzer import analyze_topology as core_analyze_topology
 
+from a2ui.core import A2uiValidationError
 from .utils import wrap_as_json_array
 
 if TYPE_CHECKING:
@@ -241,7 +242,7 @@ class LegacyA2uiValidatorV08:
         msg += "\nContext failures:"
         for sub_error in error.context:
           msg += f"\n  - {sub_error.message}"
-      raise ValueError(msg)
+      raise A2uiValidationError(msg)
 
     has_begin = any(isinstance(m, dict) and "beginRendering" in m for m in messages)
     if not has_begin and not config.allow_missing_root:

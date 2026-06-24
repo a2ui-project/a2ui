@@ -26,6 +26,8 @@ from a2ui.core.validating.integrity_checker import get_component_references
 from a2ui.core.validating.topology_analyzer import analyze_topology
 from a2ui.core.validating.validator import ValidationConfig, STRICT_VALIDATION
 from a2ui.core.validating.catalog_schema_validator import CatalogSchemaValidator
+from a2ui.core import A2uiValidationError, A2uiCatalogError
+
 
 if TYPE_CHECKING:
   from .catalog import A2uiCatalog
@@ -125,13 +127,43 @@ class A2uiValidatorWrapperV10:
     # 1. Run schema validation
     errors = list(self._schema_validator.iter_errors(messages))
     if errors:
-      error = errors[0]
-      msg = f"Validation failed: {error.message}"
-      if error.context:
+      from a2ui.core import A2uiErrorDetail
+
+      details = []
+      for err in errors:
+        path_str = ".".join(map(str, err.path)) if err.path else "root"
+        err_validator = getattr(err, "validator", "")
+        if err_validator == "required":
+          code = "missing_field"
+        elif err_validator == "type":
+          code = "type_mismatch"
+        elif err_validator == "additionalProperties":
+          code = "extra_field"
+        else:
+          code = "invalid_value"
+        details.append(A2uiErrorDetail(path_str, code, err.message))
+        if err.context:
+          for sub_error in err.context:
+            sub_path = (
+                ".".join(map(str, sub_error.path)) if sub_error.path else path_str
+            )
+            sub_validator = getattr(sub_error, "validator", "")
+            if sub_validator == "required":
+              sub_code = "missing_field"
+            elif sub_validator == "type":
+              sub_code = "type_mismatch"
+            elif sub_validator == "additionalProperties":
+              sub_code = "extra_field"
+            else:
+              sub_code = "invalid_value"
+            details.append(A2uiErrorDetail(sub_path, sub_code, sub_error.message))
+
+      msg = f"Validation failed: {errors[0].message}"
+      if errors[0].context:
         msg += "\nContext failures:"
-        for sub_error in error.context:
+        for sub_error in errors[0].context:
           msg += f"\n  - {sub_error.message}"
-      raise ValueError(msg)
+      raise A2uiValidationError(msg, details=details)
 
     # 2. Run component integrity validation
     from a2ui.core.validating.integrity_checker import (
@@ -188,7 +220,7 @@ class A2uiValidator:
       if v1_0_enabled or express_enabled:
         self._delegator = A2uiValidatorWrapperV10(catalog)
       else:
-        raise ValueError(
+        raise A2uiCatalogError(
             "A2UI v1.0 validation is experimental and is disabled by default. "
             "To enable it, set the environment variable A2UI_VERSION_1_0=true."
         )

@@ -18,10 +18,10 @@
           {
             "id": "root",
             "component": "Card",
-            "child": "main-column"
+            "child": "main_column"
           },
           {
-            "id": "main-column",
+            "id": "main_column",
             "component": "Column",
             "children": ["image", "details"]
           },
@@ -36,7 +36,7 @@
           {
             "id": "details",
             "component": "Column",
-            "children": ["name", "rating-row", "price-row", "actions"]
+            "children": ["name", "rating_row", "price_row", "actions"]
           },
           {
             "id": "name",
@@ -46,7 +46,7 @@
             }
           },
           {
-            "id": "rating-row",
+            "id": "rating_row",
             "component": "Row",
             "children": ["stars", "reviews"],
             "align": "center"
@@ -71,9 +71,9 @@
             "variant": "caption"
           },
           {
-            "id": "price-row",
+            "id": "price_row",
             "component": "Row",
-            "children": ["price", "original-price"],
+            "children": ["price", "original_price"],
             "align": "start"
           },
           {
@@ -90,7 +90,7 @@
             }
           },
           {
-            "id": "original-price",
+            "id": "original_price",
             "component": "Text",
             "text": {
               "call": "formatCurrency",
@@ -106,17 +106,17 @@
           {
             "id": "actions",
             "component": "Row",
-            "children": ["add-cart-btn"]
+            "children": ["add_cart_btn"]
           },
           {
-            "id": "add-cart-btn-text",
+            "id": "add_cart_btn_text",
             "component": "Text",
             "text": "Add to Cart"
           },
           {
-            "id": "add-cart-btn",
+            "id": "add_cart_btn",
             "component": "Button",
-            "child": "add-cart-btn-text",
+            "child": "add_cart_btn_text",
             "variant": "primary",
             "action": {
               "event": {

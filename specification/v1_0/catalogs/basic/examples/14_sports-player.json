@@ -18,16 +18,16 @@
           {
             "id": "root",
             "component": "Card",
-            "child": "main-column"
+            "child": "main_column"
           },
           {
-            "id": "main-column",
+            "id": "main_column",
             "component": "Column",
-            "children": ["player-image", "player-info", "divider", "stats-row"],
+            "children": ["player_image", "player_info", "divider", "stats_row"],
             "align": "center"
           },
           {
-            "id": "player-image",
+            "id": "player_image",
             "component": "Image",
             "url": {
               "path": "/playerImage"
@@ -35,33 +35,33 @@
             "fit": "cover"
           },
           {
-            "id": "player-info",
+            "id": "player_info",
             "component": "Column",
-            "children": ["player-name", "player-details"],
+            "children": ["player_name", "player_details"],
             "align": "center"
           },
           {
-            "id": "player-name",
+            "id": "player_name",
             "component": "Text",
             "text": {
               "path": "/playerName"
             }
           },
           {
-            "id": "player-details",
+            "id": "player_details",
             "component": "Row",
-            "children": ["player-number", "player-team"],
+            "children": ["player_number", "player_team"],
             "align": "center"
           },
           {
-            "id": "player-number",
+            "id": "player_number",
             "component": "Text",
             "text": {
               "path": "/number"
             }
           },
           {
-            "id": "player-team",
+            "id": "player_team",
             "component": "Text",
             "text": {
               "path": "/team"
@@ -73,7 +73,7 @@
             "component": "Divider"
           },
           {
-            "id": "stats-row",
+            "id": "stats_row",
             "component": "Row",
             "children": ["stat1", "stat2", "stat3"],
             "justify": "spaceAround"
@@ -81,18 +81,18 @@
           {
             "id": "stat1",
             "component": "Column",
-            "children": ["stat1-value", "stat1-label"],
+            "children": ["stat1_value", "stat1_label"],
             "align": "center"
           },
           {
-            "id": "stat1-value",
+            "id": "stat1_value",
             "component": "Text",
             "text": {
               "path": "/stat1/value"
             }
           },
           {
-            "id": "stat1-label",
+            "id": "stat1_label",
             "component": "Text",
             "text": {
               "path": "/stat1/label"
@@ -102,18 +102,18 @@
           {
             "id": "stat2",
             "component": "Column",
-            "children": ["stat2-value", "stat2-label"],
+            "children": ["stat2_value", "stat2_label"],
             "align": "center"
           },
           {
-            "id": "stat2-value",
+            "id": "stat2_value",
             "component": "Text",
             "text": {
               "path": "/stat2/value"
             }
           },
           {
-            "id": "stat2-label",
+            "id": "stat2_label",
             "component": "Text",
             "text": {
               "path": "/stat2/label"
@@ -123,18 +123,18 @@
           {
             "id": "stat3",
             "component": "Column",
-            "children": ["stat3-value", "stat3-label"],
+            "children": ["stat3_value", "stat3_label"],
             "align": "center"
           },
           {
-            "id": "stat3-value",
+            "id": "stat3_value",
             "component": "Text",
             "text": {
               "path": "/stat3/value"
             }
           },
           {
-            "id": "stat3-label",
+            "id": "stat3_label",
             "component": "Text",
             "text": {
               "path": "/stat3/label"

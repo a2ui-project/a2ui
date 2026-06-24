@@ -19,6 +19,7 @@ from referencing import Registry, Resource
 from referencing.jsonschema import DRAFT202012
 
 from ..catalog import Catalog, ComponentApi, ModelComponentApi
+from ..exceptions import A2uiValidationError, A2uiErrorDetail
 from ..catalog.catalog import TComponent, TFunction
 from ..schema.common_types import (
     ComponentReference,
@@ -199,9 +200,13 @@ class CatalogSchemaValidator:
                 else:
                     comp_obj.model_class.model_validate(comp_payload)
             except ValidationError as ve:
-                raise ValueError(self._format_pydantic_errors(ve))
+                details = self._format_pydantic_errors(ve)
+                raise A2uiValidationError(
+                    "\n".join(f"[{d.path}] {d.message}" for d in details),
+                    details=details,
+                )
             except Exception as e:
-                raise ValueError(str(e))
+                raise A2uiValidationError(str(e))
 
         # 2. JSON Schema Validation Pathway
         else:
@@ -241,32 +246,60 @@ class CatalogSchemaValidator:
                     )
                     errors = list(validator.iter_errors(properties))
                     if errors:
-                        raise ValueError(self._format_errors(errors))
+                        details = self._format_errors(errors)
+                        raise A2uiValidationError(
+                            "\n".join(f"[{d.path}] {d.message}" for d in details),
+                            details=details,
+                        )
                 except Exception as e:
-                    raise ValueError(str(e))
+                    if isinstance(e, A2uiValidationError):
+                        raise e
+                    raise A2uiValidationError(str(e))
 
         self._check_nested_functions(comp_payload)
 
-    def _format_errors(self, errors: List[Any]) -> str:
-        msgs = []
+    def _format_errors(self, errors: List[Any]) -> List[A2uiErrorDetail]:
+        details = []
         for err in errors:
             path_str = (
                 ".".join(map(str, err.path))
                 if hasattr(err, "path") and err.path
                 else "root"
             )
-            msgs.append(f"[{path_str}] {err.message}")
-        return "\n".join(msgs)
+            err_validator = getattr(err, "validator", "")
+            if err_validator == "required":
+                code = "missing_field"
+            elif err_validator == "type":
+                code = "type_mismatch"
+            elif err_validator == "additionalProperties":
+                code = "extra_field"
+            else:
+                code = "invalid_value"
+            details.append(A2uiErrorDetail(path_str, code, err.message))
+        return details
 
-    def _format_pydantic_errors(self, err: ValidationError) -> str:
-        msgs = []
+    def _format_pydantic_errors(self, err: ValidationError) -> List[A2uiErrorDetail]:
+        details = []
         for error in err.errors():
             path_str = ".".join(map(str, error["loc"]))
             msg = error["msg"]
-            if error.get("type") == "extra_forbidden":
+            err_type = error.get("type", "")
+            if err_type == "missing":
+                code = "missing_field"
+            elif err_type == "extra_forbidden":
+                code = "extra_field"
+            elif (
+                err_type.endswith("_type")
+                or err_type.endswith("_parsing")
+                or "type" in err_type
+            ):
+                code = "type_mismatch"
+            else:
+                code = "invalid_value"
+            if err_type == "extra_forbidden":
                 msg = "Additional properties are not allowed"
-            msgs.append(f"[{path_str}] {msg}")
-        return "\n".join(msgs)
+            details.append(A2uiErrorDetail(path_str, code, msg))
+        return details
 
     def validate_components(self, comp_payload: List[Dict[str, Any]]) -> None:
         """Validates a list of component payloads conforming to the catalog's schemas."""
@@ -289,9 +322,15 @@ class CatalogSchemaValidator:
                 validator = self._get_validator("theme:schema", ref_path)
                 errors = list(validator.iter_errors(theme_payload))
                 if errors:
-                    raise ValueError(self._format_errors(errors))
+                    details = self._format_errors(errors)
+                    raise A2uiValidationError(
+                        "\n".join(f"[{d.path}] {d.message}" for d in details),
+                        details=details,
+                    )
             except Exception as e:
-                raise ValueError(str(e))
+                if isinstance(e, A2uiValidationError):
+                    raise e
+                raise A2uiValidationError(str(e))
 
     def validate_function(self, func_name: str, args: Dict[str, Any]) -> None:
         """Validates function arguments dynamically against raw function specification."""
@@ -311,9 +350,13 @@ class CatalogSchemaValidator:
             try:
                 func_obj.schema.model_validate(payload)
             except ValidationError as ve:
-                raise ValueError(self._format_pydantic_errors(ve))
+                details = self._format_pydantic_errors(ve)
+                raise A2uiValidationError(
+                    "\n".join(f"[{d.path}] {d.message}" for d in details),
+                    details=details,
+                )
             except Exception as e:
-                raise ValueError(str(e))
+                raise A2uiValidationError(str(e))
         else:
             func_spec = self._get_function_schema(func_name)
             if func_spec:
@@ -334,7 +377,11 @@ class CatalogSchemaValidator:
                     payload = args  # type: ignore
                 errors = list(validator.iter_errors(payload))
                 if errors:
-                    raise ValueError(self._format_errors(errors))
+                    details = self._format_errors(errors)
+                    raise A2uiValidationError(
+                        "\n".join(f"[{d.path}] {d.message}" for d in details),
+                        details=details,
+                    )
 
     def extract_ref_fields(self) -> Dict[str, Tuple[Set[str], Set[str]]]:
         """Inspects and retrieves the topological reference pointer map from the underlying catalog."""

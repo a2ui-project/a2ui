@@ -23,9 +23,67 @@ from a2ui.schema.validator import A2uiValidator
 from a2ui.schema.manager import A2uiSchemaManager, CatalogConfig
 from a2ui.schema.common_modifiers import remove_strict_validation
 from a2ui.schema.constants import VERSION_0_8, VERSION_0_9
+from a2ui.core import (
+    A2uiError,
+    A2uiParseError,
+    A2uiValidationError,
+    A2uiCatalogError,
+    A2uiIntegrityError,
+    A2uiRecursionError,
+    A2uiCompileError,
+)
 
 import json
 import re
+
+import contextlib
+
+
+CATEGORY_TO_EXCEPTION = {
+    "ParseError": A2uiParseError,
+    "ValidationError": A2uiValidationError,
+    "CatalogError": A2uiCatalogError,
+    "IntegrityError": A2uiIntegrityError,
+    "RecursionError": A2uiRecursionError,
+    "CompileError": A2uiCompileError,
+}
+
+
+@contextlib.contextmanager
+def assert_raises(expect_error):
+  if isinstance(expect_error, dict):
+    category = expect_error.get("category")
+    message = expect_error.get("message", "")
+    expected_class = CATEGORY_TO_EXCEPTION.get(category, A2uiError)
+    expected_details = expect_error.get("details", None)
+  else:
+    expected_class = ValueError
+    message = expect_error
+    expected_details = None
+
+  with pytest.raises(expected_class) as excinfo:
+    yield
+
+  if message:
+    assert re.search(_align_error_match(message), str(excinfo.value))
+
+  if expected_details is not None:
+    actual_details = getattr(excinfo.value, "details", [])
+    for expected in expected_details:
+      exp_path = expected["path"]
+      exp_code = expected["code"]
+      found = False
+      for actual in actual_details:
+        act_path = getattr(actual, "path", None) or actual.get("path")
+        act_code = getattr(actual, "code", None) or actual.get("code")
+        if act_path == exp_path and act_code == exp_code:
+          found = True
+          break
+      assert found, (
+          f"Expected validation error detail with path '{exp_path}' and code"
+          f" '{exp_code}' not found in:"
+          f" {[getattr(d, 'to_dict', lambda: d)() for d in actual_details]}"
+      )
 
 
 class MemoryCatalogProvider:
@@ -138,7 +196,7 @@ def test_parser_conformance(name, test_case):
   for step in steps:
     expect_error = step.get("expect_error") or test_case.get("expect_error")
     if expect_error:
-      with pytest.raises(ValueError, match=_align_error_match(expect_error)):
+      with assert_raises(expect_error):
         parser.process_chunk(step["input"])
     else:
       parts = parser.process_chunk(step["input"])
@@ -163,7 +221,7 @@ def test_parser_non_streaming_conformance(name, test_case):
 
   if action == "parse_full":
     if "expect_error" in test_case:
-      with pytest.raises(ValueError, match=test_case["expect_error"]):
+      with assert_raises(test_case["expect_error"]):
         parse_response(content)
     else:
       parts = parse_response(content)
@@ -175,7 +233,7 @@ def test_parser_non_streaming_conformance(name, test_case):
 
   elif action == "fix_payload":
     if "expect_error" in test_case:
-      with pytest.raises(ValueError, match=test_case["expect_error"]):
+      with assert_raises(test_case["expect_error"]):
         parse_and_fix(content)
     else:
       result = parse_and_fix(content)
@@ -211,7 +269,7 @@ def test_validator_conformance(name, test_case):
     validator = A2uiValidator(catalog=catalog)
     expect_error = step.get("expect_error") or test_case.get("expect_error")
     if expect_error:
-      with pytest.raises(ValueError, match=_align_error_match(expect_error)):
+      with assert_raises(expect_error):
         validator.validate(step["payload"])
     else:
       validator.validate(step["payload"])
@@ -256,7 +314,7 @@ def test_catalog_conformance(name, test_case):
       full_path = None
     validate = args.get("validate", False)
     if "expect_error" in test_case:
-      with pytest.raises(ValueError, match=test_case["expect_error"]):
+      with assert_raises(test_case["expect_error"]):
         catalog.load_examples(full_path, validate=validate)
     else:
       output = catalog.load_examples(full_path, validate=validate)
@@ -306,7 +364,7 @@ def test_schema_manager_conformance(name, test_case):
     )
 
     if "expect_error" in test_case:
-      with pytest.raises(ValueError, match=test_case["expect_error"]):
+      with assert_raises(test_case["expect_error"]):
         manager.get_selected_catalog(client_capabilities)
     else:
       selected = manager.get_selected_catalog(client_capabilities)
