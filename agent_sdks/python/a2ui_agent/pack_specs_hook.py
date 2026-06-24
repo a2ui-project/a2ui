@@ -97,8 +97,11 @@ class PackSpecsBuildHook(BuildHookInterface):
 
       print(f"Regenerating ANTLR parser from {g4_path}...")
 
-      # Strictly resolve antlr4 from the active Python environment's bin/ directory
-      cmd_path = os.path.join(sys.prefix, "bin", "antlr4")
+      # Strictly resolve antlr4 from the active Python environment
+      antlr_bin = "Scripts" if sys.platform == "win32" else "bin"
+      cmd_path = shutil.which(
+          "antlr4", path=os.path.join(sys.prefix, antlr_bin)
+      ) or os.path.join(sys.prefix, antlr_bin, "antlr4")
       if not os.path.exists(cmd_path):
         raise RuntimeError(
             "Required ANTLR compiler not found in the active Python environment:"
@@ -186,24 +189,27 @@ class PackSpecsBuildHook(BuildHookInterface):
           f.write(content)
 
       # Run pyink to format the newly generated files, overriding any global exclusions
-      print("Formatting generated parser files with pyink...")
-      pyink_cmd = [
-          sys.executable,
-          "-m",
-          "pyink",
-          "--exclude",
-          "",
-          "express_lexer.py",
-          "express_parser.py",
-          "express_visitor.py",
-          "__init__.py",
-      ]
-      subprocess.run(
-          pyink_cmd,
-          cwd=generated_dir,
-          capture_output=True,
-          text=True,
-      )
+      if importlib.util.find_spec("pyink") is not None:
+        print("Formatting generated parser files with pyink...")
+        pyink_cmd = [
+            sys.executable,
+            "-m",
+            "pyink",
+            "--exclude",
+            "",
+            "express_lexer.py",
+            "express_parser.py",
+            "express_visitor.py",
+            "__init__.py",
+        ]
+        subprocess.run(
+            pyink_cmd,
+            cwd=generated_dir,
+            capture_output=True,
+            text=True,
+        )
+      else:
+        print("pyink not found, skipping formatting of generated files.")
 
       print(
           "ANTLR parser generated, renamed to snake_case, post-processed, and formatted"

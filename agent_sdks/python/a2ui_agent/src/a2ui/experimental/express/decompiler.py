@@ -146,15 +146,20 @@ class ExpressDecompiler:
       if fn_name in self.helper.functions:
         fn_props = self.helper.get_function_properties(fn_name)
         for prop_name in fn_props:
-          if prop_name in fn_args:
+          if isinstance(fn_args, dict) and prop_name in fn_args:
             val_str = self._decompile_value(fn_args[prop_name], set(), False)
             args_list.append(val_str)
           else:
             args_list.append("_")
       else:
-        for k, v in fn_args.items():
-          val_str = self._decompile_value(v, set(), False)
-          args_list.append(val_str)
+        if isinstance(fn_args, dict):
+          for v in fn_args.values():
+            val_str = self._decompile_value(v, set(), False)
+            args_list.append(val_str)
+        elif isinstance(fn_args, list):
+          for v in fn_args:
+            val_str = self._decompile_value(v, set(), False)
+            args_list.append(val_str)
       while args_list and args_list[-1] == "_":
         args_list.pop()
       args_str = ", ".join(args_list)
@@ -317,13 +322,22 @@ class ExpressDecompiler:
         # Decompile dynamic functional expression: FunctionName(args)
         name = val["call"]
         args = val.get("args", {})
-        fn_props = self.helper.get_function_properties(name)
-        args_reprs = []
-        for p in fn_props:
-          if p in args:
-            args_reprs.append(self._decompile_value(args[p], comp_ids, False))
-          else:
-            args_reprs.append("_")
+        if name in self.helper.functions:
+          fn_props = self.helper.get_function_properties(name)
+          args_reprs = []
+          for p in fn_props:
+            if isinstance(args, dict) and p in args:
+              args_reprs.append(self._decompile_value(args[p], comp_ids, False))
+            else:
+              args_reprs.append("_")
+        else:
+          args_reprs = []
+          if isinstance(args, list):
+            for v in args:
+              args_reprs.append(self._decompile_value(v, comp_ids, False))
+          elif isinstance(args, dict):
+            for v in args.values():
+              args_reprs.append(self._decompile_value(v, comp_ids, False))
 
         while args_reprs and args_reprs[-1] == "_":
           args_reprs.pop()
