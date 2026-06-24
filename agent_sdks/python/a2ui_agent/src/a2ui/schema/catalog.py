@@ -24,6 +24,8 @@ from dataclasses import dataclass, field, replace
 from typing import Any, Dict, List, Optional, Union, TYPE_CHECKING
 from urllib.parse import urlparse
 from a2ui.core.catalog import Catalog
+from a2ui.core import A2uiCatalogError
+
 
 from .catalog_provider import A2uiCatalogProvider, FileSystemCatalogProvider
 from .constants import (
@@ -75,7 +77,7 @@ class CatalogConfig:
     elif parsed.scheme in ["http", "https"]:
       raise NotImplementedError("HTTP support is coming soon.")
     else:
-      raise ValueError(f"Unsupported catalog URL scheme: {catalog_path}")
+      raise A2uiCatalogError(f"Unsupported catalog URL scheme: {catalog_path}")
 
     return cls(
         name=name,
@@ -91,7 +93,7 @@ def resolve_examples_path(path: Optional[str]) -> Optional[str]:
     if not parsed.scheme or parsed.scheme == "file":
       return parsed.path
     else:
-      raise ValueError(f"Unsupported examples URL scheme: {path}")
+      raise A2uiCatalogError(f"Unsupported examples URL scheme: {path}")
   return None
 
 
@@ -171,7 +173,7 @@ class A2uiCatalog:
   @property
   def catalog_id(self) -> str:
     if CATALOG_ID_KEY not in self.catalog_schema:
-      raise ValueError(f"Catalog '{self.name}' missing catalogId")
+      raise A2uiCatalogError(f"Catalog '{self.name}' missing catalogId")
     return self.catalog_schema[CATALOG_ID_KEY]
 
   @property
@@ -393,4 +395,4 @@ class A2uiCatalog:
       json_data = json.loads(content)
       self.validator.validate(json_data)
     except Exception as e:
-      raise ValueError(f"Failed to validate example {full_path}: {e}") from e
+      raise A2uiCatalogError(f"Failed to validate example {full_path}: {e}") from e

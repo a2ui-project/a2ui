@@ -157,10 +157,7 @@
                   }
                 }
               },
-              "expect_error": {
-                "type": "string",
-                "description": "Expected error message (regex) if this step should fail."
-              }
+              "expect_error": {"$ref": "#/$defs/ExpectError"}
             },
             "required": ["input"],
             "oneOf": [
@@ -195,10 +192,7 @@
                     "oneOf": [{"type": "object"}, {"type": "array", "items": {"type": "object"}}],
                     "description": "Payload to validate (single message or list of messages)."
                   },
-                  "expect_error": {
-                    "type": "string",
-                    "description": "Expected error message (regex) if validation should fail."
-                  }
+                  "expect_error": {"$ref": "#/$defs/ExpectError"}
                 },
                 "required": ["payload"]
               }
@@ -212,10 +206,7 @@
               "oneOf": [{"type": "object"}, {"type": "array", "items": {"type": "object"}}],
               "description": "Payload to validate (single message or list of messages)."
             },
-            "expect_error": {
-              "type": "string",
-              "description": "Expected error message (regex) if validation should fail."
-            }
+            "expect_error": {"$ref": "#/$defs/ExpectError"}
           },
           "required": ["payload"]
         }
@@ -257,7 +248,7 @@
           "required": ["path"]
         },
         "expect_output": {"type": "string"},
-        "expect_error": {"type": "string"}
+        "expect_error": {"$ref": "#/$defs/ExpectError"}
       },
       "required": ["args"]
     },
@@ -288,7 +279,7 @@
         "action": {"const": "parse_full"},
         "input": {"type": "string"},
         "expect": {"type": "array"},
-        "expect_error": {"type": "string"}
+        "expect_error": {"$ref": "#/$defs/ExpectError"}
       },
       "required": ["input"]
     },
@@ -317,7 +308,7 @@
         "args": {"type": "object"},
         "expect_selected": {"type": "string"},
         "expect_catalog_schema": {"type": "object"},
-        "expect_error": {"type": "string"}
+        "expect_error": {"$ref": "#/$defs/ExpectError"}
       },
       "required": ["args"]
     },
@@ -463,6 +454,46 @@
         }
       },
       "required": ["action", "expect"]
+    },
+    "ExpectError": {
+      "oneOf": [
+        {
+          "type": "string",
+          "description": "Expected error message (regex) if this step/action should fail."
+        },
+        {
+          "type": "object",
+          "properties": {
+            "category": {
+              "type": "string",
+              "enum": [
+                "ParseError",
+                "ValidationError",
+                "CatalogError",
+                "IntegrityError",
+                "RecursionError",
+                "CompileError"
+              ]
+            },
+            "message": {
+              "type": "string",
+              "description": "Expected error message (regex) if this step/action should fail."
+            },
+            "details": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "path": {"type": "string"},
+                  "code": {"type": "string"}
+                },
+                "required": ["path", "code"]
+              }
+            }
+          },
+          "required": ["category"]
+        }
+      ]
     }
   }
 }

@@ -1,0 +1,7 @@
+root = Column([title, modal_comp])
+title = Text("## Modal Component Sample")
+modal_comp = Modal(open_btn, modal_content)
+open_btn_text = Text("Open Modal")
+open_btn = Button(open_btn_text, _, Event("openModalEvent"))
+modal_content = Column([modal_text])
+modal_text = Text("This is the content inside the modal.")

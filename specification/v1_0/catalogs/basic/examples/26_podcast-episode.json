@@ -18,10 +18,10 @@
           {
             "id": "root",
             "component": "Card",
-            "child": "main-row"
+            "child": "main_row"
           },
           {
-            "id": "main-row",
+            "id": "main_row",
             "component": "Row",
             "children": ["artwork", "content"],
             "align": "start"
@@ -37,10 +37,10 @@
           {
             "id": "content",
             "component": "Column",
-            "children": ["show-name", "episode-title", "meta-row", "description", "audio-player"]
+            "children": ["show_name", "episode_title", "meta_row", "description", "audio_player"]
           },
           {
-            "id": "show-name",
+            "id": "show_name",
             "component": "Text",
             "text": {
               "path": "/showName"
@@ -48,14 +48,14 @@
             "variant": "caption"
           },
           {
-            "id": "episode-title",
+            "id": "episode_title",
             "component": "Text",
             "text": {
               "path": "/episodeTitle"
             }
           },
           {
-            "id": "meta-row",
+            "id": "meta_row",
             "component": "Row",
             "children": ["duration", "date"]
           },
@@ -90,7 +90,7 @@
             "variant": "body"
           },
           {
-            "id": "audio-player",
+            "id": "audio_player",
             "component": "AudioPlayer",
             "url": {
               "path": "/audioUrl"

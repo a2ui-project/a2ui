@@ -18,12 +18,12 @@
           {
             "id": "root",
             "component": "Card",
-            "child": "main-column"
+            "child": "main_column"
           },
           {
-            "id": "main-column",
+            "id": "main_column",
             "component": "Column",
-            "children": ["poster", "content", "trailer-modal"]
+            "children": ["poster", "content", "trailer_modal"]
           },
           {
             "id": "poster",
@@ -36,16 +36,16 @@
           {
             "id": "content",
             "component": "Column",
-            "children": ["title-row", "genre", "rating-row", "runtime", "watch-trailer-btn"]
+            "children": ["title_row", "genre", "rating_row", "runtime", "watch_trailer_btn"]
           },
           {
-            "id": "title-row",
+            "id": "title_row",
             "component": "Row",
-            "children": ["movie-title", "year"],
+            "children": ["movie_title", "year"],
             "align": "start"
           },
           {
-            "id": "movie-title",
+            "id": "movie_title",
             "component": "Text",
             "text": {
               "path": "/title"
@@ -68,18 +68,18 @@
             "variant": "caption"
           },
           {
-            "id": "rating-row",
+            "id": "rating_row",
             "component": "Row",
-            "children": ["star-icon", "rating-value"],
+            "children": ["star_icon", "rating_value"],
             "align": "center"
           },
           {
-            "id": "star-icon",
+            "id": "star_icon",
             "component": "Icon",
             "name": "star"
           },
           {
-            "id": "rating-value",
+            "id": "rating_value",
             "component": "Text",
             "text": {
               "path": "/rating"
@@ -89,16 +89,16 @@
           {
             "id": "runtime",
             "component": "Row",
-            "children": ["time-icon", "runtime-text"],
+            "children": ["time_icon", "runtime_text"],
             "align": "center"
           },
           {
-            "id": "time-icon",
+            "id": "time_icon",
             "component": "Icon",
             "name": "calendarToday"
           },
           {
-            "id": "runtime-text",
+            "id": "runtime_text",
             "component": "Text",
             "text": {
               "path": "/runtime"
@@ -106,14 +106,14 @@
             "variant": "caption"
           },
           {
-            "id": "watch-trailer-btn-text",
+            "id": "watch_trailer_btn_text",
             "component": "Text",
             "text": "Watch Trailer"
           },
           {
-            "id": "watch-trailer-btn",
+            "id": "watch_trailer_btn",
             "component": "Button",
-            "child": "watch-trailer-btn-text",
+            "child": "watch_trailer_btn_text",
             "action": {
               "event": {
                 "name": "open_trailer"
@@ -121,13 +121,13 @@
             }
           },
           {
-            "id": "trailer-modal",
+            "id": "trailer_modal",
             "component": "Modal",
-            "trigger": "watch-trailer-btn",
-            "content": "trailer-video"
+            "trigger": "watch_trailer_btn",
+            "content": "trailer_video"
           },
           {
-            "id": "trailer-video",
+            "id": "trailer_video",
             "component": "Video",
             "url": {
               "path": "/trailerUrl"
