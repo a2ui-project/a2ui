@@ -1,0 +1,54 @@
+{
+  "name": "personalized-learning-demo",
+  "private": true,
+  "version": "1.0.0",
+  "description": "A2UI sample demonstrating personalized educational content generation",
+  "type": "module",
+  "scripts": {
+    "dev": "concurrently \"yarn dev:api\" \"yarn dev:vite\"",
+    "dev:vite": "vite",
+    "dev:api": "tsx api-server.ts",
+    "build": "wireit",
+    "preview": "vite preview",
+    "test": "node tests/unit-tests.mjs && node tests/integration-tests.mjs",
+    "test:unit": "node tests/unit-tests.mjs",
+    "test:integration": "node tests/integration-tests.mjs",
+    "typecheck": "tsc --noEmit",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "lint": "echo \"Workspace has no lint configuration.\"",
+    "lint:fix": "echo \"Workspace has no lint configuration.\""
+  },
+  "dependencies": {
+    "@a2ui/lit": "^0.10.0",
+    "@google/genai": "^2.8.0",
+    "@lit-labs/signals": "^0.3.0",
+    "@lit/context": "^1.1.6",
+    "firebase": "^12.14.0",
+    "firebase-admin": "^14.0.0",
+    "google-auth-library": "^10.7.0",
+    "lit": "^3.3.3"
+  },
+  "devDependencies": {
+    "@types/node": "^25.9.3",
+    "concurrently": "^10.0.3",
+    "dotenv": "^17.4.2",
+    "tsx": "^4.22.4",
+    "typescript": "5.9.3",
+    "vite": "^8.0.16",
+    "wireit": "^0.15.0-pre.2"
+  },
+  "wireit": {
+    "build": {
+      "command": "tsc && vite build",
+      "files": [
+        "src/**/*",
+        "tsconfig.json",
+        "vite.config.*"
+      ],
+      "output": [
+        "dist/"
+      ]
+    }
+  }
+}

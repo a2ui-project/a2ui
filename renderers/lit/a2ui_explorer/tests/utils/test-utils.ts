@@ -134,3 +134,18 @@ export function getSurface(root: Element): HTMLElement {
   }
   return surface as HTMLElement;
 }
+
+/**
+ * Finds a button by its text content, traversing shadow DOMs.
+ */
+export async function findButtonByText(
+  surface: HTMLElement,
+  text: string,
+): Promise<HTMLButtonElement> {
+  const buttons = querySelectorAllDeep(surface, '.a2ui-button') as HTMLButtonElement[];
+  const found = buttons.find(b => getDeepTextContent(b).includes(text));
+  if (!found) {
+    throw new Error(`Button with text "${text}" not found`);
+  }
+  return found;
+}

@@ -294,7 +294,7 @@ export class Splitter extends LitElement {
     }
 
     // And apply.
-    const styles = split.map((_, idx) => `var(--slot-${idx})`).join(` 0px `);
+    const styles = split.map((_, idx) => `var(--slot-${idx})`).join(' 0px ');
     switch (this.direction) {
       case Direction.VERTICAL: {
         this.style.gridTemplateColumns = '';

@@ -1,0 +1,80 @@
+# Copyright 2026 Google LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+# CI for the unmaintained samples under samples/community. The folder is
+# self-contained: its samples depend on the published @a2ui/* (npm) and
+# a2ui-agent-sdk (PyPI) packages rather than on the monorepo workspace.
+
+name: Community Code CI
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "samples/community/**"
+      - ".github/workflows/community_code.yml"
+  pull_request:
+    paths:
+      - "samples/community/**"
+      - ".github/workflows/community_code.yml"
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.head_ref || github.run_id }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  web:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: samples/community
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "22"
+      - run: corepack enable
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "22"
+          cache: "yarn"
+          cache-dependency-path: samples/community/yarn.lock
+      - name: Install dependencies
+        run: yarn install --immutable
+      - name: Build web samples (Angular a2a-chat-canvas + orchestrator, Lit mcp-apps + personalized_learning)
+        run: yarn build:web
+
+  python:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: astral-sh/setup-uv@v8.2.0
+        with:
+          enable-cache: true
+      - name: uv sync each agent under samples/community
+        # These samples are runnable apps, not publishable packages (several use a
+        # flat module layout with no wheel target), so --no-install-project verifies
+        # that their dependencies resolve and install without building each as a wheel.
+        run: |
+          set -euo pipefail
+          find samples/community -name pyproject.toml -not -path "*/.venv/*" -not -path "*/node_modules/*" -print0 |
+            while IFS= read -r -d '' manifest; do
+              dir="$(dirname "$manifest")"
+              echo "::group::uv sync $dir"
+              uv sync --no-install-project --project "$dir"
+              echo "::endgroup::"
+            done

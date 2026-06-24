@@ -1,0 +1,39 @@
+{
+  "name": "a2a-chat-canvas",
+  "version": "0.0.1",
+  "peerDependencies": {
+    "@a2ui/angular": "^0.10.0",
+    "@a2ui/web_core": "^0.10.0",
+    "@angular/common": "^21.2.5",
+    "@angular/core": "^21.2.5",
+    "@angular/platform-browser": "^21.2.5"
+  },
+  "dependencies": {
+    "tslib": "^2.8.1"
+  },
+  "scripts": {
+    "build": "wireit",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "lint": "yarn --cwd ../.. lint",
+    "test": "yarn --cwd ../.. test",
+    "lint:fix": "yarn --cwd ../.. lint:fix"
+  },
+  "devDependencies": {
+    "wireit": "^0.15.0-pre.2"
+  },
+  "sideEffects": false,
+  "wireit": {
+    "build": {
+      "command": "yarn workspace angular-a2ui ng build a2a-chat-canvas",
+      "files": [
+        "src/**/*",
+        "tsconfig.lib.json",
+        "ng-package.json"
+      ],
+      "output": [
+        "dist"
+      ]
+    }
+  }
+}

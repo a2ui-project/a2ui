@@ -1,0 +1,162 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://a2ui.org/specification/v1_0/client_capabilities.json",
+  "title": "A2UI Client Capabilities Schema",
+  "description": "A schema for the a2uiClientCapabilities object, which is sent from the client to the server as part of the A2A metadata to describe the client's UI rendering capabilities.",
+  "type": "object",
+  "properties": {
+    "v1.0": {
+      "type": "object",
+      "description": "The capabilities structure for version 1.0 of the A2UI protocol.",
+      "properties": {
+        "supportedCatalogIds": {
+          "type": "array",
+          "description": "The URI of each of the component and function catalogs that is supported by the client.",
+          "items": {"type": "string"}
+        },
+        "inlineCatalogs": {
+          "type": "array",
+          "description": "An array of inline catalog definitions, which can contain both components and functions. This should only be provided if the agent declares 'acceptsInlineCatalogs: true' in its capabilities.",
+          "items": {"$ref": "#/$defs/Catalog"}
+        }
+      },
+      "required": ["supportedCatalogIds"]
+    }
+  },
+  "required": ["v1.0"],
+  "$defs": {
+    "FunctionCallValidationSchema": {
+      "type": "object",
+      "description": "JSON Schema structure that validates a wire-level FunctionCall object.",
+      "properties": {
+        "type": {
+          "const": "object"
+        },
+        "description": {
+          "type": "string"
+        },
+        "properties": {
+          "type": "object",
+          "properties": {
+            "call": {
+              "type": "object",
+              "properties": {
+                "const": {"type": "string"}
+              },
+              "required": ["const"]
+            },
+            "args": {
+              "type": "object",
+              "description": "A JSON Schema describing the expected arguments (args) for this function.",
+              "$ref": "https://json-schema.org/draft/2020-12/schema"
+            }
+          },
+          "required": ["call"],
+          "additionalProperties": false
+        },
+        "required": {
+          "type": "array",
+          "items": {"type": "string"},
+          "contains": {"const": "call"}
+        },
+        "unevaluatedProperties": {
+          "type": "boolean"
+        },
+        "additionalProperties": {
+          "type": "boolean"
+        }
+      },
+      "required": ["type", "properties", "required"]
+    },
+    "FunctionDefinition": {
+      "type": "object",
+      "description": "Describes a function's validation schema and interface metadata.",
+      "allOf": [
+        {
+          "$ref": "#/$defs/FunctionCallValidationSchema"
+        },
+        {
+          "type": "object",
+          "properties": {
+            "returnType": {
+              "type": "string",
+              "enum": ["string", "number", "boolean", "array", "object", "any", "void"],
+              "description": "The type of value this function returns."
+            },
+            "callableFrom": {
+              "type": "string",
+              "enum": ["clientOnly", "remoteOnly", "clientOrRemote"],
+              "default": "clientOnly",
+              "description": "Specifies where this function can be invoked from."
+            }
+          },
+          "required": ["returnType"]
+        }
+      ],
+      "unevaluatedProperties": false
+    },
+    "Catalog": {
+      "type": "object",
+      "description": "A collection of component and function definitions.",
+      "properties": {
+        "$schema": {"type": "string"},
+        "$id": {"type": "string"},
+        "$defs": {
+          "type": "object",
+          "description": "Standardized schema definitions referenced from outside the catalog file.",
+          "properties": {
+            "surfaceProperties": {
+              "title": "A2UI Surface Properties Schema",
+              "description": "A JSON Schema that defines the catalog's surface properties.",
+              "$ref": "https://json-schema.org/draft/2020-12/schema"
+            },
+            "anyComponent": {
+              "title": "A2UI Any Component Schema",
+              "description": "Unified validation schema for all components.",
+              "$ref": "https://json-schema.org/draft/2020-12/schema"
+            },
+            "anyFunction": {
+              "title": "A2UI Any Function Schema",
+              "description": "Unified validation schema for all functions.",
+              "$ref": "https://json-schema.org/draft/2020-12/schema"
+            }
+          },
+          "required": ["anyComponent", "anyFunction"],
+          "additionalProperties": false
+        },
+        "title": {
+          "type": "string",
+          "description": "The title of the catalog."
+        },
+        "description": {
+          "type": "string",
+          "description": "A human-readable description of the catalog."
+        },
+        "catalogId": {
+          "type": "string",
+          "description": "Unique identifier for this catalog."
+        },
+        "instructions": {
+          "type": "string",
+          "description": "Markdown-formatted design guidelines or instructions specific to this catalog."
+        },
+        "components": {
+          "type": "object",
+          "description": "Definitions for UI components supported by this catalog.",
+          "additionalProperties": {
+            "$ref": "https://json-schema.org/draft/2020-12/schema"
+          }
+        },
+        "functions": {
+          "type": "object",
+          "description": "Definitions for functions supported by this catalog.",
+          "additionalProperties": {
+            "$ref": "#/$defs/FunctionDefinition"
+          }
+        }
+      },
+      "required": ["catalogId"],
+      "additionalProperties": false
+    }
+  }
+}

@@ -35,5 +35,9 @@ export const Card = createComponentImplementation(CardApi, ({props, buildChild})
     margin: 'var(--a2ui-card-margin, var(--a2ui-spacing-m))',
   };
 
-  return <div style={style}>{props.child ? buildChild(props.child) : null}</div>;
+  return (
+    <div className="a2ui-card" style={style}>
+      {props.child ? buildChild(props.child) : null}
+    </div>
+  );
 });

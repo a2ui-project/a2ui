@@ -57,17 +57,20 @@ In the Inspector:
 
 For a fully rendered interactive experience that visually demonstrates A2UI over MCP, run the included web application:
 
+> [!NOTE]
+> **Package Manager Usage:** Running the built-in sample applications within the A2UI repository requires Yarn (`yarn install` / `yarn dev`) as configured by Corepack workspaces. For your own regular usage and standalone projects outside this repository, use the package manager of your choice (e.g. npm, pnpm).
+
 1. In a new terminal window, navigate to the client directory:
     ```bash
     cd client
     ```
 2. Install Node.js dependencies:
     ```bash
-    npm install
+    yarn install
     ```
 3. Start the Vite development server:
     ```bash
-    npm run dev
+    yarn dev
     ```
 4. Open your browser to the URL displayed in your terminal (usually `http://localhost:5173`).
 
@@ -75,7 +78,7 @@ You will see a premium, responsive dual-column interface where the left column r
 
 ![Dynamic Recipe Studio demo showing selection form on the left and dynamic recipe card generation on the right](../assets/recipe_sample.gif)
 
-See all samples at [`samples/mcp/`](https://github.com/a2ui-project/a2ui/tree/main/samples/mcp).
+See all samples at [`samples/community/mcp/`](https://github.com/a2ui-project/a2ui/tree/main/samples/community/mcp).
 
 ## How It Works
 

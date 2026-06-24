@@ -23,26 +23,31 @@ from inspect_ai.model._model import sample_model_usage
 from a2ui.schema.manager import A2uiSchemaManager
 from a2ui.schema.catalog import CatalogConfig
 from a2ui.parser.parser import parse_response
+from .shared.utils import GIT_ROOT
 
 @scorer(metrics=[accuracy()])
-def a2ui_scorer(catalog_path: str):
+def a2ui_scorer():
     """Scorer for A2UI evaluation using the Python SDK.
-
-    Args:
-        catalog_path: Path to the component catalog file used for validation.
 
     Returns:
         An Inspect Scorer that validates the response against the schema and integrity rules.
     """
-    
-    catalog_config = CatalogConfig.from_path("basic_catalog", catalog_path)
-    manager = A2uiSchemaManager(version="0.9", catalogs=[catalog_config])
-    catalog = manager.get_selected_catalog()
-    validator = catalog.validator
 
     async def score(state: TaskState, target: Target) -> Score:  # pylint: disable=unused-argument
+        if not state.output:
+            return Score(value=0.0, explanation="No model output (generation failed or was interrupted)")
+
+        catalog_path = state.metadata['catalog']
+        resolved_catalog_path = str(GIT_ROOT / catalog_path)
+
+        catalog_config = CatalogConfig.from_path("basic_catalog", resolved_catalog_path)
+        manager = A2uiSchemaManager(version="0.9", catalogs=[catalog_config])
+        catalog = manager.get_selected_catalog()
+        validator = catalog.validator
+            
+        answer_text = state.output.completion or ""
         try:
-            parts = parse_response(state.output.completion)
+            parts = parse_response(answer_text)
             all_messages = []
             for part in parts:
                 if part.a2ui_json:
@@ -52,12 +57,13 @@ def a2ui_scorer(catalog_path: str):
                         all_messages.append(part.a2ui_json)
                         
             if not all_messages:
-                return Score(value=0.0, explanation="No A2UI JSON found in response (tags missing or empty)")
+                return Score(value=0.0, answer=answer_text, explanation="No A2UI JSON found in response (tags missing or empty)")
                 
+            answer_text = json.dumps(all_messages, indent=2)
             validator.validate(all_messages)
-            return Score(value=1.0, explanation="Valid A2UI payload")
+            return Score(value=1.0, answer=answer_text, explanation="Valid A2UI payload")
         except Exception as e:
-            return Score(value=0.0, explanation=str(e))
+            return Score(value=0.0, answer=answer_text, explanation=str(e))
             
     return score
 

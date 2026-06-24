@@ -13,11 +13,35 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-
 set -e # Exit on error
-#set -x # Echo commands
 
-PACKAGE_NAME="a2ui-agent-sdk"
+# Check arguments
+if [ -z "$1" ]; then
+  echo "Usage: $0 <a2ui_agent|a2ui_core>"
+  exit 1
+fi
+
+SCRIPT_DIR=$(dirname "$(readlink -f "$0")")
+TARGET_DIR="${SCRIPT_DIR}/${1}"
+
+if [ ! -d "$TARGET_DIR" ]; then
+  echo "Error: Directory '$TARGET_DIR' does not exist."
+  exit 1
+fi
+
+cd "$TARGET_DIR"
+
+# Read package name from pyproject.toml
+if [ ! -f "pyproject.toml" ]; then
+  echo "Error: pyproject.toml not found in '$TARGET_DIR'."
+  exit 1
+fi
+
+PACKAGE_NAME=$(python3 -c "import tomllib; print(tomllib.load(open('pyproject.toml', 'rb'))['project']['name'])")
+VERSION=$(uv run --with hatch hatch version)
+
+echo "Releasing package: $PACKAGE_NAME ($VERSION) from folder: $TARGET_DIR"
+
 REPOSITORY="a2ui--pypi"
 PROJECT="oss-exit-gate-prod"
 LOCATION="us"
@@ -36,29 +60,27 @@ echo "--- Uploading the package ---"
 twine --version
 twine check dist/*
 
-version=$(uv run python -c "import a2ui; print(a2ui.__version__)")
-
 # Authenticate with Google Cloud
 if ! gcloud auth application-default print-access-token --quiet > /dev/null; then
   gcloud auth application-default login
 fi
 
 # Check if the version already exists in the staging repository
-if gcloud artifacts versions describe "$version" --package=$PACKAGE_NAME --repository=$REPOSITORY --location=$LOCATION --project=$PROJECT > /dev/null 2>&1; then
-  echo "Version $version already exists in Artifact Registry. Skip the release."
-  echo "Hint: If you intended to release a new version, please update 'src/a2ui/version.py'."
+if gcloud artifacts versions describe "$VERSION" --package="$PACKAGE_NAME" --repository="$REPOSITORY" --location="$LOCATION" --project="$PROJECT" > /dev/null 2>&1; then
+  echo "Version $VERSION of $PACKAGE_NAME already exists in Artifact Registry. Skip the release."
+  echo "Hint: If you intended to release a new version, please update its version in pyproject.toml or version.py."
   exit 0
 fi
 
-twine upload --repository-url $REPOSITORY_URL dist/*
-echo "Version $version uploaded to Artifact Registry."
+twine upload --repository-url "$REPOSITORY_URL" dist/*
+echo "Version $VERSION of $PACKAGE_NAME uploaded to Artifact Registry."
 
 echo "--- Creating manifest.json ---"
 MANIFEST_FILE="manifest.json"
 echo '{ "publish_all": true }' > $MANIFEST_FILE
 
 echo "--- Uploading manifest to GCS to trigger OSS Exit Gate ---"
-MANIFEST_NAME="manifest-${version}-$(date +%Y%m%d%H%M%S).json"
+MANIFEST_NAME="manifest-${VERSION}-$(date +%Y%m%d%H%M%S).json"
 gcloud storage cp $MANIFEST_FILE "${GCS_URI}/${MANIFEST_NAME}"
 rm -rf $MANIFEST_FILE
 

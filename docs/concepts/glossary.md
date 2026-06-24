@@ -59,7 +59,7 @@ It is observed that depending on use case, catalog components may be more or les
 
 A catalog maintained by the A2UI team to get up and running quickly with A2UI.
 
-See the [basic catalog](../specification/v0_10/catalogs/basic/catalog.json).
+See the [basic catalog](../specification/v1_0/catalogs/basic/catalog.json).
 
 ### Surface
 
@@ -104,13 +104,13 @@ Functionality of A2UI renderer consists of layers that can be developed separate
 
     Set of primitives, needed to describe catalog and to interact with the agent.
 
-    For example, see the [JavaScript web core library](../renderers/web_core/README.md).
+    For example, see the [JavaScript web core library](../../renderers/web_core/README.md).
 
 - **Catalog Schema**:
 
     Definition of catalog in the form of JSON.
 
-    For example, see the [basic catalog schema](../specification/v0_10/catalogs/basic/catalog.json).
+    For example, see the [basic catalog schema](../specification/v1_0/catalogs/basic/catalog.json).
 
 - **Framework adapter**:<a id="fw-adapter"></a>
 
@@ -118,14 +118,14 @@ Functionality of A2UI renderer consists of layers that can be developed separate
     - JavaScript core and catalogs may be adapted to Angular, Electron, React and Lit frameworks.
     - Dart core and catalogs may be adapted to Flutter and Jaspr frameworks.
 
-    See the [Angular adapter](../renderers/angular/README.md).
+    See the [Angular adapter](../../renderers/angular/README.md).
 
 - **Catalog Implementation**:
 
     Implementation of the catalog schema for a framework.
 
     For example:
-    - See the [Angular implementation of the basic catalog](../renderers/angular/src/v0_9/catalog/basic)
+    - See the [Angular implementation of the basic catalog](../../renderers/angular/src/v0_9/catalog/basic)
 
 ```mermaid
 flowchart TD;
@@ -141,7 +141,7 @@ A message between agent and renderer.
 
 As the protocol allows streaming, any message can be finished (completely delivered) or not finished (partially delivered). A finished message may be completed (successfully delivered) or interrupted (delivery stopped because of some technical issues).
 
-See the [data flow guide](concepts/data-flow.md).
+See the [data flow guide](data-flow.md).
 
 ### Agent turn
 
@@ -155,13 +155,13 @@ Components can be bound to nodes of the data model, in order to auto-update when
 
 Data model allows bidirectional synchronization by capturing user interactions into a state object for transmission to the agent, while also allowing agent to push data updates back to the UI.
 
-See the [data binding guide](concepts/data-binding.md).
+See the [data binding guide](data-binding.md).
 
 ### Data reference
 
 In component definition, a reference to a data element, resolvable either by path in the data model or by value.
 
-See the [example in the basic catalog](../specification/v0_10/catalogs/basic/catalog.json#L18).
+See the [example in the basic catalog](../specification/v1_0/catalogs/basic/catalog.json#L18).
 
 ### Client function
 
@@ -186,7 +186,7 @@ A container for an interaction triggered by the user in the UI. Actions come in 
 - **Event**: Dispatched to the agent for processing (e.g., clicking "Submit").
 - **Function**: Executed locally on the renderer (e.g., opening a URL).
 
-See the [detailed guide on actions](concepts/actions.md).
+See the [detailed guide on actions](actions.md).
 
 ## Generative UI terms
 

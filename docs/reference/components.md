@@ -631,8 +631,11 @@ To see all components in action:
 
 ```bash
 cd samples/client/angular
-npm start -- gallery
+yarn start gallery
 ```
+
+> [!NOTE]
+> **Package Manager Usage:** Running the built-in sample applications within the A2UI repository requires Yarn (`yarn start gallery`) as configured by Corepack workspaces. For your own regular usage and standalone projects outside this repository, use the package manager of your choice (e.g. npm, pnpm).
 
 ## Further Reading
 

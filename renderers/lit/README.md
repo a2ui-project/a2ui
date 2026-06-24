@@ -12,7 +12,7 @@ for total control over the generated code.
 ## Installation
 
 ```bash
-npm install @a2ui/lit @a2ui/web_core
+yarn add @a2ui/lit @a2ui/web_core
 ```
 
 ## Protocol Versioning
@@ -164,7 +164,7 @@ const processor = new MessageProcessor([basicCatalog, myCatalog]);
 ## Basic Catalog Components
 
 The `@a2ui/lit/v0_9` package includes a `basicCatalog` with standard components.
-You can find the full specification of the basic catalog in the [GitHub repository](https://github.com/a2ui-project/a2ui/blob/main/specification/v0_9/json/catalogs/basic/catalog.json).
+You can find the full specification of the basic catalog in the [GitHub repository](https://github.com/a2ui-project/a2ui/blob/main/specification/v0_9/catalogs/basic/catalog.json).
 
 - **Layout**: `Row`, `Column`, `List`, `Card`, `Tabs`, `Modal`, `Divider`
 - **Content**: `Text`, `Image`, `Icon`, `Video`

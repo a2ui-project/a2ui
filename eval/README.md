@@ -48,12 +48,25 @@ To upgrade your local transcrypt configuration to the latest settings:
    ```
    This runs the files through the newly upgraded smudge filter, decrypting them.
 
+## Dimensions
+
+Evaluations run across the following dimensions:
+
+- Strategies: Different ways of orchestrating A2UI generation
+- Samples: Data in `dataset/`
+
 ### Run Evals
 
-To run the evaluations with a specific model (e.g., Gemini 2.0 Flash):
+To run the evaluations:
 
 ```bash
-uv run inspect eval tasks.py --model google/gemini-3-flash-preview --display plain
+uv run main.py
+```
+
+For a quick 2-sample validation using `gemini-3.1-flash-lite`, use the sanity flag:
+
+```bash
+uv run main.py --sanity
 ```
 
 ## Viewing Evaluation Results
