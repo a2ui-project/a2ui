@@ -301,7 +301,6 @@ git_clean() {
 
 git_smudge() {
 	tempfile=$(mktemp 2>/dev/null || mktemp -t tmp)
-	local decryptedfile
 	decryptedfile=$(mktemp 2>/dev/null || mktemp -t tmp)
 	trap 'rm -f "$tempfile" "$decryptedfile"' EXIT
 	context=$(extract_context_name_from_name_value_arg "$1")
@@ -335,7 +334,6 @@ git_textconv() {
 	password=$(load_password "$context_config_group")
 	openssl_path=$(git config --get --local transcrypt.openssl-path)
 	# Try decrypting with PBKDF2 first, then fall back to legacy MD5, then fall back to raw ciphertext
-	local decryptedfile
 	decryptedfile=$(mktemp 2>/dev/null || mktemp -t tmp)
 	trap 'rm -f "$decryptedfile"' EXIT
 	if ENC_PASS=$password "$openssl_path" enc -d "-${cipher}" -pbkdf2 -iter 100000 -pass env:ENC_PASS -a -in "$filename" >"$decryptedfile" 2>/dev/null; then
