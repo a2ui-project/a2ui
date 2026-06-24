@@ -66,7 +66,7 @@ BODY="The ${LOWER_WORKFLOW_NAME} workflow failed on main for commit ${GITHUB_SHA
 ${PR_LINK}
 See logs: ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
 
-if [[ -n "$SUMMARY_FILE" && -f "$SUMMARY_FILE" ]]; then
+if [[ -n "$SUMMARY_FILE" && -s "$SUMMARY_FILE" ]]; then
   echo "Found summary file at $SUMMARY_FILE. Appending to body..."
   BODY="${BODY}
 
