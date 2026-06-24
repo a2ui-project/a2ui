@@ -95,29 +95,24 @@ To support A2UI, a transport layer must fulfill the following contract:
 
 ### Transport bindings
 
-While A2UI is agnostic, it is most commonly used with the following transports.
+While A2UI is transport agnostic, it is most commonly used with the following transports.
 
-#### A2A (Agent2Agent) binding
+#### AG-UI (Agent-to-User Interface) binding
 
-[A2A (Agent-to-Agent)](https://a2a-protocol.org/latest/) is an excellent transport option for A2UI in agentic systems, extending A2A with additional payloads.
-A2A is uniquely capable of handling remote agent communication, and can also provide a secure and efficient transport between an agentic backend and front end application.
+**[AG-UI](https://docs.ag-ui.com/introduction)** is the standard transport binding for Agent-to-User Interaction. It provides convenient integrations into many agent frameworks and frontends, offering low-latency and shared-state message passing between frontends and agentic backends.
 
-- **Message mapping**: Each A2UI envelope (e.g., `updateComponents`) corresponds to the payload of a single A2A message Part.
-- **Metadata**:
-  - **Data model**: When `sendDataModel` is active, the client's `a2uiClientDataModel` object is placed in the `metadata` field of the A2A `Message`.
-  - **Capabilities**: The `a2uiClientCapabilities` object is placed in the `metadata` field of every A2A `Message` sent from the client to the server.
-- **Context**: A2UI sessions typically map to A2A `contextId`. All messages for a set of related surfaces should share the same `contextId`.
+#### A2A (Agent-to-Agent) binding
 
-#### AG UI (Agent to User Interface) binding
+The **[A2A Extension](../extensions/a2a/docs/a2ui_extension_specification.md)** maps A2UI over the **[A2A Protocol](https://a2a-protocol.org)**. It standardizes metadata placement, client-to-server capability negotiation, and bidirectional data model synchronization for agent-to-agent interactions.
 
-**[AG-UI](https://docs.ag-ui.com/introduction)** is also an excellent transport option for A2UI Agent–User Interaction protocol.
-AG UI provides convenient integrations into many agent frameworks and frontends. AG UI provides low latency and shared state message passing between front ends and agentic backends.
+#### MCP (Model Context Protocol) binding
+
+**[MCP](https://modelcontextprotocol.io/docs/getting-started/intro)** is a standard protocol for exposing data and tools to LLMs. A2UI can be carried over MCP tool calls, tool outputs, or resource subscriptions, allowing agents to dynamically render rich user interfaces for client-side applications.
 
 #### Other transports
 
 A2UI can also be carried over:
 
-- **[MCP (Model Context Protocol)](https://modelcontextprotocol.io/docs/getting-started/intro)**: Delivered as tool outputs or resource subscriptions.
 - **[SSE](https://en.wikipedia.org/wiki/Server-sent_events) with [JSON RPC](https://www.jsonrpc.org/)**: Standard server-sent events for web integrations that support streaming, and JSON RPC for client-server communication.
 - **[WebSockets](https://en.wikipedia.org/wiki/WebSocket)**: For bidirectional, real-time sessions.
 - **[REST](https://cloud.google.com/discover/what-is-rest-api?hl=en)**: For simple use case, REST APIs will work but lack streaming capabilities.
@@ -911,7 +906,7 @@ _Replace the entire data model:_
 
 ### Client to server updates
 
-When `sendDataModel` is set to `true` for a surface, the client automatically appends the **entire data model** of that surface to the metadata of every message (such as `action` or user query) sent to the server that created the surface. The data model is included using the transport's metadata facility (e.g., the `metadata` field in A2A or a header in HTTP). The payload follows the schema in [`client_data_model.json`](../json/client_data_model.json).
+When `sendDataModel` is set to `true` for a surface, the client automatically appends the **entire data model** of that surface to the metadata of every message (such as `action` or user query) sent to the server that created the surface. The data model is included using the transport's metadata facility (the exact location and format are defined by the specific transport binding). The payload follows the schema in [`client_data_model.json`](../json/client_data_model.json).
 
 - **Targeted Delivery**: The data model is sent exclusively to the server that created the surface. Data cannot leak to other agents or servers.
 - **Trigger:** Data is sent only when a client-to-server message is triggered (e.g., by a user action like a button click). Passive data changes (like typing in a text field) do not trigger a network request on their own; they simply update the local state, which will be sent with the next action.

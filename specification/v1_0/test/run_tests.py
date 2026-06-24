@@ -182,19 +182,19 @@ def validate_jsonl_example(jsonl_path):
 def validate_catalogs_structure():
     """
     Validates the catalog files directly against the Catalog definition in
-    client_capabilities.json schema.
+    catalog_definition.json schema.
     """
-    client_caps_path = os.path.join(SCHEMA_DIR, "client_capabilities.json")
-    if not os.path.exists(client_caps_path):
-        print(f"Error: client_capabilities.json not found at {client_caps_path}")
+    catalog_def_path = os.path.join(SCHEMA_DIR, "catalog_definition.json")
+    if not os.path.exists(catalog_def_path):
+        print(f"Error: catalog_definition.json not found at {catalog_def_path}")
         return 0, 1
 
     temp_validator_path = os.path.join(TEST_DIR, "temp_catalog_validator.json")
 
-    # We reference the absolute ID of client_capabilities.json which gets loaded as a reference
+    # We reference the absolute ID of catalog_definition.json which gets loaded as a reference
     validator_schema = {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
-        "$ref": "https://a2ui.org/specification/v1_0/client_capabilities.json#/$defs/Catalog"
+        "$ref": "https://a2ui.org/specification/v1_0/catalog_definition.json"
     }
 
     with open(temp_validator_path, 'w') as f:
@@ -208,10 +208,11 @@ def validate_catalogs_structure():
     passed = 0
     failed = 0
 
-    print("\nValidating catalog structural integrity against client_capabilities.json...")
+    print("\nValidating catalog structural integrity against catalog_definition.json...")
 
     ref_schemas = {
-        "client_capabilities.json": client_caps_path
+        "catalog_definition.json": catalog_def_path,
+        "common_types.json": os.path.join(SCHEMA_DIR, "common_types.json")
     }
 
     try:
@@ -306,6 +307,178 @@ def validate_catalogs_identifiers():
 
     return passed, failed
 
+def validate_sample_schema():
+    """
+    Validates that the sample.json schema is valid and can successfully
+    validate a sample payload, ensuring all internal references are correct.
+    """
+    sample_schema_path = os.path.join(SCHEMA_DIR, "sample.json")
+    if not os.path.exists(sample_schema_path):
+        print(f"Error: sample.json not found at {sample_schema_path}")
+        return 0, 1
+
+    print("\nValidating sample.json schema integrity...")
+
+    temp_sample_data_path = os.path.join(TEST_DIR, "temp_sample_data.json")
+
+    # A minimal valid sample payload matching sample.json
+    sample_data = {
+        "name": "Test Sample",
+        "description": "A minimal sample for testing schema integrity",
+        "messages": [
+            {
+                "version": "v1.0",
+                "createSurface": {
+                    "surfaceId": "test_surface",
+                    "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
+                }
+            }
+        ]
+    }
+
+    with open(temp_sample_data_path, 'w') as f:
+        json.dump(sample_data, f)
+
+    ref_schemas = {
+        "server_to_client_list.json": os.path.join(SCHEMA_DIR, "server_to_client_list.json"),
+        "server_to_client.json": os.path.join(SCHEMA_DIR, "server_to_client.json"),
+        "common_types.json": os.path.join(SCHEMA_DIR, "common_types.json"),
+        "catalog.json": TEMP_CATALOG_FILE
+    }
+
+    setup_catalog_alias()
+    try:
+        is_valid, output = validate_ajv(sample_schema_path, temp_sample_data_path, ref_schemas)
+        if is_valid:
+            # print("  [PASS] sample.json schema is valid and resolved all references.")
+            return 1, 0
+        else:
+            print("  [FAIL] sample.json schema validation failed.")
+            print(f"         Output: {output.strip()}")
+            return 0, 1
+    finally:
+        cleanup_catalog_alias()
+        if os.path.exists(temp_sample_data_path):
+            os.remove(temp_sample_data_path)
+
+def validate_a2a_schemas():
+    """
+    Validates all A2A-specific schemas (capabilities, data model, and message lists)
+    against mock payloads to ensure structural integrity and correct references.
+    """
+    print("\nValidating A2A-specific schemas and references...")
+
+    passed = 0
+    failed = 0
+
+    # Define test payloads and their target schemas
+    tests = [
+        {
+            "name": "client_capabilities.json",
+            "schema_path": os.path.join(SCHEMA_DIR, "client_capabilities.json"),
+            "data": {
+                "v1.0": {
+                    "supportedCatalogIds": ["https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"],
+                    "inlineCatalogs": []
+                }
+            },
+            "refs": {
+                "catalog_definition.json": os.path.join(SCHEMA_DIR, "catalog_definition.json")
+            }
+        },
+        {
+            "name": "server_capabilities.json",
+            "schema_path": os.path.join(SCHEMA_DIR, "server_capabilities.json"),
+            "data": {
+                "v1.0": {
+                    "supportedCatalogIds": ["https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"],
+                    "acceptsInlineCatalogs": True
+                }
+            },
+            "refs": {}
+        },
+        {
+            "name": "client_data_model.json",
+            "schema_path": os.path.join(SCHEMA_DIR, "client_data_model.json"),
+            "data": {
+                "version": "v1.0",
+                "surfaces": {
+                    "surface_123": {
+                        "user": {"name": "Alice"}
+                    }
+                }
+            },
+            "refs": {}
+        },
+        {
+            "name": "server_to_client_list_wrapper.json",
+            "schema_path": os.path.join(SCHEMA_DIR, "server_to_client_list_wrapper.json"),
+            "data": {
+                "messages": [
+                    {
+                        "version": "v1.0",
+                        "createSurface": {
+                            "surfaceId": "test_surface",
+                            "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
+                        }
+                    }
+                ]
+            },
+            "refs": {
+                "server_to_client_list.json": os.path.join(SCHEMA_DIR, "server_to_client_list.json"),
+                "server_to_client.json": os.path.join(SCHEMA_DIR, "server_to_client.json"),
+                "common_types.json": os.path.join(SCHEMA_DIR, "common_types.json"),
+                "catalog.json": TEMP_CATALOG_FILE
+            }
+        },
+        {
+            "name": "client_to_server_list_wrapper.json",
+            "schema_path": os.path.join(SCHEMA_DIR, "client_to_server_list_wrapper.json"),
+            "data": {
+                "messages": [
+                    {
+                        "version": "v1.0",
+                        "action": {
+                            "name": "click_button",
+                            "surfaceId": "test_surface",
+                            "sourceComponentId": "btn_1",
+                            "timestamp": "2026-06-22T17:00:00Z",
+                            "context": {}
+                        }
+                    }
+                ]
+            },
+            "refs": {
+                "client_to_server_list.json": os.path.join(SCHEMA_DIR, "client_to_server_list.json"),
+                "client_to_server.json": os.path.join(SCHEMA_DIR, "client_to_server.json"),
+                "common_types.json": os.path.join(SCHEMA_DIR, "common_types.json")
+            }
+        }
+    ]
+
+    temp_test_data = os.path.join(TEST_DIR, "temp_a2a_test_data.json")
+
+    setup_catalog_alias()
+    try:
+        for t in tests:
+            with open(temp_test_data, 'w') as f:
+                json.dump(t["data"], f)
+
+            is_valid, output = validate_ajv(t["schema_path"], temp_test_data, t["refs"])
+            if is_valid:
+                passed += 1
+                # print(f"  [PASS] {t['name']}")
+            else:
+                failed += 1
+                print(f"  [FAIL] {t['name']} validation failed.")
+                print(f"         Output: {output.strip()}")
+        
+        return passed, failed
+    finally:
+        cleanup_catalog_alias()
+        if os.path.exists(temp_test_data):
+            os.remove(temp_test_data)
+
 def main():
     if not os.path.exists(CASES_DIR):
         print(f"No cases directory found at {CASES_DIR}")
@@ -336,6 +509,16 @@ def main():
 
         # 4. Validate catalogs UAX #31 entity identifiers
         p, f = validate_catalogs_identifiers()
+        total_passed += p
+        total_failed += f
+
+        # 5. Validate sample.json schema integrity and references
+        p, f = validate_sample_schema()
+        total_passed += p
+        total_failed += f
+
+        # 6. Validate A2A capability and message list schemas
+        p, f = validate_a2a_schemas()
         total_passed += p
         total_failed += f
 
