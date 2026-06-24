@@ -1,12 +1,12 @@
 # A2UI Unified SDK Architecture
 
-This document describes the unified architecture of the A2UI SDK ecosystem. To support modern, multi-paradigm generative UI applications, A2UI separates concerns into a modular, three-tiered structure: the **A2UI Core SDK**, the **Inference SDK**, and **Framework Adapters**.
+This document describes the unified architecture of the A2UI SDK ecosystem. To support modern, multi-paradigm generative UI applications, A2UI separates concerns into a modular, three-tiered structure: the **A2UI Core SDK**, the **Inference SDK**, and **Framework Adapters**. This structure is replicated across different languages.
 
-This architecture enables high code reuse, strict conformance, and unified behavior across all languages. Ensuring that we use a consistent codebase structure and terminology across languages also makes it easier to maintain the codebases together and add new features across languages using spec-driven development.
+This architecture enables high code reuse, strict conformance, and unified behavior across languages. Ensuring that we use a consistent codebase structure and terminology across languages also makes it easier to maintain the codebases together and add new features across languages using spec-driven development.
 
 ## 1. Ecosystem Dependency Structure
 
-Historically, A2UI maintained separate, isolated codebases for server-side agent SDKs (which generate UI messages) and client-side rendering SDKs (which paint pixels). We are now building a unified, shared-code structure across each language:
+Framework adapter and inference SDKs depend on the core SDK as shown below:
 
 ```mermaid
 flowchart TD

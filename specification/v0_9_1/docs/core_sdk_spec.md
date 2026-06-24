@@ -514,7 +514,6 @@ Implement the framework-agnostic Data Layer (Section 3 & 4).
 - Implement `MessageProcessor` and ClientCapabilities generation.
 - **Action**: Write unit tests for JSON validation, the `DataModel` (especially pointer resolution/cascade logic), and `MessageProcessor`. Ensure they pass before continuing.
 
-<<<<<<< HEAD:specification/v0_9_1/docs/core_sdk_spec.md
 ### Phase 4: Foundational Basic Catalog Support
 
 Target a foundational subset of the Basic Catalog (equivalent to the former minimal catalog) to bootstrap your implementation:
