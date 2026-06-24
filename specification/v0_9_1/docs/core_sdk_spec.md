@@ -1,53 +1,31 @@
-# Unified Architecture & Implementation Guide
+# A2UI Core SDK Specification
 
-This document describes the architecture of an A2UI client implementation. The design separates concerns into distinct layers to maximize code reuse, ensure memory safety, and provide a streamlined developer experience when adding custom components.
+This document describes the detailed programmatic specification and architecture of the A2UI Core SDK. The Core SDK serves as the foundational data, state, and processing layer of A2UI.
 
-Both the core data structures and the rendering components interact with **Catalogs**. Within a catalog, the implementation follows a structured split: from the pure **Component Schema** down to the **Framework-Specific Adapter** that paints the pixels.
+This layer handles JSON parsing, state models, JSON pointers, catalogs, and schemas. This logic remains completely framework-agnostic, allowing it to be implemented identically across all target environments (including server-side or headless languages where there is no renderer).
 
-## 1. Unified Architecture Overview
+For a high-level overview of the entire A2UI ecosystem (including the Inference SDK and Framework Adapter structure), see the [A2UI Unified SDK Architecture](sdks_spec.md). For UI framework integration and rendering details, see the [A2UI Framework Adapter Specification](framework_adapter_spec.md).
 
-The A2UI client architecture has a well-defined data flow that bridges language-agnostic data structures with native UI frameworks.
+---
 
-1. **A2UI Messages** arrive from the server (JSON).
-2. The **`MessageProcessor`** parses these and updates the **`SurfaceModel`** (Agnostic State).
-3. The **`Surface`** (Framework Entry View) listens to the `SurfaceModel` and begins rendering.
-4. The `Surface` instantiates and renders individual **`ComponentImplementation`** nodes to build the UI tree.
+## 1. Core SDK Role & Architecture
 
-This establishes a fundamental split:
+The A2UI Core SDK acts as the central state coordinator. It is designed to represent core concepts and behaviors described in the A2UI specification, without any UI rendering logic.
 
-- **The Framework-Agnostic Layer (Data Layer)**: Handles JSON parsing, state management, JSON pointers, and schemas. This logic is identical across all UI frameworks within a given language.
-- **The Framework-Specific Layer (View Layer)**: Handles turning the structured state into actual pixels (React Nodes, Flutter Widgets, iOS Views).
+Its core responsibilities include:
 
-### Implementation Topologies
+1. **Catalog Representation:** Define `Catalog` structures and pure technical component metadata/schemas (`ComponentApi`, `FunctionApi`).
+2. **Protocol Definitions:** Model strongly-typed inbound and outbound message structures (e.g., `ClientToServer`, `ServerToClient`, etc.).
+3. **Surface State Containers:** Track mutable, long-lived rendering states via `SurfaceModel`, `ComponentModel`, and `DataModel`.
+4. **Message Processor:** Parse inbound message sequences to mutate local state containers via `MessageProcessor`.
+5. **JSON Pointer Scope:** Standardize relative pointer evaluation and reactivity via scoped context managers (`ComponentContext`, `DataContext`).
+6. **Validation:** Throw strict schema and reference-resolution errors.
 
-Because A2UI spans multiple languages and UI paradigms, the strictness and location of these architectural boundaries will vary depending on the target ecosystem.
+---
 
-#### Dynamic Languages (e.g., TypeScript / JavaScript)
+## 2. The Core SDK Interfaces
 
-In highly dynamic ecosystems like the web, the architecture is typically split across multiple packages to maximize code reuse across diverse UI frameworks (React, Angular, Vue, Lit).
-
-- **Core Library (`web_core`)**: Implements the Core Data Layer, Component Schemas, and a Generic Binder Layer. Because TS/JS has powerful runtime reflection, the core library can provide a generic binder that automatically handles all data binding without framework-specific code.
-- **Framework Library (`react_renderer`, `angular_renderer`)**: Implements the Framework-Specific Adapters and the actual view implementations (the React `Button`, `Text`, etc.).
-
-#### Static Languages (e.g., Kotlin, Swift, Dart)
-
-In statically typed languages (and AOT-compiled languages like Dart), runtime reflection is often limited or discouraged for performance reasons.
-
-- **Core Library (e.g., `kotlin_core`)**: Implements the Core Data Layer and Component Schemas. The core library typically provides a manually implemented **Binder Layer** for the standard Basic Catalog components. This ensures that even in static environments, basic components have a standardized, framework-agnostic reactive state definition.
-- **Code Generation (Future/Optional)**: While the core library starts with manual binders, it may eventually offer Code Generation (e.g., KSP, Swift Macros) to automate the creation of Binders for custom components.
-- **Custom Components**: In the absence of code generation, developers implementing new, ad-hoc components typically utilize a **"Binderless" Implementation** flow, which allows for direct binding to the data model without intermediate boilerplate.
-- **Framework Library (e.g., `compose_renderer`)**: Uses the predefined Binders to connect to native UI state and implements the actual visual components.
-
-#### Combined Core + Framework Libraries (e.g., Swift + SwiftUI)
-
-In ecosystems dominated by a single UI framework (like iOS with SwiftUI), developers often build a single, unified library rather than splitting Core and Framework into separate packages.
-
-- **Relaxed Boundaries**: The strict separation between Core and Framework libraries can be relaxed. The generic `ComponentContext` and the framework-specific adapter logic are often tightly integrated.
-- **Why Keep the Binder Layer?**: Even in a combined library, defining the intermediate Binder Layer remains highly recommended. It standardizes how A2UI data resolves into reactive state. This allows developers adopting the library to easily write alternative implementations of well-known components without having to rewrite the complex, boilerplate-heavy A2UI data subscription logic.
-
-## 2. The Core Interfaces
-
-At the heart of the A2UI architecture are five key interfaces that connect the data to the screen.
+At the heart of the A2UI architecture are key interfaces that connect the data to the screen.
 
 ### `ComponentApi`
 
@@ -62,57 +40,16 @@ interface ComponentApi {
 }
 ```
 
-### `ComponentImplementation`
-
-The framework-specific logic for rendering a component. It extends `ComponentApi` to include a `build` or `render` method.
-
-How this looks depends on the target framework's paradigm:
-
-**Functional / Reactive Frameworks (e.g., Flutter, SwiftUI, React)**
-
-```typescript
-interface ComponentImplementation extends ComponentApi {
-  /**
-   * @param ctx The component's context containing its data and state.
-   * @param buildChild A closure provided by the surface to recursively build children.
-   */
-  build(
-    ctx: ComponentContext<ComponentImplementation>,
-    buildChild: (id: string) => NativeWidget,
-  ): NativeWidget;
-}
-```
-
-**Stateful / Imperative Frameworks (e.g., Vanilla DOM, Android Views)**
-Because the catalog only holds a single "blueprint" of each `ComponentImplementation`, stateful frameworks need a way to instantiate individual objects for each component rendered on screen.
-
-```typescript
-interface ComponentInstance {
-  mount(container: NativeElement): void;
-  update(ctx: ComponentContext<ComponentImplementation>): void;
-  unmount(): void;
-}
-
-interface ComponentImplementation extends ComponentApi {
-  /** Creates a new stateful instance of this component type. */
-  createInstance(ctx: ComponentContext<ComponentImplementation>): ComponentInstance;
-}
-```
-
-### `Surface`
-
-The entrypoint widget/view for a specific framework. It is instantiated with a `SurfaceModel`. It listens to the model for lifecycle events and dynamically builds the UI tree, initiating the recursive rendering loop at the component with ID `root`.
-
 ### `SurfaceModel` & `ComponentContext`
 
-The state containers.
+The core state containers.
 
 - **`SurfaceModel`**: Represents the entire state of a single UI surface, holding the `DataModel` and a flat list of component configurations.
 - **`ComponentContext`**: A transient object created by the `Surface` and passed into a `ComponentImplementation` during rendering. It pairs the component's specific configuration with a scoped window into the data model (`DataContext`).
 
 ---
 
-## THE FRAMEWORK-AGNOSTIC LAYER
+## THE FRAMEWORK-AGNOSTIC DATA LAYER
 
 ## 3. The Core Data Layer (Detailed Specifications)
 
@@ -202,7 +139,7 @@ class SurfaceGroupModel<T extends ComponentApi> {
 }
 
 /**
- * Matches 'action' in specification/v0_9/json/client_to_server.json.
+ * Matches 'action' in specification/v0_9_1/json/client_to_server.json.
  */
 interface A2uiClientAction {
   name: string;
@@ -319,7 +256,9 @@ class ComponentContext<T extends ComponentApi> {
 
 _Escape Hatch_: Component implementations can use `ctx.surfaceComponents` to inspect the metadata of other components in the same surface (e.g. a `Row` checking if children have a `weight` property). This is discouraged but necessary for some layout engines.
 
-### The Processing Layer (`MessageProcessor`)
+---
+
+## 4. The Processing Layer (`MessageProcessor`)
 
 The "Controller" that accepts the raw stream of A2UI messages, parses them, and mutates the Models. It also handles the aggregation of client state for synchronization.
 
@@ -344,7 +283,7 @@ class MessageProcessor<T extends ComponentApi> {
 }
 ```
 
-#### Client Data Model Synchronization
+### Client Data Model Synchronization
 
 When a surface is created with `sendDataModel: true`, the client is responsible for sending the current state of that surface's data model back to the server whenever a client-to-server message (like an `action`) is sent.
 
@@ -358,7 +297,7 @@ When a surface is created with `sendDataModel: true`, the client is responsible 
 - **Surface Lifecycle**: It is an error to receive a `createSurface` message for a `surfaceId` that is already active. The processor MUST throw an error or report a validation failure if this occurs.
 - **Component Lifecycle**: If an `updateComponents` message provides an existing `id` but a _different_ `type`, the processor MUST remove the old component and create a fresh one to ensure framework renderers correctly reset their internal state.
 
-#### Generating Client Capabilities and Schema Types
+### Generating Client Capabilities and Schema Types
 
 To dynamically generate the `a2uiClientCapabilities` payload (specifically `inlineCatalogs`), the processor must convert internal component schemas into valid JSON Schemas.
 
@@ -373,7 +312,9 @@ When `getClientCapabilities()` converts internal schemas to generate `inlineCata
 3. **Theme**: Convert the catalog's theme schema into a JSON Schema representation.
 4. **Reference Processing**: For all generated schemas (components, functions, and themes), traverse the tree looking for descriptions starting with `REF:`. Strip the tag and replace the node with a valid JSON Schema `$ref` object.
 
-## 4. The Catalog API & Functions
+---
+
+## 5. The Catalog API & Functions
 
 A catalog groups component definitions and function definitions together, along with an optional theme schema.
 
@@ -440,38 +381,11 @@ myCustomCatalog = Catalog(
 
 ---
 
-## THE FRAMEWORK-SPECIFIC LAYER
-
-## 5. Component Implementation Strategies
-
-While the `ComponentImplementation` API dictates that a component must be able to `build()` or `mount()`, _how_ a developer connects that view to the reactive data model inside `ComponentContext` varies by language capabilities.
-
-### Strategy 1: Direct / Binderless Implementation
-
-The most straightforward approach. The developer implements the `ComponentImplementation` and manually manages A2UI reactivity directly within the `build` method using the framework's native reactive tools (e.g., `StreamBuilder` in Flutter, or manual `useEffect` in React).
-
-_Example: Flutter Direct Implementation_
-
-```dart
-Widget build(ComponentContext context, ChildBuilderCallback buildChild) {
-  return StreamBuilder(
-    // Manually observe the dynamic value stream
-    stream: context.dataContext.observeDynamicValue(context.componentModel.properties['label']),
-    builder: (context, snapshot) {
-      return ElevatedButton(
-        onPressed: () => context.dispatchAction(context.componentModel.properties['action']),
-        child: Text(snapshot.data?.toString() ?? ''),
-      );
-    }
-  );
-}
-```
-
-### Strategy 2: The Binder Layer Pattern
+## 6. The Binder Layer Pattern (State Bridge)
 
 For complex applications, scattering manual A2UI subscription logic across all view components becomes repetitive and error-prone.
 
-The **Binder Layer** is an intermediate abstraction. It takes raw component properties and transforms the reactive A2UI bindings into a single, cohesive stream of strongly-typed `ResolvedProps`. The view component simply listens to this generic stream.
+The **Binder Layer** is a framework-agnostic intermediate abstraction inside the Core SDK. It takes raw component configurations and transforms the reactive A2UI bindings into a single, cohesive stream of strongly-typed `ResolvedProps`. The native UI components (described in the [Framework Adapter Specification](framework_adapter_spec.md)) simply listen to this generic stream.
 
 ```typescript
 export interface ComponentBinding<ResolvedProps> {
@@ -485,7 +399,7 @@ export interface ComponentBinder<ResolvedProps> {
 }
 ```
 
-### Strategy 3: Generic Binders for Dynamic Languages
+### Generic Binders for Dynamic Languages
 
 In languages with powerful runtime reflection (like TypeScript/Zod), the Binder Layer can be entirely automated. You can write a generic factory that inspects a component's schema and automatically creates all necessary data model subscriptions, inferring strict types.
 
@@ -498,137 +412,15 @@ This provides the ultimate "happy path" developer experience. The developer writ
 
 // Conceptually, the inferred type looks like this:
 interface ButtonResolvedProps {
-  label?: string;      // Resolved from DynamicString
-  action: () => void;  // Resolved from Action
-  child?: string;      // Resolved structural ComponentId
-}
-
-// 2. The developer writes a simple, stateless UI component.
-// The `props` argument is strictly inferred from the ButtonSchema.
-const ReactButton = createReactComponent(ButtonBinder, ({ props, buildChild }) => {
-  return (
-    <button onClick={props.action}>
-      {props.child ? buildChild(props.child) : props.label}
-    </button>
-  );
-});
-```
-
-Because of the generic types flowing through the adapter, if the developer typos `props.action` as `props.onClick`, or treats `props.label` as an object instead of a string, the compiler will immediately flag a type error.
-
-### Example: Framework-Specific Adapters
-
-The adapter acts as a wrapper that instantiates the binder, binds its output stream to the framework's state mechanism, injects structural rendering helpers (`buildChild`), and hooks into the native destruction lifecycle to call `dispose()`.
-
-#### React Pseudo-Adapter
-
-```typescript
-// Pseudo-code concept for a React adapter
-function createReactComponent(binder, RenderComponent) {
-  return function ReactWrapper({ context, buildChild }) {
-    // Hook into component mount
-    const [props, setProps] = useState(binder.initialProps);
-
-    useEffect(() => {
-      // Create binding on mount
-      const binding = binder.bind(context);
-
-      // Subscribe to updates
-      const sub = binding.propsStream.subscribe(newProps => setProps(newProps));
-
-      // Cleanup on unmount
-      return () => {
-        sub.unsubscribe();
-        binding.dispose();
-      };
-    }, [context]);
-
-    return <RenderComponent props={props} buildChild={buildChild} />;
-  }
+  label?: string; // Resolved from DynamicString
+  action: () => void; // Resolved from Action
+  child?: string; // Resolved structural ComponentId
 }
 ```
-
-#### Angular Pseudo-Adapter
-
-```typescript
-// Pseudo-code concept for an Angular adapter
-@Component({
-  selector: 'app-angular-wrapper',
-  imports: [MatButtonModule],
-  template: `
-    @if (props(); as props) {
-      <button mat-button>{{ props.label }}</button>
-    }
-  `,
-})
-export class AngularWrapper {
-  private binder = inject(BinderService);
-  private context = inject(ComponentContext);
-
-  private bindingResource = resource({
-    loader: async () => {
-      const binding = this.binder.bind(this.context);
-
-      return {
-        instance: binding,
-        props: toSignal(binding.propsStream), // Convert Observable to Signal
-      };
-    },
-  });
-
-  props = computed(() => this.bindingResource.value()?.props() ?? null);
-
-  constructor() {
-    inject(DestroyRef).onDestroy(() => {
-      this.bindingResource.value()?.instance.dispose();
-    });
-  }
-}
-```
-
-## 6. Framework Binding Lifecycles & Traits
-
-Regardless of the implementation strategy chosen, the framework adapter or `ComponentImplementation` MUST strictly manage subscriptions to ensure performance and prevent memory leaks.
-
-### Contract of Ownership
-
-A crucial part of A2UI's architecture is understanding who "owns" the data layers.
-
-- **The Data Layer (Message Processor) owns the `ComponentModel`**. It creates, updates, and destroys the component's raw data state based on the incoming JSON stream.
-- **The Framework Adapter owns the `ComponentContext` and `ComponentBinding`**. When the native framework decides to mount a component onto the screen (e.g., React runs `render`), the Framework Adapter creates the `ComponentContext` and passes it to the Binder. When the native framework unmounts the component, the Framework Adapter MUST call `binding.dispose()`.
-
-### Data Props vs. Structural Props
-
-It's important to distinguish between Data Props (like `label` or `value`) and Structural Props (like `child` or `children`).
-
-- **Data Props:** Handled entirely by the Binder. The adapter receives a stream of fully resolved values (e.g., `"Submit"` instead of a `DynamicString` path). Whenever a data value updates, the binder should emit a _new reference_ (e.g. a shallow copy of the props object) to ensure declarative frameworks that rely on strict equality (like React) correctly detect the change and trigger a re-render.
-- **Structural Props:** The Binder does not attempt to resolve component IDs into actual UI trees. Instead, it outputs metadata for the children that need to be rendered.
-  - For a simple `ComponentId` (e.g., `Card.child`), it emits an object like `{ id: string, basePath: string }`.
-  - For a `ChildList` (e.g., `Column.children`), it evaluates the array. If the array is driven by a dynamic template bound to the data model, the binder must iterate over the array, using `context.dataContext.nested()` to generate a specific context for each index, and output a list of `ChildNode` streams.
-- The framework adapter is then responsible for taking these node definitions and calling a framework-native `buildChild(id, basePath)` method recursively.
-
-> **Implementation Tip: Context Propagation**
-> When implementing the recursive `buildChild` helper, ensure that it correctly inherits the _current_ component's data context path by default. If a nested component (like a Text field inside a List template) uses a relative path, it must resolve against the scoped path provided by its immediate structural parent (e.g., `/restaurants/0`), not the root path. Failing to propagate this context is a common cause of "empty" data in nested components.
-
-### Component Subscription Lifecycle Rules
-
-1.  **Lazy Subscription**: Only bind and subscribe to data paths or property updates when the component is actually mounted/attached to the UI.
-2.  **Path Stability**: If a component's property changes via an `updateComponents` message, you MUST unsubscribe from the old path before subscribing to the new one.
-3.  **Destruction / Cleanup**: When a component is removed from the UI (e.g., via a `deleteSurface` message), the implementation MUST hook into its native lifecycle to dispose of all data model subscriptions.
-
-### Reactive Validation (`Checkable`)
-
-Interactive components that support the `checks` property should implement the `Checkable` trait.
-
-- **Aggregate Error Stream**: The component should subscribe to all `CheckRule` conditions defined in its properties.
-- **UI Feedback**: It should reactively display the `message` of the first failing check as a validation error hint.
-- **Action Blocking**: Actions (like `Button` clicks) should be reactively disabled or blocked if any validation check fails.
 
 ---
 
-## STANDARDS & TOOLING
-
-## 7. The Basic Catalog Standard
+## 7. The Basic Catalog Standard (Core APIs)
 
 The standard A2UI Basic Catalog specifies a set of core components (Button, Text, Row, Column) and functions.
 
@@ -657,20 +449,6 @@ class BasicCatalogImplementations(
     val row: RowApi
     // ...
 )
-
-// The Framework Adapter implements the native views extending the base APIs
-class ComposeButton : ButtonApi() {
-    // Framework specific render logic
-}
-
-// The compiler forces all required components to be provided
-val implementations = BasicCatalogImplementations(
-    button = ComposeButton(),
-    text = ComposeText(),
-    row = ComposeRow()
-)
-
-val catalog = Catalog("id", listOf(implementations.button, implementations.text, implementations.row))
 ```
 
 #### Dynamic Languages (e.g. TypeScript)
@@ -685,13 +463,6 @@ type BasicCatalogImplementations = {
   Row: ComponentImplementation & {name: 'Row'; schema: Schema};
   // ...
 };
-
-// If a developer forgets 'Row' or spells it wrong, the compiler throws an error.
-const catalog = new Catalog('id', [
-  implementations.Button,
-  implementations.Text,
-  implementations.Row,
-]);
 ```
 
 ### Expression Resolution Logic (`formatString`)
@@ -705,60 +476,35 @@ The Basic Catalog requires a `formatString` function capable of interpreting `${
 3.  **Escaping**: Literal `${` sequences must be handled (typically escaping as `\${`).
 4.  **Reactive Coercion**: Results are transformed into strings using the standard Type Coercion rules.
 
-## 8. The Gallery App
+---
 
-The Gallery App is a comprehensive development and debugging tool that serves as the reference environment for an A2UI renderer. It allows developers to visualize components, inspect the live data model, step through progressive rendering, and verify interaction logic.
+## 8. Agent Implementation Guide: Core SDK Phases
 
-### UX Architecture
+If you are an AI Agent tasked with building a new Core SDK for A2UI, you MUST follow this strict, phased sequence of operations.
 
-The Gallery App must implement a three-column layout:
-
-1.  **Left Column (Sample Navigation)**: A list of available A2UI samples.
-2.  **Center Column (Rendering & Messages)**:
-    - **Surface Preview**: Renders the active A2UI `Surface`.
-    - **JSON Message Stream**: Displays the list of A2UI JSON messages.
-    - **Interactive Stepper**: An "Advance" button allows processing messages one by one to verify progressive rendering.
-3.  **Right Column (Live Inspection)**:
-    - **Data Model Pane**: A live-updating view of the full Data Model.
-    - **Action Logs Pane**: A log of triggered actions and their context.
-
-### Integration Testing Requirements
-
-Every renderer implementation must include a suite of automated integration tests that utilize the Gallery App's logic to verify:
-
-- **Static Rendering**: Opening "Simple Text" renders correctly.
-- **Layout Integrity**: "Row Layout" places elements correctly.
-- **Two-Way Binding**: Typing in a TextField updates both the UI and the Data Model viewer simultaneously.
-- **Reactive Logic**: Changes in one component dynamically update dependent components.
-- **Action Context Scoping**: Actions emitted from nested templates (like Lists) contain correctly resolved data scopes.
-
-## 9. Agent Implementation Guide
-
-If you are an AI Agent tasked with building a new renderer for A2UI, you MUST follow this strict, phased sequence of operations.
-
-### 1. Context to Ingest
+### Phase 1: Context to Ingest
 
 Thoroughly review:
 
-- `specification/v0_9/docs/a2ui_protocol.md` (protocol rules)
-- `specification/v0_9/json/common_types.json` (dynamic binding types)
-- `specification/v0_9/json/server_to_client.json` (message envelopes)
+- `specification/v0_9_1/docs/sdks_spec.md` (unified topologies and layer context)
+- `specification/v0_9_1/docs/a2ui_protocol.md` (protocol rules)
+- `specification/v0_9_1/json/common_types.json` (dynamic binding types)
+- `specification/v0_9_1/json/server_to_client.json` (message envelopes)
 - `specification/v0_9_1/catalogs/basic/catalog.json` (your target)
-- `specification/v0_9_1/docs/basic_catalog_implementation_guide.md` (for rendering and spacing rules)
+- `specification/v0_9_1/docs/basic_catalog_implementation_guide.md` (for functional specs and spacing rules for when you get to the basic catalog)
 
-### 2. Key Architecture Decisions (Write a Plan Document)
+### Phase 2: Key Architecture Decisions (Write a Plan Document)
 
 Create a comprehensive design document detailing:
 
 - **Dependencies**: Which Schema Library and Observable/Reactive Library will you use? _Note: Ensure your reactive library supports both discrete event subscription (EventEmitter style) and stateful, signal-like data streams (BehaviorSubject/Signal style)._
-- **Component Architecture**: How will you define the `ComponentImplementation` API for this language and framework?
-- **Surface Architecture**: How will the `Surface` framework entry point function to recursively build children?
-- **Binding Strategy**: Will you use an intermediate Generic Binder Layer, or a direct binderless implementation?
+- **Component Architecture**: How will you define the `ComponentApi` structure for this language?
+- **Binding Strategy**: Detail your plans for the intermediate Core Binder Layer and dynamic/static types.
 - **STOP HERE. Ask the user for approval on this design document before proceeding.**
 
-### 3. Core Model Layer
+### Phase 3: Core Model Layer
 
-Implement the framework-agnostic Data Layer (Section 3).
+Implement the framework-agnostic Data Layer (Section 3 & 4).
 
 - Implement event streams and stateful signals.
 - Implement strict Protocol Models (`A2uiMessage`, `A2uiClientCapabilities`, etc.) with JSON serialization/deserialization and schema validation logic.
@@ -768,37 +514,24 @@ Implement the framework-agnostic Data Layer (Section 3).
 - Implement `MessageProcessor` and ClientCapabilities generation.
 - **Action**: Write unit tests for JSON validation, the `DataModel` (especially pointer resolution/cascade logic), and `MessageProcessor`. Ensure they pass before continuing.
 
-### 4. Framework-Specific Layer
+### Phase 4: Foundational Basic Catalog Support
 
-Implement the bridge between models and native UI (Section 5 & 6).
+Target a foundational subset of the Basic Catalog (equivalent to the former minimal catalog) to bootstrap your implementation:
 
-- Define the concrete `ComponentImplementation` base class/interface.
-- Implement the `Surface` view/widget that recurses through components.
-- Implement subscription lifecycle management (lazy mounting, unmounting disposal).
+- **Components**: Define the pure API schemas and binders for:
+  - `Text`
+  - `Row`
+  - `Column`
+  - `Button`
+  - `TextField`
+- **Functions**: Implement the `formatString` function (which is required for basic text rendering and expression resolution, see Section 7).
+- **Bundle**: Group these components and functions into a `Catalog` instance.
+- **Verification**: Write unit tests to verify that `DataModel` updates and expressions resolve reactively when the underlying data changes, and that binders/bindings correctly propagate resolved props.
 
-### 5. Initial Basic Catalog Support
+### Phase 5: Complete Basic Catalog Support
 
-Target a foundational subset of components in `basic/catalog.json` first to bootstrap your implementation.
+Once the foundational architecture and subset are proven robust, complete the implementation of the Basic Catalog:
 
-- Implement the pure API schemas for `Text`, `Row`, `Column`, `Button`, `TextField` (which are part of the standard Basic Catalog).
-- Implement the specific native UI rendering components for these.
-- Implement the `formatString` function (which is required for basic text rendering, see Section 7).
-- Bundle these into a `Catalog`.
-- **Action**: Write unit tests verifying that properties update reactively when data changes.
-
-### 6. Gallery Application (Milestone)
-
-Build the Gallery App following the requirements in **Section 8**.
-
-- Load JSON samples from `specification/v0_9_1/catalogs/basic/examples/` (focusing on the simpler ones first, such as those using only the bootstrapped components).
-- Verify progressive rendering and reactivity.
-- **STOP HERE. Ask the user for approval of the architecture and gallery application before proceeding to step 7.**
-
-### 7. Complete Basic Catalog Support
-
-Once the initial architecture is proven robust, complete the implementation of the Basic Catalog:
-
-- **Core Library**: Implement the remaining basic functions. It is crucial to note that string interpolation and expression parsing should ONLY happen within the `formatString` function. Do not attempt to add global string interpolation to all strings.
-- **Core Library**: Create definitions/binders for the remaining Basic Catalog components.
-- **Framework Library**: Implement all remaining UI widgets.
-- **Tests**: Look at existing reference implementations (e.g., `web_core`) to formulate and run comprehensive unit and integration test cases for data coercion and function logic.
+- **Core Binders**: Create definitions and binders for all remaining components in `basic/catalog.json`.
+- **Core Functions**: Implement the remaining basic functions (e.g., math, logical, and array operations). Note that string interpolation and expression parsing should ONLY happen within the `formatString` function. Do not attempt to add global string interpolation to all strings.
+- **Verification & Tests**: Look at existing reference implementations (e.g., `web_core`) to formulate and run comprehensive unit tests for data coercion, JSON pointer bubble/cascade notifications, and all function execution paths.
