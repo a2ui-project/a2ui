@@ -18,27 +18,27 @@
           {
             "id": "root",
             "component": "Card",
-            "child": "main-column"
+            "child": "main_column"
           },
           {
-            "id": "main-column",
+            "id": "main_column",
             "component": "Column",
-            "children": ["from-row", "to-row", "subject-row", "divider", "message", "actions"]
+            "children": ["from_row", "to_row", "subject_row", "divider", "message", "actions"]
           },
           {
-            "id": "from-row",
+            "id": "from_row",
             "component": "Row",
-            "children": ["from-label", "from-value"],
+            "children": ["from_label", "from_value"],
             "align": "center"
           },
           {
-            "id": "from-label",
+            "id": "from_label",
             "component": "Text",
             "text": "FROM",
             "variant": "caption"
           },
           {
-            "id": "from-value",
+            "id": "from_value",
             "component": "Text",
             "text": {
               "path": "/from"
@@ -46,19 +46,19 @@
             "variant": "body"
           },
           {
-            "id": "to-row",
+            "id": "to_row",
             "component": "Row",
-            "children": ["to-label", "to-value"],
+            "children": ["to_label", "to_value"],
             "align": "center"
           },
           {
-            "id": "to-label",
+            "id": "to_label",
             "component": "Text",
             "text": "TO",
             "variant": "caption"
           },
           {
-            "id": "to-value",
+            "id": "to_value",
             "component": "Text",
             "text": {
               "path": "/to"
@@ -66,19 +66,19 @@
             "variant": "body"
           },
           {
-            "id": "subject-row",
+            "id": "subject_row",
             "component": "Row",
-            "children": ["subject-label", "subject-value"],
+            "children": ["subject_label", "subject_value"],
             "align": "center"
           },
           {
-            "id": "subject-label",
+            "id": "subject_label",
             "component": "Text",
             "text": "SUBJECT",
             "variant": "caption"
           },
           {
-            "id": "subject-value",
+            "id": "subject_value",
             "component": "Text",
             "text": {
               "path": "/subject"
@@ -92,7 +92,7 @@
           {
             "id": "message",
             "component": "Column",
-            "children": ["greeting", "body-text", "closing", "signature"]
+            "children": ["greeting", "body_text", "closing", "signature"]
           },
           {
             "id": "greeting",
@@ -103,7 +103,7 @@
             "variant": "body"
           },
           {
-            "id": "body-text",
+            "id": "body_text",
             "component": "Text",
             "text": {
               "path": "/body"
@@ -129,17 +129,17 @@
           {
             "id": "actions",
             "component": "Row",
-            "children": ["send-btn", "discard-btn"]
+            "children": ["send_btn", "discard_btn"]
           },
           {
-            "id": "send-btn-text",
+            "id": "send_btn_text",
             "component": "Text",
             "text": "Send email"
           },
           {
-            "id": "send-btn",
+            "id": "send_btn",
             "component": "Button",
-            "child": "send-btn-text",
+            "child": "send_btn_text",
             "action": {
               "event": {
                 "name": "send",
@@ -148,14 +148,14 @@
             }
           },
           {
-            "id": "discard-btn-text",
+            "id": "discard_btn_text",
             "component": "Text",
             "text": "Discard"
           },
           {
-            "id": "discard-btn",
+            "id": "discard_btn",
             "component": "Button",
-            "child": "discard-btn-text",
+            "child": "discard_btn_text",
             "action": {
               "event": {
                 "name": "discard",

@@ -21,6 +21,7 @@ requires-python = ">=3.14"
 dependencies = [
   "a2a-sdk>=0.3.0,<0.4.0",
   "a2ui-core>=0.1.0",
+  "antlr4-python3-runtime>=4.13.0,<4.14.0",
   "google-adk>=1.28.1",
   "google-genai>=1.27.0",
   "jsonschema>=4.0.0"
@@ -34,7 +35,12 @@ pyink = "pyink:patched_main"
 a2ui-core = { path = "../a2ui_core", editable = true }
 
 [build-system]
-requires = ["hatchling", "jsonschema"]
+requires = [
+  "hatchling",
+  "jsonschema",
+  "antlr4-tools>=0.2.1",
+  "antlr4-python3-runtime>=4.13.0,<4.14.0"
+]
 build-backend = "hatchling.build"
 
 [tool.hatch.version]
@@ -59,6 +65,7 @@ unstable = true
 target-version = []
 pyink-indentation = 2
 pyink-use-majority-quotes = true
+extend-exclude = '/generated/'
 pyink-annotation-pragmas = [
   "noqa",
   "pylint:",
@@ -74,4 +81,6 @@ dev = [
     "pytest>=9.0.2",
     "pytest-asyncio>=1.3.0",
     "pyink>=24.10.0",
+    "antlr4-tools>=0.2.1",
+    "hatchling>=1.30.1",
 ]
