@@ -49,11 +49,11 @@ Version 1.0 differs from 0.9 in the following ways:
 - Updated client `error` messages to support `functionCallId` when reporting function execution failures, enforcing mutual exclusivity with `surfaceId`.
 - Updated all protocol version references from `v0.9` or `v0.9.1` to `v1.0`.
 
-### 2.5. Client capabilities schema
+### 2.5. Catalog definition schema
 
-- Added an optional `instructions` field to the `Catalog` object definition (`client_capabilities.json`) as a plain Markdown string to embed design guidelines directly.
-- Renamed `theme` capability block to `surfaceProperties` within the Catalog definition in `client_capabilities.json`.
-- Added static `callableFrom` and `returnType` metadata properties to `FunctionDefinition` inside `client_capabilities.json` to advertise execution boundaries and return types to the server.
+- Added an optional `instructions` field to the `Catalog` object definition (`catalog_definition.json`) as a plain Markdown string to embed design guidelines directly.
+- Renamed `theme` capability block to `surfaceProperties` within the Catalog definition in `catalog_definition.json`.
+- Added static `callableFrom` and `returnType` metadata properties to `FunctionDefinition` inside `catalog_definition.json` to advertise execution boundaries and return types to the server.
 
 ### 2.6. Agent card and transport metadata
 

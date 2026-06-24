@@ -38,6 +38,7 @@ a2ui-core = { path = "../a2ui_core", editable = true }
 requires = [
   "hatchling",
   "jsonschema",
+  "pyink>=24.10.0",
   "antlr4-tools>=0.2.1",
   "antlr4-python3-runtime>=4.13.0,<4.14.0"
 ]
