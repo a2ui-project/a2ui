@@ -511,7 +511,7 @@ class TestValidator:
     assert "'usageHint' was unexpected" in err_text
     assert "'gap' was unexpected" in err_text
     assert "'altText', 'fit' were unexpected" in err_text
-    assert "DeleteSurfaceMessage.deleteSurface.surfaceId: Field required" in err_text
+    assert "messages.3.deleteSurface.surfaceId: Field required" in err_text
     assert "{'path': '/image'} is not of type 'string'" in err_text
     assert "'version' is a required property" in err_text
 
