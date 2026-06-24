@@ -17,6 +17,7 @@ from typing import List, Optional, Any
 from .response_part import ResponsePart
 from ..schema.constants import A2UI_OPEN_TAG, A2UI_CLOSE_TAG
 from .payload_fixer import parse_and_fix
+from a2ui.core import A2uiParseError
 
 
 _A2UI_BLOCK_PATTERN = re.compile(
@@ -58,7 +59,7 @@ def parse_response(content: str) -> List[ResponsePart]:
   matches = list(_A2UI_BLOCK_PATTERN.finditer(content))
 
   if not matches:
-    raise ValueError(
+    raise A2uiParseError(
         f"A2UI tags '{A2UI_OPEN_TAG}' and '{A2UI_CLOSE_TAG}' not found in response."
     )
 
@@ -74,7 +75,7 @@ def parse_response(content: str) -> List[ResponsePart]:
     json_string = match.group(1)
     json_string_cleaned = _sanitize_json_string(json_string)
     if not json_string_cleaned:
-      raise ValueError("A2UI JSON part is empty.")
+      raise A2uiParseError("A2UI JSON part is empty.")
 
     json_data = parse_and_fix(json_string_cleaned)
     response_parts.append(ResponsePart(text=text_part, a2ui_json=json_data))
