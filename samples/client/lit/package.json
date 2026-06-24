@@ -13,7 +13,7 @@
     "demo:restaurant": "yarn build:renderer && concurrently -k -n \"SHELL,REST\" -c \"magenta,blue\" \"yarn serve:shell\" \"yarn serve:agent:restaurant\"",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "test": "echo \"Each package on this workspace has its own test target.\"",
+    "test": "echo \"Workspace has no tests.\"",
     "lint": "echo \"Workspace has no lint configuration.\"",
     "lint:fix": "echo \"Workspace has no lint configuration.\""
   },
