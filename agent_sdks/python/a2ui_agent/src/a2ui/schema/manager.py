@@ -23,6 +23,7 @@ from .utils import load_from_bundled_resource
 from ..inference_strategy import InferenceStrategy
 from .constants import *
 from .catalog import CatalogConfig, A2uiCatalog
+from a2ui.core import A2uiCatalogError
 
 
 class A2uiSchemaManager(InferenceStrategy):
@@ -69,7 +70,7 @@ class A2uiSchemaManager(InferenceStrategy):
     """Loads separate schema components and processes catalogs."""
     catalogs = catalogs or []
     if version not in SPEC_VERSION_MAP:
-      raise ValueError(
+      raise A2uiCatalogError(
           f"Unknown A2UI specification version: {version}. Supported:"
           f" {list(SPEC_VERSION_MAP.keys())}"
       )
@@ -123,7 +124,7 @@ class A2uiSchemaManager(InferenceStrategy):
         mutually supported catalog is found.
     """
     if not self._supported_catalogs:
-      raise ValueError("No supported catalogs found.")  # This should not happen.
+      raise A2uiCatalogError("No supported catalogs found.")  # This should not happen.
 
     if not client_ui_capabilities or not isinstance(client_ui_capabilities, dict):
       return self._supported_catalogs[0]
@@ -136,7 +137,7 @@ class A2uiSchemaManager(InferenceStrategy):
     )
 
     if not self._accepts_inline_catalogs and inline_catalogs:
-      raise ValueError(
+      raise A2uiCatalogError(
           f"Inline catalog '{INLINE_CATALOGS_KEY}' is provided in client UI"
           " capabilities. However, the agent does not accept inline catalogs."
       )
@@ -175,7 +176,7 @@ class A2uiSchemaManager(InferenceStrategy):
       if cscid in agent_supported_catalogs:
         return agent_supported_catalogs[cscid]
 
-    raise ValueError(
+    raise A2uiCatalogError(
         "No client-supported catalog found on the agent side. Agent-supported catalogs"
         f" are: {[c.catalog_id for c in self._supported_catalogs]}"
     )
