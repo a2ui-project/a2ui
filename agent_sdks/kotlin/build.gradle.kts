@@ -29,9 +29,7 @@ ktfmt {
 version = "0.1.0"
 group = "com.google.a2ui"
 
-kotlin {
-  jvmToolchain(21)
-}
+// Using system default Java compiler
 
 repositories {
   mavenCentral()
@@ -98,3 +96,14 @@ fun findRepoRoot(): File {
   }
   throw GradleException("Could not find repository root containing specification directory.")
 }
+
+tasks.withType<org.jetbrains.kotlin.gradle.tasks.KotlinCompile>().configureEach {
+  compilerOptions {
+    jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_21)
+  }
+}
+
+tasks.withType<JavaCompile>().configureEach {
+  options.release.set(21)
+}
+
