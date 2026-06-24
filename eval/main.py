@@ -17,7 +17,8 @@ import sys
 import traceback
 import argparse
 from inspect_ai import eval_set
-from tasks import a2ui_v0_9_1_eval
+from tasks import a2ui_v0_9_1_eval, a2ui_v1_0_eval
+from a2ui_eval.strategies import STRATEGIES
 
 # Automatically override Inspect AI's connection rate-limiter limit to prevent queuing delays in latency measurements
 os.environ["INSPECT_MAX_CONNECTIONS"] = "50"
@@ -54,9 +55,12 @@ def main():
 
     tasks = []
     for strat in selected_strategies:
-        if strat not in ["direct", "subagent_tool", "express"]:
-            raise ValueError(f"Unknown evaluation strategy: {strat}. Valid choices: direct, subagent_tool, express")
-        tasks.append(a2ui_v0_9_1_eval(strategy=strat, grading_model=args.grading_model))
+        if strat not in STRATEGIES:
+            raise ValueError(f"Unknown evaluation strategy: {strat}. Valid choices: {', '.join(STRATEGIES.keys())}")
+        if strat == "express":
+            tasks.append(a2ui_v1_0_eval(strategy=strat, grading_model=args.grading_model))
+        else:
+            tasks.append(a2ui_v0_9_1_eval(strategy=strat, grading_model=args.grading_model))
 
     eval_set_kwargs = {
         "tasks": tasks,
