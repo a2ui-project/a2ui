@@ -17,6 +17,7 @@
 package com.google.a2ui.schema
 
 import com.google.a2ui.InferenceStrategy
+import com.google.a2ui.exceptions.A2uiCatalogException
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.jsonObject
@@ -120,7 +121,7 @@ constructor(
       } ?: emptyList()
 
     if (!acceptsInlineCatalogs && inlineCatalogs.isNotEmpty()) {
-      throw IllegalArgumentException(
+      throw A2uiCatalogException(
         "Inline catalog '${A2uiConstants.INLINE_CATALOGS_KEY}' is provided in client UI capabilities. However, the agent does not accept inline catalogs."
       )
     }
@@ -170,7 +171,7 @@ constructor(
       }
     }
 
-    throw IllegalArgumentException(
+    throw A2uiCatalogException(
       "No client-supported catalog found on the agent side. Agent-supported catalogs are: ${supportedCatalogs.map { it.catalogId }}"
     )
   }

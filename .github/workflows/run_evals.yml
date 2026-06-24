@@ -45,12 +45,19 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v6
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+        with:
+          persist-credentials: false
 
       - name: Set up Python
-        uses: actions/setup-python@v6
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
         with:
           python-version: "3.12"
+
+      - name: Decrypt dataset
+        working-directory: eval
+        if: ${{ env.TRANSCRYPT_PASSWORD != '' }}
+        run: ./bin/transcrypt -p "$TRANSCRYPT_PASSWORD" -y
 
       - name: Install `uv` globally
         run: |
@@ -60,11 +67,6 @@ jobs:
       - name: Run Unit Tests
         working-directory: eval
         run: uv run python -m pytest
-
-      - name: Decrypt dataset
-        working-directory: eval
-        if: ${{ env.TRANSCRYPT_PASSWORD != '' }}
-        run: ./bin/transcrypt -p "$TRANSCRYPT_PASSWORD" -y
 
       - name: Run Evals
         working-directory: eval

@@ -21,6 +21,19 @@ CATALOG_ID_KEY = "catalogId"
 CATALOG_STYLES_KEY = "styles"
 SURFACE_ID_KEY = "surfaceId"
 
+# Keys whose string values can be safely auto-closed (healed) if fragmented in the stream.
+# Structural or atomic keys (e.g., id, surfaceId, path) are NOT cuttable to prevent
+# incorrect parsing or data binding.
+DEFAULT_CUTTABLE_KEYS = frozenset({
+    "literalString",
+    "valueString",
+    "label",
+    "hint",
+    "caption",
+    "altText",
+    "text",
+})
+
 # Protocol constants
 SUPPORTED_CATALOG_IDS_KEY = "supportedCatalogIds"
 INLINE_CATALOGS_KEY = "inlineCatalogs"
@@ -33,6 +46,7 @@ INLINE_CATALOG_NAME = "inline"
 VERSION_0_8 = "0.8"
 VERSION_0_9 = "0.9"
 VERSION_0_9_1 = "0.9.1"
+VERSION_1_0 = "1.0"
 
 SPEC_VERSION_MAP = {
     VERSION_0_8: {
@@ -45,6 +59,10 @@ SPEC_VERSION_MAP = {
     VERSION_0_9_1: {
         SERVER_TO_CLIENT_SCHEMA_KEY: "specification/v0_9_1/json/server_to_client.json",
         COMMON_TYPES_SCHEMA_KEY: "specification/v0_9_1/json/common_types.json",
+    },
+    VERSION_1_0: {
+        SERVER_TO_CLIENT_SCHEMA_KEY: "specification/v1_0/json/server_to_client.json",
+        COMMON_TYPES_SCHEMA_KEY: "specification/v1_0/json/common_types.json",
     },
 }
 

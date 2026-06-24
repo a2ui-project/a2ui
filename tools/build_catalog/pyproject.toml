@@ -16,7 +16,7 @@
 name = "a2ui-scripts"
 version = "0.1.0"
 description = "Scripts for A2UI"
-requires-python = ">=3.11"
+requires-python = ">=3.14"
 dependencies = []
 
 [[tool.uv.index]]
@@ -25,7 +25,7 @@ default = true
 
 [dependency-groups]
 dev = [
-    "pytest>=8.0.0",
+    "pytest>=9.0.3",
 ]
 
 [tool.pytest.ini_options]

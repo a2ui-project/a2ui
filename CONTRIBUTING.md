@@ -57,6 +57,7 @@ To keep our codebase consistent and maintainable, we follow specific coding stan
 - **JavaScript / TypeScript / JSON / Markdown / CSS**: [Prettier](https://prettier.io/)
 - **Python**: [Pyink](https://github.com/google/pyink) (Google style Black)
 - **Dart**: `dart format`
+- **Swift**: `swift-format`
 
 You can use the provided script to format the entire repo or check formatting:
 
@@ -79,6 +80,7 @@ Please refer to the following guidelines for detailed information on styles:
 
 - **Python**: [Google Python Style Guide](https://google.github.io/styleguide/pyguide.html).
 - **TypeScript**: [Google TypeScript Style Guide](https://google.github.io/styleguide/tsguide.html).
+- **Swift**: [Google Swift Style Guide](https://google.github.io/swift/)
 - **License Headers**: required copyright notices.
 
 We expect all contributors to adhere to these styles.

@@ -131,6 +131,7 @@ This section details the fundamental mechanics of the A2UI protocol. A compliant
     - **Client-to-Server**:
         - Generate and include an `actionId` inside `action` payloads.
         - Support `wantResponse: true` on actions when the client expects a response.
+        - If using A2A, every A2A `Message` sent to the server must include an `a2uiClientCapabilities` object in the `metadata` field of the A2A `Message`.
     - **Capabilities**:
         - Expose `surfaceProperties` in place of `theme` during capabilities exchange.
 

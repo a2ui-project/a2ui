@@ -19,7 +19,7 @@ import path from 'path';
 
 const SPEC_EXAMPLES_DIR = path.resolve(
   import.meta.dirname,
-  '../../../../specification/v0_9/catalogs/basic/examples',
+  '../../../../specification/v0_9_1/catalogs/basic/examples',
 );
 const OUT_FILE = path.resolve(import.meta.dirname, '../src/generated/examples-list.ts');
 
@@ -48,7 +48,7 @@ function generateExamplesBundle() {
 
   files.forEach((file, index) => {
     // Relative path from src/generated/examples-list.ts to the specification examples folder
-    const relativePath = `../../../../../specification/v0_9/catalogs/basic/examples/${file}`;
+    const relativePath = `../../../../../specification/v0_9_1/catalogs/basic/examples/${file}`;
     const variableName = `example_${index}`;
 
     imports.push(`import ${variableName} from '${relativePath}';`);
@@ -59,7 +59,7 @@ function generateExamplesBundle() {
  * Generated file. Do not edit directly.
  *
  * To regenerate this file, run:
- *   npm run generate-examples
+ *   yarn generate-examples
  *
  * Run this command whenever you add, remove, or rename example JSON files
  * in the specification directory.

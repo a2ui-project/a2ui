@@ -9,7 +9,7 @@
       "name": "restaurant finder, Lit renderer",
       "type": "node-terminal",
       "request": "launch",
-      "command": "(cd renderers/web_core/ && npm i && npm run build) && (cd renderers/markdown/markdown-it/ && npm i && npm run build) && (cd renderers/lit/ && npm i && npm run build) && (cd samples/client/lit/shell/ && npm i && npm run dev)",
+      "command": "yarn workspace @a2ui/shell dev",
       "cwd": "${workspaceFolder}"
     },
     {

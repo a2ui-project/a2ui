@@ -26,14 +26,14 @@ Version 1.0 differs from 0.9 in the following ways:
 - Supported standard JSON Schema metadata fields (`$schema`, `$id`, `title`, and `description`) in the Catalog object definition. Since the Catalog schema restricts properties with `additionalProperties: false`, this ensures inline catalogs containing standard schema metadata do not fail schema validation.
 - Enforced Unicode Standard Annex #31 (UAX #31) identifier naming constraints (`XID_Start`, `XID_Continue`) across component names, function names, and argument keys.
 
-### 2.2. Standard catalogs (basic and minimal)
+### 2.2. Standard catalogs (basic)
 
 - Added `posterUrl` property to the `Video` component in `catalogs/basic/catalog.json`, allowing a preview image to be displayed before the video plays.
 - Added `placeholder` prop to the `TextField` component schema.
 - Added a `steps` property to the `Slider` component schema to snap values to discrete intervals.
-- Added an optional `instructions` field to the `Catalog` schema (`catalogs/basic/catalog.json`) to refer to an external guidelines/rules file (`instructions.md`) via relative file URI, renaming and updating the previous `rules.txt` file.
+- Added an optional `instructions` field to the `Catalog` schema (`catalogs/basic/catalog.json`) to embed Markdown guidelines/rules directly, replacing the external `rules.txt` file.
 - Renamed `svgPath` to `path` in the custom SVG icon definition object schema.
-- Renamed `$defs/theme` to `$defs/surfaceProperties` in both the basic and minimal catalogs.
+- Renamed `$defs/theme` to `$defs/surfaceProperties` in the basic catalog.
 
 ### 2.3. Server-to-client messages
 
@@ -49,11 +49,11 @@ Version 1.0 differs from 0.9 in the following ways:
 - Updated client `error` messages to support `functionCallId` when reporting function execution failures, enforcing mutual exclusivity with `surfaceId`.
 - Updated all protocol version references from `v0.9` or `v0.9.1` to `v1.0`.
 
-### 2.5. Client capabilities schema
+### 2.5. Catalog definition schema
 
-- Added an optional `instructions` field to the `Catalog` object definition (`client_capabilities.json`) as a relative file URI reference (with format hint of `uri-reference`) to support external rules files associated with a catalog.
-- Renamed `theme` capability block to `surfaceProperties` within the Catalog definition in `client_capabilities.json`.
-- Added static `callableFrom` and `returnType` metadata properties to `FunctionDefinition` inside `client_capabilities.json` to advertise execution boundaries and return types to the server.
+- Added an optional `instructions` field to the `Catalog` object definition (`catalog_definition.json`) as a plain Markdown string to embed design guidelines directly.
+- Renamed `theme` capability block to `surfaceProperties` within the Catalog definition in `catalog_definition.json`.
+- Added static `callableFrom` and `returnType` metadata properties to `FunctionDefinition` inside `catalog_definition.json` to advertise execution boundaries and return types to the server.
 
 ### 2.6. Agent card and transport metadata
 

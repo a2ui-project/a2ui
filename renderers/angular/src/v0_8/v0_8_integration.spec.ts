@@ -101,7 +101,7 @@ describe('v0.8 Angular Renderer Integration', () => {
       'version',
     ]);
     // Default mock behavior for getData
-    processor.getData.and.callFake((node: any, path: string, surfaceId?: string) => {
+    processor.getData.and.callFake((node: any, path: string, _surfaceId?: string) => {
       if (path === '/name') return 'The Italian Kitchen';
       return `resolved:${path}`;
     });
@@ -205,7 +205,7 @@ describe('v0.8 Angular Renderer Integration', () => {
     };
 
     // Mock data resolution for the name
-    processor.getData.and.callFake((node: any, path: string, surfaceId?: string) => {
+    processor.getData.and.callFake((node: any, path: string, _surfaceId?: string) => {
       if (path === '/name') return 'The Italian Kitchen';
       return `resolved:${path}`;
     });

@@ -20,7 +20,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import * as yaml from 'js-yaml';
 
-import {GeneratedResult, ValidatedResult, IssueSeverity} from './types';
+import {GeneratedResult, ValidatedResult, IssueSeverity, ProtocolSchemas} from './types';
 import {logger} from './logger';
 
 export class Validator {
@@ -29,14 +29,16 @@ export class Validator {
   private basicFunctions = new Set<string>();
 
   constructor(
-    private schemas: Record<string, any>,
+    private schemas: ProtocolSchemas,
     private outputDir?: string,
   ) {
     // Set strict: false to be lenient with unknown keywords, if any.
     this.ajv = new Ajv({allErrors: true, strict: false});
     addFormats(this.ajv);
     for (const [name, schema] of Object.entries(schemas)) {
-      this.ajv.addSchema(schema, name);
+      if (schema) {
+        this.ajv.addSchema(schema, name);
+      }
     }
     this.validateFn = this.ajv.getSchema(
       'https://a2ui.org/specification/v1_0/server_to_client.json',

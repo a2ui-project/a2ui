@@ -14,18 +14,22 @@
 
 import re
 import json
-from typing import Any, List, Dict, Optional, Set
+from typing import Any, List, Dict, Optional, Set, TYPE_CHECKING
 
 from .streaming import A2uiStreamParser
 from .response_part import ResponsePart
 from .constants import *
 from ..schema.constants import VERSION_0_9, SURFACE_ID_KEY, CATALOG_COMPONENTS_KEY
+from a2ui.core.validating.validator import RELAXED_VALIDATION
+
+if TYPE_CHECKING:
+  from ..schema.catalog import A2uiCatalog
 
 
 class A2uiStreamParserV09(A2uiStreamParser):
   """Streaming parser implementation for A2UI v0.9 specification."""
 
-  def __init__(self, catalog=None):
+  def __init__(self, catalog: A2uiCatalog):
     super().__init__(catalog=catalog)
     # v0.9 default root is "root"
     self._default_root_id = DEFAULT_ROOT_ID
@@ -91,7 +95,7 @@ class A2uiStreamParserV09(A2uiStreamParser):
       return False
 
     if self._validator:
-      self._validator.validate(obj, root_id=sid, strict_integrity=False)
+      self._validator.validate(obj, root_id=sid, config=RELAXED_VALIDATION)
 
     # Update state based on the message content
     surface_id = obj.get(SURFACE_ID_KEY, self.surface_id)
@@ -214,7 +218,7 @@ class A2uiStreamParserV09(A2uiStreamParser):
               delta_msg = self._construct_sniffed_data_model_message(
                   msg_type, delta_msg_payload
               )
-              self._yield_messages([delta_msg], messages, strict_integrity=False)
+              self._yield_messages([delta_msg], messages, config=RELAXED_VALIDATION)
               # Do NOT update _yielded_data_model here, let update_data_model do it when complete
               # Wait! If we don't update it, will we over-yield it in the next chunk?
               # Yes, we might. So we should update it or track it!
@@ -249,7 +253,7 @@ class A2uiStreamParserV09(A2uiStreamParser):
         return mt
     return self._msg_types[0] if self._msg_types else None
 
-  def _deduplicate_data_model(self, m: Dict[str, Any], strict_integrity: bool) -> bool:
+  def _deduplicate_data_model(self, m: Dict[str, Any]) -> bool:
     if MSG_TYPE_UPDATE_DATA_MODEL in m:
       udm = m[MSG_TYPE_UPDATE_DATA_MODEL]
       if isinstance(udm, dict):
@@ -258,7 +262,7 @@ class A2uiStreamParserV09(A2uiStreamParser):
           if k not in (SURFACE_ID_KEY, 'root') and self._yielded_data_model.get(k) != v:
             is_new = True
             break
-        if not is_new and strict_integrity:
+        if not is_new:
           return False
         # Update yielded model
         for k, v in udm.items():

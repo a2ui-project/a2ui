@@ -16,6 +16,8 @@
 
 package com.google.a2ui.parser
 
+import com.google.a2ui.exceptions.A2uiIntegrityException
+import com.google.a2ui.exceptions.A2uiParseException
 import com.google.a2ui.schema.A2uiCatalog
 import com.google.a2ui.schema.A2uiConstants
 import com.google.a2ui.schema.A2uiValidator
@@ -43,7 +45,8 @@ abstract class StreamingParser(
     catalog?.let { TopologyAnalyzer.extractComponentRefFields(it) } ?: emptyMap()
   protected val requiredFieldsMap: Map<String, Set<String>> =
     catalog?.let { TopologyAnalyzer.extractComponentRequiredFields(it) } ?: emptyMap()
-  protected val validator: A2uiValidator? = catalog?.let { A2uiValidator(it, schemaMappings) }
+  protected val cuttableKeys: Set<String> = catalog?.cuttableKeys ?: emptySet()
+  internal var validator: A2uiValidator? = catalog?.let { A2uiValidator(it, schemaMappings) }
 
   protected var foundDelimiter = false
   protected val buffer = StringBuilder()
@@ -186,7 +189,7 @@ abstract class StreamingParser(
         val keyMatch = KEY_MATCH_REGEX.find(prefix)
         if (keyMatch != null) {
           val key = keyMatch.groupValues[1]
-          if (key !in CUTTABLE_KEYS) {
+          if (key !in cuttableKeys) {
             return ""
           }
 
@@ -262,9 +265,10 @@ abstract class StreamingParser(
         continue
       }
 
-      if (validator != null) {
+      val currentValidator = validator
+      if (currentValidator != null) {
         try {
-          validator.validate(m, strictIntegrity = strictIntegrity)
+          currentValidator.validate(m, strictIntegrity = strictIntegrity)
         } catch (e: Exception) {
           if (strictIntegrity) {
             throw e
@@ -355,7 +359,7 @@ abstract class StreamingParser(
           val jsonFragment = buffer.substring(0, idx)
           processJsonChunk(jsonFragment, messages)
           if (!foundValidJsonInBlock) {
-            throw IllegalArgumentException(
+            throw A2uiParseException(
               "Failed to parse JSON: No valid JSON object found in A2UI block."
             )
           }
@@ -425,7 +429,7 @@ abstract class StreamingParser(
 
   protected fun processJsonChunk(chunk: String, messages: MutableList<ResponsePart>) {
     if (jsonBuffer.length + chunk.length > MAX_JSON_BUFFER_SIZE) {
-      throw IllegalArgumentException("A2UI JSON buffer exceeded maximum size limit.")
+      throw A2uiParseException("A2UI JSON buffer exceeded maximum size limit.")
     }
     for (i in chunk.indices) {
       val char = chunk[i]
@@ -873,7 +877,7 @@ abstract class StreamingParser(
       val componentsToAnalyze = seenComponents.values.toList()
 
       if (checkRoot && !seenComponents.containsKey(currentRootId)) {
-        throw IllegalArgumentException(
+        throw A2uiIntegrityException(
           "No root component (id='$currentRootId') found in $activeMsgType"
         )
       }
@@ -889,7 +893,7 @@ abstract class StreamingParser(
       val availableReachable = reachableIds.intersect(seenComponents.keys)
 
       if (checkRoot && availableReachable.isEmpty()) {
-        throw IllegalArgumentException(
+        throw A2uiIntegrityException(
           "No root component (id='$currentRootId') found in $activeMsgType"
         )
       }
@@ -1087,9 +1091,6 @@ abstract class StreamingParser(
   }
 
   companion object {
-    internal val CUTTABLE_KEYS =
-      setOf("literalString", "valueString", "label", "hint", "caption", "altText", "text")
-
     @JvmStatic internal val logger: Logger = Logger.getLogger(StreamingParser::class.java.name)
 
     private val KEY_MATCH_REGEX = Regex("\"([^\"]+)\"\\s*:\\s*$")

@@ -26,6 +26,10 @@ object A2uiConstants {
   const val CATALOG_ID_KEY = "catalogId"
   const val CATALOG_STYLES_KEY = "styles"
 
+  @JvmField
+  val DEFAULT_CUTTABLE_KEYS =
+    setOf("literalString", "valueString", "label", "hint", "caption", "altText", "text")
+
   // Protocol constants
   const val SUPPORTED_CATALOG_IDS_KEY = "supportedCatalogIds"
   const val INLINE_CATALOGS_KEY = "inlineCatalogs"

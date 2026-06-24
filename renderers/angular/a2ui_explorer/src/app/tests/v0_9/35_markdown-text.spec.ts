@@ -32,6 +32,6 @@ describe('Example: Markdown Text Support', () => {
   });
 
   it('should render markdown HTML tags', async () => {
-    expect(fixture.nativeElement.innerHTML).toContain(`<h1>Heading 1</h1>`);
+    expect(fixture.nativeElement.innerHTML).toContain('<h1>Heading 1</h1>');
   });
 });

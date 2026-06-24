@@ -28,23 +28,23 @@ describe('Example: Financial Data Grid', () => {
   });
 
   it('should render table headers', async () => {
-    expect(textContent).toContain(`Asset`);
-    expect(textContent).toContain(`Price`);
-    expect(textContent).toContain(`24h Change`);
-    expect(textContent).toContain(`Market Cap`);
+    expect(textContent).toContain('Asset');
+    expect(textContent).toContain('Price');
+    expect(textContent).toContain('24h Change');
+    expect(textContent).toContain('Market Cap');
   });
 
   it('should render asset names and symbols', async () => {
-    expect(textContent).toContain(`Bitcoin`);
-    expect(textContent).toContain(`BTC`);
-    expect(textContent).toContain(`Ethereum`);
-    expect(textContent).toContain(`ETH`);
-    expect(textContent).toContain(`Solana`);
-    expect(textContent).toContain(`SOL`);
+    expect(textContent).toContain('Bitcoin');
+    expect(textContent).toContain('BTC');
+    expect(textContent).toContain('Ethereum');
+    expect(textContent).toContain('ETH');
+    expect(textContent).toContain('Solana');
+    expect(textContent).toContain('SOL');
   });
 
   it('should render icon', async () => {
     expect(fixture.nativeElement.querySelector('.a2ui-icon')).toBeTruthy();
-    expect(textContent).toContain(`payment`);
+    expect(textContent).toContain('payment');
   });
 });

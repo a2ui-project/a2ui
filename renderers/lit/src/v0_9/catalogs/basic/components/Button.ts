@@ -19,7 +19,7 @@ import {customElement} from 'lit/decorators.js';
 import {classMap} from 'lit/directives/class-map.js';
 import {ButtonApi} from '@a2ui/web_core/v0_9/basic_catalog';
 import {BasicCatalogA2uiLitElement} from '../basic-catalog-a2ui-lit-element.js';
-import {A2uiController} from '@a2ui/lit/v0_9';
+import {A2uiController} from '../../../a2ui-controller.js';
 
 /**
  * A button component that can be used to trigger an action.
@@ -41,7 +41,7 @@ export class A2uiBasicButtonElement extends BasicCatalogA2uiLitElement<typeof Bu
    * - `--a2ui-button-padding`: The padding of the button. Defaults to `--a2ui-spacing-m`.
    * - `--a2ui-button-margin`: The outer margin of the button. Defaults to `--a2ui-spacing-m`.
    */
-  static styles = css`
+  static override styles = css`
     :host {
       display: inline-block;
       margin: var(--a2ui-button-margin, var(--a2ui-spacing-m));
@@ -95,7 +95,7 @@ export class A2uiBasicButtonElement extends BasicCatalogA2uiLitElement<typeof Bu
     return new A2uiController(this, ButtonApi);
   }
 
-  render() {
+  override render() {
     const props = this.controller.props;
     if (!props) return nothing;
 

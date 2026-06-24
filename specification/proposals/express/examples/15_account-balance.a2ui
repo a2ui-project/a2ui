@@ -1,0 +1,16 @@
+$/accountName = "Primary Checking"
+$/balance = 12458.32
+$/lastUpdated = "Updated just now"
+root = Card(main_column)
+main_column = Column([header, balance, updated, divider, actions])
+header = Row([account_icon, account_name], _, "center")
+account_icon = Icon("payment")
+account_name = Text($/accountName)
+balance = Text(formatCurrency($/balance, "USD"))
+updated = Text($/lastUpdated, "caption")
+divider = Divider()
+actions = Row([transfer_btn, pay_btn])
+transfer_btn_text = Text("Transfer")
+transfer_btn = Button(transfer_btn_text, _, Event("transfer"))
+pay_btn_text = Text("Pay Bill")
+pay_btn = Button(pay_btn_text, _, Event("pay_bill"))

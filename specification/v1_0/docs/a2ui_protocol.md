@@ -95,29 +95,24 @@ To support A2UI, a transport layer must fulfill the following contract:
 
 ### Transport bindings
 
-While A2UI is agnostic, it is most commonly used with the following transports.
+While A2UI is transport agnostic, it is most commonly used with the following transports.
 
-#### A2A (Agent2Agent) binding
+#### AG-UI (Agent-to-User Interface) binding
 
-[A2A (Agent-to-Agent)](https://a2a-protocol.org/latest/) is an excellent transport option for A2UI in agentic systems, extending A2A with additional payloads.
-A2A is uniquely capable of handling remote agent communication, and can also provide a secure and efficient transport between an agentic backend and front end application.
+**[AG-UI](https://docs.ag-ui.com/introduction)** is the standard transport binding for Agent-to-User Interaction. It provides convenient integrations into many agent frameworks and frontends, offering low-latency and shared-state message passing between frontends and agentic backends.
 
-- **Message mapping**: Each A2UI envelope (e.g., `updateComponents`) corresponds to the payload of a single A2A message Part.
-- **Metadata**:
-  - **Data model**: When `sendDataModel` is active, the client's `a2uiClientDataModel` object is placed in the `metadata` field of the A2A message.
-  - **Capabilities**: The `a2uiClientCapabilities` object is placed in the `metadata` field of every A2A message sent from the client to the server.
-- **Context**: A2UI sessions typically map to A2A `contextId`. All messages for a set of related surfaces should share the same `contextId`.
+#### A2A (Agent-to-Agent) binding
 
-#### AG UI (Agent to User Interface) binding
+The **[A2A Extension](../extensions/a2a/docs/a2ui_extension_specification.md)** maps A2UI over the **[A2A Protocol](https://a2a-protocol.org)**. It standardizes metadata placement, client-to-server capability negotiation, and bidirectional data model synchronization for agent-to-agent interactions.
 
-**[AG-UI](https://docs.ag-ui.com/introduction)** is also an excellent transport option for A2UI Agent–User Interaction protocol.
-AG UI provides convenient integrations into many agent frameworks and frontends. AG UI provides low latency and shared state message passing between front ends and agentic backends.
+#### MCP (Model Context Protocol) binding
+
+**[MCP](https://modelcontextprotocol.io/docs/getting-started/intro)** is a standard protocol for exposing data and tools to LLMs. A2UI can be carried over MCP tool calls, tool outputs, or resource subscriptions, allowing agents to dynamically render rich user interfaces for client-side applications.
 
 #### Other transports
 
 A2UI can also be carried over:
 
-- **[MCP (Model Context Protocol)](https://modelcontextprotocol.io/docs/getting-started/intro)**: Delivered as tool outputs or resource subscriptions.
 - **[SSE](https://en.wikipedia.org/wiki/Server-sent_events) with [JSON RPC](https://www.jsonrpc.org/)**: Standard server-sent events for web integrations that support streaming, and JSON RPC for client-server communication.
 - **[WebSockets](https://en.wikipedia.org/wiki/WebSocket)**: For bidirectional, real-time sessions.
 - **[REST](https://cloud.google.com/discover/what-is-rest-api?hl=en)**: For simple use case, REST APIs will work but lack streaming capabilities.
@@ -418,7 +413,7 @@ The following example demonstrates a complete interaction to render a Contact Fo
 
 ```jsonl
 {"version": "v1.0", "createSurface":{"surfaceId":"contact_form_1","catalogId":"https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"}}
-{"version": "v1.0", "updateComponents":{"surfaceId":"contact_form_1","components":[{"id":"root","component":"Card","child":"form_container"},{"id":"form_container","component":"Column","children":["header_row","name_row","email_group","phone_group","pref_group","divider_1","newsletter_checkbox","submit_button"],"justify":"start","align":"stretch"},{"id":"header_row","component":"Row","children":["header_icon","header_text"],"align":"center"},{"id":"header_icon","component":"Icon","name":"mail"},{"id":"header_text","component":"Text","text":"# Contact Us","variant":"h2"},{"id":"name_row","component":"Row","children":["first_name_group","last_name_group"],"justify":"spaceBetween"},{"id":"first_name_group","component":"Column","children":["first_name_label","first_name_field"],"weight":1},{"id":"first_name_label","component":"Text","text":"First Name","variant":"caption"},{"id":"first_name_field","component":"TextField","label":"First Name","value":{"path":"/contact/firstName"},"variant":"shortText"},{"id":"last_name_group","component":"Column","children":["last_name_label","last_name_field"],"weight":1},{"id":"last_name_label","component":"Text","text":"Last Name","variant":"caption"},{"id":"last_name_field","component":"TextField","label":"Last Name","value":{"path":"/contact/lastName"},"variant":"shortText"},{"id":"email_group","component":"Column","children":["email_label","email_field"]},{"id":"email_label","component":"Text","text":"Email Address","variant":"caption"},{"id":"email_field","component":"TextField","label":"Email","value":{"path":"/contact/email"},"variant":"shortText","checks":[{"call":"required","args":{"value":{"path":"/contact/email"}},"message":"Email is required."},{"call":"email","args":{"value":{"path":"/contact/email"}},"message":"Please enter a valid email address."}]},{"id":"phone_group","component":"Column","children":["phone_label","phone_field"]},{"id":"phone_label","component":"Text","text":"Phone Number","variant":"caption"},{"id":"phone_field","component":"TextField","label":"Phone","value":{"path":"/contact/phone"},"variant":"shortText","checks":[{"call":"regex","args":{"value":{"path":"/contact/phone"},"pattern":"^\\d{10}$"},"message":"Phone number must be 10 digits."}]},{"id":"pref_group","component":"Column","children":["pref_label","pref_picker"]},{"id":"pref_label","component":"Text","text":"Preferred Contact Method","variant":"caption"},{"id":"pref_picker","component":"ChoicePicker","variant":"mutuallyExclusive","options":[{"label":"Email","value":"email"},{"label":"Phone","value":"phone"},{"label":"SMS","value":"sms"}],"value":{"path":"/contact/preference"}},{"id":"divider_1","component":"Divider","axis":"horizontal"},{"id":"newsletter_checkbox","component":"CheckBox","label":"Subscribe to our newsletter","value":{"path":"/contact/subscribe"}},{"id":"submit_button_label","component":"Text","text":"Send Message"},{"id":"submit_button","component":"Button","child":"submit_button_label","variant":"primary","action":{"event":{"name":"submitContactForm","context":{"formId":"contact_form_1","clientTime":{"call":"formatDate","args":{"value": "2026-02-02T15:17:00Z", "format": "E MMM d, YYYY h:mm a"}},"isNewsletterSubscribed":{"path":"/contact/subscribe"}}}}}]}}
+{"version": "v1.0", "updateComponents":{"surfaceId":"contact_form_1","components":[{"id":"root","component":"Card","child":"form_container"},{"id":"form_container","component":"Column","children":["header_row","name_row","email_group","phone_group","pref_group","divider_1","newsletter_checkbox","submit_button"],"justify":"start","align":"stretch"},{"id":"header_row","component":"Row","children":["header_icon","header_text"],"align":"center"},{"id":"header_icon","component":"Icon","name":"mail"},{"id":"header_text","component":"Text","text":"# Contact Us"},{"id":"name_row","component":"Row","children":["first_name_group","last_name_group"],"justify":"spaceBetween"},{"id":"first_name_group","component":"Column","children":["first_name_label","first_name_field"],"weight":1},{"id":"first_name_label","component":"Text","text":"First Name","variant":"caption"},{"id":"first_name_field","component":"TextField","label":"First Name","value":{"path":"/contact/firstName"},"variant":"shortText"},{"id":"last_name_group","component":"Column","children":["last_name_label","last_name_field"],"weight":1},{"id":"last_name_label","component":"Text","text":"Last Name","variant":"caption"},{"id":"last_name_field","component":"TextField","label":"Last Name","value":{"path":"/contact/lastName"},"variant":"shortText"},{"id":"email_group","component":"Column","children":["email_label","email_field"]},{"id":"email_label","component":"Text","text":"Email Address","variant":"caption"},{"id":"email_field","component":"TextField","label":"Email","value":{"path":"/contact/email"},"variant":"shortText","checks":[{"call":"required","args":{"value":{"path":"/contact/email"}},"message":"Email is required."},{"call":"email","args":{"value":{"path":"/contact/email"}},"message":"Please enter a valid email address."}]},{"id":"phone_group","component":"Column","children":["phone_label","phone_field"]},{"id":"phone_label","component":"Text","text":"Phone Number","variant":"caption"},{"id":"phone_field","component":"TextField","label":"Phone","value":{"path":"/contact/phone"},"variant":"shortText","checks":[{"call":"regex","args":{"value":{"path":"/contact/phone"},"pattern":"^\\d{10}$"},"message":"Phone number must be 10 digits."}]},{"id":"pref_group","component":"Column","children":["pref_label","pref_picker"]},{"id":"pref_label","component":"Text","text":"Preferred Contact Method","variant":"caption"},{"id":"pref_picker","component":"ChoicePicker","variant":"mutuallyExclusive","options":[{"label":"Email","value":"email"},{"label":"Phone","value":"phone"},{"label":"SMS","value":"sms"}],"value":{"path":"/contact/preference"}},{"id":"divider_1","component":"Divider","axis":"horizontal"},{"id":"newsletter_checkbox","component":"CheckBox","label":"Subscribe to our newsletter","value":{"path":"/contact/subscribe"}},{"id":"submit_button_label","component":"Text","text":"Send Message"},{"id":"submit_button","component":"Button","child":"submit_button_label","variant":"primary","action":{"event":{"name":"submitContactForm","context":{"formId":"contact_form_1","clientTime":{"call":"formatDate","args":{"value": "2026-02-02T15:17:00Z", "format": "E MMM d, YYYY h:mm a"}},"isNewsletterSubscribed":{"path":"/contact/subscribe"}}}}}]}}
 {"version": "v1.0", "updateDataModel":{"surfaceId":"contact_form_1","path":"/contact","value":{"firstName":"John","lastName":"Doe","email":"john.doe@example.com","phone":"1234567890","preference":["email"],"subscribe":true}}}
 {"version": "v1.0", "deleteSurface":{"surfaceId":"contact_form_1"}}
 ```
@@ -446,7 +441,7 @@ The set of available UI components and functions is defined in a **Catalog**. Th
 Every catalog follows the standard `Catalog` object definition:
 
 - **catalogId** (string, required): A unique identifier URI for this catalog.
-- **instructions** (string, optional): A relative file URI pointing to a Markdown file containing design principles, rules, or developer guidelines specific to this catalog (typically `instructions.md`). These rules guide LLMs when generating UI layouts under this catalog.
+- **instructions** (string, optional): Markdown-formatted design principles, rules, or developer guidelines specific to this catalog. These rules guide LLMs when generating UI layouts under this catalog.
 - **components** (object, optional): A map of supported UI components, where each key is the component type (e.g., `Text`) and its value is its JSON Schema definition. All keys MUST conform to the UAX #31 entity naming rules defined below.
 - **functions** (object, optional): A map of client-side validation or utility functions supported by the catalog, where each key is the function name and its value is its definition. All function names MUST conform to the UAX #31 entity naming rules defined below. The client determines a function's execution boundary (e.g., clientOnly status) at runtime by reading its configuration from the active catalog definition.
 - **surfaceProperties** (object, optional): A schema defining the catalog's customizable visual properties.
@@ -472,6 +467,177 @@ To ensure complete cross-language compatibility across client SDKs, parsers, and
   - `User Card` (violates `Pattern_White_Space`)
   - `1stItem` (violates initial `Nd`)
   - `submit-form`, `user#name`, `calc$val` (violates `Pattern_Syntax`)
+
+#### Catalog Schema Rules and Conventions
+
+To ensure catalog schemas can be translated reliably into alternative, LLM-friendly DSL formats (e.g., HTML-like XML, functional, or compact inline formats), cleanly mapped to type-safe client SDK representations, automatically parsed, and bound seamlessly across platforms, all v1.0 component and function catalog definitions MUST conform to the following strict structural constraints and conventions:
+
+1. **Strict Top-Level vs. `$defs` Boundary:**
+   - **Top-Level components and functions:** All component and function schemas MUST be declared directly under the top-level keys `"components"` and `"functions"` respectively.
+   - **External References inside `$defs`:** Any definition referenced externally (e.g., from the envelope schema `server_to_client.json` or `common_types.json`) MUST reside inside the `"$defs"` object at the catalog root. This strictly includes:
+     - `surfaceProperties`: Referenced as `catalog.json#/$defs/surfaceProperties`.
+     - `anyComponent`: Referenced as `catalog.json#/$defs/anyComponent`.
+     - `anyFunction`: Referenced as `catalog.json#/$defs/anyFunction`.
+2. **No Custom `$defs` or Helpers:**
+   - To prevent unconstrained branching, custom definitions or shared helper schemas inside a catalog are strictly prohibited under `"$defs"`.
+   - The only allowed keys within the catalog's `"$defs"` object are `anyComponent`, `anyFunction`, and `surfaceProperties`.
+   - All helper properties (such as common properties factored out of catalog items) MUST be inlined directly inside the properties block of each supporting component schema rather than referenced from a shared helper.
+3. **Restricted `$ref` Targets:**
+   - Local `$ref` targets are restricted to referencing the catalog's top-level components or functions (e.g., `#/components/Text`, `#/functions/required`).
+   - External `$ref` targets MUST reference the standard types inside `common_types.json` (`https://a2ui.org/specification/v1_0/common_types.json#/$defs/...`), limited to the following allowed schemas:
+     - `ComponentId`
+     - `ChildList`
+     - `DynamicString`
+     - `DynamicNumber`
+     - `DynamicBoolean`
+     - `DynamicStringList`
+     - `DynamicValue`
+     - `CheckRule`
+     - `ComponentCommon`
+     - `Checkable`
+     - `Action`
+4. **Component Discriminator Rule:**
+   - Every component schema defined inside the `components` map must have a required property named `component` whose value is a constant (`const`) matching the key under which it is defined.
+   - Example: The component defined at `components.Text` must declare:
+     ```json
+     "properties": {
+       "component": {
+         "const": "Text"
+       }
+     }
+     ```
+     This enables route-dispatch matching via the `discriminator` block inside `anyComponent` (designating `"propertyName": "component"`).
+5. **Standard Component Structure:**
+   - All components defined in the `components` object must use an `allOf` structure that combines:
+     1. An external reference to the baseline identity and accessibility attributes:
+        `{"$ref": "https://a2ui.org/specification/v1_0/common_types.json#/$defs/ComponentCommon"}`
+     2. A local object schema defining the unique properties of that specific component (e.g., its children, variant, specific layouts).
+6. **Strict Function Interface Pattern:**
+   - Every function schema defined inside the `functions` map must validate a wire-level `FunctionCall` object. This requires:
+     - A `properties` block with a `call` property containing a constant of the function's name (e.g., `"call": { "const": "email" }`).
+     - An optional `args` property representing arguments (or absent if the function accepts no arguments).
+     - Mandatory metadata fields outside the strict JSON validation properties to advertise interface details:
+       - **`returnType`**: Must be a string enum indicating the return type (`string`, `number`, `boolean`, `array`, `object`, `any`, or `void`).
+       - **`callableFrom`**: Must be a string enum indicating the execution boundary (`clientOnly`, `remoteOnly`, or `clientOrRemote`). If omitted, it defaults to `clientOnly`.
+7. **Strict Top-Level Schema Keys:**
+   - To keep catalog schemas predictable and prevent custom extensions from polluting the global file space, a `catalog.json` file is restricted to the following root-level keys:
+     - `$schema`
+     - `$id`
+     - `title`
+     - `description`
+     - `catalogId`
+     - `instructions`
+     - `components`
+     - `functions`
+     - `$defs`
+   - No other top-level keys are permitted.
+
+##### Example Schema Template
+
+Below is an annotated, fully compliant `catalog.json` schema template (written in JSONC format with comments) representing a visual, complete model of these rules in action:
+
+```jsonc
+{
+  // Rule 7: Strict Top-Level Schema Keys
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
+  "title": "A2UI Basic Catalog Template",
+  "description": "An annotated example showcasing structural rules and conventions.",
+  "catalogId": "https://example.com/catalogs/custom-v1",
+  "instructions": "Design instructions for LLMs when generating layouts under this catalog.",
+
+  // Rule 1: Top-level components declared under top-level "components" map.
+  "components": {
+    "Text": {
+      "type": "object",
+      // Rule 5: Components must combine ComponentCommon and local properties using "allOf".
+      "allOf": [
+        {
+          // Rule 3: External references must reference standard types in common_types.json.
+          "$ref": "https://a2ui.org/specification/v1_0/common_types.json#/$defs/ComponentCommon",
+        },
+        {
+          "type": "object",
+          "properties": {
+            // Rule 4: Required "component" property must be a constant matching the component key.
+            "component": {
+              "const": "Text",
+            },
+            // Leaf properties can be standard JSON primitives or Dynamic wrappers
+            "text": {
+              "$ref": "https://a2ui.org/specification/v1_0/common_types.json#/$defs/DynamicString",
+              "description": "Text content to display.",
+            },
+          },
+          "required": ["component", "text"],
+        },
+      ],
+      "unevaluatedProperties": false,
+    },
+  },
+
+  // Rule 1: Top-level functions declared under top-level "functions" map.
+  "functions": {
+    "required": {
+      "type": "object",
+      "description": "Checks that the value is not null, undefined, or empty.",
+      // Rule 6: Strict function metadata defined outside the properties block.
+      "returnType": "boolean",
+      "callableFrom": "clientOnly",
+      "properties": {
+        // Rule 6: Function call schema requires constant with function's name.
+        "call": {
+          "const": "required",
+        },
+        "args": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "description": "The value to check.",
+            },
+          },
+          "required": ["value"],
+          "additionalProperties": false,
+        },
+      },
+      "required": ["call", "args"],
+      "unevaluatedProperties": false,
+    },
+  },
+
+  // Rule 1 & Rule 2: $defs is restricted strictly to surfaceProperties, anyComponent, and anyFunction.
+  // Custom definitions or helpers inside a catalog are strictly prohibited under $defs.
+  "$defs": {
+    "surfaceProperties": {
+      "type": "object",
+      "properties": {
+        "agentDisplayName": {
+          "type": "string",
+        },
+      },
+    },
+    "anyComponent": {
+      "oneOf": [
+        {
+          // Rule 3: Local refs restricted to top-level components map.
+          "$ref": "#/components/Text",
+        },
+      ],
+      "discriminator": {
+        "propertyName": "component",
+      },
+    },
+    "anyFunction": {
+      "oneOf": [
+        {
+          // Rule 3: Local refs restricted to top-level functions map.
+          "$ref": "#/functions/required",
+        },
+      ],
+    },
+  },
+}
+```
 
 ### UI composition: the adjacency list model
 
@@ -740,7 +906,7 @@ _Replace the entire data model:_
 
 ### Client to server updates
 
-When `sendDataModel` is set to `true` for a surface, the client automatically appends the **entire data model** of that surface to the metadata of every message (such as `action` or user query) sent to the server that created the surface. The data model is included using the transport's metadata facility (e.g., the `metadata` field in A2A or a header in HTTP). The payload follows the schema in [`client_data_model.json`](../json/client_data_model.json).
+When `sendDataModel` is set to `true` for a surface, the client automatically appends the **entire data model** of that surface to the metadata of every message (such as `action` or user query) sent to the server that created the surface. The data model is included using the transport's metadata facility (the exact location and format are defined by the specific transport binding). The payload follows the schema in [`client_data_model.json`](../json/client_data_model.json).
 
 - **Targeted Delivery**: The data model is sent exclusively to the server that created the surface. Data cannot leak to other agents or servers.
 - **Trigger:** Data is sent only when a client-to-server message is triggered (e.g., by a user action like a button click). Passive data changes (like typing in a text field) do not trigger a network request on their own; they simply update the local state, which will be sent with the next action.

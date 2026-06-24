@@ -83,9 +83,6 @@ def mock_catalog():
                           "surfaceId": {
                               "type": "string",
                           },
-                          "root": {
-                              "type": "string",
-                          },
                           "components": {
                               "type": "array",
                               "minItems": 1,
@@ -357,8 +354,8 @@ def assertResponseContainsText(response, expected_text):
   )
 
 
-def test_add_msg_type_deduplication():
-  parser = A2uiStreamParser()
+def test_add_msg_type_deduplication(mock_catalog):
+  parser = A2uiStreamParser(catalog=mock_catalog)
   parser.add_msg_type(MSG_TYPE_UPDATE_COMPONENTS)
   parser.add_msg_type(MSG_TYPE_UPDATE_COMPONENTS)
   assert parser.msg_types == [MSG_TYPE_UPDATE_COMPONENTS]
@@ -374,7 +371,7 @@ def test_streaming_msg_type_deduplication(mock_catalog):
   # 1. Send partial chunk that triggers sniffing
   chunk1 = (
       A2UI_OPEN_TAG
-      + '[{"version": "v0.9", "updateComponents": {"surfaceId": "s1", "root": "root",'
+      + '[{"version": "v0.9", "updateComponents": {"surfaceId": "s1",'
       ' "components": [{"id": "root", "component": "Text", "text": "Hello"}'
   )
   parser.process_chunk(chunk1)
@@ -452,3 +449,42 @@ def test_v09_path_heuristic_absolute_path(mock_catalog):
   assert len(messages) > 0
   comp = messages[0][MSG_TYPE_UPDATE_COMPONENTS]["components"][0]
   assert comp["text"]["path"] == "/absolute/path"
+
+
+def test_v09_single_top_level_object(mock_catalog):
+  """Tests that v0.9 supports a single top-level object without array wrapping."""
+  parser = A2uiStreamParser(catalog=mock_catalog)
+
+  chunk = (
+      A2UI_OPEN_TAG
+      + '{"version": "v0.9", "createSurface": {"surfaceId": "s1", "catalogId": "c1"}}'
+      + A2UI_CLOSE_TAG
+  )
+  messages = []
+  for part in parser.process_chunk(chunk):
+    if part.a2ui_json:
+      messages.extend(part.a2ui_json)
+
+  assert len(messages) == 1
+  assert messages[0]["createSurface"]["surfaceId"] == "s1"
+
+
+def test_v09_multiple_top_level_objects(mock_catalog):
+  """Tests that v0.9 supports multiple consecutive top-level objects without array wrapping."""
+  parser = A2uiStreamParser(catalog=mock_catalog)
+
+  chunk = (
+      A2UI_OPEN_TAG
+      + '{"version": "v0.9", "createSurface": {"surfaceId": "s1", "catalogId": "c1"}}\n'
+      + '{"version": "v0.9", "updateComponents": {"surfaceId": "s1", "components":'
+      ' [{"id": "root", "component": "Text", "text": "Hello"}]}}'
+      + A2UI_CLOSE_TAG
+  )
+  messages = []
+  for part in parser.process_chunk(chunk):
+    if part.a2ui_json:
+      messages.extend(part.a2ui_json)
+
+  assert len(messages) == 2
+  assert messages[0]["createSurface"]["surfaceId"] == "s1"
+  assert messages[1][MSG_TYPE_UPDATE_COMPONENTS]["components"][0]["text"] == "Hello"

@@ -18,13 +18,8 @@ import {SignalWatcher} from '@lit-labs/signals';
 import {provide} from '@lit/context';
 import {LitElement, html, css, nothing} from 'lit';
 import {customElement, state, query} from 'lit/decorators.js';
-import {
-  SnackbarAction,
-  SnackbarMessage,
-  SnackbarUUID,
-  SnackType,
-} from '../custom-components-example/types/types.js';
-import {Snackbar} from '../custom-components-example/ui/snackbar.js';
+import {SnackbarMessage, SnackType} from './types/types.js';
+import {Snackbar} from './ui/snackbar.js';
 import {repeat} from 'lit/directives/repeat.js';
 
 // A2UI
@@ -803,7 +798,7 @@ export class A2UILayoutEditor extends SignalWatcher(LitElement) {
       ${repeat(
         surfaces,
         ([surfaceId]) => surfaceId,
-        ([_, surface]) => {
+        ([, surface]) => {
           return html`<a2ui-surface .surface=${surface}></a2ui-surface>`;
         },
       )}
@@ -873,7 +868,7 @@ export class A2UILayoutEditor extends SignalWatcher(LitElement) {
     for (const surfaceId of Array.from(this.#processor.model.surfacesMap.keys())) {
       this.#processor.model.deleteSurface(surfaceId);
     }
-    this.showToast(`Local mockup cleared.`, 'info');
+    this.showToast('Local mockup cleared.', 'info');
   }
 
   async #loadBuiltinSample(filename: string) {

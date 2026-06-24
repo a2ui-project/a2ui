@@ -25,8 +25,8 @@ describe('Example: Stats Card', () => {
   });
 
   it('should render text content and icons', async () => {
-    expect(textContent).toContain(`trending_up`);
-    expect(textContent).toContain(`Monthly Revenue`);
-    expect(textContent).toContain(`arrow_upward`);
+    expect(textContent).toContain('trending_up');
+    expect(textContent).toContain('Monthly Revenue');
+    expect(textContent).toContain('arrow_upward');
   });
 });

@@ -86,12 +86,15 @@ export const appConfig: ApplicationConfig = {
 
 ### Streaming
 
-By default, the Angular client uses the non-streaming API. To enable streaming, set the `ENABLE_STREAMING` environment variable to `true` before starting the app:
+By default, the Angular client uses the streaming API. To disable streaming, set the `ENABLE_STREAMING` environment variable to `false` before starting the app:
 
 ```bash
-export ENABLE_STREAMING=true
-npm start -- restaurant
+export ENABLE_STREAMING=false
+yarn start restaurant
 ```
+
+> [!NOTE]
+> **Package Manager Usage:** The `yarn start` command above is specific to running the sample application within the A2UI monorepo repository. For your own regular usage and standalone projects outside this repository, use the package manager of your choice (e.g. npm, pnpm).
 
 ## React
 

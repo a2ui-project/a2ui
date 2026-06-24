@@ -15,7 +15,7 @@
       "description": "A short description of what the sample demonstrates."
     },
     "messages": {
-      "$ref": "server_to_client_list.json",
+      "$ref": "https://a2ui.org/specification/v1_0/json/server_to_client_list.json",
       "description": "The ordered list of A2UI messages to be processed by the client."
     }
   }

@@ -23,13 +23,12 @@
           {
             "id": "header",
             "component": "Text",
-            "text": "System Dashboard",
-            "variant": "h2"
+            "text": "## System Dashboard"
           },
           {
             "id": "content-grid",
             "component": "Row",
-            "children": ["left-panel", "right-panel"]
+            "children": ["left-panel", "right_panel"]
           },
           {
             "id": "left-panel",
@@ -38,7 +37,7 @@
             "weight": 1
           },
           {
-            "id": "right-panel",
+            "id": "right_panel",
             "component": "Column",
             "children": ["panel-b-loading"],
             "weight": 1
@@ -89,21 +88,21 @@
         "surfaceId": "gallery-incremental-dashboard",
         "components": [
           {
-            "id": "right-panel",
+            "id": "right_panel",
             "component": "Column",
-            "children": ["logs-list"],
+            "children": ["logs_list"],
             "weight": 1
           },
           {
-            "id": "logs-list",
+            "id": "logs_list",
             "component": "List",
             "children": {
               "path": "/logs",
-              "componentId": "log-template"
+              "componentId": "log_template"
             }
           },
           {
-            "id": "log-template",
+            "id": "log_template",
             "component": "Text",
             "text": {
               "path": "message"

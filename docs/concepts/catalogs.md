@@ -75,7 +75,7 @@ By defining your own catalog, you restrict the agent to using exactly the compon
 
 For simplicity we recommend building catalogs that directly reflect a client's design system rather than trying to map the Basic Catalog to it through an adapter. Since A2UI is designed for GenUI, we expect the LLM can interpret different catalogs for different clients.
 
-[See an example Rizzcharts catalog](../../samples/agent/adk/rizzcharts/catalog_schemas/0.9/rizzcharts_catalog_definition.json)
+[See an example Rizzcharts catalog](../../samples/community/agent/adk/rizzcharts/catalog_schemas/0.9/rizzcharts_catalog_definition.json)
 
 ### Recommendations
 
@@ -259,7 +259,7 @@ export class HelloWorldBanner extends DynamicComponent {
 }
 ```
 
-You can see a working example of a client renderer in the [Rizzcharts demo](../../samples/client/angular/projects/rizzcharts/src/a2ui-catalog/catalog.ts).
+You can see a working example of a client renderer in the [Orchestrator demo](../../samples/community/client/angular/projects/orchestrator/src/a2ui-catalog/catalog.ts).
 
 ## A2UI Catalog Negotiation
 
