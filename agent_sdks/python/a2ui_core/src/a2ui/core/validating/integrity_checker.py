@@ -15,6 +15,8 @@
 from typing import Any, Dict, List, Optional, Set, Tuple, Union, Iterator
 import re
 from ..schema.constants import ROOT_ID
+from ..exceptions import A2uiValidationError, A2uiErrorDetail, A2uiIntegrityError, A2uiRecursionError
+
 
 NUMERIC_PATTERN = re.compile(r"^(?:0|[1-9][0-9]*)$")
 MAX_GLOBAL_DEPTH = 50
@@ -103,7 +105,7 @@ def validate_component_integrity(
         if comp_id is None:
             continue
         if comp_id in ids:
-            raise ValueError(f"Duplicate component ID: {comp_id}")
+            raise A2uiIntegrityError(f"Duplicate component ID: {comp_id}")
         ids.add(comp_id)
 
     # In an incremental update, components may reference IDs already on the client.
@@ -112,14 +114,16 @@ def validate_component_integrity(
 
     # 2. Check for root component
     if not allow_missing_root and root_id not in ids:
-        raise ValueError(f"Missing root component: No component has id='{root_id}'")
+        raise A2uiIntegrityError(
+            f"Missing root component: No component has id='{root_id}'"
+        )
 
     # 3. Check for dangling references using helper
     for comp in components:
         comp_id = comp.get("id", "Unknown")
         for ref_id, field_name in get_component_references(comp, ref_fields_map):
             if ref_id not in ids:
-                raise ValueError(
+                raise A2uiIntegrityError(
                     f"Component '{comp_id}' references non-existent component '{ref_id}'"
                     f" in field '{field_name}'"
                 )
@@ -128,7 +132,7 @@ def validate_component_integrity(
 def validate_recursion_and_paths(data: Any) -> None:
     def traverse(item: Any, global_depth: int, func_depth: int):
         if global_depth > MAX_GLOBAL_DEPTH:
-            raise ValueError(
+            raise A2uiRecursionError(
                 f"Global recursion limit exceeded: Depth > {MAX_GLOBAL_DEPTH}"
             )
 
@@ -141,7 +145,16 @@ def validate_recursion_and_paths(data: Any) -> None:
             if "path" in item and isinstance(item["path"], str):
                 path = item["path"]
                 if not re.fullmatch(RELAXED_PATH_PATTERN, path):
-                    raise ValueError(f"Invalid path syntax: '{path}'")
+                    raise A2uiValidationError(
+                        f"Invalid path syntax: '{path}'",
+                        details=[
+                            A2uiErrorDetail(
+                                path="path",
+                                code="invalid_pointer",
+                                message=f"Invalid path syntax: '{path}'",
+                            )
+                        ],
+                    )
 
             is_func_v08 = "functionCall" in item and isinstance(
                 item["functionCall"], dict
@@ -150,13 +163,13 @@ def validate_recursion_and_paths(data: Any) -> None:
 
             if is_func_v08:
                 if func_depth >= MAX_FUNC_CALL_DEPTH:
-                    raise ValueError(
+                    raise A2uiRecursionError(
                         f"Recursion limit exceeded: functionCall depth > {MAX_FUNC_CALL_DEPTH}"
                     )
                 traverse(item["functionCall"], global_depth + 1, func_depth + 1)
             elif is_func_v09:
                 if func_depth >= MAX_FUNC_CALL_DEPTH:
-                    raise ValueError(
+                    raise A2uiRecursionError(
                         f"Recursion limit exceeded: functionCall depth > {MAX_FUNC_CALL_DEPTH}"
                     )
                 for k, v in item.items():

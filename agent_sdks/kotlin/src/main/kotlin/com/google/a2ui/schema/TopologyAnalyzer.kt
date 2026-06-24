@@ -16,6 +16,7 @@
 
 package com.google.a2ui.schema
 
+import com.google.a2ui.exceptions.A2uiIntegrityException
 import java.util.logging.Logger
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
@@ -116,7 +117,7 @@ internal object TopologyAnalyzer {
       val orphans = allIds - visited
       if (orphans.isNotEmpty()) {
         val firstOrphan = orphans.minOf { it }
-        throw IllegalArgumentException("Component '$firstOrphan' is not reachable from '$rootId'")
+        throw A2uiIntegrityException("Component '$firstOrphan' is not reachable from '$rootId'")
       }
     }
 
