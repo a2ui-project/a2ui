@@ -338,4 +338,3 @@ Once the foundational architecture and gallery application are proven robust, re
 - **Framework Library**: Implement all remaining UI widgets and traits (such as `Checkable`) defined in the Basic Catalog.
 - **Tests**: Formulate and run comprehensive unit and integration test cases to verify static rendering, layout alignment, two-way bindings, and scoped actions.
 - **Gallery Update**: Update the Gallery App to load all samples from `specification/v1_0/catalogs/basic/examples/`.
-

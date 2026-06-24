@@ -535,4 +535,3 @@ Once the foundational architecture and subset are proven robust, complete the im
 - **Core Binders**: Create definitions and binders for all remaining components in `basic/catalog.json`.
 - **Core Functions**: Implement the remaining basic functions (e.g., math, logical, and array operations). Note that string interpolation and expression parsing should ONLY happen within the `formatString` function. Do not attempt to add global string interpolation to all strings.
 - **Verification & Tests**: Look at existing reference implementations (e.g., `web_core`) to formulate and run comprehensive unit tests for data coercion, JSON pointer bubble/cascade notifications, and all function execution paths.
-
