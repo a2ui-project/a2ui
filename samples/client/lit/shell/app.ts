@@ -537,7 +537,7 @@ export class A2UILayoutEditor extends SignalWatcher(LitElement) {
       await this.#sendAndProcessMessage(message);
     },
   );
-  private _a2uiClient = new A2UIClient();
+  private _a2uiClient!: A2UIClient;
   @query('ui-snackbar')
   private snackbar!: Snackbar;
 
@@ -741,10 +741,11 @@ export class A2UILayoutEditor extends SignalWatcher(LitElement) {
   }
 
   #startLoadingAnimation() {
-    if (this.config.loadingText && this.config.loadingText.length > 1) {
+    const loadingText = this.config.loadingText;
+    if (loadingText && loadingText.length > 1) {
       this._loadingTextIndex = 0;
       this._loadingInterval = window.setInterval(() => {
-        this._loadingTextIndex = (this._loadingTextIndex + 1) % this.config.loadingText!.length;
+        this._loadingTextIndex = (this._loadingTextIndex + 1) % loadingText.length;
       }, 2000);
     }
   }
