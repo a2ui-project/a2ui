@@ -18,26 +18,26 @@
           {
             "id": "root",
             "component": "Card",
-            "child": "main-column"
+            "child": "main_column"
           },
           {
-            "id": "main-column",
+            "id": "main_column",
             "component": "Column",
             "children": ["header", "balance", "updated", "divider", "actions"]
           },
           {
             "id": "header",
             "component": "Row",
-            "children": ["account-icon", "account-name"],
+            "children": ["account_icon", "account_name"],
             "align": "center"
           },
           {
-            "id": "account-icon",
+            "id": "account_icon",
             "component": "Icon",
             "name": "payment"
           },
           {
-            "id": "account-name",
+            "id": "account_name",
             "component": "Text",
             "text": {
               "path": "/accountName"
@@ -71,17 +71,17 @@
           {
             "id": "actions",
             "component": "Row",
-            "children": ["transfer-btn", "pay-btn"]
+            "children": ["transfer_btn", "pay_btn"]
           },
           {
-            "id": "transfer-btn-text",
+            "id": "transfer_btn_text",
             "component": "Text",
             "text": "Transfer"
           },
           {
-            "id": "transfer-btn",
+            "id": "transfer_btn",
             "component": "Button",
-            "child": "transfer-btn-text",
+            "child": "transfer_btn_text",
             "action": {
               "event": {
                 "name": "transfer",
@@ -90,14 +90,14 @@
             }
           },
           {
-            "id": "pay-btn-text",
+            "id": "pay_btn_text",
             "component": "Text",
             "text": "Pay Bill"
           },
           {
-            "id": "pay-btn",
+            "id": "pay_btn",
             "component": "Button",
-            "child": "pay-btn-text",
+            "child": "pay_btn_text",
             "action": {
               "event": {
                 "name": "pay_bill",

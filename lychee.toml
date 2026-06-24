@@ -50,6 +50,8 @@ exclude = [
   "github\\.com/TanXudong-Vivo/A2UI-Android-Renderer",
   "github\\.com/orgs/community/discussions/187776",
   "flutter/genui/blob/main/examples/e2e/",
+  # Flaky. See: https://github.com/a2ui-project/a2ui/issues/1747
+  "https://ojs\\.aaai\\.org",
 ]
 
 # Don't descend into dependency or build-output directories.

@@ -18,23 +18,23 @@
           {
             "id": "root",
             "component": "Card",
-            "child": "main-column"
+            "child": "main_column"
           },
           {
-            "id": "main-column",
+            "id": "main_column",
             "component": "Column",
             "children": [
-              "success-icon",
+              "success_icon",
               "title",
-              "product-row",
+              "product_row",
               "divider",
-              "details-col",
-              "view-btn"
+              "details_col",
+              "view_btn"
             ],
             "align": "center"
           },
           {
-            "id": "success-icon",
+            "id": "success_icon",
             "component": "Icon",
             "name": "check"
           },
@@ -44,13 +44,13 @@
             "text": "## Purchase Complete"
           },
           {
-            "id": "product-row",
+            "id": "product_row",
             "component": "Row",
-            "children": ["product-image", "product-info"],
+            "children": ["product_image", "product_info"],
             "align": "center"
           },
           {
-            "id": "product-image",
+            "id": "product_image",
             "component": "Image",
             "url": {
               "path": "/productImage"
@@ -58,19 +58,19 @@
             "fit": "cover"
           },
           {
-            "id": "product-info",
+            "id": "product_info",
             "component": "Column",
-            "children": ["product-name", "product-price"]
+            "children": ["product_name", "product_price"]
           },
           {
-            "id": "product-name",
+            "id": "product_name",
             "component": "Text",
             "text": {
               "path": "/productName"
             }
           },
           {
-            "id": "product-price",
+            "id": "product_price",
             "component": "Text",
             "text": {
               "call": "formatCurrency",
@@ -88,23 +88,23 @@
             "component": "Divider"
           },
           {
-            "id": "details-col",
+            "id": "details_col",
             "component": "Column",
-            "children": ["delivery-row", "seller-row"]
+            "children": ["delivery_row", "seller_row"]
           },
           {
-            "id": "delivery-row",
+            "id": "delivery_row",
             "component": "Row",
-            "children": ["delivery-icon", "delivery-text"],
+            "children": ["delivery_icon", "delivery_text"],
             "align": "center"
           },
           {
-            "id": "delivery-icon",
+            "id": "delivery_icon",
             "component": "Icon",
             "name": "arrowForward"
           },
           {
-            "id": "delivery-text",
+            "id": "delivery_text",
             "component": "Text",
             "text": {
               "path": "/deliveryDate"
@@ -112,18 +112,18 @@
             "variant": "body"
           },
           {
-            "id": "seller-row",
+            "id": "seller_row",
             "component": "Row",
-            "children": ["seller-label", "seller-name"]
+            "children": ["seller_label", "seller_name"]
           },
           {
-            "id": "seller-label",
+            "id": "seller_label",
             "component": "Text",
             "text": "Sold by:",
             "variant": "caption"
           },
           {
-            "id": "seller-name",
+            "id": "seller_name",
             "component": "Text",
             "text": {
               "path": "/seller"
@@ -131,14 +131,14 @@
             "variant": "body"
           },
           {
-            "id": "view-btn-text",
+            "id": "view_btn_text",
             "component": "Text",
             "text": "View Order Details"
           },
           {
-            "id": "view-btn",
+            "id": "view_btn",
             "component": "Button",
-            "child": "view-btn-text",
+            "child": "view_btn_text",
             "action": {
               "event": {
                 "name": "view_details",

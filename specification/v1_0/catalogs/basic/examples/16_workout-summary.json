@@ -18,21 +18,21 @@
           {
             "id": "root",
             "component": "Card",
-            "child": "main-column"
+            "child": "main_column"
           },
           {
-            "id": "main-column",
+            "id": "main_column",
             "component": "Column",
-            "children": ["header", "divider", "metrics-row", "date"]
+            "children": ["header", "divider", "metrics_row", "date"]
           },
           {
             "id": "header",
             "component": "Row",
-            "children": ["workout-icon", "title"],
+            "children": ["workout_icon", "title"],
             "align": "center"
           },
           {
-            "id": "workout-icon",
+            "id": "workout_icon",
             "component": "Icon",
             "name": {
               "path": "/icon"
@@ -48,38 +48,38 @@
             "component": "Divider"
           },
           {
-            "id": "metrics-row",
+            "id": "metrics_row",
             "component": "Row",
-            "children": ["duration-col", "calories-col", "distance-col"],
+            "children": ["duration_col", "calories_col", "distance_col"],
             "justify": "spaceAround"
           },
           {
-            "id": "duration-col",
+            "id": "duration_col",
             "component": "Column",
-            "children": ["duration-value", "duration-label"],
+            "children": ["duration_value", "duration_label"],
             "align": "center"
           },
           {
-            "id": "duration-value",
+            "id": "duration_value",
             "component": "Text",
             "text": {
               "path": "/duration"
             }
           },
           {
-            "id": "duration-label",
+            "id": "duration_label",
             "component": "Text",
             "text": "Duration",
             "variant": "caption"
           },
           {
-            "id": "calories-col",
+            "id": "calories_col",
             "component": "Column",
-            "children": ["calories-value", "calories-label"],
+            "children": ["calories_value", "calories_label"],
             "align": "center"
           },
           {
-            "id": "calories-value",
+            "id": "calories_value",
             "component": "Text",
             "text": {
               "call": "formatNumber",
@@ -91,19 +91,19 @@
             }
           },
           {
-            "id": "calories-label",
+            "id": "calories_label",
             "component": "Text",
             "text": "Calories",
             "variant": "caption"
           },
           {
-            "id": "distance-col",
+            "id": "distance_col",
             "component": "Column",
-            "children": ["distance-value", "distance-label"],
+            "children": ["distance_value", "distance_label"],
             "align": "center"
           },
           {
-            "id": "distance-value",
+            "id": "distance_value",
             "component": "Text",
             "text": {
               "call": "formatString",
@@ -113,7 +113,7 @@
             }
           },
           {
-            "id": "distance-label",
+            "id": "distance_label",
             "component": "Text",
             "text": "Distance",
             "variant": "caption"

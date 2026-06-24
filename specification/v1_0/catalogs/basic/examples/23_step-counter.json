@@ -18,22 +18,22 @@
           {
             "id": "root",
             "component": "Card",
-            "child": "main-column"
+            "child": "main_column"
           },
           {
-            "id": "main-column",
+            "id": "main_column",
             "component": "Column",
-            "children": ["header", "steps-display", "goal-text", "divider", "stats-row"],
+            "children": ["header", "steps_display", "goal_text", "divider", "stats_row"],
             "align": "center"
           },
           {
             "id": "header",
             "component": "Row",
-            "children": ["steps-icon", "title"],
+            "children": ["steps_icon", "title"],
             "align": "center"
           },
           {
-            "id": "steps-icon",
+            "id": "steps_icon",
             "component": "Icon",
             "name": "person"
           },
@@ -43,7 +43,7 @@
             "text": "#### Today's Steps"
           },
           {
-            "id": "steps-display",
+            "id": "steps_display",
             "component": "Text",
             "text": {
               "call": "formatNumber",
@@ -55,7 +55,7 @@
             }
           },
           {
-            "id": "goal-text",
+            "id": "goal_text",
             "component": "Text",
             "text": {
               "call": "formatString",
@@ -70,19 +70,19 @@
             "component": "Divider"
           },
           {
-            "id": "stats-row",
+            "id": "stats_row",
             "component": "Row",
-            "children": ["distance-col", "calories-col"],
+            "children": ["distance_col", "calories_col"],
             "justify": "spaceAround"
           },
           {
-            "id": "distance-col",
+            "id": "distance_col",
             "component": "Column",
-            "children": ["distance-value", "distance-label"],
+            "children": ["distance_value", "distance_label"],
             "align": "center"
           },
           {
-            "id": "distance-value",
+            "id": "distance_value",
             "component": "Text",
             "text": {
               "call": "formatString",
@@ -92,19 +92,19 @@
             }
           },
           {
-            "id": "distance-label",
+            "id": "distance_label",
             "component": "Text",
             "text": "Distance",
             "variant": "caption"
           },
           {
-            "id": "calories-col",
+            "id": "calories_col",
             "component": "Column",
-            "children": ["calories-value", "calories-label"],
+            "children": ["calories_value", "calories_label"],
             "align": "center"
           },
           {
-            "id": "calories-value",
+            "id": "calories_value",
             "component": "Text",
             "text": {
               "call": "formatNumber",
@@ -116,7 +116,7 @@
             }
           },
           {
-            "id": "calories-label",
+            "id": "calories_label",
             "component": "Text",
             "text": "Calories",
             "variant": "caption"

@@ -15,6 +15,7 @@
 from typing import Any, Dict, List, Optional, Set, Tuple
 from .integrity_checker import get_component_references, MAX_GLOBAL_DEPTH
 from ..schema.constants import ROOT_ID
+from ..exceptions import A2uiRecursionError, A2uiIntegrityError
 
 
 def analyze_topology(
@@ -39,7 +40,7 @@ def analyze_topology(
 
         for ref_id, field_name in get_component_references(comp, ref_fields_map):
             if ref_id == comp_id:
-                raise ValueError(
+                raise A2uiRecursionError(
                     f"Self-reference detected: Component '{comp_id}' references itself in field"
                     f" '{field_name}'"
                 )
@@ -51,7 +52,7 @@ def analyze_topology(
 
     def dfs(node_id: str, depth: int):
         if depth > MAX_GLOBAL_DEPTH:
-            raise ValueError(
+            raise A2uiRecursionError(
                 f"Global recursion limit exceeded: logical depth > {MAX_GLOBAL_DEPTH}"
             )
 
@@ -62,7 +63,7 @@ def analyze_topology(
             if neighbor not in visited:
                 dfs(neighbor, depth + 1)
             elif neighbor in recursion_stack:
-                raise ValueError(
+                raise A2uiRecursionError(
                     f"Circular reference detected involving component '{neighbor}'"
                 )
 
@@ -82,7 +83,7 @@ def analyze_topology(
             orphans = all_ids - visited
             if orphans:
                 sorted_orphans = sorted(list(orphans))
-                raise ValueError(
+                raise A2uiIntegrityError(
                     f"Component '{sorted_orphans[0]}' is not reachable from '{root_id}'"
                 )
 

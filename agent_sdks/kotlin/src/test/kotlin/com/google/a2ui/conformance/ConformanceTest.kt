@@ -48,6 +48,67 @@ class ConformanceTest {
   private val yamlMapper = ObjectMapper(YAMLFactory())
   private val jsonMapper = ObjectMapper()
 
+  private fun parseExpectError(obj: Any?): ExpectError? {
+    if (obj == null) return null
+    if (obj is String) {
+      return ExpectError(category = null, message = obj)
+    }
+    if (obj is Map<*, *>) {
+      val category = obj["category"] as? String
+      val message = obj["message"] as? String
+      return ExpectError(category = category, message = message)
+    }
+    return null
+  }
+
+  private fun assertExceptionMatches(exception: Throwable, expect: ExpectError) {
+    if (expect.category != null) {
+      val expectedClassName =
+        when (expect.category) {
+          "ParseError" -> "A2uiParseException"
+          "ValidationError" -> "A2uiValidationException"
+          "CatalogError" -> "A2uiCatalogException"
+          "IntegrityError" -> "A2uiIntegrityException"
+          "RecursionError" -> "A2uiRecursionException"
+          "CompileError" -> "A2uiCompileException"
+          else -> "A2uiException"
+        }
+      assertEquals(
+        expectedClassName,
+        exception.javaClass.simpleName,
+        "Expected exception category '${expect.category}' (${expectedClassName}), but got: ${exception.javaClass.name}",
+      )
+    }
+    if (expect.message != null) {
+      val regex = Regex(expect.message)
+      val msg = exception.message ?: ""
+      val causeMsg = exception.cause?.message ?: ""
+      assertTrue(
+        regex.containsMatchIn(msg) ||
+          regex.containsMatchIn(causeMsg) ||
+          msg.contains("Validation failed") ||
+          msg.contains("Invalid JSON Pointer syntax"),
+        "Expected error message matching '${expect.message}', but got: ${exception.message} (cause: ${exception.cause?.message})",
+      )
+    }
+    if (expect.details != null) {
+      val a2uiException = exception as? com.google.a2ui.exceptions.A2uiException
+      assertNotNull(a2uiException, "Expected an A2uiException carrying structured details")
+      val actualDetails = a2uiException.details
+
+      for (expected in expect.details) {
+        val found =
+          actualDetails.any { actual ->
+            actual.path == expected.path && actual.code == expected.code
+          }
+        assertTrue(
+          found,
+          "Expected error detail with path '${expected.path}' and code '${expected.code}' not found in actual details: $actualDetails",
+        )
+      }
+    }
+  }
+
   private fun loadJsonFile(file: File): JsonObject {
     val jsonStr = file.readText()
     return Json.parseToJsonElement(jsonStr) as JsonObject
@@ -103,8 +164,10 @@ class ConformanceTest {
           ValidateStep(
             payload = payload,
             expectError =
-              step[ConformanceTestHelper.KEY_EXPECT_ERROR] as? String
-                ?: case[ConformanceTestHelper.KEY_EXPECT_ERROR] as? String,
+              parseExpectError(
+                step[ConformanceTestHelper.KEY_EXPECT_ERROR]
+                  ?: case[ConformanceTestHelper.KEY_EXPECT_ERROR]
+              ),
           )
         }
 
@@ -207,16 +270,10 @@ class ConformanceTest {
 
           if (expectError != null) {
             val exception =
-              assertFailsWith<IllegalArgumentException>("Expected failure for $name") {
+              assertFailsWith<Exception>("Expected failure for $name") {
                 validator.validate(payload)
               }
-            val regex = Regex(expectError)
-            assertTrue(
-              regex.containsMatchIn(exception.message!!) ||
-                exception.message!!.contains("Validation failed") ||
-                exception.message!!.contains("Invalid JSON Pointer syntax"),
-              "Expected error matching '$expectError' or containing 'Validation failed', but got: ${exception.message}",
-            )
+            assertExceptionMatches(exception, expectError)
           } else {
             try {
               validator.validate(payload)
@@ -277,16 +334,12 @@ class ConformanceTest {
             val fullPath = path?.let { File(conformanceDir, it).absolutePath }
             val validate = args[ConformanceTestHelper.KEY_VALIDATE] as? Boolean ?: false
 
-            if (case.containsKey(ConformanceTestHelper.KEY_EXPECT_ERROR)) {
-              val expectError = case[ConformanceTestHelper.KEY_EXPECT_ERROR] as String
+            val expectErrorObj = case[ConformanceTestHelper.KEY_EXPECT_ERROR]
+            if (expectErrorObj != null) {
+              val expectError = parseExpectError(expectErrorObj)!!
               val exception =
-                assertFailsWith<IllegalArgumentException> {
-                  catalog!!.loadExamples(fullPath, validate = validate)
-                }
-              assertTrue(
-                exception.message!!.contains(expectError) ||
-                  exception.message!!.contains("Failed to validate example")
-              )
+                assertFailsWith<Exception> { catalog!!.loadExamples(fullPath, validate = validate) }
+              assertExceptionMatches(exception, expectError)
             } else {
               val output = catalog!!.loadExamples(fullPath, validate = validate)
               val expectOutput = case["expect_output"] as String
@@ -358,14 +411,11 @@ class ConformanceTest {
             val capsJsonStr = jsonMapper.writeValueAsString(clientCapabilities)
             val capsJson = Json.parseToJsonElement(capsJsonStr) as JsonObject
 
-            if (case.containsKey(ConformanceTestHelper.KEY_EXPECT_ERROR)) {
-              val expectError = case[ConformanceTestHelper.KEY_EXPECT_ERROR] as String
-              val exception =
-                assertFailsWith<IllegalArgumentException> { manager.getSelectedCatalog(capsJson) }
-              assertTrue(
-                exception.message!!.contains(expectError) ||
-                  exception.message!!.contains("No client-supported catalog found")
-              )
+            val expectErrorObj = case[ConformanceTestHelper.KEY_EXPECT_ERROR]
+            if (expectErrorObj != null) {
+              val expectError = parseExpectError(expectErrorObj)!!
+              val exception = assertFailsWith<Exception> { manager.getSelectedCatalog(capsJson) }
+              assertExceptionMatches(exception, expectError)
             } else {
               val selected = manager.getSelectedCatalog(capsJson)
               if (case.containsKey("expect_selected")) {
@@ -500,17 +550,11 @@ class ConformanceTest {
       DynamicTest.dynamicTest(name) {
         when (action) {
           "parse_full" -> {
-            if (case.containsKey(ConformanceTestHelper.KEY_EXPECT_ERROR)) {
-              val expectError = case[ConformanceTestHelper.KEY_EXPECT_ERROR] as String
-              val exception =
-                assertFailsWith<IllegalArgumentException> { parseResponseToParts(input) }
-              assertTrue(
-                exception.message!!.contains(expectError) ||
-                  exception.message!!.contains("not found in response") ||
-                  exception.message!!.contains("A2UI JSON part is empty") ||
-                  exception.message!!.contains("Failed to parse"),
-                "Expected error containing '$expectError', but got: ${exception.message}",
-              )
+            val expectErrorObj = case[ConformanceTestHelper.KEY_EXPECT_ERROR]
+            if (expectErrorObj != null) {
+              val expectError = parseExpectError(expectErrorObj)!!
+              val exception = assertFailsWith<Exception> { parseResponseToParts(input) }
+              assertExceptionMatches(exception, expectError)
             } else {
               val parts = parseResponseToParts(input)
               val expect = case[ConformanceTestHelper.KEY_EXPECT] as List<*>
@@ -599,22 +643,15 @@ class ConformanceTest {
         for ((stepIdx, stepObj) in steps.withIndex()) {
           val step = stepObj as Map<*, *>
           val input = step[KEY_INPUT] as String
-          val expectError = step[ConformanceTestHelper.KEY_EXPECT_ERROR] as? String
+          val expectErrorObj = step[ConformanceTestHelper.KEY_EXPECT_ERROR]
+          val expectError = parseExpectError(expectErrorObj)
 
           if (expectError != null) {
             val exception =
               assertFailsWith<Exception>("Expected failure for $name at step $stepIdx") {
                 parser.processChunk(input)
               }
-            val regex = Regex(expectError)
-            assertTrue(
-              regex.containsMatchIn(exception.message ?: "") ||
-                regex.containsMatchIn(exception.cause?.message ?: "") ||
-                exception.javaClass.simpleName.contains("JsonDecodingException") ||
-                exception.message?.contains("Failed to parse JSON") == true ||
-                exception.message?.contains("messages[") == true,
-              "Expected error matching '$expectError', but got: ${exception.javaClass.name}: ${exception.message} (cause: ${exception.cause?.message}) at step $stepIdx",
-            )
+            assertExceptionMatches(exception, expectError)
           } else {
             val parts = parser.processChunk(input)
             val expect = step[ConformanceTestHelper.KEY_EXPECT] as? List<*> ?: emptyList<Any>()
@@ -702,4 +739,12 @@ private data class ConformanceTestCase(
   val schemaMappings: Map<String, String>,
 )
 
-private data class ValidateStep(val payload: JsonElement, val expectError: String?)
+private data class ValidateStep(val payload: JsonElement, val expectError: ExpectError?)
+
+private data class ExpectError(
+  val category: String?,
+  val message: String?,
+  val details: List<ExpectErrorDetail>? = null,
+)
+
+private data class ExpectErrorDetail(val path: String, val code: String)

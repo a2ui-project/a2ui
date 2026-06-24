@@ -18,28 +18,28 @@
           {
             "id": "root",
             "component": "Card",
-            "child": "main-column"
+            "child": "main_column"
           },
           {
-            "id": "main-column",
+            "id": "main_column",
             "component": "Column",
-            "children": ["header", "value", "trend-row"]
+            "children": ["header", "value", "trend_row"]
           },
           {
             "id": "header",
             "component": "Row",
-            "children": ["metric-icon", "metric-name"],
+            "children": ["metric_icon", "metric_name"],
             "align": "center"
           },
           {
-            "id": "metric-icon",
+            "id": "metric_icon",
             "component": "Icon",
             "name": {
               "path": "/icon"
             }
           },
           {
-            "id": "metric-name",
+            "id": "metric_name",
             "component": "Text",
             "text": {
               "path": "/metricName"
@@ -60,20 +60,20 @@
             }
           },
           {
-            "id": "trend-row",
+            "id": "trend_row",
             "component": "Row",
-            "children": ["trend-icon", "trend-text"],
+            "children": ["trend_icon", "trend_text"],
             "align": "center"
           },
           {
-            "id": "trend-icon",
+            "id": "trend_icon",
             "component": "Icon",
             "name": {
               "path": "/trendIcon"
             }
           },
           {
-            "id": "trend-text",
+            "id": "trend_text",
             "component": "Text",
             "text": {
               "call": "formatString",

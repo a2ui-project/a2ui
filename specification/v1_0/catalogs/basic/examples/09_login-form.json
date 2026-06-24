@@ -18,18 +18,18 @@
           {
             "id": "root",
             "component": "Card",
-            "child": "main-column"
+            "child": "main_column"
           },
           {
-            "id": "main-column",
+            "id": "main_column",
             "component": "Column",
             "children": [
               "header",
-              "email-field",
-              "password-field",
-              "login-btn",
+              "email_field",
+              "password_field",
+              "login_btn",
               "divider",
-              "signup-text"
+              "signup_text"
             ]
           },
           {
@@ -50,7 +50,7 @@
             "variant": "caption"
           },
           {
-            "id": "email-field",
+            "id": "email_field",
             "component": "TextField",
             "value": {
               "path": "/email"
@@ -82,7 +82,7 @@
             ]
           },
           {
-            "id": "password-field",
+            "id": "password_field",
             "component": "TextField",
             "value": {
               "path": "/password"
@@ -116,14 +116,14 @@
             ]
           },
           {
-            "id": "login-btn-text",
+            "id": "login_btn_text",
             "component": "Text",
             "text": "Sign in"
           },
           {
-            "id": "login-btn",
+            "id": "login_btn",
             "component": "Button",
-            "child": "login-btn-text",
+            "child": "login_btn_text",
             "checks": [
               {
                 "condition": {
@@ -169,26 +169,26 @@
             "component": "Divider"
           },
           {
-            "id": "signup-text",
+            "id": "signup_text",
             "component": "Row",
-            "children": ["no-account", "signup-link"],
+            "children": ["no_account", "signup_link"],
             "justify": "center"
           },
           {
-            "id": "no-account",
+            "id": "no_account",
             "component": "Text",
             "text": "Don't have an account?",
             "variant": "caption"
           },
           {
-            "id": "signup-link-text",
+            "id": "signup_link_text",
             "component": "Text",
             "text": "Sign up"
           },
           {
-            "id": "signup-link",
+            "id": "signup_link",
             "component": "Button",
-            "child": "signup-link-text",
+            "child": "signup_link_text",
             "action": {
               "event": {
                 "name": "signup",

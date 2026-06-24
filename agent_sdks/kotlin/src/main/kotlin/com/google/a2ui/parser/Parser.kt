@@ -16,6 +16,7 @@
 
 package com.google.a2ui.parser
 
+import com.google.a2ui.exceptions.A2uiParseException
 import com.google.a2ui.schema.A2uiConstants
 import com.google.a2ui.schema.A2uiValidator
 import java.util.logging.Logger
@@ -41,7 +42,7 @@ fun parseResponseToParts(text: String, validator: A2uiValidator? = null): List<R
   val matches = A2UI_BLOCK_REGEX.findAll(text).toList()
 
   if (matches.isEmpty()) {
-    throw IllegalArgumentException(
+    throw A2uiParseException(
       "A2UI tags '${A2uiConstants.A2UI_OPEN_TAG}' and '${A2uiConstants.A2UI_CLOSE_TAG}' not found in response."
     )
   }
@@ -58,7 +59,7 @@ fun parseResponseToParts(text: String, validator: A2uiValidator? = null): List<R
     val jsonStringCleaned = sanitizeJsonString(jsonString)
 
     if (jsonStringCleaned.isEmpty()) {
-      throw IllegalArgumentException("A2UI JSON part is empty.")
+      throw A2uiParseException("A2UI JSON part is empty.")
     }
 
     val elements = PayloadFixer.parseAndFix(jsonStringCleaned)
