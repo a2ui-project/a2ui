@@ -18,21 +18,21 @@
           {
             "id": "root",
             "component": "Card",
-            "child": "main-column"
+            "child": "main_column"
           },
           {
-            "id": "main-column",
+            "id": "main_column",
             "component": "Column",
-            "children": ["header", "tracking-number", "divider", "steps-list", "eta"]
+            "children": ["header", "tracking_number", "divider", "steps_list", "eta"]
           },
           {
             "id": "header",
             "component": "Row",
-            "children": ["package-icon", "title"],
+            "children": ["package_icon", "title"],
             "align": "center"
           },
           {
-            "id": "package-icon",
+            "id": "package_icon",
             "component": "Icon",
             "name": "info"
           },
@@ -42,7 +42,7 @@
             "text": "### Package Status"
           },
           {
-            "id": "tracking-number",
+            "id": "tracking_number",
             "component": "Text",
             "text": {
               "path": "/trackingNumber"
@@ -54,28 +54,28 @@
             "component": "Divider"
           },
           {
-            "id": "steps-list",
+            "id": "steps_list",
             "component": "Column",
             "children": {
               "path": "/steps",
-              "componentId": "step-item-template"
+              "componentId": "step_item_template"
             }
           },
           {
-            "id": "step-item-template",
+            "id": "step_item_template",
             "component": "Row",
-            "children": ["step-icon", "step-text"],
+            "children": ["step_icon", "step_text"],
             "align": "center"
           },
           {
-            "id": "step-icon",
+            "id": "step_icon",
             "component": "Icon",
             "name": {
               "path": "icon"
             }
           },
           {
-            "id": "step-text",
+            "id": "step_text",
             "component": "Text",
             "text": {
               "path": "label"
@@ -85,16 +85,16 @@
           {
             "id": "eta",
             "component": "Row",
-            "children": ["eta-icon", "eta-text"],
+            "children": ["eta_icon", "eta_text"],
             "align": "center"
           },
           {
-            "id": "eta-icon",
+            "id": "eta_icon",
             "component": "Icon",
             "name": "calendarToday"
           },
           {
-            "id": "eta-text",
+            "id": "eta_text",
             "component": "Text",
             "text": {
               "path": "/eta"
