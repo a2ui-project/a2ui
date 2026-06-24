@@ -15,12 +15,8 @@
  */
 
 import {ExpressionParser} from '../expressions/expression_parser.js';
-import {computed} from '@preact/signals-core';
-import {
-  createFunctionImplementation,
-  FunctionImplementation,
-  isSignal,
-} from '../../catalog/types.js';
+import {computed, isSignal, getValue} from '../../reactivity/signals.js';
+import {createFunctionImplementation, FunctionImplementation} from '../../catalog/types.js';
 import {format} from 'date-fns';
 import {
   AddApi,
@@ -276,7 +272,7 @@ export const FormatStringImplementation = createFunctionImplementation(
     return computed(() => {
       return dynamicParts
         .map(p => {
-          const resolved = isSignal(p) ? p.value : p;
+          const resolved = isSignal(p) ? getValue(p) : p;
           return coerceToString(resolved);
         })
         .join('');
@@ -427,7 +423,25 @@ export const PluralizeImplementation = createPluralizeImplementation();
  */
 export const OpenUrlImplementation = createFunctionImplementation(OpenUrlApi, args => {
   if (args.url && typeof window !== 'undefined' && window.open) {
-    window.open(args.url, '_blank');
+    const baseHref =
+      typeof window.location !== 'undefined' && window.location.href
+        ? window.location.href
+        : undefined;
+
+    let url: URL;
+    try {
+      url = baseHref ? new URL(args.url, baseHref) : new URL(args.url);
+    } catch (e: any) {
+      throw new A2uiExpressionError(`Invalid URL specified: ${args.url}`, 'openUrl', e);
+    }
+
+    // Strict protocol allowlist: Only HTTP and HTTPS are permitted.
+    if (url.protocol !== 'https:' && url.protocol !== 'http:') {
+      throw new A2uiExpressionError(`Unsupported URL scheme: ${url.protocol}`, 'openUrl');
+    }
+
+    // Always use noopener and noreferrer to prevent reverse tab-nabbing
+    window.open(url.href, '_blank', 'noopener,noreferrer');
   }
 });
 

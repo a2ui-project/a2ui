@@ -16,6 +16,10 @@
 
 package com.google.a2ui.schema
 
+import com.google.a2ui.exceptions.A2uiErrorDetail
+import com.google.a2ui.exceptions.A2uiIntegrityException
+import com.google.a2ui.exceptions.A2uiRecursionException
+import com.google.a2ui.exceptions.A2uiValidationException
 import com.networknt.schema.InputFormat
 import com.networknt.schema.Schema
 import com.networknt.schema.SchemaRegistry
@@ -182,13 +186,19 @@ constructor(
 
       val errors = validator.validate(messagesString, InputFormat.JSON)
       if (errors.isNotEmpty()) {
+        val details =
+          errors.map { err ->
+            val path = normalizePath(err.instanceLocation.toString(), "")
+            val code = mapNetworkntErrorCode(err.keyword)
+            A2uiErrorDetail(path, code, err.message)
+          }
         val msg = buildString {
           append("Validation failed:")
-          for (error in errors) {
-            append("\n  - ${error.message}")
+          for (err in details) {
+            append("\n  - ${err.path}: ${err.message}")
           }
         }
-        throw IllegalArgumentException(msg)
+        throw A2uiValidationException(msg, details = details)
       }
     }
 
@@ -240,12 +250,14 @@ constructor(
   }
 
   private fun validate0_9Custom(messages: JsonArray, strictIntegrity: Boolean) {
-    val allErrors = mutableListOf<String>()
+    val allErrors = mutableListOf<A2uiErrorDetail>()
 
     for ((idx, messageElem) in messages.withIndex()) {
       val basePath = "messages[$idx]"
       if (messageElem !is JsonObject) {
-        allErrors.add("$basePath: Is not an object")
+        allErrors.add(
+          A2uiErrorDetail(path = basePath, code = "type_mismatch", message = "Is not an object")
+        )
         continue
       }
 
@@ -267,7 +279,13 @@ constructor(
         }
         else -> {
           val keys = messageElem.keys.toList()
-          allErrors.add("$basePath: Unknown message type with keys $keys")
+          allErrors.add(
+            A2uiErrorDetail(
+              path = basePath,
+              code = "invalid_value",
+              message = "Unknown message type with keys $keys",
+            )
+          )
         }
       }
     }
@@ -276,10 +294,10 @@ constructor(
       val msg = buildString {
         append("Validation failed:")
         for (err in allErrors) {
-          append("\n  - $err")
+          append("\n  - ${err.path}: ${err.message}")
         }
       }
-      throw IllegalArgumentException(msg)
+      throw A2uiValidationException(msg, details = allErrors)
     }
   }
 
@@ -287,10 +305,10 @@ constructor(
     return subValidators.getOrPut(defName) {
       val defs =
         catalog.serverToClientSchema["\$defs"] as? JsonObject
-          ?: throw IllegalArgumentException("No \$defs found in schema")
+          ?: throw A2uiValidationException("No \$defs found in schema")
       val subSchema =
         defs[defName] as? JsonObject
-          ?: throw IllegalArgumentException("Definition $defName not found in schema")
+          ?: throw A2uiValidationException("Definition $defName not found in schema")
 
       val tempSchema =
         JsonObject(
@@ -311,54 +329,73 @@ constructor(
     validator: Schema,
     instance: JsonElement,
     basePath: String,
-  ): List<String> {
+  ): List<A2uiErrorDetail> {
     val jsonFmt = Json { prettyPrint = false }
     val instanceStr = jsonFmt.encodeToString(JsonElement.serializer(), instance)
     val errors = validator.validate(instanceStr, InputFormat.JSON)
 
     return errors.map { err ->
+      val path = normalizePath(err.instanceLocation.toString(), basePath)
+      val code = mapNetworkntErrorCode(err.keyword)
       val msg = err.toString()
-      val unexpectedRegex =
-        Regex(
-          "property '(.*?)' is not defined in the schema and the schema does not allow additional properties"
-        )
-      val match = unexpectedRegex.find(msg)
-      if (match != null) {
-        val prop = match.groupValues[1]
-        "$basePath: '$prop' was unexpected"
-      } else {
-        val cleanMsg = msg.removePrefix(": ").removePrefix("$.").removePrefix("$")
-        if (cleanMsg.startsWith("/")) {
-          "$basePath: $cleanMsg"
+      val match = UNEXPECTED_PROPERTY_PATTERN.find(msg)
+      val cleanMsg =
+        if (match != null) {
+          val prop = match.groupValues[1]
+          "'$prop' was unexpected"
         } else {
-          "$basePath: $cleanMsg"
+          msg.removePrefix(": ").removePrefix("$.").removePrefix("$")
         }
-      }
+      A2uiErrorDetail(path, code, cleanMsg)
     }
   }
 
-  private fun getUpdateComponentsErrors(message: JsonObject, path: String): List<String> {
-    val errors = mutableListOf<String>()
+  private fun getUpdateComponentsErrors(message: JsonObject, path: String): List<A2uiErrorDetail> {
+    val errors = mutableListOf<A2uiErrorDetail>()
 
     val version = message["version"]?.jsonPrimitive?.content
     if (version != "v0.9") {
-      errors.add("$path: Invalid version, expected 'v0.9'")
+      errors.add(
+        A2uiErrorDetail(
+          path = normalizePath("version", path),
+          code = "invalid_value",
+          message = "Invalid version, expected 'v0.9'",
+        )
+      )
     }
 
     val ucElem = message["updateComponents"]
     if (ucElem !is JsonObject) {
-      errors.add("$path: Expected updateComponents to be an object")
+      errors.add(
+        A2uiErrorDetail(
+          path = normalizePath("updateComponents", path),
+          code = "type_mismatch",
+          message = "Expected updateComponents to be an object",
+        )
+      )
       return errors
     }
 
     val surfaceIdElem = ucElem["surfaceId"]
     if (surfaceIdElem == null || !(surfaceIdElem is JsonPrimitive && surfaceIdElem.isString)) {
-      errors.add("$path.updateComponents: Invalid or missing surfaceId")
+      errors.add(
+        A2uiErrorDetail(
+          path = normalizePath("updateComponents.surfaceId", path),
+          code = "missing_field",
+          message = "Invalid or missing surfaceId",
+        )
+      )
     }
 
     val componentsElem = ucElem["components"]
     if (componentsElem !is JsonArray) {
-      errors.add("$path.updateComponents: Expected components to be an array")
+      errors.add(
+        A2uiErrorDetail(
+          path = normalizePath("updateComponents.components", path),
+          code = "type_mismatch",
+          message = "Expected components to be an array",
+        )
+      )
       return errors
     }
 
@@ -367,12 +404,22 @@ constructor(
     val duplicateIds = componentIds.groupingBy { it }.eachCount().filter { it.value > 1 }.keys
     if (duplicateIds.isNotEmpty()) {
       errors.add(
-        "$path.updateComponents: Duplicate component IDs found: ${duplicateIds.joinToString()}"
+        A2uiErrorDetail(
+          path = normalizePath("updateComponents.components", path),
+          code = "invalid_value",
+          message = "Duplicate component IDs found: ${duplicateIds.joinToString()}",
+        )
       )
     }
     for ((idx, compElem) in componentsElem.withIndex()) {
       if (compElem !is JsonObject) {
-        errors.add("$path.updateComponents.components[$idx]: Component is not an object")
+        errors.add(
+          A2uiErrorDetail(
+            path = normalizePath("updateComponents.components[$idx]", path),
+            code = "type_mismatch",
+            message = "Component is not an object",
+          )
+        )
         continue
       }
       val compId = (compElem["id"] as? JsonPrimitive)?.takeIf { it.isString }?.content
@@ -388,16 +435,37 @@ constructor(
     return errors
   }
 
-  private fun getSingleComponentErrors(comp: JsonObject, path: String): List<String> {
+  private fun getSingleComponentErrors(comp: JsonObject, path: String): List<A2uiErrorDetail> {
     val compType =
-      comp["component"]?.jsonPrimitive?.content ?: return listOf("$path: Missing 'component' field")
+      comp["component"]?.jsonPrimitive?.content
+        ?: return listOf(
+          A2uiErrorDetail(
+            path = path,
+            code = "missing_field",
+            message = "Missing 'component' field",
+          )
+        )
 
     val catalogSchema = catalog.catalogSchema
     val componentsObj =
       catalogSchema[A2uiConstants.CATALOG_COMPONENTS_KEY] as? JsonObject
-        ?: return listOf("$path: Catalog schema or components missing")
+        ?: return listOf(
+          A2uiErrorDetail(
+            path = path,
+            code = "invalid_value",
+            message = "Catalog schema or components missing",
+          )
+        )
 
-    val compSchema = componentsObj[compType] ?: return listOf("$path: Unknown component: $compType")
+    val compSchema =
+      componentsObj[compType]
+        ?: return listOf(
+          A2uiErrorDetail(
+            path = path,
+            code = "invalid_value",
+            message = "Unknown component: $compType",
+          )
+        )
 
     val validator =
       subValidators.getOrPut("comp_$compType") {
@@ -486,12 +554,12 @@ constructor(
         val compId = comp[ID]?.jsonPrimitive?.content ?: continue
 
         if (!ids.add(compId)) {
-          throw IllegalArgumentException("Duplicate component ID: $compId")
+          throw A2uiIntegrityException("Duplicate component ID: $compId")
         }
       }
 
       if (rootId != null && rootId !in ids) {
-        throw IllegalArgumentException("Missing root component: No component has id='$rootId'")
+        throw A2uiIntegrityException("Missing root component: No component has id='$rootId'")
       }
 
       for (compElem in components) {
@@ -499,7 +567,7 @@ constructor(
         for ((refId, fieldName) in SchemaInspector.getComponentReferences(comp, refFieldsMap)) {
           if (refId !in ids) {
             val cId = comp[ID]?.jsonPrimitive?.content
-            throw IllegalArgumentException(
+            throw A2uiIntegrityException(
               "Component '$cId' references non-existent component '$refId' in field '$fieldName'"
             )
           }
@@ -525,7 +593,7 @@ constructor(
         val orphans = allIds - visited
         if (orphans.isNotEmpty()) {
           val firstOrphan = orphans.minOf { it }
-          throw IllegalArgumentException("Component '$firstOrphan' is not reachable from '$rootId'")
+          throw A2uiIntegrityException("Component '$firstOrphan' is not reachable from '$rootId'")
         }
       } else {
         // No root provided: traverse everything to check for cycles
@@ -545,7 +613,7 @@ constructor(
 
     private fun traverse(item: JsonElement, globalDepth: Int, funcDepth: Int) {
       if (globalDepth > MAX_GLOBAL_DEPTH) {
-        throw IllegalArgumentException("Global recursion limit exceeded: Depth > $MAX_GLOBAL_DEPTH")
+        throw A2uiRecursionException("Global recursion limit exceeded: Depth > $MAX_GLOBAL_DEPTH")
       }
 
       when (item) {
@@ -555,14 +623,25 @@ constructor(
             ?.takeIf { it.isString }
             ?.let { pathElem ->
               if (!pathElem.content.matches(JSON_POINTER_PATTERN)) {
-                throw IllegalArgumentException("Invalid path syntax: '${pathElem.content}'")
+                val details =
+                  listOf(
+                    A2uiErrorDetail(
+                      path = "path",
+                      code = "invalid_pointer",
+                      message = "Invalid path syntax: '${pathElem.content}'",
+                    )
+                  )
+                throw A2uiValidationException(
+                  "Invalid path syntax: '${pathElem.content}'",
+                  details = details,
+                )
               }
             }
 
           val isFunc = CALL in item && ARGS in item
           if (isFunc) {
             if (funcDepth >= MAX_FUNC_CALL_DEPTH) {
-              throw IllegalArgumentException(
+              throw A2uiRecursionException(
                 "Recursion limit exceeded: $FUNCTION_CALL depth > $MAX_FUNC_CALL_DEPTH"
               )
             }
@@ -579,7 +658,31 @@ constructor(
     }
   }
 
+  private fun normalizePath(path: String, basePath: String): String {
+    var clean = path.trim().removePrefix("$").removePrefix(".").removePrefix("/")
+    clean = clean.replace("/", ".")
+    val full = if (basePath.isEmpty()) clean else "$basePath.$clean"
+    val normalized = full.replace(INDEX_PATH_PATTERN, ".$1").replace("..", ".")
+    return normalized.trim().removePrefix(".").removeSuffix(".")
+  }
+
+  private fun mapNetworkntErrorCode(type: String): String {
+    return when (type) {
+      "required" -> "missing_field"
+      "type" -> "type_mismatch"
+      "additionalProperties" -> "extra_field"
+      "const",
+      "enum" -> "invalid_value"
+      else -> "invalid_value"
+    }
+  }
+
   private companion object {
+    private val INDEX_PATH_PATTERN = Regex("\\[(\\d+)\\]")
+    private val UNEXPECTED_PROPERTY_PATTERN =
+      Regex(
+        "property '(.*?)' is not defined in the schema and the schema does not allow additional properties"
+      )
     private val JSON_POINTER_PATTERN =
       Regex("^(?:(?:/(?:[^~/]|~[01])*)*|(?:[^~/]|~[01])+(?:/(?:[^~/]|~[01])*)*)$")
     private const val MAX_FUNC_CALL_DEPTH = 5

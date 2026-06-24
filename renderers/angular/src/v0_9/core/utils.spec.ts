@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import {signal as preactSignal} from '@preact/signals-core';
+import {signal as preactSignal, setValue} from '@a2ui/web_core/v0_9';
 import {DestroyRef} from '@angular/core';
 import {toAngularSignal, getNormalizedPath} from './utils';
 
@@ -44,7 +44,7 @@ describe('toAngularSignal', () => {
 
     expect(angSig()).toBe('initial');
 
-    pSig.value = 'updated';
+    setValue(pSig, 'updated');
     expect(angSig()).toBe('updated');
   });
 
@@ -57,7 +57,7 @@ describe('toAngularSignal', () => {
     // Trigger cleanup
     onDestroyCallback();
 
-    pSig.value = 'updated';
+    setValue(pSig, 'updated');
     // Angular signal should NOT update after disposal
     expect(angSig()).toBe('initial');
   });
@@ -88,7 +88,7 @@ describe('toAngularSignal', () => {
     expect(mockNgZone.run).toHaveBeenCalled();
 
     mockNgZone.run.calls.reset();
-    pSig.value = 'updated';
+    setValue(pSig, 'updated');
 
     expect(angSig()).toBe('updated');
     expect(mockNgZone.run).toHaveBeenCalled();

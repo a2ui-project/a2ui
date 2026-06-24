@@ -20,7 +20,7 @@ import {classMap} from 'lit/directives/class-map.js';
 import {styleMap} from 'lit/directives/style-map.js';
 import {ImageApi} from '@a2ui/web_core/v0_9/basic_catalog';
 import {BasicCatalogA2uiLitElement} from '../basic-catalog-a2ui-lit-element.js';
-import {A2uiController} from '@a2ui/lit/v0_9';
+import {A2uiController} from '../../../a2ui-controller.js';
 
 @customElement('a2ui-image')
 export class A2uiImageElement extends BasicCatalogA2uiLitElement<typeof ImageApi> {
@@ -35,7 +35,7 @@ export class A2uiImageElement extends BasicCatalogA2uiLitElement<typeof ImageApi
    * - `--a2ui-image-large-feature-size`: Controls the max-height of the `largeFeature` variant. Defaults to `400px`.
    * - `--a2ui-image-header-size`: Controls the height of the `header` variant. Defaults to `200px`.
    */
-  static styles = css`
+  static override styles = css`
     img {
       display: block;
       width: 100%;
@@ -71,7 +71,7 @@ export class A2uiImageElement extends BasicCatalogA2uiLitElement<typeof ImageApi
     return new A2uiController(this, ImageApi);
   }
 
-  render() {
+  override render() {
     const props = this.controller.props;
     if (!props) return nothing;
 

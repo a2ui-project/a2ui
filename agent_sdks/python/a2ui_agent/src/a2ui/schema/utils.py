@@ -44,7 +44,9 @@ def load_from_bundled_resource(
   """Loads a schema resource from bundled package resources."""
   spec_map = spec_map.get(version)
   if not spec_map:
-    raise ValueError(f"Unknown A2UI version: {version}")
+    from a2ui.core import A2uiCatalogError
+
+    raise A2uiCatalogError(f"Unknown A2UI version: {version}")
 
   if resource_key not in spec_map:
     return None
@@ -115,7 +117,9 @@ def wrap_as_json_array(a2ui_schema: dict[str, Any]) -> dict[str, Any]:
       ValueError: If the A2UI schema is empty.
   """
   if not a2ui_schema:
-    raise ValueError("A2UI schema is empty")
+    from a2ui.core import A2uiCatalogError
+
+    raise A2uiCatalogError("A2UI schema is empty")
   return {"type": "array", "items": a2ui_schema}
 
 

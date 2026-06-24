@@ -158,7 +158,7 @@ class ContactAgent:
       self, schema_manager: Optional[A2uiSchemaManager] = None
   ) -> LlmAgent:
     """Builds the LLM agent for the contact agent."""
-    LITELLM_MODEL = os.getenv("LITELLM_MODEL", "gemini/gemini-2.5-flash")
+    LITELLM_MODEL = os.getenv("LITELLM_MODEL", "gemini/gemini-3-flash-preview")
 
     instruction = (
         schema_manager.generate_system_prompt(

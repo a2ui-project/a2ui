@@ -14,60 +14,105 @@
  * limitations under the License.
  */
 
-// SignalKinds and WritableSignalKinds are declared in such a way that
-// downstream library impls can dynamically provide their Signal implementations
-// in a type-safe way. Usage downstream might look something like:
-//
-// declare module '../reactivity/signals' {
-//   interface SignalKinds<T> {
-//     preact: Signal<T>;
-//   }
-//   interface WritableSignalKinds<T> {
-//     preact: Signal<T>;
-//   }
-// }
-//
-// This <T>, while unused, is required to pass through to a given Signal impl.
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-export interface SignalKinds<T> {}
+import {
+  signal as preactSignal,
+  computed as preactComputed,
+  effect as preactEffect,
+  batch as preactBatch,
+  Signal as PreactSignal,
+  Computed as PreactComputed,
+} from '@preact/signals-core';
 
-// This <T>, while unused, is required to pass through to a given Signal impl.
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-export interface WritableSignalKinds<T> {}
+export interface Signal<T = unknown> {
+  // Marker that prevents any value from being assigned as a signal.
+  // Without this any object can be assigned to a signal.
+  __signalBrand?: T;
+  unsubscribe?: () => void;
+}
+
+export interface SignalImplementations {
+  signal: <T>(initialValue: T) => Signal<T>;
+  computed: <T>(computeFn: () => T) => Signal<T>;
+  effect: (effectFn: () => void | (() => void)) => () => void;
+  batchWrite: (batchFn: () => void) => void;
+  isSignal: (val: unknown) => val is Signal<unknown>;
+  getValue: <T>(signal: Signal<T>) => T;
+  setValue: <T>(signal: Signal<T>, value: T) => void;
+  peekValue: <T>(signal: Signal<T>) => T;
+}
+
+let signalImpl: SignalImplementations['signal'];
+let computedImpl: SignalImplementations['computed'];
+let effectImpl: SignalImplementations['effect'];
+let batchWriteImpl: SignalImplementations['batchWrite'];
+let isSignalImpl: SignalImplementations['isSignal'];
+let getValueImpl: SignalImplementations['getValue'];
+let setValueImpl: SignalImplementations['setValue'];
+let peekValueImpl: SignalImplementations['peekValue'];
+
+/** Default signal implementations. Exported only for testing purposes. */
+export const PREACT_SIGNAL_IMPLEMENTATION: SignalImplementations = {
+  signal: preactSignal as SignalImplementations['signal'],
+  computed: preactComputed as SignalImplementations['computed'],
+  effect: preactEffect as SignalImplementations['effect'],
+  batchWrite: preactBatch as SignalImplementations['batchWrite'],
+  isSignal: (val: unknown): val is Signal<unknown> =>
+    !!val && typeof val === 'object' && 'value' in val && 'peek' in val,
+  getValue: <T>(signal: Signal<T>): T => (signal as PreactSignal<T>).value,
+  setValue: <T>(signal: Signal<T>, value: T): void => {
+    if (!(signal instanceof PreactComputed)) {
+      (signal as PreactSignal<T>).value = value;
+    }
+  },
+  peekValue: <T>(signal: Signal<T>): T => (signal as PreactSignal<T>).peek(),
+};
+
+setSignalImplementation(PREACT_SIGNAL_IMPLEMENTATION);
 
 /**
- * A generic representation of a Signal that could come from any framework.
- * For any library building on top of A2UI's web core lib, this must be
- * implemented for their associated signals implementation.
+ * Sets the implementations of the various signal-related functions.
+ * This allows for signal libraries to be swapped out.
  */
-export interface FrameworkSignal<K extends keyof SignalKinds<any>> {
-  /**
-   * Create a computed signal for this framework.
-   */
-  computed<T>(fn: () => T): SignalKinds<T>[K];
+export function setSignalImplementation(impl: SignalImplementations): void {
+  // Intentionally only store the functions so we ignore any mutations of the implementation.
+  signalImpl = impl.signal;
+  computedImpl = impl.computed;
+  effectImpl = impl.effect;
+  batchWriteImpl = impl.batchWrite;
+  isSignalImpl = impl.isSignal;
+  getValueImpl = impl.getValue;
+  setValueImpl = impl.setValue;
+  peekValueImpl = impl.peekValue;
+}
 
-  /**
-   * Run a reactive effect.
-   */
-  effect(fn: () => void, cleanupCallback?: () => void): () => void;
+export function signal<T>(initialValue: T): Signal<T> {
+  return signalImpl(initialValue);
+}
 
-  /**
-   * Check if an arbitrary object is a framework signal.
-   */
-  isSignal(val: unknown): val is SignalKinds<any>[K];
+export function computed<T>(computeFn: () => T): Signal<T> {
+  return computedImpl(computeFn);
+}
 
-  /**
-   * Wrap the value in a signal.
-   */
-  wrap<T>(val: T): WritableSignalKinds<T>[K];
+export function effect(effectFn: () => void | (() => void)): () => void {
+  return effectImpl(effectFn);
+}
 
-  /**
-   * Extract the value from a signal.
-   */
-  unwrap<T>(val: SignalKinds<T>[K]): T;
+export function batchWrite(batchFn: () => void): void {
+  return batchWriteImpl(batchFn);
+}
 
-  /**
-   * Sets the value of the provided framework signal.
-   */
-  set<T>(signal: WritableSignalKinds<T>[K], value: T): void;
+export function isSignal(val: unknown): val is Signal<unknown> {
+  return isSignalImpl(val);
+}
+
+export function getValue<T>(signal: Signal<T>): T {
+  return getValueImpl(signal);
+}
+
+export function setValue<T>(signal: Signal<T>, value: T): void {
+  setValueImpl(signal, value);
+}
+
+export function peekValue<T>(signal: Signal<T>): T {
+  return peekValueImpl(signal);
 }

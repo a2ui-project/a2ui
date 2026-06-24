@@ -15,14 +15,9 @@
 import time
 from inspect_ai.solver import Solver, solver, TaskState, Generate
 from inspect_ai.model._model import sample_model_usage
+from pathlib import Path
 
-WORKFLOW_OVERRIDE = """
-Additional Rules:
-1. Generate a 'createSurface' message with surfaceId 'main' and catalogId 'https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json'.
-2. Generate a 'updateComponents' message with surfaceId 'main' containing the requested UI.
-3. Among the 'updateComponents' messages in the output, there MUST be one root component with id: 'root'.
-4. Ensure all component children are referenced by ID, NOT nested inline as objects.
-"""
+GIT_ROOT = (Path(__file__).resolve().parent / "../../..").resolve()
 
 @solver
 def measured_generate() -> Solver:

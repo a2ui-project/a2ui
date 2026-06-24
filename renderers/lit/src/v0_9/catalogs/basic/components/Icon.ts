@@ -18,7 +18,7 @@ import {html, nothing, css} from 'lit';
 import {customElement} from 'lit/decorators.js';
 import {IconApi} from '@a2ui/web_core/v0_9/basic_catalog';
 import {BasicCatalogA2uiLitElement} from '../basic-catalog-a2ui-lit-element.js';
-import {A2uiController} from '@a2ui/lit/v0_9';
+import {A2uiController} from '../../../a2ui-controller.js';
 
 const ICON_NAME_OVERRIDES: Record<string, string> = {
   play: 'play_arrow',
@@ -42,7 +42,7 @@ export class A2uiIconElement extends BasicCatalogA2uiLitElement<typeof IconApi> 
    * - `--a2ui-icon-font-family`: Override the font family for icons. Defaults to Material Symbols Outlined.
    * - `--a2ui-icon-font-variation-settings`: Complete override for font-variation-settings.
    */
-  static styles = css`
+  static override styles = css`
     :where(:host) {
       --_icon-size: var(--a2ui-icon-size, var(--a2ui-font-size-xl, 24px));
     }
@@ -73,7 +73,7 @@ export class A2uiIconElement extends BasicCatalogA2uiLitElement<typeof IconApi> 
     return new A2uiController(this, IconApi);
   }
 
-  render() {
+  override render() {
     const props = this.controller.props;
     if (!props) return nothing;
 

@@ -743,8 +743,8 @@ Thoroughly review:
 - `specification/v0_9/docs/a2ui_protocol.md` (protocol rules)
 - `specification/v0_9/json/common_types.json` (dynamic binding types)
 - `specification/v0_9/json/server_to_client.json` (message envelopes)
-- `specification/v0_9/json/catalogs/minimal/minimal_catalog.json` (your initial target)
-- `specification/v0_9/docs/basic_catalog_implementation_guide.md` (for rendering and spacing rules for when you get to the basic catalog)
+- `specification/v0_9/catalogs/basic/catalog.json` (your target)
+- `specification/v0_9/docs/basic_catalog_implementation_guide.md` (for rendering and spacing rules)
 
 ### 2. Key Architecture Decisions (Write a Plan Document)
 
@@ -776,13 +776,13 @@ Implement the bridge between models and native UI (Section 5 & 6).
 - Implement the `Surface` view/widget that recurses through components.
 - Implement subscription lifecycle management (lazy mounting, unmounting disposal).
 
-### 5. Minimal Catalog Support
+### 5. Initial Basic Catalog Support
 
-Target the `minimal_catalog.json` first.
+Target a foundational subset of components in `basic/catalog.json` first to bootstrap your implementation.
 
-- Implement the pure API schemas for `Text`, `Row`, `Column`, `Button`, `TextField`.
+- Implement the pure API schemas for `Text`, `Row`, `Column`, `Button`, `TextField` (which are part of the standard Basic Catalog).
 - Implement the specific native UI rendering components for these.
-- Implement the `capitalize` function.
+- Implement the `formatString` function (which is required for basic text rendering, see Section 7).
 - Bundle these into a `Catalog`.
 - **Action**: Write unit tests verifying that properties update reactively when data changes.
 
@@ -790,16 +790,15 @@ Target the `minimal_catalog.json` first.
 
 Build the Gallery App following the requirements in **Section 8**.
 
-- Load JSON samples from `specification/v0_9/json/catalogs/minimal/examples/`.
+- Load JSON samples from `specification/v0_9/catalogs/basic/examples/` (focusing on the simpler ones first, such as those using only the bootstrapped components).
 - Verify progressive rendering and reactivity.
 - **STOP HERE. Ask the user for approval of the architecture and gallery application before proceeding to step 7.**
 
-### 7. Basic Catalog Support
+### 7. Complete Basic Catalog Support
 
-Once the minimal architecture is proven robust, refer to the [Basic Catalog Implementation Guide](basic_catalog_implementation_guide.md) and:
+Once the initial architecture is proven robust, complete the implementation of the Basic Catalog:
 
-- **Core Library**: Implement the full suite of basic functions. It is crucial to note that string interpolation and expression parsing should ONLY happen within the `formatString` function. Do not attempt to add global string interpolation to all strings.
+- **Core Library**: Implement the remaining basic functions. It is crucial to note that string interpolation and expression parsing should ONLY happen within the `formatString` function. Do not attempt to add global string interpolation to all strings.
 - **Core Library**: Create definitions/binders for the remaining Basic Catalog components.
 - **Framework Library**: Implement all remaining UI widgets.
 - **Tests**: Look at existing reference implementations (e.g., `web_core`) to formulate and run comprehensive unit and integration test cases for data coercion and function logic.
-- Update the Gallery App to load samples from `specification/v0_9/json/catalogs/basic/examples/`.

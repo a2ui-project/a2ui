@@ -160,7 +160,7 @@ export const BASIC_CATALOG_OPTIONS = new InjectionToken<BasicCatalogOptions>(
  * A basic catalog of components and functions for v0.9 verification.
  *
  * This catalog includes a wide range of UI components (Text, Button, Row, etc.)
- * and utility functions (capitalize, formatString) defined in the A2UI v0.9
+ * and utility functions (formatString) defined in the A2UI v0.9
  * basic catalog specification.
  */
 @Injectable({

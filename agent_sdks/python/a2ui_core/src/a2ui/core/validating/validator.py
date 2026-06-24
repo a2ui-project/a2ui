@@ -16,6 +16,7 @@ import re
 from typing import Any, Dict, Iterator, List, Optional, Set, Tuple, Union
 from pydantic import BaseModel, ConfigDict, ValidationError
 
+from ..exceptions import A2uiValidationError, A2uiErrorDetail
 from ..schema import A2uiMessageListWrapper
 from ..schema.constants import (
     MSG_TYPE_CREATE_SURFACE,
@@ -35,7 +36,7 @@ from .topology_analyzer import analyze_topology
 from .catalog_schema_validator import CatalogSchemaValidator
 
 
-class A2uiValidatorError(ValueError):
+class A2uiValidatorError(A2uiValidationError):
     """Exception raised when an A2UI Catalog payload validation fails."""
 
 
@@ -70,27 +71,42 @@ class A2uiValidator:
 
     def validate_protocol_envelope(self, messages: List[Dict[str, Any]]) -> None:
         """Validates the overall A2UI protocol payload structure using Pydantic."""
-        struct_errors = []
-        for msg in messages:
+        details = []
+        for i, msg in enumerate(messages):
             if not isinstance(msg, dict):
-                struct_errors.append("Message must be an object")
+                details.append(
+                    A2uiErrorDetail(
+                        path=f"messages.{i}",
+                        code="type_mismatch",
+                        message="Message must be an object",
+                    )
+                )
             elif "version" not in msg:
-                struct_errors.append("'version' is a required property")
+                details.append(
+                    A2uiErrorDetail(
+                        path=f"messages.{i}.version",
+                        code="missing_field",
+                        message="'version' is a required property",
+                    )
+                )
 
         try:
             A2uiMessageListWrapper.model_validate({"messages": messages})
-            for msg in messages:
-                validate_recursion_and_paths(messages)
+            validate_recursion_and_paths(messages)
         except ValidationError as e:
-            struct_errors.extend(self._format_validation_errors(e, messages))
-        if struct_errors:
-            raise A2uiValidatorError("\n".join(struct_errors))
+            details.extend(self._format_validation_errors(e, messages))
+        except A2uiValidationError as e:
+            raise A2uiValidatorError(str(e), details=e.details)
+
+        if details:
+            summary = "\n".join(f"{d.path}: {d.message}" for d in details)
+            raise A2uiValidatorError(summary, details=details)
 
     def _format_validation_errors(
         self, error: ValidationError, messages: List[Dict[str, Any]]
-    ) -> List[str]:
+    ) -> List[A2uiErrorDetail]:
         """Formats Pydantic validation errors while filtering out irrelevant union branches."""
-        formatted_errors = []
+        details = []
         for err in error.errors():
             loc = err.get("loc", [])
             loc_parts = [str(x) for x in loc]
@@ -129,10 +145,34 @@ class A2uiValidator:
                             and MSG_TYPE_DELETE_SURFACE not in m
                         ):
                             continue
-            path_str = ".".join(loc_parts)
+            clean_loc_parts = [
+                x
+                for x in loc_parts
+                if x
+                not in (
+                    "CreateSurfaceMessage",
+                    "UpdateComponentsMessage",
+                    "UpdateDataModelMessage",
+                    "DeleteSurfaceMessage",
+                )
+            ]
+            path_str = ".".join(clean_loc_parts)
             msg = err.get("msg", "Validation failed")
-            formatted_errors.append(f"{path_str}: {msg}")
-        return formatted_errors
+            err_type = err.get("type", "")
+            if err_type == "missing":
+                code = "missing_field"
+            elif err_type == "extra_forbidden":
+                code = "extra_field"
+            elif (
+                err_type.endswith("_type")
+                or err_type.endswith("_parsing")
+                or "type" in err_type
+            ):
+                code = "type_mismatch"
+            else:
+                code = "invalid_value"
+            details.append(A2uiErrorDetail(path_str, code, msg))
+        return details
 
     def validate_components(
         self,
@@ -167,8 +207,12 @@ class A2uiValidator:
                 except Exception as e:
                     errors.append(e)
         if errors:
+            details = []
+            for err in errors:
+                if hasattr(err, "details") and err.details:
+                    details.extend(err.details)
             err_msg = "\n".join(str(err) for err in errors)
-            raise A2uiValidatorError(err_msg)
+            raise A2uiValidatorError(err_msg, details=details)
 
     def validate(
         self,
@@ -213,4 +257,10 @@ class A2uiValidator:
                     errors.append(e)
 
         if errors:
-            raise A2uiValidatorError("\n".join(str(err) for err in errors))
+            details = []
+            for err in errors:
+                if hasattr(err, "details") and err.details:
+                    details.extend(err.details)
+            raise A2uiValidatorError(
+                "\n".join(str(err) for err in errors), details=details
+            )

@@ -37,12 +37,12 @@ export type ResolvedChildList = ResolvedChildRef[];
 export abstract class BasicCatalogA2uiLitElement<
   Api extends ComponentApi,
 > extends A2uiLitElement<Api> {
-  connectedCallback() {
+  override connectedCallback() {
     super.connectedCallback();
     injectBasicCatalogStyles();
   }
 
-  willUpdate(changedProperties: Map<string, any>) {
+  override willUpdate(changedProperties: Map<string, any>) {
     super.willUpdate(changedProperties);
 
     const props = this.controller?.props as any;

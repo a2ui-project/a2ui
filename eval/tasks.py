@@ -15,8 +15,8 @@
 """Tasks for A2UI evaluation."""
 # pylint: disable=duplicate-code
 
-import os
 import sys
+from pathlib import Path
 from google import genai
 from google.genai import errors
 from inspect_ai import task, Task
@@ -27,10 +27,9 @@ from a2ui_eval.strategies import get_solver
 from a2ui_eval.scorers import a2ui_scorer, measured_model_graded_qa
 
 # Paths relative to the eval directory where we run inspect
-CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
-DATASET_PATH = os.path.abspath(os.path.join(CURRENT_DIR, "datasets/v0_9_prompts.yaml"))
-SCHEMA_PATH = os.path.abspath(os.path.join(CURRENT_DIR, "../specification/v0_9/json/server_to_client.json"))
-CATALOG_PATH = os.path.abspath(os.path.join(CURRENT_DIR, "../specification/v0_9/catalogs/basic/catalog.json"))
+CURRENT_DIR = Path(__file__).resolve().parent
+DATASET_PATH = (CURRENT_DIR / "datasets/v0_9_prompts.yaml").resolve()
+SCHEMA_PATH = (CURRENT_DIR / "../specification/v0_9/json/server_to_client.json").resolve()
 
 GRADER_INSTRUCTIONS = """
 After assessing the submitted answer, reply with 'GRADE: $LETTER' (without quotes) where LETTER is one of C, P or I.  Please choose ONE option for the grade: either "C" for correct answers, "P" for partial credit, or "I" for incorrect answers.
@@ -87,13 +86,13 @@ def a2ui_v0_9_eval(
             scorer=[dummy_scorer()]
         )
 
-    dataset = load_a2ui_dataset(DATASET_PATH)
+    dataset = load_a2ui_dataset(str(DATASET_PATH))
 
     return Task(
         dataset=dataset,
-        solver=get_solver(strategy, SCHEMA_PATH, CATALOG_PATH),
+        solver=get_solver(strategy),
         scorer=[
-            a2ui_scorer(CATALOG_PATH),
+            a2ui_scorer(),
             measured_model_graded_qa(
                 model=grading_model,
                 instructions=GRADER_INSTRUCTIONS

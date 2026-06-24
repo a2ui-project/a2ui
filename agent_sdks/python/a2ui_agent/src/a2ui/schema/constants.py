@@ -46,6 +46,7 @@ INLINE_CATALOG_NAME = "inline"
 VERSION_0_8 = "0.8"
 VERSION_0_9 = "0.9"
 VERSION_0_9_1 = "0.9.1"
+VERSION_1_0 = "1.0"
 
 SPEC_VERSION_MAP = {
     VERSION_0_8: {
@@ -58,6 +59,10 @@ SPEC_VERSION_MAP = {
     VERSION_0_9_1: {
         SERVER_TO_CLIENT_SCHEMA_KEY: "specification/v0_9_1/json/server_to_client.json",
         COMMON_TYPES_SCHEMA_KEY: "specification/v0_9_1/json/common_types.json",
+    },
+    VERSION_1_0: {
+        SERVER_TO_CLIENT_SCHEMA_KEY: "specification/v1_0/json/server_to_client.json",
+        COMMON_TYPES_SCHEMA_KEY: "specification/v1_0/json/common_types.json",
     },
 }
 

@@ -65,13 +65,13 @@ jobs:
       - uses: astral-sh/setup-uv@v8.2.0
         with:
           enable-cache: true
-      - name: uv sync each agent under agent/adk
+      - name: uv sync each agent under samples/community
         # These samples are runnable apps, not publishable packages (several use a
         # flat module layout with no wheel target), so --no-install-project verifies
         # that their dependencies resolve and install without building each as a wheel.
         run: |
           set -euo pipefail
-          find samples/community/agent/adk -name pyproject.toml -print0 |
+          find samples/community -name pyproject.toml -not -path "*/.venv/*" -not -path "*/node_modules/*" -print0 |
             while IFS= read -r -d '' manifest; do
               dir="$(dirname "$manifest")"
               echo "::group::uv sync $dir"
