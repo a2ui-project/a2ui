@@ -100,9 +100,9 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ./**/.wireit
-          key: ${{ runner.os }}-wireit-${{ github.sha }}
+          key: ${{ runner.os }}-wireit-workspace-lint-${{ github.sha }}
           restore-keys: |
-            ${{ runner.os }}-wireit-
+            ${{ runner.os }}-wireit-workspace-lint-
       - name: Build all workspaces
         run: yarn build:all
       - name: Run yarn lint:all
