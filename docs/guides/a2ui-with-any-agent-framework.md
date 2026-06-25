@@ -84,7 +84,7 @@ see the [AG-UI docs](https://docs.ag-ui.com/).
 ## Agent skills
 
 If you are using a coding agent to wire this up, load the
-[AG-UI `ag-ui-a2ui-integration` skill](https://github.com/ag-ui-protocol/ag-ui/blob/codex/ag-ui-a2ui-skill/skills/ag-ui-a2ui-integration/SKILL.md)
+[AG-UI `ag-ui-a2ui-integration` skill](https://github.com/ag-ui-protocol/ag-ui/tree/main/skills/ag-ui-a2ui-integration)
 before it modifies your app. It covers AG-UI framework adapters, supported
 `create-ag-ui-app` flags, transport setup, A2UI runtime and renderer wiring,
 and end-to-end verification for AG-UI + A2UI apps.
