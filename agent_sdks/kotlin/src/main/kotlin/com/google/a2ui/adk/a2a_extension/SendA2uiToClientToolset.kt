@@ -16,6 +16,7 @@
 
 package com.google.a2ui.adk.a2a_extension
 
+import com.google.a2ui.exceptions.A2uiValidationException
 import com.google.a2ui.schema.A2uiCatalog
 import com.google.adk.agents.ReadonlyContext
 import com.google.adk.models.LlmRequest
@@ -122,7 +123,7 @@ constructor(
         try {
           val a2uiJsonStr =
             args[A2UI_JSON_ARG_NAME] as? String
-              ?: throw IllegalArgumentException(
+              ?: throw A2uiValidationException(
                 "Failed to call tool $TOOL_NAME because missing required arg $A2UI_JSON_ARG_NAME"
               )
 

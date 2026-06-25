@@ -1,6 +1,6 @@
 {
   "name": "@a2ui/react",
-  "version": "0.10.0",
+  "version": "0.10.1",
   "license": "Apache-2.0",
   "description": "React renderer for A2UI (Agent-to-User Interface)",
   "homepage": "https://a2ui.org/",

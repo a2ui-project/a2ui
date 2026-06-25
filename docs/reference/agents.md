@@ -24,10 +24,10 @@ The A2UI repository includes sample agents you can learn from:
 - [Restaurant Finder](https://github.com/a2ui-project/a2ui/tree/main/samples/agent/adk/restaurant_finder)
     - Table reservations with forms.
     - Written with the ADK.
-- [Rizzcharts](https://github.com/a2ui-project/a2ui/tree/main/samples/agent/adk/rizzcharts/python)
+- [Rizzcharts](https://github.com/a2ui-project/a2ui/tree/main/samples/community/agent/adk/rizzcharts/python)
     - A2UI Custom components demo.
     - Written with the ADK.
-- [Orchestrator](https://github.com/a2ui-project/a2ui/tree/main/samples/agent/adk/orchestrator)
+- [Orchestrator](https://github.com/a2ui-project/a2ui/tree/main/samples/community/agent/adk/orchestrator)
     - Passes A2UI messages from remote subagents.
     - Written with the ADK.
 

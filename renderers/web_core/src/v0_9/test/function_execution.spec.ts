@@ -19,7 +19,7 @@ import assert from 'node:assert';
 import {DataModel} from '../state/data-model.js';
 import {DataContext} from '../rendering/data-context.js';
 
-import {signal} from '@preact/signals-core';
+import {signal, setValue} from '../reactivity/signals.js';
 
 const createTestDataContext = (
   model: DataModel,
@@ -45,7 +45,7 @@ describe('Function Execution in DataContext', () => {
       const subj = signal<string>('tick 0');
       let i = 1;
       const timerId = setInterval(() => {
-        subj.value = `tick ${i++}`;
+        setValue(subj, `tick ${i++}`);
       }, interval);
 
       abortSignal?.addEventListener('abort', () => {

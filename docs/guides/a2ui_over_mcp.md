@@ -78,7 +78,7 @@ You will see a premium, responsive dual-column interface where the left column r
 
 ![Dynamic Recipe Studio demo showing selection form on the left and dynamic recipe card generation on the right](../assets/recipe_sample.gif)
 
-See all samples at [`samples/mcp/`](https://github.com/a2ui-project/a2ui/tree/main/samples/mcp).
+See all samples at [`samples/community/mcp/`](https://github.com/a2ui-project/a2ui/tree/main/samples/community/mcp).
 
 ## How It Works
 

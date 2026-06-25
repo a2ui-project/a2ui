@@ -86,11 +86,11 @@ export const appConfig: ApplicationConfig = {
 
 ### Streaming
 
-By default, the Angular client uses the non-streaming API. To enable streaming, set the `ENABLE_STREAMING` environment variable to `true` before starting the app:
+By default, the Angular client uses the streaming API. To disable streaming, set the `ENABLE_STREAMING` environment variable to `false` before starting the app:
 
 ```bash
-export ENABLE_STREAMING=true
-yarn start -- restaurant
+export ENABLE_STREAMING=false
+yarn start restaurant
 ```
 
 > [!NOTE]

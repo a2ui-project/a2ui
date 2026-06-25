@@ -1,0 +1,16 @@
+$/completed = false
+$/description = "Review and approve the authentication module changes."
+$/dueDate = "2025-12-15T17:00:00Z"
+$/priorityIcon = "priority_high"
+$/project = "Backend"
+$/title = "Review pull request"
+root = Card(main_row)
+main_row = Row([status_checkbox, content, priority], _, "start")
+status_checkbox = CheckBox("", $/completed)
+content = Column([title, description, meta_row])
+title = Text($/title)
+description = Text($/description, "body")
+meta_row = Row([due_date_input, project], _, "center")
+due_date_input = DateTimeInput($/dueDate, true, true, _, _, "Due")
+project = Text($/project, "caption")
+priority = Icon($/priorityIcon)

@@ -33,8 +33,8 @@ samples/client/angular/projects/mcp_calculator/public/mcp_apps_inner_iframe/
 .yarn/cache
 
 ## Generated files for a2ui-in-mcpapps
-samples/mcp/a2ui-in-mcpapps/server/apps/dist
-samples/mcp/a2ui-in-mcpapps/server/apps/public
+samples/community/mcp/a2ui-in-mcpapps/server/apps/dist
+samples/community/mcp/a2ui-in-mcpapps/server/apps/public
 
 # Vite cache
 .vite/

@@ -29,16 +29,17 @@
       ]
     },
     "test": {
-      "command": "yarn generate-examples && karma start karma.conf.cjs --single-run=true",
+      "command": "karma start karma.conf.cjs --single-run=true",
       "dependencies": [
-        "../../web_core:build",
-        "../../markdown/markdown-it:build",
-        "../:build",
+        "build",
         "test:vite-compilation"
       ]
     },
     "test:vite-compilation": {
-      "command": "vitest run --environment jsdom tests/smoke-test.spec.ts"
+      "command": "vitest run --environment jsdom tests/smoke-test.spec.ts",
+      "dependencies": [
+        "build"
+      ]
     },
     "test:ci": {
       "dependencies": [

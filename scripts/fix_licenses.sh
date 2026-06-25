@@ -48,4 +48,5 @@ addlicense \
   -ignore "**/node_modules/**" \
   -ignore "**/build/**" \
   -ignore "**/.dart_tool/**" \
+  -ignore "**/generated/**" \
   .

@@ -15,12 +15,20 @@
  * limitations under the License.
  */
 
-import {signal, computed, Signal, effect} from '@preact/signals-core';
+import {
+  signal,
+  computed,
+  Signal,
+  effect,
+  isSignal,
+  getValue,
+  setValue,
+  peekValue,
+} from '../reactivity/signals.js';
 import {z} from 'zod';
 import {DataModel, DataSubscription} from '../state/data-model.js';
 import type {DynamicValue, DataBinding, FunctionCall, Action} from '../schema/common-types.js';
 import {A2uiExpressionError} from '../errors.js';
-import {isSignal} from '../catalog/types.js';
 
 import {FunctionInvoker} from '../catalog/function_invoker.js';
 import {SurfaceModel} from '../state/surface-model.js';
@@ -107,7 +115,7 @@ export class DataContext {
         return undefined as any;
       }
 
-      return (isSignal(result) ? result.peek() : result) as V;
+      return (isSignal(result) ? peekValue(result) : result) as V;
     }
 
     return value as V;
@@ -132,10 +140,10 @@ export class DataContext {
     const sig = this.resolveSignal<V>(value);
 
     let isSync = true;
-    let currentValue = sig.peek();
+    let currentValue = peekValue(sig);
 
     const dispose = effect(() => {
-      const val = sig.value;
+      const val = getValue(sig);
       currentValue = val;
       if (!isSync) {
         onChange(val);
@@ -149,9 +157,7 @@ export class DataContext {
       },
       unsubscribe: () => {
         dispose();
-        if ((sig as any).unsubscribe) {
-          (sig as any).unsubscribe();
-        }
+        sig.unsubscribe?.();
       },
     };
   }
@@ -190,8 +196,8 @@ export class DataContext {
       if (Object.keys(argSignals).length === 0) {
         const abortController = new AbortController();
         const result = this.evaluateFunctionReactive<V>(call.call, {}, abortController.signal);
-        const sig = result instanceof Signal ? result : signal(result);
-        (sig as any).unsubscribe = () => abortController.abort();
+        const sig = isSignal(result) ? result : signal(result as V);
+        sig.unsubscribe = () => abortController.abort();
         return sig;
       }
 
@@ -203,14 +209,14 @@ export class DataContext {
       const argsSig = computed(() => {
         const argsRecord: Record<string, any> = {};
         for (let i = 0; i < keys.length; i++) {
-          argsRecord[keys[i]] = argSignals[keys[i]].value;
+          argsRecord[keys[i]] = getValue(argSignals[keys[i]]);
         }
         return argsRecord;
       });
 
       const stopper = effect(() => {
         try {
-          const args = argsSig.value;
+          const args = getValue(argsSig);
 
           if (abortController) abortController.abort();
           if (innerUnsubscribe) {
@@ -223,27 +229,24 @@ export class DataContext {
 
           if (isSignal(res)) {
             innerUnsubscribe = effect(() => {
-              resultSig.value = res.value;
+              setValue(resultSig, getValue(res));
             });
           } else {
-            resultSig.value = res;
+            setValue(resultSig, res);
           }
         } catch (e: any) {
           this.dispatchExpressionError(e, call.call);
           // In reactive mode, we should not throw. Instead, reset the signal value.
-          resultSig.value = undefined;
+          setValue(resultSig, undefined);
         }
       });
 
-      (resultSig as any).unsubscribe = () => {
+      resultSig.unsubscribe = () => {
         stopper();
         if (innerUnsubscribe) innerUnsubscribe();
         if (abortController) abortController.abort();
         for (let i = 0; i < keys.length; i++) {
-          const argSig = argSignals[keys[i]];
-          if ((argSig as any).unsubscribe) {
-            (argSig as any).unsubscribe();
-          }
+          argSignals[keys[i]].unsubscribe?.();
         }
       };
 

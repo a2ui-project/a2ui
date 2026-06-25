@@ -102,7 +102,6 @@ describe('Text Component', () => {
 
   it('should apply correct classes based on usageHint', () => {
     const sectionEl = fixture.debugElement.query(By.css('section'));
-    console.log('--- classes() output ---', (component as any).classes());
     expect(sectionEl.nativeElement.className).toContain('base-all');
     expect(sectionEl.nativeElement.className).toContain('style-body'); // Initially set in beforeEach
 
