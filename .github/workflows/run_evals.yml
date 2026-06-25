@@ -79,4 +79,4 @@ jobs:
         if: failure() && (github.event_name == 'push' || github.event_name == 'schedule') && github.ref == 'refs/heads/main'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: ./scripts/create_issue.sh "Evals" "eval_failure"
+        run: ./scripts/create_issue.sh "Evals" "eval_failure" "eval/eval_summary.md"

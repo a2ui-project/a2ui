@@ -104,6 +104,86 @@ def print_results_summary(log_data: dict):
         print("==================================")
 
 
+def generate_markdown_summary(log_data: dict, accuracy_percentage: float, threshold: float) -> str:
+    """Generates a markdown summary of the evaluation results.
+
+    Args:
+        log_data: Parsed JSON data from inspect log dump.
+        accuracy_percentage: The calculated accuracy percentage.
+        threshold: The threshold to compare against.
+
+    Returns:
+        A string containing the markdown summary.
+    """
+    eval_spec = log_data.get("eval", {}) or {}
+    task_name = eval_spec.get("task", "Unknown Task")
+    model_name = eval_spec.get("model", "Unknown Model")
+
+    status_str = "PASS" if accuracy_percentage >= threshold else "FAIL"
+
+    lines = []
+    lines.append(f"### Evaluation Summary: {task_name}")
+    lines.append(f"- **Status**: {status_str}")
+    lines.append(f"- **Model**: `{model_name}`")
+    lines.append(f"- **Pass Percentage**: `{accuracy_percentage:.2f}%` (Threshold: `{threshold:.2f}%`)")
+    lines.append("")
+    lines.append("#### Sample Results")
+    lines.append("| Sample / Task | Algorithmic | Judging | Inference Time | Status |")
+    lines.append("| :--- | :---: | :---: | :---: | :---: |")
+
+    samples = log_data.get("samples", []) or []
+    failures = []
+
+    for sample in samples:
+        name = sample.get("metadata", {}).get("name") or f"Sample {sample.get('id')}"
+        scores = sample.get("scores", {}) or {}
+
+        # Algorithmic validity (a2ui_scorer)
+        a2ui_score = scores.get("a2ui_scorer", {}) or {}
+        a2ui_passed = a2ui_score.get("value") == 1.0
+        a2ui_str = "PASS" if a2ui_passed else "FAIL"
+
+        # Judging results (measured_model_graded_qa)
+        qa_score = scores.get("measured_model_graded_qa", {}) or {}
+        qa_val = qa_score.get("value", "N/A")
+
+        inference_time = sample.get("metadata", {}).get("evaluation_duration_seconds")
+        inference_time_str = f"{float(inference_time):.2f}s" if inference_time is not None else "N/A"
+
+        # Overall sample status
+        sample_passed = a2ui_passed and qa_val == "C"
+        sample_status_str = "PASS" if sample_passed else "FAIL"
+
+        lines.append(f"| {name} | {a2ui_str} | {qa_val} | {inference_time_str} | {sample_status_str} |")
+
+        if not sample_passed:
+            failures.append((name, a2ui_passed, a2ui_score.get('explanation'), qa_val, qa_score.get('explanation')))
+
+    lines.append("")
+
+    if failures:
+        lines.append("#### Failure Details")
+        for name, a2ui_passed, a2ui_expl, qa_val, qa_expl in failures:
+            lines.append(f"##### {name}")
+            if not a2ui_passed:
+                lines.append("- **Algorithmic Failure Reason**:")
+                if a2ui_expl:
+                    for line in str(a2ui_expl).strip().splitlines():
+                        lines.append(f"  > {line}")
+                else:
+                    lines.append("  > No explanation provided.")
+            if qa_val != "C":
+                lines.append(f"- **Judging Failure Reason (Grade {qa_val})**:")
+                if qa_expl:
+                    for line in str(qa_expl).strip().splitlines():
+                        lines.append(f"  > {line}")
+                else:
+                    lines.append("  > No explanation provided.")
+            lines.append("")
+
+    return "\n".join(lines)
+
+
 def load_log_data(log_path: str) -> dict:
     """Runs inspect log dump to get JSON and parses it.
 
