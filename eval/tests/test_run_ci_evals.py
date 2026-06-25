@@ -21,7 +21,7 @@ import pytest
 # Add bin directory to path to import run_ci_evals
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../bin')))
 from run_ci_evals import check_threshold, build_main_command
-from report_evals import extract_accuracy, print_results_summary
+from report_evals import extract_accuracy, print_results_summary, generate_markdown_summary
 import argparse
 
 def test_extract_accuracy_valid():
@@ -158,3 +158,59 @@ def test_print_results_summary_fail(capsys):
     assert "    Missing component" in captured.out
     assert "  [Judging Failure Reason (Grade I)]:" in captured.out
     assert "    Incorrect" in captured.out
+
+
+def test_generate_markdown_summary_valid():
+    log_data = {
+        "eval": {
+            "task": "test_task",
+            "model": "test_model"
+        },
+        "samples": [
+            {
+                "id": 1,
+                "metadata": {"name": "sample_1", "evaluation_duration_seconds": 5.0},
+                "scores": {
+                    "a2ui_scorer": {"value": 1.0, "explanation": "Perfect"},
+                    "measured_model_graded_qa": {"value": "C", "explanation": "Correct"}
+                }
+            }
+        ]
+    }
+    summary = generate_markdown_summary(log_data, 100.0, 90.0)
+    assert "### Evaluation Summary: test_task" in summary
+    assert "- **Status**: PASS" in summary
+    assert "- **Model**: `test_model`" in summary
+    assert "- **Pass Percentage**: `100.00%` (Threshold: `90.00%`)" in summary
+    assert "| sample_1 | PASS | C | 5.00s | PASS |" in summary
+    assert "#### Failure Details" not in summary
+
+
+def test_generate_markdown_summary_fail():
+    log_data = {
+        "eval": {
+            "task": "test_task",
+            "model": "test_model"
+        },
+        "samples": [
+            {
+                "id": 2,
+                "metadata": {"name": "sample_2", "evaluation_duration_seconds": 10.0},
+                "scores": {
+                    "a2ui_scorer": {"value": 0.0, "explanation": "Missing components\nSecond line error"},
+                    "measured_model_graded_qa": {"value": "I", "explanation": "Incomplete"}
+                }
+            }
+        ]
+    }
+    summary = generate_markdown_summary(log_data, 0.0, 90.0)
+    assert "### Evaluation Summary: test_task" in summary
+    assert "- **Status**: FAIL" in summary
+    assert "| sample_2 | FAIL | I | 10.00s | FAIL |" in summary
+    assert "#### Failure Details" in summary
+    assert "##### sample_2" in summary
+    assert "- **Algorithmic Failure Reason**:" in summary
+    assert "  > Missing components" in summary
+    assert "  > Second line error" in summary
+    assert "- **Judging Failure Reason (Grade I)**:" in summary
+    assert "  > Incomplete" in summary
