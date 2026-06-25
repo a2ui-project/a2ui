@@ -268,30 +268,55 @@ git_clean() {
 		openssl_path=$(git config --get --local transcrypt.openssl-path)
 		salt=$("${openssl_path}" dgst -hmac "${filename}:${password}" -sha256 "$tempfile" | tr -d '\r\n' | tail -c16)
 
+		# Dynamically check if the active branch supports PBKDF2
+		local repo_root
+		repo_root=$(git rev-parse --show-toplevel 2>/dev/null || echo "")
+		local use_pbkdf2=''
+		if [[ -n "$repo_root" ]] && [[ -f "$repo_root/eval/bin/transcrypt" ]] && grep -q "pbkdf2" "$repo_root/eval/bin/transcrypt"; then
+			use_pbkdf2='true'
+		fi
+
 		if [ "$(is_salt_prefix_workaround_required)" == "true" ]; then
 			# Encrypt the file to base64, ensuring it includes the prefix 'Salted__' with the salt. #133
 			(
 				echo -n "Salted__" && echo -n "$salt" | hex_to_bin &&
 					# Encrypt file to binary ciphertext
-					ENC_PASS=$password "$openssl_path" enc -e "-${cipher}" -md MD5 -pass env:ENC_PASS -S "$salt" -in "$tempfile"
+					if [[ $use_pbkdf2 ]]; then
+						ENC_PASS=$password "$openssl_path" enc -e "-${cipher}" -pbkdf2 -iter 100000 -pass env:ENC_PASS -S "$salt" -in "$tempfile"
+					else
+						ENC_PASS=$password "$openssl_path" enc -e "-${cipher}" -md MD5 -pass env:ENC_PASS -S "$salt" -in "$tempfile"
+					fi
 			) |
 				openssl base64
 		else
 			# Encrypt file to base64 ciphertext
-			ENC_PASS=$password "$openssl_path" enc -e -a "-${cipher}" -md MD5 -pass env:ENC_PASS -S "$salt" -in "$tempfile"
+			if [[ $use_pbkdf2 ]]; then
+				ENC_PASS=$password "$openssl_path" enc -e -a "-${cipher}" -pbkdf2 -iter 100000 -pass env:ENC_PASS -S "$salt" -in "$tempfile"
+			else
+				ENC_PASS=$password "$openssl_path" enc -e -a "-${cipher}" -md MD5 -pass env:ENC_PASS -S "$salt" -in "$tempfile"
+			fi
 		fi
 	fi
 }
 
 git_smudge() {
 	tempfile=$(mktemp 2>/dev/null || mktemp -t tmp)
-	trap 'rm -f "$tempfile"' EXIT
+	decryptedfile=$(mktemp 2>/dev/null || mktemp -t tmp)
+	trap 'rm -f "$tempfile" "$decryptedfile"' EXIT
 	context=$(extract_context_name_from_name_value_arg "$1")
 	context_config_group=$(derive_context_config_group "$context")
 	cipher=$(git config --get --local "transcrypt${context_config_group}.cipher")
 	password=$(load_password "$context_config_group")
 	openssl_path=$(git config --get --local transcrypt.openssl-path)
-	tee "$tempfile" | ENC_PASS=$password "$openssl_path" enc -d "-${cipher}" -md MD5 -pass env:ENC_PASS -a 2>/dev/null || cat "$tempfile"
+	# Try decrypting with PBKDF2 first, then fall back to legacy MD5, then fall back to raw ciphertext
+	tee "$tempfile" >/dev/null
+	if ENC_PASS=$password "$openssl_path" enc -d "-${cipher}" -pbkdf2 -iter 100000 -pass env:ENC_PASS -a -in "$tempfile" >"$decryptedfile" 2>/dev/null; then
+		cat "$decryptedfile"
+	elif ENC_PASS=$password "$openssl_path" enc -d "-${cipher}" -md MD5 -pass env:ENC_PASS -a -in "$tempfile" >"$decryptedfile" 2>/dev/null; then
+		cat "$decryptedfile"
+	else
+		cat "$tempfile"
+	fi
 }
 
 git_textconv() {
@@ -308,7 +333,16 @@ git_textconv() {
 	cipher=$(git config --get --local "transcrypt${context_config_group}.cipher")
 	password=$(load_password "$context_config_group")
 	openssl_path=$(git config --get --local transcrypt.openssl-path)
-	ENC_PASS=$password "$openssl_path" enc -d "-${cipher}" -md MD5 -pass env:ENC_PASS -a -in "$filename" 2>/dev/null || cat "$filename"
+	# Try decrypting with PBKDF2 first, then fall back to legacy MD5, then fall back to raw ciphertext
+	decryptedfile=$(mktemp 2>/dev/null || mktemp -t tmp)
+	trap 'rm -f "$decryptedfile"' EXIT
+	if ENC_PASS=$password "$openssl_path" enc -d "-${cipher}" -pbkdf2 -iter 100000 -pass env:ENC_PASS -a -in "$filename" >"$decryptedfile" 2>/dev/null; then
+		cat "$decryptedfile"
+	elif ENC_PASS=$password "$openssl_path" enc -d "-${cipher}" -md MD5 -pass env:ENC_PASS -a -in "$filename" >"$decryptedfile" 2>/dev/null; then
+		cat "$decryptedfile"
+	else
+		cat "$filename"
+	fi
 }
 
 # shellcheck disable=SC2005,SC2002,SC2181
