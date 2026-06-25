@@ -77,7 +77,7 @@ class TestApplyTriage(unittest.TestCase):
         mock_run.side_effect = run_cmd_side_effect
 
         m_open = mock_open(read_data=json.dumps(mock_decisions_data))
-        with patch('builtins.open', m_open):
+        with patch('apply_triage.open', m_open):
             with self.assertRaises(SystemExit) as cm:
                 apply_triage.main()
 
@@ -144,7 +144,7 @@ class TestApplyTriage(unittest.TestCase):
         mock_run.side_effect = run_cmd_side_effect
 
         m_open = mock_open(read_data=json.dumps(mock_decisions_data))
-        with patch('builtins.open', m_open):
+        with patch('apply_triage.open', m_open):
             with self.assertRaises(SystemExit) as cm:
                 apply_triage.main()
 
@@ -192,7 +192,7 @@ class TestApplyTriage(unittest.TestCase):
         mock_run.side_effect = run_cmd_side_effect
 
         m_open = mock_open(read_data=json.dumps(mock_decisions_data))
-        with patch('builtins.open', m_open):
+        with patch('apply_triage.open', m_open):
             with self.assertRaises(SystemExit) as cm:
                 apply_triage.main()
 
@@ -237,7 +237,7 @@ class TestApplyTriage(unittest.TestCase):
         mock_run.return_value = "{}"
 
         m_open = mock_open(read_data=json.dumps(mock_decisions_data))
-        with patch('builtins.open', m_open):
+        with patch('apply_triage.open', m_open):
             with self.assertRaises(SystemExit) as cm:
                 apply_triage.main()
 
@@ -288,7 +288,7 @@ class TestApplyTriage(unittest.TestCase):
         mock_run.side_effect = run_cmd_side_effect
 
         m_open = mock_open(read_data=json.dumps(mock_decisions_data))
-        with patch('builtins.open', m_open):
+        with patch('apply_triage.open', m_open):
             # The script should continue to process 202 and finally exit with code 1 due to 201's failure
             with self.assertRaises(SystemExit) as cm:
                 apply_triage.main()

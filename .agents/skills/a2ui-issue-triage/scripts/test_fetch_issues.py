@@ -105,7 +105,7 @@ class TestFetchIssues(unittest.TestCase):
 
         # Mock open
         m_open = mock_open()
-        with patch('builtins.open', m_open):
+        with patch('fetch_issues.open', m_open):
             fetch_issues.main()
 
         m_open.assert_any_call("/mock/raw_issues.json", "w", encoding="utf-8")

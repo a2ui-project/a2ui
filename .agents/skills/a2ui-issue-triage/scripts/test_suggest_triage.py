@@ -167,7 +167,7 @@ class TestSuggestTriage(unittest.TestCase):
 
         # Mock reading issues_file and writing output_file
         m_open = mock_open(read_data=json.dumps(mock_issues_data))
-        with patch('builtins.open', m_open):
+        with patch('suggest_triage.open', m_open):
             suggest_triage.main()
 
         m_open.assert_any_call("/mock/output.json", "w", encoding="utf-8")
@@ -216,7 +216,7 @@ class TestSuggestTriage(unittest.TestCase):
         }
 
         m_open = mock_open(read_data=json.dumps(mock_issues_data))
-        with patch('builtins.open', m_open):
+        with patch('suggest_triage.open', m_open):
             suggest_triage.main()
 
         handle = m_open()
