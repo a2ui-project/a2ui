@@ -15,10 +15,12 @@
 from inspect_ai.solver import Solver
 from .direct import direct_solver
 from .subagent_tool import subagent_tool_solver
+from .express import express_solver
 
 STRATEGIES = {
     "direct": direct_solver,
     "subagent_tool": subagent_tool_solver,
+    "express": express_solver,
 }
 
 def get_solver(strategy: str) -> list[Solver]:
