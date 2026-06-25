@@ -18,8 +18,6 @@ import sys
 import os
 import json
 
-# Add scripts directory to path to allow import
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../scripts')))
 
 import suggest_triage
 

@@ -22,8 +22,6 @@ import threading
 import urllib.request
 import urllib.error
 
-# Add scripts and assets directories to path to allow import
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../scripts')))
 
 import launch_dashboard
 

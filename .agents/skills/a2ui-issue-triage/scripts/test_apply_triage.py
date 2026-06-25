@@ -19,8 +19,6 @@ import os
 import json
 import subprocess
 
-# Add scripts directory to path to allow import
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../scripts')))
 
 import apply_triage
 
