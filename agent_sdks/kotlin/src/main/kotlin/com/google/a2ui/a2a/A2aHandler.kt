@@ -122,10 +122,9 @@ class A2aHandler(private val runner: Runner) {
       .build()
   }
 
-  private fun getOrCreateSession(sessionKey: SessionKey): Session {
-    return runner.sessionService().getSession(sessionKey, null).blockingGet()
+  private fun getOrCreateSession(sessionKey: SessionKey): Session =
+    runner.sessionService().getSession(sessionKey, null).blockingGet()
       ?: runner.sessionService().createSession(sessionKey).blockingGet()
-  }
 
   private fun translateEventsToA2aParts(events: List<*>): List<Map<String, Any>> {
     return events.filterIsInstance<Event>().flatMap { event ->
