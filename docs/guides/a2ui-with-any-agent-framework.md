@@ -60,10 +60,11 @@ supports AG-UI.
 <div class="agui-framework-picker">
   <select id="agui-framework-select" class="agui-framework-select" aria-controls="agui-framework-panels">
     <option value="adk">ADK</option>
-    <option value="langgraph">LangGraph</option>
-    <option value="mastra">Mastra</option>
-    <option value="strands">Strands</option>
-    <option value="crewai">CrewAI</option>
+    <option value="langgraph-py">LangGraph (Python)</option>
+    <option value="langgraph-fastapi">LangGraph (FastAPI)</option>
+    <option value="langgraph-ts">LangGraph (TypeScript)</option>
+    <option value="strands-py">Strands (Python)</option>
+    <option value="strands-ts">Strands (TypeScript)</option>
     <option value="google-chat">Google Chat</option>
     <option value="slack">Slack</option>
     <option value="teams">Teams</option>
@@ -111,9 +112,10 @@ You can also start directly from supported framework templates:
 npx create-ag-ui-app@latest --adk
 npx create-ag-ui-app@latest --langgraph-py
 npx create-ag-ui-app@latest --langgraph-js
-npx create-ag-ui-app@latest --crewai-flows
-npx create-ag-ui-app@latest --mastra
 ```
+
+Strands has no scaffold flag yet — wrap an existing Strands agent (see the
+Strands panels below).
 
 The important part is the transport contract: your app receives AG-UI events
 and routes A2UI payloads to an A2UI renderer. Some scaffold paths use
@@ -163,81 +165,38 @@ See the
 [AG-UI ADK middleware](https://github.com/ag-ui-protocol/ag-ui/tree/main/integrations/adk-middleware/python).
 
 </div>
-<div class="agui-framework-panel" data-framework-panel="langgraph" markdown="1" hidden>
+<div class="agui-framework-panel" data-framework-panel="langgraph-py" markdown="1" hidden>
 
-<p class="agui-framework-panel-title">LangGraph</p>
+<p class="agui-framework-panel-title">LangGraph (Python)</p>
 
-Use LangGraph when your agent workflow is a graph of stateful nodes. The AG-UI
-LangGraph adapter wraps the compiled graph and streams AG-UI events. Start with
-a normal compiled LangGraph graph, then wrap it with AG-UI:
+Use LangGraph when your agent workflow is a graph of stateful nodes. Start from
+your normal LangGraph agent — A2UI needs no extra tool wiring on the graph:
 
 ```python
-from typing import Any
-
-from ag_ui_langgraph import (
-    LangGraphAgent,
-    add_langgraph_fastapi_endpoint,
-    get_a2ui_tools,
-)
-from fastapi import FastAPI
-from langchain_core.messages import SystemMessage
-from langchain_core.runnables import RunnableConfig
+from copilotkit import CopilotKitMiddleware
+from langchain.agents import create_agent
 from langchain_google_genai import ChatGoogleGenerativeAI
-from langgraph.graph import END, MessagesState, StateGraph
-from langgraph.prebuilt import ToolNode
 
 gemini = ChatGoogleGenerativeAI(
-    model="gemini-3.1-pro-preview",
+    model="gemini-3-pro-preview",
     thinking_budget=1024,
 )
-TOOLS = get_a2ui_tools({"model": gemini})
 
-class AgentState(MessagesState):
-    tools: list[Any]
-
-async def chat_node(state: AgentState, config: RunnableConfig):
-    model_with_tools = gemini.bind_tools(
-        TOOLS,
-        parallel_tool_calls=False,
-    )
-
-    response = await model_with_tools.ainvoke(
-        [
-            SystemMessage(content="You are a helpful assistant."),
-            *state["messages"],
-        ],
-        config,
-    )
-    return {"messages": [response]}
-
-def route_after_chat(state: AgentState):
-    last_message = state["messages"][-1]
-    if getattr(last_message, "tool_calls", None):
-        return "tool_node"
-    return END
-
-workflow = StateGraph(AgentState)
-workflow.add_node("chat_node", chat_node)
-workflow.add_node("tool_node", ToolNode(tools=TOOLS))
-workflow.set_entry_point("chat_node")
-workflow.add_conditional_edges("chat_node", route_after_chat)
-workflow.add_edge("tool_node", "chat_node")
-
-graph = workflow.compile()
-
-agent = LangGraphAgent(
-    name="travel-assistant",
-    graph=graph,
-    description="A Gemini-powered LangGraph agent exposed over AG-UI.",
+# A plain LangGraph agent — no A2UI tool wiring on the graph. The CopilotKit
+# runtime forwards your frontend catalog and injects the `generate_a2ui` tool;
+# include CopilotKitMiddleware to get A2UI capability.
+graph = create_agent(
+    model=gemini,
+    tools=[],
+    middleware=[CopilotKitMiddleware()],
+    system_prompt="You are a helpful assistant.",
 )
-
-app = FastAPI()
-add_langgraph_fastapi_endpoint(app, agent, "/agent")
 ```
 
-`LangGraphAgent` converts LangGraph events into AG-UI events, while
-`get_a2ui_tools` gives the model an AG-UI-aware A2UI generation tool. The
-example uses Gemini via LangChain's Google GenAI integration.
+LangGraph's A2UI tool runs in the CopilotKit middleware layer, so include
+`CopilotKitMiddleware` to get A2UI capability. The CopilotKit runtime forwards
+your catalog and injects `generate_a2ui` automatically. The example uses Gemini
+via LangChain's Google GenAI integration.
 
 See the
 [AG-UI LangGraph integration](https://github.com/ag-ui-protocol/ag-ui/tree/main/integrations/langgraph/python)
@@ -245,36 +204,92 @@ and the
 [ChatGoogleGenerativeAI integration](https://docs.langchain.com/oss/python/integrations/chat/google_generative_ai).
 
 </div>
-<div class="agui-framework-panel" data-framework-panel="mastra" markdown="1" hidden>
+<div class="agui-framework-panel" data-framework-panel="langgraph-fastapi" markdown="1" hidden>
 
-<p class="agui-framework-panel-title">Mastra</p>
+<p class="agui-framework-panel-title">LangGraph (FastAPI)</p>
 
-Use Mastra when your agent service is TypeScript-first. The AG-UI Mastra adapter
-exposes the Mastra agent through the same runtime contract:
+Use the FastAPI variant when you serve the same LangGraph graph behind a FastAPI
+app. The agent shape is identical — export the same `graph` and serve it through
+the AG-UI LangGraph endpoint:
+
+```python
+from copilotkit import CopilotKitMiddleware
+from langchain.agents import create_agent
+from langchain_google_genai import ChatGoogleGenerativeAI
+
+gemini = ChatGoogleGenerativeAI(
+    model="gemini-3-pro-preview",
+    thinking_budget=1024,
+)
+
+graph = create_agent(
+    model=gemini,
+    tools=[],
+    middleware=[CopilotKitMiddleware()],
+    system_prompt="You are a helpful assistant.",
+)
+```
+
+See the
+[AG-UI LangGraph integration](https://github.com/ag-ui-protocol/ag-ui/tree/main/integrations/langgraph/python).
+
+</div>
+<div class="agui-framework-panel" data-framework-panel="langgraph-ts" markdown="1" hidden>
+
+<p class="agui-framework-panel-title">LangGraph (TypeScript)</p>
+
+Use the TypeScript variant when your LangGraph agent is written in TypeScript.
+The shape mirrors the Python agent — a plain graph plus the CopilotKit
+middleware:
 
 ```ts
-import { MastraAgent } from "@ag-ui/mastra";
-import { mastra } from "./mastra";
+import { createAgent } from "langchain";
+import { ChatOpenAI } from "@langchain/openai";
+import { copilotkitMiddleware } from "@copilotkit/sdk-js/langgraph";
 
-const agent = new MastraAgent({
-  agent: mastra.getAgent("weather-agent"),
-  resourceId: "user-123",
-});
-
-const result = await agent.runAgent({
-  messages: [{ role: "user", content: "What's the weather like?" }],
+export const graph = createAgent({
+  model: new ChatOpenAI({ model: "gpt-4.1" }),
+  tools: [],
+  middleware: [copilotkitMiddleware],
+  systemPrompt: "You are a helpful assistant.",
 });
 ```
 
 See the
-[AG-UI Mastra integration](https://github.com/ag-ui-protocol/ag-ui/tree/main/integrations/mastra/typescript).
+[AG-UI LangGraph TypeScript integration](https://github.com/ag-ui-protocol/ag-ui/tree/main/integrations/langgraph/typescript).
 
 </div>
-<div class="agui-framework-panel" data-framework-panel="strands" markdown="1" hidden>
+<div class="agui-framework-panel" data-framework-panel="strands-py" markdown="1" hidden>
 
-<p class="agui-framework-panel-title">Strands</p>
+<p class="agui-framework-panel-title">Strands (Python)</p>
 
-Use Strands when your agent orchestration is already built on AWS Strands. The
+Use Strands when your agent orchestration is built on AWS Strands. Wrap a plain
+Strands agent with the AG-UI Strands adapter:
+
+```python
+from strands import Agent
+from ag_ui_strands import StrandsAgent
+
+strands_agent = Agent(
+    system_prompt="You are a helpful assistant.",
+)
+
+agent = StrandsAgent(
+    agent=strands_agent,
+    name="my-agent",
+    description="A Strands agent exposed via AG-UI",
+)
+```
+
+See the
+[AG-UI AWS Strands integration](https://github.com/ag-ui-protocol/ag-ui/tree/main/integrations/aws-strands/python).
+
+</div>
+<div class="agui-framework-panel" data-framework-panel="strands-ts" markdown="1" hidden>
+
+<p class="agui-framework-panel-title">Strands (TypeScript)</p>
+
+Use the TypeScript variant when your Strands agent is written in TypeScript. The
 AG-UI Strands adapter wraps the Strands agent for AG-UI clients:
 
 ```ts
@@ -299,47 +314,6 @@ app.listen(8000);
 
 See the
 [AG-UI AWS Strands integration](https://github.com/ag-ui-protocol/ag-ui/tree/main/integrations/aws-strands/typescript).
-
-</div>
-<div class="agui-framework-panel" data-framework-panel="crewai" markdown="1" hidden>
-
-<p class="agui-framework-panel-title">CrewAI</p>
-
-Use CrewAI when your backend is built around CrewAI flows or crews. The AG-UI
-CrewAI integration streams flow output to the client surface:
-
-```python
-from crewai.flow.flow import Flow, start
-from litellm import acompletion
-from ag_ui_crewai import (
-    add_crewai_flow_fastapi_endpoint,
-    copilotkit_stream,
-    CopilotKitState,
-)
-from fastapi import FastAPI
-
-class MyFlow(Flow[CopilotKitState]):
-    @start()
-    async def chat(self):
-        response = await copilotkit_stream(
-            await acompletion(
-                model="gemini/gemini-3.1-pro-preview",
-                messages=[
-                    {"role": "system", "content": "You are a helpful assistant."},
-                    *self.state.messages,
-                ],
-                tools=self.state.copilotkit.actions,
-                stream=True,
-            )
-        )
-        self.state.messages.append(response.choices[0].message)
-
-app = FastAPI()
-add_crewai_flow_fastapi_endpoint(app, MyFlow(), "/flow")
-```
-
-See the
-[AG-UI CrewAI integration](https://github.com/ag-ui-protocol/ag-ui/tree/main/integrations/crew-ai/python).
 
 </div>
 <div class="agui-framework-panel" data-framework-panel="google-chat" markdown="1" hidden>
@@ -577,8 +551,7 @@ activation surface.
 {% raw %}
 
 ```tsx
-import {CopilotKit} from '@copilotkit/react-core';
-import {CopilotChat} from '@copilotkit/react-ui';
+import {CopilotKit, CopilotChat} from '@copilotkit/react-core/v2';
 import {
   createCatalog,
   type CatalogDefinitions,
@@ -605,7 +578,10 @@ export const catalogRenderers = {
 } satisfies CatalogRenderers<typeof catalogDefinitions>;
 
 // definitions + renderers together define a catalog declaration
-const catalog = createCatalog(catalogDefinitions, catalogRenderers);
+const catalog = createCatalog(catalogDefinitions, catalogRenderers, {
+  catalogId: 'my-catalog',
+  includeBasicCatalog: true,
+});
 
 <CopilotKit runtimeUrl="/api/copilotkit" a2ui={{catalog}}>
   <CopilotChat />
@@ -614,10 +590,10 @@ const catalog = createCatalog(catalogDefinitions, catalogRenderers);
 
 {% endraw %}
 
-When the final API supports inferring runtime wiring from the frontend catalog
-config, the `a2ui={{ catalog }}` provider setup should be the only A2UI-specific
-activation step. Otherwise, configure the runtime explicitly so the agent gets
-the `render_a2ui` tool it needs to produce A2UI surfaces:
+Passing a catalog to the provider auto-enables A2UI and injects the
+`generate_a2ui` tool, so your agent can produce surfaces with no extra runtime
+config (CopilotKit ≥ 1.61.2). You can opt out, or opt in manually without a
+catalog, by configuring the runtime directly:
 
 ```ts title="app/api/copilotkit/route.ts"
 import {CopilotRuntime} from '@copilotkit/runtime';
