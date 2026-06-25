@@ -99,7 +99,7 @@ jobs:
       - name: Cache Wireit Builds
         uses: actions/cache@v4
         with:
-          path: ./**/.wireit
+          path: **/.wireit
           key: ${{ runner.os }}-wireit-workspace-lint-${{ github.sha }}
           restore-keys: |
             ${{ runner.os }}-wireit-workspace-lint-
