@@ -1,3 +1,13 @@
+---
+name: a2ui_core
+type: module
+description: Foundational data, state, and processing layer of A2UI, framework-agnostic.
+associated_codebases:
+  - renderers/web_core
+  - agent_sdks/python/a2ui_core
+  - swift/core
+---
+
 # A2UI Core SDK Specification
 
 This document describes the detailed programmatic specification and architecture of the A2UI Core SDK. The Core SDK serves as the foundational data, state, and processing layer of A2UI.
@@ -307,10 +317,10 @@ To dynamically generate the `a2uiClientCapabilities` payload (specifically `inli
 
 When `getClientCapabilities()` converts internal schemas to generate `inlineCatalogs`:
 
-1. **Components**: Translate each component schema into a raw JSON Schema. Wrap it in the standard A2UI component envelope (`allOf` containing `ComponentCommon`).
-2. **Functions**: Map each function in the catalog to a `FunctionDefinition` object, converting its argument schema to JSON Schema.
-3. **Theme**: Convert the catalog's theme schema into a JSON Schema representation.
-4. **Reference Processing**: For all generated schemas (components, functions, and themes), traverse the tree looking for descriptions starting with `REF:`. Strip the tag and replace the node with a valid JSON Schema `$ref` object.
+1. Components: Translate each component schema into a raw JSON Schema. Wrap it in the standard A2UI component envelope (`allOf` containing `ComponentCommon`).
+2. Functions: Map each function in the catalog to a `FunctionDefinition` object, converting its argument schema to JSON Schema.
+3. Theme: Convert the catalog's theme schema into a JSON Schema representation.
+4. Reference Processing: For all generated schemas (components, functions, and themes), traverse the tree looking for descriptions starting with `REF:`. Strip the tag and replace the node with a valid JSON Schema `$ref` object.
 
 ---
 
@@ -475,63 +485,3 @@ The Basic Catalog requires a `formatString` function capable of interpreting `${
 2.  **Tokenization**: Distinguish between DataPaths (e.g., `${/user/name}`) and FunctionCalls (e.g., `${now()}`).
 3.  **Escaping**: Literal `${` sequences must be handled (typically escaping as `\${`).
 4.  **Reactive Coercion**: Results are transformed into strings using the standard Type Coercion rules.
-
----
-
-## 8. Agent Implementation Guide: Core SDK Phases
-
-If you are an AI Agent tasked with building a new Core SDK for A2UI, you MUST follow this strict, phased sequence of operations.
-
-### Phase 1: Context to Ingest
-
-Thoroughly review:
-
-- `specification/v1_0/docs/sdks_spec.md` (unified topologies and layer context)
-- `specification/v1_0/docs/a2ui_protocol.md` (protocol rules)
-- `specification/v1_0/json/common_types.json` (dynamic binding types)
-- `specification/v1_0/json/server_to_client.json` (message envelopes)
-- `specification/v1_0/catalogs/basic/catalog.json` (your target)
-- `specification/v1_0/docs/basic_catalog_implementation_guide.md` (for functional specs and spacing rules for when you get to the basic catalog)
-
-### Phase 2: Key Architecture Decisions (Write a Plan Document)
-
-Create a comprehensive design document detailing:
-
-- **Dependencies**: Which Schema Library and Observable/Reactive Library will you use? _Note: Ensure your reactive library supports both discrete event subscription (EventEmitter style) and stateful, signal-like data streams (BehaviorSubject/Signal style)._
-- **Component Architecture**: How will you define the `ComponentApi` structure for this language?
-- **Binding Strategy**: Detail your plans for the intermediate Core Binder Layer and dynamic/static types.
-- **STOP HERE. Ask the user for approval on this design document before proceeding.**
-
-### Phase 3: Core Model Layer
-
-Implement the framework-agnostic Data Layer (Section 3 & 4).
-
-- Implement event streams and stateful signals.
-- Implement strict Protocol Models (`A2uiMessage`, `A2uiClientCapabilities`, etc.) with JSON serialization/deserialization and schema validation logic.
-- Implement `DataModel`, ensuring correct JSON pointer resolution and the cascade/bubble notification strategy.
-- Implement `ComponentModel`, `SurfaceComponentsModel`, `SurfaceModel`, and `SurfaceGroupModel`.
-- Implement `DataContext` and `ComponentContext`.
-- Implement `MessageProcessor` and ClientCapabilities generation.
-- **Action**: Write unit tests for JSON validation, the `DataModel` (especially pointer resolution/cascade logic), and `MessageProcessor`. Ensure they pass before continuing.
-
-### Phase 4: Foundational Basic Catalog Support
-
-Target a foundational subset of the Basic Catalog (equivalent to the former minimal catalog) to bootstrap your implementation:
-
-- **Components**: Define the pure API schemas and binders for:
-  - `Text`
-  - `Row`
-  - `Column`
-  - `Button`
-  - `TextField`
-- **Functions**: Implement the `formatString` function (which is required for basic text rendering and expression resolution, see Section 7).
-- **Bundle**: Group these components and functions into a `Catalog` instance.
-- **Verification**: Write unit tests to verify that `DataModel` updates and expressions resolve reactively when the underlying data changes, and that binders/bindings correctly propagate resolved props.
-
-### Phase 5: Complete Basic Catalog Support
-
-Once the foundational architecture and subset are proven robust, complete the implementation of the Basic Catalog:
-
-- **Core Binders**: Create definitions and binders for all remaining components in `basic/catalog.json`.
-- **Core Functions**: Implement the remaining basic functions (e.g., math, logical, and array operations). Note that string interpolation and expression parsing should ONLY happen within the `formatString` function. Do not attempt to add global string interpolation to all strings.
-- **Verification & Tests**: Look at existing reference implementations (e.g., `web_core`) to formulate and run comprehensive unit tests for data coercion, JSON pointer bubble/cascade notifications, and all function execution paths.
