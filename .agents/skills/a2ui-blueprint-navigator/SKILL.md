@@ -24,6 +24,7 @@ Spec-Driven Development (SDD) in A2UI separates language-agnostic definitions (w
 AI agents and human developers can use these exact recipes to navigate and query relations within the monorepo:
 
 ### **Recipe A: How to find the module blueprint for a particular codebase**
+
 Use this recipe to understand which central module requirements a local folder must satisfy.
 
 1.  **Locate Root**: Navigate to the directory of the target codebase (e.g. `renderers/react/` or `agent_sdks/python/a2ui_core/`).
@@ -34,6 +35,7 @@ Use this recipe to understand which central module requirements a local folder m
 ---
 
 ### **Recipe B: How to find all codebases for a particular module**
+
 Use this recipe to conduct cross-platform audits, locate all implementations of a specific layer, or trace feature parity.
 
 1.  **Open Module Blueprint**: Locate and open the target module blueprint at `blueprints/modules/{module_name}.blueprint.md` (e.g. `blueprints/modules/a2ui_core.blueprint.md`).
