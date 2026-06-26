@@ -265,4 +265,4 @@ The A2UI Agent SDK is a multi-language ecosystem. While features may be implemen
 
 To ensure behavioral parity across all SDK implementations (Python, Kotlin, etc.), the project maintains a language-agnostic conformance suite.
 
-For detailed information on the suite structure and how to use it in your SDK implementation, see the [Conformance Testing README](conformance/README.md).
+For detailed information on the suite structure and how to use it in your SDK implementation, see the [Conformance Testing README](../../agent_sdks/conformance/README.md).

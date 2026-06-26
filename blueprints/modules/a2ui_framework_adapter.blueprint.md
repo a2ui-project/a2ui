@@ -39,7 +39,7 @@ At the heart of the A2UI framework-specific architecture are the interfaces that
 
 ### `ComponentImplementation`
 
-The framework-specific logic for rendering a component. It extends `ComponentApi` (defined in [Core SDK Specification](core_sdk_spec.md)) to include a `build` or `render` method.
+The framework-specific logic for rendering a component. It extends `ComponentApi` (defined in [Core SDK Specification](a2ui_core.blueprint.md)) to include a `build` or `render` method.
 
 How this looks depends on the target framework's paradigm:
 
@@ -255,7 +255,7 @@ When building libraries that provide the Basic Catalog, separating the pure API 
 - **Multi-Framework Code Reuse**: Allows core binders to be reused across different UI framework adapter libraries.
 - **Developer Overrides**: By exposing the standard API definitions, developers adopting A2UI can easily swap in custom UI implementations (e.g., replacing the default `Button` with their company's internal Design System `Button`) without having to rewrite the complex A2UI validation, data binding, and capability generation logic.
 
-For a detailed walkthrough on how to visually and functionally implement each basic component and function, refer to the [Basic Catalog Implementation Guide](basic_catalog_implementation_guide.md).
+For a detailed walkthrough on how to visually and functionally implement each basic component and function, refer to the [Basic Catalog Implementation Guide](../../specification/v0_9_1/docs/basic_catalog_implementation_guide.md).
 
 ---
 

@@ -14,7 +14,6 @@ This document is the authoritative guide for AI agents working within the A2UI r
 - **For implementing features from blueprints:** Read [.agents/skills/a2ui-implement-feature-from-blueprint/SKILL.md](.agents/skills/a2ui-implement-feature-from-blueprint/SKILL.md)
 - **For administrative maintenance of blueprints:** Read [.agents/skills/a2ui-blueprint-maintenance/SKILL.md](.agents/skills/a2ui-blueprint-maintenance/SKILL.md)
 - **For implementing new SDKs in a client language:** Read [.agents/skills/a2ui-implement-new-sdks-for-client-language/SKILL.md](.agents/skills/a2ui-implement-new-sdks-for-client-language/SKILL.md)
-- **For implementing new SDKs in a server language:** Read [.agents/skills/a2ui-implement-new-sdks-for-server-language/SKILL.md](.agents/skills/a2ui-implement-new-sdks-for-server-language/SKILL.md)
 
 ---
 
