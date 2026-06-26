@@ -3,7 +3,7 @@
 A2UI is a declarative UI format. [AG-UI](https://ag-ui.com/) is the transport
 that carries A2UI messages between an agent and an app. Use this guide to add
 A2UI to an AG-UI app or harness backed by ADK, LangGraph, Mastra, Strands,
-CrewAI, Google Chat, Slack, Teams, or any other agent framework or service that
+CrewAI, Google Chat, Slack, or any other agent framework or service that
 supports AG-UI.
 
 <style>
@@ -65,9 +65,7 @@ supports AG-UI.
     <option value="langgraph-ts">LangGraph (TypeScript)</option>
     <option value="strands-py">Strands (Python)</option>
     <option value="strands-ts">Strands (TypeScript)</option>
-    <option value="google-chat">Google Chat</option>
     <option value="slack">Slack</option>
-    <option value="teams">Teams</option>
   </select>
 </div>
 
@@ -316,40 +314,6 @@ See the
 [AG-UI AWS Strands integration](https://github.com/ag-ui-protocol/ag-ui/tree/main/integrations/aws-strands/typescript).
 
 </div>
-<div class="agui-framework-panel" data-framework-panel="google-chat" markdown="1" hidden>
-
-<p class="agui-framework-panel-title">Google Chat</p>
-
-Use Google Chat when the user experience lives in a Google Workspace chat
-surface. The same AG-UI event stream can feed a chat harness and render A2UI
-through the surface's client bridge. Route the conversation into the same AG-UI
-agent endpoint, then render A2UI operations through your Google Chat bridge:
-
-```ts
-import { createBot } from "@copilotkit/bot";
-import {
-  googleChat,
-  defaultGoogleChatContext,
-} from "@copilotkit/bot-google-chat";
-
-const bot = createBot({
-  adapters: [
-    googleChat({
-      projectId: process.env.GOOGLE_CLOUD_PROJECT!,
-      credentials: process.env.GOOGLE_APPLICATION_CREDENTIALS!,
-    }),
-  ],
-  agent: (threadId) => makeAgent(threadId),
-  tools: [...appTools],
-  context: [...defaultGoogleChatContext, ...appContext],
-});
-
-bot.onMessage(({ thread }) => thread.runAgent());
-
-await bot.start();
-```
-
-</div>
 <div class="agui-framework-panel" data-framework-panel="slack" markdown="1" hidden>
 
 <p class="agui-framework-panel-title">Slack</p>
@@ -377,7 +341,7 @@ const bot = createBot({
   ],
   agent: (threadId) => {
     const agent = new SanitizingHttpAgent({
-      url: process.env.AGENT_RUN_URL!,
+      url: process.env.AGENT_URL!,
     });
     agent.threadId = threadId;
     return agent;
@@ -386,48 +350,11 @@ const bot = createBot({
   context: [...defaultSlackContext, ...appContext],
 });
 
-bot.onMention(({ thread }) => thread.runAgent());
+bot.onMention(async ({ thread }) => {
+  await thread.runAgent();
+});
 
 await bot.start();
-```
-
-</div>
-<div class="agui-framework-panel" data-framework-panel="teams" markdown="1" hidden>
-
-<p class="agui-framework-panel-title">Teams</p>
-
-Use Teams when the user experience lives in Microsoft Teams. Route the Teams
-conversation into the same AG-UI agent endpoint. The same AG-UI event stream
-can feed a Teams harness and render A2UI through the surface's client bridge.
-Use `@copilotkit/bot-teams` to receive Teams activities, render Adaptive Cards,
-stream updates, and optionally run local DevTools.
-
-```ts
-import { CopilotKitCore, ProxiedCopilotRuntimeAgent } from "@copilotkit/core";
-import { createTeamsAgentBot } from "@copilotkit/bot-teams/bot";
-
-const agentId = "assistant";
-const runtimeUrl = process.env.COPILOTKIT_RUNTIME_URL!;
-
-const core = new CopilotKitCore({ runtimeUrl });
-core.setDefaultThrottleMs(1000);
-core.addAgent__unsafe_dev_only({
-  id: agentId,
-  agent: new ProxiedCopilotRuntimeAgent({
-    agentId,
-    runtimeAgentId: agentId,
-    runtimeUrl,
-  }),
-});
-
-const bot = createTeamsAgentBot({
-  core,
-  agentId,
-  approvalTimeoutMs: 5 * 60 * 1000,
-  reviewerName: "Reviewer",
-});
-
-await bot.start(Number(process.env.PORT ?? 3978));
 ```
 
 </div>
@@ -536,10 +463,10 @@ await bot.start(Number(process.env.PORT ?? 3978));
   })();
 </script>
 
-These snippets establish the AG-UI server connection. Google Chat, Slack, and
-Teams use the same AG-UI/A2UI contract through their own harnesses and client
-bridges. The next sections turn on A2UI rendering, catalogs, and component
-definitions inside the app surface.
+These snippets establish the AG-UI server connection. Slack uses the same
+AG-UI/A2UI contract through its own harness and client bridge. The next
+sections turn on A2UI rendering, catalogs, and component definitions inside the
+app surface.
 
 ## 3. Enable A2UI
 
