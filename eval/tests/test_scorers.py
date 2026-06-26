@@ -25,7 +25,7 @@ CATALOG_PATH = os.path.abspath(os.path.join(CURRENT_DIR, "../../specification/v0
 
 @pytest.mark.asyncio
 async def test_scorer_valid_json():
-    scorer = a2ui_scorer()
+    scorer = a2ui_scorer(version="0.9")
     valid_json = """
     <a2ui-json>
     {
@@ -55,7 +55,7 @@ async def test_scorer_valid_json():
 
 @pytest.mark.asyncio
 async def test_scorer_invalid_json():
-    scorer = a2ui_scorer()
+    scorer = a2ui_scorer(version="0.9")
     state = TaskState(
         model=ModelName("mock/model"),
         sample_id=1,
@@ -73,7 +73,7 @@ async def test_scorer_invalid_json():
 
 @pytest.mark.asyncio
 async def test_scorer_missing_root():
-    scorer = a2ui_scorer()
+    scorer = a2ui_scorer(version="0.9")
     payload = """
     <a2ui-json>
     [
@@ -113,7 +113,7 @@ async def test_scorer_missing_root():
 
 @pytest.mark.asyncio
 async def test_scorer_duplicate_ids():
-    scorer = a2ui_scorer()
+    scorer = a2ui_scorer(version="0.9")
     payload = """
     <a2ui-json>
     {
@@ -146,7 +146,7 @@ async def test_scorer_duplicate_ids():
 
 @pytest.mark.asyncio
 async def test_scorer_broken_relationship():
-    scorer = a2ui_scorer()
+    scorer = a2ui_scorer(version="0.9")
     payload = """
     <a2ui-json>
     [
@@ -187,7 +187,7 @@ async def test_scorer_broken_relationship():
 
 @pytest.mark.asyncio
 async def test_scorer_circular_reference():
-    scorer = a2ui_scorer()
+    scorer = a2ui_scorer(version="0.9")
     payload = """
     <a2ui-json>
     {

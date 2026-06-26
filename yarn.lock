@@ -360,10 +360,12 @@ __metadata:
     dotenv: "npm:^17.4.2"
     eslint: "npm:^10.4.1"
     gts: "npm:^7.0.0"
+    jsdom: "npm:^29.1.1"
     lit: "npm:^3.3.3"
     typescript: "npm:5.9.3"
     uuid: "npm:^14.0.0"
     vite: "npm:^8.0.16"
+    vitest: "npm:^3.0.0"
     wireit: "npm:^0.15.0-pre.2"
   languageName: unknown
   linkType: soft
