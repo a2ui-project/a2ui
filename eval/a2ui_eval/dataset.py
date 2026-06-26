@@ -26,11 +26,12 @@ from a2ui_eval.shared.utils import GIT_ROOT
 
 SCHEMA_PATH = GIT_ROOT / "eval" / "datasets" / "dataset_schema.json"
 
-def load_a2ui_dataset(file_path: str) -> MemoryDataset:
+def load_a2ui_dataset(file_path: str, default_catalog_path: str | None = None) -> MemoryDataset:
     """Loads A2UI evaluation samples from a YAML file.
 
     Args:
         file_path: The path to the YAML dataset file.
+        default_catalog_path: The default catalog path to use if not specified in the sample.
 
     Returns:
         A MemoryDataset containing the resolved samples.
@@ -57,7 +58,7 @@ def load_a2ui_dataset(file_path: str) -> MemoryDataset:
             metadata={
                 'name': item.get('name'),
                 'description': item.get('description'),
-                'catalog': item.get('catalog') or DEFAULT_CATALOG_PATH,
+                'catalog': item.get('catalog') or default_catalog_path or DEFAULT_CATALOG_PATH,
                 'role_description': item.get('role_description') or DEFAULT_ROLE_DESCRIPTION,
                 'workflow_description': item.get('workflow_description') or DEFAULT_WORKFLOW_DESCRIPTION,
             }
