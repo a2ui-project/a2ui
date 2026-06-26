@@ -24,9 +24,9 @@ import shutil
 import subprocess
 import sys
 
-from report_evals import extract_accuracy, print_results_summary, load_log_data
-
-
+from report_evals import extract_accuracy, print_results_summary, load_log_data, generate_markdown_summary
+# Automatically override Inspect AI's connection rate-limiter limit to prevent queuing delays in latency measurements
+os.environ["INSPECT_MAX_CONNECTIONS"] = "50"
 
 def check_threshold(percentage: float, threshold: float) -> bool:
     """Compares percentage with threshold.
@@ -68,8 +68,8 @@ def main():
     parser = argparse.ArgumentParser(description="Run A2UI evals for CI.")
     parser.add_argument("--max-samples", type=int, default=100, help="Maximum number of samples to evaluate. Set to 0 for all samples. Default is 100.")
     parser.add_argument("--threshold", type=float, default=0.0, help="Pass percentage threshold (0-100). Default is 0.0.")
-    parser.add_argument("--model", type=str, default="google/gemini-3-flash-preview", help="Model used to evaluate tasks. Default is google/gemini-3-flash-preview.")
-    parser.add_argument("--grading-model", type=str, default="google/gemini-3-flash-preview", help="Model used for grading. Default is google/gemini-3-flash-preview.")
+    parser.add_argument("--model", type=str, default="google/gemini-3.5-flash", help="Model used to evaluate tasks. Default is google/gemini-3.5-flash.")
+    parser.add_argument("--grading-model", type=str, default="google/gemini-3.5-flash", help="Model used for grading. Default is google/gemini-3.5-flash.")
     args = parser.parse_args()
 
     # Find eval root (directory above bin)
@@ -98,6 +98,7 @@ def main():
         sys.exit(result.returncode if result.returncode != 0 else 1)
 
     all_passed = True
+    summaries = []
     for log_file in log_files:
         print(f"\n=======================================================")
         print(f"Determining pass percentage from log file: {os.path.basename(log_file)}")
@@ -110,6 +111,13 @@ def main():
             percentage = accuracy * 100
             print(f"Pass percentage: {percentage}%")
 
+            # Generate and accumulate markdown summary
+            try:
+                summary_md = generate_markdown_summary(log_data, percentage, args.threshold)
+                summaries.append(summary_md)
+            except Exception as e:
+                print(f"Warning: Failed to generate markdown summary: {e}")
+
             if not check_threshold(percentage, args.threshold):
                 print(f"Error: Pass percentage {percentage}% is less than threshold {args.threshold}%")
                 all_passed = False
@@ -121,6 +129,16 @@ def main():
         except Exception as e:
             print(f"Error processing log file: {e}")
             all_passed = False
+
+    # Write consolidated summary if we have summaries
+    if summaries:
+        summary_path = os.path.join(eval_root, "eval_summary.md")
+        try:
+            with open(summary_path, "w", encoding="utf-8") as f:
+                f.write("\n\n---\n\n".join(summaries))
+            print(f"Wrote evaluation summary to: {summary_path}")
+        except Exception as e:
+            print(f"Error writing summary file: {e}")
 
     if not all_passed:
         print("\nCI Failed: One or more evaluation strategies did not meet the threshold or encountered an error.")
