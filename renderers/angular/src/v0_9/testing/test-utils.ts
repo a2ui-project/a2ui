@@ -13,10 +13,11 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+/// <reference types="jasmine" />
 
 import {ComponentFixture} from '@angular/core/testing';
 import {signal} from '@angular/core';
-import {BoundProperty, ComponentTemplate} from './types';
+import {BoundProperty, ComponentTemplate} from '@a2ui/angular/v0_9';
 
 /**
  * Extracts the type of the props input from a component type.
