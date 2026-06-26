@@ -51,16 +51,3 @@ python3 scripts/validate_blueprints.py
 ```
 
 Fix any reference or naming errors before submitting a pull request.
-
----
-
-## **2. Core Implementation & Architecture Tips**
-
-When implementing features or developing SDK layers, always keep these critical architectural tips in mind to avoid common pitfalls:
-
-- **Context Path Propagation**: In structural or layout components that render children dynamically (e.g. lists, columns, grids), ensure that the recursive child builder correctly propagates the scoped context path (e.g., `/restaurants/0`) to the children. Nested elements using relative property bindings must evaluate against their immediate parent's scoped path rather than the root context path.
-- **Reactive Lifecycle & Memory Management**: To prevent severe memory leaks across framework adapters (especially in stateful or virtual DOM rendering loops):
-  1.  **Lazy-Subscribe**: Only bind and subscribe to reactive data streams when the component is actually mounted or attached to the UI.
-  2.  **Path Stability**: If a component's bound data path changes, always unsubscribe from the old path before subscribing to the new one.
-  3.  **Strict Disposal**: Hook into the native framework unmount/destruction lifecycle to completely dispose of and unsubscribe all listeners and state subscriptions.
-- **Value Reference Equality**: When updating property models or emitting resolved values, always emit a new object reference (shallow copy) on change. Declarative UI frameworks (such as React or Lit) rely on strict reference equality checks to detect changes; failing to copy will prevent components from re-rendering in response to data updates.
