@@ -1,16 +1,14 @@
 ---
+
 associated_module: a2ui_inference
-implemented_features:
-  - capability_management
-  - streaming_parsing
-  - json_healing
-  - prompt_engineering
+implemented_features: []
 protocol_compliance: "v1.0"
 local_development:
   test_command: "uv run pytest"
   lint_command: "uv run pyink --check ."
   format_command: "uv run pyink ."
 ---
+
 
 # **Python Agent SDK Codebase Blueprint**
 

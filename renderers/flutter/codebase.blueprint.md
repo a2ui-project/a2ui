@@ -1,4 +1,5 @@
 ---
+
 associated_module: a2ui_framework_adapter
 implemented_features: []
 protocol_compliance: "v1.0"
@@ -7,6 +8,7 @@ local_development:
   lint_command: "flutter analyze"
   format_command: "dart format ."
 ---
+
 
 # **Flutter Framework Adapter Codebase Blueprint (Planned)**
 

@@ -9,8 +9,12 @@ This document is the authoritative guide for AI agents working within the A2UI r
 > **INSTRUCTION FOR ALL AGENTS (Gemini CLI, Claude, OpenAI, Antigravity, etc.):**
 > Before performing any specific tasks, load and read the respective skill recipe file in full:
 
-- **For maintaining documentation or agent files:** Read [.agents/skills/a2ui-agent-maintenance/SKILL.md](.agents/skills/a2ui-agent-maintenance/SKILL.md)
-- **For designing SDKs, adapters, or libraries:** Read [.agents/skills/a2ui-sdk-design/SKILL.md](.agents/skills/a2ui-sdk-design/SKILL.md)
+- **For navigating or querying repository blueprints:** Read [.agents/skills/a2ui-blueprint-navigator/SKILL.md](.agents/skills/a2ui-blueprint-navigator/SKILL.md)
+- **For creating a new feature blueprint:** Read [.agents/skills/a2ui-create-feature-blueprint/SKILL.md](.agents/skills/a2ui-create-feature-blueprint/SKILL.md)
+- **For implementing features from blueprints:** Read [.agents/skills/a2ui-implement-feature-from-blueprint/SKILL.md](.agents/skills/a2ui-implement-feature-from-blueprint/SKILL.md)
+- **For administrative maintenance of blueprints:** Read [.agents/skills/a2ui-blueprint-maintenance/SKILL.md](.agents/skills/a2ui-blueprint-maintenance/SKILL.md)
+- **For implementing new SDKs in a client language:** Read [.agents/skills/a2ui-implement-new-sdks-for-client-language/SKILL.md](.agents/skills/a2ui-implement-new-sdks-for-client-language/SKILL.md)
+- **For implementing new SDKs in a server language:** Read [.agents/skills/a2ui-implement-new-sdks-for-server-language/SKILL.md](.agents/skills/a2ui-implement-new-sdks-for-server-language/SKILL.md)
 
 ---
 
@@ -38,8 +42,21 @@ The repository supports multiple versions of the A2UI protocol:
 
 ---
 
-## 3. Codebase & Repository Structure
+## 3. Spec-Driven Development (SDD)
 
+To scale development across multiple programming languages and UI frameworks, the A2UI repository adopts **Spec-Driven Development (SDD)**. Under this methodology:
+
+- **Language-Agnostic Blueprints** define high-level architecture and features in a generic format under the `blueprints/` directory.
+- **Concrete Codebases** track their compliance and local decisions using a `codebase.blueprint.md` file in their respective implementation roots.
+- Agents must follow the SDD workflow when designing or implementing new features.
+
+For a detailed explanation of the methodology, lifecycle, and workflows, read the [Spec-Driven Development Proposal](specification/proposals/spec_driven_development.md).
+
+---
+
+## 4. Codebase & Repository Structure
+
+- **`blueprints/`**: Central repository for language-agnostic module blueprints (`modules/`) and feature blueprints (`features/`, `features/archived/`).
 - **`specification/`**: Versioned subdirectories (`v0_8/`, `v0_9/`, `v0_9_1/`, `v1_0/`) containing JSON schemas, component/function catalogs, and human-readable guides. The `specification/<version>/docs/a2ui_protocol.md` file is the most important source of truth for each protocol version, and the `specification/<version>/json` directory contains the associated schemas for the protocol.
 - **`agent_sdks/`**: Server integration SDKs for Python (`python/`), Kotlin (`kotlin/`), and core conformance tests (`conformance/`).
 - **`renderers/`**: Shared core state logic (`web_core/`), Lit renderer (`lit/`), Angular renderer (`angular/`), React renderer (`react/`), markdown parser (`markdown/`), and placeholder for Flutter (`flutter/`).
@@ -48,7 +65,7 @@ The repository supports multiple versions of the A2UI protocol:
 
 ---
 
-## 4. Yarn Workspaces & Standard Script Targets
+## 5. Yarn Workspaces & Standard Script Targets
 
 All Node.js and TypeScript projects inside the repository must be managed as **Yarn workspaces** registered inside the `"workspaces"` array of the root `package.json`.
 
@@ -63,7 +80,7 @@ When creating or modifying workspaces, guarantee strict script uniformity by imp
 
 ---
 
-## 5. Running the Demos and Tools
+## 6. Running the Demos and Tools
 
 Do not use hardcoded or guessed build/run sequences. Each subdirectory contains detailed setup, build, dependency resolution, and execution steps.
 
@@ -72,10 +89,20 @@ Do not use hardcoded or guessed build/run sequences. Each subdirectory contains 
 
 ---
 
-## 6. Maintenance & Update Policy
+## 7. Maintenance & Update Policy
 
 As A2UI evolves, keep agent documentation and skills perfectly synchronized with specification and codebase changes:
 
 - Update `AGENTS.md` and associated skill files when specifications, schemas, or directory layouts are added, modified, or removed.
 - Enforce Yarn workspace script hygiene across all Node packages.
 - Suggest updates to the user at the end of your task if any changes affect documented files.
+
+---
+
+## 8. Core Guidelines for Agents
+
+To ensure the integrity, consistency, and high quality of the repository, all agents must adhere to the following core guidelines:
+
+- **Prioritize Authoritative Specifications**: Always base designs, protocol changes, and implementations on the formal schemas and documents under the versioned `specification/` directory (schemas first, catalogs second, protocol guides third) rather than general workspace markdown files.
+- **Maintain Agent-Agnostic Instructions**: When creating or modifying agent instruction files, skills, or guides, write them in a generic, vendor-agnostic manner. Avoid proprietary or environment-specific names (e.g., model names, specific tool terms) and use generic terms (e.g., "assistant", "subagent", "retrieval tool").
+- **Enforce Script Uniformity**: Strictly maintain Yarn workspace script hygiene. Ensure all Node/TypeScript packages implement the five canonical targets (`build`, `lint`, `lint:fix`, `test`, `format`, `format:check`).

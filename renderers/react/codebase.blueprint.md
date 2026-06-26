@@ -1,16 +1,14 @@
 ---
+
 associated_module: a2ui_framework_adapter
-implemented_features:
-  - dynamic_signals
-  - binder_integration
-  - context_nesting
-  - gallery_app
+implemented_features: []
 protocol_compliance: "v1.0"
 local_development:
   test_command: "yarn test"
   lint_command: "yarn lint"
   format_command: "yarn format"
 ---
+
 
 # **React Framework Adapter Codebase Blueprint**
 
