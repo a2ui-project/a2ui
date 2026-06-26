@@ -28,14 +28,14 @@ export default async function issueTriage({github, context}) {
     return;
   }
 
-  console.log(`Adding 'needs triage' label to #${issueNumber}`);
+  console.log(`Adding 'status: needs triage' label to #${issueNumber}`);
 
   try {
     await github.rest.issues.addLabels({
       issue_number: issueNumber,
       owner: context.repo.owner,
       repo: context.repo.repo,
-      labels: ['needs triage'],
+      labels: ['status: needs triage'],
     });
     console.log('Label added successfully');
   } catch (error) {
