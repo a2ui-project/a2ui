@@ -14,7 +14,7 @@ This document describes the detailed programmatic specification and architecture
 
 This layer handles JSON parsing, state models, JSON pointers, catalogs, and schemas. This logic remains completely framework-agnostic, allowing it to be implemented identically across all target environments (including server-side or headless languages where there is no renderer).
 
-For a high-level overview of the entire A2UI ecosystem (including the Inference SDK and Framework Adapter structure), see the [A2UI Unified SDK Architecture](../../specification/v0_9_1/docs/sdks_spec.md). For UI framework integration and rendering details, see the [A2UI Framework Adapter Specification](a2ui_framework_adapter.blueprint.md).
+For a high-level overview of the entire A2UI ecosystem (including the Inference SDK and Framework Adapter structure), see the [A2UI Unified SDK Architecture](../../specification/v0_9_1/docs/sdks_spec.md). For UI framework integration and rendering details, see the [A2UI Framework Adapter Blueprint](a2ui_framework_adapter.blueprint.md).
 
 ---
 
@@ -395,7 +395,7 @@ myCustomCatalog = Catalog(
 
 For complex applications, scattering manual A2UI subscription logic across all view components becomes repetitive and error-prone.
 
-The **Binder Layer** is a framework-agnostic intermediate abstraction inside the Core SDK. It takes raw component configurations and transforms the reactive A2UI bindings into a single, cohesive stream of strongly-typed `ResolvedProps`. The native UI components (described in the [Framework Adapter Specification](framework_adapter_spec.md)) simply listen to this generic stream.
+The **Binder Layer** is a framework-agnostic intermediate abstraction inside the Core SDK. It takes raw component configurations and transforms the reactive A2UI bindings into a single, cohesive stream of strongly-typed `ResolvedProps`. The native UI components (described in the [A2UI Framework Adapter Blueprint](a2ui_framework_adapter.blueprint.md)) simply listen to this generic stream.
 
 ```typescript
 export interface ComponentBinding<ResolvedProps> {
