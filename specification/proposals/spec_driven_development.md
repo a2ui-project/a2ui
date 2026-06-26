@@ -1,10 +1,10 @@
 # **Scaling A2UI codebases with spec-driven development**
 
-*Status: Draft*
+_Status: Draft_
 
-*Author: Jacob Simionato*
+_Author: Jacob Simionato_
 
-*Created: 2026-06-18 Modified: 2026-06-18*
+_Created: 2026-06-18 Modified: 2026-06-18_
 
 # **Background**
 
@@ -16,13 +16,13 @@ The A2UI team is aims to write and maintain a several codebases across multiple 
 
 Adopt spec-driven development with a standardized approach across the A2UI team in service of the following goals:
 
-* Encourage a culture of where we spend more effort creating and reviewing specifications.
-* Allow the A2UI team to more quickly implement features across SDK implementations in multiple languages.  
-* Allow contributors outside of the core A2UI team to more efficiently write and maintain their own A2UI SDKs, for example the Jetpack Composer and Swift UI renderers.  
-* Allow the A2UI team to collaborate more efficiently by standardizing the way that we record SDK and feature specifications.  
-* Increase the productivity of agents working in our codebase on any task by giving them better access to relevant design documentation.  
-* Make it easier for humans and agents to understand the discrepancies between different SDK codebases by emphasizing better definition of features and a clear separation between required features and optional (a.k.a. new or experimental) features.
-* Avoid disrupting existing workflows used by team members and ensure they still have freedom to experiment with novel techniques.
+- Encourage a culture of where we spend more effort creating and reviewing specifications.
+- Allow the A2UI team to more quickly implement features across SDK implementations in multiple languages.
+- Allow contributors outside of the core A2UI team to more efficiently write and maintain their own A2UI SDKs, for example the Jetpack Composer and Swift UI renderers.
+- Allow the A2UI team to collaborate more efficiently by standardizing the way that we record SDK and feature specifications.
+- Increase the productivity of agents working in our codebase on any task by giving them better access to relevant design documentation.
+- Make it easier for humans and agents to understand the discrepancies between different SDK codebases by emphasizing better definition of features and a clear separation between required features and optional (a.k.a. new or experimental) features.
+- Avoid disrupting existing workflows used by team members and ensure they still have freedom to experiment with novel techniques.
 
 # **Overview**
 
@@ -35,10 +35,11 @@ graph TD
     MB -->|Specifies architecture of| CB
     CB -->|Documents| C[Codebase Implementation]
 ```
+
 Under this model:
 
-1. **Module Blueprints** define the high-level architecture, core interfaces, and behavior of repository modules (e.g., `a2ui_core`, `a2ui_inference`, `a2ui_react`, etc.).  
-2. **Feature Blueprints** describe specific feature additions or behavioral changes to a module.  
+1. **Module Blueprints** define the high-level architecture, core interfaces, and behavior of repository modules (e.g., `a2ui_core`, `a2ui_inference`, `a2ui_react`, etc.).
+2. **Feature Blueprints** describe specific feature additions or behavioral changes to a module.
 3. **Codebase Blueprints** reside within each platform's implementation folder, tracking implemented features and documenting local design decisions or deviations.
 
 Formal blueprints are primarily used for major features, e.g. the addition of a new public API, behavior, protocol version or architectural change. By having these specifications to be checked into the codebase, we create a natural opportunity for review of feature designs before they are implemented. We also ensure that when we add a feature to one SDK codebase, we can easily port it to other languages.
@@ -47,9 +48,9 @@ Formal blueprints are primarily used for major features, e.g. the addition of a 
 
 Smaller features can still be implemented ad-hoc with no formal blueprint. These small feature typically:
 
-* Make changes to functionality that is not explicitly documented in the module blueprint, or  
-* Address local bugs, refactorings, or performance optimizations that do not affect the public API or cross-language protocol compliance, or  
-* Add codebase-specific utility functions or internal helpers that do not impact compatibility or consistency with other SDKs.
+- Make changes to functionality that is not explicitly documented in the module blueprint, or
+- Address local bugs, refactorings, or performance optimizations that do not affect the public API or cross-language protocol compliance, or
+- Add codebase-specific utility functions or internal helpers that do not impact compatibility or consistency with other SDKs.
 
 Specification-driven development is still useful for these features, but the specifications don’t always need to be checked into the file system. They could be checked in as blueprints, or written in Github issues, or exist as temporary files on a developer’s file system.
 
@@ -63,11 +64,11 @@ A **Required Feature Blueprint** describes a feature that is expected to be impl
 
 An **Optional Feature Blueprint** describes a feature that is not baked into the module blueprint and is not expected to be implemented in all codebases. It allows platforms to support experimental or framework-specific features without forcing compliance across all SDKs.
 
-* **Decoupled Lifecycle**: Optional feature blueprints exist as standalone specification files in `blueprints/features/` and are not merged into the base Module Blueprint.  
-* **Ad-hoc Implementation**: Each codebase can decide independently whether to support an optional feature based on platform capabilities and user needs.  
-* **Discovery**: Codebases that implement an optional feature must list it in their `codebase.blueprint.md` under `implemented_features` to let clients and agents know it is supported.
+- **Decoupled Lifecycle**: Optional feature blueprints exist as standalone specification files in `blueprints/features/` and are not merged into the base Module Blueprint.
+- **Ad-hoc Implementation**: Each codebase can decide independently whether to support an optional feature based on platform capabilities and user needs.
+- **Discovery**: Codebases that implement an optional feature must list it in their `codebase.blueprint.md` under `implemented_features` to let clients and agents know it is supported.
 
-### **my\_feature.blueprint.md structure (Example)**
+### **my_feature.blueprint.md structure (Example)**
 
 Every feature blueprint must follow a standardized Markdown structure with YAML frontmatter. Below is an example feature blueprint for a dynamic theming feature, written in a language-agnostic way:
 
@@ -109,7 +110,7 @@ Allow agents or clients to dynamically adjust the visual theme of an active surf
 
 A **Module Blueprint** describes an entire architectural module in a language-agnostic way. It serves as the primary source of truth for building a new codebase from scratch or verifying the correctness of an existing one.
 
-### **a2ui\_core.blueprint.md Structure (Example)**
+### **a2ui_core.blueprint.md Structure (Example)**
 
 Every module blueprint must follow a standardized Markdown structure with YAML frontmatter. Below is an example module blueprint for the core state layer (`a2ui_core`):
 
@@ -171,64 +172,64 @@ This section explains what steps will be taken by developers and agents to perfo
 
 ## **Specify a new required feature**
 
-1. Create required feature blueprint **(significant human input required)**  
-2. Update module blueprint based on the feature blueprint, to ensure the module blueprint fully specifies the feature and how to implement it. Add the feature name to the module’s “included features”. (coding agent)  
+1. Create required feature blueprint **(significant human input required)**
+2. Update module blueprint based on the feature blueprint, to ensure the module blueprint fully specifies the feature and how to implement it. Add the feature name to the module’s “included features”. (coding agent)
 3. Send PR for review. You can also include an implementation in a codebase in the same PR if you want \- see “Implement an optional or required feature in a codebase”.
 
 ## **Specify a new optional feature**
 
-1. Create optional feature blueprint **(significant human input required)**  
+1. Create optional feature blueprint **(significant human input required)**
 2. Send PR for review. You can also include an implementation in a codebase in the same PR if you want \- see “Implement an optional or required feature in a codebase”.
 
 ## **Promote an optional feature to be required**
 
-1. Update module blueprint based on the feature blueprint, and add it to the module’s “included\_features”. (coding agent)  
-2. Send PR for review. 
+1. Update module blueprint based on the feature blueprint, and add it to the module’s “included_features”. (coding agent)
+2. Send PR for review.
 
 ## **Implement an optional or required feature in a codebase**
 
-1. Verify that the codebase does not already contain the feature  
-2. Create a temporary design describing in detail how the feature should be implemented in the specific codebase, taking into account the feature blueprint, the codebase blueprint, and the actual codebase code. This file should not be checked in. **(human input required)**  
-3. Use the temporary design to implement the feature  
-4. Update the codebase blueprint to add the feature to the “included\_features” and include any codebase specific decisions that were made as part of the feature implementation.   
-5. Send PR for review. 
+1. Verify that the codebase does not already contain the feature
+2. Create a temporary design describing in detail how the feature should be implemented in the specific codebase, taking into account the feature blueprint, the codebase blueprint, and the actual codebase code. This file should not be checked in. **(human input required)**
+3. Use the temporary design to implement the feature
+4. Update the codebase blueprint to add the feature to the “included_features” and include any codebase specific decisions that were made as part of the feature implementation.
+5. Send PR for review.
 
 ## **Implement all the features necessary to bring a codebase “up to date”**
 
-1. Read the codebase blueprint and module blueprint and identify all the required features in the module that are not in the codebase.  
-2. Implement each feature in chronological order, based on their blueprints, following the steps to implement a feature above.  
-3. Consult the module blueprint and verify that the codebase now matches it, making minor changes to the codebase as necessary to make it as consistent as possible to the module blueprint.  
-4. Update the codebase blueprint to add the feature to the “included\_features”.  
+1. Read the codebase blueprint and module blueprint and identify all the required features in the module that are not in the codebase.
+2. Implement each feature in chronological order, based on their blueprints, following the steps to implement a feature above.
+3. Consult the module blueprint and verify that the codebase now matches it, making minor changes to the codebase as necessary to make it as consistent as possible to the module blueprint.
+4. Update the codebase blueprint to add the feature to the “included_features”.
 5. Send PR for review, either one PR per feature, or one PR for the entire update.
 
 ## **Resolve inconsistencies between a module blueprint and all of its associated codebases**
 
-1. Read the relevant module blueprint  
-2. Search for all codebases that associated with the module  
-3. Analyse every codebase associated with the module, identifying:  
-   1. Required features that are missing from each codebase  
-   2. Discrepancies between the blueprint and the actual implementation e.g. API names or structures which are inconsistent  
-   3. Discrepancies between the codebases, for which the module blueprint provides no guidance.  
-4. Report the above and propose actions to take to reduce the inconsistencies including:  
-   1. Adding additional detail to the blueprints to reduce ambiguity  
-   2. Update the module blueprint to explicitly mark a detail as being a codebase-level decision  
-   3. Updating codebases to match the module blueprints  
-   4. Update the codebase blueprint to document a reason that it has intentionally deviated from the module blueprint for a language-specific reason.  
-2. Implement some of the proposed actions, based on human discretion **(significant human input required)**  
-3. Send PR for review.
+1. Read the relevant module blueprint
+2. Search for all codebases that associated with the module
+3. Analyse every codebase associated with the module, identifying:
+   1. Required features that are missing from each codebase
+   2. Discrepancies between the blueprint and the actual implementation e.g. API names or structures which are inconsistent
+   3. Discrepancies between the codebases, for which the module blueprint provides no guidance.
+4. Report the above and propose actions to take to reduce the inconsistencies including:
+   1. Adding additional detail to the blueprints to reduce ambiguity
+   2. Update the module blueprint to explicitly mark a detail as being a codebase-level decision
+   3. Updating codebases to match the module blueprints
+   4. Update the codebase blueprint to document a reason that it has intentionally deviated from the module blueprint for a language-specific reason.
+5. Implement some of the proposed actions, based on human discretion **(significant human input required)**
+6. Send PR for review.
 
 ## **Implement a new codebase**
 
-1. Create a temporary design describing in detail how the codebase should be implemented based on the module blueprint. **(significant human input required)**  
-2. Implement the module based on the temporary design  
-3. Create a new codebase blueprint, summarizing the design of details that are not specified in the module blueprint.  
+1. Create a temporary design describing in detail how the codebase should be implemented based on the module blueprint. **(significant human input required)**
+2. Implement the module based on the temporary design
+3. Create a new codebase blueprint, summarizing the design of details that are not specified in the module blueprint.
 4. Split up the changes into manageable chunks to review over several PRs.
 
 ## **Clean up feature blueprints**
 
 Feature blueprints undergo a clean, Git-centric lifecycle to prevent the blueprints directory from becoming cluttered with obsolete specifications.
 
-1. **Required Features**: Once a required feature has been fully implemented in all active codebases and its requirements have been integrated into the base Module Blueprint, the feature blueprint file is moved to the archived/ folder.  
+1. **Required Features**: Once a required feature has been fully implemented in all active codebases and its requirements have been integrated into the base Module Blueprint, the feature blueprint file is moved to the archived/ folder.
 2. **Optional Features**: Optional feature blueprints remain in `blueprints/features/` as long as they are actively supported. If they are promoted to required, they are integrated into the Module Blueprint and deleted. If they are deprecated or abandoned, they are moved to the archived/ folder.
 
 # **Implementation**
@@ -268,10 +269,10 @@ To keep specifications organized, all language-agnostic blueprints will reside i
 
 To support automated execution of spec-driven tasks, we will maintain a set of specialized AI agent skills in the `.agents/skills/` directory. Each skill represents a distinct, non-overlapping operational mode for the AI agents:
 
-* **`a2ui-blueprint-navigator`**: A read-only analytical guide. It is responsible for discovering blueprints and their codebase implementations to understand the repository.  
-* **`a2ui-create-feature-blueprint`**: Provides instructions on how to create a feature blueprint, e.g. where it should be stored, what fields to include, how to validate, how to ensure the design is generic, uses the terms defined in the module blueprint, and can be easily ported across codebases (including those that exist in the mono repo, and those that exist in other repositories.  
-* **`a2ui-implement-feature-from-blueprint`**: Provides instructions on the blueprint-related aspects of implementing a feature, e.g. what blueprints to use as context, what blueprints to add or update as part of implementing the feature.  
-* **`a2ui-blueprint-maintenance`**: A project-level administrator. It manages the evolution, promotion, validation, and cleanup of specifications across the workspace.
+- **`a2ui-blueprint-navigator`**: A read-only analytical guide. It is responsible for discovering blueprints and their codebase implementations to understand the repository.
+- **`a2ui-create-feature-blueprint`**: Provides instructions on how to create a feature blueprint, e.g. where it should be stored, what fields to include, how to validate, how to ensure the design is generic, uses the terms defined in the module blueprint, and can be easily ported across codebases (including those that exist in the mono repo, and those that exist in other repositories.
+- **`a2ui-implement-feature-from-blueprint`**: Provides instructions on the blueprint-related aspects of implementing a feature, e.g. what blueprints to use as context, what blueprints to add or update as part of implementing the feature.
+- **`a2ui-blueprint-maintenance`**: A project-level administrator. It manages the evolution, promotion, validation, and cleanup of specifications across the workspace.
 
 ## **Blueprint validation**
 
@@ -279,12 +280,12 @@ We will implement a blueprint validator script that verifies that all blueprints
 
 The validation script (`scripts/validate_blueprints.py`) will check:
 
-* **Frontmatter compliance**: Verify all mandatory YAML fields are present and correctly typed.  
-* **Entity naming rules**: Ensure feature names and module names use snake\_case and match their filenames.  
-* **Integrity of references**: Validate that `associated_module` and `implemented_features` in codebase blueprints point to valid, existing blueprints.  
-* **CI Integration**: Integrate the validator as a GitHub Action block on pull requests targeting `main`.
+- **Frontmatter compliance**: Verify all mandatory YAML fields are present and correctly typed.
+- **Entity naming rules**: Ensure feature names and module names use snake_case and match their filenames.
+- **Integrity of references**: Validate that `associated_module` and `implemented_features` in codebase blueprints point to valid, existing blueprints.
+- **CI Integration**: Integrate the validator as a GitHub Action block on pull requests targeting `main`.
 
 ## **Creation of initial blueprints**
 
-* Module blueprints:  We will migrate our existing guides and documentation in the blueprint formats described above. E.g. renderer\_guide.md will become the module blueprints for core and framework adapter layers.  
-* Codebase blueprints: We will have Gemini generate these by analysing the codebases.
+- Module blueprints: We will migrate our existing guides and documentation in the blueprint formats described above. E.g. renderer_guide.md will become the module blueprints for core and framework adapter layers.
+- Codebase blueprints: We will have Gemini generate these by analysing the codebases.

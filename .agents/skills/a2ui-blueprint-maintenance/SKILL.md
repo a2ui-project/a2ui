@@ -12,7 +12,9 @@ This skill provides the administrative recipes for managing the lifecycle, evolu
 ## **1. Lifecycle & Archiving Recipes**
 
 ### **Recipe A: Archiving a Completed Required Feature**
+
 When a required feature is fully adopted and implemented across all active codebases:
+
 1.  **Verify Parity**: Ensure that all codebases listed in the module's `associated_codebases` have successfully implemented the feature (listed in their `codebase.blueprint.md`).
 2.  **Merge Specification**: Integrate the detailed requirements and behavior of the feature directly into the main text of the **Module Blueprint** (e.g. `blueprints/modules/a2ui_core.blueprint.md`). Add the feature's name to the module's `included_features` or similar list.
 3.  **Archive the Feature Blueprint**: Move the feature blueprint file from `blueprints/features/` to the `blueprints/features/archived/` folder using git:
@@ -25,6 +27,7 @@ When a required feature is fully adopted and implemented across all active codeb
     ```
 
 ### **Recipe B: Handling Optional Features**
+
 - **Promotion**: If an optional feature is promoted to be required, merge its requirements into the base Module Blueprint, update the module's `included_features`, and delete/archive the feature blueprint.
 - **Deprecation**: If an optional feature is deprecated or abandoned, move its feature blueprint to `blueprints/features/archived/`.
 
