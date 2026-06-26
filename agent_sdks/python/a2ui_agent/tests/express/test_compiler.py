@@ -14,14 +14,19 @@
 
 """Unit tests focusing on the A2UI Express Compiler and Prompt Generator."""
 
+import json
 import os
 import unittest
 
 os.environ["A2UI_EXPRESS_ENABLED"] = "true"
 
+from a2ui.core.catalog import Catalog
+from a2ui.schema.catalog import A2uiCatalog, CatalogConfig
 from a2ui.experimental.express.prompt_generator import ExpressPromptGenerator
 from a2ui.experimental.express.compiler import ExpressCompiler
+from a2ui.experimental.express.decompiler import ExpressDecompiler
 from a2ui.experimental.express.schema_helper import CatalogSchemaHelper
+from a2ui.experimental.express.parser import parse_express_response
 
 SPEC_DIR = os.path.abspath(
     os.path.join(
@@ -541,6 +546,86 @@ btnLabel = Text("Click Thread 2")
     valid_dsl = 'root = Button("Click", "primary", Event("click", {rep: $/some/path}))'
     envelope = compiler.compile(valid_dsl)
     self.assertEqual(len(envelope["createSurface"]["components"]), 1)
+
+  def test_polymorphic_catalog_initialization(self):
+    """Verifies compiler, decompiler, prompt generator, and parser with polymorphic catalogs."""
+    # 1. Load raw dict
+    with open(self.catalog_path, "r", encoding="utf-8") as f:
+      catalog_dict = json.load(f)
+
+    # 2. Construct Catalog model
+    core_catalog = Catalog.from_json(catalog_dict, spec_version="0.9.1")
+
+    # 3. Construct A2uiCatalog model
+    a2ui_catalog = A2uiCatalog(
+        version="0.9.1",
+        name="basic_catalog",
+        s2c_schema={},
+        common_types_schema={},
+        catalog_schema=catalog_dict,
+    )
+
+    dsl = """root = Column([repField, valueField])
+repField = TextField("Representative", $/form/rep, "Enter name")
+valueField = TextField("Deal Value", $/form/value, "0.00", "number", ?required)"""
+
+    expected_components_count = 3
+
+    # Test with each polymorphic input
+    for cat_input in [catalog_dict, core_catalog, a2ui_catalog]:
+      # Compiler
+      compiler = ExpressCompiler(cat_input)
+      envelope = compiler.compile(dsl, surface_id="test_surf")
+      self.assertEqual(
+          len(envelope["createSurface"]["components"]), expected_components_count
+      )
+
+      # Decompiler
+      decompiler = ExpressDecompiler(cat_input)
+      decompiled_dsl = decompiler.decompile(envelope)
+      self.assertIn("repField = TextField(", decompiled_dsl)
+
+      # Prompt Generator
+      generator = ExpressPromptGenerator(cat_input)
+      prompt = generator.generate_prompt()
+      self.assertIn("TextField(", prompt)
+
+      # Parser
+      response = f"<a2ui>\n{dsl}\n</a2ui>"
+      parts = parse_express_response(response, cat_input, surface_id="test_surf")
+      self.assertEqual(len(parts), 1)
+      self.assertIsNotNone(parts[0].a2ui_json)
+
+  def test_catalog_schema_helper_initialization_errors(self):
+    """Verifies that CatalogSchemaHelper raises correct errors for invalid initialization inputs."""
+    # 1. None inputs raise ValueError
+    with self.assertRaises(ValueError) as context:
+      CatalogSchemaHelper(None)
+    self.assertIn(
+        "Either catalog or catalog_path must be provided", str(context.exception)
+    )
+
+    with self.assertRaises(ValueError) as context:
+      CatalogSchemaHelper(catalog=None, catalog_path=None)
+    self.assertIn(
+        "Either catalog or catalog_path must be provided", str(context.exception)
+    )
+
+    # 2. Unsupported type raises TypeError
+    with self.assertRaises(TypeError) as context:
+      CatalogSchemaHelper(catalog=123)
+    self.assertIn("Unsupported catalog type", str(context.exception))
+
+    # 3. Verify catalog_path property behavior
+    helper_file = CatalogSchemaHelper(self.catalog_path)
+    self.assertEqual(helper_file.catalog_path, self.catalog_path)
+
+    # With in-memory Catalog, catalog_path must be None
+    with open(self.catalog_path, "r", encoding="utf-8") as f:
+      catalog_dict = json.load(f)
+    core_catalog = Catalog.from_json(catalog_dict, spec_version="0.9.1")
+    helper_memory = CatalogSchemaHelper(core_catalog)
+    self.assertIsNone(helper_memory.catalog_path)
 
 
 if __name__ == "__main__":

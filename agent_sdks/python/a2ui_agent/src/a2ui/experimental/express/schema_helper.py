@@ -19,7 +19,9 @@ signatures, and requirements directly from standard catalog JSON schemas.
 """
 
 import json
-from typing import Optional
+from typing import Any, Dict, Optional, Union
+from a2ui.core.catalog import Catalog
+from a2ui.schema.catalog import A2uiCatalog
 
 
 class CatalogSchemaHelper:
@@ -29,23 +31,54 @@ class CatalogSchemaHelper:
   to support positional parameter mapping for compact generative notations.
 
   Attributes:
-      catalog_path: The absolute filesystem path to the catalog JSON file.
+      catalog_path: The absolute filesystem path to the catalog JSON file (if loaded from file).
       catalog: The parsed catalog JSON dictionary.
       components: A dictionary mapping component names to their catalog schemas.
       functions: A dictionary mapping function names to their catalog schemas.
   """
 
-  def __init__(self, catalog_path: str):
-    """Initializes the helper by loading and parsing the catalog file.
+  def __init__(
+      self,
+      catalog: Optional[
+          Union[str, Dict[str, Any], Catalog[Any, Any], A2uiCatalog]
+      ] = None,
+      *,
+      catalog_path: Optional[str] = None,
+  ):
+    """Initializes the helper with a polymorphic catalog representation.
 
     Args:
-        catalog_path: The absolute filesystem path to the catalog JSON file.
+        catalog: A file path, a parsed JSON dict, a Catalog, or an A2uiCatalog.
+        catalog_path: Legacy keyword argument for physical file path.
     """
-    self.catalog_path = catalog_path
-    with open(catalog_path, "r", encoding="utf-8") as f:
-      self.catalog = json.load(f)
-    self.components = self.catalog.get("components", {})
-    self.functions = self.catalog.get("functions", {})
+    target = catalog if catalog is not None else catalog_path
+    if target is None:
+      raise ValueError("Either catalog or catalog_path must be provided")
+
+    if isinstance(target, str):
+      self.catalog_path = target
+      with open(target, "r", encoding="utf-8") as f:
+        schema = json.load(f)
+      self.catalog_model = Catalog.from_json(schema, spec_version="0.9.1")
+    elif isinstance(target, dict):
+      self.catalog_path = None
+      self.catalog_model = Catalog.from_json(target, spec_version="0.9.1")
+    elif isinstance(target, A2uiCatalog):
+      self.catalog_path = None
+      self.catalog_model = target.core_catalog
+    elif isinstance(target, Catalog):
+      self.catalog_path = None
+      self.catalog_model = target
+    else:
+      raise TypeError(f"Unsupported catalog type: {type(target)}")
+
+    self.catalog = self.catalog_model.catalog_schema or {}
+    self.components = {
+        name: comp.schema for name, comp in self.catalog_model.components.items()
+    }
+    self.functions = {
+        name: fn.schema for name, fn in self.catalog_model.functions.items()
+    }
     self._load_mappings()
 
   def _load_mappings(self) -> None:
