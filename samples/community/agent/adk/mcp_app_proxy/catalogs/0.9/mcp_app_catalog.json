@@ -103,10 +103,10 @@
               "const": "PongLayout"
             },
             "mcpComponent": {
-              "$ref": "#/$defs/McpApp"
+              "$ref": "#/components/McpApp"
             },
             "scoreboardComponent": {
-              "$ref": "#/$defs/PongScoreBoard"
+              "$ref": "#/components/PongScoreBoard"
             }
           },
           "required": ["component"],
@@ -119,16 +119,16 @@
     "anyComponent": {
       "oneOf": [
         {
-          "$ref": "#/$defs/McpApp"
+          "$ref": "#/components/McpApp"
         },
         {
-          "$ref": "#/$defs/PongScoreBoard"
+          "$ref": "#/components/PongScoreBoard"
         },
         {
-          "$ref": "#/$defs/PongLayout"
+          "$ref": "#/components/PongLayout"
         },
         {
-          "$ref": "#/$defs/Column"
+          "$ref": "#/components/Column"
         }
       ]
     }
