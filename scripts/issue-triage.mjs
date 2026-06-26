@@ -39,7 +39,7 @@ export default async function issueTriage({github, context}) {
     });
     console.log('Label added successfully');
   } catch (error) {
-    console.log('Failed to add label:', error.message);
+    console.error('Failed to add label:', error);
   }
 
   console.log('A2UI Issue Triage script completed');
