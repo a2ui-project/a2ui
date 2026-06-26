@@ -1,5 +1,7 @@
 ## Unreleased
 
+- (v0_9) Export Angular test utilities under `@a2ui/angular/testing` and secondary entry point `@a2ui/angular/v0_9/testing`. [#1737](https://github.com/a2ui-project/a2ui/pull/1737)
+
 ## 0.10.2
 
 - (v0_9) Align with signal implementation changes in `@a2ui/web_core`.
