@@ -90,6 +90,29 @@ echo "Running Dart format..."
 cd "$REPO_ROOT"
 # Check if dart is available before running
 if command -v dart >/dev/null 2>&1; then
+
+  # Run "dart pub get" silently, to resolve Dart dependencies. This will resolve
+  # the analysis_options.yaml includes if the person running this script hasn't
+  # run dart or flutter "pub get" yet.
+  #
+  # Running "dart pub get" is not a NECESSARY thing for the formatting to work
+  # (dart format is entirely AST-based), but if someone runs the formatting
+  # script locally, then we don't want confusion about the warnings if they
+  # haven't run "dart pub get" (which is equivalent to "flutter pub get" if the
+  # dart executable is in a Flutter SDK directory).
+  #
+  # In CI, we want to be able to only install the lightweight Dart image, not
+  # the much heavier Flutter image, which quadruples the time it takes to run
+  # the formatting check. In that case, since the dart executable isn't part of
+  # a Flutter SDK directory, "dart pub get" will give errors about the monorepo
+  # depending on Flutter and not running "flutter pub get", so we want to
+  # suppress that failure here so it doesn't cause the fix_format.sh script to
+  # exit. The dart format run will still have warnings because pub get wasn't
+  # run, but it won't affect the CI build outcome.
+  if [ ! -f ".dart_tool/package_config.json" ]; then
+    dart pub get >/dev/null 2>&1 || true
+  fi
+
   if [ "$CHECK_ONLY" = true ]; then
     dart format --output=none --set-exit-if-changed .
   else
