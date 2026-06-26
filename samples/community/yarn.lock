@@ -95,6 +95,16 @@ __metadata:
   languageName: unknown
   linkType: soft
 
+"@a2ui/mcp_calculator@workspace:client/angular/projects/mcp_calculator":
+  version: 0.0.0-use.local
+  resolution: "@a2ui/mcp_calculator@workspace:client/angular/projects/mcp_calculator"
+  dependencies:
+    "@a2ui/angular": "npm:^0.10.0"
+    "@a2ui/web_core": "npm:^0.10.0"
+    wireit: "npm:^0.15.0-pre.2"
+  languageName: unknown
+  linkType: soft
+
 "@a2ui/orchestrator@workspace:client/angular/projects/orchestrator":
   version: 0.0.0-use.local
   resolution: "@a2ui/orchestrator@workspace:client/angular/projects/orchestrator"

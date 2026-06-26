@@ -21,7 +21,7 @@ output-modes = ["text"]
 readme = "README.md"
 requires-python = ">=3.14"
 dependencies = [
-    "a2a-sdk[http-server]>=0.3.0",
+    "a2a-sdk[http-server]>=0.3.0,<0.4.0",
     "click>=8.1.8",
     "google-adk>=1.28.1",
     "google-genai>=1.27.0",

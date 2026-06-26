@@ -13,8 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-import {DynamicComponent} from '../../../../projects/lib/src/public-api';
-import {Renderer} from '../../../../projects/lib/src/v0_8/rendering/renderer';
+import {DynamicComponent, Renderer} from '../../../../../../../../renderers/angular/src/v0_8/public-api';
 import {Component, input} from '@angular/core';
 
 @Component({
