@@ -1143,7 +1143,29 @@
           "type": "object",
           "properties": {
             "url": {
-              "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicString",
+              "oneOf": [
+                {
+                  "type": "string",
+                  "format": "uri"
+                },
+                {
+                  "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DataBinding"
+                },
+                {
+                  "allOf": [
+                    {
+                      "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/FunctionCall"
+                    },
+                    {
+                      "properties": {
+                        "returnType": {
+                          "const": "string"
+                        }
+                      }
+                    }
+                  ]
+                }
+              ],
               "description": "The URL to open."
             }
           },
