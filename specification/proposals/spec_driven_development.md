@@ -10,7 +10,7 @@ _Created: 2026-06-18 Modified: 2026-06-18_
 
 The A2UI team has adopted recent development practices of using agents to write the majority of our code, using designs, specifications, prompts and other codebases as inputs to guide it. In this paradigm, the job of human developers is primarily to write and maintain the documentation that agents use to write code. This spec-driven development (SDD) approach is being adopted across the software industry in various ways. Members of the A2UI team have tried many different approaches, including generating detailed design docs which are then reviewed by humans for implementation, maintaining markdown guides which can be used to implement multiple variants of a codebase (e.g. `renderer_guide.md` for web renderers) or creating detailed Github issues that are used by agents to implement features.
 
-The A2UI team is aims to write and maintain a several codebases across multiple languages with a small team. We have an opportunity to do this more efficiently by formalizing our use of spec-driven development, and building shared tooling to help agents follow it smoothly. We can take reuse existing approaches to spec-driven development, but adapt them to work with our specific circumstances where we own a family of codebases which implement the same functionality across different languages.
+The A2UI team aims to write and maintain several codebases across multiple languages with a small team. We have an opportunity to do this more efficiently by formalizing our use of spec-driven development, and building shared tooling to help agents follow it smoothly. We can reuse existing approaches to spec-driven development, but adapt them to work with our specific circumstances where we own a family of codebases which implement the same functionality across different languages.
 
 # **Goals**
 
@@ -92,7 +92,7 @@ Allow agents or clients to dynamically adjust the visual theme of an active surf
 ...
 ## **Links**
 * RFC/Discussion: [Issue #452](https://github.com/a2ui-project/a2ui/issues/452)
-* Protocol Specification: [a2ui_protocol.md](file:///Users/jsimionato/development/a2ui_repos/spec-driven/a2ui/specification/v1_0/docs/a2ui_protocol.md)
+* Protocol Specification: [a2ui_protocol.md](../v1_0/docs/a2ui_protocol.md)
 ## **Test Cases & Conformance**
 * **Test Case 1: Simple Theme Apply**: Verify that sending `updateTheme` with a new background color updates the `theme` signal on `SurfaceModel` and triggers a re-render.
 ...
@@ -191,7 +191,7 @@ This section explains what steps will be taken by developers and agents to perfo
 1. Verify that the codebase does not already contain the feature
 2. Create a temporary design describing in detail how the feature should be implemented in the specific codebase, taking into account the feature blueprint, the codebase blueprint, and the actual codebase code. This file should not be checked in. **(human input required)**
 3. Use the temporary design to implement the feature
-4. Update the codebase blueprint to add the feature to the “included_features” and include any codebase specific decisions that were made as part of the feature implementation.
+4. Update the codebase blueprint to add the feature to the "implemented_features" list and include any codebase-specific decisions that were made as part of the feature implementation.
 5. Send PR for review.
 
 ## **Implement all the features necessary to bring a codebase “up to date”**
@@ -199,7 +199,7 @@ This section explains what steps will be taken by developers and agents to perfo
 1. Read the codebase blueprint and module blueprint and identify all the required features in the module that are not in the codebase.
 2. Implement each feature in chronological order, based on their blueprints, following the steps to implement a feature above.
 3. Consult the module blueprint and verify that the codebase now matches it, making minor changes to the codebase as necessary to make it as consistent as possible to the module blueprint.
-4. Update the codebase blueprint to add the feature to the “included_features”.
+4. Update the codebase blueprint to add the feature to the "implemented_features" list.
 5. Send PR for review, either one PR per feature, or one PR for the entire update.
 
 ## **Resolve inconsistencies between a module blueprint and all of its associated codebases**
@@ -245,8 +245,7 @@ To keep specifications organized, all language-agnostic blueprints will reside i
 │   ├── modules/                  # Language-agnostic Module Blueprints
 │   │   ├── a2ui_core.blueprint.md
 │   │   ├── a2ui_inference.blueprint.md
-│   │   ├── a2ui_react.blueprint.md
-│   │   └── a2ui_lit.blueprint.md
+│   │   └── a2ui_framework_adapter.blueprint.md
 │   └── features/                 # Feature Blueprints (active or optional)
 │       ├── 2026_06_26_dynamic_theming.blueprint.md
 │       └── archived/
@@ -256,9 +255,9 @@ To keep specifications organized, all language-agnostic blueprints will reside i
 │   ├── web_core/
 │   │   └── codebase.blueprint.md # Web Core codebase blueprint (implements a2ui_core)
 │   ├── lit/
-│   │   └── codebase.blueprint.md # Lit Renderer codebase blueprint (implements a2ui_lit)
+│   │   └── codebase.blueprint.md # Lit Renderer codebase blueprint (implements a2ui_framework_adapter)
 │   └── react/
-│       └── codebase.blueprint.md # React Renderer codebase blueprint (implements a2ui_react)
+│       └── codebase.blueprint.md # React Renderer codebase blueprint (implements a2ui_framework_adapter)
 │
 └── agent_sdks/
     └── kotlin/

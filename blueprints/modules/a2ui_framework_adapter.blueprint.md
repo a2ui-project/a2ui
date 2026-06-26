@@ -11,7 +11,7 @@ associated_codebases:
 
 # A2UI Framework Adapter Specification
 
-This document describes the specification and architecture of an A2UI Framework-Specific Adapter (the View/Rendering Layer). The design defines how a framework-agnostic A2UI Core SDK (documented in the [A2UI Core SDK Specification](core_sdk_spec.md)) connects to native UI frameworks to paint the pixels.
+This document describes the specification and architecture of an A2UI Framework-Specific Adapter (the View/Rendering Layer). The design defines how a framework-agnostic A2UI Core SDK (documented in the [A2UI Core SDK Specification](a2ui_core.blueprint.md)) connects to native UI frameworks to paint the pixels.
 
 Both the core data structures and the rendering components interact with **Catalogs**. Within a catalog, the implementation follows a structured split: from the pure **Component Schema** (defined in the Core SDK) down to the **Framework-Specific Adapter** that renders native components (React, Angular, Flutter, SwiftUI, Jetpack Compose, iOS Views, Android Views, Vanilla DOM).
 
