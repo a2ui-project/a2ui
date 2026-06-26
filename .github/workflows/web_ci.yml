@@ -85,6 +85,8 @@ jobs:
         with:
           persist-credentials: false
       - uses: ./.github/actions/setup-node
+      - name: Setup Wireit Cache
+        uses: google/wireit@9d7c2e5346f8ef1b1ab6014c4e96c74e234f7ed5 # setup-github-actions-caching/v2.0.4
       - name: Build Renderers
         run: eval "yarn workspaces foreach -A $RENDERERS_INC -p --topological-dev run build"
       - name: Test Renderers
@@ -101,6 +103,8 @@ jobs:
         with:
           persist-credentials: false
       - uses: ./.github/actions/setup-node
+      - name: Setup Wireit Cache
+        uses: google/wireit@9d7c2e5346f8ef1b1ab6014c4e96c74e234f7ed5 # setup-github-actions-caching/v2.0.4
       - name: Build Tools
         run: eval "yarn workspaces foreach $TOOLS_INC -p --topological-dev -R run build"
       - name: Test Tools
@@ -115,6 +119,8 @@ jobs:
         with:
           persist-credentials: false
       - uses: ./.github/actions/setup-node
+      - name: Setup Wireit Cache
+        uses: google/wireit@9d7c2e5346f8ef1b1ab6014c4e96c74e234f7ed5 # setup-github-actions-caching/v2.0.4
       - name: Build Samples
         run: eval "yarn workspaces foreach $SAMPLES_INC -p --topological-dev -R run build"
       - name: Test Samples
@@ -129,6 +135,8 @@ jobs:
         with:
           persist-credentials: false
       - uses: ./.github/actions/setup-node
+      - name: Setup Wireit Cache
+        uses: google/wireit@9d7c2e5346f8ef1b1ab6014c4e96c74e234f7ed5 # setup-github-actions-caching/v2.0.4
       - name: Build Other Workspaces
         run: |
           EXCLUDE=$(echo "$RENDERERS_INC $TOOLS_INC $SAMPLES_INC" | sed 's/--include/--exclude/g')
