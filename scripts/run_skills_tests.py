@@ -27,53 +27,70 @@ def main():
         sys.exit(1)
         
     skills = []
-    # Find all subdirectories in .agents/skills/ that contain a scripts/ directory
+    # Find all subdirectories in .agents/skills/
     for item in sorted(os.listdir(skills_dir)):
         item_path = os.path.join(skills_dir, item)
         if os.path.isdir(item_path):
-            scripts_path = os.path.join(item_path, "scripts")
-            if os.path.isdir(scripts_path):
-                # Check if there are any test files in the scripts directory
-                has_tests = any(
-                    f.startswith("test_") and f.endswith(".py")
-                    for f in os.listdir(scripts_path)
-                )
-                if has_tests:
-                    skills.append((item, scripts_path))
+            # Find all directories under item_path that contain .py files
+            py_dirs = []
+            for root, dirs, files in os.walk(item_path):
+                if any(f.endswith(".py") for f in files):
+                    py_dirs.append(root)
+            if py_dirs:
+                skills.append((item, py_dirs))
 
     if not skills:
-        print("No skills with tests found.")
+        print("No skills with python files found.")
         sys.exit(0)
 
-    print(f"Found {len(skills)} skill(s) with tests:")
-    for name, path in skills:
-        rel_path = os.path.relpath(path, repo_root)
-        print(f"  - {name} ({rel_path})")
+    print(f"Found {len(skills)} skill(s) with python files:")
+    for name, paths in skills:
+        rel_paths = [os.path.relpath(p, repo_root) for p in paths]
+        print(f"  - {name} ({', '.join(rel_paths)})")
     print("=" * 80)
 
     failed_skills = []
     passed_skills = []
+    no_tests_skills = []
 
-    for name, path in skills:
+    for name, paths in skills:
         print(f"\nRunning tests for skill: {name}")
         print("-" * 80)
         
-        # Run unittest discovery in the skill's scripts directory.
-        # Run as a separate subprocess to ensure clean process isolation.
-        cmd = [sys.executable, "-m", "unittest", "discover", "-s", path]
-        result = subprocess.run(cmd, cwd=repo_root)
+        skill_failed = False
+        skill_has_tests = False
         
-        if result.returncode == 0:
-            passed_skills.append(name)
-        else:
-            failed_skills.append(name)
+        for path in paths:
+            # Run unittest discovery in the directory.
+            # Run as a separate subprocess to ensure clean process isolation.
+            cmd = [sys.executable, "-m", "unittest", "discover", "-s", path]
+            result = subprocess.run(cmd, cwd=repo_root)
             
+            if result.returncode == 0:
+                skill_has_tests = True
+            elif result.returncode == 5:
+                # No tests found in this directory
+                continue
+            else:
+                skill_failed = True
+                skill_has_tests = True
+        
+        if skill_failed:
+            failed_skills.append(name)
+            print(f"Result: FAILED")
+        elif skill_has_tests:
+            passed_skills.append(name)
+            print(f"Result: SUCCESS")
+        else:
+            no_tests_skills.append(name)
+            print(f"Result: NO TESTS FOUND")
         print("-" * 80)
 
     print("\n" + "=" * 80)
     print("Test Summary:")
     print("=" * 80)
-    print(f"Total skills tested: {len(skills)}")
+    total_tested = len(passed_skills) + len(failed_skills)
+    print(f"Total skills with tests: {total_tested}")
     print(f"Passed: {len(passed_skills)} ({', '.join(passed_skills) if passed_skills else 'None'})")
     if failed_skills:
         print(f"Failed: {len(failed_skills)} ({', '.join(failed_skills)})")
@@ -81,6 +98,7 @@ def main():
     else:
         print("All skill tests completed successfully.")
         sys.exit(0)
+
 
 if __name__ == "__main__":
     main()
