@@ -39,7 +39,11 @@
           "component": "Text",
           "variant": "h2",
           "text": {
-            "path": "/title"
+            "call": "formatString",
+            "args": {
+              "value": "Booking at ${/restaurantName}"
+            },
+            "returnType": "string"
           }
         },
         {
@@ -53,7 +57,11 @@
           "id": "confirm-details",
           "component": "Text",
           "text": {
-            "path": "/bookingDetails"
+            "call": "formatString",
+            "args": {
+              "value": "${/partySize} people on ${/reservationTime}"
+            },
+            "returnType": "string"
           }
         },
         {
@@ -90,8 +98,9 @@
       "surfaceId": "confirmation",
       "path": "/",
       "value": {
-        "title": "Booking at [RestaurantName]",
-        "bookingDetails": "[PartySize] people at [Time]",
+        "restaurantName": "[RestaurantName]",
+        "partySize": "[PartySize]",
+        "reservationTime": "[Time]",
         "dietaryRequirements": "Dietary Requirements: [Requirements]",
         "imageUrl": "[ImageUrl]"
       }

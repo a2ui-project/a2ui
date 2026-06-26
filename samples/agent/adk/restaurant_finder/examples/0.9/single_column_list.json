@@ -80,7 +80,11 @@
           "id": "template-rating",
           "component": "Text",
           "text": {
-            "path": "rating"
+            "call": "formatString",
+            "args": {
+              "value": "Rating: ${rating}"
+            },
+            "returnType": "string"
           }
         },
         {
@@ -92,10 +96,23 @@
         },
         {
           "id": "template-link",
-          "component": "Text",
-          "text": {
-            "path": "infoLink"
+          "component": "Button",
+          "variant": "borderless",
+          "child": "template-link-text",
+          "action": {
+            "functionCall": {
+              "call": "openUrl",
+              "args": {
+                "url": "${infoLink}"
+              },
+              "returnType": "void"
+            }
           }
+        },
+        {
+          "id": "template-link-text",
+          "component": "Text",
+          "text": "Website"
         },
         {
           "id": "template-book-button",

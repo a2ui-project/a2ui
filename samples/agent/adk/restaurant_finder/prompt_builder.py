@@ -30,6 +30,12 @@ UI_DESCRIPTION = """
 -   If the number of restaurants is more than 5, you MUST use the `TWO_COLUMN_LIST_EXAMPLE` template.
 -   If the query is to book a restaurant (e.g., "USER_WANTS_TO_BOOK..."), you MUST use the `BOOKING_FORM_EXAMPLE` template.
 -   If the query is a booking submission (e.g., "User submitted a booking..."), you MUST use the `CONFIRMATION_EXAMPLE` template.
+-   Use client-side functions and validation checks to improve the user experience:
+    -   Use `formatString` to dynamically interpolate values into text components (e.g., for ratings like "Rating: ${rating}" or dynamic titles like "Book a Table at ${restaurantName}") instead of hardcoding static strings in the data model.
+    -   Use `openUrl` in button actions (using `action.functionCall` with `call: "openUrl"`) to open external links, such as restaurant websites (passing the `infoLink` URL in the arguments).
+    -   Use `checks` on input fields to perform client-side validation:
+        -   Apply `required` check to ensure mandatory fields are not empty.
+        -   Apply `numeric` check (with optional `min` and `max` limits) to validate number inputs, such as restricting party size to a valid range (e.g., 1 to 20).
 """
 
 

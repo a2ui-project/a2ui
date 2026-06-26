@@ -33,7 +33,11 @@
           "component": "Text",
           "variant": "h2",
           "text": {
-            "path": "/title"
+            "call": "formatString",
+            "args": {
+              "value": "Book a Table at ${/restaurantName}"
+            },
+            "returnType": "string"
           }
         },
         {
@@ -57,7 +61,33 @@
           "value": {
             "path": "/partySize"
           },
-          "variant": "number"
+          "variant": "number",
+          "checks": [
+            {
+              "condition": {
+                "call": "required",
+                "args": {
+                  "value": {
+                    "path": "/partySize"
+                  }
+                }
+              },
+              "message": "Party size is required"
+            },
+            {
+              "condition": {
+                "call": "numeric",
+                "args": {
+                  "value": {
+                    "path": "/partySize"
+                  },
+                  "min": 1,
+                  "max": 20
+                }
+              },
+              "message": "Party size must be between 1 and 20"
+            }
+          ]
         },
         {
           "id": "datetime-field",
@@ -67,7 +97,20 @@
             "path": "/reservationTime"
           },
           "enableDate": true,
-          "enableTime": true
+          "enableTime": true,
+          "checks": [
+            {
+              "condition": {
+                "call": "required",
+                "args": {
+                  "value": {
+                    "path": "/reservationTime"
+                  }
+                }
+              },
+              "message": "Reservation date and time are required"
+            }
+          ]
         },
         {
           "id": "dietary-field",
@@ -118,7 +161,6 @@
       "surfaceId": "booking-form",
       "path": "/",
       "value": {
-        "title": "Book a Table at [RestaurantName]",
         "address": "[Restaurant Address]",
         "restaurantName": "[RestaurantName]",
         "partySize": "2",

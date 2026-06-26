@@ -68,6 +68,7 @@
             "template-name-left",
             "template-rating-left",
             "template-detail-left",
+            "template-link-left",
             "template-book-button-left"
           ]
         },
@@ -83,8 +84,32 @@
           "id": "template-rating-left",
           "component": "Text",
           "text": {
-            "path": "0/rating"
+            "call": "formatString",
+            "args": {
+              "value": "Rating: ${0/rating}"
+            },
+            "returnType": "string"
           }
+        },
+        {
+          "id": "template-link-left",
+          "component": "Button",
+          "variant": "borderless",
+          "child": "template-link-text-left",
+          "action": {
+            "functionCall": {
+              "call": "openUrl",
+              "args": {
+                "url": "${0/infoLink}"
+              },
+              "returnType": "void"
+            }
+          }
+        },
+        {
+          "id": "template-link-text-left",
+          "component": "Text",
+          "text": "Website"
         },
         {
           "id": "template-detail-left",
@@ -145,6 +170,7 @@
             "template-name-right",
             "template-rating-right",
             "template-detail-right",
+            "template-link-right",
             "template-book-button-right"
           ]
         },
@@ -160,8 +186,32 @@
           "id": "template-rating-right",
           "component": "Text",
           "text": {
-            "path": "1/rating"
+            "call": "formatString",
+            "args": {
+              "value": "Rating: ${1/rating}"
+            },
+            "returnType": "string"
           }
+        },
+        {
+          "id": "template-link-right",
+          "component": "Button",
+          "variant": "borderless",
+          "child": "template-link-text-right",
+          "action": {
+            "functionCall": {
+              "call": "openUrl",
+              "args": {
+                "url": "${1/infoLink}"
+              },
+              "returnType": "void"
+            }
+          }
+        },
+        {
+          "id": "template-link-text-right",
+          "component": "Text",
+          "text": "Website"
         },
         {
           "id": "template-detail-right",
@@ -212,6 +262,7 @@
               "name": "The Fancy Place",
               "rating": 4.8,
               "detail": "Fine dining experience",
+              "infoLink": "https://fancyplace.com",
               "imageUrl": "https://picsum.photos/200/300?random=1",
               "address": "123 Luxury Ave, Food City"
             },
@@ -219,6 +270,7 @@
               "name": "Quick Bites",
               "rating": 4.2,
               "detail": "Casual and fast",
+              "infoLink": "https://quickbites.com",
               "imageUrl": "https://picsum.photos/200/300?random=2",
               "address": "456 Fast Lane, Quick Town"
             }
