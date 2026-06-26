@@ -18,9 +18,6 @@ inputs:
   node-version:
     description: Target Node.js version
     default: "22"
-  install:
-    description: "Whether to run yarn install"
-    default: "true"
 runs:
   using: composite
   steps:
@@ -33,7 +30,5 @@ runs:
       with:
         node-version: ${{ inputs.node-version }}
         cache: "yarn"
-    - name: Install dependencies
-      if: ${{ inputs.install == 'true' }}
-      run: yarn install --immutable
+    - run: yarn install --immutable
       shell: bash
