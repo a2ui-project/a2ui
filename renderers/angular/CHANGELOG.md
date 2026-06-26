@@ -1,6 +1,7 @@
 ## Unreleased
 
 - Make component binders schema-driven, removing the restriction of hardcoded `child`, `children`, `trigger`, and `content` property names. Component properties nested inside objects or arrays (e.g. `Tabs.tabs[].child`) are now recursively resolved based on Zod metadata.
+- (v0_9) Export Angular test utilities under `@a2ui/angular/testing` and secondary entry point `@a2ui/angular/v0_9/testing`. [#1737](https://github.com/a2ui-project/a2ui/pull/1737)
 
 ## 0.10.2
 
