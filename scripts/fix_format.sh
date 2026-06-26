@@ -109,7 +109,9 @@ if command -v dart >/dev/null 2>&1; then
   # suppress that failure here so it doesn't cause the fix_format.sh script to
   # exit. The dart format run will still have warnings because pub get wasn't
   # run, but it won't affect the CI build outcome.
-  dart pub get >/dev/null 2>&1 || true
+  if [ ! -f ".dart_tool/package_config.json" ]; then
+    dart pub get >/dev/null 2>&1 || true
+  fi
 
   if [ "$CHECK_ONLY" = true ]; then
     dart format --output=none --set-exit-if-changed .
