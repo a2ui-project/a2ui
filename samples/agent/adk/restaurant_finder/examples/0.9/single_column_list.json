@@ -103,7 +103,9 @@
             "functionCall": {
               "call": "openUrl",
               "args": {
-                "url": "${infoLink}"
+                "url": {
+                  "path": "infoLink"
+                }
               },
               "returnType": "void"
             }

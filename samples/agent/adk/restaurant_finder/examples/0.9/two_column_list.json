@@ -100,7 +100,9 @@
             "functionCall": {
               "call": "openUrl",
               "args": {
-                "url": "${0/infoLink}"
+                "url": {
+                  "path": "0/infoLink"
+                }
               },
               "returnType": "void"
             }
@@ -202,7 +204,9 @@
             "functionCall": {
               "call": "openUrl",
               "args": {
-                "url": "${1/infoLink}"
+                "url": {
+                  "path": "1/infoLink"
+                }
               },
               "returnType": "void"
             }

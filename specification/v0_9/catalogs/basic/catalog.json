@@ -1143,8 +1143,7 @@
           "type": "object",
           "properties": {
             "url": {
-              "type": "string",
-              "format": "uri",
+              "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicString",
               "description": "The URL to open."
             }
           },

@@ -31,9 +31,11 @@ UI_DESCRIPTION = """
 -   If the query is to book a restaurant (e.g., "USER_WANTS_TO_BOOK..."), you MUST use the `BOOKING_FORM_EXAMPLE` template.
 -   If the query is a booking submission (e.g., "User submitted a booking..."), you MUST use the `CONFIRMATION_EXAMPLE` template.
 -   Use client-side functions and validation checks to improve the user experience:
+    -   IMPORTANT: String interpolation `${...}` should ONLY be used inside `formatString` values. It is NOT processed as a dynamic binding by the client-side engine when used as an argument to other functions.
+    -   For arguments of other client-side functions (like `openUrl` or validation `checks`), you MUST bind values dynamically using standard path objects (e.g., `{"path": "infoLink"}`) instead of string interpolation.
     -   Use `formatString` to dynamically interpolate values into text components (e.g., for ratings like "Rating: ${rating}" or dynamic titles like "Book a Table at ${restaurantName}") instead of hardcoding static strings in the data model.
-    -   Use `openUrl` in button actions (using `action.functionCall` with `call: "openUrl"`) to open external links, such as restaurant websites (passing the `infoLink` URL in the arguments).
-    -   Use `checks` on input fields to perform client-side validation:
+    -   Use `openUrl` in button actions (using `action.functionCall` with `call: "openUrl"`) to open external links, such as restaurant websites (passing the URL as a path object, e.g., `{"url": {"path": "infoLink"}}` or `{"url": {"path": "0/infoLink"}}`).
+    -   Use `checks` on input fields to perform client-side validation (always passing the value to be checked as a path object, e.g., `{"value": {"path": "/partySize"}}`):
         -   Apply `required` check to ensure mandatory fields are not empty.
         -   Apply `numeric` check (with optional `min` and `max` limits) to validate number inputs, such as restricting party size to a valid range (e.g., 1 to 20).
 """
