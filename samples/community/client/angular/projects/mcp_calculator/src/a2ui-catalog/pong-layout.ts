@@ -13,10 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-import {
-  DynamicComponent,
-  Renderer,
-} from '@a2ui/angular';
+import {DynamicComponent, Renderer} from '@a2ui/angular';
 import {Component, input} from '@angular/core';
 
 @Component({
