@@ -16,7 +16,7 @@
 import {
   DynamicComponent,
   Renderer,
-} from '../../../../../../../../renderers/angular/src/v0_8/public-api';
+} from '@a2ui/angular';
 import {Component, input} from '@angular/core';
 
 @Component({
