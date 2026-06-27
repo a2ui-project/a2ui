@@ -29,7 +29,7 @@ import {v4 as uuidv4} from 'uuid';
 const browserDistFolder = join(import.meta.dirname, '../browser');
 const app = express();
 const angularApp = new AngularNodeAppEngine();
-let client: A2AClient | null = null;
+let clientPromise: Promise<A2AClient> | null = null;
 
 app.use(
   express.static(browserDistFolder, {
@@ -47,7 +47,13 @@ app.post('/a2a', (req, res) => {
   });
 
   req.on('end', async () => {
-    const data = JSON.parse(originalBody);
+    let data;
+    try {
+      data = JSON.parse(originalBody);
+    } catch (err) {
+      res.status(400).json({error: 'Invalid JSON body'});
+      return;
+    }
 
     console.log('[a2a-middleware] Received data:', data);
 
@@ -140,22 +146,15 @@ async function fetchWithCustomHeader(url: string | URL | Request, init?: Request
 }
 
 async function createOrGetClient() {
-  // Create a client pointing to the agent's Agent Card URL.
-  client ??= await A2AClient.fromCardUrl('http://localhost:10006/.well-known/agent-card.json', {
-    fetchImpl: fetchWithCustomHeader,
-  });
-
-  return client;
-}
-
-function _isJson(str: string): boolean {
-  try {
-    const parsed = JSON.parse(str);
-    return typeof parsed === 'object' && parsed !== null && !Array.isArray(parsed);
-  } catch (err) {
-    console.warn(err);
-    return false;
+  if (!clientPromise) {
+    clientPromise = A2AClient.fromCardUrl('http://localhost:10006/.well-known/agent-card.json', {
+      fetchImpl: fetchWithCustomHeader,
+    }).catch(err => {
+      clientPromise = null;
+      throw err;
+    });
   }
+  return clientPromise;
 }
 
 export const reqHandler = createNodeRequestHandler(app);
