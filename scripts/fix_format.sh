@@ -48,9 +48,9 @@ if [ -f ".yarn/install-state.gz" ]; then
 else
   # Non-Node contributor or CI; run standalone Prettier via dlx without full monorepo install
   if [ "$CHECK_ONLY" = true ]; then
-    yarn dlx prettier@^3.5.0 --config .prettierrc --check .
+    yarn dlx prettier@3.8.4 --config .prettierrc --check .
   else
-    yarn dlx prettier@^3.5.0 --config .prettierrc --write .
+    yarn dlx prettier@3.8.4 --config .prettierrc --write .
   fi
 fi
 
