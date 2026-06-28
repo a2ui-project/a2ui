@@ -22,6 +22,7 @@ import {extractA2aPartsFromResponse} from '@a2a_chat_canvas/utils/a2a';
 import {extractA2uiDataParts} from '@a2a_chat_canvas/utils/a2ui';
 import {convertPartToUiMessageContent} from '@a2a_chat_canvas/utils/ui-message-utils';
 import {MessageProcessor, DispatchedEvent} from '@a2ui/angular';
+import {A2uiRendererService} from '@a2ui/angular/v0_9';
 import {inject, Injectable, resource, signal} from '@angular/core';
 import {v4 as uuid} from 'uuid';
 
@@ -37,6 +38,8 @@ export class ChatService {
   private readonly a2aService = inject(A2A_SERVICE);
   /** Processor for handling A2UI messages and managing UI state. */
   private readonly a2uiMessageProcessor = inject(MessageProcessor);
+  /** Service for managing A2UI v0.9 rendering sessions. */
+  private readonly a2uiRendererService = inject(A2uiRendererService);
   /** Resolvers for converting A2A parts to UI message content. */
   private readonly partResolvers = inject(PART_RESOLVERS);
 
@@ -160,8 +163,21 @@ export class ChatService {
     }
 
     // Let A2UI Renderer process the A2UI data parts in agent response.
-    this.a2uiMessageProcessor.processMessages(extractA2uiDataParts(agentResponseParts));
-    this.a2uiSurfaces.set(new Map(this.a2uiMessageProcessor.getSurfaces()));
+    const a2uiMessages = extractA2uiDataParts(agentResponseParts);
+    const v08Messages = a2uiMessages.filter(
+      m => 'beginRendering' in m || 'surfaceUpdate' in m || 'dataModelUpdate' in m,
+    );
+    const v09Messages = a2uiMessages.filter(
+      m => 'createSurface' in m || 'updateComponents' in m || 'updateDataModel' in m,
+    );
+
+    if (v08Messages.length > 0) {
+      this.a2uiMessageProcessor.processMessages(v08Messages);
+      this.a2uiSurfaces.set(new Map(this.a2uiMessageProcessor.getSurfaces()));
+    }
+    if (v09Messages.length > 0) {
+      this.a2uiRendererService.processMessages(v09Messages);
+    }
   }
 
   /**

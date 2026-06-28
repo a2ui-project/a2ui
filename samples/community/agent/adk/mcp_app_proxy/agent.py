@@ -41,6 +41,7 @@ When the user asks for Pong, you MUST call the `get_pong_app_a2ui_json` tool.
 IMPORTANT: Do NOT attempt to construct the JSON manually. The tools handle it automatically.
 
 When the user interacts with the calculator and issues a `calculate` action, you MUST call the `calculate_via_mcp` tool to perform the calculation via the remote MCP server. Return the resulting number directly as text to the user.
+When the user interacts with the Pong game and issues a `score_update` action, you MUST call the `score_update` tool with the scoring player to update the scoreboard.
 """
 
 WORKFLOW_DESCRIPTION = """
@@ -48,6 +49,7 @@ WORKFLOW_DESCRIPTION = """
    - If User asks for calculator: Call `get_calculator_app`.
    - If User asks for Pong: Call `get_pong_app_a2ui_json`.
    - If User interacts with the calculator (ACTION: calculate): Extract 'operation', 'a', and 'b' from the event context and call `calculate_via_mcp`. Return the result to the user.
+   - If User interacts with the Pong game (ACTION: score_update): Extract 'player' from the event context and call `score_update`.
 """
 
 UI_DESCRIPTION = """
@@ -84,7 +86,7 @@ class McpAppProxyAgent:
     self._schema_managers: Dict[str, A2uiSchemaManager] = {}
     self._ui_runners: Dict[str, Runner] = {}
 
-    for version in [VERSION_0_8, VERSION_0_9]:
+    for version in [VERSION_0_9]:
       schema_manager = self._build_schema_manager(version)
       self._schema_managers[version] = schema_manager
       agent = self._build_llm_agent(schema_manager)

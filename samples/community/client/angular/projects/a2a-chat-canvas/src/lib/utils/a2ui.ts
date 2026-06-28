@@ -27,24 +27,36 @@ import {isA2aDataPart} from './type-guards';
  * @returns An array of A2UI Types.ServerToClientMessage objects.
  */
 export function extractA2uiDataParts(parts: Part[]) {
-  return parts.reduce<Types.ServerToClientMessage[]>((messages, part) => {
+  return parts.reduce<any[]>((messages, part) => {
     if (isA2aDataPart(part)) {
       if (part.data && typeof part.data === 'object') {
-        if ('beginRendering' in part.data) {
+        if ('createSurface' in part.data) {
           messages.push({
-            beginRendering: part.data['beginRendering'] as Types.BeginRenderingMessage,
+            createSurface: part.data['createSurface'],
+          });
+        } else if ('updateComponents' in part.data) {
+          messages.push({
+            updateComponents: part.data['updateComponents'],
+          });
+        } else if ('updateDataModel' in part.data) {
+          messages.push({
+            updateDataModel: part.data['updateDataModel'],
+          });
+        } else if ('beginRendering' in part.data) {
+          messages.push({
+            beginRendering: part.data['beginRendering'],
           });
         } else if ('surfaceUpdate' in part.data) {
           messages.push({
-            surfaceUpdate: part.data['surfaceUpdate'] as Types.SurfaceUpdateMessage,
+            surfaceUpdate: part.data['surfaceUpdate'],
           });
         } else if ('dataModelUpdate' in part.data) {
           messages.push({
-            dataModelUpdate: part.data['dataModelUpdate'] as Types.DataModelUpdate,
+            dataModelUpdate: part.data['dataModelUpdate'],
           });
         } else if ('deleteSurface' in part.data) {
           messages.push({
-            deleteSurface: part.data['deleteSurface'] as Types.DeleteSurfaceMessage,
+            deleteSurface: part.data['deleteSurface'],
           });
         }
       }

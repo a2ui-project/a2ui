@@ -99,21 +99,16 @@ The MCP Apps component typically resolves to a `custom` node in the A2UI catalog
 You must register the component in your catalog application. For example, in Angular:
 
 ```typescript
-import {Catalog} from '@a2ui/angular';
-import {inputBinding} from '@angular/core';
+import {Catalog} from '@a2ui/web_core/v0_9';
+import {z} from 'zod';
+import {McpApp} from './mcp-app';
 
-export const DEMO_CATALOG = {
-  McpApp: {
-    type: () => import('./mcp-app').then(r => r.McpApp),
-    bindings: ({properties}) => [
-      inputBinding(
-        'content',
-        () => ('content' in properties && properties['content']) || undefined,
-      ),
-      inputBinding('title', () => ('title' in properties && properties['title']) || undefined),
-    ],
-  },
-} as Catalog;
+export const DEMO_CATALOG = new Catalog(
+  'a2ui.org:a2ui/v0.9/mcp_app_catalog.json',
+  [
+    {name: 'McpApp', component: McpApp, schema: z.any()},
+  ]
+);
 ```
 
 ### 2. Usage in A2UI Message

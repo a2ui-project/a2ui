@@ -140,6 +140,7 @@ class McpAppProxyAgentExecutor(A2aAgentExecutor):
                       _A2UI_ENABLED_KEY: True,
                       _A2UI_CATALOG_KEY: a2ui_catalog,
                       _A2UI_EXAMPLES_KEY: examples,
+                      "system:a2ui_version": active_ui_version,
                   }
               ),
           ),
