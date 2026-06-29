@@ -38,7 +38,7 @@ export const appConfig: ApplicationConfig = {
       usingA2aService(A2aServiceImpl),
       usingA2uiRenderers(
         null, // customCatalogV08
-        DEMO_CATALOG // customCatalogV09
+        DEMO_CATALOG, // customCatalogV09
       ),
       usingDefaultSanitizerMarkdownRenderer(),
     ),

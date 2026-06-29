@@ -47,5 +47,7 @@ import {Component, computed} from '@angular/core';
 })
 export class PongLayout extends CatalogComponent<any> {
   protected readonly mcpComponent = computed(() => this.props()['mcpComponent']?.value());
-  protected readonly scoreboardComponent = computed(() => this.props()['scoreboardComponent']?.value());
+  protected readonly scoreboardComponent = computed(() =>
+    this.props()['scoreboardComponent']?.value(),
+  );
 }

@@ -79,7 +79,10 @@ export class McpApp extends CatalogComponent<any> implements OnDestroy, OnInit {
     if (rawContent && typeof rawContent === 'string' && rawContent.startsWith('url_encoded:')) {
       rawContent = decodeURIComponent(rawContent.substring(12));
     }
-    console.log('[McpApp] resolvedContent:', rawContent ? rawContent.substring(0, 100) + '...' : null);
+    console.log(
+      '[McpApp] resolvedContent:',
+      rawContent ? rawContent.substring(0, 100) + '...' : null,
+    );
     return typeof rawContent === 'string' ? rawContent : null;
   });
 
@@ -97,9 +100,11 @@ export class McpApp extends CatalogComponent<any> implements OnDestroy, OnInit {
     }
   });
 
-  protected readonly allowedTools = computed<string[]>(() => this.props()['allowedTools']?.value() || []);
-  protected readonly resolvedTitle = computed<string | null>(() =>
-    this.props()['title']?.value() ?? null,
+  protected readonly allowedTools = computed<string[]>(
+    () => this.props()['allowedTools']?.value() || [],
+  );
+  protected readonly resolvedTitle = computed<string | null>(
+    () => this.props()['title']?.value() ?? null,
   );
 
   protected readonly iframeSrc = signal<SafeResourceUrl | null>(

@@ -28,7 +28,13 @@ import {
 } from '@a2a_chat_canvas/interfaces/markdown-renderer-service';
 import {SanitizerMarkdownRendererService} from '@a2a_chat_canvas/services/sanitizer-markdown-renderer-service';
 import {Catalog, Theme} from '@a2ui/angular';
-import {EnvironmentProviders, Provider, Type, makeEnvironmentProviders, Injector} from '@angular/core';
+import {
+  EnvironmentProviders,
+  Provider,
+  Type,
+  makeEnvironmentProviders,
+  Injector,
+} from '@angular/core';
 import {DEFAULT_A2UI_CATALOG} from './a2ui-catalog/a2a-chat-canvas-catalog';
 import {ChatService} from './services/chat-service';
 import {A2uiRendererService, A2UI_RENDERER_CONFIG} from '@a2ui/angular/v0_9';
@@ -149,16 +155,20 @@ export function usingRenderers(...renderers: readonly RendererEntry[]): Renderer
 
 /**
  * Configures the Chat/Canvas to use A2UI Renderers.
- * 
+ *
  * This function supports configuring both A2UI v0.8 (legacy) and A2UI v0.9 (latest) rendering pipelines
  * simultaneously. If the client or agent sends payloads matching either version, the appropriate
  * renderer and catalog are selected.
- * 
+ *
  * @param customCatalogV08 Optional custom catalog to merge with the default A2UI catalog for v0.8 payloads.
  * @param customCatalogV09 Optional custom catalog to be registered with the v0.9 A2UI renderer service.
  * @param theme Optional custom theme configuration to be shared across all rendering versions.
  */
-export function usingA2uiRenderers(customCatalogV08?: any, customCatalogV09?: any, theme?: any): A2uiFeature {
+export function usingA2uiRenderers(
+  customCatalogV08?: any,
+  customCatalogV09?: any,
+  theme?: any,
+): A2uiFeature {
   // --- v0.8 Setup ---
   // Merge the user-provided v0.8 catalog with the default canvas catalog
   const mergedCatalog = {
@@ -172,7 +182,12 @@ export function usingA2uiRenderers(customCatalogV08?: any, customCatalogV09?: an
   if (customCatalogV09) {
     catalogsV09.push(customCatalogV09);
   }
-  console.log('[usingA2uiRenderers] customCatalogV09:', customCatalogV09, 'catalogsV09:', catalogsV09);
+  console.log(
+    '[usingA2uiRenderers] customCatalogV09:',
+    customCatalogV09,
+    'catalogsV09:',
+    catalogsV09,
+  );
 
   return {
     kind: ChatCanvasFeatureKind.A2UI_FEATURE,

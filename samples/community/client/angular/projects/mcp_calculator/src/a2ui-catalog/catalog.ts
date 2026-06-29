@@ -21,13 +21,9 @@ import {PongScoreBoard} from './pong-scoreboard';
 import {PongLayout} from './pong-layout';
 import {Column} from '@a2ui/angular';
 
-export const DEMO_CATALOG = new Catalog(
-  'a2ui.org:a2ui/v0.9/mcp_app_catalog.json',
-  [
-    {name: 'McpApp', component: McpApp, schema: z.any()},
-    {name: 'PongScoreBoard', component: PongScoreBoard, schema: z.any()},
-    {name: 'PongLayout', component: PongLayout, schema: z.any()},
-    {name: 'Column', component: Column, schema: z.any()},
-  ]
-);
-
+export const DEMO_CATALOG = new Catalog('a2ui.org:a2ui/v0.9/mcp_app_catalog.json', [
+  {name: 'McpApp', component: McpApp, schema: z.any()},
+  {name: 'PongScoreBoard', component: PongScoreBoard, schema: z.any()},
+  {name: 'PongLayout', component: PongLayout, schema: z.any()},
+  {name: 'Column', component: Column, schema: z.any()},
+]);
