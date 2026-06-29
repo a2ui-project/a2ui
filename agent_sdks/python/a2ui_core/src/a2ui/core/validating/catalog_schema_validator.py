@@ -103,6 +103,20 @@ class CatalogSchemaValidator:
                     ),
                 )
             )
+            common_types_id = self.common_types_schema.get("$id")
+            if isinstance(common_types_id, str):
+                from urllib.parse import urljoin
+
+                resolved_catalog_uri = urljoin(common_types_id, CATALOG_SCHEMA_FILE)
+                if not any(uri == resolved_catalog_uri for uri, _ in resources):
+                    resources.append(
+                        (
+                            resolved_catalog_uri,
+                            Resource.from_contents(
+                                catalog_schema, default_specification=DRAFT202012
+                            ),
+                        )
+                    )
         return Registry().with_resources(resources)
 
     def _get_validator(self, key: str, ref_path: str) -> Draft202012Validator:
