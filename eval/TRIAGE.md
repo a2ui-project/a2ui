@@ -10,12 +10,22 @@ When the A2UI Evals workflow fails in GitHub Actions:
 2.  **Determine the failure type**: For each failing task, check the **Failure Details** section in the log. Failures are classified into two types:
     *   **Algorithmic Failure**: The generated UI payload failed schema validation or structural integrity checks.
     *   **Judging Failure**: The LLM-as-a-judge graded the response as `I` (Incorrect) or `P` (Partial Credit) based on task-specific criteria.
-3.  **Inspect the raw logs**: If the summary in the GitHub Actions log is insufficient, start the local Inspect AI log viewer to examine the full interaction history, including the system prompt, model output, and validation errors:
-    ```bash
-    cd eval
-    uv run inspect view start
-    ```
-    Navigate to `http://localhost:7575` in your browser.
+3.  **Reproduce and inspect locally**: Since CI does not upload the detailed log files, you must run the evals locally to reproduce the failure and generate the logs for inspection:
+    *   Ensure your `GEMINI_API_KEY` is set in your environment.
+    *   Run the specific failing task to reproduce the issue:
+        ```bash
+        cd eval
+        # Run a specific task (recommended for speed)
+        uv run main.py --prompt=clientSideValidation
+        
+        # Or run the entire suite
+        uv run main.py
+        ```
+    *   Start the local Inspect AI log viewer to examine the full interaction history, including the system prompt, model output, and validation errors:
+        ```bash
+        uv run inspect view start
+        ```
+        Navigate to `http://localhost:7575` in your browser.
 
 ## Common failure categories
 
