@@ -22,6 +22,65 @@ from inspect_ai.model import ModelOutput, ModelName
 
 CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
 CATALOG_PATH = os.path.abspath(os.path.join(CURRENT_DIR, "../../specification/v0_9/catalogs/basic/catalog.json"))
+CATALOG_PATH_V091 = os.path.abspath(os.path.join(CURRENT_DIR, "../../specification/v0_9_1/catalogs/basic/catalog.json"))
+
+@pytest.mark.asyncio
+async def test_scorer_valid_json_v091():
+    scorer = a2ui_scorer(version="0.9.1")
+    valid_json = """
+    <a2ui-json>
+    [
+      {
+        "version": "v0.9",
+        "createSurface": {
+          "surfaceId": "main",
+          "catalogId": "https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json"
+        }
+      },
+      {
+        "version": "v0.9",
+        "updateComponents": {
+          "surfaceId": "main",
+          "components": [
+            {
+              "id": "root",
+              "component": "Button",
+              "child": "button-text",
+              "action": {
+                "functionCall": {
+                  "call": "openUrl",
+                  "args": {
+                    "url": "https://google.com"
+                  }
+                }
+              }
+            },
+            {
+              "id": "button-text",
+              "component": "Text",
+              "text": "Click me"
+            }
+          ]
+        }
+      }
+    ]
+    </a2ui-json>
+    """
+    state = TaskState(
+        model=ModelName("mock/model"),
+        sample_id=1,
+        epoch=1,
+        input="test",
+        messages=[],
+        output=ModelOutput(model="mock/model", completion=valid_json),
+        metadata={
+            "catalog": str(CATALOG_PATH_V091)
+        }
+    )
+    
+    score = await scorer(state, Target(""))
+    assert score.value == 1.0
+    assert "Valid A2UI payload" in score.explanation
 
 @pytest.mark.asyncio
 async def test_scorer_valid_json():
