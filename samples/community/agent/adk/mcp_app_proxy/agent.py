@@ -86,7 +86,7 @@ class McpAppProxyAgent:
     self._schema_managers: Dict[str, A2uiSchemaManager] = {}
     self._ui_runners: Dict[str, Runner] = {}
 
-    for version in [VERSION_0_9]:
+    for version in [VERSION_0_8, VERSION_0_9]:
       schema_manager = self._build_schema_manager(version)
       self._schema_managers[version] = schema_manager
       agent = self._build_llm_agent(schema_manager)
