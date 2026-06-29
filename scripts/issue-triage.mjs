@@ -14,49 +14,33 @@
  * limitations under the License.
  */
 
-export default async function autoAssign({github, context}) {
-  console.log('A2UI Issue Auto-assignment script started');
+export default async function issueTriage({github, context}) {
+  console.log('A2UI Issue Triage script started');
 
   let issueNumber;
-  let activeAssigneesList;
-
-  // Hardcoded assignee lists
-  const issueAssigneesList = ['Varun-S10'];
 
   // Determine event type
   if (context.payload.issue) {
     issueNumber = context.payload.issue.number;
-    activeAssigneesList = issueAssigneesList;
     console.log('Event Type: Issue');
   } else {
     console.log('Not an Issue event. Exiting.');
     return;
   }
 
-  console.log('Target assignees list:', activeAssigneesList);
-
-  if (!activeAssigneesList || activeAssigneesList.length === 0) {
-    console.log('No assignees configured for this type.');
-    return;
-  }
-
-  // Round-robin assignment
-  const selection = issueNumber % activeAssigneesList.length;
-  const assigneeToAssign = activeAssigneesList[selection];
-
-  console.log(`Assigning #${issueNumber} to: ${assigneeToAssign}`);
+  console.log(`Adding 'status: needs triage' label to #${issueNumber}`);
 
   try {
-    await github.rest.issues.addAssignees({
+    await github.rest.issues.addLabels({
       issue_number: issueNumber,
       owner: context.repo.owner,
       repo: context.repo.repo,
-      assignees: [assigneeToAssign],
+      labels: ['status: needs triage'],
     });
-    console.log('Assignment successful');
+    console.log('Label added successfully');
   } catch (error) {
-    console.log('Failed to assign:', error.message);
+    console.error('Failed to add label:', error);
   }
 
-  console.log('A2UI Issue Auto-assignment script completed');
+  console.log('A2UI Issue Triage script completed');
 }
