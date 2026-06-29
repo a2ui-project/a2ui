@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import {componentGeneratorFlow, ai} from './flows';
+import {componentGeneratorFlow} from './flows';
 import * as fs from 'fs';
 import * as path from 'path';
 import {modelsToTest} from './models';

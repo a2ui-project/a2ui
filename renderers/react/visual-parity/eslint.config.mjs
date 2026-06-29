@@ -19,15 +19,11 @@ import preset from '../../../eslint.preset.mjs';
 export default [
   ...preset,
   {
+    files: ['playwright.config.ts', 'lit/vite.config.ts', 'react/vite.config.ts'],
     languageOptions: {
       parserOptions: {
         project: false,
       },
-    },
-  },
-  {
-    rules: {
-      '@typescript-eslint/no-unused-vars': 'off',
     },
   },
 ];

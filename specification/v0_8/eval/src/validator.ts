@@ -14,7 +14,6 @@
  * limitations under the License.
  */
 
-import {SurfaceUpdateSchemaMatcher} from './surface_update_schema_matcher';
 import {SchemaMatcher} from './schema_matcher';
 
 export function validateSchema(

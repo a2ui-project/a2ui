@@ -20,7 +20,6 @@ export default [
   ...preset,
   {
     rules: {
-      '@typescript-eslint/no-unused-vars': 'off',
       'no-useless-escape': 'off',
     },
   },
