@@ -116,7 +116,7 @@ function checkGitProvenance(exec) {
     const status = exec('git status --porcelain', {encoding: 'utf8'}).trim();
     isDirty = status.length > 0;
   } catch {
-    // Should this throw an Error with {cause: e}?
+    // Should this throw an Error?
     console.warn(
       `${yellow}⚠️ Could not verify Git status. Ensure you are in a valid Git repository.${reset}`,
     );
