@@ -346,8 +346,8 @@ const bot = createBot({
     agent.threadId = threadId;
     return agent;
   },
-  tools: [...defaultSlackTools, ...appTools],
-  context: [...defaultSlackContext, ...appContext],
+  tools: [...defaultSlackTools],
+  context: [...defaultSlackContext],
 });
 
 bot.onMention(async ({ thread }) => {
