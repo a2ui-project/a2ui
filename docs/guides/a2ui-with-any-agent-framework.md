@@ -70,7 +70,7 @@ supports AG-UI.
 </div>
 
 <video id="agui-demo-video" class="agui-demo-video" controls playsinline preload="metadata">
-  <source id="agui-demo-video-source" src="/assets/ag-ui-a2ui-demo.mp4" data-default-src="/assets/ag-ui-a2ui-demo.mp4" data-slack-src="/assets/ag-ui-slack-demo.mp4" type="video/mp4">
+  <source id="agui-demo-video-source" src="https://cdn.copilotkit.ai/docs/a2ui/ag-ui-a2ui-demo.mp4" data-default-src="https://cdn.copilotkit.ai/docs/a2ui/ag-ui-a2ui-demo.mp4" data-slack-src="https://cdn.copilotkit.ai/docs/a2ui/ag-ui-slack-demo.mp4" type="video/mp4">
   Your browser does not support the video tag.
 </video>
 
@@ -176,7 +176,7 @@ from langchain.agents import create_agent
 from langchain_google_genai import ChatGoogleGenerativeAI
 
 gemini = ChatGoogleGenerativeAI(
-    model="gemini-3-pro-preview",
+    model="gemini-2.5-pro",
     thinking_budget=1024,
 )
 
@@ -216,7 +216,7 @@ from langchain.agents import create_agent
 from langchain_google_genai import ChatGoogleGenerativeAI
 
 gemini = ChatGoogleGenerativeAI(
-    model="gemini-3-pro-preview",
+    model="gemini-2.5-pro",
     thinking_budget=1024,
 )
 
@@ -246,7 +246,7 @@ import { ChatOpenAI } from "@langchain/openai";
 import { copilotkitMiddleware } from "@copilotkit/sdk-js/langgraph";
 
 export const graph = createAgent({
-  model: new ChatOpenAI({ model: "gpt-4.1" }),
+  model: new ChatOpenAI({ model: "gpt-4o" }),
   tools: [],
   middleware: [copilotkitMiddleware],
   systemPrompt: "You are a helpful assistant.",
