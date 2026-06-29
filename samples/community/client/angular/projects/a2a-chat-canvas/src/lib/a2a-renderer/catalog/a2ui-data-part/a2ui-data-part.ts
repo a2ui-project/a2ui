@@ -22,6 +22,7 @@ import {isA2aDataPart} from '@a2a_chat_canvas/utils/type-guards';
 import {Surface} from '@a2ui/angular';
 import {SurfaceComponent as SurfaceV09} from '@a2ui/angular/v0_9';
 import * as Types from '@a2ui/web_core/types/types';
+import {A2uiMessage as A2uiMessageV09, CreateSurfaceMessage} from '@a2ui/web_core/v0_9';
 import {ChangeDetectionStrategy, Component, computed, inject, input} from '@angular/core';
 
 /**
@@ -46,16 +47,18 @@ export class A2uiDataPart implements RendererComponent {
 
   protected readonly a2uiSurfaceId = computed(() => {
     const part = this.uiMessageContent().data as Part;
-    if (isA2aDataPart(part)) {
-      if (part.data && typeof part.data === 'object') {
-        if ('createSurface' in part.data) {
-          const createSurfaceMessage = part.data['createSurface'] as any;
-          return createSurfaceMessage.surfaceId;
-        } else if ('beginRendering' in part.data) {
-          const beginRenderingMessage = part.data['beginRendering'] as any;
-          return beginRenderingMessage.surfaceId;
-        }
-      }
+    if (!isA2aDataPart(part) || typeof part.data !== 'object' || !part.data) {
+      return undefined;
+    }
+
+    if (this.isV08()) {
+      const data = part.data as Types.ServerToClientMessage;
+      return data.beginRendering?.surfaceId;
+    } else {
+      // We only care about CreateSurfaceMessage for identifying the surface start.
+      // If it is another v0.9 message, createSurface will be undefined.
+      const data = part.data as unknown as CreateSurfaceMessage;
+      return data.createSurface?.surfaceId;
     }
 
     return undefined;

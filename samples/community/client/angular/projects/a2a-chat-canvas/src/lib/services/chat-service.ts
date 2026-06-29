@@ -23,6 +23,8 @@ import {extractA2uiDataParts} from '@a2a_chat_canvas/utils/a2ui';
 import {convertPartToUiMessageContent} from '@a2a_chat_canvas/utils/ui-message-utils';
 import {MessageProcessor, DispatchedEvent} from '@a2ui/angular';
 import {A2uiRendererService} from '@a2ui/angular/v0_9';
+import {ServerToClientMessage as ServerToClientMessageV08} from '@a2ui/web_core/v0_8';
+import {A2uiMessage as A2uiMessageV09} from '@a2ui/web_core/v0_9';
 import {inject, Injectable, resource, signal} from '@angular/core';
 import {v4 as uuid} from 'uuid';
 
@@ -165,10 +167,18 @@ export class ChatService {
     // Let A2UI Renderer process the A2UI data parts in agent response.
     const a2uiMessages = extractA2uiDataParts(agentResponseParts);
     const v08Messages = a2uiMessages.filter(
-      m => 'beginRendering' in m || 'surfaceUpdate' in m || 'dataModelUpdate' in m,
+      (m): m is ServerToClientMessageV08 =>
+        'beginRendering' in m ||
+        'surfaceUpdate' in m ||
+        'dataModelUpdate' in m ||
+        ('deleteSurface' in m && !('version' in m)),
     );
     const v09Messages = a2uiMessages.filter(
-      m => 'createSurface' in m || 'updateComponents' in m || 'updateDataModel' in m,
+      (m): m is A2uiMessageV09 =>
+        'createSurface' in m ||
+        'updateComponents' in m ||
+        'updateDataModel' in m ||
+        ('deleteSurface' in m && 'version' in m),
     );
 
     if (v08Messages.length > 0) {
