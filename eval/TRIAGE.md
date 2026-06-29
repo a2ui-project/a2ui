@@ -17,7 +17,7 @@ When the A2UI Evals workflow fails in GitHub Actions:
         cd eval
         # Run a specific task (recommended for speed)
         uv run main.py --prompt=clientSideValidation
-        
+
         # Or run the entire suite
         uv run main.py
         ```
