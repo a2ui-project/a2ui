@@ -36,8 +36,8 @@ class ThemedA2UISurface extends LitElement {
 
   declare theme: v0_8.Types.Theme | undefined;
   declare surfaceId: string;
-  declare surface: any;
-  declare processor: any;
+  declare surface: v0_8.Types.Surface | undefined;
+  declare processor: v0_8.A2uiMessageProcessor | undefined;
 
   private _themeProvider = new ContextProvider(this, {
     context: UI.Context.themeContext,
