@@ -128,10 +128,10 @@ function checkGitProvenance(exec) {
       `${yellow}⚠️  WARNING: Your Git working tree is DIRTY (you have uncommitted changes).${reset}`,
     );
     console.warn(
-      `   Publishing from a dirty tree means the published code will NOT exactly match the commit history.`,
+      '   Publishing from a dirty tree means the published code will NOT exactly match the commit history.',
     );
     console.warn(
-      `   It is highly recommended to commit or stash your changes before publishing.\n`,
+      '   It is highly recommended to commit or stash your changes before publishing.\n',
     );
   }
 

@@ -16,11 +16,4 @@
 
 import preset from '../../../eslint.preset.mjs';
 
-export default [
-  ...preset,
-  {
-    rules: {
-      'no-useless-escape': 'off',
-    },
-  },
-];
+export default [...preset];

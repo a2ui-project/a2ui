@@ -206,7 +206,7 @@ async function main() {
     const schemaString = fs.readFileSync(path.join(__dirname, prompt.schemaPath), 'utf-8');
     const schema = JSON.parse(schemaString);
     for (const modelConfig of filteredModels) {
-      const modelDirName = modelConfig.name.replace(/[\/:]/g, '_');
+      const modelDirName = modelConfig.name.replace(/[/:]/g, '_');
       const modelOutputDir = outputDir ? path.join(outputDir, modelDirName) : null;
       if (modelOutputDir && !fs.existsSync(modelOutputDir)) {
         fs.mkdirSync(modelOutputDir, {recursive: true});

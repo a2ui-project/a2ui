@@ -20,7 +20,7 @@ import yargs from 'yargs';
 import {hideBin} from 'yargs/helpers';
 import {logger, setupLogger} from './logger';
 import {modelsToTest} from './models';
-import {prompts, TestPrompt} from './prompts';
+import {prompts} from './prompts';
 import {Generator} from './generator';
 import {Validator} from './validator';
 import {Evaluator} from './evaluator';
@@ -343,7 +343,7 @@ async function main() {
   // Configure global logger. File logging is currently only supported when testing a single model.
   if (resultsBaseDir) {
     if (filteredModels.length === 1) {
-      const modelDirName = `output-${filteredModels[0].name.replace(/[\/:]/g, '_')}`;
+      const modelDirName = `output-${filteredModels[0].name.replace(/[/:]/g, '_')}`;
       setupLogger(path.join(resultsBaseDir, modelDirName), argv['log-level']);
     } else {
       setupLogger(undefined, argv['log-level']);
@@ -451,7 +451,7 @@ async function main() {
   if (resultsBaseDir) {
     // Save a copy of the evaluation summary to each model's output directory.
     for (const model of filteredModels) {
-      const modelDirName = `output-${model.name.replace(/[\/:]/g, '_')}`;
+      const modelDirName = `output-${model.name.replace(/[/:]/g, '_')}`;
       const modelDir = path.join(resultsBaseDir, modelDirName);
       if (fs.existsSync(modelDir)) {
         fs.writeFileSync(path.join(modelDir, 'summary.md'), summary);
