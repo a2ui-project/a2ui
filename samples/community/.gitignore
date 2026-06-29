@@ -21,3 +21,7 @@ __pycache__/
 
 # Misc
 .DS_Store
+
+# Generated sandbox files
+client/angular/projects/mcp_calculator/public/mcp_apps_inner_iframe/
+

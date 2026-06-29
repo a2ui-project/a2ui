@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-name: A2UI Issue Auto-Assignment
+name: A2UI Issue Triage
 
 on:
   issues:
@@ -23,7 +23,7 @@ permissions:
   issues: write
 
 jobs:
-  auto-assign:
+  triage:
     runs-on: ubuntu-latest
 
     steps:
@@ -32,14 +32,14 @@ jobs:
         with:
           persist-credentials: false
 
-      - name: Run auto-assignment script
+      - name: Run issue triage script
         uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7
         with:
           script: |
             const path = require('path');
             const { pathToFileURL } = require('url');
 
-            const filePath = path.resolve('./scripts/auto-assignment.mjs');
+            const filePath = path.resolve('./scripts/issue-triage.mjs');
             const fileUrl = pathToFileURL(filePath).href;
 
             const importedModule = await import(fileUrl);
