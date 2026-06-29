@@ -30,7 +30,7 @@ import path from 'path';
 describe('v0.9 Basic Catalog Examples', () => {
   const examplesDir = path.resolve(
     process.cwd(),
-    '../../specification/v0_9/json/catalogs/basic/examples',
+    '../../specification/v0_9/catalogs/basic/examples',
   );
 
   const files = fs.readdirSync(examplesDir).filter(f => f.endsWith('.json'));
@@ -65,7 +65,7 @@ describe('v0.9 Basic Catalog Examples', () => {
       const rootNode = surface.componentsModel.get('root');
       assert.ok(rootNode, 'Surface should have a root component');
 
-      if (file.includes('capitalized_text')) {
+      if (file.includes('formatted-text')) {
         const textNode = surface.componentsModel.get('result_text');
         assert.ok(textNode);
 
@@ -75,13 +75,13 @@ describe('v0.9 Basic Catalog Examples', () => {
 
         // Wait a microtask to let initial resolution finish
         await new Promise(r => setTimeout(r, 0));
-        assert.strictEqual(binder.snapshot.text, '');
+        assert.strictEqual(binder.snapshot.text, 'You typed: ');
 
         // Set value in data model
         surface.dataModel.set('/inputValue', 'hello world');
 
         await new Promise(r => setTimeout(r, 0));
-        assert.strictEqual(binder.snapshot.text, 'Hello world');
+        assert.strictEqual(binder.snapshot.text, 'You typed: hello world');
 
         sub.unsubscribe();
         binder.dispose();

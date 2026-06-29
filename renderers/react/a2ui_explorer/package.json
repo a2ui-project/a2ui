@@ -1,0 +1,115 @@
+{
+  "name": "@a2ui/react-explorer",
+  "private": true,
+  "version": "0.9.0",
+  "description": "A2UI React Explorer",
+  "type": "module",
+  "scripts": {
+    "dev": "wireit",
+    "build": "wireit",
+    "test": "wireit",
+    "test:ci": "wireit",
+    "test:watch": "wireit",
+    "test:debug": "wireit",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "lint": "eslint src tests",
+    "lint:fix": "eslint src tests --fix",
+    "clean": "wireit"
+  },
+  "wireit": {
+    "_build-deps": {
+      "dependencies": [
+        "../:build",
+        "../../markdown/markdown-it:build",
+        "generate-examples"
+      ]
+    },
+    "build": {
+      "command": "tsc -b && vite build",
+      "dependencies": [
+        "_build-deps"
+      ]
+    },
+    "dev": {
+      "command": "vite",
+      "dependencies": [
+        "_build-deps"
+      ]
+    },
+    "_test-deps": {
+      "dependencies": [
+        "_build-deps"
+      ],
+      "files": [
+        "src/**/*",
+        "tsconfig.json",
+        "tsconfig.app.json",
+        "tsconfig.spec.json",
+        "tests/**/*",
+        "karma.conf.cjs"
+      ]
+    },
+    "test": {
+      "command": "karma start karma.conf.cjs --single-run=true",
+      "dependencies": [
+        "_test-deps"
+      ]
+    },
+    "test:ci": {
+      "dependencies": [
+        "test"
+      ]
+    },
+    "test:watch": {
+      "command": "karma start karma.conf.cjs --single-run=false --auto-watch=true",
+      "dependencies": [
+        "_test-deps"
+      ]
+    },
+    "test:debug": {
+      "command": "karma start karma.conf.cjs --single-run=false --auto-watch=true --browsers Chrome",
+      "dependencies": [
+        "_test-deps"
+      ]
+    },
+    "generate-examples": {
+      "command": "node scripts/generate-examples.mjs",
+      "files": [
+        "../../../specification/v0_9_1/catalogs/basic/examples/*.json",
+        "scripts/generate-examples.mjs"
+      ],
+      "output": [
+        "src/generated/examples-list.ts"
+      ]
+    },
+    "clean": {
+      "command": "rm -rf dist .tsbuildinfo .wireit src/generated"
+    }
+  },
+  "dependencies": {
+    "@a2ui/markdown-it": "*",
+    "@a2ui/react": "workspace:*",
+    "@a2ui/web_core": "workspace:*",
+    "react": "^19.2.7",
+    "react-dom": "^19.2.7"
+  },
+  "devDependencies": {
+    "@types/jasmine": "^6.0.0",
+    "@types/react": "^19.2.17",
+    "@types/react-dom": "^19.2.3",
+    "@vitejs/plugin-react": "^6.0.2",
+    "eslint": "^10.4.1",
+    "jasmine-core": "^6.3.0",
+    "karma": "^6.4.4",
+    "karma-chrome-launcher": "^3.2.0",
+    "karma-esbuild": "^2.3.0",
+    "karma-jasmine": "^5.1.0",
+    "typescript": "5.9.3",
+    "vite": "^8.0.16",
+    "wireit": "^0.15.0-pre.2"
+  },
+  "engines": {
+    "node": ">=20.11.0"
+  }
+}

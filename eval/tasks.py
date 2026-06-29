@@ -15,22 +15,21 @@
 """Tasks for A2UI evaluation."""
 # pylint: disable=duplicate-code
 
-import os
 import sys
+from pathlib import Path
 from google import genai
 from google.genai import errors
 from inspect_ai import task, Task
 from inspect_ai.dataset import MemoryDataset, Sample
 from inspect_ai.scorer import scorer, Score
 from a2ui_eval.dataset import load_a2ui_dataset
-from a2ui_eval.solvers import a2ui_system_prompt, measured_generate, inject_context
+from a2ui_eval.strategies import get_solver
 from a2ui_eval.scorers import a2ui_scorer, measured_model_graded_qa
 
 # Paths relative to the eval directory where we run inspect
-CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
-DATASET_PATH = os.path.abspath(os.path.join(CURRENT_DIR, "datasets/v0_9_prompts.yaml"))
-SCHEMA_PATH = os.path.abspath(os.path.join(CURRENT_DIR, "../specification/v0_9/json/server_to_client.json"))
-CATALOG_PATH = os.path.abspath(os.path.join(CURRENT_DIR, "../specification/v0_9/json/basic_catalog.json"))
+CURRENT_DIR = Path(__file__).resolve().parent
+DATASET_PATH_V09 = (CURRENT_DIR / "datasets/v0_9_prompts.yaml").resolve()
+DATASET_PATH_V10 = (CURRENT_DIR / "datasets/v1_0_prompts.yaml").resolve()
 
 GRADER_INSTRUCTIONS = """
 After assessing the submitted answer, reply with 'GRADE: $LETTER' (without quotes) where LETTER is one of C, P or I.  Please choose ONE option for the grade: either "C" for correct answers, "P" for partial credit, or "I" for incorrect answers.
@@ -50,14 +49,20 @@ Notes for grading:
 """
 
 @task
-def a2ui_v0_9_eval(list_models: bool = False, grading_model: str = "google/gemini-3-flash-preview") -> Task:
-    """Evaluation task for A2UI v0.9 protocol generation.
+def a2ui_v0_9_1_eval(
+    list_models: bool = False, 
+    grading_model: str = "google/gemini-3.5-flash",
+    strategy: str = "direct"
+) -> Task:
+    """Evaluation task for A2UI v0.9.1 protocol generation.
 
     Args:
         list_models: Whether to list available Gemini models and exit.
+        grading_model: The model to use for LLM-as-a-judge grading.
+        strategy: The evaluation strategy to use (e.g., 'direct').
 
     Returns:
-        An Inspect Task object configured for A2UI v0.9 evaluation.
+        An Inspect Task object configured for A2UI v0.9.1 evaluation.
     """
 
     if list_models:
@@ -68,7 +73,6 @@ def a2ui_v0_9_eval(list_models: bool = False, grading_model: str = "google/gemin
                 print(f"- {m.name}")
         except errors.APIError as e:
             print(f"Error listing models: {e}")
-        # Return a dummy task to exit gracefully without errors
 
         @scorer(metrics=[])
         def dummy_scorer():
@@ -82,17 +86,74 @@ def a2ui_v0_9_eval(list_models: bool = False, grading_model: str = "google/gemin
             scorer=[dummy_scorer()]
         )
 
-    dataset = load_a2ui_dataset(DATASET_PATH)
+    active_dataset_path = DATASET_PATH_V09
+    active_version = "0.9.1"
+    default_catalog_path = "specification/v0_9_1/catalogs/basic/catalog.json"
+
+    dataset = load_a2ui_dataset(str(active_dataset_path), default_catalog_path=default_catalog_path)
 
     return Task(
         dataset=dataset,
-        solver=[
-            a2ui_system_prompt(SCHEMA_PATH, CATALOG_PATH),
-            inject_context(),
-            measured_generate()
-        ],
+        solver=get_solver(strategy),
         scorer=[
-            a2ui_scorer(CATALOG_PATH),
+            a2ui_scorer(version=active_version),
+            measured_model_graded_qa(
+                model=grading_model,
+                instructions=GRADER_INSTRUCTIONS
+            )
+        ]
+    )
+
+
+@task
+def a2ui_v1_0_eval(
+    list_models: bool = False, 
+    grading_model: str = "google/gemini-3.5-flash",
+    strategy: str = "express"
+) -> Task:
+    """Evaluation task for A2UI v1.0 protocol generation.
+
+    Args:
+        list_models: Whether to list available Gemini models and exit.
+        grading_model: The model to use for LLM-as-a-judge grading.
+        strategy: The evaluation strategy to use (e.g., 'express').
+
+    Returns:
+        An Inspect Task object configured for A2UI v1.0 evaluation.
+    """
+
+    if list_models:
+        client = genai.Client()
+        print("\nAvailable Gemini Models:")
+        try:
+            for m in client.models.list():
+                print(f"- {m.name}")
+        except errors.APIError as e:
+            print(f"Error listing models: {e}")
+
+        @scorer(metrics=[])
+        def dummy_scorer():
+            async def score(state, target):  # pylint: disable=unused-argument
+                return Score(value=1.0, explanation="Dummy pass")
+            return score
+
+        return Task(
+            dataset=MemoryDataset(samples=[Sample(input="dummy", target="dummy")]),
+            solver=[],
+            scorer=[dummy_scorer()]
+        )
+
+    active_dataset_path = DATASET_PATH_V10
+    active_version = "1.0"
+    default_catalog_path = "specification/v1_0/catalogs/basic/catalog.json"
+
+    dataset = load_a2ui_dataset(str(active_dataset_path), default_catalog_path=default_catalog_path)
+
+    return Task(
+        dataset=dataset,
+        solver=get_solver(strategy),
+        scorer=[
+            a2ui_scorer(version=active_version),
             measured_model_graded_qa(
                 model=grading_model,
                 instructions=GRADER_INSTRUCTIONS

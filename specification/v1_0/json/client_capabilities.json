@@ -1,0 +1,29 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://a2ui.org/specification/v1_0/client_capabilities.json",
+  "title": "A2UI Client Capabilities Schema",
+  "description": "A schema for the a2uiClientCapabilities object, which is sent from the client to the server as part of the A2A metadata to describe the client's UI rendering capabilities.",
+  "type": "object",
+  "properties": {
+    "v1.0": {
+      "type": "object",
+      "description": "The capabilities structure for version 1.0 of the A2UI protocol.",
+      "properties": {
+        "supportedCatalogIds": {
+          "type": "array",
+          "description": "The URI of each of the component and function catalogs that is supported by the client.",
+          "items": {"type": "string"}
+        },
+        "inlineCatalogs": {
+          "type": "array",
+          "description": "An array of inline catalog definitions, which can contain both components and functions. This should only be provided if the agent declares 'acceptsInlineCatalogs: true' in its capabilities.",
+          "items": {
+            "$ref": "https://a2ui.org/specification/v1_0/catalog_definition.json"
+          }
+        }
+      },
+      "required": ["supportedCatalogIds"]
+    }
+  },
+  "required": ["v1.0"]
+}

@@ -20,9 +20,9 @@ import React from 'react';
 import {MessageProcessor} from '@a2ui/web_core/v0_9';
 import {A2uiSurface, basicCatalog} from '@a2ui/react/v0_9';
 
-import exMarkdown from '../../../../specification/v0_9/json/catalogs/basic/examples/35_markdown-text.json';
-import exTaskCard from '../../../../specification/v0_9/json/catalogs/basic/examples/07_task-card.json';
-import exLoginForm from '../../../../specification/v0_9/json/catalogs/basic/examples/09_login-form.json';
+import exMarkdown from '../../../../specification/v0_9/catalogs/basic/examples/35_markdown-text.json';
+import exTaskCard from '../../../../specification/v0_9/catalogs/basic/examples/07_task-card.json';
+import exLoginForm from '../../../../specification/v0_9/catalogs/basic/examples/09_login-form.json';
 
 describe('Gallery Integration Tests', () => {
   it('renders Markdown Text -> "Markdown Rendering"', async () => {
@@ -38,7 +38,7 @@ describe('Gallery Integration Tests', () => {
       </React.StrictMode>,
     );
 
-    expect(screen.getByText('### Markdown Rendering')).toBeInTheDocument();
+    expect(screen.getByText('Markdown Rendering')).toBeInTheDocument();
   });
 
   it('renders Task Card -> content visibility', async () => {
@@ -54,8 +54,8 @@ describe('Gallery Integration Tests', () => {
       </React.StrictMode>,
     );
 
-    expect(screen.getByText('### Review pull request')).toBeInTheDocument();
-    expect(screen.getByText('*Backend*')).toBeInTheDocument();
+    expect(screen.getByText('Review pull request')).toBeInTheDocument();
+    expect(screen.getByText('Backend')).toBeInTheDocument();
   });
 
   it('handles Login form -> input updates data model', async () => {

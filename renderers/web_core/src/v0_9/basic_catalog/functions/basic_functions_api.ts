@@ -432,17 +432,15 @@ export const FormatDateApi = {
 export const PluralizeApi = {
   name: 'pluralize' as const,
   returnType: 'string' as const,
-  schema: z
-    .object({
-      value: z.coerce.number(),
-      zero: z.coerce.string().optional(),
-      one: z.coerce.string().optional(),
-      two: z.coerce.string().optional(),
-      few: z.coerce.string().optional(),
-      many: z.coerce.string().optional(),
-      other: z.coerce.string(),
-    })
-    .passthrough(),
+  schema: z.object({
+    value: z.coerce.number(),
+    zero: z.coerce.string().optional(),
+    one: z.coerce.string().optional(),
+    two: z.coerce.string().optional(),
+    few: z.coerce.string().optional(),
+    many: z.coerce.string().optional(),
+    other: z.coerce.string(),
+  }),
 };
 
 // Actions

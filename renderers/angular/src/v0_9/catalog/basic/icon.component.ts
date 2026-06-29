@@ -17,7 +17,6 @@
 import {Component, computed, ChangeDetectionStrategy} from '@angular/core';
 import {BasicCatalogComponent} from './basic-catalog-component';
 import {IconApi} from '@a2ui/web_core/v0_9/basic_catalog';
-import {AnyDuringSchemaAlignment} from '../types';
 
 const ICON_NAME_OVERRIDES: Record<string, string> = {
   play: 'play_arrow',
@@ -43,11 +42,11 @@ const ICON_NAME_OVERRIDES: Record<string, string> = {
   imports: [],
   template: `
     @if (isSvgPath()) {
-      <svg class="a2ui-icon svg" viewBox="0 0 24 24" [style.fill]="color() || 'currentColor'">
+      <svg class="a2ui-icon svg" viewBox="0 0 24 24">
         <path [attr.d]="svgPath()"></path>
       </svg>
     } @else {
-      <i class="material-icons a2ui-icon" [style.color]="color()">
+      <i class="material-icons a2ui-icon">
         {{ iconName() }}
       </i>
     }
@@ -85,7 +84,6 @@ const ICON_NAME_OVERRIDES: Record<string, string> = {
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class IconComponent extends BasicCatalogComponent<typeof IconApi> {
-  readonly color = computed(() => (this.props() as AnyDuringSchemaAlignment)['color']?.value());
   readonly iconNameRaw = computed(() => this.props()['name']?.value());
 
   readonly isSvgPath = computed(() => {

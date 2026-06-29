@@ -75,7 +75,7 @@ export function createRestaurantListMessages(): A2uiMessage[] {
       version: 'v0.9',
       createSurface: {
         surfaceId: 'default',
-        catalogId: 'https://a2ui.org/specification/v0_9/basic_catalog.json',
+        catalogId: 'https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json',
         theme: {primaryColor: '#FF0000', font: 'Roboto'},
       },
     },
@@ -212,7 +212,7 @@ export function createBookingFormMessages(
       version: 'v0.9',
       createSurface: {
         surfaceId: 'booking-form',
-        catalogId: 'https://a2ui.org/specification/v0_9/basic_catalog.json',
+        catalogId: 'https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json',
         theme: {primaryColor: '#FF0000', font: 'Roboto'},
       },
     },
@@ -332,7 +332,7 @@ export function createConfirmationMessages(
       version: 'v0.9',
       createSurface: {
         surfaceId: 'confirmation',
-        catalogId: 'https://a2ui.org/specification/v0_9/basic_catalog.json',
+        catalogId: 'https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json',
         theme: {primaryColor: '#FF0000', font: 'Roboto'},
       },
     },

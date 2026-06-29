@@ -19,7 +19,7 @@ import {Tabs} from './tabs';
 import {MessageProcessor} from '../data/processor';
 import {Theme} from '../rendering/theming';
 import {Catalog} from '../rendering/catalog';
-import {Directive, Input, ChangeDetectionStrategy} from '@angular/core';
+import {Directive, Input} from '@angular/core';
 import {By} from '@angular/platform-browser';
 
 @Directive({
@@ -77,7 +77,6 @@ describe('Tabs Component', () => {
     })
       .overrideComponent(Tabs, {
         set: {
-          changeDetection: ChangeDetectionStrategy.Default,
           imports: [MockRenderer],
         },
       })

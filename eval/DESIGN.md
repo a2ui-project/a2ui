@@ -151,7 +151,7 @@ The A2UI evaluation framework is integrated into the development process using a
 By implementing these strategies, the A2UI project ensures that its evaluation data remains resistant to model memorization while providing a transparent and accessible framework for contributors to measure model performance accurately across the LLM landscape.
 **References**
 
-- [A2UI Repository](https://github.com/google/A2UI)
+- [A2UI Repository](https://github.com/a2ui-project/a2ui)
 - [AI Evaluation: 7 Core Components Enterprises Must Get Right \- Innodata](https://innodata.com/ai-evaluation-7-core-components-enterprises-must-get-right/)
 - [AI Testing 101: A Practical Guide to Skills, Basics & Getting Started \- GSD Council](https://www.gsdcouncil.org/blogs/ai-testing-101-a-practical-guide-to-skills-basics-getting-started)
 - [An Open-Source Data Contamination Report for Large Language Models \- ACL Anthology](https://aclanthology.org/2024.findings-emnlp.30.pdf)

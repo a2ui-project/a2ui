@@ -1,0 +1,89 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://a2ui.org/specification/v1_0/testing_catalog.json",
+  "title": "A2UI Testing Catalog",
+  "description": "Catalog for testing purposes.",
+  "catalogId": "https://a2ui.org/specification/v1_0/testing_catalog.json",
+  "components": {
+    "Text": {
+      "type": "object",
+      "allOf": [
+        {"$ref": "common_types.json#/$defs/ComponentCommon"},
+        {
+          "type": "object",
+          "properties": {
+            "component": {"const": "Text"},
+            "text": {
+              "$ref": "common_types.json#/$defs/DynamicString"
+            }
+          },
+          "required": ["component", "text"]
+        }
+      ]
+    }
+  },
+  "functions": {
+    "openUrl": {
+      "type": "object",
+      "description": "Opens the specified URL in a browser or handler. This function has no return value.",
+      "returnType": "void",
+      "properties": {
+        "call": {
+          "const": "openUrl"
+        },
+        "args": {
+          "type": "object",
+          "properties": {
+            "url": {
+              "type": "string",
+              "format": "uri",
+              "description": "The URL to open."
+            }
+          },
+          "required": ["url"],
+          "additionalProperties": false
+        }
+      },
+      "required": ["call", "args"],
+      "unevaluatedProperties": false
+    },
+    "pingServer": {
+      "type": "object",
+      "description": "Pings the server from the client side.",
+      "returnType": "void",
+      "properties": {
+        "call": {
+          "const": "pingServer"
+        }
+      },
+      "required": ["call"],
+      "unevaluatedProperties": false
+    }
+  },
+  "$defs": {
+    "surfaceProperties": {
+      "type": "object",
+      "properties": {
+        "iconUrl": {
+          "type": "string",
+          "format": "uri",
+          "description": "A URL for an image that identifies the agent or tool associated with the surface."
+        },
+        "agentDisplayName": {
+          "type": "string",
+          "description": "Text to be displayed next to the surface to identify the agent or tool that created it."
+        }
+      },
+      "additionalProperties": true
+    },
+    "anyComponent": {
+      "oneOf": [{"$ref": "#/components/Text"}],
+      "discriminator": {
+        "propertyName": "component"
+      }
+    },
+    "anyFunction": {
+      "oneOf": [{"$ref": "#/functions/openUrl"}, {"$ref": "#/functions/pingServer"}]
+    }
+  }
+}

@@ -80,7 +80,7 @@ ADK integrated the A2UI v0.8 basic catalog to automatically render spec-complian
 
 - **Built-in rendering**: ADK Web renders A2UI components natively in the dev UI.
 - **A2A integration**: A2UI messages are converted between A2A DataPart metadata and ADK events.
-- **Agent SDK**: The [A2UI Python agent SDK](https://github.com/google/A2UI/tree/main/agent_sdks/python) provides an ADK extension for generating A2UI from agents.
+- **Agent SDK**: The [A2UI Python agent SDK](https://github.com/a2ui-project/a2ui/tree/main/agent_sdks/python) provides an ADK extension for generating A2UI from agents.
 
 **Try it:**
 
@@ -92,26 +92,26 @@ ADK integrated the A2UI v0.8 basic catalog to automatically render spec-complian
 
 ## Partner Integrations
 
-### AG UI / CopilotKit: Full-Stack Agentic Framework
+### AG-UI / CopilotKit: Full-Stack Agentic Framework
 
-[AG UI](https://ag-ui.com/) and [CopilotKit](https://www.copilotkit.ai/) provide a comprehensive framework for building agentic applications, with **day-zero A2UI compatibility**.
+[AG-UI](https://ag-ui.com/) provides the protocol and [CopilotKit](https://www.copilotkit.ai/) provides the primary full-stack framework for building agentic applications, with **day-zero A2UI compatibility**.
 
 **How they work together:**
 
-AG UI excels at creating high-bandwidth connections between custom frontends and their dedicated agents. By adding A2UI support, developers get the best of both worlds:
+AG-UI excels at creating high-bandwidth connections between custom frontends and their dedicated agents. By adding A2UI support, developers get the best of both worlds:
 
-- **State synchronization**: AG UI handles app state and chat history.
+- **State synchronization**: AG-UI handles app state and chat history.
 - **A2UI rendering**: Render dynamic UIs from third-party agents.
 - **Multi-agent support**: Coordinate UIs from multiple agents.
-- **React integration**: Seamless integration with React applications.
+- **Framework integrations**: React, Vue, Angular, and other app surfaces through CopilotKit.
 
-> "AG UI excels at creating a high-bandwidth connection between a custom-built front-end and its dedicated agent. By adding support for A2UI, we're giving developers the best of both worlds. They can now build rich, state-synced applications that can also render dynamic UIs from third-party agents via A2UI. It's a perfect match for a multi-agent world."
+> "AG-UI excels at creating a high-bandwidth connection between a custom-built front-end and its dedicated agent. By adding support for A2UI, we're giving developers the best of both worlds. They can now build rich, state-synced applications that can also render dynamic UIs from third-party agents via A2UI. It's a perfect match for a multi-agent world."
 >
-> **— Atai Barkai**, Founder of CopilotKit and AG UI
+> **— Atai Barkai**, Founder of CopilotKit and AG-UI
 
 **Learn more:**
 
-- [AG UI](https://ag-ui.com/)
+- [AG-UI](https://ag-ui.com/)
 - [CopilotKit](https://www.copilotkit.ai/)
 
 ---
@@ -165,20 +165,15 @@ The A2UI community is building exciting projects:
 
 ### Open Source Examples
 
-- **Restaurant Finder** ([samples/agent/adk/restaurant_finder](https://github.com/google/A2UI/tree/main/samples/agent/adk/restaurant_finder))
-  - Table reservation with dynamic forms
-  - Gemini-powered agent
-  - Full source code available
+- **Restaurant Finder** ([samples/agent/adk/restaurant_finder](https://github.com/a2ui-project/a2ui/tree/main/samples/agent/adk/restaurant_finder))
+    - Table reservation with dynamic forms
+    - Gemini-powered agent
+    - Full source code available
 
-- **Contact Lookup** ([samples/agent/adk/contact_lookup](https://github.com/google/A2UI/tree/main/samples/agent/adk/contact_lookup))
-  - Search interface with results list
-  - A2A agent example
-  - Demonstrates data binding
-
-- **Component Gallery** ([samples/client/angular - gallery mode](https://github.com/google/A2UI/tree/main/samples/client/angular))
-  - Interactive showcase of all components
-  - Live examples with code
-  - Great for learning
+- **Component Gallery** ([samples/client/angular - gallery mode](https://github.com/a2ui-project/a2ui/tree/main/samples/client/angular))
+    - Interactive showcase of all components
+    - Live examples with code
+    - Great for learning
 
 ### Third-Party Integrations
 
@@ -202,4 +197,4 @@ For more information, see the following resources:
 
 ---
 
-**Using A2UI in production?** Share your story on [GitHub Discussions](https://github.com/google/A2UI/discussions).
+**Using A2UI in production?** Share your story on [GitHub Discussions](https://github.com/a2ui-project/a2ui/discussions).

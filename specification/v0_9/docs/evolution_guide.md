@@ -21,7 +21,7 @@ Version 0.9 represents a fundamental philosophical shift from "Structured Output
 | **Data Binding**         | `dataBinding` / `literalString`          | `path` / Native JSON types                             |
 | **Button Context**       | Array of Key-Value pairs                 | Standard JSON Object                                   |
 | **Button Variant**       | Boolean (`primary: true`)                | Enum (`variant: "primary"`)                            |
-| **Catalog**              | Separate component and function catalogs | Unified Catalog (`basic_catalog.json`)                 |
+| **Catalog**              | Separate component and function catalogs | Unified Catalog (`catalogs/basic/catalog.json`)        |
 | **Auxiliary Rules**      | N/A                                      | `basic_catalog_rules.txt`                              |
 | **Validation**           | Basic Schema                             | Strict `ValidationFailed` feedback loop                |
 | **Data Synchronization** | Implicit                                 | Explicit Client->Server data syncing (`sendDataModel`) |
@@ -40,8 +40,8 @@ Version 0.9 represents a fundamental philosophical shift from "Structured Output
 - **Modularization**: The schema is strictly split into:
   - `common_types.json`: Reusable primitives (IDs, paths) and logic/expression types.
   - `server_to_client.json`: The "envelope" defining the message types.
-  - `basic_catalog.json`: The unified catalog of UI components and functions.
-- **Swappable Catalogs**: `server_to_client.json` now uses a relative reference to `catalog.json` as a placeholder. This allows developers to alias `catalog.json` to `basic_catalog.json` (or any custom catalog) during validation, enabling the use of custom component sets without modifying the core envelope schema.
+  - `catalogs/basic/catalog.json`: The unified catalog of UI components and functions.
+- **Swappable Catalogs**: `server_to_client.json` now uses a relative reference to `catalog.json` as a placeholder. This allows developers to alias `catalog.json` to `catalogs/basic/catalog.json` (or any custom catalog) during validation, enabling the use of custom component sets without modifying the core envelope schema.
 - **Unification**: Components and functions are now part of the same catalog object, simplifying capability negotiation and inline definitions.
 
 ### 2.2. Strict Message Typing
@@ -106,7 +106,7 @@ Version 0.9 represents a fundamental philosophical shift from "Structured Output
   "version": "v0.9",
   "createSurface": {
     "surfaceId": "user_profile_card",
-    "catalogId": "https://a2ui.org/specification/v0_9/basic_catalog.json",
+    "catalogId": "https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json",
     "theme": {
       "primaryColor": "#007bff"
     }

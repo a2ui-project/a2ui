@@ -1,0 +1,136 @@
+{
+  "name": "Shipping Status",
+  "description": "Example of shipping status demonstrating templating and relative paths.",
+  "messages": [
+    {
+      "version": "v1.0",
+      "createSurface": {
+        "surfaceId": "gallery-shipping-status",
+        "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
+        "sendDataModel": true
+      }
+    },
+    {
+      "version": "v1.0",
+      "updateComponents": {
+        "surfaceId": "gallery-shipping-status",
+        "components": [
+          {
+            "id": "root",
+            "component": "Card",
+            "child": "main_column"
+          },
+          {
+            "id": "main_column",
+            "component": "Column",
+            "children": ["header", "tracking_number", "divider", "steps_list", "eta"]
+          },
+          {
+            "id": "header",
+            "component": "Row",
+            "children": ["package_icon", "title"],
+            "align": "center"
+          },
+          {
+            "id": "package_icon",
+            "component": "Icon",
+            "name": "info"
+          },
+          {
+            "id": "title",
+            "component": "Text",
+            "text": "### Package Status"
+          },
+          {
+            "id": "tracking_number",
+            "component": "Text",
+            "text": {
+              "path": "/trackingNumber"
+            },
+            "variant": "caption"
+          },
+          {
+            "id": "divider",
+            "component": "Divider"
+          },
+          {
+            "id": "steps_list",
+            "component": "Column",
+            "children": {
+              "path": "/steps",
+              "componentId": "step_item_template"
+            }
+          },
+          {
+            "id": "step_item_template",
+            "component": "Row",
+            "children": ["step_icon", "step_text"],
+            "align": "center"
+          },
+          {
+            "id": "step_icon",
+            "component": "Icon",
+            "name": {
+              "path": "icon"
+            }
+          },
+          {
+            "id": "step_text",
+            "component": "Text",
+            "text": {
+              "path": "label"
+            },
+            "variant": "body"
+          },
+          {
+            "id": "eta",
+            "component": "Row",
+            "children": ["eta_icon", "eta_text"],
+            "align": "center"
+          },
+          {
+            "id": "eta_icon",
+            "component": "Icon",
+            "name": "calendarToday"
+          },
+          {
+            "id": "eta_text",
+            "component": "Text",
+            "text": {
+              "path": "/eta"
+            },
+            "variant": "body"
+          }
+        ]
+      }
+    },
+    {
+      "version": "v1.0",
+      "updateDataModel": {
+        "surfaceId": "gallery-shipping-status",
+        "value": {
+          "trackingNumber": "Tracking: 1Z999AA10123456784",
+          "steps": [
+            {
+              "icon": "check",
+              "label": "Order Placed"
+            },
+            {
+              "icon": "check",
+              "label": "Shipped"
+            },
+            {
+              "icon": "send",
+              "label": "Out for Delivery"
+            },
+            {
+              "icon": "check",
+              "label": "Delivered"
+            }
+          ],
+          "eta": "Estimated delivery: Today by 8 PM"
+        }
+      }
+    }
+  ]
+}

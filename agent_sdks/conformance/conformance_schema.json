@@ -89,7 +89,8 @@
           "execute_tool",
           "get_extension",
           "try_activate",
-          "select_newest"
+          "select_newest",
+          "verify_cuttable_keys"
         ]
       }
     },
@@ -117,7 +118,8 @@
           {"$ref": "#/$defs/ExecuteToolTest"},
           {"$ref": "#/$defs/GetExtensionTest"},
           {"$ref": "#/$defs/TryActivateTest"},
-          {"$ref": "#/$defs/SelectNewestTest"}
+          {"$ref": "#/$defs/SelectNewestTest"},
+          {"$ref": "#/$defs/VerifyCuttableKeysTest"}
         ]
       }
     ]
@@ -155,10 +157,7 @@
                   }
                 }
               },
-              "expect_error": {
-                "type": "string",
-                "description": "Expected error message (regex) if this step should fail."
-              }
+              "expect_error": {"$ref": "#/$defs/ExpectError"}
             },
             "required": ["input"],
             "oneOf": [
@@ -193,10 +192,7 @@
                     "oneOf": [{"type": "object"}, {"type": "array", "items": {"type": "object"}}],
                     "description": "Payload to validate (single message or list of messages)."
                   },
-                  "expect_error": {
-                    "type": "string",
-                    "description": "Expected error message (regex) if validation should fail."
-                  }
+                  "expect_error": {"$ref": "#/$defs/ExpectError"}
                 },
                 "required": ["payload"]
               }
@@ -210,10 +206,7 @@
               "oneOf": [{"type": "object"}, {"type": "array", "items": {"type": "object"}}],
               "description": "Payload to validate (single message or list of messages)."
             },
-            "expect_error": {
-              "type": "string",
-              "description": "Expected error message (regex) if validation should fail."
-            }
+            "expect_error": {"$ref": "#/$defs/ExpectError"}
           },
           "required": ["payload"]
         }
@@ -255,7 +248,7 @@
           "required": ["path"]
         },
         "expect_output": {"type": "string"},
-        "expect_error": {"type": "string"}
+        "expect_error": {"$ref": "#/$defs/ExpectError"}
       },
       "required": ["args"]
     },
@@ -286,7 +279,7 @@
         "action": {"const": "parse_full"},
         "input": {"type": "string"},
         "expect": {"type": "array"},
-        "expect_error": {"type": "string"}
+        "expect_error": {"$ref": "#/$defs/ExpectError"}
       },
       "required": ["input"]
     },
@@ -315,7 +308,7 @@
         "args": {"type": "object"},
         "expect_selected": {"type": "string"},
         "expect_catalog_schema": {"type": "object"},
-        "expect_error": {"type": "string"}
+        "expect_error": {"$ref": "#/$defs/ExpectError"}
       },
       "required": ["args"]
     },
@@ -444,6 +437,63 @@
         "expect": {"type": "object"}
       },
       "required": ["action", "args", "expect"]
+    },
+    "VerifyCuttableKeysTest": {
+      "type": "object",
+      "properties": {
+        "action": {"const": "verify_cuttable_keys"},
+        "expect": {
+          "type": "object",
+          "properties": {
+            "custom_cuttable_keys": {
+              "type": "array",
+              "items": {"type": "string"}
+            }
+          },
+          "required": ["custom_cuttable_keys"]
+        }
+      },
+      "required": ["action", "expect"]
+    },
+    "ExpectError": {
+      "oneOf": [
+        {
+          "type": "string",
+          "description": "Expected error message (regex) if this step/action should fail."
+        },
+        {
+          "type": "object",
+          "properties": {
+            "category": {
+              "type": "string",
+              "enum": [
+                "ParseError",
+                "ValidationError",
+                "CatalogError",
+                "IntegrityError",
+                "RecursionError",
+                "CompileError"
+              ]
+            },
+            "message": {
+              "type": "string",
+              "description": "Expected error message (regex) if this step/action should fail."
+            },
+            "details": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "path": {"type": "string"},
+                  "code": {"type": "string"}
+                },
+                "required": ["path", "code"]
+              }
+            }
+          },
+          "required": ["category"]
+        }
+      ]
     }
   }
 }

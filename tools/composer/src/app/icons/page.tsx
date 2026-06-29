@@ -243,7 +243,7 @@ export default function IconsPage() {
               ) : (
                 <>
                   <Copy className="h-4 w-4" />
-                  Copy "{selectedIcon}"
+                  Copy &quot;{selectedIcon}&quot;
                 </>
               )}
             </button>

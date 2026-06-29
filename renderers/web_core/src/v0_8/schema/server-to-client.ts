@@ -37,7 +37,7 @@ import {
   DataValueSchema,
 } from './common-types.js';
 
-const validateValueProperty = (val: any, ctx: z.RefinementCtx) => {
+const _validateValueProperty = (val: any, ctx: z.RefinementCtx) => {
   let count = 0;
   if (val.valueString !== undefined) count++;
   if (val.valueNumber !== undefined) count++;

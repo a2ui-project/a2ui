@@ -10,7 +10,7 @@ This page showcases all A2UI components with examples and usage patterns.
 >
 > === "v0.9"
 >
->     [:material-code-json: Basic Catalog Definition (JSON Schema)](../../specification/v0_9/json/basic_catalog.json)
+>     [:material-code-json: Basic Catalog Definition (JSON Schema)](../../specification/v0_9/catalogs/basic/catalog.json)
 
 ---
 
@@ -631,8 +631,11 @@ To see all components in action:
 
 ```bash
 cd samples/client/angular
-npm start -- gallery
+yarn start gallery
 ```
+
+> [!NOTE]
+> **Package Manager Usage:** Running the built-in sample applications within the A2UI repository requires Yarn (`yarn start gallery`) as configured by Corepack workspaces. For your own regular usage and standalone projects outside this repository, use the package manager of your choice (e.g. npm, pnpm).
 
 ## Further Reading
 
@@ -644,7 +647,7 @@ npm start -- gallery
 >
 > === "v0.9"
 >
->     [:material-code-json: Basic Catalog Definition (JSON Schema)](../../specification/v0_9/json/basic_catalog.json)
+>     [:material-code-json: Basic Catalog Definition (JSON Schema)](../../specification/v0_9/catalogs/basic/catalog.json)
 
 - **[Defining Your Own Catalog](../guides/defining-your-own-catalog.md)**: Build your own components
 - **[Theming Guide](../guides/theming.md)**: Style components to match your brand

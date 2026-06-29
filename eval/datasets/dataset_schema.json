@@ -1,0 +1,40 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "description": "Schema for A2UI evaluation datasets.",
+  "type": "array",
+  "items": {
+    "type": "object",
+    "properties": {
+      "name": {
+        "type": "string",
+        "description": "A unique identifier for this evaluation sample."
+      },
+      "description": {
+        "type": "string",
+        "description": "A human-readable description of what this sample tests."
+      },
+      "promptText": {
+        "type": "string",
+        "description": "The user input prompt that is sent to the LLM."
+      },
+      "target": {
+        "type": "string",
+        "description": "The expected outcome or grading criteria for the model's generated output. Used by the LLM-as-a-judge scorer. If omitted, defaults to the value of `description`."
+      },
+      "catalog": {
+        "type": "string",
+        "description": "Path to the catalog json file. Corresponds to the catalog file path loaded into the A2uiSchemaManager. If omitted, the default is loaded from eval/datasets/defaults.py."
+      },
+      "role_description": {
+        "type": "string",
+        "description": "Corresponds to the `role_description` parameter of `A2uiSchemaManager.generate_system_prompt()`. If omitted, the default is loaded from eval/datasets/defaults.py."
+      },
+      "workflow_description": {
+        "type": "string",
+        "description": "Corresponds to the `workflow_description` parameter of `A2uiSchemaManager.generate_system_prompt()`. If omitted, the default is loaded from eval/datasets/defaults.py."
+      }
+    },
+    "required": ["name", "description", "promptText"],
+    "additionalProperties": false
+  }
+}

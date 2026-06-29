@@ -65,34 +65,14 @@ const DataValueMapItemSchema: z.ZodType<any> = z.lazy(() =>
     }),
 );
 
-export const DataValueSchema = z
-  .object({
-    key: z.string(),
-    valueString: z.string().optional(),
-    valueNumber: z.number().optional(),
-    valueBoolean: z.boolean().optional(),
-    valueMap: z.array(DataValueMapItemSchema).optional(),
-  })
-  .strict()
-  .superRefine((val: any, ctx: z.RefinementCtx) => {
-    let count = 0;
-    if (val.valueString !== undefined) count++;
-    if (val.valueNumber !== undefined) count++;
-    if (val.valueBoolean !== undefined) count++;
-    if (val.valueMap !== undefined) count++;
-    if (count !== 1) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        message: `Value must have exactly one value property (valueString, valueNumber, valueBoolean, valueMap), found ${count}.`,
-      });
-    }
-  })
-  .superRefine((val: any, ctx: z.RefinementCtx) => {
+export function createDataValueSchema(options: {maxDepth?: number} = {}) {
+  const maxDepth = options.maxDepth ?? 5;
+  return DataValueMapItemSchema.superRefine((val: any, ctx: z.RefinementCtx) => {
     const checkDepth = (v: any, currentDepth: number) => {
-      if (currentDepth > 5) {
+      if (currentDepth > maxDepth) {
         ctx.addIssue({
           code: z.ZodIssueCode.custom,
-          message: 'valueMap recursion exceeded maximum depth of 5.',
+          message: `valueMap recursion exceeded maximum depth of ${maxDepth}.`,
         });
         return;
       }
@@ -104,6 +84,9 @@ export const DataValueSchema = z
     };
     checkDepth(val, 1);
   });
+}
+
+export const DataValueSchema = createDataValueSchema();
 
 export const NumberValueSchema = z
   .object({

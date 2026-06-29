@@ -7,11 +7,17 @@
   "types": "./dist/editor.d.ts",
   "type": "module",
   "scripts": {
-    "prepack": "npm run build",
+    "prepack": "yarn build",
     "build": "wireit",
     "build:tsc": "wireit",
-    "dev": "npm run serve --watch",
-    "serve": "wireit"
+    "dev": "yarn serve --watch",
+    "serve": "wireit",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "clean": "wireit",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "test": "node -e 'const fs=require(\"fs\"); const path=require(\"path\"); function find(d){for(const f of fs.readdirSync(d)){const p=path.join(d,f);if(f===\"node_modules\"||f===\"dist\")continue;if(fs.statSync(p).isDirectory()){if(find(p))return true;}else if(f.includes(\".test.\")||f.includes(\".spec.\"))return true;}return false;} if(find(\".\")){require(\"child_process\").execSync(\"vitest run\",{stdio:\"inherit\"});}else{console.log(\"Workspace has no tests.\");}'"
   },
   "wireit": {
     "serve": {
@@ -43,12 +49,15 @@
         "!dist/**/*.min.js{,.map}"
       ],
       "clean": "if-file-deleted"
+    },
+    "clean": {
+      "command": "rm -rf dist .tsbuildinfo .wireit"
     }
   },
   "repository": {
     "directory": "tools/editor",
     "type": "git",
-    "url": "git+https://github.com/google/A2UI.git"
+    "url": "git+https://github.com/a2ui-project/a2ui.git"
   },
   "files": [
     "dist"
@@ -57,22 +66,24 @@
   "author": "Google",
   "license": "Apache-2.0",
   "bugs": {
-    "url": "https://github.com/google/A2UI/issues"
+    "url": "https://github.com/a2ui-project/a2ui/issues"
   },
-  "homepage": "https://github.com/google/A2UI/tree/main/web#readme",
+  "homepage": "https://github.com/a2ui-project/a2ui/tree/main/web#readme",
   "devDependencies": {
-    "dotenv": "^17.2.3",
-    "typescript": "^5.8.3",
-    "vite": "^7.1.11",
+    "dotenv": "^17.4.2",
+    "eslint": "^10.4.1",
+    "gts": "^7.0.0",
+    "typescript": "5.9.3",
+    "vite": "^8.0.16",
     "wireit": "^0.15.0-pre.2"
   },
   "dependencies": {
-    "@a2ui/lit": "file:../../renderers/lit",
-    "@a2ui/web_core": "file:../../renderers/web_core",
-    "@google/genai": "^1.22.0",
-    "@lit-labs/signals": "^0.1.3",
-    "@lit/context": "^1.1.4",
-    "@types/node": "^24.7.1",
-    "lit": "^3.3.1"
+    "@a2ui/lit": "workspace:*",
+    "@a2ui/web_core": "workspace:*",
+    "@google/genai": "^2.8.0",
+    "@lit-labs/signals": "^0.3.0",
+    "@lit/context": "^1.1.6",
+    "@types/node": "^25.9.3",
+    "lit": "^3.3.3"
   }
 }

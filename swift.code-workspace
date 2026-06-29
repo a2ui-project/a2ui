@@ -1,0 +1,11 @@
+{
+  "folders": [
+    {
+      "path": "swift/core",
+    },
+    {
+      "path": "renderers/swiftui",
+    },
+  ],
+  "settings": {},
+}

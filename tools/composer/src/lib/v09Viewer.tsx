@@ -29,7 +29,7 @@ import {useMemo} from 'react';
 import {A2uiSurface, basicCatalog} from '@a2ui/react/v0_9';
 import {MessageProcessor} from '@a2ui/web_core/v0_9';
 
-const CATALOG_ID = 'https://a2ui.org/specification/v0_9/basic_catalog.json';
+const CATALOG_ID = 'https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json';
 const SURFACE_ID = 'v09-preview';
 
 interface V09Component {

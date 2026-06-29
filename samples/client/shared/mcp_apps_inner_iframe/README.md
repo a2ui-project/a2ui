@@ -24,7 +24,7 @@ This test verifies the sandbox with a Lit-based client and an ADK-based A2A agen
   - Command: `uv run .` (requires `GEMINI_API_KEY` in `.env`)
 - **Lit Client App**:
   - Path: `../../lit/contact/`
-  - Command: `npm run dev` (requires building the Lit renderer first)
+  - Command: `yarn dev` (requires building the Lit renderer first)
   - URL: `http://localhost:5173/`
 
 ### 2. MCP Apps (Calculator) (Angular)
@@ -39,5 +39,5 @@ This test verifies the sandbox with an Angular-based client, an MCP Proxy Agent,
   - Command: `uv run .` (requires `GEMINI_API_KEY` in `.env`)
 - **Angular Client App**:
   - Path: `../../angular/`
-  - Command: `npm start -- mcp_calculator` (requires `npm run build:sandbox` and `npm install`)
+  - Command: `yarn start -- mcp_calculator` (requires `yarn build:sandbox` and `yarn install`)
   - URL: [`http://localhost:4200/?disable_security_self_test=true`](http://localhost:4200/?disable_security_self_test=true)

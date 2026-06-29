@@ -84,7 +84,8 @@ class A2aConformanceTest {
             val data = args["data"] as Map<*, *>
             val jsonElement = anyToJsonElement(data) as JsonObject
 
-            val part = A2uiA2a.createA2uiPart(jsonElement)
+            val version = args["version"] as? String
+            val part = A2uiA2a.createA2uiPart(jsonElement, version)
             assertTrue(part is DataPart)
             val expect = case[ConformanceTestHelper.KEY_EXPECT] as Map<*, *>
             assertEquals(
@@ -104,13 +105,49 @@ class A2aConformanceTest {
           "try_activate_extension" -> {
             val uris = args["uris"] as List<String>
             val activated = mutableListOf<String>()
-            val result = A2uiA2a.tryActivateA2uiExtension(uris) { activated.add(it) }
+            val result =
+              A2uiA2a.tryActivateA2uiExtension(
+                uris,
+                listOf("${A2uiA2a.A2UI_EXTENSION_BASE_URI}0.8"),
+              ) {
+                activated.add(it)
+              }
 
             val expect = case[ConformanceTestHelper.KEY_EXPECT] as Boolean
-            assertEquals(expect, result)
+            assertEquals(expect, result != null)
             if (expect) {
-              assertTrue(activated.contains(A2uiA2a.A2UI_EXTENSION_URI))
+              assertTrue(activated.contains("${A2uiA2a.A2UI_EXTENSION_BASE_URI}0.8"))
             }
+          }
+          "get_extension" -> {
+            val version = args["version"] as String
+            val acceptsInlineCatalogs = args["accepts_inline_catalogs"] as? Boolean ?: false
+            @Suppress("UNCHECKED_CAST")
+            val supportedCatalogIds = args["supported_catalog_ids"] as? List<String> ?: emptyList()
+
+            val ext =
+              A2uiA2a.getA2uiAgentExtension(version, acceptsInlineCatalogs, supportedCatalogIds)
+            val expect = case[ConformanceTestHelper.KEY_EXPECT] as Map<*, *>
+            assertEquals(expect["uri"] as String, ext.uri)
+            assertEquals(expect["params"] as? Map<*, *>, ext.params)
+          }
+          "try_activate" -> {
+            @Suppress("UNCHECKED_CAST") val requested = args["requested"] as List<String>
+            @Suppress("UNCHECKED_CAST") val advertised = args["advertised"] as List<String>
+            var activated: String? = null
+            val result = A2uiA2a.tryActivateA2uiExtension(requested, advertised) { activated = it }
+
+            val expect = case[ConformanceTestHelper.KEY_EXPECT] as Map<*, *>
+            assertEquals(expect["version"] as? String, result)
+            assertEquals(expect["activated"] as? String, activated)
+          }
+          "select_newest" -> {
+            @Suppress("UNCHECKED_CAST") val requested = args["requested"] as List<String>
+            @Suppress("UNCHECKED_CAST") val advertised = args["advertised"] as List<String>
+            val result = A2uiA2a.selectNewestA2uiExtension(requested, advertised)
+
+            val expect = case[ConformanceTestHelper.KEY_EXPECT] as Map<*, *>
+            assertEquals(expect["newest"] as? String, result)
           }
           "handle_rpc" -> {
             val request = args["request"] as Map<*, *>
@@ -176,6 +213,7 @@ class A2aConformanceTest {
               }
             }
           }
+          else -> assert(false, { "Unknown action: $action" })
         }
       }
     }

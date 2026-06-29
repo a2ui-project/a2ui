@@ -42,6 +42,7 @@ nav:
   - A2UI Composer ⭐: composer.md
   - Concepts:
       - Overview: concepts/overview.md
+      - Glossary: concepts/glossary.md
       - Data Flow: concepts/data-flow.md
       - Components & Structure: concepts/components.md
       - Data Binding: concepts/data-binding.md
@@ -56,21 +57,32 @@ nav:
       - Defining Your Own Catalog: guides/defining-your-own-catalog.md
       - Authoring Custom Components: guides/authoring-components.md
       - Theming & Styling: guides/theming.md
-      - A2UI over MCP: guides/a2ui_over_mcp.md
-      - MCP Apps in A2UI: guides/mcp-apps-in-a2ui.md
-      - A2UI in MCP Apps: guides/a2ui-in-mcp-apps.md
+      - A2UI + MCP:
+          - A2UI over MCP: guides/a2ui_over_mcp.md
+          - MCP Apps in A2UI: guides/mcp-apps-in-a2ui.md
+          - A2UI in MCP Apps: guides/a2ui-in-mcp-apps.md
   - Reference:
       - Component Gallery: reference/components.md
       - Message Reference: reference/messages.md
       - Renderers (Clients): reference/renderers.md
       - Agents (Server-side): reference/agents.md
   - Specifications:
-      - v0.8 (Stable):
-          - A2UI Protocol: specification/v0.8-a2ui.md
-          - A2A Extension: specification/v0.8-a2a-extension.md
-      - v0.9 (Draft):
+      - v1.0 (Candidate):
+          - A2UI Protocol: specification/v1.0-a2ui.md
+          - A2A Extension: specification/v1.0-a2ui-extension-specification.md
+          - Evolution Guide: specification/v1.0-evolution-guide.md
+          - Basic Catalog Guide: specification/v1.0-basic-catalog-implementation-guide.md
+      - v0.9.1 (Current):
+          - A2UI Protocol: specification/v0.9.1-a2ui.md
+          - A2A Extension: specification/v0.9.1-a2ui-extension-specification.md
+          - Evolution Guide: specification/v0.9.1-evolution-guide.md
+          - Basic Catalog Guide: specification/v0.9.1-basic-catalog-implementation-guide.md
+      - v0.9 (Previous Stable):
           - A2UI Protocol: specification/v0.9-a2ui.md
           - Evolution Guide: specification/v0.9-evolution-guide.md
+      - v0.8 (Legacy):
+          - A2UI Protocol: specification/v0.8-a2ui.md
+          - A2A Extension: specification/v0.8-a2a-extension.md
   - Ecosystem:
       - A2UI in the World: ecosystem/a2ui-in-the-world.md
       - Community Renderers: ecosystem/renderers.md
@@ -79,10 +91,11 @@ nav:
 
 exclude_docs: |
   scripts/**
+  specification/v*/**/*.md
 
 # Repository
-repo_name: google/A2UI
-repo_url: https://github.com/google/A2UI
+repo_name: a2ui-project/a2ui
+repo_url: https://github.com/a2ui-project/a2ui
 edit_uri: raw/main/docs/
 
 # Copyright
@@ -99,7 +112,7 @@ theme:
     text: Google Sans
     code: Roboto Mono
   logo: assets/A2UI_light.svg
-  favicon: assets/A2UI_dark.svg
+  favicon: assets/favicon.svg
   icon:
     repo: fontawesome/brands/github
     # view: material/pencil-box-multiple
@@ -202,8 +215,3 @@ plugins:
         "introduction/where-is-it-used.md": "ecosystem/a2ui-in-the-world.md"
         "guides/guide_a2ui_dynamic_mcp.md": "guides/a2ui-in-mcp-apps.md"
         "guides/mcp-apps-in-a2ui-surface.md": "guides/mcp-apps-in-a2ui.md"
-  # - llmstxt:
-  #     full_output: llms-full.txt
-  #     sections:
-  #       "Specification":
-  #         - a2ui_protocol.md

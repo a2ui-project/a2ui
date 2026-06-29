@@ -20,7 +20,7 @@ import {MessageProcessor} from '../data/processor';
 import {Theme} from '../rendering/theming';
 import {Catalog} from '../rendering/catalog';
 import type {AnyComponentNode} from '../types';
-import {Directive, Input, ChangeDetectionStrategy} from '@angular/core';
+import {Directive, Input} from '@angular/core';
 import {By} from '@angular/platform-browser';
 
 @Directive({
@@ -72,7 +72,6 @@ describe('Modal Component', () => {
     })
       .overrideComponent(Modal, {
         set: {
-          changeDetection: ChangeDetectionStrategy.Default,
           imports: [MockRenderer],
         },
       })
@@ -99,11 +98,13 @@ describe('Modal Component', () => {
   it('should render entry point child initially', () => {
     // Should render 1 MockRenderer for the entry point
     expect(MockRenderer.instances.length).toBe(1);
+  });
 
-    // Check isOpen is false
-    expect((component as any).isOpen()).toBeFalse();
-
-    // Backdrop should not exist
+  it('should not render the overlay when closed', () => {
+    const overlayEl = fixture.debugElement.query(By.css('.a2ui-modal-overlay'));
+    expect(overlayEl).toBeFalsy();
+  });
+  it('should not render the backdrop when closed', () => {
     const backdropEl = fixture.debugElement.query(By.css('.backdrop-class'));
     expect(backdropEl).toBeFalsy();
   });
@@ -127,8 +128,7 @@ describe('Modal Component', () => {
   });
 
   it('should close modal on backdrop click', () => {
-    // Open modal first
-    (component as any).isOpen.set(true);
+    component.openModal();
     fixture.detectChanges();
 
     const backdropEl = fixture.debugElement.query(By.css('.backdrop-class'));
@@ -143,8 +143,7 @@ describe('Modal Component', () => {
   });
 
   it('should NOT close modal on element click', () => {
-    // Open modal
-    (component as any).isOpen.set(true);
+    component.openModal();
     fixture.detectChanges();
 
     const elementEl = fixture.debugElement.query(By.css('.modal-element-class'));
@@ -156,5 +155,16 @@ describe('Modal Component', () => {
 
     // isOpen should STILL be true
     expect((component as any).isOpen()).toBeTrue();
+  });
+
+  it('should use position fixed for overlay', () => {
+    component.openModal();
+    fixture.detectChanges();
+
+    const overlayEl = fixture.debugElement.query(By.css('.a2ui-modal-overlay'));
+    expect(overlayEl).toBeTruthy();
+
+    const style = window.getComputedStyle(overlayEl.nativeElement);
+    expect(style.position).toBe('fixed');
   });
 });

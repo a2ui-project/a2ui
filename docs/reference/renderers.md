@@ -14,20 +14,20 @@ You have a lot of flexibility, to bring custom components to a renderer, or buil
 
 ### Web
 
-| Renderer                 | Platform           | v0.8      | v0.9      | Links                                                                                |
-| ------------------------ | ------------------ | --------- | --------- | ------------------------------------------------------------------------------------ |
-| **React**                | Web                | ✅ Stable | ✅ Stable | [Code](https://github.com/google/A2UI/tree/main/renderers/react)                     |
-| **Lit (Web Components)** | Web                | ✅ Stable | ✅ Stable | [Code](https://github.com/google/A2UI/tree/main/renderers/lit)                       |
-| **Angular**              | Web                | ✅ Stable | ✅ Stable | [Code](https://github.com/google/A2UI/tree/main/renderers/angular)                   |
-| **Flutter (GenUI SDK)**  | Mobile/Desktop/Web | ✅ Stable | ✅ Stable | [Docs](https://docs.flutter.dev/ai/genui) · [Code](https://github.com/flutter/genui) |
+| Renderer                 | Platform           | v0.8      | v0.9.1    | v1.0       | Links                                                                                |
+| ------------------------ | ------------------ | --------- | --------- | ---------- | ------------------------------------------------------------------------------------ |
+| **React**                | Web                | ✅ Stable | ✅ Stable | 🚧 Planned | [Code](https://github.com/a2ui-project/a2ui/tree/main/renderers/react)               |
+| **Lit (Web Components)** | Web                | ✅ Stable | ✅ Stable | 🚧 Planned | [Code](https://github.com/a2ui-project/a2ui/tree/main/renderers/lit)                 |
+| **Angular**              | Web                | ✅ Stable | ✅ Stable | 🚧 Planned | [Code](https://github.com/a2ui-project/a2ui/tree/main/renderers/angular)             |
+| **Flutter (GenUI SDK)**  | Mobile/Desktop/Web | ✅ Stable | ✅ Stable | 🚧 Planned | [Docs](https://docs.flutter.dev/ai/genui) · [Code](https://github.com/flutter/genui) |
 
 ### Mobile
 
-| Renderer                | Platform           | v0.8      | v0.9          | Links                                                                                |
-| ----------------------- | ------------------ | --------- | ------------- | ------------------------------------------------------------------------------------ |
-| **Flutter (GenUI SDK)** | Mobile/Desktop/Web | ✅ Stable | ✅ Stable     | [Docs](https://docs.flutter.dev/ai/genui) · [Code](https://github.com/flutter/genui) |
-| **SwiftUI**             | iOS/macOS          | —         | 🚧 Planned Q2 | —                                                                                    |
-| **Jetpack Compose**     | Android            | —         | 🚧 Planned Q2 | —                                                                                    |
+| Renderer                | Platform           | v0.8      | v0.9.1    | v1.0       | Links                                                                                |
+| ----------------------- | ------------------ | --------- | --------- | ---------- | ------------------------------------------------------------------------------------ |
+| **Flutter (GenUI SDK)** | Mobile/Desktop/Web | ✅ Stable | ✅ Stable | 🚧 Planned | [Docs](https://docs.flutter.dev/ai/genui) · [Code](https://github.com/flutter/genui) |
+| **SwiftUI**             | iOS/macOS          | —         | —         | 🚧 Planned | —                                                                                    |
+| **Jetpack Compose**     | Android            | —         | —         | 🚧 Planned | —                                                                                    |
 
 Check the [Roadmap](../roadmap.md) for more.
 
@@ -38,6 +38,7 @@ The community is building A2UI renderers for additional platforms:
 - **[json-render](https://json-render.dev/docs/a2ui)** — Vercel's React library for rendering A2UI catalogs via Zod schemas ([comparison](https://dipjyotimetia.medium.com/vercels-json-render-vs-google-s-a2ui-the-head-to-head-6f213cf1a23b))
 - **[A2UI-Android](https://github.com/lmee/A2UI-Android)** — Community Jetpack Compose renderer, 20+ components (~15 ⭐, v0.8)
 - **[a2ui-react-native](https://github.com/sivamrudram-eng/a2ui-react-native)** — React Native renderer for iOS/Android (~9 ⭐, v0.8)
+- **[Lynx A2UI](https://lynxjs.org/next/react/genui/a2ui.html)** — ReactLynx renderer for A2UI (v0.9)
 
 See the **[full ecosystem renderers list](../ecosystem/renderers.md)** for more community projects and how to submit your own.
 

@@ -78,4 +78,22 @@ describe('Icon Component', () => {
     const sectionEl = fixture.debugElement.query(By.css('section'));
     expect(sectionEl).toBeFalsy();
   });
+
+  it('should convert camelCase name to snake_case', () => {
+    fixture.componentRef.setInput('name', {literalString: 'arrowForward'});
+    fixture.detectChanges();
+
+    const spanEl = fixture.debugElement.query(By.css('.g-icon'));
+    expect(spanEl).toBeTruthy();
+    expect(spanEl.nativeElement.textContent).toBe('arrow_forward');
+  });
+
+  it('should convert TitleCase name to snake_case', () => {
+    fixture.componentRef.setInput('name', {literalString: 'ArrowForward'});
+    fixture.detectChanges();
+
+    const spanEl = fixture.debugElement.query(By.css('.g-icon'));
+    expect(spanEl).toBeTruthy();
+    expect(spanEl.nativeElement.textContent).toBe('arrow_forward');
+  });
 });

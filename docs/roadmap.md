@@ -6,34 +6,35 @@ This roadmap outlines the current state and future plans for the A2UI project. T
 
 ### Protocol
 
-| Version   | Status     | Notes                                   |
-| --------- | ---------- | --------------------------------------- |
-| **v0.8**  | 🆗 Prior   | Initial public release, minimal support |
-| **v0.9**  | ✅ Current | Feature complete, supported             |
-| **v0.10** | 🚧 Draft   | Minimal changes to spec, new features   |
-| **v1.0**  | 🚧 Draft   | Targeting stable and complete release   |
+| Version    | Status       | Notes                                   |
+| ---------- | ------------ | --------------------------------------- |
+| **v0.8**   | 🆗 Prior     | Initial public release, minimal support |
+| **v0.9**   | 🆗 Prior     | Feature complete, legacy support        |
+| **v0.9.1** | 🆗 Current   | stable release                          |
+| **v1.0**   | 📋 Candidate | release candidate                       |
 
 ### Renderers
 
-| Client libraries                                           | Status      | Platform       | Notes                                                               |
-| ---------------------------------------------------------- | ----------- | -------------- | ------------------------------------------------------------------- |
-| **Web Core Lib**                                           | ✅ Stable   | Web            | Shared core lib for all web renderers                               |
-| **Web Components (Lit)**                                   | ✅ Stable   | Web            | Framework-agnostic, works anywhere                                  |
-| **Angular**                                                | ✅ Stable   | Web            | Full Angular integration                                            |
-| **Flutter (GenUI SDK)**                                    | ✅ Stable   | Multi-platform | Works on mobile, web, desktop                                       |
-| **React**                                                  | ✅ Stable   | Web            | Official React renderer                                             |
-| **SwiftUI**                                                | 📋 Planned  | iOS/macOS      | Planned for Q2 2026                                                 |
-| **Jetpack Compose**                                        | 📋 Planned  | Android        | Planned for Q2 2026                                                 |
-| **Vue**                                                    | 💡 Proposed | Web            | Community interest                                                  |
-| [**Svelte/Kit**](https://svelte.dev/docs/kit/introduction) | 💡 Proposed | Web            | [Community interest](https://news.ycombinator.com/item?id=46287728) |
-| **ShadCN (React)**                                         | 💡 Proposed | Web            | Community interest                                                  |
+| Client libraries                                           | Status      | Platform             | Notes                                                               |
+| ---------------------------------------------------------- | ----------- | -------------------- | ------------------------------------------------------------------- |
+| **Web Core Lib**                                           | ✅ Stable   | Web                  | Shared core lib for all web renderers                               |
+| **Web Components (Lit)**                                   | ✅ Stable   | Web                  | Framework-agnostic, works anywhere                                  |
+| **Angular**                                                | ✅ Stable   | Web                  | Full Angular integration                                            |
+| **Flutter (GenUI SDK)**                                    | ✅ Stable   | Multi-platform       | Works on mobile, web, desktop                                       |
+| **React**                                                  | ✅ Stable   | Web                  | Official React renderer                                             |
+| [**Lynx**](https://lynxjs.org/next/react/genui/a2ui.html)  | ✅ Stable   | Mobile, Web, Desktop | ReactLynx renderer for A2UI v0.9                                    |
+| **SwiftUI**                                                | 📋 Planned  | iOS/macOS            | Planned for Q2 2026                                                 |
+| **Jetpack Compose**                                        | 📋 Planned  | Android              | Planned for Q2 2026                                                 |
+| **Vue**                                                    | 💡 Proposed | Web                  | Community interest                                                  |
+| [**Svelte/Kit**](https://svelte.dev/docs/kit/introduction) | 💡 Proposed | Web                  | [Community interest](https://news.ycombinator.com/item?id=46287728) |
+| **ShadCN (React)**                                         | 💡 Proposed | Web                  | Community interest                                                  |
 
 ### Transports
 
 | Transport                        | Status      | Notes                      |
 | -------------------------------- | ----------- | -------------------------- |
 | **A2A Protocol**                 | ✅ Complete | Native A2A transport       |
-| **AG UI**                        | ✅ Complete | Day-zero compatibility     |
+| **AG-UI**                        | ✅ Complete | Day-zero compatibility     |
 | **REST API**                     | ✅ Complete | Request/response over HTTP |
 | **WebSockets**                   | ✅ Complete | Bidirectional WS           |
 | **MCP (Model Context Protocol)** | ✅ Complete | Context sharing            |
@@ -43,7 +44,7 @@ This roadmap outlines the current state and future plans for the A2UI project. T
 | Integration                      | Status         | Notes                                                                              |
 | -------------------------------- | -------------- | ---------------------------------------------------------------------------------- |
 | **Any agent with A2A support**   | ✅ Complete    | Day-zero compatibility thanks to A2A protocol                                      |
-| **Any agent with AG-UI support** | ✅ Complete    | Day-zero compatibility thanks to AG UI protocol                                    |
+| **Any agent with AG-UI support** | ✅ Complete    | Day-zero compatibility thanks to AG-UI protocol                                    |
 | **AG2**                          | ✅ Complete    | [A2UIAgent](https://docs.ag2.ai/latest/docs/user-guide/reference-agents/a2uiagent) |
 | **ADK**                          | 🚧 In Progress | Still designing developer ergonomics, see [samples](../samples/agent/adk)          |
 | **Genkit**                       | 💡 Proposed    | Community interest                                                                 |
@@ -67,7 +68,7 @@ Many research projects across multiple Google teams, including integration into 
 - Flutter renderer (thanks Flutter team!)
 - Angular renderer (thanks Angular team!)
 - Web components (Lit) renderer (thanks Opal team & friends!)
-- AG UI / CopilotKit integration (thanks CopilotKit team!)
+- AG-UI / CopilotKit integration (thanks CopilotKit team!)
 - Github public release (Apache 2.0)
 
 ### Q2 2026 v0.9
@@ -81,7 +82,7 @@ Many research projects across multiple Google teams, including integration into 
 
 ## Upcoming Milestones
 
-### Q3 2026 v0.9 & v0.10
+### Q3 2026 v0.9 & v1.0
 
 **Jetpack Compose Renderer (Android):**
 
@@ -180,12 +181,12 @@ A2UI follows [Semantic Versioning](https://semver.org/):
 
 ## Stay Updated
 
-- Watch the [GitHub repository](https://github.com/google/A2UI) for updates
+- Watch the [GitHub repository](https://github.com/a2ui-project/a2ui) for updates
 - Star the repo to show your support
 - Follow releases to get notified of new versions
 
 ---
 
-**Last Updated:** March 2026
+**Last Updated:** June 2026
 
-Have questions about the roadmap? [Start a discussion on GitHub](https://github.com/google/A2UI/discussions).
+Have questions about the roadmap? [Start a discussion on GitHub](https://github.com/a2ui-project/a2ui/discussions).

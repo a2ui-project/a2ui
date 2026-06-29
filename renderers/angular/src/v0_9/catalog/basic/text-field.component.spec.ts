@@ -17,7 +17,7 @@
 import {ComponentFixture, TestBed} from '@angular/core/testing';
 import {TextFieldComponent} from './text-field.component';
 import {A2uiRendererService, A2UI_RENDERER_CONFIG} from '../../core/a2ui-renderer.service';
-import {setComponentProps, createBoundProperty, ComponentToProps} from '../../core/test-utils';
+import {setComponentProps, createBoundProperty, ComponentToProps} from '@a2ui/angular/testing';
 import {By} from '@angular/platform-browser';
 
 describe('TextFieldComponent', () => {
@@ -34,7 +34,6 @@ describe('TextFieldComponent', () => {
     fixture = TestBed.createComponent(TextFieldComponent);
     component = fixture.componentInstance;
     fixture.componentRef.setInput('surfaceId', 'surf1');
-
     defaultProps = {
       label: createBoundProperty('Username'),
       value: createBoundProperty('testuser'),
@@ -56,6 +55,15 @@ describe('TextFieldComponent', () => {
     expect(label.nativeElement.textContent).toBe('Username');
   });
 
+  it('should not render label if not provided', () => {
+    setComponentProps(fixture, {
+      ...defaultProps,
+      label: createBoundProperty(null as any),
+    });
+    fixture.detectChanges();
+    const label = fixture.debugElement.query(By.css('label'));
+    expect(label).toBeFalsy();
+  });
   it('should render input with correct value', () => {
     fixture.detectChanges();
     const input = fixture.debugElement.query(By.css('input'));

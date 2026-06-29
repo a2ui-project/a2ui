@@ -19,7 +19,7 @@ import {customElement} from 'lit/decorators.js';
 import {classMap} from 'lit/directives/class-map.js';
 import {TextFieldApi} from '@a2ui/web_core/v0_9/basic_catalog';
 import {BasicCatalogA2uiLitElement} from '../basic-catalog-a2ui-lit-element.js';
-import {A2uiController} from '@a2ui/lit/v0_9';
+import {A2uiController} from '../../../a2ui-controller.js';
 
 @customElement('a2ui-basic-textfield')
 export class A2uiBasicTextFieldElement extends BasicCatalogA2uiLitElement<typeof TextFieldApi> {
@@ -39,7 +39,7 @@ export class A2uiBasicTextFieldElement extends BasicCatalogA2uiLitElement<typeof
    * - `--a2ui-color-input`: Background color.
    * - `--a2ui-color-on-input`: Text color.
    */
-  static styles = css`
+  static override styles = css`
     :host {
       display: flex;
       flex-direction: column;
@@ -77,13 +77,13 @@ export class A2uiBasicTextFieldElement extends BasicCatalogA2uiLitElement<typeof
     return new A2uiController(this, TextFieldApi);
   }
 
-  render() {
+  override render() {
     const props = this.controller.props;
     if (!props) return nothing;
 
     const isInvalid = props.isValid === false;
     const onInput = (e: Event) => props.setValue?.((e.target as HTMLInputElement).value);
-    let type = 'text';
+    let type: 'text' | 'number' | 'password' = 'text';
     if (props.variant === 'number') type = 'number';
     if (props.variant === 'obscured') type = 'password';
 

@@ -109,7 +109,7 @@ Signals the client to initialize and render a surface.
       "version": "v0.9",
       "createSurface": {
         "surfaceId": "main",
-        "catalogId": "https://a2ui.org/specification/v0_9/basic_catalog.json"
+        "catalogId": "https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json"
       }
     }
     ```
@@ -372,12 +372,13 @@ Add or update components within a surface.
 
 ### Errors
 
-| Error                  | Cause                                  | Solution                                                                                                               |
-| ---------------------- | -------------------------------------- | ---------------------------------------------------------------------------------------------------------------------- |
-| Surface not found      | `surfaceId` does not exist             | Ensure a unique `surfaceId` is used consistently for a given surface. Surfaces are implicitly created on first update. |
-| Invalid component type | Unknown component type                 | Check component type exists in the negotiated catalog.                                                                 |
-| Invalid property       | Property doesn't exist for this type   | Verify against catalog schema.                                                                                         |
-| Circular reference     | Component references itself as a child | Fix component hierarchy.                                                                                               |
+| Error                  | Cause                                  | Solution                                                                                                                                                                                      |
+| ---------------------- | -------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Surface already exists | `surfaceId` is already in use          | Ensure `surfaceId` is globally unique for the renderer's lifetime. If using an orchestrator with subagents, the orchestrator is empowered to manage surface IDs as needed to avoid conflicts. |
+| Surface not found      | `surfaceId` does not exist             | Ensure `surfaceId` matches the created surface. In v0.8, surfaces are implicit, but v0.9+ requires `createSurface`.                                                                           |
+| Invalid component type | Unknown component type                 | Check component type exists in the negotiated catalog.                                                                                                                                        |
+| Invalid property       | Property doesn't exist for this type   | Verify against catalog schema.                                                                                                                                                                |
+| Circular reference     | Component references itself as a child | Fix component hierarchy.                                                                                                                                                                      |
 
 ---
 
@@ -665,7 +666,7 @@ Message ordering must satisfy the following requirements:
     Validate against:
 
     - **[server_to_client.json](../../specification/v0_9/json/server_to_client.json)**: Message envelope schema.
-    - **[basic_catalog.json](../../specification/v0_9/json/basic_catalog.json)**: Component schemas.
+    - **[catalogs/basic/catalog.json](../../specification/v0_9/catalogs/basic/catalog.json)**: Component schemas.
 
 ## Further Reading
 

@@ -10,20 +10,15 @@ A2UI is an open-source project licensed under Apache 2.0. Contributions are welc
 
 Built something with A2UI? Show it off!
 
-The best way to share your work is to **post in [GitHub Discussions](https://github.com/google/A2UI/discussions)** with a short description, a link to your code, and a demo video (4 minutes or less). Notable projects are featured in the docs and release notes.
+The best way to share your work is to **post in [GitHub Discussions](https://github.com/a2ui-project/a2ui/discussions)** with a short description, a link to your code, and a demo video (4 minutes or less). Notable projects are featured in the docs and release notes.
 
 **Community-built renderers** are listed on the [Ecosystem Renderers](renderers.md) page — check there for community implementations and instructions for adding your own.
 
-**Official samples** in the repo are a great reference for what good A2UI projects look like:
-
-- [Restaurant Finder](https://github.com/google/A2UI/tree/main/samples/agent/adk/restaurant_finder) — ADK agent with dynamic forms.
-- [Contact Lookup](https://github.com/google/A2UI/tree/main/samples/agent/adk/contact_lookup) — search UI with data binding.
-- [Angular client](https://github.com/google/A2UI/tree/main/samples/client/angular) — gallery + restaurant client.
-- [Lit shell](https://github.com/google/A2UI/tree/main/samples/client/lit/shell) — minimal web component client.
+**Official samples** [in the repo](../../samples/README.md) are a great reference for what good A2UI projects look like:
 
 ## Project Partners
 
-A2UI is developed in collaboration with Google Opal, Flutter (GenUI SDK), Gemini Enterprise, AG UI / CopilotKit, and the A2A team. For full details and case studies, see [A2UI in the World](a2ui-in-the-world.md).
+A2UI is developed in collaboration with Google Opal, Flutter (GenUI SDK), Gemini Enterprise, AG-UI / CopilotKit, and the A2A team. For full details and case studies, see [A2UI in the World](a2ui-in-the-world.md).
 
 If you have made significant contributions to A2UI, please submit your name to this list.
 
@@ -58,11 +53,11 @@ To stay informed about project updates:
 
 ## Ways to Contribute
 
-**[github.com/google/A2UI](https://github.com/google/A2UI)**
+**[github.com/a2ui-project/a2ui](https://github.com/a2ui-project/a2ui)**
 
-- **Report Issues**: Found a bug? [Open an issue](https://github.com/google/A2UI/issues).
+- **Report Issues**: Found a bug? [Open an issue](https://github.com/a2ui-project/a2ui/issues).
 - **Build Renderers**: See the [roadmap](../roadmap.md) for planned frameworks.
-- **Share Examples**: Post with `#A2UI` on X/LinkedIn, start a [discussion](https://github.com/google/A2UI/discussions).
+- **Share Examples**: Post with `#A2UI` on X/LinkedIn, start a [discussion](https://github.com/a2ui-project/a2ui/discussions).
 - **Improve Docs**: PRs welcome in the `docs/` directory.
 
 ## Questions?
@@ -70,7 +65,7 @@ To stay informed about project updates:
 If you have questions:
 
 - Check the [documentation](../introduction/what-is-a2ui.md).
-- Search [GitHub Discussions](https://github.com/google/A2UI/discussions).
-- Ask in [GitHub Issues](https://github.com/google/A2UI/issues).
+- Search [GitHub Discussions](https://github.com/a2ui-project/a2ui/discussions).
+- Ask in [GitHub Issues](https://github.com/a2ui-project/a2ui/issues).
 
 Thank you for being part of the A2UI community!

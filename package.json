@@ -1,0 +1,63 @@
+{
+  "name": "a2ui-workspace",
+  "private": true,
+  "packageManager": "yarn@4.13.0",
+  "workspaces": [
+    "renderers/*",
+    "renderers/lit/*",
+    "renderers/markdown/*",
+    "renderers/react/*",
+    "samples/client/angular",
+    "samples/client/angular/projects/*",
+    "samples/client/lit",
+    "samples/client/lit/*",
+    "samples/client/react/*",
+    "samples/personalized_learning",
+    "specification/*/eval",
+    "specification/*/test",
+    "tools/*",
+    "!**/dist"
+  ],
+  "scripts": {
+    "build:all": "yarn workspaces foreach -A -p --topological-dev run build",
+    "test:all": "yarn workspaces foreach -A -p --topological-dev run test",
+    "lint:all": "yarn workspaces foreach -A -p --topological-dev run lint",
+    "lint:deps": "syncpack list-mismatches",
+    "lint:fix:all": "yarn workspaces foreach -A -p --topological-dev run lint:fix",
+    "format:all": "prettier --config .prettierrc --write .",
+    "format:check:all": "prettier --config .prettierrc --check .",
+    "clean:all": "yarn workspaces foreach -A -p run clean"
+  },
+  "devDependencies": {
+    "google-artifactregistry-auth": "^3.5.0",
+    "prettier": "^3.8.4",
+    "syncpack": "^13.0.0",
+    "typescript": "5.9.3",
+    "wireit": "^0.15.0-pre.2"
+  },
+  "resolutions": {
+    "@playwright/test": "1.58.1",
+    "typescript": "5.9.3",
+    "zod": "^3.25.76",
+    "hono": "^4.11.10",
+    "react-resizable-panels": "^3.0.6",
+    "@a2ui/web_core": "workspace:*",
+    "@a2ui/lit": "workspace:*",
+    "@a2ui/angular": "workspace:*",
+    "@a2ui/markdown-it": "workspace:*",
+    "@angular/core": "^21.2.5",
+    "@angular/common": "^21.2.5",
+    "@angular/compiler": "^21.2.5",
+    "@angular/compiler-cli": "^21.2.5",
+    "@angular/platform-browser": "^21.2.5",
+    "@angular/platform-server": "^21.2.5",
+    "@angular/router": "^21.2.5",
+    "@angular/ssr": "^21.2.5",
+    "@angular/build": "^21.2.5",
+    "@angular/cli": "^21.2.5",
+    "@angular/forms": "^21.2.5",
+    "@angular/cdk": "^21.2.5",
+    "@angular/google-maps": "^21.2.5",
+    "@angular/material": "^21.2.5"
+  }
+}

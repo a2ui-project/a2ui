@@ -1,0 +1,190 @@
+{
+  "name": "User Profile",
+  "description": "Example of user profile demonstrating number formatting.",
+  "messages": [
+    {
+      "version": "v0.9",
+      "createSurface": {
+        "surfaceId": "gallery-user-profile",
+        "catalogId": "https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json",
+        "sendDataModel": true
+      }
+    },
+    {
+      "version": "v0.9",
+      "updateComponents": {
+        "surfaceId": "gallery-user-profile",
+        "components": [
+          {
+            "id": "root",
+            "component": "Card",
+            "child": "main-column"
+          },
+          {
+            "id": "main-column",
+            "component": "Column",
+            "children": ["header", "info", "bio", "stats-row", "follow-btn"],
+            "align": "center"
+          },
+          {
+            "id": "header",
+            "component": "Image",
+            "url": {
+              "path": "/avatar"
+            },
+            "fit": "cover",
+            "variant": "avatar"
+          },
+          {
+            "id": "info",
+            "component": "Column",
+            "children": ["name", "username"],
+            "align": "center"
+          },
+          {
+            "id": "name",
+            "component": "Text",
+            "text": {
+              "path": "/name"
+            },
+            "variant": "h2"
+          },
+          {
+            "id": "username",
+            "component": "Text",
+            "text": {
+              "path": "/username"
+            },
+            "variant": "caption"
+          },
+          {
+            "id": "bio",
+            "component": "Text",
+            "text": {
+              "path": "/bio"
+            },
+            "variant": "body"
+          },
+          {
+            "id": "stats-row",
+            "component": "Row",
+            "children": ["followers-col", "following-col", "posts-col"],
+            "justify": "spaceAround"
+          },
+          {
+            "id": "followers-col",
+            "component": "Column",
+            "children": ["followers-count", "followers-label"],
+            "align": "center"
+          },
+          {
+            "id": "followers-count",
+            "component": "Text",
+            "text": {
+              "call": "formatNumber",
+              "args": {
+                "value": {
+                  "path": "/followers"
+                }
+              },
+              "returnType": "string"
+            },
+            "variant": "h3"
+          },
+          {
+            "id": "followers-label",
+            "component": "Text",
+            "text": "Followers",
+            "variant": "caption"
+          },
+          {
+            "id": "following-col",
+            "component": "Column",
+            "children": ["following-count", "following-label"],
+            "align": "center"
+          },
+          {
+            "id": "following-count",
+            "component": "Text",
+            "text": {
+              "call": "formatNumber",
+              "args": {
+                "value": {
+                  "path": "/following"
+                }
+              },
+              "returnType": "string"
+            },
+            "variant": "h3"
+          },
+          {
+            "id": "following-label",
+            "component": "Text",
+            "text": "Following",
+            "variant": "caption"
+          },
+          {
+            "id": "posts-col",
+            "component": "Column",
+            "children": ["posts-count", "posts-label"],
+            "align": "center"
+          },
+          {
+            "id": "posts-count",
+            "component": "Text",
+            "text": {
+              "call": "formatNumber",
+              "args": {
+                "value": {
+                  "path": "/posts"
+                }
+              },
+              "returnType": "string"
+            },
+            "variant": "h3"
+          },
+          {
+            "id": "posts-label",
+            "component": "Text",
+            "text": "Posts",
+            "variant": "caption"
+          },
+          {
+            "id": "follow-btn-text",
+            "component": "Text",
+            "text": {
+              "path": "/followText"
+            }
+          },
+          {
+            "id": "follow-btn",
+            "component": "Button",
+            "child": "follow-btn-text",
+            "action": {
+              "event": {
+                "name": "follow",
+                "context": {}
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "version": "v0.9",
+      "updateDataModel": {
+        "surfaceId": "gallery-user-profile",
+        "value": {
+          "avatar": "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=150&h=150&fit=crop",
+          "name": "Sarah Chen",
+          "username": "@sarahchen",
+          "bio": "Product Designer at Tech Co. Creating delightful experiences.",
+          "followers": 12400,
+          "following": 892,
+          "posts": 347,
+          "followText": "Follow"
+        }
+      }
+    }
+  ]
+}

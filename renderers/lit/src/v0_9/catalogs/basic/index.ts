@@ -16,7 +16,7 @@
 
 import {Catalog} from '@a2ui/web_core/v0_9';
 import {BASIC_FUNCTIONS} from '@a2ui/web_core/v0_9/basic_catalog';
-import {LitComponentApi} from '@a2ui/lit/v0_9';
+import {LitComponentApi} from '../../types.js';
 
 import {A2uiText} from './components/Text.js';
 import {A2uiButton} from './components/Button.js';
@@ -46,7 +46,7 @@ import {A2uiModal} from './components/Modal.js';
  * from package @a2ui/web_core.
  */
 export const basicCatalog = new Catalog<LitComponentApi>(
-  'https://a2ui.org/specification/v0_9/basic_catalog.json',
+  'https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json',
   [
     A2uiText,
     A2uiButton,

@@ -1,5 +1,15 @@
 ## Unreleased
 
+## 0.10.1
+
+- (v0_9) Tighten resolved child list types in the basic catalog layout components.
+- (v0_9) Narrow `A2uiChildRef` to the supported child reference shapes used by
+  `renderNode`.
+- (v0_9) Add missing CSS classes to the `Modal`, `Tabs` components to align with the Angular implementation and
+  integration tests.
+- (v0_9) Avoid rendering an `A2uiLitElement` when its surface is disposed of or the component is removed.
+- (v0_9) Fix `DateTimeInput` to correctly render `datetime-local`, `date` and `time` input types.
+
 ## 0.10.0
 
 - **BREAKING CHANGE**: (v0_9) Rename Icon `path` property to `svgPath` and update component to correctly render SVG elements.
@@ -8,8 +18,8 @@
 ## 0.9.1
 
 - (v0_9) Re-style the v0_9 catalog components using the default theme from
-  `web_core`. [#1079](https://github.com/google/A2UI/pull/1079)
-- (v0_9) Add missing features to ChoicePicker and CheckBox. [#1145](https://github.com/google/A2UI/pull/1145)
+  `web_core`. [#1079](https://github.com/a2ui-project/a2ui/pull/1079)
+- (v0_9) Add missing features to ChoicePicker and CheckBox. [#1145](https://github.com/a2ui-project/a2ui/pull/1145)
 
 ## 0.9.0
 
