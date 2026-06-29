@@ -293,9 +293,9 @@ async function main() {
       const hasComponent = !!result.component;
 
       if (hasError || hasValidationFailures || (verbose && hasComponent)) {
-        console.log(`\n----------------------------------------`);
+        console.log('\n----------------------------------------');
         console.log(`Model: ${modelName}`);
-        console.log(`----------------------------------------`);
+        console.log('----------------------------------------');
         console.log(`\nQuery: ${result.prompt.name} (run ${result.runNumber})`);
 
         if (hasError) {

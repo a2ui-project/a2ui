@@ -207,7 +207,7 @@ function validateBoundValue(
 
 function validateComponent(component: any, allIds: Set<string>, errors: string[]) {
   if (!component.id) {
-    errors.push(`Component is missing an 'id'.`);
+    errors.push("Component is missing an 'id'.");
     return;
   }
   if (!component.component) {

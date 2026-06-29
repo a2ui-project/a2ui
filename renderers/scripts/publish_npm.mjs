@@ -115,7 +115,7 @@ function checkGitProvenance(exec) {
     commitHash = exec('git rev-parse HEAD', {encoding: 'utf8'}).trim();
     const status = exec('git status --porcelain', {encoding: 'utf8'}).trim();
     isDirty = status.length > 0;
-  } catch (e) {
+  } catch {
     // Should this throw an Error with {cause: e}?
     console.warn(
       `${yellow}⚠️ Could not verify Git status. Ensure you are in a valid Git repository.${reset}`,
@@ -172,7 +172,7 @@ function ensureWorkspaceDependencies(packageObjects, graph) {
       }
     }
   }
-  if (result.length == packageObjects.length) {
+  if (result.length === packageObjects.length) {
     console.log('All workspace dependencies are present.');
   }
   return result;
@@ -196,7 +196,7 @@ function getNpmVersion(pkg, {npmToken, exec}) {
     }).trim();
     const remoteVersion = JSON.parse(remoteVersionJson)?.version;
     return remoteVersion;
-  } catch (e) {
+  } catch {
     return null;
   }
 }
@@ -216,7 +216,7 @@ function getRegistryToken(exec) {
       console.log(
         `Using token: ${npmToken.substring(0, 5)}...${npmToken.substring(npmToken.length - 5)}`,
       );
-    } catch (e) {
+    } catch {
       console.warn(
         `${yellow}⚠️ Could not obtain gcloud access token. Ensure you are logged in (${reset}gcloud auth login${yellow}).${reset}`,
       );
@@ -370,7 +370,7 @@ Examples:
   ./publish_npm.mjs -p web_core -p react --no-dry-run --skip-tests`);
     return;
   }
-  let packagesToPublish = values.package;
+  const packagesToPublish = values.package;
 
   const dryRun = values['dry-run'];
   const skipTests = values['skip-tests'];
@@ -384,7 +384,7 @@ Examples:
   const npmToken = getRegistryToken(exec);
 
   // Checks the status of the current git branch.
-  const commitHash = checkGitProvenance(exec);
+  checkGitProvenance(exec);
 
   const graph = getPackageGraph();
 

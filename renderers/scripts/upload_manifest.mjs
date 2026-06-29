@@ -26,7 +26,7 @@ const GCS_URI =
   process.env.A2UI_NPM_MANIFEST_GCS_URI ||
   'gs://oss-exit-gate-prod-projects-bucket/a2ui/npm/manifests';
 
-const {yellow, red, green, reset} = ansi;
+const {red, green, reset} = ansi;
 
 /**
  * Generates and uploads the npm manifest to GCS.

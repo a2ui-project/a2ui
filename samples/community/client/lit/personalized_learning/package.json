@@ -16,8 +16,8 @@
     "typecheck": "tsc --noEmit",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "lint": "echo \"Workspace has no lint configuration.\"",
-    "lint:fix": "echo \"Workspace has no lint configuration.\""
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix"
   },
   "dependencies": {
     "@a2ui/lit": "^0.10.0",
@@ -33,6 +33,7 @@
     "@types/node": "^25.9.3",
     "concurrently": "^10.0.3",
     "dotenv": "^17.4.2",
+    "eslint": "^10.4.1",
     "tsx": "^4.22.4",
     "typescript": "5.9.3",
     "vite": "^8.0.16",

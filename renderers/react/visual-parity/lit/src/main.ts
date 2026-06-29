@@ -210,7 +210,7 @@ function init() {
   // Get the surface data
   const surface = processor.getSurfaces().get(surfaceId);
   if (!surface) {
-    app.innerHTML = `<div>Error: Failed to process fixture</div>`;
+    app.innerHTML = '<div>Error: Failed to process fixture</div>';
     return;
   }
 

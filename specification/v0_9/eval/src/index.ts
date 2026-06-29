@@ -221,7 +221,7 @@ function generateSummary(
       ? '0.0'
       : (((totalRuns - totalRunsWithAnyFailure) / totalRuns) * 100.0).toFixed(1);
   summary += `\n- **Number of runs with any failure (tool error, validation, or eval):** ${totalRunsWithAnyFailure} / ${totalRuns} (${successPercentage}% success)`;
-  summary += `\n- **Severity Breakdown:**`;
+  summary += '\n- **Severity Breakdown:**';
   summary += `\n  - **Minor:** ${totalMinor}`;
   summary += `\n  - **Significant:** ${totalSignificant}`;
   summary += `\n  - **Critical (Eval):** ${totalCritical}`;

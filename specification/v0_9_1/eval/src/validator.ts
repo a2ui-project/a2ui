@@ -420,7 +420,7 @@ export class Validator {
   private validateComponent(component: any, allIds: Set<string>, errors: string[]) {
     const id = component.id;
     if (!id) {
-      errors.push(`Component is missing an 'id'.`);
+      errors.push("Component is missing an 'id'.");
       return;
     }
 

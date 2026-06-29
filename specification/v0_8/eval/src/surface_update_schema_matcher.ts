@@ -39,13 +39,13 @@ export class SurfaceUpdateSchemaMatcher extends SchemaMatcher {
     if (!schema.surfaceUpdate) {
       return {
         success: false,
-        error: `Expected a 'surfaceUpdate' message but found none.`,
+        error: "Expected a 'surfaceUpdate' message but found none.",
       };
     }
     if (!Array.isArray(schema.surfaceUpdate.components)) {
       return {
         success: false,
-        error: `'surfaceUpdate' message does not contain a 'components' array.`,
+        error: "'surfaceUpdate' message does not contain a 'components' array.",
       };
     }
 
