@@ -41,6 +41,8 @@ sys.path.insert(
         )
     ),
 )
+import json
+from a2ui.core.catalog import Catalog
 from a2ui.experimental.express.compiler import ExpressCompiler
 
 
@@ -69,7 +71,10 @@ def compile_dsl_file(
     with open(dsl_path, "r", encoding="utf-8") as f:
         dsl_text = f.read()
 
-    compiler = ExpressCompiler(catalog_path)
+    with open(catalog_path, "r", encoding="utf-8") as f:
+        catalog_dict = json.load(f)
+    catalog = Catalog.from_json(catalog_dict, spec_version="0.9.1")
+    compiler = ExpressCompiler(catalog)
     return compiler.compile(dsl_text, surface_id=surface_id, catalog_id=catalog_id)
 
 

@@ -39,38 +39,19 @@ class CatalogSchemaHelper:
 
   def __init__(
       self,
-      catalog: Optional[
-          Union[str, Dict[str, Any], Catalog[Any, Any], A2uiCatalog]
-      ] = None,
-      *,
-      catalog_path: Optional[str] = None,
+      catalog: Union[Catalog[Any, Any], A2uiCatalog],
   ):
-    """Initializes the helper with a polymorphic catalog representation.
+    """Initializes the helper with a Catalog or an A2uiCatalog.
 
     Args:
-        catalog: A file path, a parsed JSON dict, a Catalog, or an A2uiCatalog.
-        catalog_path: Legacy keyword argument for physical file path.
+        catalog: A Catalog or an A2uiCatalog.
     """
-    target = catalog if catalog is not None else catalog_path
-    if target is None:
-      raise ValueError("Either catalog or catalog_path must be provided")
-
-    if isinstance(target, str):
-      self.catalog_path = target
-      with open(target, "r", encoding="utf-8") as f:
-        schema = json.load(f)
-      self.catalog_model = Catalog.from_json(schema, spec_version="0.9.1")
-    elif isinstance(target, dict):
-      self.catalog_path = None
-      self.catalog_model = Catalog.from_json(target, spec_version="0.9.1")
-    elif isinstance(target, A2uiCatalog):
-      self.catalog_path = None
-      self.catalog_model = target.core_catalog
-    elif isinstance(target, Catalog):
-      self.catalog_path = None
-      self.catalog_model = target
+    if isinstance(catalog, A2uiCatalog):
+      self.catalog_model = catalog.core_catalog
+    elif isinstance(catalog, Catalog):
+      self.catalog_model = catalog
     else:
-      raise TypeError(f"Unsupported catalog type: {type(target)}")
+      raise TypeError(f"Unsupported catalog type: {type(catalog)}")
 
     self.catalog = self.catalog_model.catalog_schema or {}
     self.components = {

@@ -22,6 +22,7 @@ from typing import Any
 
 os.environ["A2UI_EXPRESS_ENABLED"] = "true"
 
+from a2ui.core.catalog import Catalog
 from a2ui.experimental.express.compiler import ExpressCompiler
 from a2ui.experimental.express.decompiler import ExpressDecompiler
 from a2ui.experimental.express.parser import parse_express_response
@@ -42,12 +43,15 @@ class TestExpressIntegration(unittest.TestCase):
   def setUp(self):
     """Initializes standard test paths and schema helpers."""
     self.catalog_path = CATALOG_PATH
-    self.helper = CatalogSchemaHelper(self.catalog_path)
+    with open(self.catalog_path, "r", encoding="utf-8") as f:
+      catalog_dict = json.load(f)
+    self.catalog = Catalog.from_json(catalog_dict, spec_version="0.9.1")
+    self.helper = CatalogSchemaHelper(self.catalog)
 
   def test_round_trip_examples(self):
     """Runs a semantically rigorous round-trip test on real catalog examples."""
-    compiler = ExpressCompiler(self.catalog_path)
-    decompiler = ExpressDecompiler(self.catalog_path)
+    compiler = ExpressCompiler(self.catalog)
+    decompiler = ExpressDecompiler(self.catalog)
 
     example_files = glob.glob(os.path.join(EXAMPLES_DIR, "*.json"))
     self.assertTrue(
@@ -120,7 +124,7 @@ class TestExpressIntegration(unittest.TestCase):
 
   def test_examples_conversions_match(self):
     """Verifies that all human-authored .a2ui examples compile to match their JSON counterparts."""
-    compiler = ExpressCompiler(self.catalog_path)
+    compiler = ExpressCompiler(self.catalog)
 
     a2ui_dir = os.path.join(SPEC_DIR, "..", "proposals", "express", "examples")
     a2ui_files = glob.glob(os.path.join(a2ui_dir, "*.a2ui"))
@@ -225,8 +229,8 @@ class TestExpressIntegration(unittest.TestCase):
 
   def test_data_model_compilation_and_decompilation(self):
     """Validates compiling and decompiling shared data model assignments in the DSL."""
-    compiler = ExpressCompiler(self.catalog_path)
-    decompiler = ExpressDecompiler(self.catalog_path)
+    compiler = ExpressCompiler(self.catalog)
+    decompiler = ExpressDecompiler(self.catalog)
 
     dsl = """$/icon = "check"
 $/title = "Enable notification"
@@ -258,7 +262,7 @@ title = Text($/title, "body")"""
 
   def test_parser_robustness_and_event_variable_resolution(self):
     """Regression tests for parser fallbacks, empty text parts, and event variable resolution."""
-    compiler = ExpressCompiler(self.catalog_path)
+    compiler = ExpressCompiler(self.catalog)
 
     # 1. Event name and context variable resolution
     dsl_event_var = """
@@ -276,22 +280,22 @@ title = Text($/title, "body")"""
     conversational_content = (
         "Hello there! I am a conversational response without any UI tags."
     )
-    parts = parse_express_response(conversational_content, self.catalog_path)
+    parts = parse_express_response(conversational_content, self.catalog)
     self.assertEqual(len(parts), 1)
     self.assertEqual(parts[0].text, conversational_content)
     self.assertIsNone(parts[0].a2ui_json)
 
     # 3. Empty text part omission
     ui_only_content = '<a2ui>root = Text("Hello")</a2ui>'
-    parts_ui = parse_express_response(ui_only_content, self.catalog_path)
+    parts_ui = parse_express_response(ui_only_content, self.catalog)
     self.assertEqual(len(parts_ui), 1)
     self.assertIsNone(parts_ui[0].text)
     self.assertIsNotNone(parts_ui[0].a2ui_json)
 
   def test_template_validation_and_decompiler_quoted_keys(self):
     """Regression tests for template path validation, decompiler dictionary key quoting, and check message string formatting."""
-    compiler = ExpressCompiler(self.catalog_path)
-    decompiler = ExpressDecompiler(self.catalog_path)
+    compiler = ExpressCompiler(self.catalog)
+    decompiler = ExpressDecompiler(self.catalog)
 
     # 1. Test template path validation in compiler
     dsl_invalid_template = (
@@ -361,8 +365,8 @@ title = Text($/title, "body")"""
       self,
   ):
     """Regression tests for sentinel spacing, literal string matching, multiline string preservation, and boolean allOf schemas."""
-    compiler = ExpressCompiler(self.catalog_path)
-    decompiler = ExpressDecompiler(self.catalog_path)
+    compiler = ExpressCompiler(self.catalog)
+    decompiler = ExpressDecompiler(self.catalog)
 
     # 1. Regression test: Sentinel tag on the same line as a statement
     dsl_sentinel = '<a2ui>root = Column([text1])\ntext1 = Text("Hello")\n</a2ui>'
@@ -406,7 +410,7 @@ This is bold.
         'text1 = Text("Hello")\n'
         'btn = Button("Cli'
     )
-    parts = parse_express_response(truncated_response, self.catalog_path)
+    parts = parse_express_response(truncated_response, self.catalog)
     self.assertEqual(len(parts), 1)
     self.assertEqual(parts[0].text, "Here is the partial UI:")
     self.assertIsNotNone(parts[0].a2ui_json)

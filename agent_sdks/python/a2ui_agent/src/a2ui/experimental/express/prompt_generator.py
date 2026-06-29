@@ -74,21 +74,15 @@ class ExpressPromptGenerator:
 
   def __init__(
       self,
-      catalog: Optional[
-          Union[str, Dict[str, Any], Catalog[Any, Any], A2uiCatalog]
-      ] = None,
-      *,
-      catalog_path: Optional[str] = None,
+      catalog: Union[Catalog[Any, Any], A2uiCatalog],
   ):
     """Initializes the generator with the specified catalog.
 
     Args:
-        catalog: A file path, a parsed JSON dict, a Catalog, or an A2uiCatalog.
-        catalog_path: Legacy keyword argument for physical file path.
+        catalog: A Catalog or an A2uiCatalog.
     """
-    target = catalog if catalog is not None else catalog_path
-    self.helper = CatalogSchemaHelper(target)
-    self.decompiler = ExpressDecompiler(target)
+    self.helper = CatalogSchemaHelper(catalog)
+    self.decompiler = ExpressDecompiler(catalog)
 
   def generate_component_signatures(self) -> str:
     """Compiles component definitions into clean function-like signatures.

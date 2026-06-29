@@ -106,20 +106,14 @@ class ExpressDecompiler:
 
   def __init__(
       self,
-      catalog: Optional[
-          Union[str, Dict[str, Any], Catalog[Any, Any], A2uiCatalog]
-      ] = None,
-      *,
-      catalog_path: Optional[str] = None,
+      catalog: Union[Catalog[Any, Any], A2uiCatalog],
   ):
     """Initializes the decompiler with the specified catalog.
 
     Args:
-        catalog: A file path, a parsed JSON dict, a Catalog, or an A2uiCatalog.
-        catalog_path: Legacy keyword argument for physical file path.
+        catalog: A Catalog or an A2uiCatalog.
     """
-    target = catalog if catalog is not None else catalog_path
-    self.helper = CatalogSchemaHelper(target)
+    self.helper = CatalogSchemaHelper(catalog)
 
   def decompile(self, envelope_json: dict) -> str:
     """Decompiles standard A2UI wire JSON into clean A2UI Express lines.

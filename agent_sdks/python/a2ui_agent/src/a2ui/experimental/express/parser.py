@@ -26,12 +26,8 @@ _A2UI_DSL_BLOCK_PATTERN = re.compile(r"<a2ui>(.*?)</a2ui>", re.DOTALL)
 
 def parse_express_response(
     content: str,
-    catalog: Optional[
-        Union[str, Dict[str, Any], Catalog[Any, Any], A2uiCatalog]
-    ] = None,
+    catalog: Union[Catalog[Any, Any], A2uiCatalog],
     surface_id: str = "main",
-    *,
-    catalog_path: Optional[str] = None,
 ) -> List[ResponsePart]:
   """Parses response containing A2UI Express DSL and compiles it to ResponseParts.
 
@@ -43,7 +39,7 @@ def parse_express_response(
 
   Args:
       content: The raw LLM response.
-      catalog_path: Filepath to the catalog JSON.
+      catalog: A Catalog or an A2uiCatalog.
       surface_id: The target surface ID.
 
   Returns:
@@ -60,11 +56,7 @@ def parse_express_response(
   if not matches:
     return [ResponsePart(text=content, a2ui_json=None)]
 
-  target = catalog if catalog is not None else catalog_path
-  if target is None:
-    raise ValueError("Either catalog or catalog_path must be provided")
-
-  compiler = ExpressCompiler(target)
+  compiler = ExpressCompiler(catalog)
   response_parts = []
   last_end = 0
 

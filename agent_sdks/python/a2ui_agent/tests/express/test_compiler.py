@@ -42,11 +42,14 @@ class TestExpressCompiler(unittest.TestCase):
   def setUp(self):
     """Initializes standard test paths and schema helpers."""
     self.catalog_path = CATALOG_PATH
-    self.helper = CatalogSchemaHelper(self.catalog_path)
+    with open(self.catalog_path, "r", encoding="utf-8") as f:
+      catalog_dict = json.load(f)
+    self.catalog = Catalog.from_json(catalog_dict, spec_version="0.9.1")
+    self.helper = CatalogSchemaHelper(self.catalog)
 
   def test_prompt_generator(self):
     """Verifies prompt signature compiler loads catalog components correctly."""
-    generator = ExpressPromptGenerator(self.catalog_path)
+    generator = ExpressPromptGenerator(self.catalog)
     prompt = generator.generate_prompt()
     self.assertIn("Text(", prompt)
     self.assertIn("Column(", prompt)
@@ -55,7 +58,7 @@ class TestExpressCompiler(unittest.TestCase):
 
   def test_compilation_basic(self):
     """Validates parsing and compiling basic components and validations."""
-    compiler = ExpressCompiler(self.catalog_path)
+    compiler = ExpressCompiler(self.catalog)
     dsl = """root = Column([repField, valueField])
 repField = TextField("Representative", $/form/rep, "Enter name")
 valueField = TextField("Deal Value", $/form/value, "0.00", "number", ?required)"""
@@ -96,7 +99,7 @@ valueField = TextField("Deal Value", $/form/value, "0.00", "number", ?required)"
 
   def test_format_string_and_actions(self):
     """Validates compilation of string interpolation and interactive actions."""
-    compiler = ExpressCompiler(self.catalog_path)
+    compiler = ExpressCompiler(self.catalog)
     dsl = """root = Column([welcome, saveButton])
 welcome = Text(formatString("Welcome, ${/user/name}!"))
 saveButton = Button(saveLabel, "primary", Event("submitDeal", {rep: $/form/rep}))
@@ -123,7 +126,7 @@ saveLabel = Text("Save")"""
 
   def test_standalone_function_call(self):
     """Validates compilation of standalone function calls into CallFunctionMessages."""
-    compiler = ExpressCompiler(self.catalog_path)
+    compiler = ExpressCompiler(self.catalog)
     dsl = """openUrl("https://example.com")"""
     envelope = compiler.compile(dsl)
 
@@ -134,7 +137,7 @@ saveLabel = Text("Save")"""
 
   def test_map_variable_inlining(self):
     """Validates compiling variable assignments holding map literals and inlining them."""
-    compiler = ExpressCompiler(self.catalog_path)
+    compiler = ExpressCompiler(self.catalog)
     dsl = """root = Tabs([tab1])
 tab1 = {title: "Overview", child: contentCol}
 contentCol = Column([])"""
@@ -148,7 +151,7 @@ contentCol = Column([])"""
 
   def test_event_and_list_variable_inlining(self):
     """Validates that Event helper assignments and custom list arrays assigned to variables inline correctly."""
-    compiler = ExpressCompiler(self.catalog_path)
+    compiler = ExpressCompiler(self.catalog)
     dsl = """root = Column([btn1, btn2])
 btn1 = Button(btn1Label, "primary", myAction)
 btn1Label = Text("Save")
@@ -170,7 +173,7 @@ closeAction = Event("close")"""
 
   def test_skipped_and_omitted_arguments(self):
     """Validates skipped (_) and trailing omitted positional arguments compile correctly."""
-    compiler = ExpressCompiler(self.catalog_path)
+    compiler = ExpressCompiler(self.catalog)
     dsl = """root = Column([btn1, btn2])
 btn1 = Button(btn1_label, _, Event("click"))
 btn1_label = Text("Click")
@@ -191,7 +194,7 @@ btn2_label = Text("Submit")"""
 
   def test_delete_surface_and_template_and_rootless_data(self):
     """Validates standalone deleteSurface, _template helper, and rootless updateDataModel."""
-    compiler = ExpressCompiler(self.catalog_path)
+    compiler = ExpressCompiler(self.catalog)
 
     # 1. Test deleteSurface
     delete_dsl = 'deleteSurface("my-surface-123")'
@@ -247,7 +250,7 @@ $/breeds = [{"url": "https://example.com/poodle.jpg"}]"""
 
   def test_compiler_robustness_and_edge_cases(self):
     """Verifies tokenizer errors, string parsing with '=' chars, and boolean schemas."""
-    compiler = ExpressCompiler(self.catalog_path)
+    compiler = ExpressCompiler(self.catalog)
 
     # 1. Test tokenizer syntax error on unrecognized character
     with self.assertRaises(SyntaxError):
@@ -271,7 +274,7 @@ $/breeds = [{"url": "https://example.com/poodle.jpg"}]"""
 
     self.helper.get_property_schema = mock_get_property_schema
     try:
-      generator = ExpressPromptGenerator(self.catalog_path)
+      generator = ExpressPromptGenerator(self.catalog)
       generator.helper = self.helper
       prompt = generator.generate_prompt()
       self.assertIsNotNone(prompt)
@@ -367,7 +370,7 @@ $/breeds = [{"url": "https://example.com/poodle.jpg"}]"""
 
   def test_compiler_custom_validation_messages_and_fallback_functions(self):
     """Targeted tests covering custom validation error messages and unregistered fallback function compilation."""
-    compiler = ExpressCompiler(self.catalog_path)
+    compiler = ExpressCompiler(self.catalog)
 
     # 1. Test check with custom error message breaking the positional property mapping loop
     dsl_check_msg = (
@@ -393,7 +396,7 @@ $/breeds = [{"url": "https://example.com/poodle.jpg"}]"""
     """Verifies that ExpressCompiler is thread-safe and supports concurrent compilation."""
     import threading
 
-    compiler = ExpressCompiler(self.catalog_path)
+    compiler = ExpressCompiler(self.catalog)
     errors = []
 
     dsl_1 = """
@@ -474,7 +477,7 @@ btnLabel = Text("Click Thread 2")
 
   def test_semicolons_and_trailing_commas_and_line_continuation(self):
     """Verifies that optional semicolons, trailing commas, and line continuations compile correctly."""
-    compiler = ExpressCompiler(self.catalog_path)
+    compiler = ExpressCompiler(self.catalog)
 
     # 1. Test optional semicolons at the end of statements
     semicolon_dsl = """
@@ -512,7 +515,7 @@ btnLabel = Text("Click Thread 2")
 
   def test_strict_enum_validation(self):
     """Verifies that the compiler raises a ValueError when an invalid enum option is passed."""
-    compiler = ExpressCompiler(self.catalog_path)
+    compiler = ExpressCompiler(self.catalog)
     invalid_dsl = 'root = Button("Click", "invalid_variant")'
     with self.assertRaises(ValueError) as context:
       compiler.compile(invalid_dsl)
@@ -522,7 +525,7 @@ btnLabel = Text("Click Thread 2")
 
   def test_nested_databinding_validation(self):
     """Verifies that the compiler recursively blocks nested data bindings on static properties."""
-    compiler = ExpressCompiler(self.catalog_path)
+    compiler = ExpressCompiler(self.catalog)
 
     # 1. Direct databinding (should fail)
     invalid_dsl1 = 'root = Button("Click", $/some/path)'
@@ -572,7 +575,7 @@ valueField = TextField("Deal Value", $/form/value, "0.00", "number", ?required)"
     expected_components_count = 3
 
     # Test with each polymorphic input
-    for cat_input in [catalog_dict, core_catalog, a2ui_catalog]:
+    for cat_input in [core_catalog, a2ui_catalog]:
       # Compiler
       compiler = ExpressCompiler(cat_input)
       envelope = compiler.compile(dsl, surface_id="test_surf")
@@ -599,33 +602,20 @@ valueField = TextField("Deal Value", $/form/value, "0.00", "number", ?required)"
   def test_catalog_schema_helper_initialization_errors(self):
     """Verifies that CatalogSchemaHelper raises correct errors for invalid initialization inputs."""
     # 1. None inputs raise ValueError
-    with self.assertRaises(ValueError) as context:
+    # None or unsupported type raises TypeError
+    with self.assertRaises(TypeError):
       CatalogSchemaHelper(None)
-    self.assertIn(
-        "Either catalog or catalog_path must be provided", str(context.exception)
-    )
 
-    with self.assertRaises(ValueError) as context:
-      CatalogSchemaHelper(catalog=None, catalog_path=None)
-    self.assertIn(
-        "Either catalog or catalog_path must be provided", str(context.exception)
-    )
-
-    # 2. Unsupported type raises TypeError
     with self.assertRaises(TypeError) as context:
-      CatalogSchemaHelper(catalog=123)
+      CatalogSchemaHelper(123)
     self.assertIn("Unsupported catalog type", str(context.exception))
 
-    # 3. Verify catalog_path property behavior
-    helper_file = CatalogSchemaHelper(self.catalog_path)
-    self.assertEqual(helper_file.catalog_path, self.catalog_path)
+    # Passing string path should now raise TypeError
+    with self.assertRaises(TypeError) as context:
+      CatalogSchemaHelper(self.catalog_path)
+    self.assertIn("Unsupported catalog type", str(context.exception))
 
-    # With in-memory Catalog, catalog_path must be None
-    with open(self.catalog_path, "r", encoding="utf-8") as f:
-      catalog_dict = json.load(f)
-    core_catalog = Catalog.from_json(catalog_dict, spec_version="0.9.1")
-    helper_memory = CatalogSchemaHelper(core_catalog)
-    self.assertIsNone(helper_memory.catalog_path)
+    # Verify CatalogSchemaHelper does not have catalog_path property anymore
 
 
 if __name__ == "__main__":
