@@ -155,13 +155,39 @@ describe('flagReason — issues', () => {
 });
 
 describe('flagReason — PRs', () => {
-  it('flags a stale PR from an external contributor', () => {
-    const item = pr({created_at: daysAgo(2)});
-    assert.match(flagReason(item, [], NOW), /no human activity/);
+  // An external author's comment 2 days ago, with no maintainer reply since.
+  const externalComment = age =>
+    comment({
+      created_at: daysAgo(age),
+      author_association: 'CONTRIBUTOR',
+      user: {login: 'contributor', type: 'User'},
+    });
+  const memberComment = age =>
+    comment({
+      created_at: daysAgo(age),
+      author_association: 'MEMBER',
+      user: {login: 'maintainer', type: 'User'},
+    });
+
+  it('flags a stale external PR with no maintainer response', () => {
+    const item = pr({created_at: daysAgo(5), comments: 1});
+    assert.match(flagReason(item, [externalComment(2)], NOW), /no maintainer/);
   });
 
-  it('does not flag a fresh external PR', () => {
+  it('flags a fresh external PR that has never been answered', () => {
+    // No comments: the opening post itself is the unanswered external word.
+    const item = pr({created_at: daysAgo(2)});
+    assert.match(flagReason(item, [], NOW), /no maintainer/);
+  });
+
+  it('does not flag a fresh external PR (< 1 day old)', () => {
     assert.equal(flagReason(pr({created_at: daysAgo(0)}), [], NOW), null);
+  });
+
+  it('does not flag when a maintainer commented after the author', () => {
+    const item = pr({created_at: daysAgo(5), comments: 2});
+    const comments = [externalComment(3), memberComment(2)];
+    assert.equal(flagReason(item, comments, NOW), null);
   });
 
   it('never flags a maintainer-authored PR, even when stale', () => {

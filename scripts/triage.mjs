@@ -25,14 +25,16 @@
 //      c. P0 and stale for more than 1 day, or
 //      d. P1 and stale for more than 30 days, or
 //      e. P2 and stale for more than 90 days.
-//   2. It is a PR opened by an external contributor and stale for more than
-//      1 day (PRs from maintainers are managed by their authors).
+//   2. It is a stale PR opened by an external contributor (PRs from
+//      maintainers are managed by their authors).
 //   3. It is an issue whose latest human comment is from an external author
 //      and has gone unanswered for more than 1 day.
 //
 // "Stale" is measured from the last human contribution (a comment, or the
 // opening post if there are no human comments) rather than `updated_at`, so the
-// bot's own label edits and comments never reset the clock.
+// bot's own label edits and comments never reset the clock. A PR is "stale"
+// when no internal member has commented after the external author's last
+// comment for more than a day.
 
 const FLAG_LABEL = 'triage: flag';
 const WAITING_LABEL = 'triage: waiting-for-user-response';
@@ -84,8 +86,7 @@ export function lastHumanContribution(item, comments) {
 
 /**
  * Returns a human-readable reason why a single open item should carry the flag
- * label, or null if it should not. The reason is posted as a comment whenever
- * the label is added.
+ * label, or null if it should not. The reason is logged for visibility.
  */
 export function flagReason(item, comments, now) {
   const isPR = Boolean(item.pull_request);
@@ -93,23 +94,25 @@ export function flagReason(item, comments, now) {
   const latest = lastHumanContribution(item, comments);
   const staleDays = ageInDays(latest.createdAt, now);
 
+  // True when the most recent human contribution is from outside the team — no
+  // internal member has commented after the external author's last word.
+  const awaitingMember = !MAINTAINER_ASSOCIATIONS.has(latest.association) && !isBot(latest.user);
+
   // Rule 2: PRs. Only external contributors' PRs are watched; maintainers
-  // manage their own, so an internally-authored PR is never flagged. Staleness
-  // already accounts for an unanswered external comment (it resets the clock),
-  // so the dedicated PR rule supersedes the general one below.
+  // manage their own, so an internally-authored PR is never flagged. A PR is
+  // "stale" when no internal member has commented after the external author's
+  // last comment for more than a day.
   if (isPR) {
     if (MAINTAINER_ASSOCIATIONS.has(item.author_association)) {
       return null;
     }
-    return staleDays > PR_STALE_DAYS
-      ? `this PR has had no human activity for more than ${PR_STALE_DAYS} day.`
+    return awaitingMember && staleDays > PR_STALE_DAYS
+      ? `no maintainer has responded to the author for more than ${PR_STALE_DAYS} day.`
       : null;
   }
 
   // Rule 3: an external author's latest comment has gone unanswered too long.
-  const awaitingMaintainer =
-    !MAINTAINER_ASSOCIATIONS.has(latest.association) && !isBot(latest.user);
-  if (awaitingMaintainer && staleDays > EXTERNAL_RESPONSE_DAYS) {
+  if (awaitingMember && staleDays > EXTERNAL_RESPONSE_DAYS) {
     return `the latest reply is from an external contributor and has gone unanswered for more than ${EXTERNAL_RESPONSE_DAYS} day.`;
   }
 
@@ -138,23 +141,6 @@ export function flagReason(item, comments, now) {
   }
 
   return null;
-}
-
-/**
- * Posts a comment on an item explaining a label change. Comments are authored
- * by the bot, so they are ignored when measuring staleness.
- */
-async function postComment({github, owner, repo}, number, body) {
-  try {
-    await github.rest.issues.createComment({
-      owner,
-      repo,
-      issue_number: number,
-      body,
-    });
-  } catch (error) {
-    console.error(`Failed to comment on #${number}:`, error);
-  }
 }
 
 // Max concurrent API calls per phase. Keeps us fast without tripping GitHub's
@@ -237,7 +223,7 @@ export default async function issueTriage({github, context}) {
     const wantsFlag = Boolean(reason);
     try {
       // Re-read the live labels so a concurrent run cannot make us add the
-      // label — or its comment — twice.
+      // label twice.
       const {data: fresh} = await github.rest.issues.get({
         owner,
         repo,
@@ -255,13 +241,8 @@ export default async function issueTriage({github, context}) {
           issue_number: item.number,
           labels: [FLAG_LABEL],
         });
-        await postComment(
-          {github, owner, repo},
-          item.number,
-          `Adding the \`${FLAG_LABEL}\` label: ${reason}`,
-        );
         added += 1;
-        console.log(`Flagged #${item.number}`);
+        console.log(`Flagged #${item.number}: ${reason}`);
       } else {
         await github.rest.issues.removeLabel({
           owner,
@@ -269,11 +250,6 @@ export default async function issueTriage({github, context}) {
           issue_number: item.number,
           name: FLAG_LABEL,
         });
-        await postComment(
-          {github, owner, repo},
-          item.number,
-          `Removing the \`${FLAG_LABEL}\` label: this item no longer matches any triage rule.`,
-        );
         removed += 1;
         console.log(`Unflagged #${item.number}`);
       }
