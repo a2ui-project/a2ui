@@ -57,6 +57,7 @@ testpaths = [
     "eval/tests",
     "samples/agent/adk/tests",
     "samples/community/agent/adk/personalized_learning/tests",
+    "samples/community/mcp/a2ui-over-mcp-recipe/tests",
 ]
 norecursedirs = [
     ".*",
@@ -67,3 +68,7 @@ norecursedirs = [
     ".venv",
 ]
 addopts = "--import-mode=importlib"
+
+[[tool.uv.index]]
+url = "https://pypi.org/simple"
+default = true
