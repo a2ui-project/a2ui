@@ -60,8 +60,13 @@ export class Divider extends Root {
   ];
 
   render() {
+    const dividerTheme =
+      typeof this.theme.components?.Divider === 'string'
+        ? {[this.theme.components.Divider]: true}
+        : this.theme.components?.Divider;
+
     const classes = {
-      ...this.theme.components.Divider,
+      ...dividerTheme,
       vertical: this.axis === 'vertical',
       horizontal: this.axis !== 'vertical',
     };
