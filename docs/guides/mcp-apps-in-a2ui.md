@@ -102,11 +102,35 @@ You must register the component in your catalog application. For example, in Ang
 import {Catalog} from '@a2ui/web_core/v0_9';
 import {z} from 'zod';
 import {McpApp} from './mcp-app';
+import {Button} from './button';
+import {Snackbar} from './snackbar';
+
+const McpAppSchema = z.object({
+  content: z.union([z.string(), z.object({id: z.string()})]).optional(),
+  allowedTools: z.array(z.string()).optional(),
+  title: z.string().optional(),
+});
 
 export const DEMO_CATALOG = new Catalog(
-  'a2ui.org:a2ui/v0.9/mcp_app_catalog.json',
+  'my_app.org/some_catalog.json',
   [
-    {name: 'McpApp', component: McpApp, schema: z.any()},
+    {name: 'McpApp', component: McpApp, schema: McpAppSchema},
+    {
+      name: 'Button',
+      component: Button,
+      schema: z.object({
+        label: z.string(),
+        action: z.any().optional(),
+      }),
+    },
+    {
+      name: 'Snackbar',
+      component: Snackbar,
+      schema: z.object({
+        message: z.string(),
+        durationMs: z.number().default(3000),
+      }),
+    },
   ]
 );
 ```
