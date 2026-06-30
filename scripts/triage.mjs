@@ -119,7 +119,10 @@ function flagReason(item, comments, now) {
   }
 
   // 1b. Urgent work with nobody on it.
-  if ((priority === 'P0' || priority === 'P1') && item.assignees.length === 0) {
+  if (
+    (priority === 'P0' || priority === 'P1') &&
+    (item.assignees?.length ?? 0) === 0
+  ) {
     return `this ${priority} issue has no assignee.`;
   }
 
@@ -150,6 +153,27 @@ async function postComment({github, owner, repo}, number, body) {
   }
 }
 
+/**
+ * Fetches the comments needed to evaluate an item. We only need the most recent
+ * human contribution, so we skip the API call entirely when the item has no
+ * comments and otherwise fetch a single page of the newest comments (sorted
+ * descending) rather than paginating through the whole history.
+ */
+async function fetchComments({github, owner, repo}, item) {
+  if (!item.comments) {
+    return [];
+  }
+  const {data} = await github.rest.issues.listComments({
+    owner,
+    repo,
+    issue_number: item.number,
+    sort: 'created',
+    direction: 'desc',
+    per_page: 100,
+  });
+  return data;
+}
+
 export default async function issueTriage({github, context}) {
   console.log('A2UI triage-flag reconciliation started');
 
@@ -164,17 +188,18 @@ export default async function issueTriage({github, context}) {
     per_page: 100,
   });
 
+  // Fetch comments concurrently to avoid a slow, rate-limit-prone serial loop.
+  const itemsWithComments = await Promise.all(
+    openItems.map(async item => ({
+      item,
+      comments: await fetchComments({github, owner, repo}, item),
+    })),
+  );
+
   let added = 0;
   let removed = 0;
 
-  for (const item of openItems) {
-    const comments = await github.paginate(github.rest.issues.listComments, {
-      owner,
-      repo,
-      issue_number: item.number,
-      per_page: 100,
-    });
-
+  for (const {item, comments} of itemsWithComments) {
     const reason = flagReason(item, comments, now);
     const hasFlag = labelNames(item).includes(FLAG_LABEL);
 
