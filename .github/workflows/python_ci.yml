@@ -57,7 +57,7 @@ jobs:
       - name: Check Formatting
         run: uv run pyink --check agent_sdks/python/a2ui_agent
       - name: Run Unit Tests
-        run: uv run pytest agent_sdks/python/a2ui_agent/tests
+        run: uv run --package a2ui-agent-sdk pytest agent_sdks/python/a2ui_agent/tests
       - name: Build
         run: uv build agent_sdks/python/a2ui_agent
       - name: Verify Load Real
@@ -75,7 +75,7 @@ jobs:
       - name: Check Formatting
         run: uv run pyink --check agent_sdks/python/a2ui_core
       - name: Run Unit Tests
-        run: uv run pytest agent_sdks/python/a2ui_core/tests
+        run: uv run --package a2ui-core pytest agent_sdks/python/a2ui_core/tests
       - name: Build
         run: uv build agent_sdks/python/a2ui_core
 
@@ -91,7 +91,7 @@ jobs:
       - name: Check Formatting
         run: uv run pyink --check agent_sdks/conformance/tests
       - name: Validate YAML Conformance
-        run: uv run pytest agent_sdks/conformance/tests
+        run: uv run --package a2ui-conformance-validation pytest agent_sdks/conformance/tests
 
   adk-samples:
     runs-on: ubuntu-latest
