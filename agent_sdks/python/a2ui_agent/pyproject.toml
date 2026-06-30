@@ -31,8 +31,7 @@ dependencies = [
 pyink = "pyink:patched_main"
 
 [tool.uv.sources]
-
-a2ui-core = { path = "../a2ui_core", editable = true }
+a2ui-core = { workspace = true }
 
 [build-system]
 requires = [
