@@ -84,7 +84,7 @@ export class Divider extends Root {
     }
 
     const style = {
-      ...this.theme.additionalStyles?.Divider,
+      ...this.theme?.additionalStyles?.Divider,
       ...dynamicStyle,
     };
 
