@@ -20,9 +20,11 @@ instruction blocks for on-device models (e.g., Gemma 4).
 
 import json
 import re
+from typing import Any, Dict, Optional, Union
+from a2ui.core.catalog import Catalog
+from a2ui.schema.catalog import A2uiCatalog
 from .decompiler import ExpressDecompiler
 from .schema_helper import CatalogSchemaHelper
-from typing import Any, Optional
 
 
 def _schema_allows_databinding(prop_schema: Any) -> bool:
@@ -70,14 +72,17 @@ class ExpressPromptGenerator:
       helper: A CatalogSchemaHelper instance loaded with the target catalog.
   """
 
-  def __init__(self, catalog_path: str):
-    """Initializes the generator with the specified catalog path.
+  def __init__(
+      self,
+      catalog: Union[Catalog[Any, Any], A2uiCatalog],
+  ):
+    """Initializes the generator with the specified catalog.
 
     Args:
-        catalog_path: The absolute filesystem path to the catalog JSON file.
+        catalog: A Catalog or an A2uiCatalog.
     """
-    self.helper = CatalogSchemaHelper(catalog_path)
-    self.decompiler = ExpressDecompiler(catalog_path)
+    self.helper = CatalogSchemaHelper(catalog)
+    self.decompiler = ExpressDecompiler(catalog)
 
   def generate_component_signatures(self) -> str:
     """Compiles component definitions into clean function-like signatures.

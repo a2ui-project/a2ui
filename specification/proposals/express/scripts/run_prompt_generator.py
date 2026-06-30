@@ -40,6 +40,8 @@ sys.path.insert(
         )
     ),
 )
+import json
+from a2ui.core.catalog import Catalog
 from a2ui.experimental.express.prompt_generator import ExpressPromptGenerator
 
 
@@ -58,7 +60,10 @@ def generate_prompt_text(catalog_path: str) -> str:
     if not os.path.exists(catalog_path):
         raise FileNotFoundError(f"Catalog schema not found: {catalog_path}")
 
-    generator = ExpressPromptGenerator(catalog_path)
+    with open(catalog_path, "r", encoding="utf-8") as f:
+        catalog_dict = json.load(f)
+    catalog = Catalog.from_json(catalog_dict, spec_version="0.9.1")
+    generator = ExpressPromptGenerator(catalog)
     return generator.generate_prompt()
 
 

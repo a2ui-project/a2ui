@@ -685,8 +685,9 @@ To send an event to the server, use the `event` property within the `action` obj
 
 ```json
 {
+  "id": "submit_button",
   "component": "Button",
-  "text": "Submit",
+  "child": "submit_button_label",
   "action": {
     "event": {
       "name": "submit_form",
@@ -704,8 +705,9 @@ To execute a local function, use the `functionCall` property within the `action`
 
 ```json
 {
+  "id": "open_link_button",
   "component": "Button",
-  "text": "Open Link",
+  "child": "open_link_button_label",
   "action": {
     "functionCall": {
       "call": "openUrl",
@@ -947,8 +949,14 @@ Buttons can also define `checks`. If any check fails, the button is automaticall
 
 ```json
 {
+  "id": "submit_button",
   "component": "Button",
-  "text": "Submit",
+  "child": "submit_button_label",
+  "action": {
+    "event": {
+      "name": "submit_form"
+    }
+  },
   "checks": [
     {
       "condition": {

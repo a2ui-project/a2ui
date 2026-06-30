@@ -14,8 +14,10 @@
 
 """Unit tests focusing on the A2UI Express Decompiler."""
 
+import json
 import os
 import unittest
+from a2ui.core.catalog import Catalog
 
 os.environ["A2UI_EXPRESS_ENABLED"] = "true"
 
@@ -36,10 +38,13 @@ class TestExpressDecompiler(unittest.TestCase):
   def setUp(self):
     """Initializes standard test paths and schema helpers."""
     self.catalog_path = CATALOG_PATH
+    with open(self.catalog_path, "r", encoding="utf-8") as f:
+      catalog_dict = json.load(f)
+    self.catalog = Catalog.from_json(catalog_dict, spec_version="0.9.1")
 
   def test_decompiler_rpc_actions_functional_expressions_and_custom_checks(self):
     """Verifies decompilation of custom RPC calls, local action mappings, dynamic functional expressions, and custom checks."""
-    decompiler = ExpressDecompiler(self.catalog_path)
+    decompiler = ExpressDecompiler(self.catalog)
 
     # 1. callFunction with custom function not in catalog
     rpc_envelope = {
@@ -121,8 +126,8 @@ class TestExpressDecompiler(unittest.TestCase):
 
   def test_string_quoting_and_escaping(self):
     """Verifies parsing, compilation, and decompilation of various string quoting forms."""
-    compiler = ExpressCompiler(self.catalog_path)
-    decompiler = ExpressDecompiler(self.catalog_path)
+    compiler = ExpressCompiler(self.catalog)
+    decompiler = ExpressDecompiler(self.catalog)
 
     def get_compiled_text(dsl_body: str) -> str:
       dsl = f"root = Column([t1])\nt1 = Text({dsl_body})"

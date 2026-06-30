@@ -41,6 +41,8 @@ sys.path.insert(
         )
     ),
 )
+import json
+from a2ui.core.catalog import Catalog
 from a2ui.experimental.express.decompiler import ExpressDecompiler
 
 
@@ -92,7 +94,10 @@ def decompile_example(example_path: str, catalog_path: str) -> str:
         },
     }
 
-    decompiler = ExpressDecompiler(catalog_path)
+    with open(catalog_path, "r", encoding="utf-8") as f:
+        catalog_dict = json.load(f)
+    catalog = Catalog.from_json(catalog_dict, spec_version="0.9.1")
+    decompiler = ExpressDecompiler(catalog)
     return decompiler.decompile(envelope)
 
 
