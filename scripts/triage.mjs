@@ -25,7 +25,8 @@
 //      c. P0 and stale for more than 1 day, or
 //      d. P1 and stale for more than 30 days, or
 //      e. P2 and stale for more than 90 days.
-//   2. It is a PR stale for more than 1 day.
+//   2. It is a PR opened by an external contributor and stale for more than
+//      1 day (PRs from maintainers are managed by their authors).
 //   3. Its latest human comment is from an external author and has gone
 //      unanswered for more than 1 day (applies to issues and PRs).
 //
@@ -92,6 +93,12 @@ export function flagReason(item, comments, now) {
   const latest = lastHumanContribution(item, comments);
   const staleDays = ageInDays(latest.createdAt, now);
 
+  // Only external contributors' PRs are watched; maintainers manage their own,
+  // so an internally-authored PR is never flagged.
+  if (isPR && MAINTAINER_ASSOCIATIONS.has(item.author_association)) {
+    return null;
+  }
+
   // Rule 3: an external author's latest comment has gone unanswered too long.
   const awaitingMaintainer =
     !MAINTAINER_ASSOCIATIONS.has(latest.association) && !isBot(latest.user);
@@ -99,7 +106,7 @@ export function flagReason(item, comments, now) {
     return `the latest reply is from an external contributor and has gone unanswered for more than ${EXTERNAL_RESPONSE_DAYS} day.`;
   }
 
-  // Rule 2: stale PRs.
+  // Rule 2: stale external PRs.
   if (isPR) {
     return staleDays > PR_STALE_DAYS
       ? `this PR has had no human activity for more than ${PR_STALE_DAYS} day.`

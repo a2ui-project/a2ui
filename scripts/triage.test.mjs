@@ -38,7 +38,14 @@ const issue = (overrides = {}) => ({
   ...overrides,
 });
 
-const pr = (overrides = {}) => issue({pull_request: {url: 'x'}, ...overrides});
+// PRs default to an external contributor, the case the automation watches.
+const pr = (overrides = {}) =>
+  issue({
+    pull_request: {url: 'x'},
+    author_association: 'CONTRIBUTOR',
+    user: {login: 'contributor', type: 'User'},
+    ...overrides,
+  });
 
 const comment = (overrides = {}) => ({
   created_at: daysAgo(0),
@@ -148,13 +155,20 @@ describe('flagReason — issues', () => {
 });
 
 describe('flagReason — PRs', () => {
-  it('flags a PR stale beyond 1 day', () => {
+  it('flags a stale PR from an external contributor', () => {
     const item = pr({created_at: daysAgo(2)});
     assert.match(flagReason(item, [], NOW), /no human activity/);
   });
 
-  it('does not flag a fresh PR', () => {
+  it('does not flag a fresh external PR', () => {
     assert.equal(flagReason(pr({created_at: daysAgo(0)}), [], NOW), null);
+  });
+
+  it('never flags a maintainer-authored PR, even when stale', () => {
+    for (const association of ['OWNER', 'MEMBER', 'COLLABORATOR']) {
+      const item = pr({created_at: daysAgo(30), author_association: association});
+      assert.equal(flagReason(item, [], NOW), null, association);
+    }
   });
 });
 
