@@ -24,13 +24,13 @@ Spec-Driven Development (SDD) in A2UI separates language-agnostic definitions (w
 Feature Blueprints describe specific behavioral changes or capabilities, categorized as follows:
 
 - **Required Features**:
-  - **Definition**: Features expected to be implemented in all codebases for a specific module. The detailed specification of a required feature is merged into the base Module Blueprint when it is promoted/introduced.
+  - **Definition**: Features expected to be implemented in all codebases for the affected modules. The detailed specification of a required feature is merged into the base Module Blueprints of all affected modules when it is promoted/introduced.
   - **Incremental Implementation**: A "required" status does _not_ mean the feature is already implemented in every codebase. It indicates that all associated codebases _should_ implement it eventually. We explicitly tolerate inconsistency and support incremental development across different language SDKs and renderers.
   - **Archiving**: The feature blueprint remains active to guide incremental implementations, and is only moved to the `archived/` folder once all associated codebases have adopted it.
 
 - **Optional Features**:
   - **Definition**: Features that are _not_ expected to be implemented in all codebases. They allow platforms to support framework-specific or experimental features without forcing compliance.
-  - **Decoupled Lifecycle**: Optional feature blueprints remain standalone files in `blueprints/features/` and are never merged into the base Module Blueprint.
+  - **Decoupled Lifecycle**: Optional feature blueprints remain standalone files in `blueprints/features/` and are never merged into the base Module Blueprints.
   - **Ad-hoc Support**: Each codebase independently decides whether to implement an optional feature based on platform capabilities. Supported optional features must be declared under `implemented_features` in the codebase's `codebase.blueprint.md`.
 
 ---

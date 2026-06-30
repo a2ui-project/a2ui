@@ -2,10 +2,6 @@
 name: a2ui_core
 type: module
 description: Foundational data, state, and processing layer of A2UI, framework-agnostic.
-associated_codebases:
-  - renderers/web_core
-  - agent_sdks/python/a2ui_core
-  - swift/core
 ---
 
 # A2UI Core SDK Specification

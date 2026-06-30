@@ -2,8 +2,6 @@
 name: a2ui_inference
 type: module
 description: Inference and Agent SDK specification for prompt engineering, streaming parsing, payload validation, and A2A integration.
-associated_codebases:
-  - agent_sdks/python/a2ui_agent
 ---
 
 # Agent SDK Development Guide

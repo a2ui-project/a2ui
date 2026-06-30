@@ -2,11 +2,6 @@
 name: a2ui_framework_adapter
 type: module
 description: View and Rendering layer interface bridging A2UI Core SDK to native UI frameworks.
-associated_codebases:
-  - renderers/react
-  - renderers/lit
-  - renderers/angular
-  - renderers/flutter
 ---
 
 # A2UI Framework Adapter Specification

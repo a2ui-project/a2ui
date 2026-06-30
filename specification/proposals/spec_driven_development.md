@@ -170,7 +170,7 @@ Every implementation of `a2ui_core` must pass the core conformance test suite:
 
 A **Codebase** is a concrete, language-specific or framework-specific implementation of a module. Examples of codebases in this repository include `renderers/web_core` (TypeScript implementation of `a2ui_core`), `renderers/react` (React implementation of `a2ui_react`), and `agent_sdks/kotlin` (Kotlin implementation of `a2ui_inference` and `a2ui_core`).
 
-Every codebase must contain a `codebase.blueprint.md` file in its root directory. This file maps the concrete implementation back to the language-agnostic module blueprint, tracking its feature support and documenting local engineering decisions.
+Every codebase must contain a `codebase.blueprint.md` file in its root directory. This file maps the concrete implementation back to the language-agnostic module blueprint, tracking its feature support and documenting local engineering decisions. The codebase blueprint should be updated *at the same time as the code* to keep it consistent with the codebase.
 
 ### **codebase.blueprint.md Structure (Example)**
 
@@ -179,7 +179,7 @@ Below is an example codebase blueprint for a React renderer codebase (`a2ui_reac
 ```
 ---
 associated_module: a2ui_react
-implemented_features:
+implemented_features: <!-- List of fully implemented features in the actual code -->
   - dynamic_theming
   - call_function_rpc
 ---

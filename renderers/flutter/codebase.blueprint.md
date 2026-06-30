@@ -1,7 +1,6 @@
 ---
 associated_module: a2ui_framework_adapter
 implemented_features: []
-protocol_compliance: 'v1.0'
 local_development:
   test_command: 'flutter test'
   lint_command: 'flutter analyze'

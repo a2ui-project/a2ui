@@ -1,7 +1,6 @@
 ---
 associated_module: a2ui_core
 implemented_features: []
-protocol_compliance: 'v1.0'
 local_development:
   test_command: 'uv run pytest'
   lint_command: 'uv run pyink --check .'

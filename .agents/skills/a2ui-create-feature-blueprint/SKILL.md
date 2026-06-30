@@ -21,7 +21,7 @@ This skill provides step-by-step instructions on how to design, format, and chec
 
 ### **Step 1: Determine Scope and Status**
 
-- **Required Feature:** Essential features expected to be implemented across all codebases of a module. When creating a required feature, you must also plan to update the base Module Blueprint to include this feature's specification.
+- **Required Feature:** Essential features expected to be implemented across all codebases of the affected modules. When creating a required feature, you must also plan to update the base Module Blueprints of all affected modules to include this feature's specification.
 - **Optional Feature:** Platform-specific or experimental additions that do not mandate compliance across all SDKs.
 
 ### **Step 2: File Naming & Location**

@@ -130,24 +130,8 @@ def main():
             if basename != expected_filename:
                 errors.append(f"Module blueprint {basename}: Filename does not match name '{name}' (expected '{expected_filename}')")
                 
-            associated_codebases = data.get('associated_codebases')
-            if associated_codebases is None:
-                errors.append(f"Module blueprint {basename}: Missing mandatory 'associated_codebases' field in frontmatter")
-            elif not isinstance(associated_codebases, list):
-                errors.append(f"Module blueprint {basename}: 'associated_codebases' must be a list of paths")
-            else:
-                for path in associated_codebases:
-                    full_path = os.path.join(workspace_root, path)
-                    if not os.path.isdir(full_path):
-                        errors.append(f"Module blueprint {basename}: Associated codebase path '{path}' does not exist or is not a directory")
-                    else:
-                        codebase_blueprint_file = os.path.join(full_path, 'codebase.blueprint.md')
-                        if not os.path.exists(codebase_blueprint_file):
-                            errors.append(f"Module blueprint {basename}: Associated codebase path '{path}' is missing 'codebase.blueprint.md'")
-                            
             module_blueprints[name] = {
-                'file': basename,
-                'associated_codebases': associated_codebases or []
+                'file': basename
             }
     else:
         errors.append(f"Modules directory '{modules_dir}' does not exist")
@@ -235,11 +219,6 @@ def main():
                 
             if associated_module not in module_blueprints:
                 errors.append(f"Codebase blueprint in '{rel_dir}': References unknown associated_module '{associated_module}'")
-            else:
-                # Cross check: The codebase dir must be in the module's associated_codebases
-                mod_info = module_blueprints[associated_module]
-                if rel_dir not in mod_info['associated_codebases']:
-                    errors.append(f"Codebase blueprint in '{rel_dir}': Directory '{rel_dir}' is not listed in the associated module '{associated_module}''s associated_codebases")
                     
             implemented_features = data.get('implemented_features')
             if implemented_features is not None:

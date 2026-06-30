@@ -22,7 +22,7 @@ This skill provides step-by-step instructions on how to use, reference, and upda
 Before writing any code, load the following documents into your context:
 
 1.  The **Feature Blueprint** (defines the requirements and test cases).
-2.  The associated **Module Blueprint** (defines the language-agnostic interfaces and architecture).
+2.  The associated **Module Blueprint(s)** (define the language-agnostic interfaces and architecture for the affected module(s)).
 3.  The local **Codebase Blueprint** (defines local architectural decisions, reactivity paradigms, and overrides).
 
 ### **Step 3: Create a Temporary Local Design**
