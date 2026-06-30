@@ -40,7 +40,7 @@ on:
   # Periodic reconciliation: catches time-based rules (staleness, unanswered
   # external comments) and removes the label once an item no longer matches.
   schedule:
-    - cron: "0 7 * * *" # daily at 07:00 UTC
+    - cron: "0 15 * * *" # daily at 15:00 UTC (07:00 PST), start of the team's day
   # React promptly to the events that can change an item's flag state.
   issues:
     types: [opened, edited, labeled, unlabeled, assigned, unassigned, reopened]
