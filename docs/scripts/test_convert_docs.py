@@ -13,7 +13,7 @@
 # limitations under the License.
 
 import pytest
-from docs.scripts.convert_docs import to_mkdocs
+from convert_docs import to_mkdocs
 
 # --- 1. A2UI Specific Header Cases ---
 ADMONITION_CASES = [
