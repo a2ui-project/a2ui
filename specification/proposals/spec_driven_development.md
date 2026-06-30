@@ -58,10 +58,14 @@ Specification-driven development is still useful for these features, but the spe
 
 ## **Feature blueprint**
 
-### **Required vs optional features**
+Feature blueprints describe a *diff* in functionality that can be implemented in a codebase. 
 
-A **Required Feature Blueprint** describes a feature that is expected to be implemented in all codebases for a specific module. When a required feature blueprint is added, the associated module blueprint is updated at the same time to completely include the information required to implement the feature. The purpose of preserving the required feature blueprint in version control is to help agents implement the feature in existing module codebases based on previous versions of the module blueprint.
+### **Required features**
+A **Required Feature Blueprint** describes a feature that has its design merged into all relevant module blueprints. It is expected to be *eventually* implemented in all codebases for the module. Required feature blueprints are added (or promoted from *optional* status) *before* they are implemented in all codebases and there are no guaruntee that the feature is implemented in all codebases within any particular timeframe. It is the job of codebase owners to keep their feature sets as up to date as possible. The codebase blueprints are the source of truth for which features are implemented in each codebase.
+- *Agents implementing new codebases* for a particular module never need to read required feature blueprints. They can completely implement the module and all its required features using only the module blueprint, because it has all the necessary details from existing required feature blueprints.
+- *Agents implementing new required features in existing codebases* primarily use the required feature blueprint to design and implement changes.
 
+### **Optional features**
 An **Optional Feature Blueprint** describes a feature that is not baked into the module blueprint and is not expected to be implemented in all codebases. It allows platforms to support experimental or framework-specific features without forcing compliance across all SDKs.
 
 - **Decoupled Lifecycle**: Optional feature blueprints exist as standalone specification files in `blueprints/features/` and are not merged into the base Module Blueprint.
@@ -70,17 +74,19 @@ An **Optional Feature Blueprint** describes a feature that is not baked into the
 
 ### **my_feature.blueprint.md structure (Example)**
 
-Every feature blueprint must follow a standardized Markdown structure with YAML frontmatter. Below is an example feature blueprint for a dynamic theming feature, written in a language-agnostic way:
+Every feature blueprint must follow a standardized Markdown structure with YAML frontmatter. The feature is named with a date prefix, e.g. `YYYY_MM_DD_feature_name.blueprint.md`, so that if there are many feature blueprints, it's easy to sort them by date and find the most recent and relevant ones. The date in the filename and frontmatter must match, and it is the date that the feature blueprint was created.
 
-```
+Below is an example feature blueprint for a dynamic theming feature, written in a language-agnostic way:
+
+```md
 ---
 feature_name: dynamic_theming
-module_blueprints:
+module_blueprints: <!-- The list of modules that this feature affects -->
   - a2ui_core
   - a2ui_react
   - a2ui_lit
   - a2ui_angular
-required: false
+required: false <!-- Whether this is a "required" vs optional feature -->
 date_added: 2026-06-23
 ---
 # **Dynamic Theming Feature Blueprint**
@@ -110,18 +116,16 @@ Allow agents or clients to dynamically adjust the visual theme of an active surf
 
 A **Module Blueprint** describes an entire architectural module in a language-agnostic way. It serves as the primary source of truth for building a new codebase from scratch or verifying the correctness of an existing one.
 
+All *required* features that affect the module are merged into the module blueprint when the feature is added or promoted, so that new codebases can be implemented using *only* the module blueprint and without consulting specific feature blueprints. Module blueprints act as a coherent, compacted description of the module, ensuring that the overall module specification does not have unbounded growth over time as features are added. As features are layered on top of each other, it is expected that the module blueprint will find concise ways to describe the overall system which are smaller than a simple concatenation of the feature blueprints.
+
 ### **a2ui_core.blueprint.md Structure (Example)**
 
 Every module blueprint must follow a standardized Markdown structure with YAML frontmatter. Below is an example module blueprint for the core state layer (`a2ui_core`):
 
-```
+```md
 ---
 name: a2ui_core
-code_location:
-  - renderers/web_core
-  - agent_sdks/kotlin/core
-protocol_version: v1.0
-included_features:
+included_features: <!-- The list of "required" feature merged into this module blueprint -->
   - bidirectional_rpc
   - dynamic_binding
 ---
@@ -154,7 +158,6 @@ associated_module: a2ui_react
 implemented_features:
   - dynamic_theming
   - call_function_rpc
-protocol_compliance: v1.0
 ---
 # **React Renderer Codebase Blueprint**
 ## **Architecture & Styling**
