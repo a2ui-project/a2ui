@@ -53,17 +53,13 @@ jobs:
           persist-credentials: false
       - uses: ./.github/actions/setup-python
       - name: Check Formatting
-        working-directory: agent_sdks/python/a2ui_agent
-        run: uv run pyink --check .
+        run: uv run pyink --check agent_sdks/python/a2ui_agent
       - name: Run Unit Tests
-        working-directory: agent_sdks/python/a2ui_agent
-        run: uv run pytest tests/
+        run: uv run pytest agent_sdks/python/a2ui_agent/tests
       - name: Build
-        working-directory: agent_sdks/python/a2ui_agent
-        run: uv build .
+        run: uv build agent_sdks/python/a2ui_agent
       - name: Verify Load Real
-        working-directory: agent_sdks/python/a2ui_agent
-        run: uv run python tests/integration/verify_load_real.py
+        run: uv run python agent_sdks/python/a2ui_agent/tests/integration/verify_load_real.py
 
   core-sdk:
     runs-on: ubuntu-latest
@@ -73,14 +69,11 @@ jobs:
           persist-credentials: false
       - uses: ./.github/actions/setup-python
       - name: Check Formatting
-        working-directory: agent_sdks/python/a2ui_core
-        run: uv run --with pyink pyink --check .
+        run: uv run pyink --check agent_sdks/python/a2ui_core
       - name: Run Unit Tests
-        working-directory: agent_sdks/python/a2ui_core
-        run: uv run pytest tests/
+        run: uv run pytest agent_sdks/python/a2ui_core/tests
       - name: Build
-        working-directory: agent_sdks/python/a2ui_core
-        run: uv build .
+        run: uv build agent_sdks/python/a2ui_core
 
   conformance:
     runs-on: ubuntu-latest
@@ -90,11 +83,9 @@ jobs:
           persist-credentials: false
       - uses: ./.github/actions/setup-python
       - name: Check Formatting
-        working-directory: agent_sdks/conformance
-        run: uv run pyink --check tests/
+        run: uv run pyink --check agent_sdks/conformance/tests
       - name: Validate YAML Conformance
-        working-directory: agent_sdks/conformance
-        run: uv run pytest
+        run: uv run pytest agent_sdks/conformance/tests
 
   adk-samples:
     runs-on: ubuntu-latest
@@ -111,8 +102,7 @@ jobs:
       - name: Validate Sample Examples
         run: uv run pytest -vv samples/agent/adk/tests/test_examples_validation.py
       - name: Build Sample
-        working-directory: samples/agent/adk/${{ matrix.sample }}
-        run: uv build .
+        run: uv build samples/agent/adk/${{ matrix.sample }}
 
   skills:
     runs-on: ubuntu-latest
