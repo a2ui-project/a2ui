@@ -150,25 +150,48 @@ async function postComment({github, owner, repo}, number, body) {
   }
 }
 
+// Max concurrent API calls per phase. Keeps us fast without tripping GitHub's
+// secondary (abuse) rate limits, which a single huge Promise.all can hit.
+const BATCH_SIZE = 10;
+
+/**
+ * Maps `items` through async `fn` in concurrent batches of `BATCH_SIZE` rather
+ * than all at once, bounding the number of in-flight requests.
+ */
+async function mapInBatches(items, fn) {
+  const results = [];
+  for (let i = 0; i < items.length; i += BATCH_SIZE) {
+    const batch = items.slice(i, i + BATCH_SIZE);
+    results.push(...(await Promise.all(batch.map(fn))));
+  }
+  return results;
+}
+
 /**
  * Fetches the comments needed to evaluate an item. We only need the most recent
  * human contribution, so we skip the API call entirely when the item has no
  * comments and otherwise fetch a single page of the newest comments (sorted
- * descending) rather than paginating through the whole history.
+ * descending) rather than paginating through the whole history. A failure for
+ * one item must not abort the whole run, so errors fall back to no comments.
  */
 async function fetchComments({github, owner, repo}, item) {
   if (!item.comments) {
     return [];
   }
-  const {data} = await github.rest.issues.listComments({
-    owner,
-    repo,
-    issue_number: item.number,
-    sort: 'created',
-    direction: 'desc',
-    per_page: 100,
-  });
-  return data;
+  try {
+    const {data} = await github.rest.issues.listComments({
+      owner,
+      repo,
+      issue_number: item.number,
+      sort: 'created',
+      direction: 'desc',
+      per_page: 100,
+    });
+    return data;
+  } catch (error) {
+    console.error(`Failed to fetch comments for #${item.number}:`, error);
+    return [];
+  }
 }
 
 export default async function issueTriage({github, context}) {
@@ -185,30 +208,29 @@ export default async function issueTriage({github, context}) {
     per_page: 100,
   });
 
-  // Fetch comments concurrently to avoid a slow, rate-limit-prone serial loop.
-  const itemsWithComments = await Promise.all(
-    openItems.map(async item => ({
-      item,
-      comments: await fetchComments({github, owner, repo}, item),
-    })),
-  );
+  // Fetch comments in bounded concurrent batches to avoid a slow serial loop
+  // without flooding the API.
+  const itemsWithComments = await mapInBatches(openItems, async item => ({
+    item,
+    comments: await fetchComments({github, owner, repo}, item),
+  }));
+
+  // Decide each item's desired state from the snapshot, and keep only those
+  // whose label needs to change. The snapshot from `listForRepo` can be stale
+  // if another run (the daily schedule overlapping an issue event) already
+  // changed the label, so the actual mutation re-checks the live state below.
+  const itemsToUpdate = itemsWithComments
+    .map(({item, comments}) => ({item, reason: flagReason(item, comments, now)}))
+    .filter(({item, reason}) => Boolean(reason) !== labelNames(item).includes(FLAG_LABEL));
 
   let added = 0;
   let removed = 0;
 
-  for (const {item, comments} of itemsWithComments) {
-    const reason = flagReason(item, comments, now);
+  await mapInBatches(itemsToUpdate, async ({item, reason}) => {
     const wantsFlag = Boolean(reason);
-
-    // The snapshot from `listForRepo` can be stale if another run (the daily
-    // schedule overlapping an issue event) already changed the label. Only when
-    // the snapshot says we need to act do we re-read the live labels, so a
-    // concurrent run cannot make us add the label — or its comment — twice.
-    if (wantsFlag === labelNames(item).includes(FLAG_LABEL)) {
-      continue;
-    }
-
     try {
+      // Re-read the live labels so a concurrent run cannot make us add the
+      // label — or its comment — twice.
       const {data: fresh} = await github.rest.issues.get({
         owner,
         repo,
@@ -216,10 +238,10 @@ export default async function issueTriage({github, context}) {
       });
       const hasFlag = labelNames(fresh).includes(FLAG_LABEL);
       if (wantsFlag === hasFlag) {
-        continue; // Another run already reconciled this item.
+        return; // Another run already reconciled this item.
       }
 
-      if (reason && !hasFlag) {
+      if (wantsFlag) {
         await github.rest.issues.addLabels({
           owner,
           repo,
@@ -233,7 +255,7 @@ export default async function issueTriage({github, context}) {
         );
         added += 1;
         console.log(`Flagged #${item.number}`);
-      } else if (!reason && hasFlag) {
+      } else {
         await github.rest.issues.removeLabel({
           owner,
           repo,
@@ -251,7 +273,7 @@ export default async function issueTriage({github, context}) {
     } catch (error) {
       console.error(`Failed to update #${item.number}:`, error);
     }
-  }
+  });
 
   console.log(
     `A2UI triage-flag reconciliation completed: ` +

@@ -276,8 +276,21 @@ describe('issueTriage reconciliation', () => {
     github = makeGithub([flagged, clean]);
     await issueTriage({github, context});
 
+    assert.equal(calls.get.length, 0); // no live re-read when state already agrees
     assert.equal(calls.addLabels.length, 0);
     assert.equal(calls.removeLabel.length, 0);
+    assert.equal(calls.createComment.length, 0);
+  });
+
+  it('does not add the label twice when a concurrent run already added it', async () => {
+    // Snapshot shows no label, but a live re-read finds another run beat us.
+    const item = issue({number: 14});
+    item.__fresh = issue({number: 14, labels: ['triage: flag']});
+    github = makeGithub([item]);
+    await issueTriage({github, context});
+
+    assert.deepEqual(calls.get, [14]); // we re-checked before mutating
+    assert.equal(calls.addLabels.length, 0); // ...and backed off
     assert.equal(calls.createComment.length, 0);
   });
 
