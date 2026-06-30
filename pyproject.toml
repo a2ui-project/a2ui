@@ -72,3 +72,19 @@ addopts = "--import-mode=importlib"
 [[tool.uv.index]]
 url = "https://pypi.org/simple"
 default = true
+
+[tool.pyink]
+unstable = true
+target-version = []
+pyink-indentation = 2
+pyink-use-majority-quotes = true
+pyink-annotation-pragmas = [
+  "noqa",
+  "pylint:",
+  "type: ignore",
+  "pytype:",
+  "mypy:",
+  "pyright:",
+  "pyre-",
+]
+
