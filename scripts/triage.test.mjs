@@ -206,7 +206,7 @@ describe('issueTriage reconciliation', () => {
   let calls;
 
   const makeGithub = openItems => {
-    calls = {addLabels: [], removeLabel: [], createComment: [], listComments: []};
+    calls = {addLabels: [], removeLabel: [], createComment: [], listComments: [], get: []};
     const rest = {
       issues: {
         listForRepo: 'listForRepo',
@@ -214,6 +214,13 @@ describe('issueTriage reconciliation', () => {
           calls.listComments.push(params.issue_number);
           const item = openItems.find(i => i.number === params.issue_number);
           return {data: item.__comments ?? []};
+        }),
+        // Live re-read used to guard against concurrent double-labeling.
+        // `__fresh` lets a test simulate another run having changed the label.
+        get: mock.fn(async params => {
+          calls.get.push(params.issue_number);
+          const item = openItems.find(i => i.number === params.issue_number);
+          return {data: item.__fresh ?? item};
         }),
         addLabels: mock.fn(async params => calls.addLabels.push(params.issue_number)),
         removeLabel: mock.fn(async params => calls.removeLabel.push(params.issue_number)),
