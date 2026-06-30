@@ -57,6 +57,8 @@ sys.path.insert(
 )
 
 # pylint: disable=import-error, wrong-import-position
+import json
+from a2ui.core.catalog import Catalog
 from a2ui.experimental.express.compiler import ExpressCompiler
 from a2ui.experimental.express.prompt_generator import ExpressPromptGenerator
 # pylint: enable=import-error, wrong-import-position
@@ -100,6 +102,10 @@ def run_inference_and_validate(
     if not os.path.exists(catalog_path):
         raise FileNotFoundError(f"Catalog schema not found: {catalog_path}")
 
+    with open(catalog_path, "r", encoding="utf-8") as f:
+        catalog_dict = json.load(f)
+    catalog = Catalog.from_json(catalog_dict, spec_version="0.9.1")
+
     # 1. Load the original example JSON to extract target component list
     with open(example_path, "r", encoding="utf-8") as f:
         ex_data = json.load(f)
@@ -117,7 +123,7 @@ def run_inference_and_validate(
         )
 
     # 2. Generate prompt contract instructions
-    prompt_generator = ExpressPromptGenerator(catalog_path)
+    prompt_generator = ExpressPromptGenerator(catalog)
     system_instruction = prompt_generator.generate_prompt()
 
     # 3. Construct conversion task prompt
@@ -226,7 +232,7 @@ Do not wrap the output in markdown formatting blocks, do not include explanation
         dsl_output = "\n".join(lines).strip()
 
     # 5. Run compilation to validate correctness of model-generated DSL
-    compiler = ExpressCompiler(catalog_path)
+    compiler = ExpressCompiler(catalog)
     try:
         compiled_json = compiler.compile(dsl_output, surface_id="ai_surface")
     except Exception as ex:  # pylint: disable=broad-exception-caught
