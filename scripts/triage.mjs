@@ -119,10 +119,7 @@ function flagReason(item, comments, now) {
   }
 
   // 1b. Urgent work with nobody on it.
-  if (
-    (priority === 'P0' || priority === 'P1') &&
-    (item.assignees?.length ?? 0) === 0
-  ) {
+  if ((priority === 'P0' || priority === 'P1') && (item.assignees?.length ?? 0) === 0) {
     return `this ${priority} issue has no assignee.`;
   }
 
