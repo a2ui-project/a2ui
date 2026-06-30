@@ -58,14 +58,17 @@ Specification-driven development is still useful for these features, but the spe
 
 ## **Feature blueprint**
 
-Feature blueprints describe a *diff* in functionality that can be implemented in a codebase. 
+Feature blueprints describe a _diff_ in functionality that can be implemented in a codebase.
 
 ### **Required features**
-A **Required Feature Blueprint** describes a feature that has its design merged into all relevant module blueprints. It is expected to be *eventually* implemented in all codebases for the module. Required feature blueprints are added (or promoted from *optional* status) *before* they are implemented in all codebases and there are no guaruntee that the feature is implemented in all codebases within any particular timeframe. It is the job of codebase owners to keep their feature sets as up to date as possible. The codebase blueprints are the source of truth for which features are implemented in each codebase.
-- *Agents implementing new codebases* for a particular module never need to read required feature blueprints. They can completely implement the module and all its required features using only the module blueprint, because it has all the necessary details from existing required feature blueprints.
-- *Agents implementing new required features in existing codebases* primarily use the required feature blueprint to design and implement changes.
+
+A **Required Feature Blueprint** describes a feature that has its design merged into all relevant module blueprints. It is expected to be _eventually_ implemented in all codebases for the module. Required feature blueprints are added (or promoted from _optional_ status) _before_ they are implemented in all codebases and there are no guaruntee that the feature is implemented in all codebases within any particular timeframe. It is the job of codebase owners to keep their feature sets as up to date as possible. The codebase blueprints are the source of truth for which features are implemented in each codebase.
+
+- _Agents implementing new codebases_ for a particular module never need to read required feature blueprints. They can completely implement the module and all its required features using only the module blueprint, because it has all the necessary details from existing required feature blueprints.
+- _Agents implementing new required features in existing codebases_ primarily use the required feature blueprint to design and implement changes.
 
 ### **Optional features**
+
 An **Optional Feature Blueprint** describes a feature that is not baked into the module blueprint and is not expected to be implemented in all codebases. It allows platforms to support experimental or framework-specific features without forcing compliance across all SDKs.
 
 - **Decoupled Lifecycle**: Optional feature blueprints exist as standalone specification files in `blueprints/features/` and are not merged into the base Module Blueprint.
@@ -89,34 +92,47 @@ module_blueprints: <!-- The list of modules that this feature affects -->
 required: false <!-- Whether this is a "required" vs optional feature -->
 date_added: 2026-06-23
 ---
+
 # **Dynamic Theming Feature Blueprint**
+
 ## **Requirements**
+
 Allow agents or clients to dynamically adjust the visual theme of an active surface without recreating the surface. The client must parse theme updates in the incoming message stream and apply the new styling parameters in real time using common reactivity interfaces.
+
 ## **Detailed Description of Changes**
+
 1. **Protocol Schema**: Add an optional `updateTheme` object to the `A2uiMessage` envelope schema.
 2. **Message Ingestion**: The `MessageProcessor` must parse the `updateTheme` message
-...
+   ...
+
 ## **Links**
-* RFC/Discussion: [Issue #452](https://github.com/a2ui-project/a2ui/issues/452)
-* Protocol Specification: [a2ui_protocol.md](../v1_0/docs/a2ui_protocol.md)
+
+- RFC/Discussion: [Issue #452](https://github.com/a2ui-project/a2ui/issues/452)
+- Protocol Specification: [a2ui_protocol.md](../v1_0/docs/a2ui_protocol.md)
+
 ## **Test Cases & Conformance**
-* **Test Case 1: Simple Theme Apply**: Verify that sending `updateTheme` with a new background color updates the `theme` signal on `SurfaceModel` and triggers a re-render.
-...
+
+- **Test Case 1: Simple Theme Apply**: Verify that sending `updateTheme` with a new background color updates the `theme` signal on `SurfaceModel` and triggers a re-render.
+  ...
+
 ## **Implementation Steps**
+
 1. Update the `server_to_client.json` schema to include the `updateTheme` envelope.
 2. Implement parsing and state propagation in the `a2ui_core` codebase implementations
-...
+   ...
+
 ## **Checklist**
+
 - [ ] Schema updated and validated
 - [ ] `MessageProcessor` parses `updateTheme` and updates `SurfaceModel`
-...
+      ...
 ```
 
 ## **Module blueprint**
 
 A **Module Blueprint** describes an entire architectural module in a language-agnostic way. It serves as the primary source of truth for building a new codebase from scratch or verifying the correctness of an existing one.
 
-All *required* features that affect the module are merged into the module blueprint when the feature is added or promoted, so that new codebases can be implemented using *only* the module blueprint and without consulting specific feature blueprints. Module blueprints act as a coherent, compacted description of the module, ensuring that the overall module specification does not have unbounded growth over time as features are added. As features are layered on top of each other, it is expected that the module blueprint will find concise ways to describe the overall system which are smaller than a simple concatenation of the feature blueprints.
+All _required_ features that affect the module are merged into the module blueprint when the feature is added or promoted, so that new codebases can be implemented using _only_ the module blueprint and without consulting specific feature blueprints. Module blueprints act as a coherent, compacted description of the module, ensuring that the overall module specification does not have unbounded growth over time as features are added. As features are layered on top of each other, it is expected that the module blueprint will find concise ways to describe the overall system which are smaller than a simple concatenation of the feature blueprints.
 
 ### **a2ui_core.blueprint.md Structure (Example)**
 
@@ -129,17 +145,25 @@ included_features: <!-- The list of "required" feature merged into this module b
   - bidirectional_rpc
   - dynamic_binding
 ---
+
 # **Core State Layer (a2ui_core) Module Blueprint**
+
 ## **Architecture Overview**
+
 The core state layer is the framework-agnostic engine of A2UI. It is responsible for parsing inbound JSON streams from the agent, maintaining the active UI surface models, resolving JSON Pointer data bindings, and dispatching client actions back to the transport layer.
+
 ## **Core Interfaces**
-* **`MessageProcessor`**: The central controller that ingests `A2uiMessage` envelopes and directs updates.
-...
+
+- **`MessageProcessor`**: The central controller that ingests `A2uiMessage` envelopes and directs updates.
+  ...
+
 ## **Conformance Test Plan**
+
 Every implementation of `a2ui_core` must pass the core conformance test suite:
-* **JSON Parsing Suite**: Validates envelope compliance against `server_to_client.json` and throws `A2uiValidationError` on schema violations.
-* **Data Model Binding Suite**: Verifies absolute and relative pointer resolution, type coercion rules, and reactive signal emission.
-* **Path to Mock Data**: `specification/v1_0/test/conformance/a2ui_core/`
+
+- **JSON Parsing Suite**: Validates envelope compliance against `server_to_client.json` and throws `A2uiValidationError` on schema violations.
+- **Data Model Binding Suite**: Verifies absolute and relative pointer resolution, type coercion rules, and reactive signal emission.
+- **Path to Mock Data**: `specification/v1_0/test/conformance/a2ui_core/`
 ```
 
 ## **Codebase blueprint**
