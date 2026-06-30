@@ -47,16 +47,12 @@ const DAY_MS = 24 * 60 * 60 * 1000;
 // Author associations that count as an internal maintainer response.
 const MAINTAINER_ASSOCIATIONS = new Set(['OWNER', 'MEMBER', 'COLLABORATOR']);
 
-const isBot = (user) =>
-  !user || user.type === 'Bot' || /\[bot\]$/.test(user.login || '');
+const isBot = user => !user || user.type === 'Bot' || /\[bot\]$/.test(user.login || '');
 
-const labelNames = (item) =>
-  (item.labels || []).map((label) =>
-    typeof label === 'string' ? label : label.name,
-  );
+const labelNames = item =>
+  (item.labels || []).map(label => (typeof label === 'string' ? label : label.name));
 
-const ageInDays = (isoTimestamp, now) =>
-  (now - new Date(isoTimestamp).getTime()) / DAY_MS;
+const ageInDays = (isoTimestamp, now) => (now - new Date(isoTimestamp).getTime()) / DAY_MS;
 
 /**
  * Returns the most recent human contribution to an item: either its newest
@@ -109,7 +105,7 @@ function shouldFlag(item, comments, now) {
     return false;
   }
 
-  const priority = PRIORITY_LABELS.find((p) => labels.includes(p));
+  const priority = PRIORITY_LABELS.find(p => labels.includes(p));
 
   // 1a. No priority assigned yet.
   if (!priority) {

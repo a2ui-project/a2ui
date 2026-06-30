@@ -25,11 +25,14 @@
 # 3. External comments, not responded for more than a day
 #
 # "Stale" is measured from the last human comment or update,
-# not from `updated_at`, so the bot's own label edits and comments 
+# not from `updated_at`, so the bot's own label edits and comments
 # don't reset the clock. The label is fully owned by this
 # automation and is removed once an item
-# no longer matches any rule. 
-
+# no longer matches any rule.
+#
+# Every time the script flags or unflags an issue or PR,
+# it will also post a comment on the item to let the user know
+# why the label has been added or removed.
 
 name: Flag/Unflag issues and PRs
 
@@ -37,7 +40,7 @@ on:
   # Periodic reconciliation: catches time-based rules (staleness, unanswered
   # external comments) and removes the label once an item no longer matches.
   schedule:
-    - cron: '0 7 * * *' # daily at 07:00 UTC
+    - cron: "0 7 * * *" # daily at 07:00 UTC
   # React promptly to the events that can change an item's flag state.
   issues:
     types: [opened, edited, labeled, unlabeled, assigned, unassigned, reopened]
