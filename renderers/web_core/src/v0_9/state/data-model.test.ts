@@ -351,5 +351,13 @@ describe('DataModel', () => {
       const user = model.get('/user');
       assert.strictEqual(user['a~b/c'], 'value');
     });
+
+    it('handles escaped sequence order correctly (~01)', () => {
+      model.set('/user/a~01b', 'value');
+      assert.strictEqual(model.get('/user/a~01b'), 'value');
+
+      const user = model.get('/user');
+      assert.strictEqual(user['a~1b'], 'value');
+    });
   });
 });
