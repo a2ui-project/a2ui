@@ -242,7 +242,7 @@ export default async function issueTriage({github, context}) {
           labels: [FLAG_LABEL],
         });
         added += 1;
-        console.log(`Flagged #${item.number}: ${reason}`);
+        console.log(`Flagged ${item.html_url} — ${reason}`);
       } else {
         await github.rest.issues.removeLabel({
           owner,
@@ -251,7 +251,7 @@ export default async function issueTriage({github, context}) {
           name: FLAG_LABEL,
         });
         removed += 1;
-        console.log(`Unflagged #${item.number}`);
+        console.log(`Unflagged ${item.html_url} — no longer matches any triage rule.`);
       }
     } catch (error) {
       console.error(`Failed to update #${item.number}:`, error);

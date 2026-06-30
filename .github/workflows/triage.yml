@@ -12,27 +12,15 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# This automation adds/removes the 'triage: flag' label to issues and PRs,
-# making sure that this label is assigned to:
+# This automation adds/removes the 'triage: flag' label to issues and PRs so
+# that items needing attention are easy to find. The label is fully owned by
+# this automation and reconciled on every run.
 #
-# 1. Open issues, without ‘triage: waiting-for-user-response’ that are:
-#    1. without priority
-#    2. P0 and P1 without assignment
-#    3. P0 and stale for more than 1 day
-#    4. P1 and stale for more than 30 days
-#    5. P2 and stale for more than 90 days
-# 2. Open PRs from external contributors, stale for more than a day
-#    (PRs from maintainers are managed by their authors)
-# 3. Issues with external comments, not responded for more than a day
+# The flagging rules live in ./scripts/triage.mjs — see the header comment
+# there for the full specification.
 #
-# "Stale" is measured from the last human comment or update,
-# not from `updated_at`, so the bot's own label edits and comments
-# don't reset the clock. The label is fully owned by this
-# automation and is removed once an item
-# no longer matches any rule.
-#
-# "Stale PR" means a PR that hasn't been commented on by internal member
-# after the external author's last comment.
+# Each run logs every issue/PR it flagged or unflagged and why. Browse the runs:
+# https://github.com/a2ui-project/a2ui/actions/workflows/triage.yml
 
 name: Flag/Unflag issues and PRs
 
