@@ -43,6 +43,12 @@ members = [
   "tools/build_catalog",
 ]
 
+[dependency-groups]
+dev = [
+    "pyink>=25.12.0",
+    "pytest>=9.1.1",
+]
+
 [tool.pytest.ini_options]
 testpaths = [
     "agent_sdks/conformance/tests",
@@ -51,5 +57,13 @@ testpaths = [
     "eval/tests",
     "samples/agent/adk/tests",
     "samples/community/agent/adk/personalized_learning/tests",
+]
+norecursedirs = [
+    ".*",
+    "docs",
+    "renderers",
+    "specification",
+    "node_modules",
+    ".venv",
 ]
 addopts = "--import-mode=importlib"

@@ -405,6 +405,20 @@ name = "a2ui-workspace"
 version = "0.1.0"
 source = { virtual = "." }
 
+[package.dev-dependencies]
+dev = [
+    { name = "pyink" },
+    { name = "pytest" },
+]
+
+[package.metadata]
+
+[package.metadata.requires-dev]
+dev = [
+    { name = "pyink", specifier = ">=25.12.0" },
+    { name = "pytest", specifier = ">=9.1.1" },
+]
+
 [[package]]
 name = "agent-client-protocol"
 version = "0.10.1"
