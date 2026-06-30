@@ -162,6 +162,21 @@ export class ChatService {
         status: 'completed',
         lastUpdated: new Date().toISOString(),
       }));
+    } else if (newContents.some(c => 'kind' in c.data && c.data.kind === 'text')) {
+      // If the message was sent silently (e.g. from a UI interaction), we still
+      // want to append the agent's response to the chat history if it contains text.
+      const now = new Date().toISOString();
+      const agentMessage: UiMessage = {
+        type: 'ui_message',
+        id: uuid(),
+        contextId: this.contextId() ?? '',
+        role: this.createRole(response),
+        contents: newContents,
+        status: 'completed',
+        created: now,
+        lastUpdated: now,
+      };
+      this.history.update(curr => [...curr, agentMessage]);
     }
 
     // Let A2UI Renderer process the A2UI data parts in agent response.

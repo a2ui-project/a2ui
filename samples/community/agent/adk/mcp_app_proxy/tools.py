@@ -49,12 +49,14 @@ async def get_calculator_app(tool_context: ToolContext):
           encoded_html = "url_encoded:" + urllib.parse.quote(html_content)
           messages = [
               {
+                  "version": "v0.9",
                   "createSurface": {
                       "surfaceId": "calculator_surface",
                       "catalogId": "a2ui.org:a2ui/v0.9/mcp_app_catalog.json",
                   },
               },
               {
+                  "version": "v0.9",
                   "updateComponents": {
                       "surfaceId": "calculator_surface",
                       "components": [{
@@ -133,6 +135,7 @@ async def score_update(tool_context: ToolContext, player: str):
 
   # Send dataModelUpdate
   messages = [{
+      "version": "v0.9",
       "updateDataModel": {
           "surfaceId": PONG_SURFACE_ID,
           "path": "/",
@@ -169,12 +172,14 @@ async def get_pong_app_a2ui_json(tool_context: ToolContext):
 
   messages = [
       {
+          "version": "v0.9",
           "createSurface": {
               "surfaceId": PONG_SURFACE_ID,
               "catalogId": "a2ui.org:a2ui/v0.9/mcp_app_catalog.json",
           },
       },
       {
+          "version": "v0.9",
           "updateDataModel": {
               "surfaceId": PONG_SURFACE_ID,
               "path": "/",
@@ -187,6 +192,7 @@ async def get_pong_app_a2ui_json(tool_context: ToolContext):
           },
       },
       {
+          "version": "v0.9",
           "updateComponents": {
               "surfaceId": PONG_SURFACE_ID,
               "components": [
