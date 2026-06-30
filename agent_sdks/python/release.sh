@@ -21,6 +21,42 @@ if [ -z "$1" ]; then
   exit 1
 fi
 
+# Ensure we are in a clean git repository
+if ! git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+  echo "Error: This script must be run inside a git repository."
+  exit 1
+fi
+
+if ! git diff-index --quiet HEAD --; then
+  echo "Error: There are uncommitted changes in the repository. Please commit or stash them before releasing."
+  exit 1
+fi
+
+# Determine the remote name (prefer 'upstream' if it exists, fallback to 'origin')
+REMOTE_NAME="origin"
+if git remote | grep -q "^upstream$"; then
+  REMOTE_NAME="upstream"
+fi
+
+MAIN_BRANCH="main"
+
+echo "Checking synchronization with ${REMOTE_NAME}/${MAIN_BRANCH}..."
+if ! git fetch "${REMOTE_NAME}" "${MAIN_BRANCH}" --quiet 2>/dev/null; then
+  echo "Error: Failed to fetch from remote '${REMOTE_NAME}'."
+  exit 1
+fi
+
+if ! REMOTE_COMMIT=$(git rev-parse "${REMOTE_NAME}/${MAIN_BRANCH}" 2>/dev/null); then
+  echo "Error: Cannot find remote branch ${REMOTE_NAME}/${MAIN_BRANCH}."
+  exit 1
+fi
+
+LOCAL_COMMIT=$(git rev-parse HEAD)
+if [ "$LOCAL_COMMIT" != "$REMOTE_COMMIT" ]; then
+  echo "Error: Local HEAD is not in sync with ${REMOTE_NAME}/${MAIN_BRANCH}. Please push or merge your changes upstream first."
+  exit 1
+fi
+
 SCRIPT_DIR=$(dirname "$(readlink -f "$0")")
 TARGET_DIR="${SCRIPT_DIR}/${1}"
 
