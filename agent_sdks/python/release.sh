@@ -57,7 +57,7 @@ if [ "$LOCAL_COMMIT" != "$REMOTE_COMMIT" ]; then
   exit 1
 fi
 
-SCRIPT_DIR=$(dirname "$(readlink -f "$0")")
+SCRIPT_DIR=$(cd "$(dirname "$0")" && pwd -P)
 TARGET_DIR="${SCRIPT_DIR}/${1}"
 
 if [ ! -d "$TARGET_DIR" ]; then
