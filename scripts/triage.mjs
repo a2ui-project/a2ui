@@ -47,7 +47,7 @@ const DAY_MS = 24 * 60 * 60 * 1000;
 // Author associations that count as an internal maintainer response.
 const MAINTAINER_ASSOCIATIONS = new Set(['OWNER', 'MEMBER', 'COLLABORATOR']);
 
-const isBot = user => !user || user.type === 'Bot' || /\[bot\]$/.test(user.login || '');
+export const isBot = user => !user || user.type === 'Bot' || /\[bot\]$/.test(user.login || '');
 
 const labelNames = item =>
   (item.labels || []).map(label => (typeof label === 'string' ? label : label.name));
@@ -60,7 +60,7 @@ const ageInDays = (isoTimestamp, now) => (now - new Date(isoTimestamp).getTime()
  * to measure staleness and to decide whether an external author is still
  * awaiting a maintainer response.
  */
-function lastHumanContribution(item, comments) {
+export function lastHumanContribution(item, comments) {
   let latest = {
     createdAt: item.created_at,
     association: item.author_association,
@@ -86,7 +86,7 @@ function lastHumanContribution(item, comments) {
  * label, or null if it should not. The reason is posted as a comment whenever
  * the label is added.
  */
-function flagReason(item, comments, now) {
+export function flagReason(item, comments, now) {
   const isPR = Boolean(item.pull_request);
   const labels = labelNames(item);
   const latest = lastHumanContribution(item, comments);
