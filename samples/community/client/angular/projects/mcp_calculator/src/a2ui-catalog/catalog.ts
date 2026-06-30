@@ -52,4 +52,3 @@ export const DEMO_CATALOG = new Catalog(MCP_APP_CATALOG_ID, [
   // We use z.any() to avoid duplicating the schema definition here.
   {name: 'Column', component: Column, schema: z.any()},
 ]);
-
