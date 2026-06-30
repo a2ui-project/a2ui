@@ -26,6 +26,8 @@ import express from 'express';
 import {join} from 'node:path';
 import {v4 as uuidv4} from 'uuid';
 
+import {MCP_APP_CATALOG_ID} from './a2ui-catalog/catalog';
+
 const browserDistFolder = join(import.meta.dirname, '../browser');
 const app = express();
 const angularApp = new AngularNodeAppEngine();
@@ -69,7 +71,7 @@ app.post('/a2a', (req, res) => {
           a2uiClientCapabilities: {
             supportedCatalogIds: [
               'https://a2ui.org/specification/v0_9/standard_catalog_definition.json',
-              'a2ui.org:a2ui/v0.9/mcp_app_catalog.json',
+              MCP_APP_CATALOG_ID,
             ],
           },
         },
