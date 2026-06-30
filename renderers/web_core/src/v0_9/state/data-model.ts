@@ -237,7 +237,7 @@ export class DataModel {
     return path
       .split('/')
       .filter(p => p.length > 0)
-      .map(p => p.replace(/~1/g, '/').replace(/~0/g, '~'));
+      .map(p => p.replace(/~([01])/g, (_, g) => (g === '1' ? '/' : '~')));
   }
 
   private notifySignals(path: string): void {
