@@ -32,9 +32,9 @@
 //
 // "Stale" is measured from the last human contribution (a comment, or the
 // opening post if there are no human comments) rather than `updated_at`, so the
-// bot's own label edits and comments never reset the clock. A PR is "stale"
-// when no internal member has commented after the external author's last
-// comment for more than a day.
+// bot's own label edits never reset the clock. A PR is "stale" when no internal
+// member has commented after the external author's last comment for more than a
+// day.
 
 const FLAG_LABEL = 'triage: flag';
 const WAITING_LABEL = 'triage: waiting-for-user-response';

@@ -33,10 +33,6 @@
 #
 # "Stale PR" means a PR that hasn't been commented on by internal member
 # after the external author's last comment.
-#
-# Every time the script flags or unflags an issue or PR,
-# it will also post a comment on the item to let the user know
-# why the label has been added or removed.
 
 name: Flag/Unflag issues and PRs
 
