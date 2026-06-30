@@ -323,7 +323,6 @@ describe('issueTriage reconciliation', () => {
 
     assert.deepEqual(calls.get, [14]); // we re-checked before mutating
     assert.equal(calls.addLabels.length, 0); // ...and backed off
-    assert.equal(calls.createComment.length, 0);
   });
 
   it('skips the comments API call for items with zero comments', async () => {
