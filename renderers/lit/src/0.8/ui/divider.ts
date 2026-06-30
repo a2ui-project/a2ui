@@ -61,9 +61,9 @@ export class Divider extends Root {
 
   render() {
     const dividerTheme =
-      typeof this.theme.components?.Divider === 'string'
+      typeof this.theme?.components?.Divider === 'string'
         ? {[this.theme.components.Divider]: true}
-        : this.theme.components?.Divider;
+        : this.theme?.components?.Divider;
 
     const classes = {
       ...dividerTheme,
