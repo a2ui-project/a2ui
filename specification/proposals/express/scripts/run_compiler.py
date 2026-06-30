@@ -49,80 +49,78 @@ from a2ui.experimental.express.compiler import ExpressCompiler
 def compile_dsl_file(
     dsl_path: str, catalog_path: str, surface_id: str, catalog_id: str
 ) -> dict:
-    """Compiles an A2UI Express DSL file into standard JSON.
+  """Compiles an A2UI Express DSL file into standard JSON.
 
-    Args:
-        dsl_path: Path to the A2UI Express DSL file.
-        catalog_path: Path to the catalog JSON schema.
-        surface_id: The unique identifier for the compiled surface.
-        catalog_id: The optional URI/identifier of the catalog.
+  Args:
+      dsl_path: Path to the A2UI Express DSL file.
+      catalog_path: Path to the catalog JSON schema.
+      surface_id: The unique identifier for the compiled surface.
+      catalog_id: The optional URI/identifier of the catalog.
 
-    Returns:
-        The compiled A2UI v1.0 JSON envelope.
+  Returns:
+      The compiled A2UI v1.0 JSON envelope.
 
-    Raises:
-        FileNotFoundError: If the DSL or catalog file does not exist.
-    """
-    if not os.path.exists(dsl_path):
-        raise FileNotFoundError(f"DSL file not found: {dsl_path}")
-    if not os.path.exists(catalog_path):
-        raise FileNotFoundError(f"Catalog schema not found: {catalog_path}")
+  Raises:
+      FileNotFoundError: If the DSL or catalog file does not exist.
+  """
+  if not os.path.exists(dsl_path):
+    raise FileNotFoundError(f"DSL file not found: {dsl_path}")
+  if not os.path.exists(catalog_path):
+    raise FileNotFoundError(f"Catalog schema not found: {catalog_path}")
 
-    with open(dsl_path, "r", encoding="utf-8") as f:
-        dsl_text = f.read()
+  with open(dsl_path, "r", encoding="utf-8") as f:
+    dsl_text = f.read()
 
-    with open(catalog_path, "r", encoding="utf-8") as f:
-        catalog_dict = json.load(f)
-    catalog = Catalog.from_json(catalog_dict, spec_version="0.9.1")
-    compiler = ExpressCompiler(catalog)
-    return compiler.compile(dsl_text, surface_id=surface_id, catalog_id=catalog_id)
+  with open(catalog_path, "r", encoding="utf-8") as f:
+    catalog_dict = json.load(f)
+  catalog = Catalog.from_json(catalog_dict, spec_version="0.9.1")
+  compiler = ExpressCompiler(catalog)
+  return compiler.compile(dsl_text, surface_id=surface_id, catalog_id=catalog_id)
 
 
 def main():
-    """CLI entrypoint for the compiler."""
-    parser = argparse.ArgumentParser(
-        description="Compile A2UI Express DSL files into standard A2UI v1.0 wire JSON."
-    )
-    parser.add_argument(
-        "dsl_file", help="Path to the A2UI Express DSL file to compile."
-    )
-    parser.add_argument(
-        "--surface-id",
-        default="express_surface",
-        help="The unique identifier for the compiled surface (default: express_surface).",
-    )
-    parser.add_argument(
-        "--catalog-id",
-        default="",
-        help="The optional catalog URI to reference in the output.",
-    )
-    parser.add_argument(
-        "--catalog",
-        default=os.path.join(
-            os.path.dirname(__file__),
-            "..",
-            "..",
-            "..",
-            "v1_0",
-            "catalogs",
-            "basic",
-            "catalog.json",
-        ),
-        help="Path to the catalog JSON schema (default: basic catalog).",
-    )
+  """CLI entrypoint for the compiler."""
+  parser = argparse.ArgumentParser(
+      description="Compile A2UI Express DSL files into standard A2UI v1.0 wire JSON."
+  )
+  parser.add_argument("dsl_file", help="Path to the A2UI Express DSL file to compile.")
+  parser.add_argument(
+      "--surface-id",
+      default="express_surface",
+      help="The unique identifier for the compiled surface (default: express_surface).",
+  )
+  parser.add_argument(
+      "--catalog-id",
+      default="",
+      help="The optional catalog URI to reference in the output.",
+  )
+  parser.add_argument(
+      "--catalog",
+      default=os.path.join(
+          os.path.dirname(__file__),
+          "..",
+          "..",
+          "..",
+          "v1_0",
+          "catalogs",
+          "basic",
+          "catalog.json",
+      ),
+      help="Path to the catalog JSON schema (default: basic catalog).",
+  )
 
-    args = parser.parse_args()
+  args = parser.parse_args()
 
-    try:
-        compiled_envelope = compile_dsl_file(
-            args.dsl_file, args.catalog, args.surface_id, args.catalog_id
-        )
-        print(json.dumps(compiled_envelope, indent=2))
-        sys.exit(0)
-    except Exception as e:
-        print(f"Error: {e}", file=sys.stderr)
-        sys.exit(1)
+  try:
+    compiled_envelope = compile_dsl_file(
+        args.dsl_file, args.catalog, args.surface_id, args.catalog_id
+    )
+    print(json.dumps(compiled_envelope, indent=2))
+    sys.exit(0)
+  except Exception as e:
+    print(f"Error: {e}", file=sys.stderr)
+    sys.exit(1)
 
 
 if __name__ == "__main__":
-    main()
+  main()

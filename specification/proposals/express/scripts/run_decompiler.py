@@ -47,93 +47,91 @@ from a2ui.experimental.express.decompiler import ExpressDecompiler
 
 
 def decompile_example(example_path: str, catalog_path: str) -> str:
-    """Decompiles an A2UI JSON example file to A2UI Express DSL.
+  """Decompiles an A2UI JSON example file to A2UI Express DSL.
 
-    Args:
-        example_path: Path to the A2UI JSON example file.
-        catalog_path: Path to the catalog JSON schema.
+  Args:
+      example_path: Path to the A2UI JSON example file.
+      catalog_path: Path to the catalog JSON schema.
 
-    Returns:
-        The decompiled A2UI Express DSL string.
+  Returns:
+      The decompiled A2UI Express DSL string.
 
-    Raises:
-        FileNotFoundError: If the example or catalog file does not exist.
-        ValueError: If the example JSON does not contain components updates.
-    """
-    if not os.path.exists(example_path):
-        raise FileNotFoundError(f"Example file not found: {example_path}")
-    if not os.path.exists(catalog_path):
-        raise FileNotFoundError(f"Catalog schema not found: {catalog_path}")
+  Raises:
+      FileNotFoundError: If the example or catalog file does not exist.
+      ValueError: If the example JSON does not contain components updates.
+  """
+  if not os.path.exists(example_path):
+    raise FileNotFoundError(f"Example file not found: {example_path}")
+  if not os.path.exists(catalog_path):
+    raise FileNotFoundError(f"Catalog schema not found: {catalog_path}")
 
-    with open(example_path, "r", encoding="utf-8") as f:
-        ex_data = json.load(f)
+  with open(example_path, "r", encoding="utf-8") as f:
+    ex_data = json.load(f)
 
-    messages = ex_data.get("messages", [])
-    components_list = None
-    surface_id = "test_surf"
-    catalog_id = "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
+  messages = ex_data.get("messages", [])
+  components_list = None
+  surface_id = "test_surf"
+  catalog_id = "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
 
-    # Extract components from the updateComponents message
-    for msg in messages:
-        if "updateComponents" in msg:
-            components_list = msg["updateComponents"].get("components", [])
-            surface_id = msg["updateComponents"].get("surfaceId", surface_id)
-            break
+  # Extract components from the updateComponents message
+  for msg in messages:
+    if "updateComponents" in msg:
+      components_list = msg["updateComponents"].get("components", [])
+      surface_id = msg["updateComponents"].get("surfaceId", surface_id)
+      break
 
-    if not components_list:
-        raise ValueError(
-            f"Could not find any 'updateComponents' message in {example_path}"
-        )
+  if not components_list:
+    raise ValueError(f"Could not find any 'updateComponents' message in {example_path}")
 
-    envelope = {
-        "version": "v1.0",
-        "createSurface": {
-            "surfaceId": surface_id,
-            "catalogId": catalog_id,
-            "components": components_list,
-        },
-    }
+  envelope = {
+      "version": "v1.0",
+      "createSurface": {
+          "surfaceId": surface_id,
+          "catalogId": catalog_id,
+          "components": components_list,
+      },
+  }
 
-    with open(catalog_path, "r", encoding="utf-8") as f:
-        catalog_dict = json.load(f)
-    catalog = Catalog.from_json(catalog_dict, spec_version="0.9.1")
-    decompiler = ExpressDecompiler(catalog)
-    return decompiler.decompile(envelope)
+  with open(catalog_path, "r", encoding="utf-8") as f:
+    catalog_dict = json.load(f)
+  catalog = Catalog.from_json(catalog_dict, spec_version="0.9.1")
+  decompiler = ExpressDecompiler(catalog)
+  return decompiler.decompile(envelope)
 
 
 def main():
-    """CLI entrypoint for the decompiler."""
-    parser = argparse.ArgumentParser(
-        description="Decompile standard A2UI JSON examples into A2UI Express DSL."
-    )
-    parser.add_argument(
-        "example_file", help="Path to the A2UI JSON example file to decompile."
-    )
-    parser.add_argument(
-        "--catalog",
-        default=os.path.join(
-            os.path.dirname(__file__),
-            "..",
-            "..",
-            "..",
-            "v1_0",
-            "catalogs",
-            "basic",
-            "catalog.json",
-        ),
-        help="Path to the catalog JSON schema (default: basic catalog).",
-    )
+  """CLI entrypoint for the decompiler."""
+  parser = argparse.ArgumentParser(
+      description="Decompile standard A2UI JSON examples into A2UI Express DSL."
+  )
+  parser.add_argument(
+      "example_file", help="Path to the A2UI JSON example file to decompile."
+  )
+  parser.add_argument(
+      "--catalog",
+      default=os.path.join(
+          os.path.dirname(__file__),
+          "..",
+          "..",
+          "..",
+          "v1_0",
+          "catalogs",
+          "basic",
+          "catalog.json",
+      ),
+      help="Path to the catalog JSON schema (default: basic catalog).",
+  )
 
-    args = parser.parse_args()
+  args = parser.parse_args()
 
-    try:
-        dsl_output = decompile_example(args.example_file, args.catalog)
-        print(dsl_output)
-        sys.exit(0)
-    except Exception as e:
-        print(f"Error: {e}", file=sys.stderr)
-        sys.exit(1)
+  try:
+    dsl_output = decompile_example(args.example_file, args.catalog)
+    print(dsl_output)
+    sys.exit(0)
+  except Exception as e:
+    print(f"Error: {e}", file=sys.stderr)
+    sys.exit(1)
 
 
 if __name__ == "__main__":
-    main()
+  main()

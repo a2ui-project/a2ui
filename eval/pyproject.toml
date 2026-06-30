@@ -13,9 +13,9 @@
 # limitations under the License.
 
 [project]
-name = "eval"
+name = "a2ui-eval"
 version = "0.1.0"
-description = "Add your description here"
+description = "A2UI Evaluation Suite"
 readme = "README.md"
 requires-python = ">=3.14"
 dependencies = [
@@ -28,9 +28,16 @@ dependencies = [
     "pyyaml>=6.0.3",
 ]
 
+[tool.hatch.build.targets.wheel]
+packages = ["a2ui_eval"]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
 [[tool.uv.index]]
 url = "https://pypi.org/simple"
 default = true
 
 [tool.uv.sources]
-a2ui-agent-sdk = { path = "../agent_sdks/python/a2ui_agent", editable = true }
+a2ui-agent-sdk = { workspace = true }

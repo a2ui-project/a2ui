@@ -44,3 +44,6 @@ allow-direct-references = true
 [[tool.uv.index]]
 url = "https://pypi.org/simple"
 default = true
+
+[tool.uv.sources]
+a2ui-agent-sdk = { workspace = true }

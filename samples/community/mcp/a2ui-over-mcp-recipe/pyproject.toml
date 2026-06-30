@@ -52,3 +52,6 @@ target-version = "py310"
 [dependency-groups]
 dev = ["pyright>=1.1.378", "pytest>=9.0.3", "ruff>=0.6.9"]
 
+[tool.uv.sources]
+a2ui-agent-sdk = { workspace = true }
+

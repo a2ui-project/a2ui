@@ -21,5 +21,8 @@ requires-python = ">=3.14"
 dependencies = [
     "a2a-sdk==0.3.25",
     "google-cloud-aiplatform[adk,agent-engines]>=1.128.0",
-    "a2ui-agent-sdk==0.1.2",
+    "a2ui-agent-sdk>=0.1.2",
 ]
+
+[tool.uv.sources]
+a2ui-agent-sdk = { workspace = true }

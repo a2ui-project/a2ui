@@ -44,3 +44,7 @@ packages = ["src/a2ui"]
 [[tool.uv.index]]
 url = "https://pypi.org/simple"
 default = true
+
+[tool.pyink]
+pyink-indentation = 4
+

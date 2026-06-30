@@ -44,4 +44,4 @@ build-backend = "hatchling.build"
 allow-direct-references = true
 
 [tool.uv.sources]
-a2ui-agent-sdk = { path = "../../../../agent_sdks/python/a2ui_agent", editable = true }
+a2ui-agent-sdk = { workspace = true }

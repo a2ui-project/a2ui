@@ -34,23 +34,25 @@ fi
 REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$REPO_ROOT"
 
-echo "Running Prettier formatting for Node/Web assets..."
+YARN_CMD=(yarn)
 if command -v corepack >/dev/null 2>&1; then
-  corepack enable 2>/dev/null || true
+  YARN_CMD=(corepack yarn)
 fi
+
+echo "Running Prettier formatting for Node/Web assets..."
 if [ -f ".yarn/install-state.gz" ]; then
   # Local Node environment already installed; invoke standard script targets
   if [ "$CHECK_ONLY" = true ]; then
-    yarn format:check:all
+    "${YARN_CMD[@]}" format:check:all
   else
-    yarn format:all
+    "${YARN_CMD[@]}" format:all
   fi
 else
   # Non-Node contributor or CI; run standalone Prettier via dlx without full monorepo install
   if [ "$CHECK_ONLY" = true ]; then
-    yarn dlx prettier@3.8.4 --config .prettierrc --check .
+    "${YARN_CMD[@]}" dlx prettier@3.8.4 --config .prettierrc --check .
   else
-    yarn dlx prettier@3.8.4 --config .prettierrc --write .
+    "${YARN_CMD[@]}" dlx prettier@3.8.4 --config .prettierrc --write .
   fi
 fi
 

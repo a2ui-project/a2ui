@@ -1,0 +1,90 @@
+# Copyright 2026 Google LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+[project]
+name = "a2ui-workspace"
+version = "0.1.0"
+description = "A2UI Python Workspace Root"
+requires-python = ">=3.14"
+dependencies = []
+
+[tool.uv]
+package = false
+
+[tool.uv.workspace]
+members = [
+  "agent_sdks/conformance",
+  "agent_sdks/python/a2ui_agent",
+  "agent_sdks/python/a2ui_core",
+  "eval",
+  "samples/agent/adk/custom-components-example",
+  "samples/agent/adk/restaurant_finder",
+  "samples/community/agent/adk/gemini_enterprise/agent_engine",
+  "samples/community/agent/adk/gemini_enterprise/cloud_run",
+  "samples/community/agent/adk/mcp-apps-in-a2ui-sample",
+  "samples/community/agent/adk/mcp_app_proxy",
+  "samples/community/agent/adk/orchestrator",
+  "samples/community/agent/adk/personalized_learning",
+  "samples/community/agent/adk/rizzcharts/python",
+  "samples/community/mcp/a2ui-in-mcpapps/server",
+  "samples/community/mcp/a2ui-over-mcp-recipe",
+  "samples/community/mcp/mcp-apps-calculator",
+  "tools/build_catalog",
+]
+
+[dependency-groups]
+dev = [
+    "pyink>=25.12.0",
+    "pytest>=9.1.1",
+]
+
+[tool.pytest.ini_options]
+testpaths = [
+    "agent_sdks/conformance/tests",
+    "agent_sdks/python/a2ui_agent/tests",
+    "agent_sdks/python/a2ui_core/tests",
+    "eval/tests",
+    "samples/agent/adk/tests",
+    "samples/community/agent/adk/personalized_learning/tests",
+    "samples/community/mcp/a2ui-over-mcp-recipe/tests",
+]
+norecursedirs = [
+    ".*",
+    "docs",
+    "renderers",
+    "specification",
+    "node_modules",
+    ".venv",
+]
+addopts = "--import-mode=importlib"
+
+[[tool.uv.index]]
+url = "https://pypi.org/simple"
+default = true
+
+[tool.pyink]
+unstable = true
+target-version = []
+pyink-indentation = 2
+pyink-use-majority-quotes = true
+pyink-annotation-pragmas = [
+  "noqa",
+  "pylint:",
+  "type: ignore",
+  "pytype:",
+  "mypy:",
+  "pyright:",
+  "pyre-",
+]
+
