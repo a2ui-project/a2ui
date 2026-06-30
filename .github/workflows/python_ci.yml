@@ -52,6 +52,8 @@ jobs:
         with:
           persist-credentials: false
       - uses: ./.github/actions/setup-python
+      - name: Install Dependencies
+        run: uv sync
       - name: Check Formatting
         run: uv run pyink --check agent_sdks/python/a2ui_agent
       - name: Run Unit Tests
@@ -68,6 +70,8 @@ jobs:
         with:
           persist-credentials: false
       - uses: ./.github/actions/setup-python
+      - name: Install Dependencies
+        run: uv sync
       - name: Check Formatting
         run: uv run pyink --check agent_sdks/python/a2ui_core
       - name: Run Unit Tests
@@ -82,6 +86,8 @@ jobs:
         with:
           persist-credentials: false
       - uses: ./.github/actions/setup-python
+      - name: Install Dependencies
+        run: uv sync
       - name: Check Formatting
         run: uv run pyink --check agent_sdks/conformance/tests
       - name: Validate YAML Conformance
@@ -97,10 +103,12 @@ jobs:
         with:
           persist-credentials: false
       - uses: ./.github/actions/setup-python
+      - name: Install Dependencies
+        run: uv sync
       - name: Check Formatting
         run: uv run pyink --check samples/agent/adk
       - name: Validate Sample Examples
-        run: uv run pytest -vv samples/agent/adk/tests/test_examples_validation.py
+        run: uv run --all-packages pytest -vv samples/agent/adk/tests/test_examples_validation.py
       - name: Build Sample
         run: uv build samples/agent/adk/${{ matrix.sample }}
 
