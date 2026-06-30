@@ -75,9 +75,15 @@ An **Optional Feature Blueprint** describes a feature that is not baked into the
 - **Ad-hoc Implementation**: Each codebase can decide independently whether to support an optional feature based on platform capabilities and user needs.
 - **Discovery**: Codebases that implement an optional feature must list it in their `codebase.blueprint.md` under `implemented_features` to let clients and agents know it is supported.
 
+### **Feature dependencies**
+
+A feature blueprint can optionally specify a list of **dependencies** in its frontmatter. This list includes other feature blueprints that this feature directly depends on. The purpose of this field is to provide a pragmatic way for coding agents to identify other recent features that might be missing from a codebase and need to be implemented first, rather than being an exhaustive list of all architectural dependencies.
+
 ### **my_feature.blueprint.md structure (Example)**
 
-Every feature blueprint must follow a standardized Markdown structure with YAML frontmatter. The feature is named with a date prefix, e.g. `YYYY_MM_DD_feature_name.blueprint.md`, so that if there are many feature blueprints, it's easy to sort them by date and find the most recent and relevant ones. The date in the filename and frontmatter must match, and it is the date that the feature blueprint was created.
+Every feature blueprint must follow a standardized Markdown structure with YAML frontmatter. The feature is named with a date prefix, e.g. `YYYY_MM_DD_feature_name.blueprint.md`, so that if there are many feature blueprints, it's easy to sort them by date and find the most recent and relevant ones. The date in the filename and frontmatter must match, and it is the date that the feature blueprint was initially written.
+
+_(Note: This date is used solely for rough chronological sorting of features. It does **not** indicate any dependency structure—a feature does not necessarily depend on previously created features, nor does it imply it does not depend on features proposed later.)_
 
 Below is an example feature blueprint for a dynamic theming feature, written in a language-agnostic way:
 
@@ -89,7 +95,9 @@ module_blueprints: <!-- The list of modules that this feature affects -->
   - a2ui_react
   - a2ui_lit
   - a2ui_angular
-required: false <!-- Whether this is a "required" vs optional feature -->
+type: optional <!-- Whether this is a 'required' vs 'optional' feature -->
+dependencies: <!-- Optional list of direct feature dependencies -->
+  - custom_signals
 date_added: 2026-06-23
 ---
 
@@ -170,7 +178,7 @@ Every implementation of `a2ui_core` must pass the core conformance test suite:
 
 A **Codebase** is a concrete, language-specific or framework-specific implementation of a module. Examples of codebases in this repository include `renderers/web_core` (TypeScript implementation of `a2ui_core`), `renderers/react` (React implementation of `a2ui_react`), and `agent_sdks/kotlin` (Kotlin implementation of `a2ui_inference` and `a2ui_core`).
 
-Every codebase must contain a `codebase.blueprint.md` file in its root directory. This file maps the concrete implementation back to the language-agnostic module blueprint, tracking its feature support and documenting local engineering decisions. The codebase blueprint should be updated *at the same time as the code* to keep it consistent with the codebase.
+Every codebase must contain a `codebase.blueprint.md` file in its root directory. This file maps the concrete implementation back to the language-agnostic module blueprint, tracking its feature support and documenting local engineering decisions. The codebase blueprint should be updated _at the same time as the code_ to keep it consistent with the codebase.
 
 ### **codebase.blueprint.md Structure (Example)**
 

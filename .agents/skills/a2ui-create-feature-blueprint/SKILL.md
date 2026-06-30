@@ -27,7 +27,8 @@ This skill provides step-by-step instructions on how to design, format, and chec
 ### **Step 2: File Naming & Location**
 
 - Target path: `blueprints/features/YYYY_MM_DD_feature_name.blueprint.md`
-  - `YYYY_MM_DD` must be the current date (e.g. `2026_06_26`).
+  - `YYYY_MM_DD` must be the date the feature blueprint was initially written (e.g. `2026_06_26`).
+    _(Note: This date is used solely for rough chronological sorting of features. It does **not** indicate any dependency structure—a feature does not necessarily depend on previously created features, nor does it imply it does not depend on features proposed later.)_
   - `feature_name` must be in `snake_case` (e.g. `dynamic_theming`).
   - The filename must end with `.blueprint.md`.
 
@@ -40,8 +41,10 @@ Every feature blueprint must start with a YAML block containing:
 feature_name: feature_name # Must match the filename's snake_case name exactly
 module_blueprints:
   - a2ui_core # Must be one or more valid module blueprint names
-required: false # True for required features, false for optional
-date_added: 2026-06-26 # Today's date in YYYY-MM-DD format
+type: optional # Must be 'required' or 'optional'
+dependencies: # Optional list of direct feature dependencies (e.g. - custom_signals)
+  - prerequisite_feature # Leave as empty list [] or omit if no direct dependencies
+date_added: 2026-06-26 # Date initially written (YYYY-MM-DD), for rough chronological sorting only
 ---
 ```
 

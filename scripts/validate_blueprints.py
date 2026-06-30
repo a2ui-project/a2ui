@@ -180,20 +180,39 @@ def main():
                             if mod_name not in module_blueprints:
                                 errors.append(f"Feature blueprint '{rel_path}': References unknown module blueprint '{mod_name}'")
                                 
-                    required = data.get('required')
-                    if required is None:
-                        errors.append(f"Feature blueprint '{rel_path}': Missing mandatory 'required' field in frontmatter")
-                    elif not isinstance(required, bool):
-                        errors.append(f"Feature blueprint '{rel_path}': 'required' field must be a boolean (true/false)")
+                    type_val = data.get('type')
+                    if type_val is None:
+                        errors.append(f"Feature blueprint '{rel_path}': Missing mandatory 'type' field in frontmatter")
+                    elif type_val not in ('required', 'optional'):
+                        errors.append(f"Feature blueprint '{rel_path}': 'type' field must be 'required' or 'optional'")
                         
                     date_added = data.get('date_added')
                     if not date_added:
                         errors.append(f"Feature blueprint '{rel_path}': Missing mandatory 'date_added' field in frontmatter")
                         
+                    dependencies = data.get('dependencies')
+                    if dependencies is not None:
+                        if not isinstance(dependencies, list):
+                            errors.append(f"Feature blueprint '{rel_path}': 'dependencies' must be a list of feature names")
+                            dependencies = []
+                        else:
+                            for dep in dependencies:
+                                if not isinstance(dep, str):
+                                    errors.append(f"Feature blueprint '{rel_path}': Each dependency must be a string (feature name)")
+                    else:
+                        dependencies = []
+                        
                     feature_blueprints[feature_name] = {
                         'file': rel_path,
-                        'module_blueprints': module_blueprints_list or []
+                        'module_blueprints': module_blueprints_list or [],
+                        'dependencies': dependencies
                     }
+                    
+    # Validate feature dependencies
+    for feat_name, feat_info in feature_blueprints.items():
+        for dep in feat_info['dependencies']:
+            if dep not in feature_blueprints:
+                errors.append(f"Feature blueprint '{feat_info['file']}': Dependency '{dep}' is not a valid feature blueprint in the repository")
     
     # 3. Discover and validate Codebase Blueprints
     codebase_blueprints = []

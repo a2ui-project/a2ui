@@ -16,6 +16,7 @@ This skill provides step-by-step instructions on how to use, reference, and upda
 - Open the target codebase's `codebase.blueprint.md`.
 - Verify that the feature is not already listed in `implemented_features`.
 - Retrieve the corresponding Feature Blueprint from `blueprints/features/{YYYY_MM_DD}_{feature_name}.blueprint.md` (or `blueprints/features/archived/{YYYY_MM_DD}_{feature_name}.blueprint.md`).
+- **Verify Dependencies**: Read the `dependencies` list in the Feature Blueprint's frontmatter. Cross-reference this list with the codebase's `implemented_features`. If any dependent features are missing, alert the user or implement those prerequisite features first to avoid integration issues.
 
 ### **Step 2: Load Context**
 

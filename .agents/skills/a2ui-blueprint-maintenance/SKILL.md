@@ -22,7 +22,7 @@ When a feature blueprint is ready to be archived (either because a required feat
     ```bash
     git mv blueprints/features/YYYY_MM_DD_my_feature.blueprint.md blueprints/features/archived/
     ```
-    *(Note: There is no need to update the module blueprints during archiving. A required feature's requirements must have already been merged into the affected module blueprints when it was first introduced or promoted, and optional features are never merged.)*
+    _(Note: There is no need to update the module blueprints during archiving. A required feature's requirements must have already been merged into the affected module blueprints when it was first introduced or promoted, and optional features are never merged.)_
 3.  **Run Validation**: Execute the validator to verify that references remain intact:
     ```bash
     python3 scripts/validate_blueprints.py
@@ -33,7 +33,7 @@ When a feature blueprint is ready to be archived (either because a required feat
 When an optional feature is promoted to be required:
 
 1.  **Merge Specification**: Integrate the detailed requirements and behavior of the feature directly into the main text of all affected **Module Blueprints** (e.g., `blueprints/modules/a2ui_core.blueprint.md`). Add the feature's name to each module's `included_features` or similar list.
-2.  **Update Feature Blueprint**: Open the feature blueprint file (e.g., `blueprints/features/YYYY_MM_DD_my_feature.blueprint.md`) and update its YAML frontmatter to set `required: true`.
+2.  **Update Feature Blueprint**: Open the feature blueprint file (e.g., `blueprints/features/YYYY_MM_DD_my_feature.blueprint.md`) and update its YAML frontmatter to set `type: required`.
 3.  **Do Not Archive Yet**: Keep the feature blueprint active in `blueprints/features/` (do **not** move it to the `archived/` folder yet). Because we tolerate incremental development, other codebases/SDKs may still need to implement it. It will remain in `blueprints/features/` until it has been implemented in all associated codebases, at which point it can be archived using **Recipe A**.
 4.  **Run Validation**: Execute the validator to verify blueprint consistency:
     ```bash
