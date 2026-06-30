@@ -198,9 +198,27 @@ export default async function issueTriage({github, context}) {
 
   for (const {item, comments} of itemsWithComments) {
     const reason = flagReason(item, comments, now);
-    const hasFlag = labelNames(item).includes(FLAG_LABEL);
+    const wantsFlag = Boolean(reason);
+
+    // The snapshot from `listForRepo` can be stale if another run (the daily
+    // schedule overlapping an issue event) already changed the label. Only when
+    // the snapshot says we need to act do we re-read the live labels, so a
+    // concurrent run cannot make us add the label — or its comment — twice.
+    if (wantsFlag === labelNames(item).includes(FLAG_LABEL)) {
+      continue;
+    }
 
     try {
+      const {data: fresh} = await github.rest.issues.get({
+        owner,
+        repo,
+        issue_number: item.number,
+      });
+      const hasFlag = labelNames(fresh).includes(FLAG_LABEL);
+      if (wantsFlag === hasFlag) {
+        continue; // Another run already reconciled this item.
+      }
+
       if (reason && !hasFlag) {
         await github.rest.issues.addLabels({
           owner,
