@@ -81,8 +81,12 @@ function lastHumanContribution(item, comments) {
   return latest;
 }
 
-/** Decides whether a single open item should carry the flag label. */
-function shouldFlag(item, comments, now) {
+/**
+ * Returns a human-readable reason why a single open item should carry the flag
+ * label, or null if it should not. The reason is posted as a comment whenever
+ * the label is added.
+ */
+function flagReason(item, comments, now) {
   const isPR = Boolean(item.pull_request);
   const labels = labelNames(item);
   const latest = lastHumanContribution(item, comments);
@@ -92,34 +96,58 @@ function shouldFlag(item, comments, now) {
   const awaitingMaintainer =
     !MAINTAINER_ASSOCIATIONS.has(latest.association) && !isBot(latest.user);
   if (awaitingMaintainer && staleDays > EXTERNAL_RESPONSE_DAYS) {
-    return true;
+    return `the latest reply is from an external contributor and has gone unanswered for more than ${EXTERNAL_RESPONSE_DAYS} day.`;
   }
 
   // Rule 2: stale PRs.
   if (isPR) {
-    return staleDays > PR_STALE_DAYS;
+    return staleDays > PR_STALE_DAYS
+      ? `this PR has had no human activity for more than ${PR_STALE_DAYS} day.`
+      : null;
   }
 
   // Rule 1: issues, excluding those parked on the user's response.
   if (labels.includes(WAITING_LABEL)) {
-    return false;
+    return null;
   }
 
   const priority = PRIORITY_LABELS.find(p => labels.includes(p));
 
   // 1a. No priority assigned yet.
   if (!priority) {
-    return true;
+    return 'this issue has no priority label yet.';
   }
 
   // 1b. Urgent work with nobody on it.
   if ((priority === 'P0' || priority === 'P1') && item.assignees.length === 0) {
-    return true;
+    return `this ${priority} issue has no assignee.`;
   }
 
   // 1c-e. Prioritized but stale beyond its threshold.
   const threshold = STALE_DAYS[priority];
-  return threshold !== undefined && staleDays > threshold;
+  if (threshold !== undefined && staleDays > threshold) {
+    const unit = threshold === 1 ? 'day' : 'days';
+    return `this ${priority} issue has had no human activity for more than ${threshold} ${unit}.`;
+  }
+
+  return null;
+}
+
+/**
+ * Posts a comment on an item explaining a label change. Comments are authored
+ * by the bot, so they are ignored when measuring staleness.
+ */
+async function postComment({github, owner, repo}, number, body) {
+  try {
+    await github.rest.issues.createComment({
+      owner,
+      repo,
+      issue_number: number,
+      body,
+    });
+  } catch (error) {
+    console.error(`Failed to comment on #${number}:`, error);
+  }
 }
 
 export default async function issueTriage({github, context}) {
@@ -147,26 +175,36 @@ export default async function issueTriage({github, context}) {
       per_page: 100,
     });
 
-    const wantsFlag = shouldFlag(item, comments, now);
+    const reason = flagReason(item, comments, now);
     const hasFlag = labelNames(item).includes(FLAG_LABEL);
 
     try {
-      if (wantsFlag && !hasFlag) {
+      if (reason && !hasFlag) {
         await github.rest.issues.addLabels({
           owner,
           repo,
           issue_number: item.number,
           labels: [FLAG_LABEL],
         });
+        await postComment(
+          {github, owner, repo},
+          item.number,
+          `Adding the \`${FLAG_LABEL}\` label: ${reason}`,
+        );
         added += 1;
         console.log(`Flagged #${item.number}`);
-      } else if (!wantsFlag && hasFlag) {
+      } else if (!reason && hasFlag) {
         await github.rest.issues.removeLabel({
           owner,
           repo,
           issue_number: item.number,
           name: FLAG_LABEL,
         });
+        await postComment(
+          {github, owner, repo},
+          item.number,
+          `Removing the \`${FLAG_LABEL}\` label: this item no longer matches any triage rule.`,
+        );
         removed += 1;
         console.log(`Unflagged #${item.number}`);
       }
