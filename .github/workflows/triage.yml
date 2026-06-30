@@ -21,8 +21,9 @@
 #    3. P0 and stale for more than 1 day
 #    4. P1 and stale for more than 30 days
 #    5. P2 and stale for more than 90 days
-# 2. Open PRs stale for more than a day
-# 3. External comments, not responded for more than a day
+# 2. Open PRs from external contributors, stale for more than a day
+#    (PRs from maintainers are managed by their authors)
+# 3. Issues with external comments, not responded for more than a day
 #
 # "Stale" is measured from the last human comment or update,
 # not from `updated_at`, so the bot's own label edits and comments
