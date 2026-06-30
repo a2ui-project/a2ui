@@ -246,7 +246,7 @@ describe('issueTriage reconciliation', () => {
   let calls;
 
   const makeGithub = openItems => {
-    calls = {addLabels: [], removeLabel: [], createComment: [], listComments: [], get: []};
+    calls = {addLabels: [], removeLabel: [], listComments: [], get: []};
     const rest = {
       issues: {
         listForRepo: 'listForRepo',
@@ -264,9 +264,6 @@ describe('issueTriage reconciliation', () => {
         }),
         addLabels: mock.fn(async params => calls.addLabels.push(params.issue_number)),
         removeLabel: mock.fn(async params => calls.removeLabel.push(params.issue_number)),
-        createComment: mock.fn(async params =>
-          calls.createComment.push({number: params.issue_number, body: params.body}),
-        ),
       },
     };
     return {
@@ -285,18 +282,15 @@ describe('issueTriage reconciliation', () => {
     mock.restoreAll();
   });
 
-  it('adds the label with an explanatory comment when a rule matches', async () => {
+  it('adds the label when a rule matches', async () => {
     github = makeGithub([issue({number: 7})]);
     await issueTriage({github, context});
 
     assert.deepEqual(calls.addLabels, [7]);
     assert.equal(calls.removeLabel.length, 0);
-    assert.equal(calls.createComment.length, 1);
-    assert.equal(calls.createComment[0].number, 7);
-    assert.match(calls.createComment[0].body, /Adding the `triage: flag` label/);
   });
 
-  it('removes a stale label with an explanatory comment', async () => {
+  it('removes the label when an item no longer matches any rule', async () => {
     const item = issue({
       number: 8,
       labels: ['P3', 'triage: flag'],
@@ -307,7 +301,6 @@ describe('issueTriage reconciliation', () => {
 
     assert.deepEqual(calls.removeLabel, [8]);
     assert.equal(calls.addLabels.length, 0);
-    assert.match(calls.createComment[0].body, /Removing the `triage: flag` label/);
   });
 
   it('is a no-op when the desired and actual state already agree', async () => {
@@ -319,7 +312,6 @@ describe('issueTriage reconciliation', () => {
     assert.equal(calls.get.length, 0); // no live re-read when state already agrees
     assert.equal(calls.addLabels.length, 0);
     assert.equal(calls.removeLabel.length, 0);
-    assert.equal(calls.createComment.length, 0);
   });
 
   it('does not add the label twice when a concurrent run already added it', async () => {
