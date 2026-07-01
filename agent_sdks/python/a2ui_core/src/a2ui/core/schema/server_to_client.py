@@ -17,7 +17,6 @@ from typing import Any, Dict, List, Literal, Optional, Union
 from pydantic import BaseModel, Field, ConfigDict
 
 from .common_types import StrictBaseModel
-from .constants import SPEC_VERSION
 
 
 class CreateSurface(StrictBaseModel):
@@ -43,7 +42,7 @@ class CreateSurface(StrictBaseModel):
 
 
 class CreateSurfaceMessage(StrictBaseModel):
-    version: Literal[SPEC_VERSION] = SPEC_VERSION
+    version: Literal["v0.9"] = "v0.9"
     create_surface: CreateSurface = Field(..., alias="createSurface")
 
 
@@ -59,7 +58,7 @@ class UpdateComponents(StrictBaseModel):
 
 
 class UpdateComponentsMessage(StrictBaseModel):
-    version: Literal[SPEC_VERSION] = SPEC_VERSION
+    version: Literal["v0.9"] = "v0.9"
     update_components: UpdateComponents = Field(..., alias="updateComponents")
 
 
@@ -80,7 +79,7 @@ class UpdateDataModel(StrictBaseModel):
 
 
 class UpdateDataModelMessage(StrictBaseModel):
-    version: Literal[SPEC_VERSION] = SPEC_VERSION
+    version: Literal["v0.9"] = "v0.9"
     update_data_model: UpdateDataModel = Field(..., alias="updateDataModel")
 
 
@@ -93,7 +92,7 @@ class DeleteSurface(StrictBaseModel):
 
 
 class DeleteSurfaceMessage(StrictBaseModel):
-    version: Literal[SPEC_VERSION] = SPEC_VERSION
+    version: Literal["v0.9"] = "v0.9"
     delete_surface: DeleteSurface = Field(..., alias="deleteSurface")
 
 

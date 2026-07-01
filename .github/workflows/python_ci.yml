@@ -74,6 +74,10 @@ jobs:
         run: uv sync
       - name: Check Formatting
         run: uv run pyink --check agent_sdks/python/a2ui_core
+      - name: Type Check
+        run: |
+          uv run --package a2ui-core mypy -p a2ui.core
+          uv run --package a2ui-core mypy agent_sdks/python/a2ui_core/scripts
       - name: Run Unit Tests
         run: uv run --package a2ui-core pytest agent_sdks/python/a2ui_core/tests
       - name: Build

@@ -430,8 +430,8 @@ def test_generate_schema_init():
     code = generate_schemas.generate_schema_init(["CreateSurfaceMessage"])
     assert "from .common_types import (" in code
     assert "from .constants import *" in code
-    assert "    CreateSurfaceMessage," in code
-    assert "    CreateSurface," in code
+    assert "    CreateSurfaceMessage as CreateSurfaceMessage," in code
+    assert "    CreateSurface as CreateSurface," in code
 
 
 def test_generate_client_capabilities():
@@ -461,7 +461,7 @@ def test_generate_client_capabilities():
     assert "class FunctionDefinition(StrictBaseModel):" in code
     assert "class V09Capabilities(StrictBaseModel):" in code
     assert "class A2uiClientCapabilities(StrictBaseModel):" in code
-    assert "v0_9: Optional[V09Capabilities] = Field(None, alias=SPEC_VERSION)" in code
+    assert 'v0_9: Optional[V09Capabilities] = Field(None, alias="v0.9")' in code
 
 
 def test_generate_client_to_server():

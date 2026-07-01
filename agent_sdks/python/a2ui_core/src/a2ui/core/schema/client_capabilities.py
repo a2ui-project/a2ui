@@ -16,7 +16,6 @@
 from typing import Any, Dict, List, Literal, Optional
 from pydantic import BaseModel, Field, ConfigDict
 from .common_types import StrictBaseModel
-from .constants import SPEC_VERSION
 
 
 class FunctionDefinition(StrictBaseModel):
@@ -66,4 +65,4 @@ class V09Capabilities(StrictBaseModel):
 
 
 class A2uiClientCapabilities(StrictBaseModel):
-    v0_9: Optional[V09Capabilities] = Field(None, alias=SPEC_VERSION)
+    v0_9: Optional[V09Capabilities] = Field(None, alias="v0.9")
