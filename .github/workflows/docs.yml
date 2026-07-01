@@ -30,6 +30,7 @@ on:
       - ".github/workflows/docs.yml"
       - "requirements-docs.txt"
       - "pyproject.toml"
+      - "lychee.toml"
       - "mkdocs.yml"
       - "docs/**"
   pull_request:
