@@ -11,6 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+from __future__ import annotations
 
 from typing import Any, Dict, List, Optional, Set, Tuple, Union, get_args, get_origin, cast
 from jsonschema import Draft202012Validator
@@ -395,7 +396,7 @@ class CatalogSchemaValidator:
                         details=details,
                     )
 
-    def extract_ref_fields(self) -> Dict[str, "RefFieldsTuple"]:
+    def extract_ref_fields(self) -> Dict[str, RefFieldsTuple]:
         """Inspects and retrieves the topological reference pointer map from the underlying catalog."""
         return extract_ref_fields(self.catalog)
 
@@ -412,8 +413,8 @@ class CatalogSchemaValidator:
 
 def _extract_ref_fields_pydantic(
     catalog: Catalog[Any, Any],
-) -> Dict[str, "RefFieldsTuple"]:
-    ref_map: Dict[str, "RefFieldsTuple"] = {}
+) -> Dict[str, RefFieldsTuple]:
+    ref_map: Dict[str, RefFieldsTuple] = {}
 
     def _is_ref_type(typ: Any) -> Tuple[bool, bool]:
         if isinstance(typ, type):
@@ -484,7 +485,7 @@ class RefFieldsTuple(tuple[Set[str], Set[str]]):
         single_refs: Set[str],
         list_refs: Set[str],
         nested_refs: Optional[Dict[str, Set[str]]] = None,
-    ) -> "RefFieldsTuple":
+    ) -> RefFieldsTuple:
         return super().__new__(cls, (single_refs, list_refs))
 
     def __init__(
