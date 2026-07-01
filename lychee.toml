@@ -52,6 +52,8 @@ exclude = [
   "flutter/genui/blob/main/examples/e2e/",
   # Flaky. See: https://github.com/a2ui-project/a2ui/issues/1747
   "https://ojs\\.aaai\\.org",
+  # Placeholder / illustrative URLs from dependencies
+  "https://via\\.placeholder\\.com",
 ]
 
 # Don't descend into dependency or build-output directories.
@@ -67,4 +69,7 @@ exclude_path = [
   # checking them directly is a false positive. Anchored to the source root so
   # the docs/specification/ copies are still verified.
   "^specification",
+  # Exclude Python virtual environment directories
+  "\\.venv",
+  "venv",
 ]
