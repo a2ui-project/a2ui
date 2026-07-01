@@ -18,7 +18,7 @@ import math
 from typing import Any, Dict, List, Optional
 from ..rendering import DataContext
 from ..common.events import AbortSignal
-from ..catalog.functions import create_function_implementation
+from ..catalog.functions import FunctionImplementation, create_function_implementation
 from .function_apis import (
     RequiredApi,
     RegexApi,
