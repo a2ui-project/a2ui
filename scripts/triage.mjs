@@ -40,7 +40,7 @@
 // history of runs see:
 // https://github.com/a2ui-project/a2ui/actions/workflows/triage.yml
 
-const FLAG_LABEL = 'triage: flag';
+const FLAG_LABEL = 'triage: flag'; // TODO(polina-c): align on better name and change it
 const WAITING_LABEL = 'triage: waiting-for-user-response';
 const PRIORITY_LABELS = ['P0', 'P1', 'P2', 'P3', 'P4'];
 
