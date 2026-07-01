@@ -14,12 +14,12 @@
  * limitations under the License.
  */
 
-// Reconciles the 'triage: flag' label across all open issues and PRs. The label
+// Reconciles the 'status: needs-triage' label across all open issues and PRs. The label
 // is fully owned by this automation: it is added to every item that matches a
 // rule below and removed from every item that does not, on each run.
 //
 // An item is flagged when:
-//   1. It is an issue without 'triage: waiting-for-user-response' that is:
+//   1. It is an issue without 'status: waiting-for-user-response' that is:
 //      a. without a priority label, or
 //      b. P0/P1 without an assignee, or
 //      c. P0 and stale for more than 1 day, or
@@ -37,20 +37,26 @@
 // day.
 //
 // Flagged issues and PRs:
-// https://github.com/a2ui-project/a2ui/issues?q=state%3Aopen%20label%3A%22triage%3A%20flag%22
+// https://github.com/a2ui-project/a2ui/issues?q=state%3Aopen%20label%3A%22status%3A%20needs-triage%22
 //
 // The job prints to console what items are flagged/unflagged and why. To see the
 // history of runs see:
 // https://github.com/a2ui-project/a2ui/actions/workflows/triage.yml
 
-const WAITING_LABEL = 'status: waiting-for-user-response';
-const FLAG_LABEL = 'status: needs-triage';
-const PRIORITY_LABELS = ['P0', 'P1', 'P2', 'P3', 'P4'];
+export const WAITING_LABEL = 'status: waiting-for-user-response';
+export const FLAG_LABEL = 'status: needs-triage';
+export const PRIORITY_LABELS = ['P0', 'P1', 'P2', 'P3', 'P4'];
 
-// Days of inactivity before a prioritized issue / PR is considered stale.
-const STALE_DAYS = {P0: 1, P1: 30, P2: 90};
-const PR_STALE_DAYS = 1;
-const EXTERNAL_RESPONSE_DAYS = 1;
+// Priorities urgent enough that an unassigned issue is flagged immediately
+// (rule 1b). Every entry must be one of PRIORITY_LABELS.
+export const ASSIGNEE_REQUIRED_PRIORITIES = new Set(['P0', 'P1']);
+
+// Days of inactivity before a prioritized issue / PR is considered stale
+// (rules 1c-e). Keys must be a subset of PRIORITY_LABELS; priorities absent
+// here are never flagged for staleness.
+export const STALE_DAYS = {P0: 1, P1: 30, P2: 90};
+export const PR_STALE_DAYS = 1;
+export const EXTERNAL_RESPONSE_DAYS = 1;
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -136,7 +142,7 @@ export function flagReason(item, comments, now) {
   }
 
   // 1b. Urgent work with nobody on it.
-  if ((priority === 'P0' || priority === 'P1') && (item.assignees?.length ?? 0) === 0) {
+  if (ASSIGNEE_REQUIRED_PRIORITIES.has(priority) && (item.assignees?.length ?? 0) === 0) {
     return `this ${priority} issue has no assignee.`;
   }
 
