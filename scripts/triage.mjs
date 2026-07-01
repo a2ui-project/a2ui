@@ -35,6 +35,10 @@
 // bot's own label edits never reset the clock. A PR is "stale" when no internal
 // member has commented after the external author's last comment for more than a
 // day.
+//
+// The job prints to console what items are flagged/unflagged and why. To see the
+// history of runs see:
+// https://github.com/a2ui-project/a2ui/actions/workflows/triage.yml
 
 const FLAG_LABEL = 'triage: flag';
 const WAITING_LABEL = 'triage: waiting-for-user-response';

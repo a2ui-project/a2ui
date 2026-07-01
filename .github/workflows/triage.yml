@@ -19,9 +19,6 @@
 # The flagging rules live in ./scripts/triage.mjs — see the header comment
 # there for the full specification:
 # https://github.com/a2ui-project/a2ui/blob/main/scripts/triage.mjs
-#
-# Each run logs every issue/PR it flagged or unflagged and why. Browse the runs:
-# https://github.com/a2ui-project/a2ui/actions/workflows/triage.yml
 
 name: Flag/Unflag issues and PRs
 
