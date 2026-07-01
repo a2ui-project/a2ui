@@ -18,6 +18,7 @@ import re
 os.environ["A2UI_EXPRESS_ENABLED"] = "true"
 from inspect_ai.solver import Solver, solver, TaskState, Generate
 from inspect_ai.model import ChatMessageSystem, ModelOutput, ChatCompletionChoice, ChatMessageAssistant, ChatMessageUser
+from a2ui.core.catalog import Catalog
 from a2ui.experimental.express.prompt_generator import ExpressPromptGenerator
 from a2ui.experimental.express.compiler import ExpressCompiler
 from a2ui.experimental.express.parser import parse_express_response
@@ -32,7 +33,10 @@ def a2ui_express_prompt() -> Solver:
     async def solve(state: TaskState, generate: Generate) -> TaskState:
         catalog_path = state.metadata['catalog']
         resolved_catalog_path = str(GIT_ROOT / catalog_path)
-        generator = ExpressPromptGenerator(resolved_catalog_path)
+        with open(resolved_catalog_path, "r", encoding="utf-8") as f:
+            schema = json.load(f)
+        catalog = Catalog.from_json(schema, spec_version="0.9.1")
+        generator = ExpressPromptGenerator(catalog)
         prompt = generator.generate_prompt()
         state.messages.insert(0, ChatMessageSystem(content=prompt))
         return state
@@ -70,7 +74,7 @@ def compile_express_dsl() -> Solver:
 
         try:
             # 1. Parse and compile DSL to JSON
-            parts = parse_express_response(completion, resolved_catalog_path, surface_id=surface_id)
+            parts = parse_express_response(completion, catalog, surface_id=surface_id)
             compiled_json = None
             for p in parts:
                 if p.a2ui_json:

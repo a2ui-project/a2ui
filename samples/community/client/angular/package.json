@@ -4,8 +4,9 @@
   "private": true,
   "scripts": {
     "ng": "ng",
-    "start": "ng serve",
-    "build": "ng build a2a-chat-canvas && ng build orchestrator",
+    "start": "yarn build:sandbox && ng serve",
+    "build:sandbox": "mkdir -p projects/mcp_calculator/public/mcp_apps_inner_iframe && npx esbuild ../../client/shared/mcp_apps_inner_iframe/sandbox.ts --bundle --outfile=projects/mcp_calculator/public/mcp_apps_inner_iframe/sandbox.js --format=esm --platform=browser && cp ../../client/shared/mcp_apps_inner_iframe/sandbox.html projects/mcp_calculator/public/mcp_apps_inner_iframe/sandbox.html",
+    "build": "ng build a2a-chat-canvas && ng build orchestrator && ng build mcp_calculator",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
     "clean": "rm -rf dist .tsbuildinfo .wireit out-tsc",

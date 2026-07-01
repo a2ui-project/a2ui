@@ -24,6 +24,7 @@
     "moduleResolution": "bundler",
     "resolveJsonModule": true,
     "isolatedModules": true,
+    "experimentalDecorators": true,
 
     /* Linting */
     "strict": false,

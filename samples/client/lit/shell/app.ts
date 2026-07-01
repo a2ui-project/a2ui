@@ -41,36 +41,36 @@ type MarkdownRendererFn = (value: string, options?: any) => Promise<string>;
 @customElement('a2ui-shell')
 export class A2UILayoutEditor extends SignalWatcher(LitElement) {
   @provide({context: Context.markdown})
-  accessor markdownRenderer: MarkdownRendererFn = (value: string, options?: any) => {
+  markdownRenderer: MarkdownRendererFn = (value: string, options?: any) => {
     return Promise.resolve(renderMarkdown(value, options));
   };
 
   @state()
-  accessor #requesting = false;
+  private _requesting = false;
 
   @state()
-  accessor #lastMessages: any[] = [];
+  private _lastMessages: any[] = [];
 
   @state()
-  accessor config: AppConfig = restaurantConfig;
+  config: AppConfig = restaurantConfig;
 
   @state()
-  accessor #loadingTextIndex = 0;
-  #loadingInterval: number | undefined;
+  private _loadingTextIndex = 0;
+  private _loadingInterval: number | undefined;
 
   @state()
-  accessor #isLocalMode = false;
+  private _isLocalMode = false;
 
   @state()
-  accessor #localFileName = '';
+  private _localFileName = '';
 
   @state()
-  accessor #toastMessage = '';
+  private _toastMessage = '';
 
   @state()
-  accessor #toastType = 'info';
+  private _toastType = 'info';
 
-  #toastTimeout: number | undefined;
+  private _toastTimeout: number | undefined;
 
   static styles = [
     css`
@@ -511,14 +511,14 @@ export class A2UILayoutEditor extends SignalWatcher(LitElement) {
   ];
 
   // Create a Message Processor that uses the catalogs.
-  #processor = new v0_9.MessageProcessor(
+  private _processor = new v0_9.MessageProcessor(
     [basicCatalog],
     async (action: v0_9.A2uiClientAction): Promise<any> => {
       console.debug('Handling action', action);
 
       const context: Record<string, any> = {...action.context};
 
-      if (this.#isLocalMode) {
+      if (this._isLocalMode) {
         this.showToast(`⚡ Action dispatched: "${action.name}"`, 'info');
         return;
       }
@@ -537,21 +537,21 @@ export class A2UILayoutEditor extends SignalWatcher(LitElement) {
       await this.#sendAndProcessMessage(message);
     },
   );
-  #a2uiClient = new A2UIClient();
+  private _a2uiClient!: A2UIClient;
   @query('ui-snackbar')
-  private accessor snackbar!: Snackbar;
+  private snackbar!: Snackbar;
 
-  #pendingSnackbarMessages: Array<{
+  private _pendingSnackbarMessages: Array<{
     message: SnackbarMessage;
     replaceAll: boolean;
   }> = [];
 
-  #error: string | undefined;
+  private _error: string | undefined;
 
   #maybeRenderError() {
-    if (!this.#error) return nothing;
+    if (!this._error) return nothing;
 
-    return html`<div class="error">${this.#error}</div>`;
+    return html`<div class="error">${this._error}</div>`;
   }
 
   connectedCallback() {
@@ -561,7 +561,7 @@ export class A2UILayoutEditor extends SignalWatcher(LitElement) {
     const urlParams = new URLSearchParams(window.location.search);
     const appKey = urlParams.get('app');
     if (appKey && !configs[appKey]) {
-      this.#pendingSnackbarMessages.push({
+      this._pendingSnackbarMessages.push({
         message: {
           id: crypto.randomUUID(),
           message: `App "${appKey}" is not available. Falling back to Restaurant Finder.`,
@@ -583,15 +583,15 @@ export class A2UILayoutEditor extends SignalWatcher(LitElement) {
     document.title = this.config.title;
 
     // Initialize client with configured URL
-    this.#a2uiClient = new A2UIClient(this.config.serverUrl);
+    this._a2uiClient = new A2UIClient(this.config.serverUrl);
   }
 
   protected firstUpdated() {
-    if (this.#pendingSnackbarMessages.length > 0) {
-      for (const {message, replaceAll} of this.#pendingSnackbarMessages) {
+    if (this._pendingSnackbarMessages.length > 0) {
+      for (const {message, replaceAll} of this._pendingSnackbarMessages) {
         this.snackbar.show(message, replaceAll);
       }
-      this.#pendingSnackbarMessages = [];
+      this._pendingSnackbarMessages = [];
     }
   }
 
@@ -608,12 +608,12 @@ export class A2UILayoutEditor extends SignalWatcher(LitElement) {
   }
 
   #renderLocalModeHeader() {
-    if (!this.#isLocalMode) return nothing;
+    if (!this._isLocalMode) return nothing;
 
     return html`
       <div class="local-mode-header">
         <span class="file-info">
-          Loaded local mockup: <strong>${this.#localFileName}</strong>
+          Loaded local mockup: <strong>${this._localFileName}</strong>
         </span>
         <button class="clear-btn" @click=${this.#clearLocalFile} title="Clear local mockup">
           <span class="material-symbols">close</span>
@@ -644,9 +644,9 @@ export class A2UILayoutEditor extends SignalWatcher(LitElement) {
   }
 
   #maybeRenderForm() {
-    if (this.#requesting) return nothing;
-    if (this.#lastMessages.length > 0) return nothing;
-    if (this.#isLocalMode) return nothing;
+    if (this._requesting) return nothing;
+    if (this._lastMessages.length > 0) return nothing;
+    if (this._isLocalMode) return nothing;
 
     if (this.config.key === 'local') {
       return html`
@@ -731,9 +731,9 @@ export class A2UILayoutEditor extends SignalWatcher(LitElement) {
           id="body"
           name="body"
           type="text"
-          ?disabled=${this.#requesting}
+          ?disabled=${this._requesting}
         />
-        <button type="submit" ?disabled=${this.#requesting}>
+        <button type="submit" ?disabled=${this._requesting}>
           <span class="material-symbols">send</span>
         </button>
       </div>
@@ -741,35 +741,36 @@ export class A2UILayoutEditor extends SignalWatcher(LitElement) {
   }
 
   #startLoadingAnimation() {
-    if (this.config.loadingText && this.config.loadingText.length > 1) {
-      this.#loadingTextIndex = 0;
-      this.#loadingInterval = window.setInterval(() => {
-        this.#loadingTextIndex = (this.#loadingTextIndex + 1) % this.config.loadingText!.length;
+    const loadingText = this.config.loadingText;
+    if (loadingText && loadingText.length > 1) {
+      this._loadingTextIndex = 0;
+      this._loadingInterval = window.setInterval(() => {
+        this._loadingTextIndex = (this._loadingTextIndex + 1) % loadingText.length;
       }, 2000);
     }
   }
 
   #stopLoadingAnimation() {
-    if (this.#loadingInterval) {
-      clearInterval(this.#loadingInterval);
-      this.#loadingInterval = undefined;
+    if (this._loadingInterval) {
+      clearInterval(this._loadingInterval);
+      this._loadingInterval = undefined;
     }
   }
 
   async #sendMessage(message: any): Promise<any[]> {
     try {
-      this.#requesting = true;
+      this._requesting = true;
       this.#startLoadingAnimation();
-      const response = this.#a2uiClient.send(message);
+      const response = this._a2uiClient.send(message);
       await response;
-      this.#requesting = false;
+      this._requesting = false;
       this.#stopLoadingAnimation();
 
       return response;
     } catch (err) {
       console.error(err);
     } finally {
-      this.#requesting = false;
+      this._requesting = false;
       this.#stopLoadingAnimation();
     }
 
@@ -777,9 +778,9 @@ export class A2UILayoutEditor extends SignalWatcher(LitElement) {
   }
 
   #maybeRenderData() {
-    if (this.#requesting) {
+    if (this._requesting) {
       const text = this.config.loadingText
-        ? this.config.loadingText[this.#loadingTextIndex]
+        ? this.config.loadingText[this._loadingTextIndex]
         : 'Awaiting an answer...';
 
       return html` <div class="pending">
@@ -788,7 +789,7 @@ export class A2UILayoutEditor extends SignalWatcher(LitElement) {
       </div>`;
     }
 
-    const surfaces = Array.from(this.#processor.model.surfacesMap.entries());
+    const surfaces = Array.from(this._processor.model.surfacesMap.entries());
     if (surfaces.length === 0) {
       return nothing;
     }
@@ -809,15 +810,15 @@ export class A2UILayoutEditor extends SignalWatcher(LitElement) {
     const messages = await this.#sendMessage(request);
     console.debug('Received messages', messages);
 
-    this.#lastMessages = messages;
+    this._lastMessages = messages;
 
-    // this.#processor.clearSurfaces();
+    // this._processor.clearSurfaces();
     // Why? Shouldn't `deleteSurface` be sent from the agent to the client?
-    for (const surfaceId of Array.from(this.#processor.model.surfacesMap.keys())) {
-      this.#processor.model.deleteSurface(surfaceId);
+    for (const surfaceId of Array.from(this._processor.model.surfacesMap.keys())) {
+      this._processor.model.deleteSurface(surfaceId);
     }
 
-    this.#processor.processMessages(messages);
+    this._processor.processMessages(messages);
   }
 
   #triggerFileUpload() {
@@ -832,7 +833,7 @@ export class A2UILayoutEditor extends SignalWatcher(LitElement) {
     const file = fileInput.files?.[0];
     if (!file) return;
 
-    this.#localFileName = file.name;
+    this._localFileName = file.name;
     const reader = new FileReader();
     reader.onload = e => {
       try {
@@ -840,14 +841,14 @@ export class A2UILayoutEditor extends SignalWatcher(LitElement) {
         const parsed = JSON.parse(content);
         const messages = Array.isArray(parsed) ? parsed : [parsed];
 
-        this.#isLocalMode = true;
+        this._isLocalMode = true;
 
         // Clear all existing surfaces
-        for (const surfaceId of Array.from(this.#processor.model.surfacesMap.keys())) {
-          this.#processor.model.deleteSurface(surfaceId);
+        for (const surfaceId of Array.from(this._processor.model.surfacesMap.keys())) {
+          this._processor.model.deleteSurface(surfaceId);
         }
 
-        this.#processor.processMessages(messages);
+        this._processor.processMessages(messages);
 
         this.showToast(`Successfully loaded mockup from ${file.name}`, 'info');
       } catch (err) {
@@ -863,17 +864,17 @@ export class A2UILayoutEditor extends SignalWatcher(LitElement) {
   }
 
   #clearLocalFile() {
-    this.#isLocalMode = false;
-    this.#localFileName = '';
-    for (const surfaceId of Array.from(this.#processor.model.surfacesMap.keys())) {
-      this.#processor.model.deleteSurface(surfaceId);
+    this._isLocalMode = false;
+    this._localFileName = '';
+    for (const surfaceId of Array.from(this._processor.model.surfacesMap.keys())) {
+      this._processor.model.deleteSurface(surfaceId);
     }
     this.showToast('Local mockup cleared.', 'info');
   }
 
   async #loadBuiltinSample(filename: string) {
     try {
-      this.#localFileName = filename;
+      this._localFileName = filename;
       const response = await fetch(`/samples/${filename}`);
       if (!response.ok) {
         throw new Error(`Failed to fetch sample file: ${response.statusText}`);
@@ -881,14 +882,14 @@ export class A2UILayoutEditor extends SignalWatcher(LitElement) {
       const parsed = await response.json();
       const messages = Array.isArray(parsed) ? parsed : [parsed];
 
-      this.#isLocalMode = true;
+      this._isLocalMode = true;
 
       // Clear all existing surfaces
-      for (const surfaceId of Array.from(this.#processor.model.surfacesMap.keys())) {
-        this.#processor.model.deleteSurface(surfaceId);
+      for (const surfaceId of Array.from(this._processor.model.surfacesMap.keys())) {
+        this._processor.model.deleteSurface(surfaceId);
       }
 
-      this.#processor.processMessages(messages);
+      this._processor.processMessages(messages);
 
       this.showToast(`Successfully loaded sample: ${filename}`, 'info');
     } catch (err) {
@@ -901,12 +902,12 @@ export class A2UILayoutEditor extends SignalWatcher(LitElement) {
   }
 
   #renderToast() {
-    if (!this.#toastMessage) return nothing;
+    if (!this._toastMessage) return nothing;
 
     return html`
-      <div class="custom-toast ${this.#toastType}">
-        <span class="toast-text">${this.#toastMessage}</span>
-        <button class="toast-close" @click=${() => (this.#toastMessage = '')}>
+      <div class="custom-toast ${this._toastType}">
+        <span class="toast-text">${this._toastMessage}</span>
+        <button class="toast-close" @click=${() => (this._toastMessage = '')}>
           <span class="material-symbols">close</span>
         </button>
       </div>
@@ -914,14 +915,14 @@ export class A2UILayoutEditor extends SignalWatcher(LitElement) {
   }
 
   showToast(msg: string, type = 'info') {
-    if (this.#toastTimeout) {
-      window.clearTimeout(this.#toastTimeout);
+    if (this._toastTimeout) {
+      window.clearTimeout(this._toastTimeout);
     }
-    this.#toastMessage = msg;
-    this.#toastType = type;
-    this.#toastTimeout = window.setTimeout(() => {
-      this.#toastMessage = '';
-      this.#toastTimeout = undefined;
+    this._toastMessage = msg;
+    this._toastType = type;
+    this._toastTimeout = window.setTimeout(() => {
+      this._toastMessage = '';
+      this._toastTimeout = undefined;
     }, 4000);
   }
 }
