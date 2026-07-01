@@ -29,6 +29,7 @@ on:
     paths:
       - ".github/workflows/docs.yml"
       - "requirements-docs.txt"
+      - "pyproject.toml"
       - "mkdocs.yml"
       - "docs/**"
   pull_request:
@@ -37,6 +38,7 @@ on:
     paths:
       - ".github/workflows/docs.yml"
       - "requirements-docs.txt"
+      - "pyproject.toml"
       - "mkdocs.yml"
       - "lychee.toml"
       - "docs/**"
