@@ -21,7 +21,7 @@ import {TabsComponent} from './tabs.component';
 import {ComponentModel, DynamicString} from '@a2ui/web_core/v0_9';
 import {A2uiRendererService} from '../../core/a2ui-renderer.service';
 import {ComponentBinder} from '../../core/component-binder.service';
-import {setComponentProps, createBoundProperty, ComponentToProps} from '../../core/test-utils';
+import {setComponentProps, createBoundProperty, ComponentToProps} from '@a2ui/angular/testing';
 
 @Component({
   selector: 'dummy-text-for-tabs',

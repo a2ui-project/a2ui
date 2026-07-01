@@ -21,8 +21,10 @@ The grammar for A2UI Express is defined in Express.g4.
 """
 
 import re
-from typing import Any, Optional
+from typing import Any, Dict, Optional, Union
 from antlr4 import InputStream, CommonTokenStream
+from a2ui.core.catalog import Catalog
+from a2ui.schema.catalog import A2uiCatalog
 from .generated.express_lexer import ExpressLexer
 from .generated.express_parser import ExpressParser
 from .visitor import ExpressAstVisitor, ExpressErrorListener
@@ -134,13 +136,16 @@ class ExpressCompiler:
       helper: A CatalogSchemaHelper loaded with the target catalog definition.
   """
 
-  def __init__(self, catalog_path: str):
-    """Initializes the compiler with the specified catalog schema.
+  def __init__(
+      self,
+      catalog: Union[Catalog[Any, Any], A2uiCatalog],
+  ):
+    """Initializes the compiler with the specified catalog.
 
     Args:
-        catalog_path: The absolute filesystem path to the catalog JSON file.
+        catalog: A Catalog or an A2uiCatalog.
     """
-    self.helper = CatalogSchemaHelper(catalog_path)
+    self.helper = CatalogSchemaHelper(catalog)
 
   def compile(
       self,

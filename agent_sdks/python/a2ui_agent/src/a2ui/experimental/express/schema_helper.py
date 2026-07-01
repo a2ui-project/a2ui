@@ -19,7 +19,9 @@ signatures, and requirements directly from standard catalog JSON schemas.
 """
 
 import json
-from typing import Optional
+from typing import Any, Dict, Optional, Union
+from a2ui.core.catalog import Catalog
+from a2ui.schema.catalog import A2uiCatalog
 
 
 class CatalogSchemaHelper:
@@ -29,23 +31,35 @@ class CatalogSchemaHelper:
   to support positional parameter mapping for compact generative notations.
 
   Attributes:
-      catalog_path: The absolute filesystem path to the catalog JSON file.
+      catalog_path: The absolute filesystem path to the catalog JSON file (if loaded from file).
       catalog: The parsed catalog JSON dictionary.
       components: A dictionary mapping component names to their catalog schemas.
       functions: A dictionary mapping function names to their catalog schemas.
   """
 
-  def __init__(self, catalog_path: str):
-    """Initializes the helper by loading and parsing the catalog file.
+  def __init__(
+      self,
+      catalog: Union[Catalog[Any, Any], A2uiCatalog],
+  ):
+    """Initializes the helper with a Catalog or an A2uiCatalog.
 
     Args:
-        catalog_path: The absolute filesystem path to the catalog JSON file.
+        catalog: A Catalog or an A2uiCatalog.
     """
-    self.catalog_path = catalog_path
-    with open(catalog_path, "r", encoding="utf-8") as f:
-      self.catalog = json.load(f)
-    self.components = self.catalog.get("components", {})
-    self.functions = self.catalog.get("functions", {})
+    if isinstance(catalog, A2uiCatalog):
+      self.catalog_model = catalog.core_catalog
+    elif isinstance(catalog, Catalog):
+      self.catalog_model = catalog
+    else:
+      raise TypeError(f"Unsupported catalog type: {type(catalog)}")
+
+    self.catalog = self.catalog_model.catalog_schema or {}
+    self.components = {
+        name: comp.schema for name, comp in self.catalog_model.components.items()
+    }
+    self.functions = {
+        name: fn.schema for name, fn in self.catalog_model.functions.items()
+    }
     self._load_mappings()
 
   def _load_mappings(self) -> None:

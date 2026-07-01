@@ -57,17 +57,20 @@ def a2ui_specialist() -> Tool:
         
         output = await get_model().generate(messages)
         if output.completion:
-            parts = parse_response(output.completion)
-            all_messages = []
-            for part in parts:
-                if part.a2ui_json:
-                    if isinstance(part.a2ui_json, list):
-                        all_messages.extend(part.a2ui_json)
-                    else:
-                        all_messages.append(part.a2ui_json)
-            payload = json.dumps(all_messages, indent=2)
-            store().set(PAYLOAD_STORE_KEY, payload)
-            return "Success: The UI has been generated and saved out-of-band."
+            try:
+                parts = parse_response(output.completion)
+                all_messages = []
+                for part in parts:
+                    if part.a2ui_json:
+                        if isinstance(part.a2ui_json, list):
+                            all_messages.extend(part.a2ui_json)
+                        else:
+                            all_messages.append(part.a2ui_json)
+                payload = json.dumps(all_messages, indent=2)
+                store().set(PAYLOAD_STORE_KEY, payload)
+                return "Success: The UI has been generated and saved out-of-band."
+            except Exception as e:
+                return f"Error: Failed to parse A2UI response: {str(e)}. Please make sure your response contains valid A2UI JSON enclosed in <a2ui-json>...</a2ui-json> tags."
             
         return "Error: Failed to generate the UI."
         
