@@ -861,8 +861,8 @@ def main():
             CLIENT_TO_SERVER_OUT_PATH,
             SCHEMA_INIT_OUT_PATH,
         ]
-        # Format files using pyink via isolated environment
-        cmd = ["uvx", "pyink"] + generated_files
+        # Format files using pyink via workspace environment
+        cmd = ["uv", "run", "pyink"] + generated_files
         subprocess.run(cmd, cwd=os.path.join(SCRIPT_DIR, "../"), check=True)
         print("Successfully formatted generated files using pyink!")
     except Exception as e:
