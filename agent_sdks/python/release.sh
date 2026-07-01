@@ -29,16 +29,20 @@ if [ ! -d "$TARGET_DIR" ]; then
   exit 1
 fi
 
-cd "$TARGET_DIR"
-
 # Read package name from pyproject.toml
-if [ ! -f "pyproject.toml" ]; then
+if [ ! -f "${TARGET_DIR}/pyproject.toml" ]; then
   echo "Error: pyproject.toml not found in '$TARGET_DIR'."
   exit 1
 fi
 
-PACKAGE_NAME=$(python3 -c "import tomllib; print(tomllib.load(open('pyproject.toml', 'rb'))['project']['name'])")
-VERSION=$(uv run --with hatch hatch version)
+WORKSPACE_ROOT="${SCRIPT_DIR}/../.."
+PACKAGE_NAME=$(python3 -c "import tomllib; print(tomllib.load(open('${TARGET_DIR}/pyproject.toml', 'rb'))['project']['name'])")
+
+echo "--- Syncing release tools at workspace root ---"
+uv sync --group release --directory "$WORKSPACE_ROOT"
+
+cd "$TARGET_DIR"
+VERSION=$(uv run hatch version)
 
 echo "Releasing package: $PACKAGE_NAME ($VERSION) from folder: $TARGET_DIR"
 
@@ -48,17 +52,15 @@ LOCATION="us"
 REPOSITORY_URL="https://us-python.pkg.dev/${PROJECT}/${REPOSITORY}"
 GCS_URI="gs://oss-exit-gate-prod-projects-bucket/a2ui/pypi/manifests"
 
-echo "--- Installing helper packages ---"
-uv tool install twine --with keyrings.google-artifactregistry-auth --with keyring
-uv tool install keyring --with keyrings.google-artifactregistry-auth
 
 echo "--- Building the package ---"
 rm -rf dist
-uv build
+# In a uv workspace, the default build output goes to the workspace root, but we want to scope it to the package directory.
+uv build --out-dir dist
 
 echo "--- Uploading the package ---"
-twine --version
-twine check dist/*
+uv run twine --version
+uv run twine check dist/*
 
 # Authenticate with Google Cloud
 if ! gcloud auth application-default print-access-token --quiet > /dev/null; then
@@ -72,7 +74,7 @@ if gcloud artifacts versions describe "$VERSION" --package="$PACKAGE_NAME" --rep
   exit 0
 fi
 
-twine upload --repository-url "$REPOSITORY_URL" dist/*
+uv run twine upload --repository-url "$REPOSITORY_URL" dist/*
 echo "Version $VERSION of $PACKAGE_NAME uploaded to Artifact Registry."
 
 echo "--- Creating manifest.json ---"

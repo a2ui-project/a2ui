@@ -48,6 +48,12 @@ dev = [
     "pyink>=25.12.0",
     "pytest>=9.1.1",
 ]
+release = [
+    "hatch>=1.14.0",
+    "twine>=6.0.1",
+    "keyring>=25.6.0",
+    "keyrings.google-artifactregistry-auth>=1.1.2",
+]
 
 [tool.pytest.ini_options]
 testpaths = [
