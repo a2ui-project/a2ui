@@ -14,7 +14,7 @@
 
 from typing import Any, Dict, List, Optional, Set, Tuple, Union, get_args, get_origin, cast
 from jsonschema import Draft202012Validator
-from pydantic import BaseModel, ValidationError, TypeAdapter
+from pydantic import BaseModel, ValidationError
 from referencing import Registry, Resource
 from referencing.jsonschema import DRAFT202012
 
@@ -206,7 +206,7 @@ class CatalogSchemaValidator:
                 forbid_extra = True
 
             try:
-                adapter = TypeAdapter(comp_obj.model_class)
+                adapter = comp_obj.type_adapter
                 if forbid_extra:
                     adapter.validate_python(comp_payload, extra="forbid")
                 else:
