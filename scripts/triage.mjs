@@ -36,6 +36,9 @@
 // member has commented after the external author's last comment for more than a
 // day.
 //
+// Flagged issues and PRs:
+// https://github.com/a2ui-project/a2ui/issues?q=state%3Aopen%20label%3A%22triage%3A%20flag%22
+//
 // The job prints to console what items are flagged/unflagged and why. To see the
 // history of runs see:
 // https://github.com/a2ui-project/a2ui/actions/workflows/triage.yml
