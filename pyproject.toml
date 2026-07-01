@@ -16,7 +16,7 @@
 name = "a2ui-workspace"
 version = "0.1.0"
 description = "A2UI Python Workspace Root"
-requires-python = ">=3.14"
+requires-python = ">=3.10"
 dependencies = []
 
 [tool.uv]
