@@ -65,14 +65,18 @@ class MessageProcessor:
         """Aggregates supported catalog schemas into standard A2UI capabilities."""
         v09_caps: Dict[str, Any] = {
             "supportedCatalogIds": [
-                c.catalog_id for c in self.catalogs if hasattr(c, "catalog_id")
+                cat_id
+                for c in self.catalogs
+                if (cat_id := getattr(c, "catalog_id", None)) is not None
             ]
         }
         capabilities: Dict[str, Any] = {"v0.9": v09_caps}
         if include_inline_catalogs:
             # In Python core, we can export direct schemas as inline catalogs
             v09_caps["inlineCatalogs"] = [
-                c.catalog_schema for c in self.catalogs if c.catalog_schema is not None
+                schema
+                for c in self.catalogs
+                if (schema := getattr(c, "catalog_schema", None)) is not None
             ]
         return capabilities
 

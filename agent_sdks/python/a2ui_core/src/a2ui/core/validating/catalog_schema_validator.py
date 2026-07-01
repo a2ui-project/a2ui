@@ -206,15 +206,11 @@ class CatalogSchemaValidator:
                 forbid_extra = True
 
             try:
+                adapter = TypeAdapter(comp_obj.model_class)
                 if forbid_extra:
-                    base_model = comp_obj.model_class
-
-                    class ForbidModel(base_model):  # type: ignore[misc, valid-type]
-                        model_config = {"extra": "forbid"}
-
-                    ForbidModel.model_validate(comp_payload)
+                    adapter.validate_python(comp_payload, extra="forbid")
                 else:
-                    comp_obj.model_class.model_validate(comp_payload)
+                    adapter.validate_python(comp_payload)
             except ValidationError as ve:
                 details = self._format_pydantic_errors(ve)
                 raise A2uiValidationError(
