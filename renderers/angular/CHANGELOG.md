@@ -5,10 +5,11 @@
 ## 0.10.3
 
 - (v0_9) Export Angular test utilities under `@a2ui/angular/testing` and secondary entry point `@a2ui/angular/v0_9/testing`. [#1737](https://github.com/a2ui-project/a2ui/pull/1737)
+- (v0_9) Use quoted input names in `a2ui-v09-component-host` to help it survive closure compiler minification. [#1902](https://github.com/a2ui-project/a2ui/pull/1902)
 
 ## 0.10.2
 
-- (v0_9) Align with signal implementation changes in `@a2ui/web_core`.
+- (v0_9) Align with signal implementation a2ui-v09-component-hostchanges in `@a2ui/web_core`.
 
 ## 0.10.1
 
