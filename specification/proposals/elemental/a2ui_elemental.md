@@ -11,6 +11,7 @@ By using the web's native markup structure, A2UI Elemental minimizes model syste
 - **Model alignment**: LLMs are proficient at generating HTML. Using standard HTML syntax reduces the system prompt size needed to instruct the model on how to generate user interfaces.
 - **Token efficiency**: Common HTML tags, attributes, and self-closing tags are optimized in modern LLM tokenizers (often represented as single tokens), resulting in lower token usage compared to JSON or custom DSLs.
 - **Natural hierarchical nesting**: HTML’s native tree structure eliminates the need for manual layout referencing (e.g., `"child": "component_id"`) in the generated output. The compiler handles the flattening to A2UI's adjacency-list format.
+- **Self-describing structure**: By using named attributes and slots, A2UI Elemental avoids the need for complex positional-to-named schema mapping tables (which are required by positional DSLs like A2UI Express), simplifying the compiler implementation.
 - **Incremental streaming**: HTML is streamable. The compiler can parse the incoming HTML token stream incrementally using an XML-tolerant or custom streaming parser, enabling progressive UI rendering.
 - **Catalog reuse**: The compiler retains the existing A2UI JSON Schema catalog format as the source of truth, translating it to HTML element signatures when building the model's system prompt.
 
@@ -39,6 +40,24 @@ Catalog components are represented by custom HTML elements. Tag names are prefix
   ```html
   <a2ui-card id="card_1" elevation="{4}" disabled="{true}">...</a2ui-card>
   ```
+- **Option object auto-expansion**: If a component property expects a list of option objects containing `label` and `value` properties (such as a dropdown or radio group), but the input is a list of strings, the compiler automatically expands each string into an object:
+  ```html
+  <a2ui-dropdown id="color_select" options="{['Red', 'Green', 'Blue']}" />
+  ```
+  This compiles to the standard JSON structure:
+  ```json
+  [
+    {
+      "id": "color_select",
+      "component": "Dropdown",
+      "options": [
+        {"label": "Red", "value": "Red"},
+        {"label": "Green", "value": "Green"},
+        {"label": "Blue", "value": "Blue"}
+      ]
+    }
+  ]
+  ```
 - **Self-closing tags**: Supported and preferred for leaf components or components without children:
   ```html
   <a2ui-icon id="icon_1" name="check" />
@@ -57,10 +76,13 @@ To connect properties or text to the application's shared data model, we use the
 - **Path bindings**:
   - Absolute paths: `$/path/to/value` (e.g., `name="{$/icon}"`, `{$/title}`)
   - Relative paths (within lists): `$path/to/value` (e.g., `{$name}`)
-- **Expression grammar**: Expressions inside curly braces `{...}` support path bindings, typed literals, and nested function calls:
-  ```html
-  <a2ui-text id="txt_1" text="{formatCurrency(value: $/order/total, currency: 'USD')}" />
-  ```
+- **Expression grammar**: Expressions inside curly braces `{...}` support path bindings, typed literals, nested function calls, array literals, and object literals:
+  - **Array literals** are enclosed in square brackets `[...]` (e.g., `checks="{[required(), customCheck(val: 10)]}"`).
+  - **Object literals** are enclosed in curly braces `{...}` and contain key-value pairs. If the entire attribute value is an object literal, it results in a double curly brace `{{...}}` pattern (e.g., `context="{{id: 123, user: $/user/name}}"`).
+  - *Example*:
+    ```html
+    <a2ui-text id="txt_1" text="{formatCurrency(value: $/order/total, currency: 'USD')}" />
+    ```
 - **Nested function calls**: Functions can be nested arbitrarily as arguments:
   ```html
   <a2ui-text id="txt_2" text="{myFunc(a: otherFunc(x: $/path), b: 'literal value')}" />
@@ -126,7 +148,7 @@ When rendering dynamic lists (where a template is repeated for each item in a co
 
 ### Form validation
 
-Validation rules leverage standard HTML5 validation attributes where possible, supplemented by custom attributes for advanced logic:
+Validation rules leverage standard HTML5 validation attributes where possible, supplemented by custom attributes and the `checks` attribute for advanced logic:
 
 ```html
 <a2ui-text-input
@@ -136,6 +158,21 @@ Validation rules leverage standard HTML5 validation attributes where possible, s
   error-message="Must be a valid 5-digit zip code"
 />
 ```
+
+For advanced or custom validation functions defined in the catalog (such as age validation or cross-field validation), the `checks` attribute accepts an array of function calls:
+
+```html
+<a2ui-text-input
+  id="dob"
+  error-message="You must be at least 18 years old"
+  checks="{[required(), isAdult(birthDate: $/dob)]}"
+/>
+```
+
+- **Implicit value injection**: If a validation function's first parameter is `value` (e.g., `required(value)` or `email(value)`), the compiler automatically injects the parent component's `value` path if it is omitted in the call (as shown in `required()` above).
+- **No inline messages**: The functions inside the `checks` attribute only specify validation conditions. Error messaging is handled via the component's top-level `error-message` attribute or the renderer's default messages.
+
+The compiler translates this array into the standard `checks` array of `FunctionCall` objects in the component's JSON payload.
 
 ### Actions and event handling
 
@@ -196,6 +233,49 @@ To populate or initialize values within the shared data model directly from the 
 ```
 
 The compiler parses this JSON and includes it in the `dataModel` field of the resulting `createSurface` payload. If the document contains only the script block and no UI elements, the compiler produces a standalone `updateDataModel` protocol message.
+
+---
+
+## Ecosystem integration
+
+A2UI Elemental is completely catalog-agnostic. The compiler does not hold hardcoded assumptions about component names, function signatures, or properties.
+
+### Automated catalog-to-prompt utility
+
+To instruct the model on the available components and their properties, a host-side utility compiles the active JSON schema catalog into **TypeScript TSX/JSX type definitions**. 
+
+Because LLMs are highly proficient at TypeScript and React/JSX, providing the catalog as TSX declarations in the system prompt results in highly accurate code generation:
+
+```typescript
+interface CardProps {
+  id: string;
+  elevation?: number;
+  disabled?: boolean;
+  child?: A2UIElement;
+}
+/**
+ * Renders a card container.
+ * @element a2ui-card
+ */
+declare const Card: React.FC<CardProps>;
+
+interface TextInputProps {
+  id: string;
+  value?: string | DataBinding;
+  placeholder?: string;
+  required?: boolean;
+  pattern?: string;
+  errorMessage?: string;
+  checks?: FunctionCall[];
+}
+/**
+ * A text input field.
+ * @element a2ui-text-input
+ */
+declare const TextInput: React.FC<TextInputProps>;
+```
+
+During inference, the model generates standard HTML elements matching these signatures, which the compiler maps back to the JSON wire protocol.
 
 ---
 
