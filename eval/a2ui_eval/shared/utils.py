@@ -19,6 +19,11 @@ from pathlib import Path
 
 GIT_ROOT = (Path(__file__).resolve().parent / "../../..").resolve()
 
+def version_to_dir_name(version: str) -> str:
+    """Converts a version string (e.g., '0.9.1') to a directory name (e.g., 'v0_9_1')."""
+    return "v" + version.replace(".", "_")
+
+
 @solver
 def measured_generate() -> Solver:
     """Solver that wraps generate() and records the duration in metadata."""

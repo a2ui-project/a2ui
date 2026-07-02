@@ -20,7 +20,7 @@ from inspect_ai.util import store
 from a2ui.schema.manager import A2uiSchemaManager
 from a2ui.schema.catalog import CatalogConfig
 from a2ui.parser.parser import parse_response
-from ..shared.utils import GIT_ROOT, measured_generate
+from ..shared.utils import GIT_ROOT, measured_generate, version_to_dir_name
 
 from .direct import a2ui_system_prompt
 
@@ -35,11 +35,14 @@ def a2ui_specialist() -> Tool:
         Args:
             input: The UI layout request.
         """
+        version = store().get("version", "0.9.1")
         catalog_path = store().get("catalog")
+        # Resolve version if it is parameterized in the catalog path
+        catalog_path = catalog_path.format(version=version_to_dir_name(version))
         resolved_catalog_path = str(GIT_ROOT / catalog_path)
 
         catalog_config = CatalogConfig.from_path("basic_catalog", resolved_catalog_path)
-        manager = A2uiSchemaManager(version="0.9", catalogs=[catalog_config])
+        manager = A2uiSchemaManager(version=version, catalogs=[catalog_config])
         
         role_description = store().get("role_description")
         workflow_description = store().get("workflow_description")
@@ -77,9 +80,10 @@ def a2ui_specialist() -> Tool:
     return execute
 
 @solver
-def push_metadata_to_store() -> Solver:
+def push_metadata_to_store(version: str) -> Solver:
     """Pushes metadata from the TaskState to the global store for tools to access."""
     async def solve(state: TaskState, generate: Generate) -> TaskState:
+        state.store.set("version", version)
         state.store.set("catalog", state.metadata.get('catalog'))
         state.store.set("role_description", state.metadata.get('role_description'))
         state.store.set("workflow_description", state.metadata.get('workflow_description'))
@@ -101,12 +105,12 @@ def extract_subagent_payload() -> Solver:
         return state
     return solve
 
-def subagent_tool_solver() -> list[Solver]:
+def subagent_tool_solver(version: str) -> list[Solver]:
     """Returns the solver chain for the 'subagent_tool' evaluation strategy."""
     return [
         system_message("You are a helpful assistant. To fulfill UI requests, you MUST delegate to the `a2ui_specialist` tool."),
         # Tools cannot access TaskState directly, so we must bridge the metadata into the store
-        push_metadata_to_store(),
+        push_metadata_to_store(version),
         use_tools([a2ui_specialist()]),
         measured_generate(),
         extract_subagent_payload()

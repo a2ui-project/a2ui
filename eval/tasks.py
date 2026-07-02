@@ -28,8 +28,7 @@ from a2ui_eval.scorers import a2ui_scorer, measured_model_graded_qa
 
 # Paths relative to the eval directory where we run inspect
 CURRENT_DIR = Path(__file__).resolve().parent
-DATASET_PATH_V09 = (CURRENT_DIR / "datasets/v0_9_prompts.yaml").resolve()
-DATASET_PATH_V10 = (CURRENT_DIR / "datasets/v1_0_prompts.yaml").resolve()
+DATASET_PATH = (CURRENT_DIR / "datasets/prompts.yaml").resolve()
 
 GRADER_INSTRUCTIONS = """
 After assessing the submitted answer, reply with 'GRADE: $LETTER' (without quotes) where LETTER is one of C, P or I.  Please choose ONE option for the grade: either "C" for correct answers, "P" for partial credit, or "I" for incorrect answers.
@@ -86,7 +85,7 @@ def a2ui_v0_9_1_eval(
             scorer=[dummy_scorer()]
         )
 
-    active_dataset_path = DATASET_PATH_V09
+    active_dataset_path = DATASET_PATH
     active_version = "0.9.1"
     default_catalog_path = "specification/v0_9_1/catalogs/basic/catalog.json"
 
@@ -94,7 +93,7 @@ def a2ui_v0_9_1_eval(
 
     return Task(
         dataset=dataset,
-        solver=get_solver(strategy),
+        solver=get_solver(strategy, version=active_version),
         scorer=[
             a2ui_scorer(version=active_version),
             measured_model_graded_qa(
@@ -143,7 +142,7 @@ def a2ui_v1_0_eval(
             scorer=[dummy_scorer()]
         )
 
-    active_dataset_path = DATASET_PATH_V10
+    active_dataset_path = DATASET_PATH
     active_version = "1.0"
     default_catalog_path = "specification/v1_0/catalogs/basic/catalog.json"
 
@@ -151,7 +150,7 @@ def a2ui_v1_0_eval(
 
     return Task(
         dataset=dataset,
-        solver=get_solver(strategy),
+        solver=get_solver(strategy, version=active_version),
         scorer=[
             a2ui_scorer(version=active_version),
             measured_model_graded_qa(

@@ -24,18 +24,20 @@ from a2ui.experimental.express.compiler import ExpressCompiler
 from a2ui.experimental.express.parser import parse_express_response
 from a2ui.schema.manager import A2uiSchemaManager
 from a2ui.schema.catalog import CatalogConfig
-from ..shared.utils import GIT_ROOT, measured_generate
+from ..shared.utils import GIT_ROOT, measured_generate, version_to_dir_name
 
 @solver
-def a2ui_express_prompt() -> Solver:
+def a2ui_express_prompt(version: str) -> Solver:
     """Solver to inject A2UI Express prompt contract instructions."""
 
     async def solve(state: TaskState, generate: Generate) -> TaskState:
         catalog_path = state.metadata['catalog']
+        # Resolve version if it is parameterized in the catalog path
+        catalog_path = catalog_path.format(version=version_to_dir_name(version))
         resolved_catalog_path = str(GIT_ROOT / catalog_path)
         with open(resolved_catalog_path, "r", encoding="utf-8") as f:
             schema = json.load(f)
-        catalog = Catalog.from_json(schema, spec_version="0.9.1")
+        catalog = Catalog.from_json(schema, spec_version=version)
         generator = ExpressPromptGenerator(catalog)
         prompt = generator.generate_prompt()
         state.messages.insert(0, ChatMessageSystem(content=prompt))
@@ -45,7 +47,7 @@ def a2ui_express_prompt() -> Solver:
 
 
 @solver
-def compile_express_dsl() -> Solver:
+def compile_express_dsl(version: str) -> Solver:
     """Solver to compile generated A2UI Express DSL back to standard JSON."""
 
     async def solve(state: TaskState, generate: Generate) -> TaskState:
@@ -53,11 +55,13 @@ def compile_express_dsl() -> Solver:
             return state
 
         catalog_path = state.metadata['catalog']
+        # Resolve version if it is parameterized in the catalog path
+        catalog_path = catalog_path.format(version=version_to_dir_name(version))
         resolved_catalog_path = str(GIT_ROOT / catalog_path)
 
         # Initialize the catalog schema validator for parsing
         catalog_config = CatalogConfig.from_path("basic_catalog", resolved_catalog_path)
-        manager = A2uiSchemaManager(version="1.0", catalogs=[catalog_config])
+        manager = A2uiSchemaManager(version=version, catalogs=[catalog_config])
         catalog = manager.get_selected_catalog()
         validator = catalog.validator
 
@@ -107,10 +111,10 @@ def compile_express_dsl() -> Solver:
 
     return solve
 
-def express_solver() -> list[Solver]:
+def express_solver(version: str) -> list[Solver]:
     """Returns the solver chain for the 'express' evaluation strategy."""
     return [
-        a2ui_express_prompt(),
+        a2ui_express_prompt(version),
         measured_generate(),
-        compile_express_dsl()
+        compile_express_dsl(version)
     ]

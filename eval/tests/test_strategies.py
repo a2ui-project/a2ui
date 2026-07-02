@@ -24,7 +24,7 @@ async def test_a2ui_system_prompt(tmp_path):
     catalog_file = tmp_path / "catalog.json"
     catalog_file.write_text('{"catalogId": "https://a2ui.org/test_catalog", "components": {}}')
 
-    solver = a2ui_system_prompt()
+    solver = a2ui_system_prompt(version="0.9.1")
 
     state = TaskState(
         model=ModelName("mock/model"),
@@ -86,14 +86,14 @@ def test_subagent_tool_solver(tmp_path):
     catalog_file = tmp_path / "catalog.json"
     catalog_file.write_text('{"catalogId": "test", "components": {}}')
     
-    solvers = subagent_tool_solver()
+    solvers = subagent_tool_solver(version="0.9.1")
     assert len(solvers) == 5
 
 
 from a2ui_eval.strategies.express import express_solver
 
 def test_express_solver():
-    solvers = express_solver()
+    solvers = express_solver(version="1.0")
     assert len(solvers) == 3
 
 @pytest.mark.asyncio
@@ -106,7 +106,7 @@ async def test_a2ui_express_solvers():
     catalog_file = GIT_ROOT / "specification/v1_0/catalogs/basic/catalog.json"
 
     # 1. Test Prompt Solver
-    prompt_solver = a2ui_express_prompt()
+    prompt_solver = a2ui_express_prompt(version="1.0")
     state = TaskState(
         model=ModelName("mock/model"),
         sample_id=1,
@@ -131,7 +131,7 @@ async def test_a2ui_express_solvers():
         assert "A2UI Express Output Contract" in state.messages[0].content
 
         # 2. Test Compile Solver
-        compile_solver = compile_express_dsl()
+        compile_solver = compile_express_dsl(version="1.0")
         state.output = ModelOutput(
             model="mock/model",
             choices=[ChatCompletionChoice(message=ChatMessageAssistant(
