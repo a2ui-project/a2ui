@@ -33,7 +33,7 @@ def a2ui_express_prompt(version: str) -> Solver:
     async def solve(state: TaskState, generate: Generate) -> TaskState:
         catalog_path = state.metadata['catalog']
         # Resolve version if it is parameterized in the catalog path
-        catalog_path = catalog_path.format(version=version_to_dir_name(version))
+        catalog_path = catalog_path.replace("{version}", version_to_dir_name(version))
         resolved_catalog_path = str(GIT_ROOT / catalog_path)
         with open(resolved_catalog_path, "r", encoding="utf-8") as f:
             schema = json.load(f)
@@ -56,7 +56,7 @@ def compile_express_dsl(version: str) -> Solver:
 
         catalog_path = state.metadata['catalog']
         # Resolve version if it is parameterized in the catalog path
-        catalog_path = catalog_path.format(version=version_to_dir_name(version))
+        catalog_path = catalog_path.replace("{version}", version_to_dir_name(version))
         resolved_catalog_path = str(GIT_ROOT / catalog_path)
 
         # Initialize the catalog schema validator for parsing

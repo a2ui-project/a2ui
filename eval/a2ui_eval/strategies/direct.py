@@ -25,7 +25,7 @@ def a2ui_system_prompt(version: str) -> Solver:
     async def solve(state: TaskState, generate: Generate) -> TaskState:
         catalog_path = state.metadata['catalog']
         # Resolve version if it is parameterized in the catalog path
-        catalog_path = catalog_path.format(version=version_to_dir_name(version))
+        catalog_path = catalog_path.replace("{version}", version_to_dir_name(version))
         resolved_catalog_path = str(GIT_ROOT / catalog_path)
 
         catalog_config = CatalogConfig.from_path("basic_catalog", resolved_catalog_path)
