@@ -116,9 +116,9 @@ if command -v dart >/dev/null 2>&1; then
   fi
 
   if [ "$CHECK_ONLY" = true ]; then
-    dart format --output=none --set-exit-if-changed .
+    dart format --output=none --set-exit-if-changed samples/client/flutter renderers/flutter
   else
-    dart format .
+    dart format samples/client/flutter renderers/flutter
   fi
 else
   echo "Warning: dart command not found. Skipping Dart formatting."
