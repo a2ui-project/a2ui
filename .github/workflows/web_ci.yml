@@ -90,6 +90,8 @@ jobs:
         with:
           java-version: "21"
           distribution: "temurin"
+      - name: Install Playwright browsers
+        run: yarn exec playwright install --with-deps --no-shell chromium
       - name: Setup Wireit Cache
         uses: google/wireit@9d7c2e5346f8ef1b1ab6014c4e96c74e234f7ed5 # setup-github-actions-caching/v2.0.4
       - name: Build Renderers
