@@ -49,7 +49,9 @@ const mimeTypes = {
  */
 const server = http.createServer((req, res) => {
   let filePath = path.join(distDir, req.url === '/' ? 'index.html' : req.url.split('?')[0]);
-  if (!fs.existsSync(filePath)) {
+  const relative = path.relative(distDir, filePath);
+  const isSafe = !relative.startsWith('..') && !path.isAbsolute(relative);
+  if (!isSafe || !fs.existsSync(filePath)) {
     filePath = path.join(distDir, 'index.html'); // SPA routing fallback
   }
   const ext = path.extname(filePath);

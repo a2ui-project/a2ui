@@ -49,6 +49,11 @@ const files = fs
   .filter(f => f.endsWith('.js') && !f.endsWith('.tmp'))
   .map(f => path.join(distDir, f));
 
+if (files.length === 0) {
+  console.error('Error: No JavaScript bundle chunks found in ' + distDir);
+  process.exit(1);
+}
+
 console.log(`Preprocessing ${files.length} bundle chunks for ADVANCED mode compatibility...`);
 
 for (const f of files) {
@@ -77,7 +82,7 @@ for (const f of files) {
   // variables (Class$prop) to compress names. If it collapses Ivy definitions off class constructors,
   // Angular's runtime dependency injection and component resolvers cannot inspect class definitions.
   let next = c.replace(
-    /static\s+(?:\\u0275|__NG_)([a-zA-Z0-9_$]+)/g,
+    /static\s+(?:\\u0275|ɵ|__NG_)([a-zA-Z0-9_$]+)/g,
     m => '/** @nocollapse */ ' + m,
   );
   if (next !== c) {
@@ -128,7 +133,13 @@ const activeExterns = [
   path.resolve(__dirname, 'externs/a2ui_web_core_v0_9.externs.js'),
   path.resolve(__dirname, 'externs/angular_framework.externs.js'),
   path.resolve(__dirname, 'externs/a2ui_explorer.externs.js'),
-].filter(p => fs.existsSync(p));
+];
+
+for (const p of activeExterns) {
+  if (!fs.existsSync(p)) {
+    throw new Error('Required externs file not found: ' + p);
+  }
+}
 
 if (activeExterns.length > 0) {
   options.externs = activeExterns;
