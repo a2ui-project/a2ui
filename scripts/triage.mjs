@@ -93,7 +93,7 @@ export function lastHumanContribution(item, contributions) {
 
   for (const event of contributions) {
     if (isBot(event.user)) continue;
-    if (new Date(event.createdAt) >= new Date(latest.createdAt)) {
+    if (event.createdAt >= latest.createdAt) {
       latest = event;
     }
   }
