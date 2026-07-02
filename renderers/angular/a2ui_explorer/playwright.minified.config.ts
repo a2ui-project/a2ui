@@ -23,9 +23,6 @@ export default defineConfig({
   use: {
     baseURL: 'http://localhost:4200',
     headless: true,
-    launchOptions: {
-      executablePath: '/usr/bin/google-chrome',
-    },
     actionTimeout: 2000,
   },
   webServer: {
@@ -39,10 +36,6 @@ export default defineConfig({
       name: 'chromium',
       use: {
         ...devices['Desktop Chrome'],
-        launchOptions: {
-          executablePath:
-            '/usr/local/google/home/dit/.cache/puppeteer/chrome/linux-149.0.7827.22/chrome-linux64/chrome',
-        },
       },
     },
   ],
