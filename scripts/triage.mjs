@@ -208,19 +208,21 @@ async function fetchContributions({github, owner, repo}, item) {
     }
   };
 
-  // The comment count is on the list item, so skip the call when it is zero.
-  const issueComments = item.comments
-    ? await fetchAll('comments', github.rest.issues.listComments, {issue_number: number})
-    : [];
-
-  // Reviews and inline review comments only exist on PRs, and have no count hint
-  // on the list item, so they are always fetched for PRs.
-  const [reviews, reviewComments] = item.pull_request
-    ? await Promise.all([
-        fetchAll('reviews', github.rest.pulls.listReviews, {pull_number: number}),
-        fetchAll('review comments', github.rest.pulls.listReviewComments, {pull_number: number}),
-      ])
-    : [[], []];
+  // Fetch all three sources concurrently to minimize network round-trips. The
+  // issue-comment count is on the list item, so skip that call when it is zero;
+  // reviews and inline review comments only exist on PRs and have no count hint,
+  // so they are always fetched for PRs.
+  const [issueComments, reviews, reviewComments] = await Promise.all([
+    item.comments
+      ? fetchAll('comments', github.rest.issues.listComments, {issue_number: number})
+      : [],
+    item.pull_request
+      ? fetchAll('reviews', github.rest.pulls.listReviews, {pull_number: number})
+      : [],
+    item.pull_request
+      ? fetchAll('review comments', github.rest.pulls.listReviewComments, {pull_number: number})
+      : [],
+  ]);
 
   return [...issueComments, ...reviews, ...reviewComments].map(toEvent);
 }
