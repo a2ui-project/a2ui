@@ -28,124 +28,163 @@ from report_evals import extract_accuracy, print_results_summary, load_log_data,
 # Automatically override Inspect AI's connection rate-limiter limit to prevent queuing delays in latency measurements
 os.environ["INSPECT_MAX_CONNECTIONS"] = "50"
 
+
 def check_threshold(percentage: float, threshold: float) -> bool:
-    """Compares percentage with threshold.
+  """Compares percentage with threshold.
 
-    Args:
-        percentage: The calculated pass percentage.
-        threshold: The threshold to compare against.
+  Args:
+      percentage: The calculated pass percentage.
+      threshold: The threshold to compare against.
 
-    Returns:
-        True if percentage >= threshold, False otherwise.
-    """
-    return percentage >= threshold
-
+  Returns:
+      True if percentage >= threshold, False otherwise.
+  """
+  return percentage >= threshold
 
 
 def build_main_command(args: argparse.Namespace, seed: str) -> list[str]:
-    """Builds the command line arguments for main.py.
+  """Builds the command line arguments for main.py.
 
-    Args:
-        args: Parsed command line arguments.
-        seed: The random seed to use.
+  Args:
+      args: Parsed command line arguments.
+      seed: The random seed to use.
 
-    Returns:
-        A list of strings representing the command.
-    """
-    cmd = [
-        "uv", "run", "python", "main.py",
-        "--model", args.model,
-        "--sample-shuffle", seed,
-        "--log-dir", f"logs/{seed}",
-        "--max-retries", "10",
-        "--grading-model", args.grading_model
-    ]
-    if args.max_samples != 0:
-        cmd.extend(["--limit", str(args.max_samples)])
-    return cmd
+  Returns:
+      A list of strings representing the command.
+  """
+  cmd = [
+      "uv",
+      "run",
+      "python",
+      "main.py",
+      "--model",
+      args.model,
+      "--sample-shuffle",
+      seed,
+      "--log-dir",
+      f"logs/{seed}",
+      "--max-retries",
+      "10",
+      "--grading-model",
+      args.grading_model,
+  ]
+  if args.max_samples != 0:
+    cmd.extend(["--limit", str(args.max_samples)])
+  return cmd
+
 
 def main():
-    parser = argparse.ArgumentParser(description="Run A2UI evals for CI.")
-    parser.add_argument("--max-samples", type=int, default=100, help="Maximum number of samples to evaluate. Set to 0 for all samples. Default is 100.")
-    parser.add_argument("--threshold", type=float, default=0.0, help="Pass percentage threshold (0-100). Default is 0.0.")
-    parser.add_argument("--model", type=str, default="google/gemini-3.5-flash", help="Model used to evaluate tasks. Default is google/gemini-3.5-flash.")
-    parser.add_argument("--grading-model", type=str, default="google/gemini-3.5-flash", help="Model used for grading. Default is google/gemini-3.5-flash.")
-    args = parser.parse_args()
+  parser = argparse.ArgumentParser(description="Run A2UI evals for CI.")
+  parser.add_argument(
+      "--max-samples",
+      type=int,
+      default=100,
+      help=(
+          "Maximum number of samples to evaluate. Set to 0 for all samples. Default is"
+          " 100."
+      ),
+  )
+  parser.add_argument(
+      "--threshold",
+      type=float,
+      default=0.0,
+      help="Pass percentage threshold (0-100). Default is 0.0.",
+  )
+  parser.add_argument(
+      "--model",
+      type=str,
+      default="google/gemini-3.5-flash",
+      help="Model used to evaluate tasks. Default is google/gemini-3.5-flash.",
+  )
+  parser.add_argument(
+      "--grading-model",
+      type=str,
+      default="google/gemini-3.5-flash",
+      help="Model used for grading. Default is google/gemini-3.5-flash.",
+  )
+  args = parser.parse_args()
 
-    # Find eval root (directory above bin)
-    script_dir = os.path.dirname(os.path.abspath(__file__))
-    eval_root = os.path.dirname(script_dir)
+  # Find eval root (directory above bin)
+  script_dir = os.path.dirname(os.path.abspath(__file__))
+  eval_root = os.path.dirname(script_dir)
 
-    os.chdir(eval_root)
+  os.chdir(eval_root)
 
-    seed = datetime.datetime.now(datetime.timezone.utc).strftime("%Y%m%d")
-    print(f"Running evals with seed: {seed} and max samples: {args.max_samples}")
+  seed = datetime.datetime.now(datetime.timezone.utc).strftime("%Y%m%d")
+  print(f"Running evals with seed: {seed} and max samples: {args.max_samples}")
 
-    log_dir = os.path.join(eval_root, "logs", seed)
-    if os.path.exists(log_dir):
-        shutil.rmtree(log_dir)
-    os.makedirs(log_dir, exist_ok=True)
+  log_dir = os.path.join(eval_root, "logs", seed)
+  if os.path.exists(log_dir):
+    shutil.rmtree(log_dir)
+  os.makedirs(log_dir, exist_ok=True)
 
-    cmd = build_main_command(args, seed)
+  cmd = build_main_command(args, seed)
 
-    print(f"Executing: {' '.join(cmd)}")
+  print(f"Executing: {' '.join(cmd)}")
 
-    result = subprocess.run(cmd, capture_output=False, text=True)
+  result = subprocess.run(cmd, capture_output=False, text=True)
 
-    log_files = glob.glob(os.path.join(log_dir, "*.eval"))
-    if not log_files:
-        print("Error: No log files generated by main.py.")
-        sys.exit(result.returncode if result.returncode != 0 else 1)
+  log_files = glob.glob(os.path.join(log_dir, "*.eval"))
+  if not log_files:
+    print("Error: No log files generated by main.py.")
+    sys.exit(result.returncode if result.returncode != 0 else 1)
 
-    all_passed = True
-    summaries = []
-    for log_file in log_files:
-        print(f"\n=======================================================")
-        print(f"Determining pass percentage from log file: {os.path.basename(log_file)}")
-        try:
-            log_data = load_log_data(log_file)
-            
-            print_results_summary(log_data)
-            
-            accuracy = extract_accuracy(log_data)
-            percentage = accuracy * 100
-            print(f"Pass percentage: {percentage}%")
+  all_passed = True
+  summaries = []
+  for log_file in log_files:
+    print(f"\n=======================================================")
+    print(f"Determining pass percentage from log file: {os.path.basename(log_file)}")
+    try:
+      log_data = load_log_data(log_file)
 
-            # Generate and accumulate markdown summary
-            try:
-                summary_md = generate_markdown_summary(log_data, percentage, args.threshold)
-                summaries.append(summary_md)
-            except Exception as e:
-                print(f"Warning: Failed to generate markdown summary: {e}")
+      print_results_summary(log_data)
 
-            if not check_threshold(percentage, args.threshold):
-                print(f"Error: Pass percentage {percentage}% is less than threshold {args.threshold}%")
-                all_passed = False
-            else:
-                print("Pass percentage check passed.")
-        except ValueError as e:
-            print(f"Error extracting metrics: {e}")
-            all_passed = False
-        except Exception as e:
-            print(f"Error processing log file: {e}")
-            all_passed = False
+      accuracy = extract_accuracy(log_data)
+      percentage = accuracy * 100
+      print(f"Pass percentage: {percentage}%")
 
-    # Write consolidated summary if we have summaries
-    if summaries:
-        summary_path = os.path.join(eval_root, "eval_summary.md")
-        try:
-            with open(summary_path, "w", encoding="utf-8") as f:
-                f.write("\n\n---\n\n".join(summaries))
-            print(f"Wrote evaluation summary to: {summary_path}")
-        except Exception as e:
-            print(f"Error writing summary file: {e}")
+      # Generate and accumulate markdown summary
+      try:
+        summary_md = generate_markdown_summary(log_data, percentage, args.threshold)
+        summaries.append(summary_md)
+      except Exception as e:
+        print(f"Warning: Failed to generate markdown summary: {e}")
 
-    if not all_passed:
-        print("\nCI Failed: One or more evaluation strategies did not meet the threshold or encountered an error.")
-        sys.exit(1)
-        
-    print("\nCI Passed: All evaluation strategies met the threshold.")
-    sys.exit(0)
+      if not check_threshold(percentage, args.threshold):
+        print(
+            f"Error: Pass percentage {percentage}% is less than threshold"
+            f" {args.threshold}%"
+        )
+        all_passed = False
+      else:
+        print("Pass percentage check passed.")
+    except ValueError as e:
+      print(f"Error extracting metrics: {e}")
+      all_passed = False
+    except Exception as e:
+      print(f"Error processing log file: {e}")
+      all_passed = False
+
+  # Write consolidated summary if we have summaries
+  if summaries:
+    summary_path = os.path.join(eval_root, "eval_summary.md")
+    try:
+      with open(summary_path, "w", encoding="utf-8") as f:
+        f.write("\n\n---\n\n".join(summaries))
+      print(f"Wrote evaluation summary to: {summary_path}")
+    except Exception as e:
+      print(f"Error writing summary file: {e}")
+
+  if not all_passed:
+    print(
+        "\nCI Failed: One or more evaluation strategies did not meet the threshold or"
+        " encountered an error."
+    )
+    sys.exit(1)
+
+  print("\nCI Passed: All evaluation strategies met the threshold.")
+  sys.exit(0)
+
 
 if __name__ == "__main__":
-    main()
+  main()
