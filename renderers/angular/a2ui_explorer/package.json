@@ -65,7 +65,7 @@
       ]
     },
     "test:closure-compiler": {
-      "command": "npx playwright test -c playwright.minified.config.ts",
+      "command": "playwright test -c playwright.minified.config.ts",
       "dependencies": [
         "build:closure-compiler"
       ]
@@ -89,12 +89,12 @@
     "@angular/cli": "^21.2.5",
     "@angular/compiler": "^21.2.5",
     "@angular/compiler-cli": "^21.2.5",
+    "@playwright/test": "1.58.1",
     "@types/jasmine": "^6.0.0",
     "@types/node": "^25.9.3",
     "eslint": "^10.4.1",
     "google-closure-compiler": "^20260429.0.0",
     "jasmine-core": "^6.3.0",
-    "playwright": "^1.60.0",
     "prettier": "^3.8.4",
     "typescript": "5.9.3",
     "wireit": "^0.15.0-pre.2"
