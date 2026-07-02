@@ -61,7 +61,7 @@
     "test:integration": {
       "command": "ng test a2ui_explorer --watch=false --browsers=ChromeHeadless",
       "dependencies": [
-        "build"
+        "build:deps"
       ]
     },
     "test:closure-compiler": {
