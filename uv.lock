@@ -417,7 +417,7 @@ dev = [
     { name = "pyink", specifier = ">=25.12.0" },
     { name = "pytest", specifier = ">=9.1.1" },
     { name = "pytest-asyncio", specifier = ">=1.3.0" },
-    { name = "types-jsonschema" },
+    { name = "types-jsonschema", specifier = ">=4.26.0" },
 ]
 release = [
     { name = "hatch", specifier = ">=1.14.0" },

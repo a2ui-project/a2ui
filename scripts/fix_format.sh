@@ -115,10 +115,22 @@ if command -v dart >/dev/null 2>&1; then
     dart pub get >/dev/null 2>&1 || true
   fi
 
-  if [ "$CHECK_ONLY" = true ]; then
-    dart format --output=none --set-exit-if-changed .
+  TARGETS=()
+  if [ -d "samples/client/flutter" ]; then
+    TARGETS+=("samples/client/flutter")
+  fi
+  if [ -d "renderers/flutter" ]; then
+    TARGETS+=("renderers/flutter")
+  fi
+
+  if [ ${#TARGETS[@]} -gt 0 ]; then
+    if [ "$CHECK_ONLY" = true ]; then
+      dart format --output=none --set-exit-if-changed "${TARGETS[@]}"
+    else
+      dart format "${TARGETS[@]}"
+    fi
   else
-    dart format .
+    echo "No Dart directories found to format."
   fi
 else
   echo "Warning: dart command not found. Skipping Dart formatting."
