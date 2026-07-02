@@ -118,13 +118,14 @@ console.log(
   `Compiling ${files.length} chunk files into ${path.basename(mainFile)} with Google Closure Compiler (ADVANCED mode)...`,
 );
 
+const cwd = process.cwd();
 const options = {
-  js: files,
+  js: files.map(f => path.relative(cwd, f)),
   compilation_level: 'ADVANCED',
   language_in: 'ECMASCRIPT_NEXT',
   language_out: 'ECMASCRIPT_NEXT',
   charset: 'UTF-8',
-  js_output_file: tmpPath,
+  js_output_file: path.relative(cwd, tmpPath),
   warning_level: 'QUIET',
 };
 
@@ -142,7 +143,7 @@ for (const p of activeExterns) {
 }
 
 if (activeExterns.length > 0) {
-  options.externs = activeExterns;
+  options.externs = activeExterns.map(p => path.relative(cwd, p));
 }
 
 await new Promise((resolve, reject) => {
