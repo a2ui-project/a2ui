@@ -22,9 +22,14 @@ import yaml
 from inspect_ai.dataset import MemoryDataset, Sample
 
 from datasets.defaults import DEFAULT_CATALOG_PATH, DEFAULT_WORKFLOW_DESCRIPTION, DEFAULT_ROLE_DESCRIPTION
-from a2ui_eval.shared.utils import GIT_ROOT, version_to_dir_name
+from a2ui_eval.shared.utils import GIT_ROOT
 
 SCHEMA_PATH = GIT_ROOT / 'eval' / 'datasets' / 'dataset_schema.json'
+
+
+def _version_to_dir_name(version: str) -> str:
+  """Converts a version string (e.g., '0.9.1') to a directory name (e.g., 'v0_9_1')."""
+  return 'v' + version.replace('.', '_')
 
 
 def load_a2ui_dataset(
@@ -57,7 +62,7 @@ def load_a2ui_dataset(
   for item in data:
     catalog_path = item.get('catalog') or default_catalog_path or DEFAULT_CATALOG_PATH
     if version and catalog_path:
-      catalog_path = catalog_path.replace('{version}', version_to_dir_name(version))
+      catalog_path = catalog_path.replace('{version}', _version_to_dir_name(version))
     samples.append(
         Sample(
             input=item['promptText'],
