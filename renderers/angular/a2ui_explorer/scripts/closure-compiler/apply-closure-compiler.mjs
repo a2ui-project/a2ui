@@ -34,7 +34,7 @@ import {createRequire} from 'module';
 
 const require = createRequire(import.meta.url);
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const distDir = path.resolve(__dirname, '../../../dist/a2ui_explorer/browser');
+const distDir = path.resolve(__dirname, '../../dist/browser');
 
 console.log('Starting Google Closure Compiler pipeline for Angular production bundle...');
 

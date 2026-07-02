@@ -25,7 +25,7 @@ import path from 'path';
 import {fileURLToPath} from 'url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const distDir = path.resolve(__dirname, '../../../dist/a2ui_explorer/browser');
+const distDir = path.resolve(__dirname, '../../dist/browser');
 const port = 4200;
 
 const mimeTypes = {

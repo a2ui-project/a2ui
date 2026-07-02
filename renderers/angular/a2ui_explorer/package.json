@@ -71,7 +71,7 @@
       ]
     },
     "clean": {
-      "command": "rm -rf ../dist/a2ui_explorer .tsbuildinfo .wireit src/app/generated"
+      "command": "rm -rf dist .tsbuildinfo .wireit src/app/generated"
     }
   },
   "dependencies": {
