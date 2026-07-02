@@ -72,7 +72,7 @@ server.on('error', err => {
     console.error(`Another server instance is already running on http://localhost:${port}.`);
     console.error(`Please terminate the process listening on port ${port} and try again.\n`);
   } else {
-    console.error(`\n[Error] Static server error:`, err);
+    console.error('\n[Error] Static server error:', err);
   }
   process.exit(1);
 });

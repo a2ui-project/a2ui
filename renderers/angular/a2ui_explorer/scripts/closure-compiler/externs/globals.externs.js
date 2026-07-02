@@ -14,14 +14,16 @@
  * limitations under the License.
  */
 
+/* eslint-disable no-unused-vars */
+
 /**
  * @externs
  * @fileoverview Google Closure Compiler externs for browser globals and third-party libraries.
  */
 
-var localStorage;
-var NOOP_AFTER_RENDER_REF;
-var logHmrWarning;
-var goog;
-var resolveJitResources;
-var Hammer;
+let localStorage;
+let NOOP_AFTER_RENDER_REF;
+let logHmrWarning;
+let goog;
+let resolveJitResources;
+let Hammer;
