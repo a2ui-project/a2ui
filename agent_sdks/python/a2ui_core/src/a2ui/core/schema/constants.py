@@ -12,7 +12,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-SPEC_VERSION = "v0.9"
+from typing import Final, Literal, TypeAlias
+
+SPEC_VERSION: Final = "v0.9"
+SPEC_VERSION_TYPE: TypeAlias = Literal["v0.9"]
 SPEC_BASE_URL = "https://a2ui.org/specification"
 
 MSG_TYPE_CREATE_SURFACE = "createSurface"

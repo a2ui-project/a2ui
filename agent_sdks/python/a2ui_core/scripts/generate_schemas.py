@@ -599,7 +599,8 @@ def generate_server_to_client(s2c_data: Dict[str, Any]) -> tuple[str, List[str]]
     output = [
         "from typing import Any, Dict, List, Literal, Optional, Union",
         "from pydantic import BaseModel, Field, ConfigDict\n",
-        "from .common_types import StrictBaseModel\n",
+        "from .common_types import StrictBaseModel",
+        "from .constants import SPEC_VERSION, SPEC_VERSION_TYPE\n",
     ]
 
     defs = s2c_data.get("$defs", {})
@@ -632,9 +633,7 @@ def generate_server_to_client(s2c_data: Dict[str, Any]) -> tuple[str, List[str]]
             f', alias="{envelope_key}"' if snake_envelope != envelope_key else ""
         )
         output.append(f"class {mname}(StrictBaseModel):")
-        output.append(
-            f'    version: Literal["{SPEC_VERSION_DOT}"] = "{SPEC_VERSION_DOT}"'
-        )
+        output.append(f"    version: SPEC_VERSION_TYPE = SPEC_VERSION")
         output.append(f"    {snake_envelope}: {payload_name} = Field(...{alias_opt})")
         output.append("\n")
 
@@ -654,7 +653,8 @@ def generate_client_capabilities(capabilities_data: Dict[str, Any]) -> str:
     output = [
         "from typing import Any, Dict, List, Literal, Optional",
         "from pydantic import BaseModel, Field, ConfigDict",
-        "from .common_types import StrictBaseModel\n",
+        "from .common_types import StrictBaseModel",
+        "from .constants import SPEC_VERSION, SPEC_VERSION_TYPE\n",
     ]
     defs = capabilities_data.get("$defs", {})
     if "FunctionDefinition" in defs:
@@ -680,7 +680,7 @@ def generate_client_capabilities(capabilities_data: Dict[str, Any]) -> str:
 
     output.append("class A2uiClientCapabilities(StrictBaseModel):")
     output.append(
-        f'    v0_9: Optional[V09Capabilities] = Field(None, alias="{SPEC_VERSION_DOT}")'
+        f"    v0_9: Optional[V09Capabilities] = Field(None, alias=SPEC_VERSION)"
     )
 
     code = "\n".join(output)
@@ -693,7 +693,8 @@ def generate_client_to_server(c2s_data: Dict[str, Any]) -> str:
     output = [
         "from typing import Any, Dict, List, Literal, Optional, Union",
         "from pydantic import BaseModel, Field, ConfigDict",
-        "from .common_types import StrictBaseModel\n",
+        "from .common_types import StrictBaseModel",
+        "from .constants import SPEC_VERSION, SPEC_VERSION_TYPE\n",
     ]
     props = c2s_data.get("properties", {})
 
@@ -718,12 +719,12 @@ def generate_client_to_server(c2s_data: Dict[str, Any]) -> str:
         output.append(f"A2uiClientError = Union[{', '.join(error_class_names)}]\n")
 
     output.append("class A2uiClientActionMessage(StrictBaseModel):")
-    output.append(f'    version: Literal["{SPEC_VERSION_DOT}"] = "{SPEC_VERSION_DOT}"')
+    output.append(f"    version: SPEC_VERSION_TYPE = SPEC_VERSION")
     output.append("    action: A2uiClientAction = Field(...)")
     output.append("\n")
 
     output.append("class A2uiClientErrorMessage(StrictBaseModel):")
-    output.append(f'    version: Literal["{SPEC_VERSION_DOT}"] = "{SPEC_VERSION_DOT}"')
+    output.append(f"    version: SPEC_VERSION_TYPE = SPEC_VERSION")
     output.append("    error: A2uiClientError = Field(...)")
     output.append("\n")
 
@@ -733,7 +734,7 @@ def generate_client_to_server(c2s_data: Dict[str, Any]) -> str:
 
     # Client Data Model
     output.append("class A2uiClientDataModel(StrictBaseModel):")
-    output.append(f'    version: Literal["{SPEC_VERSION_DOT}"] = "{SPEC_VERSION_DOT}"')
+    output.append(f"    version: SPEC_VERSION_TYPE = SPEC_VERSION")
     output.append(
         '    surfaces: Dict[str, Dict[str, Any]] = Field(..., description="A map of surface IDs to their current data models.")\n'
     )
