@@ -65,3 +65,31 @@ ExampleDataModelExterns.prototype.date;
 ExampleDataModelExterns.prototype.temp;
 /** @type {?|undefined} */
 ExampleDataModelExterns.prototype.icon;
+/** @type {?|undefined} */
+ExampleDataModelExterns.prototype.restaurants;
+/** @type {?|undefined} */
+ExampleDataModelExterns.prototype.title;
+/** @type {?|undefined} */
+ExampleDataModelExterns.prototype.subtitle;
+/** @type {?|undefined} */
+ExampleDataModelExterns.prototype.address;
+/** @type {?|undefined} */
+ExampleDataModelExterns.prototype.restaurantName;
+/** @type {?|undefined} */
+ExampleDataModelExterns.prototype.inputValue;
+/** @type {?|undefined} */
+ExampleDataModelExterns.prototype.user;
+/** @type {?|undefined} */
+ExampleDataModelExterns.prototype.email;
+/** @type {?|undefined} */
+ExampleDataModelExterns.prototype.password;
+/** @type {?|undefined} */
+ExampleDataModelExterns.prototype.rememberMe;
+/** @type {?|undefined} */
+ExampleDataModelExterns.prototype.submitted;
+/** @type {?|undefined} */
+ExampleDataModelExterns.prototype.responseMessage;
+/** @type {?|undefined} */
+ExampleDataModelExterns.prototype.isValid;
+/** @type {?|undefined} */
+ExampleDataModelExterns.prototype.validationErrors;
