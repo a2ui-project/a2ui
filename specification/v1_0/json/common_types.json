@@ -157,7 +157,7 @@
         }
       ]
     },
-    "indexSystemFunction": {
+    "IndexSystemFunction": {
       "type": "object",
       "description": "Returns the 0-based index of the current item when rendering a dynamic list from a template. This function MUST ONLY be available when evaluating template items within a list context.",
       "returnType": "number",
@@ -207,7 +207,7 @@
       "required": ["call"],
       "oneOf": [
         {"$ref": "catalog.json#/$defs/anyFunction"},
-        {"$ref": "#/$defs/indexSystemFunction"}
+        {"$ref": "#/$defs/IndexSystemFunction"}
       ]
     },
     "CheckRule": {

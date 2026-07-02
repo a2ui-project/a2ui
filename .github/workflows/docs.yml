@@ -29,6 +29,8 @@ on:
     paths:
       - ".github/workflows/docs.yml"
       - "requirements-docs.txt"
+      - "pyproject.toml"
+      - "lychee.toml"
       - "mkdocs.yml"
       - "docs/**"
   pull_request:
@@ -37,6 +39,7 @@ on:
     paths:
       - ".github/workflows/docs.yml"
       - "requirements-docs.txt"
+      - "pyproject.toml"
       - "mkdocs.yml"
       - "lychee.toml"
       - "docs/**"
@@ -66,23 +69,17 @@ jobs:
           git config --global user.email 41898282+github-actions[bot]@users.noreply.github.com
 
       - name: Setup Python
-        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        uses: ./.github/actions/setup-python
         with:
-          python-version: 3.13
-
-      - name: Restore pip cache
-        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5
-        with:
-          key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements-docs.txt') }}
-          path: ~/.cache/pip
-          restore-keys: |
-            ${{ runner.os }}-pip-
+          python-version: "3.13"
 
       - name: Install documentation dependencies
-        run: pip install -r requirements-docs.txt
+        run: |
+          uv venv
+          uv pip install -r requirements-docs.txt
 
       - name: Validate documentation conversion script
-        run: pip install pytest && pytest docs/scripts/test_convert_docs.py
+        run: uv run pytest docs/scripts/test_convert_docs.py
 
       - name: Copy schemas to documentation
         run: |
@@ -95,11 +92,11 @@ jobs:
           done
 
       - name: Convert Admonitions in Documentation
-        run: python docs/scripts/convert_docs.py
+        run: uv run python docs/scripts/convert_docs.py
 
       - name: Build Documentation (PR Check)
         if: github.event_name == 'pull_request'
-        run: mkdocs build
+        run: uv run mkdocs build
 
       # Pre-submit only: verify that links in every Markdown file resolve,
       # catching broken internal paths and dead external URLs. Placeholder URLs
@@ -130,4 +127,4 @@ jobs:
       - name: Deploy development version from main branch
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         run: |
-          mkdocs gh-deploy
+          uv run mkdocs gh-deploy

@@ -19,7 +19,16 @@
 import assert from 'node:assert/strict';
 import {afterEach, beforeEach, describe, it, mock} from 'node:test';
 
-import issueTriage, {flagReason, isBot, lastHumanContribution} from './triage.mjs';
+import issueTriage, {
+  ASSIGNEE_REQUIRED_PRIORITIES,
+  FLAG_LABEL,
+  flagReason,
+  isBot,
+  lastHumanContribution,
+  PRIORITY_LABELS,
+  STALE_DAYS,
+  WAITING_LABEL,
+} from './triage.mjs';
 
 const NOW = new Date('2026-06-30T00:00:00Z').getTime();
 const DAY = 24 * 60 * 60 * 1000;
@@ -99,58 +108,85 @@ describe('flagReason — issues', () => {
   });
 
   it('does not flag issues parked on the user response', () => {
-    const item = issue({labels: ['triage: waiting-for-user-response']});
+    const item = issue({labels: [WAITING_LABEL]});
     assert.equal(flagReason(item, [], NOW), null);
   });
 
-  it('flags P0/P1 issues with no assignee', () => {
-    assert.match(flagReason(issue({labels: ['P0']}), [], NOW), /no assignee/);
-    assert.match(flagReason(issue({labels: ['P1']}), [], NOW), /no assignee/);
-  });
-
-  it('does not flag an assigned, fresh P0', () => {
-    const item = issue({
-      labels: ['P0'],
-      assignees: [{login: 'dev'}],
-      created_at: daysAgo(0),
-    });
-    assert.equal(flagReason(item, [], NOW), null);
-  });
-
-  it('flags a P0 stale beyond 1 day', () => {
-    const item = issue({
-      labels: ['P0'],
-      assignees: [{login: 'dev'}],
-      created_at: daysAgo(2),
-    });
-    assert.match(flagReason(item, [], NOW), /no human activity/);
-  });
-
-  it('flags a P1 stale beyond 30 days but not a fresher one', () => {
-    const base = {labels: ['P1'], assignees: [{login: 'dev'}]};
-    assert.match(
-      flagReason(issue({...base, created_at: daysAgo(31)}), [], NOW),
-      /no human activity/,
-    );
-    assert.equal(flagReason(issue({...base, created_at: daysAgo(10)}), [], NOW), null);
-  });
-
-  it('flags a P2 only after 90 days', () => {
-    assert.match(
-      flagReason(issue({labels: ['P2'], created_at: daysAgo(91)}), [], NOW),
-      /no human activity/,
-    );
-    assert.equal(flagReason(issue({labels: ['P2'], created_at: daysAgo(45)}), [], NOW), null);
-  });
-
-  it('does not flag a prioritized P3/P4 issue', () => {
-    assert.equal(flagReason(issue({labels: ['P3']}), [], NOW), null);
-    assert.equal(flagReason(issue({labels: ['P4']}), [], NOW), null);
+  // Drive the assignee rule off ASSIGNEE_REQUIRED_PRIORITIES rather than
+  // hardcoding P0/P1, so the test tracks the config constant.
+  it('flags every assignee-required priority with no assignee', () => {
+    for (const priority of ASSIGNEE_REQUIRED_PRIORITIES) {
+      assert.match(flagReason(issue({labels: [priority]}), [], NOW), /no assignee/, priority);
+    }
   });
 
   it('handles a missing assignees field without throwing', () => {
-    const item = issue({labels: ['P0'], assignees: undefined});
+    const [priority] = ASSIGNEE_REQUIRED_PRIORITIES;
+    const item = issue({labels: [priority], assignees: undefined});
     assert.match(flagReason(item, [], NOW), /no assignee/);
+  });
+
+  // Drive the staleness rule off STALE_DAYS so the thresholds live in one place.
+  // An assignee is attached so the assignee rule can never mask the staleness one.
+  for (const [priority, threshold] of Object.entries(STALE_DAYS)) {
+    const base = {labels: [priority], assignees: [{login: 'dev'}]};
+
+    it(`does not flag a fresh ${priority} (within ${threshold} day(s))`, () => {
+      const item = issue({...base, created_at: daysAgo(threshold)});
+      assert.equal(flagReason(item, [], NOW), null);
+    });
+
+    it(`flags a ${priority} stale beyond ${threshold} day(s)`, () => {
+      const item = issue({...base, created_at: daysAgo(threshold + 1)});
+      assert.match(flagReason(item, [], NOW), /no human activity/);
+    });
+  }
+});
+
+// PRIORITY_LABELS is the single source of truth for which labels count as a
+// priority. These tests pin that contract so a rename or reorder can't silently
+// break triage.
+describe('flagReason — PRIORITY_LABELS contract', () => {
+  it('treats every PRIORITY_LABELS entry as a real priority (never "no priority")', () => {
+    for (const priority of PRIORITY_LABELS) {
+      // Assigned and fresh, so the only rule that could fire is 1a.
+      const item = issue({labels: [priority], assignees: [{login: 'dev'}]});
+      const reason = flagReason(item, [], NOW);
+      if (reason !== null) {
+        assert.doesNotMatch(reason, /no priority label/, priority);
+      }
+    }
+  });
+
+  it('flags an issue whose label is not in PRIORITY_LABELS as unprioritized', () => {
+    const notAPriority = 'area: rendering';
+    assert.ok(!PRIORITY_LABELS.includes(notAPriority));
+    assert.match(flagReason(issue({labels: [notAPriority]}), [], NOW), /no priority label/);
+  });
+
+  it('never flags a priority that has no staleness threshold (when assigned)', () => {
+    const unThresholded = PRIORITY_LABELS.filter(p => STALE_DAYS[p] === undefined);
+    assert.ok(unThresholded.length > 0, 'expected at least one priority without a threshold');
+    for (const priority of unThresholded) {
+      const item = issue({
+        labels: [priority],
+        assignees: [{login: 'dev'}],
+        created_at: daysAgo(9999),
+      });
+      assert.equal(flagReason(item, [], NOW), null, priority);
+    }
+  });
+
+  it('keeps config constants consistent with PRIORITY_LABELS', () => {
+    for (const priority of Object.keys(STALE_DAYS)) {
+      assert.ok(PRIORITY_LABELS.includes(priority), `STALE_DAYS key ${priority} not a priority`);
+    }
+    for (const priority of ASSIGNEE_REQUIRED_PRIORITIES) {
+      assert.ok(
+        PRIORITY_LABELS.includes(priority),
+        `ASSIGNEE_REQUIRED_PRIORITIES entry ${priority} not a priority`,
+      );
+    }
   });
 });
 
@@ -293,7 +329,7 @@ describe('issueTriage reconciliation', () => {
   it('removes the label when an item no longer matches any rule', async () => {
     const item = issue({
       number: 8,
-      labels: ['P3', 'triage: flag'],
+      labels: ['P3', FLAG_LABEL],
       assignees: [{login: 'dev'}],
     });
     github = makeGithub([item]);
@@ -304,7 +340,7 @@ describe('issueTriage reconciliation', () => {
   });
 
   it('is a no-op when the desired and actual state already agree', async () => {
-    const flagged = issue({number: 9, labels: ['triage: flag']}); // matches rule 1a
+    const flagged = issue({number: 9, labels: [FLAG_LABEL]}); // matches rule 1a
     const clean = issue({number: 10, labels: ['P3']}); // matches no rule
     github = makeGithub([flagged, clean]);
     await issueTriage({github, context});
@@ -317,7 +353,7 @@ describe('issueTriage reconciliation', () => {
   it('does not add the label twice when a concurrent run already added it', async () => {
     // Snapshot shows no label, but a live re-read finds another run beat us.
     const item = issue({number: 14});
-    item.__fresh = issue({number: 14, labels: ['triage: flag']});
+    item.__fresh = issue({number: 14, labels: [FLAG_LABEL]});
     github = makeGithub([item]);
     await issueTriage({github, context});
 
