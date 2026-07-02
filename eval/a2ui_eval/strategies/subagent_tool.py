@@ -38,7 +38,7 @@ def a2ui_specialist() -> Tool:
         version = store().get("version", "0.9.1")
         catalog_path = store().get("catalog")
         if not catalog_path:
-            return "Error: Catalog path is missing from the store."
+            raise ValueError("Catalog path is missing from the store.")
         # Resolve version if it is parameterized in the catalog path
         catalog_path = catalog_path.replace("{version}", version_to_dir_name(version))
         resolved_catalog_path = str(GIT_ROOT / catalog_path)
