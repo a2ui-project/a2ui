@@ -15,6 +15,8 @@
 """Module for providing A2UI catalog schemas and resources."""
 
 import json
+import urllib.error
+import urllib.request
 from abc import ABC, abstractmethod
 from json.decoder import JSONDecodeError
 from typing import Any, Dict
@@ -46,3 +48,21 @@ class FileSystemCatalogProvider(A2uiCatalogProvider):
         return json.load(f)
     except (FileNotFoundError, JSONDecodeError) as e:
       raise IOError(f"Could not load schema from {self.path}: {e}") from e
+
+
+class HttpCatalogProvider(A2uiCatalogProvider):
+  """Loads catalog definition from an HTTP or HTTPS URL."""
+
+  def __init__(self, url: str, timeout: float = 30.0):
+    self.url = url
+    self.timeout = timeout
+
+  def load(self) -> Dict[str, Any]:
+    try:
+      request = urllib.request.Request(self.url, headers={"Accept": "application/json"})
+      with urllib.request.urlopen(request, timeout=self.timeout) as response:
+        charset = response.headers.get_content_charset() or ENCODING
+        body = response.read().decode(charset)
+      return json.loads(body)
+    except (urllib.error.URLError, ValueError, LookupError) as e:
+      raise IOError(f"Could not load schema from {self.url}: {e}") from e

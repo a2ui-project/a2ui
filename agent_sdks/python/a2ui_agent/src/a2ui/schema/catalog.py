@@ -20,6 +20,8 @@ import glob
 import json
 import logging
 import os
+import urllib.error
+import urllib.request
 from dataclasses import dataclass, field, replace
 from typing import Any, Dict, List, Optional, Union, TYPE_CHECKING
 from urllib.parse import urlparse
@@ -27,7 +29,7 @@ from a2ui.core.catalog import Catalog
 from a2ui.core import A2uiCatalogError
 
 
-from .catalog_provider import A2uiCatalogProvider, FileSystemCatalogProvider
+from .catalog_provider import A2uiCatalogProvider, FileSystemCatalogProvider, HttpCatalogProvider
 from .constants import (
     A2UI_SCHEMA_BLOCK_START,
     A2UI_SCHEMA_BLOCK_END,
@@ -75,7 +77,7 @@ class CatalogConfig:
     if not parsed.scheme or parsed.scheme == "file":
       catalog_provider = FileSystemCatalogProvider(parsed.path)
     elif parsed.scheme in ["http", "https"]:
-      raise NotImplementedError("HTTP support is coming soon.")
+      catalog_provider = HttpCatalogProvider(catalog_path)
     else:
       raise A2uiCatalogError(f"Unsupported catalog URL scheme: {catalog_path}")
 
@@ -92,6 +94,8 @@ def resolve_examples_path(path: Optional[str]) -> Optional[str]:
     parsed = urlparse(path)
     if not parsed.scheme or parsed.scheme == "file":
       return parsed.path
+    elif parsed.scheme in ["http", "https"]:
+      return path
     else:
       raise A2uiCatalogError(f"Unsupported examples URL scheme: {path}")
   return None
@@ -349,10 +353,33 @@ class A2uiCatalog:
 
     return "\n\n".join(all_schemas)
 
+  def _load_examples_from_http(self, url: str, validate: bool = False) -> str:
+    """Fetches a single examples JSON file from an HTTP/HTTPS URL."""
+    try:
+      request = urllib.request.Request(url, headers={"Accept": "application/json"})
+      with urllib.request.urlopen(request, timeout=30.0) as response:
+        charset = response.headers.get_content_charset() or ENCODING
+        content = response.read().decode(charset)
+    except (urllib.error.URLError, ValueError, LookupError) as e:
+      raise A2uiCatalogError(f"Could not load examples from {url}: {e}") from e
+
+    basename = (
+        os.path.splitext(urlparse(url).path.rstrip("/").split("/")[-1])[0] or "examples"
+    )
+
+    if validate:
+      self._validate_example(url, content)
+
+    return f"---BEGIN {basename}---\n{content}\n---END {basename}---"
+
   def load_examples(self, path: Optional[str], validate: bool = False) -> str:
-    """Loads and validates examples from a directory or a glob pattern."""
+    """Loads and validates examples from a directory, glob pattern, or HTTP URL."""
     if not path:
       return ""
+
+    parsed = urlparse(path)
+    if parsed.scheme in ["http", "https"]:
+      return self._load_examples_from_http(path, validate)
 
     # If it's a directory, support backward compatibility by appending /*.json
     if os.path.isdir(path):
