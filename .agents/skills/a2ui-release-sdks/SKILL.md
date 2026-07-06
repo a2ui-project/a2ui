@@ -9,9 +9,9 @@ Guidelines and tactical workflows for AI agents to release A2UI Python (`a2ui-ag
 
 Primary sources of truth:
 
-- Generic Release Guide & Policies: [development/docs/package_releases.md](../../development/docs/package_releases.md)
-- Python Technical Publishing Guide: [agent_sdks/python/docs/python_publishing.md](../../agent_sdks/python/docs/python_publishing.md)
-- TypeScript Technical Publishing Guide: [renderers/docs/web_publishing.md](../../renderers/docs/web_publishing.md)
+- Generic Release Guide & Policies: [development/docs/package_releases.md](../../../development/docs/package_releases.md)
+- Python Technical Publishing Guide: [agent_sdks/python/docs/python_publishing.md](../../../agent_sdks/python/docs/python_publishing.md)
+- TypeScript Technical Publishing Guide: [renderers/docs/web_publishing.md](../../../renderers/docs/web_publishing.md)
 
 ---
 
@@ -108,7 +108,7 @@ gh pr list --search "bump version" --json number,title,url,headRefName,state
    - **TypeScript**: Execute `renderers/scripts/increment_version.mjs <pkg_name> [new_version]`
    - **Python**: Edit `src/a2ui/version.py` or `src/a2ui/core/version.py`.
 5. **Run Pre-flight Tests**:
-   - Python (see [python_publishing.md](../../agent_sdks/python/docs/python_publishing.md)): `cd agent_sdks/python && uv run pytest`
+   - Python (see [python_publishing.md](../../../agent_sdks/python/docs/python_publishing.md)): `cd agent_sdks/python && uv run pytest`
    - TypeScript: `yarn test`
 6. **Commit & Open Pull Request**:
    ```bash
@@ -130,12 +130,12 @@ Run this phase once the Version Bump PR has landed in `main`:
    git pull origin main
    ```
 2. **Execute Language-Specific Staging & Upload Scripts**:
-   - Refer to [agent_sdks/python/docs/python_publishing.md](../../agent_sdks/python/docs/python_publishing.md) for Python:
+   - Refer to [agent_sdks/python/docs/python_publishing.md](../../../agent_sdks/python/docs/python_publishing.md) for Python:
      ```bash
      cd agent_sdks/python
      ./release.sh <a2ui_agent|a2ui_core>
      ```
-   - Refer to [renderers/docs/web_publishing.md](../../renderers/docs/web_publishing.md) for TypeScript:
+   - Refer to [renderers/docs/web_publishing.md](../../../renderers/docs/web_publishing.md) for TypeScript:
      ```bash
      ./renderers/scripts/publish_npm.mjs --no-dry-run
      ./renderers/scripts/upload_manifest.mjs --no-dry-run
