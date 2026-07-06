@@ -57,44 +57,38 @@ else
 fi
 
 echo "Running Pyink for Python Agent SDK..."
-cd "$REPO_ROOT/agent_sdks/python/a2ui_agent" || exit 1
 if [ "$CHECK_ONLY" = true ]; then
-  uv run pyink --check .
+  uv run pyink --check agent_sdks/python/a2ui_agent
 else
-  uv run pyink .
+  uv run pyink agent_sdks/python/a2ui_agent
 fi
 
 echo "Running Pyink for Python Core SDK..."
-cd "$REPO_ROOT/agent_sdks/python/a2ui_core" || exit 1
 if [ "$CHECK_ONLY" = true ]; then
-  uv run pyink --check .
+  uv run pyink --check agent_sdks/python/a2ui_core
 else
-  uv run pyink .
+  uv run pyink agent_sdks/python/a2ui_core
 fi
 
 echo "Running Pyink for Python Samples..."
-cd "$REPO_ROOT/samples/agent/adk"
 if [ "$CHECK_ONLY" = true ]; then
-  uv run pyink --check .
+  uv run pyink --check samples/agent/adk
 else
-  uv run pyink .
+  uv run pyink samples/agent/adk
 fi
 
 echo "Running Pyink for Python Eval..."
-cd "$REPO_ROOT/eval" || exit 1
 if [ "$CHECK_ONLY" = true ]; then
-  uv run pyink --check .
+  uv run pyink --check eval
 else
-  uv run pyink .
+  uv run pyink eval
 fi
 
-
 echo "Running Pyink for Python Specification Proposals..."
-cd "$REPO_ROOT"
 if [ "$CHECK_ONLY" = true ]; then
-  uv run pyink --check "$REPO_ROOT/specification/proposals"
+  uv run pyink --check specification/proposals
 else
-  uv run pyink "$REPO_ROOT/specification/proposals"
+  uv run pyink specification/proposals
 fi
 
 echo "Running Dart format..."
