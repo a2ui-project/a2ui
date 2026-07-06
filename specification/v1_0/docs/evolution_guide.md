@@ -33,6 +33,7 @@ Version 1.0 differs from 0.9 in the following ways:
 - Added a `steps` property to the `Slider` component schema to snap values to discrete intervals.
 - Added an optional `instructions` field to the `Catalog` schema (`catalogs/basic/catalog.json`) to embed Markdown guidelines/rules directly, replacing the external `rules.txt` file.
 - Renamed `svgPath` to `path` in the custom SVG icon definition object schema.
+- Removed the `DataBinding` option from the `Icon` component's `name` property. Because `svgPath` was renamed to `path`, the custom-SVG object `{path}` became structurally identical to a `DataBinding` `{path}`, making the `name` `oneOf` ambiguous. As a result, `Icon.name` can no longer be data-bound; it must be a literal enum icon name or an inline custom SVG `{path}`.
 - Renamed `$defs/theme` to `$defs/surfaceProperties` in the basic catalog.
 
 ### 2.3. Server-to-client messages
@@ -45,7 +46,7 @@ Version 1.0 differs from 0.9 in the following ways:
 ### 2.4. Client-to-server events
 
 - Added `actionId` to the `action` message properties, which the client generates if a response is expected (`wantResponse: true`).
-- Added `functionResponse` message structure (`FunctionResponseMessage`) to return the execution result (`value` or `error`) of a server-initiated function call.
+- Added the `functionResponse` client-to-server message to return the successful result (`value`) of a server-initiated function call. Function execution failures are reported via the separate `error` message (see next item), not via `functionResponse`.
 - Updated client `error` messages to support `functionCallId` when reporting function execution failures, enforcing mutual exclusivity with `surfaceId`.
 - Updated all protocol version references from `v0.9` or `v0.9.1` to `v1.0`.
 
@@ -87,6 +88,7 @@ This section outlines the steps required to migrate existing applications and co
 - Ensure all generated catalog entity names conform to UAX #31 identifier rules.
 - Do not include `callableFrom` or `returnType` properties in wire-level `FunctionCall` payloads. Set static `callableFrom` and `returnType` metadata in catalog function definitions where needed.
 - Update custom SVG icon definitions in `Icon` components to rename `svgPath` to `path`. Update `Video`, `TextField`, and `Slider` components to support optional `posterUrl`, `placeholder`, and `steps` properties.
+- Stop data-binding the `Icon` component's `name` property; data binding on `name` is no longer supported. Use a literal enum icon name or an inline custom SVG `{path}`, and change an icon dynamically by resending the `Icon` component via `updateComponents`.
 - Explicitly set values to `null` in `updateDataModel` messages to delete keys at specified paths. Do not omit keys or send undefined to indicate deletion.
 
 ### For renderers and clients
