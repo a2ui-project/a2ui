@@ -80,6 +80,15 @@ else
   uv run pyink .
 fi
 
+echo "Running Pyink for Python Eval..."
+cd "$REPO_ROOT/eval" || exit 1
+if [ "$CHECK_ONLY" = true ]; then
+  uv run pyink --check .
+else
+  uv run pyink .
+fi
+
+
 echo "Running Pyink for Python Specification Proposals..."
 cd "$REPO_ROOT"
 if [ "$CHECK_ONLY" = true ]; then

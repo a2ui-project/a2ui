@@ -22,7 +22,7 @@ Follow these steps to triage new or backlog issues:
 Use the fetch script to retrieve all open issues lacking a priority label (`P0`, `P1`, `P2`, `P3`, `P4`) in the A2UI repository.
 
 1. Run the fetch script to download the issues to a raw JSON file in your conversation-specific scratch directory:
-   `python3 .agents/skills/a2ui-issue-triage/scripts/fetch_issues.py --repo "gspencergoog/a2ui" --output-file "<appDataDir>/brain/<conversation-id>/scratch/raw_issues.json"`
+   `python3 .agents/skills/a2ui-issue-triage/scripts/fetch_issues.py --repo "a2ui-project/a2ui" --output-file "<appDataDir>/brain/<conversation-id>/scratch/raw_issues.json"`
 
 ---
 
