@@ -26,14 +26,16 @@ class A2uiErrorDetail:
     code: str
     message: str
 
-    def to_dict(self) -> dict:
+    def to_dict(self) -> dict[str, str]:
         return dataclasses.asdict(self)
 
 
 class A2uiError(ValueError):
     """Base exception class for all A2UI SDK failures."""
 
-    def __init__(self, message: str, details: list = None):
+    def __init__(
+        self, message: str, details: list[A2uiErrorDetail] | None = None
+    ) -> None:
         super().__init__(message)
         self.details = details or []
 

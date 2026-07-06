@@ -36,7 +36,10 @@ export const appConfig: ApplicationConfig = {
     provideClientHydration(withEventReplay()),
     configureChatCanvasFeatures(
       usingA2aService(A2aServiceImpl),
-      usingA2uiRenderers(DEMO_CATALOG),
+      usingA2uiRenderers(
+        null, // customCatalogV08
+        DEMO_CATALOG, // customCatalogV09
+      ),
       usingDefaultSanitizerMarkdownRenderer(),
     ),
   ],

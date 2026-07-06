@@ -25,6 +25,14 @@ This project follows
 
 ## Contribution process
 
+### Issues
+
+File new issues here: https://github.com/a2ui-project/a2ui/issues
+
+The issue triage process is described in the Google-internal document: go/a2ui-triage.
+
+TODO(polina-c): port process description here.
+
 ### Code reviews
 
 All submissions, including submissions by project members, require review. We
