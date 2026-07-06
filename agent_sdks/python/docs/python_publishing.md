@@ -1,0 +1,80 @@
+# Python SDK Publishing Guide
+
+This guide details the technical publishing process for Python SDK packages in `agent_sdks/python/` (`a2ui-agent-sdk` and `a2ui-core`).
+
+For generic release principles, authentication prerequisites, and changelog rules, see [development/docs/package_releases.md](file:///Users/jsimionato/development/a2ui_repos/release-oncall/A2UI/development/docs/package_releases.md).
+
+---
+
+## 1. Package Structure & Version Files
+
+| Package | Directory | Version Source File | PyPI Package Name |
+|---|---|---|---|
+| **`a2ui_agent`** | `agent_sdks/python/a2ui_agent` | `src/a2ui/version.py` | `a2ui-agent-sdk` |
+| **`a2ui_core`** | `agent_sdks/python/a2ui_core` | `src/a2ui/core/version.py` | `a2ui-core` |
+
+Version numbers follow Semantic Versioning (`MAJOR.MINOR.PATCH`).
+
+---
+
+## 2. Pre-flight Checks & Testing
+
+Before triggering a release, ensure all Python test suites pass:
+
+```bash
+# Navigate to the Python SDK workspace root
+cd agent_sdks/python
+
+# Run pytest across all packages
+uv run pytest
+```
+
+---
+
+## 3. Automated Release Script (`release.sh`)
+
+Python package releases are driven by [agent_sdks/python/release.sh](file:///Users/jsimionato/development/a2ui_repos/release-oncall/A2UI/agent_sdks/python/release.sh).
+
+### Usage
+
+```bash
+# Release the Agent SDK (a2ui-agent-sdk)
+./release.sh a2ui_agent
+
+# Release the Core SDK (a2ui-core)
+./release.sh a2ui_core
+```
+
+### What `release.sh` Does:
+
+1. **Environment Checks**:
+   - Verifies the local working tree is clean (`git diff-index --quiet HEAD --`).
+   - Ensures local `HEAD` is in sync with `origin/main` (or `upstream/main`).
+2. **Package Version Extraction**:
+   - Uses `uv run hatch version` to resolve current version string.
+3. **Build & Validation**:
+   - Cleans previous `dist/` artifacts.
+   - Builds source distribution and wheels via `uv build --out-dir dist`.
+   - Runs `twine check dist/*` to validate wheel metadata.
+4. **Staging Upload**:
+   - Authenticates with Google Cloud via Application Default Credentials.
+   - Checks if the target version already exists in Google Artifact Registry. If exists, skips upload.
+   - Uploads dist artifacts to Artifact Registry PyPI repository via `twine upload`.
+5. **Exit Gate Manifest Trigger**:
+   - Generates `manifest.json` (`{ "publish_all": true }`).
+   - Uploads manifest to GCS bucket (`gs://oss-exit-gate-prod-projects-bucket/a2ui/pypi/manifests/manifest-${VERSION}-${TIMESTAMP}.json`).
+
+---
+
+## 4. GitHub Tagging & Release
+
+After running `release.sh`:
+
+```bash
+# Push release tag
+git tag vX.Y.Z
+git push origin vX.Y.Z
+
+# Publish GitHub Release
+gh release create vX.Y.Z --title "vX.Y.Z" --notes-file agent_sdks/python/a2ui_agent/CHANGELOG.md
+```
