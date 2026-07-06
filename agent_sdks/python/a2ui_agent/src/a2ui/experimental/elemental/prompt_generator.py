@@ -369,7 +369,7 @@ Inside the `<body>`, you must include a `<link rel="catalog" href="[CATALOG_ID]"
 ## HTML5 Markup Rules
 
 1. **Component Tags**: Use custom elements prefixed with `a2ui-` in kebab-case (e.g. `<a2ui-card>`, `<a2ui-text-input>`).
-2. **Component IDs**: Always provide a unique `id` attribute for every component (e.g. `<a2ui-button id="btn_1">`).
+2. **Component IDs**: Always provide a unique `id` attribute for every component (e.g. `<a2ui-button id="btn_1">`). **CRITICAL**: There MUST be exactly one top-level component, and it MUST have `id="root"` (e.g. `<a2ui-column id="root">`).
 3. **Attributes**:
    - Pass static string values as regular attributes: `variant="primary"`.
    - Pass typed literals (numbers, booleans) and expressions inside curly braces `{...}` enclosed in double quotes: `elevation="{4}"`, `disabled="{true}"`.

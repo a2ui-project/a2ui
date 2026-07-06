@@ -251,6 +251,21 @@ class ElementalCompiler:
       if comp_id:
         root_component_ids.append(comp_id)
 
+    has_root = any(c.get("id") == "root" for c in ctx.components)
+    if not has_root and root_component_ids:
+      if len(root_component_ids) == 1:
+        # If there's exactly one top-level component, rename it to 'root'
+        old_root_id = root_component_ids[0]
+        for c in ctx.components:
+          if c.get("id") == old_root_id:
+            c["id"] = "root"
+            break
+      else:
+        raise ValueError(
+            f"A2UI Elemental source must define a single root component with id='root'. "
+            f"Found multiple top-level components without a wrapper."
+        )
+
     # Wrap in standard envelope
     envelope = {
         "version": "v1.0",
@@ -307,12 +322,11 @@ class ElementalCompiler:
                 compiled_args[fn_props[idx]] = self._compile_value(v, is_action)
 
           fn_schema = self.helper.functions[fn_name]
-          ret_type = fn_schema.get("returnType", "any")
 
           if is_action:
             return {"functionCall": {"call": fn_name, "args": compiled_args}}
 
-          return {"call": fn_name, "args": compiled_args, "returnType": ret_type}
+          return {"call": fn_name, "args": compiled_args}
 
       return {k: self._compile_value(v, is_action) for k, v in val.items()}
 
@@ -401,6 +415,11 @@ class ElementalCompiler:
             {"label": opt, "value": opt} if isinstance(opt, str) else opt
             for opt in parsed_val
         ]
+
+      if parsed_val is None:
+        continue
+      if parsed_val == "" and prop_name in ["action", "submitAction", "onclick"]:
+        continue
 
       comp_dict[prop_name] = parsed_val
 
@@ -525,7 +544,7 @@ class ElementalCompiler:
           if "returnType" in check:
             del check["returnType"]
 
-          wrapped_checks.append({"condition": check})
+          wrapped_checks.append({"condition": check, "message": "Invalid input"})
         elif isinstance(check, dict) and "condition" in check:
           wrapped_checks.append(check)
       comp_dict["checks"] = wrapped_checks
