@@ -60,6 +60,7 @@ export class A2uiRendererService implements OnDestroy {
 
   constructor(@Inject(A2UI_RENDERER_CONFIG) private config: RendererConfiguration) {
     this._catalogs = this.config.catalogs;
+    console.log('[A2uiRendererService] constructor, config:', this.config);
 
     this._messageProcessor = new MessageProcessor<AngularComponentImplementation>(
       this._catalogs,

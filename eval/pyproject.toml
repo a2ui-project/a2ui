@@ -17,7 +17,7 @@ name = "a2ui-eval"
 version = "0.1.0"
 description = "A2UI Evaluation Suite"
 readme = "README.md"
-requires-python = ">=3.14"
+requires-python = ">=3.10"
 dependencies = [
     "a2ui-agent-sdk",
     "inspect-ai>=0.3.217",

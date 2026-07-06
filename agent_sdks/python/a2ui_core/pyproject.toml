@@ -17,7 +17,7 @@ name = "a2ui-core"
 dynamic = ["version"]
 description = "A2UI Python SDK - Core Library"
 readme = "README.md"
-requires-python = ">=3.14"
+requires-python = ">=3.10"
 dependencies = [
     "jsonschema>=4.26.0",
     "pydantic>=2.10.0",
@@ -29,6 +29,8 @@ dev = [
     "pytest>=8.0.0",
     "pyink>=24.10.0",
     "pyyaml>=6.0.3",
+    "mypy>=1.14.0",
+    "types-jsonschema",
 ]
 
 [build-system]

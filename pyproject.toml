@@ -16,7 +16,7 @@
 name = "a2ui-workspace"
 version = "0.1.0"
 description = "A2UI Python Workspace Root"
-requires-python = ">=3.14"
+requires-python = ">=3.10"
 dependencies = []
 
 [tool.uv]
@@ -47,6 +47,12 @@ members = [
 dev = [
     "pyink>=25.12.0",
     "pytest>=9.1.1",
+]
+release = [
+    "hatch>=1.14.0",
+    "twine>=6.0.1",
+    "keyring>=25.6.0",
+    "keyrings.google-artifactregistry-auth>=1.1.2",
 ]
 
 [tool.pytest.ini_options]
@@ -88,3 +94,15 @@ pyink-annotation-pragmas = [
   "pyre-",
 ]
 
+
+[tool.mypy]
+strict = true
+mypy_path = "agent_sdks/python/a2ui_core/src:agent_sdks/python/a2ui_agent/src"
+exclude = [
+    "agent_sdks/python/a2ui_core/tests/",
+]
+
+# TODO(#1614): Typecheck all packages here.
+[[tool.mypy.overrides]]
+module = "a2ui.agent.*"
+ignore_errors = true

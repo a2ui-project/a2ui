@@ -12,7 +12,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import os
+import sys
 import pytest
+
+# Ensure the directory containing convert_docs.py is in the Python search path
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+
 from convert_docs import to_mkdocs
 
 # --- 1. A2UI Specific Header Cases ---
