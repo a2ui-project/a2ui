@@ -30,11 +30,11 @@
 //   3. It is an issue whose latest human comment is from an external author
 //      and has gone unanswered for more than 1 day.
 //
-// "Stale" is measured from the last human contribution (a comment, or the
-// opening post if there are no human comments) rather than `updated_at`, so the
-// bot's own label edits never reset the clock. A PR is "stale" when no internal
-// member has commented after the external author's last comment for more than a
-// day.
+// "Stale" is measured from the last human contribution (a comment, or — on PRs —
+// a review or inline review comment, or the opening post if there are none)
+// rather than `updated_at`, so the bot's own label edits never reset the clock.
+// A PR is "stale" when no internal member has responded after the external
+// author's last contribution for more than a day.
 //
 // Flagged issues and PRs:
 // https://github.com/a2ui-project/a2ui/issues?q=state%3Aopen%20label%3A%22status%3A%20needs-triage%22
@@ -63,7 +63,10 @@ const DAY_MS = 24 * 60 * 60 * 1000;
 // Author associations that count as an internal maintainer response.
 const MAINTAINER_ASSOCIATIONS = new Set(['OWNER', 'MEMBER', 'COLLABORATOR']);
 
-export const isBot = user => !user || user.type === 'Bot' || /\[bot\]$/.test(user.login || '');
+// A deleted account surfaces as a null `user`; treat that as a human so their
+// past contributions still count, rather than silently classifying them as a bot.
+export const isBot = user =>
+  Boolean(user) && (user.type === 'Bot' || /\[bot\]$/.test(user.login || ''));
 
 const labelNames = item =>
   (item.labels || []).map(label => (typeof label === 'string' ? label : label.name));
@@ -72,25 +75,26 @@ const ageInDays = (isoTimestamp, now) => (now - new Date(isoTimestamp).getTime()
 
 /**
  * Returns the most recent human contribution to an item: either its newest
- * non-bot comment, or — if there are none — the opening post itself. Used both
- * to measure staleness and to decide whether an external author is still
- * awaiting a maintainer response.
+ * non-bot contribution (a comment, or — on PRs — a review or inline review
+ * comment), or, if there are none, the opening post itself. Used both to measure
+ * staleness and to decide whether an external author is still awaiting a
+ * maintainer response.
+ *
+ * `contributions` is the merged, normalized event list from `fetchContributions`.
+ * On PRs it comes from three different endpoints so it is not sorted; the scan
+ * picks the latest regardless of order.
  */
-export function lastHumanContribution(item, comments) {
+export function lastHumanContribution(item, contributions) {
   let latest = {
     createdAt: item.created_at,
     association: item.author_association,
     user: item.user,
   };
 
-  for (const comment of comments) {
-    if (isBot(comment.user)) continue;
-    if (new Date(comment.created_at) >= new Date(latest.createdAt)) {
-      latest = {
-        createdAt: comment.created_at,
-        association: comment.author_association,
-        user: comment.user,
-      };
+  for (const event of contributions) {
+    if (isBot(event.user)) continue;
+    if (event.createdAt >= latest.createdAt) {
+      latest = event;
     }
   }
 
@@ -101,10 +105,10 @@ export function lastHumanContribution(item, comments) {
  * Returns a human-readable reason why a single open item should carry the flag
  * label, or null if it should not. The reason is logged for visibility.
  */
-export function flagReason(item, comments, now) {
+export function flagReason(item, contributions, now) {
   const isPR = Boolean(item.pull_request);
   const labels = labelNames(item);
-  const latest = lastHumanContribution(item, comments);
+  const latest = lastHumanContribution(item, contributions);
   const staleDays = ageInDays(latest.createdAt, now);
 
   // True when the most recent human contribution is from outside the team — no
@@ -173,31 +177,54 @@ async function mapInBatches(items, fn) {
   return results;
 }
 
+// Normalizes the different GitHub contribution shapes into a common
+// `{createdAt, association, user}` event. Reviews stamp their submission time in
+// `submitted_at`; issue and inline review comments use `created_at`.
+const toEvent = contribution => ({
+  createdAt: contribution.created_at || contribution.submitted_at,
+  association: contribution.author_association,
+  user: contribution.user,
+});
+
 /**
- * Fetches the comments needed to evaluate an item. We only need the most recent
- * human contribution, so we skip the API call entirely when the item has no
- * comments and otherwise fetch a single page of the newest comments (sorted
- * descending) rather than paginating through the whole history. A failure for
- * one item must not abort the whole run, so errors fall back to no comments.
+ * Gathers every human-visible contribution to an item as a flat list of
+ * normalized events. For issues that is just the top-level comments. PRs also
+ * accrue formal reviews and inline review comments, which live on separate
+ * endpoints: a maintainer often responds by submitting a review or leaving
+ * inline comments without a separate top-level comment, so considering only
+ * issue comments would wrongly treat the PR as unanswered. A failure for one
+ * source must not abort the whole run, so errors fall back to an empty list for
+ * that source.
  */
-async function fetchComments({github, owner, repo}, item) {
-  if (!item.comments) {
-    return [];
-  }
-  try {
-    const {data} = await github.rest.issues.listComments({
-      owner,
-      repo,
-      issue_number: item.number,
-      sort: 'created',
-      direction: 'desc',
-      per_page: 100,
-    });
-    return data;
-  } catch (error) {
-    console.error(`Failed to fetch comments for #${item.number}:`, error);
-    return [];
-  }
+async function fetchContributions({github, owner, repo}, item) {
+  const number = item.number;
+
+  const fetchAll = async (label, endpoint, params) => {
+    try {
+      return await github.paginate(endpoint, {owner, repo, per_page: 100, ...params});
+    } catch (error) {
+      console.error(`Failed to fetch ${label} for #${number}:`, error);
+      return [];
+    }
+  };
+
+  // Fetch all three sources concurrently to minimize network round-trips. The
+  // issue-comment count is on the list item, so skip that call when it is zero;
+  // reviews and inline review comments only exist on PRs and have no count hint,
+  // so they are always fetched for PRs.
+  const [issueComments, reviews, reviewComments] = await Promise.all([
+    item.comments
+      ? fetchAll('comments', github.rest.issues.listComments, {issue_number: number})
+      : [],
+    item.pull_request
+      ? fetchAll('reviews', github.rest.pulls.listReviews, {pull_number: number})
+      : [],
+    item.pull_request
+      ? fetchAll('review comments', github.rest.pulls.listReviewComments, {pull_number: number})
+      : [],
+  ]);
+
+  return [...issueComments, ...reviews, ...reviewComments].map(toEvent);
 }
 
 export default async function issueTriage({github, context}) {
@@ -214,19 +241,19 @@ export default async function issueTriage({github, context}) {
     per_page: 100,
   });
 
-  // Fetch comments in bounded concurrent batches to avoid a slow serial loop
-  // without flooding the API.
-  const itemsWithComments = await mapInBatches(openItems, async item => ({
+  // Fetch each item's contributions in bounded concurrent batches to avoid a
+  // slow serial loop without flooding the API.
+  const itemsWithContributions = await mapInBatches(openItems, async item => ({
     item,
-    comments: await fetchComments({github, owner, repo}, item),
+    contributions: await fetchContributions({github, owner, repo}, item),
   }));
 
   // Decide each item's desired state from the snapshot, and keep only those
   // whose label needs to change. The snapshot from `listForRepo` can be stale
   // if another run (the daily schedule overlapping an issue event) already
   // changed the label, so the actual mutation re-checks the live state below.
-  const itemsToUpdate = itemsWithComments
-    .map(({item, comments}) => ({item, reason: flagReason(item, comments, now)}))
+  const itemsToUpdate = itemsWithContributions
+    .map(({item, contributions}) => ({item, reason: flagReason(item, contributions, now)}))
     .filter(({item, reason}) => Boolean(reason) !== labelNames(item).includes(FLAG_LABEL));
 
   let added = 0;
