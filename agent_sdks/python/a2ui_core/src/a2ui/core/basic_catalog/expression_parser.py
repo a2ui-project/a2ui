@@ -18,7 +18,7 @@ from typing import Any, Dict, List, Union
 
 class Scanner:
 
-    def __init__(self, input_str: str):
+    def __init__(self, input_str: str) -> None:
         self.input = input_str
         self.pos = 0
 
@@ -55,7 +55,7 @@ class Scanner:
                 return True
         return False
 
-    def skip_whitespace(self):
+    def skip_whitespace(self) -> None:
         while not self.is_at_end() and self.peek().isspace():
             self.advance()
 

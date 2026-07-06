@@ -15,7 +15,7 @@
 import json
 import os
 import re
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 # Base directories
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -87,23 +87,25 @@ def map_json_type_to_python(prop_name: str, prop: Dict[str, Any]) -> str:
 
     if "$ref" in prop:
         ref = prop["$ref"]
-        if "common_types.json" in ref:
-            ref_name = ref.split("/")[-1]
-            return ref_name
-        elif ref.startswith("#/"):
-            return ref.split("/")[-1]
+        if isinstance(ref, str):
+            if "common_types.json" in ref:
+                ref_name = ref.split("/")[-1]
+                return ref_name
+            elif ref.startswith("#/"):
+                return ref.split("/")[-1]
         return "Any"
 
     if "oneOf" in prop or "anyOf" in prop:
         union_items = prop.get("oneOf") or prop.get("anyOf")
-        mapped_items = []
-        for item in union_items:
-            mapped = map_json_type_to_python(prop_name, item)
-            if mapped not in mapped_items:
-                mapped_items.append(mapped)
-        if len(mapped_items) == 1:
-            return mapped_items[0]
-        return f"Union[{', '.join(mapped_items)}]"
+        if union_items is not None:
+            mapped_items = []
+            for item in union_items:
+                mapped = map_json_type_to_python(prop_name, item)
+                if mapped not in mapped_items:
+                    mapped_items.append(mapped)
+            if len(mapped_items) == 1:
+                return mapped_items[0]
+            return f"Union[{', '.join(mapped_items)}]"
 
     if "allOf" in prop:
         allOf_items = prop["allOf"]
@@ -227,7 +229,7 @@ def compile_component_to_pydantic(
     name: str,
     schema: Dict[str, Any],
     base_class: str = "ComponentCommon",
-    common_data: Dict[str, Any] = None,
+    common_data: Optional[Dict[str, Any]] = None,
 ) -> str:
     """Generates Python Pydantic class string representing one Component."""
     lines = [
@@ -264,7 +266,7 @@ def compile_component_to_pydantic(
 
 
 def compile_object_def(
-    class_name: str, spec: Dict[str, Any], base_class: str = None
+    class_name: str, spec: Dict[str, Any], base_class: Optional[str] = None
 ) -> str:
     """Generates Python Pydantic class representing a standard JSON Schema object definition."""
     add_props = spec.get("additionalProperties", False)
@@ -353,9 +355,20 @@ def generate_common_types(common_data: Dict[str, Any]) -> str:
     """Generates common_types.py dynamically from raw JSON specifications."""
     output = [
         "from typing import Annotated, Any, Dict, List, Literal, Optional, Union",
-        "from pydantic import BaseModel, Field, ConfigDict\n",
+        "from pydantic import BaseModel, Field, ConfigDict, GetCoreSchemaHandler",
+        "from pydantic_core import CoreSchema\n",
         'class ComponentReference:\n    """Base marker class for all A2UI component references."""\n',
-        "class SingleReference(str, ComponentReference):\n    @classmethod\n    def __get_pydantic_core_schema__(cls, source_type, handler):\n        from pydantic_core import core_schema\n        return core_schema.no_info_after_validator_function(cls, core_schema.str_schema(), serialization=core_schema.plain_serializer_function_ser_schema(str))\n",
+        "class SingleReference(str, ComponentReference):\n"
+        "    @classmethod\n"
+        "    def __get_pydantic_core_schema__(\n"
+        "        cls, source_type: Any, handler: GetCoreSchemaHandler\n"
+        "    ) -> CoreSchema:\n"
+        "        from pydantic_core import core_schema\n"
+        "        return core_schema.no_info_after_validator_function(\n"
+        "            cls,\n"
+        "            core_schema.str_schema(),\n"
+        "            serialization=core_schema.plain_serializer_function_ser_schema(str),\n"
+        "        )\n",
         'class ListReference(ComponentReference):\n    """Marker class indicating a field holds a list of component references."""\n',
         "class StrictBaseModel(BaseModel):",
         '    model_config = ConfigDict(extra="forbid", populate_by_name=True)\n',
@@ -422,7 +435,7 @@ def generate_common_types(common_data: Dict[str, Any]) -> str:
 
 
 def generate_basic_catalog_components(
-    catalog_data: Dict[str, Any], common_data: Dict[str, Any] = None
+    catalog_data: Dict[str, Any], common_data: Optional[Dict[str, Any]] = None
 ) -> tuple[str, List[str]]:
     """Generates components.py containing all component schemas extending CatalogComponentCommon."""
     global ALLOW_INLINE_COMPILATION
@@ -587,7 +600,7 @@ def generate_server_to_client(s2c_data: Dict[str, Any]) -> tuple[str, List[str]]
         "from typing import Any, Dict, List, Literal, Optional, Union",
         "from pydantic import BaseModel, Field, ConfigDict\n",
         "from .common_types import StrictBaseModel",
-        "from .constants import SPEC_VERSION\n",
+        "from .constants import SPEC_VERSION, SPEC_VERSION_TYPE\n",
     ]
 
     defs = s2c_data.get("$defs", {})
@@ -620,7 +633,7 @@ def generate_server_to_client(s2c_data: Dict[str, Any]) -> tuple[str, List[str]]
             f', alias="{envelope_key}"' if snake_envelope != envelope_key else ""
         )
         output.append(f"class {mname}(StrictBaseModel):")
-        output.append(f"    version: Literal[SPEC_VERSION] = SPEC_VERSION")
+        output.append(f"    version: SPEC_VERSION_TYPE = SPEC_VERSION")
         output.append(f"    {snake_envelope}: {payload_name} = Field(...{alias_opt})")
         output.append("\n")
 
@@ -641,7 +654,7 @@ def generate_client_capabilities(capabilities_data: Dict[str, Any]) -> str:
         "from typing import Any, Dict, List, Literal, Optional",
         "from pydantic import BaseModel, Field, ConfigDict",
         "from .common_types import StrictBaseModel",
-        "from .constants import SPEC_VERSION\n",
+        "from .constants import SPEC_VERSION, SPEC_VERSION_TYPE\n",
     ]
     defs = capabilities_data.get("$defs", {})
     if "FunctionDefinition" in defs:
@@ -667,7 +680,7 @@ def generate_client_capabilities(capabilities_data: Dict[str, Any]) -> str:
 
     output.append("class A2uiClientCapabilities(StrictBaseModel):")
     output.append(
-        "    v0_9: Optional[V09Capabilities] = Field(None, alias=SPEC_VERSION)"
+        f"    v0_9: Optional[V09Capabilities] = Field(None, alias=SPEC_VERSION)"
     )
 
     code = "\n".join(output)
@@ -681,7 +694,7 @@ def generate_client_to_server(c2s_data: Dict[str, Any]) -> str:
         "from typing import Any, Dict, List, Literal, Optional, Union",
         "from pydantic import BaseModel, Field, ConfigDict",
         "from .common_types import StrictBaseModel",
-        "from .constants import SPEC_VERSION\n",
+        "from .constants import SPEC_VERSION, SPEC_VERSION_TYPE\n",
     ]
     props = c2s_data.get("properties", {})
 
@@ -706,12 +719,12 @@ def generate_client_to_server(c2s_data: Dict[str, Any]) -> str:
         output.append(f"A2uiClientError = Union[{', '.join(error_class_names)}]\n")
 
     output.append("class A2uiClientActionMessage(StrictBaseModel):")
-    output.append(f"    version: Literal[SPEC_VERSION] = SPEC_VERSION")
+    output.append(f"    version: SPEC_VERSION_TYPE = SPEC_VERSION")
     output.append("    action: A2uiClientAction = Field(...)")
     output.append("\n")
 
     output.append("class A2uiClientErrorMessage(StrictBaseModel):")
-    output.append(f"    version: Literal[SPEC_VERSION] = SPEC_VERSION")
+    output.append(f"    version: SPEC_VERSION_TYPE = SPEC_VERSION")
     output.append("    error: A2uiClientError = Field(...)")
     output.append("\n")
 
@@ -721,7 +734,7 @@ def generate_client_to_server(c2s_data: Dict[str, Any]) -> str:
 
     # Client Data Model
     output.append("class A2uiClientDataModel(StrictBaseModel):")
-    output.append(f"    version: Literal[SPEC_VERSION] = SPEC_VERSION")
+    output.append(f"    version: SPEC_VERSION_TYPE = SPEC_VERSION")
     output.append(
         '    surfaces: Dict[str, Dict[str, Any]] = Field(..., description="A map of surface IDs to their current data models.")\n'
     )
@@ -740,40 +753,47 @@ def generate_schema_init(msg_names: List[str]) -> str:
     """Generates schema/__init__.py re-exporting only common types and server messages."""
     output = [
         "from .common_types import (",
-        "    StrictBaseModel, DataBinding, FunctionCall, AccessibilityAttributes, ",
-        "    CheckRule, ActionEvent, Action, ComponentCommon",
+        "    StrictBaseModel as StrictBaseModel,",
+        "    DataBinding as DataBinding,",
+        "    FunctionCall as FunctionCall,",
+        "    AccessibilityAttributes as AccessibilityAttributes,",
+        "    CheckRule as CheckRule,",
+        "    ActionEvent as ActionEvent,",
+        "    Action as Action,",
+        "    ComponentCommon as ComponentCommon,",
         ")",
         "from .constants import *",
         "from .server_to_client import (",
     ]
     for mname in msg_names:
-        output.append(f"    {mname},")
-        output.append(f"    {mname.replace('Message', '')},")
-    output.append("    A2uiMessage,")
-    output.append("    A2uiMessageListWrapper,")
+        output.append(f"    {mname} as {mname},")
+        rname = mname.replace("Message", "")
+        output.append(f"    {rname} as {rname},")
+    output.append("    A2uiMessage as A2uiMessage,")
+    output.append("    A2uiMessageListWrapper as A2uiMessageListWrapper,")
     output.append(")")
     output.append("from .client_capabilities import (")
-    output.append("    A2uiClientCapabilities,")
-    output.append("    V09Capabilities,")
-    output.append("    InlineCatalog,")
-    output.append("    FunctionDefinition,")
+    output.append("    A2uiClientCapabilities as A2uiClientCapabilities,")
+    output.append("    V09Capabilities as V09Capabilities,")
+    output.append("    InlineCatalog as InlineCatalog,")
+    output.append("    FunctionDefinition as FunctionDefinition,")
     output.append(")")
     output.append("from .client_to_server import (")
-    output.append("    A2uiClientMessage,")
-    output.append("    A2uiClientActionMessage,")
-    output.append("    A2uiClientErrorMessage,")
-    output.append("    A2uiClientAction,")
-    output.append("    A2uiValidationError,")
-    output.append("    A2uiGenericError,")
-    output.append("    A2uiClientError,")
-    output.append("    A2uiClientDataModel,")
-    output.append("    A2uiClientMessageList,")
-    output.append("    A2uiClientMessageListWrapper,")
+    output.append("    A2uiClientMessage as A2uiClientMessage,")
+    output.append("    A2uiClientActionMessage as A2uiClientActionMessage,")
+    output.append("    A2uiClientErrorMessage as A2uiClientErrorMessage,")
+    output.append("    A2uiClientAction as A2uiClientAction,")
+    output.append("    A2uiValidationError as A2uiValidationError,")
+    output.append("    A2uiGenericError as A2uiGenericError,")
+    output.append("    A2uiClientError as A2uiClientError,")
+    output.append("    A2uiClientDataModel as A2uiClientDataModel,")
+    output.append("    A2uiClientMessageList as A2uiClientMessageList,")
+    output.append("    A2uiClientMessageListWrapper as A2uiClientMessageListWrapper,")
     output.append(")")
     return "\n".join(output)
 
 
-def main():
+def main() -> None:
     print("Compiling modular and symmetrical A2UI schemas mirroring web_core...")
 
     os.makedirs(SCHEMA_DIR, exist_ok=True)

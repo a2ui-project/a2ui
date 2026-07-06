@@ -26,6 +26,8 @@ import express from 'express';
 import {join} from 'node:path';
 import {v4 as uuidv4} from 'uuid';
 
+import {MCP_APP_CATALOG_ID} from './a2ui-catalog/catalog';
+
 const browserDistFolder = join(import.meta.dirname, '../browser');
 const app = express();
 const angularApp = new AngularNodeAppEngine();
@@ -68,8 +70,8 @@ app.post('/a2a', (req, res) => {
         metadata: {
           a2uiClientCapabilities: {
             supportedCatalogIds: [
-              'https://a2ui.org/specification/v0_8/standard_catalog_definition.json',
-              'a2ui.org:a2ui/v0.8/mcp_app_catalog.json',
+              'https://a2ui.org/specification/v0_9/standard_catalog_definition.json',
+              MCP_APP_CATALOG_ID,
             ],
           },
         },
@@ -140,7 +142,7 @@ if (isMainModule(import.meta.url) || process.env['pm_id']) {
 
 async function fetchWithCustomHeader(url: string | URL | Request, init?: RequestInit) {
   const headers = new Headers(init?.headers);
-  headers.set('X-A2A-Extensions', 'https://a2ui.org/a2a-extension/a2ui/v0.8');
+  headers.set('X-A2A-Extensions', 'https://a2ui.org/a2a-extension/a2ui/v0.9');
   const newInit = {...init, headers};
   return fetch(url, newInit);
 }

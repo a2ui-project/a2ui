@@ -94,3 +94,15 @@ pyink-annotation-pragmas = [
   "pyre-",
 ]
 
+
+[tool.mypy]
+strict = true
+mypy_path = "agent_sdks/python/a2ui_core/src:agent_sdks/python/a2ui_agent/src"
+exclude = [
+    "agent_sdks/python/a2ui_core/tests/",
+]
+
+# TODO(#1614): Typecheck all packages here.
+[[tool.mypy.overrides]]
+module = "a2ui.agent.*"
+ignore_errors = true
