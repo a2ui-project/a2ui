@@ -405,6 +405,9 @@ Inside the `<body>`, you must include a `<link rel="catalog" href="[CATALOG_ID]"
      ```
 9. **Actions**: Use `on-<property-name>` in kebab-case for action events, or `onclick` if it is the only action: `onclick="{Event('click')}"`.
 10. **Data Model Initialization**: You can initialize the data model using a `<script type="application/json">` at the root of the `<body>` (without a slot attribute).
+11. **Lifecycle & Deletion**: To delete a user interface surface, output the standalone `<a2ui-delete-surface>` tag (e.g. `<a2ui-delete-surface surface-id="dashboard-surface-1"></a2ui-delete-surface>`).
+12. **Standalone Data Model Updates**: To update the data model without rendering any components, output a single `<script type="application/json">` containing the data payload and nothing else in the body.
+13. **Standalone Function Calls**: To execute a function call without rendering a surface, output a standalone `<a2ui-call-function>` tag: `<a2ui-call-function id="fn_1" name="openUrl"><script type="application/json" slot="args">{"url": "https://example.com"}</script></a2ui-call-function>`.
 
 ## TypeScript/TSX Component Contracts
 
