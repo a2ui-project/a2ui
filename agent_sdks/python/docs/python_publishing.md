@@ -2,22 +2,43 @@
 
 This guide details the technical publishing process for Python SDK packages in `agent_sdks/python/` (`a2ui-agent-sdk` and `a2ui-core`).
 
-For generic release principles, authentication prerequisites, and changelog rules, see [development/docs/package_releases.md](file:///Users/jsimionato/development/a2ui_repos/release-oncall/A2UI/development/docs/package_releases.md).
+For generic release principles, authentication prerequisites, and changelog rules, see [development/docs/package_releases.md](../../../development/docs/package_releases.md).
 
 ---
 
 ## 1. Package Structure & Version Files
 
-| Package | Directory | Version Source File | PyPI Package Name |
-|---|---|---|---|
-| **`a2ui_agent`** | `agent_sdks/python/a2ui_agent` | `src/a2ui/version.py` | `a2ui-agent-sdk` |
-| **`a2ui_core`** | `agent_sdks/python/a2ui_core` | `src/a2ui/core/version.py` | `a2ui-core` |
+| Package          | Directory                      | Version Source File        | PyPI Package Name |
+| ---------------- | ------------------------------ | -------------------------- | ----------------- |
+| **`a2ui_agent`** | `agent_sdks/python/a2ui_agent` | `src/a2ui/version.py`      | `a2ui-agent-sdk`  |
+| **`a2ui_core`**  | `agent_sdks/python/a2ui_core`  | `src/a2ui/core/version.py` | `a2ui-core`       |
 
 Version numbers follow Semantic Versioning (`MAJOR.MINOR.PATCH`).
 
 ---
 
-## 2. Pre-flight Checks & Testing
+## 2. PyPI Changelog Integration & Metadata
+
+PyPI packages surface release notes through two complementary standard practices:
+
+1. **`[project.urls]` in `pyproject.toml` (PyPI Sidebar Link)**:
+   Each package's `pyproject.toml` specifies a direct link to its `CHANGELOG.md` file on GitHub:
+
+   ```toml
+   [project.urls]
+   Homepage = "https://a2ui.org/"
+   Repository = "https://github.com/a2ui-project/a2ui"
+   Changelog = "https://github.com/a2ui-project/a2ui/blob/main/agent_sdks/python/a2ui_agent/CHANGELOG.md"
+   ```
+
+   This renders a prominent **Changelog** link in PyPI's project navigation sidebar.
+
+2. **GitHub Releases (`gh release create`)**:
+   When pushing a new release tag, the version notes from `CHANGELOG.md` are pushed directly to GitHub Releases, providing formatted release notes for subscribers.
+
+---
+
+## 3. Pre-flight Checks & Testing
 
 Before triggering a release, ensure all Python test suites pass:
 
@@ -31,9 +52,9 @@ uv run pytest
 
 ---
 
-## 3. Automated Release Script (`release.sh`)
+## 4. Automated Release Script (`release.sh`)
 
-Python package releases are driven by [agent_sdks/python/release.sh](file:///Users/jsimionato/development/a2ui_repos/release-oncall/A2UI/agent_sdks/python/release.sh).
+Python package releases are driven by [agent_sdks/python/release.sh](../release.sh).
 
 ### Usage
 
@@ -66,7 +87,7 @@ Python package releases are driven by [agent_sdks/python/release.sh](file:///Use
 
 ---
 
-## 4. GitHub Tagging & Release
+## 5. GitHub Tagging & Release
 
 After running `release.sh`:
 

@@ -45,13 +45,13 @@ protocol.
 
 ## Running tests
 
-1. Navigate to the directory:
+1. Synchronize workspace dependencies:
 
    ```bash
-   cd agent_sdks/python
+   uv sync --all-packages
    ```
 
-2. Run the tests
+2. Run the tests:
 
    ```bash
    uv run pytest

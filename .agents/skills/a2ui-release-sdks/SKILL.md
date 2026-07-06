@@ -8,9 +8,10 @@ description: Multi-stage automated release workflow for A2UI Python and TypeScri
 Guidelines and tactical workflows for AI agents to release A2UI Python (`a2ui-agent-sdk`, `a2ui-core`) and TypeScript (`@a2ui/web_core`, `@a2ui/lit`, `@a2ui/angular`, `@a2ui/react`, `@a2ui/markdown-it`) packages with minimal human intervention.
 
 Primary sources of truth:
-- Generic Release Guide & Policies: [development/docs/package_releases.md](file:///Users/jsimionato/development/a2ui_repos/release-oncall/A2UI/development/docs/package_releases.md)
-- Python Technical Publishing Guide: [agent_sdks/python/docs/python_publishing.md](file:///Users/jsimionato/development/a2ui_repos/release-oncall/A2UI/agent_sdks/python/docs/python_publishing.md)
-- TypeScript Technical Publishing Guide: [renderers/docs/web_publishing.md](file:///Users/jsimionato/development/a2ui_repos/release-oncall/A2UI/renderers/docs/web_publishing.md)
+
+- Generic Release Guide & Policies: [development/docs/package_releases.md](../../development/docs/package_releases.md)
+- Python Technical Publishing Guide: [agent_sdks/python/docs/python_publishing.md](../../agent_sdks/python/docs/python_publishing.md)
+- TypeScript Technical Publishing Guide: [renderers/docs/web_publishing.md](../../renderers/docs/web_publishing.md)
 
 ---
 
@@ -47,7 +48,9 @@ The release workflow operates across three distinct phases. An agent must first 
 Execute the following commands to determine the target package state:
 
 #### 1. Check Published Version vs Repo Version
+
 - **Python**:
+
   ```bash
   # Check PyPI version
   curl -s https://pypi.org/pypi/a2ui-agent-sdk/json | python3 -c "import sys, json; print(json.load(sys.stdin)['info']['version'])"
@@ -55,7 +58,9 @@ Execute the following commands to determine the target package state:
   # Check Repo version
   python3 -c "import tomllib; print(tomllib.load(open('agent_sdks/python/a2ui_agent/pyproject.toml', 'rb'))['project']['name'])"
   ```
+
 - **TypeScript**:
+
   ```bash
   # Check NPM published version
   npm view @a2ui/web_core version
@@ -65,11 +70,13 @@ Execute the following commands to determine the target package state:
   ```
 
 #### 2. Check Open GitHub PRs
+
 ```bash
 gh pr list --search "bump version" --json number,title,url,headRefName,state
 ```
 
 #### 3. State Decision Tree:
+
 - **State A**: Repo version equals published registry version AND no unreleased commits exist on `main` $\rightarrow$ Exit cleanly: "Everything is up-to-date and published."
 - **State B (State 1)**: Unreleased commits exist AND repo version equals published registry version $\rightarrow$ Proceed to **Phase 1 (Version Bump PR)**.
 - **State C (State 2)**: An open version bump PR exists on GitHub $\rightarrow$ Report PR status and link to user: "Release PR #123 is currently open. Please merge it to proceed with publishing."
@@ -101,7 +108,7 @@ gh pr list --search "bump version" --json number,title,url,headRefName,state
    - **TypeScript**: Execute `renderers/scripts/increment_version.mjs <pkg_name> [new_version]`
    - **Python**: Edit `src/a2ui/version.py` or `src/a2ui/core/version.py`.
 5. **Run Pre-flight Tests**:
-   - Python: `cd agent_sdks/python && uv run pytest`
+   - Python (see [python_publishing.md](../../agent_sdks/python/docs/python_publishing.md)): `cd agent_sdks/python && uv run pytest`
    - TypeScript: `yarn test`
 6. **Commit & Open Pull Request**:
    ```bash
@@ -123,12 +130,12 @@ Run this phase once the Version Bump PR has landed in `main`:
    git pull origin main
    ```
 2. **Execute Language-Specific Staging & Upload Scripts**:
-   - Refer to [agent_sdks/python/docs/python_publishing.md](file:///Users/jsimionato/development/a2ui_repos/release-oncall/A2UI/agent_sdks/python/docs/python_publishing.md) for Python:
+   - Refer to [agent_sdks/python/docs/python_publishing.md](../../agent_sdks/python/docs/python_publishing.md) for Python:
      ```bash
      cd agent_sdks/python
      ./release.sh <a2ui_agent|a2ui_core>
      ```
-   - Refer to [renderers/docs/web_publishing.md](file:///Users/jsimionato/development/a2ui_repos/release-oncall/A2UI/renderers/docs/web_publishing.md) for TypeScript:
+   - Refer to [renderers/docs/web_publishing.md](../../renderers/docs/web_publishing.md) for TypeScript:
      ```bash
      ./renderers/scripts/publish_npm.mjs --no-dry-run
      ./renderers/scripts/upload_manifest.mjs --no-dry-run

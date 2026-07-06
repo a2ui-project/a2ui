@@ -1,8 +1,9 @@
 # Python agent SDKs
 
 For full release documentation and guides, see:
-- **General Release Guide**: [development/docs/package_releases.md](file:///Users/jsimionato/development/a2ui_repos/release-oncall/A2UI/development/docs/package_releases.md)
-- **Python Publishing Technical Guide**: [agent_sdks/python/docs/python_publishing.md](file:///Users/jsimionato/development/a2ui_repos/release-oncall/A2UI/agent_sdks/python/docs/python_publishing.md)
+
+- **General Release Guide**: [development/docs/package_releases.md](../../development/docs/package_releases.md)
+- **Python Publishing Technical Guide**: [agent_sdks/python/docs/python_publishing.md](docs/python_publishing.md)
 
 ---
 

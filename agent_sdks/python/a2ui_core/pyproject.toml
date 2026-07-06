@@ -24,6 +24,11 @@ dependencies = [
     "referencing>=0.37.0",
 ]
 
+[project.urls]
+Homepage = "https://a2ui.org/"
+Repository = "https://github.com/a2ui-project/a2ui"
+Changelog = "https://github.com/a2ui-project/a2ui/blob/main/agent_sdks/python/a2ui_core/CHANGELOG.md"
+
 [dependency-groups]
 dev = [
     "pytest>=8.0.0",

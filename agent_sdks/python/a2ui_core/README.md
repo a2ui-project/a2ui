@@ -74,7 +74,7 @@ We use [uv](https://github.com/astral-sh/uv) for extremely fast and reliable env
 To synchronize the virtual environment and dependencies, run the following from the `agent_sdks/python` directory:
 
 ```bash
-uv sync
+uv sync --all-packages
 ```
 
 ### Running Tests

@@ -3,8 +3,9 @@
 This document is the authoritative, language-agnostic guide for releasing A2UI SDK and renderer packages. It applies to all maintained packages in this repository (Python, TypeScript/Web, and future language targets).
 
 For codebase-specific publishing instructions, consult:
-- **Python SDKs**: [agent_sdks/python/docs/python_publishing.md](file:///Users/jsimionato/development/a2ui_repos/release-oncall/A2UI/agent_sdks/python/docs/python_publishing.md)
-- **TypeScript/Web Packages**: [renderers/docs/web_publishing.md](file:///Users/jsimionato/development/a2ui_repos/release-oncall/A2UI/renderers/docs/web_publishing.md)
+
+- **Python SDKs**: [agent_sdks/python/docs/python_publishing.md](../../agent_sdks/python/docs/python_publishing.md)
+- **TypeScript/Web Packages**: [renderers/docs/web_publishing.md](../../renderers/docs/web_publishing.md)
 
 ---
 
@@ -29,7 +30,9 @@ Releases in A2UI follow a **two-stage release pipeline**:
 Before triggering a package release, ensure your local development environment has the necessary authentication:
 
 ### 1. Google Cloud Authentication
+
 Googlers publishing artifacts to the internal staging registry or Exit Gate buckets must authenticate via `gcloud`:
+
 ```bash
 # General gcloud login
 gcloud auth login
@@ -39,12 +42,15 @@ gcloud auth application-default login
 ```
 
 ### 2. GitHub Credentials
+
 Ensure the GitHub CLI (`gh`) is authenticated to interact with the repository:
+
 ```bash
 gh auth login
 ```
 
 ### 3. Tooling Dependencies
+
 - **Node.js**: Modern v20+ with Corepack enabled (`corepack enable`).
 - **Python**: v3.10+ with `uv` package manager (`uv sync`).
 - **Google Cloud SDK**: `gcloud` CLI installed and available on system `$PATH`.
@@ -69,10 +75,13 @@ Every publishable package maintains a `CHANGELOG.md` file in its package root di
 ```
 
 ### Protocol During Feature Development
+
 When adding features or fixing bugs in feature PRs, developers append bullet points directly under the top-level `## Unreleased` header.
 
 ### Protocol During Package Release
+
 When preparing a package version release:
+
 1. Rename `## Unreleased` to `## <new_version>` (e.g., `## 0.10.4`).
 2. Insert a fresh, empty `## Unreleased` section at the top of the file above `## <new_version>`.
 
@@ -86,7 +95,9 @@ When preparing a package version release:
 ```
 
 ### Handling Empty Unreleased Sections
+
 If a release is requested but `CHANGELOG.md` has no entries under `## Unreleased`:
+
 - **Maintainer Interaction**: Double-check with the maintainer/user to see if they would like to review recent git commits (`git log <last_tag>..HEAD`) and add specific feature/fix notes.
 - **Fallback Release Note**: If no specific notes are supplied, use a default fallback summary:
   ```markdown
