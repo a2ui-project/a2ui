@@ -113,8 +113,8 @@ from a2ui.schema.constants import (
 )
 
 if TYPE_CHECKING:
-  from google.adk.agents.invocation_context import InvocationContext
-  from google.adk.events.event import Event
+    from google.adk.agents.invocation_context import InvocationContext
+    from google.adk.events.event import Event
 
 logger = logging.getLogger(__name__)
 
@@ -132,197 +132,201 @@ A2uiExamplesProvider: TypeAlias = Callable[
 
 @experimental
 class SendA2uiToClientToolset(base_toolset.BaseToolset):
-  """A toolset that provides A2UI Tools and can be enabled/disabled."""
-
-  def __init__(
-      self,
-      a2ui_enabled: Union[bool, A2uiEnabledProvider],
-      a2ui_catalog: Union[catalog.A2uiCatalog, A2uiCatalogProvider],
-      a2ui_examples: Union[str, A2uiExamplesProvider],
-  ):
-    super().__init__()
-    self._a2ui_enabled = a2ui_enabled
-    self._ui_tools = [self._SendA2uiJsonToClientTool(a2ui_catalog, a2ui_examples)]
-
-  async def _resolve_a2ui_enabled(self, ctx: readonly_context.ReadonlyContext) -> bool:
-    """The resolved self.a2ui_enabled field to construct instruction for this agent.
-
-    Args:
-        ctx: The ReadonlyContext to resolve the provider with.
-
-    Returns:
-        If A2UI is enabled, return True. Otherwise, return False.
-    """
-    if isinstance(self._a2ui_enabled, bool):
-      return self._a2ui_enabled
-    else:
-      a2ui_enabled = self._a2ui_enabled(ctx)
-      if inspect.isawaitable(a2ui_enabled):
-        a2ui_enabled = await a2ui_enabled
-    return a2ui_enabled
-
-  async def get_tools(
-      self,
-      readonly_context: Optional[readonly_context.ReadonlyContext] = None,
-  ) -> list[base_tool.BaseTool]:
-    """Returns the list of tools provided by this toolset.
-
-    Args:
-        readonly_context: The ReadonlyContext for resolving tool enablement.
-
-    Returns:
-        A list of tools.
-    """
-    use_ui = False
-    if readonly_context is not None:
-      use_ui = await self._resolve_a2ui_enabled(readonly_context)
-    if use_ui:
-      logger.info("A2UI is ENABLED, adding ui tools")
-      return self._ui_tools
-    else:
-      logger.info("A2UI is DISABLED, not adding ui tools")
-      return []
-
-  async def get_part_converter(
-      self, ctx: readonly_context.ReadonlyContext
-  ) -> "A2uiPartConverter":
-    """Returns a configured A2uiPartConverter for the given context.
-
-    Args:
-        ctx: The readonly_context.ReadonlyContext to resolve the catalog with.
-
-    Returns:
-        A configured A2uiPartConverter.
-    """
-    catalog = await self._ui_tools[0]._resolve_a2ui_catalog(ctx)
-    return A2uiPartConverter(catalog)
-
-  class _SendA2uiJsonToClientTool(base_tool.BaseTool):
-    TOOL_NAME = A2UI_TOOL_NAME
-    VALIDATED_A2UI_JSON_KEY = A2UI_VALIDATED_JSON_KEY
-    A2UI_JSON_ARG_NAME = "a2ui_json"
-    TOOL_ERROR_KEY = A2UI_TOOL_ERROR_KEY
+    """A toolset that provides A2UI Tools and can be enabled/disabled."""
 
     def __init__(
         self,
+        a2ui_enabled: Union[bool, A2uiEnabledProvider],
         a2ui_catalog: Union[catalog.A2uiCatalog, A2uiCatalogProvider],
         a2ui_examples: Union[str, A2uiExamplesProvider],
     ):
-      self._a2ui_catalog = a2ui_catalog
-      self._a2ui_examples = a2ui_examples
-      super().__init__(
-          name=self.TOOL_NAME,
-          description=(
-              "Sends A2UI JSON to the client to render rich UI for the user. This tool"
-              " can be called multiple times in the same call to render multiple UI"
-              f" surfaces.Args:    {self.A2UI_JSON_ARG_NAME}: Valid A2UI JSON Schema to"
-              " send to the client. The A2UI JSON Schema definition is between"
-              f" {constants.A2UI_SCHEMA_BLOCK_START} and"
-              f" {constants.A2UI_SCHEMA_BLOCK_END} in the system instructions."
-          ),
-      )
+        super().__init__()
+        self._a2ui_enabled = a2ui_enabled
+        self._ui_tools = [self._SendA2uiJsonToClientTool(a2ui_catalog, a2ui_examples)]
 
-    def _get_declaration(self) -> genai_types.FunctionDeclaration | None:
-      return genai_types.FunctionDeclaration(
-          name=self.name,
-          description=self.description,
-          parameters=genai_types.Schema(
-              type=genai_types.Type.OBJECT,
-              properties={
-                  self.A2UI_JSON_ARG_NAME: genai_types.Schema(
-                      type=genai_types.Type.STRING,
-                      description="valid A2UI JSON Schema to send to the client.",
-                  ),
-              },
-              required=[self.A2UI_JSON_ARG_NAME],
-          ),
-      )
-
-    async def _resolve_a2ui_examples(
+    async def _resolve_a2ui_enabled(
         self, ctx: readonly_context.ReadonlyContext
-    ) -> str:
-      """The resolved self.a2ui_examples field to construct instruction for this agent.
+    ) -> bool:
+        """The resolved self.a2ui_enabled field to construct instruction for this agent.
 
-      Args:
-          ctx: The readonly_context.ReadonlyContext to resolve the provider with.
+        Args:
+            ctx: The ReadonlyContext to resolve the provider with.
 
-      Returns:
-          The A2UI examples string.
-      """
-      if isinstance(self._a2ui_examples, str):
-        return self._a2ui_examples
-      else:
-        a2ui_examples = self._a2ui_examples(ctx)
-        if inspect.isawaitable(a2ui_examples):
-          a2ui_examples = await a2ui_examples
-        return a2ui_examples
+        Returns:
+            If A2UI is enabled, return True. Otherwise, return False.
+        """
+        if isinstance(self._a2ui_enabled, bool):
+            return self._a2ui_enabled
+        else:
+            a2ui_enabled = self._a2ui_enabled(ctx)
+            if inspect.isawaitable(a2ui_enabled):
+                a2ui_enabled = await a2ui_enabled
+        return a2ui_enabled
 
-    async def _resolve_a2ui_catalog(
-        self, ctx: readonly_context.ReadonlyContext
-    ) -> catalog.A2uiCatalog:
-      """The resolved self.a2ui_catalog field to construct instruction for this agent.
-
-      Args:
-          ctx: The readonly_context.ReadonlyContext to resolve the provider with.
-
-      Returns:
-          The A2UI catalog object.
-      """
-      if isinstance(self._a2ui_catalog, catalog.A2uiCatalog):
-        return self._a2ui_catalog
-      else:
-        a2ui_catalog = self._a2ui_catalog(ctx)
-        if inspect.isawaitable(a2ui_catalog):
-          a2ui_catalog = await a2ui_catalog
-        return a2ui_catalog
-
-    async def process_llm_request(
+    async def get_tools(
         self,
-        *,
-        tool_context: tool_context.ToolContext,
-        llm_request: LlmRequest,
-    ) -> None:
-      await super().process_llm_request(
-          tool_context=tool_context, llm_request=llm_request
-      )
+        readonly_context: Optional[readonly_context.ReadonlyContext] = None,
+    ) -> list[base_tool.BaseTool]:
+        """Returns the list of tools provided by this toolset.
 
-      a2ui_catalog = await self._resolve_a2ui_catalog(tool_context)
+        Args:
+            readonly_context: The ReadonlyContext for resolving tool enablement.
 
-      instruction = a2ui_catalog.render_as_llm_instructions()
-      examples = await self._resolve_a2ui_examples(tool_context)
+        Returns:
+            A list of tools.
+        """
+        use_ui = False
+        if readonly_context is not None:
+            use_ui = await self._resolve_a2ui_enabled(readonly_context)
+        if use_ui:
+            logger.info("A2UI is ENABLED, adding ui tools")
+            return self._ui_tools
+        else:
+            logger.info("A2UI is DISABLED, not adding ui tools")
+            return []
 
-      llm_request.append_instructions([instruction, examples])
+    async def get_part_converter(
+        self, ctx: readonly_context.ReadonlyContext
+    ) -> "A2uiPartConverter":
+        """Returns a configured A2uiPartConverter for the given context.
 
-      logger.info("Added A2UI schema and examples to system instructions")
+        Args:
+            ctx: The readonly_context.ReadonlyContext to resolve the catalog with.
 
-    async def run_async(
-        self, *, args: dict[str, Any], tool_context: tool_context.ToolContext
-    ) -> Any:
-      try:
-        a2ui_json = args.get(self.A2UI_JSON_ARG_NAME)
-        if not a2ui_json:
-          raise A2uiValidationError(
-              f"Failed to call tool {self.TOOL_NAME} because missing required"
-              f" arg {self.A2UI_JSON_ARG_NAME} "
-          )
+        Returns:
+            A configured A2uiPartConverter.
+        """
+        catalog = await self._ui_tools[0]._resolve_a2ui_catalog(ctx)
+        return A2uiPartConverter(catalog)
 
-        a2ui_catalog = await self._resolve_a2ui_catalog(tool_context)
-        a2ui_json_payload = parse_and_fix(a2ui_json)
-        a2ui_catalog.validator.validate(a2ui_json_payload)
+    class _SendA2uiJsonToClientTool(base_tool.BaseTool):
+        TOOL_NAME = A2UI_TOOL_NAME
+        VALIDATED_A2UI_JSON_KEY = A2UI_VALIDATED_JSON_KEY
+        A2UI_JSON_ARG_NAME = "a2ui_json"
+        TOOL_ERROR_KEY = A2UI_TOOL_ERROR_KEY
 
-        logger.info(
-            f"Validated call to tool {self.TOOL_NAME} with {self.A2UI_JSON_ARG_NAME}"
-        )
+        def __init__(
+            self,
+            a2ui_catalog: Union[catalog.A2uiCatalog, A2uiCatalogProvider],
+            a2ui_examples: Union[str, A2uiExamplesProvider],
+        ):
+            self._a2ui_catalog = a2ui_catalog
+            self._a2ui_examples = a2ui_examples
+            super().__init__(
+                name=self.TOOL_NAME,
+                description=(
+                    "Sends A2UI JSON to the client to render rich UI for the user."
+                    " This tool can be called multiple times in the same call to"
+                    f" render multiple UI surfaces.Args:    {self.A2UI_JSON_ARG_NAME}:"
+                    " Valid A2UI JSON Schema to send to the client. The A2UI JSON"
+                    f" Schema definition is between {constants.A2UI_SCHEMA_BLOCK_START}"
+                    f" and {constants.A2UI_SCHEMA_BLOCK_END} in the system"
+                    " instructions."
+                ),
+            )
 
-        # Don't do a second LLM inference call for the JSON response
-        tool_context.actions.skip_summarization = True
+        def _get_declaration(self) -> genai_types.FunctionDeclaration | None:
+            return genai_types.FunctionDeclaration(
+                name=self.name,
+                description=self.description,
+                parameters=genai_types.Schema(
+                    type=genai_types.Type.OBJECT,
+                    properties={
+                        self.A2UI_JSON_ARG_NAME: genai_types.Schema(
+                            type=genai_types.Type.STRING,
+                            description="valid A2UI JSON Schema to send to the client.",
+                        ),
+                    },
+                    required=[self.A2UI_JSON_ARG_NAME],
+                ),
+            )
 
-        # Return the validated JSON so the converter can use it.
-        # We return it in a dict under "result" key for consistent JSON structure.
-        return {self.VALIDATED_A2UI_JSON_KEY: a2ui_json_payload}
+        async def _resolve_a2ui_examples(
+            self, ctx: readonly_context.ReadonlyContext
+        ) -> str:
+            """The resolved self.a2ui_examples field to construct instruction for this agent.
 
-      except Exception as e:
-        err = f"Failed to call A2UI tool {self.TOOL_NAME}: {e}"
-        logger.error(err)
+            Args:
+                ctx: The readonly_context.ReadonlyContext to resolve the provider with.
 
-        return {self.TOOL_ERROR_KEY: err}
+            Returns:
+                The A2UI examples string.
+            """
+            if isinstance(self._a2ui_examples, str):
+                return self._a2ui_examples
+            else:
+                a2ui_examples = self._a2ui_examples(ctx)
+                if inspect.isawaitable(a2ui_examples):
+                    a2ui_examples = await a2ui_examples
+                return a2ui_examples
+
+        async def _resolve_a2ui_catalog(
+            self, ctx: readonly_context.ReadonlyContext
+        ) -> catalog.A2uiCatalog:
+            """The resolved self.a2ui_catalog field to construct instruction for this agent.
+
+            Args:
+                ctx: The readonly_context.ReadonlyContext to resolve the provider with.
+
+            Returns:
+                The A2UI catalog object.
+            """
+            if isinstance(self._a2ui_catalog, catalog.A2uiCatalog):
+                return self._a2ui_catalog
+            else:
+                a2ui_catalog = self._a2ui_catalog(ctx)
+                if inspect.isawaitable(a2ui_catalog):
+                    a2ui_catalog = await a2ui_catalog
+                return a2ui_catalog
+
+        async def process_llm_request(
+            self,
+            *,
+            tool_context: tool_context.ToolContext,
+            llm_request: LlmRequest,
+        ) -> None:
+            await super().process_llm_request(
+                tool_context=tool_context, llm_request=llm_request
+            )
+
+            a2ui_catalog = await self._resolve_a2ui_catalog(tool_context)
+
+            instruction = a2ui_catalog.render_as_llm_instructions()
+            examples = await self._resolve_a2ui_examples(tool_context)
+
+            llm_request.append_instructions([instruction, examples])
+
+            logger.info("Added A2UI schema and examples to system instructions")
+
+        async def run_async(
+            self, *, args: dict[str, Any], tool_context: tool_context.ToolContext
+        ) -> Any:
+            try:
+                a2ui_json = args.get(self.A2UI_JSON_ARG_NAME)
+                if not a2ui_json:
+                    raise A2uiValidationError(
+                        f"Failed to call tool {self.TOOL_NAME} because missing required"
+                        f" arg {self.A2UI_JSON_ARG_NAME} "
+                    )
+
+                a2ui_catalog = await self._resolve_a2ui_catalog(tool_context)
+                a2ui_json_payload = parse_and_fix(a2ui_json)
+                a2ui_catalog.validator.validate(a2ui_json_payload)
+
+                logger.info(
+                    f"Validated call to tool {self.TOOL_NAME} with"
+                    f" {self.A2UI_JSON_ARG_NAME}"
+                )
+
+                # Don't do a second LLM inference call for the JSON response
+                tool_context.actions.skip_summarization = True
+
+                # Return the validated JSON so the converter can use it.
+                # We return it in a dict under "result" key for consistent JSON structure.
+                return {self.VALIDATED_A2UI_JSON_KEY: a2ui_json_payload}
+
+            except Exception as e:
+                err = f"Failed to call A2UI tool {self.TOOL_NAME}: {e}"
+                logger.error(err)
+
+                return {self.TOOL_ERROR_KEY: err}

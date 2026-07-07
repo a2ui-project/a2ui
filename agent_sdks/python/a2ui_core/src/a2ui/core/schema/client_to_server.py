@@ -22,7 +22,10 @@ from .constants import SPEC_VERSION, SPEC_VERSION_TYPE
 class A2uiClientAction(StrictBaseModel):
     name: str = Field(
         ...,
-        description="The name of the action, taken from the component's action.event.name property.",
+        description=(
+            "The name of the action, taken from the component's action.event.name"
+            " property."
+        ),
     )
     surface_id: str = Field(
         ...,
@@ -39,7 +42,10 @@ class A2uiClientAction(StrictBaseModel):
     )
     context: Dict[str, Any] = Field(
         ...,
-        description="A JSON object containing the key-value pairs from the component's action.event.context, after resolving all data bindings.",
+        description=(
+            "A JSON object containing the key-value pairs from the component's"
+            " action.event.context, after resolving all data bindings."
+        ),
     )
 
 
@@ -52,7 +58,10 @@ class A2uiValidationError(StrictBaseModel):
     )
     path: str = Field(
         ...,
-        description="The JSON pointer to the field that failed validation (e.g. '/components/0/text').",
+        description=(
+            "The JSON pointer to the field that failed validation (e.g."
+            " '/components/0/text')."
+        ),
     )
     message: str = Field(
         ...,
@@ -65,7 +74,9 @@ class A2uiGenericError(BaseModel):
     code: Any = Field(...)
     message: str = Field(
         ...,
-        description="A short one or two sentence description of why the error occurred.",
+        description=(
+            "A short one or two sentence description of why the error occurred."
+        ),
     )
     surface_id: str = Field(
         ...,

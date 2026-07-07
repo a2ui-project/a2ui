@@ -140,7 +140,8 @@ class ExpressionParser:
         result = self._parse_expression_internal(scanner, depth)
         if not scanner.is_at_end():
             raise ValueError(
-                f"Unexpected characters at end of expression: '{scanner.input[scanner.pos:]}'"
+                "Unexpected characters at end of expression:"
+                f" '{scanner.input[scanner.pos:]}'"
             )
         return result
 
@@ -203,7 +204,8 @@ class ExpressionParser:
             scanner.skip_whitespace()
             if not scanner.match(":"):
                 raise ValueError(
-                    f"Expected ':' after argument name '{arg_name}' in function '{func_name}'"
+                    f"Expected ':' after argument name '{arg_name}' in function"
+                    f" '{func_name}'"
                 )
             scanner.skip_whitespace()
 
