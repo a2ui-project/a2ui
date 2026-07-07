@@ -121,7 +121,7 @@ class TestElementalCompiler(unittest.TestCase):
     self.assertEqual(comp_text["component"], "Text")
     self.assertEqual(comp_text["text"], {"path": "/title"})
     
-    self.assertEqual(comp_card["id"], "comp_0")
+    self.assertEqual(comp_card["id"], "root")
     self.assertEqual(comp_card["component"], "Card")
     self.assertEqual(comp_card["weight"], 4)
     self.assertEqual(comp_card["child"], "comp_1")
@@ -183,7 +183,7 @@ class TestElementalCompiler(unittest.TestCase):
     components = result["createSurface"]["components"]
     self.assertEqual(len(components), 2)
     btn = components[1]
-    self.assertEqual(btn["id"], "btn_1")
+    self.assertEqual(btn["id"], "root")
     self.assertEqual(
         btn["action"],
         {
@@ -205,7 +205,7 @@ class TestElementalCompiler(unittest.TestCase):
     components = result["createSurface"]["components"]
     self.assertEqual(len(components), 1)
     text_field = components[0]
-    self.assertEqual(text_field["id"], "input_1")
+    self.assertEqual(text_field["id"], "root")
     self.assertEqual(text_field["value"], {"path": "/dob"})
     self.assertEqual(
         text_field["checks"],
@@ -214,7 +214,8 @@ class TestElementalCompiler(unittest.TestCase):
                 "condition": {
                     "call": "required",
                     "args": {"value": {"path": "/dob"}},
-                }
+                },
+                "message": "Invalid input"
             }
         ]
     )
@@ -238,7 +239,7 @@ class TestElementalCompiler(unittest.TestCase):
     self.assertEqual(item_text["id"], "item_text")
     self.assertEqual(item_text["text"], {"path": "name"})
     
-    self.assertEqual(lst["id"], "list_1")
+    self.assertEqual(lst["id"], "root")
     self.assertEqual(
         lst["children"],
         {
