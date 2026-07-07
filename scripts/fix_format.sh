@@ -56,39 +56,11 @@ else
   fi
 fi
 
-echo "Running Pyink for Python Agent SDK..."
+echo "Running Pyink for Python files..."
 if [ "$CHECK_ONLY" = true ]; then
-  uv run pyink --check agent_sdks/python/a2ui_agent
+  uv run pyink --check .
 else
-  uv run pyink agent_sdks/python/a2ui_agent
-fi
-
-echo "Running Pyink for Python Core SDK..."
-if [ "$CHECK_ONLY" = true ]; then
-  uv run pyink --check agent_sdks/python/a2ui_core
-else
-  uv run pyink agent_sdks/python/a2ui_core
-fi
-
-echo "Running Pyink for Python Samples..."
-if [ "$CHECK_ONLY" = true ]; then
-  uv run pyink --check samples/agent/adk
-else
-  uv run pyink samples/agent/adk
-fi
-
-echo "Running Pyink for Python Eval..."
-if [ "$CHECK_ONLY" = true ]; then
-  uv run pyink --check eval
-else
-  uv run pyink eval
-fi
-
-echo "Running Pyink for Python Specification Proposals..."
-if [ "$CHECK_ONLY" = true ]; then
-  uv run pyink --check specification/proposals
-else
-  uv run pyink specification/proposals
+  uv run pyink .
 fi
 
 echo "Running Dart format..."
