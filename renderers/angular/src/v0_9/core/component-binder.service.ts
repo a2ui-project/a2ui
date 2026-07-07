@@ -119,9 +119,7 @@ export class ComponentBinder {
         });
 
         const validationErrorsSignal = computed(() => {
-          return ruleResults
-            .filter(r => !getValue(r.conditionSig))
-            .map(r => r.message);
+          return ruleResults.filter(r => !getValue(r.conditionSig)).map(r => r.message);
         });
 
         bound['isValid'] = {
