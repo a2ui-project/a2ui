@@ -305,6 +305,17 @@ To keep specifications organized and isolated by default, all SDD blueprints, va
 
 To support automated execution of spec-driven tasks without cluttering default agent contexts, specialized SDD skills are maintained in `blueprints/skills/`. Developers can optionally symlink them into `.agents/skills/` using `blueprints/link_skills.sh`:
 
+```bash
+# Enable SDD skills locally
+./blueprints/link_skills.sh
+
+# Remove local SDD symlinks when done
+rm -f .agents/skills/a2ui-blueprint-navigator \
+      .agents/skills/a2ui-create-feature-blueprint \
+      .agents/skills/a2ui-implement-feature-from-blueprint \
+      .agents/skills/a2ui-blueprint-maintenance
+```
+
 - **`a2ui-blueprint-navigator`**: A read-only analytical guide. It discovers blueprints and inspects codebase compliance against module blueprint git commit hashes (`module_blueprint_commit`).
 - **`a2ui-create-feature-blueprint`**: Provides instructions on how to create a feature blueprint inside `blueprints/features/` without date prefixes.
 - **`a2ui-implement-feature-from-blueprint`**: Provides instructions on implementing feature specs and updating codebase compliance commit hashes.

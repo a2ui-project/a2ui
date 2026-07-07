@@ -49,7 +49,7 @@ To scale development across multiple programming languages and UI frameworks, th
 
 - **Language-Agnostic Blueprints** define high-level architecture and features under the `blueprints/` directory (`blueprints/modules/` and `blueprints/features/`).
 - **Concrete Codebases** track their module compliance by git commit hash using a `codebase.blueprint.md` file stored under `blueprints/codebases/<relative_codebase_path>/codebase.blueprint.md`.
-- **SDD Skills**: SDD skills live in `blueprints/skills/` and can be symlinked into `.agents/skills/` by running `blueprints/link_skills.sh`.
+- **SDD Skills**: SDD skills live in `blueprints/skills/` and can be symlinked into `.agents/skills/` by running `./blueprints/link_skills.sh`. To remove them when done, remove the `.agents/skills/a2ui-*` symlinks.
 
 For a detailed explanation of the methodology, lifecycle, and workflows, read the [Spec-Driven Development Proposal](specification/proposals/spec_driven_development.md).
 
