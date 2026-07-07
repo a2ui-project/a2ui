@@ -15,6 +15,8 @@
  */
 
 import {CatalogComponent, A2uiRendererService} from '@a2ui/angular/v0_9';
+import {DataContext} from '@a2ui/web_core/v0_9';
+import {z} from 'zod';
 import {
   AppBridge,
   PostMessageTransport,
@@ -53,8 +55,8 @@ import {DomSanitizer, SafeResourceUrl} from '@angular/platform-browser';
 
     iframe {
       flex: 1;
-      width: 100%;
-      height: 100%;
+      max-width: 100%;
+      max-height: 100%;
       border: none;
       background-color: white; /* Ensure content is readable */
     }
@@ -70,12 +72,8 @@ export class McpApp extends CatalogComponent<any> implements OnDestroy, OnInit {
   private readonly rendererService = inject(A2uiRendererService);
 
   protected readonly resolvedContent = computed<string | null>(() => {
-    const boundProp = this.props()['content']?.value() ?? null;
-    console.log('[McpApp] boundProp:', boundProp);
-    let rawContent: any = boundProp;
-    if (boundProp && typeof boundProp === 'object' && 'id' in boundProp) {
-      rawContent = boundProp.id;
-    }
+    let rawContent = this.props()['htmlContent']?.value() ?? null;
+    console.log('[McpApp] rawContent:', rawContent);
     if (rawContent && typeof rawContent === 'string' && rawContent.startsWith('url_encoded:')) {
       rawContent = decodeURIComponent(rawContent.substring(12));
     }
@@ -114,12 +112,25 @@ export class McpApp extends CatalogComponent<any> implements OnDestroy, OnInit {
   private iframe = viewChild.required<ElementRef<HTMLIFrameElement>>('iframe');
   private appBridge = signal<AppBridge | null>(null);
   private messageHandler: ((event: MessageEvent) => void) | null = null;
+  private dataSubscription: any = null;
+  private resizeTimeout: any = null;
+  private lastWidth?: number;
+  private lastHeight?: number;
+  private lastBoundValue: string | null = null;
 
   ngOnInit() {
     this.setupSandbox();
   }
 
   ngOnDestroy() {
+    if (this.dataSubscription) {
+      this.dataSubscription.unsubscribe();
+      this.dataSubscription = null;
+    }
+    if (this.resizeTimeout) {
+      clearTimeout(this.resizeTimeout);
+      this.resizeTimeout = null;
+    }
     if (this.messageHandler) {
       window.removeEventListener('message', this.messageHandler);
     }
@@ -127,6 +138,53 @@ export class McpApp extends CatalogComponent<any> implements OnDestroy, OnInit {
     if (bridge) {
       bridge.close().catch(e => console.error('Error closing AppBridge on destroy:', e));
     }
+  }
+
+  private handleSizeChange(width?: number, height?: number) {
+    if (this.resizeTimeout) {
+      return;
+    }
+
+    this.resizeTimeout = setTimeout(() => {
+      this.resizeTimeout = null;
+      const iframeEl = this.iframe().nativeElement;
+      if (!iframeEl) return;
+
+      // 1. Clamping
+      const targetWidth = width !== undefined ? Math.max(200, Math.min(width, 3000)) : undefined;
+      const targetHeight = height !== undefined ? Math.max(100, Math.min(height, 2000)) : undefined;
+
+      // 2. Threshold Gate
+      const widthDiff =
+        targetWidth !== undefined && this.lastWidth !== undefined
+          ? Math.abs(targetWidth - this.lastWidth)
+          : 100;
+      const heightDiff =
+        targetHeight !== undefined && this.lastHeight !== undefined
+          ? Math.abs(targetHeight - this.lastHeight)
+          : 100;
+
+      if (targetWidth !== undefined && widthDiff >= 5) {
+        iframeEl.style.width = `${targetWidth}px`;
+        const parent = iframeEl.parentElement;
+        if (parent) {
+          parent.style.width = `${targetWidth}px`;
+        }
+        this.lastWidth = targetWidth;
+      }
+
+      if (targetHeight !== undefined && heightDiff >= 5) {
+        iframeEl.style.height = `${targetHeight}px`;
+
+        // Update parent container aspect ratio or height
+        const parent = iframeEl.parentElement;
+        if (parent) {
+          parent.style.height = `${targetHeight}px`;
+          parent.style.aspectRatio = 'auto';
+        }
+        this.lastHeight = targetHeight;
+      }
+    }, 100); // 3. Throttling: 100ms
   }
 
   private setupSandbox() {
@@ -189,18 +247,89 @@ export class McpApp extends CatalogComponent<any> implements OnDestroy, OnInit {
     };
 
     bridge.onsizechange = ({width, height}) => {
-      // TODO: Implement dynamic resizing
-      // Reference implementation in mcp-apps-custom-component.ts:
-      // - Listen for size changes from the embedded app
-      // - Update the iframe's width/height styles (with animation if desired)
-      // - This prevents scrollbars and ensures the app fits its content
-      //
-      // Example logic:
-      // if (height !== undefined) {
-      //   this.iframe().nativeElement.style.height = `${height}px`;
-      // }
-      console.log(`[MCP App] Resize requested: ${width}x${height}`);
+      this.handleSizeChange(width, height);
     };
+
+    const surface = this.rendererService.surfaceGroup.getSurface(this.surfaceId());
+    // Resolve the path string. If the binder interprets the configuration object `{"path": "/..."}`
+    // as a DataBinding, it automatically resolves it to the underlying model value.
+    // We fall back to `raw` to inspect the unresolved literal path metadata if it was resolved.
+    const dataPath =
+      (this.props()['data']?.raw as any)?.path ?? this.props()['data']?.value()?.path;
+
+    // Two-way local data binding: Subscribe to host Data Model changes
+    if (surface && dataPath) {
+      this.lastBoundValue = JSON.stringify(surface.dataModel.get(dataPath));
+      this.dataSubscription = surface.dataModel.subscribe(dataPath, value => {
+        const currentBridge = this.appBridge();
+        if (currentBridge) {
+          // Deduplication loop check: do not push host state back to the embedded app
+          // if it is structurally identical to the last sent/received value.
+          const serialized = JSON.stringify(value);
+          if (this.lastBoundValue === serialized) {
+            return;
+          }
+          this.lastBoundValue = serialized;
+          (currentBridge as any)
+            .notification({
+              method: 'ui/notifications/data-model-update',
+              params: {value},
+            })
+            .catch((err: any) => console.error('Failed to send data-model-update:', err));
+        }
+      });
+    }
+
+    // Two-way local data binding: Handle data-model-change from app
+    const DataModelChangeNotificationSchema = z.object({
+      method: z.literal('ui/notifications/data-model-change'),
+      params: z.object({
+        value: z.any(),
+      }),
+    });
+
+    bridge.setNotificationHandler(DataModelChangeNotificationSchema, notification => {
+      const params = notification.params;
+      if (surface && dataPath) {
+        // Deduplication loop check: do not write to the host data model
+        // if the incoming data is structurally identical to the last sent/received value.
+        const serialized = JSON.stringify(params.value);
+        if (this.lastBoundValue === serialized) {
+          return;
+        }
+        this.lastBoundValue = serialized;
+        surface.dataModel.set(dataPath, params.value);
+      }
+    });
+
+    // Local client-side function execution: Handle requests from app
+    const FunctionCallRequestSchema = z.object({
+      method: z.literal('ui/requests/function-call'),
+      params: z.object({
+        call: z.string(),
+        args: z.record(z.any()),
+      }),
+    });
+
+    bridge.setRequestHandler(FunctionCallRequestSchema, async request => {
+      const params = request.params;
+      const allowed = this.props()['allowedFunctions']?.value() || [];
+      if (!allowed.includes(params.call)) {
+        throw new Error(`Local function '${params.call}' is not allowed`);
+      }
+
+      if (!surface) {
+        throw new Error('Surface not found');
+      }
+      const dataContext = new DataContext(surface, '/');
+
+      const result = await surface.catalog.invoker(params.call, params.args, dataContext);
+
+      return {
+        status: 'success',
+        result,
+      };
+    });
 
     bridge.oncalltool = async params => {
       console.log(`[MCP App] Tool call requested: ${params.name}`, params);
@@ -210,7 +339,6 @@ export class McpApp extends CatalogComponent<any> implements OnDestroy, OnInit {
         throw new Error(`Tool '${params.name}' not allowed`);
       }
 
-      const surface = this.rendererService.surfaceGroup.getSurface(this.surfaceId());
       if (surface) {
         const action = {
           event: {
