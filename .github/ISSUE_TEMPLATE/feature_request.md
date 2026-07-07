@@ -5,6 +5,7 @@ title: '[FEATURE]: '
 labels: enhancement
 assignees: ''
 ---
+- [ ] I have searched the existing issues to make sure this feature has not already been requested.
 
 ## Is your feature request related to a problem? Please describe.
 
