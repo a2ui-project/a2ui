@@ -1,3 +1,9 @@
+## Unreleased
+
+## 0.0.5
+
+- Widen `@a2ui/web_core` peer dependency range to `>=0.9.2` (#1766, #1930).
+
 ## 0.0.2
 
 - Made the markdown renderer async to support async markdown renderers.

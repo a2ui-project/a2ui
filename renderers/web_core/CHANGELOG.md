@@ -1,5 +1,9 @@
 ## Unreleased
 
+## 0.10.4
+
+- Support JSON Pointer escaping (RFC 6901) in DataModel (#1796).
+
 ## 0.10.3
 
 - Added the ability to swap out the signals implementation through the `setSignalImplementation` function.
