@@ -442,6 +442,12 @@ class ElementalDecompiler:
             args = call_dict.get("args", {})
 
             refined_args = dict(args)
+            if (
+                isinstance(check, dict)
+                and "message" in check
+                and check["message"] != "Invalid input"
+            ):
+                refined_args["message"] = check["message"]
             fn_props = self.helper.get_function_properties(name)
             if fn_props and fn_props[0] == "value" and "value" in refined_args:
                 if parent_value and refined_args["value"] == parent_value:

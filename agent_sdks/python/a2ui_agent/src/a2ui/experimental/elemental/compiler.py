@@ -745,7 +745,11 @@ class ElementalCompiler:
                     fn_props = self.helper.get_function_properties(fn_name)
 
                     # Extract message if it was incorrectly placed inside the function call dict
-                    msg = check.get("message", "Invalid input")
+                    msg = "Invalid input"
+                    if isinstance(fn_args, dict):
+                        msg = fn_args.pop("message", "Invalid input")
+                    else:
+                        msg = check.get("message", "Invalid input")
 
                     # Inject sibling value path if "value" is a parameter of the function and is omitted
                     if (
@@ -774,7 +778,12 @@ class ElementalCompiler:
                         fn_props = self.helper.get_function_properties(fn_name)
 
                         # Extract message if it was incorrectly placed inside the condition function call
-                        msg_from_cond = cond.get("message")
+                        msg_from_cond = None
+                        if isinstance(fn_args, dict):
+                            msg_from_cond = fn_args.pop("message", None)
+                        if not msg_from_cond:
+                            msg_from_cond = cond.get("message")
+
                         if msg_from_cond and "message" not in check:
                             check["message"] = msg_from_cond
                         if "message" in cond:

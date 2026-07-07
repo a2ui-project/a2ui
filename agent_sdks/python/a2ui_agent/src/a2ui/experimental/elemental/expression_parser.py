@@ -128,6 +128,12 @@ class ElementalExpressionParser(ExpressionParser):
         if not scanner.match(")"):
             raise ValueError(f"Expected ')' after function arguments for '{func_name}'")
 
+        if positional_args and args:
+            raise ValueError(
+                "Cannot mix positional and named arguments in function call"
+                f" '{func_name}'"
+            )
+
         if positional_args:
             return {"call": func_name, "args": positional_args, "returnType": "any"}
         return {"call": func_name, "args": args, "returnType": "any"}

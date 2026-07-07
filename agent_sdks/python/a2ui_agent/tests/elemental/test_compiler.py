@@ -217,6 +217,53 @@ class TestElementalCompiler(unittest.TestCase):
             }],
         )
 
+    def test_compile_checks_with_custom_message(self):
+        html_input = (
+            '<body id="test-surf">\n  <a2ui-text-field id="input_1" value="{$/dob}"'
+            " checks=\"{[required(message: 'DOB is required')]}\" />\n</body>"
+        )
+        result = self.compiler.compile(html_input)
+        components = result["createSurface"]["components"]
+        text_field = components[0]
+        self.assertEqual(
+            text_field["checks"],
+            [{
+                "condition": {
+                    "call": "required",
+                    "args": {"value": {"path": "/dob"}},
+                },
+                "message": "DOB is required",
+            }],
+        )
+
+    def test_compile_checks_with_condition_custom_message(self):
+        html_input = (
+            '<body id="test-surf">\n  <a2ui-text-field id="input_1" value="{$/dob}"'
+            " checks=\"{[{condition: required(message: 'DOB is required')}]}\""
+            " />\n</body>"
+        )
+        result = self.compiler.compile(html_input)
+        components = result["createSurface"]["components"]
+        text_field = components[0]
+        self.assertEqual(
+            text_field["checks"],
+            [{
+                "condition": {
+                    "call": "required",
+                    "args": {"value": {"path": "/dob"}},
+                },
+                "message": "DOB is required",
+            }],
+        )
+
+    def test_compile_checks_mixed_positional_named_error(self):
+        html_input = (
+            '<body id="test-surf">\n  <a2ui-text-field id="input_1" value="{$/dob}"'
+            " checks=\"{[required(1, message: 'DOB is required')]}\" />\n</body>"
+        )
+        with self.assertRaises(ValueError):
+            self.compiler.compile(html_input)
+
     def test_compile_list_with_template(self):
         html_input = (
             '<body id="test-surf">\n'

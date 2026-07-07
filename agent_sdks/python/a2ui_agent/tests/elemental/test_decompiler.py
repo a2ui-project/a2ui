@@ -226,6 +226,31 @@ class TestElementalDecompiler(unittest.TestCase):
         # The 'value' argument in 'required' should be omitted because it matches the component's value path
         self.assertIn('checks="{[required()]}"', html_output)
 
+    def test_decompile_checks_with_custom_message(self):
+        decompiler = ElementalDecompiler(self.catalog)
+        envelope = {
+            "version": "v1.0",
+            "createSurface": {
+                "surfaceId": "test-surf",
+                "components": [{
+                    "id": "input_1",
+                    "component": "TextField",
+                    "value": {"path": "/dob"},
+                    "checks": [{
+                        "condition": {
+                            "call": "required",
+                            "args": {"value": {"path": "/dob"}},
+                        },
+                        "message": "DOB is required",
+                    }],
+                }],
+            },
+        }
+        html_output = decompiler.decompile(envelope)
+        self.assertIn(
+            "checks=\"{[required(message: 'DOB is required')]}\"", html_output
+        )
+
     def test_decompile_list_with_template(self):
         decompiler = ElementalDecompiler(self.catalog)
         envelope = {
