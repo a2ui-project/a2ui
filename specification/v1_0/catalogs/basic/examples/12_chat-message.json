@@ -18,26 +18,26 @@
           {
             "id": "root",
             "component": "Card",
-            "child": "main-column"
+            "child": "main_column"
           },
           {
-            "id": "main-column",
+            "id": "main_column",
             "component": "Column",
-            "children": ["header", "divider", "messages-list"]
+            "children": ["header", "divider", "messages_list"]
           },
           {
             "id": "header",
             "component": "Row",
-            "children": ["channel-icon", "channel-name"],
+            "children": ["channel_icon", "channel_name"],
             "align": "center"
           },
           {
-            "id": "channel-icon",
+            "id": "channel_icon",
             "component": "Icon",
             "name": "info"
           },
           {
-            "id": "channel-name",
+            "id": "channel_name",
             "component": "Text",
             "text": {
               "path": "/channelName"
@@ -48,22 +48,22 @@
             "component": "Divider"
           },
           {
-            "id": "messages-list",
+            "id": "messages_list",
             "component": "Column",
             "children": {
               "path": "/messages",
-              "componentId": "message-template"
+              "componentId": "message_template"
             },
             "align": "start"
           },
           {
-            "id": "message-template",
+            "id": "message_template",
             "component": "Row",
-            "children": ["msg-avatar", "msg-content"],
+            "children": ["msg_avatar", "msg_content"],
             "align": "start"
           },
           {
-            "id": "msg-avatar",
+            "id": "msg_avatar",
             "component": "Image",
             "url": {
               "path": "avatar"
@@ -72,25 +72,25 @@
             "variant": "avatar"
           },
           {
-            "id": "msg-content",
+            "id": "msg_content",
             "component": "Column",
-            "children": ["msg-header", "msg-text"]
+            "children": ["msg_header", "msg_text"]
           },
           {
-            "id": "msg-header",
+            "id": "msg_header",
             "component": "Row",
-            "children": ["msg-username", "msg-time"],
+            "children": ["msg_username", "msg_time"],
             "align": "center"
           },
           {
-            "id": "msg-username",
+            "id": "msg_username",
             "component": "Text",
             "text": {
               "path": "username"
             }
           },
           {
-            "id": "msg-time",
+            "id": "msg_time",
             "component": "Text",
             "text": {
               "call": "formatDate",
@@ -104,7 +104,7 @@
             "variant": "caption"
           },
           {
-            "id": "msg-text",
+            "id": "msg_text",
             "component": "Text",
             "text": {
               "path": "text"

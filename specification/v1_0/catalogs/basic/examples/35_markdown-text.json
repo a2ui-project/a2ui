@@ -18,21 +18,21 @@
           {
             "id": "root",
             "component": "Card",
-            "child": "main-column"
+            "child": "main_column"
           },
           {
-            "id": "main-column",
+            "id": "main_column",
             "component": "Column",
-            "children": ["title-text", "markdown-content"],
+            "children": ["title_text", "markdown_content"],
             "align": "stretch"
           },
           {
-            "id": "title-text",
+            "id": "title_text",
             "component": "Text",
             "text": "### Markdown Rendering"
           },
           {
-            "id": "markdown-content",
+            "id": "markdown_content",
             "component": "Text",
             "text": "# Heading 1\n\nThis is **bold** text and *italic* text.\n\n- List item 1\n- List item 2\n\n[Link to Google](https://google.com)"
           }

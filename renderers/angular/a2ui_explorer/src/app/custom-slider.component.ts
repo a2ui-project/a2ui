@@ -16,7 +16,7 @@
 
 import {Component, ChangeDetectionStrategy} from '@angular/core';
 import {CommonModule} from '@angular/common';
-import {CatalogComponent} from 'src/v0_9/core/catalog_component';
+import {CatalogComponent} from '@a2ui/angular/v0_9';
 import z from 'zod';
 import {ComponentApi} from '@a2ui/web_core/v0_9';
 

@@ -16,7 +16,7 @@
 from typing import Any, Dict, List, Literal, Optional
 from pydantic import BaseModel, Field, ConfigDict
 from .common_types import StrictBaseModel
-from .constants import SPEC_VERSION
+from .constants import SPEC_VERSION, SPEC_VERSION_TYPE
 
 
 class FunctionDefinition(StrictBaseModel):

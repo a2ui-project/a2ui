@@ -11,14 +11,16 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+from __future__ import annotations
 
-from typing import Any, Dict, List, Optional, Set, Tuple, Union, get_args, get_origin
+from typing import Any, Dict, List, Optional, Set, Tuple, Union, get_args, get_origin, cast
 from jsonschema import Draft202012Validator
-from pydantic import BaseModel, ValidationError, TypeAdapter
+from pydantic import BaseModel, ValidationError
 from referencing import Registry, Resource
 from referencing.jsonschema import DRAFT202012
 
-from ..catalog import Catalog, ComponentApi, ModelComponentApi
+from ..catalog import Catalog, ComponentApi, ModelComponentApi, ComponentImplementation
+from ..exceptions import A2uiValidationError, A2uiErrorDetail
 from ..catalog.catalog import TComponent, TFunction
 from ..schema.common_types import (
     ComponentReference,
@@ -43,10 +45,10 @@ class CatalogSchemaValidator:
     def __init__(
         self,
         catalog: Catalog[TComponent, TFunction],
-        common_types_schema: Dict[str, Any] = {},
+        common_types_schema: Optional[Dict[str, Any]] = None,
     ):
         self.catalog = catalog
-        self.common_types_schema = common_types_schema
+        self.common_types_schema = common_types_schema or {}
         self._validators: Dict[str, Draft202012Validator] = {}
         self._registry = self._build_registry()
 
@@ -102,6 +104,20 @@ class CatalogSchemaValidator:
                     ),
                 )
             )
+            common_types_id = self.common_types_schema.get("$id")
+            if isinstance(common_types_id, str):
+                from urllib.parse import urljoin
+
+                resolved_catalog_uri = urljoin(common_types_id, CATALOG_SCHEMA_FILE)
+                if not any(uri == resolved_catalog_uri for uri, _ in resources):
+                    resources.append(
+                        (
+                            resolved_catalog_uri,
+                            Resource.from_contents(
+                                catalog_schema, default_specification=DRAFT202012
+                            ),
+                        )
+                    )
         return Registry().with_resources(resources)
 
     def _get_validator(self, key: str, ref_path: str) -> Draft202012Validator:
@@ -121,12 +137,13 @@ class CatalogSchemaValidator:
 
     def _get_component_schema(self, comp_type: str) -> Optional[Dict[str, Any]]:
         comp = self.catalog.get_component(comp_type)
-        if hasattr(comp, "schema"):
-            return comp.schema
-        if isinstance(comp, dict):
-            return comp
-        if comp and hasattr(comp, "model_json_schema"):
-            return comp.model_json_schema()
+        if comp is not None:
+            if hasattr(comp, "schema"):
+                return cast(Optional[Dict[str, Any]], comp.schema)
+            if isinstance(comp, dict):
+                return comp
+            if hasattr(comp, "model_json_schema"):
+                return cast(Optional[Dict[str, Any]], comp.model_json_schema())
         return None
 
     def _get_function_schema(self, func_name: str) -> Optional[Dict[str, Any]]:
@@ -136,11 +153,11 @@ class CatalogSchemaValidator:
                 if isinstance(fn.schema, dict):
                     return fn.schema
                 if hasattr(fn.schema, "model_json_schema"):
-                    return fn.schema.model_json_schema()
+                    return cast(Optional[Dict[str, Any]], fn.schema.model_json_schema())
             if isinstance(fn, dict):
                 return fn
         if fn and hasattr(fn, "model_json_schema"):
-            return fn.model_json_schema()
+            return cast(Optional[Dict[str, Any]], fn.model_json_schema())
         return None
 
     def validate_component_properties(
@@ -179,7 +196,7 @@ class CatalogSchemaValidator:
             raise ValueError(f"Unknown component type: {comp_type}")
 
         # 1. Native Pydantic Validation Pathway
-        if hasattr(comp_obj, "model_class") and comp_obj.model_class:
+        if isinstance(comp_obj, ComponentImplementation) and comp_obj.model_class:
             model_config = getattr(comp_obj.model_class, "model_config", {})
             schema_extra = model_config.get("json_schema_extra", {})
             forbid_extra = model_config.get("extra") == "forbid"
@@ -190,18 +207,19 @@ class CatalogSchemaValidator:
                 forbid_extra = True
 
             try:
+                adapter = comp_obj.type_adapter
                 if forbid_extra:
-
-                    class ForbidModel(comp_obj.model_class):
-                        model_config = {"extra": "forbid"}
-
-                    ForbidModel.model_validate(comp_payload)
+                    adapter.validate_python(comp_payload, extra="forbid")
                 else:
-                    comp_obj.model_class.model_validate(comp_payload)
+                    adapter.validate_python(comp_payload)
             except ValidationError as ve:
-                raise ValueError(self._format_pydantic_errors(ve))
+                details = self._format_pydantic_errors(ve)
+                raise A2uiValidationError(
+                    "\n".join(f"[{d.path}] {d.message}" for d in details),
+                    details=details,
+                )
             except Exception as e:
-                raise ValueError(str(e))
+                raise A2uiValidationError(str(e))
 
         # 2. JSON Schema Validation Pathway
         else:
@@ -241,32 +259,60 @@ class CatalogSchemaValidator:
                     )
                     errors = list(validator.iter_errors(properties))
                     if errors:
-                        raise ValueError(self._format_errors(errors))
+                        details = self._format_errors(errors)
+                        raise A2uiValidationError(
+                            "\n".join(f"[{d.path}] {d.message}" for d in details),
+                            details=details,
+                        )
                 except Exception as e:
-                    raise ValueError(str(e))
+                    if isinstance(e, A2uiValidationError):
+                        raise e
+                    raise A2uiValidationError(str(e))
 
         self._check_nested_functions(comp_payload)
 
-    def _format_errors(self, errors: List[Any]) -> str:
-        msgs = []
+    def _format_errors(self, errors: List[Any]) -> List[A2uiErrorDetail]:
+        details = []
         for err in errors:
             path_str = (
                 ".".join(map(str, err.path))
                 if hasattr(err, "path") and err.path
                 else "root"
             )
-            msgs.append(f"[{path_str}] {err.message}")
-        return "\n".join(msgs)
+            err_validator = getattr(err, "validator", "")
+            if err_validator == "required":
+                code = "missing_field"
+            elif err_validator == "type":
+                code = "type_mismatch"
+            elif err_validator == "additionalProperties":
+                code = "extra_field"
+            else:
+                code = "invalid_value"
+            details.append(A2uiErrorDetail(path_str, code, err.message))
+        return details
 
-    def _format_pydantic_errors(self, err: ValidationError) -> str:
-        msgs = []
+    def _format_pydantic_errors(self, err: ValidationError) -> List[A2uiErrorDetail]:
+        details = []
         for error in err.errors():
             path_str = ".".join(map(str, error["loc"]))
             msg = error["msg"]
-            if error.get("type") == "extra_forbidden":
+            err_type = error.get("type", "")
+            if err_type == "missing":
+                code = "missing_field"
+            elif err_type == "extra_forbidden":
+                code = "extra_field"
+            elif (
+                err_type.endswith("_type")
+                or err_type.endswith("_parsing")
+                or "type" in err_type
+            ):
+                code = "type_mismatch"
+            else:
+                code = "invalid_value"
+            if err_type == "extra_forbidden":
                 msg = "Additional properties are not allowed"
-            msgs.append(f"[{path_str}] {msg}")
-        return "\n".join(msgs)
+            details.append(A2uiErrorDetail(path_str, code, msg))
+        return details
 
     def validate_components(self, comp_payload: List[Dict[str, Any]]) -> None:
         """Validates a list of component payloads conforming to the catalog's schemas."""
@@ -289,9 +335,15 @@ class CatalogSchemaValidator:
                 validator = self._get_validator("theme:schema", ref_path)
                 errors = list(validator.iter_errors(theme_payload))
                 if errors:
-                    raise ValueError(self._format_errors(errors))
+                    details = self._format_errors(errors)
+                    raise A2uiValidationError(
+                        "\n".join(f"[{d.path}] {d.message}" for d in details),
+                        details=details,
+                    )
             except Exception as e:
-                raise ValueError(str(e))
+                if isinstance(e, A2uiValidationError):
+                    raise e
+                raise A2uiValidationError(str(e))
 
     def validate_function(self, func_name: str, args: Dict[str, Any]) -> None:
         """Validates function arguments dynamically against raw function specification."""
@@ -311,9 +363,13 @@ class CatalogSchemaValidator:
             try:
                 func_obj.schema.model_validate(payload)
             except ValidationError as ve:
-                raise ValueError(self._format_pydantic_errors(ve))
+                details = self._format_pydantic_errors(ve)
+                raise A2uiValidationError(
+                    "\n".join(f"[{d.path}] {d.message}" for d in details),
+                    details=details,
+                )
             except Exception as e:
-                raise ValueError(str(e))
+                raise A2uiValidationError(str(e))
         else:
             func_spec = self._get_function_schema(func_name)
             if func_spec:
@@ -331,12 +387,16 @@ class CatalogSchemaValidator:
                 elif isinstance(func_spec, list):
                     payload = args
                 else:
-                    payload = args  # type: ignore
+                    payload = args
                 errors = list(validator.iter_errors(payload))
                 if errors:
-                    raise ValueError(self._format_errors(errors))
+                    details = self._format_errors(errors)
+                    raise A2uiValidationError(
+                        "\n".join(f"[{d.path}] {d.message}" for d in details),
+                        details=details,
+                    )
 
-    def extract_ref_fields(self) -> Dict[str, Tuple[Set[str], Set[str]]]:
+    def extract_ref_fields(self) -> Dict[str, RefFieldsTuple]:
         """Inspects and retrieves the topological reference pointer map from the underlying catalog."""
         return extract_ref_fields(self.catalog)
 
@@ -353,8 +413,8 @@ class CatalogSchemaValidator:
 
 def _extract_ref_fields_pydantic(
     catalog: Catalog[Any, Any],
-) -> Dict[str, Tuple[Set[str], Set[str]]]:
-    ref_map = {}
+) -> Dict[str, RefFieldsTuple]:
+    ref_map: Dict[str, RefFieldsTuple] = {}
 
     def _is_ref_type(typ: Any) -> Tuple[bool, bool]:
         if isinstance(typ, type):
@@ -412,14 +472,34 @@ def _extract_ref_fields_pydantic(
                 list_refs.add(field_name)
 
         if single_refs or list_refs:
-            ref_map[comp_name] = (single_refs, list_refs)
+            ref_map[comp_name] = RefFieldsTuple(single_refs, list_refs)
 
     return ref_map
 
 
+class RefFieldsTuple(tuple[Set[str], Set[str]]):
+    """A backwards-compatible 2-tuple carrying nested reference field mappings."""
+
+    def __new__(
+        cls,
+        single_refs: Set[str],
+        list_refs: Set[str],
+        nested_refs: Optional[Dict[str, Set[str]]] = None,
+    ) -> RefFieldsTuple:
+        return super().__new__(cls, (single_refs, list_refs))
+
+    def __init__(
+        self,
+        single_refs: Set[str],
+        list_refs: Set[str],
+        nested_refs: Optional[Dict[str, Set[str]]] = None,
+    ) -> None:
+        self.nested_refs = nested_refs or {}
+
+
 def _extract_ref_fields_json(
     catalog: Catalog[Any, Any],
-) -> Dict[str, Tuple[Set[str], Set[str]]]:
+) -> Dict[str, RefFieldsTuple]:
     ref_map = {}
 
     def is_component_id_ref(prop_schema: Any) -> bool:
@@ -494,6 +574,7 @@ def _extract_ref_fields_json(
     for comp_name, comp_obj in catalog.components.items():
         single_refs = set()
         list_refs = set()
+        nested_refs: Dict[str, Set[str]] = {}
 
         comp_schema = (
             comp_obj.schema
@@ -501,7 +582,7 @@ def _extract_ref_fields_json(
             else (comp_obj if isinstance(comp_obj, dict) else {})
         )
 
-        def extract_from_props(comp_schema: Any):
+        def extract_from_props(comp_schema: Any) -> None:
             if not isinstance(comp_schema, dict):
                 return
             props = comp_schema.get("properties", {})
@@ -522,13 +603,15 @@ def _extract_ref_fields_json(
                             if is_component_id_ref(items) or is_child_list_ref(items):
                                 list_refs.add(prop_name)
                             elif "properties" in items:
-                                for sub_schema in items["properties"].values():
+                                for sub_key, sub_schema in items["properties"].items():
                                     resolved_sub = resolve_ref(sub_schema, comp_schema)
                                     if is_component_id_ref(
                                         resolved_sub
                                     ) or is_child_list_ref(resolved_sub):
                                         list_refs.add(prop_name)
-                                        break
+                                        if prop_name not in nested_refs:
+                                            nested_refs[prop_name] = set()
+                                        nested_refs[prop_name].add(sub_key)
 
             for key in ["allOf", "oneOf", "anyOf"]:
                 if key in comp_schema and isinstance(comp_schema[key], list):
@@ -538,14 +621,14 @@ def _extract_ref_fields_json(
         extract_from_props(comp_schema)
 
         if single_refs or list_refs:
-            ref_map[comp_name] = (single_refs, list_refs)
+            ref_map[comp_name] = RefFieldsTuple(single_refs, list_refs, nested_refs)
 
     return ref_map
 
 
 def extract_ref_fields(
     catalog: Catalog[Any, Any],
-) -> Dict[str, Tuple[Set[str], Set[str]]]:
+) -> Dict[str, RefFieldsTuple]:
     """Inspects and retrieves the topological reference pointer map from the underlying catalog."""
     has_pydantic_models = False
     for comp in catalog.components.values():

@@ -18,7 +18,7 @@
           {
             "id": "root",
             "component": "Column",
-            "children": ["title", "modal-comp"]
+            "children": ["title", "modal_comp"]
           },
           {
             "id": "title",
@@ -26,20 +26,20 @@
             "text": "## Modal Component Sample"
           },
           {
-            "id": "modal-comp",
+            "id": "modal_comp",
             "component": "Modal",
-            "trigger": "open-btn",
-            "content": "modal-content"
+            "trigger": "open_btn",
+            "content": "modal_content"
           },
           {
-            "id": "open-btn-text",
+            "id": "open_btn_text",
             "component": "Text",
             "text": "Open Modal"
           },
           {
-            "id": "open-btn",
+            "id": "open_btn",
             "component": "Button",
-            "child": "open-btn-text",
+            "child": "open_btn_text",
             "action": {
               "event": {
                 "name": "openModalEvent",
@@ -48,12 +48,12 @@
             }
           },
           {
-            "id": "modal-content",
+            "id": "modal_content",
             "component": "Column",
-            "children": ["modal-text"]
+            "children": ["modal_text"]
           },
           {
-            "id": "modal-text",
+            "id": "modal_text",
             "component": "Text",
             "text": "This is the content inside the modal."
           }

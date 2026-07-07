@@ -69,7 +69,9 @@
         components: {}
     client_capabilities:
       supportedCatalogIds: ["id_not_exists"]
-  expect_error: "No client-supported catalog found"
+  expect_error:
+    category: "CatalogError"
+    message: "No client-supported catalog found"
 
 - name: test_select_catalog_inline
   description: Inline catalog loading (merges onto base).
@@ -101,7 +103,9 @@
     client_capabilities:
       inlineCatalogs:
         - catalogId: id_inline
-  expect_error: "the agent does not accept inline catalogs"
+  expect_error:
+    category: "CatalogError"
+    message: "the agent does not accept inline catalogs"
 
 - name: test_select_catalog_multiple_inline
   description: Tests that multiple inline catalogs are merged.

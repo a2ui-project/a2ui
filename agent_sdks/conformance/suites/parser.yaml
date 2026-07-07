@@ -16,19 +16,25 @@
   description: Tests that empty response raises error.
   action: parse_full
   input: ""
-  expect_error: "not found in response"
+  expect_error:
+    category: "ParseError"
+    message: "not found in response"
 
 - name: test_parse_response_only_text_no_tags
   description: Tests that response without tags raises error.
   action: parse_full
   input: "Only text, no tags."
-  expect_error: "not found in response"
+  expect_error:
+    category: "ParseError"
+    message: "not found in response"
 
 - name: test_parse_response_empty_tags
   description: Tests that empty tags raise error.
   action: parse_full
   input: "<a2ui-json></a2ui-json>"
-  expect_error: "A2UI JSON part is empty"
+  expect_error:
+    category: "ParseError"
+    message: "A2UI JSON part is empty"
 
 - name: test_parse_response_only_json_with_tags
   description: Tests parsing only JSON with tags.
@@ -78,7 +84,9 @@
   description: Tests that invalid JSON raises error.
   action: parse_full
   input: "<a2ui-json>\ninvalid_json\n</a2ui-json>"
-  expect_error: "Failed to parse"
+  expect_error:
+    category: "ParseError"
+    message: "Failed to parse"
 
 - name: test_fix_payload_trailing_comma_list
   description: Tests removing trailing comma in list.

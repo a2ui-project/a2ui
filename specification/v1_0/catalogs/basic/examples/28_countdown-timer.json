@@ -18,86 +18,86 @@
           {
             "id": "root",
             "component": "Card",
-            "child": "main-column"
+            "child": "main_column"
           },
           {
-            "id": "main-column",
+            "id": "main_column",
             "component": "Column",
-            "children": ["event-name", "countdown-row", "target-date"],
+            "children": ["event_name", "countdown_row", "target_date"],
             "align": "center"
           },
           {
-            "id": "event-name",
+            "id": "event_name",
             "component": "Text",
             "text": {
               "path": "/eventName"
             }
           },
           {
-            "id": "countdown-row",
+            "id": "countdown_row",
             "component": "Row",
-            "children": ["days-col", "hours-col", "minutes-col"],
+            "children": ["days_col", "hours_col", "minutes_col"],
             "justify": "spaceAround"
           },
           {
-            "id": "days-col",
+            "id": "days_col",
             "component": "Column",
-            "children": ["days-value", "days-label"],
+            "children": ["days_value", "days_label"],
             "align": "center"
           },
           {
-            "id": "days-value",
+            "id": "days_value",
             "component": "Text",
             "text": {
               "path": "/days"
             }
           },
           {
-            "id": "days-label",
+            "id": "days_label",
             "component": "Text",
             "text": "Days",
             "variant": "caption"
           },
           {
-            "id": "hours-col",
+            "id": "hours_col",
             "component": "Column",
-            "children": ["hours-value", "hours-label"],
+            "children": ["hours_value", "hours_label"],
             "align": "center"
           },
           {
-            "id": "hours-value",
+            "id": "hours_value",
             "component": "Text",
             "text": {
               "path": "/hours"
             }
           },
           {
-            "id": "hours-label",
+            "id": "hours_label",
             "component": "Text",
             "text": "Hours",
             "variant": "caption"
           },
           {
-            "id": "minutes-col",
+            "id": "minutes_col",
             "component": "Column",
-            "children": ["minutes-value", "minutes-label"],
+            "children": ["minutes_value", "minutes_label"],
             "align": "center"
           },
           {
-            "id": "minutes-value",
+            "id": "minutes_value",
             "component": "Text",
             "text": {
               "path": "/minutes"
             }
           },
           {
-            "id": "minutes-label",
+            "id": "minutes_label",
             "component": "Text",
             "text": "Minutes",
             "variant": "caption"
           },
           {
-            "id": "target-date",
+            "id": "target_date",
             "component": "Text",
             "text": {
               "call": "formatDate",

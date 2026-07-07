@@ -30,6 +30,26 @@ You can request the password from any member of the A2UI team (it's not really a
 
 After this one time setup, you will have local plaintext access to the decrypted datasets in the `datasets/` directory, and they will be encrypted and decrypted transparently by git.
 
+### Upgrading transcrypt
+
+If you pull updates that change the encryption settings (such as transitioning from MD5 to PBKDF2), you may encounter decryption errors during `git pull` or see OpenSSL deprecation warnings.
+
+To upgrade your local transcrypt configuration to the latest settings:
+
+1. Run the upgrade command:
+
+   ```bash
+   bin/transcrypt --upgrade
+   ```
+
+   This updates the local filter scripts in your `.git` directory while preserving your saved password.
+
+2. Force Git to re-decrypt the files:
+   ```bash
+   git checkout HEAD -- $(git ls-crypt)
+   ```
+   This runs the files through the newly upgraded smudge filter, decrypting them.
+
 ## Dimensions
 
 Evaluations run across the following dimensions:

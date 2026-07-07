@@ -18,58 +18,58 @@
           {
             "id": "root",
             "component": "Card",
-            "child": "main-column"
+            "child": "main_column"
           },
           {
-            "id": "main-column",
+            "id": "main_column",
             "component": "Column",
-            "children": ["card-type-row", "card-number", "card-details"]
+            "children": ["card_type_row", "card_number", "card_details"]
           },
           {
-            "id": "card-type-row",
+            "id": "card_type_row",
             "component": "Row",
-            "children": ["card-icon", "card-type"],
+            "children": ["card_icon", "card_type"],
             "justify": "spaceBetween",
             "align": "center"
           },
           {
-            "id": "card-icon",
+            "id": "card_icon",
             "component": "Icon",
             "name": "payment"
           },
           {
-            "id": "card-type",
+            "id": "card_type",
             "component": "Text",
             "text": {
               "path": "/cardType"
             }
           },
           {
-            "id": "card-number",
+            "id": "card_number",
             "component": "Text",
             "text": {
               "path": "/cardNumber"
             }
           },
           {
-            "id": "card-details",
+            "id": "card_details",
             "component": "Row",
-            "children": ["holder-col", "expiry-col"],
+            "children": ["holder_col", "expiry_col"],
             "justify": "spaceBetween"
           },
           {
-            "id": "holder-col",
+            "id": "holder_col",
             "component": "Column",
-            "children": ["holder-label", "holder-name"]
+            "children": ["holder_label", "holder_name"]
           },
           {
-            "id": "holder-label",
+            "id": "holder_label",
             "component": "Text",
             "text": "CARD HOLDER",
             "variant": "caption"
           },
           {
-            "id": "holder-name",
+            "id": "holder_name",
             "component": "Text",
             "text": {
               "path": "/holderName"
@@ -77,19 +77,19 @@
             "variant": "body"
           },
           {
-            "id": "expiry-col",
+            "id": "expiry_col",
             "component": "Column",
-            "children": ["expiry-label", "expiry-date"],
+            "children": ["expiry_label", "expiry_date"],
             "align": "end"
           },
           {
-            "id": "expiry-label",
+            "id": "expiry_label",
             "component": "Text",
             "text": "EXPIRES",
             "variant": "caption"
           },
           {
-            "id": "expiry-date",
+            "id": "expiry_date",
             "component": "Text",
             "text": {
               "path": "/expiryDate"

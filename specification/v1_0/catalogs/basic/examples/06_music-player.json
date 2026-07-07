@@ -18,16 +18,16 @@
           {
             "id": "root",
             "component": "Card",
-            "child": "main-column"
+            "child": "main_column"
           },
           {
-            "id": "main-column",
+            "id": "main_column",
             "component": "Column",
-            "children": ["album-art", "track-info", "progress", "time-row", "controls"],
+            "children": ["album_art", "track_info", "progress", "time_row", "controls"],
             "align": "center"
           },
           {
-            "id": "album-art",
+            "id": "album_art",
             "component": "Image",
             "url": {
               "path": "/albumArt"
@@ -35,13 +35,13 @@
             "fit": "cover"
           },
           {
-            "id": "track-info",
+            "id": "track_info",
             "component": "Column",
-            "children": ["song-title", "artist"],
+            "children": ["song_title", "artist"],
             "align": "center"
           },
           {
-            "id": "song-title",
+            "id": "song_title",
             "component": "Text",
             "text": {
               "path": "/title"
@@ -64,13 +64,13 @@
             "max": 1
           },
           {
-            "id": "time-row",
+            "id": "time_row",
             "component": "Row",
-            "children": ["current-time", "total-time"],
+            "children": ["current_time", "total_time"],
             "justify": "spaceBetween"
           },
           {
-            "id": "current-time",
+            "id": "current_time",
             "component": "Text",
             "text": {
               "path": "/currentTime"
@@ -78,7 +78,7 @@
             "variant": "caption"
           },
           {
-            "id": "total-time",
+            "id": "total_time",
             "component": "Text",
             "text": {
               "path": "/totalTime"
@@ -88,18 +88,18 @@
           {
             "id": "controls",
             "component": "Row",
-            "children": ["prev-btn", "play-btn", "next-btn"],
+            "children": ["prev_btn", "play_btn", "next_btn"],
             "justify": "center"
           },
           {
-            "id": "prev-btn-icon",
+            "id": "prev_btn_icon",
             "component": "Icon",
             "name": "skipPrevious"
           },
           {
-            "id": "prev-btn",
+            "id": "prev_btn",
             "component": "Button",
-            "child": "prev-btn-icon",
+            "child": "prev_btn_icon",
             "action": {
               "event": {
                 "name": "previous",
@@ -108,16 +108,16 @@
             }
           },
           {
-            "id": "play-btn-icon",
+            "id": "play_btn_icon",
             "component": "Icon",
             "name": {
               "path": "/playIcon"
             }
           },
           {
-            "id": "play-btn",
+            "id": "play_btn",
             "component": "Button",
-            "child": "play-btn-icon",
+            "child": "play_btn_icon",
             "action": {
               "event": {
                 "name": "playPause",
@@ -126,14 +126,14 @@
             }
           },
           {
-            "id": "next-btn-icon",
+            "id": "next_btn_icon",
             "component": "Icon",
             "name": "skipNext"
           },
           {
-            "id": "next-btn",
+            "id": "next_btn",
             "component": "Button",
-            "child": "next-btn-icon",
+            "child": "next_btn_icon",
             "action": {
               "event": {
                 "name": "next",

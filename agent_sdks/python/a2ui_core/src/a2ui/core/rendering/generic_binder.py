@@ -135,7 +135,7 @@ class GenericBinder:
 
             rule_results[index]["message"] = message
 
-            def on_rule_change(new_val: Any, idx=index) -> None:
+            def on_rule_change(new_val: Any, idx: int = index) -> None:
                 rule_results[idx]["valid"] = bool(new_val)
                 update_validation_state()
 

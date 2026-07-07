@@ -18,34 +18,34 @@
           {
             "id": "root",
             "component": "Card",
-            "child": "main-column"
+            "child": "main_column"
           },
           {
-            "id": "main-column",
+            "id": "main_column",
             "component": "Column",
-            "children": ["header-row", "route-row", "divider", "times-row"],
+            "children": ["header_row", "route_row", "divider", "times_row"],
             "align": "stretch"
           },
           {
-            "id": "header-row",
+            "id": "header_row",
             "component": "Row",
-            "children": ["header-left", "date"],
+            "children": ["header_left", "date"],
             "justify": "spaceBetween",
             "align": "center"
           },
           {
-            "id": "header-left",
+            "id": "header_left",
             "component": "Row",
-            "children": ["flight-indicator", "flight-number"],
+            "children": ["flight_indicator", "flight_number"],
             "align": "center"
           },
           {
-            "id": "flight-indicator",
+            "id": "flight_indicator",
             "component": "Icon",
             "name": "send"
           },
           {
-            "id": "flight-number",
+            "id": "flight_number",
             "component": "Text",
             "text": {
               "path": "/flightNumber"
@@ -66,7 +66,7 @@
             "variant": "caption"
           },
           {
-            "id": "route-row",
+            "id": "route_row",
             "component": "Row",
             "children": ["origin", "arrow", "destination"],
             "align": "center"
@@ -101,25 +101,25 @@
             "component": "Divider"
           },
           {
-            "id": "times-row",
+            "id": "times_row",
             "component": "Row",
-            "children": ["departure-col", "status-col", "arrival-col"],
+            "children": ["departure_col", "status_col", "arrival_col"],
             "justify": "spaceBetween"
           },
           {
-            "id": "departure-col",
+            "id": "departure_col",
             "component": "Column",
-            "children": ["departure-label", "departure-time"],
+            "children": ["departure_label", "departure_time"],
             "align": "start"
           },
           {
-            "id": "departure-label",
+            "id": "departure_label",
             "component": "Text",
             "text": "Departs",
             "variant": "caption"
           },
           {
-            "id": "departure-time",
+            "id": "departure_time",
             "component": "Text",
             "text": {
               "call": "formatDate",
@@ -132,19 +132,19 @@
             }
           },
           {
-            "id": "status-col",
+            "id": "status_col",
             "component": "Column",
-            "children": ["status-label", "status-value"],
+            "children": ["status_label", "status_value"],
             "align": "center"
           },
           {
-            "id": "status-label",
+            "id": "status_label",
             "component": "Text",
             "text": "Status",
             "variant": "caption"
           },
           {
-            "id": "status-value",
+            "id": "status_value",
             "component": "Text",
             "text": {
               "path": "/status"
@@ -152,19 +152,19 @@
             "variant": "body"
           },
           {
-            "id": "arrival-col",
+            "id": "arrival_col",
             "component": "Column",
-            "children": ["arrival-label", "arrival-time"],
+            "children": ["arrival_label", "arrival_time"],
             "align": "end"
           },
           {
-            "id": "arrival-label",
+            "id": "arrival_label",
             "component": "Text",
             "text": "Arrives",
             "variant": "caption"
           },
           {
-            "id": "arrival-time",
+            "id": "arrival_time",
             "component": "Text",
             "text": {
               "call": "formatDate",

@@ -15,7 +15,15 @@
 -->
 
 @let surfaceId = a2uiSurfaceId();
-@let surface = a2uiSurface();
-@if (surfaceId && surface) {
-  <a2ui-surface [surfaceId]="surfaceId" [surface]="surface"></a2ui-surface>
+@if (surfaceId) {
+  @if (isV08()) {
+    @let surface = a2uiSurface();
+    @if (surface) {
+      <a2ui-surface [surfaceId]="surfaceId" [surface]="surface"></a2ui-surface>
+    } @else {
+      <div>Loading surface {{ surfaceId }}...</div>
+    }
+  } @else {
+    <a2ui-v09-surface [surfaceId]="surfaceId"></a2ui-v09-surface>
+  }
 }

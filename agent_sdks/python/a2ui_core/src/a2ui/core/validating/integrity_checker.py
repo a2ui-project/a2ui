@@ -12,9 +12,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Any, Dict, List, Optional, Set, Tuple, Union, Iterator
+from typing import Any, Dict, List, Optional, Set, Tuple, Union, Iterator, Mapping
 import re
 from ..schema.constants import ROOT_ID
+from ..exceptions import A2uiValidationError, A2uiErrorDetail, A2uiIntegrityError, A2uiRecursionError
+
 
 NUMERIC_PATTERN = re.compile(r"^(?:0|[1-9][0-9]*)$")
 MAX_GLOBAL_DEPTH = 50
@@ -26,7 +28,7 @@ RELAXED_PATH_PATTERN = re.compile(
 
 def get_component_references(
     component: Dict[str, Any],
-    ref_fields_map: Dict[str, Tuple[Set[str], Set[str]]],
+    ref_fields_map: Mapping[str, Tuple[Set[str], Set[str]]],
 ) -> Iterator[Tuple[str, str]]:
     comp_val = component.get("component")
     if isinstance(comp_val, str):
@@ -40,12 +42,17 @@ def get_component_references(
 def _get_refs_recursively(
     comp_type: str,
     props: Dict[str, Any],
-    ref_fields_map: Dict[str, Tuple[Set[str], Set[str]]],
+    ref_fields_map: Mapping[str, Tuple[Set[str], Set[str]]],
 ) -> Iterator[Tuple[str, str]]:
     if not comp_type or not isinstance(props, dict):
         return
 
-    single_refs, list_refs = ref_fields_map.get(comp_type, (set(), set()))
+    ref_tuple = ref_fields_map.get(comp_type)
+    if ref_tuple:
+        single_refs, list_refs = ref_tuple[0], ref_tuple[1]
+        nested_refs = getattr(ref_tuple, "nested_refs", {})
+    else:
+        single_refs, list_refs, nested_refs = set(), set(), {}
 
     def extract_pointers(val: Any, current_path: str) -> Iterator[Tuple[str, str]]:
         if isinstance(val, str):
@@ -64,8 +71,19 @@ def _get_refs_recursively(
                 if isinstance(val_id, str):
                     yield val_id, f"{current_path}.componentId"
             else:
-                for sub_key, sub_val in val.items():
-                    yield from extract_pointers(sub_val, f"{current_path}.{sub_key}")
+                top_prop = current_path.split("[")[0].split(".")[0]
+                if top_prop in nested_refs and "." not in current_path:
+                    allowed_sub_keys = nested_refs[top_prop]
+                    for sub_key, sub_val in val.items():
+                        if sub_key in allowed_sub_keys:
+                            yield from extract_pointers(
+                                sub_val, f"{current_path}.{sub_key}"
+                            )
+                else:
+                    for sub_key, sub_val in val.items():
+                        yield from extract_pointers(
+                            sub_val, f"{current_path}.{sub_key}"
+                        )
 
     for key, value in props.items():
         if key in single_refs or key in list_refs:
@@ -74,7 +92,7 @@ def _get_refs_recursively(
 
 def validate_component_integrity(
     components: List[Dict[str, Any]],
-    ref_fields_map: Dict[str, Tuple[Set[str], Set[str]]],
+    ref_fields_map: Mapping[str, Tuple[Set[str], Set[str]]],
     root_id: str = ROOT_ID,
     allow_dangling_references: bool = False,
     allow_missing_root: bool = False,
@@ -87,7 +105,7 @@ def validate_component_integrity(
         if comp_id is None:
             continue
         if comp_id in ids:
-            raise ValueError(f"Duplicate component ID: {comp_id}")
+            raise A2uiIntegrityError(f"Duplicate component ID: {comp_id}")
         ids.add(comp_id)
 
     # In an incremental update, components may reference IDs already on the client.
@@ -96,23 +114,25 @@ def validate_component_integrity(
 
     # 2. Check for root component
     if not allow_missing_root and root_id not in ids:
-        raise ValueError(f"Missing root component: No component has id='{root_id}'")
+        raise A2uiIntegrityError(
+            f"Missing root component: No component has id='{root_id}'"
+        )
 
     # 3. Check for dangling references using helper
     for comp in components:
         comp_id = comp.get("id", "Unknown")
         for ref_id, field_name in get_component_references(comp, ref_fields_map):
             if ref_id not in ids:
-                raise ValueError(
+                raise A2uiIntegrityError(
                     f"Component '{comp_id}' references non-existent component '{ref_id}'"
                     f" in field '{field_name}'"
                 )
 
 
 def validate_recursion_and_paths(data: Any) -> None:
-    def traverse(item: Any, global_depth: int, func_depth: int):
+    def traverse(item: Any, global_depth: int, func_depth: int) -> None:
         if global_depth > MAX_GLOBAL_DEPTH:
-            raise ValueError(
+            raise A2uiRecursionError(
                 f"Global recursion limit exceeded: Depth > {MAX_GLOBAL_DEPTH}"
             )
 
@@ -125,7 +145,16 @@ def validate_recursion_and_paths(data: Any) -> None:
             if "path" in item and isinstance(item["path"], str):
                 path = item["path"]
                 if not re.fullmatch(RELAXED_PATH_PATTERN, path):
-                    raise ValueError(f"Invalid path syntax: '{path}'")
+                    raise A2uiValidationError(
+                        f"Invalid path syntax: '{path}'",
+                        details=[
+                            A2uiErrorDetail(
+                                path="path",
+                                code="invalid_pointer",
+                                message=f"Invalid path syntax: '{path}'",
+                            )
+                        ],
+                    )
 
             is_func_v08 = "functionCall" in item and isinstance(
                 item["functionCall"], dict
@@ -134,13 +163,13 @@ def validate_recursion_and_paths(data: Any) -> None:
 
             if is_func_v08:
                 if func_depth >= MAX_FUNC_CALL_DEPTH:
-                    raise ValueError(
+                    raise A2uiRecursionError(
                         f"Recursion limit exceeded: functionCall depth > {MAX_FUNC_CALL_DEPTH}"
                     )
                 traverse(item["functionCall"], global_depth + 1, func_depth + 1)
             elif is_func_v09:
                 if func_depth >= MAX_FUNC_CALL_DEPTH:
-                    raise ValueError(
+                    raise A2uiRecursionError(
                         f"Recursion limit exceeded: functionCall depth > {MAX_FUNC_CALL_DEPTH}"
                     )
                 for k, v in item.items():
