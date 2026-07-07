@@ -167,7 +167,7 @@ Notice how readable and structured this is? LLMs can generate this easily, and i
 
 ### Other Languages and Frameworks
 
-While this guide uses the Lit client as an example, A2UI provides samples for other popular frameworks in the `samples/client` directory:
+While this guide uses the Flutter client as an example, A2UI provides samples for other popular frameworks in the `samples/client` directory:
 
 - **Angular**: `samples/client/angular`
 - **React**: `samples/client/react`
