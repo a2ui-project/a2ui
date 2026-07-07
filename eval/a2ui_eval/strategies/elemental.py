@@ -32,7 +32,7 @@ from ..shared.utils import GIT_ROOT, measured_generate
 
 
 @solver
-def a2ui_elemental_prompt() -> Solver:
+def a2ui_elemental_prompt(version: str) -> Solver:
     """Solver to inject A2UI Elemental prompt contract instructions."""
 
     async def solve(state: TaskState, generate: Generate) -> TaskState:
@@ -40,7 +40,7 @@ def a2ui_elemental_prompt() -> Solver:
         resolved_catalog_path = str(GIT_ROOT / catalog_path)
         with open(resolved_catalog_path, "r", encoding="utf-8") as f:
             schema = json.load(f)
-        catalog = Catalog.from_json(schema, spec_version="0.9.1")
+        catalog = Catalog.from_json(schema, spec_version=version)
         generator = ElementalPromptGenerator(catalog)
         prompt = generator.generate_prompt()
         state.messages.insert(0, ChatMessageSystem(content=prompt))
@@ -50,7 +50,7 @@ def a2ui_elemental_prompt() -> Solver:
 
 
 @solver
-def compile_elemental_dsl() -> Solver:
+def compile_elemental_dsl(version: str) -> Solver:
     """Solver to compile generated A2UI Elemental HTML back to standard JSON."""
 
     async def solve(state: TaskState, generate: Generate) -> TaskState:
@@ -62,7 +62,7 @@ def compile_elemental_dsl() -> Solver:
 
         # Initialize the catalog schema validator for parsing and validation
         catalog_config = CatalogConfig.from_path("basic_catalog", resolved_catalog_path)
-        manager = A2uiSchemaManager(version="1.0", catalogs=[catalog_config])
+        manager = A2uiSchemaManager(version=version, catalogs=[catalog_config])
         catalog = manager.get_selected_catalog()
         validator = catalog.validator
 
@@ -117,6 +117,10 @@ def compile_elemental_dsl() -> Solver:
     return solve
 
 
-def elemental_solver() -> list[Solver]:
+def elemental_solver(version: str) -> list[Solver]:
     """Returns the solver chain for the 'elemental' evaluation strategy."""
-    return [a2ui_elemental_prompt(), measured_generate(), compile_elemental_dsl()]
+    return [
+        a2ui_elemental_prompt(version),
+        measured_generate(),
+        compile_elemental_dsl(version),
+    ]

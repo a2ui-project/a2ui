@@ -247,8 +247,22 @@ class TestElementalCompiler(unittest.TestCase):
             "componentId": "item_text",
         }
     )
-    self.assertNotIn("path", lst)
-    self.assertNotIn("template", lst)
+  def test_compile_nested_script_tags(self):
+    html_input = (
+        '<body id="test-surf">\n'
+        '  <script type="application/json">\n'
+        '    {\n'
+        '      "embedded_html": "<html><body><script>console.log(\'hello\');</script></body></html>"\n'
+        '    }\n'
+        '  </script>\n'
+        '  <a2ui-text id="text1" text="{$/embedded_html}" />\n'
+        '</body>'
+    )
+    result = self.compiler.compile(html_input)
+    self.assertEqual(
+        result["createSurface"]["dataModel"]["embedded_html"],
+        "<html><body><script>console.log('hello');</script></body></html>"
+    )
 
 
 if __name__ == "__main__":

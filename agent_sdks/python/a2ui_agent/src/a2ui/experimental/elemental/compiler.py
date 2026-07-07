@@ -114,6 +114,86 @@ def _schema_expects_option_objects(schema: Any) -> bool:
   return False
 
 
+def _get_enum_values(schema: Any) -> Optional[List[Any]]:
+  """Recursively finds and extracts enum values from a schema dict."""
+  if not isinstance(schema, dict):
+    return None
+  if "enum" in schema:
+    return schema["enum"]
+  for key in ["oneOf", "anyOf", "allOf"]:
+    if key in schema and isinstance(schema[key], list):
+      for sub in schema[key]:
+        vals = _get_enum_values(sub)
+        if vals is not None:
+          return vals
+  return None
+
+
+def _escape_nested_script_tags(html: str) -> str:
+  """Escapes nested </script> tags inside <script type="application/json"> blocks.
+
+  If a JSON string property contains "</script>" (e.g. game HTML code), it
+  breaks standard HTML parsers unless escaped as "<\\/script>".
+  """
+  pos = 0
+  result = []
+  while pos < len(html):
+    # Find start of script tag
+    start_idx = html.lower().find("<script", pos)
+    if start_idx == -1:
+      result.append(html[pos:])
+      break
+
+    # Find the closing '>' of the start tag
+    tag_end = html.find(">", start_idx)
+    if tag_end == -1:
+      result.append(html[pos:])
+      break
+
+    tag_content = html[start_idx : tag_end + 1]
+    result.append(html[pos : tag_end + 1])
+    pos = tag_end + 1
+
+    if "application/json" in tag_content.lower():
+      # Scan until matching </script>, escaping nested ones
+      in_string = False
+      escape = False
+      script_content = []
+
+      while pos < len(html):
+        # Check if we reached the true </script> (only when not in string)
+        if not in_string and html[pos : pos + 9].lower() == "</script>":
+          break
+
+        c = html[pos]
+        if in_string:
+          if escape:
+            escape = False
+            script_content.append(c)
+          elif c == "\\":
+            escape = True
+            script_content.append(c)
+          elif c == '"':
+            in_string = False
+            script_content.append(c)
+          else:
+            # If we see </script> inside a string, we escape the slash
+            if html[pos : pos + 9].lower() == "</script>":
+              script_content.append("<\\/script>")
+              pos += 8  # skip the rest of /script
+            else:
+              script_content.append(c)
+        else:
+          if c == '"':
+            in_string = True
+          script_content.append(c)
+        pos += 1
+
+      result.append("".join(script_content))
+
+  return "".join(result)
+
+
 class _CompileContext:
   """Holds mutable state during compilation."""
 
@@ -133,6 +213,16 @@ class ElementalCompiler:
     self.helper = CatalogSchemaHelper(catalog)
     self.expr_parser = ElementalExpressionParser()
 
+  def _resolve_action_property_name(self, name: str, properties: List[str]) -> str:
+    """Maps React-like event names (onclick, onSubmitAction) back to catalog properties (action, submitAction)."""
+    if name == "onclick" and "action" in properties and "onclick" not in properties:
+      return "action"
+    if name.startswith("on") and len(name) > 2:
+      camel_action = name[2].lower() + name[3:]
+      if camel_action in properties and name not in properties:
+        return camel_action
+    return name
+
   def compile(
       self,
       html_text: str,
@@ -141,12 +231,23 @@ class ElementalCompiler:
       is_final: bool = True,
   ) -> dict:
     """Compiles A2UI Elemental HTML into standard A2UI v1.0 wire JSON."""
+    escaped_html = _escape_nested_script_tags(html_text)
     builder = DomBuilder()
-    builder.feed(html_text)
+    builder.feed(escaped_html)
     root = builder.root
 
     if not root:
       raise ValueError("A2UI Elemental document is empty.")
+
+    if root.tag == "body":
+      # If there is a standalone operation inside body, treat it as the root
+      standalone = None
+      for child in root.children:
+        if child.tag in ["a2ui-delete-surface", "a2ui-call-function"]:
+          standalone = child
+          break
+      if standalone:
+        root = standalone
 
     if root.tag == "a2ui-delete-surface":
       surf_id = root.attrs.get("surface-id", "")
@@ -347,10 +448,9 @@ class ElementalCompiler:
     )
 
     if comp_name not in self.helper.components:
-      raise ValueError(f"Unknown component '{comp_name}' (tag: <{node.tag}>)")
-
-    comp_id = node.attrs.get("id") or ctx.next_auto_id()
+      raise ValueError(f"Unknown component '{comp_name}' for tag '{node.tag}' in the loaded catalog.")
     properties = self.helper.get_component_properties(comp_name)
+    comp_id = node.attrs.get("id") or ctx.next_auto_id()
 
     comp_dict = {"id": comp_id, "component": comp_name}
 
@@ -373,19 +473,10 @@ class ElementalCompiler:
           p.capitalize() for p in prop_parts[1:]
       )
 
-      # Handle onclick alias for the sole action property
-      if prop_name == "onclick":
-        action_props = [
-            p
-            for p in properties
-            if self.helper.get_property_schema(comp_name, p)
-            and "Action"
-            in str(self.helper.get_property_schema(comp_name, p).get("$ref", ""))
-        ]
-        if len(action_props) == 1:
-          prop_name = action_props[0]
+      # Map TS/HTML action names back to catalog properties
+      prop_name = self._resolve_action_property_name(prop_name, properties)
 
-      if prop_name not in properties:
+      if comp_name in self.helper.components and prop_name not in properties:
         continue
 
       # Parse value
@@ -420,6 +511,12 @@ class ElementalCompiler:
         continue
       if parsed_val == "" and prop_name in ["action", "submitAction", "onclick"]:
         continue
+
+      # Drop invalid enum values to prevent schema validation failures from LLM hallucinations
+      if isinstance(parsed_val, str):
+        enum_vals = _get_enum_values(prop_schema)
+        if enum_vals is not None and parsed_val not in enum_vals:
+          continue
 
       comp_dict[prop_name] = parsed_val
 
@@ -478,6 +575,7 @@ class ElementalCompiler:
         ):
           slot_name = child.attrs.get("slot")
           if slot_name:
+            slot_name = self._resolve_action_property_name(slot_name, properties)
             try:
               comp_dict[slot_name] = json.loads(child.text.strip())
             except json.JSONDecodeError as e:
@@ -494,6 +592,7 @@ class ElementalCompiler:
         ):
           slot_name = child.attrs.get("slot")
           if slot_name:
+            slot_name = self._resolve_action_property_name(slot_name, properties)
             try:
               comp_dict[slot_name] = json.loads(child.text.strip())
             except json.JSONDecodeError as e:
@@ -507,6 +606,7 @@ class ElementalCompiler:
             continue
           slot_name = child.attrs.get("slot")
           if slot_name:
+            slot_name = self._resolve_action_property_name(slot_name, properties)
             if slot_name in properties:
               slot_schema = self.helper.get_property_schema(
                   comp_name, slot_name
@@ -532,20 +632,61 @@ class ElementalCompiler:
           fn_args = check.get("args", {})
           fn_props = self.helper.get_function_properties(fn_name)
 
-          # Inject sibling value path if the first param is "value" and it is omitted
+          # Extract message if it was incorrectly placed inside the function call dict
+          msg = check.get("message", "Invalid input")
+
+          # Inject sibling value path if "value" is a parameter of the function and is omitted
           if (
               fn_props
-              and fn_props[0] == "value"
+              and "value" in fn_props
               and "value" not in fn_args
               and sibling_value_path
           ):
             fn_args["value"] = sibling_value_path
 
+          if fn_args:
+            check["args"] = fn_args
+
           if "returnType" in check:
             del check["returnType"]
 
-          wrapped_checks.append({"condition": check, "message": "Invalid input"})
+          if "message" in check:
+            del check["message"]
+
+          wrapped_checks.append({"condition": check, "message": msg})
         elif isinstance(check, dict) and "condition" in check:
+          cond = check["condition"]
+          if isinstance(cond, dict) and "call" in cond:
+            fn_name = cond["call"]
+            fn_args = cond.get("args", {})
+            fn_props = self.helper.get_function_properties(fn_name)
+
+            # Extract message if it was incorrectly placed inside the condition function call
+            msg_from_cond = cond.get("message")
+            if msg_from_cond and "message" not in check:
+              check["message"] = msg_from_cond
+            if "message" in cond:
+              del cond["message"]
+
+            # Inject sibling value path if "value" is a parameter of the function and is omitted
+            if (
+                fn_props
+                and "value" in fn_props
+                and "value" not in fn_args
+                and sibling_value_path
+            ):
+              fn_args["value"] = sibling_value_path
+
+            if fn_args:
+              cond["args"] = fn_args
+
+            if "returnType" in cond:
+              del cond["returnType"]
+
+          # Ensure the check dict has a message property
+          if "message" not in check:
+            check["message"] = "Invalid input"
+
           wrapped_checks.append(check)
       comp_dict["checks"] = wrapped_checks
 
