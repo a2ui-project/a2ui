@@ -197,12 +197,9 @@ class A2uiValidatorWrapperV10:
                 self._catalog.common_types_schema,
             ).extract_ref_fields()
 
-            has_create = any(
+            allow_missing_root = config.allow_missing_root or not any(
                 isinstance(m, dict) and "createSurface" in m for m in messages
             )
-            allow_missing_root = config.allow_missing_root
-            if not has_create and not allow_missing_root:
-                allow_missing_root = True
 
             validate_component_integrity(
                 all_components,
