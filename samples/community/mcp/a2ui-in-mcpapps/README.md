@@ -37,9 +37,9 @@ sequenceDiagram
     Note over A2UI: Click on A2UI Button
 
     A2UI->>App: 8. A2UI Button triggers UserAction
-    App->>Proxy: Forward UserAction event
-    Proxy->>Host: Relay UserAction to Host
-    Note over Host: 9. Map Action to Tool Call
+    Note over App: 9. Map Action to tools/call request
+    App->>Proxy: Send tools/call request
+    Proxy->>Host: Relay tools/call to Host
     Host->>Server: Forward Tool Call
     Server-->>Host: 10. Respond with A2UI payload (datamodelupdate)
     Host->>Proxy: Relay payload

@@ -103,18 +103,17 @@ export class App implements AfterViewInit {
         if (typeof height === 'number') {
           iframe.style.height = `${height}px`;
         }
-      } else if (data?.method?.startsWith('ui/')) {
-        // Generic tool relay for unknown verbs
-        const toolName = data.method.replace('ui/', '');
+      } else if (data?.method === 'tools/call') {
+        const toolName = data.params?.name;
 
-        if (!this.allowedTools.has(toolName)) {
+        if (typeof toolName !== 'string' || !this.allowedTools.has(toolName)) {
           console.warn(`[Host] Blocked unauthorized tool call: ${toolName}`);
           if (data.id && target) {
             target.postMessage(
               {
                 jsonrpc: '2.0',
                 id: data.id,
-                error: {message: `Tool '${toolName}' is not whitelisted.`},
+                error: {code: -32000, message: `Tool '${toolName}' is not whitelisted.`},
               },
               window.location.origin,
             );
@@ -126,14 +125,14 @@ export class App implements AfterViewInit {
           this.mcpClient
             .callTool({
               name: toolName,
-              arguments: data.params || {},
+              arguments: data.params?.arguments || {},
             })
             .then(result => {
               target.postMessage(
                 {
                   jsonrpc: '2.0',
                   id: data.id,
-                  result: result.content,
+                  result,
                 },
                 window.location.origin,
               );
@@ -143,7 +142,7 @@ export class App implements AfterViewInit {
                 {
                   jsonrpc: '2.0',
                   id: data.id,
-                  error: {message: error.message},
+                  error: {code: -32000, message: error.message},
                 },
                 window.location.origin,
               );

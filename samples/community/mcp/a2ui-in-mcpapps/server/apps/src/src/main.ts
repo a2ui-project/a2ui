@@ -102,8 +102,11 @@ export class McpAppRoot implements OnInit, AfterViewInit {
       this.postToParent({
         jsonrpc: '2.0',
         id: requestId,
-        method: `ui/${event.message.userAction.name}`,
-        params: event.message.userAction.context,
+        method: 'tools/call',
+        params: {
+          name: event.message.userAction.name,
+          arguments: event.message.userAction.context || {},
+        },
       });
 
       const handler = (msgEvent: MessageEvent) => {
@@ -111,7 +114,7 @@ export class McpAppRoot implements OnInit, AfterViewInit {
 
         window.removeEventListener('message', handler);
 
-        const content = msgEvent.data.result;
+        const content = msgEvent.data.result?.content;
         if (!content || !Array.isArray(content)) return;
 
         try {
@@ -134,8 +137,8 @@ export class McpAppRoot implements OnInit, AfterViewInit {
     this.postToParent({
       jsonrpc: '2.0',
       id: requestId,
-      method: 'ui/fetch_counter_a2ui',
-      params: {},
+      method: 'tools/call',
+      params: {name: 'fetch_counter_a2ui', arguments: {}},
     });
 
     const handler = (event: MessageEvent) => {
@@ -149,7 +152,7 @@ export class McpAppRoot implements OnInit, AfterViewInit {
         return;
       }
 
-      const content = event.data.result;
+      const content = event.data.result?.content;
       if (!Array.isArray(content)) return;
 
       try {
