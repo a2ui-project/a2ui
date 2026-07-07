@@ -93,6 +93,8 @@ class A2uiValidatorWrapperV10:
         s2c = catalog.s2c_schema
         common = catalog.common_types_schema
         cat = catalog.catalog_schema
+        if not isinstance(s2c, dict) or "$id" not in s2c:
+            raise A2uiCatalogError("Server-to-client schema must be a dictionary containing an '$id' key.")
 
         resources = []
         for schema, filename in [
