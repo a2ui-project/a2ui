@@ -3,7 +3,7 @@
 ## 0.4.0
 
 - Standardize Python namespace packages to PEP 420 (#1815). Note: Breaking change removing `a2ui.__version__` from the root `a2ui` namespace level; use `from a2ui.version import __version__`.
-- Update minimum required `a2ui-core` dependency to `>=0.1.1`.
+- Update required `a2ui-core` dependency to `>=0.1.1,<0.2.0`.
 
 ## 0.3.0
 
