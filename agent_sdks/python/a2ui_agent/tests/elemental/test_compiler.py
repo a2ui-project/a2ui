@@ -361,6 +361,30 @@ class TestElementalCompiler(unittest.TestCase):
         row = components[1]
         self.assertEqual(row["justify"], "spaceBetween")
 
+    def test_compile_bracket_indexing(self):
+        html_input = (
+            '<body id="test-surf">\n'
+            '  <a2ui-image id="img_1" url="{$/product/thumbs[0]}" />\n'
+            "</body>"
+        )
+        result = self.compiler.compile(html_input)
+        components = result["createSurface"]["components"]
+        img = components[0]
+        self.assertEqual(img["url"], {"path": "/product/thumbs/0"})
+
+    def test_compile_button_no_action(self):
+        html_input = (
+            '<body id="test-surf">\n'
+            '  <a2ui-button id="btn_1" variant="primary">\n'
+            '    <a2ui-text id="txt_1" text="Submit" />\n'
+            "  </a2ui-button>\n"
+            "</body>"
+        )
+        result = self.compiler.compile(html_input)
+        components = result["createSurface"]["components"]
+        btn = next(c for c in components if c["id"] == "btn_1")
+        self.assertNotIn("action", btn)
+
 
 if __name__ == "__main__":
     unittest.main()

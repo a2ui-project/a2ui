@@ -39,6 +39,9 @@ class ElementalExpressionParser(ExpressionParser):
         if trimmed.startswith("{") and trimmed.endswith("}"):
             # Strip outer braces and parse the expression inside
             expr_content = trimmed[1:-1].strip()
+            import re
+
+            expr_content = re.sub(r"\[(\d+)\]", r"/\1", expr_content)
             return self.parse_expression(expr_content, depth + 1)
 
         # Return as plain string literal if not wrapped in braces

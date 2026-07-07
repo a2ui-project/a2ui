@@ -374,6 +374,7 @@ Inside the `<body>`, you must include a `<link rel="catalog" href="[CATALOG_ID]"
 4. **Data Binding**: Prefix paths in the shared data model with `$` inside curly braces: `value="{$/user/name}"`.
    - Use relative paths (without leading slash) inside list templates: `text="{$name}"`.
    - Use `{$this}` to reference the current item in a primitive list.
+   - **CRITICAL**: Always use slash notation for array indexing (e.g. `{$/items/0}`) instead of brackets (e.g. `{$/items[0]}`).
 5. **Expressions & Functions**: You can call catalog functions inside curly braces. Function arguments MUST be named: `text="{formatCurrency(value: $/price, currency: 'USD')}"`.
 6. **Children & Slots**:
    - Nest child elements inside parent elements.
@@ -410,7 +411,8 @@ Inside the `<body>`, you must include a `<link rel="catalog" href="[CATALOG_ID]"
        </template>
      </a2ui-list>
      ```
-9. **Actions**: Use `on-<property-name>` in kebab-case for action events, or `onclick` if it is the only action: `onclick="{Event('click')}"`.
+9. **Actions & Event Context**: Use `on-<property-name>` in kebab-case for action events (e.g. `onclick="{Event('click')}"`).
+   - **IMPORTANT**: If the action is intended to submit or validate inputs (e.g. login, search, or settings confirmation), you MUST pass the bound data model keys as properties inside the Event context dictionary, for example: `onclick="{Event('login', {username: $/login/username, password: $/login/password})}"`.
 10. **Data Model Initialization**: You can initialize the data model using a `<script type="application/json">` at the root of the `<body>` (without a slot attribute).
 11. **Lifecycle & Deletion**: To delete a user interface surface, output the standalone `<a2ui-delete-surface>` tag (e.g. `<a2ui-delete-surface surface-id="dashboard-surface-1"></a2ui-delete-surface>`).
 12. **Standalone Data Model Updates**: To update the data model without rendering any components, output a single `<script type="application/json">` containing the data payload and nothing else in the body.
