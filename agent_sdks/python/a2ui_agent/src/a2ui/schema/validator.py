@@ -95,20 +95,30 @@ class A2uiValidatorWrapperV10:
         cat = catalog.catalog_schema
 
         resources = []
-        for schema in [s2c, common]:
-            if schema and "$id" in schema:
-                resources.append((schema["$id"], Resource.from_contents(schema)))
+        for schema, filename in [
+            (s2c, "server_to_client.json"),
+            (common, "common_types.json"),
+        ]:
+            if schema is not None:
+                resources.append((filename, Resource.from_contents(schema)))
+                if isinstance(schema, dict) and "$id" in schema:
+                    resources.append(
+                        (schema["$id"], Resource.from_contents(schema))
+                    )
 
-        if cat:
-            cat_copy = dict(cat)
-            s2c_id = s2c.get("$id", "") if s2c else ""
+        if cat is not None:
+            resources.append(("catalog.json", Resource.from_contents(cat)))
+            cat_copy = dict(cat) if isinstance(cat, dict) else {}
+            s2c_id = (
+                s2c.get("$id", "") if (s2c and isinstance(s2c, dict)) else ""
+            )
             if s2c_id:
                 resolved_catalog_uri = urljoin(s2c_id, "catalog.json")
                 cat_copy["$id"] = resolved_catalog_uri
                 resources.append(
                     (resolved_catalog_uri, Resource.from_contents(cat_copy))
                 )
-            if "$id" in cat:
+            if isinstance(cat, dict) and "$id" in cat:
                 resources.append((cat["$id"], Resource.from_contents(cat)))
 
         self._registry = Registry().with_resources(resources)
@@ -169,11 +179,9 @@ class A2uiValidatorWrapperV10:
 
             msg = f"Validation failed: {errors[0].message}"
             if errors[0].context:
-                msg += "
-Context failures:"
+                msg += "\nContext failures:"
                 for sub_error in errors[0].context:
-                    msg += f"
-  - {sub_error.message}"
+                    msg += f"\n  - {sub_error.message}"
             raise A2uiValidationError(msg, details=details)
 
         # 2. Run component integrity validation
@@ -199,12 +207,9 @@ Context failures:"
                 self._catalog.common_types_schema,
             ).extract_ref_fields()
 
-            has_create = any(
+            allow_missing_root = config.allow_missing_root or not any(
                 isinstance(m, dict) and "createSurface" in m for m in messages
             )
-            allow_missing_root = config.allow_missing_root
-            if not has_create and not allow_missing_root:
-                allow_missing_root = True
 
             validate_component_integrity(
                 all_components,
