@@ -102,16 +102,12 @@ class A2uiValidatorWrapperV10:
             if schema is not None:
                 resources.append((filename, Resource.from_contents(schema)))
                 if isinstance(schema, dict) and "$id" in schema:
-                    resources.append(
-                        (schema["$id"], Resource.from_contents(schema))
-                    )
+                    resources.append((schema["$id"], Resource.from_contents(schema)))
 
         if cat is not None:
             resources.append(("catalog.json", Resource.from_contents(cat)))
             cat_copy = dict(cat) if isinstance(cat, dict) else {}
-            s2c_id = (
-                s2c.get("$id", "") if (s2c and isinstance(s2c, dict)) else ""
-            )
+            s2c_id = s2c.get("$id", "") if (s2c and isinstance(s2c, dict)) else ""
             if s2c_id:
                 resolved_catalog_uri = urljoin(s2c_id, "catalog.json")
                 cat_copy["$id"] = resolved_catalog_uri
