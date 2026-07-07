@@ -66,8 +66,20 @@ class DomBuilder(HTMLParser):
       self.stack[-1].children.append(node)
     # Do not push void elements to the stack since they do not have closing tags
     if tag_lower not in {
-        "area", "base", "br", "col", "embed", "hr", "img", "input",
-        "link", "meta", "param", "source", "track", "wbr"
+        "area",
+        "base",
+        "br",
+        "col",
+        "embed",
+        "hr",
+        "img",
+        "input",
+        "link",
+        "meta",
+        "param",
+        "source",
+        "track",
+        "wbr",
     }:
       self.stack.append(node)
 
@@ -147,20 +159,6 @@ def _get_enum_values(schema: Any) -> Optional[List[Any]]:
         if vals is not None:
           return vals
   return None
-
-
-def _rewrite_component_references(val: Any, old_id: str, new_id: str) -> Any:
-  """Recursively replaces all occurrences of old_id with new_id in the structure."""
-  if isinstance(val, str):
-    return new_id if val == old_id else val
-  elif isinstance(val, list):
-    return [_rewrite_component_references(item, old_id, new_id) for item in val]
-  elif isinstance(val, dict):
-    return {
-        k: _rewrite_component_references(v, old_id, new_id)
-        for k, v in val.items()
-    }
-  return val
 
 
 def _escape_nested_script_tags(html: str) -> str:
@@ -318,22 +316,20 @@ class ElementalCompiler:
           continue
         # Map kebab-case attribute names to camelCase property names
         prop_parts = attr_name.split("-")
-        prop_name = prop_parts[0] + "".join(
-            p.capitalize() for p in prop_parts[1:]
-        )
+        prop_name = prop_parts[0] + "".join(p.capitalize() for p in prop_parts[1:])
         args[prop_name] = self.expr_parser.parse(attr_val)
 
       call_op = {
           "call": call_name,
           "args": args,
       }
-      if want_response:
-        call_op["wantResponse"] = True
 
       envelope = {
           "version": "v1.0",
           SurfaceOperation.CALL_FUNC: call_op,
       }
+      if want_response:
+        envelope["wantResponse"] = True
       if func_call_id:
         envelope["functionCallId"] = func_call_id
       return envelope
@@ -375,9 +371,7 @@ class ElementalCompiler:
 
     # If the document contains ONLY a data model and no components, output updateDataModel
     # Note: we filter out any empty text nodes or non-component nodes
-    component_children = [
-        c for c in remaining_children if c.tag.startswith("a2ui-")
-    ]
+    component_children = [c for c in remaining_children if c.tag.startswith("a2ui-")]
 
     if not component_children and data_model:
       return {
@@ -397,29 +391,8 @@ class ElementalCompiler:
             " components are supported inside A2UI surfaces."
         )
 
-    root_component_ids = []
     for child in component_children:
-      comp_id = self._compile_node(child, ctx)
-      if comp_id:
-        root_component_ids.append(comp_id)
-
-    has_root = any(c.get("id") == "root" for c in ctx.components)
-    if not has_root and root_component_ids:
-      if len(root_component_ids) == 1:
-        # If there's exactly one top-level component, rename it to 'root'
-        old_root_id = root_component_ids[0]
-        for c in ctx.components:
-          if c.get("id") == old_root_id:
-            c["id"] = "root"
-            break
-        ctx.components = _rewrite_component_references(
-            ctx.components, old_root_id, "root"
-        )
-      else:
-        raise ValueError(
-            f"A2UI Elemental source must define a single root component with id='root'. "
-            f"Found multiple top-level components without a wrapper."
-        )
+      self._compile_node(child, ctx)
 
     # Wrap in standard envelope
     envelope = {
@@ -500,12 +473,13 @@ class ElementalCompiler:
 
     # Map kebab-case to PascalCase (e.g., a2ui-text-input -> TextInput)
     comp_name = "".join(
-        word.capitalize()
-        for word in node.tag.replace("a2ui-", "").split("-")
+        word.capitalize() for word in node.tag.replace("a2ui-", "").split("-")
     )
 
     if comp_name not in self.helper.components:
-      raise ValueError(f"Unknown component '{comp_name}' for tag '{node.tag}' in the loaded catalog.")
+      raise ValueError(
+          f"Unknown component '{comp_name}' for tag '{node.tag}' in the loaded catalog."
+      )
     properties = self.helper.get_component_properties(comp_name)
     comp_id = node.attrs.get("id") or ctx.next_auto_id()
 
@@ -526,9 +500,7 @@ class ElementalCompiler:
 
       # Map kebab-case attribute names to camelCase property names
       prop_parts = attr_name.split("-")
-      prop_name = prop_parts[0] + "".join(
-          p.capitalize() for p in prop_parts[1:]
-      )
+      prop_name = prop_parts[0] + "".join(p.capitalize() for p in prop_parts[1:])
 
       # Map TS/HTML action names back to catalog properties
       prop_name = self._resolve_action_property_name(prop_name, properties)
@@ -587,11 +559,7 @@ class ElementalCompiler:
 
       comp_dict[prop_name] = parsed_val
 
-      if (
-          prop_name == "value"
-          and isinstance(parsed_val, dict)
-          and "path" in parsed_val
-      ):
+      if prop_name == "value" and isinstance(parsed_val, dict) and "path" in parsed_val:
         sibling_value_path = parsed_val
 
     # 2. Map text content to "text" property if applicable
@@ -636,10 +604,7 @@ class ElementalCompiler:
 
       # Process other script slots if present
       for child in node.children:
-        if (
-            child.tag == "script"
-            and child.attrs.get("type") == "application/json"
-        ):
+        if child.tag == "script" and child.attrs.get("type") == "application/json":
           slot_name = child.attrs.get("slot")
           if slot_name:
             slot_name = self._resolve_action_property_name(slot_name, properties)
@@ -653,10 +618,7 @@ class ElementalCompiler:
     else:
       # Normal child processing
       for child in node.children:
-        if (
-            child.tag == "script"
-            and child.attrs.get("type") == "application/json"
-        ):
+        if child.tag == "script" and child.attrs.get("type") == "application/json":
           slot_name = child.attrs.get("slot")
           if slot_name:
             slot_name = self._resolve_action_property_name(slot_name, properties)
@@ -675,9 +637,7 @@ class ElementalCompiler:
           if slot_name:
             slot_name = self._resolve_action_property_name(slot_name, properties)
             if slot_name in properties:
-              slot_schema = self.helper.get_property_schema(
-                  comp_name, slot_name
-              )
+              slot_schema = self.helper.get_property_schema(comp_name, slot_name)
               if slot_schema and slot_schema.get("type") == "array":
                 if slot_name not in comp_dict:
                   comp_dict[slot_name] = []

@@ -96,6 +96,7 @@ def _get_action_properties(helper: CatalogSchemaHelper, comp_name: str) -> list[
   for p in properties:
     schema = helper.get_property_schema(comp_name, p)
     if schema:
+
       def is_action_ref(s: Any) -> bool:
         if isinstance(s, dict):
           if "$ref" in s and "Action" in s["$ref"]:
@@ -105,6 +106,7 @@ def _get_action_properties(helper: CatalogSchemaHelper, comp_name: str) -> list[
               if any(is_action_ref(sub) for sub in s[k]):
                 return True
         return False
+
       if is_action_ref(schema):
         action_props.append(p)
   return action_props
@@ -129,8 +131,8 @@ class ElementalDecompiler:
       func_op = envelope_json[SurfaceOperation.CALL_FUNC]
       fn_name = func_op.get("call", "")
       fn_args = func_op.get("args", {})
-      fc_id = func_op.get("functionCallId", "")
-      want_response = func_op.get("wantResponse", False)
+      fc_id = envelope_json.get("functionCallId", "")
+      want_response = envelope_json.get("wantResponse", False)
 
       attrs = []
       if fc_id:
@@ -146,7 +148,7 @@ class ElementalDecompiler:
         attrs.append('want-response="{true}"')
 
       attrs_str = " ".join(attrs)
-      return f'<a2ui-call-function {attrs_str} />'
+      return f"<a2ui-call-function {attrs_str} />"
 
     # 3. Handle updateDataModel (standalone)
     if SurfaceOperation.UPDATE_DATA in envelope_json:
@@ -158,7 +160,7 @@ class ElementalDecompiler:
       if data_val:
         json_str = json.dumps(data_val, indent=2)
         indented_json = "\n".join(f"    {line}" for line in json_str.splitlines())
-        lines.append("  <script type=\"application/json\">")
+        lines.append('  <script type="application/json">')
         lines.append(indented_json)
         lines.append("  </script>")
       lines.append("</body>")
@@ -166,7 +168,9 @@ class ElementalDecompiler:
 
     # 4. Handle createSurface
     if SurfaceOperation.CREATE not in envelope_json:
-      raise ValueError("Invalid A2UI envelope: missing createSurface, deleteSurface, etc.")
+      raise ValueError(
+          "Invalid A2UI envelope: missing createSurface, deleteSurface, etc."
+      )
 
     create_surface = envelope_json[SurfaceOperation.CREATE]
     surface_id = create_surface.get("surfaceId", "default_surface")
@@ -204,7 +208,7 @@ class ElementalDecompiler:
     if data_model:
       json_str = json.dumps(data_model, indent=2)
       indented_json = "\n".join(f"    {line}" for line in json_str.splitlines())
-      lines.append("  <script type=\"application/json\">")
+      lines.append('  <script type="application/json">')
       lines.append(indented_json)
       lines.append("  </script>")
 
@@ -214,7 +218,9 @@ class ElementalDecompiler:
     lines.append("</body>")
     return "\n".join(lines)
 
-  def _render_component(self, comp_id: str, indent: int = 0, slot: Optional[str] = None) -> str:
+  def _render_component(
+      self, comp_id: str, indent: int = 0, slot: Optional[str] = None
+  ) -> str:
     C = self.id_to_component.get(comp_id)
     if not C:
       return f'{"  " * indent}<!-- Missing component {comp_id} -->'
@@ -262,7 +268,9 @@ class ElementalDecompiler:
         if isinstance(text_val, str):
           text_content = html.escape(text_val)
         else:
-          text_content = f"{{{self._decompile_value_internal(text_val, self.comp_ids)}}}"
+          text_content = (
+              f"{{{self._decompile_value_internal(text_val, self.comp_ids)}}}"
+          )
 
     for prop_name in all_props:
       if prop_name not in C:
@@ -309,9 +317,13 @@ class ElementalDecompiler:
         else:
           if isinstance(val, list):
             for c_id in val:
-              child_elements.append(self._render_component(c_id, indent + 1, slot=prop_name))
+              child_elements.append(
+                  self._render_component(c_id, indent + 1, slot=prop_name)
+              )
           elif isinstance(val, str):
-            child_elements.append(self._render_component(val, indent + 1, slot=prop_name))
+            child_elements.append(
+                self._render_component(val, indent + 1, slot=prop_name)
+            )
       else:
         if prop_name == "checks":
           attr_str = self._format_checks(val, C, self.comp_ids)
@@ -319,9 +331,12 @@ class ElementalDecompiler:
             attrs.append(attr_str)
         elif _is_complex(val):
           json_str = json.dumps(val, indent=2)
-          indented_json = "\n".join(f'{"  " * (indent + 2)}{line}' for line in json_str.splitlines())
+          indented_json = "\n".join(
+              f'{"  " * (indent + 2)}{line}' for line in json_str.splitlines()
+          )
           child_elements.append(
-              f'{"  " * (indent + 1)}<script type="application/json" slot="{prop_name}">\n{indented_json}\n{"  " * (indent + 1)}</script>'
+              f'{"  " * (indent + 1)}<script type="application/json"'
+              f' slot="{prop_name}">\n{indented_json}\n{"  " * (indent + 1)}</script>'
           )
         else:
           attrs.append(self._format_attribute(prop_name, val, self.comp_ids, comp_name))
@@ -343,8 +358,10 @@ class ElementalDecompiler:
     result.append(f'{"  " * indent}</{tag_name}>')
     return "\n".join(result)
 
-  def _format_attribute(self, name: str, val: Any, comp_ids: set[str], comp_name: Optional[str] = None) -> str:
-    kebab_name = re.sub(r'(?<!^)(?=[A-Z])', '-', name).lower()
+  def _format_attribute(
+      self, name: str, val: Any, comp_ids: set[str], comp_name: Optional[str] = None
+  ) -> str:
+    kebab_name = re.sub(r"(?<!^)(?=[A-Z])", "-", name).lower()
 
     if comp_name:
       action_props = _get_action_properties(self.helper, comp_name)
@@ -379,7 +396,9 @@ class ElementalDecompiler:
 
     return f'{kebab_name}="{{{val}}}"'
 
-  def _format_checks(self, checks_val: list, C: dict, comp_ids: set[str]) -> Optional[str]:
+  def _format_checks(
+      self, checks_val: list, C: dict, comp_ids: set[str]
+  ) -> Optional[str]:
     if not checks_val:
       return None
 
@@ -426,7 +445,11 @@ class ElementalDecompiler:
         ctx = evt.get("context", {})
         ctx_reprs = []
         for k, v in ctx.items():
-          k_repr = k if re.match(r"^[a-zA-Z_][a-zA-Z0-9_]*$", k) else _decompile_string_in_expr(k)
+          k_repr = (
+              k
+              if re.match(r"^[a-zA-Z_][a-zA-Z0-9_]*$", k)
+              else _decompile_string_in_expr(k)
+          )
           ctx_reprs.append(f"{k_repr}: {self._decompile_value_internal(v, comp_ids)}")
         if ctx_reprs:
           return f"Event('{name}', {{{', '.join(ctx_reprs)}}})"
@@ -445,7 +468,11 @@ class ElementalDecompiler:
 
       items_reprs = []
       for k, v in val.items():
-        k_repr = k if re.match(r"^[a-zA-Z_][a-zA-Z0-9_]*$", k) else _decompile_string_in_expr(k)
+        k_repr = (
+            k
+            if re.match(r"^[a-zA-Z_][a-zA-Z0-9_]*$", k)
+            else _decompile_string_in_expr(k)
+        )
         items_reprs.append(f"{k_repr}: {self._decompile_value_internal(v, comp_ids)}")
       return f"{{{', '.join(items_reprs)}}}"
 

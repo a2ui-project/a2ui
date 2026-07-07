@@ -60,10 +60,10 @@ class TestElementalCompiler(unittest.TestCase):
     expected = {
         "version": "v1.0",
         "functionCallId": "call_1",
+        "wantResponse": True,
         "callFunction": {
             "call": "openUrl",
             "args": {"url": "https://example.com"},
-            "wantResponse": True,
         },
     }
     self.assertEqual(result, expected)
@@ -72,12 +72,12 @@ class TestElementalCompiler(unittest.TestCase):
     html_input = (
         '<body id="my-surf">\n'
         '  <script type="application/json">\n'
-        '    {\n'
+        "    {\n"
         '      "foo": "bar",\n'
         '      "num": 42\n'
-        '    }\n'
-        '  </script>\n'
-        '</body>'
+        "    }\n"
+        "  </script>\n"
+        "</body>"
     )
     result = self.compiler.compile(html_input)
     expected = {
@@ -95,14 +95,14 @@ class TestElementalCompiler(unittest.TestCase):
         '<body id="test-surf">\n'
         '  <link rel="catalog" href="https://a2ui.org/catalog.json">\n'
         '  <script type="application/json">\n'
-        '    {\n'
+        "    {\n"
         '      "title": "Hello World"\n'
-        '    }\n'
-        '  </script>\n'
+        "    }\n"
+        "  </script>\n"
         '  <a2ui-card id="comp_0" weight="{4}">\n'
         '    <a2ui-text id="comp_1">{$/title}</a2ui-text>\n'
-        '  </a2ui-card>\n'
-        '</body>'
+        "  </a2ui-card>\n"
+        "</body>"
     )
     result = self.compiler.compile(html_input)
     self.assertEqual(result["version"], "v1.0")
@@ -110,18 +110,18 @@ class TestElementalCompiler(unittest.TestCase):
     self.assertEqual(create_op["surfaceId"], "test-surf")
     self.assertEqual(create_op["catalogId"], "https://a2ui.org/catalog.json")
     self.assertEqual(create_op["dataModel"], {"title": "Hello World"})
-    
+
     components = create_op["components"]
     self.assertEqual(len(components), 2)
-    
+
     comp_text = components[0]
     comp_card = components[1]
-    
+
     self.assertEqual(comp_text["id"], "comp_1")
     self.assertEqual(comp_text["component"], "Text")
     self.assertEqual(comp_text["text"], {"path": "/title"})
-    
-    self.assertEqual(comp_card["id"], "root")
+
+    self.assertEqual(comp_card["id"], "comp_0")
     self.assertEqual(comp_card["component"], "Card")
     self.assertEqual(comp_card["weight"], 4)
     self.assertEqual(comp_card["child"], "comp_1")
@@ -130,8 +130,8 @@ class TestElementalCompiler(unittest.TestCase):
     # ChoicePicker is the dropdown component in the basic catalog
     html_input = (
         '<body id="test-surf">\n'
-        '  <a2ui-choice-picker id="picker_1" options="{[\'Red\', \'Blue\']}" />\n'
-        '</body>'
+        "  <a2ui-choice-picker id=\"picker_1\" options=\"{['Red', 'Blue']}\" />\n"
+        "</body>"
     )
     result = self.compiler.compile(html_input)
     components = result["createSurface"]["components"]
@@ -142,7 +142,7 @@ class TestElementalCompiler(unittest.TestCase):
         [
             {"label": "Red", "value": "Red"},
             {"label": "Blue", "value": "Blue"},
-        ]
+        ],
     )
 
   def test_compile_complex_slot_property(self):
@@ -151,13 +151,13 @@ class TestElementalCompiler(unittest.TestCase):
         '<body id="test-surf">\n'
         '  <a2ui-choice-picker id="picker_1">\n'
         '    <script type="application/json" slot="options">\n'
-        '      [\n'
+        "      [\n"
         '        {"label": "Red", "value": "red"},\n'
         '        {"label": "Blue", "value": "blue"}\n'
-        '      ]\n'
-        '    </script>\n'
-        '  </a2ui-choice-picker>\n'
-        '</body>'
+        "      ]\n"
+        "    </script>\n"
+        "  </a2ui-choice-picker>\n"
+        "</body>"
     )
     result = self.compiler.compile(html_input)
     components = result["createSurface"]["components"]
@@ -168,7 +168,7 @@ class TestElementalCompiler(unittest.TestCase):
         [
             {"label": "Red", "value": "red"},
             {"label": "Blue", "value": "blue"},
-        ]
+        ],
     )
 
   def test_compile_actions_and_events(self):
@@ -176,14 +176,14 @@ class TestElementalCompiler(unittest.TestCase):
         '<body id="test-surf">\n'
         '  <a2ui-button id="btn_1" onclick="{Event(\'submit\', {id: 123})}">\n'
         '    <a2ui-text id="text_1">Submit</a2ui-text>\n'
-        '  </a2ui-button>\n'
-        '</body>'
+        "  </a2ui-button>\n"
+        "</body>"
     )
     result = self.compiler.compile(html_input)
     components = result["createSurface"]["components"]
     self.assertEqual(len(components), 2)
     btn = components[1]
-    self.assertEqual(btn["id"], "root")
+    self.assertEqual(btn["id"], "btn_1")
     self.assertEqual(
         btn["action"],
         {
@@ -191,7 +191,7 @@ class TestElementalCompiler(unittest.TestCase):
                 "name": "submit",
                 "context": {"id": 123},
             }
-        }
+        },
     )
 
   def test_compile_checks_with_implicit_value(self):
@@ -199,80 +199,75 @@ class TestElementalCompiler(unittest.TestCase):
     html_input = (
         '<body id="test-surf">\n'
         '  <a2ui-text-field id="input_1" value="{$/dob}" checks="{[required()]}" />\n'
-        '</body>'
+        "</body>"
     )
     result = self.compiler.compile(html_input)
     components = result["createSurface"]["components"]
     self.assertEqual(len(components), 1)
     text_field = components[0]
-    self.assertEqual(text_field["id"], "root")
+    self.assertEqual(text_field["id"], "input_1")
     self.assertEqual(text_field["value"], {"path": "/dob"})
     self.assertEqual(
         text_field["checks"],
-        [
-            {
-                "condition": {
-                    "call": "required",
-                    "args": {"value": {"path": "/dob"}},
-                },
-                "message": "Invalid input"
-            }
-        ]
+        [{
+            "condition": {
+                "call": "required",
+                "args": {"value": {"path": "/dob"}},
+            },
+            "message": "Invalid input",
+        }],
     )
 
   def test_compile_list_with_template(self):
     html_input = (
         '<body id="test-surf">\n'
         '  <a2ui-list id="list_1" path="{$/items}">\n'
-        '    <template>\n'
+        "    <template>\n"
         '      <a2ui-text id="item_text">{$name}</a2ui-text>\n'
-        '    </template>\n'
-        '  </a2ui-list>\n'
-        '</body>'
+        "    </template>\n"
+        "  </a2ui-list>\n"
+        "</body>"
     )
     result = self.compiler.compile(html_input)
     components = result["createSurface"]["components"]
     self.assertEqual(len(components), 2)
     item_text = components[0]
     lst = components[1]
-    
+
     self.assertEqual(item_text["id"], "item_text")
     self.assertEqual(item_text["text"], {"path": "name"})
-    
-    self.assertEqual(lst["id"], "root")
+
+    self.assertEqual(lst["id"], "list_1")
     self.assertEqual(
         lst["children"],
         {
             "path": "/items",
             "componentId": "item_text",
-        }
+        },
     )
+
   def test_compile_nested_script_tags(self):
     html_input = (
-        '<body id="test-surf">\n'
-        '  <script type="application/json">\n'
-        '    {\n'
-        '      "embedded_html": "<html><body><script>console.log(\'hello\');</script></body></html>"\n'
-        '    }\n'
-        '  </script>\n'
-        '  <a2ui-text id="text1" text="{$/embedded_html}" />\n'
-        '</body>'
+        '<body id="test-surf">\n  <script type="application/json">\n    {\n     '
+        ' "embedded_html":'
+        " \"<html><body><script>console.log('hello');</script></body></html>\"\n    }\n"
+        '  </script>\n  <a2ui-text id="text1" text="{$/embedded_html}" />\n</body>'
     )
     result = self.compiler.compile(html_input)
     self.assertEqual(
         result["createSurface"]["dataModel"]["embedded_html"],
-        "<html><body><script>console.log('hello');</script></body></html>"
+        "<html><body><script>console.log('hello');</script></body></html>",
     )
 
   def test_compile_unknown_html_tag_raises_error(self):
     html_input = (
         '<body id="test-surf">\n'
         '  <a2ui-card id="card_1">\n'
-        '    <div>\n'
+        "    <div>\n"
         '      <a2ui-text id="text_1">Hello</a2ui-text>\n'
-        '    </div>\n'
-        '  </a2ui-card>\n'
-        '</body>'
+        "    </div>\n"
+        "  </a2ui-card>\n"
+        "</body>"
     )
     with self.assertRaises(ValueError) as ctx:
       self.compiler.compile(html_input)
@@ -284,8 +279,8 @@ class TestElementalCompiler(unittest.TestCase):
         '<body id="test-surf">\n'
         '  <a2ui-column id="col_1" align="CENTER">\n'
         '    <a2ui-text id="text_1">Hello</a2ui-text>\n'
-        '  </a2ui-column>\n'
-        '</body>'
+        "  </a2ui-column>\n"
+        "</body>"
     )
     result = self.compiler.compile(html_input)
     components = result["createSurface"]["components"]
@@ -297,8 +292,8 @@ class TestElementalCompiler(unittest.TestCase):
         '<body id="test-surf">\n'
         '  <a2ui-column id="col_1" align="invalid_alignment">\n'
         '    <a2ui-text id="text_1">Hello</a2ui-text>\n'
-        '  </a2ui-column>\n'
-        '</body>'
+        "  </a2ui-column>\n"
+        "</body>"
     )
     with self.assertRaises(ValueError) as ctx:
       self.compiler.compile(html_input)
@@ -313,44 +308,22 @@ class TestElementalCompiler(unittest.TestCase):
         '    <a2ui-column id="col_1">\n'
         '      <a2ui-text id="text_1">Text 1\n'
         '      <a2ui-text id="text_2">Text 2</a2ui-text>\n'
-        '    </a2ui-column>\n'
-        '  </a2ui-card>\n'
-        '</body>'
+        "    </a2ui-column>\n"
+        "  </a2ui-card>\n"
+        "</body>"
     )
     result = self.compiler.compile(html_input)
     components = result["createSurface"]["components"]
-    # We should have 4 components: text_1, text_2, col_1, card_1 (renamed to root)
+    # We should have 4 components: text_1, text_2, col_1, card_1
     self.assertEqual(len(components), 4)
-    
+
     text_1 = next(c for c in components if c["id"] == "text_1")
     text_2 = next(c for c in components if c["id"] == "text_2")
     col_1 = next(c for c in components if c["id"] == "col_1")
-    
+
     self.assertEqual(text_1["text"], "Text 1")
     self.assertEqual(text_2["text"], "Text 2")
     self.assertEqual(col_1["children"], ["text_1", "text_2"])
-
-  def test_compile_root_component_rename_rewrites_references(self):
-    html_input = (
-        '<body id="test-surf">\n'
-        '  <a2ui-button id="my-special-button" onclick="{Event(\'clicked\', {target: \'my-special-button\'})}">\n'
-        '    <a2ui-text id="text_1">Click me</a2ui-text>\n'
-        '  </a2ui-button>\n'
-        '</body>'
-    )
-    result = self.compiler.compile(html_input)
-    components = result["createSurface"]["components"]
-    btn = next(c for c in components if c["id"] == "root")
-    # Reference in action should be rewritten to 'root'
-    self.assertEqual(
-        btn["action"],
-        {
-            "event": {
-                "name": "clicked",
-                "context": {"target": "root"}
-            }
-        }
-    )
 
 
 if __name__ == "__main__":
