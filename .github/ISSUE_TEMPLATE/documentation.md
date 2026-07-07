@@ -5,6 +5,7 @@ title: '[DOCS]: '
 labels: documentation
 assignees: ''
 ---
+
 - [ ] I have searched the existing issues to make sure this documentation issue has not already been reported.
 
 ## Problem Page(s)
