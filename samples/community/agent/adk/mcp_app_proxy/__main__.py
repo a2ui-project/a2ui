@@ -22,7 +22,7 @@ from agent_executor import McpAppProxyAgentExecutor, get_a2ui_enabled, get_a2ui_
 from dotenv import load_dotenv
 from google.adk.artifacts import InMemoryArtifactService
 from google.adk.memory.in_memory_memory_service import InMemoryMemoryService
-from google.adk.models.lite_llm import LiteLlm
+from google.adk.models import Gemini
 from google.adk.runners import Runner
 from google.adk.sessions.in_memory_session_service import InMemorySessionService
 from google.adk.tools.tool_context import ToolContext
@@ -59,11 +59,12 @@ def main(host, port):
             " is not TRUE."
         )
 
-    lite_llm_model = os.getenv("LITELLM_MODEL", "gemini/gemini-2.5-flash")
+    lite_llm_model = os.getenv("LITELLM_MODEL", "gemini/gemini-2.5-flash-lite")
+    gemini_model = lite_llm_model[len("gemini/"):] if lite_llm_model.startswith("gemini/") else lite_llm_model
     base_url = f"http://{host}:{port}"
 
     agent = McpAppProxyAgent(
-        model=LiteLlm(model=lite_llm_model),
+        model=Gemini(model=gemini_model),
         base_url=base_url,
     )
     agent_executor = McpAppProxyAgentExecutor(

@@ -14,7 +14,8 @@
 
 # Auto-generated. Do not edit manually.
 from typing import Annotated, Any, Dict, List, Literal, Optional, Union
-from pydantic import BaseModel, Field, ConfigDict
+from pydantic import BaseModel, Field, ConfigDict, GetCoreSchemaHandler
+from pydantic_core import CoreSchema
 
 
 class ComponentReference:
@@ -24,7 +25,9 @@ class ComponentReference:
 class SingleReference(str, ComponentReference):
 
     @classmethod
-    def __get_pydantic_core_schema__(cls, source_type, handler):
+    def __get_pydantic_core_schema__(
+        cls, source_type: Any, handler: GetCoreSchemaHandler
+    ) -> CoreSchema:
         from pydantic_core import core_schema
 
         return core_schema.no_info_after_validator_function(

@@ -20,7 +20,7 @@ from .component_model import ComponentModel
 class SurfaceComponentsModel:
     """Manages the adjacency map of component configs in a surface."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         self._components: Dict[str, ComponentModel] = {}
         self.on_created = EventSource()
         self.on_deleted = EventSource()

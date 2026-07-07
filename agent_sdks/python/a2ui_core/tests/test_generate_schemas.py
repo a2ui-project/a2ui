@@ -430,8 +430,8 @@ def test_generate_schema_init():
     code = generate_schemas.generate_schema_init(["CreateSurfaceMessage"])
     assert "from .common_types import (" in code
     assert "from .constants import *" in code
-    assert "    CreateSurfaceMessage," in code
-    assert "    CreateSurface," in code
+    assert "    CreateSurfaceMessage as CreateSurfaceMessage," in code
+    assert "    CreateSurface as CreateSurface," in code
 
 
 def test_generate_client_capabilities():

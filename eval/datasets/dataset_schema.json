@@ -23,7 +23,7 @@
       },
       "catalog": {
         "type": "string",
-        "description": "Path to the catalog json file. Corresponds to the catalog file path loaded into the A2uiSchemaManager. If omitted, the default is loaded from eval/datasets/defaults.py."
+        "description": "Path to the catalog json file. Corresponds to the catalog file path loaded into the A2uiSchemaManager. If omitted, the default is loaded from eval/datasets/defaults.py. Supports `{version}` placeholder which dynamically resolves to the target version directory name (e.g. 'v0_9_1' or 'v1_0')."
       },
       "role_description": {
         "type": "string",

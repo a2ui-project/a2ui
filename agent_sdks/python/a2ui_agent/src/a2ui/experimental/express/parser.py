@@ -15,7 +15,9 @@
 """Parser utilities to extract and compile A2UI Express DSL from LLM responses."""
 
 import re
-from typing import List, Optional, Any
+from typing import Any, Dict, List, Optional, Union
+from a2ui.core.catalog import Catalog
+from a2ui.schema.catalog import A2uiCatalog
 from a2ui.parser.response_part import ResponsePart
 from .compiler import ExpressCompiler
 
@@ -23,7 +25,9 @@ _A2UI_DSL_BLOCK_PATTERN = re.compile(r"<a2ui>(.*?)</a2ui>", re.DOTALL)
 
 
 def parse_express_response(
-    content: str, catalog_path: str, surface_id: str = "main"
+    content: str,
+    catalog: Union[Catalog[Any, Any], A2uiCatalog],
+    surface_id: str = "main",
 ) -> List[ResponsePart]:
   """Parses response containing A2UI Express DSL and compiles it to ResponseParts.
 
@@ -35,7 +39,7 @@ def parse_express_response(
 
   Args:
       content: The raw LLM response.
-      catalog_path: Filepath to the catalog JSON.
+      catalog: A Catalog or an A2uiCatalog.
       surface_id: The target surface ID.
 
   Returns:
@@ -52,7 +56,7 @@ def parse_express_response(
   if not matches:
     return [ResponsePart(text=content, a2ui_json=None)]
 
-  compiler = ExpressCompiler(catalog_path)
+  compiler = ExpressCompiler(catalog)
   response_parts = []
   last_end = 0
 

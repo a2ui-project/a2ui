@@ -1,0 +1,70 @@
+# Copyright 2026 Google LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#      https://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+# This automation adds/removes the 'triage: flag' label to issues and PRs so
+# that items needing attention are easy to find. The label is fully owned by
+# this automation and reconciled on every run.
+#
+# The flagging rules live in ./scripts/triage.mjs — see the header comment
+# there for the full specification:
+# https://github.com/a2ui-project/a2ui/blob/main/scripts/triage.mjs
+
+name: Flag/Unflag issues and PRs
+
+on:
+  # Periodic reconciliation: catches time-based rules (staleness, unanswered
+  # external comments) and removes the label once an item no longer matches.
+  schedule:
+    - cron: "0 15 * * *" # daily at 15:00 UTC (07:00 PST), start of the team's day
+  # React promptly to the events that can change an item's flag state.
+  issues:
+    types: [opened, edited, labeled, unlabeled, assigned, unassigned, reopened]
+  issue_comment:
+    types: [created]
+  pull_request_target:
+    types: [opened, edited, reopened, ready_for_review, synchronize]
+  pull_request_review:
+    types: [submitted]
+  pull_request_review_comment:
+    types: [created]
+  # Allow manual runs from the Actions tab.
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+  pull-requests: write
+
+jobs:
+  triage:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          persist-credentials: false
+
+      - name: Reconcile triage flag labels
+        uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7
+        with:
+          script: |
+            const path = require('path');
+            const { pathToFileURL } = require('url');
+
+            const filePath = path.resolve('./scripts/triage.mjs');
+            const fileUrl = pathToFileURL(filePath).href;
+
+            const importedModule = await import(fileUrl);
+            await importedModule.default({ github, context });
