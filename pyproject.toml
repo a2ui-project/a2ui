@@ -47,6 +47,9 @@ members = [
 dev = [
     "pyink>=25.12.0",
     "pytest>=9.1.1",
+    "mypy>=1.14.0",
+    "types-jsonschema>=4.26.0",
+    "pytest-asyncio>=1.3.0",
 ]
 release = [
     "hatch>=1.14.0",

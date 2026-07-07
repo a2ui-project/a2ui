@@ -21,13 +21,18 @@ from inspect_ai.solver import TaskState
 from inspect_ai.model import ModelOutput, ModelName
 
 CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
-CATALOG_PATH = os.path.abspath(os.path.join(CURRENT_DIR, "../../specification/v0_9/catalogs/basic/catalog.json"))
-CATALOG_PATH_V091 = os.path.abspath(os.path.join(CURRENT_DIR, "../../specification/v0_9_1/catalogs/basic/catalog.json"))
+CATALOG_PATH = os.path.abspath(
+    os.path.join(CURRENT_DIR, "../../specification/v0_9/catalogs/basic/catalog.json")
+)
+CATALOG_PATH_V091 = os.path.abspath(
+    os.path.join(CURRENT_DIR, "../../specification/v0_9_1/catalogs/basic/catalog.json")
+)
+
 
 @pytest.mark.asyncio
 async def test_scorer_valid_json_v091():
-    scorer = a2ui_scorer(version="0.9.1")
-    valid_json = """
+  scorer = a2ui_scorer(version="0.9.1")
+  valid_json = """
     <a2ui-json>
     [
       {
@@ -66,26 +71,25 @@ async def test_scorer_valid_json_v091():
     ]
     </a2ui-json>
     """
-    state = TaskState(
-        model=ModelName("mock/model"),
-        sample_id=1,
-        epoch=1,
-        input="test",
-        messages=[],
-        output=ModelOutput(model="mock/model", completion=valid_json),
-        metadata={
-            "catalog": str(CATALOG_PATH_V091)
-        }
-    )
-    
-    score = await scorer(state, Target(""))
-    assert score.value == 1.0
-    assert "Valid A2UI payload" in score.explanation
+  state = TaskState(
+      model=ModelName("mock/model"),
+      sample_id=1,
+      epoch=1,
+      input="test",
+      messages=[],
+      output=ModelOutput(model="mock/model", completion=valid_json),
+      metadata={"catalog": str(CATALOG_PATH_V091)},
+  )
+
+  score = await scorer(state, Target(""))
+  assert score.value == 1.0
+  assert "Valid A2UI payload" in score.explanation
+
 
 @pytest.mark.asyncio
 async def test_scorer_valid_json():
-    scorer = a2ui_scorer(version="0.9")
-    valid_json = """
+  scorer = a2ui_scorer(version="0.9")
+  valid_json = """
     <a2ui-json>
     {
       "version": "v0.9",
@@ -96,44 +100,42 @@ async def test_scorer_valid_json():
     }
     </a2ui-json>
     """
-    state = TaskState(
-        model=ModelName("mock/model"),
-        sample_id=1,
-        epoch=1,
-        input="test",
-        messages=[],
-        output=ModelOutput(model="mock/model", completion=valid_json),
-        metadata={
-            "catalog": str(CATALOG_PATH)
-        }
-    )
-    
-    score = await scorer(state, Target(""))
-    assert score.value == 1.0
-    assert "Valid A2UI payload" in score.explanation
+  state = TaskState(
+      model=ModelName("mock/model"),
+      sample_id=1,
+      epoch=1,
+      input="test",
+      messages=[],
+      output=ModelOutput(model="mock/model", completion=valid_json),
+      metadata={"catalog": str(CATALOG_PATH)},
+  )
+
+  score = await scorer(state, Target(""))
+  assert score.value == 1.0
+  assert "Valid A2UI payload" in score.explanation
+
 
 @pytest.mark.asyncio
 async def test_scorer_invalid_json():
-    scorer = a2ui_scorer(version="0.9")
-    state = TaskState(
-        model=ModelName("mock/model"),
-        sample_id=1,
-        epoch=1,
-        input="test",
-        messages=[],
-        output=ModelOutput(model="mock/model", completion="invalid json"),
-        metadata={
-            "catalog": str(CATALOG_PATH)
-        }
-    )
-    score = await scorer(state, Target(""))
-    assert score.value == 0.0
-    assert "tags '<a2ui-json>' and '</a2ui-json>' not found" in score.explanation
+  scorer = a2ui_scorer(version="0.9")
+  state = TaskState(
+      model=ModelName("mock/model"),
+      sample_id=1,
+      epoch=1,
+      input="test",
+      messages=[],
+      output=ModelOutput(model="mock/model", completion="invalid json"),
+      metadata={"catalog": str(CATALOG_PATH)},
+  )
+  score = await scorer(state, Target(""))
+  assert score.value == 0.0
+  assert "tags '<a2ui-json>' and '</a2ui-json>' not found" in score.explanation
+
 
 @pytest.mark.asyncio
 async def test_scorer_missing_root():
-    scorer = a2ui_scorer(version="0.9")
-    payload = """
+  scorer = a2ui_scorer(version="0.9")
+  payload = """
     <a2ui-json>
     [
       {
@@ -155,25 +157,24 @@ async def test_scorer_missing_root():
     ]
     </a2ui-json>
     """
-    state = TaskState(
-        model=ModelName("mock/model"),
-        sample_id=1,
-        epoch=1,
-        input="test",
-        messages=[],
-        output=ModelOutput(model="mock/model", completion=payload),
-        metadata={
-            "catalog": str(CATALOG_PATH)
-        }
-    )
-    score = await scorer(state, Target(""))
-    assert score.value == 0.0
-    assert "Missing root component" in score.explanation
+  state = TaskState(
+      model=ModelName("mock/model"),
+      sample_id=1,
+      epoch=1,
+      input="test",
+      messages=[],
+      output=ModelOutput(model="mock/model", completion=payload),
+      metadata={"catalog": str(CATALOG_PATH)},
+  )
+  score = await scorer(state, Target(""))
+  assert score.value == 0.0
+  assert "Missing root component" in score.explanation
+
 
 @pytest.mark.asyncio
 async def test_scorer_duplicate_ids():
-    scorer = a2ui_scorer(version="0.9")
-    payload = """
+  scorer = a2ui_scorer(version="0.9")
+  payload = """
     <a2ui-json>
     {
       "version": "v0.9",
@@ -188,25 +189,24 @@ async def test_scorer_duplicate_ids():
     }
     </a2ui-json>
     """
-    state = TaskState(
-        model=ModelName("mock/model"),
-        sample_id=1,
-        epoch=1,
-        input="test",
-        messages=[],
-        output=ModelOutput(model="mock/model", completion=payload),
-        metadata={
-            "catalog": str(CATALOG_PATH)
-        }
-    )
-    score = await scorer(state, Target(""))
-    assert score.value == 0.0
-    assert "Duplicate component ID" in score.explanation
+  state = TaskState(
+      model=ModelName("mock/model"),
+      sample_id=1,
+      epoch=1,
+      input="test",
+      messages=[],
+      output=ModelOutput(model="mock/model", completion=payload),
+      metadata={"catalog": str(CATALOG_PATH)},
+  )
+  score = await scorer(state, Target(""))
+  assert score.value == 0.0
+  assert "Duplicate component ID" in score.explanation
+
 
 @pytest.mark.asyncio
 async def test_scorer_broken_relationship():
-    scorer = a2ui_scorer(version="0.9")
-    payload = """
+  scorer = a2ui_scorer(version="0.9")
+  payload = """
     <a2ui-json>
     [
       {
@@ -229,25 +229,24 @@ async def test_scorer_broken_relationship():
     ]
     </a2ui-json>
     """
-    state = TaskState(
-        model=ModelName("mock/model"),
-        sample_id=1,
-        epoch=1,
-        input="test",
-        messages=[],
-        output=ModelOutput(model="mock/model", completion=payload),
-        metadata={
-            "catalog": str(CATALOG_PATH)
-        }
-    )
-    score = await scorer(state, Target(""))
-    assert score.value == 0.0
-    assert "references non-existent component" in score.explanation
+  state = TaskState(
+      model=ModelName("mock/model"),
+      sample_id=1,
+      epoch=1,
+      input="test",
+      messages=[],
+      output=ModelOutput(model="mock/model", completion=payload),
+      metadata={"catalog": str(CATALOG_PATH)},
+  )
+  score = await scorer(state, Target(""))
+  assert score.value == 0.0
+  assert "references non-existent component" in score.explanation
+
 
 @pytest.mark.asyncio
 async def test_scorer_circular_reference():
-    scorer = a2ui_scorer(version="0.9")
-    payload = """
+  scorer = a2ui_scorer(version="0.9")
+  payload = """
     <a2ui-json>
     {
       "version": "v0.9",
@@ -262,17 +261,15 @@ async def test_scorer_circular_reference():
     }
     </a2ui-json>
     """
-    state = TaskState(
-        model=ModelName("mock/model"),
-        sample_id=1,
-        epoch=1,
-        input="test",
-        messages=[],
-        output=ModelOutput(model="mock/model", completion=payload),
-        metadata={
-            "catalog": str(CATALOG_PATH)
-        }
-    )
-    score = await scorer(state, Target(""))
-    assert score.value == 0.0
-    assert "Circular reference detected" in score.explanation
+  state = TaskState(
+      model=ModelName("mock/model"),
+      sample_id=1,
+      epoch=1,
+      input="test",
+      messages=[],
+      output=ModelOutput(model="mock/model", completion=payload),
+      metadata={"catalog": str(CATALOG_PATH)},
+  )
+  score = await scorer(state, Target(""))
+  assert score.value == 0.0
+  assert "Circular reference detected" in score.explanation
