@@ -187,10 +187,6 @@ Now that you've seen A2UI in action, you're ready to:
 
 ## Troubleshooting
 
-### Port Already in Use
-
-If port 5173 is already in use, the dev server will automatically try the next available port. Check the terminal output for the actual URL.
-
 ### API Key Issues
 
 If you see errors about missing API keys:
