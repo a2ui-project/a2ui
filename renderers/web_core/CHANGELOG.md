@@ -2,6 +2,7 @@
 
 - Make child component resolution schema-driven. Decouple `a2uiType` (runtime binder behavior) from `refPath` (JSON Schema `$ref` paths).
 - Remove legacy `"REF:..."` description prefix parsing hacks from `MessageProcessor` in favor of a clean, standard JSON Schema `override` callback using `refPath` metadata.
+- (v0_8) Export `UserAction` as `ClientEventUserAction` from `types.ts` ([#1942](https://github.com/a2ui-project/a2ui/pull/1942)).
 
 ## 0.10.3
 
