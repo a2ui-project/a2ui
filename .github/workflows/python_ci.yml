@@ -45,7 +45,7 @@ permissions:
   contents: read
 
 jobs:
-  agent-sdk:
+  python-ci:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
@@ -53,75 +53,23 @@ jobs:
           persist-credentials: false
       - uses: ./.github/actions/setup-python
       - name: Install Dependencies
-        run: uv sync
+        run: uv sync --all-packages
       - name: Check Formatting
-        run: uv run pyink --check agent_sdks/python/a2ui_agent
-      - name: Run Unit Tests
-        run: uv run --package a2ui-agent-sdk pytest agent_sdks/python/a2ui_agent/tests
-      - name: Build
-        run: uv build agent_sdks/python/a2ui_agent
-      - name: Verify Load Real
-        run: uv run python agent_sdks/python/a2ui_agent/tests/integration/verify_load_real.py
-
-  core-sdk:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
-        with:
-          persist-credentials: false
-      - uses: ./.github/actions/setup-python
-      - name: Install Dependencies
-        run: uv sync
-      - name: Check Formatting
-        run: uv run pyink --check agent_sdks/python/a2ui_core
+        run: |
+          # TODO(jiahaog): Add evals here and merge into one command.
+          uv run pyink --check agent_sdks/python/a2ui_agent
+          uv run pyink --check agent_sdks/python/a2ui_core
+          uv run pyink --check agent_sdks/conformance
+          uv run pyink --check samples/agent/adk
       - name: Type Check
         run: |
-          uv run --package a2ui-core mypy -p a2ui.core
-          uv run --package a2ui-core mypy agent_sdks/python/a2ui_core/scripts
+          uv run mypy -p a2ui.core
+          uv run mypy agent_sdks/python/a2ui_core/scripts
       - name: Run Unit Tests
-        run: uv run --package a2ui-core pytest agent_sdks/python/a2ui_core/tests
-      - name: Build
-        run: uv build agent_sdks/python/a2ui_core
-
-  conformance:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
-        with:
-          persist-credentials: false
-      - uses: ./.github/actions/setup-python
-      - name: Install Dependencies
-        run: uv sync
-      - name: Check Formatting
-        run: uv run pyink --check agent_sdks/conformance/tests
-      - name: Validate YAML Conformance
-        run: uv run --package a2ui-conformance-validation pytest agent_sdks/conformance/tests
-
-  adk-samples:
-    runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        sample: [restaurant_finder]
-    steps:
-      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
-        with:
-          persist-credentials: false
-      - uses: ./.github/actions/setup-python
-      - name: Install Dependencies
-        run: uv sync
-      - name: Check Formatting
-        run: uv run pyink --check samples/agent/adk
-      - name: Validate Sample Examples
-        run: uv run --all-packages pytest -vv samples/agent/adk/tests/test_examples_validation.py
-      - name: Build Sample
-        run: uv build samples/agent/adk/${{ matrix.sample }}
-
-  skills:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
-        with:
-          persist-credentials: false
-      - uses: ./.github/actions/setup-python
+        run: uv run pytest
+      - name: Verify Load Real
+        run: uv run python agent_sdks/python/a2ui_agent/tests/integration/verify_load_real.py
+      - name: Build All Packages
+        run: uv build --all
       - name: Run Skills Unit Tests
-        run: python3 scripts/run_skills_tests.py
+        run: uv run python3 scripts/run_skills_tests.py
