@@ -17,6 +17,13 @@
 /**
  * @externs
  * @fileoverview Google Closure Compiler externs for `@a2ui/web_core/v0_9` types and schemas.
+ *
+ * Note: When Google Closure Compiler runs in ADVANCED optimization mode, declaring a
+ * property on any `@externs` prototype preserves that property name globally across all
+ * objects in the entire compilation unit. Therefore, each property is only needed once.
+ * Some properties (such as `surfaceId` and `path`) belong to multiple schema interfaces
+ * across `@a2ui/web_core/v0_9`, but here we only list one definition for each and document
+ * their other usage locations in comments.
  */
 
 /**
@@ -27,7 +34,8 @@
 function CreateSurfaceMessageExterns() {}
 /** @type {?} */ CreateSurfaceMessageExterns.prototype.createSurface;
 /**
- * Note: Accessed via dot notation (`renderers/web_core/src/v0_9/processing/message-processor.ts`).
+ * Note: Accessed via dot notation (`renderers/web_core/src/v0_9/processing/message-processor.ts`, `renderers/web_core/src/v0_9/state/surface-model.ts`, and component actions).
+ * Also corresponds to `DeleteSurfaceMessage.surfaceId` and `Action.surfaceId`.
  * @type {?}
  */
 CreateSurfaceMessageExterns.prototype.surfaceId;
@@ -62,7 +70,12 @@ function AnyComponentExterns() {}
  */
 function UpdateDataModelMessageExterns() {}
 /** @type {?} */ UpdateDataModelMessageExterns.prototype.updateDataModel;
-/** @type {?} */ UpdateDataModelMessageExterns.prototype.path;
+/**
+ * Note: Accessed via dot notation (`renderers/web_core/src/v0_9/processing/message-processor.ts` and `renderers/web_core/src/v0_9/rendering/generic-binder.ts`).
+ * Also corresponds to `ChildList.path`.
+ * @type {?}
+ */
+UpdateDataModelMessageExterns.prototype.path;
 /** @type {?} */ UpdateDataModelMessageExterns.prototype.value;
 
 /**
@@ -72,7 +85,6 @@ function UpdateDataModelMessageExterns() {}
  */
 function DeleteSurfaceMessageExterns() {}
 /** @type {?} */ DeleteSurfaceMessageExterns.prototype.deleteSurface;
-/** @type {?} */ DeleteSurfaceMessageExterns.prototype.surfaceId;
 
 /**
  * Externs for `Action` and `A2uiClientAction` interfaces (`renderers/web_core/src/v0_9/schema/common-types.ts`, `renderers/web_core/src/v0_9/schema/client-to-server.ts`).
@@ -84,11 +96,6 @@ function ActionExterns() {}
 /** @type {?} */ ActionExterns.prototype.event;
 /** @type {?} */ ActionExterns.prototype.name;
 /** @type {?} */ ActionExterns.prototype.context;
-/**
- * Note: Accessed via dot notation (`renderers/web_core/src/v0_9/state/surface-model.ts`).
- * @type {?}
- */
-ActionExterns.prototype.surfaceId;
 /** @type {?} */ ActionExterns.prototype.sourceComponentId;
 
 /**
@@ -113,7 +120,6 @@ function ChildListExterns() {}
  * @type {?}
  */
 ChildListExterns.prototype.componentId;
-/** @type {?} */ ChildListExterns.prototype.path;
 
 /**
  * Externs for `Signal` and EventSource reactive interfaces (`renderers/web_core/src/v0_9/reactivity/signals.ts`, `renderers/web_core/src/v0_9/common/events.ts`).
