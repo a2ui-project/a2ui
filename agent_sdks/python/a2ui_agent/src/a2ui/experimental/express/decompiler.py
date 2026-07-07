@@ -18,7 +18,9 @@ Reconstructs standard A2UI v1.0 JSON envelopes back into A2UI Express DSL code,
 tailored for prompt tokens compression.
 """
 
-from typing import Any
+from typing import Any, Dict, Optional, Union
+from a2ui.core.catalog import Catalog
+from a2ui.schema.catalog import A2uiCatalog
 from .schema_helper import CatalogSchemaHelper
 from .constants import SurfaceOperation
 
@@ -102,13 +104,16 @@ class ExpressDecompiler:
       helper: A CatalogSchemaHelper loaded with the target catalog schema.
   """
 
-  def __init__(self, catalog_path: str):
+  def __init__(
+      self,
+      catalog: Union[Catalog[Any, Any], A2uiCatalog],
+  ):
     """Initializes the decompiler with the specified catalog.
 
     Args:
-        catalog_path: The absolute filesystem path to the catalog JSON file.
+        catalog: A Catalog or an A2uiCatalog.
     """
-    self.helper = CatalogSchemaHelper(catalog_path)
+    self.helper = CatalogSchemaHelper(catalog)
 
   def decompile(self, envelope_json: dict) -> str:
     """Decompiles standard A2UI wire JSON into clean A2UI Express lines.

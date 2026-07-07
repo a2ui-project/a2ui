@@ -13,13 +13,13 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-import {DynamicComponent, Renderer} from '@a2ui/angular';
-import {Component, input} from '@angular/core';
+import {CatalogComponent, ComponentHostComponent} from '@a2ui/angular/v0_9';
+import {Component, computed} from '@angular/core';
 
 @Component({
   selector: 'a2ui-pong-layout',
   standalone: true,
-  imports: [Renderer],
+  imports: [ComponentHostComponent],
   template: `
     <div
       style="display: flex; flex-direction: row; width: 100%; max-width: 900px; margin: 0 auto; background: #000; border-radius: 16px; overflow: hidden; box-shadow: 0 10px 30px rgba(0,0,0,0.5); border: 1px solid rgba(255,255,255,0.1);"
@@ -27,23 +27,27 @@ import {Component, input} from '@angular/core';
       <div
         style="width: 200px; border-right: 1px solid #e8eaed; display: flex; flex-direction: column; background: #ffffff; z-index: 1;"
       >
-        <ng-container
-          a2ui-renderer
-          [component]="scoreboardComponent()"
-          [surfaceId]="surfaceId()!"
-        ></ng-container>
+        @if (scoreboardComponent()) {
+          <a2ui-v09-component-host
+            [componentKey]="scoreboardComponent()"
+            [surfaceId]="surfaceId()"
+          ></a2ui-v09-component-host>
+        }
       </div>
       <div style="flex: 1; min-height: 440px; position: relative;">
-        <ng-container
-          a2ui-renderer
-          [component]="mcpComponent()"
-          [surfaceId]="surfaceId()!"
-        ></ng-container>
+        @if (mcpComponent()) {
+          <a2ui-v09-component-host
+            [componentKey]="mcpComponent()"
+            [surfaceId]="surfaceId()"
+          ></a2ui-v09-component-host>
+        }
       </div>
     </div>
   `,
 })
-export class PongLayout extends DynamicComponent<any> {
-  readonly mcpComponent = input<any>(null);
-  readonly scoreboardComponent = input<any>(null);
+export class PongLayout extends CatalogComponent<any> {
+  protected readonly mcpComponent = computed(() => this.props()['mcpComponent']?.value());
+  protected readonly scoreboardComponent = computed(() =>
+    this.props()['scoreboardComponent']?.value(),
+  );
 }

@@ -11,7 +11,7 @@
       "properties": {
         "supportedCatalogIds": {
           "type": "array",
-          "description": "The URI of each of the component and function catalogs that is supported by the client.",
+          "description": "An array of string identifiers for each of the component and function catalogs supported by the client.",
           "items": {"type": "string"}
         },
         "inlineCatalogs": {
