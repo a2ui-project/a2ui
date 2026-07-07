@@ -25,8 +25,10 @@ _A2UI_BLOCK_PATTERN = re.compile(
 )
 
 
-def has_a2ui_parts(content: str) -> bool:
+def has_a2ui_parts(content: Any) -> bool:
   """Checks if the content has A2UI parts."""
+  if not isinstance(content, str):
+    return False
   return A2UI_OPEN_TAG in content and A2UI_CLOSE_TAG in content
 
 
