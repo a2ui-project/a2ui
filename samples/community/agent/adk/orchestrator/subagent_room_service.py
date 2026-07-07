@@ -26,7 +26,7 @@ logging.basicConfig(level=logging.INFO)
 @click.option("--host", default="localhost", type=str)
 @click.option("--port", default=10014, type=int)
 def main(host, port):
-    lite_llm_model = os.getenv("LITELLM_MODEL", "gemini/gemini-2.5-flash")
+    lite_llm_model = os.getenv("LITELLM_MODEL", "gemini/gemini-3.5-flash")
     agent = LlmAgent(
         name="subagent_room_service",
         description="Hotel room service agent",
