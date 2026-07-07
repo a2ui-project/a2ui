@@ -50,8 +50,7 @@ uv run .
 **2. Run the Client:**
 
 ```bash
-cd samples/client/flutter/restaurant_finder
-cd <example_name>/app
+cd samples/client/flutter/restaurant_finder/app
 flutter run -d web
 ```
 
@@ -59,7 +58,7 @@ NOTE: Demo Running
 
 If everything worked, you should see the web app in your browser. The agent is now ready to generate UI!
 
-## Step 5: Try It Out
+## Step 4: Try It Out
 
 In the web app, try these prompts:
 
