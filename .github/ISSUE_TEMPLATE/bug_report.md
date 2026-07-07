@@ -34,6 +34,7 @@ If applicable, add screenshots, video recordings, or console logs to help explai
 - **Browser/Platform**: [e.g. Chrome, Safari, Node.js version, Python version]
 - **SDK/Package Name & Version**: [e.g. a2ui-agent v0.9.0, Lit v0.8.0]
 - **Protocol Version**: [e.g. v0.9, v0.10]
+- **Agent Framework & LLM Model**: [e.g. ADK / Gemini 1.5 Pro, CopilotKit / GPT-4o]
 
 ## Additional Context
 
