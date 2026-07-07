@@ -14,7 +14,13 @@
  * limitations under the License.
  */
 
-import {DestroyRef, Injectable, inject, NgZone} from '@angular/core';
+import {
+  DestroyRef,
+  Injectable,
+  inject,
+  Signal as AngularSignal,
+  EnvironmentInjector,
+} from '@angular/core';
 import {
   ComponentContext,
   computed,
@@ -25,8 +31,8 @@ import {
   getValue,
 } from '@a2ui/web_core/v0_9';
 import {z} from 'zod';
-import {toAngularSignal} from './utils';
 import {BoundProperty, ComponentTemplate} from './types';
+import {initializeAngularReactivity} from './reactivity';
 
 /** Represents a reference to a child component. */
 export interface Child {
@@ -47,7 +53,10 @@ export interface Child {
 })
 export class ComponentBinder {
   private destroyRef = inject(DestroyRef);
-  private ngZone = inject(NgZone);
+
+  constructor() {
+    initializeAngularReactivity(inject(EnvironmentInjector));
+  }
 
   /**
    * Binds all properties of a component to an object of Angular Signals.
@@ -58,7 +67,7 @@ export class ComponentBinder {
    */
   bind(context: ComponentContext, schema?: z.ZodTypeAny): Record<string, BoundProperty> {
     const props = context.componentModel.properties;
-    const bound: Record<string, BoundProperty<any>> = {};
+    const bound: Record<string, BoundProperty<unknown>> = {};
     const behaviorTree = scrapeSchemaBehavior(schema || z.object({}));
 
     for (const key of Object.keys(props)) {
@@ -68,8 +77,7 @@ export class ComponentBinder {
         ? behaviorTree.shape[key]
         : null) || {type: 'STATIC'};
 
-      const resolvedPreactSig = this.resolveNested(value, behavior, context);
-      const angSig = toAngularSignal(resolvedPreactSig as any, this.destroyRef, this.ngZone);
+      const resolvedSig = this.resolveNested(value, behavior, context);
 
       if (
         behavior.type === 'STRUCTURAL' &&
@@ -83,43 +91,47 @@ export class ComponentBinder {
       const isBoundPath =
         value && typeof value === 'object' && 'path' in value && !('componentId' in value);
 
+      if ((resolvedSig as any).unsubscribe) {
+        this.destroyRef.onDestroy(() => (resolvedSig as any).unsubscribe());
+      }
+
       bound[key] = {
-        value: angSig,
+        value: resolvedSig as AngularSignal<unknown>,
         raw: value,
         template,
         onUpdate: isBoundPath
-          ? (newValue: any) => context.dataContext.set(value.path, newValue)
+          ? (newValue: unknown) => context.dataContext.set(value.path, newValue)
           : () => {},
       };
 
       if (behavior.type === 'CHECKABLE') {
         const checksArray = Array.isArray(value) ? value : [];
 
-        const ruleResults = checksArray.map((rule: any) => {
+        const ruleResults = checksArray.map(rule => {
           const condition = rule.condition || rule;
           const message = rule.message || 'Validation failed';
           const conditionSig = context.dataContext.resolveSignal(condition);
           return {conditionSig, message};
         });
 
-        const isValidPreactSig = computed(() => {
-          return ruleResults.every((r: any) => !!getValue(r.conditionSig));
+        const isValidSignal = computed(() => {
+          return ruleResults.every(r => !!getValue(r.conditionSig));
         });
 
-        const validationErrorsPreactSig = computed(() => {
+        const validationErrorsSignal = computed(() => {
           return ruleResults
-            .filter((r: any) => !getValue(r.conditionSig))
-            .map((r: any) => r.message);
+            .filter(r => !getValue(r.conditionSig))
+            .map(r => r.message);
         });
 
         bound['isValid'] = {
-          value: toAngularSignal(isValidPreactSig, this.destroyRef, this.ngZone),
+          value: isValidSignal as AngularSignal<boolean>,
           raw: null,
           onUpdate: () => {},
         };
 
         bound['validationErrors'] = {
-          value: toAngularSignal(validationErrorsPreactSig, this.destroyRef, this.ngZone),
+          value: validationErrorsSignal as AngularSignal<unknown>,
           raw: null,
           onUpdate: () => {},
         };

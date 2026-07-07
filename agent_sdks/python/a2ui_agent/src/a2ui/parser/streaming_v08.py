@@ -12,6 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from __future__ import annotations
+
 import re
 import json
 from typing import Any, List, Dict, Optional, Set, TYPE_CHECKING

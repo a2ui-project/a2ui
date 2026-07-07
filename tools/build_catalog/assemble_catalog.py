@@ -13,7 +13,7 @@
 # limitations under the License.
 
 # /// script
-# requires-python = ">=3.14"
+# requires-python = ">=3.10"
 # dependencies = [
 #     "jsonschema",
 # ]
@@ -42,6 +42,7 @@ logger = logging.getLogger("a2ui-assembler")
 
 class CatalogError(Exception):
   """Base exception for catalog assembly errors."""
+
   pass
 
 
@@ -51,14 +52,24 @@ def is_remote_uri(uri: str) -> bool:
 
 
 BASIC_CATALOG_URLS = {
-    "0.8": "https://raw.githubusercontent.com/a2ui-project/a2ui/refs/heads/main/specification/v0_8/json/standard_catalog_definition.json",
-    "0.9": "https://raw.githubusercontent.com/a2ui-project/a2ui/refs/heads/main/specification/v0_9/catalogs/basic/catalog.json",
-    "1.0": "https://raw.githubusercontent.com/a2ui-project/a2ui/refs/heads/main/specification/v1_0/catalogs/basic/catalog.json"
+    "0.8": (
+        "https://raw.githubusercontent.com/a2ui-project/a2ui/refs/heads/main/specification/v0_8/json/standard_catalog_definition.json"
+    ),
+    "0.9": (
+        "https://raw.githubusercontent.com/a2ui-project/a2ui/refs/heads/main/specification/v0_9/catalogs/basic/catalog.json"
+    ),
+    "1.0": (
+        "https://raw.githubusercontent.com/a2ui-project/a2ui/refs/heads/main/specification/v1_0/catalogs/basic/catalog.json"
+    ),
 }
 
 COMMON_TYPES_URLS = {
-    "0.9": "https://raw.githubusercontent.com/a2ui-project/a2ui/refs/heads/main/specification/v0_9/json/common_types.json",
-    "1.0": "https://raw.githubusercontent.com/a2ui-project/a2ui/refs/heads/main/specification/v1_0/json/common_types.json"
+    "0.9": (
+        "https://raw.githubusercontent.com/a2ui-project/a2ui/refs/heads/main/specification/v0_9/json/common_types.json"
+    ),
+    "1.0": (
+        "https://raw.githubusercontent.com/a2ui-project/a2ui/refs/heads/main/specification/v1_0/json/common_types.json"
+    ),
 }
 
 
@@ -68,13 +79,21 @@ class CatalogAssembler:
   # Maps well-known schema filenames to their local attribute overrides or versioned remote URLs.
   # This allows developers to work with local files while the tool defaults to remote sources.
   INTERCEPT_MAP = {
-      "basic_catalog.json": ("local_basic_catalog_path", BASIC_CATALOG_URLS, "basic_catalog"),
+      "basic_catalog.json": (
+          "local_basic_catalog_path",
+          BASIC_CATALOG_URLS,
+          "basic_catalog",
+      ),
       "standard_catalog_definition.json": (
           "local_basic_catalog_path",
           BASIC_CATALOG_URLS,
           "basic_catalog",
       ),
-      "common_types.json": ("local_common_types_path", COMMON_TYPES_URLS, "common_types"),
+      "common_types.json": (
+          "local_common_types_path",
+          COMMON_TYPES_URLS,
+          "common_types",
+      ),
   }
 
   def __init__(
@@ -114,13 +133,13 @@ class CatalogAssembler:
     except Exception as e:
       ref_msg = f" (referenced from {referrer})" if referrer else ""
       if isinstance(e, FileNotFoundError):
-          raise CatalogError(f"File not found: {uri}{ref_msg}")
+        raise CatalogError(f"File not found: {uri}{ref_msg}")
       elif isinstance(e, json.JSONDecodeError):
-          raise CatalogError(f"Invalid JSON in {uri}{ref_msg}: {e}")
+        raise CatalogError(f"Invalid JSON in {uri}{ref_msg}: {e}")
       elif isinstance(e, URLError):
-          raise CatalogError(f"Network error fetching {uri}{ref_msg}: {e}")
+        raise CatalogError(f"Network error fetching {uri}{ref_msg}: {e}")
       else:
-          raise CatalogError(f"Unexpected error fetching {uri}{ref_msg}: {e}")
+        raise CatalogError(f"Unexpected error fetching {uri}{ref_msg}: {e}")
 
   def resolve_json_pointer(self, schema: Any, pointer: str) -> Any:
     """Resolves a JSON pointer against a schema."""
@@ -141,7 +160,8 @@ class CatalogAssembler:
           current = current[part]
         else:
           raise CatalogError(
-            f"Cannot resolve pointer '{pointer}' through non-container type")
+              f"Cannot resolve pointer '{pointer}' through non-container type"
+          )
       return current
     except (KeyError, IndexError, ValueError) as e:
       raise CatalogError(f"Could not resolve pointer '{pointer}': {e}")
@@ -197,9 +217,9 @@ class CatalogAssembler:
   def _process_ref(self, schema: dict, current_base_uri: str, depth: int) -> None:
     """Resolves an external $ref and updates the schema in place."""
     ref = schema["$ref"]
-    
+
     parsed_ref = urllib.parse.urlparse(ref)
-    
+
     # Treat references to catalog.json as references to the assembled catalog root.
     if Path(parsed_ref.path).name == "catalog.json":
       schema["$ref"] = f"#{parsed_ref.fragment}"
@@ -228,20 +248,25 @@ class CatalogAssembler:
       def_key = self.get_def_key(stem, fragment)
       self.ref_mapping[full_ref_id] = def_key
 
-      processed_sub = self.process_schema(copy.deepcopy(target_subschema), target_uri, depth + 1)
+      processed_sub = self.process_schema(
+          copy.deepcopy(target_subschema), target_uri, depth + 1
+      )
       self.definitions[def_key] = processed_sub
       schema["$ref"] = f"#/$defs/{def_key}"
 
   def process_schema(self, schema: Any, current_base_uri: str, depth: int = 0) -> Any:
     """Recursively processes a schema to flatten external $refs into $defs."""
     if depth > self.max_depth:
-      raise CatalogError(f"Max recursion depth reached ({self.max_depth}) at {current_base_uri}. Check for circular $ref dependencies.")
+      raise CatalogError(
+          f"Max recursion depth reached ({self.max_depth}) at {current_base_uri}. Check"
+          " for circular $ref dependencies."
+      )
 
     if isinstance(schema, dict):
       if "$ref" in schema:
         self._process_ref(schema, current_base_uri, depth)
-      
-      # Process nested keywords. We skip "$ref" because it was already updated 
+
+      # Process nested keywords. We skip "$ref" because it was already updated
       # to a local pointer (e.g., #/$defs/...) by _process_ref.
       for key, value in schema.items():
         if key != "$ref":
@@ -272,14 +297,25 @@ class CatalogAssembler:
       else:
         target["instructions"] += f"\n\n{source['instructions']}"
 
-  def _init_combined_catalog(self, base_name: str, file_name: str, input_uris: list[str], custom_catalog_id: Optional[str] = None) -> dict[str, Any]:
+  def _init_combined_catalog(
+      self,
+      base_name: str,
+      file_name: str,
+      input_uris: list[str],
+      custom_catalog_id: Optional[str] = None,
+  ) -> dict[str, Any]:
     """Initializes the skeleton for the newly combined catalog."""
-    catalog_id = custom_catalog_id if custom_catalog_id else f"urn:a2ui:catalog:{base_name}"
+    catalog_id = (
+        custom_catalog_id if custom_catalog_id else f"urn:a2ui:catalog:{base_name}"
+    )
     return {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "$id": file_name,
         "title": f"{base_name} A2UI Catalog",
-        "description": f"{base_name} A2UI catalog, including {', '.join(Path(uri).stem for uri in input_uris)}.",
+        "description": (
+            f"{base_name} A2UI catalog, including"
+            f" {', '.join(Path(uri).stem for uri in input_uris)}."
+        ),
         "catalogId": catalog_id,
         "components": {},
         "functions": {},
@@ -345,22 +381,40 @@ class CatalogAssembler:
     if merged_theme.get("properties") or "type" in merged_theme:
       self.definitions["theme"] = merged_theme
 
-    for category, synthesized_name in [("components", "anyComponent"), ("functions", "anyFunction")]:
+    for category, synthesized_name in [
+        ("components", "anyComponent"),
+        ("functions", "anyFunction"),
+    ]:
       keys = sorted(combined_catalog[category].keys())
       one_of = [{"$ref": f"#/{category}/{k}"} for k in keys]
-      self.definitions[synthesized_name] = {"oneOf": one_of if one_of else [{"type": "null"}]}
+      self.definitions[synthesized_name] = {
+          "oneOf": one_of if one_of else [{"type": "null"}]
+      }
       if synthesized_name == "anyComponent":
-        self.definitions[synthesized_name]["discriminator"] = {"propertyName": "component"}
+        self.definitions[synthesized_name]["discriminator"] = {
+            "propertyName": "component"
+        }
 
-  def assemble(self, name: str, input_uris: list[str], extend_basic: bool = False, catalog_id: Optional[str] = None, additional_instructions: Optional[list[Path]] = None) -> dict[str, Any]:
+  def assemble(
+      self,
+      name: str,
+      input_uris: list[str],
+      extend_basic: bool = False,
+      catalog_id: Optional[str] = None,
+      additional_instructions: Optional[list[Path]] = None,
+  ) -> dict[str, Any]:
     """Assembles a list of catalog URIs into a single, unified catalog JSON."""
     if not input_uris:
       return {}
 
     file_path = Path(name).with_suffix(".json")
-    combined_catalog = self._init_combined_catalog(file_path.stem, file_path.name, input_uris, custom_catalog_id=catalog_id)
+    combined_catalog = self._init_combined_catalog(
+        file_path.stem, file_path.name, input_uris, custom_catalog_id=catalog_id
+    )
 
-    basic_uri = self._normalize_uri(self.local_basic_catalog_path or BASIC_CATALOG_URLS[self.version])
+    basic_uri = self._normalize_uri(
+        self.local_basic_catalog_path or BASIC_CATALOG_URLS[self.version]
+    )
     merged_theme, theme_sources = self._load_initial_theme(basic_uri)
 
     uris_to_process: list[str] = []
@@ -379,7 +433,13 @@ class CatalogAssembler:
       data = self.fetch_json(base_uri)
       processed_data = self.process_schema(copy.deepcopy(data), base_uri)
       self._merge_categories(processed_data, combined_catalog)
-      self._merge_catalog_theme(processed_data, catalog_stem, merged_theme, theme_sources, base_uri == basic_uri)
+      self._merge_catalog_theme(
+          processed_data,
+          catalog_stem,
+          merged_theme,
+          theme_sources,
+          base_uri == basic_uri,
+      )
 
     self._synthesize_union_types(combined_catalog, merged_theme)
     combined_catalog["$defs"] = self.definitions
@@ -398,7 +458,6 @@ class CatalogAssembler:
           logger.warning(f"Instructions file not found: {instr_path}")
 
     return combined_catalog
-
 
 
 def validate_catalog(catalog: dict[str, Any]):
@@ -429,15 +488,51 @@ def detect_local_overrides(inputs: list[str]) -> tuple[Optional[str], Optional[s
 
 
 def main():
-  parser = argparse.ArgumentParser(description="Assemble multiple A2UI Catalogs into a single file.")
-  parser.add_argument("inputs", nargs="+", help="Input paths or URLs to A2UI component catalog JSONs")
-  parser.add_argument("--output-name", required=True, help="Name of the combined catalog")
-  parser.add_argument("--catalog-id", type=str, help="Custom catalogId for the output. Defaults to urn:a2ui:catalog:<base_name>")
-  parser.add_argument("--version", choices=["0.8", "0.9", "1.0"], default="0.9", help="A2UI basic_catalog version to use if remote")
-  parser.add_argument("--extend-basic-catalog", action="store_true", help="Always include the entire basic_catalog.json in the output")
-  parser.add_argument("--instructions", action="extend", nargs="*", type=Path, help="Additional Markdown instructions file(s) to include in the combined catalog (can be specified multiple times)")
-  parser.add_argument("--out-dir", "-o", type=Path, default="dist", help="Output directory (default: dist)")
-  parser.add_argument("--verbose", "-v", action="store_true", help="Enable verbose logging")
+  parser = argparse.ArgumentParser(
+      description="Assemble multiple A2UI Catalogs into a single file."
+  )
+  parser.add_argument(
+      "inputs", nargs="+", help="Input paths or URLs to A2UI component catalog JSONs"
+  )
+  parser.add_argument(
+      "--output-name", required=True, help="Name of the combined catalog"
+  )
+  parser.add_argument(
+      "--catalog-id",
+      type=str,
+      help="Custom catalogId for the output. Defaults to urn:a2ui:catalog:<base_name>",
+  )
+  parser.add_argument(
+      "--version",
+      choices=["0.8", "0.9", "1.0"],
+      default="0.9",
+      help="A2UI basic_catalog version to use if remote",
+  )
+  parser.add_argument(
+      "--extend-basic-catalog",
+      action="store_true",
+      help="Always include the entire basic_catalog.json in the output",
+  )
+  parser.add_argument(
+      "--instructions",
+      action="extend",
+      nargs="*",
+      type=Path,
+      help=(
+          "Additional Markdown instructions file(s) to include in the combined catalog"
+          " (can be specified multiple times)"
+      ),
+  )
+  parser.add_argument(
+      "--out-dir",
+      "-o",
+      type=Path,
+      default="dist",
+      help="Output directory (default: dist)",
+  )
+  parser.add_argument(
+      "--verbose", "-v", action="store_true", help="Enable verbose logging"
+  )
 
   args = parser.parse_args()
 
@@ -448,7 +543,10 @@ def main():
   output_filename = Path(args.output_name).with_suffix(".json").name
   local_basic, local_common = detect_local_overrides(args.inputs)
 
-  logger.info(f"📦 Assembling {len(args.inputs)} catalogs into '{output_filename}' (Version: {args.version})")
+  logger.info(
+      f"📦 Assembling {len(args.inputs)} catalogs into '{output_filename}' (Version:"
+      f" {args.version})"
+  )
   if args.extend_basic_catalog:
     logger.info("🔧 Extending with complete basic_catalog.json")
 
@@ -458,7 +556,13 @@ def main():
         local_basic_catalog_path=local_basic,
         local_common_types_path=local_common,
     )
-    final_schema = assembler.assemble(output_filename, args.inputs, extend_basic=args.extend_basic_catalog, catalog_id=args.catalog_id, additional_instructions=args.instructions)
+    final_schema = assembler.assemble(
+        output_filename,
+        args.inputs,
+        extend_basic=args.extend_basic_catalog,
+        catalog_id=args.catalog_id,
+        additional_instructions=args.instructions,
+    )
 
     validate_catalog(final_schema)
 

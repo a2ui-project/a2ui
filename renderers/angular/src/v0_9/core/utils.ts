@@ -14,58 +14,6 @@
  * limitations under the License.
  */
 
-import {DestroyRef, Signal, signal as angularSignal} from '@angular/core';
-import {
-  Signal as CoreSignal,
-  effect,
-  signal as preactSignal,
-  getValue,
-  peekValue,
-} from '@a2ui/web_core/v0_9';
-import {NgZone} from '@angular/core';
-
-export {preactSignal};
-
-/**
- * Bridges a signal from A2UI web_core to an Angular Signal.
- *
- * This utility handles the lifecycle mapping between Preact and Angular,
- * ensuring that updates from the A2UI data model are propagated correctly
- * to Angular's change detection, and resources are cleaned up when the
- * component is destroyed.
- *
- * @param coreSignal The source Preact Signal.
- * @param destroyRef Angular DestroyRef for lifecycle management.
- * @param ngZone Optional NgZone to ensure updates run within the Angular zone
- *               (necessary for correct change detection in OnPush components).
- * @returns A read-only Angular Signal.
- */
-export function toAngularSignal<T>(
-  coreSignal: CoreSignal<T>,
-  destroyRef: DestroyRef,
-  ngZone?: NgZone,
-): Signal<T> {
-  const s = angularSignal(peekValue(coreSignal));
-
-  const dispose = effect(() => {
-    const value = getValue(coreSignal);
-
-    if (ngZone) {
-      ngZone.run(() => s.set(value));
-    } else {
-      s.set(value);
-    }
-  });
-
-  destroyRef.onDestroy(() => {
-    dispose();
-    // Some signals returned by DataContext.resolveSignal have a custom unsubscribe for AbortControllers
-    coreSignal.unsubscribe?.();
-  });
-
-  return s.asReadonly();
-}
-
 /**
  * Normalizes a data model path by combining a relative path with a base context.
  *
