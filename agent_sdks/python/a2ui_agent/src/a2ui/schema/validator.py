@@ -93,6 +93,10 @@ class A2uiValidatorWrapperV10:
         s2c = catalog.s2c_schema
         common = catalog.common_types_schema
         cat = catalog.catalog_schema
+        if not isinstance(s2c, dict) or "$id" not in s2c:
+            raise A2uiCatalogError(
+                "Server-to-client schema must be a dictionary containing an '$id' key."
+            )
 
         resources = []
         for schema, filename in [
@@ -104,17 +108,14 @@ class A2uiValidatorWrapperV10:
                 if isinstance(schema, dict) and "$id" in schema:
                     resources.append((schema["$id"], Resource.from_contents(schema)))
 
-        if cat is not None:
+        if isinstance(cat, dict):
             resources.append(("catalog.json", Resource.from_contents(cat)))
-            cat_copy = dict(cat) if isinstance(cat, dict) else {}
-            s2c_id = s2c.get("$id", "") if (s2c and isinstance(s2c, dict)) else ""
-            if s2c_id:
-                resolved_catalog_uri = urljoin(s2c_id, "catalog.json")
-                cat_copy["$id"] = resolved_catalog_uri
-                resources.append(
-                    (resolved_catalog_uri, Resource.from_contents(cat_copy))
-                )
-            if isinstance(cat, dict) and "$id" in cat:
+            cat_copy = dict(cat)
+            s2c_id = s2c["$id"]
+            resolved_catalog_uri = urljoin(s2c_id, "catalog.json")
+            cat_copy["$id"] = resolved_catalog_uri
+            resources.append((resolved_catalog_uri, Resource.from_contents(cat_copy)))
+            if "$id" in cat:
                 resources.append((cat["$id"], Resource.from_contents(cat)))
 
         self._registry = Registry().with_resources(resources)
