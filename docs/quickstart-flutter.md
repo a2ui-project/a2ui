@@ -233,7 +233,7 @@ uv run .
 Want to see how it works? Check out:
 
 - **Agent Code**: `samples/agent/adk/restaurant_finder/` — The Python A2A agent
-- **Client Code**: `samples/client/flutter/` — The Fluttr web client with A2UI renderer
+- **Client Code**: `samples/client/flutter/` — The Flutter web client with A2UI renderer
 - **A2UI Renderer**: `renderers/flutter/` (Flutter)
 
 Each directory has its own README with detailed documentation.
