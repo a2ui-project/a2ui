@@ -20,8 +20,7 @@ import click
 from a2a.server.apps import A2AStarletteApplication
 from a2a.server.request_handlers import DefaultRequestHandler
 from a2a.server.tasks import InMemoryTaskStore
-from agent import OrchestratorAgent
-from agent_executor import OrchestratorAgentExecutor
+from orchestrator_agent_executor import OrchestratorAgentExecutor
 from dotenv import load_dotenv
 from starlette.middleware.cors import CORSMiddleware
 
@@ -51,23 +50,18 @@ def main(host, port, subagent_urls):
 
         base_url = f"http://{host}:{port}"
 
-        orchestrator_agent, agent_card = asyncio.run(
-            OrchestratorAgent.build_agent(
-                base_url=base_url, subagent_urls=subagent_urls
-            )
-        )
-        agent_executor = OrchestratorAgentExecutor(
-            agent=orchestrator_agent, agent_card=agent_card
-        )
+    orchestrator_agent_executor, agent_card = OrchestratorAgentExecutor.create(
+        base_url=base_url, subagent_urls=subagent_urls
+    )
 
-        request_handler = DefaultRequestHandler(
-            agent_executor=agent_executor,
-            task_store=InMemoryTaskStore(),
-        )
-        server = A2AStarletteApplication(
-            agent_card=agent_card, http_handler=request_handler
-        )
-        import uvicorn
+    request_handler = DefaultRequestHandler(
+        agent_executor=orchestrator_agent_executor,
+        task_store=InMemoryTaskStore(),
+    )
+    server = A2AStarletteApplication(
+        agent_card=agent_card, http_handler=request_handler
+    )
+    import uvicorn
 
         app = server.build()
 

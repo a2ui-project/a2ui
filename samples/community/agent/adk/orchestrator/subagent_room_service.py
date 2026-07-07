@@ -7,7 +7,10 @@ from dotenv import load_dotenv
 from google.adk.agents.llm_agent import LlmAgent
 from google.adk.models.lite_llm import LiteLlm
 from google.adk.runners import Runner
-from google.adk.a2a.executor.a2a_agent_executor import A2aAgentExecutor
+from google.adk.a2a.executor.a2a_agent_executor import A2aAgentExecutor, A2aAgentExecutorConfig
+from google.adk.a2a.converters.event_converter import convert_event_to_a2a_events
+from google.adk.a2a.converters import part_converter
+from a2a.types import Part, TextPart
 from google.adk.artifacts import InMemoryArtifactService
 from google.adk.sessions import InMemorySessionService
 from google.adk.memory.in_memory_memory_service import InMemoryMemoryService
@@ -18,6 +21,19 @@ from a2a.types import AgentCard, AgentSkill, AgentCapabilities
 from starlette.middleware.cors import CORSMiddleware
 from a2ui.schema.constants import VERSION_0_8, VERSION_0_9
 from a2ui.a2a.extension import get_a2ui_agent_extension
+
+from a2ui.basic_catalog.provider import BasicCatalog
+from a2ui.schema.manager import A2uiSchemaManager
+from a2ui.adk.a2a.part_converter import A2uiPartConverter
+from a2ui.schema.common_modifiers import remove_strict_validation
+
+schema_manager = A2uiSchemaManager(
+    version=VERSION_0_9,
+    catalogs=[BasicCatalog.get_config(version=VERSION_0_9)],
+    schema_modifiers=[remove_strict_validation]
+)
+my_catalog = schema_manager.get_selected_catalog()
+a2ui_converter = A2uiPartConverter(a2ui_catalog=my_catalog, version=VERSION_0_9)
 
 load_dotenv()
 logging.basicConfig(level=logging.INFO)
@@ -30,7 +46,62 @@ def main(host, port):
     agent = LlmAgent(
         name="subagent_room_service",
         description="Hotel room service agent",
-        instruction="You are the hotel room service agent. You handle ordering food to rooms.",
+        instruction="""You are the hotel room service agent. You handle ordering food to rooms. If the user asks for food, return this A2UI form:
+<a2ui>
+{
+  "version": "v0.9",
+  "createSurface": {
+    "surfaceId": "room_service",
+    "catalogId": "basic"
+  }
+}
+</a2ui>
+<a2ui>
+{
+  "version": "v0.9",
+  "updateComponents": {
+    "surfaceId": "room_service",
+    "components": [
+      {
+        "id": "root",
+        "component": "Column",
+        "children": ["room_num", "food_menu", "submit_btn"]
+      },
+      {
+        "id": "room_num",
+        "component": "TextField",
+        "label": "Room Number"
+      },
+      {
+        "id": "food_menu",
+        "component": "ChoicePicker",
+        "label": "Menu Item",
+        "options": [
+          {"label": "Burger", "value": "burger"},
+          {"label": "Pizza", "value": "pizza"},
+          {"label": "Salad", "value": "salad"}
+        ],
+        "value": []
+      },
+      {
+        "id": "submit_btn",
+        "component": "Button",
+        "child": "submit_btn_txt",
+        "action": {
+          "event": {
+            "name": "order_food"
+          }
+        }
+      },
+      {
+        "id": "submit_btn_txt",
+        "component": "Text",
+        "text": "Order"
+      }
+    ]
+  }
+}
+</a2ui>""",
         model=LiteLlm(model=lite_llm_model),
         tools=[],
     )
@@ -61,7 +132,12 @@ def main(host, port):
         ]
     )
 
-    executor = A2aAgentExecutor(runner=runner)
+    executor_config = A2aAgentExecutorConfig(
+        event_converter=lambda e, ic, tid=None, cid=None, pcf=None: convert_event_to_a2a_events(
+            e, ic, tid, cid, a2ui_converter.convert
+        )
+    )
+    executor = A2aAgentExecutor(runner=runner, config=executor_config)
     request_handler = DefaultRequestHandler(
         agent_executor=executor,
         task_store=InMemoryTaskStore(),
