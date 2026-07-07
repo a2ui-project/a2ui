@@ -28,7 +28,7 @@ from google.adk.runners import Runner
 from google.adk.sessions import InMemorySessionService
 from google.genai import types
 from pydantic import PrivateAttr
-from tools import get_calculator_app, calculate_via_mcp, get_pong_app_a2ui_json, score_update
+from tools import get_calculator_app, calculate_via_mcp, get_pong_app_a2ui_json, commentate_pong_game
 from agent_executor import get_a2ui_enabled, get_a2ui_catalog, get_a2ui_examples
 
 logger = logging.getLogger(__name__)
@@ -40,8 +40,9 @@ When the user asks for Pong, you MUST call the `get_pong_app_a2ui_json` tool.
 
 IMPORTANT: Do NOT attempt to construct the JSON manually. The tools handle it automatically.
 
-When the user interacts with the calculator and issues a `calculate` action, you MUST call the `calculate_via_mcp` tool to perform the calculation via the remote MCP server. Return the resulting number directly as text to the user.
-When the user interacts with the Pong game and issues a `score_update` action, you MUST call the `score_update` tool with the scoring player to update the scoreboard.
+When the user interacts with the calculator and issues a `calculate` action, you MUST call the `calculate_via_mcp` tool. Return the resulting number directly as text to the user.
+
+When you receive a `"commentate_pong"` action, immediately call `commentate_pong_game` tool with `"game_event"` from `"context" -> "game_event"`. Do not reply with text; only call the tool.
 """
 
 WORKFLOW_DESCRIPTION = """
@@ -49,7 +50,7 @@ WORKFLOW_DESCRIPTION = """
    - If User asks for calculator: Call `get_calculator_app`.
    - If User asks for Pong: Call `get_pong_app_a2ui_json`.
    - If User interacts with the calculator (ACTION: calculate): Extract 'operation', 'a', and 'b' from the event context and call `calculate_via_mcp`. Return the result to the user.
-   - If User interacts with the Pong game (ACTION: score_update): Extract 'player' from the event context and call `score_update`.
+   - If you receive a `"commentate_pong"` action: Call `commentate_pong_game` with `"game_event"` from `"context" -> "game_event"`. Do not generate text responses; only call the tool.
 """
 
 UI_DESCRIPTION = """
@@ -164,13 +165,6 @@ class McpAppProxyAgent:
                     tags=["html", "app", "demo", "tool"],
                     examples=["open pong", "show pong"],
                 ),
-                AgentSkill(
-                    id="score_update",
-                    name="Score Update",
-                    description="Updates the score for Pong game.",
-                    tags=["pong", "score", "tool"],
-                    examples=[],
-                ),
             ],
         )
 
@@ -209,7 +203,7 @@ class McpAppProxyAgent:
                 get_calculator_app,
                 calculate_via_mcp,
                 get_pong_app_a2ui_json,
-                score_update,
+                commentate_pong_game,
             ],
             planner=BuiltInPlanner(
                 thinking_config=types.ThinkingConfig(
