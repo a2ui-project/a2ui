@@ -387,13 +387,22 @@ Inside the `<body>`, you must include a `<link rel="catalog" href="[CATALOG_ID]"
        <a2ui-card id="right" slot="trailing">...</a2ui-card>
      </a2ui-split-view>
      ```
-7. **Complex Properties**: For complex JSON object properties, use a `<script type="application/json">` element with a `slot` attribute matching the property name:
+7. **Complex and Long Text Properties**:
+   - For complex JSON object/array properties, use a `<script type="application/json">` element with a `slot` attribute matching the property name:
      ```html
      <a2ui-table id="table">
        <script type="application/json" slot="columns">
          [{"key": "name", "label": "Name"}]
        </script>
      </a2ui-table>
+     ```
+   - For long text, HTML, or multi-line string properties, use a `<script type="text/html">` or `<script type="text/plain">` element with a `slot` attribute matching the property name to avoid HTML parsing errors:
+     ```html
+     <a2ui-mcp-app id="app">
+       <script type="text/html" slot="content">
+         <h1>Hello World</h1>
+       </script>
+     </a2ui-mcp-app>
      ```
 8. **Templates**: For dynamic lists, use a `<template>` element:
      ```html

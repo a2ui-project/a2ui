@@ -326,5 +326,43 @@ class TestElementalCompiler(unittest.TestCase):
     self.assertEqual(col_1["children"], ["text_1", "text_2"])
 
 
+  def test_compile_component_with_slots(self):
+    # Modal is not a standard container tag but has slot properties (trigger, content)
+    html_input = (
+        '<body id="test-surf">\n'
+        '  <a2ui-modal id="delete_modal">\n'
+        '    <a2ui-button id="delete_trigger_btn" slot="trigger">\n'
+        '      <a2ui-text id="delete_trigger_text" text="Delete Account" />\n'
+        "    </a2ui-button>\n"
+        '    <a2ui-column id="delete_confirmation_col" slot="content">\n'
+        '      <a2ui-text id="confirm_title" text="# Confirm Account Deletion" />\n'
+        "    </a2ui-column>\n"
+        "  </a2ui-modal>\n"
+        "</body>"
+    )
+    result = self.compiler.compile(html_input)
+    components = result["createSurface"]["components"]
+    
+    # Verify that trigger and content are correctly slotted as IDs on the Modal component
+    modal = next(c for c in components if c["id"] == "delete_modal")
+    self.assertEqual(modal["trigger"], "delete_trigger_btn")
+    self.assertEqual(modal["content"], "delete_confirmation_col")
+
+
+  def test_compile_kebab_case_enum_matching(self):
+    # 'justify' on Row expects 'spaceBetween'. Test passing 'space-between'
+    html_input = (
+        '<body id="test-surf">\n'
+        '  <a2ui-row id="row_1" justify="space-between">\n'
+        '    <a2ui-text id="text_1">Hello</a2ui-text>\n'
+        "  </a2ui-row>\n"
+        "</body>"
+    )
+    result = self.compiler.compile(html_input)
+    components = result["createSurface"]["components"]
+    row = components[1]
+    self.assertEqual(row["justify"], "spaceBetween")
+
+
 if __name__ == "__main__":
   unittest.main()

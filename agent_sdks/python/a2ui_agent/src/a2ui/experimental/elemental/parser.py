@@ -56,7 +56,7 @@ def parse_elemental_response(
 
   # Match <body>...</body>, <a2ui-delete-surface.../>, and <a2ui-call-function.../> blocks
   block_pattern = re.compile(
-      r"<body\b[^>]*>.*?</body>"
+      r"<body\b[^>]*>.*</body>"
       r"|<a2ui-delete-surface\b[^>]*>(?:.*?</a2ui-delete-surface>|/>)?"
       r"|<a2ui-call-function\b[^>]*>(?:.*?</a2ui-call-function>|/>)?",
       re.DOTALL | re.IGNORECASE

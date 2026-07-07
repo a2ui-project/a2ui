@@ -226,6 +226,23 @@ def _escape_nested_script_tags(html: str) -> str:
   return "".join(result)
 
 
+def _property_schema_accepts_components(schema: Any) -> bool:
+  """Recursively checks if a property schema accepts component ID strings or lists of them."""
+  if not isinstance(schema, dict):
+    return False
+  ref = schema.get("$ref", "")
+  if isinstance(ref, str) and any(ref.endswith(suffix) for suffix in ["ComponentId", "ComponentIdArray", "Child", "ChildList"]):
+    return True
+  if "items" in schema:
+    if _property_schema_accepts_components(schema["items"]):
+      return True
+  for k in ["oneOf", "anyOf", "allOf"]:
+    if k in schema and isinstance(schema[k], list):
+      if any(_property_schema_accepts_components(sub) for sub in schema[k]):
+        return True
+  return False
+
+
 class _CompileContext:
   """Holds mutable state during compilation."""
 
@@ -249,7 +266,13 @@ class ElementalCompiler:
     self.container_tags = {"body", "template"}
     for comp_name in self.helper.components:
       properties = self.helper.get_component_properties(comp_name)
-      if "child" in properties or "children" in properties:
+      has_slotted_children = False
+      for prop_name in properties:
+        prop_schema = self.helper.get_property_schema(comp_name, prop_name)
+        if _property_schema_accepts_components(prop_schema):
+          has_slotted_children = True
+          break
+      if has_slotted_children:
         # Convert PascalCase to kebab-case
         s1 = re.sub("(.)([A-Z][a-z]+)", r"\1-\2", comp_name)
         kebab_name = "a2ui-" + re.sub("([a-z0-9])([A-Z])", r"\1-\2", s1).lower()
@@ -546,11 +569,15 @@ class ElementalCompiler:
         enum_vals = _get_enum_values(prop_schema)
         if enum_vals is not None and parsed_val not in enum_vals:
           matched = False
+          # Normalize to ignore casing, hyphens, and underscores
+          normalized_val = parsed_val.lower().replace("-", "").replace("_", "")
           for ev in enum_vals:
-            if isinstance(ev, str) and ev.lower() == parsed_val.lower():
-              parsed_val = ev
-              matched = True
-              break
+            if isinstance(ev, str):
+              normalized_ev = ev.lower().replace("-", "").replace("_", "")
+              if normalized_ev == normalized_val:
+                parsed_val = ev
+                matched = True
+                break
           if not matched:
             raise ValueError(
                 f"Property '{prop_name}' in component '{comp_name}' has invalid"
