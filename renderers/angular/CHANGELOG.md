@@ -9,7 +9,7 @@
 
 ## 0.10.2
 
-- (v0_9) Align with signal implementation a2ui-v09-component-hostchanges in `@a2ui/web_core`.
+- (v0_9) Align with signal implementation changes in `@a2ui/web_core`.
 
 ## 0.10.1
 
