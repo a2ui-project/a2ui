@@ -18,17 +18,18 @@ from a2ui.schema.manager import A2uiSchemaManager
 from a2ui.schema.catalog import CatalogConfig
 from ..shared.utils import GIT_ROOT, measured_generate
 
+
 @solver
-def a2ui_system_prompt() -> Solver:
+def a2ui_system_prompt(version: str) -> Solver:
     """Solver to inject A2UI schema and catalog into the system prompt using SDK."""
 
     async def solve(state: TaskState, generate: Generate) -> TaskState:
         catalog_path = state.metadata['catalog']
         resolved_catalog_path = str(GIT_ROOT / catalog_path)
 
-        catalog_config = CatalogConfig.from_path("basic_catalog", resolved_catalog_path)
-        manager = A2uiSchemaManager(version="0.9", catalogs=[catalog_config])
-        
+        catalog_config = CatalogConfig.from_path('basic_catalog', resolved_catalog_path)
+        manager = A2uiSchemaManager(version=version, catalogs=[catalog_config])
+
         role_description = state.metadata['role_description']
         workflow_description = state.metadata['workflow_description']
 
@@ -37,15 +38,13 @@ def a2ui_system_prompt() -> Solver:
             workflow_description=workflow_description,
             include_schema=True,
         )
-        
+
         state.messages.insert(0, ChatMessageSystem(content=prompt))
         return state
-        
+
     return solve
 
-def direct_solver() -> list[Solver]:
+
+def direct_solver(version: str) -> list[Solver]:
     """Returns the solver chain for the 'direct' evaluation strategy."""
-    return [
-        a2ui_system_prompt(),
-        measured_generate()
-    ]
+    return [a2ui_system_prompt(version), measured_generate()]

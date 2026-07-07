@@ -15,9 +15,10 @@
  */
 
 import {DataContext, SurfaceModel} from '@a2ui/web_core/v0_9';
-import {DestroyRef} from '@angular/core';
+import {TestBed} from '@angular/core/testing';
+import {DestroyRef, EnvironmentInjector} from '@angular/core';
 import {BasicCatalogBase} from '../catalog/basic/basic-catalog';
-import {toAngularSignal} from './utils';
+import {assertAngularSignal, initializeAngularReactivity} from './reactivity';
 
 describe('Function Bindings', () => {
   let mockDestroyRef: jasmine.SpyObj<DestroyRef>;
@@ -25,6 +26,7 @@ describe('Function Bindings', () => {
   beforeEach(() => {
     mockDestroyRef = jasmine.createSpyObj('DestroyRef', ['onDestroy']);
     mockDestroyRef.onDestroy.and.returnValue(() => {});
+    initializeAngularReactivity(TestBed.inject(EnvironmentInjector));
   });
 
   describe('add', () => {
@@ -48,28 +50,29 @@ describe('Function Bindings', () => {
       };
 
       // 1. Resolve Signal
-      const resSig = context.resolveSignal<number>(callValue as any);
+      const sig = context.resolveSignal<number>(callValue as any);
+      assertAngularSignal<number>(sig);
 
-      // 2. Convert to Angular Signal
-      const angSig = toAngularSignal(resSig, mockDestroyRef);
+      // 2. Initial state
+      expect(isNaN(sig())).toBe(true);
 
-      // 3. Initial state
-      expect(isNaN(angSig())).toBe(true);
-
-      // 4. Update data model Simulation typing
+      // 3. Update data model Simulation typing
       dataModel.set('/inputValue', 5);
+      TestBed.tick();
 
-      // 5. Verify reactive updates
-      expect(angSig()).toBe(6);
+      // 4. Verify reactive updates
+      expect(sig()).toBe(6);
 
-      // 6. Update again to confirm reactive stream remains healthy
+      // 5. Update again to confirm reactive stream remains healthy
       dataModel.set('/inputValue', 10);
-      expect(angSig()).toBe(11);
+      TestBed.tick();
+
+      expect(sig()).toBe(11);
     });
   });
 
   describe('formatString', () => {
-    it('should correctly format string with dynamic path and dollar sign', () => {
+    it('should correctly format string with dynamic path and dollar sign', async () => {
       const catalog = new BasicCatalogBase();
 
       // Create Surface Model and DataContext
@@ -86,26 +89,25 @@ describe('Function Bindings', () => {
         returnType: 'string',
       };
 
-      // 1. Resolve Signal (Preact)
-      const resSig = context.resolveSignal<string>(callValue as any);
+      // 1. Resolve Signal
+      const sig = context.resolveSignal<string>(callValue as any);
+      assertAngularSignal(sig);
+      TestBed.tick();
 
-      // 2. Convert to Angular Signal
-      const angSig = toAngularSignal(resSig, mockDestroyRef);
+      // 2. Initial state (price is undefined, so should be '$')
+      expect(sig()).toBe('$');
 
-      // 3. Initial state (price is undefined, so should be '$')
-      expect(angSig()).toBe('$');
-
-      // 4. Update data model
+      // 3. Update data model
       dataModel.set('/price', 42);
+      TestBed.tick();
 
-      // 5. Verify reactive updates - should be '$42'
+      // 4. Verify reactive updates - should be '$42'
       // Regression check: This previously would have returned the Signal object
       // stringified as '[object Object]' due to instanceof failures across packages.
-      expect(angSig()).toBe('$42');
-      expect(typeof angSig()).toBe('string');
+      expect(sig()).toBe('$42');
     });
 
-    it('should handle multiple path interpolations correctly', () => {
+    it('should handle multiple path interpolations correctly', async () => {
       const catalog = new BasicCatalogBase();
       const surface = new SurfaceModel('surface_1', catalog);
       const dataModel = surface.dataModel;
@@ -119,13 +121,15 @@ describe('Function Bindings', () => {
         returnType: 'string',
       };
 
-      const resSig = context.resolveSignal<string>(callValue as any);
-      const angSig = toAngularSignal(resSig, mockDestroyRef);
+      const sig = context.resolveSignal<string>(callValue as any);
+      assertAngularSignal(sig);
+      TestBed.tick();
 
       dataModel.set('/firstName', 'A2UI');
       dataModel.set('/lastName', 'Renderer');
+      TestBed.tick();
 
-      expect(angSig()).toBe('A2UI Renderer');
+      expect(sig()).toBe('A2UI Renderer');
     });
   });
 });

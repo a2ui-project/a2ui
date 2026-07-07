@@ -30,6 +30,3 @@ testpaths = ["tests"]
 url = "https://pypi.org/simple"
 default = true
 
-[tool.pyink]
-pyink-indentation = 4
-

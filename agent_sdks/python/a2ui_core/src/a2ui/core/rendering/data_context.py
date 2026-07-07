@@ -96,7 +96,9 @@ class DataContext:
                 resolved_path
             ):
                 warnings.warn(
-                    f"Preflight DataBinding Warning: The bound JSON Pointer '{resolved_path}' does not physically exist in the active DataModel. Evaluating to None.",
+                    "Preflight DataBinding Warning: The bound JSON Pointer"
+                    f" '{resolved_path}' does not physically exist in the active"
+                    " DataModel. Evaluating to None.",
                     MissingDataBindingWarning,
                     stacklevel=2,
                 )
@@ -184,7 +186,9 @@ class DataContext:
             for p in paths:
                 if not self.data_model.has_path(p):
                     warnings.warn(
-                        f"Preflight DataBinding Warning: The bound JSON Pointer '{p}' does not physically exist in the active DataModel. Evaluating to None.",
+                        f"Preflight DataBinding Warning: The bound JSON Pointer '{p}'"
+                        " does not physically exist in the active DataModel."
+                        " Evaluating to None.",
                         MissingDataBindingWarning,
                         stacklevel=2,
                     )
@@ -268,13 +272,11 @@ class DataContext:
                     ).validate_function(name, resolved_args)
                 except Exception as e:
                     if self.surface and hasattr(self.surface, "dispatch_error"):
-                        self.surface.dispatch_error(
-                            {
-                                "code": "EXPRESSION_ERROR",
-                                "message": str(e),
-                                "expression": name,
-                            }
-                        )
+                        self.surface.dispatch_error({
+                            "code": "EXPRESSION_ERROR",
+                            "message": str(e),
+                            "expression": name,
+                        })
                         return None
                     else:
                         raise
@@ -296,13 +298,11 @@ class DataContext:
                         return res
                 except Exception as e:
                     if self.surface and hasattr(self.surface, "dispatch_error"):
-                        self.surface.dispatch_error(
-                            {
-                                "code": "EXPRESSION_ERROR",
-                                "message": str(e),
-                                "expression": name,
-                            }
-                        )
+                        self.surface.dispatch_error({
+                            "code": "EXPRESSION_ERROR",
+                            "message": str(e),
+                            "expression": name,
+                        })
                     else:
                         raise
 

@@ -67,7 +67,7 @@ The client sends its capabilities to the server in an `a2uiClientCapabilities` o
 
 The `a2uiClientCapabilities` object contains a `v1.0` object with the following properties:
 
-- `v1.0.supportedCatalogIds` (array of strings, required): The URIs of supported component and function catalogs.
+- `v1.0.supportedCatalogIds` (array of strings, required): The string identifiers of supported component and function catalogs.
 - `v1.0.inlineCatalogs` (array, optional): An array of custom catalog definitions provided inline by the client. Functions defined within inline catalogs support declaring execution boundaries (`callableFrom: "clientOnly" | "remoteOnly" | "clientOrRemote"`) to statically specify remote invocation safety.
 
 ---

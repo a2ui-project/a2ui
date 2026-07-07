@@ -19,18 +19,26 @@ import sys
 import argparse
 import os
 
+
 def run_cmd(args):
     res = subprocess.run(args, capture_output=True, text=True, check=True)
     return res.stdout.strip()
 
+
 def main():
-    parser = argparse.ArgumentParser(description="Apply approved triage decisions to GitHub.")
-    parser.add_argument("--decisions-file", required=True, help="Path to triage_decisions.json.")
+    parser = argparse.ArgumentParser(
+        description="Apply approved triage decisions to GitHub."
+    )
+    parser.add_argument(
+        "--decisions-file", required=True, help="Path to triage_decisions.json."
+    )
     args = parser.parse_args()
 
     decisions_path = os.path.abspath(os.path.expanduser(args.decisions_file))
     if not os.path.exists(decisions_path):
-        print(f"Error: Decisions file '{decisions_path}' does not exist.", file=sys.stderr)
+        print(
+            f"Error: Decisions file '{decisions_path}' does not exist.", file=sys.stderr
+        )
         sys.exit(1)
 
     with open(decisions_path, "r", encoding="utf-8") as f:
@@ -56,13 +64,22 @@ def main():
         try:
             # 1. Update Labels (Priority and component/type labels)
             current_labels = []
-            issue_info_json = run_cmd(["gh", "issue", "view", issue_id, "--json", "labels"])
+            issue_info_json = run_cmd(
+                ["gh", "issue", "view", issue_id, "--json", "labels"]
+            )
             if issue_info_json:
                 try:
                     issue_info = json.loads(issue_info_json)
-                    current_labels = [l.get("name") for l in issue_info.get("labels", []) if l.get("name")]
+                    current_labels = [
+                        l.get("name")
+                        for l in issue_info.get("labels", [])
+                        if l.get("name")
+                    ]
                 except Exception as e:
-                    print(f"  Warning: Failed to parse current labels: {e}", file=sys.stderr)
+                    print(
+                        f"  Warning: Failed to parse current labels: {e}",
+                        file=sys.stderr,
+                    )
 
             # Identify existing priority labels
             priority_labels = {"P0", "P1", "P2", "P3", "P4"}
@@ -112,7 +129,9 @@ def main():
                     comment_body = prefix + comment_body
 
                 already_posted = False
-                comments_json = run_cmd(["gh", "issue", "view", issue_id, "--json", "comments"])
+                comments_json = run_cmd(
+                    ["gh", "issue", "view", issue_id, "--json", "comments"]
+                )
                 if comments_json:
                     try:
                         comments_data = json.loads(comments_json)
@@ -122,13 +141,18 @@ def main():
                                 already_posted = True
                                 break
                     except Exception as e:
-                        print(f"  Warning: Failed to parse existing comments: {e}", file=sys.stderr)
-                
+                        print(
+                            f"  Warning: Failed to parse existing comments: {e}",
+                            file=sys.stderr,
+                        )
+
                 if already_posted:
                     print(f"  Comment already posted. Skipping to prevent duplicate.")
                 else:
                     print(f"  Posting comment...")
-                    run_cmd(["gh", "issue", "comment", issue_id, "--body", comment_body])
+                    run_cmd(
+                        ["gh", "issue", "comment", issue_id, "--body", comment_body]
+                    )
 
             # 4. Close Issue if action dictates it
             if action in ["close_duplicate", "close_invalid", "close_resolved"]:
@@ -142,23 +166,40 @@ def main():
                 run_cmd(["gh", "issue", "close", issue_id, "--reason", reason])
 
         except subprocess.CalledProcessError as e:
-            print(f"  Error: Command '{' '.join(e.cmd)}' failed with exit code {e.returncode}.", file=sys.stderr)
+            print(
+                f"  Error: Command '{' '.join(e.cmd)}' failed with exit code"
+                f" {e.returncode}.",
+                file=sys.stderr,
+            )
             print(f"  Stderr: {e.stderr.strip()}", file=sys.stderr)
-            print(f"  Skipping remaining updates for Issue #{issue_id}.", file=sys.stderr)
+            print(
+                f"  Skipping remaining updates for Issue #{issue_id}.", file=sys.stderr
+            )
             failed_issues.append(issue_id)
             continue
         except Exception as e:
-            print(f"  Error: Unexpected error updating Issue #{issue_id}: {e}", file=sys.stderr)
-            print(f"  Skipping remaining updates for Issue #{issue_id}.", file=sys.stderr)
+            print(
+                f"  Error: Unexpected error updating Issue #{issue_id}: {e}",
+                file=sys.stderr,
+            )
+            print(
+                f"  Skipping remaining updates for Issue #{issue_id}.", file=sys.stderr
+            )
             failed_issues.append(issue_id)
             continue
 
     if failed_issues:
-        print(f"\nFinished with errors. Failed to apply updates for {len(failed_issues)} issues: {', '.join(failed_issues)}")
+        print(
+            f"\nFinished with errors. Failed to apply updates for {len(failed_issues)}"
+            f" issues: {', '.join(failed_issues)}"
+        )
         sys.exit(1)
     else:
-        print("\nAll approved triage decisions have been successfully applied to GitHub!")
+        print(
+            "\nAll approved triage decisions have been successfully applied to GitHub!"
+        )
         sys.exit(0)
+
 
 if __name__ == "__main__":
     main()
