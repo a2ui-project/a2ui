@@ -179,7 +179,7 @@ class ElementalPromptGenerator:
                             sub_props.append(
                                 f"{sub_k}{'' if is_sub_req else '?'}: {sub_t}"
                             )
-                        base_type = f"Array<{{\n    {'; '.join(sub_props)};\n  }}>"
+                        base_type = f"Array<{{{'; '.join(sub_props)}}}>"
                     else:
                         item_t = self._map_schema_to_ts_type(
                             component_name, prop_name, items_schema
@@ -199,7 +199,7 @@ class ElementalPromptGenerator:
                         )
                         is_sub_req = sub_k in prop_schema.get("required", [])
                         sub_props.append(f"{sub_k}{'' if is_sub_req else '?'}: {sub_t}")
-                    base_type = f"{{\n    {'; '.join(sub_props)};\n  }}"
+                    base_type = f"{{{'; '.join(sub_props)}}}"
                 else:
                     base_type = "Record<string, any>"
 
@@ -219,16 +219,15 @@ class ElementalPromptGenerator:
         return base_type
 
     def generate_component_declarations(self) -> str:
-        """Compiles component definitions into TSX interfaces and declarations.
+        """Compiles component definitions into TypeScript element interfaces.
 
         Returns:
-            A string containing TSX interface and const declarations.
+            A string containing TypeScript interface declarations.
         """
         declarations = []
         for name in sorted(self.helper.component_properties.keys()):
             props = self.helper.get_component_properties(name)
             reqs = self.helper.get_component_required(name)
-            comp_desc = self.helper.get_component_description(name)
 
             # Find all action properties to handle renaming
             action_props = []
@@ -237,11 +236,11 @@ class ElementalPromptGenerator:
                 if _is_action(p_schema):
                     action_props.append(p)
 
-            interface_lines = [f"interface {name}Props {{"]
-            # id is technically optional in the compiler (auto-generated),
-            # but we make it optional but present.
-            interface_lines.append("  /** Unique identifier for the component. */")
-            interface_lines.append("  id?: string;")
+            interface_lines = [
+                f"// Tag: <a2ui-{_to_kebab_case(name)}>",
+                f"interface {name} {{",
+                "  id?: string;",
+            ]
 
             for p in props:
                 p_schema = self.helper.get_property_schema(name, p)
@@ -252,44 +251,14 @@ class ElementalPromptGenerator:
                     if len(action_props) == 1:
                         ts_prop_name = "onclick"
                     else:
-                        # e.g. submitAction -> onSubmitAction
                         ts_prop_name = "on" + p[0].upper() + p[1:]
 
                 ts_type = self._map_schema_to_ts_type(name, p, p_schema)
-
-                p_desc = (
-                    p_schema.get("description") if isinstance(p_schema, dict) else None
-                )
-                if p_desc:
-                    # Format multiline description for JSDoc
-                    desc_lines = p_desc.strip().split("\n")
-                    if len(desc_lines) == 1:
-                        interface_lines.append(f"  /** {p_desc} */")
-                    else:
-                        interface_lines.append("  /**")
-                        for dl in desc_lines:
-                            interface_lines.append(f"   * {dl}")
-                        interface_lines.append("   */")
-
                 opt_sign = "" if is_req else "?"
                 interface_lines.append(f"  {ts_prop_name}{opt_sign}: {ts_type};")
 
             interface_lines.append("}")
-
-            # Generate JSDoc for the component
-            jsdoc = ["/**"]
-            if comp_desc:
-                for line in comp_desc.strip().split("\n"):
-                    jsdoc.append(f" * {line}")
-            jsdoc.append(f" * @element a2ui-{_to_kebab_case(name)}")
-            jsdoc.append(" */")
-            jsdoc_str = "\n".join(jsdoc)
-
-            decl = (
-                f"{'\n'.join(interface_lines)}\n{jsdoc_str}\ndeclare const"
-                f" {name}: React.FC<{name}Props>;"
-            )
-            declarations.append(decl)
+            declarations.append("\n".join(interface_lines))
 
         return "\n\n".join(declarations)
 
@@ -303,7 +272,6 @@ class ElementalPromptGenerator:
         for name in sorted(self.helper.function_properties.keys()):
             props = self.helper.get_function_properties(name)
             reqs = self.helper.get_function_required(name)
-            f_desc = self.helper.get_function_description(name)
 
             func_schema = self.helper.functions.get(name, {})
             return_type = func_schema.get("returnType", "any")
@@ -320,21 +288,10 @@ class ElementalPromptGenerator:
                 opt_sign = "" if is_req else "?"
                 arg_decls.append(f"{p}{opt_sign}: {p_type}")
 
-            jsdoc = []
-            if f_desc:
-                jsdoc.append("/**")
-                for line in f_desc.strip().split("\n"):
-                    jsdoc.append(f" * {line}")
-                jsdoc.append(" */")
-            jsdoc_str = "\n".join(jsdoc) + "\n" if jsdoc else ""
-
-            decl = (
-                f"{jsdoc_str}declare function {name}({', '.join(arg_decls)}):"
-                f" {return_type};"
-            )
+            decl = f"function {name}({', '.join(arg_decls)}): {return_type};"
             declarations.append(decl)
 
-        return "\n\n".join(declarations)
+        return "\n".join(declarations)
 
     def generate_prompt(self) -> str:
         """Assembles the complete system instruction block for the LLM.
@@ -393,75 +350,35 @@ class ElementalPromptGenerator:
             )
 
         common_types = """type DataBinding = string;
-type A2UIElement = React.ReactElement;
+type A2UIElement = string; // ID of the referenced component
 type Action = any;
 type FunctionCall = any;"""
 
         prompt_template = r"""# A2UI Elemental Output Contract
 
 You must output the user interface using A2UI Elemental HTML5-like markup.
-You MUST surround the entire output with the `<body>` and `</body>` tags.
-Inside the `<body>`, you must include a `<link rel="catalog" href="[CATALOG_ID]">` pointing to the active catalog.
-**CRITICAL**: DO NOT output raw JSON or `<a2ui-json>` blocks. Direct JSON outputs are strictly prohibited. You MUST construct layouts using HTML5 tags inside the body.
+Surround the entire output with `<body>` and `</body>` tags, including a `<link rel="catalog" href="[CATALOG_ID]">` at the start.
+**CRITICAL**: DO NOT output raw JSON or `<a2ui-json>`. Direct JSON outputs are strictly prohibited.
 
 ## HTML5 Markup Rules
 
-1. **Component Tags**: Use custom elements prefixed with `a2ui-` in kebab-case (e.g. `<a2ui-card>`, `<a2ui-text-input>`).
-2. **Component IDs**: Always provide a unique `id` attribute for every component (e.g. `<a2ui-button id="btn_1">`). **CRITICAL**: There MUST be exactly one top-level component, and it MUST have `id="root"` (e.g. `<a2ui-column id="root">`).
-3. **Attributes**:
-   - Pass static string values as regular attributes: `variant="primary"`.
-   - Pass typed literals (numbers, booleans) and expressions inside curly braces `{...}` enclosed in double quotes: `elevation="{4}"`, `disabled="{true}"`.
-4. **Data Binding**: Prefix paths in the shared data model with `$` inside curly braces: `value="{$/user/name}"`.
-   - Use relative paths (without leading slash) inside list templates: `text="{$name}"`.
-   - Use `{$this}` to reference the current item in a primitive list.
-   - **CRITICAL**: Always use slash notation for array indexing (e.g. `{$/items/0}`) instead of brackets (e.g. `{$/items[0]}`).
-5. **Expressions & Functions**: You can call catalog functions inside curly braces. Function arguments MUST be named: `text="{formatCurrency(value: $/price, currency: 'USD')}"`.
-6. **Children & Slots**:
-   - Nest child elements inside parent elements.
-   - If a component has a single child property (like `child`), place it as a direct nested element.
-   - If a component has multiple child properties (slots), use the `slot` attribute:
-     ```html
-     <a2ui-split-view id="split">
-       <a2ui-card id="left" slot="leading">...</a2ui-card>
-       <a2ui-card id="right" slot="trailing">...</a2ui-card>
-     </a2ui-split-view>
-     ```
-7. **Complex and Long Text Properties**:
-   - For complex JSON object/array properties, use a `<script type="application/json">` element with a `slot` attribute matching the property name:
-     ```html
-     <a2ui-table id="table">
-       <script type="application/json" slot="columns">
-         [{"key": "name", "label": "Name"}]
-       </script>
-     </a2ui-table>
-     ```
-   - For long text, HTML, or multi-line string properties, use a `<script type="text/html">` or `<script type="text/plain">` element with a `slot` attribute matching the property name to avoid HTML parsing errors:
-     ```html
-     <a2ui-mcp-app id="app">
-       <script type="text/html" slot="content">
-         <h1>Hello World</h1>
-       </script>
-     </a2ui-mcp-app>
-     ```
-8. **Templates**: For dynamic lists, use a `<template>` element:
-     ```html
-     <a2ui-list id="list" path="{$/items}">
-       <template>
-         <a2ui-text id="item_title">{$title}</a2ui-text>
-       </template>
-     </a2ui-list>
-     ```
-9. **Actions & Event Context**: Use `on-<property-name>` in kebab-case for action events (e.g. `onclick="{Event('click')}"`).
-   - **IMPORTANT**: If the action is intended to submit or validate inputs (e.g. login, search, or settings confirmation), you MUST pass the bound data model keys as properties inside the Event context dictionary, for example: `onclick="{Event('login', {username: $/login/username, password: $/login/password})}"`.
-10. **Data Model Initialization**: You can initialize the data model using a `<script type="application/json">` at the root of the `<body>` (without a slot attribute).
-11. **Lifecycle & Deletion**: To delete a user interface surface, output the standalone `<a2ui-delete-surface>` tag (e.g. `<a2ui-delete-surface surface-id="dashboard-surface-1"></a2ui-delete-surface>`).
-12. **Standalone Data Model Updates**: To update the data model without rendering any components, output a single `<script type="application/json">` containing the data payload and nothing else in the body.
-13. **Standalone Function Calls**: To execute a function call without rendering a surface, output a standalone `<a2ui-call-function>` tag: `<a2ui-call-function id="fn_1" name="openUrl"><script type="application/json" slot="args">{"url": "https://example.com"}</script></a2ui-call-function>`.
+1. **Component Tags**: Use elements prefixed with `a2ui-` in kebab-case (e.g. `<a2ui-card>`).
+2. **Component IDs**: Provide a unique `id` attribute for every component. The single top-level element MUST have `id="root"`.
+3. **Attributes**: Pass static string values as regular attributes (`variant="primary"`). Wrap numbers, booleans, and expressions in double-quoted curly braces: `elevation="{4}"`, `disabled="{true}"`.
+4. **Data Binding**: Bind data using curly braces prefixed with `$`: `value="{$/user/name}"` (absolute) or `value="{$name}"` (relative in list templates). Use `{$/items/0}` for arrays, never brackets.
+5. **Expressions**: Call catalog functions inside curly braces using named arguments: `text="{formatCurrency(value: $/price, currency: 'USD')}"`.
+6. **Slots & Children**: Nest children inside parent elements. Use the `slot` attribute to specify child properties: `<a2ui-card slot="leading">`.
+7. **Complex Properties**: For objects/arrays, use `<script type="application/json" slot="prop">`. For HTML/long text, use `<script type="text/html" slot="prop">`.
+8. **Templates**: For dynamic lists, nest child elements inside a `<template>` tag, and specify the bound data array path via the `path` attribute on the list component itself (e.g. `<a2ui-list path="{$/items}"><template>...</template></a2ui-list>`).
+9. **Actions**: Use `on-<property-name>` in kebab-case (e.g. `onclick="{Event('name', {args})}"`). If submitting or validating data, pass the data paths inside the event context dict (e.g. `onclick="{Event('login', {username: $/login/username})}"`).
+10. **Standalone Directives**:
+    - Data Initialization: `<script type="application/json">{"data"}</script>` at root of body.
+    - Surface Deletion: `<a2ui-delete-surface surface-id="id" />`.
+    - Standalone Function Call: `<a2ui-call-function id="id" name="func"><script type="application/json" slot="args">{"args"}</script></a2ui-call-function>`.
 
-## TypeScript/TSX Component Contracts
+## Component Interfaces
 
-Use these TypeScript interfaces and declarations to understand the available components and their properties.
-Although you output HTML, your HTML elements and attributes must match these TypeScript definitions (converting camelCase props to kebab-case attributes in HTML where appropriate, e.g. `errorMessage` -> `error-message`).
+Your elements and attributes must match these TypeScript definitions (converting camelCase props to kebab-case attributes in HTML, e.g. `errorMessage` -> `error-message`).
 
 ```typescript
 [COMMON_TYPES]
@@ -471,8 +388,7 @@ Although you output HTML, your HTML elements and attributes must match these Typ
 
 ## Helper Functions
 
-You can use these functions inside attribute expressions `{...}`.
-All function calls MUST use named arguments, e.g. `func(arg: value)`.
+You can call these functions inside attribute expressions `{...}` using named arguments.
 
 ```typescript
 [FUNCTION_DECLARATIONS]
