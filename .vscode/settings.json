@@ -9,5 +9,6 @@
   "[dart]": {
     "editor.defaultFormatter": "Dart-Code.dart-code"
   },
-  "markdown.validate.enabled": true
+  "markdown.validate.enabled": true,
+  "java.compile.nullAnalysis.mode": "disabled"
 }
