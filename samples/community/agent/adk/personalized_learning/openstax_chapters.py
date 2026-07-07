@@ -295,11 +295,11 @@ OPENSTAX_CHAPTERS = {
 
 # Build a formatted string for LLM context
 def get_chapter_list_for_llm() -> str:
-  """Return a formatted list of all chapters for LLM context."""
-  lines = []
-  for slug, title in OPENSTAX_CHAPTERS.items():
-    lines.append(f"- {slug}: {title}")
-  return "\n".join(lines)
+    """Return a formatted list of all chapters for LLM context."""
+    lines = []
+    for slug, title in OPENSTAX_CHAPTERS.items():
+        lines.append(f"- {slug}: {title}")
+    return "\n".join(lines)
 
 
 # Pre-computed keyword hints for faster matching (optional optimization)
@@ -800,23 +800,23 @@ CHAPTER_TO_MODULES: dict[str, list[str]] = {
 
 
 def get_module_ids_for_chapter(chapter_slug: str) -> list[str]:
-  """Get the module IDs for a given chapter slug."""
-  return CHAPTER_TO_MODULES.get(chapter_slug, [])
+    """Get the module IDs for a given chapter slug."""
+    return CHAPTER_TO_MODULES.get(chapter_slug, [])
 
 
 def get_all_module_ids() -> list[str]:
-  """Get all unique module IDs across all chapters."""
-  all_modules = set()
-  for modules in CHAPTER_TO_MODULES.values():
-    all_modules.update(modules)
-  return sorted(all_modules)
+    """Get all unique module IDs across all chapters."""
+    all_modules = set()
+    for modules in CHAPTER_TO_MODULES.values():
+        all_modules.update(modules)
+    return sorted(all_modules)
 
 
 def get_github_url_for_module(module_id: str) -> str:
-  """Get the GitHub raw URL for a module's CNXML file."""
-  return f"{GITHUB_RAW_BASE}/{module_id}/index.cnxml"
+    """Get the GitHub raw URL for a module's CNXML file."""
+    return f"{GITHUB_RAW_BASE}/{module_id}/index.cnxml"
 
 
 def get_openstax_url_for_chapter(chapter_slug: str) -> str:
-  """Get the OpenStax website URL for a chapter (for citations)."""
-  return f"{OPENSTAX_WEB_BASE}/{chapter_slug}"
+    """Get the OpenStax website URL for a chapter (for citations)."""
+    return f"{OPENSTAX_WEB_BASE}/{chapter_slug}"
