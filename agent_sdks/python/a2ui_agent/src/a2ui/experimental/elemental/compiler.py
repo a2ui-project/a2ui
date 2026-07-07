@@ -29,6 +29,27 @@ from a2ui.experimental.express.constants import SurfaceOperation
 from .expression_parser import ElementalExpressionParser
 
 
+def _is_action_property(prop_schema: Any) -> bool:
+    """Helper to check if a property schema definition represents an Action."""
+    if not isinstance(prop_schema, dict):
+        return False
+    if "$ref" in prop_schema:
+        ref = prop_schema["$ref"]
+        ref_name = ref.split("/")[-1]
+        if ref_name == "Action":
+            return True
+    if "oneOf" in prop_schema or "anyOf" in prop_schema or "allOf" in prop_schema:
+        subs = (
+            prop_schema.get("oneOf", [])
+            + prop_schema.get("anyOf", [])
+            + prop_schema.get("allOf", [])
+        )
+        for sub in subs:
+            if _is_action_property(sub):
+                return True
+    return False
+
+
 class Node:
     """A simple DOM node representing an HTML element or text."""
 
@@ -626,7 +647,7 @@ class ElementalCompiler:
 
         if template_node and default_slot:
             # It's a dynamic list template!
-            path_attr = node.attrs.get("path")
+            path_attr = node.attrs.get("path") or template_node.attrs.get("path")
             if not path_attr:
                 raise ValueError(
                     f"Component '{comp_id}' has a <template> child but is missing the"
@@ -784,6 +805,19 @@ class ElementalCompiler:
         # Clean up empty slots
         if "children" in comp_dict and not comp_dict["children"]:
             del comp_dict["children"]
+
+        # Inject default action for any required Action property if missing (required by schema)
+        required_props = self.helper.get_component_required(comp_name)
+        for prop_name in required_props:
+            if prop_name not in comp_dict:
+                p_schema = self.helper.get_property_schema(comp_name, prop_name)
+                if p_schema and _is_action_property(p_schema):
+                    comp_dict[prop_name] = {
+                        "event": {
+                            "name": f"{comp_id}_clicked",
+                            "context": {"component": comp_name, "property": prop_name},
+                        }
+                    }
 
         ctx.components.append(comp_dict)
         return comp_id

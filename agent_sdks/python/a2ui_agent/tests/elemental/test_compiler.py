@@ -372,7 +372,7 @@ class TestElementalCompiler(unittest.TestCase):
         img = components[0]
         self.assertEqual(img["url"], {"path": "/product/thumbs/0"})
 
-    def test_compile_button_no_action(self):
+    def test_compile_button_fallback_action(self):
         html_input = (
             '<body id="test-surf">\n'
             '  <a2ui-button id="btn_1" variant="primary">\n'
@@ -383,7 +383,31 @@ class TestElementalCompiler(unittest.TestCase):
         result = self.compiler.compile(html_input)
         components = result["createSurface"]["components"]
         btn = next(c for c in components if c["id"] == "btn_1")
-        self.assertNotIn("action", btn)
+        self.assertIn("action", btn)
+        self.assertEqual(
+            btn["action"],
+            {
+                "event": {
+                    "name": "btn_1_clicked",
+                    "context": {"component": "Button", "property": "action"},
+                }
+            },
+        )
+
+    def test_compile_list_template_path(self):
+        html_input = (
+            '<body id="test-surf">\n'
+            '  <a2ui-list id="lst_1">\n'
+            '    <template path="{$/items}">\n'
+            '      <a2ui-text id="txt_1" text="{$name}" />\n'
+            "    </template>\n"
+            "  </a2ui-list>\n"
+            "</body>"
+        )
+        result = self.compiler.compile(html_input)
+        components = result["createSurface"]["components"]
+        lst = next(c for c in components if c["id"] == "lst_1")
+        self.assertEqual(lst["children"], {"path": "/items", "componentId": "txt_1"})
 
 
 if __name__ == "__main__":

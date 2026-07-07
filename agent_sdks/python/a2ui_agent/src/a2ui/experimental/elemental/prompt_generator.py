@@ -349,6 +349,45 @@ class ElementalPromptGenerator:
         # Format catalog instructions block if it exists
         catalog_instructions_block = ""
         if catalog_instructions:
+            # Dynamically convert any JSON examples in catalog instructions to Elemental HTML using decompiler
+            try:
+                from .decompiler import ElementalDecompiler
+
+                decompiler = ElementalDecompiler(self.catalog)
+
+                # Find all ```json ... ``` blocks
+                json_blocks = re.findall(
+                    r"```json\s*(.*?)\s*```", catalog_instructions, re.DOTALL
+                )
+                for block in json_blocks:
+                    try:
+                        parsed_json = json.loads(block)
+                        if isinstance(parsed_json, list):
+                            html_parts = []
+                            for item in parsed_json:
+                                if isinstance(item, dict):
+                                    html_parts.append(decompiler.decompile(item))
+                            html_block = "\n\n".join(html_parts)
+                        elif isinstance(parsed_json, dict):
+                            html_block = decompiler.decompile(parsed_json)
+                        else:
+                            continue
+
+                        target_block = f"```json\n{block}\n```"
+                        # Use link placeholder for decompiler output link if present
+                        catalog_id = self.helper.catalog.get(
+                            "catalogId", "[CATALOG_ID]"
+                        )
+                        html_block = html_block.replace(catalog_id, "[CATALOG_ID]")
+                        replacement_block = f"```html\n{html_block}\n```"
+                        catalog_instructions = catalog_instructions.replace(
+                            target_block, replacement_block
+                        )
+                    except Exception:
+                        pass
+            except Exception:
+                pass
+
             catalog_instructions_block = (
                 f"\n\n## Catalog Instructions\n\n{catalog_instructions}"
             )
@@ -363,6 +402,7 @@ type FunctionCall = any;"""
 You must output the user interface using A2UI Elemental HTML5-like markup.
 You MUST surround the entire output with the `<body>` and `</body>` tags.
 Inside the `<body>`, you must include a `<link rel="catalog" href="[CATALOG_ID]">` pointing to the active catalog.
+**CRITICAL**: DO NOT output raw JSON or `<a2ui-json>` blocks. Direct JSON outputs are strictly prohibited. You MUST construct layouts using HTML5 tags inside the body.
 
 ## HTML5 Markup Rules
 
