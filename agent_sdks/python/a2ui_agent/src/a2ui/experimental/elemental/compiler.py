@@ -19,6 +19,7 @@ bindings and validation checks, and compiles it into standard A2UI v1.0 JSON.
 """
 
 import json
+import re
 from html.parser import HTMLParser
 from typing import Any, Dict, List, Optional, Union
 from a2ui.core.catalog import Catalog
@@ -41,13 +42,23 @@ class Node:
 class DomBuilder(HTMLParser):
   """A forgiving HTML parser that builds a simple DOM tree."""
 
-  def __init__(self):
+  def __init__(self, container_tags: Optional[set[str]] = None):
     super().__init__()
     self.root: Optional[Node] = None
     self.stack: List[Node] = []
+    self.container_tags = container_tags or set()
 
   def handle_starttag(self, tag, attrs):
     tag_lower = tag.lower()
+    # Auto-close top of stack if it is a leaf component and we are starting a new component tag
+    if tag_lower.startswith("a2ui-"):
+      while (
+          self.stack
+          and self.stack[-1].tag.startswith("a2ui-")
+          and self.stack[-1].tag not in self.container_tags
+      ):
+        self.stack.pop()
+
     node = Node(tag_lower, attrs)
     if not self.root:
       self.root = node
@@ -73,7 +84,16 @@ class DomBuilder(HTMLParser):
           break
 
   def handle_startendtag(self, tag, attrs):
-    node = Node(tag, attrs)
+    tag_lower = tag.lower()
+    if tag_lower.startswith("a2ui-"):
+      while (
+          self.stack
+          and self.stack[-1].tag.startswith("a2ui-")
+          and self.stack[-1].tag not in self.container_tags
+      ):
+        self.stack.pop()
+
+    node = Node(tag_lower, attrs)
     if not self.root:
       self.root = node
     if self.stack:
@@ -127,6 +147,20 @@ def _get_enum_values(schema: Any) -> Optional[List[Any]]:
         if vals is not None:
           return vals
   return None
+
+
+def _rewrite_component_references(val: Any, old_id: str, new_id: str) -> Any:
+  """Recursively replaces all occurrences of old_id with new_id in the structure."""
+  if isinstance(val, str):
+    return new_id if val == old_id else val
+  elif isinstance(val, list):
+    return [_rewrite_component_references(item, old_id, new_id) for item in val]
+  elif isinstance(val, dict):
+    return {
+        k: _rewrite_component_references(v, old_id, new_id)
+        for k, v in val.items()
+    }
+  return val
 
 
 def _escape_nested_script_tags(html: str) -> str:
@@ -213,6 +247,16 @@ class ElementalCompiler:
     self.helper = CatalogSchemaHelper(catalog)
     self.expr_parser = ElementalExpressionParser()
 
+    # Pre-compute container tags for forgiving parsing
+    self.container_tags = {"body", "template"}
+    for comp_name in self.helper.components:
+      properties = self.helper.get_component_properties(comp_name)
+      if "child" in properties or "children" in properties:
+        # Convert PascalCase to kebab-case
+        s1 = re.sub("(.)([A-Z][a-z]+)", r"\1-\2", comp_name)
+        kebab_name = "a2ui-" + re.sub("([a-z0-9])([A-Z])", r"\1-\2", s1).lower()
+        self.container_tags.add(kebab_name)
+
   def _resolve_action_property_name(self, name: str, properties: List[str]) -> str:
     """Maps React-like event names (onclick, onSubmitAction) back to catalog properties (action, submitAction)."""
     if name == "onclick" and "action" in properties and "onclick" not in properties:
@@ -232,7 +276,7 @@ class ElementalCompiler:
   ) -> dict:
     """Compiles A2UI Elemental HTML into standard A2UI v1.0 wire JSON."""
     escaped_html = _escape_nested_script_tags(html_text)
-    builder = DomBuilder()
+    builder = DomBuilder(self.container_tags)
     builder.feed(escaped_html)
     root = builder.root
 
@@ -346,6 +390,13 @@ class ElementalCompiler:
       }
 
     # 3. Compile components recursively
+    for child in remaining_children:
+      if not child.tag.startswith("a2ui-"):
+        raise ValueError(
+            f"Invalid element tag '{child.tag}' under <body>. Only 'a2ui-*'"
+            " components are supported inside A2UI surfaces."
+        )
+
     root_component_ids = []
     for child in component_children:
       comp_id = self._compile_node(child, ctx)
@@ -361,6 +412,9 @@ class ElementalCompiler:
           if c.get("id") == old_root_id:
             c["id"] = "root"
             break
+        ctx.components = _rewrite_component_references(
+            ctx.components, old_root_id, "root"
+        )
       else:
         raise ValueError(
             f"A2UI Elemental source must define a single root component with id='root'. "
@@ -439,7 +493,10 @@ class ElementalCompiler:
   def _compile_node(self, node: Node, ctx: _CompileContext) -> Optional[str]:
     """Compiles a DOM node into a component and returns its ID."""
     if not node.tag.startswith("a2ui-"):
-      return None
+      raise ValueError(
+          f"Invalid element tag '{node.tag}'. Only 'a2ui-*' components are"
+          " supported inside A2UI surfaces."
+      )
 
     # Map kebab-case to PascalCase (e.g., a2ui-text-input -> TextInput)
     comp_name = "".join(
@@ -512,11 +569,21 @@ class ElementalCompiler:
       if parsed_val == "" and prop_name in ["action", "submitAction", "onclick"]:
         continue
 
-      # Drop invalid enum values to prevent schema validation failures from LLM hallucinations
+      # Try case-insensitive matching for enums, raising ValueError if still invalid
       if isinstance(parsed_val, str):
         enum_vals = _get_enum_values(prop_schema)
         if enum_vals is not None and parsed_val not in enum_vals:
-          continue
+          matched = False
+          for ev in enum_vals:
+            if isinstance(ev, str) and ev.lower() == parsed_val.lower():
+              parsed_val = ev
+              matched = True
+              break
+          if not matched:
+            raise ValueError(
+                f"Property '{prop_name}' in component '{comp_name}' has invalid"
+                f" enum value '{parsed_val}'. Valid values: {enum_vals}"
+            )
 
       comp_dict[prop_name] = parsed_val
 

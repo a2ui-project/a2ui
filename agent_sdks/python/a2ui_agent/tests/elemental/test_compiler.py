@@ -264,6 +264,94 @@ class TestElementalCompiler(unittest.TestCase):
         "<html><body><script>console.log('hello');</script></body></html>"
     )
 
+  def test_compile_unknown_html_tag_raises_error(self):
+    html_input = (
+        '<body id="test-surf">\n'
+        '  <a2ui-card id="card_1">\n'
+        '    <div>\n'
+        '      <a2ui-text id="text_1">Hello</a2ui-text>\n'
+        '    </div>\n'
+        '  </a2ui-card>\n'
+        '</body>'
+    )
+    with self.assertRaises(ValueError) as ctx:
+      self.compiler.compile(html_input)
+    self.assertIn("Invalid element tag 'div'", str(ctx.exception))
+
+  def test_compile_case_insensitive_enum_matching(self):
+    # 'align' on Column expects 'center', 'start', 'end'. Test passing 'CENTER' or 'Center'
+    html_input = (
+        '<body id="test-surf">\n'
+        '  <a2ui-column id="col_1" align="CENTER">\n'
+        '    <a2ui-text id="text_1">Hello</a2ui-text>\n'
+        '  </a2ui-column>\n'
+        '</body>'
+    )
+    result = self.compiler.compile(html_input)
+    components = result["createSurface"]["components"]
+    col = components[1]
+    self.assertEqual(col["align"], "center")
+
+  def test_compile_invalid_enum_raises_error(self):
+    html_input = (
+        '<body id="test-surf">\n'
+        '  <a2ui-column id="col_1" align="invalid_alignment">\n'
+        '    <a2ui-text id="text_1">Hello</a2ui-text>\n'
+        '  </a2ui-column>\n'
+        '</body>'
+    )
+    with self.assertRaises(ValueError) as ctx:
+      self.compiler.compile(html_input)
+    self.assertIn("has invalid enum value 'invalid_alignment'", str(ctx.exception))
+
+  def test_compile_unclosed_leaf_tag_autoclose(self):
+    # text_1 is a leaf component inside col_1. It is unclosed.
+    # text_2 is a sibling leaf component.
+    html_input = (
+        '<body id="test-surf">\n'
+        '  <a2ui-card id="card_1">\n'
+        '    <a2ui-column id="col_1">\n'
+        '      <a2ui-text id="text_1">Text 1\n'
+        '      <a2ui-text id="text_2">Text 2</a2ui-text>\n'
+        '    </a2ui-column>\n'
+        '  </a2ui-card>\n'
+        '</body>'
+    )
+    result = self.compiler.compile(html_input)
+    components = result["createSurface"]["components"]
+    # We should have 4 components: text_1, text_2, col_1, card_1 (renamed to root)
+    self.assertEqual(len(components), 4)
+    
+    text_1 = next(c for c in components if c["id"] == "text_1")
+    text_2 = next(c for c in components if c["id"] == "text_2")
+    col_1 = next(c for c in components if c["id"] == "col_1")
+    
+    self.assertEqual(text_1["text"], "Text 1")
+    self.assertEqual(text_2["text"], "Text 2")
+    self.assertEqual(col_1["children"], ["text_1", "text_2"])
+
+  def test_compile_root_component_rename_rewrites_references(self):
+    html_input = (
+        '<body id="test-surf">\n'
+        '  <a2ui-button id="my-special-button" onclick="{Event(\'clicked\', {target: \'my-special-button\'})}">\n'
+        '    <a2ui-text id="text_1">Click me</a2ui-text>\n'
+        '  </a2ui-button>\n'
+        '</body>'
+    )
+    result = self.compiler.compile(html_input)
+    components = result["createSurface"]["components"]
+    btn = next(c for c in components if c["id"] == "root")
+    # Reference in action should be rewritten to 'root'
+    self.assertEqual(
+        btn["action"],
+        {
+            "event": {
+                "name": "clicked",
+                "context": {"target": "root"}
+            }
+        }
+    )
+
 
 if __name__ == "__main__":
   unittest.main()
