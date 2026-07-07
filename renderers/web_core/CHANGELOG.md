@@ -1,5 +1,7 @@
 ## Unreleased
 
+- (v0_8) Export `UserAction` as `ClientEventUserAction` from `types.ts`.
+
 ## 0.10.3
 
 - Added the ability to swap out the signals implementation through the `setSignalImplementation` function.
