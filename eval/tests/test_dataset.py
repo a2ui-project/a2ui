@@ -39,3 +39,20 @@ def test_load_a2ui_dataset(tmp_path):
 def test_load_a2ui_dataset_file_not_found():
     with pytest.raises(FileNotFoundError):
         load_a2ui_dataset("non_existent_file.yaml")
+
+
+def test_load_a2ui_dataset_with_version(tmp_path):
+    d = tmp_path / "sub"
+    d.mkdir()
+    p = d / "dummy_prompts_with_version.yaml"
+    p.write_text("""
+- name: testPrompt
+  description: A test prompt.
+  promptText: "Test input"
+  catalog: "path/{version}/catalog.json"
+""")
+
+    dataset = load_a2ui_dataset(str(p), version="0.9.1")
+
+    assert len(dataset) == 1
+    assert dataset[0].metadata["catalog"] == "path/v0_9_1/catalog.json"

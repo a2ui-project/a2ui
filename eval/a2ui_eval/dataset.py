@@ -27,14 +27,23 @@ from a2ui_eval.shared.utils import GIT_ROOT
 SCHEMA_PATH = GIT_ROOT / 'eval' / 'datasets' / 'dataset_schema.json'
 
 
+def _version_to_dir_name(version: str) -> str:
+    """Converts a version string (e.g., '0.9.1') to a directory name (e.g., 'v0_9_1')."""
+    return 'v' + version.replace('.', '_')
+
+
 def load_a2ui_dataset(
-    file_path: str, default_catalog_path: str | None = None
+    file_path: str,
+    default_catalog_path: str | None = None,
+    version: str | None = None,
 ) -> MemoryDataset:
     """Loads A2UI evaluation samples from a YAML file.
 
     Args:
         file_path: The path to the YAML dataset file.
-        default_catalog_path: The default catalog path to use if not specified in the sample.
+        default_catalog_path: The default catalog path to use if not specified in
+          the sample.
+        version: Optional target version string to substitute into catalog paths.
 
     Returns:
         A MemoryDataset containing the resolved samples.
@@ -55,6 +64,13 @@ def load_a2ui_dataset(
 
     samples = []
     for item in data:
+        catalog_path = (
+            item.get('catalog') or default_catalog_path or DEFAULT_CATALOG_PATH
+        )
+        if version and catalog_path:
+            catalog_path = catalog_path.replace(
+                '{version}', _version_to_dir_name(version)
+            )
         samples.append(
             Sample(
                 input=item['promptText'],
@@ -62,11 +78,7 @@ def load_a2ui_dataset(
                 metadata={
                     'name': item.get('name'),
                     'description': item.get('description'),
-                    'catalog': (
-                        item.get('catalog')
-                        or default_catalog_path
-                        or DEFAULT_CATALOG_PATH
-                    ),
+                    'catalog': catalog_path,
                     'role_description': (
                         item.get('role_description') or DEFAULT_ROLE_DESCRIPTION
                     ),

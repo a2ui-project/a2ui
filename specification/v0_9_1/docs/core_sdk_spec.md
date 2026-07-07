@@ -336,7 +336,7 @@ interface FunctionImplementation extends FunctionApi {
 }
 
 class Catalog<T extends ComponentApi> {
-  readonly id: string; // Unique catalog URI
+  readonly id: string; // Unique catalog ID (string identifier)
   readonly components: ReadonlyMap<string, T>;
   readonly functions?: ReadonlyMap<string, FunctionImplementation>;
   readonly themeSchema?: Schema;
