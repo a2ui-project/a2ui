@@ -29,6 +29,10 @@ export class App implements AfterViewInit {
   protected readonly status = signal<string>('Not connected');
 
   private htmlContent: string | null = null;
+  // Input arguments and result of the tools/call that instantiated the View,
+  // delivered via ui/notifications/tool-input and ui/notifications/tool-result.
+  private toolCallArguments: Record<string, unknown> = {};
+  private toolCallResult: Record<string, unknown> | null = null;
   private messageListenerAdded = false;
   protected readonly mcpAppHtmlUrl = signal<string | null>(null);
   protected readonly isAppLoading = signal<boolean>(false);
@@ -72,7 +76,7 @@ export class App implements AfterViewInit {
             window.location.origin,
           );
         }
-      } else if (data?.method === 'ui/ping') {
+      } else if (data?.method === 'ping') {
         if (data.id && target) {
           target.postMessage(
             {
@@ -90,10 +94,37 @@ export class App implements AfterViewInit {
               jsonrpc: '2.0',
               id: data.id,
               result: {
+                protocolVersion: '2026-01-26',
+                hostInfo: {name: 'a2ui-mcp-apps-host', version: '1.0.0'},
                 hostCapabilities: {
-                  displayModes: ['inline'],
+                  serverTools: {},
+                },
+                hostContext: {
+                  displayMode: 'inline',
+                  availableDisplayModes: ['inline'],
                 },
               },
+            },
+            window.location.origin,
+          );
+        }
+      } else if (data?.method === 'ui/notifications/initialized') {
+        // The host must not message the View before this notification; once it
+        // arrives, deliver the instantiating tool call's input and result.
+        target.postMessage(
+          {
+            jsonrpc: '2.0',
+            method: 'ui/notifications/tool-input',
+            params: {arguments: this.toolCallArguments},
+          },
+          window.location.origin,
+        );
+        if (this.toolCallResult) {
+          target.postMessage(
+            {
+              jsonrpc: '2.0',
+              method: 'ui/notifications/tool-result',
+              params: this.toolCallResult,
             },
             window.location.origin,
           );
@@ -189,6 +220,8 @@ export class App implements AfterViewInit {
         name: toolName,
         arguments: {},
       });
+      this.toolCallArguments = {};
+      this.toolCallResult = result as Record<string, unknown>;
 
       // 3. Extract resource URI
       const resourceContent = (result.content as any[]).find((c: any) => c.type === 'resource');

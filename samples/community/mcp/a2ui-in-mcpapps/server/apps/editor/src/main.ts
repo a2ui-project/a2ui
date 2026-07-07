@@ -233,8 +233,23 @@ export class McpAppRoot implements OnInit, AfterViewInit {
       jsonrpc: '2.0',
       id: 'init-1',
       method: 'ui/initialize',
-      params: {},
+      params: {
+        protocolVersion: '2026-01-26',
+        clientInfo: {name: 'smart-editor-app', version: '1.0.0'},
+        appCapabilities: {availableDisplayModes: ['inline']},
+      },
     });
+
+    const handler = (event: MessageEvent) => {
+      if (event.data.id !== 'init-1') return;
+      window.removeEventListener('message', handler);
+      this.postToParent({
+        jsonrpc: '2.0',
+        method: 'ui/notifications/initialized',
+        params: {},
+      });
+    };
+    window.addEventListener('message', handler);
   }
 
   private setupActionRouting() {
