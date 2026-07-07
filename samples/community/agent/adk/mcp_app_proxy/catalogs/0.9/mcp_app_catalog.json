@@ -22,14 +22,14 @@
             "children": {
               "type": "array",
               "items": {
-                "$ref": "#/$defs/anyComponent"
+                "$ref": "common_types.json#/$defs/ComponentId"
               }
             }
           },
-          "required": ["component"],
-          "additionalProperties": false
+          "required": ["component"]
         }
-      ]
+      ],
+      "unevaluatedProperties": false
     },
     "McpApp": {
       "type": "object",
@@ -59,10 +59,10 @@
               }
             }
           },
-          "required": ["component", "content"],
-          "additionalProperties": false
+          "required": ["component", "content"]
         }
-      ]
+      ],
+      "unevaluatedProperties": false
     },
     "PongScoreBoard": {
       "type": "object",
@@ -85,10 +85,10 @@
               "description": "CPU score value or path."
             }
           },
-          "required": ["component"],
-          "additionalProperties": false
+          "required": ["component"]
         }
-      ]
+      ],
+      "unevaluatedProperties": false
     },
     "PongLayout": {
       "type": "object",
@@ -103,16 +103,16 @@
               "const": "PongLayout"
             },
             "mcpComponent": {
-              "$ref": "#/components/McpApp"
+              "$ref": "common_types.json#/$defs/ComponentId"
             },
             "scoreboardComponent": {
-              "$ref": "#/components/PongScoreBoard"
+              "$ref": "common_types.json#/$defs/ComponentId"
             }
           },
-          "required": ["component"],
-          "additionalProperties": false
+          "required": ["component"]
         }
-      ]
+      ],
+      "unevaluatedProperties": false
     }
   },
   "$defs": {

@@ -94,17 +94,24 @@ class A2uiValidatorWrapperV10:
     common = catalog.common_types_schema
     cat = catalog.catalog_schema
 
-    resources = []
-    for schema in [s2c, common]:
-      if schema and "$id" in schema:
-        resources.append((schema["$id"], Resource.from_contents(schema)))
+    from referencing.jsonschema import DRAFT202012
 
-    if cat and "$id" in cat:
-      resources.append((cat["$id"], Resource.from_contents(cat)))
+    resources = []
+    for schema, filename in [(s2c, "server_to_client.json"), (common, "common_types.json")]:
+      if schema:
+        resources.append((filename, Resource.from_contents(schema, default_specification=DRAFT202012)))
+        if "$id" in schema:
+          resources.append((schema["$id"], Resource.from_contents(schema, default_specification=DRAFT202012)))
+
+    if cat:
+      cat_copy = dict(cat)
       s2c_id = s2c.get("$id", "") if s2c else ""
       if s2c_id:
         resolved_catalog_uri = urljoin(s2c_id, "catalog.json")
-        resources.append((resolved_catalog_uri, Resource.from_contents(cat)))
+        cat_copy["$id"] = resolved_catalog_uri
+        resources.append((resolved_catalog_uri, Resource.from_contents(cat_copy, default_specification=DRAFT202012)))
+      if "$id" in cat:
+        resources.append((cat["$id"], Resource.from_contents(cat, default_specification=DRAFT202012)))
 
     self._registry = Registry().with_resources(resources)
     self._wrapped_schema = {
@@ -186,11 +193,18 @@ class A2uiValidatorWrapperV10:
           self._catalog.common_types_schema,
       ).extract_ref_fields()
 
+      has_create = any(
+          isinstance(m, dict) and "createSurface" in m for m in messages
+      )
+      allow_missing_root = config.allow_missing_root
+      if not has_create and not allow_missing_root:
+        allow_missing_root = True
+
       validate_component_integrity(
           all_components,
           ref_fields,
           allow_dangling_references=config.allow_dangling_references,
-          allow_missing_root=config.allow_missing_root,
+          allow_missing_root=allow_missing_root,
       )
 
       validate_recursion_and_paths(messages)
