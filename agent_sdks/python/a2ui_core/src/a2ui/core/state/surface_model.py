@@ -29,10 +29,10 @@ class SurfaceModel:
         self,
         surface_id: str,
         catalog: Catalog[TComponent, TFunction],
-        theme: Dict[str, Any] = None,
+        theme: Optional[Dict[str, Any]] = None,
         send_data_model: bool = False,
-        data_model: DataModel = None,
-    ):
+        data_model: Optional[DataModel] = None,
+    ) -> None:
         self.id = surface_id
         self.catalog = catalog
         self.theme = theme or {}

@@ -63,17 +63,20 @@ class MessageProcessor:
         self, include_inline_catalogs: bool = False
     ) -> Dict[str, Any]:
         """Aggregates supported catalog schemas into standard A2UI capabilities."""
-        capabilities = {
-            "v0.9": {
-                "supportedCatalogIds": [
-                    c.catalog_id for c in self.catalogs if hasattr(c, "catalog_id")
-                ]
-            }
+        v09_caps: Dict[str, Any] = {
+            "supportedCatalogIds": [
+                cat_id
+                for c in self.catalogs
+                if (cat_id := getattr(c, "catalog_id", None)) is not None
+            ]
         }
+        capabilities: Dict[str, Any] = {"v0.9": v09_caps}
         if include_inline_catalogs:
             # In Python core, we can export direct schemas as inline catalogs
-            capabilities["v0.9"]["inlineCatalogs"] = [
-                c.catalog_schema for c in self.catalogs if hasattr(c, "catalog_schema")
+            v09_caps["inlineCatalogs"] = [
+                schema
+                for c in self.catalogs
+                if (schema := getattr(c, "catalog_schema", None)) is not None
             ]
         return capabilities
 
@@ -117,6 +120,8 @@ class MessageProcessor:
 
     def _process_create_surface(self, payload: Dict[str, Any]) -> None:
         surface_id = payload.get("surfaceId")
+        if not isinstance(surface_id, str):
+            raise ValueError("surfaceId must be a string")
         catalog_id = payload.get("catalogId")
         theme = payload.get("theme", {})
         send_data_model = payload.get("sendDataModel", False)
@@ -152,12 +157,12 @@ class MessageProcessor:
 
     def _process_delete_surface(self, payload: Dict[str, Any]) -> None:
         surface_id = payload.get("surfaceId")
-        if surface_id:
+        if isinstance(surface_id, str):
             self.model.delete_surface(surface_id)
 
     def _process_update_components(self, payload: Dict[str, Any]) -> None:
         surface_id = payload.get("surfaceId")
-        if not surface_id:
+        if not isinstance(surface_id, str):
             return
 
         surface = self.model.get_surface(surface_id)
@@ -216,7 +221,7 @@ class MessageProcessor:
 
     def _process_update_data_model(self, payload: Dict[str, Any]) -> None:
         surface_id = payload.get("surfaceId")
-        if not surface_id:
+        if not isinstance(surface_id, str):
             return
 
         surface = self.model.get_surface(surface_id)

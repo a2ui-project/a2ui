@@ -16,7 +16,7 @@
 from typing import Any, Dict, List, Literal, Optional, Union
 from pydantic import BaseModel, Field, ConfigDict
 from .common_types import StrictBaseModel
-from .constants import SPEC_VERSION
+from .constants import SPEC_VERSION, SPEC_VERSION_TYPE
 
 
 class A2uiClientAction(StrictBaseModel):
@@ -78,12 +78,12 @@ A2uiClientError = Union[A2uiValidationError, A2uiGenericError]
 
 
 class A2uiClientActionMessage(StrictBaseModel):
-    version: Literal[SPEC_VERSION] = SPEC_VERSION
+    version: SPEC_VERSION_TYPE = SPEC_VERSION
     action: A2uiClientAction = Field(...)
 
 
 class A2uiClientErrorMessage(StrictBaseModel):
-    version: Literal[SPEC_VERSION] = SPEC_VERSION
+    version: SPEC_VERSION_TYPE = SPEC_VERSION
     error: A2uiClientError = Field(...)
 
 
@@ -91,7 +91,7 @@ A2uiClientMessage = Union[A2uiClientActionMessage, A2uiClientErrorMessage]
 
 
 class A2uiClientDataModel(StrictBaseModel):
-    version: Literal[SPEC_VERSION] = SPEC_VERSION
+    version: SPEC_VERSION_TYPE = SPEC_VERSION
     surfaces: Dict[str, Dict[str, Any]] = Field(
         ..., description="A map of surface IDs to their current data models."
     )

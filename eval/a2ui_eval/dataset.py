@@ -33,13 +33,17 @@ def _version_to_dir_name(version: str) -> str:
 
 
 def load_a2ui_dataset(
-    file_path: str, default_catalog_path: str | None = None, version: str | None = None
+    file_path: str,
+    default_catalog_path: str | None = None,
+    version: str | None = None,
 ) -> MemoryDataset:
   """Loads A2UI evaluation samples from a YAML file.
 
   Args:
       file_path: The path to the YAML dataset file.
-      default_catalog_path: The default catalog path to use if not specified in the sample.
+      default_catalog_path: The default catalog path to use if not specified in
+        the sample.
+      version: Optional target version string to substitute into catalog paths.
 
   Returns:
       A MemoryDataset containing the resolved samples.
