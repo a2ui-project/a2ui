@@ -43,7 +43,6 @@ from google.adk.a2a.converters import part_converter
 from subagent_route_manager import SubagentRouteManager
 
 from agent import OrchestratorAgent
-import part_converters
 
 logger = logging.getLogger(__name__)
 
@@ -51,13 +50,11 @@ logger = logging.getLogger(__name__)
 class OrchestratorAgentExecutor(A2aAgentExecutor):
     """Orchestrator AgentExecutor."""
 
-    def __init__(self, agent: LlmAgent, agent_card: AgentCard):
-        self._agent_card = agent_card
-        config = A2aAgentExecutorConfig(
-            gen_ai_part_converter=part_converters.convert_genai_part_to_a2a_part,
-            a2a_part_converter=part_converters.convert_a2a_part_to_genai_part,
-            event_converter=self.convert_event_to_a2a_events_and_save_surface_id_to_subagent_name,
-        )
+  def __init__(self, agent: LlmAgent, agent_card: AgentCard):
+    self._agent_card = agent_card
+    config = A2aAgentExecutorConfig(
+        event_converter=self.convert_event_to_a2a_events_and_save_surface_id_to_subagent_name,
+    )
 
         runner = Runner(
             app_name=agent.name,
