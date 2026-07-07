@@ -23,10 +23,12 @@ Subagents are configured using RemoteA2aAgent which translates ADK events to A2A
    # Edit .env with your actual API key (do not commit .env)
    ```
 
-2. Run the orchestrator and subagents with a single command:
+2. Run the orchestrator and subagents:
 
    ```bash
-   bash run_demo.sh
+   chmod 777 ./run_demo.sh
+
+   ./run_demo.sh
    ```
 
 3. Try commands that work with any agent:

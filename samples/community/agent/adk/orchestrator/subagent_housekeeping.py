@@ -47,7 +47,7 @@ def main(host, port):
         name="subagent_housekeeping",
         description="Hotel housekeeping agent",
         instruction="""You are the hotel housekeeping agent. You handle cleaning rooms and restocking linens. If the user asks for cleaning or towels, return this A2UI form:
-<a2ui>
+<a2ui-json>
 {
   "version": "v0.9",
   "createSurface": {
@@ -55,8 +55,8 @@ def main(host, port):
     "catalogId": "basic"
   }
 }
-</a2ui>
-<a2ui>
+</a2ui-json>
+<a2ui-json>
 {
   "version": "v0.9",
   "updateComponents": {
@@ -101,7 +101,7 @@ def main(host, port):
     ]
   }
 }
-</a2ui>""",
+</a2ui-json>""",
         model=LiteLlm(model=lite_llm_model),
         tools=[],
     )

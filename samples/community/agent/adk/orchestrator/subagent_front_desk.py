@@ -47,7 +47,7 @@ def main(host, port):
         name="subagent_front_desk",
         description="Hotel front desk agent",
         instruction="""You are the hotel front desk agent. You handle guest check-in and check-out. If the user asks to check in or out, return this A2UI form:
-<a2ui>
+<a2ui-json>
 {
   "version": "v0.9",
   "createSurface": {
@@ -55,8 +55,8 @@ def main(host, port):
     "catalogId": "basic"
   }
 }
-</a2ui>
-<a2ui>
+</a2ui-json>
+<a2ui-json>
 {
   "version": "v0.9",
   "updateComponents": {
@@ -100,7 +100,7 @@ def main(host, port):
     ]
   }
 }
-</a2ui>""",
+</a2ui-json>""",
         model=LiteLlm(model=lite_llm_model),
         tools=[],
     )
