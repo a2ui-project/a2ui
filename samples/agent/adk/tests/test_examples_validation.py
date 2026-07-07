@@ -62,45 +62,48 @@ SAMPLE_CONFIGS = [
 
 @pytest.mark.parametrize("config", SAMPLE_CONFIGS)
 def test_sample_examples_validation(config):
-  """Validates that all examples for a given sample pass A2UI validation."""
-  do_validate = config.get("validate", True)
-  sample_path = config["path"]
-  os.chdir(sample_path)  # Change to sample dir to resolve relative catalog paths if any
+    """Validates that all examples for a given sample pass A2UI validation."""
+    do_validate = config.get("validate", True)
+    sample_path = config["path"]
+    os.chdir(
+        sample_path
+    )  # Change to sample dir to resolve relative catalog paths if any
 
-  manager = A2uiSchemaManager(
-      VERSION_0_9,
-      catalogs=config["catalogs"],
-      accepts_inline_catalogs=True,
-      schema_modifiers=config["schema_modifiers"],
-  )
+    manager = A2uiSchemaManager(
+        VERSION_0_9,
+        catalogs=config["catalogs"],
+        accepts_inline_catalogs=True,
+        schema_modifiers=config["schema_modifiers"],
+    )
 
-  # Iterate through each catalog and validate its examples
-  for catalog in manager._supported_catalogs:
-    examples_path = manager._catalog_example_paths.get(catalog.catalog_id)
-    if not examples_path:
-      continue
+    # Iterate through each catalog and validate its examples
+    for catalog in manager._supported_catalogs:
+        examples_path = manager._catalog_example_paths.get(catalog.catalog_id)
+        if not examples_path:
+            continue
 
-    # manager.load_examples(catalog, validate=True) returns a combined string.
-    # It internally calls _validate_example which logs warnings on failure.
-    # To strictly fail the test, we want to capture those failures or re-implement.
+        # manager.load_examples(catalog, validate=True) returns a combined string.
+        # It internally calls _validate_example which logs warnings on failure.
+        # To strictly fail the test, we want to capture those failures or re-implement.
 
-    path = Path(examples_path)
-    if not path.is_absolute():
-      path = sample_path / path
+        path = Path(examples_path)
+        if not path.is_absolute():
+            path = sample_path / path
 
-    assert (
-        path.is_dir()
-    ), f"Examples directory not found: {path} for sample {config['name']}"
+        assert (
+            path.is_dir()
+        ), f"Examples directory not found: {path} for sample {config['name']}"
 
-    for filename in os.listdir(path):
-      if filename.endswith(".json"):
-        full_path = path / filename
-        with open(full_path, "r", encoding="utf-8") as f:
-          content = json.load(f)
-          try:
-            if do_validate:
-              catalog.validator.validate(content)
-          except Exception as e:
-            pytest.fail(
-                f"Validation failed for {full_path} in sample {config['name']}: {e}"
-            )
+        for filename in os.listdir(path):
+            if filename.endswith(".json"):
+                full_path = path / filename
+                with open(full_path, "r", encoding="utf-8") as f:
+                    content = json.load(f)
+                    try:
+                        if do_validate:
+                            catalog.validator.validate(content)
+                    except Exception as e:
+                        pytest.fail(
+                            f"Validation failed for {full_path} in sample"
+                            f" {config['name']}: {e}"
+                        )

@@ -186,7 +186,8 @@ class MessageProcessor:
             except Exception as e:
                 err_msg = str(e)
                 raise ValueError(
-                    f"Components validation failed for surface '{surface_id}': {err_msg}"
+                    f"Components validation failed for surface '{surface_id}':"
+                    f" {err_msg}"
                 )
 
         for comp in components:

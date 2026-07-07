@@ -26,64 +26,64 @@ _A2UI_BLOCK_PATTERN = re.compile(
 
 
 def has_a2ui_parts(content: str) -> bool:
-  """Checks if the content has A2UI parts."""
-  return A2UI_OPEN_TAG in content and A2UI_CLOSE_TAG in content
+    """Checks if the content has A2UI parts."""
+    return A2UI_OPEN_TAG in content and A2UI_CLOSE_TAG in content
 
 
 def _sanitize_json_string(json_string: str) -> str:
-  """Sanitizes the JSON string by removing markdown code blocks."""
-  json_string = json_string.strip()
-  if json_string.startswith("```json"):
-    json_string = json_string[len("```json") :]
-  elif json_string.startswith("```"):
-    json_string = json_string[len("```") :]
-  if json_string.endswith("```"):
-    json_string = json_string[: -len("```")]
-  json_string = json_string.strip()
-  return json_string
+    """Sanitizes the JSON string by removing markdown code blocks."""
+    json_string = json_string.strip()
+    if json_string.startswith("```json"):
+        json_string = json_string[len("```json") :]
+    elif json_string.startswith("```"):
+        json_string = json_string[len("```") :]
+    if json_string.endswith("```"):
+        json_string = json_string[: -len("```")]
+    json_string = json_string.strip()
+    return json_string
 
 
 def parse_response(content: str) -> List[ResponsePart]:
-  """
-  Parses the LLM response into a list of ResponsePart objects.
+    """
+    Parses the LLM response into a list of ResponsePart objects.
 
-  Args:
-      content: The raw LLM response.
+    Args:
+        content: The raw LLM response.
 
-  Returns:
-      A list of ResponsePart objects.
+    Returns:
+        A list of ResponsePart objects.
 
-  Raises:
-      ValueError: If no A2UI tags are found or if the JSON part is invalid.
-  """
-  matches = list(_A2UI_BLOCK_PATTERN.finditer(content))
+    Raises:
+        ValueError: If no A2UI tags are found or if the JSON part is invalid.
+    """
+    matches = list(_A2UI_BLOCK_PATTERN.finditer(content))
 
-  if not matches:
-    raise A2uiParseError(
-        f"A2UI tags '{A2UI_OPEN_TAG}' and '{A2UI_CLOSE_TAG}' not found in response."
-    )
+    if not matches:
+        raise A2uiParseError(
+            f"A2UI tags '{A2UI_OPEN_TAG}' and '{A2UI_CLOSE_TAG}' not found in response."
+        )
 
-  response_parts = []
-  last_end = 0
+    response_parts = []
+    last_end = 0
 
-  for match in matches:
-    start, end = match.span()
-    # Text preceding the JSON block
-    text_part = content[last_end:start].strip()
+    for match in matches:
+        start, end = match.span()
+        # Text preceding the JSON block
+        text_part = content[last_end:start].strip()
 
-    # The JSON content within the tags
-    json_string = match.group(1)
-    json_string_cleaned = _sanitize_json_string(json_string)
-    if not json_string_cleaned:
-      raise A2uiParseError("A2UI JSON part is empty.")
+        # The JSON content within the tags
+        json_string = match.group(1)
+        json_string_cleaned = _sanitize_json_string(json_string)
+        if not json_string_cleaned:
+            raise A2uiParseError("A2UI JSON part is empty.")
 
-    json_data = parse_and_fix(json_string_cleaned)
-    response_parts.append(ResponsePart(text=text_part, a2ui_json=json_data))
-    last_end = end
+        json_data = parse_and_fix(json_string_cleaned)
+        response_parts.append(ResponsePart(text=text_part, a2ui_json=json_data))
+        last_end = end
 
-  # Trailing text after the last JSON block
-  trailing_text = content[last_end:].strip()
-  if trailing_text:
-    response_parts.append(ResponsePart(text=trailing_text, a2ui_json=None))
+    # Trailing text after the last JSON block
+    trailing_text = content[last_end:].strip()
+    if trailing_text:
+        response_parts.append(ResponsePart(text=trailing_text, a2ui_json=None))
 
-  return response_parts
+    return response_parts

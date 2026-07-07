@@ -89,12 +89,10 @@ def test_generic_binder_reactive_checks():
         "NumberInput",
         {
             "value": {"path": "/score"},
-            "checks": [
-                {
-                    "condition": {"path": "/score"},
-                    "message": "Score must be non-zero",
-                }
-            ],
+            "checks": [{
+                "condition": {"path": "/score"},
+                "message": "Score must be non-zero",
+            }],
         },
     )
     surface.components_model.add_component(c1)
@@ -211,12 +209,10 @@ def test_generic_binder_checks_validation():
         "btn_1",
         "Button",
         {
-            "checks": [
-                {
-                    "condition": {"path": "/checkbox_state"},
-                    "message": "You must check the box!",
-                }
-            ]
+            "checks": [{
+                "condition": {"path": "/checkbox_state"},
+                "message": "You must check the box!",
+            }]
         },
     )
     surface = SurfaceModel("s1", BasicCatalog(), data_model=data_model)
