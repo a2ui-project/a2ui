@@ -15,6 +15,7 @@
 import json
 import os
 import re
+
 os.environ["A2UI_EXPRESS_ENABLED"] = "true"
 from inspect_ai.solver import Solver, solver, TaskState, Generate
 from inspect_ai.model import ChatMessageSystem, ModelOutput, ChatCompletionChoice, ChatMessageAssistant, ChatMessageUser
@@ -26,12 +27,13 @@ from a2ui.schema.manager import A2uiSchemaManager
 from a2ui.schema.catalog import CatalogConfig
 from ..shared.utils import GIT_ROOT, measured_generate
 
+
 @solver
 def a2ui_express_prompt() -> Solver:
     """Solver to inject A2UI Express prompt contract instructions."""
 
     async def solve(state: TaskState, generate: Generate) -> TaskState:
-        catalog_path = state.metadata['catalog']
+        catalog_path = state.metadata["catalog"]
         resolved_catalog_path = str(GIT_ROOT / catalog_path)
         with open(resolved_catalog_path, "r", encoding="utf-8") as f:
             schema = json.load(f)
@@ -40,7 +42,7 @@ def a2ui_express_prompt() -> Solver:
         prompt = generator.generate_prompt()
         state.messages.insert(0, ChatMessageSystem(content=prompt))
         return state
-        
+
     return solve
 
 
@@ -52,7 +54,7 @@ def compile_express_dsl() -> Solver:
         if not state.output or not state.output.completion:
             return state
 
-        catalog_path = state.metadata['catalog']
+        catalog_path = state.metadata["catalog"]
         resolved_catalog_path = str(GIT_ROOT / catalog_path)
 
         # Initialize the catalog schema validator for parsing
@@ -68,7 +70,7 @@ def compile_express_dsl() -> Solver:
         surface_id_match = re.search(
             r"surface(?:Id|\s+Id)?(?:\s+of)?\s+['\"]([^'\"]+)['\"]",
             prompt_text,
-            re.IGNORECASE
+            re.IGNORECASE,
         )
         surface_id = surface_id_match.group(1) if surface_id_match else "main"
 
@@ -78,12 +80,16 @@ def compile_express_dsl() -> Solver:
             compiled_json = None
             for p in parts:
                 if p.a2ui_json:
-                    compiled_json = p.a2ui_json[0] if isinstance(p.a2ui_json, list) else p.a2ui_json
+                    compiled_json = (
+                        p.a2ui_json[0] if isinstance(p.a2ui_json, list) else p.a2ui_json
+                    )
                     break
-            
+
             if not compiled_json:
-                raise ValueError("No compiled A2UI Express DSL JSON payload found in parsed parts.")
-            
+                raise ValueError(
+                    "No compiled A2UI Express DSL JSON payload found in parsed parts."
+                )
+
             # 2. Validate using catalog schema validator (runs integrity checker too)
             validator.validate([compiled_json])
 
@@ -92,25 +98,33 @@ def compile_express_dsl() -> Solver:
             formatted = f"<a2ui-json>\n{json.dumps(messages, indent=2)}\n</a2ui-json>"
             state.output = ModelOutput(
                 model=state.output.model,
-                choices=[ChatCompletionChoice(message=ChatMessageAssistant(content=formatted))]
+                choices=[
+                    ChatCompletionChoice(
+                        message=ChatMessageAssistant(content=formatted)
+                    )
+                ],
             )
 
         except Exception as e:
             state.output = ModelOutput(
                 model=state.output.model,
-                choices=[ChatCompletionChoice(message=ChatMessageAssistant(
-                    content=f"Compilation/validation failed: {e}\nRaw output:\n{completion}"
-                ))]
+                choices=[
+                    ChatCompletionChoice(
+                        message=ChatMessageAssistant(
+                            content=(
+                                f"Compilation/validation failed: {e}\nRaw"
+                                f" output:\n{completion}"
+                            )
+                        )
+                    )
+                ],
             )
 
         return state
 
     return solve
 
+
 def express_solver() -> list[Solver]:
     """Returns the solver chain for the 'express' evaluation strategy."""
-    return [
-        a2ui_express_prompt(),
-        measured_generate(),
-        compile_express_dsl()
-    ]
+    return [a2ui_express_prompt(), measured_generate(), compile_express_dsl()]
