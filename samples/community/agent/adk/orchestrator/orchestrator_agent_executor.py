@@ -1,51 +1,24 @@
-
-import asyncio
-import json
-import logging
-import os
-import re
-from typing import Any, List, Optional, override
-
-import httpx
-from a2a.client import A2ACardResolver
-from a2a.client.client import Client, Consumer
-from a2a.client.client import ClientConfig as A2AClientConfig
-from a2a.client.client_factory import ClientFactory as A2AClientFactory
-from a2a.client.middleware import ClientCallContext, ClientCallInterceptor
-from a2a.extensions.common import HTTP_EXTENSION_HEADER
-from a2a.server.agent_execution import RequestContext
-from a2a.server.events import Event as A2AEvent
-from a2a.server.events.event_queue import EventQueue
-from a2a.types import AgentCapabilities, AgentCard, AgentExtension
-from a2a.types import TransportProtocol as A2ATransport
-from a2ui.a2a.extension import (
-    A2UI_EXTENSION_BASE_URI,
-    AGENT_EXTENSION_ACCEPTS_INLINE_CATALOGS_KEY,
-    AGENT_EXTENSION_SUPPORTED_CATALOG_IDS_KEY,
-    try_activate_a2ui_extension,
-)
-from a2ui.a2a.parts import is_a2ui_part
-from a2ui.schema.constants import A2UI_CLIENT_CAPABILITIES_KEY
-from google.adk.a2a.converters import event_converter, part_converter
-from google.adk.a2a.converters.request_converter import AgentRunRequest
-from google.adk.a2a.executor.a2a_agent_executor import A2aAgentExecutor, A2aAgentExecutorConfig
-from google.adk.agents.callback_context import CallbackContext
-from google.adk.agents.invocation_context import InvocationContext, new_invocation_context_id
-from google.adk.agents.llm_agent import LlmAgent
-from google.adk.agents.remote_a2a_agent import DEFAULT_TIMEOUT, RemoteA2aAgent, convert_genai_part_to_a2a_part
-from google.adk.artifacts import InMemoryArtifactService
-from google.adk.events.event import Event
+from typing import Optional
+from google.adk.agents.invocation_context import new_invocation_context_id
 from google.adk.events.event_actions import EventActions
+
+from a2a.server.agent_execution import RequestContext
+from google.adk.artifacts import InMemoryArtifactService
+from a2a.server.events.event_queue import EventQueue
 from google.adk.memory.in_memory_memory_service import InMemoryMemoryService
-from google.adk.models.lite_llm import LiteLlm
-from google.adk.models.llm_request import LlmRequest
-from google.adk.models.llm_response import LlmResponse
-from google.adk.planners.built_in_planner import BuiltInPlanner
 from google.adk.runners import Runner
 from google.adk.sessions import InMemorySessionService
-from google.genai import types as genai_types
-
-from subagent_route_manager import SubagentRouteManager
+from google.adk.a2a.converters.request_converter import AgentRunRequest
+from google.adk.a2a.executor.a2a_agent_executor import (
+    A2aAgentExecutorConfig,
+    A2aAgentExecutor,
+)
+from a2ui.a2a.extension import try_activate_a2ui_extension
+from google.adk.a2a.converters import event_converter
+from a2a.server.events import Event as A2AEvent
+from google.adk.events.event import Event
+from google.adk.agents.invocation_context import InvocationContext
+from google.adk.a2a.converters import part_converter
 
 logger = logging.getLogger(__name__)
 
@@ -179,13 +152,12 @@ class OrchestratorAgentExecutor(A2aAgentExecutor):
     return None
 
   @classmethod
-  def create(
+  async def create(
       cls, base_url: str, subagent_urls: List[str]
   ) -> tuple["OrchestratorAgentExecutor", AgentCard]:
     """Creates the OrchestratorAgentExecutor and AgentCard."""
-    orchestrator_agent, agent_card = asyncio.run(
-        cls._build_agent(base_url=base_url, subagent_urls=subagent_urls)
-    )
+    orchestrator_agent, agent_card = await cls._build_agent(base_url=base_url, subagent_urls=subagent_urls)
+    
     return cls(agent=orchestrator_agent, agent_card=agent_card), agent_card
 
   @classmethod

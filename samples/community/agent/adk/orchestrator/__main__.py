@@ -50,8 +50,10 @@ def main(host, port, subagent_urls):
 
         base_url = f"http://{host}:{port}"
 
-    orchestrator_agent_executor, agent_card = OrchestratorAgentExecutor.create(
-        base_url=base_url, subagent_urls=subagent_urls
+    orchestrator_agent_executor, agent_card = asyncio.run(
+        OrchestratorAgentExecutor.create(
+            base_url=base_url, subagent_urls=subagent_urls
+        )
     )
 
     request_handler = DefaultRequestHandler(

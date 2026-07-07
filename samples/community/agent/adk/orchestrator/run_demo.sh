@@ -2,7 +2,7 @@
 # run_demo.sh - run the orchestrator and all 4 subagents with prefixes
 
 # Kill all child processes when this script exits
-trap 'kill $(jobs -p) 2>/dev/null' EXIT
+trap 'kill $(jobs -p) 2>/dev/null' INT TERM EXIT
 
 BLUE='\033[0;34m'
 MAGENTA='\033[0;35m'

@@ -26,7 +26,7 @@ Subagents are configured using RemoteA2aAgent which translates ADK events to A2A
 2. Run the orchestrator and subagents:
 
    ```bash
-   chmod 777 ./run_demo.sh
+   chmod +x ./run_demo.sh
 
    ./run_demo.sh
    ```
