@@ -22,42 +22,44 @@ logger = logging.getLogger(__name__)
 
 
 def get_contact_info(name: str, tool_context: ToolContext, department: str = "") -> str:
-  """Call this tool to get a list of contacts based on a name and optional department.
-  'name' is the person's name to search for.
-  'department' is the optional department to filter by.
-  """
-  logger.info("--- TOOL CALLED: get_contact_info ---")
-  logger.info(f"  - Name: {name}")
-  logger.info(f"  - Department: {department}")
+    """Call this tool to get a list of contacts based on a name and optional department.
+    'name' is the person's name to search for.
+    'department' is the optional department to filter by.
+    """
+    logger.info("--- TOOL CALLED: get_contact_info ---")
+    logger.info(f"  - Name: {name}")
+    logger.info(f"  - Department: {department}")
 
-  results = []
-  try:
-    script_dir = os.path.dirname(__file__)
-    file_path = os.path.join(script_dir, "contact_data.json")
-    with open(file_path) as f:
-      contact_data_str = f.read()
-      all_contacts = json.loads(contact_data_str)
+    results = []
+    try:
+        script_dir = os.path.dirname(__file__)
+        file_path = os.path.join(script_dir, "contact_data.json")
+        with open(file_path) as f:
+            contact_data_str = f.read()
+            all_contacts = json.loads(contact_data_str)
 
-    name_lower = name.lower()
+        name_lower = name.lower()
 
-    dept_lower = department.lower() if department else ""
+        dept_lower = department.lower() if department else ""
 
-    # Filter by name
-    results = [
-        contact for contact in all_contacts if name_lower in contact["name"].lower()
-    ]
+        # Filter by name
+        results = [
+            contact for contact in all_contacts if name_lower in contact["name"].lower()
+        ]
 
-    # If department is provided, filter results further
-    if dept_lower:
-      results = [
-          contact for contact in results if dept_lower in contact["department"].lower()
-      ]
+        # If department is provided, filter results further
+        if dept_lower:
+            results = [
+                contact
+                for contact in results
+                if dept_lower in contact["department"].lower()
+            ]
 
-    logger.info(f"  - Success: Found {len(results)} matching contacts.")
+        logger.info(f"  - Success: Found {len(results)} matching contacts.")
 
-  except FileNotFoundError:
-    logger.error(f"  - Error: contact_data.json not found at {file_path}")
-  except json.JSONDecodeError:
-    logger.error(f"  - Error: Failed to decode JSON from {file_path}")
+    except FileNotFoundError:
+        logger.error(f"  - Error: contact_data.json not found at {file_path}")
+    except json.JSONDecodeError:
+        logger.error(f"  - Error: Failed to decode JSON from {file_path}")
 
-  return json.dumps(results)
+    return json.dumps(results)

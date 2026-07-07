@@ -49,115 +49,116 @@ logger = logging.getLogger(__name__)
 
 
 class OrchestratorAgentExecutor(A2aAgentExecutor):
-  """Orchestrator AgentExecutor."""
+    """Orchestrator AgentExecutor."""
 
-  def __init__(self, agent: LlmAgent, agent_card: AgentCard):
-    self._agent_card = agent_card
-    config = A2aAgentExecutorConfig(
-        gen_ai_part_converter=part_converters.convert_genai_part_to_a2a_part,
-        a2a_part_converter=part_converters.convert_a2a_part_to_genai_part,
-        event_converter=self.convert_event_to_a2a_events_and_save_surface_id_to_subagent_name,
-    )
+    def __init__(self, agent: LlmAgent, agent_card: AgentCard):
+        self._agent_card = agent_card
+        config = A2aAgentExecutorConfig(
+            gen_ai_part_converter=part_converters.convert_genai_part_to_a2a_part,
+            a2a_part_converter=part_converters.convert_a2a_part_to_genai_part,
+            event_converter=self.convert_event_to_a2a_events_and_save_surface_id_to_subagent_name,
+        )
 
-    runner = Runner(
-        app_name=agent.name,
-        agent=agent,
-        artifact_service=InMemoryArtifactService(),
-        session_service=InMemorySessionService(),
-        memory_service=InMemoryMemoryService(),
-    )
+        runner = Runner(
+            app_name=agent.name,
+            agent=agent,
+            artifact_service=InMemoryArtifactService(),
+            session_service=InMemorySessionService(),
+            memory_service=InMemoryMemoryService(),
+        )
 
-    super().__init__(runner=runner, config=config)
+        super().__init__(runner=runner, config=config)
 
-  @classmethod
-  def convert_event_to_a2a_events_and_save_surface_id_to_subagent_name(
-      cls,
-      event: Event,
-      invocation_context: InvocationContext,
-      task_id: Optional[str] = None,
-      context_id: Optional[str] = None,
-      part_converter: part_converter.GenAIPartToA2APartConverter = part_converter.convert_genai_part_to_a2a_part,
-  ) -> List[A2AEvent]:
-    a2a_events = event_converter.convert_event_to_a2a_events(
-        event,
-        invocation_context,
-        task_id,
-        context_id,
-        part_converter,
-    )
+    @classmethod
+    def convert_event_to_a2a_events_and_save_surface_id_to_subagent_name(
+        cls,
+        event: Event,
+        invocation_context: InvocationContext,
+        task_id: Optional[str] = None,
+        context_id: Optional[str] = None,
+        part_converter: part_converter.GenAIPartToA2APartConverter = part_converter.convert_genai_part_to_a2a_part,
+    ) -> List[A2AEvent]:
+        a2a_events = event_converter.convert_event_to_a2a_events(
+            event,
+            invocation_context,
+            task_id,
+            context_id,
+            part_converter,
+        )
 
-    for a2a_event in a2a_events:
-      # Try to populate subagent agent card if available.
-      subagent_card = None
-      if active_subagent_name := event.author:
-        # We need to find the subagent by name
-        if subagent := next(
-            (
-                sub
-                for sub in invocation_context.agent.sub_agents
-                if sub.name == active_subagent_name
-            ),
-            None,
-        ):
-          try:
-            subagent_card = json.loads(subagent.description)
-          except Exception:
-            logger.warning(
-                f"Failed to parse agent description for {active_subagent_name}"
+        for a2a_event in a2a_events:
+            # Try to populate subagent agent card if available.
+            subagent_card = None
+            if active_subagent_name := event.author:
+                # We need to find the subagent by name
+                if subagent := next(
+                    (
+                        sub
+                        for sub in invocation_context.agent.sub_agents
+                        if sub.name == active_subagent_name
+                    ),
+                    None,
+                ):
+                    try:
+                        subagent_card = json.loads(subagent.description)
+                    except Exception:
+                        logger.warning(
+                            "Failed to parse agent description for"
+                            f" {active_subagent_name}"
+                        )
+            if subagent_card:
+                if a2a_event.metadata is None:
+                    a2a_event.metadata = {}
+                a2a_event.metadata["a2a_subagent"] = subagent_card
+
+            for a2a_part in a2a_event.status.message.parts:
+                if (
+                    is_a2ui_part(a2a_part)
+                    and (begin_rendering := a2a_part.root.data.get("beginRendering"))
+                    and (surface_id := begin_rendering.get("surfaceId"))
+                ):
+                    asyncio.run_coroutine_threadsafe(
+                        SubagentRouteManager.set_route_to_subagent_name(
+                            surface_id,
+                            event.author,
+                            invocation_context.session_service,
+                            invocation_context.session,
+                        ),
+                        asyncio.get_event_loop(),
+                    )
+
+        return a2a_events
+
+    @override
+    async def _prepare_session(
+        self,
+        context: RequestContext,
+        run_request: AgentRunRequest,
+        runner: Runner,
+    ):
+        session = await super()._prepare_session(context, run_request, runner)
+
+        active_ui_version = try_activate_a2ui_extension(context, self._agent_card)
+        if active_ui_version:
+            client_capabilities = (
+                context.message.metadata.get(A2UI_CLIENT_CAPABILITIES_KEY)
+                if context.message and context.message.metadata
+                else None
             )
-      if subagent_card:
-        if a2a_event.metadata is None:
-          a2a_event.metadata = {}
-        a2a_event.metadata["a2a_subagent"] = subagent_card
 
-      for a2a_part in a2a_event.status.message.parts:
-        if (
-            is_a2ui_part(a2a_part)
-            and (begin_rendering := a2a_part.root.data.get("beginRendering"))
-            and (surface_id := begin_rendering.get("surfaceId"))
-        ):
-          asyncio.run_coroutine_threadsafe(
-              SubagentRouteManager.set_route_to_subagent_name(
-                  surface_id,
-                  event.author,
-                  invocation_context.session_service,
-                  invocation_context.session,
-              ),
-              asyncio.get_event_loop(),
-          )
+            await runner.session_service.append_event(
+                session,
+                Event(
+                    invocation_id=new_invocation_context_id(),
+                    author="system",
+                    actions=EventActions(
+                        state_delta={
+                            # These values are used to configure A2UI messages to remote agent calls
+                            "active_ui_version": active_ui_version,
+                            "client_capabilities": client_capabilities,
+                        }
+                    ),
+                ),
+            )
 
-    return a2a_events
-
-  @override
-  async def _prepare_session(
-      self,
-      context: RequestContext,
-      run_request: AgentRunRequest,
-      runner: Runner,
-  ):
-    session = await super()._prepare_session(context, run_request, runner)
-
-    active_ui_version = try_activate_a2ui_extension(context, self._agent_card)
-    if active_ui_version:
-      client_capabilities = (
-          context.message.metadata.get(A2UI_CLIENT_CAPABILITIES_KEY)
-          if context.message and context.message.metadata
-          else None
-      )
-
-      await runner.session_service.append_event(
-          session,
-          Event(
-              invocation_id=new_invocation_context_id(),
-              author="system",
-              actions=EventActions(
-                  state_delta={
-                      # These values are used to configure A2UI messages to remote agent calls
-                      "active_ui_version": active_ui_version,
-                      "client_capabilities": client_capabilities,
-                  }
-              ),
-          ),
-      )
-
-    return session
+        return session

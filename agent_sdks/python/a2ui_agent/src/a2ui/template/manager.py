@@ -18,17 +18,17 @@ from typing import Optional, Any
 
 class A2uiTemplateManager(InferenceStrategy):
 
-  def generate_system_prompt(
-      self,
-      role_description: str,
-      workflow_description: str = "",
-      ui_description: str = "",
-      client_ui_capabilities: Optional[dict[str, Any]] = None,
-      allowed_components: Optional[list[str]] = None,
-      allowed_messages: Optional[list[str]] = None,
-      include_schema: bool = False,
-      include_examples: bool = False,
-      validate_examples: bool = False,
-  ) -> str:
-    # TODO: Implementation logic for Template Manager
-    raise NotImplementedError("This method is not yet implemented.")
+    def generate_system_prompt(
+        self,
+        role_description: str,
+        workflow_description: str = "",
+        ui_description: str = "",
+        client_ui_capabilities: Optional[dict[str, Any]] = None,
+        allowed_components: Optional[list[str]] = None,
+        allowed_messages: Optional[list[str]] = None,
+        include_schema: bool = False,
+        include_examples: bool = False,
+        validate_examples: bool = False,
+    ) -> str:
+        # TODO: Implementation logic for Template Manager
+        raise NotImplementedError("This method is not yet implemented.")

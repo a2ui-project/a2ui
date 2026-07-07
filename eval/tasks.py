@@ -55,59 +55,59 @@ def a2ui_v0_9_1_eval(
     grading_model: str = "google/gemini-3.5-flash",
     strategy: str = "direct",
 ) -> Task:
-  """Evaluation task for A2UI v0.9.1 protocol generation.
+    """Evaluation task for A2UI v0.9.1 protocol generation.
 
-  Args:
-      list_models: Whether to list available Gemini models and exit.
-      grading_model: The model to use for LLM-as-a-judge grading.
-      strategy: The evaluation strategy to use (e.g., 'direct').
+    Args:
+        list_models: Whether to list available Gemini models and exit.
+        grading_model: The model to use for LLM-as-a-judge grading.
+        strategy: The evaluation strategy to use (e.g., 'direct').
 
-  Returns:
-      An Inspect Task object configured for A2UI v0.9.1 evaluation.
-  """
+    Returns:
+        An Inspect Task object configured for A2UI v0.9.1 evaluation.
+    """
 
-  if list_models:
-    client = genai.Client()
-    print("\nAvailable Gemini Models:")
-    try:
-      for m in client.models.list():
-        print(f"- {m.name}")
-    except errors.APIError as e:
-      print(f"Error listing models: {e}")
+    if list_models:
+        client = genai.Client()
+        print("\nAvailable Gemini Models:")
+        try:
+            for m in client.models.list():
+                print(f"- {m.name}")
+        except errors.APIError as e:
+            print(f"Error listing models: {e}")
 
-    @scorer(metrics=[])
-    def dummy_scorer():
-      async def score(state, target):  # pylint: disable=unused-argument
-        return Score(value=1.0, explanation="Dummy pass")
+        @scorer(metrics=[])
+        def dummy_scorer():
+            async def score(state, target):  # pylint: disable=unused-argument
+                return Score(value=1.0, explanation="Dummy pass")
 
-      return score
+            return score
 
-    return Task(
-        dataset=MemoryDataset(samples=[Sample(input="dummy", target="dummy")]),
-        solver=[],
-        scorer=[dummy_scorer()],
+        return Task(
+            dataset=MemoryDataset(samples=[Sample(input="dummy", target="dummy")]),
+            solver=[],
+            scorer=[dummy_scorer()],
+        )
+
+    active_dataset_path = DATASET_PATH
+    active_version = "0.9.1"
+    default_catalog_path = "specification/v0_9_1/catalogs/basic/catalog.json"
+
+    dataset = load_a2ui_dataset(
+        str(active_dataset_path),
+        default_catalog_path=default_catalog_path,
+        version=active_version,
     )
 
-  active_dataset_path = DATASET_PATH
-  active_version = "0.9.1"
-  default_catalog_path = "specification/v0_9_1/catalogs/basic/catalog.json"
-
-  dataset = load_a2ui_dataset(
-      str(active_dataset_path),
-      default_catalog_path=default_catalog_path,
-      version=active_version,
-  )
-
-  return Task(
-      dataset=dataset,
-      solver=get_solver(strategy, version=active_version),
-      scorer=[
-          a2ui_scorer(version=active_version),
-          measured_model_graded_qa(
-              model=grading_model, instructions=GRADER_INSTRUCTIONS
-          ),
-      ],
-  )
+    return Task(
+        dataset=dataset,
+        solver=get_solver(strategy, version=active_version),
+        scorer=[
+            a2ui_scorer(version=active_version),
+            measured_model_graded_qa(
+                model=grading_model, instructions=GRADER_INSTRUCTIONS
+            ),
+        ],
+    )
 
 
 @task
@@ -116,56 +116,56 @@ def a2ui_v1_0_eval(
     grading_model: str = "google/gemini-3.5-flash",
     strategy: str = "express",
 ) -> Task:
-  """Evaluation task for A2UI v1.0 protocol generation.
+    """Evaluation task for A2UI v1.0 protocol generation.
 
-  Args:
-      list_models: Whether to list available Gemini models and exit.
-      grading_model: The model to use for LLM-as-a-judge grading.
-      strategy: The evaluation strategy to use (e.g., 'express').
+    Args:
+        list_models: Whether to list available Gemini models and exit.
+        grading_model: The model to use for LLM-as-a-judge grading.
+        strategy: The evaluation strategy to use (e.g., 'express').
 
-  Returns:
-      An Inspect Task object configured for A2UI v1.0 evaluation.
-  """
+    Returns:
+        An Inspect Task object configured for A2UI v1.0 evaluation.
+    """
 
-  if list_models:
-    client = genai.Client()
-    print("\nAvailable Gemini Models:")
-    try:
-      for m in client.models.list():
-        print(f"- {m.name}")
-    except errors.APIError as e:
-      print(f"Error listing models: {e}")
+    if list_models:
+        client = genai.Client()
+        print("\nAvailable Gemini Models:")
+        try:
+            for m in client.models.list():
+                print(f"- {m.name}")
+        except errors.APIError as e:
+            print(f"Error listing models: {e}")
 
-    @scorer(metrics=[])
-    def dummy_scorer():
-      async def score(state, target):  # pylint: disable=unused-argument
-        return Score(value=1.0, explanation="Dummy pass")
+        @scorer(metrics=[])
+        def dummy_scorer():
+            async def score(state, target):  # pylint: disable=unused-argument
+                return Score(value=1.0, explanation="Dummy pass")
 
-      return score
+            return score
 
-    return Task(
-        dataset=MemoryDataset(samples=[Sample(input="dummy", target="dummy")]),
-        solver=[],
-        scorer=[dummy_scorer()],
+        return Task(
+            dataset=MemoryDataset(samples=[Sample(input="dummy", target="dummy")]),
+            solver=[],
+            scorer=[dummy_scorer()],
+        )
+
+    active_dataset_path = DATASET_PATH
+    active_version = "1.0"
+    default_catalog_path = "specification/v1_0/catalogs/basic/catalog.json"
+
+    dataset = load_a2ui_dataset(
+        str(active_dataset_path),
+        default_catalog_path=default_catalog_path,
+        version=active_version,
     )
 
-  active_dataset_path = DATASET_PATH
-  active_version = "1.0"
-  default_catalog_path = "specification/v1_0/catalogs/basic/catalog.json"
-
-  dataset = load_a2ui_dataset(
-      str(active_dataset_path),
-      default_catalog_path=default_catalog_path,
-      version=active_version,
-  )
-
-  return Task(
-      dataset=dataset,
-      solver=get_solver(strategy, version=active_version),
-      scorer=[
-          a2ui_scorer(version=active_version),
-          measured_model_graded_qa(
-              model=grading_model, instructions=GRADER_INSTRUCTIONS
-          ),
-      ],
-  )
+    return Task(
+        dataset=dataset,
+        solver=get_solver(strategy, version=active_version),
+        scorer=[
+            a2ui_scorer(version=active_version),
+            measured_model_graded_qa(
+                model=grading_model, instructions=GRADER_INSTRUCTIONS
+            ),
+        ],
+    )

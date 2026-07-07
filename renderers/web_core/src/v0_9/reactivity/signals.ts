@@ -51,7 +51,7 @@ let setValueImpl: SignalImplementations['setValue'];
 let peekValueImpl: SignalImplementations['peekValue'];
 
 /** Default signal implementations. Exported only for testing purposes. */
-export const PREACT_SIGNAL_IMPLEMENTATION: SignalImplementations = {
+export const _PRIVATE_DEFAULT_SIGNAL_IMPLEMENTATION: SignalImplementations = {
   signal: preactSignal as SignalImplementations['signal'],
   computed: preactComputed as SignalImplementations['computed'],
   effect: preactEffect as SignalImplementations['effect'],
@@ -67,7 +67,7 @@ export const PREACT_SIGNAL_IMPLEMENTATION: SignalImplementations = {
   peekValue: <T>(signal: Signal<T>): T => (signal as PreactSignal<T>).peek(),
 };
 
-setSignalImplementation(PREACT_SIGNAL_IMPLEMENTATION);
+setSignalImplementation(_PRIVATE_DEFAULT_SIGNAL_IMPLEMENTATION);
 
 /**
  * Sets the implementations of the various signal-related functions.
