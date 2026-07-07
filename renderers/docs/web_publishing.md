@@ -193,17 +193,10 @@ Googlers can visit [go/a2ui-oss-exit-gate-artifacts](https://go/a2ui-oss-exit-ga
 
 ---
 
-## 🔖 Post-Publish
+## ✅ Post-Publish Verification
 
-1. Tag the release (replace with actual version):
-   ```sh
-   git tag v0.8.0
-   ```
-2. Push the tag:
-   ```sh
-   git push origin v0.8.0
-   ```
-3. Create a GitHub Release mapping to the new tag.
+1. Verify that your package version is uploaded to the internal Artifact Registry staging environment.
+2. Monitor the email notification from the OSS Exit Gate infrastructure confirming that public publication to npmjs.com has succeeded.
 
 ## Troubleshooting
 

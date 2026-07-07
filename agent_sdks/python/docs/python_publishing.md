@@ -19,22 +19,18 @@ Version numbers follow Semantic Versioning (`MAJOR.MINOR.PATCH`).
 
 ## 2. PyPI Changelog Integration & Metadata
 
-PyPI packages surface release notes through two complementary standard practices:
+PyPI packages surface release notes via **`[project.urls]` in `pyproject.toml` (PyPI Sidebar Link)**:
 
-1. **`[project.urls]` in `pyproject.toml` (PyPI Sidebar Link)**:
-   Each package's `pyproject.toml` specifies a direct link to its `CHANGELOG.md` file on GitHub:
+Each package's `pyproject.toml` specifies a direct link to its `CHANGELOG.md` file on GitHub:
 
-   ```toml
-   [project.urls]
-   Homepage = "https://a2ui.org/"
-   Repository = "https://github.com/a2ui-project/a2ui"
-   Changelog = "https://github.com/a2ui-project/a2ui/blob/main/agent_sdks/python/a2ui_agent/CHANGELOG.md"
-   ```
+```toml
+[project.urls]
+Homepage = "https://a2ui.org/"
+Repository = "https://github.com/a2ui-project/a2ui"
+Changelog = "https://github.com/a2ui-project/a2ui/blob/main/agent_sdks/python/a2ui_agent/CHANGELOG.md"
+```
 
-   This renders a prominent **Changelog** link in PyPI's project navigation sidebar.
-
-2. **GitHub Releases (`gh release create`)**:
-   When pushing a new release tag, the version notes from `CHANGELOG.md` are pushed directly to GitHub Releases, providing formatted release notes for subscribers.
+This renders a prominent **Changelog** link in PyPI's project navigation sidebar.
 
 ---
 
@@ -87,15 +83,9 @@ Python package releases are driven by [agent_sdks/python/release.sh](../release.
 
 ---
 
-## 5. GitHub Tagging & Release
+## 5. Post-Release Verification
 
 After running `release.sh`:
 
-```bash
-# Push release tag
-git tag vX.Y.Z
-git push origin vX.Y.Z
-
-# Publish GitHub Release
-gh release create vX.Y.Z --title "vX.Y.Z" --notes-file agent_sdks/python/a2ui_agent/CHANGELOG.md
-```
+1. Verify that the version has been uploaded to the staging repository in Google Artifact Registry.
+2. Monitor the OSS Exit Gate email notification or verify publication on public PyPI (`pypi.org`).

@@ -1,6 +1,6 @@
 ---
 name: a2ui-release-sdks
-description: Multi-stage automated release workflow for A2UI Python and TypeScript SDKs. Handles version checking, changelog formatting, version bump PR creation, build staging, Exit Gate manifest uploads, and GitHub release tagging.
+description: Multi-stage automated release workflow for A2UI Python and TypeScript SDKs. Handles version checking, changelog formatting, version bump PR creation, build staging, and Exit Gate manifest uploads.
 ---
 
 # A2UI SDK & Package Release Skill
@@ -34,9 +34,9 @@ The release workflow operates across three distinct phases. An agent must first 
   │ 1. Create branch     │     │ 1. Report PR status  │     │ 1. Run test suite    │
   │ 2. Update CHANGELOG  │     │ 2. Provide URL link  │     │ 2. Run release script│
   │ 3. Bump version     │     │ 3. Prompt user to    │     │ 3. Upload manifest   │
-  │ 4. Run tests        │     │    merge before      │     │ 4. Push git tag      │
-  │ 5. Open GitHub PR   │     │    continuing        │     │ 5. Create GH Release │
-  └──────────────────────┘     └──────────────────────┘     └──────────────────────┘
+  │ 4. Run tests        │     │    merge before      │     └──────────────────────┘
+  │ 5. Open GitHub PR   │     │    continuing        │
+  └──────────────────────┘     └──────────────────────┘
 ```
 
 ---
@@ -80,7 +80,7 @@ gh pr list --search "bump version" --json number,title,url,headRefName,state
 - **State A**: Repo version equals published registry version AND no unreleased commits exist on `main` $\rightarrow$ Exit cleanly: "Everything is up-to-date and published."
 - **State B (State 1)**: Unreleased commits exist AND repo version equals published registry version $\rightarrow$ Proceed to **Phase 1 (Version Bump PR)**.
 - **State C (State 2)**: An open version bump PR exists on GitHub $\rightarrow$ Report PR status and link to user: "Release PR #123 is currently open. Please merge it to proceed with publishing."
-- **State D (State 3)**: Current branch is `main` AND repo version is strictly greater than published registry version (Version bump PR was merged) $\rightarrow$ Proceed to **Phase 2 (Staging, Publishing & Tagging)**.
+- **State D (State 3)**: Current branch is `main` AND repo version is strictly greater than published registry version (Version bump PR was merged) $\rightarrow$ Proceed to **Phase 2 (Staging & Publishing)**.
 
 ---
 
@@ -99,7 +99,7 @@ gh pr list --search "bump version" --json number,title,url,headRefName,state
    - Locate package `CHANGELOG.md` (e.g., `agent_sdks/python/a2ui_agent/CHANGELOG.md` or `renderers/web_core/CHANGELOG.md`).
    - Rename `## Unreleased` section to `## <new_version>` and insert a new `## Unreleased` section above it.
    - **Handling Empty Unreleased Sections**: If `## Unreleased` has no specific entries:
-     - Ask the maintainer/user if they would like to review commits (`git log <last_tag>..HEAD`) and add items.
+     - Ask the maintainer/user if they would like to review commits (`git log -n 20` or commits since the last version bump) and add items.
      - If no specific items are requested, proceed with fallback release notes:
        ```markdown
        - Miscellaneous bug fixes and performance improvements.
@@ -120,7 +120,7 @@ gh pr list --search "bump version" --json number,title,url,headRefName,state
 
 ---
 
-### Phase 2: Staging, Publishing & Tagging (State 3)
+### Phase 2: Staging & Publishing (State 3)
 
 Run this phase once the Version Bump PR has landed in `main`:
 
@@ -140,9 +140,6 @@ Run this phase once the Version Bump PR has landed in `main`:
      ./renderers/scripts/publish_npm.mjs --no-dry-run
      ./renderers/scripts/upload_manifest.mjs --no-dry-run
      ```
-3. **Git Release Tagging & GitHub Release**:
-   ```bash
-   git tag v<new_version>
-   git push origin v<new_version>
-   gh release create v<new_version> --title "v<new_version>" --notes-file <path_to_package_CHANGELOG.md>
-   ```
+3. **Post-Release Verification**:
+   - Verify artifacts in Google Artifact Registry staging repository.
+   - Monitor OSS Exit Gate email notification or check publication on public registries (`pypi.org` / `npmjs.com`).
