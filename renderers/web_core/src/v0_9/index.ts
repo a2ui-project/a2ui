@@ -48,6 +48,7 @@ export {
   isSignal,
   setValue,
   setSignalImplementation,
+  _PRIVATE_DEFAULT_SIGNAL_IMPLEMENTATION,
   type SignalImplementations,
 } from './reactivity/signals.js';
 

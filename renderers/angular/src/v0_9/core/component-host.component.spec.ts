@@ -19,7 +19,8 @@ import {By} from '@angular/platform-browser';
 import {ComponentHostComponent} from './component-host.component';
 import {A2uiRendererService} from './a2ui-renderer.service';
 import {ComponentModel, SurfaceComponentsModel, SurfaceModel} from '@a2ui/web_core/v0_9';
-import {Component, Input} from '@angular/core';
+import {Component, EnvironmentInjector, Input} from '@angular/core';
+import {initializeAngularReactivity} from './reactivity';
 
 @Component({
   selector: 'test-child',
@@ -64,10 +65,12 @@ describe('ComponentHostComponent', () => {
       surfaceGroup: mockSurfaceGroup,
     };
 
-    await TestBed.configureTestingModule({
+    TestBed.configureTestingModule({
       imports: [ComponentHostComponent],
       providers: [{provide: A2uiRendererService, useValue: mockRendererService}],
-    }).compileComponents();
+    });
+
+    initializeAngularReactivity(TestBed.inject(EnvironmentInjector));
 
     fixture = TestBed.createComponent(ComponentHostComponent);
     component = fixture.componentInstance;

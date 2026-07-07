@@ -63,7 +63,6 @@ __metadata:
     "@angular/compiler-cli": "npm:^21.2.5"
     "@angular/core": "npm:^21.2.5"
     "@angular/platform-browser": "npm:^21.2.5"
-    "@preact/signals-core": "npm:^1.14.2"
     "@types/express": "npm:^5.0.6"
     "@types/jasmine": "npm:^6.0.0"
     "@types/node": "npm:^25.9.3"
