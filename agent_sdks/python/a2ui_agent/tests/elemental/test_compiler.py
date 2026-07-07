@@ -43,7 +43,7 @@ class TestElementalCompiler(unittest.TestCase):
         self.compiler = ElementalCompiler(self.catalog)
 
     def test_compile_delete_surface(self):
-        html_input = '<a2ui-delete-surface surface-id="dashboard-surface-1" />'
+        html_input = '<ui-delete-surface surface-id="dashboard-surface-1" />'
         result = self.compiler.compile(html_input)
         expected = {
             "version": "v1.0",
@@ -53,7 +53,7 @@ class TestElementalCompiler(unittest.TestCase):
 
     def test_compile_call_function(self):
         html_input = (
-            '<a2ui-call-function id="call_1" name="openUrl" url="https://example.com"'
+            '<ui-call-function id="call_1" name="openUrl" url="https://example.com"'
             ' want-response="{true}" />'
         )
         result = self.compiler.compile(html_input)
@@ -99,9 +99,9 @@ class TestElementalCompiler(unittest.TestCase):
             '      "title": "Hello World"\n'
             "    }\n"
             "  </script>\n"
-            '  <a2ui-card id="comp_0" weight="{4}">\n'
-            '    <a2ui-text id="comp_1">{$/title}</a2ui-text>\n'
-            "  </a2ui-card>\n"
+            '  <ui-card id="comp_0" weight="{4}">\n'
+            '    <ui-text id="comp_1">{$/title}</ui-text>\n'
+            "  </ui-card>\n"
             "</body>"
         )
         result = self.compiler.compile(html_input)
@@ -130,7 +130,7 @@ class TestElementalCompiler(unittest.TestCase):
         # ChoicePicker is the dropdown component in the basic catalog
         html_input = (
             '<body id="test-surf">\n'
-            "  <a2ui-choice-picker id=\"picker_1\" options=\"{['Red', 'Blue']}\" />\n"
+            "  <ui-choice-picker id=\"picker_1\" options=\"{['Red', 'Blue']}\" />\n"
             "</body>"
         )
         result = self.compiler.compile(html_input)
@@ -149,14 +149,14 @@ class TestElementalCompiler(unittest.TestCase):
         # Test script slot using ChoicePicker options (where label and value differ in case)
         html_input = (
             '<body id="test-surf">\n'
-            '  <a2ui-choice-picker id="picker_1">\n'
+            '  <ui-choice-picker id="picker_1">\n'
             '    <script type="application/json" slot="options">\n'
             "      [\n"
             '        {"label": "Red", "value": "red"},\n'
             '        {"label": "Blue", "value": "blue"}\n'
             "      ]\n"
             "    </script>\n"
-            "  </a2ui-choice-picker>\n"
+            "  </ui-choice-picker>\n"
             "</body>"
         )
         result = self.compiler.compile(html_input)
@@ -174,9 +174,9 @@ class TestElementalCompiler(unittest.TestCase):
     def test_compile_actions_and_events(self):
         html_input = (
             '<body id="test-surf">\n'
-            '  <a2ui-button id="btn_1" onclick="{Event(\'submit\', {id: 123})}">\n'
-            '    <a2ui-text id="text_1">Submit</a2ui-text>\n'
-            "  </a2ui-button>\n"
+            '  <ui-button id="btn_1" onclick="{Event(\'submit\', {id: 123})}">\n'
+            '    <ui-text id="text_1">Submit</ui-text>\n'
+            "  </ui-button>\n"
             "</body>"
         )
         result = self.compiler.compile(html_input)
@@ -197,7 +197,7 @@ class TestElementalCompiler(unittest.TestCase):
     def test_compile_checks_with_implicit_value(self):
         # TextField is the input component in the basic catalog
         html_input = (
-            '<body id="test-surf">\n  <a2ui-text-field id="input_1" value="{$/dob}"'
+            '<body id="test-surf">\n  <ui-text-field id="input_1" value="{$/dob}"'
             ' checks="{[required()]}" />\n</body>'
         )
         result = self.compiler.compile(html_input)
@@ -219,7 +219,7 @@ class TestElementalCompiler(unittest.TestCase):
 
     def test_compile_checks_with_custom_message(self):
         html_input = (
-            '<body id="test-surf">\n  <a2ui-text-field id="input_1" value="{$/dob}"'
+            '<body id="test-surf">\n  <ui-text-field id="input_1" value="{$/dob}"'
             " checks=\"{[required(message: 'DOB is required')]}\" />\n</body>"
         )
         result = self.compiler.compile(html_input)
@@ -238,7 +238,7 @@ class TestElementalCompiler(unittest.TestCase):
 
     def test_compile_checks_with_condition_custom_message(self):
         html_input = (
-            '<body id="test-surf">\n  <a2ui-text-field id="input_1" value="{$/dob}"'
+            '<body id="test-surf">\n  <ui-text-field id="input_1" value="{$/dob}"'
             " checks=\"{[{condition: required(message: 'DOB is required')}]}\""
             " />\n</body>"
         )
@@ -258,7 +258,7 @@ class TestElementalCompiler(unittest.TestCase):
 
     def test_compile_checks_mixed_positional_named_error(self):
         html_input = (
-            '<body id="test-surf">\n  <a2ui-text-field id="input_1" value="{$/dob}"'
+            '<body id="test-surf">\n  <ui-text-field id="input_1" value="{$/dob}"'
             " checks=\"{[required(1, message: 'DOB is required')]}\" />\n</body>"
         )
         with self.assertRaises(ValueError):
@@ -267,11 +267,11 @@ class TestElementalCompiler(unittest.TestCase):
     def test_compile_list_with_template(self):
         html_input = (
             '<body id="test-surf">\n'
-            '  <a2ui-list id="list_1" path="{$/items}">\n'
+            '  <ui-list id="list_1" path="{$/items}">\n'
             "    <template>\n"
-            '      <a2ui-text id="item_text">{$name}</a2ui-text>\n'
+            '      <ui-text id="item_text">{$name}</ui-text>\n'
             "    </template>\n"
-            "  </a2ui-list>\n"
+            "  </ui-list>\n"
             "</body>"
         )
         result = self.compiler.compile(html_input)
@@ -297,7 +297,7 @@ class TestElementalCompiler(unittest.TestCase):
             '<body id="test-surf">\n  <script type="application/json">\n    {\n     '
             ' "embedded_html":'
             " \"<html><body><script>console.log('hello');</script></body></html>\"\n   "
-            ' }\n  </script>\n  <a2ui-text id="text1" text="{$/embedded_html}"'
+            ' }\n  </script>\n  <ui-text id="text1" text="{$/embedded_html}"'
             " />\n</body>"
         )
         result = self.compiler.compile(html_input)
@@ -309,11 +309,11 @@ class TestElementalCompiler(unittest.TestCase):
     def test_compile_unknown_html_tag_raises_error(self):
         html_input = (
             '<body id="test-surf">\n'
-            '  <a2ui-card id="card_1">\n'
+            '  <ui-card id="card_1">\n'
             "    <div>\n"
-            '      <a2ui-text id="text_1">Hello</a2ui-text>\n'
+            '      <ui-text id="text_1">Hello</ui-text>\n'
             "    </div>\n"
-            "  </a2ui-card>\n"
+            "  </ui-card>\n"
             "</body>"
         )
         with self.assertRaises(ValueError) as ctx:
@@ -324,9 +324,9 @@ class TestElementalCompiler(unittest.TestCase):
         # 'align' on Column expects 'center', 'start', 'end'. Test passing 'CENTER' or 'Center'
         html_input = (
             '<body id="test-surf">\n'
-            '  <a2ui-column id="col_1" align="CENTER">\n'
-            '    <a2ui-text id="text_1">Hello</a2ui-text>\n'
-            "  </a2ui-column>\n"
+            '  <ui-column id="col_1" align="CENTER">\n'
+            '    <ui-text id="text_1">Hello</ui-text>\n'
+            "  </ui-column>\n"
             "</body>"
         )
         result = self.compiler.compile(html_input)
@@ -337,9 +337,9 @@ class TestElementalCompiler(unittest.TestCase):
     def test_compile_invalid_enum_raises_error(self):
         html_input = (
             '<body id="test-surf">\n'
-            '  <a2ui-column id="col_1" align="invalid_alignment">\n'
-            '    <a2ui-text id="text_1">Hello</a2ui-text>\n'
-            "  </a2ui-column>\n"
+            '  <ui-column id="col_1" align="invalid_alignment">\n'
+            '    <ui-text id="text_1">Hello</ui-text>\n'
+            "  </ui-column>\n"
             "</body>"
         )
         with self.assertRaises(ValueError) as ctx:
@@ -351,12 +351,12 @@ class TestElementalCompiler(unittest.TestCase):
         # text_2 is a sibling leaf component.
         html_input = (
             '<body id="test-surf">\n'
-            '  <a2ui-card id="card_1">\n'
-            '    <a2ui-column id="col_1">\n'
-            '      <a2ui-text id="text_1">Text 1\n'
-            '      <a2ui-text id="text_2">Text 2</a2ui-text>\n'
-            "    </a2ui-column>\n"
-            "  </a2ui-card>\n"
+            '  <ui-card id="card_1">\n'
+            '    <ui-column id="col_1">\n'
+            '      <ui-text id="text_1">Text 1\n'
+            '      <ui-text id="text_2">Text 2</ui-text>\n'
+            "    </ui-column>\n"
+            "  </ui-card>\n"
             "</body>"
         )
         result = self.compiler.compile(html_input)
@@ -376,14 +376,14 @@ class TestElementalCompiler(unittest.TestCase):
         # Modal is not a standard container tag but has slot properties (trigger, content)
         html_input = (
             '<body id="test-surf">\n'
-            '  <a2ui-modal id="delete_modal">\n'
-            '    <a2ui-button id="delete_trigger_btn" slot="trigger">\n'
-            '      <a2ui-text id="delete_trigger_text" text="Delete Account" />\n'
-            "    </a2ui-button>\n"
-            '    <a2ui-column id="delete_confirmation_col" slot="content">\n'
-            '      <a2ui-text id="confirm_title" text="# Confirm Account Deletion" />\n'
-            "    </a2ui-column>\n"
-            "  </a2ui-modal>\n"
+            '  <ui-modal id="delete_modal">\n'
+            '    <ui-button id="delete_trigger_btn" slot="trigger">\n'
+            '      <ui-text id="delete_trigger_text" text="Delete Account" />\n'
+            "    </ui-button>\n"
+            '    <ui-column id="delete_confirmation_col" slot="content">\n'
+            '      <ui-text id="confirm_title" text="# Confirm Account Deletion" />\n'
+            "    </ui-column>\n"
+            "  </ui-modal>\n"
             "</body>"
         )
         result = self.compiler.compile(html_input)
@@ -398,9 +398,9 @@ class TestElementalCompiler(unittest.TestCase):
         # 'justify' on Row expects 'spaceBetween'. Test passing 'space-between'
         html_input = (
             '<body id="test-surf">\n'
-            '  <a2ui-row id="row_1" justify="space-between">\n'
-            '    <a2ui-text id="text_1">Hello</a2ui-text>\n'
-            "  </a2ui-row>\n"
+            '  <ui-row id="row_1" justify="space-between">\n'
+            '    <ui-text id="text_1">Hello</ui-text>\n'
+            "  </ui-row>\n"
             "</body>"
         )
         result = self.compiler.compile(html_input)
@@ -411,7 +411,7 @@ class TestElementalCompiler(unittest.TestCase):
     def test_compile_bracket_indexing(self):
         html_input = (
             '<body id="test-surf">\n'
-            '  <a2ui-image id="img_1" url="{$/product/thumbs[0]}" />\n'
+            '  <ui-image id="img_1" url="{$/product/thumbs[0]}" />\n'
             "</body>"
         )
         result = self.compiler.compile(html_input)
@@ -422,9 +422,9 @@ class TestElementalCompiler(unittest.TestCase):
     def test_compile_button_fallback_action(self):
         html_input = (
             '<body id="test-surf">\n'
-            '  <a2ui-button id="btn_1" variant="primary">\n'
-            '    <a2ui-text id="txt_1" text="Submit" />\n'
-            "  </a2ui-button>\n"
+            '  <ui-button id="btn_1" variant="primary">\n'
+            '    <ui-text id="txt_1" text="Submit" />\n'
+            "  </ui-button>\n"
             "</body>"
         )
         result = self.compiler.compile(html_input)
@@ -444,11 +444,11 @@ class TestElementalCompiler(unittest.TestCase):
     def test_compile_list_template_path(self):
         html_input = (
             '<body id="test-surf">\n'
-            '  <a2ui-list id="lst_1">\n'
+            '  <ui-list id="lst_1">\n'
             '    <template path="{$/items}">\n'
-            '      <a2ui-text id="txt_1" text="{$name}" />\n'
+            '      <ui-text id="txt_1" text="{$name}" />\n'
             "    </template>\n"
-            "  </a2ui-list>\n"
+            "  </ui-list>\n"
             "</body>"
         )
         result = self.compiler.compile(html_input)

@@ -54,11 +54,13 @@ def parse_elemental_response(
             content += "\n</body>"
             is_truncated = True
 
-    # Match <body>...</body>, <a2ui-delete-surface.../>, and <a2ui-call-function.../> blocks
+    from .compiler import TAG_PREFIX
+
+    # Match <body>...</body>, <ui-delete-surface.../>, and <ui-call-function.../> blocks
     block_pattern = re.compile(
         r"<body\b[^>]*>.*</body>"
-        r"|<a2ui-delete-surface\b[^>]*>(?:.*?</a2ui-delete-surface>|/>)?"
-        r"|<a2ui-call-function\b[^>]*>(?:.*?</a2ui-call-function>|/>)?",
+        f"|<{TAG_PREFIX}delete-surface\\b[^>]*>(?:.*?</{TAG_PREFIX}delete-surface>|/>)?"
+        f"|<{TAG_PREFIX}call-function\\b[^>]*>(?:.*?</{TAG_PREFIX}call-function>|/>)?",
         re.DOTALL | re.IGNORECASE,
     )
     matches = list(block_pattern.finditer(content))

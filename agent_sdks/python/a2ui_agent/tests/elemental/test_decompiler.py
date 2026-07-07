@@ -49,7 +49,7 @@ class TestElementalDecompiler(unittest.TestCase):
         }
         html_output = decompiler.decompile(envelope)
         self.assertEqual(
-            html_output, '<a2ui-delete-surface surface-id="dashboard-surface-1" />'
+            html_output, '<ui-delete-surface surface-id="dashboard-surface-1" />'
         )
 
     def test_decompile_call_function(self):
@@ -66,7 +66,7 @@ class TestElementalDecompiler(unittest.TestCase):
         html_output = decompiler.decompile(envelope)
         self.assertEqual(
             html_output,
-            '<a2ui-call-function id="call_1" name="openUrl" url="https://example.com"'
+            '<ui-call-function id="call_1" name="openUrl" url="https://example.com"'
             ' want-response="{true}" />',
         )
 
@@ -124,9 +124,9 @@ class TestElementalDecompiler(unittest.TestCase):
             '      "title": "Hello World"\n'
             "    }\n"
             "  </script>\n"
-            '  <a2ui-card id="comp_0" weight="{4}">\n'
-            '    <a2ui-text id="comp_1">{$/title}</a2ui-text>\n'
-            "  </a2ui-card>\n"
+            '  <ui-card id="comp_0" weight="{4}">\n'
+            '    <ui-text id="comp_1">{$/title}</ui-text>\n'
+            "  </ui-card>\n"
             "</body>"
         )
         self.assertEqual(html_output, expected)
@@ -276,11 +276,11 @@ class TestElementalDecompiler(unittest.TestCase):
         }
         html_output = decompiler.decompile(envelope)
         expected_list = (
-            '  <a2ui-list id="list_1" path="{$/items}">\n'
+            '  <ui-list id="list_1" path="{$/items}">\n'
             "    <template>\n"
-            '      <a2ui-text id="item_text">{$name}</a2ui-text>\n'
+            '      <ui-text id="item_text">{$name}</ui-text>\n'
             "    </template>\n"
-            "  </a2ui-list>"
+            "  </ui-list>"
         )
         self.assertIn(expected_list, html_output)
 

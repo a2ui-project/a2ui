@@ -237,7 +237,7 @@ class ElementalPromptGenerator:
                     action_props.append(p)
 
             interface_lines = [
-                f"// Tag: <a2ui-{_to_kebab_case(name)}>",
+                f"// Tag: <ui-{_to_kebab_case(name)}>",
                 f"interface {name} {{",
                 "  id?: string;",
             ]
@@ -362,19 +362,19 @@ Surround the entire output with `<body>` and `</body>` tags, including a `<link 
 
 ## HTML5 Markup Rules
 
-1. **Component Tags**: Use elements prefixed with `a2ui-` in kebab-case (e.g. `<a2ui-card>`).
+1. **Component Tags**: Use elements prefixed with `ui-` in kebab-case (e.g. `<ui-card>`).
 2. **Component IDs**: Provide a unique `id` attribute for every component. The single top-level element MUST have `id="root"`.
 3. **Attributes**: Pass static string values as regular attributes (`variant="primary"`). Wrap numbers, booleans, and expressions in double-quoted curly braces: `elevation="{4}"`, `disabled="{true}"`.
 4. **Data Binding**: Bind data using curly braces prefixed with `$`: `value="{$/user/name}"` (absolute) or `value="{$name}"` (relative in list templates). Use `{$/items/0}` for arrays, never brackets.
 5. **Expressions**: Call catalog functions inside curly braces using named arguments: `text="{formatCurrency(value: $/price, currency: 'USD')}"`.
-6. **Slots & Children**: Nest children inside parent elements. Use the `slot` attribute to specify child properties: `<a2ui-card slot="leading">`.
+6. **Slots & Children**: Nest children inside parent elements. Use the `slot` attribute to specify child properties: `<ui-card slot="leading">`.
 7. **Complex Properties**: For objects/arrays, use `<script type="application/json" slot="prop">`. For HTML/long text, use `<script type="text/html" slot="prop">`.
-8. **Templates**: For dynamic lists, nest child elements inside a `<template>` tag, and specify the bound data array path via the `path` attribute on the list component itself (e.g. `<a2ui-list path="{$/items}"><template>...</template></a2ui-list>`).
+8. **Templates**: For dynamic lists, nest child elements inside a `<template>` tag, and specify the bound data array path via the `path` attribute on the list component itself (e.g. `<ui-list path="{$/items}"><template>...</template></ui-list>`).
 9. **Actions**: Use `on-<property-name>` in kebab-case (e.g. `onclick="{Event('name', {args})}"`). If submitting or validating data, pass the data paths inside the event context dict (e.g. `onclick="{Event('login', {username: $/login/username})}"`).
 10. **Standalone Directives**:
     - Data Initialization: `<script type="application/json">{"data"}</script>` at root of body.
-    - Surface Deletion: `<a2ui-delete-surface surface-id="id" />`.
-    - Standalone Function Call: `<a2ui-call-function id="id" name="func"><script type="application/json" slot="args">{"args"}</script></a2ui-call-function>`.
+    - Surface Deletion: `<ui-delete-surface surface-id="id" />`.
+    - Standalone Function Call: `<ui-call-function id="id" name="func"><script type="application/json" slot="args">{"args"}</script></ui-call-function>`.
 
 ## Component Interfaces
 

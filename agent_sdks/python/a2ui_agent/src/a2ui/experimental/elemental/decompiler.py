@@ -26,6 +26,8 @@ from a2ui.schema.catalog import A2uiCatalog
 from a2ui.experimental.express.schema_helper import CatalogSchemaHelper
 from a2ui.experimental.express.constants import SurfaceOperation
 
+TAG_PREFIX = "ui-"
+
 
 def _is_component_reference_property(prop_schema: Any) -> bool:
     """Checks if a property schema defines a component reference (ComponentId or list of ComponentId)."""
@@ -124,7 +126,7 @@ class ElementalDecompiler:
         if SurfaceOperation.DELETE in envelope_json:
             surf_op = envelope_json[SurfaceOperation.DELETE]
             surface_id = surf_op.get("surfaceId", "")
-            return f'<a2ui-delete-surface surface-id="{surface_id}" />'
+            return f'<{TAG_PREFIX}delete-surface surface-id="{surface_id}" />'
 
         # 2. Handle callFunction
         if SurfaceOperation.CALL_FUNC in envelope_json:
@@ -148,7 +150,7 @@ class ElementalDecompiler:
                 attrs.append('want-response="{true}"')
 
             attrs_str = " ".join(attrs)
-            return f"<a2ui-call-function {attrs_str} />"
+            return f"<{TAG_PREFIX}call-function {attrs_str} />"
 
         # 3. Handle updateDataModel (standalone)
         if SurfaceOperation.UPDATE_DATA in envelope_json:
@@ -230,7 +232,7 @@ class ElementalDecompiler:
             return f'{"  " * indent}<!-- Missing component {comp_id} -->'
 
         comp_name = C["component"]
-        tag_name = f"a2ui-{re.sub(r'(?<!^)(?=[A-Z])', '-', comp_name).lower()}"
+        tag_name = f"{TAG_PREFIX}{re.sub(r'(?<!^)(?=[A-Z])', '-', comp_name).lower()}"
 
         properties = self.helper.get_component_properties(comp_name)
 

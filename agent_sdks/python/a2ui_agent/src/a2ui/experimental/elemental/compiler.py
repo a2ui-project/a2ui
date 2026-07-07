@@ -28,6 +28,8 @@ from a2ui.experimental.express.schema_helper import CatalogSchemaHelper
 from a2ui.experimental.express.constants import SurfaceOperation
 from .expression_parser import ElementalExpressionParser
 
+TAG_PREFIX = "ui-"
+
 
 def _is_action_property(prop_schema: Any) -> bool:
     """Helper to check if a property schema definition represents an Action."""
@@ -72,10 +74,10 @@ class DomBuilder(HTMLParser):
     def handle_starttag(self, tag, attrs):
         tag_lower = tag.lower()
         # Auto-close top of stack if it is a leaf component and we are starting a new component tag
-        if tag_lower.startswith("a2ui-"):
+        if tag_lower.startswith(TAG_PREFIX):
             while (
                 self.stack
-                and self.stack[-1].tag.startswith("a2ui-")
+                and self.stack[-1].tag.startswith(TAG_PREFIX)
                 and self.stack[-1].tag not in self.container_tags
             ):
                 self.stack.pop()
@@ -118,10 +120,10 @@ class DomBuilder(HTMLParser):
 
     def handle_startendtag(self, tag, attrs):
         tag_lower = tag.lower()
-        if tag_lower.startswith("a2ui-"):
+        if tag_lower.startswith(TAG_PREFIX):
             while (
                 self.stack
-                and self.stack[-1].tag.startswith("a2ui-")
+                and self.stack[-1].tag.startswith(TAG_PREFIX)
                 and self.stack[-1].tag not in self.container_tags
             ):
                 self.stack.pop()
@@ -299,7 +301,7 @@ class ElementalCompiler:
             if has_slotted_children:
                 # Convert PascalCase to kebab-case
                 s1 = re.sub("(.)([A-Z][a-z]+)", r"\1-\2", comp_name)
-                kebab_name = "a2ui-" + re.sub("([a-z0-9])([A-Z])", r"\1-\2", s1).lower()
+                kebab_name = TAG_PREFIX + re.sub("([a-z0-9])([A-Z])", r"\1-\2", s1).lower()
                 self.container_tags.add(kebab_name)
 
     def _resolve_action_property_name(self, name: str, properties: List[str]) -> str:
@@ -332,20 +334,20 @@ class ElementalCompiler:
             # If there is a standalone operation inside body, treat it as the root
             standalone = None
             for child in root.children:
-                if child.tag in ["a2ui-delete-surface", "a2ui-call-function"]:
+                if child.tag in [f"{TAG_PREFIX}delete-surface", f"{TAG_PREFIX}call-function"]:
                     standalone = child
                     break
             if standalone:
                 root = standalone
 
-        if root.tag == "a2ui-delete-surface":
+        if root.tag == f"{TAG_PREFIX}delete-surface":
             surf_id = root.attrs.get("surface-id", "")
             return {
                 "version": "v1.0",
                 SurfaceOperation.DELETE: {"surfaceId": surf_id},
             }
 
-        if root.tag == "a2ui-call-function":
+        if root.tag == f"{TAG_PREFIX}call-function":
             call_name = root.attrs.get("name", "")
             func_call_id = root.attrs.get("id", "")
             want_resp_val = root.attrs.get("want-response", "")
@@ -385,8 +387,8 @@ class ElementalCompiler:
 
         if root.tag != "body":
             raise ValueError(
-                "A2UI Elemental document must have a <body>, <a2ui-delete-surface>,"
-                " or <a2ui-call-function> root element."
+                f"A2UI Elemental document must have a <body>, <{TAG_PREFIX}delete-surface>,"
+                f" or <{TAG_PREFIX}call-function> root element."
             )
 
         # 1. Surface ID from body
@@ -425,7 +427,7 @@ class ElementalCompiler:
         # If the document contains ONLY a data model and no components, output updateDataModel
         # Note: we filter out any empty text nodes or non-component nodes
         component_children = [
-            c for c in remaining_children if c.tag.startswith("a2ui-")
+            c for c in remaining_children if c.tag.startswith(TAG_PREFIX)
         ]
 
         if not component_children and data_model:
@@ -440,9 +442,9 @@ class ElementalCompiler:
 
         # 3. Compile components recursively
         for child in remaining_children:
-            if not child.tag.startswith("a2ui-"):
+            if not child.tag.startswith(TAG_PREFIX):
                 raise ValueError(
-                    f"Invalid element tag '{child.tag}' under <body>. Only 'a2ui-*'"
+                    f"Invalid element tag '{child.tag}' under <body>. Only '{TAG_PREFIX}*'"
                     " components are supported inside A2UI surfaces."
                 )
 
@@ -524,15 +526,15 @@ class ElementalCompiler:
 
     def _compile_node(self, node: Node, ctx: _CompileContext) -> Optional[str]:
         """Compiles a DOM node into a component and returns its ID."""
-        if not node.tag.startswith("a2ui-"):
+        if not node.tag.startswith(TAG_PREFIX):
             raise ValueError(
-                f"Invalid element tag '{node.tag}'. Only 'a2ui-*' components are"
+                f"Invalid element tag '{node.tag}'. Only '{TAG_PREFIX}*' components are"
                 " supported inside A2UI surfaces."
             )
 
         # Map kebab-case to PascalCase (e.g., a2ui-text-input -> TextInput)
         comp_name = "".join(
-            word.capitalize() for word in node.tag.replace("a2ui-", "").split("-")
+            word.capitalize() for word in node.tag.replace(TAG_PREFIX, "").split("-")
         )
 
         if comp_name not in self.helper.components:
@@ -747,9 +749,9 @@ class ElementalCompiler:
                     # Extract message if it was incorrectly placed inside the function call dict
                     msg = "Invalid input"
                     if isinstance(fn_args, dict):
-                        msg = fn_args.pop("message", "Invalid input")
+                        msg = fn_args.pop("message", fn_args.pop("errorMessage", "Invalid input"))
                     else:
-                        msg = check.get("message", "Invalid input")
+                        msg = check.pop("message", check.pop("errorMessage", "Invalid input"))
 
                     # Inject sibling value path if "value" is a parameter of the function and is omitted
                     if (
@@ -768,6 +770,8 @@ class ElementalCompiler:
 
                     if "message" in check:
                         del check["message"]
+                    if "errorMessage" in check:
+                        del check["errorMessage"]
 
                     wrapped_checks.append({"condition": check, "message": msg})
                 elif isinstance(check, dict) and "condition" in check:
@@ -780,14 +784,16 @@ class ElementalCompiler:
                         # Extract message if it was incorrectly placed inside the condition function call
                         msg_from_cond = None
                         if isinstance(fn_args, dict):
-                            msg_from_cond = fn_args.pop("message", None)
+                            msg_from_cond = fn_args.pop("message", fn_args.pop("errorMessage", None))
                         if not msg_from_cond:
-                            msg_from_cond = cond.get("message")
+                            msg_from_cond = cond.pop("message", cond.pop("errorMessage", None))
 
                         if msg_from_cond and "message" not in check:
                             check["message"] = msg_from_cond
                         if "message" in cond:
                             del cond["message"]
+                        if "errorMessage" in cond:
+                            del cond["errorMessage"]
 
                         # Inject sibling value path if "value" is a parameter of the function and is omitted
                         if (
