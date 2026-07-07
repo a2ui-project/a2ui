@@ -15,7 +15,7 @@
  */
 
 import {DataModel} from './data-model.js';
-import {Catalog, ComponentApi} from '../catalog/types.js';
+import {Catalog, ComponentApi, FunctionApi, FunctionImplementation} from '../catalog/types.js';
 import {SurfaceComponentsModel} from './surface-components-model.js';
 import {EventEmitter, EventSource} from '../common/events.js';
 import {A2uiClientAction, A2uiClientActionSchema} from '../schema/client-to-server.js';
@@ -30,8 +30,15 @@ export type ActionListener = (action: A2uiClientAction) => void | Promise<void>;
  * It coordinates data binding, component state, and action dispatching.
  *
  * @template T The concrete type of the ComponentApi from the catalog.
+ * @template F The catalog's function kind. Every state and messaging
+ *   capability of the surface works with a schema-only catalog
+ *   (`SurfaceModel<T, FunctionApi>`); only node-tree resolution needs
+ *   implementations, and `NodeResolver` enforces that on its own constructor.
  */
-export class SurfaceModel<T extends ComponentApi = ComponentApi> {
+export class SurfaceModel<
+  T extends ComponentApi = ComponentApi,
+  F extends FunctionApi = FunctionImplementation,
+> {
   /** The data model for this surface. */
   readonly dataModel: DataModel;
   /** The collection of component models for this surface. */
@@ -56,7 +63,7 @@ export class SurfaceModel<T extends ComponentApi = ComponentApi> {
    */
   constructor(
     readonly id: string,
-    readonly catalog: Catalog<T>,
+    readonly catalog: Catalog<T, F>,
     readonly theme: any = {},
     readonly sendDataModel: boolean = false,
   ) {

@@ -109,18 +109,32 @@ export type InferredComponentApiSchemaType<Api extends ComponentApi> = z.infer<A
  *
  * This must declare all publicly accessed properties of Catalog.
  */
-export declare interface CatalogInterface<T extends ComponentApi> {
+export declare interface CatalogInterface<
+  T extends ComponentApi,
+  F extends FunctionApi = FunctionImplementation,
+> {
   readonly id: string;
   readonly components: ReadonlyMap<string, T>;
-  readonly functions: ReadonlyMap<string, FunctionImplementation>;
+  readonly functions: ReadonlyMap<string, F>;
   readonly themeSchema?: z.ZodObject<any>;
   readonly invoker: FunctionInvoker;
 }
 
 /**
  * A collection of available components and functions.
+ *
+ * The `F` parameter distinguishes catalogs that carry executable function
+ * implementations (`FunctionImplementation`, the default and the only kind a
+ * renderer should hold) from schema-only catalogs (`FunctionApi`), whose
+ * functions are signatures loaded from catalog JSON with no code attached.
+ * Consumers that need to execute functions, such as `NodeResolver`, constrain
+ * `F` to `FunctionImplementation` so a schema-only catalog is rejected at
+ * compile time rather than resolving values to `undefined` at runtime.
  */
-export class Catalog<T extends ComponentApi> implements CatalogInterface<T> {
+export class Catalog<
+  T extends ComponentApi,
+  F extends FunctionApi = FunctionImplementation,
+> implements CatalogInterface<T, F> {
   readonly id: string;
 
   /**
@@ -132,7 +146,7 @@ export class Catalog<T extends ComponentApi> implements CatalogInterface<T> {
   /**
    * Map of functions provided by this catalog.
    */
-  readonly functions: ReadonlyMap<string, FunctionImplementation>;
+  readonly functions: ReadonlyMap<string, F>;
 
   /**
    * The schema for theme parameters used by this catalog.
@@ -145,12 +159,7 @@ export class Catalog<T extends ComponentApi> implements CatalogInterface<T> {
    */
   readonly invoker: FunctionInvoker;
 
-  constructor(
-    id: string,
-    components: T[],
-    functions: FunctionImplementation[] = [],
-    themeSchema?: z.ZodObject<any>,
-  ) {
+  constructor(id: string, components: T[], functions: F[] = [], themeSchema?: z.ZodObject<any>) {
     this.id = id;
 
     const compMap = new Map<string, T>();
@@ -159,7 +168,7 @@ export class Catalog<T extends ComponentApi> implements CatalogInterface<T> {
     }
     this.components = compMap;
 
-    const funcMap = new Map<string, FunctionImplementation>();
+    const funcMap = new Map<string, F>();
     for (const fn of functions) {
       funcMap.set(fn.name, fn);
     }
@@ -172,11 +181,18 @@ export class Catalog<T extends ComponentApi> implements CatalogInterface<T> {
       if (!fn) {
         throw new A2uiExpressionError(`Function not found in catalog '${this.id}': ${name}`, name);
       }
+      const execute = (fn as Partial<FunctionImplementation>).execute;
+      if (typeof execute !== 'function') {
+        throw new A2uiExpressionError(
+          `Function '${name}' in catalog '${this.id}' is schema-only and has no implementation.`,
+          name,
+        );
+      }
 
       // Provides runtime safety: Coerces and strips invalid arguments before execute()
       try {
         const safeArgs = fn.schema.parse(rawArgs);
-        return fn.execute(safeArgs, ctx, abortSignal);
+        return execute.call(fn, safeArgs, ctx, abortSignal);
       } catch (e: any) {
         if (e?.name === 'ZodError' || e instanceof z.ZodError) {
           throw new A2uiExpressionError(
