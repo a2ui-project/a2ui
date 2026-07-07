@@ -14,8 +14,6 @@
 
 """Tests for parser helper functions."""
 
-import pytest
-
 from a2ui.parser import parser
 
 
