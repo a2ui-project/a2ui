@@ -129,7 +129,7 @@ export class App implements AfterViewInit {
             window.location.origin,
           );
         }
-      } else if (data?.method === 'ui/resize') {
+      } else if (data?.method === 'ui/notifications/size-changed') {
         const height = data.params?.height;
         if (typeof height === 'number') {
           iframe.style.height = `${height}px`;

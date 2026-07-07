@@ -218,11 +218,11 @@ export class McpAppRoot implements OnInit, AfterViewInit {
 
   private setupResizeObserver() {
     const observer = new ResizeObserver(() => {
-      const height = this.elementRef.nativeElement.scrollHeight;
+      const element = this.elementRef.nativeElement;
       this.postToParent({
         jsonrpc: '2.0',
-        method: 'ui/resize',
-        params: {height},
+        method: 'ui/notifications/size-changed',
+        params: {width: element.scrollWidth, height: element.scrollHeight},
       });
     });
     observer.observe(this.elementRef.nativeElement);
