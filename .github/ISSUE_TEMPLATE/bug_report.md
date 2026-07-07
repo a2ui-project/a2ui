@@ -5,6 +5,7 @@ title: '[BUG]: '
 labels: bug
 assignees: ''
 ---
+- [ ] I have searched the existing issues to make sure this bug has not already been reported.
 
 ## Describe the Bug
 
