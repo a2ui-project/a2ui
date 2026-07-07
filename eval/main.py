@@ -81,8 +81,8 @@ def main():
         type=str,
         action="append",
         help=(
-            "Evaluation strategies to run (choices: direct, subagent_tool, express, elemental). Can"
-            " be comma-separated or specified multiple times."
+            "Evaluation strategies to run (choices: direct, subagent_tool, express,"
+            " elemental). Can be comma-separated or specified multiple times."
         ),
     )
     args = parser.parse_args()

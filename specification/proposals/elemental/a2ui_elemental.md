@@ -23,7 +23,7 @@ A2UI Elemental UI blocks are enclosed in standard `<body>` tags:
 
 ```html
 <body id="notification-card">
-  <link rel="catalog" href="https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json">
+  <link rel="catalog" href="https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json" />
   <!-- UI components go here -->
 </body>
 ```
@@ -79,7 +79,7 @@ To connect properties or text to the application's shared data model, we use the
 - **Expression grammar**: Expressions inside curly braces `{...}` support path bindings, typed literals, nested function calls, array literals, and object literals:
   - **Array literals** are enclosed in square brackets `[...]` (e.g., `checks="{[required(), customCheck(val: 10)]}"`).
   - **Object literals** are enclosed in curly braces `{...}` and contain key-value pairs. If the entire attribute value is an object literal, it results in a double curly brace `{{...}}` pattern (e.g., `context="{{id: 123, user: $/user/name}}"`).
-  - *Example*:
+  - _Example_:
     ```html
     <a2ui-text id="txt_1" text="{formatCurrency(value: $/order/total, currency: 'USD')}" />
     ```
@@ -220,7 +220,7 @@ To populate or initialize values within the shared data model directly from the 
 
 ```html
 <body id="notification-card">
-  <link rel="catalog" href="https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json">
+  <link rel="catalog" href="https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json" />
   <script type="application/json">
     {
       "icon": "check",
@@ -242,7 +242,7 @@ A2UI Elemental is completely catalog-agnostic. The compiler does not hold hardco
 
 ### Automated catalog-to-prompt utility
 
-To instruct the model on the available components and their properties, a host-side utility compiles the active JSON schema catalog into **TypeScript TSX/JSX type definitions**. 
+To instruct the model on the available components and their properties, a host-side utility compiles the active JSON schema catalog into **TypeScript TSX/JSX type definitions**.
 
 Because LLMs are highly proficient at TypeScript and React/JSX, providing the catalog as TSX declarations in the system prompt results in highly accurate code generation:
 
@@ -308,16 +308,16 @@ Because HTML parsers are forgiving, syntax errors are rarely fatal. However, sem
 
 ```html
 <body id="dashboard-surface">
-  <link rel="catalog" href="https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json">
+  <link rel="catalog" href="https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json" />
   <script type="application/json">
     {
       "user": {
         "name": "Jane Doe",
-        "balance": 1250.50
+        "balance": 1250.5
       },
       "transactions": [
-        { "id": "t1", "amount": -50.00, "description": "Grocery Store" },
-        { "id": "t2", "amount": 1200.00, "description": "Payroll" }
+        {"id": "t1", "amount": -50.0, "description": "Grocery Store"},
+        {"id": "t2", "amount": 1200.0, "description": "Payroll"}
       ]
     }
   </script>
@@ -327,7 +327,8 @@ Because HTML parsers are forgiving, syntax errors are rarely fatal. However, sem
         {formatString(value: 'Welcome back, ${/user/name}!')}
       </a2ui-text>
       <a2ui-text id="comp_3" variant="body">
-        {formatString(value: 'Your balance is: ${formatCurrency(value: /user/balance, currency: 'USD')}')}
+        {formatString(value: 'Your balance is: ${formatCurrency(value: /user/balance, currency:
+        'USD')}')}
       </a2ui-text>
       <a2ui-table id="comp_4">
         <script type="application/json" slot="columns">
@@ -340,9 +341,7 @@ Because HTML parsers are forgiving, syntax errors are rarely fatal. However, sem
           <template>
             <a2ui-row id="comp_6">
               <a2ui-text id="comp_7">{$description}</a2ui-text>
-              <a2ui-text id="comp_8">
-                {formatCurrency(value: $amount, currency: 'USD')}
-              </a2ui-text>
+              <a2ui-text id="comp_8"> {formatCurrency(value: $amount, currency: 'USD')} </a2ui-text>
             </a2ui-row>
           </template>
         </a2ui-list>
@@ -445,7 +444,7 @@ Because HTML parsers are forgiving, syntax errors are rarely fatal. However, sem
         "text": {
           "call": "formatCurrency",
           "args": {
-            "value": { "path": "amount" },
+            "value": {"path": "amount"},
             "currency": "USD"
           },
           "returnType": "string"
