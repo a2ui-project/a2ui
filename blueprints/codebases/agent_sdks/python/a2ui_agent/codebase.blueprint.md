@@ -1,5 +1,7 @@
 ---
+codebase_path: agent_sdks/python/a2ui_agent
 associated_module: a2ui_inference
+module_blueprint_commit: null
 implemented_features: []
 local_development:
   test_command: 'uv run pytest'

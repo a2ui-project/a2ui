@@ -19,15 +19,11 @@ on:
     branches: [main]
     paths:
       - "blueprints/**"
-      - "scripts/validate_blueprints.py"
       - ".github/workflows/validate_blueprints.yml"
-      - "**/codebase.blueprint.md"
   pull_request:
     paths:
       - "blueprints/**"
-      - "scripts/validate_blueprints.py"
       - ".github/workflows/validate_blueprints.yml"
-      - "**/codebase.blueprint.md"
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.head_ref || github.run_id }}
@@ -51,4 +47,4 @@ jobs:
           python-version: "3.12"
 
       - name: Run Blueprint Validator
-        run: python3 scripts/validate_blueprints.py
+        run: python3 blueprints/validate_blueprints.py

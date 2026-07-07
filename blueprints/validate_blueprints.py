@@ -103,11 +103,12 @@ def parse_frontmatter(file_path):
         return None, f"Failed to parse YAML frontmatter: {e}"
 
 def main():
-    workspace_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+    blueprints_root = os.path.abspath(os.path.dirname(__file__))
+    workspace_root = os.path.abspath(os.path.join(blueprints_root, '..'))
     errors = []
     
     # 1. Discover and validate Module Blueprints
-    modules_dir = os.path.join(workspace_root, 'blueprints', 'modules')
+    modules_dir = os.path.join(blueprints_root, 'modules')
     module_blueprints = {}
     
     if os.path.exists(modules_dir):
@@ -136,11 +137,10 @@ def main():
     else:
         errors.append(f"Modules directory '{modules_dir}' does not exist")
 
-    # 2. Discover and validate Feature Blueprints
-    features_dir = os.path.join(workspace_root, 'blueprints', 'features')
+    # 2. Discover and validate Feature Blueprints across active and archived folders
+    features_dir = os.path.join(blueprints_root, 'features')
     feature_blueprints = {}
     
-    # We search recursively for *.blueprint.md under blueprints/features/
     if os.path.exists(features_dir):
         for root, _, files in os.walk(features_dir):
             for file in files:
@@ -148,14 +148,13 @@ def main():
                     full_path = os.path.join(root, file)
                     rel_path = os.path.relpath(full_path, features_dir)
                     
-                    # Validate naming convention: YYYY_MM_DD_feature_name.blueprint.md
-                    match = re.match(r'^(\d{4}_\d{2}_\d{2})_([a-z0-9_]+)\.blueprint\.md$', file)
+                    # Validate naming convention: feature_name.blueprint.md (snake_case, no date prefix)
+                    match = re.match(r'^([a-z0-9_]+)\.blueprint\.md$', file)
                     if not match:
-                        errors.append(f"Feature blueprint '{rel_path}': Filename does not follow the required YYYY_MM_DD_feature_name.blueprint.md format")
+                        errors.append(f"Feature blueprint '{rel_path}': Filename does not follow required feature_name.blueprint.md snake_case format (no date prefix)")
                         continue
                         
-                    file_date = match.group(1)
-                    extracted_feature_name = match.group(2)
+                    extracted_feature_name = match.group(1)
                     
                     data, err = parse_frontmatter(full_path)
                     if err:
@@ -180,16 +179,6 @@ def main():
                             if mod_name not in module_blueprints:
                                 errors.append(f"Feature blueprint '{rel_path}': References unknown module blueprint '{mod_name}'")
                                 
-                    type_val = data.get('type')
-                    if type_val is None:
-                        errors.append(f"Feature blueprint '{rel_path}': Missing mandatory 'type' field in frontmatter")
-                    elif type_val not in ('required', 'optional'):
-                        errors.append(f"Feature blueprint '{rel_path}': 'type' field must be 'required' or 'optional'")
-                        
-                    date_added = data.get('date_added')
-                    if not date_added:
-                        errors.append(f"Feature blueprint '{rel_path}': Missing mandatory 'date_added' field in frontmatter")
-                        
                     dependencies = data.get('dependencies')
                     if dependencies is not None:
                         if not isinstance(dependencies, list):
@@ -214,49 +203,58 @@ def main():
             if dep not in feature_blueprints:
                 errors.append(f"Feature blueprint '{feat_info['file']}': Dependency '{dep}' is not a valid feature blueprint in the repository")
     
-    # 3. Discover and validate Codebase Blueprints
+    # 3. Discover and validate Codebase Blueprints confined to blueprints/codebases/
+    codebases_dir = os.path.join(blueprints_root, 'codebases')
     codebase_blueprints = []
-    # Search recursively for codebase.blueprint.md files
-    for root, _, files in os.walk(workspace_root):
-        # Skip common directories to optimize
-        if any(part in root.split(os.sep) for part in ['.git', '.yarn', 'node_modules', 'blueprints', 'specification']):
-            continue
-            
-        if 'codebase.blueprint.md' in files:
-            full_path = os.path.join(root, 'codebase.blueprint.md')
-            rel_dir = os.path.relpath(root, workspace_root)
-            
-            data, err = parse_frontmatter(full_path)
-            if err:
-                errors.append(f"Codebase blueprint in '{rel_dir}': {err}")
-                continue
-                
-            associated_module = data.get('associated_module')
-            if not associated_module:
-                errors.append(f"Codebase blueprint in '{rel_dir}': Missing mandatory 'associated_module' field in frontmatter")
-                continue
-                
-            if associated_module not in module_blueprints:
-                errors.append(f"Codebase blueprint in '{rel_dir}': References unknown associated_module '{associated_module}'")
-                    
-            implemented_features = data.get('implemented_features')
-            if implemented_features is not None:
-                if not isinstance(implemented_features, list):
-                    errors.append(f"Codebase blueprint in '{rel_dir}': 'implemented_features' must be a list of feature names")
-                else:
-                    for feat_name in implemented_features:
-                        if feat_name not in feature_blueprints:
-                            errors.append(f"Codebase blueprint in '{rel_dir}': References unknown implemented feature '{feat_name}'")
-                        else:
-                            # Cross check: The feature blueprint must list the associated module of this codebase
-                            feat_info = feature_blueprints[feat_name]
-                            if associated_module not in feat_info['module_blueprints']:
-                                errors.append(f"Codebase blueprint in '{rel_dir}': Implemented feature '{feat_name}' does not target associated_module '{associated_module}' (targets: {feat_info['module_blueprints']})")
-                                
-            codebase_blueprints.append(rel_dir)
-            
-    # 4. Check that all codebases listed in modules actually exist and have codebase.blueprint.md (covered in part 1)
     
+    if os.path.exists(codebases_dir):
+        for root, _, files in os.walk(codebases_dir):
+            if 'codebase.blueprint.md' in files:
+                full_path = os.path.join(root, 'codebase.blueprint.md')
+                rel_path = os.path.relpath(full_path, blueprints_root)
+                
+                data, err = parse_frontmatter(full_path)
+                if err:
+                    errors.append(f"Codebase blueprint '{rel_path}': {err}")
+                    continue
+                    
+                associated_module = data.get('associated_module')
+                if not associated_module:
+                    errors.append(f"Codebase blueprint '{rel_path}': Missing mandatory 'associated_module' field in frontmatter")
+                    continue
+                    
+                if associated_module not in module_blueprints:
+                    errors.append(f"Codebase blueprint '{rel_path}': References unknown associated_module '{associated_module}'")
+                
+                codebase_path = data.get('codebase_path')
+                if not codebase_path:
+                    errors.append(f"Codebase blueprint '{rel_path}': Missing mandatory 'codebase_path' field in frontmatter")
+                else:
+                    target_dir = os.path.join(workspace_root, codebase_path)
+                    if not os.path.exists(target_dir):
+                        errors.append(f"Codebase blueprint '{rel_path}': 'codebase_path' '{codebase_path}' points to non-existent directory")
+                        
+                commit_hash = data.get('module_blueprint_commit')
+                if commit_hash is not None and not isinstance(commit_hash, str):
+                    errors.append(f"Codebase blueprint '{rel_path}': 'module_blueprint_commit' must be a git commit hash string")
+                        
+                implemented_features = data.get('implemented_features')
+                if implemented_features is not None:
+                    if not isinstance(implemented_features, list):
+                        errors.append(f"Codebase blueprint '{rel_path}': 'implemented_features' must be a list of feature names")
+                    else:
+                        for feat_name in implemented_features:
+                            if feat_name not in feature_blueprints:
+                                errors.append(f"Codebase blueprint '{rel_path}': References unknown implemented feature '{feat_name}'")
+                            else:
+                                feat_info = feature_blueprints[feat_name]
+                                if associated_module not in feat_info['module_blueprints']:
+                                    errors.append(f"Codebase blueprint '{rel_path}': Implemented feature '{feat_name}' does not target associated_module '{associated_module}' (targets: {feat_info['module_blueprints']})")
+                                    
+                codebase_blueprints.append(rel_path)
+    else:
+        errors.append(f"Codebases directory '{codebases_dir}' does not exist")
+        
     # Summary and Exit
     if errors:
         print(f"=== Blueprint Validation Failed with {len(errors)} error(s) ===", file=sys.stderr)

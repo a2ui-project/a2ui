@@ -271,53 +271,54 @@ Feature blueprints undergo a clean, Git-centric lifecycle to prevent the bluepri
 
 ## **Folder structure**
 
-To keep specifications organized, all language-agnostic blueprints will reside in a top-level `/blueprints/` directory, while codebase-specific blueprints will reside in the root of their respective implementation directories.
+To keep specifications organized and isolated by default, all SDD blueprints, validation tools, and specialized skills reside in the top-level `/blueprints/` directory:
 
 ```
 /
 ├── blueprints/
-│   ├── README.md                 # SDD guidelines and workflow documentation
-│   ├── modules/                  # Language-agnostic Module Blueprints
+│   ├── README.md                           # Directive instructing agents to ignore folder unless explicitly requested
+│   ├── validate_blueprints.py              # Blueprint frontmatter and structure validator
+│   ├── link_skills.sh                      # Helper script to symlink blueprint skills into .agents/skills/
+│   ├── modules/                            # Language-agnostic Module Blueprints
 │   │   ├── a2ui_core.blueprint.md
-│   │   ├── a2ui_inference.blueprint.md
 │   │   └── a2ui_framework_adapter.blueprint.md
-│   └── features/                 # Feature Blueprints (active or optional)
-│       ├── 2026_06_26_dynamic_theming.blueprint.md
-│       └── archived/
-│             └── 2026_03_02_theming.blueprint.md
-│
-├── renderers/
-│   ├── web_core/
-│   │   └── codebase.blueprint.md # Web Core codebase blueprint (implements a2ui_core)
-│   ├── lit/
-│   │   └── codebase.blueprint.md # Lit Renderer codebase blueprint (implements a2ui_framework_adapter)
-│   └── react/
-│       └── codebase.blueprint.md # React Renderer codebase blueprint (implements a2ui_framework_adapter)
-│
-└── agent_sdks/
-    └── kotlin/
-        └── codebase.blueprint.md # Kotlin SDK codebase blueprint (implements a2ui_inference + a2ui_core)
+│   ├── features/                           # Unmerged / Optional Feature Blueprints (no date prefix)
+│   │   ├── dynamic_theming.blueprint.md
+│   │   └── archived/                       # Merged / Required Feature Blueprints
+│   │       └── bidirectional_rpc.blueprint.md
+│   ├── codebases/                          # Codebase Blueprints tracking module compliance by commit hash
+│   │   ├── renderers/
+│   │   │   └── web_core/
+│   │   │       └── codebase.blueprint.md
+│   │   └── agent_sdks/
+│   │       └── python/
+│   │           └── a2ui_core/
+│   │               └── codebase.blueprint.md
+│   └── skills/                             # SDD Blueprint Skills (isolated from default agent use)
+│       ├── a2ui-blueprint-maintenance/
+│       ├── a2ui-blueprint-navigator/
+│       ├── a2ui-create-feature-blueprint/
+│       └── a2ui-implement-feature-from-blueprint/
 ```
 
 ## **Skills**
 
-To support automated execution of spec-driven tasks, we will maintain a set of specialized AI agent skills in the `.agents/skills/` directory. Each skill represents a distinct, non-overlapping operational mode for the AI agents:
+To support automated execution of spec-driven tasks without cluttering default agent contexts, specialized SDD skills are maintained in `blueprints/skills/`. Developers can optionally symlink them into `.agents/skills/` using `blueprints/link_skills.sh`:
 
-- **`a2ui-blueprint-navigator`**: A read-only analytical guide. It is responsible for discovering blueprints and their codebase implementations to understand the repository.
-- **`a2ui-create-feature-blueprint`**: Provides instructions on how to create a feature blueprint, e.g. where it should be stored, what fields to include, how to validate, how to ensure the design is generic, uses the terms defined in the module blueprint, and can be easily ported across codebases (including those that exist in the mono repo, and those that exist in other repositories.
-- **`a2ui-implement-feature-from-blueprint`**: Provides instructions on the blueprint-related aspects of implementing a feature, e.g. what blueprints to use as context, what blueprints to add or update as part of implementing the feature.
-- **`a2ui-blueprint-maintenance`**: A project-level administrator. It manages the evolution, promotion, validation, and cleanup of specifications across the workspace.
+- **`a2ui-blueprint-navigator`**: A read-only analytical guide. It discovers blueprints and inspects codebase compliance against module blueprint git commit hashes (`module_blueprint_commit`).
+- **`a2ui-create-feature-blueprint`**: Provides instructions on how to create a feature blueprint inside `blueprints/features/` without date prefixes.
+- **`a2ui-implement-feature-from-blueprint`**: Provides instructions on implementing feature specs and updating codebase compliance commit hashes.
+- **`a2ui-blueprint-maintenance`**: Manages merging feature specs into Module Blueprints and archiving feature blueprints to `blueprints/features/archived/`.
 
 ## **Blueprint validation**
 
-We will implement a blueprint validator script that verifies that all blueprints conform to the format described above, e.g. they include all the required headers in the expected format, and follow the expected file structure (e.g. name and filename match). This should be easy to trigger via a script, and should be run on CI to block submission of invalid blueprints.
+We implement a blueprint validator script (`blueprints/validate_blueprints.py`) that verifies all blueprints conform to required schemas and naming rules. It runs on CI (`.github/workflows/validate_blueprints.yml`) to block submission of invalid blueprints.
 
-The validation script (`scripts/validate_blueprints.py`) will check:
+The validation script checks:
 
 - **Frontmatter compliance**: Verify all mandatory YAML fields are present and correctly typed.
-- **Entity naming rules**: Ensure feature names and module names use snake_case and match their filenames.
-- **Integrity of references**: Validate that `associated_module` and `implemented_features` in codebase blueprints point to valid, existing blueprints.
-- **CI Integration**: Integrate the validator as a GitHub Action block on pull requests targeting `main`.
+- **Entity naming rules**: Ensure feature names and module names use snake_case and match their filenames (`feature_name.blueprint.md`).
+- **Commit hash & reference integrity**: Validate that `codebase_path`, `associated_module`, optional `module_blueprint_commit`, and `implemented_features` in codebase blueprints point to valid targets.
 
 ## **Creation of initial blueprints**
 

@@ -43,11 +43,13 @@ The repository supports multiple versions of the A2UI protocol:
 
 ## 3. Spec-Driven Development (SDD)
 
+> **IMPORTANT:** By default, agents should **IGNORE the `blueprints/` folder** unless explicitly instructed by the user to work with blueprints or Spec-Driven Development.
+
 To scale development across multiple programming languages and UI frameworks, the A2UI repository adopts **Spec-Driven Development (SDD)**. Under this methodology:
 
-- **Language-Agnostic Blueprints** define high-level architecture and features in a generic format under the `blueprints/` directory.
-- **Concrete Codebases** track their compliance and local decisions using a `codebase.blueprint.md` file in their respective implementation roots.
-- Agents must follow the SDD workflow when designing or implementing new features.
+- **Language-Agnostic Blueprints** define high-level architecture and features under the `blueprints/` directory (`blueprints/modules/` and `blueprints/features/`).
+- **Concrete Codebases** track their module compliance by git commit hash using a `codebase.blueprint.md` file stored under `blueprints/codebases/<relative_codebase_path>/codebase.blueprint.md`.
+- **SDD Skills**: SDD skills live in `blueprints/skills/` and can be symlinked into `.agents/skills/` by running `blueprints/link_skills.sh`.
 
 For a detailed explanation of the methodology, lifecycle, and workflows, read the [Spec-Driven Development Proposal](specification/proposals/spec_driven_development.md).
 
@@ -55,7 +57,7 @@ For a detailed explanation of the methodology, lifecycle, and workflows, read th
 
 ## 4. Codebase & Repository Structure
 
-- **`blueprints/`**: Central repository for language-agnostic module blueprints (`modules/`) and feature blueprints (`features/`, `features/archived/`).
+- **`blueprints/`**: Isolated central repository for language-agnostic module blueprints (`modules/`), feature blueprints (`features/`, `features/archived/`), codebase compliance blueprints (`codebases/`), and SDD skills (`skills/`).
 - **`specification/`**: Versioned subdirectories (`v0_8/`, `v0_9/`, `v0_9_1/`, `v1_0/`) containing JSON schemas, component/function catalogs, and human-readable guides. The `specification/<version>/docs/a2ui_protocol.md` file is the most important source of truth for each protocol version, and the `specification/<version>/json` directory contains the associated schemas for the protocol.
 - **`agent_sdks/`**: Server integration SDKs for Python (`python/`), Kotlin (`kotlin/`), and core conformance tests (`conformance/`).
 - **`renderers/`**: Shared core state logic (`web_core/`), Lit renderer (`lit/`), Angular renderer (`angular/`), React renderer (`react/`), markdown parser (`markdown/`), and placeholder for Flutter (`flutter/`).
