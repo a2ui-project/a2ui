@@ -12,7 +12,7 @@ from orchestrator_agent_executor import (
     OrchestratorAgentExecutor,
     A2UIMetadataInterceptor,
 )
-from subagent_route_manager import SubagentRouteManager
+from a2ui_subagent_map import A2uiSubagentMap
 
 class DummyA2aPart:
     def __init__(self, root_data):
@@ -23,7 +23,7 @@ class TestOrchestratorAgentExecutor(unittest.IsolatedAsyncioTestCase):
 
     @patch("orchestrator_agent_executor.convert_genai_part_to_a2a_part")
     @patch("orchestrator_agent_executor.is_a2ui_part")
-    @patch.object(SubagentRouteManager, "get_route_to_subagent_name")
+    @patch.object(A2uiSubagentMap, "get_subagent_name")
     async def test_programmtically_route_user_action_to_subagent(
         self,
         mock_get_route,
@@ -71,7 +71,7 @@ class TestOrchestratorAgentExecutor(unittest.IsolatedAsyncioTestCase):
             "target_subagent_123"
         )
 
-    @patch.object(SubagentRouteManager, "get_route_to_subagent_name")
+    @patch.object(A2uiSubagentMap, "get_subagent_name")
     async def test_a2ui_metadata_interceptor_filters_data_model(self, mock_get_route):
         # Use Case 2: two subagents create surfaces -> orchestrator filters data model to the owner
         

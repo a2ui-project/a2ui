@@ -59,7 +59,7 @@ from a2ui.a2a.extension import (
 from a2ui.a2a.parts import is_a2ui_part
 from a2ui.schema.constants import A2UI_CLIENT_CAPABILITIES_KEY
 
-from subagent_route_manager import SubagentRouteManager
+from a2ui_subagent_map import A2uiSubagentMap
 
 logger = logging.getLogger(__name__)
 
@@ -110,7 +110,7 @@ class A2UIMetadataInterceptor(ClientCallInterceptor):
                         current_surfaces = data_model["surfaces"]
                         surface_ids_to_check = list(current_surfaces.keys())
                         owner_agents = await asyncio.gather(*[
-                            SubagentRouteManager.get_route_to_subagent_name(
+                            A2uiSubagentMap.get_subagent_name(
                                 sid, context.state
                             )
                             for sid in surface_ids_to_check
@@ -172,7 +172,7 @@ class OrchestratorAgentExecutor(A2aAgentExecutor):
             and (user_action := a2a_part.root.data.get("userAction"))
             and (surface_id := user_action.get("surfaceId"))
             and (
-                target_agent := await SubagentRouteManager.get_route_to_subagent_name(
+                target_agent := await A2uiSubagentMap.get_subagent_name(
                     surface_id, callback_context.state
                 )
             )
@@ -395,7 +395,7 @@ class OrchestratorAgentExecutor(A2aAgentExecutor):
                     and (surface_id := begin_rendering.get("surfaceId"))
                 ):
                     asyncio.run_coroutine_threadsafe(
-                        SubagentRouteManager.set_route_to_subagent_name(
+                        A2uiSubagentMap.set_subagent(
                             surface_id,
                             event.author,
                             invocation_context.session_service,
