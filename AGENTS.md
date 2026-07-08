@@ -9,10 +9,10 @@ This document is the authoritative guide for AI agents working within the A2UI r
 > **INSTRUCTION FOR ALL AGENTS (Gemini CLI, Claude, OpenAI, Antigravity, etc.):**
 > Before performing any specific tasks, load and read the respective skill recipe file in full:
 
-- **For navigating or querying repository blueprints:** Read [.agents/skills/a2ui-blueprint-navigator/SKILL.md](.agents/skills/a2ui-blueprint-navigator/SKILL.md)
-- **For creating a new feature blueprint:** Read [.agents/skills/a2ui-create-feature-blueprint/SKILL.md](.agents/skills/a2ui-create-feature-blueprint/SKILL.md)
-- **For implementing features from blueprints:** Read [.agents/skills/a2ui-implement-feature-from-blueprint/SKILL.md](.agents/skills/a2ui-implement-feature-from-blueprint/SKILL.md)
-- **For administrative maintenance of blueprints:** Read [.agents/skills/a2ui-blueprint-maintenance/SKILL.md](.agents/skills/a2ui-blueprint-maintenance/SKILL.md)
+- **For navigating or querying repository blueprints:** Read [blueprints/skills/a2ui-blueprint-navigator/SKILL.md](blueprints/skills/a2ui-blueprint-navigator/SKILL.md)
+- **For creating a new feature blueprint:** Read [blueprints/skills/a2ui-create-feature-blueprint/SKILL.md](blueprints/skills/a2ui-create-feature-blueprint/SKILL.md)
+- **For implementing features from blueprints:** Read [blueprints/skills/a2ui-implement-feature-from-blueprint/SKILL.md](blueprints/skills/a2ui-implement-feature-from-blueprint/SKILL.md)
+- **For administrative maintenance of blueprints:** Read [blueprints/skills/a2ui-blueprint-maintenance/SKILL.md](blueprints/skills/a2ui-blueprint-maintenance/SKILL.md)
 - **For implementing new SDKs in a client language:** Read [.agents/skills/a2ui-implement-new-sdks-for-client-language/SKILL.md](.agents/skills/a2ui-implement-new-sdks-for-client-language/SKILL.md)
 
 ---
