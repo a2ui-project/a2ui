@@ -2,7 +2,7 @@
 
 This is the registry of examples and dev tools for A2UI.
 
-## Samples, maintained by A2UI team
+## Maintained samples
 
 Please, help us maintain samples in this table.
 Contribute the fix to the code and/or table below if:
