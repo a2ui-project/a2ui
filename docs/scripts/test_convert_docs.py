@@ -24,21 +24,26 @@ from convert_docs import to_mkdocs
 # --- 1. A2UI Specific Header Cases ---
 ADMONITION_CASES = [
     ('!!! info "Coming soon..."', "Coming soon...", "ℹ️"),
-    ('!!! warning "Status: Early Stage Public Preview"', "Status: Early Stage Public Preview", "⚠️"),
+    (
+        '!!! warning "Status: Early Stage Public Preview"',
+        "Status: Early Stage Public Preview",
+        "⚠️",
+    ),
     ('!!! success "Stable Release"', "Stable Release", "✅"),
     ('!!! note "Version Compatibility"', "Version Compatibility", "📝"),
     ('!!! warning "Attention"', "Attention", "⚠️"),
     ('!!! tip "It\'s Just JSON"', "It's Just JSON", "💡"),
 ]
 
+
 @pytest.mark.parametrize("expected_header, title, emoji", ADMONITION_CASES)
 def test_standard_a2ui_conversion(expected_header, title, emoji):
     """Verifies that GitHub style converts to expected A2UI headers."""
     body = "    Line 1\n    Line 2"
     github_input = f"> {emoji} **{title}**\n>\n> Line 1\n> Line 2\n"
-    
+
     expected = f"{expected_header}\n{body}\n"
-    
+
     # GitHub -> MkDocs
     result = to_mkdocs(github_input)
     assert result.strip() == expected.strip()
@@ -51,7 +56,7 @@ def test_empty_title_case():
     """
     github_input = "> 💡\n>\n> Content.\n"
     expected = '!!! tip ""\n    Content.\n'
-    
+
     result = to_mkdocs(github_input)
     assert result == expected
 
@@ -66,44 +71,29 @@ def test_paragraph_spacing_and_trailing_lines():
     """
     source_github = (
         "> ✅ **Stable Release**\n"
-        ">\n"             # Spacer line
+        ">\n"  # Spacer line
         "> Line 1\n"
-        ">\n"             # Internal break
+        ">\n"  # Internal break
         "> Line 2\n"
-        ">\n"             # Trailing line 1
-        ">\n"             # Trailing line 2
+        ">\n"  # Trailing line 1
+        ">\n"  # Trailing line 2
     )
-    
+
     result = to_mkdocs(source_github)
-    
-    expected = (
-        '!!! success "Stable Release"\n'
-        '    Line 1\n'
-        '\n'
-        '    Line 2\n'
-    )
+
+    expected = '!!! success "Stable Release"\n    Line 1\n\n    Line 2\n'
     assert result == expected
 
 
 # --- 4. Multiple Blocks & Isolation ---
 def test_multiple_blocks_in_one_file():
     """Ensures multiple blocks are processed without bleeding into each other."""
-    github_input = (
-        '> ✅ **Block 1**\n'
-        '> Content 1\n'
-        '\n'
-        '> ℹ️ **Block 2**\n'
-        '> Content 2\n'
-    )
-    
+    github_input = "> ✅ **Block 1**\n> Content 1\n\n> ℹ️ **Block 2**\n> Content 2\n"
+
     expected = (
-        '!!! success "Block 1"\n'
-        '    Content 1\n'
-        '\n'
-        '!!! info "Block 2"\n'
-        '    Content 2\n'
+        '!!! success "Block 1"\n    Content 1\n\n!!! info "Block 2"\n    Content 2\n'
     )
-    
+
     result = to_mkdocs(github_input)
     assert result == expected
 
@@ -120,5 +110,5 @@ def test_github_alert_to_mkdocs():
     """Verifies official [!TYPE] syntax conversion."""
     source = "> [!WARNING]\n> **Security Notice**\n> Do not share keys."
     expected = '!!! warning "Security Notice"\n    Do not share keys.\n'
-    
+
     assert to_mkdocs(source) == expected

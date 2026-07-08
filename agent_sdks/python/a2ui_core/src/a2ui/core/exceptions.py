@@ -14,7 +14,6 @@
 
 """Custom exceptions for the A2UI SDK."""
 
-
 import dataclasses
 
 

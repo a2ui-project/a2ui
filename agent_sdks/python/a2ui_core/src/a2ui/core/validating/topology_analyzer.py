@@ -41,8 +41,8 @@ def analyze_topology(
         for ref_id, field_name in get_component_references(comp, ref_fields_map):
             if ref_id == comp_id:
                 raise A2uiRecursionError(
-                    f"Self-reference detected: Component '{comp_id}' references itself in field"
-                    f" '{field_name}'"
+                    f"Self-reference detected: Component '{comp_id}' references itself"
+                    f" in field '{field_name}'"
                 )
             adj_list[comp_id].append(ref_id)
 

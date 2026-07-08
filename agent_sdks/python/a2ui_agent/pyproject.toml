@@ -20,7 +20,7 @@ readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
   "a2a-sdk>=0.3.0,<0.4.0",
-  "a2ui-core>=0.1.0",
+  "a2ui-core>=0.1.1,<0.2.0",
   "antlr4-python3-runtime>=4.13.0,<4.14.0",
   "google-adk>=1.28.1",
   "google-genai>=1.27.0",
@@ -59,25 +59,9 @@ path = "pack_specs_hook.py"
 [[tool.uv.index]]
 url = "https://pypi.org/simple"
 default = true
-
-[tool.pyink]
-unstable = true
-target-version = []
-pyink-indentation = 2
-pyink-use-majority-quotes = true
-extend-exclude = '/generated/'
-pyink-annotation-pragmas = [
-  "noqa",
-  "pylint:",
-  "type: ignore",
-  "pytype:",
-  "mypy:",
-  "pyright:",
-  "pyre-",
-]
-
 [dependency-groups]
 dev = [
     "antlr4-tools>=0.2.1",
     "hatchling>=1.30.1",
+    "types-jsonschema",
 ]
