@@ -20,15 +20,18 @@ import sys
 
 
 def find_file(directory, pattern, exclude=None):
-    """Finds a file matching pattern under directory, optionally excluding paths containing exclude."""
+    """Finds the most recently modified file matching pattern under directory, optionally excluding paths containing exclude."""
+    matched_files = []
     for root, dirs, files in os.walk(directory):
         for file in files:
             if pattern in file:
                 full_path = os.path.join(root, file)
                 if exclude and exclude in full_path:
                     continue
-                return full_path
-    return None
+                matched_files.append(full_path)
+    if not matched_files:
+        return None
+    return max(matched_files, key=os.path.getmtime)
 
 
 def main():
@@ -85,15 +88,37 @@ def main():
         print(result.stdout)
         sys.exit(1)
 
+    # Locate the header line to dynamically determine the line coverage index
+    header_line = next(
+        (line for line in lines if 'Lines' in line and 'Regions' in line), None
+    )
+    line_cover_index = 9  # default fallback
+    if header_line:
+        # Normalize column header spacing to align token indexes
+        header_line = header_line.replace('Regions Cover', 'Regions-Cover')
+        header_line = header_line.replace('Func Cover', 'Func-Cover')
+        header_line = header_line.replace('Line Cover', 'Line-Cover')
+        header_parts = header_line.split()
+        try:
+            lines_idx = header_parts.index('Lines')
+            cover_offset = 1
+            while lines_idx + cover_offset < len(header_parts):
+                part = header_parts[lines_idx + cover_offset]
+                if 'Cover' in part or '%' in part:
+                    break
+                cover_offset += 1
+            line_cover_index = lines_idx + cover_offset
+        except ValueError:
+            pass
+
     parts = total_line.split()
-    # In 'TOTAL  62  17  72.58%  11  2  81.82%  160  29  81.88% ...'
-    # Lines Cover percentage is index 9 (removes % and checks)
     try:
-        lines_cover_str = parts[9].replace('%', '')
+        lines_cover_str = parts[line_cover_index].replace('%', '')
         coverage = float(lines_cover_str)
     except Exception as e:
         print(
-            f"Error parsing coverage percentage from line: '{total_line}'. Error: {e}"
+            f"Error parsing coverage percentage from line: '{total_line}' at index"
+            f' {line_cover_index}. Error: {e}'
         )
         sys.exit(1)
 

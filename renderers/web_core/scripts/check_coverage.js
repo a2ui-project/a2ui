@@ -15,7 +15,7 @@
 import fs from 'fs';
 import path from 'path';
 
-const lcovPath = path.resolve(process.cwd(), 'coverage.lcov');
+const lcovPath = path.resolve(import.meta.dirname, '../coverage.lcov');
 
 if (!fs.existsSync(lcovPath)) {
   console.error(`Error: coverage.lcov not found at ${lcovPath}`);
@@ -36,8 +36,8 @@ for (const line of lines) {
   }
 }
 
-if (linesFound === 0) {
-  console.error('Error: No lines found in LCOV report.');
+if (Number.isNaN(linesFound) || Number.isNaN(linesHit) || linesFound === 0) {
+  console.error('Error: Invalid or missing coverage data in LCOV report.');
   process.exit(1);
 }
 
