@@ -57,7 +57,10 @@ class ComponentNode:
         return self.component_id
 
     def __repr__(self) -> str:
-        return f"ComponentNode(instance_id={self.instance_id!r}, component_id={self.component_id!r}, type={self.type!r})"
+        return (
+            f"ComponentNode(instance_id={self.instance_id!r},"
+            f" component_id={self.component_id!r}, type={self.type!r})"
+        )
 
     def to_dict(self) -> Dict[str, Any]:
         """Serializes this node and its children recursively to a standard dict layout."""

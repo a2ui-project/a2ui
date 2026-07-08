@@ -21,7 +21,70 @@ from inspect_ai.solver import TaskState
 from inspect_ai.model import ModelOutput, ModelName
 
 CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
-CATALOG_PATH = os.path.abspath(os.path.join(CURRENT_DIR, "../../specification/v0_9/catalogs/basic/catalog.json"))
+CATALOG_PATH = os.path.abspath(
+    os.path.join(CURRENT_DIR, "../../specification/v0_9/catalogs/basic/catalog.json")
+)
+CATALOG_PATH_V091 = os.path.abspath(
+    os.path.join(CURRENT_DIR, "../../specification/v0_9_1/catalogs/basic/catalog.json")
+)
+
+
+@pytest.mark.asyncio
+async def test_scorer_valid_json_v091():
+    scorer = a2ui_scorer(version="0.9.1")
+    valid_json = """
+    <a2ui-json>
+    [
+      {
+        "version": "v0.9",
+        "createSurface": {
+          "surfaceId": "main",
+          "catalogId": "https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json"
+        }
+      },
+      {
+        "version": "v0.9",
+        "updateComponents": {
+          "surfaceId": "main",
+          "components": [
+            {
+              "id": "root",
+              "component": "Button",
+              "child": "button-text",
+              "action": {
+                "functionCall": {
+                  "call": "openUrl",
+                  "args": {
+                    "url": "https://google.com"
+                  }
+                }
+              }
+            },
+            {
+              "id": "button-text",
+              "component": "Text",
+              "text": "Click me"
+            }
+          ]
+        }
+      }
+    ]
+    </a2ui-json>
+    """
+    state = TaskState(
+        model=ModelName("mock/model"),
+        sample_id=1,
+        epoch=1,
+        input="test",
+        messages=[],
+        output=ModelOutput(model="mock/model", completion=valid_json),
+        metadata={"catalog": str(CATALOG_PATH_V091)},
+    )
+
+    score = await scorer(state, Target(""))
+    assert score.value == 1.0
+    assert "Valid A2UI payload" in score.explanation
+
 
 @pytest.mark.asyncio
 async def test_scorer_valid_json():
@@ -44,14 +107,13 @@ async def test_scorer_valid_json():
         input="test",
         messages=[],
         output=ModelOutput(model="mock/model", completion=valid_json),
-        metadata={
-            "catalog": str(CATALOG_PATH)
-        }
+        metadata={"catalog": str(CATALOG_PATH)},
     )
-    
+
     score = await scorer(state, Target(""))
     assert score.value == 1.0
     assert "Valid A2UI payload" in score.explanation
+
 
 @pytest.mark.asyncio
 async def test_scorer_invalid_json():
@@ -63,13 +125,12 @@ async def test_scorer_invalid_json():
         input="test",
         messages=[],
         output=ModelOutput(model="mock/model", completion="invalid json"),
-        metadata={
-            "catalog": str(CATALOG_PATH)
-        }
+        metadata={"catalog": str(CATALOG_PATH)},
     )
     score = await scorer(state, Target(""))
     assert score.value == 0.0
     assert "tags '<a2ui-json>' and '</a2ui-json>' not found" in score.explanation
+
 
 @pytest.mark.asyncio
 async def test_scorer_missing_root():
@@ -103,13 +164,12 @@ async def test_scorer_missing_root():
         input="test",
         messages=[],
         output=ModelOutput(model="mock/model", completion=payload),
-        metadata={
-            "catalog": str(CATALOG_PATH)
-        }
+        metadata={"catalog": str(CATALOG_PATH)},
     )
     score = await scorer(state, Target(""))
     assert score.value == 0.0
     assert "Missing root component" in score.explanation
+
 
 @pytest.mark.asyncio
 async def test_scorer_duplicate_ids():
@@ -136,13 +196,12 @@ async def test_scorer_duplicate_ids():
         input="test",
         messages=[],
         output=ModelOutput(model="mock/model", completion=payload),
-        metadata={
-            "catalog": str(CATALOG_PATH)
-        }
+        metadata={"catalog": str(CATALOG_PATH)},
     )
     score = await scorer(state, Target(""))
     assert score.value == 0.0
     assert "Duplicate component ID" in score.explanation
+
 
 @pytest.mark.asyncio
 async def test_scorer_broken_relationship():
@@ -177,13 +236,12 @@ async def test_scorer_broken_relationship():
         input="test",
         messages=[],
         output=ModelOutput(model="mock/model", completion=payload),
-        metadata={
-            "catalog": str(CATALOG_PATH)
-        }
+        metadata={"catalog": str(CATALOG_PATH)},
     )
     score = await scorer(state, Target(""))
     assert score.value == 0.0
     assert "references non-existent component" in score.explanation
+
 
 @pytest.mark.asyncio
 async def test_scorer_circular_reference():
@@ -210,9 +268,7 @@ async def test_scorer_circular_reference():
         input="test",
         messages=[],
         output=ModelOutput(model="mock/model", completion=payload),
-        metadata={
-            "catalog": str(CATALOG_PATH)
-        }
+        metadata={"catalog": str(CATALOG_PATH)},
     )
     score = await scorer(state, Target(""))
     assert score.value == 0.0

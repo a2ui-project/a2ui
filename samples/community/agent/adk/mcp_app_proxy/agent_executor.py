@@ -38,111 +38,111 @@ _A2UI_EXAMPLES_KEY = "system:a2ui_examples"
 
 
 def get_a2ui_catalog(ctx: ReadonlyContext):
-  """Retrieves the A2UI catalog from the session state.
+    """Retrieves the A2UI catalog from the session state.
 
-  Args:
-      ctx: The ReadonlyContext for resolving the catalog.
+    Args:
+        ctx: The ReadonlyContext for resolving the catalog.
 
-  Returns:
-      The A2UI catalog or None if not found.
-  """
-  return ctx.state.get(_A2UI_CATALOG_KEY)
+    Returns:
+        The A2UI catalog or None if not found.
+    """
+    return ctx.state.get(_A2UI_CATALOG_KEY)
 
 
 def get_a2ui_examples(ctx: ReadonlyContext):
-  """Retrieves the A2UI examples from the session state.
+    """Retrieves the A2UI examples from the session state.
 
-  Args:
-      ctx: The ReadonlyContext for resolving the examples.
+    Args:
+        ctx: The ReadonlyContext for resolving the examples.
 
-  Returns:
-      The A2UI examples or None if not found.
-  """
-  return ctx.state.get(_A2UI_EXAMPLES_KEY)
+    Returns:
+        The A2UI examples or None if not found.
+    """
+    return ctx.state.get(_A2UI_EXAMPLES_KEY)
 
 
 def get_a2ui_enabled(ctx: ReadonlyContext):
-  """Checks if A2UI is enabled in the current session.
+    """Checks if A2UI is enabled in the current session.
 
-  Args:
-      ctx: The ReadonlyContext for resolving enablement.
+    Args:
+        ctx: The ReadonlyContext for resolving enablement.
 
-  Returns:
-      True if A2UI is enabled, False otherwise.
-  """
-  return ctx.state.get(_A2UI_ENABLED_KEY, False)
+    Returns:
+        True if A2UI is enabled, False otherwise.
+    """
+    return ctx.state.get(_A2UI_ENABLED_KEY, False)
 
 
 class McpAppProxyAgentExecutor(A2aAgentExecutor):
-  """Executor for the McpAppProxy agent."""
+    """Executor for the McpAppProxy agent."""
 
-  def __init__(
-      self,
-      base_url: str,
-      agent: "McpAppProxyAgent",
-  ):
-    self._base_url = base_url
-    self._agent = agent
+    def __init__(
+        self,
+        base_url: str,
+        agent: "McpAppProxyAgent",
+    ):
+        self._base_url = base_url
+        self._agent = agent
 
-    # Bypass tool check when converting tool responses to A2A parts to escape
-    # the need to make the tool call to `SendA2uiJsonToClientTool`. By removing
-    # the tool call, we can reduce token usage and LLM hallucination
-    # compromising the MCP Apps HTML content embedded in the A2UI JSON,
-    # which significantly improves the reliability of the agent.
-    config = A2aAgentExecutorConfig(
-        event_converter=A2uiEventConverter(bypass_tool_check=True)
-    )
-    # Use the text runner as the default runner.
-    super().__init__(runner=self._agent.get_runner(None), config=config)
+        # Bypass tool check when converting tool responses to A2A parts to escape
+        # the need to make the tool call to `SendA2uiJsonToClientTool`. By removing
+        # the tool call, we can reduce token usage and LLM hallucination
+        # compromising the MCP Apps HTML content embedded in the A2UI JSON,
+        # which significantly improves the reliability of the agent.
+        config = A2aAgentExecutorConfig(
+            event_converter=A2uiEventConverter(bypass_tool_check=True)
+        )
+        # Use the text runner as the default runner.
+        super().__init__(runner=self._agent.get_runner(None), config=config)
 
-  @override
-  async def _prepare_session(
-      self,
-      context: RequestContext,
-      run_request: AgentRunRequest,
-      _runner: Runner,
-  ):
-    logger.info(f"Loading session for message {context.message}")
+    @override
+    async def _prepare_session(
+        self,
+        context: RequestContext,
+        run_request: AgentRunRequest,
+        _runner: Runner,
+    ):
+        logger.info(f"Loading session for message {context.message}")
 
-    active_ui_version = try_activate_a2ui_extension(context, self._agent.agent_card)
-    runner = self._agent.get_runner(active_ui_version)
-    schema_manager = self._agent.get_schema_manager(active_ui_version)
+        active_ui_version = try_activate_a2ui_extension(context, self._agent.agent_card)
+        runner = self._agent.get_runner(active_ui_version)
+        schema_manager = self._agent.get_schema_manager(active_ui_version)
 
-    session = await super()._prepare_session(context, run_request, runner)
+        session = await super()._prepare_session(context, run_request, runner)
 
-    if "base_url" not in session.state:
-      session.state["base_url"] = self._base_url
+        if "base_url" not in session.state:
+            session.state["base_url"] = self._base_url
 
-    if active_ui_version:
-      client_capabilities = (
-          context.message.metadata.get(A2UI_CLIENT_CAPABILITIES_KEY)
-          if context.message and context.message.metadata
-          else None
-      )
-      a2ui_catalog = (
-          schema_manager.get_selected_catalog(
-              client_ui_capabilities=client_capabilities
-          )
-          if schema_manager
-          else None
-      )
+        if active_ui_version:
+            client_capabilities = (
+                context.message.metadata.get(A2UI_CLIENT_CAPABILITIES_KEY)
+                if context.message and context.message.metadata
+                else None
+            )
+            a2ui_catalog = (
+                schema_manager.get_selected_catalog(
+                    client_ui_capabilities=client_capabilities
+                )
+                if schema_manager
+                else None
+            )
 
-      # TODO: Load examples from files.
-      examples = ""
+            # TODO: Load examples from files.
+            examples = ""
 
-      await runner.session_service.append_event(
-          session,
-          Event(
-              invocation_id=new_invocation_context_id(),
-              author="system",
-              actions=EventActions(
-                  state_delta={
-                      _A2UI_ENABLED_KEY: True,
-                      _A2UI_CATALOG_KEY: a2ui_catalog,
-                      _A2UI_EXAMPLES_KEY: examples,
-                  }
-              ),
-          ),
-      )
+            await runner.session_service.append_event(
+                session,
+                Event(
+                    invocation_id=new_invocation_context_id(),
+                    author="system",
+                    actions=EventActions(
+                        state_delta={
+                            _A2UI_ENABLED_KEY: True,
+                            _A2UI_CATALOG_KEY: a2ui_catalog,
+                            _A2UI_EXAMPLES_KEY: examples,
+                        }
+                    ),
+                ),
+            )
 
-    return session
+        return session

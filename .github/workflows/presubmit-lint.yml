@@ -81,8 +81,11 @@ jobs:
         with:
           persist-credentials: false
       - uses: ./.github/actions/setup-node
+        with:
+          install: false
       - uses: ./.github/actions/setup-python
-      - uses: ./.github/actions/setup-dart
+      - name: Set up Dart (Lightweight)
+        uses: dart-lang/setup-dart@65eb853c7ba17dde3be364c3d2858773e7144260 # v1.7.2
       - name: Run enforce-formatting check
         run: ./scripts/fix_format.sh --check
 
@@ -93,6 +96,8 @@ jobs:
         with:
           persist-credentials: false
       - uses: ./.github/actions/setup-node
+      - name: Setup Wireit Cache
+        uses: google/wireit@9d7c2e5346f8ef1b1ab6014c4e96c74e234f7ed5 # setup-github-actions-caching/v2.0.4
       - name: Build all workspaces
         run: yarn build:all
       - name: Run yarn lint:all

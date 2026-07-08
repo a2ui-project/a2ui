@@ -13,13 +13,11 @@
 # limitations under the License.
 
 from a2ui.core.version import __version__ as __version__
-from a2ui.core.exceptions import (
-    A2uiError,
-    A2uiErrorDetail,
-    A2uiParseError,
-    A2uiValidationError,
-    A2uiCatalogError,
-    A2uiIntegrityError,
-    A2uiRecursionError,
-    A2uiCompileError,
-)
+from a2ui.core.exceptions import A2uiError as A2uiError
+from a2ui.core.exceptions import A2uiErrorDetail as A2uiErrorDetail
+from a2ui.core.exceptions import A2uiParseError as A2uiParseError
+from a2ui.core.exceptions import A2uiValidationError as A2uiValidationError
+from a2ui.core.exceptions import A2uiCatalogError as A2uiCatalogError
+from a2ui.core.exceptions import A2uiIntegrityError as A2uiIntegrityError
+from a2ui.core.exceptions import A2uiRecursionError as A2uiRecursionError
+from a2ui.core.exceptions import A2uiCompileError as A2uiCompileError
