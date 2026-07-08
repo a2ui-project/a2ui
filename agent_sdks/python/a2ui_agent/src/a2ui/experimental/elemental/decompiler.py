@@ -91,26 +91,25 @@ def _decompile_string_in_expr(val: str) -> str:
     return f"'{escaped}'"
 
 
+def _is_action_ref(s: Any) -> bool:
+    if isinstance(s, dict):
+        if "$ref" in s and "Action" in s["$ref"]:
+            return True
+        for k in ["oneOf", "anyOf", "allOf"]:
+            if k in s and isinstance(s[k], list):
+                if any(_is_action_ref(sub) for sub in s[k]):
+                    return True
+    return False
+
+
 def _get_action_properties(helper: CatalogSchemaHelper, comp_name: str) -> list[str]:
     """Retrieves all property names of a component that represent Actions."""
     properties = helper.get_component_properties(comp_name)
     action_props = []
     for p in properties:
         schema = helper.get_property_schema(comp_name, p)
-        if schema:
-
-            def is_action_ref(s: Any) -> bool:
-                if isinstance(s, dict):
-                    if "$ref" in s and "Action" in s["$ref"]:
-                        return True
-                    for k in ["oneOf", "anyOf", "allOf"]:
-                        if k in s and isinstance(s[k], list):
-                            if any(is_action_ref(sub) for sub in s[k]):
-                                return True
-                return False
-
-            if is_action_ref(schema):
-                action_props.append(p)
+        if schema and _is_action_ref(schema):
+            action_props.append(p)
     return action_props
 
 
@@ -443,14 +442,23 @@ class ElementalDecompiler:
             name = call_dict.get("call")
             args = call_dict.get("args", {})
 
-            refined_args = dict(args)
+            fn_props = self.helper.get_function_properties(name)
+            if isinstance(args, dict):
+                refined_args = dict(args)
+            else:
+                refined_args = {}
+                for idx, v in enumerate(args):
+                    if idx < len(fn_props):
+                        refined_args[fn_props[idx]] = v
+                    else:
+                        refined_args[f"arg{idx}"] = v
+
             if (
                 isinstance(check, dict)
                 and "message" in check
                 and check["message"] != "Invalid input"
             ):
                 refined_args["message"] = check["message"]
-            fn_props = self.helper.get_function_properties(name)
             if fn_props and fn_props[0] == "value" and "value" in refined_args:
                 if parent_value and refined_args["value"] == parent_value:
                     del refined_args["value"]

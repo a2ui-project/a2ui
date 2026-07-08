@@ -88,6 +88,7 @@ class ElementalPromptGenerator:
         Args:
             catalog: A Catalog or an A2uiCatalog.
         """
+        self.catalog = catalog
         self.helper = CatalogSchemaHelper(catalog)
         self.catalog_id = self.helper.catalog.get(
             "catalogId",

@@ -139,29 +139,28 @@ class DomBuilder(HTMLParser):
             self.stack[-1].text += data
 
 
+def _has_label_value(sub: Any) -> bool:
+    if not isinstance(sub, dict):
+        return False
+    if (
+        "properties" in sub
+        and "label" in sub["properties"]
+        and "value" in sub["properties"]
+    ):
+        return True
+    for k in ["allOf", "oneOf", "anyOf"]:
+        if k in sub and isinstance(sub[k], list):
+            if any(_has_label_value(s) for s in sub[k]):
+                return True
+    return False
+
+
 def _schema_expects_option_objects(schema: Any) -> bool:
     """Checks if a property's schema expects a list of objects with label/value."""
     if not isinstance(schema, dict):
         return False
     if "items" in schema:
-        items_schema = schema["items"]
-
-        def has_label_value(sub: Any) -> bool:
-            if not isinstance(sub, dict):
-                return False
-            if (
-                "properties" in sub
-                and "label" in sub["properties"]
-                and "value" in sub["properties"]
-            ):
-                return True
-            for k in ["allOf", "oneOf", "anyOf"]:
-                if k in sub and isinstance(sub[k], list):
-                    if any(has_label_value(s) for s in sub[k]):
-                        return True
-            return False
-
-        return has_label_value(items_schema)
+        return _has_label_value(schema["items"])
     for key in ["allOf", "oneOf", "anyOf"]:
         if key in schema and isinstance(schema[key], list):
             if any(_schema_expects_option_objects(sub) for sub in schema[key]):
@@ -765,7 +764,8 @@ class ElementalCompiler:
 
                     # Inject sibling value path if "value" is a parameter of the function and is omitted
                     if (
-                        fn_props
+                        isinstance(fn_args, dict)
+                        and fn_props
                         and "value" in fn_props
                         and "value" not in fn_args
                         and sibling_value_path
@@ -811,7 +811,8 @@ class ElementalCompiler:
 
                         # Inject sibling value path if "value" is a parameter of the function and is omitted
                         if (
-                            fn_props
+                            isinstance(fn_args, dict)
+                            and fn_props
                             and "value" in fn_props
                             and "value" not in fn_args
                             and sibling_value_path
