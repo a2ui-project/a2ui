@@ -22,7 +22,6 @@ supports AG-UI.
   }
 </style>
 
-
 <video class="agui-demo-video" controls playsinline preload="metadata">
   <source src="https://cdn.copilotkit.ai/docs/a2ui/ag-ui-a2ui-demo.mp4" type="video/mp4">
   Your browser does not support the video tag.
