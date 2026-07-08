@@ -15,7 +15,7 @@
 from __future__ import annotations
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Set, Tuple, Union
 
-from .constants import VERSION_0_8, VERSION_0_9, VERSION_1_0
+from .constants import VERSION_0_8, VERSION_0_9, VERSION_0_9_1, VERSION_1_0
 from .validator_v08 import (
     LegacyA2uiValidatorV08,
     extract_component_required_fields as v08_req,
@@ -82,7 +82,7 @@ class A2uiValidatorWrapper:
 
 
 class A2uiValidatorWrapperV10:
-    """Validates v1.0 payloads dynamically using jsonschema and core component integrity checks."""
+    """Validates dynamic payloads (such as v0.9.1 and v1.0) using jsonschema and core component integrity checks."""
 
     def __init__(self, catalog: A2uiCatalog):
         self._catalog = catalog
@@ -93,18 +93,30 @@ class A2uiValidatorWrapperV10:
         s2c = catalog.s2c_schema
         common = catalog.common_types_schema
         cat = catalog.catalog_schema
+        if not isinstance(s2c, dict) or "$id" not in s2c:
+            raise A2uiCatalogError(
+                "Server-to-client schema must be a dictionary containing an '$id' key."
+            )
 
         resources = []
-        for schema in [s2c, common]:
-            if schema and "$id" in schema:
-                resources.append((schema["$id"], Resource.from_contents(schema)))
+        for schema, filename in [
+            (s2c, "server_to_client.json"),
+            (common, "common_types.json"),
+        ]:
+            if schema is not None:
+                resources.append((filename, Resource.from_contents(schema)))
+                if isinstance(schema, dict) and "$id" in schema:
+                    resources.append((schema["$id"], Resource.from_contents(schema)))
 
-        if cat and "$id" in cat:
-            resources.append((cat["$id"], Resource.from_contents(cat)))
-            s2c_id = s2c.get("$id", "") if s2c else ""
-            if s2c_id:
-                resolved_catalog_uri = urljoin(s2c_id, "catalog.json")
-                resources.append((resolved_catalog_uri, Resource.from_contents(cat)))
+        if isinstance(cat, dict):
+            resources.append(("catalog.json", Resource.from_contents(cat)))
+            cat_copy = dict(cat)
+            s2c_id = s2c["$id"]
+            resolved_catalog_uri = urljoin(s2c_id, "catalog.json")
+            cat_copy["$id"] = resolved_catalog_uri
+            resources.append((resolved_catalog_uri, Resource.from_contents(cat_copy)))
+            if "$id" in cat:
+                resources.append((cat["$id"], Resource.from_contents(cat)))
 
         self._registry = Registry().with_resources(resources)
         self._wrapped_schema = {
@@ -192,11 +204,15 @@ class A2uiValidatorWrapperV10:
                 self._catalog.common_types_schema,
             ).extract_ref_fields()
 
+            allow_missing_root = config.allow_missing_root or not any(
+                isinstance(m, dict) and "createSurface" in m for m in messages
+            )
+
             validate_component_integrity(
                 all_components,
                 ref_fields,
                 allow_dangling_references=config.allow_dangling_references,
-                allow_missing_root=config.allow_missing_root,
+                allow_missing_root=allow_missing_root,
             )
 
             validate_recursion_and_paths(messages)
@@ -210,6 +226,9 @@ class A2uiValidator:
         self.version = ver if isinstance(ver, str) else VERSION_0_8
         if self.version == VERSION_0_8:
             self._delegator = LegacyA2uiValidatorV08(catalog)
+        # TODO(a2ui-project/A2UI#1936): The V10 validator dynamically uses the `catalog` spec to validate. This should all be consolidated.
+        elif self.version == VERSION_0_9_1:
+            self._delegator = A2uiValidatorWrapperV10(catalog)
         elif self.version == VERSION_1_0:
             import os
 
