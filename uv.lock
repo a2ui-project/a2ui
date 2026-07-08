@@ -3747,7 +3747,7 @@ requires-dist = [
     { name = "a2a-sdk", extras = ["http-server"], specifier = ">=0.3.0" },
     { name = "a2ui-agent-sdk", editable = "agent_sdks/python/a2ui_agent" },
     { name = "click", specifier = ">=8.1.8" },
-    { name = "google-adk", specifier = ">=1.28.1" },
+    { name = "google-adk", specifier = ">=2.3.0" },
     { name = "google-genai", specifier = ">=1.27.0" },
     { name = "jsonschema", specifier = ">=4.0.0" },
     { name = "litellm", specifier = ">=1.83.7" },
