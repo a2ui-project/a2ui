@@ -42,13 +42,14 @@ from a2ui.schema.common_modifiers import remove_strict_validation
 schema_manager = A2uiSchemaManager(
     version=VERSION_0_9,
     catalogs=[BasicCatalog.get_config(version=VERSION_0_9)],
-    schema_modifiers=[remove_strict_validation]
+    schema_modifiers=[remove_strict_validation],
 )
 my_catalog = schema_manager.get_selected_catalog()
 a2ui_converter = A2uiPartConverter(a2ui_catalog=my_catalog, version=VERSION_0_9)
 
 load_dotenv()
 logging.basicConfig(level=logging.INFO)
+
 
 @click.command()
 @click.option("--host", default="localhost", type=str)
@@ -124,7 +125,7 @@ def main(host, port):
         get_a2ui_agent_extension(VERSION_0_8, False, []),
         get_a2ui_agent_extension(VERSION_0_9, False, []),
     ]
-    
+
     agent_card = AgentCard(
         name="Maintenance",
         description="Hotel maintenance agent",
@@ -134,9 +135,21 @@ def main(host, port):
         default_output_modes=["text"],
         capabilities=AgentCapabilities(streaming=True, extensions=extensions),
         skills=[
-            AgentSkill(id="repairs", name="repairs", description="Handle room repairs", examples=["The AC is broken"], tags=["repairs"]),
-            AgentSkill(id="diagnose_issues", name="diagnose_issues", description="Diagnose room issues", examples=["The TV isn't turning on"], tags=["diagnose"])
-        ]
+            AgentSkill(
+                id="repairs",
+                name="repairs",
+                description="Handle room repairs",
+                examples=["The AC is broken"],
+                tags=["repairs"],
+            ),
+            AgentSkill(
+                id="diagnose_issues",
+                name="diagnose_issues",
+                description="Diagnose room issues",
+                examples=["The TV isn't turning on"],
+                tags=["diagnose"],
+            ),
+        ],
     )
 
     executor_config = A2aAgentExecutorConfig(
@@ -153,9 +166,9 @@ def main(host, port):
     server = A2AStarletteApplication(
         agent_card=agent_card, http_handler=request_handler
     )
-    
+
     app = server.build()
-    
+
     app.add_middleware(
         CORSMiddleware,
         allow_origins=["http://localhost:5173"],
@@ -165,6 +178,7 @@ def main(host, port):
     )
 
     uvicorn.run(app, host=host, port=port)
+
 
 if __name__ == "__main__":
     main()
