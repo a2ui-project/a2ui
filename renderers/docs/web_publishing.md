@@ -71,8 +71,8 @@ This URL points to a web app that allows verifying that the packages have been u
 
 For each package it should be checked:
 
-* That it has been uploaded at the expected version
-* That its size is non-zero in the "Files" tab of the details of the version.
+- That it has been uploaded at the expected version
+- That its size is non-zero in the "Files" tab of the details of the version.
 
 **CLI parameters for `publish_npm.mjs`:**
 
