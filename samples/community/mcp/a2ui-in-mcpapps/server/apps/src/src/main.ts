@@ -93,7 +93,8 @@ export class McpAppRoot implements OnInit, AfterViewInit {
     });
 
     const handler = (event: MessageEvent) => {
-      if (event.data.id !== 'init-1') return;
+      if (event.source !== window.parent) return;
+      if (event.data?.id !== 'init-1') return;
       window.removeEventListener('message', handler);
       this.status.set('Initialized');
       this.postToParent({
@@ -120,7 +121,8 @@ export class McpAppRoot implements OnInit, AfterViewInit {
       });
 
       const handler = (msgEvent: MessageEvent) => {
-        if (msgEvent.data.id !== requestId) return;
+        if (msgEvent.source !== window.parent) return;
+        if (msgEvent.data?.id !== requestId) return;
 
         window.removeEventListener('message', handler);
 
@@ -152,7 +154,8 @@ export class McpAppRoot implements OnInit, AfterViewInit {
     });
 
     const handler = (event: MessageEvent) => {
-      if (event.data.id !== requestId) return;
+      if (event.source !== window.parent) return;
+      if (event.data?.id !== requestId) return;
 
       this.isLoading.set(false);
       window.removeEventListener('message', handler);
