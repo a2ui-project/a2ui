@@ -13,8 +13,9 @@
 # limitations under the License.
 
 import logging
-from typing import Optional, List
+from typing import Optional, List, Any, Dict
 
+from packaging.version import Version, parse as parse_version
 from a2a.server.agent_execution import RequestContext
 from a2a.types import AgentCard, AgentExtension
 
@@ -40,7 +41,7 @@ def get_a2ui_agent_extension(
     Returns:
         The configured A2UI AgentExtension.
     """
-    params = {}
+    params: Dict[str, Any] = {}
     if accepts_inline_catalogs:
         params[AGENT_EXTENSION_ACCEPTS_INLINE_CATALOGS_KEY] = (
             True  # Only set if not default of False
@@ -107,10 +108,8 @@ def _select_newest_a2ui_extension(
     if not matched_extensions:
         return None
 
-    def _version_key(uri: str) -> tuple:
+    def _version_key(uri: str) -> Version:
         version_str = uri.replace(f"{A2UI_EXTENSION_BASE_URI}/v", "")
-        from packaging.version import parse as parse_version
-
         return parse_version(version_str)
 
     return max(matched_extensions, key=_version_key)

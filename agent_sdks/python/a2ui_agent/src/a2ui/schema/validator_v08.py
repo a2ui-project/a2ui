@@ -71,7 +71,7 @@ DEFAULT_LIST_REF_FIELDS = {"children", "explicitList", "template", "tabs"}
 def _inject_additional_properties(
     schema: Dict[str, Any],
     source_properties: Dict[str, Any],
-    mapping: Dict[str, str] = None,
+    mapping: Optional[Dict[str, str]] = None,
 ) -> Tuple[Dict[str, Any], Set[str]]:
     """
     Recursively injects properties from source_properties into nodes with additionalProperties=True and sets additionalProperties=False.
@@ -87,7 +87,7 @@ def _inject_additional_properties(
     """
     injected_keys = set()
 
-    def recursive_inject(obj):
+    def recursive_inject(obj: Any) -> Any:
         if isinstance(obj, dict):
             new_obj = {}
             for k, v in obj.items():
@@ -124,10 +124,13 @@ def _find_root_id(
     for message in messages:
         if not isinstance(message, dict):
             continue
-        if "beginRendering" in message:
-            if surface_id and message["beginRendering"].get("surfaceId") != surface_id:
+        begin_rendering = message.get("beginRendering")
+        if isinstance(begin_rendering, dict):
+            if surface_id and begin_rendering.get("surfaceId") != surface_id:
                 continue
-            return message["beginRendering"].get(ROOT, ROOT)
+            root_val = begin_rendering.get(ROOT, ROOT)
+            if isinstance(root_val, str):
+                return root_val
     return None
 
 
@@ -143,9 +146,9 @@ def extract_component_required_fields(
     all_components = catalog.catalog_schema.get(COMPONENTS, {})
 
     for comp_name, comp_schema in all_components.items():
-        required_fields = set()
+        required_fields: Set[str] = set()
 
-        def extract_from_props(cs: Dict[str, Any]):
+        def extract_from_props(cs: Dict[str, Any]) -> None:
             if not isinstance(cs, dict):
                 return
 
@@ -177,7 +180,7 @@ def extract_component_ref_fields(
         single_refs = set()
         list_refs = set()
 
-        def extract_from_props(cs: Dict[str, Any]):
+        def extract_from_props(cs: Dict[str, Any]) -> None:
             if not isinstance(cs, dict):
                 return
             props = cs.get("properties", {})
@@ -270,14 +273,14 @@ class LegacyA2uiValidatorV08:
                 core_validate_component_integrity(
                     components,
                     ref_map,
-                    root_id=root_id,
+                    root_id=root_id or ROOT,
                     allow_dangling_references=config.allow_dangling_references,
                     allow_missing_root=config.allow_missing_root,
                 )
                 core_analyze_topology(
                     components,
                     ref_map,
-                    root_id=root_id,
+                    root_id=root_id or ROOT,
                     allow_orphan_components=config.allow_orphan_components,
                     allow_missing_root=config.allow_missing_root,
                 )

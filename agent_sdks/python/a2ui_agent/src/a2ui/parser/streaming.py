@@ -18,7 +18,7 @@ import copy
 import json
 import logging
 import re
-from typing import Any, List, Dict, Optional, Set, TYPE_CHECKING
+from typing import Any, List, Dict, Optional, Set, TYPE_CHECKING, Union
 
 from .constants import *
 from ..schema.constants import (
@@ -30,11 +30,11 @@ from ..schema.constants import (
     CATALOG_COMPONENTS_KEY,
 )
 from ..schema.validator import (
-    analyze_topology,
     extract_component_ref_fields,
     extract_component_required_fields,
 )
 from ..schema.validator import A2uiValidator
+from a2ui.core.validating import analyze_topology
 from .response_part import ResponsePart
 from a2ui.core.validating.validator import RELAXED_VALIDATION, STRICT_VALIDATION, ValidationConfig
 from a2ui.core import A2uiParseError, A2uiIntegrityError
@@ -53,7 +53,7 @@ class A2uiStreamParser:
     (V08 or V09) depending on the catalog version.
     """
 
-    def __new__(cls, catalog: A2uiCatalog):
+    def __new__(cls, catalog: A2uiCatalog) -> A2uiStreamParser:
         if cls is A2uiStreamParser:
             version = catalog.version
             # Lazy import inside __new__ to prevent circular import errors, as the
@@ -78,7 +78,7 @@ class A2uiStreamParser:
         self._found_delimiter = False
         self._buffer = ""
         self._json_buffer = ""
-        self._brace_stack: List[Tuple[str, int]] = []
+        self._brace_stack: list[tuple[str, int]] = []
         self._brace_count = 0
         self._in_top_level_list = False
         self._in_string = False
@@ -143,7 +143,7 @@ class A2uiStreamParser:
         return self._surface_id
 
     @surface_id.setter
-    def surface_id(self, value: Optional[str]):
+    def surface_id(self, value: Optional[str]) -> None:
         self._surface_id = value
         if value is not None and self._unbound_root_id is not None:
             self._root_ids[value] = self._unbound_root_id
@@ -161,7 +161,7 @@ class A2uiStreamParser:
         )
 
     @root_id.setter
-    def root_id(self, value: Optional[str]):
+    def root_id(self, value: Optional[str]) -> None:
         if self._surface_id:
             if value is not None:
                 self._root_ids[self._surface_id] = value
@@ -174,7 +174,7 @@ class A2uiStreamParser:
     def msg_types(self) -> List[str]:
         return self._msg_types
 
-    def add_msg_type(self, msg_type: str):
+    def add_msg_type(self, msg_type: str) -> None:
         if msg_type not in self._msg_types:
             self._msg_types.append(msg_type)
         if msg_type in (
@@ -204,6 +204,14 @@ class A2uiStreamParser:
             "Subclasses must implement _get_active_msg_type_for_components"
         )
 
+    def _construct_partial_message(
+        self, components: List[Dict[str, Any]], active_msg_type: str
+    ) -> Dict[str, Any]:
+        """Constructs a partial message of the correct type. Subclasses must implement."""
+        raise NotImplementedError(
+            "Subclasses must implement _construct_partial_message"
+        )
+
     def _deduplicate_data_model(self, m: Dict[str, Any]) -> bool:
         """Returns True if message should be yielded, False if skipped."""
         return True
@@ -213,7 +221,7 @@ class A2uiStreamParser:
         messages_to_yield: List[Dict[str, Any]],
         messages: List[ResponsePart],
         config: ValidationConfig = STRICT_VALIDATION,
-    ):
+    ) -> None:
         """Validates and appends messages to the final output list."""
         for m in messages_to_yield:
             if not self._deduplicate_data_model(m):
@@ -358,7 +366,7 @@ class A2uiStreamParser:
             )
         return messages
 
-    def _reset_json_state(self):
+    def _reset_json_state(self) -> None:
         """Resets the JSON-specific parsing state (e.g., at the end of a block)."""
         self._json_buffer = ""
         self._brace_stack = []
@@ -450,7 +458,7 @@ class A2uiStreamParser:
 
         return fixed
 
-    def _process_json_chunk(self, chunk: str, messages: List[ResponsePart]):
+    def _process_json_chunk(self, chunk: str, messages: List[ResponsePart]) -> None:
         for char in chunk:
             char_handled = False
             if self._brace_count == 0:
@@ -670,24 +678,27 @@ class A2uiStreamParser:
                                     or "default"
                                 )
                                 # Deduplicate delta_contents by only keeping the LATEST entry for each dirty key
+                                delta_contents: Union[
+                                    List[Dict[str, Any]], Dict[str, Any]
+                                ]
                                 if isinstance(raw_contents, list):
-                                    delta_contents = []
+                                    list_contents: List[Dict[str, Any]] = []
                                     seen_keys = set()
                                     for entry in reversed(raw_contents):
                                         if not isinstance(entry, dict):
                                             continue
-                                        k = entry.get("key")
+                                        entry_key = entry.get("key")
                                         # Only include entries that have a valid parsed key (cumulative)
                                         if (
-                                            k
-                                            and k in contents_dict
-                                            and k not in seen_keys
+                                            entry_key
+                                            and entry_key in contents_dict
+                                            and entry_key not in seen_keys
                                         ):
-                                            delta_contents.insert(0, entry)
-                                            seen_keys.add(k)
+                                            list_contents.insert(0, entry)
+                                            seen_keys.add(entry_key)
                                     delta_contents = (
                                         self._prune_incomplete_datamodel_entries(
-                                            delta_contents
+                                            list_contents
                                         )
                                     )
                                 else:
@@ -711,7 +722,7 @@ class A2uiStreamParser:
                                 # Update internal model for path resolution
                                 self.update_data_model(dm_obj, messages)
 
-    def _sniff_partial_component(self, messages: List[ResponsePart]):
+    def _sniff_partial_component(self, messages: List[ResponsePart]) -> None:
         """Attempts to parse a partial component from the current buffer."""
         # We only care about components if we are inside a "components" array
         if f'"{CATALOG_COMPONENTS_KEY}"' not in self._json_buffer:
@@ -779,7 +790,7 @@ class A2uiStreamParser:
 
     def _handle_partial_component(
         self, comp: Dict[str, Any], messages: List[ResponsePart]
-    ):
+    ) -> None:
         """Handles a component discovered before its parent message is finished.
 
         When the parser sees a full JSON object that looks like a component
@@ -880,10 +891,10 @@ class A2uiStreamParser:
 
     def yield_reachable(
         self,
-        messages: List[Dict[str, Any]],
+        messages: List[ResponsePart],
         check_root: bool = False,
         raise_on_orphans: bool = False,
-    ):
+    ) -> None:
         """Yields a partial message containing all reachable and seen components.
 
         This is the core of the streaming logic. Instead of waiting for a UI message
@@ -934,8 +945,8 @@ class A2uiStreamParser:
                 )
 
             # 1. Process placeholders and partial children
-            processed_components = []
-            extra_components = []
+            processed_components: List[Dict[str, Any]] = []
+            extra_components: List[Dict[str, Any]] = []
             surface_id = self.surface_id or "unknown"
             yielded_for_surface = self._yielded_ids.get(surface_id, set())
 
@@ -1022,7 +1033,7 @@ class A2uiStreamParser:
         comp: Dict[str, Any],
         extra_components: List[Dict[str, Any]],
         inline_resolved: bool = False,
-    ):
+    ) -> None:
         """Recursively processes path placeholders and child pruning in one pass."""
         comp_id = comp.get("id", "unknown")
 
@@ -1033,7 +1044,7 @@ class A2uiStreamParser:
             else ""
         )
 
-        def traverse(obj, parent_key=None):
+        def traverse(obj: Any, parent_key: Optional[str] = None) -> None:
             if isinstance(obj, dict):
                 # 1. Handle Path Placeholders (from _apply_placeholders)
                 if (

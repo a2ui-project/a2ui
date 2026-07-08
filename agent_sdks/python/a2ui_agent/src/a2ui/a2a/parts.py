@@ -63,7 +63,7 @@ def is_a2ui_part(part: Part) -> bool:
     Returns:
         True if the part contains A2UI data, False otherwise.
     """
-    return (
+    return bool(
         isinstance(part.root, DataPart)
         and part.root.metadata
         and part.root.metadata.get(MIME_TYPE_KEY)
@@ -80,7 +80,7 @@ def get_a2ui_datapart(part: Part) -> Optional[DataPart]:
     Returns:
         The DataPart containing A2UI data if present, None otherwise.
     """
-    if is_a2ui_part(part):
+    if is_a2ui_part(part) and isinstance(part.root, DataPart):
         return part.root
     return None
 
