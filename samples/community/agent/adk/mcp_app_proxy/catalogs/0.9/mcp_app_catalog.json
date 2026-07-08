@@ -1,5 +1,7 @@
 {
-  "catalogId": "a2ui.org:a2ui/v0.9/mcp_app_catalog.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://a2ui.org/samples/community/agent/adk/mcp_app_proxy/catalogs/0.9/mcp_app_catalog.json",
+  "catalogId": "https://a2ui.org/samples/community/agent/adk/mcp_app_proxy/catalogs/0.9/mcp_app_catalog.json",
   "components": {
     "Column": {
       "type": "object",
