@@ -71,13 +71,15 @@ class A2uiValidatorWrapper:
         root_id: Optional[str] = None,
         config: ValidationConfig = STRICT_VALIDATION,
     ) -> None:
+        target_ver = f"v{self._catalog.version}"
+        updated_config = config.model_copy(update={"target_version": target_ver})
         self._validator.validate(
             schema_validator=CatalogSchemaValidator(
                 self._catalog.core_catalog,
                 self._catalog.common_types_schema,
             ),
             a2ui_payload=a2ui_json,
-            config=config,
+            config=updated_config,
         )
 
 
