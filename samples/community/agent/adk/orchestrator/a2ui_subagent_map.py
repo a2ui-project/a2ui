@@ -32,9 +32,7 @@ class A2uiSubagentMap:
         return cls.KEY_PREFIX + surface_id
 
     @classmethod
-    async def get_subagent_name(
-        cls, surface_id: str, state: State
-    ) -> Optional[str]:
+    async def get_subagent_name(cls, surface_id: str, state: State) -> Optional[str]:
         """Gets the subagent route for the given tool call id."""
         subagent_name = state.get(cls._get_key(surface_id), None)
         logging.info(

@@ -110,9 +110,7 @@ class A2UIMetadataInterceptor(ClientCallInterceptor):
                         current_surfaces = data_model["surfaces"]
                         surface_ids_to_check = list(current_surfaces.keys())
                         owner_agents = await asyncio.gather(*[
-                            A2uiSubagentMap.get_subagent_name(
-                                sid, context.state
-                            )
+                            A2uiSubagentMap.get_subagent_name(sid, context.state)
                             for sid in surface_ids_to_check
                         ])
 
@@ -171,19 +169,19 @@ class OrchestratorAgentExecutor(A2aAgentExecutor):
             and is_a2ui_part(a2a_part)
         ):
             surface_id = None
-            if (action := a2a_part.root.data.get("action")):
+            if action := a2a_part.root.data.get("action"):
                 surface_id = action.get("surfaceId")
-            elif (error := a2a_part.root.data.get("error")):
+            elif error := a2a_part.root.data.get("error"):
                 surface_id = error.get("surfaceId")
-            
+
             if surface_id and (
                 target_agent := await A2uiSubagentMap.get_subagent_name(
                     surface_id, callback_context.state
                 )
             ):
                 logger.info(
-                    f"Programmatically routing client event for surfaceId '{surface_id}' to"
-                    f" subagent '{target_agent}'"
+                    "Programmatically routing client event for surfaceId"
+                    f" '{surface_id}' to subagent '{target_agent}'"
                 )
                 return LlmResponse(
                     content=genai_types.Content(
@@ -396,32 +394,43 @@ class OrchestratorAgentExecutor(A2aAgentExecutor):
             new_parts = []
             for a2a_part in a2a_event.status.message.parts:
                 if is_a2ui_part(a2a_part):
-                    if (begin_rendering := a2a_part.root.data.get("beginRendering")) and (surface_id := begin_rendering.get("surfaceId")):
+                    if (
+                        begin_rendering := a2a_part.root.data.get("beginRendering")
+                    ) and (surface_id := begin_rendering.get("surfaceId")):
                         key = A2uiSubagentMap._get_key(surface_id)
                         existing_owner = invocation_context.session.state.get(key)
-                        
+
                         if existing_owner:
-                            logger.error(f"Surface ID {surface_id} already exists: surface was previously created by {existing_owner}, and {event.author} tried to create it again")
+                            logger.error(
+                                f"Surface ID {surface_id} already exists: surface was"
+                                f" previously created by {existing_owner}, and"
+                                f" {event.author} tried to create it again"
+                            )
                             if subagent_obj:
                                 error_msg = json.dumps({
                                     "version": "0.9",
                                     "error": {
                                         "code": "SURFACE_ID_ALREADY_EXISTS",
                                         "surfaceId": surface_id,
-                                        "message": f"surfaceId '{surface_id}' already exists, surfaceIds must be globally unique"
-                                    }
+                                        "message": (
+                                            f"surfaceId '{surface_id}' already exists,"
+                                            " surfaceIds must be globally unique"
+                                        ),
+                                    },
                                 })
                                 error_req = LlmRequest(
                                     contents=[
                                         genai_types.Content(
                                             parts=[genai_types.Part(text=error_msg)],
-                                            role="user"
+                                            role="user",
                                         )
                                     ]
                                 )
                                 asyncio.run_coroutine_threadsafe(
-                                    subagent_obj.run_async(error_req, invocation_context),
-                                    asyncio.get_event_loop()
+                                    subagent_obj.run_async(
+                                        error_req, invocation_context
+                                    ),
+                                    asyncio.get_event_loop(),
                                 )
                             continue
                         else:
@@ -434,7 +443,9 @@ class OrchestratorAgentExecutor(A2aAgentExecutor):
                                 ),
                                 asyncio.get_event_loop(),
                             )
-                    elif (delete_surface := a2a_part.root.data.get("deleteSurface")) and (surface_id := delete_surface.get("surfaceId")):
+                    elif (
+                        delete_surface := a2a_part.root.data.get("deleteSurface")
+                    ) and (surface_id := delete_surface.get("surfaceId")):
                         asyncio.run_coroutine_threadsafe(
                             A2uiSubagentMap.remove_subagent(
                                 surface_id,
