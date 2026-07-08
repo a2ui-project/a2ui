@@ -44,7 +44,7 @@ export class App implements AfterViewInit {
   private messageListenerAdded = false;
   protected readonly mcpAppHtmlUrl = signal<string | null>(null);
   protected readonly isAppLoading = signal<boolean>(false);
-  protected readonly selectedApp = signal<'editor' | 'basic'>('editor');
+  protected readonly selectedApp = signal<'editor' | 'basic' | 'react'>('editor');
 
   private mcpClient: Client | null = null;
 
@@ -191,7 +191,7 @@ export class App implements AfterViewInit {
   }
 
   onAppChange(value: string) {
-    if (value === 'editor' || value === 'basic') {
+    if (value === 'editor' || value === 'basic' || value === 'react') {
       this.selectedApp.set(value);
     } else {
       console.error(`[Host] Invalid app selected: ${value}`);
@@ -219,7 +219,12 @@ export class App implements AfterViewInit {
       await client.connect(transport);
       this.mcpClient = client;
 
-      const toolName = this.selectedApp() === 'editor' ? 'get_editor_app' : 'get_basic_app';
+      const entryTools = {
+        editor: 'get_editor_app',
+        basic: 'get_basic_app',
+        react: 'get_react_app',
+      } as const;
+      const toolName = entryTools[this.selectedApp()];
 
       // 2. Discover the tool's predeclared UI template (_meta.ui.resourceUri)
       // and which tools the View may call (_meta.ui.visibility).

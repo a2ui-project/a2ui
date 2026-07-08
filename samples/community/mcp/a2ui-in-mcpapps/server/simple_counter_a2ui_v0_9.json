@@ -1,0 +1,71 @@
+[
+  {
+    "version": "v0.9",
+    "createSurface": {
+      "surfaceId": "counter",
+      "catalogId": "https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json"
+    }
+  },
+  {
+    "version": "v0.9",
+    "updateComponents": {
+      "surfaceId": "counter",
+      "components": [
+        {"id": "root", "component": "Card", "child": "main-column"},
+        {
+          "id": "main-column",
+          "component": "Column",
+          "children": ["ping-text", "controls-row"]
+        },
+        {
+          "id": "ping-text",
+          "component": "Text",
+          "text": "Pong from MCP Server (v0.9)!"
+        },
+        {
+          "id": "controls-row",
+          "component": "Row",
+          "children": ["score-card", "increase-btn"]
+        },
+        {"id": "score-card", "component": "Card", "child": "score-column"},
+        {
+          "id": "score-column",
+          "component": "Column",
+          "children": ["score-label", "score-value"]
+        },
+        {
+          "id": "score-label",
+          "component": "Text",
+          "variant": "caption",
+          "text": "Counter"
+        },
+        {
+          "id": "score-value",
+          "component": "Text",
+          "variant": "h1",
+          "text": {"path": "/counter"}
+        },
+        {
+          "id": "increase-btn",
+          "component": "Button",
+          "child": "increase-btn-text",
+          "variant": "primary",
+          "action": {"event": {"name": "increase_counter_v0_9", "context": {}}}
+        },
+        {
+          "id": "increase-btn-text",
+          "component": "Text",
+          "text": "Increase counter"
+        }
+      ]
+    }
+  },
+  {
+    "version": "v0.9",
+    "updateDataModel": {
+      "surfaceId": "counter",
+      "path": "/counter",
+      "value": 0
+    }
+  }
+]

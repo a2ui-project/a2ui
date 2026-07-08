@@ -51,6 +51,13 @@ def main(port: int, transport: str) -> int:
         ).read_text()
     )
 
+    # v0.9-vocabulary counter payload, rendered by the generic React app
+    simple_counter_a2ui_v0_9_json = json.loads(
+        (
+            pathlib.Path(__file__).resolve().parent / "simple_counter_a2ui_v0_9.json"
+        ).read_text()
+    )
+
     @app.list_resources()
     async def list_resources() -> list[types.Resource]:
         return [
@@ -66,6 +73,12 @@ def main(port: int, transport: str) -> int:
                 mimeType="text/html;profile=mcp-app",
                 description="A rich generative document editor",
             ),
+            types.Resource(
+                uri="ui://react/app",
+                name="React App",
+                mimeType="text/html;profile=mcp-app",
+                description="A generic A2UI renderer written in React",
+            ),
         ]
 
     @app.read_resource()
@@ -76,6 +89,8 @@ def main(port: int, transport: str) -> int:
             app_file = "app.html"
         elif str(uri) == "ui://editor/app":
             app_file = "editor.html"
+        elif str(uri) == "ui://react/app":
+            app_file = "react.html"
         else:
             raise ValueError(f"Unknown resource: {uri}")
 
@@ -126,6 +141,31 @@ def main(port: int, transport: str) -> int:
                 _meta={"ui": {"visibility": ["app"]}},
             ),
             types.Tool(
+                name="get_react_app",
+                title="Get React App",
+                description=(
+                    "Returns the initial v0.9 counter payload, rendered by the"
+                    " generic React A2UI renderer."
+                ),
+                inputSchema={"type": "object", "properties": {}, "required": []},
+                _meta={
+                    "ui": {
+                        "resourceUri": "ui://react/app",
+                        "visibility": ["model"],
+                    }
+                },
+            ),
+            types.Tool(
+                name="increase_counter_v0_9",
+                title="Increase Counter (v0.9)",
+                description=(
+                    "Increments the counter and returns the updated value as a"
+                    " v0.9 data model update."
+                ),
+                inputSchema={"type": "object", "properties": {}, "required": []},
+                _meta={"ui": {"visibility": ["app"]}},
+            ),
+            types.Tool(
                 name="get_editor_app",
                 title="Get Editor App",
                 description="Opens the Editor A2UI application view.",
@@ -170,6 +210,8 @@ def main(port: int, transport: str) -> int:
     async def handle_call_tool(
         name: str, arguments: dict[str, Any]
     ) -> dict[str, Any] | list[Any]:
+        global COUNTER
+
         if name == "get_basic_app":
             # The ui://basic/app template is declared in the tool's
             # _meta.ui.resourceUri; this result is what the view renders,
@@ -203,7 +245,6 @@ def main(port: int, transport: str) -> int:
             )
 
         elif name == "increase_counter":
-            global COUNTER
             COUNTER += 1
             return types.CallToolResult(
                 content=[
@@ -219,6 +260,46 @@ def main(port: int, transport: str) -> int:
                                         {"key": "counter", "valueNumber": COUNTER}
                                     ],
                                 }
+                            }]),
+                        ),
+                    )
+                ]
+            )
+
+        elif name == "get_react_app":
+            # The ui://react/app template is declared in the tool's
+            # _meta.ui.resourceUri; the generic renderer draws whatever A2UI
+            # payload this result embeds.
+            return types.CallToolResult(
+                content=[
+                    types.TextContent(type="text", text="Initial counter UI (v0.9)"),
+                    types.EmbeddedResource(
+                        type="resource",
+                        resource=types.TextResourceContents(
+                            uri="a2ui://counter-v0-9",
+                            mimeType=A2UI_MIME_TYPE,
+                            text=json.dumps(simple_counter_a2ui_v0_9_json),
+                        ),
+                    ),
+                ]
+            )
+
+        elif name == "increase_counter_v0_9":
+            COUNTER += 1
+            return types.CallToolResult(
+                content=[
+                    types.EmbeddedResource(
+                        type="resource",
+                        resource=types.TextResourceContents(
+                            uri="a2ui://counter-v0-9",
+                            mimeType=A2UI_MIME_TYPE,
+                            text=json.dumps([{
+                                "version": "v0.9",
+                                "updateDataModel": {
+                                    "surfaceId": "counter",
+                                    "path": "/counter",
+                                    "value": COUNTER,
+                                },
                             }]),
                         ),
                     )

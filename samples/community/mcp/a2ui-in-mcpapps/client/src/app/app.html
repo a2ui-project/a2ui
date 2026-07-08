@@ -31,6 +31,7 @@
           Generative Editor App
         </option>
         <option value="basic" [selected]="selectedApp() === 'basic'">Basic Counter App</option>
+        <option value="react" [selected]="selectedApp() === 'react'">Generic React Renderer</option>
       </select>
     </div>
     <button (click)="connectAndLoadApp()" [disabled]="isAppLoading()">
