@@ -75,7 +75,7 @@ export class App implements AfterViewInit {
           );
         }
       } else if (data?.method === 'ping') {
-        if (data.id && target) {
+        if (data.id != null && target) {
           target.postMessage(
             {
               jsonrpc: '2.0',
@@ -86,7 +86,7 @@ export class App implements AfterViewInit {
           );
         }
       } else if (data?.method === 'ui/initialize') {
-        if (data.id && target) {
+        if (data.id != null && target) {
           target.postMessage(
             {
               jsonrpc: '2.0',
@@ -137,7 +137,7 @@ export class App implements AfterViewInit {
 
         if (typeof toolName !== 'string' || !this.allowedTools.has(toolName)) {
           console.warn(`[Host] Blocked unauthorized tool call: ${toolName}`);
-          if (data.id && target) {
+          if (data.id != null && target) {
             target.postMessage(
               {
                 jsonrpc: '2.0',
@@ -150,7 +150,7 @@ export class App implements AfterViewInit {
           return;
         }
 
-        if (data.id && target && this.mcpClient) {
+        if (data.id != null && target && this.mcpClient) {
           this.mcpClient
             .callTool({
               name: toolName,
