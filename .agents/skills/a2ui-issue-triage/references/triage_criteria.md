@@ -40,7 +40,7 @@ _Note: There is no P4 priority tier. Issues that are out of scope, highly custom
 ### 2. Feature Requests
 
 - **Analysis**:
-  - Verify if the request aligns with the [A2UI roadmap](../../../../docs/roadmap.md) and/or design philosophy for the affected components. Be lenient if the idea can be implemented entirely as a client-side catalog extension or a custom renderer component without modifying the core protocol schemas or SDK interfaces.
+  - Verify if the request aligns with the [A2UI roadmap](../../../../docs/public/roadmap.md) and/or design philosophy for the affected components. Be lenient if the idea can be implemented entirely as a client-side catalog extension or a custom renderer component without modifying the core protocol schemas or SDK interfaces.
   - Note if the request seems to be related to a specific issue or PR that has already been discussed.
 - **Action**:
   - If aligned, set action to `backlog` with priority `P2` or `P3` and suggest appropriate component labels (e.g., `component: standard catalog specification`, `type: feature/enhancement`).
@@ -50,10 +50,10 @@ _Note: There is no P4 priority tier. Issues that are out of scope, highly custom
 
 - **Analysis**:
   - Identify if the issue is a question about usage or setup rather than a bug.
-  - If the question is answered in the documentation (e.g., [quickstart.md](../../../../docs/quickstart.md)), provide a link to the relevant guide in the response.
+  - If the question is answered in the documentation (e.g., [quickstart.md](../../../../docs/public/quickstart.md)), provide a link to the relevant guide in the response.
 - **Action**:
   - Set action to `close_resolved` or `close_invalid`.
-  - Answer the question directly or provide links to the relevant guides (e.g., [quickstart.md](../../../../docs/quickstart.md)) or GitHub Discussions, then close the issue.
+  - Answer the question directly or provide links to the relevant guides (e.g., [quickstart.md](../../../../docs/public/quickstart.md)) or GitHub Discussions, then close the issue.
 
 ---
 
