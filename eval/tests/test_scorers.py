@@ -277,13 +277,17 @@ async def test_scorer_circular_reference():
 
 from a2ui_eval.scorers import measured_model_graded_qa
 
+
 @pytest.mark.asyncio
 async def test_measured_model_graded_qa(monkeypatch):
     async def mock_base_scorer(state, target):
         from inspect_ai.scorer import Score
+
         return Score(value=1.0, explanation="Good")
 
-    monkeypatch.setattr("a2ui_eval.scorers.model_graded_qa", lambda *args, **kwargs: mock_base_scorer)
+    monkeypatch.setattr(
+        "a2ui_eval.scorers.model_graded_qa", lambda *args, **kwargs: mock_base_scorer
+    )
 
     scorer = measured_model_graded_qa(model="mock/model")
     state = TaskState(
@@ -299,4 +303,3 @@ async def test_measured_model_graded_qa(monkeypatch):
     assert score.value == 1.0
     assert "evaluation_duration_seconds" in state.metadata
     assert state.metadata["evaluation_duration_seconds"] >= 0
-

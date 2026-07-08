@@ -190,5 +190,3 @@ def test_direct_solver():
 
     solvers = direct_solver(version="0.9.1")
     assert len(solvers) == 2
-
-
