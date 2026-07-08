@@ -132,5 +132,64 @@ class TestOrchestratorAgentExecutor(unittest.IsolatedAsyncioTestCase):
         self.assertIn("surface_C", filtered_surfaces)
         self.assertNotIn("surface_B", filtered_surfaces)
 
+    @patch("orchestrator_agent_executor.event_converter.convert_event_to_a2a_events")
+    @patch("orchestrator_agent_executor.is_a2ui_part")
+    @patch.object(A2uiSubagentMap, "set_subagent")
+    def test_surface_id_collision(self, mock_set_subagent, mock_is_a2ui_part, mock_convert_events):
+        # Use Case 3: surfaceId collision between subagents
+        
+        event = MagicMock()
+        event.author = "subagent_2"
+        
+        invocation_context = MagicMock()
+        
+        # Mock subagent_2
+        mock_subagent_2 = MagicMock()
+        mock_subagent_2.name = "subagent_2"
+        mock_subagent_2.description = "{}"
+        mock_subagent_2.run_async = AsyncMock()
+        
+        invocation_context.agent.sub_agents = [mock_subagent_2]
+        
+        # Return subagent_1 to simulate collision
+        invocation_context.session.state.get.return_value = "subagent_1"
+        
+        a2a_part_data = {
+            "beginRendering": {
+                "surfaceId": "surface_123"
+            }
+        }
+        dummy_a2a_part = DummyA2aPart(a2a_part_data)
+        
+        a2a_event = MagicMock()
+        # Ensure metadata is accessible to avoid NoneType errors
+        a2a_event.metadata = {}
+        a2a_event.status.message.parts = [dummy_a2a_part]
+        
+        mock_convert_events.return_value = [a2a_event]
+        mock_is_a2ui_part.return_value = True
+        
+        result_events = OrchestratorAgentExecutor.convert_event_to_a2a_events_and_save_surface_id_to_subagent_name(
+            event, invocation_context
+        )
+        
+        mock_set_subagent.assert_not_called()
+        
+        # The part should be dropped
+        self.assertEqual(len(result_events[0].status.message.parts), 0)
+        
+        # The subagent should have received a run_async call with the error
+        mock_subagent_2.run_async.assert_called_once()
+        error_req = mock_subagent_2.run_async.call_args[0][0]
+        self.assertIsInstance(error_req, LlmRequest)
+        error_text = error_req.contents[0].parts[0].text
+        
+        import json
+        error_json = json.loads(error_text)
+        self.assertEqual(error_json["version"], "0.9")
+        self.assertEqual(error_json["error"]["code"], "SURFACE_ID_ALREADY_EXISTS")
+        self.assertEqual(error_json["error"]["surfaceId"], "surface_123")
+        self.assertIn("surfaceId 'surface_123' already exists, surfaceIds must be globally unique", error_json["error"]["message"])
+
 if __name__ == "__main__":
     unittest.main()

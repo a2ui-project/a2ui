@@ -365,10 +365,10 @@ class OrchestratorAgentExecutor(A2aAgentExecutor):
 
         for a2a_event in a2a_events:
             # Try to populate subagent agent card if available.
-            subagent_card = None
+            subagent_obj = None
             if active_subagent_name := event.author:
                 # We need to find the subagent by name
-                if subagent := next(
+                if subagent_obj := next(
                     (
                         sub
                         for sub in invocation_context.agent.sub_agents
@@ -377,7 +377,7 @@ class OrchestratorAgentExecutor(A2aAgentExecutor):
                     None,
                 ):
                     try:
-                        subagent_card = json.loads(subagent.description)
+                        subagent_card = json.loads(subagent_obj.description)
                     except Exception:
                         logger.warning(
                             "Failed to parse agent description for"
@@ -388,21 +388,52 @@ class OrchestratorAgentExecutor(A2aAgentExecutor):
                     a2a_event.metadata = {}
                 a2a_event.metadata["a2a_subagent"] = subagent_card
 
+            new_parts = []
             for a2a_part in a2a_event.status.message.parts:
                 if (
                     is_a2ui_part(a2a_part)
                     and (begin_rendering := a2a_part.root.data.get("beginRendering"))
                     and (surface_id := begin_rendering.get("surfaceId"))
                 ):
-                    asyncio.run_coroutine_threadsafe(
-                        A2uiSubagentMap.set_subagent(
-                            surface_id,
-                            event.author,
-                            invocation_context.session_service,
-                            invocation_context.session,
-                        ),
-                        asyncio.get_event_loop(),
-                    )
+                    key = A2uiSubagentMap._get_key(surface_id)
+                    existing_owner = invocation_context.session.state.get(key)
+                    
+                    if existing_owner:
+                        logger.error(f"Surface ID {surface_id} already exists: surface was previously created by {existing_owner}, and {event.author} tried to create it again")
+                        if subagent_obj:
+                            error_msg = json.dumps({
+                                "version": "0.9",
+                                "error": {
+                                    "code": "SURFACE_ID_ALREADY_EXISTS",
+                                    "surfaceId": surface_id,
+                                    "message": f"surfaceId '{surface_id}' already exists, surfaceIds must be globally unique"
+                                }
+                            })
+                            error_req = LlmRequest(
+                                contents=[
+                                    genai_types.Content(
+                                        parts=[genai_types.Part(text=error_msg)],
+                                        role="user"
+                                    )
+                                ]
+                            )
+                            asyncio.run_coroutine_threadsafe(
+                                subagent_obj.run_async(error_req, invocation_context),
+                                asyncio.get_event_loop()
+                            )
+                        continue
+                    else:
+                        asyncio.run_coroutine_threadsafe(
+                            A2uiSubagentMap.set_subagent(
+                                surface_id,
+                                event.author,
+                                invocation_context.session_service,
+                                invocation_context.session,
+                            ),
+                            asyncio.get_event_loop(),
+                        )
+                new_parts.append(a2a_part)
+            a2a_event.status.message.parts = new_parts
 
         return a2a_events
 
