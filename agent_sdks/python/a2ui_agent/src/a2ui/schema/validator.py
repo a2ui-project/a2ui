@@ -109,14 +109,19 @@ class A2uiValidatorWrapperV10:
                     resources.append((schema["$id"], Resource.from_contents(schema)))
 
         if isinstance(cat, dict):
-            resources.append(("catalog.json", Resource.from_contents(cat)))
             cat_copy = dict(cat)
+            if "$schema" not in cat_copy:
+                cat_copy["$schema"] = "https://json-schema.org/draft/2020-12/schema"
+            resources.append(("catalog.json", Resource.from_contents(cat_copy)))
             s2c_id = s2c["$id"]
             resolved_catalog_uri = urljoin(s2c_id, "catalog.json")
-            cat_copy["$id"] = resolved_catalog_uri
-            resources.append((resolved_catalog_uri, Resource.from_contents(cat_copy)))
+            cat_copy_uri = dict(cat_copy)
+            cat_copy_uri["$id"] = resolved_catalog_uri
+            resources.append(
+                (resolved_catalog_uri, Resource.from_contents(cat_copy_uri))
+            )
             if "$id" in cat:
-                resources.append((cat["$id"], Resource.from_contents(cat)))
+                resources.append((cat["$id"], Resource.from_contents(cat_copy)))
 
         self._registry = Registry().with_resources(resources)
         self._wrapped_schema = {
