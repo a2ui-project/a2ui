@@ -60,6 +60,7 @@ export class McpAppRoot implements OnInit, AfterViewInit {
 
   ngOnInit() {
     this.initializeHandshake();
+    this.setupToolResultListener();
     this.setupActionRouting();
   }
 
@@ -104,6 +105,28 @@ export class McpAppRoot implements OnInit, AfterViewInit {
       });
     };
     window.addEventListener('message', handler);
+  }
+
+  // Renders the result of the tools/call that instantiated this View,
+  // delivered by the host as ui/notifications/tool-result after initialized.
+  private setupToolResultListener() {
+    window.addEventListener('message', (event: MessageEvent) => {
+      if (event.source !== window.parent) return;
+      if (event.data?.method !== 'ui/notifications/tool-result') return;
+
+      const content = event.data.params?.content;
+      if (!Array.isArray(content)) return;
+
+      try {
+        const messages = this.getA2UIMessages(content);
+        if (!messages) return;
+        this.processor.clearSurfaces();
+        this.processor.processMessages(messages);
+        this.status.set('Rendered');
+      } catch (e: unknown) {
+        console.error('Failed to parse tool-result payload:', e);
+      }
+    });
   }
 
   private setupActionRouting() {

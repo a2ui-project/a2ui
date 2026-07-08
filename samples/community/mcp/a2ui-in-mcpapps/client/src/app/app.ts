@@ -40,12 +40,10 @@ export class App implements AfterViewInit {
 
   private mcpClient: Client | null = null;
 
-  private readonly allowedTools = new Set([
-    'fetch_counter_a2ui',
-    'increase_counter',
-    'smart_editor_get_controls',
-    'smart_editor_apply',
-  ]);
+  // Tools the View may invoke, derived from each tool's declared
+  // _meta.ui.visibility (per spec, an absent declaration defaults to
+  // ["model", "app"], i.e. app-callable).
+  private allowedTools = new Set<string>();
 
   ngAfterViewInit() {
     if (this.messageListenerAdded) return;
@@ -212,10 +210,30 @@ export class App implements AfterViewInit {
       await client.connect(transport);
       this.mcpClient = client;
 
-      this.status.set('Calling MCP App tool...');
       const toolName = this.selectedApp() === 'editor' ? 'get_editor_app' : 'get_basic_app';
 
-      // 2. Call the tool to get the app
+      // 2. Discover the tool's predeclared UI template (_meta.ui.resourceUri)
+      // and which tools the View may call (_meta.ui.visibility).
+      this.status.set('Listing tools...');
+      const {tools} = await client.listTools();
+      this.allowedTools = new Set(
+        tools
+          .filter(tool => {
+            const visibility = (tool._meta as any)?.ui?.visibility;
+            return Array.isArray(visibility) ? visibility.includes('app') : true;
+          })
+          .map(tool => tool.name),
+      );
+
+      const entryTool = tools.find(tool => tool.name === toolName);
+      const resourceUri = (entryTool?._meta as any)?.ui?.resourceUri;
+      if (typeof resourceUri !== 'string' || !resourceUri.startsWith('ui://')) {
+        throw new Error(`Tool '${toolName}' does not declare a ui:// resource in _meta.ui`);
+      }
+
+      // 3. Call the tool; its result is delivered to the View via
+      // ui/notifications/tool-result once the View reports initialized.
+      this.status.set('Calling MCP App tool...');
       const result = await client.callTool({
         name: toolName,
         arguments: {},
@@ -223,13 +241,6 @@ export class App implements AfterViewInit {
       this.toolCallArguments = {};
       this.toolCallResult = result as Record<string, unknown>;
 
-      // 3. Extract resource URI
-      const resourceContent = (result.content as any[]).find((c: any) => c.type === 'resource');
-      if (!resourceContent || !resourceContent.resource?.uri) {
-        throw new Error('Tool did not return a resource URI');
-      }
-
-      const resourceUri = resourceContent.resource.uri;
       this.status.set(`Reading resource: ${resourceUri}`);
 
       // 4. Read the resource

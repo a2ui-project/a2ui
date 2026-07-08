@@ -20,8 +20,12 @@ sequenceDiagram
     participant A2UI as A2UI Surface
 
     Note over Host: 1. Loaded from Hosting server
-    Host->>Server: 2. Fetch MCP App resource
-    Server-->>Host: Return MCP App resource
+    Host->>Server: 2a. tools/list
+    Server-->>Host: Tool definitions (_meta.ui.resourceUri -> ui:// template)
+    Host->>Server: 2b. tools/call (app entry tool)
+    Server-->>Host: CallToolResult (relayed later via ui/notifications/tool-result)
+    Host->>Server: 2c. resources/read (declared ui:// template)
+    Server-->>Host: Return MCP App HTML resource
     Host->>Proxy: 3a. Load Sandbox Proxy
     Proxy->>App: 3b. Serve App in isolated iframe
 
