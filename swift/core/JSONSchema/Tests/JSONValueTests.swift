@@ -75,6 +75,62 @@ struct JSONValueTests {
     #expect(JSONValue.object(obj1) == JSONValue.object(obj3))
   }
 
+  @Test func testTypeName() throws {
+    #expect(JSONValue.null.typeName == "null")
+    #expect(JSONValue.boolean(true).typeName == "boolean")
+    #expect(JSONValue.number(1.0).typeName == "number")
+    #expect(JSONValue.string("str").typeName == "string")
+    #expect(JSONValue.array([]).typeName == "array")
+    #expect(JSONValue.object([:]).typeName == "object")
+  }
+
+  @Test func testDecodingErrors() throws {
+    // Test nested array mismatch (triggers line 52 throw)
+    struct DeepArrayMismatchDecoder: Decoder {
+      var codingPath: [CodingKey] = []
+      var userInfo: [CodingUserInfoKey : Any] = [:]
+      func container<Key>(keyedBy type: Key.Type) throws -> KeyedDecodingContainer<Key> { throw DecodingError.dataCorrupted(DecodingError.Context(codingPath: codingPath, debugDescription: "")) }
+      func unkeyedContainer() throws -> UnkeyedDecodingContainer { throw DecodingError.dataCorrupted(DecodingError.Context(codingPath: codingPath, debugDescription: "")) }
+      func singleValueContainer() throws -> SingleValueDecodingContainer {
+        return MockContainer(codingPath: codingPath, arrayErrorType: .deep, objectErrorType: .none)
+      }
+    }
+
+    #expect(throws: DecodingError.self) {
+      _ = try JSONValue(from: DeepArrayMismatchDecoder())
+    }
+
+    // Test nested object mismatch (triggers line 64 throw)
+    struct DeepObjectMismatchDecoder: Decoder {
+      var codingPath: [CodingKey] = []
+      var userInfo: [CodingUserInfoKey : Any] = [:]
+      func container<Key>(keyedBy type: Key.Type) throws -> KeyedDecodingContainer<Key> { throw DecodingError.dataCorrupted(DecodingError.Context(codingPath: codingPath, debugDescription: "")) }
+      func unkeyedContainer() throws -> UnkeyedDecodingContainer { throw DecodingError.dataCorrupted(DecodingError.Context(codingPath: codingPath, debugDescription: "")) }
+      func singleValueContainer() throws -> SingleValueDecodingContainer {
+        return MockContainer(codingPath: codingPath, arrayErrorType: .flat, objectErrorType: .deep)
+      }
+    }
+
+    #expect(throws: DecodingError.self) {
+      _ = try JSONValue(from: DeepObjectMismatchDecoder())
+    }
+
+    // Test unknown type mismatch (triggers line 67 throw)
+    struct FlatMismatchDecoder: Decoder {
+      var codingPath: [CodingKey] = []
+      var userInfo: [CodingUserInfoKey : Any] = [:]
+      func container<Key>(keyedBy type: Key.Type) throws -> KeyedDecodingContainer<Key> { throw DecodingError.dataCorrupted(DecodingError.Context(codingPath: codingPath, debugDescription: "")) }
+      func unkeyedContainer() throws -> UnkeyedDecodingContainer { throw DecodingError.dataCorrupted(DecodingError.Context(codingPath: codingPath, debugDescription: "")) }
+      func singleValueContainer() throws -> SingleValueDecodingContainer {
+        return MockContainer(codingPath: codingPath, arrayErrorType: .flat, objectErrorType: .flat)
+      }
+    }
+
+    #expect(throws: DecodingError.self) {
+      _ = try JSONValue(from: FlatMismatchDecoder())
+    }
+  }
+
   private func toString(from value: JSONValue) -> String {
     let encoder = JSONEncoder()
     encoder.outputFormatting = .sortedKeys
@@ -86,3 +142,64 @@ struct JSONValueTests {
     }
   }
 }
+
+private enum ErrorType {
+  case none
+  case flat
+  case deep
+}
+
+private struct MockKey: CodingKey {
+  var stringValue: String = "mock"
+  var intValue: Int? = nil
+  init() {}
+  init?(stringValue: String) { self.stringValue = stringValue }
+  init?(intValue: Int) { self.intValue = intValue }
+}
+
+private struct MockContainer: SingleValueDecodingContainer {
+  var codingPath: [CodingKey]
+  var arrayErrorType: ErrorType
+  var objectErrorType: ErrorType
+
+  func decodeNil() -> Bool { return false }
+  func decode(_ type: Bool.Type) throws -> Bool { throw DecodingError.typeMismatch(type, DecodingError.Context(codingPath: codingPath, debugDescription: "")) }
+  func decode(_ type: String.Type) throws -> String { throw DecodingError.typeMismatch(type, DecodingError.Context(codingPath: codingPath, debugDescription: "")) }
+  func decode(_ type: Double.Type) throws -> Double { throw DecodingError.typeMismatch(type, DecodingError.Context(codingPath: codingPath, debugDescription: "")) }
+  func decode(_ type: Float.Type) throws -> Float { throw DecodingError.typeMismatch(type, DecodingError.Context(codingPath: codingPath, debugDescription: "")) }
+  func decode(_ type: Int.Type) throws -> Int { throw DecodingError.typeMismatch(type, DecodingError.Context(codingPath: codingPath, debugDescription: "")) }
+  func decode(_ type: Int8.Type) throws -> Int8 { throw DecodingError.typeMismatch(type, DecodingError.Context(codingPath: codingPath, debugDescription: "")) }
+  func decode(_ type: Int16.Type) throws -> Int16 { throw DecodingError.typeMismatch(type, DecodingError.Context(codingPath: codingPath, debugDescription: "")) }
+  func decode(_ type: Int32.Type) throws -> Int32 { throw DecodingError.typeMismatch(type, DecodingError.Context(codingPath: codingPath, debugDescription: "")) }
+  func decode(_ type: Int64.Type) throws -> Int64 { throw DecodingError.typeMismatch(type, DecodingError.Context(codingPath: codingPath, debugDescription: "")) }
+  func decode(_ type: UInt.Type) throws -> UInt { throw DecodingError.typeMismatch(type, DecodingError.Context(codingPath: codingPath, debugDescription: "")) }
+  func decode(_ type: UInt8.Type) throws -> UInt8 { throw DecodingError.typeMismatch(type, DecodingError.Context(codingPath: codingPath, debugDescription: "")) }
+  func decode(_ type: UInt16.Type) throws -> UInt16 { throw DecodingError.typeMismatch(type, DecodingError.Context(codingPath: codingPath, debugDescription: "")) }
+  func decode(_ type: UInt32.Type) throws -> UInt32 { throw DecodingError.typeMismatch(type, DecodingError.Context(codingPath: codingPath, debugDescription: "")) }
+  func decode(_ type: UInt64.Type) throws -> UInt64 { throw DecodingError.typeMismatch(type, DecodingError.Context(codingPath: codingPath, debugDescription: "")) }
+
+  func decode<T>(_ type: T.Type) throws -> T where T : Decodable {
+    if type == [JSONValue].self {
+      switch arrayErrorType {
+      case .flat:
+        throw DecodingError.typeMismatch(type, DecodingError.Context(codingPath: codingPath, debugDescription: ""))
+      case .deep:
+        throw DecodingError.typeMismatch(type, DecodingError.Context(codingPath: codingPath + [MockKey()], debugDescription: ""))
+      case .none:
+        return [] as! T
+      }
+    }
+    if type == [String: JSONValue].self {
+      switch objectErrorType {
+      case .flat:
+        throw DecodingError.typeMismatch(type, DecodingError.Context(codingPath: codingPath, debugDescription: ""))
+      case .deep:
+        throw DecodingError.typeMismatch(type, DecodingError.Context(codingPath: codingPath + [MockKey()], debugDescription: ""))
+      case .none:
+        return [:] as! T
+      }
+    }
+    throw DecodingError.typeMismatch(type, DecodingError.Context(codingPath: codingPath, debugDescription: ""))
+  }
+}
+

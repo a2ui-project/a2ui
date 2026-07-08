@@ -50,7 +50,14 @@ def main():
         )
         sys.exit(1)
 
-    llvm_cov_cmd = ['llvm-cov', 'report', '-instr-profile', profdata_file, test_binary]
+    llvm_cov_cmd = [
+        'llvm-cov',
+        'report',
+        '-instr-profile',
+        profdata_file,
+        test_binary,
+        'swift/core/JSONSchema/Sources',
+    ]
     if shutil.which('xcrun'):
         cmd = ['xcrun'] + llvm_cov_cmd
     else:

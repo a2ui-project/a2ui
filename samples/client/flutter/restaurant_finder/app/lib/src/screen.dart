@@ -23,10 +23,12 @@ class RestaurantScreen extends StatefulWidget {
     super.key,
     required this.onToggleTheme,
     required this.themeMode,
+    this.session,
   });
 
   final VoidCallback onToggleTheme;
   final ThemeMode themeMode;
+  final RestaurantSession? session;
 
   @override
   State<RestaurantScreen> createState() => _RestaurantScreenState();
@@ -42,7 +44,7 @@ class _RestaurantScreenState extends State<RestaurantScreen> {
   @override
   void initState() {
     super.initState();
-    _session = RestaurantSession();
+    _session = widget.session ?? RestaurantSession();
   }
 
   @override

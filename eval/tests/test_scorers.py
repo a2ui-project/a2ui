@@ -273,3 +273,30 @@ async def test_scorer_circular_reference():
     score = await scorer(state, Target(""))
     assert score.value == 0.0
     assert "Circular reference detected" in score.explanation
+
+
+from a2ui_eval.scorers import measured_model_graded_qa
+
+@pytest.mark.asyncio
+async def test_measured_model_graded_qa(monkeypatch):
+    async def mock_base_scorer(state, target):
+        from inspect_ai.scorer import Score
+        return Score(value=1.0, explanation="Good")
+
+    monkeypatch.setattr("a2ui_eval.scorers.model_graded_qa", lambda *args, **kwargs: mock_base_scorer)
+
+    scorer = measured_model_graded_qa(model="mock/model")
+    state = TaskState(
+        model=ModelName("mock/model"),
+        sample_id=1,
+        epoch=1,
+        input="test",
+        messages=[],
+        output=ModelOutput(model="mock/model", completion="answer"),
+    )
+
+    score = await scorer(state, Target("target"))
+    assert score.value == 1.0
+    assert "evaluation_duration_seconds" in state.metadata
+    assert state.metadata["evaluation_duration_seconds"] >= 0
+
