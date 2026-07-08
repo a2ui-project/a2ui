@@ -34,7 +34,7 @@ members = [
     "personalized-learning-agent",
     "rizzcharts",
 ]
-overrides = [{ name = "black", specifier = ">=26.3.1" }]
+overrides = [{ name = "black", specifier = ">=26.5.1" }]
 
 [[package]]
 name = "a2a-sdk"
