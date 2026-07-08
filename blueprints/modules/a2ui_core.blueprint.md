@@ -324,6 +324,9 @@ When `getClientCapabilities()` converts internal schemas to generate `inlineCata
 
 A catalog groups component definitions and function definitions together, along with an optional theme schema.
 
+> [!NOTE]
+> **Catalog Identifiers (`id` / `catalogId`)**: A catalog's `id` is a string identifier, not a resolvable URI. While it is conventionally formatted as a URI (e.g., `https://mycompany.com/1.0/somecatalog`) to prevent naming collisions across organizations, it does not need to point to any deployed resource or downloadable file. Client and server developers must agree on shared catalogs with well-known IDs in order to build systems that are compatible with each other.
+
 ```typescript
 interface FunctionApi {
   readonly name: string;
