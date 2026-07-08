@@ -34,9 +34,9 @@ Every feature blueprint must start with a YAML block containing:
 ---
 feature_name: feature_name # Must match the filename's snake_case name exactly
 module_blueprints:
-  - a2ui_core              # One or more valid module blueprint names affected
-dependencies: []           # Optional list of prerequisite feature names
-date_added: 2026-07-07     # Date initially authored (YYYY-MM-DD)
+  - a2ui_core # One or more valid module blueprint names affected
+dependencies: [] # Optional list of prerequisite feature names
+date_added: 2026-07-07 # Date initially authored (YYYY-MM-DD)
 ---
 ```
 

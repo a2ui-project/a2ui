@@ -35,12 +35,13 @@ When you (or an agent) want to actively work with Spec-Driven Development or cre
 ```
 
 This creates local symlinks from `blueprints/skills/<skill-name>` into `.agents/skills/<skill-name>`:
+
 - `a2ui-blueprint-navigator`
 - `a2ui-create-feature-blueprint`
 - `a2ui-implement-feature-from-blueprint`
 - `a2ui-blueprint-maintenance`
 
-*(Note: These symlinks are ignored in `.gitignore`, so enabling them will not dirty your git working tree.)*
+_(Note: These symlinks are ignored in `.gitignore`, so enabling them will not dirty your git working tree.)_
 
 To disable or remove the symlinked skills when you are done working with blueprints, remove the symlinks from `.agents/skills/`:
 
