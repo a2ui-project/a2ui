@@ -28,8 +28,16 @@ import {
 } from '@a2a_chat_canvas/interfaces/markdown-renderer-service';
 import {SanitizerMarkdownRendererService} from '@a2a_chat_canvas/services/sanitizer-markdown-renderer-service';
 import {Catalog, Theme} from '@a2ui/angular';
-import {EnvironmentProviders, Provider, Type, makeEnvironmentProviders} from '@angular/core';
+import {
+  EnvironmentProviders,
+  Provider,
+  Type,
+  makeEnvironmentProviders,
+  Injector,
+} from '@angular/core';
 import {DEFAULT_A2UI_CATALOG} from './a2ui-catalog/a2a-chat-canvas-catalog';
+import {ChatService} from './services/chat-service';
+import {A2uiRendererService, A2UI_RENDERER_CONFIG} from '@a2ui/angular/v0_9';
 
 const DEFAULT_RENDERERS: readonly RendererEntry[] = [
   A2UI_DATA_PART_RENDERER_ENTRY,
@@ -146,20 +154,82 @@ export function usingRenderers(...renderers: readonly RendererEntry[]): Renderer
 }
 
 /**
- * Configures the Chat/Canvas to use A2UI Renderer.
+ * Configures the Chat/Canvas to use A2UI Renderers.
+ *
+ * This function supports configuring both A2UI v0.8 (legacy) and A2UI v0.9 (latest) rendering pipelines
+ * simultaneously. If the client or agent sends payloads matching either version, the appropriate
+ * renderer and catalog are selected.
+ *
+ * @param customCatalogV08 Optional custom catalog to merge with the default A2UI catalog for v0.8 payloads.
+ * @param customCatalogV09 Optional custom catalog to be registered with the v0.9 A2UI renderer service.
+ * @param theme Optional custom theme configuration to be shared across all rendering versions.
  */
-export function usingA2uiRenderers(customCatalog?: any, theme?: any): A2uiFeature {
+export function usingA2uiRenderers(
+  customCatalogV08?: any,
+  customCatalogV09?: any,
+  theme?: any,
+): A2uiFeature {
+  // --- v0.8 Setup ---
+  // Merge the user-provided v0.8 catalog with the default canvas catalog
+  const mergedCatalog = {
+    ...DEFAULT_A2UI_CATALOG,
+    ...(customCatalogV08 ?? {}),
+  };
+
+  // --- v0.9 Setup ---
+  // Collect v0.9 catalogs to be used by the A2uiRendererService
+  const catalogsV09: any[] = [];
+  if (customCatalogV09) {
+    catalogsV09.push(customCatalogV09);
+  }
+  console.log(
+    '[usingA2uiRenderers] customCatalogV09:',
+    customCatalogV09,
+    'catalogsV09:',
+    catalogsV09,
+  );
+
   return {
     kind: ChatCanvasFeatureKind.A2UI_FEATURE,
     providers: [
+      // --- ALL VERSIONS (COMMON) ---
+      // Theme config is shared by all rendering versions
+      {provide: Theme, useValue: theme ?? a2uiTheme},
+
+      // --- v0.8 PROVIDERS ---
+      // Legacy v0.8 Catalog token for the v0.8 renderer
       {
         provide: Catalog,
-        useValue: {
-          ...DEFAULT_A2UI_CATALOG,
-          ...(customCatalog ?? {}),
-        },
+        useValue: mergedCatalog,
       },
-      {provide: Theme, useValue: theme ?? a2uiTheme},
+
+      // --- v0.9 PROVIDERS ---
+      // v0.9 A2uiRendererService configuration (catalogs and action handler)
+      {
+        provide: A2UI_RENDERER_CONFIG,
+        useFactory: (injector: Injector) => {
+          return {
+            catalogs: catalogsV09,
+            actionHandler: (action: any) => {
+              console.log('[usingA2uiRenderers] actionHandler invoked with action:', action);
+              const envelope = {
+                version: 'v0.9',
+                action,
+              };
+              try {
+                const chatService = injector.get(ChatService);
+                console.log('[usingA2uiRenderers] Sending action envelope to agent:', envelope);
+                chatService.sendMessage(JSON.stringify(envelope), true);
+              } catch (e) {
+                console.error('[usingA2uiRenderers] Failed to send action to agent:', e);
+              }
+            },
+          };
+        },
+        deps: [Injector],
+      },
+      // The central v0.9 renderer service
+      A2uiRendererService,
     ],
   };
 }

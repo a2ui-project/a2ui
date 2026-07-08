@@ -48,8 +48,8 @@ UI_DESCRIPTION = f"""
 
 # For non-A2UI clients.
 def get_text_prompt() -> str:
-  """Constructs the prompt for a text-only agent."""
-  return """
+    """Constructs the prompt for a text-only agent."""
+    return """
     You are a helpful contact lookup assistant. Your final output MUST be a text response.
 
     To generate the response, you MUST follow these rules:

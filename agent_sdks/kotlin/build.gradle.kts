@@ -41,8 +41,8 @@ dependencies {
   implementation("com.fasterxml.jackson.core:jackson-databind:2.17.2")
 
   // Core Dependencies
-  api("com.google.adk:google-adk:0.9.0")
-  api("com.google.adk:google-adk-a2a:0.9.0")
+  api("com.google.adk:google-adk:1.5.0")
+  api("com.google.adk:google-adk-a2a:1.5.0")
   api("io.github.a2asdk:a2a-java-sdk-client:1.0.0.Alpha3")
   api("com.google.genai:google-genai:1.43.0")
 

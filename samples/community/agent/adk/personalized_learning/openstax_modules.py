@@ -2322,150 +2322,150 @@ KEYWORD_TO_MODULES = {
 
 
 def get_module_url(module_id: str) -> str:
-  """
-  Generate the OpenStax URL for a module.
+    """
+    Generate the OpenStax URL for a module.
 
-  Uses the pre-computed chapter slug mapping for accurate URLs
-  that match the actual OpenStax website structure.
-  """
-  # Use the chapter slug mapping for accurate URLs
-  if module_id in MODULE_TO_CHAPTER_SLUG:
-    slug = MODULE_TO_CHAPTER_SLUG[module_id]
+    Uses the pre-computed chapter slug mapping for accurate URLs
+    that match the actual OpenStax website structure.
+    """
+    # Use the chapter slug mapping for accurate URLs
+    if module_id in MODULE_TO_CHAPTER_SLUG:
+        slug = MODULE_TO_CHAPTER_SLUG[module_id]
+        return f"{OPENSTAX_BASE_URL}/{slug}"
+
+    # Fallback for modules not in mapping
+    if module_id not in MODULE_INDEX:
+        return f"{OPENSTAX_BASE_URL}/1-introduction"
+
+    info = MODULE_INDEX[module_id]
+    title = info["title"]
+
+    # Generate slug from title as last resort
+    slug = re.sub(r"[^a-z0-9]+", "-", title.lower()).strip("-")
+
+    # For introduction pages, use chapter name
+    if title == "Introduction":
+        chapter = info["chapter"]
+        slug = re.sub(r"[^a-z0-9]+", "-", chapter.lower()).strip("-")
+
     return f"{OPENSTAX_BASE_URL}/{slug}"
-
-  # Fallback for modules not in mapping
-  if module_id not in MODULE_INDEX:
-    return f"{OPENSTAX_BASE_URL}/1-introduction"
-
-  info = MODULE_INDEX[module_id]
-  title = info["title"]
-
-  # Generate slug from title as last resort
-  slug = re.sub(r"[^a-z0-9]+", "-", title.lower()).strip("-")
-
-  # For introduction pages, use chapter name
-  if title == "Introduction":
-    chapter = info["chapter"]
-    slug = re.sub(r"[^a-z0-9]+", "-", chapter.lower()).strip("-")
-
-  return f"{OPENSTAX_BASE_URL}/{slug}"
 
 
 def search_modules(topic: str, max_results: int = 3) -> list[dict]:
-  """
-  Search for modules matching a topic using keyword matching.
+    """
+    Search for modules matching a topic using keyword matching.
 
-  Args:
-      topic: The search topic
-      max_results: Maximum number of results to return
+    Args:
+        topic: The search topic
+        max_results: Maximum number of results to return
 
-  Returns:
-      List of module info dicts with id, title, unit, chapter, and url
-  """
-  import logging
+    Returns:
+        List of module info dicts with id, title, unit, chapter, and url
+    """
+    import logging
 
-  logger = logging.getLogger(__name__)
+    logger = logging.getLogger(__name__)
 
-  logger.info("=" * 50)
-  logger.info("SEARCH_MODULES CALLED")
-  logger.info(f"Topic: '{topic}'")
-  logger.info(f"Max results: {max_results}")
-  logger.info("=" * 50)
+    logger.info("=" * 50)
+    logger.info("SEARCH_MODULES CALLED")
+    logger.info(f"Topic: '{topic}'")
+    logger.info(f"Max results: {max_results}")
+    logger.info("=" * 50)
 
-  topic_lower = topic.lower()
-  matched_ids = set()
-  matched_keywords = []  # Track which keywords matched for debugging
+    topic_lower = topic.lower()
+    matched_ids = set()
+    matched_keywords = []  # Track which keywords matched for debugging
 
-  # First, check direct keyword matches using word boundaries
-  # to avoid matching "stem" inside "system"
-  for keyword, module_ids in KEYWORD_TO_MODULES.items():
-    # Use word boundary matching for single-word keywords
-    # For multi-word keywords, require exact substring match
-    if " " in keyword:
-      # Multi-word keyword - exact substring match is fine
-      if keyword in topic_lower:
-        matched_ids.update(module_ids)
-        matched_keywords.append(keyword)
+    # First, check direct keyword matches using word boundaries
+    # to avoid matching "stem" inside "system"
+    for keyword, module_ids in KEYWORD_TO_MODULES.items():
+        # Use word boundary matching for single-word keywords
+        # For multi-word keywords, require exact substring match
+        if " " in keyword:
+            # Multi-word keyword - exact substring match is fine
+            if keyword in topic_lower:
+                matched_ids.update(module_ids)
+                matched_keywords.append(keyword)
+        else:
+            # Single-word keyword - require word boundaries
+            pattern = r"\b" + re.escape(keyword) + r"\b"
+            if re.search(pattern, topic_lower):
+                matched_ids.update(module_ids)
+                matched_keywords.append(keyword)
+
+    if matched_keywords:
+        logger.info(f"KEYWORD MATCHES FOUND: {matched_keywords}")
+        logger.info(
+            "Matched module IDs:"
+            f" {list(matched_ids)[:10]}{'...' if len(matched_ids) > 10 else ''}"
+        )
     else:
-      # Single-word keyword - require word boundaries
-      pattern = r"\b" + re.escape(keyword) + r"\b"
-      if re.search(pattern, topic_lower):
-        matched_ids.update(module_ids)
-        matched_keywords.append(keyword)
+        logger.info("No keyword matches found, falling back to title search...")
 
-  if matched_keywords:
-    logger.info(f"KEYWORD MATCHES FOUND: {matched_keywords}")
-    logger.info(
-        "Matched module IDs:"
-        f" {list(matched_ids)[:10]}{'...' if len(matched_ids) > 10 else ''}"
-    )
-  else:
-    logger.info("No keyword matches found, falling back to title search...")
+    # If no keyword matches, search titles
+    if not matched_ids:
+        for module_id, info in MODULE_INDEX.items():
+            title_lower = info["title"].lower()
+            chapter_lower = info["chapter"].lower()
 
-  # If no keyword matches, search titles
-  if not matched_ids:
-    for module_id, info in MODULE_INDEX.items():
-      title_lower = info["title"].lower()
-      chapter_lower = info["chapter"].lower()
+            # Check if any word from topic is in title or chapter
+            topic_words = set(re.findall(r"\b\w+\b", topic_lower))
+            title_words = set(re.findall(r"\b\w+\b", title_lower))
+            chapter_words = set(re.findall(r"\b\w+\b", chapter_lower))
 
-      # Check if any word from topic is in title or chapter
-      topic_words = set(re.findall(r"\b\w+\b", topic_lower))
-      title_words = set(re.findall(r"\b\w+\b", title_lower))
-      chapter_words = set(re.findall(r"\b\w+\b", chapter_lower))
+            if topic_words & title_words or topic_words & chapter_words:
+                matched_ids.add(module_id)
 
-      if topic_words & title_words or topic_words & chapter_words:
-        matched_ids.add(module_id)
+        if matched_ids:
+            logger.info(f"Title search found {len(matched_ids)} modules")
+        else:
+            logger.warning(f"NO MATCHES FOUND for topic: '{topic}'")
 
-    if matched_ids:
-      logger.info(f"Title search found {len(matched_ids)} modules")
-    else:
-      logger.warning(f"NO MATCHES FOUND for topic: '{topic}'")
+    # Convert to result list
+    results = []
+    for mid in list(matched_ids)[:max_results]:
+        if mid in MODULE_INDEX:
+            info = MODULE_INDEX[mid]
+            # Skip introduction modules unless specifically requested
+            if info["title"] == "Introduction" and "introduction" not in topic_lower:
+                continue
+            results.append({
+                "id": mid,
+                "title": info["title"],
+                "unit": info["unit"],
+                "chapter": info["chapter"],
+                "url": get_module_url(mid),
+            })
 
-  # Convert to result list
-  results = []
-  for mid in list(matched_ids)[:max_results]:
-    if mid in MODULE_INDEX:
-      info = MODULE_INDEX[mid]
-      # Skip introduction modules unless specifically requested
-      if info["title"] == "Introduction" and "introduction" not in topic_lower:
-        continue
-      results.append({
-          "id": mid,
-          "title": info["title"],
-          "unit": info["unit"],
-          "chapter": info["chapter"],
-          "url": get_module_url(mid),
-      })
-
-  logger.info(f"Returning {len(results)} results: {[r['id'] for r in results]}")
-  return results[:max_results]
+    logger.info(f"Returning {len(results)} results: {[r['id'] for r in results]}")
+    return results[:max_results]
 
 
 def get_source_citation(module_ids: list[str]) -> dict:
-  """
-  Generate a source citation for a list of modules.
+    """
+    Generate a source citation for a list of modules.
 
-  Returns a dict with url, title, and provider for attribution.
-  """
-  if not module_ids:
+    Returns a dict with url, title, and provider for attribution.
+    """
+    if not module_ids:
+        return {
+            "url": OPENSTAX_BASE_URL,
+            "title": "OpenStax Biology for AP Courses",
+            "provider": "OpenStax",
+        }
+
+    # Use the first module for the citation
+    mid = module_ids[0]
+    if mid not in MODULE_INDEX:
+        return {
+            "url": OPENSTAX_BASE_URL,
+            "title": "OpenStax Biology for AP Courses",
+            "provider": "OpenStax",
+        }
+
+    info = MODULE_INDEX[mid]
     return {
-        "url": OPENSTAX_BASE_URL,
-        "title": "OpenStax Biology for AP Courses",
-        "provider": "OpenStax",
+        "url": get_module_url(mid),
+        "title": f"{info['chapter']}: {info['title']}",
+        "provider": "OpenStax Biology for AP Courses",
     }
-
-  # Use the first module for the citation
-  mid = module_ids[0]
-  if mid not in MODULE_INDEX:
-    return {
-        "url": OPENSTAX_BASE_URL,
-        "title": "OpenStax Biology for AP Courses",
-        "provider": "OpenStax",
-    }
-
-  info = MODULE_INDEX[mid]
-  return {
-      "url": get_module_url(mid),
-      "title": f"{info['chapter']}: {info['title']}",
-      "provider": "OpenStax Biology for AP Courses",
-  }
