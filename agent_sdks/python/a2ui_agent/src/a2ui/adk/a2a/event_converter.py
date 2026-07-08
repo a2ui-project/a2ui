@@ -33,6 +33,7 @@ Usage Example:
   ```
 """
 
+from __future__ import annotations
 from typing import TYPE_CHECKING, Optional
 
 from a2ui.adk.a2a.part_converter import A2uiPartConverter
@@ -78,6 +79,7 @@ class A2uiEventConverter:
         )
 
         catalog = invocation_context.session.state.get(self._catalog_key)
+        effective_converter: GenAIPartToA2APartConverter
         if catalog:
             # Use the catalog-aware part converter
             effective_converter = A2uiPartConverter(

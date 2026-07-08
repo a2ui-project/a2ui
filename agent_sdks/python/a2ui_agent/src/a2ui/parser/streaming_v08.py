@@ -68,7 +68,7 @@ class A2uiStreamParserV08(A2uiStreamParser):
         """Returns the message type identifier for data model updates."""
         return MSG_TYPE_DATA_MODEL_UPDATE
 
-    def _sniff_metadata(self):
+    def _sniff_metadata(self) -> None:
         """Sniffs for v0.8 metadata in the json_buffer."""
 
         def get_latest_value(key: str) -> Optional[str]:
