@@ -64,6 +64,13 @@ from a2ui_subagent_map import A2uiSubagentMap
 logger = logging.getLogger(__name__)
 
 
+def _log_background_task_result(future: asyncio.Future) -> None:
+    try:
+        future.result()
+    except Exception as e:
+        logger.exception(f"Background task failed: {e}", exc_info=True)
+
+
 class A2UIMetadataInterceptor(ClientCallInterceptor):
 
     @override
@@ -169,10 +176,12 @@ class OrchestratorAgentExecutor(A2aAgentExecutor):
             and is_a2ui_part(a2a_part)
         ):
             surface_id = None
-            if action := a2a_part.root.data.get("action"):
-                surface_id = action.get("surfaceId")
-            elif error := a2a_part.root.data.get("error"):
-                surface_id = error.get("surfaceId")
+            data = a2a_part.root.data
+            if isinstance(data, dict):
+                if (action := data.get("action")) and isinstance(action, dict):
+                    surface_id = action.get("surfaceId")
+                elif (error := data.get("error")) and isinstance(error, dict):
+                    surface_id = error.get("surfaceId")
 
             if surface_id and (
                 target_agent := await A2uiSubagentMap.get_subagent_name(
@@ -394,9 +403,13 @@ class OrchestratorAgentExecutor(A2aAgentExecutor):
             new_parts = []
             for a2a_part in a2a_event.status.message.parts:
                 if is_a2ui_part(a2a_part):
+                    data = a2a_part.root.data
                     if (
-                        begin_rendering := a2a_part.root.data.get("beginRendering")
-                    ) and (surface_id := begin_rendering.get("surfaceId")):
+                        isinstance(data, dict)
+                        and (begin_rendering := data.get("beginRendering"))
+                        and isinstance(begin_rendering, dict)
+                        and (surface_id := begin_rendering.get("surfaceId"))
+                    ):
                         key = A2uiSubagentMap._get_key(surface_id)
                         existing_owner = invocation_context.session.state.get(key)
 
@@ -431,21 +444,25 @@ class OrchestratorAgentExecutor(A2aAgentExecutor):
                                         error_req, invocation_context
                                     ),
                                     asyncio.get_event_loop(),
-                                )
+                                ).add_done_callback(_log_background_task_result)
                             continue
                         else:
-                            asyncio.run_coroutine_threadsafe(
-                                A2uiSubagentMap.set_subagent(
-                                    surface_id,
-                                    event.author,
-                                    invocation_context.session_service,
-                                    invocation_context.session,
-                                ),
-                                asyncio.get_event_loop(),
-                            )
+                            if event.author:
+                                asyncio.run_coroutine_threadsafe(
+                                    A2uiSubagentMap.set_subagent(
+                                        surface_id,
+                                        event.author,
+                                        invocation_context.session_service,
+                                        invocation_context.session,
+                                    ),
+                                    asyncio.get_event_loop(),
+                                ).add_done_callback(_log_background_task_result)
                     elif (
-                        delete_surface := a2a_part.root.data.get("deleteSurface")
-                    ) and (surface_id := delete_surface.get("surfaceId")):
+                        isinstance(data, dict)
+                        and (delete_surface := data.get("deleteSurface"))
+                        and isinstance(delete_surface, dict)
+                        and (surface_id := delete_surface.get("surfaceId"))
+                    ):
                         asyncio.run_coroutine_threadsafe(
                             A2uiSubagentMap.remove_subagent(
                                 surface_id,
@@ -453,7 +470,7 @@ class OrchestratorAgentExecutor(A2aAgentExecutor):
                                 invocation_context.session,
                             ),
                             asyncio.get_event_loop(),
-                        )
+                        ).add_done_callback(_log_background_task_result)
                 new_parts.append(a2a_part)
             a2a_event.status.message.parts = new_parts
 
