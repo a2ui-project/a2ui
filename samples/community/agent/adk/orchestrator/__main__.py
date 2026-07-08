@@ -50,20 +50,20 @@ def main(host, port, subagent_urls):
 
         base_url = f"http://{host}:{port}"
 
-    orchestrator_agent_executor, agent_card = asyncio.run(
-        OrchestratorAgentExecutor.create(
-            base_url=base_url, subagent_urls=subagent_urls
+        orchestrator_agent_executor, agent_card = asyncio.run(
+            OrchestratorAgentExecutor.create(
+                base_url=base_url, subagent_urls=subagent_urls
+            )
         )
-    )
 
-    request_handler = DefaultRequestHandler(
-        agent_executor=orchestrator_agent_executor,
-        task_store=InMemoryTaskStore(),
-    )
-    server = A2AStarletteApplication(
-        agent_card=agent_card, http_handler=request_handler
-    )
-    import uvicorn
+        request_handler = DefaultRequestHandler(
+            agent_executor=orchestrator_agent_executor,
+            task_store=InMemoryTaskStore(),
+        )
+        server = A2AStarletteApplication(
+            agent_card=agent_card, http_handler=request_handler
+        )
+        import uvicorn
 
         app = server.build()
 

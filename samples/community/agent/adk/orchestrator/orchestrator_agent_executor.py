@@ -12,27 +12,54 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Optional
-from google.adk.agents.invocation_context import new_invocation_context_id
-from google.adk.events.event_actions import EventActions
+import logging
+import json
+import asyncio
+import re
+import os
+import httpx
+from typing import Optional, Any, List, override
 
-from a2a.server.agent_execution import RequestContext
+from google.adk.agents.invocation_context import new_invocation_context_id, InvocationContext
+from google.adk.events.event_actions import EventActions
+from google.adk.events.event import Event
 from google.adk.artifacts import InMemoryArtifactService
-from a2a.server.events.event_queue import EventQueue
 from google.adk.memory.in_memory_memory_service import InMemoryMemoryService
 from google.adk.runners import Runner
 from google.adk.sessions import InMemorySessionService
 from google.adk.a2a.converters.request_converter import AgentRunRequest
-from google.adk.a2a.executor.a2a_agent_executor import (
-    A2aAgentExecutorConfig,
-    A2aAgentExecutor,
-)
-from a2ui.a2a.extension import try_activate_a2ui_extension
-from google.adk.a2a.converters import event_converter
+from google.adk.a2a.executor.a2a_agent_executor import A2aAgentExecutorConfig, A2aAgentExecutor
+from google.adk.a2a.converters import event_converter, part_converter
+from google.adk.agents.callback_context import CallbackContext
+from google.adk.models.llm_request import LlmRequest
+from google.adk.models.llm_response import LlmResponse
+from google.adk.agents.remote_a2a_agent import RemoteA2aAgent, DEFAULT_TIMEOUT, convert_genai_part_to_a2a_part
+from google.adk.models.lite_llm import LiteLlm
+from google.adk.agents.llm_agent import LlmAgent
+from google.adk.planners.built_in_planner import BuiltInPlanner
+from google.genai import types as genai_types
+
+from a2a.server.agent_execution import RequestContext
+from a2a.server.events.event_queue import EventQueue
 from a2a.server.events import Event as A2AEvent
-from google.adk.events.event import Event
-from google.adk.agents.invocation_context import InvocationContext
-from google.adk.a2a.converters import part_converter
+from a2a.client import A2ACardResolver
+from a2a.client.client import Client, Consumer
+from a2a.client.client import ClientConfig as A2AClientConfig
+from a2a.client.client_factory import ClientFactory as A2AClientFactory
+from a2a.client.middleware import ClientCallContext, ClientCallInterceptor
+from a2a.extensions.common import HTTP_EXTENSION_HEADER
+from a2a.types import TransportProtocol as A2ATransport, AgentCard, AgentCapabilities
+
+from a2ui.a2a.extension import (
+    try_activate_a2ui_extension,
+    A2UI_EXTENSION_BASE_URI,
+    AGENT_EXTENSION_SUPPORTED_CATALOG_IDS_KEY,
+    AGENT_EXTENSION_ACCEPTS_INLINE_CATALOGS_KEY,
+)
+from a2ui.a2a.parts import is_a2ui_part
+from a2ui.schema.constants import A2UI_CLIENT_CAPABILITIES_KEY
+
+from subagent_route_manager import SubagentRouteManager
 
 logger = logging.getLogger(__name__)
 
