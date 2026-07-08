@@ -120,8 +120,8 @@ class A2uiValidatorWrapperV10:
             resources.append(
                 (resolved_catalog_uri, Resource.from_contents(cat_copy_uri))
             )
-            if "$id" in cat_copy:
-                resources.append((cat_copy["$id"], Resource.from_contents(cat_copy)))
+            if "$id" in cat:
+                resources.append((cat["$id"], Resource.from_contents(cat_copy)))
 
         self._registry = Registry().with_resources(resources)
         self._wrapped_schema = {
