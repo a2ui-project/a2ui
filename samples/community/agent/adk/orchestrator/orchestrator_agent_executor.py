@@ -159,7 +159,7 @@ class OrchestratorAgentExecutor(A2aAgentExecutor):
     """Orchestrator AgentExecutor."""
 
     @classmethod
-    async def programmtically_route_user_action_to_subagent(
+    async def programmatically_route_client_event_to_subagent(
         cls,
         callback_context: CallbackContext,
         llm_request: LlmRequest,
@@ -169,30 +169,34 @@ class OrchestratorAgentExecutor(A2aAgentExecutor):
             and (last_content := llm_request.contents[-1]).parts
             and (a2a_part := convert_genai_part_to_a2a_part(last_content.parts[-1]))
             and is_a2ui_part(a2a_part)
-            and (user_action := a2a_part.root.data.get("userAction"))
-            and (surface_id := user_action.get("surfaceId"))
-            and (
+        ):
+            surface_id = None
+            if (action := a2a_part.root.data.get("action")):
+                surface_id = action.get("surfaceId")
+            elif (error := a2a_part.root.data.get("error")):
+                surface_id = error.get("surfaceId")
+            
+            if surface_id and (
                 target_agent := await A2uiSubagentMap.get_subagent_name(
                     surface_id, callback_context.state
                 )
-            )
-        ):
-            logger.info(
-                f"Programmatically routing userAction for surfaceId '{surface_id}' to"
-                f" subagent '{target_agent}'"
-            )
-            return LlmResponse(
-                content=genai_types.Content(
-                    parts=[
-                        genai_types.Part(
-                            function_call=genai_types.FunctionCall(
-                                name="transfer_to_agent",
-                                args={"agent_name": target_agent},
-                            )
-                        )
-                    ]
+            ):
+                logger.info(
+                    f"Programmatically routing client event for surfaceId '{surface_id}' to"
+                    f" subagent '{target_agent}'"
                 )
-            )
+                return LlmResponse(
+                    content=genai_types.Content(
+                        parts=[
+                            genai_types.Part(
+                                function_call=genai_types.FunctionCall(
+                                    name="transfer_to_agent",
+                                    args={"agent_name": target_agent},
+                                )
+                            )
+                        ]
+                    )
+                )
 
         return None
 
@@ -311,7 +315,7 @@ class OrchestratorAgentExecutor(A2aAgentExecutor):
                 )
             ),
             sub_agents=subagents,
-            before_model_callback=cls.programmtically_route_user_action_to_subagent,
+            before_model_callback=cls.programmatically_route_client_event_to_subagent,
         )
 
         agent_card = AgentCard(

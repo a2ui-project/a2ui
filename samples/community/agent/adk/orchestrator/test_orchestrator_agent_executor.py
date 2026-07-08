@@ -24,7 +24,7 @@ class TestOrchestratorAgentExecutor(unittest.IsolatedAsyncioTestCase):
     @patch("orchestrator_agent_executor.convert_genai_part_to_a2a_part")
     @patch("orchestrator_agent_executor.is_a2ui_part")
     @patch.object(A2uiSubagentMap, "get_subagent_name")
-    async def test_programmtically_route_user_action_to_subagent(
+    async def test_programmatically_route_client_event_to_subagent(
         self,
         mock_get_route,
         mock_is_a2ui_part,
@@ -37,9 +37,9 @@ class TestOrchestratorAgentExecutor(unittest.IsolatedAsyncioTestCase):
         mock_is_a2ui_part.return_value = True
         
         a2a_part_data = {
-            "userAction": {
+            "action": {
                 "surfaceId": "surface_123",
-                "action": "click"
+                "name": "click"
             }
         }
         mock_convert.return_value = DummyA2aPart(a2a_part_data)
@@ -54,7 +54,7 @@ class TestOrchestratorAgentExecutor(unittest.IsolatedAsyncioTestCase):
         callback_context.state = {}
         
         # Execute the method
-        response = await OrchestratorAgentExecutor.programmtically_route_user_action_to_subagent(
+        response = await OrchestratorAgentExecutor.programmatically_route_client_event_to_subagent(
             callback_context, llm_request
         )
         
@@ -62,6 +62,50 @@ class TestOrchestratorAgentExecutor(unittest.IsolatedAsyncioTestCase):
         mock_get_route.assert_called_once_with("surface_123", {})
         self.assertIsNotNone(response)
         self.assertEqual(len(response.content.parts), 1)
+        self.assertEqual(
+            response.content.parts[0].function_call.name, 
+            "transfer_to_agent"
+        )
+        self.assertEqual(
+            response.content.parts[0].function_call.args["agent_name"], 
+            "target_subagent_123"
+        )
+
+    @patch("orchestrator_agent_executor.convert_genai_part_to_a2a_part")
+    @patch("orchestrator_agent_executor.is_a2ui_part")
+    @patch.object(A2uiSubagentMap, "get_subagent_name")
+    async def test_programmatically_route_client_error_to_subagent(
+        self,
+        mock_get_route,
+        mock_is_a2ui_part,
+        mock_convert,
+    ):
+        # Use Case 1b: client sends validation error -> route to subagent
+        
+        mock_get_route.return_value = "target_subagent_123"
+        mock_is_a2ui_part.return_value = True
+        
+        a2a_part_data = {
+            "error": {
+                "surfaceId": "surface_123",
+                "code": "VALIDATION_FAILED",
+                "message": "Field invalid"
+            }
+        }
+        mock_convert.return_value = DummyA2aPart(a2a_part_data)
+        
+        mock_part = genai_types.Part()
+        mock_content = genai_types.Content(parts=[mock_part])
+        llm_request = LlmRequest(contents=[mock_content])
+        
+        callback_context = MagicMock()
+        callback_context.state = {}
+        
+        response = await OrchestratorAgentExecutor.programmatically_route_client_event_to_subagent(
+            callback_context, llm_request
+        )
+        
+        self.assertIsNotNone(response)
         self.assertEqual(
             response.content.parts[0].function_call.name, 
             "transfer_to_agent"
