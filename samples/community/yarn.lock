@@ -7528,6 +7528,7 @@ __metadata:
     typescript: "npm:5.9.3"
     vite: "npm:^7.3.4"
     vite-plugin-singlefile: "npm:^2.3.3"
+    vitest: "npm:^4.1.8"
     zod: "npm:^3.25.76"
   languageName: unknown
   linkType: soft

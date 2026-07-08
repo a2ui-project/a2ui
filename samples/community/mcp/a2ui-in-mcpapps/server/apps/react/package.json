@@ -18,7 +18,8 @@
     "@vitejs/plugin-react": "^5.1.2",
     "typescript": "5.9.3",
     "vite": "^7.3.4",
-    "vite-plugin-singlefile": "^2.3.3"
+    "vite-plugin-singlefile": "^2.3.3",
+    "vitest": "^4.1.8"
   },
   "scripts": {
     "build": "vite build",
@@ -26,6 +27,6 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "lint": "tsc --noEmit",
-    "test": "echo \"Workspace has no tests.\""
+    "test": "vitest run"
   }
 }

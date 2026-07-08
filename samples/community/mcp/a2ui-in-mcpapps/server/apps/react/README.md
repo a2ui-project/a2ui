@@ -26,10 +26,15 @@ can be delivered verbatim via `resources/read`.
 
 ## Implementation notes
 
+- The renderer is a reusable React component, `GenericA2uiApp` (`src/generic-a2ui-app.tsx`);
+  `src/main.tsx` only mounts it. Embedders can use the component directly and pass an optional
+  `actionToToolName` map to route A2UI action names to differently-named server tools (actions
+  without an entry call the tool named after the action itself).
 - The MCP Apps handshake and host bridge come from the official
   `@modelcontextprotocol/ext-apps` SDK (`App` class); iframe auto-resizing is handled by the
   SDK's built-in `size-changed` notifications.
 - Rendering uses `@a2ui/react` (v0.9 basic catalog) driven by a `MessageProcessor` from
   `@a2ui/web_core`.
 - The entry tool's result resets and fully renders the view; subsequent action-triggered tool
-  results patch it in place.
+  results patch it in place (`src/extract-a2ui-messages.ts` does the payload extraction and is
+  unit-tested via `yarn test`).
