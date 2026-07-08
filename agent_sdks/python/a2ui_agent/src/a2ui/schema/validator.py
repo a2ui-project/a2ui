@@ -15,7 +15,7 @@
 from __future__ import annotations
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Set, Tuple, Union
 
-from .constants import VERSION_0_8, VERSION_0_9, VERSION_1_0
+from .constants import VERSION_0_8, VERSION_0_9, VERSION_0_9_1, VERSION_1_0
 from .validator_v08 import (
     LegacyA2uiValidatorV08,
     extract_component_required_fields as v08_req,
@@ -82,7 +82,7 @@ class A2uiValidatorWrapper:
 
 
 class A2uiValidatorWrapperV10:
-    """Validates v1.0 payloads dynamically using jsonschema and core component integrity checks."""
+    """Validates dynamic payloads (such as v0.9.1 and v1.0) using jsonschema and core component integrity checks."""
 
     def __init__(self, catalog: A2uiCatalog):
         self._catalog = catalog
@@ -226,6 +226,9 @@ class A2uiValidator:
         self.version = ver if isinstance(ver, str) else VERSION_0_8
         if self.version == VERSION_0_8:
             self._delegator = LegacyA2uiValidatorV08(catalog)
+        # TODO(a2ui-project/A2UI#1936): The V10 validator dynamically uses the `catalog` spec to validate. This should all be consolidated.
+        elif self.version == VERSION_0_9_1:
+            self._delegator = A2uiValidatorWrapperV10(catalog)
         elif self.version == VERSION_1_0:
             import os
 
