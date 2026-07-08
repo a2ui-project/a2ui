@@ -67,6 +67,12 @@ By default, the script runs in dry-run mode to prevent accidental uploads; the
 ```
 
 Artifacts are uploaded to: [go/a2ui-oss-exit-gate-artifacts](https://go/a2ui-oss-exit-gate-artifacts).
+This URL points to a web app that allows verifying that the packages have been uploaded correctly.
+
+For each package it should be checked:
+
+* That it has been uploaded at the expected version
+* That its size is non-zero in the "Files" tab of the details of the version.
 
 **CLI parameters for `publish_npm.mjs`:**
 
@@ -108,6 +114,22 @@ A2UI web packages depend on each other via `workspace:*` links during developmen
 1. **Build & Metadata Transformation**: `prepare-publish.mjs` copies build output into `dist/`, replaces internal `workspace:` protocols with absolute semantic version ranges (e.g., `^0.10.3`), and strips development scripts/dependencies.
 2. **Boundary Isolation**: Because the root workspace config excludes `dist/` (`!**/dist`), an empty `yarn.lock` is initialized inside `dist/` to establish it as an independent package boundary.
 3. **Clean Upload**: `yarn npm publish --access public` executes strictly inside `dist/`, ensuring only clean production assets are uploaded.
+
+---
+
+## What are valid values for the `--package` argument?
+
+The `increment_version.mjs`, `publish_npm.mjs` and `upload_manifest.mjs` scripts
+work with all packages in the `renderers` directory of the monorepo:
+
+- `web_core`
+- `markdown-it`
+- `angular`
+- `lit`
+- `react`
+
+The scripts also support the full package names, e.g. `@a2ui/web_core`, but the
+`@a2ui/` prefix is not required.
 
 ---
 
