@@ -31,6 +31,12 @@
     "@angular/forms": "^21.2.5",
     "@angular/cdk": "^21.2.5",
     "@angular/google-maps": "^21.2.5",
-    "@angular/material": "^21.2.5"
+    "@angular/material": "^21.2.5",
+    "undici@npm:7.24.4": "7.28.0",
+    "undici@npm:^6.25.0": "7.28.0",
+    "piscina": "5.2.0",
+    "vite": "^8.0.16",
+    "@babel/core": "7.29.6",
+    "esbuild": "0.28.1"
   }
 }
