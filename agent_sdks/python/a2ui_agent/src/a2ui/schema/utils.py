@@ -18,9 +18,9 @@ import json
 import logging
 import os
 import importlib.resources
-from typing import Any, Dict
+from typing import Any, Dict, cast
 
-from .constants import A2UI_ASSET_PACKAGE, SPECIFICATION_DIR, ENCODING
+from .constants import A2UI_ASSET_PACKAGE, SPECIFICATION_DIR, ENCODING, COMMON_TYPES_SCHEMA_KEY
 from .catalog_provider import FileSystemCatalogProvider
 
 
@@ -42,16 +42,23 @@ def load_from_bundled_resource(
     spec_map: Dict[str, Dict[str, str]],
 ) -> Dict[str, Any]:
     """Loads a schema resource from bundled package resources."""
-    spec_map = spec_map.get(version)
-    if not spec_map:
+    version_spec_map = spec_map.get(version)
+    if not version_spec_map:
         from a2ui.core import A2uiCatalogError
 
         raise A2uiCatalogError(f"Unknown A2UI version: {version}")
 
-    if resource_key not in spec_map:
-        return None
+    if resource_key not in version_spec_map:
+        if resource_key == COMMON_TYPES_SCHEMA_KEY:
+            return {}
+        from a2ui.core import A2uiCatalogError
 
-    rel_path = spec_map[resource_key]
+        raise A2uiCatalogError(
+            f"Resource key '{resource_key}' not found in specification map for version"
+            f" {version}"
+        )
+
+    rel_path = version_spec_map[resource_key]
     filename = os.path.basename(rel_path)
 
     # 1. Try to load from the bundled package resources.
@@ -59,7 +66,7 @@ def load_from_bundled_resource(
         traversable = importlib.resources.files(A2UI_ASSET_PACKAGE)
         traversable = traversable.joinpath(version).joinpath(filename)
         with traversable.open("r", encoding=ENCODING) as f:
-            return json.load(f)
+            return cast(Dict[str, Any], json.load(f))
     except Exception as e:
         logging.debug("Could not load '%s' from package resources: %s", filename, e)
 
@@ -123,7 +130,7 @@ def wrap_as_json_array(a2ui_schema: dict[str, Any]) -> dict[str, Any]:
     return {"type": "array", "items": a2ui_schema}
 
 
-def deep_update(d: dict, u: dict) -> dict:
+def deep_update(d: dict[str, Any], u: dict[str, Any]) -> dict[str, Any]:
     """Recursively update a dict with another dict."""
     for k, v in u.items():
         if isinstance(v, dict):

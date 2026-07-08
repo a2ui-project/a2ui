@@ -12,39 +12,54 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import asyncio
-import json
 import logging
-import os
-from a2a.client import A2ACardResolver
-from a2a.extensions.common import HTTP_EXTENSION_HEADER
-from google.adk.models.lite_llm import LiteLlm
-from google.adk.agents.llm_agent import LlmAgent
-from google.adk.agents.remote_a2a_agent import RemoteA2aAgent, DEFAULT_TIMEOUT
-from google.adk.planners.built_in_planner import BuiltInPlanner
-from google.genai import types as genai_types
-import httpx
+import json
+import asyncio
 import re
-import part_converters
+import os
+import httpx
+from typing import Optional, Any, List, override
+
+from google.adk.agents.invocation_context import new_invocation_context_id, InvocationContext
+from google.adk.events.event_actions import EventActions
+from google.adk.events.event import Event
+from google.adk.artifacts import InMemoryArtifactService
+from google.adk.memory.in_memory_memory_service import InMemoryMemoryService
+from google.adk.runners import Runner
+from google.adk.sessions import InMemorySessionService
+from google.adk.a2a.converters.request_converter import AgentRunRequest
+from google.adk.a2a.executor.a2a_agent_executor import A2aAgentExecutorConfig, A2aAgentExecutor
+from google.adk.a2a.converters import event_converter, part_converter
 from google.adk.agents.callback_context import CallbackContext
 from google.adk.models.llm_request import LlmRequest
 from google.adk.models.llm_response import LlmResponse
-from subagent_route_manager import SubagentRouteManager
-from typing import Any, override, List
-from a2a.types import TransportProtocol as A2ATransport
+from google.adk.agents.remote_a2a_agent import RemoteA2aAgent, DEFAULT_TIMEOUT, convert_genai_part_to_a2a_part
+from google.adk.models.lite_llm import LiteLlm
+from google.adk.agents.llm_agent import LlmAgent
+from google.adk.planners.built_in_planner import BuiltInPlanner
+from google.genai import types as genai_types
 
-from a2a.client.client import Consumer, Client
-from a2a.client.middleware import ClientCallContext, ClientCallInterceptor
+from a2a.server.agent_execution import RequestContext
+from a2a.server.events.event_queue import EventQueue
+from a2a.server.events import Event as A2AEvent
+from a2a.client import A2ACardResolver
+from a2a.client.client import Client, Consumer
 from a2a.client.client import ClientConfig as A2AClientConfig
 from a2a.client.client_factory import ClientFactory as A2AClientFactory
+from a2a.client.middleware import ClientCallContext, ClientCallInterceptor
+from a2a.extensions.common import HTTP_EXTENSION_HEADER
+from a2a.types import TransportProtocol as A2ATransport, AgentCard, AgentCapabilities
+
 from a2ui.a2a.extension import (
+    try_activate_a2ui_extension,
     A2UI_EXTENSION_BASE_URI,
     AGENT_EXTENSION_SUPPORTED_CATALOG_IDS_KEY,
     AGENT_EXTENSION_ACCEPTS_INLINE_CATALOGS_KEY,
 )
 from a2ui.a2a.parts import is_a2ui_part
-from a2a.types import AgentCapabilities, AgentCard, AgentExtension
 from a2ui.schema.constants import A2UI_CLIENT_CAPABILITIES_KEY
+
+from subagent_route_manager import SubagentRouteManager
 
 logger = logging.getLogger(__name__)
 
@@ -140,10 +155,8 @@ class A2AClientFactoryWithA2UIMetadata(A2AClientFactory):
         )
 
 
-class OrchestratorAgent:
-    """An agent that runs an ecommerce dashboard"""
-
-    SUPPORTED_CONTENT_TYPES = ["text", "text/plain"]
+class OrchestratorAgentExecutor(A2aAgentExecutor):
+    """Orchestrator AgentExecutor."""
 
     @classmethod
     async def programmtically_route_user_action_to_subagent(
@@ -154,11 +167,7 @@ class OrchestratorAgent:
         if (
             llm_request.contents
             and (last_content := llm_request.contents[-1]).parts
-            and (
-                a2a_part := part_converters.convert_genai_part_to_a2a_part(
-                    last_content.parts[-1]
-                )
-            )
+            and (a2a_part := convert_genai_part_to_a2a_part(last_content.parts[-1]))
             and is_a2ui_part(a2a_part)
             and (user_action := a2a_part.root.data.get("userAction"))
             and (surface_id := user_action.get("surfaceId"))
@@ -188,9 +197,20 @@ class OrchestratorAgent:
         return None
 
     @classmethod
-    async def build_agent(
+    async def create(
         cls, base_url: str, subagent_urls: List[str]
-    ) -> (LlmAgent, AgentCard):
+    ) -> tuple["OrchestratorAgentExecutor", AgentCard]:
+        """Creates the OrchestratorAgentExecutor and AgentCard."""
+        orchestrator_agent, agent_card = await cls._build_agent(
+            base_url=base_url, subagent_urls=subagent_urls
+        )
+
+        return cls(agent=orchestrator_agent, agent_card=agent_card), agent_card
+
+    @classmethod
+    async def _build_agent(
+        cls, base_url: str, subagent_urls: List[str]
+    ) -> tuple[LlmAgent, AgentCard]:
         """Builds the LLM agent for the orchestrator_agent agent."""
 
         subagents = []
@@ -259,8 +279,6 @@ class OrchestratorAgent:
                     clean_name,
                     subagent_card,
                     description=description,  # This will be appended to system instructions
-                    a2a_part_converter=part_converters.convert_a2a_part_to_genai_part,
-                    genai_part_converter=part_converters.convert_genai_part_to_a2a_part,
                     a2a_client_factory=A2AClientFactoryWithA2UIMetadata(
                         config=A2AClientConfig(
                             httpx_client=httpx.AsyncClient(
@@ -276,7 +294,7 @@ class OrchestratorAgent:
 
                 logger.info(f"Created remote agent with description: {description}")
 
-        LITELLM_MODEL = os.getenv("LITELLM_MODEL", "gemini/gemini-2.5-flash")
+        LITELLM_MODEL = os.getenv("LITELLM_MODEL", "gemini/gemini-3.5-flash")
         agent = LlmAgent(
             model=LiteLlm(model=LITELLM_MODEL),
             name="orchestrator_agent",
@@ -301,8 +319,8 @@ class OrchestratorAgent:
             description="This agent orchestrates requests to multiple subagents.",
             url=base_url,
             version="1.0.0",
-            default_input_modes=OrchestratorAgent.SUPPORTED_CONTENT_TYPES,
-            default_output_modes=OrchestratorAgent.SUPPORTED_CONTENT_TYPES,
+            default_input_modes=["text", "text/plain"],
+            default_output_modes=["text", "text/plain"],
             capabilities=AgentCapabilities(
                 streaming=True,
                 extensions=extensions,
@@ -311,3 +329,113 @@ class OrchestratorAgent:
         )
 
         return agent, agent_card
+
+    def __init__(self, agent: LlmAgent, agent_card: AgentCard):
+        self._agent_card = agent_card
+        config = A2aAgentExecutorConfig(
+            event_converter=self.convert_event_to_a2a_events_and_save_surface_id_to_subagent_name,
+        )
+
+        runner = Runner(
+            app_name=agent.name,
+            agent=agent,
+            artifact_service=InMemoryArtifactService(),
+            session_service=InMemorySessionService(),
+            memory_service=InMemoryMemoryService(),
+        )
+
+        super().__init__(runner=runner, config=config)
+
+    @classmethod
+    def convert_event_to_a2a_events_and_save_surface_id_to_subagent_name(
+        cls,
+        event: Event,
+        invocation_context: InvocationContext,
+        task_id: Optional[str] = None,
+        context_id: Optional[str] = None,
+        part_converter: part_converter.GenAIPartToA2APartConverter = part_converter.convert_genai_part_to_a2a_part,
+    ) -> List[A2AEvent]:
+        a2a_events = event_converter.convert_event_to_a2a_events(
+            event,
+            invocation_context,
+            task_id,
+            context_id,
+            part_converter,
+        )
+
+        for a2a_event in a2a_events:
+            # Try to populate subagent agent card if available.
+            subagent_card = None
+            if active_subagent_name := event.author:
+                # We need to find the subagent by name
+                if subagent := next(
+                    (
+                        sub
+                        for sub in invocation_context.agent.sub_agents
+                        if sub.name == active_subagent_name
+                    ),
+                    None,
+                ):
+                    try:
+                        subagent_card = json.loads(subagent.description)
+                    except Exception:
+                        logger.warning(
+                            "Failed to parse agent description for"
+                            f" {active_subagent_name}"
+                        )
+            if subagent_card:
+                if a2a_event.metadata is None:
+                    a2a_event.metadata = {}
+                a2a_event.metadata["a2a_subagent"] = subagent_card
+
+            for a2a_part in a2a_event.status.message.parts:
+                if (
+                    is_a2ui_part(a2a_part)
+                    and (begin_rendering := a2a_part.root.data.get("beginRendering"))
+                    and (surface_id := begin_rendering.get("surfaceId"))
+                ):
+                    asyncio.run_coroutine_threadsafe(
+                        SubagentRouteManager.set_route_to_subagent_name(
+                            surface_id,
+                            event.author,
+                            invocation_context.session_service,
+                            invocation_context.session,
+                        ),
+                        asyncio.get_event_loop(),
+                    )
+
+        return a2a_events
+
+    @override
+    async def _prepare_session(
+        self,
+        context: RequestContext,
+        run_request: AgentRunRequest,
+        runner: Runner,
+    ):
+        session = await super()._prepare_session(context, run_request, runner)
+
+        active_ui_version = try_activate_a2ui_extension(context, self._agent_card)
+        if active_ui_version:
+            client_capabilities = (
+                context.message.metadata.get(A2UI_CLIENT_CAPABILITIES_KEY)
+                if context.message and context.message.metadata
+                else None
+            )
+
+            await runner.session_service.append_event(
+                session,
+                Event(
+                    invocation_id=new_invocation_context_id(),
+                    author="system",
+                    actions=EventActions(
+                        state_delta={
+                            # These values are used to configure A2UI messages to remote agent calls
+                            "active_ui_version": active_ui_version,
+                            "client_capabilities": client_capabilities,
+                        }
+                    ),
+                ),
+            )
+
+        return session
