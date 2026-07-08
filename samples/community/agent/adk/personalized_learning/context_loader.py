@@ -35,117 +35,117 @@ LOCAL_CONTEXT_PATH = Path(__file__).parent / "learner_context"
 
 
 def _load_from_gcs(filename: str) -> Optional[str]:
-  """Load a context file from GCS."""
-  try:
-    from google.cloud import storage
+    """Load a context file from GCS."""
+    try:
+        from google.cloud import storage
 
-    client = storage.Client()
-    bucket = client.bucket(GCS_BUCKET)
-    blob = bucket.blob(f"{GCS_PREFIX}{filename}")
+        client = storage.Client()
+        bucket = client.bucket(GCS_BUCKET)
+        blob = bucket.blob(f"{GCS_PREFIX}{filename}")
 
-    if blob.exists():
-      content = blob.download_as_text()
-      logger.info(f"Loaded {filename} from GCS bucket {GCS_BUCKET}")
-      return content
-    else:
-      logger.warning(f"File {filename} not found in GCS bucket {GCS_BUCKET}")
-      return None
+        if blob.exists():
+            content = blob.download_as_text()
+            logger.info(f"Loaded {filename} from GCS bucket {GCS_BUCKET}")
+            return content
+        else:
+            logger.warning(f"File {filename} not found in GCS bucket {GCS_BUCKET}")
+            return None
 
-  except Exception as e:
-    logger.warning(f"Failed to load from GCS: {e}")
-    return None
+    except Exception as e:
+        logger.warning(f"Failed to load from GCS: {e}")
+        return None
 
 
 def _load_from_local(filename: str) -> Optional[str]:
-  """Load a context file from local filesystem."""
-  filepath = LOCAL_CONTEXT_PATH / filename
+    """Load a context file from local filesystem."""
+    filepath = LOCAL_CONTEXT_PATH / filename
 
-  if filepath.exists():
-    content = filepath.read_text()
-    logger.info(f"Loaded {filename} from local path {filepath}")
-    return content
-  else:
-    logger.warning(f"File {filename} not found at local path {filepath}")
-    return None
+    if filepath.exists():
+        content = filepath.read_text()
+        logger.info(f"Loaded {filename} from local path {filepath}")
+        return content
+    else:
+        logger.warning(f"File {filename} not found at local path {filepath}")
+        return None
 
 
 def load_context_file(filename: str) -> Optional[str]:
-  """
-  Load a context file with fallback chain: local files → GCS.
+    """
+    Load a context file with fallback chain: local files → GCS.
 
-  Priority order:
-  1. Local files (for development with adk web)
-  2. GCS bucket (for Agent Engine deployment)
+    Priority order:
+    1. Local files (for development with adk web)
+    2. GCS bucket (for Agent Engine deployment)
 
-  This matches the fallback order in agent.py's _safe_get_combined_context().
+    This matches the fallback order in agent.py's _safe_get_combined_context().
 
-  Args:
-      filename: Name of the context file (e.g., "01_maria_learner_profile.txt")
+    Args:
+        filename: Name of the context file (e.g., "01_maria_learner_profile.txt")
 
-  Returns:
-      File content as string, or None if not found
-  """
-  # Try local files first (for local development)
-  content = _load_from_local(filename)
-  if content:
-    return content
+    Returns:
+        File content as string, or None if not found
+    """
+    # Try local files first (for local development)
+    content = _load_from_local(filename)
+    if content:
+        return content
 
-  # Fall back to GCS (for Agent Engine)
-  return _load_from_gcs(filename)
+    # Fall back to GCS (for Agent Engine)
+    return _load_from_gcs(filename)
 
 
 def load_all_context() -> dict[str, str]:
-  """
-  Load all misconception vector context files.
+    """
+    Load all misconception vector context files.
 
-  Returns:
-      Dictionary mapping filename to content
-  """
-  context_files = [
-      "01_maria_learner_profile.txt",
-      "02_chemistry_bond_energy.txt",
-      "03_chemistry_thermodynamics.txt",
-      "04_biology_atp_cellular_respiration.txt",
-      "05_misconception_resolution.txt",
-      "06_mcat_practice_concepts.txt",
-  ]
+    Returns:
+        Dictionary mapping filename to content
+    """
+    context_files = [
+        "01_maria_learner_profile.txt",
+        "02_chemistry_bond_energy.txt",
+        "03_chemistry_thermodynamics.txt",
+        "04_biology_atp_cellular_respiration.txt",
+        "05_misconception_resolution.txt",
+        "06_mcat_practice_concepts.txt",
+    ]
 
-  context = {}
-  for filename in context_files:
-    content = load_context_file(filename)
-    if content:
-      context[filename] = content
+    context = {}
+    for filename in context_files:
+        content = load_context_file(filename)
+        if content:
+            context[filename] = content
 
-  logger.info(f"Loaded {len(context)} context files")
-  return context
+    logger.info(f"Loaded {len(context)} context files")
+    return context
 
 
 def get_learner_profile() -> Optional[str]:
-  """Get the learner profile context."""
-  return load_context_file("01_maria_learner_profile.txt")
+    """Get the learner profile context."""
+    return load_context_file("01_maria_learner_profile.txt")
 
 
 def get_misconception_context() -> Optional[str]:
-  """Get the misconception resolution context."""
-  return load_context_file("05_misconception_resolution.txt")
+    """Get the misconception resolution context."""
+    return load_context_file("05_misconception_resolution.txt")
 
 
 def get_mcat_concepts() -> Optional[str]:
-  """Get the MCAT practice concepts."""
-  return load_context_file("06_mcat_practice_concepts.txt")
+    """Get the MCAT practice concepts."""
+    return load_context_file("06_mcat_practice_concepts.txt")
 
 
 def get_combined_context() -> str:
-  """
-  Get all context combined into a single string for prompting.
+    """
+    Get all context combined into a single string for prompting.
 
-  Returns:
-      Combined context string
-  """
-  all_context = load_all_context()
+    Returns:
+        Combined context string
+    """
+    all_context = load_all_context()
 
-  combined = []
-  for filename, content in sorted(all_context.items()):
-    combined.append(f"=== {filename} ===\n{content}\n")
+    combined = []
+    for filename, content in sorted(all_context.items()):
+        combined.append(f"=== {filename} ===\n{content}\n")
 
-  return "\n".join(combined)
+    return "\n".join(combined)

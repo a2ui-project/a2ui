@@ -60,9 +60,11 @@ class SurfaceModel:
             "name": event_payload.get("name", event_payload.get("call", "")),
             "surfaceId": self.id,
             "sourceComponentId": source_component_id,
-            "timestamp": datetime.datetime.now(datetime.timezone.utc)
-            .isoformat()
-            .replace("+00:00", "Z"),
+            "timestamp": (
+                datetime.datetime.now(datetime.timezone.utc)
+                .isoformat()
+                .replace("+00:00", "Z")
+            ),
             "context": event_payload.get("context", event_payload.get("args", {})),
         }
         self.on_action.emit(action_event)

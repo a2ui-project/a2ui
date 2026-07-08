@@ -85,8 +85,9 @@ default = true
 [tool.pyink]
 unstable = true
 target-version = []
-pyink-indentation = 2
+pyink-indentation = 4
 pyink-use-majority-quotes = true
+extend-exclude = '/generated/'
 pyink-annotation-pragmas = [
   "noqa",
   "pylint:",

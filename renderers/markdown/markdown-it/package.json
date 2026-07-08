@@ -44,7 +44,7 @@
     "clean": "wireit"
   },
   "dependencies": {
-    "dompurify": "3.4.10",
+    "dompurify": "3.4.11",
     "markdown-it": "^14.2.0"
   },
   "devDependencies": {

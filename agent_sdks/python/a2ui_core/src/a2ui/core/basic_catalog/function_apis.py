@@ -89,11 +89,17 @@ class FormatNumberArgs(StrictBaseModel):
     value: DynamicNumber = Field(..., description="The number to format.")
     decimals: Optional[DynamicNumber] = Field(
         None,
-        description="Optional. The number of decimal places to show. Defaults to 0 or 2 depending on locale.",
+        description=(
+            "Optional. The number of decimal places to show. Defaults to 0 or 2"
+            " depending on locale."
+        ),
     )
     grouping: Optional[DynamicBoolean] = Field(
         None,
-        description="Optional. If true, uses locale-specific grouping separators (e.g. '1,000'). If false, returns raw digits (e.g. '1000'). Defaults to true.",
+        description=(
+            "Optional. If true, uses locale-specific grouping separators (e.g."
+            " '1,000'). If false, returns raw digits (e.g. '1000'). Defaults to true."
+        ),
     )
 
 
@@ -110,11 +116,17 @@ class FormatCurrencyArgs(StrictBaseModel):
     )
     decimals: Optional[DynamicNumber] = Field(
         None,
-        description="Optional. The number of decimal places to show. Defaults to 0 or 2 depending on locale.",
+        description=(
+            "Optional. The number of decimal places to show. Defaults to 0 or 2"
+            " depending on locale."
+        ),
     )
     grouping: Optional[DynamicBoolean] = Field(
         None,
-        description="Optional. If true, uses locale-specific grouping separators (e.g. '1,000'). If false, returns raw digits (e.g. '1000'). Defaults to true.",
+        description=(
+            "Optional. If true, uses locale-specific grouping separators (e.g."
+            " '1,000'). If false, returns raw digits (e.g. '1000'). Defaults to true."
+        ),
     )
 
 
@@ -128,7 +140,16 @@ class FormatDateArgs(StrictBaseModel):
     value: DynamicValue = Field(..., description="The date to format.")
     format: DynamicString = Field(
         ...,
-        description="A Unicode TR35 date pattern string.  Token Reference: - Year: 'yy' (26), 'yyyy' (2026) - Month: 'M' (1), 'MM' (01), 'MMM' (Jan), 'MMMM' (January) - Day: 'd' (1), 'dd' (01), 'E' (Tue), 'EEEE' (Tuesday) - Hour (12h): 'h' (1-12), 'hh' (01-12) - requires 'a' for AM/PM - Hour (24h): 'H' (0-23), 'HH' (00-23) - Military Time - Minute: 'mm' (00-59) - Second: 'ss' (00-59) - Period: 'a' (AM/PM)  Examples: - 'MMM dd, yyyy' -> 'Jan 16, 2026' - 'HH:mm' -> '14:30' (Military) - 'h:mm a' -> '2:30 PM' - 'EEEE, d MMMM' -> 'Friday, 16 January'",
+        description=(
+            "A Unicode TR35 date pattern string.  Token Reference: - Year: 'yy' (26),"
+            " 'yyyy' (2026) - Month: 'M' (1), 'MM' (01), 'MMM' (Jan), 'MMMM' (January)"
+            " - Day: 'd' (1), 'dd' (01), 'E' (Tue), 'EEEE' (Tuesday) - Hour (12h): 'h'"
+            " (1-12), 'hh' (01-12) - requires 'a' for AM/PM - Hour (24h): 'H' (0-23),"
+            " 'HH' (00-23) - Military Time - Minute: 'mm' (00-59) - Second: 'ss'"
+            " (00-59) - Period: 'a' (AM/PM)  Examples: - 'MMM dd, yyyy' -> 'Jan 16,"
+            " 2026' - 'HH:mm' -> '14:30' (Military) - 'h:mm a' -> '2:30 PM' - 'EEEE, d"
+            " MMMM' -> 'Friday, 16 January'"
+        ),
     )
 
 
@@ -153,11 +174,15 @@ class PluralizeArgs(StrictBaseModel):
     )
     few: Optional[DynamicString] = Field(
         None,
-        description="String for the 'few' category (e.g., small groups in Slavic languages).",
+        description=(
+            "String for the 'few' category (e.g., small groups in Slavic languages)."
+        ),
     )
     many: Optional[DynamicString] = Field(
         None,
-        description="String for the 'many' category (e.g., large groups in various languages).",
+        description=(
+            "String for the 'many' category (e.g., large groups in various languages)."
+        ),
     )
     other: DynamicString = Field(
         ..., description="The default/fallback string (used for general plural cases)."

@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import {Injectable, OnDestroy, InjectionToken, Inject} from '@angular/core';
+import {Injectable, OnDestroy, InjectionToken, inject, EnvironmentInjector} from '@angular/core';
 import {
   MessageProcessor,
   SurfaceGroupModel,
@@ -23,6 +23,7 @@ import {
   A2uiClientAction as Action,
 } from '@a2ui/web_core/v0_9';
 import {AngularComponentImplementation, AngularCatalog} from '../catalog/types';
+import {initializeAngularReactivity} from './reactivity';
 
 /**
  * Configuration for the A2UI renderer.
@@ -53,18 +54,18 @@ export const A2UI_RENDERER_CONFIG = new InjectionToken<RendererConfiguration>(
  * {@link MessageProcessor} that turns A2UI protocol messages into a reactive
  * {@link SurfaceGroupModel}.
  */
-@Injectable()
+@Injectable({providedIn: 'root'})
 export class A2uiRendererService implements OnDestroy {
   private _messageProcessor: MessageProcessor<AngularComponentImplementation>;
   private _catalogs: AngularCatalog[] = [];
+  private _config = inject(A2UI_RENDERER_CONFIG);
 
-  constructor(@Inject(A2UI_RENDERER_CONFIG) private config: RendererConfiguration) {
-    this._catalogs = this.config.catalogs;
-    console.log('[A2uiRendererService] constructor, config:', this.config);
-
+  constructor() {
+    initializeAngularReactivity(inject(EnvironmentInjector));
+    this._catalogs = this._config.catalogs;
     this._messageProcessor = new MessageProcessor<AngularComponentImplementation>(
       this._catalogs,
-      this.config.actionHandler as ActionHandler,
+      this._config.actionHandler as ActionHandler,
     );
   }
 
