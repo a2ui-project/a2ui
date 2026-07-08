@@ -48,7 +48,6 @@ class ValidationConfig(BaseModel):
     allow_orphan_components: bool = False
     allow_dangling_references: bool = False
     allow_missing_root: bool = False
-    target_version: Optional[str] = None
 
 
 # Define the presets as global constants
@@ -70,11 +69,7 @@ RELAXED_VALIDATION = ValidationConfig(
 class A2uiValidator:
     """Validates the A2UI JSON payload against catalog schemas and checks for layout integrity."""
 
-    def validate_protocol_envelope(
-        self,
-        messages: List[Dict[str, Any]],
-        config: ValidationConfig = STRICT_VALIDATION,
-    ) -> None:
+    def validate_protocol_envelope(self, messages: List[Dict[str, Any]]) -> None:
         """Validates the overall A2UI protocol payload structure using Pydantic."""
         details = []
         for i, msg in enumerate(messages):
@@ -95,22 +90,6 @@ class A2uiValidator:
                     )
                 )
 
-        # Temporarily normalize version field if target_version is configured to bypass static Literal checks
-        modified = False
-        original_versions = []
-        if config.target_version:
-            for m in messages:
-                if isinstance(m, dict) and m.get("version") == config.target_version:
-                    original_versions.append(config.target_version)
-                    from ..schema.constants import SPEC_VERSION
-
-                    m["version"] = SPEC_VERSION
-                    modified = True
-                else:
-                    original_versions.append(
-                        m.get("version") if isinstance(m, dict) else None
-                    )
-
         try:
             A2uiMessageListWrapper.model_validate({"messages": messages})
             validate_recursion_and_paths(messages)
@@ -118,11 +97,6 @@ class A2uiValidator:
             details.extend(self._format_validation_errors(e, messages))
         except A2uiValidationError as e:
             raise A2uiValidatorError(str(e), details=e.details)
-        finally:
-            if modified:
-                for idx, m in enumerate(messages):
-                    if isinstance(m, dict) and original_versions[idx] is not None:
-                        m["version"] = original_versions[idx]
 
         if details:
             summary = "\n".join(f"{d.path}: {d.message}" for d in details)
@@ -251,7 +225,7 @@ class A2uiValidator:
 
         errors = []
         try:
-            self.validate_protocol_envelope(messages, config=config)
+            self.validate_protocol_envelope(messages)
         except Exception as e:
             errors.append(e)
 
