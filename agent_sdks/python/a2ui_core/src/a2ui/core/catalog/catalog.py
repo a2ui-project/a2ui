@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Any, Callable, Dict, Generic, List, Optional, TypeVar, Union
+from typing import Any, Callable, Dict, Generic, List, Optional, TypeVar, Union, cast
 from pydantic import BaseModel
 
 from .functions import (
@@ -51,7 +51,8 @@ class Catalog(Generic[TComponent, TFunction]):
         self._catalog_schema: Optional[Dict[str, Any]] = None
 
     @property
-    def catalog_schema(self) -> Dict[str, Any]:
+    def catalog_schema(self) -> Optional[Dict[str, Any]]:
+        """Returns the raw JSON Schema if loaded via from_json(), else None."""
         return self._catalog_schema
 
     def get_component(self, name: str) -> Optional[TComponent]:
@@ -131,7 +132,7 @@ class Catalog(Generic[TComponent, TFunction]):
                         )
                     )
 
-        cat = cls(
+        cat = Catalog[ComponentApi, FunctionApi](
             catalog_id=catalog_id,
             spec_version=spec_version,
             components=components,

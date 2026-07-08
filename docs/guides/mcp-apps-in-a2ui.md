@@ -99,21 +99,40 @@ The MCP Apps component typically resolves to a `custom` node in the A2UI catalog
 You must register the component in your catalog application. For example, in Angular:
 
 ```typescript
-import {Catalog} from '@a2ui/angular';
-import {inputBinding} from '@angular/core';
+import {Catalog} from '@a2ui/web_core/v0_9';
+import {z} from 'zod';
+import {McpApp} from './mcp-app';
+import {Button} from './button';
+import {Snackbar} from './snackbar';
 
-export const DEMO_CATALOG = {
-  McpApp: {
-    type: () => import('./mcp-app').then(r => r.McpApp),
-    bindings: ({properties}) => [
-      inputBinding(
-        'content',
-        () => ('content' in properties && properties['content']) || undefined,
-      ),
-      inputBinding('title', () => ('title' in properties && properties['title']) || undefined),
-    ],
-  },
-} as Catalog;
+const McpAppSchema = z.object({
+  content: z.union([z.string(), z.object({id: z.string()})]).optional(),
+  allowedTools: z.array(z.string()).optional(),
+  title: z.string().optional(),
+});
+
+export const DEMO_CATALOG = new Catalog(
+  'my_app.org/some_catalog.json',
+  [
+    {name: 'McpApp', component: McpApp, schema: McpAppSchema},
+    {
+      name: 'Button',
+      component: Button,
+      schema: z.object({
+        label: z.string(),
+        action: z.any().optional(),
+      }),
+    },
+    {
+      name: 'Snackbar',
+      component: Snackbar,
+      schema: z.object({
+        message: z.string(),
+        durationMs: z.number().default(3000),
+      }),
+    },
+  ]
+);
 ```
 
 ### 2. Usage in A2UI Message

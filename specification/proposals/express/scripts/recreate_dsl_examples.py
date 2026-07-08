@@ -43,6 +43,8 @@ sys.path.insert(
     ),
 )
 
+import json
+from a2ui.core.catalog import Catalog
 from a2ui.experimental.express.compiler import ExpressCompiler
 from a2ui.experimental.express.prompt_generator import ExpressPromptGenerator
 
@@ -91,11 +93,14 @@ def main():
     )
 
     print(f"Generating system prompt from catalog: {catalog_path}...")
-    prompt_generator = ExpressPromptGenerator(catalog_path)
+    with open(catalog_path, "r", encoding="utf-8") as f:
+        catalog_dict = json.load(f)
+    catalog = Catalog.from_json(catalog_dict, spec_version="0.9.1")
+    prompt_generator = ExpressPromptGenerator(catalog)
     system_prompt = prompt_generator.generate_prompt()
 
     print("Compiling weather forecast Express DSL...")
-    compiler = ExpressCompiler(catalog_path)
+    compiler = ExpressCompiler(catalog)
     compiled_dict = compiler.compile(
         WEATHER_DSL,
         surface_id="main",

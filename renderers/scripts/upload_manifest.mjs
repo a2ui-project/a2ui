@@ -26,10 +26,31 @@ const GCS_URI =
   process.env.A2UI_NPM_MANIFEST_GCS_URI ||
   'gs://oss-exit-gate-prod-projects-bucket/a2ui/npm/manifests';
 
-const {yellow, red, green, reset} = ansi;
+const {yellow, red, green, reset, bold} = ansi;
 
 /**
- * Generates and uploads the npm manifest to GCS.
+ * Prints the command line usage instructions and examples.
+ */
+function printHelp() {
+  console.log(`Usage: upload_manifest [options]
+
+Triggers a public release via Exit Gate by uploading a release manifest.
+
+Options:
+  -p, --package <name>                 Package(s) to trigger release for. Can be specified multiple times.
+  --no-dry-run                         Actually trigger the release via Exit Gate.
+  -h, --help                           Show this complete help message.
+
+Examples:
+  # Dry run release trigger for a single package
+  ./upload_manifest.mjs --package=web_core
+
+  # Actually trigger public release for multiple packages
+  ./upload_manifest.mjs -p web_core -p lit --no-dry-run`);
+}
+
+/**
+ * Triggers a public release via Exit Gate by uploading a release manifest.
  *
  * @param {string[]} args - Command line arguments.
  * @param {Object} [mocks={}] - Mock objects for testing.
@@ -50,50 +71,56 @@ export async function main(args, mocks = {}) {
       type: 'boolean',
       default: true,
     },
+    help: {
+      type: 'boolean',
+      short: 'h',
+      default: false,
+    },
   };
 
   const {values} = parseArgs({args, options, allowNegative: true});
   const packagesToPublish = values.package;
   const isDryRun = values['dry-run'];
 
+  if (values.help) {
+    printHelp();
+    return;
+  }
+
+  if (packagesToPublish.length === 0) {
+    printHelp();
+    throw new Error('Usage: upload_manifest --package=pkg1 --package=pkg2 [--no-dry-run]');
+  }
+
   const graph = getPackageGraph();
 
-  let manifest;
-
-  if (packagesToPublish.length > 0) {
-    // Resolve and validate
-    const resolvedPackages = packagesToPublish.map(name => {
-      const pkg = Object.values(graph)
-        .filter(p => p.dir.includes('/renderers/'))
-        .find(p => p.name === name || p.name.endsWith('/' + name));
-      if (!pkg) {
-        throw new Error(`Package "${name}" not found in renderers directory.`);
-      }
-      return pkg.name.replace('@a2ui/', '');
-    });
-    // A manifest to only publish the specified packages.
-    manifest = {
-      publish_all: false,
-      publishing_groups: [
-        {
-          namespace: '@a2ui',
-          packages: resolvedPackages.map(name => ({name})),
-        },
-      ],
-    };
-  } else {
-    // A manifest to publish all packages.
-    manifest = {
-      publish_all: true,
-    };
-  }
+  // Resolve and validate
+  const resolvedPackages = packagesToPublish.map(name => {
+    const pkg = Object.values(graph)
+      .filter(p => p.dir.includes('/renderers/'))
+      .find(p => p.name === name || p.name.endsWith('/' + name));
+    if (!pkg) {
+      throw new Error(`Package "${name}" not found in renderers directory.`);
+    }
+    return pkg.name.replace('@a2ui/', '');
+  });
+  // A manifest to only publish the specified packages.
+  const manifest = {
+    publish_all: false,
+    publishing_groups: [
+      {
+        namespace: '@a2ui',
+        packages: resolvedPackages.map(name => ({name})),
+      },
+    ],
+  };
 
   const manifestPath = join(ROOT_DIR, 'manifest.json');
   const manifestJson = JSON.stringify(manifest, null, 2) + '\n';
   writeFile(manifestPath, manifestJson);
 
-  console.log('--- Generated manifest.json:');
-  console.log(manifestJson);
+  console.log(`${bold}Generating manifest.json${reset}`);
+  console.info(manifestJson);
 
   const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19); // YYYY-MM-DDTHH-mm-ss
   // Find the version of a representative package for the manifest name
@@ -106,10 +133,13 @@ export async function main(args, mocks = {}) {
   const manifestFileName = `manifest-${mainVersion}-${timestamp}.json`;
 
   try {
-    console.log(`--- Uploading manifest to GCS: ${GCS_URI}/${manifestFileName}`);
+    const destination = `${GCS_URI}/${manifestFileName}`;
+
+    console.log(`${bold}Uploading manifest to GCS${reset}`);
+    console.info('- Destination:', destination);
     maybeRunCommand(
       'gcloud',
-      ['storage', 'cp', manifestPath, `${GCS_URI}/${manifestFileName}`],
+      ['storage', 'cp', manifestPath, destination],
       {},
       {dryRun: isDryRun, runCommand: runCmd},
     );

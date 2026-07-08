@@ -21,6 +21,7 @@ import os
 import re
 import shutil
 
+
 def run_cmd(args):
     try:
         res = subprocess.run(args, capture_output=True, text=True, check=True)
@@ -29,28 +30,37 @@ def run_cmd(args):
         print(f"Error running command {' '.join(args)}: {e.stderr}", file=sys.stderr)
         return None
 
+
 def main():
-    parser = argparse.ArgumentParser(description="Fetch open, untriaged issues and their comments.")
-    parser.add_argument("--repo", required=True, help="GitHub repository name (owner/repo).")
-    parser.add_argument("--output-file", required=True, help="Path to save the fetched issues JSON.")
-    parser.add_argument("--limit", type=int, default=10, help="Maximum number of issues to fetch.")
+    parser = argparse.ArgumentParser(
+        description="Fetch open, untriaged issues and their comments."
+    )
+    parser.add_argument(
+        "--repo", required=True, help="GitHub repository name (owner/repo)."
+    )
+    parser.add_argument(
+        "--output-file", required=True, help="Path to save the fetched issues JSON."
+    )
+    parser.add_argument(
+        "--limit", type=int, default=10, help="Maximum number of issues to fetch."
+    )
     args = parser.parse_args()
 
     # 1. Check if gh CLI is installed and authenticated
     if not shutil.which("gh"):
-        print("Error: GitHub CLI ('gh') is not installed or not in PATH.", file=sys.stderr)
+        print(
+            "Error: GitHub CLI ('gh') is not installed or not in PATH.", file=sys.stderr
+        )
         sys.exit(1)
 
     print(f"Fetching assignees for {args.repo}...")
-    assignees_json = run_cmd([
-        "gh", "api", f"repos/{args.repo}/assignees",
-        "--paginate",
-        "--jq", ".[].login"
-    ])
+    assignees_json = run_cmd(
+        ["gh", "api", f"repos/{args.repo}/assignees", "--paginate", "--jq", ".[].login"]
+    )
     assignees = []
     if assignees_json:
         raw_assignees = [a.strip() for a in assignees_json.splitlines() if a.strip()]
-        
+
         # Build a name mapping from git log history
         name_map = {}
         git_log = run_cmd(["git", "log", "--format=%an <%ae>"])
@@ -59,19 +69,19 @@ def main():
                 line = line.strip()
                 if not line:
                     continue
-                match = re.match(r'^(.*?)\s*<(.*?)>$', line)
+                match = re.match(r"^(.*?)\s*<(.*?)>$", line)
                 if match:
                     name = match.group(1).strip()
                     email = match.group(2).strip().lower()
                     email_prefix = email.split("@")[0]
                     cleaned_name = name.lower().replace(" ", "")
-                    
+
                     if "dependabot" in cleaned_name or "github-actions" in cleaned_name:
                         continue
-                    
+
                     name_map[email_prefix] = name
                     name_map[cleaned_name] = name
-        
+
         # Map assignees to their real names
         for login in raw_assignees:
             login_lower = login.lower()
@@ -84,23 +94,17 @@ def main():
                     if login_lower.startswith(key) or key.startswith(login_lower):
                         real_name = val
                         break
-            
+
             # Fallback: Use login name directly to prevent slow API requests and rate-limiting
             if not real_name:
                 real_name = login
-            
-            assignees.append({
-                "login": login,
-                "name": real_name
-            })
+
+            assignees.append({"login": login, "name": real_name})
 
     print(f"Fetching available labels for {args.repo}...")
-    labels_json = run_cmd([
-        "gh", "label", "list",
-        "--repo", args.repo,
-        "--limit", "150",
-        "--json", "name"
-    ])
+    labels_json = run_cmd(
+        ["gh", "label", "list", "--repo", args.repo, "--limit", "150", "--json", "name"]
+    )
     repo_labels = []
     if labels_json:
         try:
@@ -112,11 +116,17 @@ def main():
     print(f"Fetching open issues from {args.repo}...")
     # 2. Fetch open issues with key fields
     issues_json = run_cmd([
-        "gh", "issue", "list",
-        "--repo", args.repo,
-        "--state", "open",
-        "--limit", "100",
-        "--json", "number,title,author,body,createdAt,updatedAt,labels,assignees"
+        "gh",
+        "issue",
+        "list",
+        "--repo",
+        args.repo,
+        "--state",
+        "open",
+        "--limit",
+        "100",
+        "--json",
+        "number,title,author,body,createdAt,updatedAt,labels,assignees",
     ])
 
     if not issues_json:
@@ -135,25 +145,33 @@ def main():
             if l.get("name") in priority_labels:
                 has_priority = True
                 break
-        
+
         if not has_priority:
             untriaged_issues.append(issue)
 
-    print(f"Found {len(untriaged_issues)} untriaged issues. Fetching comments for up to {args.limit}...")
+    print(
+        f"Found {len(untriaged_issues)} untriaged issues. Fetching comments for up to"
+        f" {args.limit}..."
+    )
 
     enriched_issues = []
-    for i, issue in enumerate(untriaged_issues[:args.limit]):
+    for i, issue in enumerate(untriaged_issues[: args.limit]):
         issue_id = issue["number"]
         # Parse author name
         author = issue.get("author", {}).get("login", "unknown")
-        
+
         # Fetch comments for this specific issue
         comments_json = run_cmd([
-            "gh", "issue", "view", str(issue_id),
-            "--repo", args.repo,
-            "--json", "comments"
+            "gh",
+            "issue",
+            "view",
+            str(issue_id),
+            "--repo",
+            args.repo,
+            "--json",
+            "comments",
         ])
-        
+
         comments = []
         if comments_json:
             try:
@@ -162,12 +180,17 @@ def main():
                 for c in raw_comments:
                     comments.append({
                         "author": c.get("author", {}).get("login", "unknown"),
-                        "body": c.get("body", "")
+                        "body": c.get("body", ""),
                     })
             except Exception as e:
-                print(f"Failed to parse comments for issue #{issue_id}: {e}", file=sys.stderr)
+                print(
+                    f"Failed to parse comments for issue #{issue_id}: {e}",
+                    file=sys.stderr,
+                )
 
-        existing_assignees = [a.get("login") for a in issue.get("assignees", []) if a.get("login")]
+        existing_assignees = [
+            a.get("login") for a in issue.get("assignees", []) if a.get("login")
+        ]
 
         enriched_issues.append({
             "id": issue_id,
@@ -178,16 +201,16 @@ def main():
             "updatedAt": issue.get("updatedAt", ""),
             "labels": [l.get("name") for l in issue.get("labels", [])],
             "assignees": existing_assignees,
-            "comments": comments
+            "comments": comments,
         })
 
     # Prepare output payload
     payload = {
-      "repo": args.repo,
-      "assignees": assignees,
-      "labels": repo_labels,
-      "issues": enriched_issues,
-      "total_issues_count": len(untriaged_issues)
+        "repo": args.repo,
+        "assignees": assignees,
+        "labels": repo_labels,
+        "issues": enriched_issues,
+        "total_issues_count": len(untriaged_issues),
     }
 
     # Write to output file
@@ -197,6 +220,7 @@ def main():
         json.dump(payload, f, indent=2)
 
     print(f"Successfully saved {len(enriched_issues)} issues to {output_path}")
+
 
 if __name__ == "__main__":
     main()

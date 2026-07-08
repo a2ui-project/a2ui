@@ -22,7 +22,7 @@ class Subscription:
 
     def __init__(
         self, unsubscribe_callback: Callable[[], None], initial_value: Any = None
-    ):
+    ) -> None:
         self._unsubscribe = unsubscribe_callback
         self.value = initial_value
 
@@ -33,7 +33,7 @@ class Subscription:
 class EventSource:
     """A simple, lightweight multi-cast event source matching EventEmitter style."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         self._listeners: Set[Callable[[Any], None]] = set()
 
     def subscribe(self, handler: Callable[[Any], None]) -> Subscription:
@@ -55,7 +55,7 @@ class EventSource:
 class Signal(EventSource, Generic[T]):
     """An observable stream that persists its current value and immediately emits it upon subscription (matches BehaviorSubject and Preact Signal)."""
 
-    def __init__(self, initial_value: T):
+    def __init__(self, initial_value: T) -> None:
         super().__init__()
         self._value: T = initial_value
 
@@ -86,7 +86,7 @@ class Signal(EventSource, Generic[T]):
 class AbortSignal(EventSource):
     """A simple cancellation token that emits when an operation is aborted."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__()
         self._aborted = False
 

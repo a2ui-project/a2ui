@@ -17,15 +17,16 @@ import os
 import sys
 import subprocess
 
+
 def main():
     # The root of the repository is the parent of the scripts directory
     repo_root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
     skills_dir = os.path.join(repo_root, ".agents", "skills")
-    
+
     if not os.path.exists(skills_dir):
         print(f"Error: Skills directory not found at {skills_dir}")
         sys.exit(1)
-        
+
     skills = []
     # Find all subdirectories in .agents/skills/
     for item in sorted(os.listdir(skills_dir)):
@@ -56,16 +57,16 @@ def main():
     for name, paths in skills:
         print(f"\nRunning tests for skill: {name}")
         print("-" * 80)
-        
+
         skill_failed = False
         skill_has_tests = False
-        
+
         for path in paths:
             # Run unittest discovery in the directory.
             # Run as a separate subprocess to ensure clean process isolation.
             cmd = [sys.executable, "-m", "unittest", "discover", "-s", path]
             result = subprocess.run(cmd, cwd=repo_root)
-            
+
             if result.returncode == 0:
                 skill_has_tests = True
             elif result.returncode == 5:
@@ -74,7 +75,7 @@ def main():
             else:
                 skill_failed = True
                 skill_has_tests = True
-        
+
         if skill_failed:
             failed_skills.append(name)
             print(f"Result: FAILED")
@@ -91,7 +92,10 @@ def main():
     print("=" * 80)
     total_tested = len(passed_skills) + len(failed_skills)
     print(f"Total skills with tests: {total_tested}")
-    print(f"Passed: {len(passed_skills)} ({', '.join(passed_skills) if passed_skills else 'None'})")
+    print(
+        f"Passed: {len(passed_skills)}"
+        f" ({', '.join(passed_skills) if passed_skills else 'None'})"
+    )
     if failed_skills:
         print(f"Failed: {len(failed_skills)} ({', '.join(failed_skills)})")
         sys.exit(1)
