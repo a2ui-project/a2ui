@@ -14,7 +14,7 @@ The best way to share your work is to **post in [GitHub Discussions](https://git
 
 **Community-built renderers** are listed on the [Ecosystem Renderers](renderers.md) page — check there for community implementations and instructions for adding your own.
 
-**Official samples** [in the repo](../../samples/README.md) are a great reference for what good A2UI projects look like:
+**Official samples** [in the repo](../../../samples/README.md) are a great reference for what good A2UI projects look like:
 
 ## Project Partners
 

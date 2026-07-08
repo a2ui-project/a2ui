@@ -104,7 +104,7 @@ Functionality of A2UI renderer consists of layers that can be developed separate
 
     Set of primitives, needed to describe catalog and to interact with the agent.
 
-    For example, see the [JavaScript web core library](../../renderers/web_core/README.md).
+    For example, see the [JavaScript web core library](../../../renderers/web_core/README.md).
 
 - **Catalog Schema**:
 
@@ -118,14 +118,14 @@ Functionality of A2UI renderer consists of layers that can be developed separate
     - JavaScript core and catalogs may be adapted to Angular, Electron, React and Lit frameworks.
     - Dart core and catalogs may be adapted to Flutter and Jaspr frameworks.
 
-    See the [Angular adapter](../../renderers/angular/README.md).
+    See the [Angular adapter](../../../renderers/angular/README.md).
 
 - **Catalog Implementation**:
 
     Implementation of the catalog schema for a framework.
 
     For example:
-    - See the [Angular implementation of the basic catalog](../../renderers/angular/src/v0_9/catalog/basic)
+    - See the [Angular implementation of the basic catalog](../../../renderers/angular/src/v0_9/catalog/basic)
 
 ```mermaid
 flowchart TD;

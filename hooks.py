@@ -94,13 +94,7 @@ def on_page_markdown(markdown, page, config, files):
             temp_path = temp_path[3:]
 
         if up_count > file_depth:
-            diff = up_count - file_depth
-            if diff == 1:
-                strip_count = file_depth + 1
-                base_url = f'{github_base_url}/docs'
-            else:
-                strip_count = file_depth + 2
-                base_url = github_base_url
+            strip_count = up_count
 
             # Remove the leading '../' sequences
             path_parts = path.split('/')
@@ -110,7 +104,7 @@ def on_page_markdown(markdown, page, config, files):
             clean_path = '/'.join(path_parts)
 
             # Return the newly formatted absolute GitHub link
-            return f'{base_url}/{clean_path}'
+            return f'{github_base_url}/{clean_path}'
 
         return path
 
