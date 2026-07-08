@@ -67,4 +67,7 @@ exclude_path = [
   # checking them directly is a false positive. Anchored to the source root so
   # the docs/specification/ copies are still verified.
   "^specification",
+  # Exclude Python virtual environment directories
+  "\\.venv",
+  "venv",
 ]

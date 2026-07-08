@@ -26,7 +26,6 @@ import com.google.adk.sessions.Session
 import com.google.adk.sessions.SessionKey
 import com.google.genai.types.Content
 import com.google.genai.types.Part
-import java.util.Optional
 import java.util.UUID
 import java.util.logging.Logger
 import kotlinx.serialization.json.*
@@ -89,12 +88,13 @@ class A2aHandler(private val runner: Runner) {
         val userId = A2A_USER_ID
 
         val content = extractUserContent(messageMap)
-        val session = getOrCreateSession(userId, sessionId)
+        val sessionKey = SessionKey(runner.appName(), userId, sessionId)
+        val session = getOrCreateSession(sessionKey)
 
         sessionPreparer?.invoke(session, requestBody)
 
         val events =
-          runner.runAsync(session, content, RunConfig.builder().build()).toList().blockingGet()
+          runner.runAsync(sessionKey, content, RunConfig.builder().build()).toList().blockingGet()
 
         val allParts = translateEventsToA2aParts(events)
         response["result"] = createFinalMessage(contextId, events, allParts)
@@ -122,21 +122,9 @@ class A2aHandler(private val runner: Runner) {
       .build()
   }
 
-  private fun getOrCreateSession(userId: String, sessionId: String): Session {
-    var session =
-      runner
-        .sessionService()
-        .getSession(runner.appName(), userId, sessionId, Optional.empty())
-        .blockingGet()
-    if (session == null) {
-      session =
-        runner
-          .sessionService()
-          .createSession(SessionKey(runner.appName(), userId, sessionId))
-          .blockingGet()
-    }
-    return session
-  }
+  private fun getOrCreateSession(sessionKey: SessionKey): Session =
+    runner.sessionService().getSession(sessionKey, null).blockingGet()
+      ?: runner.sessionService().createSession(sessionKey).blockingGet()
 
   private fun translateEventsToA2aParts(events: List<*>): List<Map<String, Any>> {
     return events.filterIsInstance<Event>().flatMap { event ->

@@ -13,7 +13,7 @@
 # limitations under the License.
 
 from typing import Any, Dict, Optional, Type, Union
-from pydantic import BaseModel
+from pydantic import BaseModel, TypeAdapter
 from pydantic_core import PydanticUndefined
 
 
@@ -40,6 +40,13 @@ class ComponentImplementation(ComponentApi):
     ):
         super().__init__(name, schema)
         self.model_class = model_class
+        self._type_adapter: Optional[TypeAdapter[Any]] = None
+
+    @property
+    def type_adapter(self) -> TypeAdapter[Any]:
+        if self._type_adapter is None:
+            self._type_adapter = TypeAdapter(self.model_class)
+        return self._type_adapter
 
 
 class ModelComponentApi(ComponentImplementation):

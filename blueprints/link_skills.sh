@@ -1,3 +1,4 @@
+#!/usr/bin/env bash
 # Copyright 2026 Google LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -10,9 +11,18 @@
 # distributed under the License is distributed on an "AS IS" BASIS,
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
+# limitations under the License.
 
-from pkgutil import extend_path
+set -euo pipefail
 
-__path__ = extend_path(__path__, __name__)
+REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+SKILLS_DIR="$REPO_ROOT/.agents/skills"
 
-from .version import __version__
+mkdir -p "$SKILLS_DIR"
+
+for skill in a2ui-blueprint-maintenance a2ui-blueprint-navigator a2ui-create-feature-blueprint a2ui-implement-feature-from-blueprint; do
+  ln -sfn "../../blueprints/skills/$skill" "$SKILLS_DIR/$skill"
+  echo "Symlinked $skill -> .agents/skills/$skill"
+done
+
+echo "Done linking blueprint skills into .agents/skills/."

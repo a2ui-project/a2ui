@@ -35,9 +35,9 @@ from agent_executor import get_a2ui_enabled, get_a2ui_catalog, get_a2ui_examples
 from google.adk.runners import Runner
 
 try:
-  from tools import get_sales_data, get_store_sales
+    from tools import get_sales_data, get_store_sales
 except ImportError:
-  from tools import get_sales_data, get_store_sales
+    from tools import get_sales_data, get_store_sales
 
 logger = logging.getLogger(__name__)
 
@@ -90,185 +90,194 @@ You will also use layout components like `Column` (as the `root`) and `Text` (to
 
 
 class RizzchartsAgent:
-  """An agent that runs an ecommerce dashboard"""
+    """An agent that runs an ecommerce dashboard"""
 
-  SUPPORTED_CONTENT_TYPES: ClassVar[list[str]] = ["text", "text/plain"]
+    SUPPORTED_CONTENT_TYPES: ClassVar[list[str]] = ["text", "text/plain"]
 
-  def __init__(
-      self,
-      base_url: str,
-      model: Any,
-  ):
-    self.base_url = base_url
-    self._model = model
+    def __init__(
+        self,
+        base_url: str,
+        model: Any,
+    ):
+        self.base_url = base_url
+        self._model = model
 
-    self._a2ui_enabled_provider = get_a2ui_enabled
-    self._a2ui_catalog_provider = get_a2ui_catalog
-    self._a2ui_examples_provider = get_a2ui_examples
+        self._a2ui_enabled_provider = get_a2ui_enabled
+        self._a2ui_catalog_provider = get_a2ui_catalog
+        self._a2ui_examples_provider = get_a2ui_examples
 
-    self._agent_name = "mcp_app_proxy_agent"
-    self._user_id = "remote_agent"
+        self._agent_name = "mcp_app_proxy_agent"
+        self._user_id = "remote_agent"
 
-    self._session_service = InMemorySessionService()
-    self._memory_service = InMemoryMemoryService()
-    self._artifact_service = InMemoryArtifactService()
+        self._session_service = InMemorySessionService()
+        self._memory_service = InMemoryMemoryService()
+        self._artifact_service = InMemoryArtifactService()
 
-    self._text_runner: Optional[Runner] = self._build_runner(self._build_llm_agent())
-
-    self._schema_managers: Dict[str, A2uiSchemaManager] = {}
-    self._ui_runners: Dict[str, Runner] = {}
-
-    for version in [VERSION_0_8, VERSION_0_9]:
-      schema_manager = self._build_schema_manager(version)
-      self._schema_managers[version] = schema_manager
-      agent = self._build_llm_agent(schema_manager)
-      self._ui_runners[version] = self._build_runner(agent)
-
-    self._agent_card = self._build_agent_card()
-
-  @property
-  def agent_card(self) -> AgentCard:
-    return self._agent_card
-
-  def get_runner(self, version: Optional[str]) -> Runner:
-    if version is None:
-      return self._text_runner
-    return self._ui_runners[version]
-
-  def get_schema_manager(self, version: Optional[str]) -> Optional[A2uiSchemaManager]:
-    if version is None:
-      return None
-    return self._schema_managers[version]
-
-  def _build_schema_manager(self, version: str) -> A2uiSchemaManager:
-    return A2uiSchemaManager(
-        version=version,
-        catalogs=[
-            CatalogConfig.from_path(
-                name="rizzcharts",
-                catalog_path=(
-                    f"../catalog_schemas/{version}/rizzcharts_catalog_definition.json"
-                ),
-                examples_path=f"../examples/rizzcharts_catalog/{version}",
-            ),
-            BasicCatalog.get_config(
-                version=version,
-                examples_path=f"../examples/standard_catalog/{version}",
-            ),
-        ],
-        accepts_inline_catalogs=True,
-    )
-
-    self._a2ui_enabled_provider = a2ui_enabled_provider
-    self._a2ui_catalog_provider = a2ui_catalog_provider
-    self._a2ui_examples_provider = a2ui_examples_provider
-
-  def _build_agent_card(self) -> AgentCard:
-    """Returns the AgentCard defining this agent's metadata and skills.
-
-    Returns:
-        An AgentCard object.
-    """
-    extensions = []
-    if self._schema_managers:
-      for version, sm in self._schema_managers.items():
-        ext = get_a2ui_agent_extension(
-            version,
-            sm.accepts_inline_catalogs,
-            sm.supported_catalog_ids,
+        self._text_runner: Optional[Runner] = self._build_runner(
+            self._build_llm_agent()
         )
-        extensions.append(ext)
 
-    capabilities = AgentCapabilities(
-        streaming=True,
-        extensions=extensions,
-    )
+        self._schema_managers: Dict[str, A2uiSchemaManager] = {}
+        self._ui_runners: Dict[str, Runner] = {}
 
-    return AgentCard(
-        name="Ecommerce Dashboard Agent",
-        description=(
-            "This agent visualizes ecommerce data, showing sales breakdowns, YOY"
-            " revenue performance, and regional sales outliers."
-        ),
-        url=self.base_url,
-        version="1.0.0",
-        default_input_modes=RizzchartsAgent.SUPPORTED_CONTENT_TYPES,
-        default_output_modes=RizzchartsAgent.SUPPORTED_CONTENT_TYPES,
-        capabilities=capabilities,
-        skills=[
-            AgentSkill(
-                id="view_sales_by_category",
-                name="View Sales by Category",
-                description=(
-                    "Displays a pie chart of sales broken down by product category for"
-                    " a given time period."
+        for version in [VERSION_0_8, VERSION_0_9]:
+            schema_manager = self._build_schema_manager(version)
+            self._schema_managers[version] = schema_manager
+            agent = self._build_llm_agent(schema_manager)
+            self._ui_runners[version] = self._build_runner(agent)
+
+        self._agent_card = self._build_agent_card()
+
+    @property
+    def agent_card(self) -> AgentCard:
+        return self._agent_card
+
+    def get_runner(self, version: Optional[str]) -> Runner:
+        if version is None:
+            return self._text_runner
+        return self._ui_runners[version]
+
+    def get_schema_manager(self, version: Optional[str]) -> Optional[A2uiSchemaManager]:
+        if version is None:
+            return None
+        return self._schema_managers[version]
+
+    def _build_schema_manager(self, version: str) -> A2uiSchemaManager:
+        return A2uiSchemaManager(
+            version=version,
+            catalogs=[
+                CatalogConfig.from_path(
+                    name="rizzcharts",
+                    catalog_path=(
+                        f"../catalog_schemas/{version}/rizzcharts_catalog_definition.json"
+                    ),
+                    examples_path=f"../examples/rizzcharts_catalog/{version}",
                 ),
-                tags=["sales", "breakdown", "category", "pie chart", "revenue"],
-                examples=[
-                    "show my sales breakdown by product category for q3",
-                    "What's the sales breakdown for last month?",
-                ],
-            ),
-            AgentSkill(
-                id="view_regional_outliers",
-                name="View Regional Sales Outliers",
-                description=(
-                    "Displays a map showing regional sales outliers or store-level"
-                    " performance."
+                BasicCatalog.get_config(
+                    version=version,
+                    examples_path=f"../examples/standard_catalog/{version}",
                 ),
-                tags=["sales", "regional", "outliers", "stores", "map", "performance"],
-                examples=[
-                    "interesting. were there any outlier stores",
-                    "show me a map of store performance",
-                ],
-            ),
-        ],
-    )
-
-  def _build_runner(self, agent: LlmAgent) -> Runner:
-    return Runner(
-        app_name=self._agent_name,
-        agent=agent,
-        artifact_service=self._artifact_service,
-        session_service=self._session_service,
-        memory_service=self._memory_service,
-    )
-
-  def _build_llm_agent(
-      self, schema_manager: Optional[A2uiSchemaManager] = None
-  ) -> LlmAgent:
-    """Builds the LLM agent for the contact agent."""
-    instruction = (
-        schema_manager.generate_system_prompt(
-            role_description=ROLE_DESCRIPTION,
-            workflow_description=WORKFLOW_DESCRIPTION,
-            ui_description=UI_DESCRIPTION,
-            include_schema=False,
-            include_examples=False,
-            validate_examples=False,
+            ],
+            accepts_inline_catalogs=True,
         )
-        if schema_manager
-        else ""
-    )
 
-    return LlmAgent(
-        model=self._model,
-        name=self._agent_name,
-        description="An agent that lets sales managers request sales data.",
-        instruction=instruction,
-        tools=[
-            get_store_sales,
-            get_sales_data,
-            SendA2uiToClientToolset(
-                a2ui_catalog=self._a2ui_catalog_provider,
-                a2ui_enabled=self._a2ui_enabled_provider,
-                a2ui_examples=self._a2ui_examples_provider,
+        self._a2ui_enabled_provider = a2ui_enabled_provider
+        self._a2ui_catalog_provider = a2ui_catalog_provider
+        self._a2ui_examples_provider = a2ui_examples_provider
+
+    def _build_agent_card(self) -> AgentCard:
+        """Returns the AgentCard defining this agent's metadata and skills.
+
+        Returns:
+            An AgentCard object.
+        """
+        extensions = []
+        if self._schema_managers:
+            for version, sm in self._schema_managers.items():
+                ext = get_a2ui_agent_extension(
+                    version,
+                    sm.accepts_inline_catalogs,
+                    sm.supported_catalog_ids,
+                )
+                extensions.append(ext)
+
+        capabilities = AgentCapabilities(
+            streaming=True,
+            extensions=extensions,
+        )
+
+        return AgentCard(
+            name="Ecommerce Dashboard Agent",
+            description=(
+                "This agent visualizes ecommerce data, showing sales breakdowns, YOY"
+                " revenue performance, and regional sales outliers."
             ),
-        ],
-        planner=BuiltInPlanner(
-            thinking_config=types.ThinkingConfig(
-                include_thoughts=True,
+            url=self.base_url,
+            version="1.0.0",
+            default_input_modes=RizzchartsAgent.SUPPORTED_CONTENT_TYPES,
+            default_output_modes=RizzchartsAgent.SUPPORTED_CONTENT_TYPES,
+            capabilities=capabilities,
+            skills=[
+                AgentSkill(
+                    id="view_sales_by_category",
+                    name="View Sales by Category",
+                    description=(
+                        "Displays a pie chart of sales broken down by product category"
+                        " for a given time period."
+                    ),
+                    tags=["sales", "breakdown", "category", "pie chart", "revenue"],
+                    examples=[
+                        "show my sales breakdown by product category for q3",
+                        "What's the sales breakdown for last month?",
+                    ],
+                ),
+                AgentSkill(
+                    id="view_regional_outliers",
+                    name="View Regional Sales Outliers",
+                    description=(
+                        "Displays a map showing regional sales outliers or store-level"
+                        " performance."
+                    ),
+                    tags=[
+                        "sales",
+                        "regional",
+                        "outliers",
+                        "stores",
+                        "map",
+                        "performance",
+                    ],
+                    examples=[
+                        "interesting. were there any outlier stores",
+                        "show me a map of store performance",
+                    ],
+                ),
+            ],
+        )
+
+    def _build_runner(self, agent: LlmAgent) -> Runner:
+        return Runner(
+            app_name=self._agent_name,
+            agent=agent,
+            artifact_service=self._artifact_service,
+            session_service=self._session_service,
+            memory_service=self._memory_service,
+        )
+
+    def _build_llm_agent(
+        self, schema_manager: Optional[A2uiSchemaManager] = None
+    ) -> LlmAgent:
+        """Builds the LLM agent for the contact agent."""
+        instruction = (
+            schema_manager.generate_system_prompt(
+                role_description=ROLE_DESCRIPTION,
+                workflow_description=WORKFLOW_DESCRIPTION,
+                ui_description=UI_DESCRIPTION,
+                include_schema=False,
+                include_examples=False,
+                validate_examples=False,
             )
-        ),
-        disallow_transfer_to_peers=True,
-    )
+            if schema_manager
+            else ""
+        )
+
+        return LlmAgent(
+            model=self._model,
+            name=self._agent_name,
+            description="An agent that lets sales managers request sales data.",
+            instruction=instruction,
+            tools=[
+                get_store_sales,
+                get_sales_data,
+                SendA2uiToClientToolset(
+                    a2ui_catalog=self._a2ui_catalog_provider,
+                    a2ui_enabled=self._a2ui_enabled_provider,
+                    a2ui_examples=self._a2ui_examples_provider,
+                ),
+            ],
+            planner=BuiltInPlanner(
+                thinking_config=types.ThinkingConfig(
+                    include_thoughts=True,
+                )
+            ),
+            disallow_transfer_to_peers=True,
+        )

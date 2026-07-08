@@ -1149,9 +1149,19 @@
           "type": "object",
           "properties": {
             "url": {
-              "type": "string",
-              "format": "uri",
-              "description": "The URL to open."
+              "description": "The URL to open.",
+              "oneOf": [
+                {
+                  "type": "string",
+                  "format": "uri"
+                },
+                {
+                  "$ref": "https://a2ui.org/specification/v1_0/common_types.json#/$defs/DataBinding"
+                },
+                {
+                  "$ref": "https://a2ui.org/specification/v1_0/common_types.json#/$defs/FunctionCall"
+                }
+              ]
             }
           },
           "required": ["url"],

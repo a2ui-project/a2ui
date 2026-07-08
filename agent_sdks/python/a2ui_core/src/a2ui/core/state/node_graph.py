@@ -13,23 +13,27 @@
 # limitations under the License.
 
 import copy
-from typing import Any, Dict, List, Optional
-from ..common.events import Signal
+from typing import Any, Dict, List, Optional, TYPE_CHECKING
+from ..common.events import Signal, Subscription
 from .component_node import ComponentNode
 from .component_model import ComponentModel
 from .surface_model import SurfaceModel
 from ..catalog import Catalog
 from ..validating import CatalogSchemaValidator
 
+if TYPE_CHECKING:
+    from ..rendering.generic_binder import GenericBinder
+
 
 class NodeGraph:
     """Manages the lifecycle and resolution of living ComponentNodes for a surface."""
 
-    def __init__(self, surface: SurfaceModel):
+    def __init__(self, surface: SurfaceModel) -> None:
         self.surface = surface
 
         self.rootNode: Signal[Optional[ComponentNode]] = Signal(None)
         self.active_nodes: Dict[str, ComponentNode] = {}
+        self.binders: Dict[str, "GenericBinder"] = {}
 
         self._comp_created_sub = self.surface.components_model.on_created.subscribe(
             self._on_component_created
@@ -60,7 +64,7 @@ class NodeGraph:
         if instance_id in self.active_nodes:
             return self.active_nodes[instance_id]
 
-        def collect_nodes(value):
+        def collect_nodes(value: Any) -> set[ComponentNode]:
             nodes = set()
             if isinstance(value, ComponentNode):
                 nodes.add(value)
@@ -75,7 +79,7 @@ class NodeGraph:
             return nodes
 
         component_model = self.surface.components_model.get(component_id)
-        props_signal = Signal({})
+        props_signal: Signal[Dict[str, Any]] = Signal({})
 
         if component_model:
             node = ComponentNode(
@@ -91,7 +95,11 @@ class NodeGraph:
 
         # If placeholder, it has no properties. It cleans itself from cache on disposal.
         if not component_model:
-            node.add_cleanup(lambda: self.active_nodes.pop(instance_id, None))
+
+            def cleanup_placeholder() -> None:
+                self.active_nodes.pop(instance_id, None)
+
+            node.add_cleanup(cleanup_placeholder)
             return node
 
         # Set up reactive context and binder
@@ -111,17 +119,17 @@ class NodeGraph:
         )
 
         binder = GenericBinder(comp_context)
-        node._binder = binder
+        self.binders[instance_id] = binder
 
-        child_nodes_by_prop = {}
-        template_subs = {}
+        child_nodes_by_prop: Dict[str, Any] = {}
+        template_subs: Dict[str, Subscription] = {}
 
         def on_properties_changed(resolved_props: Dict[str, Any]) -> None:
-            new_props = {}
+            new_props: Dict[str, Any] = {}
             for k, v in resolved_props.items():
                 new_props[k] = v
 
-            current_resolved = {}
+            current_resolved: Dict[str, Any] = {}
 
             # Wrap actions into closures
             for k, v in list(new_props.items()):
@@ -131,7 +139,7 @@ class NodeGraph:
                     action_payload = copy.deepcopy(v)
 
                     # Create closure wrapping resolution and dispatch
-                    def make_action_closure(payload=action_payload):
+                    def make_action_closure(payload: Any = action_payload) -> None:
                         resolved_payload = data_context.resolve_dynamic_value(payload)
                         self.surface.dispatch_action(resolved_payload, component_id)
 
@@ -166,7 +174,7 @@ class NodeGraph:
                 if list_ref in new_props:
                     val = new_props[list_ref]
                     if isinstance(val, list):
-                        child_list = []
+                        child_list: List[Any] = []
                         for item in val:
                             if isinstance(item, str) and item:
                                 child_list.append(
@@ -227,7 +235,7 @@ class NodeGraph:
                             template_subs[list_ref].unsubscribe()
                             del template_subs[list_ref]
 
-                        spawned_nodes_signal = Signal([])
+                        spawned_nodes_signal: Signal[List[ComponentNode]] = Signal([])
                         new_props[list_ref] = spawned_nodes_signal
 
                         def on_array_changed(array_data: Any) -> None:
@@ -278,7 +286,7 @@ class NodeGraph:
         # Subscribe node to binder updates
         binder_sub = binder.subscribe(on_properties_changed)
 
-        def cleanup_node():
+        def cleanup_node() -> None:
             binder_sub.unsubscribe()
             binder.dispose()
             for sub in list(template_subs.values()):
@@ -288,6 +296,7 @@ class NodeGraph:
             for child_node in collect_nodes(list(child_nodes_by_prop.values())):
                 child_node.dispose()
             child_nodes_by_prop.clear()
+            self.binders.pop(instance_id, None)
             self.active_nodes.pop(instance_id, None)
 
         node.add_cleanup(cleanup_node)
@@ -317,10 +326,11 @@ class NodeGraph:
         for active_node in list(self.active_nodes.values()):
             if active_node.component_id == component_id:
                 continue
-            if hasattr(active_node, "_binder") and active_node._binder:
-                raw_props = active_node._binder.context.component_model.properties
+            binder = self.binders.get(active_node.instance_id)
+            if binder:
+                raw_props = binder.context.component_model.properties
                 if self._references_component(raw_props, component_id):
-                    active_node._binder._rebuild_all_bindings()
+                    binder._rebuild_all_bindings()
 
     def _on_component_deleted(self, component_id: str) -> None:
         # 1. Dispose all active nodes for the component
@@ -336,10 +346,11 @@ class NodeGraph:
 
         # 3. Rebuild references on other parents referencing this component
         for active_node in list(self.active_nodes.values()):
-            if hasattr(active_node, "_binder") and active_node._binder:
-                raw_props = active_node._binder.context.component_model.properties
+            binder = self.binders.get(active_node.instance_id)
+            if binder:
+                raw_props = binder.context.component_model.properties
                 if self._references_component(raw_props, component_id):
-                    active_node._binder._rebuild_all_bindings()
+                    binder._rebuild_all_bindings()
 
     def _references_component(self, raw_props: Any, target_id: str) -> bool:
         if raw_props == target_id:
