@@ -99,8 +99,12 @@ def main():
         # Normalize column header spacing to align token indexes
         header_line = header_line.replace('Regions Cover', 'Regions-Cover')
         header_line = header_line.replace('Func Cover', 'Func-Cover')
+        header_line = header_line.replace('Functions Cover', 'Functions-Cover')
+        header_line = header_line.replace('Functions Executed', 'Functions-Executed')
         header_line = header_line.replace('Line Cover', 'Line-Cover')
+        header_line = header_line.replace('Lines Cover', 'Lines-Cover')
         header_line = header_line.replace('Branch Cover', 'Branch-Cover')
+        header_line = header_line.replace('Branches Cover', 'Branches-Cover')
         header_parts = header_line.split()
         try:
             if 'Line-Cover' in header_parts:

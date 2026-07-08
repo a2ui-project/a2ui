@@ -19,7 +19,7 @@ import 'package:flutter_test/flutter_test.dart';
 void main() {
   group('check_dart_coverage.dart script tests', () {
     late File tempFile;
-    const String scriptPath = '../../../../../scripts/check_dart_coverage.dart';
+    const scriptPath = '../../../../../scripts/check_dart_coverage.dart';
 
     setUp(() {
       tempFile = File('test_lcov.info');
