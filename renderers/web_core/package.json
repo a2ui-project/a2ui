@@ -114,7 +114,7 @@
       "clean": "if-file-deleted"
     },
     "test": {
-      "command": "node --test \"dist/**/*.test.js\"",
+      "command": "node --experimental-test-coverage --test-reporter=lcov --test-reporter-destination=coverage.lcov --test \"dist/**/*.test.js\" && node scripts/check_coverage.js",
       "dependencies": [
         "build"
       ]

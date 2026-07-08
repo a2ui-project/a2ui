@@ -40,4 +40,6 @@ jobs:
         with:
           persist-credentials: false
       - name: Run tests
-        run: swift test --enable-swift-testing
+        run: |
+          swift test --enable-swift-testing --enable-code-coverage
+          python3 scripts/check_swift_coverage.py
