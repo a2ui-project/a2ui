@@ -7,41 +7,6 @@ CrewAI, Google Chat, Slack, or any other agent framework or service that
 supports AG-UI.
 
 <style>
-  .agui-framework-picker {
-    margin: 24px 0;
-  }
-
-  .agui-framework-select {
-    background: var(--md-default-bg-color);
-    border: 1px solid var(--md-default-fg-color--lighter);
-    border-radius: 6px;
-    color: var(--md-default-fg-color);
-    font: inherit;
-    max-width: 100%;
-    padding: 8px 12px;
-    width: 320px;
-  }
-
-  .agui-framework-panel {
-    margin-top: 16px;
-  }
-
-  .agui-framework-panel[hidden] {
-    display: none;
-  }
-
-  .js #agui-framework-panels:not([data-agui-framework-ready])
-    .agui-framework-panel {
-    display: none;
-  }
-
-  .agui-framework-panel-title {
-    color: var(--md-default-fg-color);
-    font-size: 1.25em;
-    font-weight: 700;
-    margin: 1.6em 0 0.6em;
-  }
-
   .agui-demo-video {
     border-radius: 8px;
     display: block;
@@ -57,20 +22,9 @@ supports AG-UI.
   }
 </style>
 
-<div class="agui-framework-picker">
-  <select id="agui-framework-select" class="agui-framework-select" aria-controls="agui-framework-panels">
-    <option value="adk">ADK</option>
-    <option value="langgraph-py">LangGraph (Python)</option>
-    <option value="langgraph-fastapi">LangGraph (FastAPI)</option>
-    <option value="langgraph-ts">LangGraph (TypeScript)</option>
-    <option value="strands-py">Strands (Python)</option>
-    <option value="strands-ts">Strands (TypeScript)</option>
-    <option value="slack">Slack</option>
-  </select>
-</div>
 
-<video id="agui-demo-video" class="agui-demo-video" controls playsinline preload="metadata">
-  <source id="agui-demo-video-source" src="https://cdn.copilotkit.ai/docs/a2ui/ag-ui-a2ui-demo.mp4" data-default-src="https://cdn.copilotkit.ai/docs/a2ui/ag-ui-a2ui-demo.mp4" data-slack-src="https://cdn.copilotkit.ai/docs/a2ui/ag-ui-slack-demo.mp4" type="video/mp4">
+<video class="agui-demo-video" controls playsinline preload="metadata">
+  <source src="https://cdn.copilotkit.ai/docs/a2ui/ag-ui-a2ui-demo.mp4" type="video/mp4">
   Your browser does not support the video tag.
 </video>
 
@@ -128,340 +82,219 @@ framework or harness you already use. The snippets below come from the
 corresponding AG-UI integrations and show the framework-native agent shape
 that AG-UI wraps.
 
-<div id="agui-framework-panels" markdown="1">
-<div class="agui-framework-panel" data-framework-panel="adk" markdown="1">
+=== "ADK"
 
-<p class="agui-framework-panel-title">ADK</p>
+    Use ADK when your agent already runs on Google's Agent Development Kit. The
+    AG-UI ADK middleware exposes the agent as an AG-UI event stream:
 
-Use ADK when your agent already runs on Google's Agent Development Kit. The
-AG-UI ADK middleware exposes the agent as an AG-UI event stream:
+    ```python
+    from fastapi import FastAPI
+    from ag_ui_adk import ADKAgent, AGUIToolset, add_adk_fastapi_endpoint
+    from google.adk.agents import Agent
 
-```python
-from fastapi import FastAPI
-from ag_ui_adk import ADKAgent, AGUIToolset, add_adk_fastapi_endpoint
-from google.adk.agents import Agent
+    my_agent = Agent(
+        name="assistant",
+        instruction="You are a helpful assistant.",
+        tools=[
+            AGUIToolset(),  # Adds tools provided by the AG-UI client.
+        ],
+    )
 
-my_agent = Agent(
-    name="assistant",
-    instruction="You are a helpful assistant.",
-    tools=[
-        AGUIToolset(),  # Adds tools provided by the AG-UI client.
-    ],
-)
+    agent = ADKAgent(
+        adk_agent=my_agent,
+        app_name="my_app",
+        user_id="user123",
+    )
 
-agent = ADKAgent(
-    adk_agent=my_agent,
-    app_name="my_app",
-    user_id="user123",
-)
+    app = FastAPI()
+    add_adk_fastapi_endpoint(app, agent, path="/chat")
+    ```
 
-app = FastAPI()
-add_adk_fastapi_endpoint(app, agent, path="/chat")
-```
+    See the
+    [AG-UI ADK middleware](https://github.com/ag-ui-protocol/ag-ui/tree/main/integrations/adk-middleware/python).
 
-See the
-[AG-UI ADK middleware](https://github.com/ag-ui-protocol/ag-ui/tree/main/integrations/adk-middleware/python).
+=== "LangGraph (Python)"
 
-</div>
-<div class="agui-framework-panel" data-framework-panel="langgraph-py" markdown="1" hidden>
+    Use LangGraph when your agent workflow is a graph of stateful nodes. Start from
+    your normal LangGraph agent — A2UI needs no extra tool wiring on the graph:
 
-<p class="agui-framework-panel-title">LangGraph (Python)</p>
+    ```python
+    from copilotkit import CopilotKitMiddleware
+    from langchain.agents import create_agent
+    from langchain_google_genai import ChatGoogleGenerativeAI
 
-Use LangGraph when your agent workflow is a graph of stateful nodes. Start from
-your normal LangGraph agent — A2UI needs no extra tool wiring on the graph:
+    gemini = ChatGoogleGenerativeAI(
+        model="gemini-2.5-pro",
+        thinking_budget=1024,
+    )
 
-```python
-from copilotkit import CopilotKitMiddleware
-from langchain.agents import create_agent
-from langchain_google_genai import ChatGoogleGenerativeAI
+    # A plain LangGraph agent — no A2UI tool wiring on the graph. The CopilotKit
+    # runtime forwards your frontend catalog and injects the `generate_a2ui` tool;
+    # include CopilotKitMiddleware to get A2UI capability.
+    graph = create_agent(
+        model=gemini,
+        tools=[],
+        middleware=[CopilotKitMiddleware()],
+        system_prompt="You are a helpful assistant.",
+    )
+    ```
 
-gemini = ChatGoogleGenerativeAI(
-    model="gemini-2.5-pro",
-    thinking_budget=1024,
-)
+    LangGraph's A2UI tool runs in the CopilotKit middleware layer, so include
+    `CopilotKitMiddleware` to get A2UI capability. The CopilotKit runtime forwards
+    your catalog and injects `generate_a2ui` automatically. The example uses Gemini
+    via LangChain's Google GenAI integration.
 
-# A plain LangGraph agent — no A2UI tool wiring on the graph. The CopilotKit
-# runtime forwards your frontend catalog and injects the `generate_a2ui` tool;
-# include CopilotKitMiddleware to get A2UI capability.
-graph = create_agent(
-    model=gemini,
-    tools=[],
-    middleware=[CopilotKitMiddleware()],
-    system_prompt="You are a helpful assistant.",
-)
-```
+    See the
+    [AG-UI LangGraph integration](https://github.com/ag-ui-protocol/ag-ui/tree/main/integrations/langgraph/python)
+    and the
+    [ChatGoogleGenerativeAI integration](https://docs.langchain.com/oss/python/integrations/chat/google_generative_ai).
 
-LangGraph's A2UI tool runs in the CopilotKit middleware layer, so include
-`CopilotKitMiddleware` to get A2UI capability. The CopilotKit runtime forwards
-your catalog and injects `generate_a2ui` automatically. The example uses Gemini
-via LangChain's Google GenAI integration.
+=== "LangGraph (FastAPI)"
 
-See the
-[AG-UI LangGraph integration](https://github.com/ag-ui-protocol/ag-ui/tree/main/integrations/langgraph/python)
-and the
-[ChatGoogleGenerativeAI integration](https://docs.langchain.com/oss/python/integrations/chat/google_generative_ai).
+    Use the FastAPI variant when you serve the same LangGraph graph behind a FastAPI
+    app. The agent shape is identical — export the same `graph` and serve it through
+    the AG-UI LangGraph endpoint:
 
-</div>
-<div class="agui-framework-panel" data-framework-panel="langgraph-fastapi" markdown="1" hidden>
+    ```python
+    from copilotkit import CopilotKitMiddleware
+    from langchain.agents import create_agent
+    from langchain_google_genai import ChatGoogleGenerativeAI
 
-<p class="agui-framework-panel-title">LangGraph (FastAPI)</p>
+    gemini = ChatGoogleGenerativeAI(
+        model="gemini-2.5-pro",
+        thinking_budget=1024,
+    )
 
-Use the FastAPI variant when you serve the same LangGraph graph behind a FastAPI
-app. The agent shape is identical — export the same `graph` and serve it through
-the AG-UI LangGraph endpoint:
+    graph = create_agent(
+        model=gemini,
+        tools=[],
+        middleware=[CopilotKitMiddleware()],
+        system_prompt="You are a helpful assistant.",
+    )
+    ```
 
-```python
-from copilotkit import CopilotKitMiddleware
-from langchain.agents import create_agent
-from langchain_google_genai import ChatGoogleGenerativeAI
+    See the
+    [AG-UI LangGraph integration](https://github.com/ag-ui-protocol/ag-ui/tree/main/integrations/langgraph/python).
 
-gemini = ChatGoogleGenerativeAI(
-    model="gemini-2.5-pro",
-    thinking_budget=1024,
-)
+=== "LangGraph (TypeScript)"
 
-graph = create_agent(
-    model=gemini,
-    tools=[],
-    middleware=[CopilotKitMiddleware()],
-    system_prompt="You are a helpful assistant.",
-)
-```
+    Use the TypeScript variant when your LangGraph agent is written in TypeScript.
+    The shape mirrors the Python agent — a plain graph plus the CopilotKit
+    middleware:
 
-See the
-[AG-UI LangGraph integration](https://github.com/ag-ui-protocol/ag-ui/tree/main/integrations/langgraph/python).
+    ```ts
+    import { createAgent } from "langchain";
+    import { ChatOpenAI } from "@langchain/openai";
+    import { copilotkitMiddleware } from "@copilotkit/sdk-js/langgraph";
 
-</div>
-<div class="agui-framework-panel" data-framework-panel="langgraph-ts" markdown="1" hidden>
-
-<p class="agui-framework-panel-title">LangGraph (TypeScript)</p>
-
-Use the TypeScript variant when your LangGraph agent is written in TypeScript.
-The shape mirrors the Python agent — a plain graph plus the CopilotKit
-middleware:
-
-```ts
-import { createAgent } from "langchain";
-import { ChatOpenAI } from "@langchain/openai";
-import { copilotkitMiddleware } from "@copilotkit/sdk-js/langgraph";
-
-export const graph = createAgent({
-  model: new ChatOpenAI({ model: "gpt-4o" }),
-  tools: [],
-  middleware: [copilotkitMiddleware],
-  systemPrompt: "You are a helpful assistant.",
-});
-```
-
-See the
-[AG-UI LangGraph TypeScript integration](https://github.com/ag-ui-protocol/ag-ui/tree/main/integrations/langgraph/typescript).
-
-</div>
-<div class="agui-framework-panel" data-framework-panel="strands-py" markdown="1" hidden>
-
-<p class="agui-framework-panel-title">Strands (Python)</p>
-
-Use Strands when your agent orchestration is built on AWS Strands. Wrap a plain
-Strands agent with the AG-UI Strands adapter:
-
-```python
-from strands import Agent
-from ag_ui_strands import StrandsAgent
-
-strands_agent = Agent(
-    system_prompt="You are a helpful assistant.",
-)
-
-agent = StrandsAgent(
-    agent=strands_agent,
-    name="my-agent",
-    description="A Strands agent exposed via AG-UI",
-)
-```
-
-See the
-[AG-UI AWS Strands integration](https://github.com/ag-ui-protocol/ag-ui/tree/main/integrations/aws-strands/python).
-
-</div>
-<div class="agui-framework-panel" data-framework-panel="strands-ts" markdown="1" hidden>
-
-<p class="agui-framework-panel-title">Strands (TypeScript)</p>
-
-Use the TypeScript variant when your Strands agent is written in TypeScript. The
-AG-UI Strands adapter wraps the Strands agent for AG-UI clients:
-
-```ts
-import { Agent } from "@strands-agents/sdk";
-import { StrandsAgent } from "@ag-ui/aws-strands";
-import { createStrandsApp } from "@ag-ui/aws-strands/server";
-
-const strandsAgent = new Agent({
-  systemPrompt: "You are a helpful assistant.",
-  tools: [],
-});
-
-const aguiAgent = new StrandsAgent({
-  agent: strandsAgent,
-  name: "MyAgent",
-  description: "A Strands agent exposed via AG-UI",
-});
-
-const app = await createStrandsApp(aguiAgent, { path: "/invocations" });
-app.listen(8000);
-```
-
-See the
-[AG-UI AWS Strands integration](https://github.com/ag-ui-protocol/ag-ui/tree/main/integrations/aws-strands/typescript).
-
-</div>
-<div class="agui-framework-panel" data-framework-panel="slack" markdown="1" hidden>
-
-<p class="agui-framework-panel-title">Slack</p>
-
-Use Slack when the user experience lives in a Slack app. Route the Slack thread
-into the same AG-UI agent endpoint. The same AG-UI event stream can feed a
-Slack harness and render A2UI through the surface's client bridge. CopilotKit's
-Slack adapter already implements this pattern:
-
-```ts
-import { createBot } from "@copilotkit/bot";
-import {
-  slack,
-  SanitizingHttpAgent,
-  defaultSlackTools,
-  defaultSlackContext,
-} from "@copilotkit/bot-slack";
-
-const bot = createBot({
-  adapters: [
-    slack({
-      botToken: process.env.SLACK_BOT_TOKEN!,
-      appToken: process.env.SLACK_APP_TOKEN!,
-    }),
-  ],
-  agent: (threadId) => {
-    const agent = new SanitizingHttpAgent({
-      url: process.env.AGENT_URL!,
+    export const graph = createAgent({
+      model: new ChatOpenAI({ model: "gpt-4o" }),
+      tools: [],
+      middleware: [copilotkitMiddleware],
+      systemPrompt: "You are a helpful assistant.",
     });
-    agent.threadId = threadId;
-    return agent;
-  },
-  tools: [...defaultSlackTools],
-  context: [...defaultSlackContext],
-});
+    ```
 
-bot.onMention(async ({ thread }) => {
-  await thread.runAgent();
-});
+    See the
+    [AG-UI LangGraph TypeScript integration](https://github.com/ag-ui-protocol/ag-ui/tree/main/integrations/langgraph/typescript).
 
-await bot.start();
-```
+=== "Strands (Python)"
 
-</div>
-</div>
+    Use Strands when your agent orchestration is built on AWS Strands. Wrap a plain
+    Strands agent with the AG-UI Strands adapter:
 
-<script>
-  (function () {
-    function initAguiFrameworkSelector(root) {
-      var select = root.querySelector("#agui-framework-select");
-      var panelsRoot = root.querySelector("#agui-framework-panels");
-      var panels = root.querySelectorAll("[data-framework-panel]");
-      var storageKey = "agui-framework:" + window.location.pathname;
+    ```python
+    from strands import Agent
+    from ag_ui_strands import StrandsAgent
 
-      if (!select || !panels.length) {
-        return;
-      }
+    strands_agent = Agent(
+        system_prompt="You are a helpful assistant.",
+    )
 
-      function hasOption(value) {
-        return Array.prototype.some.call(select.options, function (option) {
-          return option.value === value;
+    agent = StrandsAgent(
+        agent=strands_agent,
+        name="my-agent",
+        description="A Strands agent exposed via AG-UI",
+    )
+    ```
+
+    See the
+    [AG-UI AWS Strands integration](https://github.com/ag-ui-protocol/ag-ui/tree/main/integrations/aws-strands/python).
+
+=== "Strands (TypeScript)"
+
+    Use the TypeScript variant when your Strands agent is written in TypeScript. The
+    AG-UI Strands adapter wraps the Strands agent for AG-UI clients:
+
+    ```ts
+    import { Agent } from "@strands-agents/sdk";
+    import { StrandsAgent } from "@ag-ui/aws-strands";
+    import { createStrandsApp } from "@ag-ui/aws-strands/server";
+
+    const strandsAgent = new Agent({
+      systemPrompt: "You are a helpful assistant.",
+      tools: [],
+    });
+
+    const aguiAgent = new StrandsAgent({
+      agent: strandsAgent,
+      name: "MyAgent",
+      description: "A Strands agent exposed via AG-UI",
+    });
+
+    const app = await createStrandsApp(aguiAgent, { path: "/invocations" });
+    app.listen(8000);
+    ```
+
+    See the
+    [AG-UI AWS Strands integration](https://github.com/ag-ui-protocol/ag-ui/tree/main/integrations/aws-strands/typescript).
+
+=== "Slack"
+
+    Use Slack when the user experience lives in a Slack app. Route the Slack thread
+    into the same AG-UI agent endpoint. The same AG-UI event stream can feed a
+    Slack harness and render A2UI through the surface's client bridge.
+
+    <video class="agui-demo-video" controls playsinline preload="metadata">
+      <source src="https://cdn.copilotkit.ai/docs/a2ui/ag-ui-slack-demo.mp4" type="video/mp4">
+      Your browser does not support the video tag.
+    </video>
+
+    CopilotKit's Slack adapter already implements this pattern:
+
+    ```ts
+    import { createBot } from "@copilotkit/bot";
+    import {
+      slack,
+      SanitizingHttpAgent,
+      defaultSlackTools,
+      defaultSlackContext,
+    } from "@copilotkit/bot-slack";
+
+    const bot = createBot({
+      adapters: [
+        slack({
+          botToken: process.env.SLACK_BOT_TOKEN!,
+          appToken: process.env.SLACK_APP_TOKEN!,
+        }),
+      ],
+      agent: (threadId) => {
+        const agent = new SanitizingHttpAgent({
+          url: process.env.AGENT_URL!,
         });
-      }
+        agent.threadId = threadId;
+        return agent;
+      },
+      tools: [...defaultSlackTools],
+      context: [...defaultSlackContext],
+    });
 
-      function readFramework() {
-        try {
-          var stored = window.sessionStorage.getItem(storageKey);
-          if (stored && hasOption(stored)) {
-            return stored;
-          }
-        } catch (error) {
-          // Ignore storage failures; the selector still works for the session.
-        }
-        return select.value;
-      }
+    bot.onMention(async ({ thread }) => {
+      await thread.runAgent();
+    });
 
-      function writeFramework(value) {
-        try {
-          window.sessionStorage.setItem(storageKey, value);
-        } catch (error) {
-          // Ignore storage failures; the selector still works for the session.
-        }
-      }
-
-      function clearSetupHash() {
-        if (
-          window.location.hash !== "#2-set-up-your-agent-or-harness" ||
-          !window.history ||
-          !window.history.replaceState
-        ) {
-          return;
-        }
-        window.history.replaceState(
-          window.history.state,
-          "",
-          window.location.pathname + window.location.search,
-        );
-      }
-
-      function showDemoVideo(value) {
-        var video = root.querySelector("#agui-demo-video");
-        var source = root.querySelector("#agui-demo-video-source");
-        if (!video || !source) {
-          return;
-        }
-        var nextSrc =
-          value === "slack"
-            ? source.getAttribute("data-slack-src")
-            : source.getAttribute("data-default-src");
-        if (nextSrc && source.getAttribute("src") !== nextSrc) {
-          source.setAttribute("src", nextSrc);
-          video.load();
-        }
-      }
-
-      function showFramework(value) {
-        select.value = value;
-        showDemoVideo(value);
-        panels.forEach(function (panel) {
-          panel.hidden = panel.getAttribute("data-framework-panel") !== value;
-        });
-        if (panelsRoot) {
-          panelsRoot.setAttribute("data-agui-framework-ready", "");
-        }
-      }
-
-      if (!select.getAttribute("data-agui-framework-initialized")) {
-        select.setAttribute("data-agui-framework-initialized", "true");
-        select.addEventListener("change", function () {
-          writeFramework(select.value);
-          showFramework(select.value);
-          clearSetupHash();
-        });
-      }
-      showFramework(readFramework());
-    }
-
-    if (window.document$ && typeof window.document$.subscribe === "function") {
-      window.document$.subscribe(function () {
-        initAguiFrameworkSelector(document);
-      });
-    } else {
-      document.addEventListener("DOMContentLoaded", function () {
-        initAguiFrameworkSelector(document);
-      });
-    }
-  })();
-</script>
+    await bot.start();
+    ```
 
 These snippets establish the AG-UI server connection. Slack uses the same
 AG-UI/A2UI contract through its own harness and client bridge. The next
