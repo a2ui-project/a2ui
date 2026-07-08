@@ -30,6 +30,7 @@ logger = logging.getLogger("a2ui-in-mcp-apps-server")
 COUNTER = 0
 A2UI_MIME_TYPE = "application/a2ui+json"
 
+
 @click.command()
 @click.option("--port", default=8000, help="Port to listen on for SSE")
 @click.option(
@@ -44,7 +45,9 @@ def main(port: int, transport: str) -> int:
 
     # Load Ping A2UI JSON
     simple_counter_a2ui_json = json.loads(
-        (pathlib.Path(__file__).resolve().parent / "simple_counter_a2ui.json").read_text()
+        (
+            pathlib.Path(__file__).resolve().parent / "simple_counter_a2ui.json"
+        ).read_text()
     )
 
     @app.list_resources()
@@ -61,23 +64,31 @@ def main(port: int, transport: str) -> int:
                 name="Editor App",
                 mimeType="text/html;profile=mcp-app",
                 description="A rich generative document editor",
-            )
+            ),
         ]
 
     @app.read_resource()
     async def read_resource(uri: str) -> str | bytes:
         if str(uri) == "ui://basic/app":
             try:
-                app_path = pathlib.Path(__file__).parent / "apps" / "public" / "app.html"
+                app_path = (
+                    pathlib.Path(__file__).parent / "apps" / "public" / "app.html"
+                )
                 return app_path.read_text()
             except FileNotFoundError:
-                raise ValueError(f"Resource file not found for uri: {uri} at {app_path}")
+                raise ValueError(
+                    f"Resource file not found for uri: {uri} at {app_path}"
+                )
         elif str(uri) == "ui://editor/app":
             try:
-                app_path = pathlib.Path(__file__).parent / "apps" / "public" / "editor.html"
+                app_path = (
+                    pathlib.Path(__file__).parent / "apps" / "public" / "editor.html"
+                )
                 return app_path.read_text()
             except FileNotFoundError:
-                raise ValueError(f"Resource file not found for uri: {uri} at {app_path}")
+                raise ValueError(
+                    f"Resource file not found for uri: {uri} at {app_path}"
+                )
         raise ValueError(f"Unknown resource: {uri}")
 
     @app.list_tools()
@@ -87,41 +98,25 @@ def main(port: int, transport: str) -> int:
                 name="get_basic_app",
                 title="Get Basic App",
                 description="Returns a simple A2UI-compatible HTML application.",
-                inputSchema={
-                    "type": "object",
-                    "properties": {},
-                    "required": []
-                }
+                inputSchema={"type": "object", "properties": {}, "required": []},
             ),
             types.Tool(
                 name="fetch_counter_a2ui",
                 title="Fetch Counter A2UI",
                 description="Fetches the initial counter A2UI payload.",
-                inputSchema={
-                    "type": "object",
-                    "properties": {},
-                    "required": []
-                }
+                inputSchema={"type": "object", "properties": {}, "required": []},
             ),
             types.Tool(
                 name="increase_counter",
                 title="Increase Counter",
                 description="Increments the counter and returns the updated value.",
-                inputSchema={
-                    "type": "object",
-                    "properties": {},
-                    "required": []
-                }
+                inputSchema={"type": "object", "properties": {}, "required": []},
             ),
             types.Tool(
                 name="get_editor_app",
                 title="Get Editor App",
                 description="Returns the Editor A2UI application resource.",
-                inputSchema={
-                    "type": "object",
-                    "properties": {},
-                    "required": []
-                }
+                inputSchema={"type": "object", "properties": {}, "required": []},
             ),
             types.Tool(
                 name="smart_editor_get_controls",
@@ -131,27 +126,29 @@ def main(port: int, transport: str) -> int:
                     "type": "object",
                     "properties": {
                         "text": {"type": "string"},
-                        "full_text": {"type": "string"}
+                        "full_text": {"type": "string"},
                     },
-                    "required": ["text"]
-                }
+                    "required": ["text"],
+                },
             ),
             types.Tool(
                 name="smart_editor_apply",
                 title="Apply Editor Revision",
-                description="Submits user-tuned slider values to rewrite text via Gemini.",
+                description=(
+                    "Submits user-tuned slider values to rewrite text via Gemini."
+                ),
                 inputSchema={
                     "type": "object",
-                    "properties": {
-                        "original_text": {"type": "string"}
-                    },
-                    "required": ["original_text"]
-                }
+                    "properties": {"original_text": {"type": "string"}},
+                    "required": ["original_text"],
+                },
             ),
         ]
 
     @app.call_tool()
-    async def handle_call_tool(name: str, arguments: dict[str, Any]) -> dict[str, Any] | list[Any]:
+    async def handle_call_tool(
+        name: str, arguments: dict[str, Any]
+    ) -> dict[str, Any] | list[Any]:
         if name == "get_basic_app":
             # Just return a reference to the resource
             return [
@@ -160,25 +157,22 @@ def main(port: int, transport: str) -> int:
                     resource=types.TextResourceContents(
                         uri="ui://basic/app",
                         mimeType="text/html;profile=mcp-app",
-                        text=""
-                    )
+                        text="",
+                    ),
                 )
             ]
         elif name == "fetch_counter_a2ui":
             return types.CallToolResult(
                 content=[
-                    types.TextContent(
-                        type="text",
-                        text="Ping result UI"
-                    ),
+                    types.TextContent(type="text", text="Ping result UI"),
                     types.EmbeddedResource(
                         type="resource",
                         resource=types.TextResourceContents(
                             uri="a2ui://ping-result",
                             mimeType=A2UI_MIME_TYPE,
-                            text=json.dumps(simple_counter_a2ui_json)
-                        )
-                    )
+                            text=json.dumps(simple_counter_a2ui_json),
+                        ),
+                    ),
                 ]
             )
 
@@ -192,20 +186,15 @@ def main(port: int, transport: str) -> int:
                         resource=types.TextResourceContents(
                             uri="a2ui://ping-result",
                             mimeType=A2UI_MIME_TYPE,
-                            text=json.dumps([
-                                {
-                                    "dataModelUpdate": {
-                                        "surfaceId": "ping-result",
-                                        "contents": [
-                                            {
-                                                "key": "counter",
-                                                "valueNumber": COUNTER
-                                            }
-                                        ]
-                                    }
+                            text=json.dumps([{
+                                "dataModelUpdate": {
+                                    "surfaceId": "ping-result",
+                                    "contents": [
+                                        {"key": "counter", "valueNumber": COUNTER}
+                                    ],
                                 }
-                            ])
-                        )
+                            }]),
+                        ),
                     )
                 ]
             )
@@ -217,8 +206,8 @@ def main(port: int, transport: str) -> int:
                     resource=types.TextResourceContents(
                         uri="ui://editor/app",
                         mimeType="text/html;profile=mcp-app",
-                        text=""
-                    )
+                        text="",
+                    ),
                 )
             ]
 
@@ -226,7 +215,7 @@ def main(port: int, transport: str) -> int:
             text_in = arguments.get("text", "")
             full_text = arguments.get("full_text", text_in)
             a2ui_payload = smart_editor_agent.generate_controls(text_in, full_text)
-            
+
             return types.CallToolResult(
                 content=[
                     types.EmbeddedResource(
@@ -234,8 +223,8 @@ def main(port: int, transport: str) -> int:
                         resource=types.TextResourceContents(
                             uri="a2ui://editor-controls",
                             mimeType=A2UI_MIME_TYPE,
-                            text=json.dumps(a2ui_payload)
-                        )
+                            text=json.dumps(a2ui_payload),
+                        ),
                     )
                 ]
             )
@@ -244,14 +233,9 @@ def main(port: int, transport: str) -> int:
             # Pass all arguments as the parameter dictionary
             orig_text = arguments.get("original_text", "")
             revised_text = smart_editor_agent.apply_revision(orig_text, arguments)
-            
+
             return types.CallToolResult(
-                content=[
-                    types.TextContent(
-                        type="text",
-                        text=revised_text
-                    )
-                ]
+                content=[types.TextContent(type="text", text=revised_text)]
             )
 
         raise ValueError(f"Unknown tool: {name}")
@@ -271,7 +255,9 @@ def main(port: int, transport: str) -> int:
         async def handle_sse(request: Request):
             logger.info("New SSE Connection Request")
             async with sse.connect_sse(request.scope, request.receive, request._send) as streams:  # type: ignore[reportPrivateUsage]
-                await app.run(streams[0], streams[1], app.create_initialization_options())
+                await app.run(
+                    streams[0], streams[1], app.create_initialization_options()
+                )
             return Response()
 
         starlette_app = Starlette(
@@ -301,12 +287,15 @@ def main(port: int, transport: str) -> int:
 
         async def arun():
             async with stdio_server() as streams:
-                await app.run(streams[0], streams[1], app.create_initialization_options())
+                await app.run(
+                    streams[0], streams[1], app.create_initialization_options()
+                )
 
         click.echo("Server running using stdio", err=True)
         anyio.run(arun)
 
     return 0
+
 
 if __name__ == "__main__":
     main()

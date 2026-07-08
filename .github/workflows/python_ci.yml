@@ -56,11 +56,7 @@ jobs:
         run: uv sync --all-packages
       - name: Check Formatting
         run: |
-          # TODO(jiahaog): Add evals here and merge into one command.
-          uv run pyink --check agent_sdks/python/a2ui_agent
-          uv run pyink --check agent_sdks/python/a2ui_core
-          uv run pyink --check agent_sdks/conformance
-          uv run pyink --check samples/agent/adk
+          uv run pyink --check .
       - name: Type Check
         run: |
           uv run mypy -p a2ui.core

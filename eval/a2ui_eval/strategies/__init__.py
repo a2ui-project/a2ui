@@ -25,8 +25,8 @@ STRATEGIES = {
 
 
 def get_solver(strategy: str, version: str) -> list[Solver]:
-  """Returns the solver chain for the specified evaluation strategy."""
-  if strategy not in STRATEGIES:
-    raise ValueError(f"Unknown evaluation strategy: {strategy}")
+    """Returns the solver chain for the specified evaluation strategy."""
+    if strategy not in STRATEGIES:
+        raise ValueError(f"Unknown evaluation strategy: {strategy}")
 
-  return STRATEGIES[strategy](version)
+    return STRATEGIES[strategy](version)

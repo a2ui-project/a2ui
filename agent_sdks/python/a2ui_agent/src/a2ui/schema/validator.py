@@ -15,7 +15,7 @@
 from __future__ import annotations
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Set, Tuple, Union
 
-from .constants import VERSION_0_8, VERSION_0_9, VERSION_1_0
+from .constants import VERSION_0_8, VERSION_0_9, VERSION_0_9_1, VERSION_1_0
 from .validator_v08 import (
     LegacyA2uiValidatorV08,
     extract_component_required_fields as v08_req,
@@ -30,207 +30,232 @@ from a2ui.core import A2uiValidationError, A2uiCatalogError
 
 
 if TYPE_CHECKING:
-  from .catalog import A2uiCatalog
+    from .catalog import A2uiCatalog
 
 
 def extract_component_required_fields(catalog: A2uiCatalog) -> Dict[str, Set[str]]:
-  if catalog.version == VERSION_0_8:
-    return v08_req(catalog)
-  cs = catalog.catalog_schema
-  all_components = cs.get("components", {}) if isinstance(cs, dict) else {}
-  req_map = {}
-  for comp_name, comp_schema in all_components.items():
-    reqs = set(comp_schema.get("required", [])) - {"component"}
-    if reqs:
-      req_map[comp_name] = reqs
-  return req_map
+    if catalog.version == VERSION_0_8:
+        return v08_req(catalog)
+    cs = catalog.catalog_schema
+    all_components = cs.get("components", {}) if isinstance(cs, dict) else {}
+    req_map = {}
+    for comp_name, comp_schema in all_components.items():
+        reqs = set(comp_schema.get("required", [])) - {"component"}
+        if reqs:
+            req_map[comp_name] = reqs
+    return req_map
 
 
 def extract_component_ref_fields(
     catalog: A2uiCatalog,
 ) -> Dict[str, Tuple[Set[str], Set[str]]]:
-  if catalog.version == VERSION_0_8:
-    return v08_ref(catalog)
-  result = CatalogSchemaValidator(
-      catalog.core_catalog,
-      catalog.common_types_schema,
-  ).extract_ref_fields()
-  return result
+    if catalog.version == VERSION_0_8:
+        return v08_ref(catalog)
+    result = CatalogSchemaValidator(
+        catalog.core_catalog,
+        catalog.common_types_schema,
+    ).extract_ref_fields()
+    return result
 
 
 class A2uiValidatorWrapper:
-  """Validates v0.9+ payloads using a2ui_core."""
+    """Validates v0.9+ payloads using a2ui_core."""
 
-  def __init__(self, catalog: A2uiCatalog):
-    self._catalog = catalog
-    self._validator = CoreValidator()
+    def __init__(self, catalog: A2uiCatalog):
+        self._catalog = catalog
+        self._validator = CoreValidator()
 
-  def validate(
-      self,
-      a2ui_json: Union[Dict[str, Any], List[Any]],
-      root_id: Optional[str] = None,
-      config: ValidationConfig = STRICT_VALIDATION,
-  ) -> None:
-    self._validator.validate(
-        schema_validator=CatalogSchemaValidator(
-            self._catalog.core_catalog,
-            self._catalog.common_types_schema,
-        ),
-        a2ui_payload=a2ui_json,
-        config=config,
-    )
+    def validate(
+        self,
+        a2ui_json: Union[Dict[str, Any], List[Any]],
+        root_id: Optional[str] = None,
+        config: ValidationConfig = STRICT_VALIDATION,
+    ) -> None:
+        self._validator.validate(
+            schema_validator=CatalogSchemaValidator(
+                self._catalog.core_catalog,
+                self._catalog.common_types_schema,
+            ),
+            a2ui_payload=a2ui_json,
+            config=config,
+        )
 
 
 class A2uiValidatorWrapperV10:
-  """Validates v1.0 payloads dynamically using jsonschema and core component integrity checks."""
+    """Validates dynamic payloads (such as v0.9.1 and v1.0) using jsonschema and core component integrity checks."""
 
-  def __init__(self, catalog: A2uiCatalog):
-    self._catalog = catalog
-    from urllib.parse import urljoin
-    from jsonschema import Draft202012Validator
-    from referencing import Registry, Resource
+    def __init__(self, catalog: A2uiCatalog):
+        self._catalog = catalog
+        from urllib.parse import urljoin
+        from jsonschema import Draft202012Validator
+        from referencing import Registry, Resource
 
-    s2c = catalog.s2c_schema
-    common = catalog.common_types_schema
-    cat = catalog.catalog_schema
-
-    resources = []
-    for schema in [s2c, common]:
-      if schema and "$id" in schema:
-        resources.append((schema["$id"], Resource.from_contents(schema)))
-
-    if cat and "$id" in cat:
-      resources.append((cat["$id"], Resource.from_contents(cat)))
-      s2c_id = s2c.get("$id", "") if s2c else ""
-      if s2c_id:
-        resolved_catalog_uri = urljoin(s2c_id, "catalog.json")
-        resources.append((resolved_catalog_uri, Resource.from_contents(cat)))
-
-    self._registry = Registry().with_resources(resources)
-    self._wrapped_schema = {
-        "$schema": "https://json-schema.org/draft/2020-12/schema",
-        "type": "array",
-        "items": {"$ref": s2c["$id"]},
-    }
-    self._schema_validator = Draft202012Validator(
-        self._wrapped_schema, registry=self._registry
-    )
-
-  def validate(
-      self,
-      a2ui_json: Union[Dict[str, Any], List[Any]],
-      root_id: Optional[str] = None,
-      config: ValidationConfig = STRICT_VALIDATION,
-  ) -> None:
-    messages = a2ui_json if isinstance(a2ui_json, list) else [a2ui_json]
-
-    # 1. Run schema validation
-    errors = list(self._schema_validator.iter_errors(messages))
-    if errors:
-      from a2ui.core import A2uiErrorDetail
-
-      details = []
-      for err in errors:
-        path_str = ".".join(map(str, err.path)) if err.path else "root"
-        err_validator = getattr(err, "validator", "")
-        if err_validator == "required":
-          code = "missing_field"
-        elif err_validator == "type":
-          code = "type_mismatch"
-        elif err_validator == "additionalProperties":
-          code = "extra_field"
-        else:
-          code = "invalid_value"
-        details.append(A2uiErrorDetail(path_str, code, err.message))
-        if err.context:
-          for sub_error in err.context:
-            sub_path = (
-                ".".join(map(str, sub_error.path)) if sub_error.path else path_str
+        s2c = catalog.s2c_schema
+        common = catalog.common_types_schema
+        cat = catalog.catalog_schema
+        if not isinstance(s2c, dict) or "$id" not in s2c:
+            raise A2uiCatalogError(
+                "Server-to-client schema must be a dictionary containing an '$id' key."
             )
-            sub_validator = getattr(sub_error, "validator", "")
-            if sub_validator == "required":
-              sub_code = "missing_field"
-            elif sub_validator == "type":
-              sub_code = "type_mismatch"
-            elif sub_validator == "additionalProperties":
-              sub_code = "extra_field"
-            else:
-              sub_code = "invalid_value"
-            details.append(A2uiErrorDetail(sub_path, sub_code, sub_error.message))
 
-      msg = f"Validation failed: {errors[0].message}"
-      if errors[0].context:
-        msg += "\nContext failures:"
-        for sub_error in errors[0].context:
-          msg += f"\n  - {sub_error.message}"
-      raise A2uiValidationError(msg, details=details)
+        resources = []
+        for schema, filename in [
+            (s2c, "server_to_client.json"),
+            (common, "common_types.json"),
+        ]:
+            if schema is not None:
+                resources.append((filename, Resource.from_contents(schema)))
+                if isinstance(schema, dict) and "$id" in schema:
+                    resources.append((schema["$id"], Resource.from_contents(schema)))
 
-    # 2. Run component integrity validation
-    from a2ui.core.validating.integrity_checker import (
-        validate_component_integrity,
-        validate_recursion_and_paths,
-    )
+        if isinstance(cat, dict):
+            resources.append(("catalog.json", Resource.from_contents(cat)))
+            cat_copy = dict(cat)
+            s2c_id = s2c["$id"]
+            resolved_catalog_uri = urljoin(s2c_id, "catalog.json")
+            cat_copy["$id"] = resolved_catalog_uri
+            resources.append((resolved_catalog_uri, Resource.from_contents(cat_copy)))
+            if "$id" in cat:
+                resources.append((cat["$id"], Resource.from_contents(cat)))
 
-    all_components = []
-    for msg in messages:
-      if not isinstance(msg, dict):
-        continue
-      if "createSurface" in msg and isinstance(msg["createSurface"], dict):
-        all_components.extend(msg["createSurface"].get("components", []))
-      elif "updateComponents" in msg and isinstance(msg["updateComponents"], dict):
-        all_components.extend(msg["updateComponents"].get("components", []))
+        self._registry = Registry().with_resources(resources)
+        self._wrapped_schema = {
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "type": "array",
+            "items": {"$ref": s2c["$id"]},
+        }
+        self._schema_validator = Draft202012Validator(
+            self._wrapped_schema, registry=self._registry
+        )
 
-    if all_components:
-      ref_fields = CatalogSchemaValidator(
-          self._catalog.core_catalog,
-          self._catalog.common_types_schema,
-      ).extract_ref_fields()
+    def validate(
+        self,
+        a2ui_json: Union[Dict[str, Any], List[Any]],
+        root_id: Optional[str] = None,
+        config: ValidationConfig = STRICT_VALIDATION,
+    ) -> None:
+        messages = a2ui_json if isinstance(a2ui_json, list) else [a2ui_json]
 
-      validate_component_integrity(
-          all_components,
-          ref_fields,
-          allow_dangling_references=config.allow_dangling_references,
-          allow_missing_root=config.allow_missing_root,
-      )
+        # 1. Run schema validation
+        errors = list(self._schema_validator.iter_errors(messages))
+        if errors:
+            from a2ui.core import A2uiErrorDetail
 
-      validate_recursion_and_paths(messages)
+            details = []
+            for err in errors:
+                path_str = ".".join(map(str, err.path)) if err.path else "root"
+                err_validator = getattr(err, "validator", "")
+                if err_validator == "required":
+                    code = "missing_field"
+                elif err_validator == "type":
+                    code = "type_mismatch"
+                elif err_validator == "additionalProperties":
+                    code = "extra_field"
+                else:
+                    code = "invalid_value"
+                details.append(A2uiErrorDetail(path_str, code, err.message))
+                if err.context:
+                    for sub_error in err.context:
+                        sub_path = (
+                            ".".join(map(str, sub_error.path))
+                            if sub_error.path
+                            else path_str
+                        )
+                        sub_validator = getattr(sub_error, "validator", "")
+                        if sub_validator == "required":
+                            sub_code = "missing_field"
+                        elif sub_validator == "type":
+                            sub_code = "type_mismatch"
+                        elif sub_validator == "additionalProperties":
+                            sub_code = "extra_field"
+                        else:
+                            sub_code = "invalid_value"
+                        details.append(
+                            A2uiErrorDetail(sub_path, sub_code, sub_error.message)
+                        )
+
+            msg = f"Validation failed: {errors[0].message}"
+            if errors[0].context:
+                msg += "\nContext failures:"
+                for sub_error in errors[0].context:
+                    msg += f"\n  - {sub_error.message}"
+            raise A2uiValidationError(msg, details=details)
+
+        # 2. Run component integrity validation
+        from a2ui.core.validating.integrity_checker import (
+            validate_component_integrity,
+            validate_recursion_and_paths,
+        )
+
+        all_components = []
+        for msg in messages:
+            if not isinstance(msg, dict):
+                continue
+            if "createSurface" in msg and isinstance(msg["createSurface"], dict):
+                all_components.extend(msg["createSurface"].get("components", []))
+            elif "updateComponents" in msg and isinstance(
+                msg["updateComponents"], dict
+            ):
+                all_components.extend(msg["updateComponents"].get("components", []))
+
+        if all_components:
+            ref_fields = CatalogSchemaValidator(
+                self._catalog.core_catalog,
+                self._catalog.common_types_schema,
+            ).extract_ref_fields()
+
+            allow_missing_root = config.allow_missing_root or not any(
+                isinstance(m, dict) and "createSurface" in m for m in messages
+            )
+
+            validate_component_integrity(
+                all_components,
+                ref_fields,
+                allow_dangling_references=config.allow_dangling_references,
+                allow_missing_root=allow_missing_root,
+            )
+
+            validate_recursion_and_paths(messages)
 
 
 class A2uiValidator:
-  """Version-aware validation facade dispatching to v0.8 or v0.9+ engines."""
+    """Version-aware validation facade dispatching to v0.8 or v0.9+ engines."""
 
-  def __init__(self, catalog: A2uiCatalog):
-    ver = catalog.version
-    self.version = ver if isinstance(ver, str) else VERSION_0_8
-    if self.version == VERSION_0_8:
-      self._delegator = LegacyA2uiValidatorV08(catalog)
-    elif self.version == VERSION_1_0:
-      import os
+    def __init__(self, catalog: A2uiCatalog):
+        ver = catalog.version
+        self.version = ver if isinstance(ver, str) else VERSION_0_8
+        if self.version == VERSION_0_8:
+            self._delegator = LegacyA2uiValidatorV08(catalog)
+        # TODO(a2ui-project/A2UI#1936): The V10 validator dynamically uses the `catalog` spec to validate. This should all be consolidated.
+        elif self.version == VERSION_0_9_1:
+            self._delegator = A2uiValidatorWrapperV10(catalog)
+        elif self.version == VERSION_1_0:
+            import os
 
-      v1_0_enabled = os.environ.get("A2UI_VERSION_1_0", "").lower() in (
-          "true",
-          "1",
-          "yes",
-      )
-      express_enabled = os.environ.get("A2UI_EXPRESS_ENABLED", "").lower() in (
-          "true",
-          "1",
-          "yes",
-      )
-      if v1_0_enabled or express_enabled:
-        self._delegator = A2uiValidatorWrapperV10(catalog)
-      else:
-        raise A2uiCatalogError(
-            "A2UI v1.0 validation is experimental and is disabled by default. "
-            "To enable it, set the environment variable A2UI_VERSION_1_0=true."
-        )
-    else:
-      self._delegator = A2uiValidatorWrapper(catalog)
+            v1_0_enabled = os.environ.get("A2UI_VERSION_1_0", "").lower() in (
+                "true",
+                "1",
+                "yes",
+            )
+            express_enabled = os.environ.get("A2UI_EXPRESS_ENABLED", "").lower() in (
+                "true",
+                "1",
+                "yes",
+            )
+            if v1_0_enabled or express_enabled:
+                self._delegator = A2uiValidatorWrapperV10(catalog)
+            else:
+                raise A2uiCatalogError(
+                    "A2UI v1.0 validation is experimental and is disabled by default. "
+                    "To enable it, set the environment variable A2UI_VERSION_1_0=true."
+                )
+        else:
+            self._delegator = A2uiValidatorWrapper(catalog)
 
-  def validate(
-      self,
-      a2ui_json: Union[Dict[str, Any], List[Any]],
-      root_id: Optional[str] = None,
-      config: ValidationConfig = STRICT_VALIDATION,
-  ) -> None:
-    self._delegator.validate(a2ui_json, root_id=root_id, config=config)
+    def validate(
+        self,
+        a2ui_json: Union[Dict[str, Any], List[Any]],
+        root_id: Optional[str] = None,
+        config: ValidationConfig = STRICT_VALIDATION,
+    ) -> None:
+        self._delegator.validate(a2ui_json, root_id=root_id, config=config)
