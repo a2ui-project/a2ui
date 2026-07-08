@@ -4,7 +4,7 @@
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
 #
-#      http://www.apache.org/licenses/LICENSE-2.0
+#      https://www.apache.org/licenses/LICENSE-2.0
 #
 # Unless required by applicable law or agreed to in writing, software
 # distributed under the License is distributed on an "AS IS" BASIS,
@@ -13,33 +13,40 @@
 # limitations under the License.
 
 import json
-import os
 import re
-
-os.environ["A2UI_EXPRESS_ENABLED"] = "true"
 from inspect_ai.solver import Solver, solver, TaskState, Generate
-from inspect_ai.model import ChatMessageSystem, ModelOutput, ChatCompletionChoice, ChatMessageAssistant, ChatMessageUser
-from a2ui.core.catalog import Catalog
-from a2ui.experimental.express.prompt_generator import ExpressPromptGenerator
-from a2ui.experimental.express.compiler import ExpressCompiler
-from a2ui.experimental.express.parser import parse_express_response
-from a2ui.schema.manager import A2uiSchemaManager
+from inspect_ai.model import ChatMessageSystem, ModelOutput, ChatCompletionChoice, ChatMessageAssistant
+from a2ui.formats import InferenceFormatRegistry
 from a2ui.schema.catalog import CatalogConfig
+from a2ui.schema.manager import A2uiSchemaManager
 from ..shared.utils import GIT_ROOT, measured_generate
 
 
 @solver
-def a2ui_express_prompt(version: str) -> Solver:
-    """Solver to inject A2UI Express prompt contract instructions."""
+def format_system_prompt(format_name: str, version: str) -> Solver:
+    """Solver to inject system prompt instructions using the selected format strategy."""
 
     async def solve(state: TaskState, generate: Generate) -> TaskState:
         catalog_path = state.metadata["catalog"]
         resolved_catalog_path = str(GIT_ROOT / catalog_path)
-        with open(resolved_catalog_path, "r", encoding="utf-8") as f:
-            schema = json.load(f)
-        catalog = Catalog.from_json(schema, spec_version=version)
-        generator = ExpressPromptGenerator(catalog)
-        prompt = generator.generate_prompt()
+
+        catalog_config = CatalogConfig.from_path("basic_catalog", resolved_catalog_path)
+        fmt = InferenceFormatRegistry.get(format_name)
+
+        manager = A2uiSchemaManager(
+            version=version,
+            catalogs=[catalog_config],
+            format_strategy=fmt,
+        )
+
+        role_description = state.metadata.get("role_description", "")
+        workflow_description = state.metadata.get("workflow_description", "")
+
+        prompt = manager.generate_system_prompt(
+            role_description=role_description,
+            workflow_description=workflow_description,
+            include_schema=True,
+        )
         state.messages.insert(0, ChatMessageSystem(content=prompt))
         return state
 
@@ -47,8 +54,8 @@ def a2ui_express_prompt(version: str) -> Solver:
 
 
 @solver
-def compile_express_dsl(version: str) -> Solver:
-    """Solver to compile generated A2UI Express DSL back to standard JSON."""
+def compile_format_payload(format_name: str, version: str) -> Solver:
+    """Solver to compile format-specific output back to standard A2UI JSON."""
 
     async def solve(state: TaskState, generate: Generate) -> TaskState:
         if not state.output or not state.output.completion:
@@ -57,9 +64,14 @@ def compile_express_dsl(version: str) -> Solver:
         catalog_path = state.metadata["catalog"]
         resolved_catalog_path = str(GIT_ROOT / catalog_path)
 
-        # Initialize the catalog schema validator for parsing
         catalog_config = CatalogConfig.from_path("basic_catalog", resolved_catalog_path)
-        manager = A2uiSchemaManager(version=version, catalogs=[catalog_config])
+        fmt = InferenceFormatRegistry.get(format_name)
+
+        manager = A2uiSchemaManager(
+            version=version,
+            catalogs=[catalog_config],
+            format_strategy=fmt,
+        )
         catalog = manager.get_selected_catalog()
         validator = catalog.validator
 
@@ -75,27 +87,26 @@ def compile_express_dsl(version: str) -> Solver:
         surface_id = surface_id_match.group(1) if surface_id_match else "main"
 
         try:
-            # 1. Parse and compile DSL to JSON
-            parts = parse_express_response(completion, catalog, surface_id=surface_id)
-            compiled_json = None
+            parts = fmt.parse_response(completion, catalog, surface_id=surface_id)
+            compiled_jsons = []
             for p in parts:
                 if p.a2ui_json:
-                    compiled_json = (
-                        p.a2ui_json[0] if isinstance(p.a2ui_json, list) else p.a2ui_json
-                    )
-                    break
+                    if isinstance(p.a2ui_json, list):
+                        compiled_jsons.extend(p.a2ui_json)
+                    else:
+                        compiled_jsons.append(p.a2ui_json)
 
-            if not compiled_json:
+            if not compiled_jsons:
                 raise ValueError(
-                    "No compiled A2UI Express DSL JSON payload found in parsed parts."
+                    f"No compiled A2UI {format_name} JSON payload found in parsed"
+                    " parts."
                 )
 
-            # 2. Validate using catalog schema validator (runs integrity checker too)
-            validator.validate([compiled_json])
+            validator.validate(compiled_jsons)
 
-            # 3. Successful compilation and validation: format and yield
-            messages = [compiled_json]
-            formatted = f"<a2ui-json>\n{json.dumps(messages, indent=2)}\n</a2ui-json>"
+            formatted = (
+                f"<a2ui-json>\n{json.dumps(compiled_jsons, indent=2)}\n</a2ui-json>"
+            )
             state.output = ModelOutput(
                 model=state.output.model,
                 choices=[
@@ -125,10 +136,12 @@ def compile_express_dsl(version: str) -> Solver:
     return solve
 
 
-def express_solver(version: str) -> list[Solver]:
-    """Returns the solver chain for the 'express' evaluation strategy."""
-    return [
-        a2ui_express_prompt(version),
+def format_solver(format_name: str, version: str) -> list[Solver]:
+    """Assembles the solver chain for the specified evaluation strategy."""
+    chain = [
+        format_system_prompt(format_name, version),
         measured_generate(),
-        compile_express_dsl(version),
     ]
+    if format_name != "json":
+        chain.append(compile_format_payload(format_name, version))
+    return chain
