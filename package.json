@@ -74,6 +74,8 @@
     "brace-expansion@npm:^5": "5.0.6",
     "@opentelemetry/auto-instrumentations-node": "0.75.0",
     "@opentelemetry/sdk-node": "0.217.0",
+    "@opentelemetry/core": "2.9.0",
+    "fast-json-patch": "3.1.1",
     "ip-address": "10.1.1",
     "@anthropic-ai/sdk": "0.91.1",
     "postcss": "8.5.10",
