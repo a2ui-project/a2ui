@@ -30,7 +30,8 @@ A2UI enables AI agents to generate rich, interactive user interfaces that render
 | **[v0.8](specification/v0.8-a2ui.md)**     | **Legacy**    | Legacy version. Structured Output first. Baseline surfaces, components, data binding, and adjacency list model.                                                                                                                                       |
 
 A2UI is Apache 2.0 licensed,
-created by Google with contributions from CopilotKit and the open source community,
+created by Google with contributions from
+[CopilotKit](https://docs.copilotkit.ai/generative-ui/a2ui) and the open source community,
 and is in active development [on GitHub](https://github.com/a2ui-project/a2ui).
 
 A2UI solves the following problem: **how can AI agents safely send rich UIs across trust boundaries?**
@@ -83,11 +84,11 @@ This repository contains:
 
     [:octicons-arrow-right-24: Run the demo](quickstart.md)
 
-- :material-react:{ .lg .middle } **[A2UI + AG-UI (CopilotKit)](guides/a2ui-with-any-agent-framework.md)**
+- :material-react:{ .lg .middle } **[Use A2UI with Any Agent Framework & Harness](guides/a2ui-with-any-agent-framework.md)**
 
     ***
 
-    Scaffold an app with CopilotKit, wire it to any agent framework via AG-UI, then enable A2UI rendering.
+    Scaffold an AG-UI app or harness for your agent framework, then enable A2UI rendering in the client surface.
 
     [:octicons-arrow-right-24: Use with any agent](guides/a2ui-with-any-agent-framework.md)
 
