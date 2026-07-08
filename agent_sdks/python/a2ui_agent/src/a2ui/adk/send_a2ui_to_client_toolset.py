@@ -142,7 +142,8 @@ class SendA2uiToClientToolset(base_toolset.BaseToolset):
     ):
         super().__init__()
         self._a2ui_enabled = a2ui_enabled
-        self._ui_tools = [self._SendA2uiJsonToClientTool(a2ui_catalog, a2ui_examples)]
+        self._ui_tool = self._SendA2uiJsonToClientTool(a2ui_catalog, a2ui_examples)
+        self._ui_tools: list[base_tool.BaseTool] = [self._ui_tool]
 
     async def _resolve_a2ui_enabled(
         self, ctx: readonly_context.ReadonlyContext
@@ -196,7 +197,7 @@ class SendA2uiToClientToolset(base_toolset.BaseToolset):
         Returns:
             A configured A2uiPartConverter.
         """
-        catalog = await self._ui_tools[0]._resolve_a2ui_catalog(ctx)
+        catalog = await self._ui_tool._resolve_a2ui_catalog(ctx)
         return A2uiPartConverter(catalog)
 
     class _SendA2uiJsonToClientTool(base_tool.BaseTool):

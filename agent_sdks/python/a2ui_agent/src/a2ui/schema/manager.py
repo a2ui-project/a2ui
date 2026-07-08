@@ -41,8 +41,8 @@ class A2uiSchemaManager(InferenceStrategy):
         self._version = version
         self._accepts_inline_catalogs = accepts_inline_catalogs
 
-        self._server_to_client_schema = None
-        self._common_types_schema = None
+        self._server_to_client_schema: dict[str, Any] = {}
+        self._common_types_schema: dict[str, Any] = {}
         self._supported_catalogs: list[A2uiCatalog] = []
         self._catalog_example_paths: dict[str, str] = {}
         self._schema_modifiers = schema_modifiers or []
@@ -66,7 +66,7 @@ class A2uiSchemaManager(InferenceStrategy):
         self,
         version: str,
         catalogs: Optional[list[CatalogConfig]] = None,
-    ):
+    ) -> None:
         """Loads separate schema components and processes catalogs."""
         catalogs = catalogs or []
         if version not in SPEC_VERSION_MAP:
@@ -100,7 +100,8 @@ class A2uiSchemaManager(InferenceStrategy):
                 custom_cuttable_keys=config.custom_cuttable_keys,
             )
             self._supported_catalogs.append(catalog)
-            self._catalog_example_paths[catalog.catalog_id] = config.examples_path
+            if config.examples_path:
+                self._catalog_example_paths[catalog.catalog_id] = config.examples_path
 
     def _select_catalog(
         self, client_ui_capabilities: Optional[dict[str, Any]] = None

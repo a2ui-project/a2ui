@@ -174,7 +174,10 @@ class A2uiCatalog:
     def catalog_id(self) -> str:
         if CATALOG_ID_KEY not in self.catalog_schema:
             raise A2uiCatalogError(f"Catalog '{self.name}' missing catalogId")
-        return self.catalog_schema[CATALOG_ID_KEY]
+        val = self.catalog_schema[CATALOG_ID_KEY]
+        if isinstance(val, str):
+            return val
+        raise A2uiCatalogError(f"Catalog '{self.name}' catalogId is not a string")
 
     @property
     def validator(self) -> "A2uiValidator":

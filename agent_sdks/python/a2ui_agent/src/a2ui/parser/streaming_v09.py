@@ -60,7 +60,7 @@ class A2uiStreamParserV09(A2uiStreamParser):
             )
         )
 
-    def _sniff_metadata(self):
+    def _sniff_metadata(self) -> None:
         """Sniffs for v0.9 metadata in the json_buffer."""
 
         def get_latest_value(key: str) -> Optional[str]:
@@ -237,7 +237,7 @@ class A2uiStreamParserV09(A2uiStreamParser):
         self, processed_components: List[Dict[str, Any]], active_msg_type: str
     ) -> Dict[str, Any]:
         """Constructs a partial message for v0.9 (updateComponents)."""
-        payload = {
+        payload: Dict[str, Any] = {
             CATALOG_COMPONENTS_KEY: processed_components,
         }
         if self.surface_id:

@@ -115,10 +115,9 @@ class A2uiPartConverter:
                     logger.info("No result in A2UI tool response")
                     return []
 
-            # Handle generic/other tool responses that returned a string containing A2UI tags.
-            if function_response.response and function_response.response.get("result"):
+            if function_response.response:
                 result = function_response.response.get("result")
-                if has_a2ui_parts(result):
+                if isinstance(result, str) and has_a2ui_parts(result):
                     return parse_response_to_parts(
                         result,
                         validator=self._catalog.validator,
