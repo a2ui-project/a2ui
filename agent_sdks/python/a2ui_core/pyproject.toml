@@ -31,11 +31,7 @@ Changelog = "https://github.com/a2ui-project/a2ui/blob/main/agent_sdks/python/a2
 
 [dependency-groups]
 dev = [
-    "pytest>=8.0.0",
-    "pyink>=24.10.0",
     "pyyaml>=6.0.3",
-    "mypy>=1.14.0",
-    "types-jsonschema",
 ]
 
 [build-system]
@@ -51,7 +47,4 @@ packages = ["src/a2ui"]
 [[tool.uv.index]]
 url = "https://pypi.org/simple"
 default = true
-
-[tool.pyink]
-pyink-indentation = 4
 

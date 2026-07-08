@@ -23,10 +23,7 @@ dependencies = []
 url = "https://pypi.org/simple"
 default = true
 
-[dependency-groups]
-dev = [
-    "pytest>=9.0.3",
-]
+
 
 [tool.pytest.ini_options]
 pythonpath = ["."]

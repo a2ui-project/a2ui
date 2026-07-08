@@ -60,7 +60,9 @@ DEFAULT_SERVICE_NAME = "personalized-learning-demo"
 DEFAULT_REGION = "us-central1"
 
 
-def run_command(cmd: list[str], check: bool = True, capture: bool = False) -> subprocess.CompletedProcess:
+def run_command(
+    cmd: list[str], check: bool = True, capture: bool = False
+) -> subprocess.CompletedProcess:
     """Run a shell command and optionally capture output."""
     print(f"  → {' '.join(cmd)}")
     return subprocess.run(
@@ -126,7 +128,11 @@ def prepare_build_context(demo_dir: Path) -> Path:
         shutil.rmtree(web_core_dest)
 
     print(f"  Copying {web_core_source} → {web_core_dest}")
-    shutil.copytree(web_core_source, web_core_dest, ignore=shutil.ignore_patterns("node_modules", ".git"))
+    shutil.copytree(
+        web_core_source,
+        web_core_dest,
+        ignore=shutil.ignore_patterns("node_modules", ".git"),
+    )
 
     # Copy lit (the main web-lib)
     a2ui_source = renderers_dir / "lit"
@@ -142,13 +148,18 @@ def prepare_build_context(demo_dir: Path) -> Path:
 
     # Copy the dependency (excluding node_modules, but keeping dist/ for pre-built output)
     print(f"  Copying {a2ui_source} → {a2ui_dest}")
-    shutil.copytree(a2ui_source, a2ui_dest, ignore=shutil.ignore_patterns("node_modules", ".git"))
+    shutil.copytree(
+        a2ui_source, a2ui_dest, ignore=shutil.ignore_patterns("node_modules", ".git")
+    )
 
     # Update lit's package.json to point to the local web_core copy
     lit_package_json = a2ui_dest / "package.json"
     if lit_package_json.exists():
         content = lit_package_json.read_text()
-        content = content.replace('"@a2ui/web_core": "file:../web_core"', '"@a2ui/web_core": "file:../a2ui-web-core"')
+        content = content.replace(
+            '"@a2ui/web_core": "file:../web_core"',
+            '"@a2ui/web_core": "file:../a2ui-web-core"',
+        )
         lit_package_json.write_text(content)
         print("  Updated lit package.json to reference local web_core")
 
@@ -180,23 +191,37 @@ def deploy_cloud_run(project_id: str, service_name: str, region: str) -> str:
 
     # Enable required APIs first and wait for propagation
     print("\nEnabling required APIs...")
-    run_command([
-        "gcloud", "services", "enable",
-        "run.googleapis.com",
-        "cloudbuild.googleapis.com",
-        "artifactregistry.googleapis.com",
-        "iap.googleapis.com",
-        "aiplatform.googleapis.com",  # For Gemini API access
-        "--project", project_id,
-        "--quiet",
-    ], check=False)  # Don't fail if already enabled
+    run_command(
+        [
+            "gcloud",
+            "services",
+            "enable",
+            "run.googleapis.com",
+            "cloudbuild.googleapis.com",
+            "artifactregistry.googleapis.com",
+            "iap.googleapis.com",
+            "aiplatform.googleapis.com",  # For Gemini API access
+            "--project",
+            project_id,
+            "--quiet",
+        ],
+        check=False,
+    )  # Don't fail if already enabled
 
     # Get project number for IAM bindings
     print("\nConfiguring IAM permissions for Cloud Build...")
-    result = run_command([
-        "gcloud", "projects", "describe", project_id,
-        "--format", "value(projectNumber)",
-    ], capture=True, check=False)
+    result = run_command(
+        [
+            "gcloud",
+            "projects",
+            "describe",
+            project_id,
+            "--format",
+            "value(projectNumber)",
+        ],
+        capture=True,
+        check=False,
+    )
     project_number = result.stdout.strip() if result.returncode == 0 else None
 
     if project_number:
@@ -204,57 +229,105 @@ def deploy_cloud_run(project_id: str, service_name: str, region: str) -> str:
         compute_sa = f"{project_number}-compute@developer.gserviceaccount.com"
 
         # Grant storage admin to the compute service account
-        run_command([
-            "gcloud", "projects", "add-iam-policy-binding", project_id,
-            "--member", f"serviceAccount:{compute_sa}",
-            "--role", "roles/storage.objectViewer",
-            "--quiet",
-        ], check=False)
+        run_command(
+            [
+                "gcloud",
+                "projects",
+                "add-iam-policy-binding",
+                project_id,
+                "--member",
+                f"serviceAccount:{compute_sa}",
+                "--role",
+                "roles/storage.objectViewer",
+                "--quiet",
+            ],
+            check=False,
+        )
 
         # Grant logging permissions so we can see build logs
-        run_command([
-            "gcloud", "projects", "add-iam-policy-binding", project_id,
-            "--member", f"serviceAccount:{compute_sa}",
-            "--role", "roles/logging.logWriter",
-            "--quiet",
-        ], check=False)
+        run_command(
+            [
+                "gcloud",
+                "projects",
+                "add-iam-policy-binding",
+                project_id,
+                "--member",
+                f"serviceAccount:{compute_sa}",
+                "--role",
+                "roles/logging.logWriter",
+                "--quiet",
+            ],
+            check=False,
+        )
 
         # Grant Artifact Registry writer permission to compute service account
         # Cloud Run source deployments use the compute SA to push Docker images
-        run_command([
-            "gcloud", "projects", "add-iam-policy-binding", project_id,
-            "--member", f"serviceAccount:{compute_sa}",
-            "--role", "roles/artifactregistry.writer",
-            "--quiet",
-        ], check=False)
+        run_command(
+            [
+                "gcloud",
+                "projects",
+                "add-iam-policy-binding",
+                project_id,
+                "--member",
+                f"serviceAccount:{compute_sa}",
+                "--role",
+                "roles/artifactregistry.writer",
+                "--quiet",
+            ],
+            check=False,
+        )
 
         # Also grant Cloud Build service account permissions
         cloudbuild_sa = f"{project_number}@cloudbuild.gserviceaccount.com"
-        run_command([
-            "gcloud", "projects", "add-iam-policy-binding", project_id,
-            "--member", f"serviceAccount:{cloudbuild_sa}",
-            "--role", "roles/storage.objectViewer",
-            "--quiet",
-        ], check=False)
+        run_command(
+            [
+                "gcloud",
+                "projects",
+                "add-iam-policy-binding",
+                project_id,
+                "--member",
+                f"serviceAccount:{cloudbuild_sa}",
+                "--role",
+                "roles/storage.objectViewer",
+                "--quiet",
+            ],
+            check=False,
+        )
 
         # Grant Artifact Registry writer permission for pushing Docker images
         # This is required for Cloud Run source deployments
-        run_command([
-            "gcloud", "projects", "add-iam-policy-binding", project_id,
-            "--member", f"serviceAccount:{cloudbuild_sa}",
-            "--role", "roles/artifactregistry.writer",
-            "--quiet",
-        ], check=False)
+        run_command(
+            [
+                "gcloud",
+                "projects",
+                "add-iam-policy-binding",
+                project_id,
+                "--member",
+                f"serviceAccount:{cloudbuild_sa}",
+                "--role",
+                "roles/artifactregistry.writer",
+                "--quiet",
+            ],
+            check=False,
+        )
 
         # Grant Vertex AI User permission to the compute service account
         # This allows Cloud Run to call the Gemini API
         print("\nGranting Vertex AI permissions to Cloud Run service account...")
-        run_command([
-            "gcloud", "projects", "add-iam-policy-binding", project_id,
-            "--member", f"serviceAccount:{compute_sa}",
-            "--role", "roles/aiplatform.user",
-            "--quiet",
-        ], check=False)
+        run_command(
+            [
+                "gcloud",
+                "projects",
+                "add-iam-policy-binding",
+                project_id,
+                "--member",
+                f"serviceAccount:{compute_sa}",
+                "--role",
+                "roles/aiplatform.user",
+                "--quiet",
+            ],
+            check=False,
+        )
 
     print("Waiting for API and IAM permissions to propagate (30 seconds)...")
     time.sleep(30)
@@ -281,13 +354,21 @@ def deploy_cloud_run(project_id: str, service_name: str, region: str) -> str:
         # We use --allow-unauthenticated since Firebase Auth handles access control.
         # The app requires @google.com sign-in (configurable in src/firebase-auth.ts).
         cmd = [
-            "gcloud", "run", "deploy", service_name,
-            "--source", str(demo_dir),
-            "--region", region,
-            "--project", project_id,
+            "gcloud",
+            "run",
+            "deploy",
+            service_name,
+            "--source",
+            str(demo_dir),
+            "--region",
+            region,
+            "--project",
+            project_id,
             "--allow-unauthenticated",  # Firebase Auth handles access control
-            "--memory", "1Gi",
-            "--timeout", "300",
+            "--memory",
+            "1Gi",
+            "--timeout",
+            "300",
             "--quiet",  # Auto-confirm prompts (e.g., enabling APIs)
         ]
 
@@ -298,12 +379,22 @@ def deploy_cloud_run(project_id: str, service_name: str, region: str) -> str:
         run_command(cmd)
 
         # Get the service URL
-        result = run_command([
-            "gcloud", "run", "services", "describe", service_name,
-            "--region", region,
-            "--project", project_id,
-            "--format", "value(status.url)",
-        ], capture=True)
+        result = run_command(
+            [
+                "gcloud",
+                "run",
+                "services",
+                "describe",
+                service_name,
+                "--region",
+                region,
+                "--project",
+                project_id,
+                "--format",
+                "value(status.url)",
+            ],
+            capture=True,
+        )
 
         service_url = result.stdout.strip()
         print(f"\nCloud Run URL: {service_url}")
@@ -357,23 +448,39 @@ def configure_iap_access(
         print("  The service will be protected but no one can access it yet.")
         print("\n  To grant access later, use:")
         print(f"    gcloud run services add-iam-policy-binding {service_name} \\")
-        print(f"      --region={region} --member='user:EMAIL' --role='roles/run.invoker'")
+        print(
+            f"      --region={region} --member='user:EMAIL' --role='roles/run.invoker'"
+        )
         print("\n  Or for a domain:")
         print(f"    gcloud run services add-iam-policy-binding {service_name} \\")
-        print(f"      --region={region} --member='domain:DOMAIN' --role='roles/run.invoker'")
+        print(
+            f"      --region={region} --member='domain:DOMAIN'"
+            " --role='roles/run.invoker'"
+        )
         return
 
     # Grant Cloud Run Invoker role to each member
     for member in members_to_add:
         print(f"\n  Granting Cloud Run Invoker to {member}...")
-        run_command([
-            "gcloud", "run", "services", "add-iam-policy-binding", service_name,
-            "--region", region,
-            "--project", project_id,
-            "--member", member,
-            "--role", "roles/run.invoker",
-            "--quiet",
-        ], check=False)
+        run_command(
+            [
+                "gcloud",
+                "run",
+                "services",
+                "add-iam-policy-binding",
+                service_name,
+                "--region",
+                region,
+                "--project",
+                project_id,
+                "--member",
+                member,
+                "--role",
+                "roles/run.invoker",
+                "--quiet",
+            ],
+            check=False,
+        )
 
     print("\n  IAP access configured successfully.")
 
@@ -385,20 +492,10 @@ def update_firebase_config(service_name: str, region: str):
     config = {
         "hosting": {
             "public": "public",
-            "ignore": [
-                "firebase.json",
-                "**/.*",
-                "**/node_modules/**"
-            ],
+            "ignore": ["firebase.json", "**/.*", "**/node_modules/**"],
             "rewrites": [
-                {
-                    "source": "**",
-                    "run": {
-                        "serviceId": service_name,
-                        "region": region
-                    }
-                }
-            ]
+                {"source": "**", "run": {"serviceId": service_name, "region": region}}
+            ],
         }
     }
 
@@ -413,11 +510,7 @@ def update_firebaserc(project_id: str):
     """Update .firebaserc with the project ID."""
     firebaserc_path = Path(__file__).parent / ".firebaserc"
 
-    config = {
-        "projects": {
-            "default": project_id
-        }
-    }
+    config = {"projects": {"default": project_id}}
 
     with open(firebaserc_path, "w") as f:
         json.dump(config, f, indent=2)
@@ -436,16 +529,24 @@ def deploy_firebase_hosting(project_id: str):
     print()
 
     # Deploy hosting only
-    run_command([
-        "firebase", "deploy",
-        "--only", "hosting",
-        "--project", project_id,
-    ], check=True)
+    run_command(
+        [
+            "firebase",
+            "deploy",
+            "--only",
+            "hosting",
+            "--project",
+            project_id,
+        ],
+        check=True,
+    )
 
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Deploy the Personalized Learning Demo to Cloud Run + Firebase Hosting"
+        description=(
+            "Deploy the Personalized Learning Demo to Cloud Run + Firebase Hosting"
+        )
     )
     parser.add_argument(
         "--project",
@@ -479,13 +580,19 @@ def main():
         "--allow-domain",
         type=str,
         default=os.environ.get("IAP_ALLOWED_DOMAIN"),
-        help="Domain to allow access (e.g., 'google.com'). Also reads from IAP_ALLOWED_DOMAIN env var.",
+        help=(
+            "Domain to allow access (e.g., 'google.com'). Also reads from"
+            " IAP_ALLOWED_DOMAIN env var."
+        ),
     )
     parser.add_argument(
         "--allow-users",
         type=str,
         default=os.environ.get("IAP_ALLOWED_USERS"),
-        help="Comma-separated list of user emails to allow. Also reads from IAP_ALLOWED_USERS env var.",
+        help=(
+            "Comma-separated list of user emails to allow. Also reads from"
+            " IAP_ALLOWED_USERS env var."
+        ),
     )
 
     args = parser.parse_args()
@@ -506,7 +613,10 @@ def main():
         sys.exit(1)
 
     if not args.cloud_run_only and not tools["firebase"]:
-        print("ERROR: firebase CLI not found. Install with: yarn global add firebase-tools")
+        print(
+            "ERROR: firebase CLI not found. Install with: yarn global add"
+            " firebase-tools"
+        )
         sys.exit(1)
 
     # Change to the demo directory
@@ -545,7 +655,10 @@ def main():
     if not args.cloud_run_only:
         print(f"\n✅ Demo is live at: https://{project_id}.web.app")
         print("\nAccess is controlled by Firebase Authentication.")
-        print("Users must sign in with a @google.com account (configurable in src/firebase-auth.ts).")
+        print(
+            "Users must sign in with a @google.com account (configurable in"
+            " src/firebase-auth.ts)."
+        )
 
     if args.cloud_run_only:
         print(f"\nCloud Run service: {args.service_name}")
@@ -558,8 +671,14 @@ def main():
                 print(f"  Allowed users: {args.allow_users}")
         else:
             print("\n⚠️  Cloud Run deployed with --no-allow-unauthenticated.")
-            print(f"   Grant access with: gcloud run services add-iam-policy-binding {args.service_name} \\")
-            print(f"     --region={args.region} --member='user:EMAIL' --role='roles/run.invoker'")
+            print(
+                "   Grant access with: gcloud run services add-iam-policy-binding"
+                f" {args.service_name} \\"
+            )
+            print(
+                f"     --region={args.region} --member='user:EMAIL'"
+                " --role='roles/run.invoker'"
+            )
 
     print()
 

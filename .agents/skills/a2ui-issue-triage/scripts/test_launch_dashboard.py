@@ -25,6 +25,7 @@ import urllib.error
 
 import launch_dashboard
 
+
 class TestLaunchDashboard(unittest.TestCase):
 
     def setUp(self):
@@ -35,9 +36,11 @@ class TestLaunchDashboard(unittest.TestCase):
 
         self.mock_issues_data = {
             "repo": "a2ui-project/a2ui",
-            "issues": [{"id": 1, "title": "Mock Issue", "body": "Body", "comments": []}],
+            "issues": [
+                {"id": 1, "title": "Mock Issue", "body": "Body", "comments": []}
+            ],
             "labels": ["type: bug"],
-            "assignees": [{"login": "gspencer", "name": "George"}]
+            "assignees": [{"login": "gspencer", "name": "George"}],
         }
 
         with open(self.data_file, "w", encoding="utf-8") as f:
@@ -48,7 +51,9 @@ class TestLaunchDashboard(unittest.TestCase):
         launch_dashboard.TriageDashboardHandler.output_file = self.output_file
 
         # Configure server on localhost with free port (0)
-        self.server = http.server.ThreadingHTTPServer(("127.0.0.1", 0), launch_dashboard.TriageDashboardHandler)
+        self.server = http.server.ThreadingHTTPServer(
+            ("127.0.0.1", 0), launch_dashboard.TriageDashboardHandler
+        )
         self.port = self.server.server_port
 
         # Reset global event
@@ -99,26 +104,26 @@ class TestLaunchDashboard(unittest.TestCase):
         req = urllib.request.Request(url, method="OPTIONS")
         with urllib.request.urlopen(req) as response:
             self.assertEqual(response.status, 200)
-            self.assertEqual(response.getheader("Access-Control-Allow-Methods"), "GET, POST, OPTIONS")
+            self.assertEqual(
+                response.getheader("Access-Control-Allow-Methods"), "GET, POST, OPTIONS"
+            )
 
     def test_post_save_api(self):
         url = f"http://127.0.0.1:{self.port}/api/save"
         mock_decisions = {
-            "decisions": [
-                {
-                    "id": 1,
-                    "approved": True,
-                    "priority": "P1",
-                    "assignee": "gspencer",
-                    "action": "investigate",
-                    "labels": [],
-                    "reply": "Draft reply"
-                }
-            ]
+            "decisions": [{
+                "id": 1,
+                "approved": True,
+                "priority": "P1",
+                "assignee": "gspencer",
+                "action": "investigate",
+                "labels": [],
+                "reply": "Draft reply",
+            }]
         }
         req_data = json.dumps(mock_decisions).encode("utf-8")
         req = urllib.request.Request(url, data=req_data, method="POST")
-        
+
         with urllib.request.urlopen(req) as response:
             self.assertEqual(response.status, 200)
             res_data = json.loads(response.read().decode("utf-8"))
@@ -135,7 +140,7 @@ class TestLaunchDashboard(unittest.TestCase):
         url = f"http://127.0.0.1:{self.port}/api/save"
         req_data = b"invalid-raw-json-data"
         req = urllib.request.Request(url, data=req_data, method="POST")
-        
+
         with self.assertRaises(urllib.error.HTTPError) as cm:
             urllib.request.urlopen(req)
         self.assertEqual(cm.exception.code, 500)
@@ -143,7 +148,7 @@ class TestLaunchDashboard(unittest.TestCase):
     def test_post_abort_api(self):
         url = f"http://127.0.0.1:{self.port}/api/abort"
         req = urllib.request.Request(url, method="POST")
-        
+
         with urllib.request.urlopen(req) as response:
             self.assertEqual(response.status, 200)
             res_data = json.loads(response.read().decode("utf-8"))
@@ -152,10 +157,12 @@ class TestLaunchDashboard(unittest.TestCase):
         self.assertTrue(launch_dashboard.shutdown_event.is_set())
         self.assertEqual(launch_dashboard.exit_status, 1)
 
-    @patch('webbrowser.open')
-    @patch('argparse.ArgumentParser.parse_args')
-    @patch('launch_dashboard.http.server.ThreadingHTTPServer')
-    def test_main_cli_orchestration(self, mock_server_class, mock_parse_args, mock_web_open):
+    @patch("webbrowser.open")
+    @patch("argparse.ArgumentParser.parse_args")
+    @patch("launch_dashboard.http.server.ThreadingHTTPServer")
+    def test_main_cli_orchestration(
+        self, mock_server_class, mock_parse_args, mock_web_open
+    ):
         mock_args = MagicMock()
         mock_args.data_file = self.data_file
         mock_args.output_file = self.output_file
@@ -175,7 +182,7 @@ class TestLaunchDashboard(unittest.TestCase):
         mock_web_open.assert_called_once_with("http://localhost:9999/")
         mock_server_instance.shutdown.assert_called_once()
 
-    @patch('argparse.ArgumentParser.parse_args')
+    @patch("argparse.ArgumentParser.parse_args")
     def test_main_data_file_not_exists(self, mock_parse_args):
         mock_args = MagicMock()
         mock_args.data_file = "/mock/non_existent_data.json"
@@ -187,5 +194,6 @@ class TestLaunchDashboard(unittest.TestCase):
             launch_dashboard.main()
         self.assertEqual(cm.exception.code, 1)
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     unittest.main()
