@@ -42,10 +42,10 @@ class MockAgentConnector implements A2uiAgentConnector {
   dynamic noSuchMethod(Invocation invocation) {
     if (invocation.memberName == #connectAndSend) {
       connectAndSendCalled = true;
-      final ChatMessage msg = invocation.positionalArguments[0] as ChatMessage;
+      final msg = invocation.positionalArguments[0] as ChatMessage;
       lastSentMessage = msg;
       if (onConnectAndSend != null) {
-        final res = onConnectAndSend!(msg);
+        final FutureOr<String?> res = onConnectAndSend!(msg);
         if (res is Future<String?>) {
           return res;
         }
@@ -102,7 +102,7 @@ void main() {
     });
 
     test('sendMessage basic flow', () async {
-      bool stateChanged = false;
+      var stateChanged = false;
       session!.addListener(() {
         stateChanged = true;
       });
@@ -115,7 +115,7 @@ void main() {
         return null;
       };
 
-      final sendFuture = session!.sendMessage('test query');
+      final Future<void> sendFuture = session!.sendMessage('test query');
       await completer.future;
 
       await sendFuture;
@@ -138,7 +138,7 @@ void main() {
     });
 
     test('session handles agent error events', () async {
-      bool errorNotified = false;
+      var errorNotified = false;
       session!.addListener(() {
         if (session!.error != null) {
           errorNotified = true;

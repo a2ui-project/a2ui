@@ -39,14 +39,6 @@ class FakeRestaurantSession extends RestaurantSession {
     notifyListeners();
   }
 
-  String _mockLoadingText = 'Searching...';
-  @override
-  String get loadingText => _mockLoadingText;
-  set loadingText(String val) {
-    _mockLoadingText = val;
-    notifyListeners();
-  }
-
   String? _mockError;
   @override
   String? get error => _mockError;
@@ -90,7 +82,7 @@ void main() {
       await tester.pumpWidget(RestaurantFinderApp(session: fakeSession));
 
       expect(find.byType(CircularProgressIndicator), findsOneWidget);
-      expect(find.text('Searching...'), findsOneWidget);
+      expect(find.text('Talking to your concierge...'), findsOneWidget);
       expect(find.byType(TextField), findsNothing);
     });
 
@@ -118,7 +110,7 @@ void main() {
     testWidgets('ThemeToggleButton toggles on tap', (
       WidgetTester tester,
     ) async {
-      bool toggled = false;
+      var toggled = false;
       await tester.pumpWidget(
         MaterialApp(
           home: Scaffold(
