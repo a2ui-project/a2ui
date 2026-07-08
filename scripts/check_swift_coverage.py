@@ -94,20 +94,22 @@ def main():
     )
     line_cover_index = 9  # default fallback
     if header_line:
+        # Normalize whitespace to single spaces first
+        header_line = ' '.join(header_line.split())
         # Normalize column header spacing to align token indexes
         header_line = header_line.replace('Regions Cover', 'Regions-Cover')
         header_line = header_line.replace('Func Cover', 'Func-Cover')
         header_line = header_line.replace('Line Cover', 'Line-Cover')
+        header_line = header_line.replace('Branch Cover', 'Branch-Cover')
         header_parts = header_line.split()
         try:
-            lines_idx = header_parts.index('Lines')
-            cover_offset = 1
-            while lines_idx + cover_offset < len(header_parts):
-                part = header_parts[lines_idx + cover_offset]
-                if 'Cover' in part or '%' in part:
-                    break
-                cover_offset += 1
-            line_cover_index = lines_idx + cover_offset
+            if 'Line-Cover' in header_parts:
+                line_cover_index = header_parts.index('Line-Cover')
+            elif 'Lines-Cover' in header_parts:
+                line_cover_index = header_parts.index('Lines-Cover')
+            else:
+                lines_idx = header_parts.index('Lines')
+                line_cover_index = lines_idx + 2
         except ValueError:
             pass
 

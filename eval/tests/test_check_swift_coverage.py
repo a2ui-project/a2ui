@@ -106,3 +106,33 @@ TOTAL                              62        17          72.58%            11   
     main()
 
     mock_exit.assert_called_once_with(1)
+
+
+@patch("subprocess.run")
+@patch("shutil.which")
+@patch("os.path.exists")
+@patch("scripts.check_swift_coverage.find_file")
+@patch("sys.exit")
+def test_main_branch_coverage_columns(
+    mock_exit, mock_find_file, mock_exists, mock_which, mock_run
+):
+    mock_exists.return_value = True
+    mock_which.return_value = None
+    mock_find_file.side_effect = [
+        "/path/to/profile.profdata",
+        "/path/to/binary",
+    ]
+
+    mock_proc = MagicMock()
+    mock_proc.stdout = """
+Filename                      Regions    Missed   Regions Cover     Functions    Missed   Func Cover      Lines    Missed    Line Cover    Branches    Missed   Branch Cover
+--------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+some_file.swift                     1         0         100.00%             1           0       100.00%          5         0        100.00%           0         0             -
+TOTAL                              43         0         100.00%             4           0       100.00%         77         0        100.00%           0         0             -
+"""
+    mock_proc.returncode = 0
+    mock_run.return_value = mock_proc
+
+    main()
+
+    mock_exit.assert_called_once_with(0)
