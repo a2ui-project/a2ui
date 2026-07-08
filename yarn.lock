@@ -228,7 +228,7 @@ __metadata:
     typescript: "npm:5.9.3"
     wireit: "npm:^0.15.0-pre.2"
   peerDependencies:
-    "@a2ui/web_core": "workspace:*"
+    "@a2ui/web_core": ^0.9.2 || ^0.10.0
   languageName: unknown
   linkType: soft
 
