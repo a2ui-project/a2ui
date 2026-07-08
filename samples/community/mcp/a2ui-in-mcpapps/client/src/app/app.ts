@@ -118,23 +118,25 @@ export class App implements AfterViewInit {
       } else if (data?.method === 'ui/notifications/initialized') {
         // The host must not message the View before this notification; once it
         // arrives, deliver the instantiating tool call's input and result.
-        target.postMessage(
-          {
-            jsonrpc: '2.0',
-            method: 'ui/notifications/tool-input',
-            params: {arguments: this.toolCallArguments},
-          },
-          window.location.origin,
-        );
-        if (this.toolCallResult) {
+        if (target) {
           target.postMessage(
             {
               jsonrpc: '2.0',
-              method: 'ui/notifications/tool-result',
-              params: this.toolCallResult,
+              method: 'ui/notifications/tool-input',
+              params: {arguments: this.toolCallArguments},
             },
             window.location.origin,
           );
+          if (this.toolCallResult) {
+            target.postMessage(
+              {
+                jsonrpc: '2.0',
+                method: 'ui/notifications/tool-result',
+                params: this.toolCallResult,
+              },
+              window.location.origin,
+            );
+          }
         }
       } else if (data?.method === 'ui/notifications/size-changed') {
         const height = data.params?.height;
