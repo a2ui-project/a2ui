@@ -94,10 +94,15 @@ def on_page_markdown(markdown, page, config, files):
             temp_path = temp_path[3:]
 
         if up_count > file_depth:
-            # To get to repo root from a file at file_depth, we need to go up file_depth + 1 levels.
-            strip_count = file_depth + 1
+            diff = up_count - file_depth
+            if diff == 1:
+                strip_count = file_depth + 1
+                base_url = f'{github_base_url}/docs'
+            else:
+                strip_count = file_depth + 2
+                base_url = github_base_url
 
-            # Remove the leading '../' sequences that take us to the repo root
+            # Remove the leading '../' sequences
             path_parts = path.split('/')
             while strip_count > 0 and path_parts and path_parts[0] == '..':
                 path_parts.pop(0)
@@ -105,7 +110,7 @@ def on_page_markdown(markdown, page, config, files):
             clean_path = '/'.join(path_parts)
 
             # Return the newly formatted absolute GitHub link
-            return f'{github_base_url}/{clean_path}'
+            return f'{base_url}/{clean_path}'
 
         return path
 

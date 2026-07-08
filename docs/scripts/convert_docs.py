@@ -116,7 +116,8 @@ def process_file(path):
 
 
 def run_conversion():
-    for root, dirs, files in os.walk("docs"):
+    target_dir = "docs/public" if os.path.exists("docs/public") else "docs"
+    for root, dirs, files in os.walk(target_dir):
         if any(x in root for x in ["scripts", "assets", "__pycache__"]):
             continue
         for file in files:
