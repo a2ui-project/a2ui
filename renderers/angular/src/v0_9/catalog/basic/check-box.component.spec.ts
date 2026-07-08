@@ -19,7 +19,7 @@ import {signal as angularSignal} from '@angular/core';
 import {CheckBoxComponent} from './check-box.component';
 import {A2uiRendererService} from '../../core/a2ui-renderer.service';
 import {ComponentBinder} from '../../core/component-binder.service';
-import {setComponentProps, createBoundProperty, ComponentToProps} from '../../core/test-utils';
+import {setComponentProps, createBoundProperty, ComponentToProps} from '@a2ui/angular/testing';
 
 describe('CheckBoxComponent', () => {
   let component: CheckBoxComponent;

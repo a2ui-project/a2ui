@@ -288,6 +288,13 @@ Because `formatString` contains dynamic expressions embedded _within_ a string l
 
 **Logic:** Open `args.url` using the native platform's URL handler (e.g., opening in the system browser or deep-linking to an app). This function returns `void` and is executed as a side-effect.
 
+**Security Constraints & Implementation Requirements (Mandatory):**
+To prevent DOM-Based Cross-Site Scripting (XSS) via `javascript:`, `data:`, or other non-HTTP schemes:
+
+1. **Resolve Relative URLs:** Before validation, resolve relative paths against the current environment context (e.g., `window.location.href` in browsers) using standard URL parsing.
+2. **Enforce Scheme Allowlist:** Strictly validate that the resolved URL protocol/scheme is either `https:` or `http:`. Throw an execution or runtime error (such as `A2uiExpressionError`) and abort the action if any other scheme is used.
+3. **Tab-Nabbing Protection:** When opening URLs in a new browser window/tab, always supply security attributes: `noopener,noreferrer` (e.g. `window.open(url, '_blank', 'noopener,noreferrer')`).
+
 ### `and`
 
 **Description:** Logical AND operator.

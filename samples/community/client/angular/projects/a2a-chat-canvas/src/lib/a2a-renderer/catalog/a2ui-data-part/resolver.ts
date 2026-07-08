@@ -29,12 +29,12 @@ import {type PartResolver} from '@a2a_chat_canvas/a2a-renderer/types';
  * @returns The string 'a2ui_data_part' if the part is an A2UI data part, otherwise null.
  */
 export const A2UI_DATA_PART_RESOLVER: PartResolver = (part: Part): string | null => {
-  // Check if the part is a data part and contains the 'beginRendering' key, which signifies an A2UI message.
+  // Check if the part is a data part and contains the 'beginRendering' or 'createSurface' key, which signifies an A2UI message.
   if (
     part.kind === 'data' &&
     part.data &&
     typeof part.data === 'object' &&
-    'beginRendering' in part.data
+    ('beginRendering' in part.data || 'createSurface' in part.data)
   ) {
     return 'a2ui_data_part';
   }

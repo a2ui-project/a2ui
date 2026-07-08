@@ -300,7 +300,7 @@ When the user clicks the button, the client resolves data bindings (like `/dates
   "method": "tools/call",
   "id": "id-456",
   "params": {
-    "name": "action",
+    "name": "a2ui_action",
     "arguments": {
       "name": "confirm_booking",
       "context": {
@@ -316,7 +316,7 @@ When the user clicks the button, the client resolves data bindings (like `/dates
 
 ```python
 @self.tool()
-async def action(name: str, context: dict) -> types.CallToolResult:
+async def a2ui_action(name: str, context: dict) -> types.CallToolResult:
     """Handle A2UI user actions."""
     if name == "confirm_booking":
         # Process the booking, then return confirmation UI
@@ -339,7 +339,7 @@ Clients can report A2UI rendering errors back to the server via a tool call:
   "method": "tools/call",
   "id": "id-789",
   "params": {
-    "name": "error",
+    "name": "a2ui_error",
     "arguments": {
       "code": "INVALID_JSON",
       "message": "Failed to parse A2UI payload.",
@@ -353,7 +353,7 @@ Handle it on the server:
 
 ```python
 @self.tool()
-async def error(code: str, message: str, surfaceId: str = "") -> types.CallToolResult:
+async def a2ui_error(code: str, message: str, surfaceId: str = "") -> types.CallToolResult:
     """Handle A2UI client errors."""
     # Log the error, retry, or send a fallback UI
     return types.CallToolResult(content=[

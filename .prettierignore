@@ -27,3 +27,7 @@ renderers/angular/a2ui_explorer/src/app/generated/**
 renderers/lit/a2ui_explorer/src/generated/**
 .next
 **/.next
+
+# Evaluation logs
+eval/logs
+**/eval/logs

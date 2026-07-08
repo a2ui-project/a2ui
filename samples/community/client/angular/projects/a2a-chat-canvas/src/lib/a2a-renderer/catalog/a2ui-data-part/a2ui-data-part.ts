@@ -20,18 +20,22 @@ import {ChatService} from '@a2a_chat_canvas/services/chat-service';
 import {UiMessageContent} from '@a2a_chat_canvas/types/ui-message';
 import {isA2aDataPart} from '@a2a_chat_canvas/utils/type-guards';
 import {Surface} from '@a2ui/angular';
+import {SurfaceComponent as SurfaceV09} from '@a2ui/angular/v0_9';
 import * as Types from '@a2ui/web_core/types/types';
+import {A2uiMessage as A2uiMessageV09, CreateSurfaceMessage} from '@a2ui/web_core/v0_9';
 import {ChangeDetectionStrategy, Component, computed, inject, input} from '@angular/core';
 
 /**
  * Component responsible for rendering an A2UI surface embedded within an A2A message part.
- * It extracts the surface ID from the 'beginRendering' message and uses the A2UI Surface component to render it.
+ * Supports both A2UI v0.8 and v0.9 rendering pipelines:
+ * - For v0.8 (legacy): Extracts the surface ID from the 'beginRendering' message and renders using the legacy `Surface` component.
+ * - For v0.9 (latest): Extracts the surface ID from the 'createSurface' message and renders using the `SurfaceComponent` from the v0.9 package.
  */
 @Component({
   selector: 'a2ui-data-part',
   templateUrl: './a2ui-data-part.html',
   styleUrl: './a2ui-data-part.scss',
-  imports: [Surface],
+  imports: [Surface, SurfaceV09],
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class A2uiDataPart implements RendererComponent {
@@ -41,14 +45,20 @@ export class A2uiDataPart implements RendererComponent {
   /** Service for managing chat interactions and accessing A2UI surfaces. */
   private readonly chatService = inject(ChatService);
 
-  /** Computes the surface ID from the 'beginRendering' message within the A2A data part. */
   protected readonly a2uiSurfaceId = computed(() => {
     const part = this.uiMessageContent().data as Part;
-    if (isA2aDataPart(part)) {
-      if (part.data && typeof part.data === 'object' && 'beginRendering' in part.data) {
-        const beginRenderingMessage = part.data['beginRendering'] as Types.BeginRenderingMessage;
-        return beginRenderingMessage.surfaceId;
-      }
+    if (!isA2aDataPart(part) || typeof part.data !== 'object' || !part.data) {
+      return undefined;
+    }
+
+    if (this.isV08()) {
+      const data = part.data as Types.ServerToClientMessage;
+      return data.beginRendering?.surfaceId;
+    } else {
+      // We only care about CreateSurfaceMessage for identifying the surface start.
+      // If it is another v0.9 message, createSurface will be undefined.
+      const data = part.data as unknown as CreateSurfaceMessage;
+      return data.createSurface?.surfaceId;
     }
 
     return undefined;
@@ -62,5 +72,15 @@ export class A2uiDataPart implements RendererComponent {
     }
 
     return this.chatService.a2uiSurfaces().get(surfaceId);
+  });
+
+  /** Determines if the embedded surface is using the v0.8 protocol. */
+  protected readonly isV08 = computed(() => {
+    const part = this.uiMessageContent().data as Part;
+    if (isA2aDataPart(part) && part.data && typeof part.data === 'object') {
+      // 'beginRendering' is the v0.8 lifecycle start message.
+      return 'beginRendering' in part.data;
+    }
+    return false;
   });
 }

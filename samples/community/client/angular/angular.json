@@ -93,6 +93,77 @@
           "defaultConfiguration": "development"
         }
       }
+    },
+    "mcp_calculator": {
+      "projectType": "application",
+      "schematics": {
+        "@schematics/angular:component": {
+          "style": "scss",
+          "skipTests": true
+        }
+      },
+      "root": "projects/mcp_calculator",
+      "sourceRoot": "projects/mcp_calculator/src",
+      "prefix": "app",
+      "architect": {
+        "build": {
+          "builder": "@angular/build:application",
+          "options": {
+            "outputPath": "projects/mcp_calculator/dist",
+            "browser": "projects/mcp_calculator/src/main.ts",
+            "tsConfig": "projects/mcp_calculator/tsconfig.app.json",
+            "preserveSymlinks": true,
+            "inlineStyleLanguage": "scss",
+            "assets": [
+              {
+                "glob": "**/*",
+                "input": "projects/mcp_calculator/public"
+              }
+            ],
+            "styles": ["projects/mcp_calculator/src/styles.scss"],
+            "server": "projects/mcp_calculator/src/main.server.ts",
+            "outputMode": "server",
+            "ssr": {
+              "entry": "projects/mcp_calculator/src/server.ts"
+            }
+          },
+          "configurations": {
+            "production": {
+              "budgets": [
+                {
+                  "type": "initial",
+                  "maximumWarning": "1.5MB",
+                  "maximumError": "2.5MB"
+                },
+                {
+                  "type": "anyComponentStyle",
+                  "maximumWarning": "4kB",
+                  "maximumError": "8kB"
+                }
+              ],
+              "outputHashing": "all"
+            },
+            "development": {
+              "optimization": false,
+              "extractLicenses": false,
+              "sourceMap": true
+            }
+          },
+          "defaultConfiguration": "production"
+        },
+        "serve": {
+          "builder": "@angular/build:dev-server",
+          "configurations": {
+            "production": {
+              "buildTarget": "mcp_calculator:build:production"
+            },
+            "development": {
+              "buildTarget": "mcp_calculator:build:development"
+            }
+          },
+          "defaultConfiguration": "development"
+        }
+      }
     }
   },
   "cli": {

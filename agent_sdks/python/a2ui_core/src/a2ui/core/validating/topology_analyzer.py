@@ -12,14 +12,15 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Any, Dict, List, Optional, Set, Tuple
+from typing import Any, Dict, List, Optional, Set, Tuple, Mapping
 from .integrity_checker import get_component_references, MAX_GLOBAL_DEPTH
 from ..schema.constants import ROOT_ID
+from ..exceptions import A2uiRecursionError, A2uiIntegrityError
 
 
 def analyze_topology(
     components: List[Dict[str, Any]],
-    ref_fields_map: Dict[str, Tuple[Set[str], Set[str]]],
+    ref_fields_map: Mapping[str, Tuple[Set[str], Set[str]]],
     root_id: str = ROOT_ID,
     allow_orphan_components: bool = False,
     allow_missing_root: bool = False,
@@ -39,9 +40,9 @@ def analyze_topology(
 
         for ref_id, field_name in get_component_references(comp, ref_fields_map):
             if ref_id == comp_id:
-                raise ValueError(
-                    f"Self-reference detected: Component '{comp_id}' references itself in field"
-                    f" '{field_name}'"
+                raise A2uiRecursionError(
+                    f"Self-reference detected: Component '{comp_id}' references itself"
+                    f" in field '{field_name}'"
                 )
             adj_list[comp_id].append(ref_id)
 
@@ -49,9 +50,9 @@ def analyze_topology(
     visited: Set[str] = set()
     recursion_stack: Set[str] = set()
 
-    def dfs(node_id: str, depth: int):
+    def dfs(node_id: str, depth: int) -> None:
         if depth > MAX_GLOBAL_DEPTH:
-            raise ValueError(
+            raise A2uiRecursionError(
                 f"Global recursion limit exceeded: logical depth > {MAX_GLOBAL_DEPTH}"
             )
 
@@ -62,7 +63,7 @@ def analyze_topology(
             if neighbor not in visited:
                 dfs(neighbor, depth + 1)
             elif neighbor in recursion_stack:
-                raise ValueError(
+                raise A2uiRecursionError(
                     f"Circular reference detected involving component '{neighbor}'"
                 )
 
@@ -82,7 +83,7 @@ def analyze_topology(
             orphans = all_ids - visited
             if orphans:
                 sorted_orphans = sorted(list(orphans))
-                raise ValueError(
+                raise A2uiIntegrityError(
                     f"Component '{sorted_orphans[0]}' is not reachable from '{root_id}'"
                 )
 

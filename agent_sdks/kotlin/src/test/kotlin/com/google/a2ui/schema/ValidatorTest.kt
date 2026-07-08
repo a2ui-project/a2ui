@@ -208,15 +208,15 @@ class ValidatorTest {
 
     val msg = exception.message!!
     assertTrue(
-      msg.contains("messages[0]: /createSurface"),
+      msg.contains("messages.0.createSurface"),
       "Expected missing catalogId error path, got: " + msg,
     )
     assertTrue(
-      msg.contains("messages[1].updateComponents.components[id='t1']"),
+      msg.contains("messages.1.updateComponents.components[id='t1']"),
       "Expected id-based component error path, got: " + msg,
     )
     assertTrue(
-      msg.contains("messages[1].updateComponents.components[1]"),
+      msg.contains("messages.1.updateComponents.components.1"),
       "Expected index-based component error path, got: " + msg,
     )
   }

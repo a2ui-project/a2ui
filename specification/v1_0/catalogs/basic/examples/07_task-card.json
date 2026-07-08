@@ -18,16 +18,16 @@
           {
             "id": "root",
             "component": "Card",
-            "child": "main-row"
+            "child": "main_row"
           },
           {
-            "id": "main-row",
+            "id": "main_row",
             "component": "Row",
-            "children": ["status-checkbox", "content", "priority"],
+            "children": ["status_checkbox", "content", "priority"],
             "align": "start"
           },
           {
-            "id": "status-checkbox",
+            "id": "status_checkbox",
             "component": "CheckBox",
             "label": "",
             "value": {
@@ -37,7 +37,7 @@
           {
             "id": "content",
             "component": "Column",
-            "children": ["title", "description", "meta-row"]
+            "children": ["title", "description", "meta_row"]
           },
           {
             "id": "title",
@@ -55,13 +55,13 @@
             "variant": "body"
           },
           {
-            "id": "meta-row",
+            "id": "meta_row",
             "component": "Row",
-            "children": ["due-date-input", "project"],
+            "children": ["due_date_input", "project"],
             "align": "center"
           },
           {
-            "id": "due-date-input",
+            "id": "due_date_input",
             "component": "DateTimeInput",
             "label": "Due",
             "value": {

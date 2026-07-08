@@ -18,12 +18,12 @@
           {
             "id": "root",
             "component": "Card",
-            "child": "main-column"
+            "child": "main_column"
           },
           {
-            "id": "main-column",
+            "id": "main_column",
             "component": "Column",
-            "children": ["header", "info", "bio", "stats-row", "follow-btn"],
+            "children": ["header", "info", "bio", "stats_row", "follow_btn"],
             "align": "center"
           },
           {
@@ -65,19 +65,19 @@
             "variant": "body"
           },
           {
-            "id": "stats-row",
+            "id": "stats_row",
             "component": "Row",
-            "children": ["followers-col", "following-col", "posts-col"],
+            "children": ["followers_col", "following_col", "posts_col"],
             "justify": "spaceAround"
           },
           {
-            "id": "followers-col",
+            "id": "followers_col",
             "component": "Column",
-            "children": ["followers-count", "followers-label"],
+            "children": ["followers_count", "followers_label"],
             "align": "center"
           },
           {
-            "id": "followers-count",
+            "id": "followers_count",
             "component": "Text",
             "text": {
               "call": "formatNumber",
@@ -89,19 +89,19 @@
             }
           },
           {
-            "id": "followers-label",
+            "id": "followers_label",
             "component": "Text",
             "text": "Followers",
             "variant": "caption"
           },
           {
-            "id": "following-col",
+            "id": "following_col",
             "component": "Column",
-            "children": ["following-count", "following-label"],
+            "children": ["following_count", "following_label"],
             "align": "center"
           },
           {
-            "id": "following-count",
+            "id": "following_count",
             "component": "Text",
             "text": {
               "call": "formatNumber",
@@ -113,19 +113,19 @@
             }
           },
           {
-            "id": "following-label",
+            "id": "following_label",
             "component": "Text",
             "text": "Following",
             "variant": "caption"
           },
           {
-            "id": "posts-col",
+            "id": "posts_col",
             "component": "Column",
-            "children": ["posts-count", "posts-label"],
+            "children": ["posts_count", "posts_label"],
             "align": "center"
           },
           {
-            "id": "posts-count",
+            "id": "posts_count",
             "component": "Text",
             "text": {
               "call": "formatNumber",
@@ -137,22 +137,22 @@
             }
           },
           {
-            "id": "posts-label",
+            "id": "posts_label",
             "component": "Text",
             "text": "Posts",
             "variant": "caption"
           },
           {
-            "id": "follow-btn-text",
+            "id": "follow_btn_text",
             "component": "Text",
             "text": {
               "path": "/followText"
             }
           },
           {
-            "id": "follow-btn",
+            "id": "follow_btn",
             "component": "Button",
-            "child": "follow-btn-text",
+            "child": "follow_btn_text",
             "action": {
               "event": {
                 "name": "follow",

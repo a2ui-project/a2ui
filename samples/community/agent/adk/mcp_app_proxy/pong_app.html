@@ -257,11 +257,16 @@
 
       // Initialize
       sendRequest('ui/initialize', {
+        appInfo: {
+          name: 'Neon Pong',
+          version: '1.0.0',
+        },
         appCapabilities: {
           experimental: {},
           tools: {listChanged: false},
           availableDisplayModes: ['inline'],
         },
+        protocolVersion: '2026-06-26',
       })
         .then(result => {
           console.log('Initialized with host:', result);

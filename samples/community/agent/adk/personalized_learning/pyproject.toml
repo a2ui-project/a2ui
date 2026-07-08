@@ -16,7 +16,7 @@
 name = "personalized-learning-agent"
 version = "0.1.0"
 description = "A2A Agent for generating personalized A2UI learning materials"
-requires-python = ">=3.14"
+requires-python = ">=3.10"
 dependencies = [
     "google-adk>=1.28.1",
     "google-genai>=1.27.0",
@@ -30,6 +30,9 @@ dev = [
     "pytest>=7.0.0",
     "pytest-asyncio>=0.21.0",
 ]
+
+[tool.hatch.build.targets.wheel]
+packages = ["."]
 
 [build-system]
 requires = ["hatchling"]
