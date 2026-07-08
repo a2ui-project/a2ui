@@ -18,6 +18,14 @@ import {Component, signal, ViewChild, ElementRef, AfterViewInit} from '@angular/
 import {Client} from '@modelcontextprotocol/sdk/client/index.js';
 import {SSEClientTransport} from '@modelcontextprotocol/sdk/client/sse.js';
 
+// Per the MCP Apps spec, a tool that omits `_meta.ui.visibility` defaults to
+// ["model", "app"], i.e. it is app-callable. We name that permissive fallback
+// so the host's default is explicit rather than a bare `true`. This is a
+// sample-friendly default; a stricter host may prefer to deny tools that don't
+// explicitly opt into "app" visibility.
+// Spec: https://github.com/modelcontextprotocol/ext-apps/blob/main/specification/2026-01-26/apps.mdx
+const APP_CALLABLE_WHEN_VISIBILITY_UNDECLARED = true;
+
 @Component({
   selector: 'app-root',
   templateUrl: './app.html',
@@ -41,8 +49,9 @@ export class App implements AfterViewInit {
   private mcpClient: Client | null = null;
 
   // Tools the View may invoke, derived from each tool's declared
-  // _meta.ui.visibility (per spec, an absent declaration defaults to
-  // ["model", "app"], i.e. app-callable).
+  // _meta.ui.visibility. Per the MCP Apps spec an absent declaration defaults
+  // to ["model", "app"], i.e. app-callable (see
+  // APP_CALLABLE_WHEN_VISIBILITY_UNDECLARED above for the spec link).
   private allowedTools = new Set<string>();
 
   ngAfterViewInit() {
@@ -220,7 +229,9 @@ export class App implements AfterViewInit {
         tools
           .filter(tool => {
             const visibility = (tool._meta as any)?.ui?.visibility;
-            return Array.isArray(visibility) ? visibility.includes('app') : true;
+            return Array.isArray(visibility)
+              ? visibility.includes('app')
+              : APP_CALLABLE_WHEN_VISIBILITY_UNDECLARED;
           })
           .map(tool => tool.name),
       );
