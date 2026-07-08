@@ -1,8 +1,14 @@
+---
+name: a2ui_framework_adapter
+type: module
+description: View and Rendering layer interface bridging A2UI Core SDK to native UI frameworks.
+---
+
 # A2UI Framework Adapter Specification
 
-This document describes the specification and architecture of an A2UI Framework-Specific Adapter (the View/Rendering Layer). The design defines how a framework-agnostic A2UI Core SDK (documented in the [A2UI Core SDK Specification](core_sdk_spec.md)) connects to native UI frameworks to paint the pixels.
+This document describes the specification and architecture of an A2UI Framework-Specific Adapter (the View/Rendering Layer). The design defines how a framework-agnostic A2UI Core SDK (documented in the [A2UI Core SDK Specification](a2ui_core.blueprint.md)) connects to native UI frameworks to paint the pixels.
 
-Both the core data structures and the rendering components interact with **Catalogs**. Within a catalog, the implementation follows a structured split: from the pure **Component Schema** (defined in the Core SDK) down to the **Framework-Specific Adapter** that renders native components (React, Angular, Flutter, SwiftUI, Jetpack Compose, iOS Views, Android Views, Vanilla DOM).
+Both the core data structures and the rendering components interact with **Catalogs**. Within a catalog, the implementation follows a structured split: from the pure **Component Schema** (defined in the Core SDK) down to the **Framework-Specific Adapter** that renders native components (React, Angular, Flutter, SwiftUI, Jetpack Compose, iOS Views, Android Views, Vanilla DOM). Note that a catalog's `id` (`catalogId`) is an arbitrary string identifier rather than a resolvable URI.
 
 ---
 
@@ -28,7 +34,7 @@ At the heart of the A2UI framework-specific architecture are the interfaces that
 
 ### `ComponentImplementation`
 
-The framework-specific logic for rendering a component. It extends `ComponentApi` (defined in [Core SDK Specification](core_sdk_spec.md)) to include a `build` or `render` method.
+The framework-specific logic for rendering a component. It extends `ComponentApi` (defined in [Core SDK Specification](a2ui_core.blueprint.md)) to include a `build` or `render` method.
 
 How this looks depends on the target framework's paradigm:
 
@@ -244,7 +250,7 @@ When building libraries that provide the Basic Catalog, separating the pure API 
 - **Multi-Framework Code Reuse**: Allows core binders to be reused across different UI framework adapter libraries.
 - **Developer Overrides**: By exposing the standard API definitions, developers adopting A2UI can easily swap in custom UI implementations (e.g., replacing the default `Button` with their company's internal Design System `Button`) without having to rewrite the complex A2UI validation, data binding, and capability generation logic.
 
-For a detailed walkthrough on how to visually and functionally implement each basic component and function, refer to the [Basic Catalog Implementation Guide](basic_catalog_implementation_guide.md).
+For a detailed walkthrough on how to visually and functionally implement each basic component and function, refer to the [Basic Catalog Implementation Guide](../../specification/v0_9_1/docs/basic_catalog_implementation_guide.md).
 
 ---
 
@@ -274,67 +280,3 @@ Every renderer implementation must include a suite of automated integration test
 - **Two-Way Binding**: Typing in a TextField updates both the UI and the Data Model viewer simultaneously.
 - **Reactive Logic**: Changes in one component dynamically update dependent components.
 - **Action Context Scoping**: Actions emitted from nested templates (like Lists) contain correctly resolved data scopes.
-
----
-
-## 8. Agent Implementation Guide: Framework & UI Phases
-
-If you are an AI Agent tasked with building a new Renderer/Framework Adapter for A2UI, you MUST follow this strict, phased sequence of operations.
-
-### Phase 1: Context & Core Ingest
-
-Thoroughly review:
-
-- [A2UI Core SDK Specification](core_sdk_spec.md) (for state and message structures).
-- `specification/v1_0/docs/basic_catalog_implementation_guide.md` (for rendering, typography, alignment, and spacing rules).
-
-### Phase 2: Key Architecture Decisions (Write a Plan Document)
-
-Create a comprehensive design document detailing:
-
-- **Component Architecture**: How will you define the `ComponentImplementation` base class or interface in this framework?
-- **Surface Architecture**: How will the `Surface` framework entry point function to recursively build children?
-- **Binding Strategy**: Will you use Strategy 1 (Direct), Strategy 2 (Predefined binders), or Strategy 3 (Automated TypeScript/Zod wrappers)?
-- **STOP HERE. Ask the user for approval on this design document before proceeding.**
-
-### Phase 3: Framework-Specific Layer
-
-Implement the bridge between Core SDK models and native UI.
-
-- Define the concrete `ComponentImplementation` base class/interface.
-- Implement the `Surface` view/widget that recurses through components.
-- Implement subscription lifecycle management (lazy mounting, unmounting disposal, path stability).
-
-### Phase 4: Foundational Basic Catalog Support
-
-Target a foundational subset of components in `basic/catalog.json` (equivalent to the former minimal catalog) first to bootstrap your framework renderer:
-
-- **Components**: Implement the specific native UI rendering components for:
-  - `Text`
-  - `Row`
-  - `Column`
-  - `Button`
-  - `TextField`
-- **Catalog Adapter**: Bundle these visual widgets into a catalog adapter.
-- **Verification**: Write unit/widget tests verifying that properties update reactively in the UI when the underlying data model changes.
-
-### Phase 5: Gallery Application (Milestone)
-
-Build the Gallery App following the requirements in **Section 7** to verify your bootstrapped renderer.
-
-- **Examples**: Load the following 5 JSON samples from `specification/v1_0/catalogs/basic/examples/` (which serve as the verification suite for the foundational subset):
-  - `00_simple-text.json`
-  - `00_row-layout.json`
-  - `00_complex-layout.json`
-  - `00_interactive-button.json`
-  - `00_simple-login-form.json`
-- **Verification**: Verify progressive rendering, stepping, and visual reactivity.
-- **STOP HERE. Ask the user for approval of the architecture and gallery application before proceeding.**
-
-### Phase 6: Complete Basic Catalog Support
-
-Once the foundational architecture and gallery application are proven robust, refer to the [Basic Catalog Implementation Guide](basic_catalog_implementation_guide.md) and:
-
-- **Framework Library**: Implement all remaining UI widgets and traits (such as `Checkable`) defined in the Basic Catalog.
-- **Tests**: Formulate and run comprehensive unit and integration test cases to verify static rendering, layout alignment, two-way bindings, and scoped actions.
-- **Gallery Update**: Update the Gallery App to load all samples from `specification/v1_0/catalogs/basic/examples/`.

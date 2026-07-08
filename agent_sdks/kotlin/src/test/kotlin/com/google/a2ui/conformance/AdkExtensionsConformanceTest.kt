@@ -100,6 +100,7 @@ class AdkExtensionsConformanceTest {
               every { mockGenaiPart.functionCall() } returns Optional.empty()
               every { mockGenaiPart.text() } returns Optional.of(contentText)
               every { mockGenaiPart.thought() } returns Optional.empty()
+              every { mockGenaiPart.partMetadata() } returns Optional.empty()
 
               val mockContent = mockk<Content>()
               every { mockContent.parts() } returns Optional.of(listOf(mockGenaiPart))

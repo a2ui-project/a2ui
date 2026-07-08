@@ -23,30 +23,19 @@ Subagents are configured using RemoteA2aAgent which translates ADK events to A2A
    # Edit .env with your actual API key (do not commit .env)
    ```
 
-2. Run subagents
-
-   Open a new terminal for each command
+2. Run the orchestrator and subagents:
 
    ```bash
-   cd samples/agent/adk/restaurant_finder
-   uv run . --port=10003
+   chmod +x ./run_demo.sh
+
+   ./run_demo.sh
    ```
 
-   ```bash
-   cd samples/agent/adk/rizzcharts/python
-   uv run . --port=10005
-   ```
-
-3. Run the orchestrator agent:
-
-   ```bash
-   cd samples/agent/adk/orchestrator
-   uv run . --port=10002 --subagent_urls=http://localhost:10003 --subagent_urls=http://localhost:10005
-   ```
-
-4. Try commands that work with any agent:
-   a. "Show me chinese food restaurants in NYC" (routed to restaurant finder agent)
-   b. "Show my sales data for Q4" (routed to rizzcharts)
+3. Try commands that work with any agent:
+   a. "Check me in please" (routed to front desk)
+   b. "My room needs cleaning" (routed to housekeeping)
+   c. "The AC is broken" (routed to maintenance)
+   d. "I want to order a burger to my room" (routed to room service)
 
 ## Disclaimer
 
