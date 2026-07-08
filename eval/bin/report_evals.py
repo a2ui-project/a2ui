@@ -48,6 +48,7 @@ def extract_accuracy(log_data: dict) -> float:
 
     return float(accuracy)
 
+
 def print_results_summary(log_data: dict):
     """Prints a summary of the results for each sample.
 
@@ -76,20 +77,27 @@ def print_results_summary(log_data: dict):
                 inference_time = event.get("working_time") or event.get("duration")
                 break
         if inference_time is None:
-            inference_time = sample.get("metadata", {}).get("evaluation_duration_seconds")
-        inference_time_str = f"{float(inference_time):.2f}s" if inference_time is not None else "N/A"
+            inference_time = sample.get("metadata", {}).get(
+                "evaluation_duration_seconds"
+            )
+        inference_time_str = (
+            f"{float(inference_time):.2f}s" if inference_time is not None else "N/A"
+        )
 
-        print(f"{name:<25} | Algorithmic: {a2ui_str:<4} | Judging: {qa_val:<2} | Inference Time: {inference_time_str}")
+        print(
+            f"{name:<25} | Algorithmic: {a2ui_str:<4} | Judging: {qa_val:<2} |"
+            f" Inference Time: {inference_time_str}"
+        )
 
         if not a2ui_passed or qa_val != "C":
             if not a2ui_passed:
                 print(f"  [Algorithmic Failure Reason]:")
-                expl = a2ui_score.get('explanation') or "No explanation provided."
+                expl = a2ui_score.get("explanation") or "No explanation provided."
                 for line in expl.splitlines():
                     print(f"    {line}")
             if qa_val != "C":
                 print(f"  [Judging Failure Reason (Grade {qa_val})]:")
-                expl = qa_score.get('explanation') or "No explanation provided."
+                expl = qa_score.get("explanation") or "No explanation provided."
                 for line in expl.splitlines():
                     print(f"    {line}")
 
@@ -100,11 +108,16 @@ def print_results_summary(log_data: dict):
     if durations:
         avg_duration = statistics.mean(durations)
         med_duration = statistics.median(durations)
-        print(f"Inference Time - Average: {avg_duration:.2f}s | Median: {med_duration:.2f}s")
+        print(
+            f"Inference Time - Average: {avg_duration:.2f}s | Median:"
+            f" {med_duration:.2f}s"
+        )
         print("==================================")
 
 
-def generate_markdown_summary(log_data: dict, accuracy_percentage: float, threshold: float) -> str:
+def generate_markdown_summary(
+    log_data: dict, accuracy_percentage: float, threshold: float
+) -> str:
     """Generates a markdown summary of the evaluation results.
 
     Args:
@@ -125,7 +138,10 @@ def generate_markdown_summary(log_data: dict, accuracy_percentage: float, thresh
     lines.append(f"### Evaluation Summary: {task_name}")
     lines.append(f"- **Status**: {status_str}")
     lines.append(f"- **Model**: `{model_name}`")
-    lines.append(f"- **Pass Percentage**: `{accuracy_percentage:.2f}%` (Threshold: `{threshold:.2f}%`)")
+    lines.append(
+        f"- **Pass Percentage**: `{accuracy_percentage:.2f}%` (Threshold:"
+        f" `{threshold:.2f}%`)"
+    )
     lines.append("")
     lines.append("#### Sample Results")
     lines.append("| Sample / Task | Algorithmic | Judging | Inference Time | Status |")
@@ -148,16 +164,27 @@ def generate_markdown_summary(log_data: dict, accuracy_percentage: float, thresh
         qa_val = qa_score.get("value", "N/A")
 
         inference_time = sample.get("metadata", {}).get("evaluation_duration_seconds")
-        inference_time_str = f"{float(inference_time):.2f}s" if inference_time is not None else "N/A"
+        inference_time_str = (
+            f"{float(inference_time):.2f}s" if inference_time is not None else "N/A"
+        )
 
         # Overall sample status
         sample_passed = a2ui_passed and qa_val == "C"
         sample_status_str = "PASS" if sample_passed else "FAIL"
 
-        lines.append(f"| {name} | {a2ui_str} | {qa_val} | {inference_time_str} | {sample_status_str} |")
+        lines.append(
+            f"| {name} | {a2ui_str} | {qa_val} | {inference_time_str} |"
+            f" {sample_status_str} |"
+        )
 
         if not sample_passed:
-            failures.append((name, a2ui_passed, a2ui_score.get('explanation'), qa_val, qa_score.get('explanation')))
+            failures.append((
+                name,
+                a2ui_passed,
+                a2ui_score.get("explanation"),
+                qa_val,
+                qa_score.get("explanation"),
+            ))
 
     lines.append("")
 
@@ -199,7 +226,9 @@ def load_log_data(log_path: str) -> dict:
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Report results from an Inspect AI eval log file.")
+    parser = argparse.ArgumentParser(
+        description="Report results from an Inspect AI eval log file."
+    )
     parser.add_argument("log", type=str, help="Path to the .eval log file.")
     args = parser.parse_args()
 
@@ -230,6 +259,7 @@ def main():
     except Exception as e:
         print(f"Error processing log file: {e}")
         sys.exit(1)
+
 
 if __name__ == "__main__":
     main()

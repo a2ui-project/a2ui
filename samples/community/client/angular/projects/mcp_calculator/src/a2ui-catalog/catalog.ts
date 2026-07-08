@@ -14,62 +14,41 @@
  * limitations under the License.
  */
 
-import {Catalog} from '@a2ui/angular';
-import {inputBinding} from '@angular/core';
+import {Catalog} from '@a2ui/web_core/v0_9';
+import {z} from 'zod';
+import {McpApp} from './mcp-app';
+import {PongScoreBoard} from './pong-scoreboard';
+import {PongLayout} from './pong-layout';
+import {Column} from '@a2ui/angular';
 
-export const DEMO_CATALOG = {
-  McpApp: {
-    type: () => import('./mcp-app').then(r => r.McpApp),
-    bindings: ({properties}) => [
-      inputBinding(
-        'content',
-        () => ('content' in properties && properties['content']) || undefined,
-      ),
-      inputBinding('title', () => ('title' in properties && properties['title']) || undefined),
-    ],
-  },
-  PongScoreBoard: {
-    type: () => import('./pong-scoreboard').then(r => r.PongScoreBoard),
-    bindings: ({properties}) => [
-      inputBinding(
-        'playerScore',
-        () => ('playerScore' in properties && properties['playerScore']) || undefined,
-      ),
-      inputBinding(
-        'cpuScore',
-        () => ('cpuScore' in properties && properties['cpuScore']) || undefined,
-      ),
-    ],
-  },
-  PongLayout: {
-    type: () => import('./pong-layout').then(r => r.PongLayout),
-    bindings: ({properties}) => [
-      inputBinding(
-        'mcpComponent',
-        () => ('mcpComponent' in properties && properties['mcpComponent']) || undefined,
-      ),
-      inputBinding(
-        'scoreboardComponent',
-        () =>
-          ('scoreboardComponent' in properties && properties['scoreboardComponent']) || undefined,
-      ),
-    ],
-  },
-  Column: {
-    type: () => import('@a2ui/angular').then(r => r.Column),
-    bindings: ({properties}) => [
-      inputBinding(
-        'alignment',
-        () => ('alignment' in properties && properties['alignment']) || undefined,
-      ),
-      inputBinding(
-        'distribution',
-        () => ('distribution' in properties && properties['distribution']) || undefined,
-      ),
-      inputBinding(
-        'children',
-        () => ('children' in properties && properties['children']) || undefined,
-      ),
-    ],
-  },
-} as Catalog;
+/**
+ * The catalog ID for the MCP App catalog.
+ * Defined in: samples/community/agent/adk/mcp_app_proxy/catalogs/0.9/mcp_app_catalog.json
+ */
+export const MCP_APP_CATALOG_ID = 'a2ui.org:a2ui/v0.9/mcp_app_catalog.json';
+
+const McpAppSchema = z.object({
+  content: z.union([z.string(), z.object({id: z.string()})]).optional(),
+  allowedTools: z.array(z.string()).optional(),
+  title: z.string().optional(),
+});
+
+const PongScoreBoardSchema = z.object({
+  playerScore: z.number().optional(),
+  cpuScore: z.number().optional(),
+});
+
+const PongLayoutSchema = z.object({
+  mcpComponent: z.string().optional(),
+  scoreboardComponent: z.string().optional(),
+});
+
+export const DEMO_CATALOG = new Catalog(MCP_APP_CATALOG_ID, [
+  {name: 'McpApp', component: McpApp, schema: McpAppSchema},
+  {name: 'PongScoreBoard', component: PongScoreBoard, schema: PongScoreBoardSchema},
+  {name: 'PongLayout', component: PongLayout, schema: PongLayoutSchema},
+  // Column should use ColumnApi.schema from @a2ui/web_core, but it is not currently
+  // exported by the version of @a2ui/web_core resolved in this community sample.
+  // We use z.any() to avoid duplicating the schema definition here.
+  {name: 'Column', component: Column, schema: z.any()},
+]);

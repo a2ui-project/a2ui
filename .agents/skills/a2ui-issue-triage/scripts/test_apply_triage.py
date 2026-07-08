@@ -22,11 +22,12 @@ import subprocess
 
 import apply_triage
 
+
 class TestApplyTriage(unittest.TestCase):
 
-    @patch('argparse.ArgumentParser.parse_args')
-    @patch('apply_triage.run_cmd')
-    @patch('os.path.exists')
+    @patch("argparse.ArgumentParser.parse_args")
+    @patch("apply_triage.run_cmd")
+    @patch("os.path.exists")
     def test_apply_triage_flow(self, mock_exists, mock_run, mock_parse_args):
         # Mock arguments
         mock_args = MagicMock()
@@ -44,7 +45,7 @@ class TestApplyTriage(unittest.TestCase):
                     "assignee": "gspencer",
                     "action": "investigate",
                     "labels": ["component: core"],
-                    "reply": "Working on it"
+                    "reply": "Working on it",
                 },
                 {
                     "id": 102,
@@ -53,13 +54,9 @@ class TestApplyTriage(unittest.TestCase):
                     "assignee": "",
                     "action": "close_duplicate",
                     "labels": [],
-                    "reply": ""
+                    "reply": "",
                 },
-                {
-                    "id": 103,
-                    "approved": False, # Not approved
-                    "priority": "P2"
-                }
+                {"id": 103, "approved": False, "priority": "P2"},  # Not approved
             ]
         }
 
@@ -67,7 +64,9 @@ class TestApplyTriage(unittest.TestCase):
         def run_cmd_side_effect(args):
             cmd_str = " ".join(args)
             if "view 101 --json labels" in cmd_str:
-                return json.dumps({"labels": [{"name": "P1"}, {"name": "component: core"}]})
+                return json.dumps(
+                    {"labels": [{"name": "P1"}, {"name": "component: core"}]}
+                )
             elif "view 101 --json comments" in cmd_str:
                 return json.dumps({"comments": []})
             elif "view 102 --json labels" in cmd_str:
@@ -77,7 +76,7 @@ class TestApplyTriage(unittest.TestCase):
         mock_run.side_effect = run_cmd_side_effect
 
         m_open = mock_open(read_data=json.dumps(mock_decisions_data))
-        with patch('apply_triage.open', m_open):
+        with patch("apply_triage.open", m_open):
             with self.assertRaises(SystemExit) as cm:
                 apply_triage.main()
 
@@ -90,19 +89,25 @@ class TestApplyTriage(unittest.TestCase):
             call(["gh", "issue", "edit", "101", "--add-label", "P0"]),
             call(["gh", "issue", "edit", "101", "--add-assignee", "gspencer"]),
             call(["gh", "issue", "view", "101", "--json", "comments"]),
-            call(["gh", "issue", "comment", "101", "--body", "A2UI Triage: Working on it"]),
-
+            call([
+                "gh",
+                "issue",
+                "comment",
+                "101",
+                "--body",
+                "A2UI Triage: Working on it",
+            ]),
             call(["gh", "issue", "view", "102", "--json", "labels"]),
             call(["gh", "issue", "edit", "102", "--remove-label", "P3"]),
-            call(["gh", "issue", "close", "102", "--reason", "duplicate"])
+            call(["gh", "issue", "close", "102", "--reason", "duplicate"]),
         ]
         mock_run.assert_has_calls(expected_calls, any_order=False)
 
-    @patch('os.path.exists')
-    @patch('argparse.ArgumentParser.parse_args')
+    @patch("os.path.exists")
+    @patch("argparse.ArgumentParser.parse_args")
     def test_decisions_file_not_exists(self, mock_parse_args, mock_exists):
         mock_exists.return_value = False
-        
+
         mock_args = MagicMock()
         mock_args.decisions_file = "/mock/non_existent.json"
         mock_parse_args.return_value = mock_args
@@ -112,9 +117,9 @@ class TestApplyTriage(unittest.TestCase):
             apply_triage.main()
         self.assertEqual(cm.exception.code, 1)
 
-    @patch('argparse.ArgumentParser.parse_args')
-    @patch('apply_triage.run_cmd')
-    @patch('os.path.exists')
+    @patch("argparse.ArgumentParser.parse_args")
+    @patch("apply_triage.run_cmd")
+    @patch("os.path.exists")
     def test_labels_parse_error_fallback(self, mock_exists, mock_run, mock_parse_args):
         mock_exists.return_value = True
         mock_args = MagicMock()
@@ -122,17 +127,15 @@ class TestApplyTriage(unittest.TestCase):
         mock_parse_args.return_value = mock_args
 
         mock_decisions_data = {
-            "decisions": [
-                {
-                    "id": 105,
-                    "approved": True,
-                    "priority": "P2",
-                    "assignee": "",
-                    "action": "investigate",
-                    "labels": [],
-                    "reply": ""
-                }
-            ]
+            "decisions": [{
+                "id": 105,
+                "approved": True,
+                "priority": "P2",
+                "assignee": "",
+                "action": "investigate",
+                "labels": [],
+                "reply": "",
+            }]
         }
 
         # Mock labels query to return invalid JSON
@@ -141,10 +144,11 @@ class TestApplyTriage(unittest.TestCase):
             if "view 105 --json labels" in cmd_str:
                 return "invalid-json-response"
             return ""
+
         mock_run.side_effect = run_cmd_side_effect
 
         m_open = mock_open(read_data=json.dumps(mock_decisions_data))
-        with patch('apply_triage.open', m_open):
+        with patch("apply_triage.open", m_open):
             with self.assertRaises(SystemExit) as cm:
                 apply_triage.main()
 
@@ -152,27 +156,27 @@ class TestApplyTriage(unittest.TestCase):
         # It should fallback to treating current labels as empty and successfully add P2
         mock_run.assert_any_call(["gh", "issue", "edit", "105", "--add-label", "P2"])
 
-    @patch('argparse.ArgumentParser.parse_args')
-    @patch('apply_triage.run_cmd')
-    @patch('os.path.exists')
-    def test_apply_triage_comment_already_posted(self, mock_exists, mock_run, mock_parse_args):
+    @patch("argparse.ArgumentParser.parse_args")
+    @patch("apply_triage.run_cmd")
+    @patch("os.path.exists")
+    def test_apply_triage_comment_already_posted(
+        self, mock_exists, mock_run, mock_parse_args
+    ):
         mock_exists.return_value = True
         mock_args = MagicMock()
         mock_args.decisions_file = "/mock/triage_decisions.json"
         mock_parse_args.return_value = mock_args
 
         mock_decisions_data = {
-            "decisions": [
-                {
-                    "id": 110,
-                    "approved": True,
-                    "priority": "None",
-                    "assignee": "",
-                    "action": "investigate",
-                    "labels": [],
-                    "reply": "We are on it"
-                }
-            ]
+            "decisions": [{
+                "id": 110,
+                "approved": True,
+                "priority": "None",
+                "assignee": "",
+                "action": "investigate",
+                "labels": [],
+                "reply": "We are on it",
+            }]
         }
 
         # Mock comments query to return comments containing the exact branded draft reply
@@ -181,18 +185,13 @@ class TestApplyTriage(unittest.TestCase):
             if "view 110 --json labels" in cmd_str:
                 return json.dumps({"labels": []})
             elif "view 110 --json comments" in cmd_str:
-                return json.dumps({
-                    "comments": [
-                        {
-                            "body": "A2UI Triage: We are on it"
-                        }
-                    ]
-                })
+                return json.dumps({"comments": [{"body": "A2UI Triage: We are on it"}]})
             return ""
+
         mock_run.side_effect = run_cmd_side_effect
 
         m_open = mock_open(read_data=json.dumps(mock_decisions_data))
-        with patch('apply_triage.open', m_open):
+        with patch("apply_triage.open", m_open):
             with self.assertRaises(SystemExit) as cm:
                 apply_triage.main()
 
@@ -201,9 +200,9 @@ class TestApplyTriage(unittest.TestCase):
         for call_args in mock_run.call_args_list:
             self.assertNotIn("comment", call_args[0])
 
-    @patch('argparse.ArgumentParser.parse_args')
-    @patch('apply_triage.run_cmd')
-    @patch('os.path.exists')
+    @patch("argparse.ArgumentParser.parse_args")
+    @patch("apply_triage.run_cmd")
+    @patch("os.path.exists")
     def test_apply_triage_actions(self, mock_exists, mock_run, mock_parse_args):
         mock_exists.return_value = True
         mock_args = MagicMock()
@@ -220,7 +219,7 @@ class TestApplyTriage(unittest.TestCase):
                     "assignee": "",
                     "action": "close_invalid",
                     "labels": [],
-                    "reply": ""
+                    "reply": "",
                 },
                 {
                     "id": 112,
@@ -229,27 +228,33 @@ class TestApplyTriage(unittest.TestCase):
                     "assignee": "",
                     "action": "close_resolved",
                     "labels": [],
-                    "reply": ""
-                }
+                    "reply": "",
+                },
             ]
         }
 
         mock_run.return_value = "{}"
 
         m_open = mock_open(read_data=json.dumps(mock_decisions_data))
-        with patch('apply_triage.open', m_open):
+        with patch("apply_triage.open", m_open):
             with self.assertRaises(SystemExit) as cm:
                 apply_triage.main()
 
         self.assertEqual(cm.exception.code, 0)
         # Verify close reasons passed: close_invalid -> "not planned", close_resolved -> "completed"
-        mock_run.assert_any_call(["gh", "issue", "close", "111", "--reason", "not planned"])
-        mock_run.assert_any_call(["gh", "issue", "close", "112", "--reason", "completed"])
+        mock_run.assert_any_call(
+            ["gh", "issue", "close", "111", "--reason", "not planned"]
+        )
+        mock_run.assert_any_call(
+            ["gh", "issue", "close", "112", "--reason", "completed"]
+        )
 
-    @patch('argparse.ArgumentParser.parse_args')
-    @patch('apply_triage.run_cmd')
-    @patch('os.path.exists')
-    def test_apply_triage_failure_accumulation(self, mock_exists, mock_run, mock_parse_args):
+    @patch("argparse.ArgumentParser.parse_args")
+    @patch("apply_triage.run_cmd")
+    @patch("os.path.exists")
+    def test_apply_triage_failure_accumulation(
+        self, mock_exists, mock_run, mock_parse_args
+    ):
         mock_exists.return_value = True
         mock_args = MagicMock()
         mock_args.decisions_file = "/mock/triage_decisions.json"
@@ -265,7 +270,7 @@ class TestApplyTriage(unittest.TestCase):
                     "assignee": "",
                     "action": "investigate",
                     "labels": [],
-                    "reply": ""
+                    "reply": "",
                 },
                 {
                     "id": 202,
@@ -274,8 +279,8 @@ class TestApplyTriage(unittest.TestCase):
                     "assignee": "",
                     "action": "investigate",
                     "labels": [],
-                    "reply": ""
-                }
+                    "reply": "",
+                },
             ]
         }
 
@@ -283,12 +288,15 @@ class TestApplyTriage(unittest.TestCase):
         def run_cmd_side_effect(args):
             cmd_str = " ".join(args)
             if "201" in cmd_str and "edit" in cmd_str:
-                raise subprocess.CalledProcessError(returncode=1, cmd=args, stderr="API Error")
+                raise subprocess.CalledProcessError(
+                    returncode=1, cmd=args, stderr="API Error"
+                )
             return "{}"
+
         mock_run.side_effect = run_cmd_side_effect
 
         m_open = mock_open(read_data=json.dumps(mock_decisions_data))
-        with patch('apply_triage.open', m_open):
+        with patch("apply_triage.open", m_open):
             # The script should continue to process 202 and finally exit with code 1 due to 201's failure
             with self.assertRaises(SystemExit) as cm:
                 apply_triage.main()
@@ -299,5 +307,6 @@ class TestApplyTriage(unittest.TestCase):
         mock_run.assert_any_call(["gh", "issue", "view", "202", "--json", "labels"])
         mock_run.assert_any_call(["gh", "issue", "edit", "202", "--add-label", "P2"])
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     unittest.main()

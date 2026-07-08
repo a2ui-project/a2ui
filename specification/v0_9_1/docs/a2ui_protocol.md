@@ -181,7 +181,7 @@ This message signals the client to create a new surface and begin rendering it. 
 **Properties:**
 
 - `surfaceId` (string, required): The unique identifier for the UI surface to be rendered.
-- `catalogId` (string, required): A string that uniquely identifies the catalog (components and functions) used for this surface. It is recommended to prefix this with an internet domain that you own, to avoid conflicts (e.g., `https://mycompany.com/1.0/somecatalog`). If it is a URL, the URL does not need to have any deployed resources, it is simply a unique identifier.
+- `catalogId` (string, required): A string that uniquely identifies the catalog (components and functions) used for this surface. Note that `catalogId` is a string identifier, not a resolvable URI; while it is conventionally formatted as a URI (e.g., `https://mycompany.com/1.0/somecatalog`) to avoid naming collisions across organizations, it does not need to point to any deployed resource or downloadable file. Client and server developers must agree on shared catalogs with well-known IDs in order to build systems that are compatible with each other.
 - `theme` (object, optional): A JSON object containing theme parameters (e.g., `primaryColor`) defined in the catalog's theme schema.
 - `sendDataModel` (boolean, optional): If true, the client will send the full data model of this surface in the metadata of every message sent to the server (via the Transport's metadata mechanism). This ensures the surface owner receives the full current state of the UI alongside the user's action or query. Defaults to false.
 
@@ -308,6 +308,12 @@ This structure is designed to be both flexible and strictly validated.
 ### The component catalog
 
 The set of available UI components and functions is defined in a **Catalog**. The basic catalog is defined in [`catalogs/basic/catalog.json`]. While the Basic Catalog is useful for starting out, most production applications will define their own catalog to reflect their specific design system. The server must generate messages that conform to the catalog understood by the client.
+
+#### Catalog Identification & Compatibility
+
+Each catalog is identified by a `catalogId` string. The `catalogId` is a string identifier used for matching catalogs between the client and server. While it is conventional to format catalog IDs as URIs (e.g., `https://mycompany.com/catalogs/v1`) to prevent naming collisions across organizations, a `catalogId` is not required to be a resolvable network resource.
+
+It is up to client and server developers to agree on shared catalogs with well-known IDs in order to build systems that are compatible with each other.
 
 ### UI composition: the adjacency list model
 
@@ -837,7 +843,7 @@ The `a2uiClientCapabilities` object in the A2A `Message`'s `metadata` field foll
 
 **Properties:**
 
-- `supportedCatalogIds` (array of strings, required): URIs of supported catalogs.
+- `supportedCatalogIds` (array of strings, required): String identifiers of supported catalogs.
 - `inlineCatalogs`: An array of inline catalog definitions provided directly by the client (useful for custom or ad-hoc components and functions).
 
 #### Client data model

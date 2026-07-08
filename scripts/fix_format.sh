@@ -34,56 +34,33 @@ fi
 REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$REPO_ROOT"
 
-echo "Running Prettier formatting for Node/Web assets..."
+YARN_CMD=(yarn)
 if command -v corepack >/dev/null 2>&1; then
-  corepack enable 2>/dev/null || true
+  YARN_CMD=(corepack yarn)
 fi
+
+echo "Running Prettier formatting for Node/Web assets..."
 if [ -f ".yarn/install-state.gz" ]; then
   # Local Node environment already installed; invoke standard script targets
   if [ "$CHECK_ONLY" = true ]; then
-    yarn format:check:all
+    "${YARN_CMD[@]}" format:check:all
   else
-    yarn format:all
+    "${YARN_CMD[@]}" format:all
   fi
 else
   # Non-Node contributor or CI; run standalone Prettier via dlx without full monorepo install
   if [ "$CHECK_ONLY" = true ]; then
-    yarn dlx prettier@3.8.4 --config .prettierrc --check .
+    "${YARN_CMD[@]}" dlx prettier@3.8.4 --config .prettierrc --check .
   else
-    yarn dlx prettier@3.8.4 --config .prettierrc --write .
+    "${YARN_CMD[@]}" dlx prettier@3.8.4 --config .prettierrc --write .
   fi
 fi
 
-echo "Running Pyink for Python Agent SDK..."
-cd "$REPO_ROOT/agent_sdks/python/a2ui_agent" || exit 1
+echo "Running Pyink for Python files..."
 if [ "$CHECK_ONLY" = true ]; then
   uv run pyink --check .
 else
   uv run pyink .
-fi
-
-echo "Running Pyink for Python Core SDK..."
-cd "$REPO_ROOT/agent_sdks/python/a2ui_core" || exit 1
-if [ "$CHECK_ONLY" = true ]; then
-  uv run pyink --check .
-else
-  uv run pyink .
-fi
-
-echo "Running Pyink for Python Samples..."
-cd "$REPO_ROOT/samples/agent/adk"
-if [ "$CHECK_ONLY" = true ]; then
-  uv run pyink --check .
-else
-  uv run pyink .
-fi
-
-echo "Running Pyink for Python Specification Proposals..."
-cd "$REPO_ROOT"
-if [ "$CHECK_ONLY" = true ]; then
-  uv run --with pyink pyink --check "$REPO_ROOT/specification/proposals"
-else
-  uv run --with pyink pyink "$REPO_ROOT/specification/proposals"
 fi
 
 echo "Running Dart format..."
@@ -114,9 +91,9 @@ if command -v dart >/dev/null 2>&1; then
   fi
 
   if [ "$CHECK_ONLY" = true ]; then
-    dart format --output=none --set-exit-if-changed .
+    dart format --output=none --set-exit-if-changed samples/client/flutter renderers/flutter
   else
-    dart format .
+    dart format samples/client/flutter renderers/flutter
   fi
 else
   echo "Warning: dart command not found. Skipping Dart formatting."

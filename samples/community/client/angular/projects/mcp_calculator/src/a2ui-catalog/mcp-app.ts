@@ -14,9 +14,7 @@
  limitations under the License.
  */
 
-import {DynamicComponent} from '@a2ui/angular';
-import * as Primitives from '@a2ui/web_core/types/primitives';
-import * as Types from '@a2ui/web_core/types/types';
+import {CatalogComponent, A2uiRendererService} from '@a2ui/angular/v0_9';
 import {
   AppBridge,
   PostMessageTransport,
@@ -29,7 +27,6 @@ import {
   effect,
   ElementRef,
   inject,
-  input,
   OnDestroy,
   OnInit,
   signal,
@@ -68,21 +65,31 @@ import {DomSanitizer, SafeResourceUrl} from '@angular/platform-browser';
     }
   `,
 })
-export class McpApp extends DynamicComponent<Types.CustomNode> implements OnDestroy, OnInit {
+export class McpApp extends CatalogComponent<any> implements OnDestroy, OnInit {
   private readonly sanitizer = inject(DomSanitizer);
+  private readonly rendererService = inject(A2uiRendererService);
 
-  readonly content = input.required<Primitives.StringValue | null>();
   protected readonly resolvedContent = computed<string | null>(() => {
-    let rawContent = super.resolvePrimitive(this.content() ?? null);
-    if (rawContent && rawContent.startsWith('url_encoded:')) {
+    const boundProp = this.props()['content']?.value() ?? null;
+    console.log('[McpApp] boundProp:', boundProp);
+    let rawContent: any = boundProp;
+    if (boundProp && typeof boundProp === 'object' && 'id' in boundProp) {
+      rawContent = boundProp.id;
+    }
+    if (rawContent && typeof rawContent === 'string' && rawContent.startsWith('url_encoded:')) {
       rawContent = decodeURIComponent(rawContent.substring(12));
     }
-    return rawContent;
+    console.log(
+      '[McpApp] resolvedContent:',
+      rawContent ? rawContent.substring(0, 100) + '...' : null,
+    );
+    return typeof rawContent === 'string' ? rawContent : null;
   });
 
   private readonly contentUpdate = effect(() => {
     const rawContent = this.resolvedContent();
     const bridge = this.appBridge();
+    console.log('[McpApp] contentUpdate effect - bridge:', !!bridge, 'hasContent:', !!rawContent);
     if (bridge && rawContent) {
       bridge
         .sendSandboxResourceReady({
@@ -93,10 +100,11 @@ export class McpApp extends DynamicComponent<Types.CustomNode> implements OnDest
     }
   });
 
-  readonly allowedTools = input<string[]>([]);
-  readonly title = input<Primitives.StringValue | null>();
-  protected readonly resolvedTitle = computed<string | null>(() =>
-    super.resolvePrimitive(this.title() ?? null),
+  protected readonly allowedTools = computed<string[]>(
+    () => this.props()['allowedTools']?.value() || [],
+  );
+  protected readonly resolvedTitle = computed<string | null>(
+    () => this.props()['title']?.value() ?? null,
   );
 
   protected readonly iframeSrc = signal<SafeResourceUrl | null>(
@@ -202,29 +210,17 @@ export class McpApp extends DynamicComponent<Types.CustomNode> implements OnDest
         throw new Error(`Tool '${params.name}' not allowed`);
       }
 
-      const args = params.arguments || {};
-
-      // Map arguments to A2UI Action context
-      const context: any[] = [];
-      for (const [key, value] of Object.entries(args)) {
-        if (typeof value === 'number') {
-          context.push({key, value: {literalNumber: value}});
-        } else if (typeof value === 'string') {
-          context.push({key, value: {literalString: value}});
-        } else if (typeof value === 'boolean') {
-          context.push({key, value: {literalBoolean: value}});
-        }
+      const surface = this.rendererService.surfaceGroup.getSurface(this.surfaceId());
+      if (surface) {
+        const action = {
+          event: {
+            name: params.name,
+            context: params.arguments || {},
+          },
+        };
+        console.log('Sending action:', action);
+        surface.dispatchAction(action, this.componentId());
       }
-
-      const action: Types.Action = {
-        name: params.name,
-        context: context.length > 0 ? context : undefined,
-      };
-
-      console.log('Sending action:', action);
-
-      // Dispatch action asynchronously to the host/agent
-      super.sendAction(action).catch(err => console.error('Failed to send action:', err));
 
       // Return empty result immediately (calculator UI can forget about it)
       return {content: []};

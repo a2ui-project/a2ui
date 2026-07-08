@@ -16,9 +16,9 @@
 
 
 class SurfaceOperation:
-  """Standard A2UI v1.0 surface operation envelope keys."""
+    """Standard A2UI v1.0 surface operation envelope keys."""
 
-  CREATE = "createSurface"
-  DELETE = "deleteSurface"
-  UPDATE_DATA = "updateDataModel"
-  CALL_FUNC = "callFunction"
+    CREATE = "createSurface"
+    DELETE = "deleteSurface"
+    UPDATE_DATA = "updateDataModel"
+    CALL_FUNC = "callFunction"

@@ -93,18 +93,18 @@ This feature configures the A2UI settings for the chat canvas, specifically prov
 
 #### `usingA2uiRenderers`
 
-The `usingA2uiRenderers` function configures the A2UI library. It accepts an optional Catalog (which is merged with the default A2UI catalog) and an optional `Theme`.
+The `usingA2uiRenderers` function configures the A2UI library. It supports configuring both the v0.8 and v0.9 rendering pipelines. It accepts an optional v0.8 Catalog (which is merged with the default A2UI catalog), an optional v0.9 Catalog, and an optional `Theme`.
 
 ```ts
 // app.config.ts
 import {configureChatCanvasFeatures, usingA2uiRenderers} from 'src/lib/config';
-import {MY_CUSTOM_CATALOG, MY_CUSTOM_THEME} from 'path/to/code';
+import {MY_CUSTOM_CATALOG_V08, MY_CUSTOM_CATALOG_V09, MY_CUSTOM_THEME} from 'path/to/code';
 
 export const appConfig: ApplicationConfig = {
   providers: [
     configureChatCanvasFeatures(
       // ...
-      usingA2uiRenderers(MY_CUSTOM_CATALOG, MY_CUSTOM_THEME),
+      usingA2uiRenderers(MY_CUSTOM_CATALOG_V08, MY_CUSTOM_CATALOG_V09, MY_CUSTOM_THEME),
       // ...
     ),
   ],
