@@ -70,3 +70,28 @@ class A2uiSubagentMap:
                 surface_id,
                 subagent_name,
             )
+
+    @classmethod
+    async def remove_subagent(
+        cls,
+        surface_id: str,
+        session_service: BaseSessionService,
+        session: Session,
+    ):
+        """Removes the subagent route for the given surface id."""
+        key = cls._get_key(surface_id)
+
+        if session.state.get(key) is not None:
+            await session_service.append_event(
+                session,
+                Event(
+                    invocation_id=new_invocation_context_id(),
+                    author="system",
+                    actions=EventActions(state_delta={key: None}),
+                ),
+            )
+
+            logging.info(
+                "Removed surface_id %s from subagent map",
+                surface_id,
+            )

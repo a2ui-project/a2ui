@@ -191,5 +191,39 @@ class TestOrchestratorAgentExecutor(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(error_json["error"]["surfaceId"], "surface_123")
         self.assertIn("surfaceId 'surface_123' already exists, surfaceIds must be globally unique", error_json["error"]["message"])
 
+    @patch("orchestrator_agent_executor.event_converter.convert_event_to_a2a_events")
+    @patch("orchestrator_agent_executor.is_a2ui_part")
+    @patch.object(A2uiSubagentMap, "remove_subagent")
+    def test_delete_surface_removes_from_map(self, mock_remove_subagent, mock_is_a2ui_part, mock_convert_events):
+        event = MagicMock()
+        event.author = "subagent_1"
+        
+        invocation_context = MagicMock()
+        
+        a2a_part_data = {
+            "deleteSurface": {
+                "surfaceId": "surface_to_delete"
+            }
+        }
+        dummy_a2a_part = DummyA2aPart(a2a_part_data)
+        
+        a2a_event = MagicMock()
+        a2a_event.metadata = {}
+        a2a_event.status.message.parts = [dummy_a2a_part]
+        
+        mock_convert_events.return_value = [a2a_event]
+        mock_is_a2ui_part.return_value = True
+        
+        result_events = OrchestratorAgentExecutor.convert_event_to_a2a_events_and_save_surface_id_to_subagent_name(
+            event, invocation_context
+        )
+        
+        # Verify remove_subagent was called
+        mock_remove_subagent.assert_called_once_with(
+            "surface_to_delete",
+            invocation_context.session_service,
+            invocation_context.session
+        )
+
 if __name__ == "__main__":
     unittest.main()
