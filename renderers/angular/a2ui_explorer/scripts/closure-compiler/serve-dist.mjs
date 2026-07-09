@@ -51,7 +51,7 @@ const server = http.createServer((req, res) => {
   let pathname = '/';
   try {
     pathname = decodeURIComponent(req.url.split('?')[0]);
-  } catch (e) {
+  } catch {
     res.writeHead(400, {'Content-Type': 'text/plain'});
     res.end('Bad Request: Malformed URI');
     return;
