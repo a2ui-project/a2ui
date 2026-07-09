@@ -72,13 +72,15 @@ class A2uiValidatorWrapper:
         root_id: Optional[str] = None,
         config: ValidationConfig = STRICT_VALIDATION,
     ) -> None:
+        target_ver = f"v{self._catalog.version}"
+        updated_config = config.model_copy(update={"target_version": target_ver})
         self._validator.validate(
             schema_validator=CatalogSchemaValidator(
                 self._catalog.core_catalog,
                 self._catalog.common_types_schema,
             ),
             a2ui_payload=a2ui_json,
-            config=config,
+            config=updated_config,
         )
 
 
@@ -100,12 +102,21 @@ class A2uiValidatorWrapperV10:
             if schema and "$id" in schema:
                 resources.append((schema["$id"], Resource.from_contents(schema)))
 
-        if cat and "$id" in cat:
-            resources.append((cat["$id"], Resource.from_contents(cat)))
+        if isinstance(cat, dict):
+            cat_copy = dict(cat)
+            if "$schema" not in cat_copy:
+                cat_copy["$schema"] = "https://json-schema.org/draft/2020-12/schema"
+            resources.append(("catalog.json", Resource.from_contents(cat_copy)))
             s2c_id = s2c.get("$id", "") if s2c else ""
             if s2c_id:
                 resolved_catalog_uri = urljoin(s2c_id, "catalog.json")
-                resources.append((resolved_catalog_uri, Resource.from_contents(cat)))
+                cat_copy_uri = dict(cat_copy)
+                cat_copy_uri["$id"] = resolved_catalog_uri
+                resources.append(
+                    (resolved_catalog_uri, Resource.from_contents(cat_copy_uri))
+                )
+            if "$id" in cat:
+                resources.append((cat["$id"], Resource.from_contents(cat_copy)))
 
         self._registry = Registry().with_resources(resources)
         self._wrapped_schema = {
