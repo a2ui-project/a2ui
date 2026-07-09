@@ -14,6 +14,11 @@
  * limitations under the License.
  */
 
+/**
+ * These playwright tests attempt to verify the a2ui_explorer when compiled with the closure compiler.
+ * See `scripts/closure-compiler/apply-closure-compiler.mjs` for compilation details, and
+ * `scripts/closure-compiler/serve-dist.mjs` for local serving details.
+ */
 import {test, expect, Page} from '@playwright/test';
 
 function setupErrorMonitoring(page: Page): string[] {
@@ -34,8 +39,9 @@ function setupErrorMonitoring(page: Page): string[] {
 }
 
 async function expectNoErrors(page: Page, errors: string[]): Promise<void> {
-  // Let Angular update the DOM after state changes, and the browser to flush console errors.
-  await page.waitForTimeout(50);
+  // Let the browser flush microtasks, change detection, and render the next frame
+  // before asserting against asynchronously collected console errors.
+  await page.evaluate(() => new Promise(requestAnimationFrame));
   expect(errors).toEqual([]);
 }
 
@@ -47,9 +53,6 @@ test('renders dynamic component inputs correctly in minified production build', 
 
   // Click on 'Simple Text' example in sidebar
   await page.locator('.sidebar .example-list li', {hasText: 'Simple Text'}).click();
-
-  // Check that there are no console errors immediately after action
-  await expectNoErrors(page, errors);
 
   // In production builds with unquoted keys, the props object passed to NgComponentOutlet
   // gets minified (e.g. { a: props }), causing inputs to be silently ignored.
@@ -69,10 +72,10 @@ test('supports interactive forms, updateDataModel, and two-way data binding in m
 
   // Click on 'Login Form with Validation' example in sidebar, which explicitly sends updateDataModel
   await page.locator('.sidebar .example-list li', {hasText: 'Login Form with Validation'}).click();
-  await expectNoErrors(page, errors);
 
   const canvas = page.locator('.rendered-content');
   await expect(canvas).toContainText('Welcome back');
+  await expectNoErrors(page, errors);
 
   // Exercise two-way data binding by typing into email and password fields
   const emailInput = page.locator('.rendered-content input').first();
@@ -98,10 +101,10 @@ test('supports string formatting and dynamic function evaluation in minified pro
 
   // Click on 'Formatted Text' example in sidebar
   await page.locator('.sidebar .example-list li', {hasText: 'Formatted Text'}).click();
-  await expectNoErrors(page, errors);
 
   const canvas = page.locator('.rendered-content');
   await expect(canvas).toContainText('Type something:');
+  await expectNoErrors(page, errors);
 
   const input = page.locator('.rendered-content input').first();
   await input.fill('hello world');
@@ -120,21 +123,17 @@ test('populates events log correctly when interacting with buttons in minified p
 
   // Click on 'Interactive Button' example in sidebar
   await page.locator('.sidebar .example-list li', {hasText: 'Interactive Button'}).click();
-  await expectNoErrors(page, errors);
 
   const canvas = page.locator('.rendered-content');
   await expect(canvas).toContainText('Click the button below');
+  await expectNoErrors(page, errors);
 
   // Click the button inside the rendered component
   await page.locator('.rendered-content button', {hasText: 'Click Me'}).click();
-  await expectNoErrors(page, errors);
 
   // Verify that an event was recorded and displayed with valid details in the log
   const logItem = page.locator('.events-section .log-item').first();
   await expect(logItem).toBeVisible();
-
-  console.log('LOG ITEM HTML:', await logItem.innerHTML());
-  console.log('LOG DETAILS:', await logItem.locator('.log-details').textContent());
 
   const logType = logItem.locator('.log-type');
   await expect(logType).toContainText('button_clicked');
@@ -150,17 +149,16 @@ test('renders Weather Current with date formatting in minified production build'
   page,
 }) => {
   const errors = setupErrorMonitoring(page);
-  page.on('console', msg => console.log('CON:', msg.type(), msg.text()));
 
   await page.goto('/');
   await expectNoErrors(page, errors);
 
   // Click on 'Weather Current' example in sidebar
   await page.locator('.sidebar .example-list li', {hasText: 'Weather Current'}).click();
-  await expectNoErrors(page, errors);
 
   const canvas = page.locator('.rendered-content');
   await expect(canvas).toContainText('Austin, TX');
+  await expectNoErrors(page, errors);
 
   // Check that day names (from formatDate function call) are rendered
   const hasDayName = await canvas.evaluate(el => {
@@ -190,7 +188,6 @@ test('renders Incremental example without errors in minified production build', 
     .locator('.sidebar .example-list li')
     .filter({has: page.locator('.ex-name', {hasText: /^Incremental$/})})
     .click();
-  await expectNoErrors(page, errors);
 
   const canvas = page.locator('.rendered-content');
   await expect(canvas).toContainText('The Golden Fork');

@@ -65,7 +65,7 @@
       ]
     },
     "test:closure-compiler": {
-      "command": "playwright test -c playwright.minified.config.ts",
+      "command": "playwright test -c playwright.closure-compiler.config.ts",
       "dependencies": [
         "build:closure-compiler"
       ]

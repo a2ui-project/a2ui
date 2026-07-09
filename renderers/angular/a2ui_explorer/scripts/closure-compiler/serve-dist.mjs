@@ -48,7 +48,15 @@ const mimeTypes = {
  * client-side Angular Router to initialize and resolve the route natively within the browser.
  */
 const server = http.createServer((req, res) => {
-  let filePath = path.join(distDir, req.url === '/' ? 'index.html' : req.url.split('?')[0]);
+  let pathname = '/';
+  try {
+    pathname = decodeURIComponent(req.url.split('?')[0]);
+  } catch (e) {
+    res.writeHead(400, {'Content-Type': 'text/plain'});
+    res.end('Bad Request: Malformed URI');
+    return;
+  }
+  let filePath = path.join(distDir, pathname === '/' ? 'index.html' : pathname);
   const relative = path.relative(distDir, filePath);
   const isSafe = !relative.startsWith('..') && !path.isAbsolute(relative);
   if (!isSafe || !fs.existsSync(filePath)) {
