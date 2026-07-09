@@ -22,26 +22,26 @@ import sys
 sys.path.insert(0, str(Path(__file__).parent.parent.resolve()))
 from assemble_catalog import CatalogAssembler, BASIC_CATALOG_URLS
 
+
 class TestAssembleCatalogV08(unittest.TestCase):
+
     def setUp(self):
         self.fixtures_dir = Path(__file__).parent / "fixtures"
-        self.standard_catalog_path = self.fixtures_dir / "v0_8_standard_catalog_definition.json"
+        self.standard_catalog_path = (
+            self.fixtures_dir / "v0_8_standard_catalog_definition.json"
+        )
         self.custom_catalog_path = self.fixtures_dir / "v0_8_custom_catalog.json"
 
     def test_v08_local_assembly(self):
         # Assemble v0.8 catalog, intercepting standard_catalog_definition locally
         assembler = CatalogAssembler(
-            version="0.8", 
-            local_basic_catalog_path=str(self.standard_catalog_path)
+            version="0.8", local_basic_catalog_path=str(self.standard_catalog_path)
         )
-        result = assembler.assemble(
-            "TestV08Catalog", 
-            [str(self.custom_catalog_path)]
-        )
+        result = assembler.assemble("TestV08Catalog", [str(self.custom_catalog_path)])
 
         self.assertEqual(result["$id"], "TestV08Catalog.json")
         self.assertIn("CustomV08Component", result["components"])
-        
+
         # Verify theme (styles in v0.8)
         self.assertIn("theme", result["$defs"])
         theme_props = result["$defs"]["theme"]["properties"]
@@ -53,18 +53,14 @@ class TestAssembleCatalogV08(unittest.TestCase):
         defs_keys = list(result["$defs"].keys())
         self.assertTrue(any("basic_catalog_Text" in k for k in defs_keys))
 
-    @patch('assemble_catalog.urllib.request.urlopen')
+    @patch("assemble_catalog.urllib.request.urlopen")
     def test_v08_remote_fallback(self, mock_urlopen):
         # Mock the HTTP response for standard_catalog_definition.json
         mock_response = MagicMock()
         mock_response.read.return_value = json.dumps({
-            "components": {
-                "Text": {"type": "object"}
-            },
-            "styles": {
-                "primaryColor": {"type": "string"}
-            }
-        }).encode('utf-8')
+            "components": {"Text": {"type": "object"}},
+            "styles": {"primaryColor": {"type": "string"}},
+        }).encode("utf-8")
         mock_urlopen.return_value.__enter__.return_value = mock_response
 
         # Assemble without a local basic_catalog_path, it MUST fetch from HTTP
@@ -74,16 +70,21 @@ class TestAssembleCatalogV08(unittest.TestCase):
         # Assert urlopen was called with the 0.8 URL
         called_req = mock_urlopen.call_args[0][0]
         self.assertEqual(called_req.full_url, BASIC_CATALOG_URLS["0.8"])
-        self.assertIn("https://raw.githubusercontent.com/a2ui-project/a2ui/refs/heads/main/specification/v0_8/json/standard_catalog_definition.json", called_req.full_url)
+        self.assertIn(
+            "https://raw.githubusercontent.com/a2ui-project/a2ui/refs/heads/main/specification/v0_8/json/standard_catalog_definition.json",
+            called_req.full_url,
+        )
 
         self.assertIn("$defs", result)
         self.assertIn("theme", result["$defs"])
 
     def test_detect_local_overrides_v08(self):
         from assemble_catalog import detect_local_overrides
+
         inputs = ["/path/to/standard_catalog_definition.json", "other.json"]
         local_basic, local_common = detect_local_overrides(inputs)
         self.assertEqual(local_basic, "/path/to/standard_catalog_definition.json")
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     unittest.main()

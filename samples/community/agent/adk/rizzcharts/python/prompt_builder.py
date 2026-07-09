@@ -23,62 +23,62 @@ from agent import ROLE_DESCRIPTION, WORKFLOW_DESCRIPTION, UI_DESCRIPTION
 
 
 if __name__ == "__main__":
-  version = VERSION_0_9
-  schema_manager = A2uiSchemaManager(
-      version,
-      catalogs=[
-          CatalogConfig.from_path(
-              name="rizzcharts",
-              catalog_path="rizzcharts_catalog_definition.json",
-              examples_path=f"../examples/rizzcharts_catalog/{version}",
-          ),
-          BasicCatalog.get_config(
-              version=version,
-              examples_path=f"../examples/standard_catalog/{version}",
-          ),
-      ],
-      accepts_inline_catalogs=True,
-      schema_modifiers=[remove_strict_validation],
-  )
+    version = VERSION_0_9
+    schema_manager = A2uiSchemaManager(
+        version,
+        catalogs=[
+            CatalogConfig.from_path(
+                name="rizzcharts",
+                catalog_path="rizzcharts_catalog_definition.json",
+                examples_path=f"../examples/rizzcharts_catalog/{version}",
+            ),
+            BasicCatalog.get_config(
+                version=version,
+                examples_path=f"../examples/standard_catalog/{version}",
+            ),
+        ],
+        accepts_inline_catalogs=True,
+        schema_modifiers=[remove_strict_validation],
+    )
 
-  # Generate prompt for rizzcharts catalog
-  print("Building prompt and validating rizzcharts examples...")
-  system_prompt = schema_manager.generate_system_prompt(
-      role_description=ROLE_DESCRIPTION,
-      workflow_description=WORKFLOW_DESCRIPTION,
-      ui_description=UI_DESCRIPTION,
-      include_schema=True,
-      include_examples=True,
-      validate_examples=True,
-  )
+    # Generate prompt for rizzcharts catalog
+    print("Building prompt and validating rizzcharts examples...")
+    system_prompt = schema_manager.generate_system_prompt(
+        role_description=ROLE_DESCRIPTION,
+        workflow_description=WORKFLOW_DESCRIPTION,
+        ui_description=UI_DESCRIPTION,
+        include_schema=True,
+        include_examples=True,
+        validate_examples=True,
+    )
 
-  output = system_prompt
+    output = system_prompt
 
-  # Also validate standard catalog examples
-  print("Validating standard catalog examples...")
-  # We can trigger this by selecting the basic catalog
-  std_prompt = schema_manager.generate_system_prompt(
-      role_description=ROLE_DESCRIPTION,
-      workflow_description=WORKFLOW_DESCRIPTION,
-      ui_description=UI_DESCRIPTION,
-      client_ui_capabilities={
-          "supported_catalog_ids": [
-              "https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json"
-          ]
-      },
-      include_schema=False,
-      include_examples=True,
-      validate_examples=True,
-  )
+    # Also validate standard catalog examples
+    print("Validating standard catalog examples...")
+    # We can trigger this by selecting the basic catalog
+    std_prompt = schema_manager.generate_system_prompt(
+        role_description=ROLE_DESCRIPTION,
+        workflow_description=WORKFLOW_DESCRIPTION,
+        ui_description=UI_DESCRIPTION,
+        client_ui_capabilities={
+            "supported_catalog_ids": [
+                "https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json"
+            ]
+        },
+        include_schema=False,
+        include_examples=True,
+        validate_examples=True,
+    )
 
-  if std_prompt:
-    output += "\n\n### Standard Catalog Examples:\n"
-    # Find the start of examples in std_prompt
-    if "### Examples:" in std_prompt:
-      output += std_prompt.split("### Examples:")[1]
+    if std_prompt:
+        output += "\n\n### Standard Catalog Examples:\n"
+        # Find the start of examples in std_prompt
+        if "### Examples:" in std_prompt:
+            output += std_prompt.split("### Examples:")[1]
 
-  print(output)
+    print(output)
 
-  with open("generated_prompt.txt", "w") as f:
-    f.write(output)
-  print("\nGenerated prompt saved to generated_prompt.txt")
+    with open("generated_prompt.txt", "w") as f:
+        f.write(output)
+    print("\nGenerated prompt saved to generated_prompt.txt")

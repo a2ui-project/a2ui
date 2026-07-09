@@ -323,4 +323,41 @@ describe('DataModel', () => {
     assert.strictEqual(isDescendant('/user', '/'), true);
     assert.strictEqual(isDescendant('/', '/'), false);
   });
+
+  describe('JSON Pointer Escaping (RFC 6901)', () => {
+    it('handles escaped slashes (~1)', () => {
+      model.set('/user/detailed~1info', 'some info');
+      assert.strictEqual(model.get('/user/detailed~1info'), 'some info');
+
+      // Verify it was actually set as a key with a slash in the underlying object
+      const user = model.get('/user');
+      assert.strictEqual(user['detailed/info'], 'some info');
+      assert.strictEqual(user['detailed~1info'], undefined);
+    });
+
+    it('handles escaped tildes (~0)', () => {
+      model.set('/user/profile~0name', 'profile~name');
+      assert.strictEqual(model.get('/user/profile~0name'), 'profile~name');
+
+      const user = model.get('/user');
+      assert.strictEqual(user['profile~name'], 'profile~name');
+      assert.strictEqual(user['profile~0name'], undefined);
+    });
+
+    it('handles mixed escaped characters', () => {
+      model.set('/user/a~0b~1c', 'value');
+      assert.strictEqual(model.get('/user/a~0b~1c'), 'value');
+
+      const user = model.get('/user');
+      assert.strictEqual(user['a~b/c'], 'value');
+    });
+
+    it('handles escaped sequence order correctly (~01)', () => {
+      model.set('/user/a~01b', 'value');
+      assert.strictEqual(model.get('/user/a~01b'), 'value');
+
+      const user = model.get('/user');
+      assert.strictEqual(user['a~1b'], 'value');
+    });
+  });
 });

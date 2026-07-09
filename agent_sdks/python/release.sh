@@ -21,7 +21,43 @@ if [ -z "$1" ]; then
   exit 1
 fi
 
-SCRIPT_DIR=$(dirname "$(readlink -f "$0")")
+# Ensure we are in a clean git repository
+if ! git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+  echo "Error: This script must be run inside a git repository."
+  exit 1
+fi
+
+if ! git diff-index --quiet HEAD --; then
+  echo "Error: There are uncommitted changes in the repository. Please commit or stash them before releasing."
+  exit 1
+fi
+
+# Determine the remote name (prefer 'upstream' if it exists, fallback to 'origin')
+REMOTE_NAME="origin"
+if git remote | grep -q "^upstream$"; then
+  REMOTE_NAME="upstream"
+fi
+
+MAIN_BRANCH="main"
+
+echo "Checking synchronization with ${REMOTE_NAME}/${MAIN_BRANCH}..."
+if ! git fetch "${REMOTE_NAME}" "${MAIN_BRANCH}" --quiet 2>/dev/null; then
+  echo "Error: Failed to fetch from remote '${REMOTE_NAME}'."
+  exit 1
+fi
+
+if ! REMOTE_COMMIT=$(git rev-parse "${REMOTE_NAME}/${MAIN_BRANCH}" 2>/dev/null); then
+  echo "Error: Cannot find remote branch ${REMOTE_NAME}/${MAIN_BRANCH}."
+  exit 1
+fi
+
+LOCAL_COMMIT=$(git rev-parse HEAD)
+if [ "$LOCAL_COMMIT" != "$REMOTE_COMMIT" ]; then
+  echo "Error: Local HEAD is not in sync with ${REMOTE_NAME}/${MAIN_BRANCH}. Please push or merge your changes upstream first."
+  exit 1
+fi
+
+SCRIPT_DIR=$(cd "$(dirname "$0")" && pwd -P)
 TARGET_DIR="${SCRIPT_DIR}/${1}"
 
 if [ ! -d "$TARGET_DIR" ]; then
@@ -29,16 +65,20 @@ if [ ! -d "$TARGET_DIR" ]; then
   exit 1
 fi
 
-cd "$TARGET_DIR"
-
 # Read package name from pyproject.toml
-if [ ! -f "pyproject.toml" ]; then
+if [ ! -f "${TARGET_DIR}/pyproject.toml" ]; then
   echo "Error: pyproject.toml not found in '$TARGET_DIR'."
   exit 1
 fi
 
-PACKAGE_NAME=$(python3 -c "import tomllib; print(tomllib.load(open('pyproject.toml', 'rb'))['project']['name'])")
-VERSION=$(uv run --with hatch hatch version)
+WORKSPACE_ROOT="${SCRIPT_DIR}/../.."
+PACKAGE_NAME=$(python3 -c "import tomllib; print(tomllib.load(open('${TARGET_DIR}/pyproject.toml', 'rb'))['project']['name'])")
+
+echo "--- Syncing release tools at workspace root ---"
+uv sync --group release --directory "$WORKSPACE_ROOT"
+
+cd "$TARGET_DIR"
+VERSION=$(uv run hatch version)
 
 echo "Releasing package: $PACKAGE_NAME ($VERSION) from folder: $TARGET_DIR"
 
@@ -48,17 +88,15 @@ LOCATION="us"
 REPOSITORY_URL="https://us-python.pkg.dev/${PROJECT}/${REPOSITORY}"
 GCS_URI="gs://oss-exit-gate-prod-projects-bucket/a2ui/pypi/manifests"
 
-echo "--- Installing helper packages ---"
-uv tool install twine --with keyrings.google-artifactregistry-auth --with keyring
-uv tool install keyring --with keyrings.google-artifactregistry-auth
 
 echo "--- Building the package ---"
 rm -rf dist
-uv build
+# In a uv workspace, the default build output goes to the workspace root, but we want to scope it to the package directory.
+uv build --out-dir dist
 
 echo "--- Uploading the package ---"
-twine --version
-twine check dist/*
+uv run twine --version
+uv run twine check dist/*
 
 # Authenticate with Google Cloud
 if ! gcloud auth application-default print-access-token --quiet > /dev/null; then
@@ -72,7 +110,7 @@ if gcloud artifacts versions describe "$VERSION" --package="$PACKAGE_NAME" --rep
   exit 0
 fi
 
-twine upload --repository-url "$REPOSITORY_URL" dist/*
+uv run twine upload --repository-url "$REPOSITORY_URL" dist/*
 echo "Version $VERSION of $PACKAGE_NAME uploaded to Artifact Registry."
 
 echo "--- Creating manifest.json ---"

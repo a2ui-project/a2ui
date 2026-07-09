@@ -18,14 +18,14 @@ from typing import Any, Optional
 
 @dataclass
 class ResponsePart:
-  """Represents a part of the LLM response.
+    """Represents a part of the LLM response.
 
-  Attributes:
-      text: The conversational text part. Can be an empty string.
-      a2ui_json: The parsed A2UI JSON data, always a list of dictionaries if
-        it contains A2UI messages. None if this part only contains trailing
-        text.
-  """
+    Attributes:
+        text: The conversational text part. Can be an empty string.
+        a2ui_json: The parsed A2UI JSON data, always a list of dictionaries if
+          it contains A2UI messages. None if this part only contains trailing
+          text.
+    """
 
-  text: str = ""
-  a2ui_json: Optional[Any] = None
+    text: str = ""
+    a2ui_json: Optional[Any] = None

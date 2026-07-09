@@ -41,7 +41,7 @@ dependencies {
     implementation("com.google.genai:google-genai:1.43.0")
 
     // Google ADK Java SDK
-    implementation("com.google.adk:google-adk:0.9.0") {
+    implementation("com.google.adk:google-adk:1.5.0") {
         exclude(group = "org.slf4j", module = "slf4j-simple")
     }
 

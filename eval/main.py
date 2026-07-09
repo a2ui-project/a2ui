@@ -23,20 +23,68 @@ from a2ui_eval.strategies import STRATEGIES
 # Automatically override Inspect AI's connection rate-limiter limit to prevent queuing delays in latency measurements
 os.environ["INSPECT_MAX_CONNECTIONS"] = "50"
 
+
 def main():
     parser = argparse.ArgumentParser(description="Run A2UI evaluations")
-    parser.add_argument("--sanity", action="store_true", help="Run a quick sanity check (2 samples, gemini-3.1-flash-lite, 0 retry)")
-    parser.add_argument("--model", type=str, default="google/gemini-3.5-flash", help="Model used to evaluate tasks")
-    parser.add_argument("--grading-model", type=str, default="google/gemini-3.5-flash", help="Model used for grading")
-    parser.add_argument("--max-retries", type=int, default=0, help="Maximum number of retries")
-    parser.add_argument("--limit", type=int, default=None, help="Maximum number of samples to evaluate")
-    parser.add_argument("--log-dir", type=str, default="logs", help="Directory to save logs")
-    parser.add_argument("--sample-shuffle", type=int, default=None, help="Seed for shuffling samples")
-    parser.add_argument("--thinking-budget", type=int, default=None, help="Thinking budget for reasoning models")
-    parser.add_argument("--temperature", type=float, default=None, help="Generation temperature")
-    parser.add_argument("--max-tasks", type=int, default=None, help="Maximum number of concurrent tasks to execute")
-    parser.add_argument("--max-samples", type=int, default=None, help="Maximum number of concurrent samples to evaluate")
-    parser.add_argument("--strategies", type=str, action="append", help="Evaluation strategies to run (choices: direct, subagent_tool, express). Can be comma-separated or specified multiple times.")
+    parser.add_argument(
+        "--sanity",
+        action="store_true",
+        help="Run a quick sanity check (2 samples, gemini-3.1-flash-lite, 0 retry)",
+    )
+    parser.add_argument(
+        "--model",
+        type=str,
+        default="google/gemini-3.5-flash",
+        help="Model used to evaluate tasks",
+    )
+    parser.add_argument(
+        "--grading-model",
+        type=str,
+        default="google/gemini-3.5-flash",
+        help="Model used for grading",
+    )
+    parser.add_argument(
+        "--max-retries", type=int, default=0, help="Maximum number of retries"
+    )
+    parser.add_argument(
+        "--limit", type=int, default=None, help="Maximum number of samples to evaluate"
+    )
+    parser.add_argument(
+        "--log-dir", type=str, default="logs", help="Directory to save logs"
+    )
+    parser.add_argument(
+        "--sample-shuffle", type=int, default=None, help="Seed for shuffling samples"
+    )
+    parser.add_argument(
+        "--thinking-budget",
+        type=int,
+        default=None,
+        help="Thinking budget for reasoning models",
+    )
+    parser.add_argument(
+        "--temperature", type=float, default=None, help="Generation temperature"
+    )
+    parser.add_argument(
+        "--max-tasks",
+        type=int,
+        default=None,
+        help="Maximum number of concurrent tasks to execute",
+    )
+    parser.add_argument(
+        "--max-samples",
+        type=int,
+        default=None,
+        help="Maximum number of concurrent samples to evaluate",
+    )
+    parser.add_argument(
+        "--strategies",
+        type=str,
+        action="append",
+        help=(
+            "Evaluation strategies to run (choices: direct, subagent_tool, express)."
+            " Can be comma-separated or specified multiple times."
+        ),
+    )
     args = parser.parse_args()
 
     model = "google/gemini-3.1-flash-lite" if args.sanity else args.model
@@ -56,11 +104,18 @@ def main():
     tasks = []
     for strat in selected_strategies:
         if strat not in STRATEGIES:
-            raise ValueError(f"Unknown evaluation strategy: {strat}. Valid choices: {', '.join(STRATEGIES.keys())}")
+            raise ValueError(
+                f"Unknown evaluation strategy: {strat}. Valid choices:"
+                f" {', '.join(STRATEGIES.keys())}"
+            )
         if strat == "express":
-            tasks.append(a2ui_v1_0_eval(strategy=strat, grading_model=args.grading_model))
+            tasks.append(
+                a2ui_v1_0_eval(strategy=strat, grading_model=args.grading_model)
+            )
         else:
-            tasks.append(a2ui_v0_9_1_eval(strategy=strat, grading_model=args.grading_model))
+            tasks.append(
+                a2ui_v0_9_1_eval(strategy=strat, grading_model=args.grading_model)
+            )
 
     eval_set_kwargs = {
         "tasks": tasks,
@@ -68,7 +123,7 @@ def main():
         "log_dir": args.log_dir,
         "retry_attempts": retry_attempts,
         "limit": limit,
-        "sample_shuffle": sample_shuffle
+        "sample_shuffle": sample_shuffle,
     }
     model_args = {}
     if args.thinking_budget is not None:
@@ -87,8 +142,9 @@ def main():
     if not success:
         print("Evaluation returned failure status!")
         sys.exit(1)
-        
+
     print(f"\nEvaluations complete. Logs saved to: {os.path.abspath('logs')}")
+
 
 if __name__ == "__main__":
     main()

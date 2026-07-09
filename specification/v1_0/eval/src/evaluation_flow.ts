@@ -18,7 +18,6 @@ import {z} from 'genkit';
 import {ai} from './ai';
 import {rateLimiter} from './rateLimiter';
 import {logger} from './logger';
-import * as yaml from 'js-yaml';
 import {ProtocolSchemas} from './types';
 
 // Define an evaluation flow

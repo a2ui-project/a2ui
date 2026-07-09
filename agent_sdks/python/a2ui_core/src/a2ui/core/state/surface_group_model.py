@@ -20,7 +20,7 @@ from .surface_model import SurfaceModel
 class SurfaceGroupModel:
     """The global manager and lifecycle container for all surfaces."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.surfaces: Dict[str, SurfaceModel] = {}
         self._surface_unsubscribers: Dict[str, Subscription] = {}
 
