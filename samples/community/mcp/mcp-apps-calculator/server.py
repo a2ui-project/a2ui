@@ -31,144 +31,140 @@ from starlette.requests import Request
 )
 def main(port: int, transport: str) -> int:
 
-  app = Server("a2ui-mcp-calculator-demo")
+    app = Server("a2ui-mcp-calculator-demo")
 
-  @app.list_resources()
-  async def list_resources() -> list[types.Resource]:
-    return [
-        types.Resource(
-            uri="ui://calculator/app",
-            name="Calculator App",
-            mimeType="text/html;profile=mcp-app",
-            description="A simple calculator application",
-        )
-    ]
-
-  @app.read_resource()
-  async def read_resource(uri: str) -> str | bytes:
-    if str(uri) == "ui://calculator/app":
-      try:
-        return (pathlib.Path(__file__).parent / "apps" / "public" / "calculator.html").read_text()
-      except FileNotFoundError:
-        raise ValueError(f"Resource file not found for uri: {uri}")
-    raise ValueError(f"Unknown resource: {uri}")
-
-  @app.call_tool()
-  async def handle_call_tool(name: str, arguments: dict[str, Any]) -> dict[str, Any]:
-    if name == "calculate":
-      try:
-        operation = arguments.get("operation")
-        a = float(arguments.get("a"))
-        b = float(arguments.get("b"))
-        result = None
-        if operation == "add":
-          result = a + b
-        elif operation == "subtract":
-          result = a - b
-        elif operation == "multiply":
-          result = a * b
-        elif operation == "divide":
-          if b == 0:
-            raise ValueError("Division by zero")
-          result = a / b
-        else:
-          raise ValueError(f"Unknown operation: {operation}")
-        
-        symbols = {"add": "+", "subtract": "-", "multiply": "*", "divide": "/"}
-        symbol = symbols.get(operation, "?")
-        return {
-            "content": [
-                {
-                    "type": "text",
-                    "text": f"The calculation of {a} {symbol} {b} is {result}"
-                }
-            ]
-        }
-      except Exception as e:
-        return {
-            "content": [
-                {
-                    "type": "text",
-                    "text": f"Error: {str(e)}"
-                }
-            ],
-            "isError": True,
-        }
-
-    raise ValueError(f"Unknown tool: {name}")
-
-  @app.list_tools()
-  async def list_tools() -> list[types.Tool]:
-    return [
-        types.Tool(
-            name="calculate",
-            title="Calculate",
-            description="Performs a basic arithmetic calculation.",
-            inputSchema={
-                "type": "object",
-                "properties": {
-                    "operation": {
-                        "type": "string",
-                        "enum": ["add", "subtract", "multiply", "divide"],
-                        "description": "The math operation to perform."
-                    },
-                    "a": {
-                        "type": "number",
-                        "description": "The first operand."
-                    },
-                    "b": {
-                        "type": "number",
-                        "description": "The second operand."
-                    }
-                },
-                "required": ["operation", "a", "b"]
-            }
-        ),
-    ]
-
-  if transport == "sse":
-    from mcp.server.sse import SseServerTransport
-    from starlette.applications import Starlette
-    from starlette.responses import Response
-    from starlette.routing import Mount, Route
-    from starlette.middleware import Middleware
-    from starlette.middleware.cors import CORSMiddleware
-
-    sse = SseServerTransport("/messages/")
-
-    async def handle_sse(request: Request):
-      async with sse.connect_sse(request.scope, request.receive, request._send) as streams:  # type: ignore[reportPrivateUsage]
-        await app.run(streams[0], streams[1], app.create_initialization_options())
-      return Response()
-
-    starlette_app = Starlette(
-        debug=True,
-        routes=[
-            Route("/sse", endpoint=handle_sse, methods=["GET"]),
-            Mount("/messages/", app=sse.handle_post_message),
-        ],
-        middleware=[
-            Middleware(
-                CORSMiddleware,
-                allow_origins=["*"],
-                allow_methods=["*"],
-                allow_headers=["*"],
+    @app.list_resources()
+    async def list_resources() -> list[types.Resource]:
+        return [
+            types.Resource(
+                uri="ui://calculator/app",
+                name="Calculator App",
+                mimeType="text/html;profile=mcp-app",
+                description="A simple calculator application",
             )
-        ],
-    )
+        ]
 
-    import uvicorn
+    @app.read_resource()
+    async def read_resource(uri: str) -> str | bytes:
+        if str(uri) == "ui://calculator/app":
+            try:
+                return (
+                    pathlib.Path(__file__).parent
+                    / "apps"
+                    / "public"
+                    / "calculator.html"
+                ).read_text()
+            except FileNotFoundError:
+                raise ValueError(f"Resource file not found for uri: {uri}")
+        raise ValueError(f"Unknown resource: {uri}")
 
-    print(f"Server running at 127.0.0.1:{port} using sse")
-    uvicorn.run(starlette_app, host="127.0.0.1", port=port)
-  else:
-    from mcp.server.stdio import stdio_server
+    @app.call_tool()
+    async def handle_call_tool(name: str, arguments: dict[str, Any]) -> dict[str, Any]:
+        if name == "calculate":
+            try:
+                operation = arguments.get("operation")
+                a = float(arguments.get("a"))
+                b = float(arguments.get("b"))
+                result = None
+                if operation == "add":
+                    result = a + b
+                elif operation == "subtract":
+                    result = a - b
+                elif operation == "multiply":
+                    result = a * b
+                elif operation == "divide":
+                    if b == 0:
+                        raise ValueError("Division by zero")
+                    result = a / b
+                else:
+                    raise ValueError(f"Unknown operation: {operation}")
 
-    async def arun():
-      async with stdio_server() as streams:
-        await app.run(streams[0], streams[1], app.create_initialization_options())
+                symbols = {"add": "+", "subtract": "-", "multiply": "*", "divide": "/"}
+                symbol = symbols.get(operation, "?")
+                return {
+                    "content": [{
+                        "type": "text",
+                        "text": f"The calculation of {a} {symbol} {b} is {result}",
+                    }]
+                }
+            except Exception as e:
+                return {
+                    "content": [{"type": "text", "text": f"Error: {str(e)}"}],
+                    "isError": True,
+                }
 
-    click.echo("Server running using stdio", err=True)
-    anyio.run(arun)
+        raise ValueError(f"Unknown tool: {name}")
 
-  return 0
+    @app.list_tools()
+    async def list_tools() -> list[types.Tool]:
+        return [
+            types.Tool(
+                name="calculate",
+                title="Calculate",
+                description="Performs a basic arithmetic calculation.",
+                inputSchema={
+                    "type": "object",
+                    "properties": {
+                        "operation": {
+                            "type": "string",
+                            "enum": ["add", "subtract", "multiply", "divide"],
+                            "description": "The math operation to perform.",
+                        },
+                        "a": {"type": "number", "description": "The first operand."},
+                        "b": {"type": "number", "description": "The second operand."},
+                    },
+                    "required": ["operation", "a", "b"],
+                },
+            ),
+        ]
+
+    if transport == "sse":
+        from mcp.server.sse import SseServerTransport
+        from starlette.applications import Starlette
+        from starlette.responses import Response
+        from starlette.routing import Mount, Route
+        from starlette.middleware import Middleware
+        from starlette.middleware.cors import CORSMiddleware
+
+        sse = SseServerTransport("/messages/")
+
+        async def handle_sse(request: Request):
+            async with sse.connect_sse(request.scope, request.receive, request._send) as streams:  # type: ignore[reportPrivateUsage]
+                await app.run(
+                    streams[0], streams[1], app.create_initialization_options()
+                )
+            return Response()
+
+        starlette_app = Starlette(
+            debug=True,
+            routes=[
+                Route("/sse", endpoint=handle_sse, methods=["GET"]),
+                Mount("/messages/", app=sse.handle_post_message),
+            ],
+            middleware=[
+                Middleware(
+                    CORSMiddleware,
+                    allow_origins=["*"],
+                    allow_methods=["*"],
+                    allow_headers=["*"],
+                )
+            ],
+        )
+
+        import uvicorn
+
+        print(f"Server running at 127.0.0.1:{port} using sse")
+        uvicorn.run(starlette_app, host="127.0.0.1", port=port)
+    else:
+        from mcp.server.stdio import stdio_server
+
+        async def arun():
+            async with stdio_server() as streams:
+                await app.run(
+                    streams[0], streams[1], app.create_initialization_options()
+                )
+
+        click.echo("Server running using stdio", err=True)
+        anyio.run(arun)
+
+    return 0

@@ -21,4 +21,4 @@
 #   Switch to VCS-based versioning which derives version
 #   from Git tags automatically with the hatch-vcs plugin
 #   when we start using Git tags.
-__version__ = "0.3.0"
+__version__ = "0.4.0"

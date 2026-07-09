@@ -401,7 +401,8 @@ def test_generate_basic_catalog_styles():
     code = generate_schemas.generate_basic_catalog_styles(mock_catalog_data)
     assert "class Theme(BaseModel):" in code
     assert (
-        'primary_color: Optional[str] = Field(None, alias="primaryColor", description="Test color.")'
+        'primary_color: Optional[str] = Field(None, alias="primaryColor",'
+        ' description="Test color.")'
         in code
     )
 
@@ -472,13 +473,11 @@ def test_generate_client_to_server():
                 "required": ["name"],
             },
             "error": {
-                "oneOf": [
-                    {
-                        "title": "Validation Failed Error",
-                        "properties": {"code": {"const": "VALIDATION_FAILED"}},
-                        "required": ["code"],
-                    }
-                ]
+                "oneOf": [{
+                    "title": "Validation Failed Error",
+                    "properties": {"code": {"const": "VALIDATION_FAILED"}},
+                    "required": ["code"],
+                }]
             },
         }
     }

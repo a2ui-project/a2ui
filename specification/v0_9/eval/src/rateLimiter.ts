@@ -137,7 +137,7 @@ export class RateLimiter {
             // Check if we are ALREADY over limit for the next call
             // We need to shed enough tokens so that (current - shed + cost) <= limit
             // shed >= current + cost - limit
-            let tokensToShed = currentTokens + tokensCost - effectiveTokensPerMinute;
+            const tokensToShed = currentTokens + tokensCost - effectiveTokensPerMinute;
             let cumulativeTokens = 0;
             for (const record of state.usageRecords) {
               cumulativeTokens += record.tokensUsed;

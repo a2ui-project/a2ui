@@ -138,7 +138,7 @@ export class Validator {
                   `catalogs/basic/catalog.json#/components/${componentName}`,
                   obj,
                 );
-              } catch (e) {
+              } catch {
                 // If the schema isn't found, it's a hallucinated component.
                 targetedErrors.push({
                   instancePath: path,
@@ -239,7 +239,7 @@ export class Validator {
 
   private saveFailure(result: GeneratedResult, errors: string[]) {
     if (!this.outputDir) return;
-    const modelDir = path.join(this.outputDir, `output-${result.modelName.replace(/[\/:]/g, '_')}`);
+    const modelDir = path.join(this.outputDir, `output-${result.modelName.replace(/[/:]/g, '_')}`);
     const detailsDir = path.join(modelDir, 'details');
     const failureData = {
       pass: false,
@@ -409,7 +409,7 @@ export class Validator {
     }
   }
 
-  private validateUpdateDataModel(data: any, errors: string[]) {
+  private validateUpdateDataModel(_data: any, _errors: string[]) {
     // Schema validation handles types and basic structure.
     // 'op' is removed in v0.9, so we don't need to validate it or its relationship with 'value'.
     // We strictly rely on the schema for this message type now.
@@ -420,7 +420,7 @@ export class Validator {
   private validateComponent(component: any, allIds: Set<string>, errors: string[]) {
     const id = component.id;
     if (!id) {
-      errors.push(`Component is missing an 'id'.`);
+      errors.push("Component is missing an 'id'.");
       return;
     }
 

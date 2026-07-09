@@ -17,4 +17,4 @@
 # - Version format: major.minor.patch
 # - Update the version in this file before releasing
 #
-__version__ = "0.1.0"
+__version__ = "0.1.1"
