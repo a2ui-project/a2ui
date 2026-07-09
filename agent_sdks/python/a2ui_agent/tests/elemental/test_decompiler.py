@@ -125,7 +125,45 @@ class TestElementalDecompiler(unittest.TestCase):
             "    }\n"
             "  </script>\n"
             '  <ui-card id="comp_0" weight="{4}">\n'
-            '    <ui-text id="comp_1">{$/title}</ui-text>\n'
+            '    <ui-text id="comp_1" text="{$/title}" />\n'
+            "  </ui-card>\n"
+            "</body>"
+        )
+        self.assertEqual(html_output, expected)
+
+    def test_decompile_omits_default_catalog_link(self):
+        decompiler = ElementalDecompiler(self.catalog)
+        envelope = {
+            "version": "v1.0",
+            "createSurface": {
+                "surfaceId": "test-surf",
+                "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
+                "dataModel": {"title": "Hello World"},
+                "components": [
+                    {
+                        "id": "comp_0",
+                        "component": "Card",
+                        "weight": 4,
+                        "child": "comp_1",
+                    },
+                    {
+                        "id": "comp_1",
+                        "component": "Text",
+                        "text": {"path": "/title"},
+                    },
+                ],
+            },
+        }
+        html_output = decompiler.decompile(envelope)
+        expected = (
+            '<body id="test-surf">\n'
+            '  <script type="application/json">\n'
+            "    {\n"
+            '      "title": "Hello World"\n'
+            "    }\n"
+            "  </script>\n"
+            '  <ui-card id="comp_0" weight="{4}">\n'
+            '    <ui-text id="comp_1" text="{$/title}" />\n'
             "  </ui-card>\n"
             "</body>"
         )
@@ -278,7 +316,7 @@ class TestElementalDecompiler(unittest.TestCase):
         expected_list = (
             '  <ui-list id="list_1" path="{$/items}">\n'
             "    <template>\n"
-            '      <ui-text id="item_text">{$name}</ui-text>\n'
+            '      <ui-text id="item_text" text="{$name}" />\n'
             "    </template>\n"
             "  </ui-list>"
         )

@@ -100,7 +100,7 @@ class TestElementalCompiler(unittest.TestCase):
             "    }\n"
             "  </script>\n"
             '  <ui-card id="comp_0" weight="{4}">\n'
-            '    <ui-text id="comp_1">{$/title}</ui-text>\n'
+            '    <ui-text id="comp_1" text="{$/title}" />\n'
             "  </ui-card>\n"
             "</body>"
         )
@@ -175,7 +175,7 @@ class TestElementalCompiler(unittest.TestCase):
         html_input = (
             '<body id="test-surf">\n'
             '  <ui-button id="btn_1" onclick="{Event(\'submit\', {id: 123})}">\n'
-            '    <ui-text id="text_1">Submit</ui-text>\n'
+            '    <ui-text id="text_1" text="Submit" />\n'
             "  </ui-button>\n"
             "</body>"
         )
@@ -269,7 +269,7 @@ class TestElementalCompiler(unittest.TestCase):
             '<body id="test-surf">\n'
             '  <ui-list id="list_1" path="{$/items}">\n'
             "    <template>\n"
-            '      <ui-text id="item_text">{$name}</ui-text>\n'
+            '      <ui-text id="item_text" text="{$name}" />\n'
             "    </template>\n"
             "  </ui-list>\n"
             "</body>"
@@ -311,7 +311,7 @@ class TestElementalCompiler(unittest.TestCase):
             '<body id="test-surf">\n'
             '  <ui-card id="card_1">\n'
             "    <div>\n"
-            '      <ui-text id="text_1">Hello</ui-text>\n'
+            '      <ui-text id="text_1" text="Hello" />\n'
             "    </div>\n"
             "  </ui-card>\n"
             "</body>"
@@ -325,7 +325,7 @@ class TestElementalCompiler(unittest.TestCase):
         html_input = (
             '<body id="test-surf">\n'
             '  <ui-column id="col_1" align="CENTER">\n'
-            '    <ui-text id="text_1">Hello</ui-text>\n'
+            '    <ui-text id="text_1" text="Hello" />\n'
             "  </ui-column>\n"
             "</body>"
         )
@@ -338,7 +338,7 @@ class TestElementalCompiler(unittest.TestCase):
         html_input = (
             '<body id="test-surf">\n'
             '  <ui-column id="col_1" align="invalid_alignment">\n'
-            '    <ui-text id="text_1">Hello</ui-text>\n'
+            '    <ui-text id="text_1" text="Hello" />\n'
             "  </ui-column>\n"
             "</body>"
         )
@@ -353,8 +353,8 @@ class TestElementalCompiler(unittest.TestCase):
             '<body id="test-surf">\n'
             '  <ui-card id="card_1">\n'
             '    <ui-column id="col_1">\n'
-            '      <ui-text id="text_1">Text 1\n'
-            '      <ui-text id="text_2">Text 2</ui-text>\n'
+            '      <ui-text id="text_1" text="Text 1">\n'
+            '      <ui-text id="text_2" text="Text 2" />\n'
             "    </ui-column>\n"
             "  </ui-card>\n"
             "</body>"
@@ -399,7 +399,7 @@ class TestElementalCompiler(unittest.TestCase):
         html_input = (
             '<body id="test-surf">\n'
             '  <ui-row id="row_1" justify="space-between">\n'
-            '    <ui-text id="text_1">Hello</ui-text>\n'
+            '    <ui-text id="text_1" text="Hello" />\n'
             "  </ui-row>\n"
             "</body>"
         )

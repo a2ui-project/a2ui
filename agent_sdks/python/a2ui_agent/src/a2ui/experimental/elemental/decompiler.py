@@ -207,7 +207,8 @@ class ElementalDecompiler:
         roots = [c["id"] for c in components if c["id"] not in child_to_parent]
 
         lines = [f'<body id="{surface_id}">']
-        if catalog_id:
+        default_catalog_id = self.helper.catalog.get("catalogId", "")
+        if catalog_id and catalog_id != default_catalog_id:
             lines.append(f'  <link rel="catalog" href="{catalog_id}">')
 
         if data_model:
@@ -253,34 +254,11 @@ class ElementalDecompiler:
             if k not in ["id", "component"] and k not in all_props:
                 all_props.append(k)
 
-        # Decide if we render 'text' as text content
         has_text_content = False
         text_content = ""
-        if "text" in C and "text" in properties:
-            has_other_children = False
-            for p in all_props:
-                if p == "text":
-                    continue
-                if p in C:
-                    p_schema = self.helper.get_property_schema(comp_name, p)
-                    if _is_component_reference_property(p_schema) or _is_complex(C[p]):
-                        has_other_children = True
-                        break
-
-            if not has_other_children:
-                has_text_content = True
-                text_val = C["text"]
-                if isinstance(text_val, str):
-                    text_content = html.escape(text_val)
-                else:
-                    text_content = (
-                        f"{{{self._decompile_value_internal(text_val, self.comp_ids)}}}"
-                    )
 
         for prop_name in all_props:
             if prop_name not in C:
-                continue
-            if prop_name == "text" and has_text_content:
                 continue
 
             val = C[prop_name]

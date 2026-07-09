@@ -23,26 +23,28 @@ A2UI Elemental UI blocks are enclosed in standard `<body>` tags:
 
 ```html
 <body id="notification-card">
+  <!-- Optional catalog definition:
   <link rel="catalog" href="https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json" />
+  -->
   <!-- UI components go here -->
 </body>
 ```
 
 - The `id` attribute on `<body>` maps to the `surfaceId` in the `createSurface` payload.
-- The `<link rel="catalog">` tag's `href` attribute maps to the `catalogId`.
+- The `<link rel="catalog">` tag is optional. Its `href` attribute maps to the `catalogId`. If omitted, the compiler defaults to its pre-configured catalog.
 
 ### Component declarations
 
-Catalog components are represented by custom HTML elements. Tag names are prefixed with `a2ui-` and correspond to the component name in lowercase kebab-case (e.g., `Card` becomes `<a2ui-card>`, `TextInput` becomes `<a2ui-text-input>`).
+Catalog components are represented by custom HTML elements. Tag names are prefixed with `ui-` and correspond to the component name in lowercase kebab-case (e.g., `Card` becomes `<ui-card>`, `TextInput` becomes `<ui-text-input>`).
 
-- **Component identifiers**: To ensure 100% round-trip fidelity, components preserve their `id` attributes (e.g., `<a2ui-button id="comp_0">`). The compiler maps this directly to the component's `id` in the JSON payload. If omitted, the compiler auto-generates a unique ID.
+- **Component identifiers**: To ensure 100% round-trip fidelity, components preserve their `id` attributes (e.g., `<ui-button id="comp_0">`). The compiler maps this directly to the component's `id` in the JSON payload. If omitted, the compiler auto-generates a unique ID.
 - **Attributes and properties**: Standard string properties are passed as regular attributes. Typed literals (numbers, booleans, and null) are passed using JSX-style curly braces enclosed in double quotes:
   ```html
-  <a2ui-card id="card_1" elevation="{4}" disabled="{true}">...</a2ui-card>
+  <ui-card id="card_1" elevation="{4}" disabled="{true}">...</ui-card>
   ```
 - **Option object auto-expansion**: If a component property expects a list of option objects containing `label` and `value` properties (such as a dropdown or radio group), but the input is a list of strings, the compiler automatically expands each string into an object:
   ```html
-  <a2ui-dropdown id="color_select" options="{['Red', 'Green', 'Blue']}" />
+  <ui-dropdown id="color_select" options="{['Red', 'Green', 'Blue']}" />
   ```
   This compiles to the standard JSON structure:
   ```json
@@ -60,13 +62,13 @@ Catalog components are represented by custom HTML elements. Tag names are prefix
   ```
 - **Self-closing tags**: Supported and preferred for leaf components or components without children:
   ```html
-  <a2ui-icon id="icon_1" name="check" />
+  <ui-icon id="icon_1" name="check" />
   ```
 - **Text nodes**: Text nodes are not auto-wrapped. If a component expects a child component (e.g., the `child` property of a `Button`), the child must be declared explicitly:
   ```html
-  <a2ui-button id="btn_1">
-    <a2ui-text id="txt_1">Click Me</a2ui-text>
-  </a2ui-button>
+  <ui-button id="btn_1">
+    <ui-text id="txt_1" text="Click Me" />
+  </ui-button>
   ```
 
 ### Data binding and reactive paths
@@ -81,21 +83,21 @@ To connect properties or text to the application's shared data model, we use the
   - **Object literals** are enclosed in curly braces `{...}` and contain key-value pairs. If the entire attribute value is an object literal, it results in a double curly brace `{{...}}` pattern (e.g., `context="{{id: 123, user: $/user/name}}"`).
   - _Example_:
     ```html
-    <a2ui-text id="txt_1" text="{formatCurrency(value: $/order/total, currency: 'USD')}" />
+    <ui-text id="txt_1" text="{formatCurrency(value: $/order/total, currency: 'USD')}" />
     ```
 - **Nested function calls**: Functions can be nested arbitrarily as arguments:
   ```html
-  <a2ui-text id="txt_2" text="{myFunc(a: otherFunc(x: $/path), b: 'literal value')}" />
+  <ui-text id="txt_2" text="{myFunc(a: otherFunc(x: $/path), b: 'literal value')}" />
   ```
 - **Type resolution and casting**:
   - The compiler automatically infers the `returnType` of a function by looking it up in the `FunctionCatalog` during compilation.
   - For custom or uncataloged functions, or to override inference, an optional type cast can be appended using the `as` keyword:
     ```html
-    <a2ui-text id="txt_3" text="{customFunc(x: 1) as string}" />
+    <ui-text id="txt_3" text="{customFunc(x: 1) as string}" />
     ```
 - **Mixed text**: Mixed text (e.g., `Welcome, {$/user/firstName}!`) is not allowed in text nodes or attributes. If a catalog supports a string interpolation function (like `formatString`), it must be invoked explicitly:
   ```html
-  <a2ui-text id="txt_4" text="{formatString(value: 'Welcome, ${/user/firstName}!')}" />
+  <ui-text id="txt_4" text="{formatString(value: 'Welcome, ${/user/firstName}!')}" />
   ```
 
 ### Children and slots
@@ -105,10 +107,10 @@ The compiler maps nested child elements to the properties of the underlying A2UI
 - By default, children map to the component's primary slot (e.g., `child` or `children` based on the catalog schema).
 - For components with multiple layout areas or child properties, the `slot` attribute is used:
   ```html
-  <a2ui-split-view id="split_1">
-    <a2ui-card id="card_left" slot="leading">...</a2ui-card>
-    <a2ui-card id="card_right" slot="trailing">...</a2ui-card>
-  </a2ui-split-view>
+  <ui-split-view id="split_1">
+    <ui-card id="card_left" slot="leading">...</ui-card>
+    <ui-card id="card_right" slot="trailing">...</ui-card>
+  </ui-split-view>
   ```
 
 ### Complex object properties
@@ -116,14 +118,14 @@ The compiler maps nested child elements to the properties of the underlying A2UI
 Some advanced components require complex, structured JSON objects for configuration (e.g., table column definitions, chart datasets, or map layers). To avoid quote-escaping issues in attributes, complex properties are passed via a standard `<script type="application/json">` element placed in a named slot matching the property name:
 
 ```html
-<a2ui-table id="table_1">
+<ui-table id="table_1">
   <script type="application/json" slot="columns">
     [
       {"key": "name", "label": "Name"},
       {"key": "age", "label": "Age"}
     ]
   </script>
-</a2ui-table>
+</ui-table>
 ```
 
 The compiler parses the text content of the script tag strictly as JSON, throwing a compilation error if it contains invalid JSON.
@@ -133,11 +135,11 @@ The compiler parses the text content of the script tag strictly as JSON, throwin
 When rendering dynamic lists (where a template is repeated for each item in a collection), we use a nested `<template>` element:
 
 ```html
-<a2ui-list id="list_1" path="{$/breeds}">
+<ui-list id="list_1" path="{$/breeds}">
   <template>
-    <a2ui-text id="item_txt">{$name}</a2ui-text>
+    <ui-text id="item_txt" text="{$name}" />
   </template>
-</a2ui-list>
+</ui-list>
 ```
 
 - The `path` attribute specifies the list data source.
@@ -151,7 +153,7 @@ When rendering dynamic lists (where a template is repeated for each item in a co
 Validation rules leverage standard HTML5 validation attributes where possible, supplemented by custom attributes and the `checks` attribute for advanced logic:
 
 ```html
-<a2ui-text-input
+<ui-text-input
   id="input_1"
   required
   pattern="^[0-9]{5}$"
@@ -162,7 +164,7 @@ Validation rules leverage standard HTML5 validation attributes where possible, s
 For advanced or custom validation functions defined in the catalog (such as age validation or cross-field validation), the `checks` attribute accepts an array of function calls:
 
 ```html
-<a2ui-text-input
+<ui-text-input
   id="dob"
   error-message="You must be at least 18 years old"
   checks="{[required(), isAdult(birthDate: $/dob)]}"
@@ -185,17 +187,17 @@ Actions and events are declared using event-like attributes and curly braces. Th
 Here is an example triggering a server event:
 
 ```html
-<a2ui-button id="btn_1" onclick="{Event('accept', {id: 123})}">
-  <a2ui-text id="txt_btn_1">Yes</a2ui-text>
-</a2ui-button>
+<ui-button id="btn_1" onclick="{Event('accept', {id: 123})}">
+  <ui-text id="txt_btn_1" text="Yes" />
+</ui-button>
 ```
 
 Here is an example calling a client function:
 
 ```html
-<a2ui-button id="btn_2" onclick="{openUrl(url: 'https://example.com')}">
-  <a2ui-text id="txt_btn_2">Learn More</a2ui-text>
-</a2ui-button>
+<ui-button id="btn_2" onclick="{openUrl(url: 'https://example.com')}">
+  <ui-text id="txt_btn_2" text="Learn More" />
+</ui-button>
 ```
 
 ### Standalone operations
@@ -204,11 +206,11 @@ If the model needs to perform a lifecycle operation or invoke an RPC function wi
 
 - Deleting a surface:
   ```html
-  <a2ui-delete-surface id="del_1" surface-id="dashboard-surface-1" />
+  <ui-delete-surface id="del_1" surface-id="dashboard-surface-1" />
   ```
 - Calling a client function:
   ```html
-  <a2ui-call-function id="call_1" name="openUrl" url="https://example.com" want-response="{true}" />
+  <ui-call-function id="call_1" name="openUrl" url="https://example.com" want-response="{true}" />
   ```
   This maps to the v1.0 `CallFunctionMessage`. The `id` attribute maps to `functionCallId` (auto-generated if omitted), and `want-response` maps to `wantResponse`.
 
@@ -220,7 +222,9 @@ To populate or initialize values within the shared data model directly from the 
 
 ```html
 <body id="notification-card">
+  <!-- Optional catalog definition:
   <link rel="catalog" href="https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json" />
+  -->
   <script type="application/json">
     {
       "icon": "check",
@@ -228,7 +232,7 @@ To populate or initialize values within the shared data model directly from the 
       "description": "Would you like to receive updates?"
     }
   </script>
-  <a2ui-card id="comp_0">...</a2ui-card>
+  <ui-card id="comp_0">...</ui-card>
 </body>
 ```
 
@@ -255,7 +259,7 @@ interface CardProps {
 }
 /**
  * Renders a card container.
- * @element a2ui-card
+ * @element ui-card
  */
 declare const Card: React.FC<CardProps>;
 
@@ -270,7 +274,7 @@ interface TextInputProps {
 }
 /**
  * A text input field.
- * @element a2ui-text-input
+ * @element ui-text-input
  */
 declare const TextInput: React.FC<TextInputProps>;
 ```
@@ -308,7 +312,9 @@ Because HTML parsers are forgiving, syntax errors are rarely fatal. However, sem
 
 ```html
 <body id="dashboard-surface">
+  <!-- Optional catalog definition:
   <link rel="catalog" href="https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json" />
+  -->
   <script type="application/json">
     {
       "user": {
@@ -321,36 +327,32 @@ Because HTML parsers are forgiving, syntax errors are rarely fatal. However, sem
       ]
     }
   </script>
-  <a2ui-card id="comp_0" elevation="{4}">
-    <a2ui-column id="comp_1" align="center">
-      <a2ui-text id="comp_2" variant="h3">
-        {formatString(value: 'Welcome back, ${/user/name}!')}
-      </a2ui-text>
-      <a2ui-text id="comp_3" variant="body">
-        {formatString(value: 'Your balance is: ${formatCurrency(value: /user/balance, currency:
-        'USD')}')}
-      </a2ui-text>
-      <a2ui-table id="comp_4">
+  <ui-card id="comp_0" elevation="{4}">
+    <ui-column id="comp_1" align="center">
+      <ui-text id="comp_2" variant="h3" text="{formatString(value: 'Welcome back, ${/user/name}!')}" />
+      <ui-text id="comp_3" variant="body" text="{formatString(value: 'Your balance is: ${formatCurrency(value: /user/balance, currency:
+        'USD')}')}" />
+      <ui-table id="comp_4">
         <script type="application/json" slot="columns">
           [
             {"key": "description", "label": "Description"},
             {"key": "amount", "label": "Amount"}
           ]
         </script>
-        <a2ui-list id="comp_5" slot="rows" path="{$/transactions}">
+        <ui-list id="comp_5" slot="rows" path="{$/transactions}">
           <template>
-            <a2ui-row id="comp_6">
-              <a2ui-text id="comp_7">{$description}</a2ui-text>
-              <a2ui-text id="comp_8"> {formatCurrency(value: $amount, currency: 'USD')} </a2ui-text>
-            </a2ui-row>
+            <ui-row id="comp_6">
+              <ui-text id="comp_7" text="{$description}" />
+              <ui-text id="comp_8" text="{formatCurrency(value: $amount, currency: 'USD')}" />
+            </ui-row>
           </template>
-        </a2ui-list>
-      </a2ui-table>
-      <a2ui-button id="comp_9" onclick="{Event('refresh')}">
-        <a2ui-text id="comp_10">Refresh</a2ui-text>
-      </a2ui-button>
-    </a2ui-column>
-  </a2ui-card>
+        </ui-list>
+      </ui-table>
+      <ui-button id="comp_9" onclick="{Event('refresh')}">
+        <ui-text id="comp_10" text="Refresh" />
+      </ui-button>
+    </ui-column>
+  </ui-card>
 </body>
 ```
 

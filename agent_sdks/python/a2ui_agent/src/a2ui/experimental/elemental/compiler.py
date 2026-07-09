@@ -537,7 +537,7 @@ class ElementalCompiler:
                 " supported inside A2UI surfaces."
             )
 
-        # Map kebab-case to PascalCase (e.g., a2ui-text-input -> TextInput)
+        # Map kebab-case to PascalCase (e.g., ui-text-input -> TextInput)
         comp_name = "".join(
             word.capitalize() for word in node.tag.replace(TAG_PREFIX, "").split("-")
         )
@@ -577,7 +577,7 @@ class ElementalCompiler:
 
             # Parse value
             if attr_val is None or attr_val == "":
-                # HTML boolean attribute shorthand (e.g., <a2ui-button disabled>)
+                # HTML boolean attribute shorthand (e.g., <ui-button disabled>)
                 prop_schema = self.helper.get_property_schema(comp_name, prop_name)
                 if prop_schema and prop_schema.get("type") == "boolean":
                     parsed_val = True
@@ -640,9 +640,6 @@ class ElementalCompiler:
             ):
                 sibling_value_path = parsed_val
 
-        # 2. Map text content to "text" property if applicable
-        if "text" in properties and not node.children and node.text.strip():
-            comp_dict["text"] = self.expr_parser.parse(node.text.strip())
 
         # 3. Map children (slots and templates)
         default_slot = None
