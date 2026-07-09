@@ -27,11 +27,14 @@ const String defaultServerUrl = 'http://localhost:10002';
 // https://a2ui.org/specification/v0_9/standard_catalog.json
 
 class RestaurantSession extends ChangeNotifier {
-  RestaurantSession({String serverUrl = defaultServerUrl}) {
+  RestaurantSession({
+    String serverUrl = defaultServerUrl,
+    A2uiAgentConnector? connector,
+  }) {
     final List<Catalog> catalogs = [
       BasicCatalogItems.asCatalog().copyWith(catalogId: _agentCatalogId),
     ];
-    _connector = A2uiAgentConnector(url: Uri.parse(serverUrl));
+    _connector = connector ?? A2uiAgentConnector(url: Uri.parse(serverUrl));
     _surfaceController = SurfaceController(catalogs: catalogs);
     _init();
   }

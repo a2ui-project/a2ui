@@ -160,3 +160,33 @@ async def test_a2ui_express_solvers():
     finally:
         if original_git_root is not None:
             express_module.GIT_ROOT = original_git_root
+
+
+@pytest.mark.asyncio
+async def test_measured_generate():
+    from a2ui_eval.shared.utils import measured_generate
+    import asyncio
+
+    solver = measured_generate()
+    state = TaskState(
+        model=ModelName("mock/model"),
+        sample_id=1,
+        epoch=1,
+        input="test",
+        messages=[],
+    )
+
+    async def dummy_generate(state, **kwargs):
+        await asyncio.sleep(0.01)
+        return state
+
+    state = await solver(state, dummy_generate)
+    assert "inference_duration_seconds" in state.metadata
+    assert state.metadata["inference_duration_seconds"] > 0
+
+
+def test_direct_solver():
+    from a2ui_eval.strategies.direct import direct_solver
+
+    solvers = direct_solver(version="0.9.1")
+    assert len(solvers) == 2

@@ -120,7 +120,8 @@ jobs:
         working-directory: ${{ matrix.package.path }}
         run: |
           if [ -d "test" ]; then
-            flutter test --test-randomize-ordering-seed=random
+            flutter test --coverage --test-randomize-ordering-seed=random
+            dart "$GITHUB_WORKSPACE/scripts/check_dart_coverage.dart"
           else
             echo "No 'test' directory found in ${{ matrix.package.path }}, skipping tests."
           fi

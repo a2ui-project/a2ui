@@ -63,7 +63,7 @@ jobs:
           uv run --all-packages mypy -p a2ui.core
           uv run --all-packages mypy agent_sdks/python/a2ui_core/scripts
       - name: Run Unit Tests
-        run: uv run pytest
+        run: uv run pytest --cov=agent_sdks/python/a2ui_core --cov=agent_sdks/python/a2ui_agent --cov=eval --cov-fail-under=90
       - name: Verify Load Real
         run: uv run python agent_sdks/python/a2ui_agent/tests/integration/verify_load_real.py
       - name: Build All Packages

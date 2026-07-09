@@ -16,6 +16,7 @@ import 'package:flutter/material.dart';
 import 'package:logging/logging.dart';
 
 import 'screen.dart';
+import 'session.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -27,7 +28,9 @@ void main() async {
 }
 
 class RestaurantFinderApp extends StatefulWidget {
-  const RestaurantFinderApp({super.key});
+  const RestaurantFinderApp({super.key, this.session});
+
+  final RestaurantSession? session;
 
   @override
   State<RestaurantFinderApp> createState() => _RestaurantFinderAppState();
@@ -61,6 +64,7 @@ class _RestaurantFinderAppState extends State<RestaurantFinderApp> {
       home: RestaurantScreen(
         onToggleTheme: _toggleTheme,
         themeMode: _themeMode,
+        session: widget.session,
       ),
     );
   }
