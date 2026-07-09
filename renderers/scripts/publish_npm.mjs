@@ -138,8 +138,8 @@ function checkGitProvenance(exec) {
     commitHash = exec('git rev-parse HEAD', {encoding: 'utf8'}).trim();
     const status = exec('git status --porcelain', {encoding: 'utf8'}).trim();
     isDirty = status.length > 0;
-  } catch (e) {
-    // Should this throw an Error with {cause: e}?
+  } catch {
+    // Should this throw an Error?
     console.warn(
       `${yellow}⚠️ Could not verify Git status. Ensure you are in a valid Git repository.${reset}`,
     );
@@ -151,10 +151,10 @@ function checkGitProvenance(exec) {
       `${yellow}⚠️  WARNING: Your Git working tree is DIRTY (you have uncommitted changes).${reset}`,
     );
     console.warn(
-      `   Publishing from a dirty tree means the published code will NOT exactly match the commit history.`,
+      '   Publishing from a dirty tree means the published code will NOT exactly match the commit history.',
     );
     console.warn(
-      `   It is highly recommended to commit or stash your changes before publishing.\n`,
+      '   It is highly recommended to commit or stash your changes before publishing.\n',
     );
   }
 
@@ -195,7 +195,7 @@ function ensureWorkspaceDependencies(packageObjects, graph) {
       }
     }
   }
-  if (result.length == packageObjects.length) {
+  if (result.length === packageObjects.length) {
     console.log('All workspace dependencies are present.');
   }
   return result;
@@ -219,7 +219,7 @@ function getNpmVersion(pkg, {npmToken, exec}) {
     }).trim();
     const remoteVersion = JSON.parse(remoteVersionJson)?.version;
     return remoteVersion;
-  } catch (e) {
+  } catch {
     return null;
   }
 }
@@ -391,7 +391,7 @@ export async function main(args, mocks = {}) {
   const npmToken = getAccessToken(exec);
 
   // Checks the status of the current git branch.
-  const commitHash = checkGitProvenance(exec);
+  checkGitProvenance(exec);
 
   const graph = getPackageGraph();
 
