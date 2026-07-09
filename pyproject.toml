@@ -21,13 +21,6 @@ dependencies = []
 
 [tool.uv]
 package = false
-# TODO(dependabot-1571): Remove this override once google/pyink releases a
-# version on PyPI newer than 25.12.0 that supports black>=26.5.1. This resolves
-# the black CVE-2026-32274 vulnerability (Dependabot alert
-# https://github.com/a2ui-project/a2ui/security/dependabot/1576).
-override-dependencies = [
-    "black>=26.5.1",
-]
 
 [tool.uv.workspace]
 members = [

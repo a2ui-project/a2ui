@@ -14,7 +14,7 @@
 
 # Auto-generated. Do not edit manually.
 from typing import Annotated, Any, Dict, List, Literal, Optional, Union
-from pydantic import BaseModel, Field, ConfigDict, GetCoreSchemaHandler
+from pydantic import BaseModel, Field, ConfigDict, GetCoreSchemaHandler, field_validator, ValidationInfo
 from pydantic_core import CoreSchema
 
 
@@ -43,6 +43,20 @@ class ListReference(ComponentReference):
 
 class StrictBaseModel(BaseModel):
     model_config = ConfigDict(extra="forbid", populate_by_name=True)
+
+    @field_validator("version", mode="after", check_fields=False)
+    @classmethod
+    def validate_version_field(cls, v: Any, info: ValidationInfo) -> Any:
+        context = info.context or {}
+        target_version = context.get("target_version")
+        if target_version is None:
+            from .constants import SPEC_VERSION
+
+            target_version = SPEC_VERSION
+
+        if v != target_version:
+            raise ValueError(f"Input should be '{target_version}'")
+        return v
 
 
 ComponentId = SingleReference
