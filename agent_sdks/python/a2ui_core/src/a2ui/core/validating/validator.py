@@ -19,6 +19,7 @@ from pydantic import BaseModel, ConfigDict, ValidationError
 from ..exceptions import A2uiValidationError, A2uiErrorDetail
 from ..schema import A2uiMessageListWrapper
 from ..schema.constants import (
+    SPEC_VERSION,
     MSG_TYPE_CREATE_SURFACE,
     MSG_TYPE_UPDATE_COMPONENTS,
     MSG_TYPE_UPDATE_DATA_MODEL,
@@ -67,6 +68,15 @@ RELAXED_VALIDATION = ValidationConfig(
 )
 
 
+def _clean_loc_part(x: str) -> str:
+    """Extracts base message class names from Pydantic validator wrapper strings."""
+    if x.startswith("function-after[") or x.startswith("function-before["):
+        match = re.search(r"([A-Za-z0-9_]+Message)\]", x)
+        if match:
+            return match.group(1)
+    return x
+
+
 class A2uiValidator:
     """Validates the A2UI JSON payload against catalog schemas and checks for layout integrity."""
 
@@ -77,6 +87,10 @@ class A2uiValidator:
     ) -> None:
         """Validates the overall A2UI protocol payload structure using Pydantic."""
         details = []
+        expected_version = (
+            config.target_version if config.target_version else SPEC_VERSION
+        )
+
         for i, msg in enumerate(messages):
             if not isinstance(msg, dict):
                 details.append(
@@ -86,43 +100,26 @@ class A2uiValidator:
                         message="Message must be an object",
                     )
                 )
-            elif "version" not in msg:
-                details.append(
-                    A2uiErrorDetail(
-                        path=f"messages.{i}.version",
-                        code="missing_field",
-                        message="'version' is a required property",
-                    )
-                )
-
-        # Temporarily normalize version field if target_version is configured to bypass static Literal checks
-        modified = False
-        original_versions = []
-        if config.target_version:
-            for m in messages:
-                if isinstance(m, dict) and m.get("version") == config.target_version:
-                    original_versions.append(config.target_version)
-                    from ..schema.constants import SPEC_VERSION
-
-                    m["version"] = SPEC_VERSION
-                    modified = True
-                else:
-                    original_versions.append(
-                        m.get("version") if isinstance(m, dict) else None
+            else:
+                if "version" not in msg:
+                    details.append(
+                        A2uiErrorDetail(
+                            path=f"messages.{i}.version",
+                            code="missing_field",
+                            message="'version' is a required property",
+                        )
                     )
 
         try:
-            A2uiMessageListWrapper.model_validate({"messages": messages})
+            A2uiMessageListWrapper.model_validate(
+                {"messages": messages},
+                context={"target_version": expected_version},
+            )
             validate_recursion_and_paths(messages)
         except ValidationError as e:
             details.extend(self._format_validation_errors(e, messages))
         except A2uiValidationError as e:
             raise A2uiValidatorError(str(e), details=e.details)
-        finally:
-            if modified:
-                for idx, m in enumerate(messages):
-                    if isinstance(m, dict) and original_versions[idx] is not None:
-                        m["version"] = original_versions[idx]
 
         if details:
             summary = "\n".join(f"{d.path}: {d.message}" for d in details)
@@ -135,7 +132,7 @@ class A2uiValidator:
         details = []
         for err in error.errors():
             loc = err.get("loc", [])
-            loc_parts = [str(x) for x in loc]
+            loc_parts = [_clean_loc_part(str(x)) for x in loc]
             if len(loc) >= 3 and loc[0] == "messages" and isinstance(loc[1], int):
                 msg_idx = loc[1]
                 if msg_idx < len(messages) and isinstance(messages[msg_idx], dict):
