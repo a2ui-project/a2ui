@@ -37,6 +37,34 @@ __metadata:
   languageName: node
   linkType: hard
 
+"@a2ui/angular-explorer@workspace:renderers/angular/a2ui_explorer":
+  version: 0.0.0-use.local
+  resolution: "@a2ui/angular-explorer@workspace:renderers/angular/a2ui_explorer"
+  dependencies:
+    "@a2ui/angular": "workspace:*"
+    "@a2ui/markdown-it": "workspace:*"
+    "@a2ui/web_core": "workspace:*"
+    "@angular/build": "npm:^21.2.5"
+    "@angular/cli": "npm:^21.2.5"
+    "@angular/common": "npm:^21.2.5"
+    "@angular/compiler": "npm:^21.2.5"
+    "@angular/compiler-cli": "npm:^21.2.5"
+    "@angular/core": "npm:^21.2.5"
+    "@angular/platform-browser": "npm:^21.2.5"
+    "@playwright/test": "npm:1.58.1"
+    "@preact/signals-core": "npm:^1.14.2"
+    "@types/jasmine": "npm:^6.0.0"
+    "@types/node": "npm:^25.9.3"
+    eslint: "npm:^10.4.1"
+    google-closure-compiler: "npm:^20260429.0.0"
+    jasmine-core: "npm:^6.3.0"
+    prettier: "npm:^3.8.4"
+    tslib: "npm:^2.8.1"
+    typescript: "npm:5.9.3"
+    wireit: "npm:^0.15.0-pre.2"
+  languageName: unknown
+  linkType: soft
+
 "@a2ui/angular-sample-lib@workspace:samples/client/angular/projects/lib":
   version: 0.0.0-use.local
   resolution: "@a2ui/angular-sample-lib@workspace:samples/client/angular/projects/lib"
@@ -80,7 +108,6 @@ __metadata:
     karma-jasmine: "npm:^5.1.0"
     karma-jasmine-html-reporter: "npm:^2.2.0"
     ng-packagr: "npm:^22.0.0"
-    playwright: "npm:^1.60.0"
     prettier: "npm:^3.8.4"
     sass: "npm:^1.100.0"
     tslib: "npm:^2.8.1"
@@ -12573,6 +12600,18 @@ __metadata:
   languageName: node
   linkType: hard
 
+"b4a@npm:^1.6.4":
+  version: 1.8.1
+  resolution: "b4a@npm:1.8.1"
+  peerDependencies:
+    react-native-b4a: "*"
+  peerDependenciesMeta:
+    react-native-b4a:
+      optional: true
+  checksum: 10c0/344d8c94b244ec7a9cb516ea43a98216312454cb72478e4b7628a679ee343be237564c53bbe73995ab10ea9bc923b420236081b180b3cf78fd0c945bfc886798
+  languageName: node
+  linkType: hard
+
 "bail@npm:^2.0.0":
   version: 2.0.2
   resolution: "bail@npm:2.0.2"
@@ -12598,6 +12637,18 @@ __metadata:
   version: 4.0.4
   resolution: "balanced-match@npm:4.0.4"
   checksum: 10c0/07e86102a3eb2ee2a6a1a89164f29d0dbaebd28f2ca3f5ca786f36b8b23d9e417eb3be45a4acf754f837be5ac0a2317de90d3fcb7f4f4dc95720a1f36b26a17b
+  languageName: node
+  linkType: hard
+
+"bare-events@npm:^2.7.0":
+  version: 2.9.1
+  resolution: "bare-events@npm:2.9.1"
+  peerDependencies:
+    bare-abort-controller: "*"
+  peerDependenciesMeta:
+    bare-abort-controller:
+      optional: true
+  checksum: 10c0/576fba522bdd2167f35e86791e6c881fdaaf542aa5fca0acfaf8fac7a2c0789340f1cafa0b63e216808efb5cc710887c0cf683f1783293bf98a215d8555ecc36
   languageName: node
   linkType: hard
 
@@ -13036,7 +13087,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"chalk@npm:5.6.2, chalk@npm:^5.2.0, chalk@npm:^5.3.0, chalk@npm:^5.4.1, chalk@npm:^5.6.2":
+"chalk@npm:5.6.2, chalk@npm:^2.0.0 || ^3.0.0 || ^4.0.0 || ^5.0.0 <5.6.1 || ^5.6.2 >5.6.1, chalk@npm:^5.2.0, chalk@npm:^5.3.0, chalk@npm:^5.4.1, chalk@npm:^5.6.2":
   version: 5.6.2
   resolution: "chalk@npm:5.6.2"
   checksum: 10c0/99a4b0f0e7991796b1e7e3f52dceb9137cae2a9dfc8fc0784a550dc4c558e15ab32ed70b14b21b52beb2679b4892b41a0aa44249bcb996f01e125d58477c6976
@@ -13341,6 +13392,13 @@ __metadata:
     strip-ansi: "npm:^7.1.0"
     wrap-ansi: "npm:^9.0.0"
   checksum: 10c0/13441832e9efe7c7a76bd2b8e683555c478d461a9f249dc5db9b17fe8d4b47fa9277b503914b90bd00e4a151abb6b9b02b2288972ffe2e5e3ca40bcb1c2330d3
+  languageName: node
+  linkType: hard
+
+"clone@npm:^2.1.2":
+  version: 2.1.2
+  resolution: "clone@npm:2.1.2"
+  checksum: 10c0/ed0601cd0b1606bc7d82ee7175b97e68d1dd9b91fd1250a3617b38d34a095f8ee0431d40a1a611122dcccb4f93295b4fdb94942aa763392b5fe44effa50c2d5e
   languageName: node
   linkType: hard
 
@@ -15665,6 +15723,15 @@ __metadata:
   languageName: node
   linkType: hard
 
+"events-universal@npm:^1.0.0":
+  version: 1.0.1
+  resolution: "events-universal@npm:1.0.1"
+  dependencies:
+    bare-events: "npm:^2.7.0"
+  checksum: 10c0/a1d9a5e9f95843650f8ec240dd1221454c110189a9813f32cdf7185759b43f1f964367ac7dca4ebc69150b59043f2d77c7e122b0d03abf7c25477ea5494785a5
+  languageName: node
+  linkType: hard
+
 "events@npm:^3.3.0":
   version: 3.3.0
   resolution: "events@npm:3.3.0"
@@ -15904,6 +15971,13 @@ __metadata:
   version: 1.3.0
   resolution: "fast-diff@npm:1.3.0"
   checksum: 10c0/5c19af237edb5d5effda008c891a18a585f74bf12953be57923f17a3a4d0979565fc64dbc73b9e20926b9d895f5b690c618cbb969af0cf022e3222471220ad29
+  languageName: node
+  linkType: hard
+
+"fast-fifo@npm:^1.3.2":
+  version: 1.3.2
+  resolution: "fast-fifo@npm:1.3.2"
+  checksum: 10c0/d53f6f786875e8b0529f784b59b4b05d4b5c31c651710496440006a398389a579c8dbcd2081311478b5bf77f4b0b21de69109c5a4eabea9d8e8783d1eb864e4c
   languageName: node
   linkType: hard
 
@@ -16863,6 +16937,69 @@ __metadata:
     gtoken: "npm:^7.0.0"
     jws: "npm:^4.0.0"
   checksum: 10c0/6eef36d9a9cb7decd11e920ee892579261c6390104b3b24d3e0f3889096673189fe2ed0ee43fd563710e2560de98e63ad5aa4967b91e7f4e69074a422d5f7b65
+  languageName: node
+  linkType: hard
+
+"google-closure-compiler-java@npm:^20260429.0.0":
+  version: 20260429.0.0
+  resolution: "google-closure-compiler-java@npm:20260429.0.0"
+  checksum: 10c0/11db5b12ee696d019c4ce8a210116eeeaded4152da6404f1ddc9920f184266b6daff4792623a4276a98cac157eb8ec260d3328669c4e6903d9ead1cf46fdf821
+  languageName: node
+  linkType: hard
+
+"google-closure-compiler-linux-arm64@npm:^20260429.0.0":
+  version: 20260429.0.0
+  resolution: "google-closure-compiler-linux-arm64@npm:20260429.0.0"
+  conditions: os=linux & cpu=arm64
+  languageName: node
+  linkType: hard
+
+"google-closure-compiler-linux@npm:^20260429.0.0":
+  version: 20260429.0.0
+  resolution: "google-closure-compiler-linux@npm:20260429.0.0"
+  conditions: os=linux & (cpu=x32 | cpu=x64)
+  languageName: node
+  linkType: hard
+
+"google-closure-compiler-macos@npm:^20260429.0.0":
+  version: 20260429.0.0
+  resolution: "google-closure-compiler-macos@npm:20260429.0.0"
+  conditions: os=darwin & cpu=arm64
+  languageName: node
+  linkType: hard
+
+"google-closure-compiler-windows@npm:^20260429.0.0":
+  version: 20260429.0.0
+  resolution: "google-closure-compiler-windows@npm:20260429.0.0"
+  conditions: os=win32 & (cpu=x32 | cpu=x64)
+  languageName: node
+  linkType: hard
+
+"google-closure-compiler@npm:^20260429.0.0":
+  version: 20260429.0.0
+  resolution: "google-closure-compiler@npm:20260429.0.0"
+  dependencies:
+    chalk: "npm:^2.0.0 || ^3.0.0 || ^4.0.0 || ^5.0.0 <5.6.1 || ^5.6.2 >5.6.1"
+    google-closure-compiler-java: "npm:^20260429.0.0"
+    google-closure-compiler-linux: "npm:^20260429.0.0"
+    google-closure-compiler-linux-arm64: "npm:^20260429.0.0"
+    google-closure-compiler-macos: "npm:^20260429.0.0"
+    google-closure-compiler-windows: "npm:^20260429.0.0"
+    minimist: "npm:^1.0.0"
+    vinyl: "npm:^3.0.1"
+    vinyl-sourcemaps-apply: "npm:^0.2.0"
+  dependenciesMeta:
+    google-closure-compiler-linux:
+      optional: true
+    google-closure-compiler-linux-arm64:
+      optional: true
+    google-closure-compiler-macos:
+      optional: true
+    google-closure-compiler-windows:
+      optional: true
+  bin:
+    google-closure-compiler: cli.js
+  checksum: 10c0/7e74dc7af172925986d811c88741ea93efb6653270f89fead66d053520234aa6b0a137c7c37a98ae150f62c85acf071bca9bdedbfc4c5fbf0dba6e3e4c20b3d7
   languageName: node
   linkType: hard
 
@@ -21009,7 +21146,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"minimist@npm:^1.2.0, minimist@npm:^1.2.5, minimist@npm:^1.2.6, minimist@npm:^1.2.8":
+"minimist@npm:^1.0.0, minimist@npm:^1.2.0, minimist@npm:^1.2.5, minimist@npm:^1.2.6, minimist@npm:^1.2.8":
   version: 1.2.8
   resolution: "minimist@npm:1.2.8"
   checksum: 10c0/19d3fcdca050087b84c2029841a093691a91259a47def2f18222f41e7645a0b7c44ef4b40e88a1e58a40c84d2ef0ee6047c55594d298146d0eb3f6b737c20ce6
@@ -22592,15 +22729,6 @@ __metadata:
   languageName: node
   linkType: hard
 
-"playwright-core@npm:1.60.0":
-  version: 1.60.0
-  resolution: "playwright-core@npm:1.60.0"
-  bin:
-    playwright-core: cli.js
-  checksum: 10c0/99ccd43923b6e9355e0723b7fe221e6326efd4687f8dafff951313662aea11db51f542a9c2122c704c445fb9baae1c9ec9fa6f895126bbddd9fe92313f6942c9
-  languageName: node
-  linkType: hard
-
 "playwright@npm:1.58.1":
   version: 1.58.1
   resolution: "playwright@npm:1.58.1"
@@ -22613,21 +22741,6 @@ __metadata:
   bin:
     playwright: cli.js
   checksum: 10c0/29cb2b34ad80f9dc1b27d26d8cf56e0964d7787e0beb18b25fd9d087a09ce56a359779104d2a1717d08789c2f2713928ef59140b2905e6ef00b2cb6df58bb107
-  languageName: node
-  linkType: hard
-
-"playwright@npm:^1.60.0":
-  version: 1.60.0
-  resolution: "playwright@npm:1.60.0"
-  dependencies:
-    fsevents: "npm:2.3.2"
-    playwright-core: "npm:1.60.0"
-  dependenciesMeta:
-    fsevents:
-      optional: true
-  bin:
-    playwright: cli.js
-  checksum: 10c0/714ad76d85b4865d7e43c0012f9039800c1485373388973ed39d79339cee5ad467052d1e2f1eaeca107a1cb6e65342186a8578a4c3504853d84c3a691250d5db
   languageName: node
   linkType: hard
 
@@ -23636,6 +23749,20 @@ __metadata:
   version: 1.0.1
   resolution: "remend@npm:1.0.1"
   checksum: 10c0/1247a8285f9caa9d1db49a90bf017855383291cfacf3011b010cfd9662fe01cdd133fc425b98535656bbc8d124c45e4ab6cd34f50c8906a043ded601c1b77bcf
+  languageName: node
+  linkType: hard
+
+"remove-trailing-separator@npm:^1.1.0":
+  version: 1.1.0
+  resolution: "remove-trailing-separator@npm:1.1.0"
+  checksum: 10c0/3568f9f8f5af3737b4aee9e6e1e8ec4be65a92da9cb27f989e0893714d50aa95ed2ff02d40d1fa35e1b1a234dc9c2437050ef356704a3999feaca6667d9e9bfc
+  languageName: node
+  linkType: hard
+
+"replace-ext@npm:^2.0.0":
+  version: 2.0.0
+  resolution: "replace-ext@npm:2.0.0"
+  checksum: 10c0/52cb1006f83c5f07ef2c76b070c58bdeca1b67beded57d60593d1af8cd8ee731501d0433645cea8e9a4bf57a7018f47c9a3928c0463496cad1946fa85907aa47
   languageName: node
   linkType: hard
 
@@ -24843,6 +24970,13 @@ __metadata:
   languageName: node
   linkType: hard
 
+"source-map@npm:^0.5.1":
+  version: 0.5.7
+  resolution: "source-map@npm:0.5.7"
+  checksum: 10c0/904e767bb9c494929be013017380cbba013637da1b28e5943b566031e29df04fba57edf3f093e0914be094648b577372bd8ad247fa98cfba9c600794cd16b599
+  languageName: node
+  linkType: hard
+
 "space-separated-tokens@npm:^1.0.0":
   version: 1.1.5
   resolution: "space-separated-tokens@npm:1.1.5"
@@ -25068,6 +25202,17 @@ __metadata:
     debug: "npm:^4.3.4"
     fs-extra: "npm:^8.1.0"
   checksum: 10c0/0bdeec34ad37487d959ba908f17067c938f544db88b5bb1669497a67a6b676413229ce5a6145c2812d06959ebeb8842e751076647d4b323ca06be612963b9099
+  languageName: node
+  linkType: hard
+
+"streamx@npm:^2.12.5":
+  version: 2.28.0
+  resolution: "streamx@npm:2.28.0"
+  dependencies:
+    events-universal: "npm:^1.0.0"
+    fast-fifo: "npm:^1.3.2"
+    text-decoder: "npm:^1.1.0"
+  checksum: 10c0/1cd5647c4dbdaadf4623b48183bab1d71bdc251e24c8f3baddf9fb9fa75096a7d446aba2c58a4f71964eeb5753f514b59e97bfdf94a60ce2c1b33594410b0342
   languageName: node
   linkType: hard
 
@@ -25508,6 +25653,15 @@ __metadata:
   languageName: node
   linkType: hard
 
+"teex@npm:^1.0.1":
+  version: 1.0.1
+  resolution: "teex@npm:1.0.1"
+  dependencies:
+    streamx: "npm:^2.12.5"
+  checksum: 10c0/8df9166c037ba694b49d32a49858e314c60e513d55ac5e084dbf1ddbb827c5fa43cc389a81e87684419c21283308e9d68bb068798189c767ec4c252f890b8a77
+  languageName: node
+  linkType: hard
+
 "terser@npm:5.16.9":
   version: 5.16.9
   resolution: "terser@npm:5.16.9"
@@ -25530,6 +25684,15 @@ __metadata:
     glob: "npm:^13.0.6"
     minimatch: "npm:^10.2.2"
   checksum: 10c0/f2b613cb5ddc05d1357892f5da965a6f7af42b19a6b2fc30c9b93cb74adf5059a3a9f29818adb75c96c1747b3934caac90a9058f73ce0640ea101de828a11600
+  languageName: node
+  linkType: hard
+
+"text-decoder@npm:^1.1.0":
+  version: 1.2.7
+  resolution: "text-decoder@npm:1.2.7"
+  dependencies:
+    b4a: "npm:^1.6.4"
+  checksum: 10c0/929938ed154fbadb660a7f3d1aca30b7e53649a731af7583168fcfba0c158046325d35d945926e2a512bb62d1a49a7818151c987ea38b48853f01e1615722fc5
   languageName: node
   linkType: hard
 
@@ -26711,6 +26874,27 @@ __metadata:
     "@types/unist": "npm:^3.0.0"
     vfile-message: "npm:^4.0.0"
   checksum: 10c0/e5d9eb4810623f23758cfc2205323e33552fb5972e5c2e6587babe08fe4d24859866277404fb9e2a20afb71013860d96ec806cb257536ae463c87d70022ab9ef
+  languageName: node
+  linkType: hard
+
+"vinyl-sourcemaps-apply@npm:^0.2.0":
+  version: 0.2.1
+  resolution: "vinyl-sourcemaps-apply@npm:0.2.1"
+  dependencies:
+    source-map: "npm:^0.5.1"
+  checksum: 10c0/141c66335eb98f40e2c31418cda57b33ef5378480c73c8416fd88e44655212160119a629f740d1b1969e84481c5e01d3e3f861c38ed16a0cf2afcc112a466f7d
+  languageName: node
+  linkType: hard
+
+"vinyl@npm:^3.0.1":
+  version: 3.0.1
+  resolution: "vinyl@npm:3.0.1"
+  dependencies:
+    clone: "npm:^2.1.2"
+    remove-trailing-separator: "npm:^1.1.0"
+    replace-ext: "npm:^2.0.0"
+    teex: "npm:^1.0.1"
+  checksum: 10c0/f1668e4c341948869d00a25082d96a3535050e7b7a174974820ee154065432c4b1a3dd1927bd8de96ffb470147e1ed8fc4a5458e010fe464698d4f987fca04ca
   languageName: node
   linkType: hard
 
