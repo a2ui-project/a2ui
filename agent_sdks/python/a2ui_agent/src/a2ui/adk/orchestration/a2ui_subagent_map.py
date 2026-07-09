@@ -20,6 +20,24 @@ from google.adk.events.event_actions import EventActions
 from google.adk.sessions.base_session_service import BaseSessionService
 from google.adk.sessions.session import Session
 from google.adk.sessions.state import State
+import asyncio
+from a2ui.schema.constants import (
+    A2UI_BEGIN_RENDERING_KEY,
+    A2UI_SURFACE_ID_KEY,
+    A2UI_DELETE_SURFACE_KEY,
+    A2UI_ACTIONS_KEY,
+    A2UI_ERROR_KEY,
+)
+from a2ui.a2a.parts import is_a2ui_part
+from a2a.server.events import Event as A2AEvent
+from a2a.types import Part, DataPart
+
+
+class SurfaceIdAlreadyExistsError(Exception):
+
+    def __init__(self, surface_id: str, message: str):
+        self.surface_id = surface_id
+        super().__init__(message)
 
 
 class A2uiSubagentMap:
@@ -41,6 +59,26 @@ class A2uiSubagentMap:
             subagent_name,
         )
         return subagent_name
+
+    @classmethod
+    async def get_subagent_name_for_client_event(
+        cls, a2a_part: Part, state: State
+    ) -> Optional[str]:
+        """Gets the subagent route for a client event a2a part, if applicable."""
+        if not is_a2ui_part(a2a_part) or not isinstance(a2a_part.root, DataPart):
+            return None
+
+        surface_id = None
+        data = a2a_part.root.data
+        if isinstance(data, dict):
+            if (action := data.get(A2UI_ACTIONS_KEY)) and isinstance(action, dict):
+                surface_id = action.get(A2UI_SURFACE_ID_KEY)
+            elif (error := data.get(A2UI_ERROR_KEY)) and isinstance(error, dict):
+                surface_id = error.get(A2UI_SURFACE_ID_KEY)
+
+        if surface_id:
+            return await cls.get_subagent_name(surface_id, state)
+        return None
 
     @classmethod
     async def set_subagent(
@@ -92,4 +130,54 @@ class A2uiSubagentMap:
             logging.info(
                 "Removed surface_id %s from subagent map",
                 surface_id,
+            )
+
+    @classmethod
+    async def update_from_server_event(
+        cls,
+        a2a_part: Part,
+        author: str,
+        session_service: BaseSessionService,
+        session: Session,
+    ) -> None:
+        """Processes a single server-to-client part and updates the subagent map.
+        Raises SurfaceIdAlreadyExistsError if a collision occurs.
+        """
+        if not is_a2ui_part(a2a_part) or not isinstance(a2a_part.root, DataPart):
+            return
+
+        data = a2a_part.root.data
+        if (
+            isinstance(data, dict)
+            and (begin_rendering := data.get(A2UI_BEGIN_RENDERING_KEY))
+            and isinstance(begin_rendering, dict)
+            and (surface_id := begin_rendering.get(A2UI_SURFACE_ID_KEY))
+        ):
+            key = cls._get_key(surface_id)
+            existing_owner = session.state.get(key)
+
+            if existing_owner and existing_owner != author:
+                raise SurfaceIdAlreadyExistsError(
+                    surface_id,
+                    f"Surface ID {surface_id} already exists: surface was previously"
+                    f" created by {existing_owner}, and {author} tried to create it"
+                    " again",
+                )
+            else:
+                await cls.set_subagent(
+                    surface_id,
+                    author,
+                    session_service,
+                    session,
+                )
+        elif (
+            isinstance(data, dict)
+            and (delete_surface := data.get(A2UI_DELETE_SURFACE_KEY))
+            and isinstance(delete_surface, dict)
+            and (surface_id := delete_surface.get(A2UI_SURFACE_ID_KEY))
+        ):
+            await cls.remove_subagent(
+                surface_id,
+                session_service,
+                session,
             )
