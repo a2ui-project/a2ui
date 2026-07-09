@@ -26,7 +26,7 @@ const GCS_URI =
   process.env.A2UI_NPM_MANIFEST_GCS_URI ||
   'gs://oss-exit-gate-prod-projects-bucket/a2ui/npm/manifests';
 
-const {yellow, red, green, reset, bold} = ansi;
+const {red, green, reset, bold} = ansi;
 
 /**
  * Prints the command line usage instructions and examples.
