@@ -153,6 +153,29 @@ class TestA2uiSubagentMap(unittest.IsolatedAsyncioTestCase):
 
     @patch("a2ui.adk.orchestration.a2ui_subagent_map.is_a2ui_part")
     @patch.object(A2uiSubagentMap, "set_subagent")
+    async def test_update_from_server_event_create_surface_new(
+        self, mock_set_subagent, mock_is_a2ui_part
+    ):
+        mock_is_a2ui_part.return_value = True
+        a2a_part = MagicMock()
+        a2a_part.root = MagicMock()
+        a2a_part.root.__class__ = DataPart
+        a2a_part.root.data = {"createSurface": {"surfaceId": "surface1"}}
+
+        session_service = AsyncMock()
+        session = MagicMock(spec=Session)
+        session.state = {}
+
+        await A2uiSubagentMap.update_from_server_event(
+            a2a_part, "agent_alpha", session_service, session
+        )
+
+        mock_set_subagent.assert_called_once_with(
+            "surface1", "agent_alpha", session_service, session
+        )
+
+    @patch("a2ui.adk.orchestration.a2ui_subagent_map.is_a2ui_part")
+    @patch.object(A2uiSubagentMap, "set_subagent")
     async def test_update_from_server_event_begin_rendering_existing_same_owner(
         self, mock_set_subagent, mock_is_a2ui_part
     ):

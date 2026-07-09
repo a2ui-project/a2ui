@@ -47,6 +47,7 @@ A2UI_ERROR_KEY = "error"
 
 # Server to Client messages
 A2UI_BEGIN_RENDERING_KEY = "beginRendering"
+A2UI_CREATE_SURFACE_KEY = "createSurface"
 A2UI_DELETE_SURFACE_KEY = "deleteSurface"
 
 # Fields

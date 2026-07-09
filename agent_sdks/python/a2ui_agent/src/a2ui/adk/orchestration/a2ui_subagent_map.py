@@ -24,6 +24,7 @@ import asyncio
 from a2ui.schema.constants import (
     A2UI_BEGIN_RENDERING_KEY,
     A2UI_SURFACE_ID_KEY,
+    A2UI_CREATE_SURFACE_KEY,
     A2UI_DELETE_SURFACE_KEY,
     A2UI_ACTIONS_KEY,
     A2UI_ERROR_KEY,
@@ -65,7 +66,11 @@ class A2uiSubagentMap:
         cls, a2a_part: Part, state: State
     ) -> Optional[str]:
         """Gets the subagent route for a client event a2a part, if applicable."""
-        if a2a_part is None or not is_a2ui_part(a2a_part) or not isinstance(a2a_part.root, DataPart):
+        if (
+            a2a_part is None
+            or not is_a2ui_part(a2a_part)
+            or not isinstance(a2a_part.root, DataPart)
+        ):
             return None
 
         surface_id = None
@@ -143,15 +148,22 @@ class A2uiSubagentMap:
         """Processes a single server-to-client part and updates the subagent map.
         Raises SurfaceIdAlreadyExistsError if a collision occurs.
         """
-        if a2a_part is None or not is_a2ui_part(a2a_part) or not isinstance(a2a_part.root, DataPart):
+        if (
+            a2a_part is None
+            or not is_a2ui_part(a2a_part)
+            or not isinstance(a2a_part.root, DataPart)
+            or not (data := a2a_part.root.data)
+            or not isinstance(data, dict)
+        ):
             return
 
-        data = a2a_part.root.data
         if (
-            isinstance(data, dict)
-            and (begin_rendering := data.get(A2UI_BEGIN_RENDERING_KEY))
-            and isinstance(begin_rendering, dict)
-            and (surface_id := begin_rendering[A2UI_SURFACE_ID_KEY])
+            (
+                surface_dict := data.get(A2UI_CREATE_SURFACE_KEY)  # v0.9+
+                or data.get(A2UI_BEGIN_RENDERING_KEY)  # v0.8
+            )
+            and isinstance(surface_dict, dict)
+            and (surface_id := surface_dict.get(A2UI_SURFACE_ID_KEY))
         ):
             key = cls._get_key(surface_id)
             existing_owner = session.state.get(key)
