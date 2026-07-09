@@ -166,13 +166,14 @@ class TestA2uiSubagentMap(unittest.IsolatedAsyncioTestCase):
         session = MagicMock(spec=Session)
         session.state = {"a2ui_surface_id_surface1": "agent_alpha"}
 
-        await A2uiSubagentMap.update_from_server_event(
-            a2a_part, "agent_alpha", session_service, session
-        )
+        with self.assertRaises(SurfaceIdAlreadyExistsError) as context:
+            await A2uiSubagentMap.update_from_server_event(
+                a2a_part, "agent_alpha", session_service, session
+            )
 
-        mock_set_subagent.assert_called_once_with(
-            "surface1", "agent_alpha", session_service, session
-        )
+        self.assertEqual(context.exception.surface_id, "surface1")
+        self.assertIn("already exists", str(context.exception))
+        mock_set_subagent.assert_not_called()
 
     @patch("a2ui.adk.orchestration.a2ui_subagent_map.is_a2ui_part")
     @patch.object(A2uiSubagentMap, "set_subagent")
