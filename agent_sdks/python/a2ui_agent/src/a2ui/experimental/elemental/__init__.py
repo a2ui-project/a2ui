@@ -12,16 +12,25 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""A2UI Elemental experimental package."""
+import os
+
+if os.environ.get("A2UI_EXPRESS_ENABLED", "").lower() not in ("true", "1", "yes"):
+    raise ImportError(
+        "A2UI Elemental is an experimental proposal extension and is disabled by"
+        " default. To enable it, set the environment variable"
+        " A2UI_EXPRESS_ENABLED=true."
+    )
 
 from .parser import parse_elemental_response
 from .compiler import ElementalCompiler
 from .decompiler import ElementalDecompiler
 from .prompt_generator import ElementalPromptGenerator
+from .format import ElementalInferenceFormat
 
 __all__ = [
     "parse_elemental_response",
     "ElementalCompiler",
     "ElementalDecompiler",
     "ElementalPromptGenerator",
+    "ElementalInferenceFormat",
 ]
