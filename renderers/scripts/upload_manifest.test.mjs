@@ -20,9 +20,18 @@ import assert from 'node:assert';
 import {main} from './upload_manifest.mjs';
 
 describe('upload_manifest script integration test', () => {
-  it('should generate manifest with publish_all: true by default', async () => {
-    let writtenFileContent = null;
+  it('should throw an error when no packages are specified', async () => {
+    await assert.rejects(
+      () => main([]),
+      err => {
+        assert.match(err.message, /Usage: upload_manifest --package=pkg1/);
+        return true;
+      },
+    );
+  });
 
+  it('should output help message and return early when --help is passed', async () => {
+    let writtenFileContent = null;
     const mocks = {
       runCommand: () => {},
       writeFileSync: (_, content) => {
@@ -30,11 +39,8 @@ describe('upload_manifest script integration test', () => {
       },
     };
 
-    await main([], mocks);
-
-    assert.ok(writtenFileContent, 'Should have written manifest file');
-    const manifest = JSON.parse(writtenFileContent);
-    assert.strictEqual(manifest.publish_all, true, 'Should default to publish_all: true');
+    await main(['--help'], mocks);
+    assert.strictEqual(writtenFileContent, null, 'Should not write file when help is passed');
   });
 
   it('should skip upload in dry-run mode by default', async () => {
@@ -47,7 +53,7 @@ describe('upload_manifest script integration test', () => {
       writeFileSync: () => {},
     };
 
-    await main([], mocks);
+    await main(['--package=angular'], mocks);
 
     assert.strictEqual(executedCommands.length, 0, 'Should not execute commands in dry-run');
   });
@@ -90,7 +96,7 @@ describe('upload_manifest script integration test', () => {
     };
 
     // --no-dry-run should trigger upload
-    await main(['--no-dry-run'], mocks);
+    await main(['--package=angular', '--no-dry-run'], mocks);
 
     assert.strictEqual(executedCommands.length, 1, 'Should execute one command');
     assert.ok(

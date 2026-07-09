@@ -1,3 +1,9 @@
+---
+name: a2ui_inference
+type: module
+description: Inference and Agent SDK specification for prompt engineering, streaming parsing, payload validation, and A2A integration.
+---
+
 # Agent SDK Development Guide
 
 This document describes the architecture of an A2UI Agent SDK. The design separates concerns into distinct layers to follow a similar structure for consistency across languages, providing a streamlined developer experience for building AI agents that generate rich UI.
@@ -240,36 +246,7 @@ An Event Converter intercepts the agent framework's event stream and applies the
 
 ---
 
-## 10. Contributor Implementation Guide
-
-If you are tasked with porting the `agent_sdk` to a new language (e.g., C++ or Kotlin), follow this strict, phased sequence:
-
-### Step 1: Core Foundation (Non-UI)
-
-Implement `CatalogConfig` (and its `Provider`), `A2uiCatalog`, and an `InferenceStrategy` (like `A2uiSchemaManager`). Ensure you can load a JSON file via a provider and print its schema.
-
-### Step 2: Prompt Generation
-
-Implement `generateSystemPrompt`. Verify that it outputs valid Markdown with embedded JSON schemas and examples.
-
-### Step 3: Parsing & Validation
-
-Implement `parseResponse` and validation. Hook up a standard JSON Schema validator for your language. Use the centralized YAML conformance suite in `agent_sdks/conformance/` to verify that your implementation handles streaming and validation edge cases identically to the reference implementation.
-
-### Step 4: Transport (A2A)
-
-Create the helper utilities to wrap JSON in transport Parts (if needed for your ecosystem).
-
-### Step 5: Sample Applications
-
-Create a simple sample (like a command-line agent or local server) to verify that the SDK works end-to-end. Refer to the reference Python samples (e.g., `samples/agent/adk/restaurant_finder`) for inspiration.
-
-> [!IMPORTANT]
-> Keep the SDK idiomatic to your language. Don't force Python-isms if it doesn't make sense (e.g., use builder patterns in Java/Kotlin or macros in C++ if they are more ergonomic).
-
----
-
-## 11. Cross-Language Feature Synchronization
+## 10. Cross-Language Feature Synchronization
 
 The A2UI Agent SDK is a multi-language ecosystem. While features may be implemented in one language first (e.g., Python), we strive for consistency across all supported languages (Kotlin, C++, etc.). To maintain this consistency, we follow a strict synchronization process:
 
@@ -282,8 +259,8 @@ The A2UI Agent SDK is a multi-language ecosystem. While features may be implemen
 
 ---
 
-## 12. Conformance Testing
+## 11. Conformance Testing
 
 To ensure behavioral parity across all SDK implementations (Python, Kotlin, etc.), the project maintains a language-agnostic conformance suite.
 
-For detailed information on the suite structure and how to use it in your SDK implementation, see the [Conformance Testing README](conformance/README.md).
+For detailed information on the suite structure and how to use it in your SDK implementation, see the [Conformance Testing README](../../agent_sdks/conformance/README.md).

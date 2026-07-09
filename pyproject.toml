@@ -21,6 +21,13 @@ dependencies = []
 
 [tool.uv]
 package = false
+# TODO(dependabot-1571): Remove this override once google/pyink releases a
+# version on PyPI newer than 25.12.0 that supports black>=26.5.1. This resolves
+# the black CVE-2026-32274 vulnerability (Dependabot alert
+# https://github.com/a2ui-project/a2ui/security/dependabot/1576).
+override-dependencies = [
+    "black>=26.5.1",
+]
 
 [tool.uv.workspace]
 members = [
@@ -101,12 +108,12 @@ pyink-annotation-pragmas = [
 
 [tool.mypy]
 strict = true
+explicit_package_bases = true
+namespace_packages = true
 mypy_path = "agent_sdks/python/a2ui_core/src:agent_sdks/python/a2ui_agent/src"
 exclude = [
     "agent_sdks/python/a2ui_core/tests/",
+    "agent_sdks/python/a2ui_agent/tests/",
+    # TODO(#1614): Typecheck all packages here.
+    "agent_sdks/python/a2ui_agent/src/a2ui/experimental/",
 ]
-
-# TODO(#1614): Typecheck all packages here.
-[[tool.mypy.overrides]]
-module = "a2ui.agent.*"
-ignore_errors = true

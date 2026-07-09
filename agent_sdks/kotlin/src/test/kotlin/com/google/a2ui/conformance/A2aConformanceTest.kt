@@ -27,8 +27,8 @@ import com.google.adk.agents.RunConfig
 import com.google.adk.events.Event
 import com.google.adk.runner.Runner
 import com.google.adk.sessions.BaseSessionService
-import com.google.adk.sessions.GetSessionConfig
 import com.google.adk.sessions.Session
+import com.google.adk.sessions.SessionKey
 import com.google.genai.types.Content
 import com.google.genai.types.Part
 import io.a2a.spec.DataPart
@@ -159,14 +159,8 @@ class A2aConformanceTest {
 
             every { mockRunner.appName() } returns "test-app"
             every { mockRunner.sessionService() } returns mockSessionService
-            every {
-              mockSessionService.getSession(
-                any<String>(),
-                any<String>(),
-                any<String>(),
-                any<Optional<GetSessionConfig>>(),
-              )
-            } returns Maybe.just(mockSession)
+            every { mockSessionService.getSession(any<SessionKey>(), any()) } returns
+              Maybe.just(mockSession)
 
             val mockPart = mockk<Part>(relaxed = true)
             every { mockPart.text() } returns Optional.of(runnerOutput)
@@ -179,8 +173,9 @@ class A2aConformanceTest {
             every { mockEvent.id() } returns "test-event-id"
             every { mockEvent.content() } returns Optional.of(mockContent)
 
-            every { mockRunner.runAsync(any<Session>(), any<Content>(), any<RunConfig>()) } returns
-              Flowable.just(mockEvent)
+            every {
+              mockRunner.runAsync(any<SessionKey>(), any<Content>(), any<RunConfig>())
+            } returns Flowable.just(mockEvent)
 
             val handler = A2aHandler(mockRunner)
 

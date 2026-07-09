@@ -13,7 +13,10 @@
 # limitations under the License.
 
 
-def remove_strict_validation(schema):
+from typing import Any
+
+
+def remove_strict_validation(schema: Any) -> Any:
     if isinstance(schema, dict):
         new_schema = {k: remove_strict_validation(v) for k, v in schema.items()}
         if (

@@ -43,7 +43,7 @@ dependencies {
     implementation("com.google.a2ui:a2ui-agent")
 
     // Google ADK
-    implementation("com.google.adk:google-adk:0.9.0")
+    implementation("com.google.adk:google-adk:1.5.0")
 
     // Default model integration
     implementation("com.google.genai:google-genai:1.43.0")

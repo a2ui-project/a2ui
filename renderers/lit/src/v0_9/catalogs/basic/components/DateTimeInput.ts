@@ -73,6 +73,10 @@ export class A2uiDateTimeInputElement extends BasicCatalogA2uiLitElement<typeof 
       border-radius: var(--a2ui-datetimeinput-border-radius, var(--a2ui-border-radius));
       padding: var(--a2ui-datetimeinput-padding, var(--a2ui-spacing-s));
     }
+    .a2ui-date-time-input::-webkit-datetime-edit,
+    .a2ui-date-time-input::-webkit-datetime-edit-fields-wrapper {
+      color: var(--a2ui-datetimeinput-color, var(--a2ui-color-on-input, #333));
+    }
     label {
       font-size: var(
         --a2ui-datetimeinput-label-font-size,
@@ -99,6 +103,7 @@ export class A2uiDateTimeInputElement extends BasicCatalogA2uiLitElement<typeof 
     return html`
       ${props.label ? html`<label>${props.label}</label>` : nothing}
       <input
+        class="a2ui-date-time-input"
         type=${inputType}
         .value=${normalizedValue}
         @input=${(e: Event) => props.setValue?.((e.target as HTMLInputElement).value)}
