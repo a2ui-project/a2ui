@@ -17,8 +17,7 @@
 import {v0_8} from '@a2ui/lit';
 import * as UI from '@a2ui/lit/ui';
 import {LitElement, html} from 'lit';
-import {customElement, property} from 'lit/decorators.js';
-import {provide} from '@lit/context';
+import {ContextProvider} from '@lit/context';
 import {renderMarkdown} from '@a2ui/markdown-it';
 import {allFixtures, type FixtureName, type ComponentFixture} from '../../fixtures';
 import {getTheme, themeNames, type ThemeName} from '../../fixtures/themes';
@@ -27,23 +26,39 @@ import {getTheme, themeNames, type ThemeName} from '../../fixtures/themes';
 // This matches the pattern from @copilotkit/a2ui-renderer's themed-a2ui-surface
 // Key insight: @lit/context doesn't propagate through <slot>, so we must
 // provide the theme directly on a component that renders a2ui-surface as a child
-@customElement('themed-a2ui-surface')
 class ThemedA2UISurface extends LitElement {
-  @provide({context: UI.Context.themeContext})
-  @property({attribute: false})
-  accessor theme: v0_8.Types.Theme | undefined = undefined;
+  static properties = {
+    theme: {attribute: false},
+    surfaceId: {attribute: false},
+    surface: {attribute: false},
+    processor: {attribute: false},
+  };
 
-  @provide({context: UI.Context.markdown})
-  accessor markdownRenderer: v0_8.Types.MarkdownRenderer = renderMarkdown;
+  declare theme: v0_8.Types.Theme | undefined;
+  declare surfaceId: string;
+  declare surface: v0_8.Types.Surface | undefined;
+  declare processor: v0_8.A2uiMessageProcessor | undefined;
 
-  @property({attribute: false})
-  accessor surfaceId: string = '';
+  private _themeProvider = new ContextProvider(this, {
+    context: UI.Context.themeContext,
+    initialValue: undefined,
+  });
 
-  @property({attribute: false})
-  accessor surface: any = undefined;
+  private _markdownProvider = new ContextProvider(this, {
+    context: UI.Context.markdown,
+    initialValue: renderMarkdown,
+  });
 
-  @property({attribute: false})
-  accessor processor: any = undefined;
+  constructor() {
+    super();
+    this.surfaceId = '';
+  }
+
+  willUpdate(changedProperties: Map<PropertyKey, unknown>) {
+    if (changedProperties.has('theme')) {
+      this._themeProvider.setValue(this.theme);
+    }
+  }
 
   render() {
     return html`<a2ui-surface
@@ -53,6 +68,8 @@ class ThemedA2UISurface extends LitElement {
     ></a2ui-surface>`;
   }
 }
+
+customElements.define('themed-a2ui-surface', ThemedA2UISurface);
 
 /**
  * Convert a value to a ValueMap entry.
@@ -210,7 +227,7 @@ function init() {
   // Get the surface data
   const surface = processor.getSurfaces().get(surfaceId);
   if (!surface) {
-    app.innerHTML = `<div>Error: Failed to process fixture</div>`;
+    app.innerHTML = '<div>Error: Failed to process fixture</div>';
     return;
   }
 

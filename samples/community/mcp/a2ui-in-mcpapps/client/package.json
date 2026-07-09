@@ -10,8 +10,8 @@
     "build:sandbox": "npx esbuild ../../../client/shared/mcp_apps_inner_iframe/sandbox.ts --bundle --outfile=public/sandbox_iframe/sandbox.js --format=esm --platform=browser && cp ../../../client/shared/mcp_apps_inner_iframe/sandbox.html public/sandbox_iframe/sandbox.html",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "lint": "echo \"Workspace has no lint configuration.\"",
-    "lint:fix": "echo \"Workspace has no lint configuration.\""
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix"
   },
   "private": true,
   "dependencies": {
@@ -30,6 +30,7 @@
     "@angular/build": "^21.2.5",
     "@angular/cli": "^21.2.5",
     "@angular/compiler-cli": "^21.2.5",
+    "eslint": "^10.4.1",
     "jsdom": "^29.1.1",
     "prettier": "^3.8.4",
     "typescript": "5.9.3",

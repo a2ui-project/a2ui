@@ -330,6 +330,9 @@ __metadata:
 "@a2ui/renderers-scripts@workspace:renderers/scripts":
   version: 0.0.0-use.local
   resolution: "@a2ui/renderers-scripts@workspace:renderers/scripts"
+  dependencies:
+    eslint: "npm:^10.4.1"
+    gts: "npm:^7.0.0"
   languageName: unknown
   linkType: soft
 
@@ -411,6 +414,8 @@ __metadata:
     "@types/react-dom": "npm:^19.2.3"
     "@vitejs/plugin-react": "npm:^6.0.2"
     concurrently: "npm:^10.0.3"
+    eslint: "npm:^10.4.1"
+    gts: "npm:^7.0.0"
     lit: "npm:^3.3.3"
     markdown-it: "npm:^14.2.0"
     pixelmatch: "npm:^7.2.0"
@@ -11845,8 +11850,10 @@ __metadata:
     ajv: "npm:^8.20.0"
     ajv-formats: "npm:^3.0.1"
     dotenv-cli: "npm:^11.0.0"
+    eslint: "npm:^10.4.1"
     genkit: "npm:^1.36.0"
     genkitx-anthropic: "npm:^0.30.0"
+    gts: "npm:^7.0.0"
     js-yaml: "npm:^4.2.0"
     prettier: "npm:^3.8.4"
     tsx: "npm:^4.22.4"
@@ -11874,8 +11881,10 @@ __metadata:
     ajv: "npm:^8.20.0"
     ajv-formats: "npm:^3.0.1"
     dotenv-cli: "npm:^11.0.0"
+    eslint: "npm:^10.4.1"
     genkit: "npm:^1.36.0"
     genkitx-anthropic: "npm:^0.30.0"
+    gts: "npm:^7.0.0"
     js-yaml: "npm:^4.2.0"
     prettier: "npm:^3.8.4"
     tsx: "npm:^4.22.4"
@@ -11904,8 +11913,10 @@ __metadata:
     ajv: "npm:^8.20.0"
     ajv-formats: "npm:^3.0.1"
     dotenv-cli: "npm:^11.0.0"
+    eslint: "npm:^10.4.1"
     genkit: "npm:^1.36.0"
     genkitx-anthropic: "npm:^0.30.0"
+    gts: "npm:^7.0.0"
     js-yaml: "npm:^4.2.0"
     prettier: "npm:^3.8.4"
     tsx: "npm:^4.22.4"
@@ -11926,8 +11937,10 @@ __metadata:
     "@genkit-ai/vertexai": "npm:^1.36.0"
     "@types/yargs": "npm:^17.0.35"
     dotenv-cli: "npm:^11.0.0"
+    eslint: "npm:^10.4.1"
     genkit: "npm:^1.36.0"
     genkitx-anthropic: "npm:^0.30.0"
+    gts: "npm:^7.0.0"
     prettier: "npm:^3.8.4"
     tsx: "npm:^4.22.4"
     typescript: "npm:5.9.3"

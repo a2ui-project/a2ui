@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-import {readFileSync, readdirSync, statSync, existsSync} from 'node:fs';
-import {join, resolve, relative, dirname} from 'node:path';
+import {readFileSync, readdirSync, statSync} from 'node:fs';
+import {join, resolve, dirname} from 'node:path';
 import {spawnSync} from 'node:child_process';
 import {fileURLToPath} from 'node:url';
 

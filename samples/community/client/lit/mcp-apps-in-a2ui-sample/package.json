@@ -15,8 +15,8 @@
     "serve": "wireit",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "lint": "echo \"Workspace has no lint configuration.\"",
-    "lint:fix": "echo \"Workspace has no lint configuration.\""
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix"
   },
   "wireit": {
     "serve": {
@@ -70,6 +70,7 @@
   "homepage": "https://github.com/a2ui-project/a2ui/tree/main/web#readme",
   "devDependencies": {
     "dotenv": "^17.4.2",
+    "eslint": "^10.4.1",
     "typescript": "5.9.3",
     "uuid": "^14.0.0",
     "vite": "^8.0.16",

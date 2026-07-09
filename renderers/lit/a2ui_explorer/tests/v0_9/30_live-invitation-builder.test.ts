@@ -85,6 +85,15 @@ describe('Example: Live Invitation Builder', () => {
     expect(textContent).toContain('2025');
   });
 
+  it('should render date time input', async () => {
+    const dateTimeInput = querySelectorAllDeep(
+      surface,
+      '.a2ui-date-time-input',
+    )[0] as HTMLInputElement;
+    expect(dateTimeInput).withContext('Should have a date time input element').toBeTruthy();
+    expect(dateTimeInput.value).toContain('2025-07-15');
+  });
+
   it('should render image', async () => {
     const img = querySelectorAllDeep(surface, 'img')[0] as HTMLImageElement;
     expect(img).toBeTruthy();
