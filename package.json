@@ -58,6 +58,27 @@
     "@angular/forms": "^21.2.5",
     "@angular/cdk": "^21.2.5",
     "@angular/google-maps": "^21.2.5",
-    "@angular/material": "^21.2.5"
+    "@angular/material": "^21.2.5",
+    "js-yaml@npm:^3": "3.15.0",
+    "js-yaml@npm:^4": "4.2.0",
+    "undici": "7.28.0",
+    "dompurify": "3.4.11",
+    "piscina": "5.2.0",
+    "vite@npm:7.3.2": "7.3.5",
+    "vite@npm:^6.0.0 || ^7.0.0 || ^8.0.0": "8.0.16",
+    "@babel/core": "7.29.6",
+    "esbuild": "0.28.1",
+    "minimatch@npm:9.0.5": "9.0.7",
+    "qs": "6.15.2",
+    "brace-expansion@npm:^2": "2.0.3",
+    "brace-expansion@npm:^5": "5.0.6",
+    "@opentelemetry/auto-instrumentations-node": "0.75.0",
+    "@opentelemetry/sdk-node": "0.217.0",
+    "@opentelemetry/core": "2.9.0",
+    "fast-json-patch": "3.1.1",
+    "ip-address": "10.1.1",
+    "@anthropic-ai/sdk": "0.91.1",
+    "postcss": "8.5.10",
+    "fast-xml-parser": "5.7.0"
   }
 }

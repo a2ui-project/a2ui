@@ -30,6 +30,29 @@ import {parseArgs} from 'node:util';
 const {yellow, red, green, reset, bold} = ansi;
 
 /**
+ * Prints the command line usage instructions and examples.
+ */
+function printHelp() {
+  console.log(`Usage: publish_npm [options]
+
+Publishes A2UI workspace packages to NPM / Artifact Registry in topological dependency order.
+
+Options:
+  -p, --package <name>                 Package(s) to publish. Can be specified multiple times.
+                                       Accepts short names (e.g., 'web_core') or scoped names (e.g., '@a2ui/web_core').
+  --no-dry-run                         Actually publish the packages and obtain fresh auth tokens.
+  --skip-tests                         Skip building and testing packages before publishing. Not recommended.
+  -h, --help                           Show this complete help message.
+
+Examples:
+  # Dry run publishing a single package
+  ./publish_npm.mjs --package=web_core
+
+  # Actually publish multiple packages, skipping tests
+  ./publish_npm.mjs -p web_core -p react --no-dry-run --skip-tests`);
+}
+
+/**
  * Topologically sorts package objects based on their internal dependencies.
  *
  * @param {Object[]} packageObjects - The package objects to sort.
@@ -115,8 +138,8 @@ function checkGitProvenance(exec) {
     commitHash = exec('git rev-parse HEAD', {encoding: 'utf8'}).trim();
     const status = exec('git status --porcelain', {encoding: 'utf8'}).trim();
     isDirty = status.length > 0;
-  } catch (e) {
-    // Should this throw an Error with {cause: e}?
+  } catch {
+    // Should this throw an Error?
     console.warn(
       `${yellow}⚠️ Could not verify Git status. Ensure you are in a valid Git repository.${reset}`,
     );
@@ -128,10 +151,10 @@ function checkGitProvenance(exec) {
       `${yellow}⚠️  WARNING: Your Git working tree is DIRTY (you have uncommitted changes).${reset}`,
     );
     console.warn(
-      `   Publishing from a dirty tree means the published code will NOT exactly match the commit history.`,
+      '   Publishing from a dirty tree means the published code will NOT exactly match the commit history.',
     );
     console.warn(
-      `   It is highly recommended to commit or stash your changes before publishing.\n`,
+      '   It is highly recommended to commit or stash your changes before publishing.\n',
     );
   }
 
@@ -172,7 +195,7 @@ function ensureWorkspaceDependencies(packageObjects, graph) {
       }
     }
   }
-  if (result.length == packageObjects.length) {
+  if (result.length === packageObjects.length) {
     console.log('All workspace dependencies are present.');
   }
   return result;
@@ -196,7 +219,7 @@ function getNpmVersion(pkg, {npmToken, exec}) {
     }).trim();
     const remoteVersion = JSON.parse(remoteVersionJson)?.version;
     return remoteVersion;
-  } catch (e) {
+  } catch {
     return null;
   }
 }
@@ -204,10 +227,12 @@ function getNpmVersion(pkg, {npmToken, exec}) {
 /**
  * Obtains an Artifact Registry token via gcloud if NPM_TOKEN is not in env.
  *
+ * This function throws if the token cannot be retrieved from the gcloud CLI.
+ *
  * @param {Function} exec - The execSync function to use.
  * @returns {string|null} The token string, or null if it could not be obtained.
  */
-function getRegistryToken(exec) {
+function getAccessToken(exec) {
   let npmToken = process.env.NPM_TOKEN;
   if (!npmToken) {
     console.log(`\n${bold}Obtaining Artifact Registry authentication token${reset}\n`);
@@ -217,8 +242,9 @@ function getRegistryToken(exec) {
         `Using token: ${npmToken.substring(0, 5)}...${npmToken.substring(npmToken.length - 5)}`,
       );
     } catch (e) {
-      console.warn(
-        `${yellow}⚠️ Could not obtain gcloud access token. Ensure you are logged in (${reset}gcloud auth login${yellow}).${reset}`,
+      throw new Error(
+        `${red}❌ Could not find access token. Run:\n   ${reset}gcloud auth login${red}`,
+        {cause: e},
       );
     }
   }
@@ -346,45 +372,26 @@ export async function main(args, mocks = {}) {
   };
 
   const {values} = parseArgs({args, options, allowNegative: true});
-
-  if (values.help) {
-    console.log(`Usage: publish_npm [options]
-
-Publishes A2UI workspace packages to NPM / Artifact Registry in topological dependency order.
-
-Options:
-  -p, --package <name>                 Package(s) to publish. Can be specified multiple times.
-                                       Accepts short names (e.g., 'web_core') or scoped names (e.g., '@a2ui/web_core').
-  --check-core-dependencies            Verify that core dependencies are also being published.
-  --no-check-core-dependencies         Skip core dependencies verification.
-  --dry-run                            Perform a dry run without actually publishing or obtaining auth tokens (default).
-  --no-dry-run                         Actually publish the packages and obtain fresh auth tokens.
-  --skip-tests                         Skip building and testing packages before publishing.
-  -h, --help                           Show this complete help message.
-
-Examples:
-  # Dry run publishing a single package
-  ./publish_npm.mjs --package=web_core
-
-  # Actually publish multiple packages, skipping tests
-  ./publish_npm.mjs -p web_core -p react --no-dry-run --skip-tests`);
-    return;
-  }
-  let packagesToPublish = values.package;
-
+  const packagesToPublish = values.package;
   const dryRun = values['dry-run'];
   const skipTests = values['skip-tests'];
 
+  if (values.help) {
+    printHelp();
+    return;
+  }
+
   if (packagesToPublish.length === 0) {
+    printHelp();
     throw new Error(
-      'Usage: publish_npm --package=pkg1 --package=pkg2 [--no-check-core-dependencies] [--no-dry-run] [--skip-tests]',
+      'Usage: publish_npm --package=pkg1 --package=pkg2 [--no-dry-run] [--skip-tests]',
     );
   }
 
-  const npmToken = getRegistryToken(exec);
+  const npmToken = getAccessToken(exec);
 
   // Checks the status of the current git branch.
-  const commitHash = checkGitProvenance(exec);
+  checkGitProvenance(exec);
 
   const graph = getPackageGraph();
 

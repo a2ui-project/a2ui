@@ -13,7 +13,9 @@
     "test:visual": "playwright test",
     "test:update": "playwright test --update-snapshots",
     "test:ui": "playwright test --ui",
-    "test:report": "playwright show-report"
+    "test:report": "playwright show-report",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix"
   },
   "dependencies": {
     "@a2ui/lit": "workspace:*",
@@ -33,6 +35,8 @@
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^6.0.2",
     "concurrently": "^10.0.3",
+    "eslint": "^10.4.1",
+    "gts": "^7.0.0",
     "pixelmatch": "^7.2.0",
     "pngjs": "^7.0.0",
     "typescript": "5.9.3",

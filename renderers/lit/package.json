@@ -116,7 +116,7 @@
     "google-artifactregistry-auth": "^3.5.0",
     "gts": "^7.0.0",
     "jsdom": "^29.1.1",
-    "prettier": "^3.5.0",
+    "prettier": "^3.8.4",
     "typescript": "5.9.3",
     "wireit": "^0.15.0-pre.2"
   },

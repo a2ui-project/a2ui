@@ -25,14 +25,14 @@ export function extractJsonFromMarkdown(markdown: string): any[] {
       // Try parsing as a single JSON object first
       try {
         results.push(JSON.parse(content));
-      } catch (error) {
+      } catch {
         // If that fails, try parsing as JSONL (line by line)
         const lines = content.split('\n');
         for (const line of lines) {
           if (line.trim()) {
             try {
               results.push(JSON.parse(line));
-            } catch (e2) {
+            } catch {
               // Ignore invalid lines
             }
           }
