@@ -145,3 +145,6 @@ You can call these functions inside attribute expressions `{{...}}` using named 
 
     def decompile(self, val: dict[str, Any], catalog: A2uiCatalog) -> str:
         return ElementalDecompiler(catalog).decompile(val)
+
+    def detect_format(self, content: str) -> bool:
+        return "<body>" in content and "</body>" in content

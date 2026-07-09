@@ -65,6 +65,10 @@ class InferenceFormat(ABC):
         """Decompiles standard JSON payload back into this format's string representation."""
         pass
 
+    def detect_format(self, content: str) -> bool:
+        """Returns True if the content contains this format's sentinel/payload tags."""
+        return False
+
 
 class classproperty:
     """Custom descriptor to support class-level properties."""

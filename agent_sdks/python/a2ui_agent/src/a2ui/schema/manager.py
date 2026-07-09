@@ -218,11 +218,13 @@ class A2uiSchemaManager(InferenceStrategy):
         include_schema: bool = False,
         include_examples: bool = False,
         validate_examples: bool = False,
+        format_strategy: Optional[InferenceFormat] = None,
     ) -> str:
         """Assembles the final system instruction for the LLM."""
         parts = [role_description]
 
-        workflow = self._format_strategy.generate_workflow_rules(workflow_description)
+        strategy = format_strategy or self._format_strategy
+        workflow = strategy.generate_workflow_rules(workflow_description)
         parts.append(f"## Workflow Description:\n{workflow}")
 
         if ui_description:
@@ -233,14 +235,14 @@ class A2uiSchemaManager(InferenceStrategy):
         )
 
         if include_schema:
-            parts.append(self._format_strategy.generate_instructions(selected_catalog))
+            parts.append(strategy.generate_instructions(selected_catalog))
 
         if include_examples:
             examples_str = self.load_examples(
                 selected_catalog, validate=validate_examples
             )
             if examples_str:
-                formatted_examples = self._format_strategy.transform_examples(
+                formatted_examples = strategy.transform_examples(
                     examples_str, selected_catalog
                 )
                 parts.append(f"### Examples:\n{formatted_examples}")

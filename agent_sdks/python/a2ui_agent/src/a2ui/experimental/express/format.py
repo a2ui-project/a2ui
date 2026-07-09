@@ -160,3 +160,6 @@ class ExpressInferenceFormat(InferenceFormat):
 
     def decompile(self, val: dict[str, Any], catalog: A2uiCatalog) -> str:
         return ExpressDecompiler(catalog).decompile(val)
+
+    def detect_format(self, content: str) -> bool:
+        return "<a2ui>" in content and "</a2ui>" in content

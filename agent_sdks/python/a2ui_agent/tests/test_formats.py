@@ -231,3 +231,68 @@ def test_elemental_inference_format(test_catalog):
     }
     decompiled = fmt.decompile(data, test_catalog)
     assert "<ui-text" in decompiled
+
+
+def test_dynamic_format_switching(test_catalog):
+    from a2ui.schema.manager import A2uiSchemaManager
+    from a2ui.adk.a2a.part_converter import A2uiPartConverter
+    from a2ui.experimental.express.format import ExpressInferenceFormat
+    from google.genai import types as genai_types
+
+    from a2ui.schema.catalog import CatalogConfig
+    from a2ui.schema.catalog_provider import A2uiCatalogProvider
+
+    class MemoryCatalogProvider(A2uiCatalogProvider):
+
+        def __init__(self, schema):
+            self.schema = schema
+
+        def load(self):
+            return self.schema
+
+    config = CatalogConfig(
+        name="test_catalog", provider=MemoryCatalogProvider(test_catalog.catalog_schema)
+    )
+
+    # 1. Test schema manager with dynamic format strategy parameter
+    manager = A2uiSchemaManager(version=VERSION_0_9, catalogs=[config])
+    # Default is JSON
+    default_prompt = manager.generate_system_prompt(
+        role_description="Test role",
+        include_schema=True,
+        client_ui_capabilities={
+            "supportedCatalogIds": ["https://a2ui.org/test_catalog"]
+        },
+    )
+    assert "### Catalog Schema:" in default_prompt
+
+    # Switch dynamically to Express
+    express_prompt = manager.generate_system_prompt(
+        role_description="Test role",
+        include_schema=True,
+        client_ui_capabilities={
+            "supportedCatalogIds": ["https://a2ui.org/test_catalog"]
+        },
+        format_strategy=ExpressInferenceFormat(),
+    )
+    assert "## Positional Component Signatures" in express_prompt
+
+    # 2. Test part converter with dynamic format strategy parameter
+    # Test JSON default (with `<a2ui>` tags)
+    json_converter = A2uiPartConverter(a2ui_catalog=test_catalog)
+    part_json = genai_types.Part(
+        text=(
+            '<a2ui-json>[{"version": "v0.9", "createSurface": {"surfaceId": "main",'
+            ' "catalogId": "https://a2ui.org/test_catalog"}}]</a2ui-json>'
+        )
+    )
+    parts_json = json_converter.convert(part_json)
+    assert len(parts_json) == 1
+
+    # Test Express dynamically
+    express_converter = A2uiPartConverter(
+        a2ui_catalog=test_catalog, format_strategy=ExpressInferenceFormat()
+    )
+    part_express = genai_types.Part(text="<a2ui>\nroot = Text()\n</a2ui>")
+    parts_express = express_converter.convert(part_express)
+    assert len(parts_express) == 1

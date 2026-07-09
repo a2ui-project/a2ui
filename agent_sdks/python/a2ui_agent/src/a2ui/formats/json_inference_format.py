@@ -49,3 +49,8 @@ class JsonInferenceFormat(InferenceFormat):
 
     def decompile(self, val: dict[str, Any], catalog: A2uiCatalog) -> str:
         return json.dumps(val, indent=2)
+
+    def detect_format(self, content: str) -> bool:
+        from a2ui.schema.constants import A2UI_OPEN_TAG, A2UI_CLOSE_TAG
+
+        return A2UI_OPEN_TAG in content and A2UI_CLOSE_TAG in content
