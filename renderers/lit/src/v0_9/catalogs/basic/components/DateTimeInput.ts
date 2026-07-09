@@ -28,17 +28,67 @@ import {A2uiController} from '../../../a2ui-controller.js';
  * If these are present, the browser will reset the input to an empty string. This function strips
  * those specifiers using string splitting and substring manipulation without shifting timezones.
  */
-function normalizeDateTimeValue(value: string | null | undefined, type: string): string {
-  if (!value) return '';
+function normalizeDateTimeValue(value: unknown, type: string): string {
+  if (value === null || value === undefined || value === '') return '';
 
-  const hasT = value.includes('T');
-  const split = value.split('T');
+  let strValue = '';
+  if (value instanceof Date) {
+    strValue = value.toISOString();
+  } else {
+    strValue = String(value).trim();
+  }
 
-  // If the incoming value is not in ISO format (not hasT), use the incoming value.
-  // It might be just a date: '2010-07-11' or a time: '13:37', so we use value as a
-  // the fallback to the split.
-  const datePart = (hasT ? split[0] : value)?.substring(0, 10) ?? '';
-  const timePart = (hasT ? split[1] : value)?.substring(0, 5) ?? '';
+  if (!strValue) return '';
+
+  let datePart = '';
+  let timePart = '';
+
+  // 1. Try literal extraction of YYYY-MM-DD or YYYY/MM/DD
+  const dateRegex = /(\d{4})[-/](\d{2})[-/](\d{2})/;
+  const dateMatch = strValue.match(dateRegex);
+  if (dateMatch) {
+    datePart = `${dateMatch[1]}-${dateMatch[2]}-${dateMatch[3]}`;
+  }
+
+  // 2. Try literal extraction of HH:mm
+  const timeRegex = /(\d{2}):(\d{2})(?::(\d{2}))?/;
+  const timeMatch = strValue.match(timeRegex);
+  if (timeMatch) {
+    timePart = `${timeMatch[1]}:${timeMatch[2]}`;
+  }
+
+  // 3. Fallback to Date object parsing if needed
+  const needDate = type === 'date' || type === 'datetime-local';
+  const needTime = type === 'time' || type === 'datetime-local';
+
+  if ((needDate && !datePart) || (needTime && !timePart)) {
+    let parsedDate: Date;
+    const num = Number(strValue);
+    if (strValue !== '' && !isNaN(num)) {
+      parsedDate = new Date(num);
+    } else {
+      parsedDate = new Date(strValue);
+    }
+
+    if (!isNaN(parsedDate.getTime())) {
+      if (!datePart) {
+        const y = parsedDate.getFullYear();
+        const m = String(parsedDate.getMonth() + 1).padStart(2, '0');
+        const d = String(parsedDate.getDate()).padStart(2, '0');
+        datePart = `${y}-${m}-${d}`;
+      }
+      if (!timePart) {
+        const h = String(parsedDate.getHours()).padStart(2, '0');
+        const min = String(parsedDate.getMinutes()).padStart(2, '0');
+        timePart = `${h}:${min}`;
+      }
+    }
+  }
+
+  // If timePart is empty but we need it and datePart is present, default to '00:00'
+  if (type === 'datetime-local' && datePart && !timePart) {
+    timePart = '00:00';
+  }
 
   switch (type) {
     case 'date':
@@ -46,7 +96,7 @@ function normalizeDateTimeValue(value: string | null | undefined, type: string):
     case 'time':
       return timePart;
     case 'datetime-local':
-      return `${datePart}T${timePart}`;
+      return datePart && timePart ? `${datePart}T${timePart}` : '';
   }
   return '';
 }

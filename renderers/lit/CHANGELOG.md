@@ -1,5 +1,7 @@
 ## Unreleased
 
+- (v0_9) Improve DateTimeInput date and time string parsing to align with specification. [#1673](https://github.com/a2ui-project/a2ui/issues/1673)
+
 ## 0.10.1
 
 - (v0_9) Tighten resolved child list types in the basic catalog layout components.

@@ -399,5 +399,65 @@ describe('Basic Catalog Components', () => {
       fireEvent.change(screen.getByLabelText('When'), {target: {value: '2026-03-20'}});
       expect(surface.dataModel.get('/date')).toBe('2026-03-20');
     });
+
+    it('DateTimeInput parses different date/time formats correctly', () => {
+      // Test cases for date-only input
+      const testCasesDate = [
+        {input: '2026-03-20', expected: '2026-03-20'},
+        {input: '2026-03-20T12:00:00Z', expected: '2026-03-20'},
+        {input: '2026-03-20T12:00:00+05:30', expected: '2026-03-20'},
+        {input: '2026/03/20 12:00:00', expected: '2026-03-20'},
+      ];
+
+      for (const {input, expected} of testCasesDate) {
+        const {view} = renderA2uiComponent(DateTimeInput, 'dt_date', {
+          label: 'DateOnly',
+          value: input,
+          enableDate: true,
+          enableTime: false,
+        });
+        expect((screen.getByLabelText('DateOnly') as HTMLInputElement).value).toBe(expected);
+        view.unmount();
+      }
+
+      // Test cases for time-only input
+      const testCasesTime = [
+        {input: '12:00', expected: '12:00'},
+        {input: '12:00:00', expected: '12:00'},
+        {input: '2026-03-20T12:00:00Z', expected: '12:00'},
+        {input: '2026-03-20T12:00:00+05:30', expected: '12:00'},
+        {input: '2026/03/20 12:34:56', expected: '12:34'},
+      ];
+
+      for (const {input, expected} of testCasesTime) {
+        const {view} = renderA2uiComponent(DateTimeInput, 'dt_time', {
+          label: 'TimeOnly',
+          value: input,
+          enableDate: false,
+          enableTime: true,
+        });
+        expect((screen.getByLabelText('TimeOnly') as HTMLInputElement).value).toBe(expected);
+        view.unmount();
+      }
+
+      // Test cases for datetime-local input
+      const testCasesDateTime = [
+        {input: '2026-03-20T12:00', expected: '2026-03-20T12:00'},
+        {input: '2026-03-20T12:00:00Z', expected: '2026-03-20T12:00'},
+        {input: '2026-03-20T12:00:00+05:30', expected: '2026-03-20T12:00'},
+        {input: '2026/03/20 12:34:56', expected: '2026-03-20T12:34'},
+      ];
+
+      for (const {input, expected} of testCasesDateTime) {
+        const {view} = renderA2uiComponent(DateTimeInput, 'dt_datetime', {
+          label: 'DateTime',
+          value: input,
+          enableDate: true,
+          enableTime: true,
+        });
+        expect((screen.getByLabelText('DateTime') as HTMLInputElement).value).toBe(expected);
+        view.unmount();
+      }
+    });
   });
 });

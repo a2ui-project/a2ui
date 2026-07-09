@@ -33,6 +33,79 @@ import {DateTimeInputApi} from '@a2ui/web_core/v0_9/basic_catalog';
  * - `--a2ui-datetimeinput-label-font-size`: Controls the font size of the label.
  * - `--a2ui-datetimeinput-label-font-weight`: Controls the font weight of the label.
  */
+function normalizeDateTimeValue(value: unknown, type: string): string {
+  if (value === null || value === undefined || value === '') return '';
+
+  let strValue = '';
+  if (value instanceof Date) {
+    strValue = value.toISOString();
+  } else {
+    strValue = String(value).trim();
+  }
+
+  if (!strValue) return '';
+
+  let datePart = '';
+  let timePart = '';
+
+  // 1. Try literal extraction of YYYY-MM-DD or YYYY/MM/DD
+  const dateRegex = /(\d{4})[-/](\d{2})[-/](\d{2})/;
+  const dateMatch = strValue.match(dateRegex);
+  if (dateMatch) {
+    datePart = `${dateMatch[1]}-${dateMatch[2]}-${dateMatch[3]}`;
+  }
+
+  // 2. Try literal extraction of HH:mm
+  const timeRegex = /(\d{2}):(\d{2})(?::(\d{2}))?/;
+  const timeMatch = strValue.match(timeRegex);
+  if (timeMatch) {
+    timePart = `${timeMatch[1]}:${timeMatch[2]}`;
+  }
+
+  // 3. Fallback to Date object parsing if needed
+  const needDate = type === 'date' || type === 'datetime-local';
+  const needTime = type === 'time' || type === 'datetime-local';
+
+  if ((needDate && !datePart) || (needTime && !timePart)) {
+    let parsedDate: Date;
+    const num = Number(strValue);
+    if (strValue !== '' && !isNaN(num)) {
+      parsedDate = new Date(num);
+    } else {
+      parsedDate = new Date(strValue);
+    }
+
+    if (!isNaN(parsedDate.getTime())) {
+      if (!datePart) {
+        const y = parsedDate.getFullYear();
+        const m = String(parsedDate.getMonth() + 1).padStart(2, '0');
+        const d = String(parsedDate.getDate()).padStart(2, '0');
+        datePart = `${y}-${m}-${d}`;
+      }
+      if (!timePart) {
+        const h = String(parsedDate.getHours()).padStart(2, '0');
+        const min = String(parsedDate.getMinutes()).padStart(2, '0');
+        timePart = `${h}:${min}`;
+      }
+    }
+  }
+
+  // If timePart is empty but we need it and datePart is present, default to '00:00'
+  if (type === 'datetime-local' && datePart && !timePart) {
+    timePart = '00:00';
+  }
+
+  switch (type) {
+    case 'date':
+      return datePart;
+    case 'time':
+      return timePart;
+    case 'datetime-local':
+      return datePart && timePart ? `${datePart}T${timePart}` : '';
+  }
+  return '';
+}
+
 @Component({
   selector: 'a2ui-v09-date-time-input',
   standalone: true,
@@ -106,15 +179,11 @@ export class DateTimeInputComponent extends BasicCatalogComponent<typeof DateTim
   private readonly rawValue = computed(() => this.props()['value']?.value() || '');
 
   readonly dateValue = computed(() => {
-    const val = this.rawValue();
-    if (!val) return '';
-    return val.includes('T') ? val.split('T')[0] : val;
+    return normalizeDateTimeValue(this.rawValue(), 'date');
   });
 
   readonly timeValue = computed(() => {
-    const val = this.rawValue();
-    if (!val || !val.includes('T')) return '';
-    return val.split('T')[1].substring(0, 5);
+    return normalizeDateTimeValue(this.rawValue(), 'time');
   });
 
   handleDateChange(event: Event) {

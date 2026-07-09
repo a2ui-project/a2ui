@@ -119,4 +119,46 @@ describe('DateTimeInputComponent', () => {
     expect(dateInput.value).toBe('');
     expect(timeInput.value).toBe('');
   });
+
+  it('should parse different date and time formats correctly', () => {
+    // Test date parsing with different formats
+    const testCasesDate = [
+      {input: '2026-03-20', expected: '2026-03-20'},
+      {input: '2026-03-20T12:00:00Z', expected: '2026-03-20'},
+      {input: '2026-03-20T12:00:00+05:30', expected: '2026-03-20'},
+      {input: '2026/03/20 12:00:00', expected: '2026-03-20'},
+    ];
+
+    for (const {input, expected} of testCasesDate) {
+      setComponentProps(fixture, {
+        ...defaultProps,
+        value: createBoundProperty(input),
+        enableTime: createBoundProperty<boolean | undefined>(false),
+      });
+      fixture.detectChanges();
+      const dateInput = fixture.nativeElement.querySelector('input[type="date"]');
+      expect(dateInput.value).toBe(expected);
+    }
+
+    // Test time parsing with different formats
+    const testCasesTime = [
+      {input: '12:00', expected: '12:00'},
+      {input: '12:00:00', expected: '12:00'},
+      {input: '2026-03-20T12:00:00Z', expected: '12:00'},
+      {input: '2026-03-20T12:00:00+05:30', expected: '12:00'},
+      {input: '2026/03/20 12:34:56', expected: '12:34'},
+    ];
+
+    for (const {input, expected} of testCasesTime) {
+      setComponentProps(fixture, {
+        ...defaultProps,
+        value: createBoundProperty(input),
+        enableDate: createBoundProperty<boolean | undefined>(false),
+        enableTime: createBoundProperty<boolean | undefined>(true),
+      });
+      fixture.detectChanges();
+      const timeInput = fixture.nativeElement.querySelector('input[type="time"]');
+      expect(timeInput.value).toBe(expected);
+    }
+  });
 });
