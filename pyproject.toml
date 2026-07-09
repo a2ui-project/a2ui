@@ -117,5 +117,6 @@ exclude = [
     "^docs/",
     "^scripts/",
     "^specification/",
+    "^blueprints/",
     "^hooks\\.py$",
 ]
