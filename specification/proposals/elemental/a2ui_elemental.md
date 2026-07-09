@@ -329,9 +329,17 @@ Because HTML parsers are forgiving, syntax errors are rarely fatal. However, sem
   </script>
   <ui-card id="comp_0" elevation="{4}">
     <ui-column id="comp_1" align="center">
-      <ui-text id="comp_2" variant="h3" text="{formatString(value: 'Welcome back, ${/user/name}!')}" />
-      <ui-text id="comp_3" variant="body" text="{formatString(value: 'Your balance is: ${formatCurrency(value: /user/balance, currency:
-        'USD')}')}" />
+      <ui-text
+        id="comp_2"
+        variant="h3"
+        text="{formatString(value: 'Welcome back, ${/user/name}!')}"
+      />
+      <ui-text
+        id="comp_3"
+        variant="body"
+        text="{formatString(value: 'Your balance is: ${formatCurrency(value: /user/balance, currency:
+        'USD')}')}"
+      />
       <ui-table id="comp_4">
         <script type="application/json" slot="columns">
           [

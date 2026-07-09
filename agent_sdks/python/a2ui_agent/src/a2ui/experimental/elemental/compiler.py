@@ -640,7 +640,6 @@ class ElementalCompiler:
             ):
                 sibling_value_path = parsed_val
 
-
         # 3. Map children (slots and templates)
         default_slot = None
         if "children" in properties:

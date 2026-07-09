@@ -137,7 +137,9 @@ class TestElementalDecompiler(unittest.TestCase):
             "version": "v1.0",
             "createSurface": {
                 "surfaceId": "test-surf",
-                "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
+                "catalogId": (
+                    "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
+                ),
                 "dataModel": {"title": "Hello World"},
                 "components": [
                     {
