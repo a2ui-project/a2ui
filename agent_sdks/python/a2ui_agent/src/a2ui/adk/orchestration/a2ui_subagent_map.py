@@ -59,7 +59,9 @@ class A2uiSubagentMap:
             surface_id,
             subagent_name,
         )
-        return subagent_name
+        if isinstance(subagent_name, str):
+            return subagent_name
+        return None
 
     @classmethod
     async def get_subagent_name_for_client_event(
@@ -92,7 +94,7 @@ class A2uiSubagentMap:
         subagent_name: str,
         session_service: BaseSessionService,
         session: Session,
-    ):
+    ) -> None:
         """Sets the subagent route for the given tool call id."""
         key = cls._get_key(surface_id)
 
@@ -118,7 +120,7 @@ class A2uiSubagentMap:
         surface_id: str,
         session_service: BaseSessionService,
         session: Session,
-    ):
+    ) -> None:
         """Removes the subagent route for the given surface id."""
         key = cls._get_key(surface_id)
 
