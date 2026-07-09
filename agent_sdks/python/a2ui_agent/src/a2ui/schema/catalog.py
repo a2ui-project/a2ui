@@ -21,6 +21,7 @@ import json
 import logging
 import os
 from dataclasses import dataclass, replace
+from functools import cached_property
 from typing import Any, Dict, List, Optional, TYPE_CHECKING
 from urllib.parse import urlparse
 from a2ui.core.catalog import Catalog
@@ -180,10 +181,14 @@ class A2uiCatalog:
             return val
         raise A2uiCatalogError(f"Catalog '{self.name}' catalogId is not a string")
 
-    @property
+    @cached_property
     def validator(self) -> "A2uiValidator":
         from a2ui.validation.validator import A2uiValidator
 
+        # cached_property stores the validator on the instance's __dict__,
+        # bypassing the frozen dataclass __setattr__. This avoids rebuilding
+        # the jsonschema Registry on every access while tying cache lifetime
+        # to the catalog object (no global state, no memory leaks).
         return A2uiValidator(self, experiments=self.experiments)
 
     @property
