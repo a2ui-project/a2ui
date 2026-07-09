@@ -50,7 +50,7 @@ import {DateTimeInputApi} from '@a2ui/web_core/v0_9/basic_catalog';
             type="date"
             [value]="dateValue()"
             (change)="handleDateChange($event)"
-            class="a2ui-date-time-input"
+            class="a2ui-date-time-input a2ui-datetime-input-webkit"
           />
         }
         @if (enableTime()) {
@@ -58,7 +58,7 @@ import {DateTimeInputApi} from '@a2ui/web_core/v0_9/basic_catalog';
             type="time"
             [value]="timeValue()"
             (change)="handleTimeChange($event)"
-            class="a2ui-date-time-input"
+            class="a2ui-date-time-input a2ui-datetime-input-webkit"
           />
         }
       </div>
@@ -93,6 +93,10 @@ import {DateTimeInputApi} from '@a2ui/web_core/v0_9/basic_catalog';
         color: var(--a2ui-datetimeinput-color, var(--a2ui-color-on-input, #333));
         font-family: inherit;
         flex: 1;
+      }
+      .a2ui-datetime-input-webkit::-webkit-datetime-edit,
+      .a2ui-datetime-input-webkit::-webkit-datetime-edit-fields-wrapper {
+        color: var(--a2ui-datetimeinput-color, var(--a2ui-color-on-input, #333));
       }
     `,
   ],

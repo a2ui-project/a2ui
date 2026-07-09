@@ -63,6 +63,7 @@ export class A2uiRendererService implements OnDestroy {
   constructor() {
     initializeAngularReactivity(inject(EnvironmentInjector));
     this._catalogs = this._config.catalogs;
+    console.log('[A2uiRendererService] constructor, config:', this._config);
     this._messageProcessor = new MessageProcessor<AngularComponentImplementation>(
       this._catalogs,
       this._config.actionHandler as ActionHandler,

@@ -1,5 +1,7 @@
 ## Unreleased
 
+- (v0_9) Normalize Safari placeholder text color for `DateTimeInput` by adding the `.a2ui-datetime-input-webkit` class and updating CSS selectors.
+
 ## 0.10.3
 
 - (v0_9) Export Angular test utilities under `@a2ui/angular/testing` and secondary entry point `@a2ui/angular/v0_9/testing`. [#1737](https://github.com/a2ui-project/a2ui/pull/1737)
