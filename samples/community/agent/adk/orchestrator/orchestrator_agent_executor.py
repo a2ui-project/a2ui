@@ -401,6 +401,13 @@ class OrchestratorAgentExecutor(A2aAgentExecutor):
                 a2a_event.metadata = {}
             a2a_event.metadata["a2a_subagent"] = subagent_card
 
+        if not (
+            a2a_event.status
+            and a2a_event.status.message
+            and a2a_event.status.message.parts
+        ):
+            return a2a_event
+
         new_parts = []
         for a2a_part in a2a_event.status.message.parts:
             try:
@@ -432,7 +439,12 @@ class OrchestratorAgentExecutor(A2aAgentExecutor):
                             )
                         ]
                     )
-                    await subagent_obj.run_async(error_req, invocation_context)
+                    async def _run_subagent_bg():
+                        try:
+                            await subagent_obj.run_async(error_req, invocation_context)
+                        except Exception as ex:
+                            logger.exception(f"Background subagent run failed: {ex}")
+                    asyncio.create_task(_run_subagent_bg())
                 continue
             new_parts.append(a2a_part)
         a2a_event.status.message.parts = new_parts

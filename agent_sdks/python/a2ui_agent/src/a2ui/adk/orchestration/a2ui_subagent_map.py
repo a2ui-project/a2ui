@@ -65,7 +65,7 @@ class A2uiSubagentMap:
         cls, a2a_part: Part, state: State
     ) -> Optional[str]:
         """Gets the subagent route for a client event a2a part, if applicable."""
-        if not is_a2ui_part(a2a_part) or not isinstance(a2a_part.root, DataPart):
+        if a2a_part is None or not is_a2ui_part(a2a_part) or not isinstance(a2a_part.root, DataPart):
             return None
 
         surface_id = None
@@ -143,7 +143,7 @@ class A2uiSubagentMap:
         """Processes a single server-to-client part and updates the subagent map.
         Raises SurfaceIdAlreadyExistsError if a collision occurs.
         """
-        if not is_a2ui_part(a2a_part) or not isinstance(a2a_part.root, DataPart):
+        if a2a_part is None or not is_a2ui_part(a2a_part) or not isinstance(a2a_part.root, DataPart):
             return
 
         data = a2a_part.root.data
@@ -151,12 +151,12 @@ class A2uiSubagentMap:
             isinstance(data, dict)
             and (begin_rendering := data.get(A2UI_BEGIN_RENDERING_KEY))
             and isinstance(begin_rendering, dict)
-            and (surface_id := begin_rendering.get(A2UI_SURFACE_ID_KEY))
+            and (surface_id := begin_rendering[A2UI_SURFACE_ID_KEY])
         ):
             key = cls._get_key(surface_id)
             existing_owner = session.state.get(key)
 
-            if existing_owner and existing_owner != author:
+            if existing_owner:
                 raise SurfaceIdAlreadyExistsError(
                     surface_id,
                     f"Surface ID {surface_id} already exists: surface was previously"
