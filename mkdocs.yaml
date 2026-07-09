@@ -52,7 +52,7 @@ nav:
   - Guides:
       - Client Setup: guides/client-setup.md
       - Agent Development: guides/agent-development.md
-      - Use A2UI with Any Agent Framework (AG-UI): guides/a2ui-with-any-agent-framework.md
+      - Use A2UI with Any Agent Framework & Harness: guides/a2ui-with-any-agent-framework.md
       - Renderer Development: guides/renderer-development.md
       - Defining Your Own Catalog: guides/defining-your-own-catalog.md
       - Authoring Custom Components: guides/authoring-components.md

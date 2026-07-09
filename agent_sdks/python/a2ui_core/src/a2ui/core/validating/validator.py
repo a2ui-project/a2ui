@@ -19,6 +19,7 @@ from pydantic import BaseModel, ConfigDict, ValidationError
 from ..exceptions import A2uiValidationError, A2uiErrorDetail
 from ..schema import A2uiMessageListWrapper
 from ..schema.constants import (
+    SPEC_VERSION,
     MSG_TYPE_CREATE_SURFACE,
     MSG_TYPE_UPDATE_COMPONENTS,
     MSG_TYPE_UPDATE_DATA_MODEL,
@@ -48,6 +49,7 @@ class ValidationConfig(BaseModel):
     allow_orphan_components: bool = False
     allow_dangling_references: bool = False
     allow_missing_root: bool = False
+    target_version: Optional[str] = None
 
 
 # Define the presets as global constants
@@ -66,12 +68,29 @@ RELAXED_VALIDATION = ValidationConfig(
 )
 
 
+def _clean_loc_part(x: str) -> str:
+    """Extracts base message class names from Pydantic validator wrapper strings."""
+    if x.startswith("function-after[") or x.startswith("function-before["):
+        match = re.search(r"([A-Za-z0-9_]+Message)\]", x)
+        if match:
+            return match.group(1)
+    return x
+
+
 class A2uiValidator:
     """Validates the A2UI JSON payload against catalog schemas and checks for layout integrity."""
 
-    def validate_protocol_envelope(self, messages: List[Dict[str, Any]]) -> None:
+    def validate_protocol_envelope(
+        self,
+        messages: List[Dict[str, Any]],
+        config: ValidationConfig = STRICT_VALIDATION,
+    ) -> None:
         """Validates the overall A2UI protocol payload structure using Pydantic."""
         details = []
+        expected_version = (
+            config.target_version if config.target_version else SPEC_VERSION
+        )
+
         for i, msg in enumerate(messages):
             if not isinstance(msg, dict):
                 details.append(
@@ -81,17 +100,21 @@ class A2uiValidator:
                         message="Message must be an object",
                     )
                 )
-            elif "version" not in msg:
-                details.append(
-                    A2uiErrorDetail(
-                        path=f"messages.{i}.version",
-                        code="missing_field",
-                        message="'version' is a required property",
+            else:
+                if "version" not in msg:
+                    details.append(
+                        A2uiErrorDetail(
+                            path=f"messages.{i}.version",
+                            code="missing_field",
+                            message="'version' is a required property",
+                        )
                     )
-                )
 
         try:
-            A2uiMessageListWrapper.model_validate({"messages": messages})
+            A2uiMessageListWrapper.model_validate(
+                {"messages": messages},
+                context={"target_version": expected_version},
+            )
             validate_recursion_and_paths(messages)
         except ValidationError as e:
             details.extend(self._format_validation_errors(e, messages))
@@ -109,7 +132,7 @@ class A2uiValidator:
         details = []
         for err in error.errors():
             loc = err.get("loc", [])
-            loc_parts = [str(x) for x in loc]
+            loc_parts = [_clean_loc_part(str(x)) for x in loc]
             if len(loc) >= 3 and loc[0] == "messages" and isinstance(loc[1], int):
                 msg_idx = loc[1]
                 if msg_idx < len(messages) and isinstance(messages[msg_idx], dict):
@@ -225,7 +248,7 @@ class A2uiValidator:
 
         errors = []
         try:
-            self.validate_protocol_envelope(messages)
+            self.validate_protocol_envelope(messages, config=config)
         except Exception as e:
             errors.append(e)
 

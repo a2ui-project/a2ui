@@ -22,30 +22,28 @@ from google.adk.sessions.session import Session
 from google.adk.sessions.state import State
 
 
-class SubagentRouteManager:
+class A2uiSubagentMap:
     """Manages routing of tasks to sub-agents."""
 
-    ROUTING_KEY_PREFIX = "route_to_subagent_name_for_surface_id_"
+    KEY_PREFIX = "a2ui_surface_id_"
 
     @classmethod
-    def _get_routing_key(cls, surface_id: str) -> str:
-        return cls.ROUTING_KEY_PREFIX + surface_id
+    def _get_key(cls, surface_id: str) -> str:
+        return cls.KEY_PREFIX + surface_id
 
     @classmethod
-    async def get_route_to_subagent_name(
-        cls, surface_id: str, state: State
-    ) -> Optional[str]:
+    async def get_subagent_name(cls, surface_id: str, state: State) -> Optional[str]:
         """Gets the subagent route for the given tool call id."""
-        subagent_name = state.get(cls._get_routing_key(surface_id), None)
+        subagent_name = state.get(cls._get_key(surface_id), None)
         logging.info(
-            "Got subagent route for surface_id %s to subagent_name %s",
+            "Mapped surface_id %s to subagent_name %s",
             surface_id,
             subagent_name,
         )
         return subagent_name
 
     @classmethod
-    async def set_route_to_subagent_name(
+    async def set_subagent(
         cls,
         surface_id: str,
         subagent_name: str,
@@ -53,7 +51,7 @@ class SubagentRouteManager:
         session: Session,
     ):
         """Sets the subagent route for the given tool call id."""
-        key = cls._get_routing_key(surface_id)
+        key = cls._get_key(surface_id)
 
         if session.state.get(key) != subagent_name:
             await session_service.append_event(
@@ -66,7 +64,32 @@ class SubagentRouteManager:
             )
 
             logging.info(
-                "Set subagent route for surface_id %s to subagent_name %s",
+                "Set surface_id %s to subagent_name %s",
                 surface_id,
                 subagent_name,
+            )
+
+    @classmethod
+    async def remove_subagent(
+        cls,
+        surface_id: str,
+        session_service: BaseSessionService,
+        session: Session,
+    ):
+        """Removes the subagent route for the given surface id."""
+        key = cls._get_key(surface_id)
+
+        if session.state.get(key) is not None:
+            await session_service.append_event(
+                session,
+                Event(
+                    invocation_id=new_invocation_context_id(),
+                    author="system",
+                    actions=EventActions(state_delta={key: None}),
+                ),
+            )
+
+            logging.info(
+                "Removed surface_id %s from subagent map",
+                surface_id,
             )

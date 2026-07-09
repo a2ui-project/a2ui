@@ -105,12 +105,18 @@ from .json_inference_format import JsonInferenceFormat
 
 InferenceFormatRegistry.register(JsonInferenceFormat())
 
-# Conditionally register experimental Express format if enabled
+# Conditionally register experimental Express and Elemental formats if enabled
 if os.environ.get("A2UI_EXPRESS_ENABLED", "").lower() in ("true", "1", "yes"):
     try:
         from a2ui.experimental.express.format import ExpressInferenceFormat
 
         InferenceFormatRegistry.register(ExpressInferenceFormat())
     except ImportError:
-        # If experimental dependencies are not installed or files are missing
+        pass
+
+    try:
+        from a2ui.experimental.elemental.format import ElementalInferenceFormat
+
+        InferenceFormatRegistry.register(ElementalInferenceFormat())
+    except ImportError:
         pass

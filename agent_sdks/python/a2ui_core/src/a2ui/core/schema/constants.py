@@ -15,7 +15,7 @@
 from typing import Final, Literal, TypeAlias
 
 SPEC_VERSION: Final = "v0.9"
-SPEC_VERSION_TYPE: TypeAlias = Literal["v0.9"]
+SPEC_VERSION_TYPE: TypeAlias = str
 SPEC_BASE_URL = "https://a2ui.org/specification"
 
 MSG_TYPE_CREATE_SURFACE = "createSurface"

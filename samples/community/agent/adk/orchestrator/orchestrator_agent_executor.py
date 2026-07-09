@@ -59,9 +59,16 @@ from a2ui.a2a.extension import (
 from a2ui.a2a.parts import is_a2ui_part
 from a2ui.schema.constants import A2UI_CLIENT_CAPABILITIES_KEY
 
-from subagent_route_manager import SubagentRouteManager
+from a2ui_subagent_map import A2uiSubagentMap
 
 logger = logging.getLogger(__name__)
+
+
+def _log_background_task_result(future: asyncio.Future) -> None:
+    try:
+        future.result()
+    except Exception as e:
+        logger.exception(f"Background task failed: {e}", exc_info=True)
 
 
 class A2UIMetadataInterceptor(ClientCallInterceptor):
@@ -110,9 +117,7 @@ class A2UIMetadataInterceptor(ClientCallInterceptor):
                         current_surfaces = data_model["surfaces"]
                         surface_ids_to_check = list(current_surfaces.keys())
                         owner_agents = await asyncio.gather(*[
-                            SubagentRouteManager.get_route_to_subagent_name(
-                                sid, context.state
-                            )
+                            A2uiSubagentMap.get_subagent_name(sid, context.state)
                             for sid in surface_ids_to_check
                         ])
 
@@ -159,7 +164,7 @@ class OrchestratorAgentExecutor(A2aAgentExecutor):
     """Orchestrator AgentExecutor."""
 
     @classmethod
-    async def programmtically_route_user_action_to_subagent(
+    async def programmatically_route_client_event_to_subagent(
         cls,
         callback_context: CallbackContext,
         llm_request: LlmRequest,
@@ -169,30 +174,36 @@ class OrchestratorAgentExecutor(A2aAgentExecutor):
             and (last_content := llm_request.contents[-1]).parts
             and (a2a_part := convert_genai_part_to_a2a_part(last_content.parts[-1]))
             and is_a2ui_part(a2a_part)
-            and (user_action := a2a_part.root.data.get("userAction"))
-            and (surface_id := user_action.get("surfaceId"))
-            and (
-                target_agent := await SubagentRouteManager.get_route_to_subagent_name(
+        ):
+            surface_id = None
+            data = a2a_part.root.data
+            if isinstance(data, dict):
+                if (action := data.get("action")) and isinstance(action, dict):
+                    surface_id = action.get("surfaceId")
+                elif (error := data.get("error")) and isinstance(error, dict):
+                    surface_id = error.get("surfaceId")
+
+            if surface_id and (
+                target_agent := await A2uiSubagentMap.get_subagent_name(
                     surface_id, callback_context.state
                 )
-            )
-        ):
-            logger.info(
-                f"Programmatically routing userAction for surfaceId '{surface_id}' to"
-                f" subagent '{target_agent}'"
-            )
-            return LlmResponse(
-                content=genai_types.Content(
-                    parts=[
-                        genai_types.Part(
-                            function_call=genai_types.FunctionCall(
-                                name="transfer_to_agent",
-                                args={"agent_name": target_agent},
-                            )
-                        )
-                    ]
+            ):
+                logger.info(
+                    "Programmatically routing client event for surfaceId"
+                    f" '{surface_id}' to subagent '{target_agent}'"
                 )
-            )
+                return LlmResponse(
+                    content=genai_types.Content(
+                        parts=[
+                            genai_types.Part(
+                                function_call=genai_types.FunctionCall(
+                                    name="transfer_to_agent",
+                                    args={"agent_name": target_agent},
+                                )
+                            )
+                        ]
+                    )
+                )
 
         return None
 
@@ -311,7 +322,7 @@ class OrchestratorAgentExecutor(A2aAgentExecutor):
                 )
             ),
             sub_agents=subagents,
-            before_model_callback=cls.programmtically_route_user_action_to_subagent,
+            before_model_callback=cls.programmatically_route_client_event_to_subagent,
         )
 
         agent_card = AgentCard(
@@ -365,10 +376,11 @@ class OrchestratorAgentExecutor(A2aAgentExecutor):
 
         for a2a_event in a2a_events:
             # Try to populate subagent agent card if available.
+            subagent_obj = None
             subagent_card = None
             if active_subagent_name := event.author:
                 # We need to find the subagent by name
-                if subagent := next(
+                if subagent_obj := next(
                     (
                         sub
                         for sub in invocation_context.agent.sub_agents
@@ -377,7 +389,7 @@ class OrchestratorAgentExecutor(A2aAgentExecutor):
                     None,
                 ):
                     try:
-                        subagent_card = json.loads(subagent.description)
+                        subagent_card = json.loads(subagent_obj.description)
                     except Exception:
                         logger.warning(
                             "Failed to parse agent description for"
@@ -388,21 +400,79 @@ class OrchestratorAgentExecutor(A2aAgentExecutor):
                     a2a_event.metadata = {}
                 a2a_event.metadata["a2a_subagent"] = subagent_card
 
+            new_parts = []
             for a2a_part in a2a_event.status.message.parts:
-                if (
-                    is_a2ui_part(a2a_part)
-                    and (begin_rendering := a2a_part.root.data.get("beginRendering"))
-                    and (surface_id := begin_rendering.get("surfaceId"))
-                ):
-                    asyncio.run_coroutine_threadsafe(
-                        SubagentRouteManager.set_route_to_subagent_name(
-                            surface_id,
-                            event.author,
-                            invocation_context.session_service,
-                            invocation_context.session,
-                        ),
-                        asyncio.get_event_loop(),
-                    )
+                if is_a2ui_part(a2a_part):
+                    data = a2a_part.root.data
+                    if (
+                        isinstance(data, dict)
+                        and (begin_rendering := data.get("beginRendering"))
+                        and isinstance(begin_rendering, dict)
+                        and (surface_id := begin_rendering.get("surfaceId"))
+                    ):
+                        key = A2uiSubagentMap._get_key(surface_id)
+                        existing_owner = invocation_context.session.state.get(key)
+
+                        if existing_owner:
+                            logger.error(
+                                f"Surface ID {surface_id} already exists: surface was"
+                                f" previously created by {existing_owner}, and"
+                                f" {event.author} tried to create it again"
+                            )
+                            if subagent_obj:
+                                error_msg = json.dumps({
+                                    "version": "0.9",
+                                    "error": {
+                                        "code": "SURFACE_ID_ALREADY_EXISTS",
+                                        "surfaceId": surface_id,
+                                        "message": (
+                                            f"surfaceId '{surface_id}' already exists,"
+                                            " surfaceIds must be globally unique"
+                                        ),
+                                    },
+                                })
+                                error_req = LlmRequest(
+                                    contents=[
+                                        genai_types.Content(
+                                            parts=[genai_types.Part(text=error_msg)],
+                                            role="user",
+                                        )
+                                    ]
+                                )
+                                asyncio.run_coroutine_threadsafe(
+                                    subagent_obj.run_async(
+                                        error_req, invocation_context
+                                    ),
+                                    asyncio.get_event_loop(),
+                                ).add_done_callback(_log_background_task_result)
+                            continue
+                        else:
+                            if event.author:
+                                asyncio.run_coroutine_threadsafe(
+                                    A2uiSubagentMap.set_subagent(
+                                        surface_id,
+                                        event.author,
+                                        invocation_context.session_service,
+                                        invocation_context.session,
+                                    ),
+                                    asyncio.get_event_loop(),
+                                ).add_done_callback(_log_background_task_result)
+                    elif (
+                        isinstance(data, dict)
+                        and (delete_surface := data.get("deleteSurface"))
+                        and isinstance(delete_surface, dict)
+                        and (surface_id := delete_surface.get("surfaceId"))
+                    ):
+                        asyncio.run_coroutine_threadsafe(
+                            A2uiSubagentMap.remove_subagent(
+                                surface_id,
+                                invocation_context.session_service,
+                                invocation_context.session,
+                            ),
+                            asyncio.get_event_loop(),
+                        ).add_done_callback(_log_background_task_result)
+                new_parts.append(a2a_part)
+            a2a_event.status.message.parts = new_parts
 
         return a2a_events
 

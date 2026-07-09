@@ -16,6 +16,7 @@
     "@angular/build": "^21.2.5",
     "@angular/cli": "^21.2.5",
     "@angular/compiler-cli": "^21.2.5",
+    "eslint": "^10.4.1",
     "typescript": "5.9.3"
   },
   "scripts": {
@@ -24,7 +25,8 @@
     "build:all": "yarn run build && yarn run inline",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "lint": "tsc -p tsconfig.app.json --noEmit",
+    "lint": "eslint . && tsc -p tsconfig.app.json --noEmit",
+    "lint:fix": "eslint . --fix",
     "test": "node -e 'const fs=require(\"fs\"); const path=require(\"path\"); function find(d){for(const f of fs.readdirSync(d)){const p=path.join(d,f);if(f===\"node_modules\"||f===\"dist\")continue;if(fs.statSync(p).isDirectory()){if(find(p))return true;}else if(f.includes(\".test.\")||f.includes(\".spec.\"))return true;}return false;} if(find(\".\")){require(\"child_process\").execSync(\"vitest run\",{stdio:\"inherit\"});}else{console.log(\"Workspace has no tests.\");}'"
   }
 }

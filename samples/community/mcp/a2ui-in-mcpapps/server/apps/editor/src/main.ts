@@ -179,12 +179,16 @@ export class McpAppRoot implements OnInit, AfterViewInit {
     this.postToParent({
       jsonrpc: '2.0',
       id: requestId,
-      method: 'ui/smart_editor_get_controls',
-      params: {text: text, full_text: fullText},
+      method: 'tools/call',
+      params: {
+        name: 'smart_editor_get_controls',
+        arguments: {text: text, full_text: fullText},
+      },
     });
 
     const handler = (event: MessageEvent) => {
-      if (event.data.id !== requestId) return;
+      if (event.source !== window.parent) return;
+      if (event.data?.id !== requestId) return;
 
       this.isLoading.set(false);
       window.removeEventListener('message', handler);
@@ -194,7 +198,7 @@ export class McpAppRoot implements OnInit, AfterViewInit {
         return;
       }
 
-      const content = event.data.result;
+      const content = event.data.result?.content;
       if (!Array.isArray(content)) return;
 
       try {
@@ -215,11 +219,11 @@ export class McpAppRoot implements OnInit, AfterViewInit {
 
   private setupResizeObserver() {
     const observer = new ResizeObserver(() => {
-      const height = this.elementRef.nativeElement.scrollHeight;
+      const element = this.elementRef.nativeElement;
       this.postToParent({
         jsonrpc: '2.0',
-        method: 'ui/resize',
-        params: {height},
+        method: 'ui/notifications/size-changed',
+        params: {width: element.scrollWidth, height: element.scrollHeight},
       });
     });
     observer.observe(this.elementRef.nativeElement);
@@ -230,8 +234,24 @@ export class McpAppRoot implements OnInit, AfterViewInit {
       jsonrpc: '2.0',
       id: 'init-1',
       method: 'ui/initialize',
-      params: {},
+      params: {
+        protocolVersion: '2026-01-26',
+        clientInfo: {name: 'smart-editor-app', version: '1.0.0'},
+        appCapabilities: {availableDisplayModes: ['inline']},
+      },
     });
+
+    const handler = (event: MessageEvent) => {
+      if (event.source !== window.parent) return;
+      if (event.data?.id !== 'init-1') return;
+      window.removeEventListener('message', handler);
+      this.postToParent({
+        jsonrpc: '2.0',
+        method: 'ui/notifications/initialized',
+        params: {},
+      });
+    };
+    window.addEventListener('message', handler);
   }
 
   private setupActionRouting() {
@@ -278,22 +298,23 @@ export class McpAppRoot implements OnInit, AfterViewInit {
       this.postToParent({
         jsonrpc: '2.0',
         id: requestId,
-        method: `ui/${action.name}`,
-        params: params,
+        method: 'tools/call',
+        params: {name: action.name, arguments: params},
       });
 
       const handler = (msgEvent: MessageEvent) => {
-        if (msgEvent.data.id !== requestId) return;
+        if (msgEvent.source !== window.parent) return;
+        if (msgEvent.data?.id !== requestId) return;
         this.isLoading.set(false);
         window.removeEventListener('message', handler);
 
-        const result = msgEvent.data.result;
-        if (!result) return;
+        const content = msgEvent.data.result?.content;
+        if (!content) return;
 
-        if (!Array.isArray(result)) return;
+        if (!Array.isArray(content)) return;
 
         // CASE A: The result might be standard A2UI response (chain actions)
-        const a2uiMsg = this.getA2UIMessages(result);
+        const a2uiMsg = this.getA2UIMessages(content);
         if (a2uiMsg) {
           this.processor.processMessages(a2uiMsg);
           this.status.set('Done.');
@@ -301,7 +322,7 @@ export class McpAppRoot implements OnInit, AfterViewInit {
         }
 
         // CASE B: Plain text result (returned from smart_editor_apply)
-        const textRes = result.find((c: any) => c.type === 'text');
+        const textRes = content.find((c: any) => c.type === 'text');
         if (textRes && textRes.text) {
           this.handleTextRevision(textRes.text);
         }

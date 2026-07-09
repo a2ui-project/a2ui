@@ -20,6 +20,7 @@ STRATEGIES = {
     "direct": lambda version: format_solver("json", version),
     "subagent_tool": subagent_tool_solver,
     "express": lambda version: format_solver("express", version),
+    "elemental": lambda version: format_solver("elemental", version),
 }
 
 
