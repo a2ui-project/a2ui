@@ -1,6 +1,6 @@
 ## Unreleased
 
-- (v0_9) Normalize Safari placeholder text color for `DateTimeInput` by adding the `.a2ui-datetime-input-webkit` class and updating CSS selectors.
+- (v0_9) Normalize Safari placeholder text color for `DateTimeInput` by updating CSS selectors for `.a2ui-date-time-input`.
 
 ## 0.10.3
 

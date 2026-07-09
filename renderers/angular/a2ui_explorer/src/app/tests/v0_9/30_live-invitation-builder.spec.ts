@@ -58,7 +58,7 @@ describe('Example: Live Invitation Builder', () => {
 
   it('should render date time input', async () => {
     const dateTimeInputs = [
-      ...fixture.nativeElement.querySelectorAll('.a2ui-datetime-input-webkit'),
+      ...fixture.nativeElement.querySelectorAll('.a2ui-date-time-input'),
     ] as HTMLInputElement[];
     expect(dateTimeInputs.length).toBeGreaterThanOrEqual(1);
     expect(dateTimeInputs[0].value).toContain('2025-07-15');

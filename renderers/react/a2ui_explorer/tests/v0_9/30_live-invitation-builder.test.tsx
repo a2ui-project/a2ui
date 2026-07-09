@@ -89,7 +89,7 @@ describe('Example: Live Invitation Builder', () => {
   });
 
   it('should render date time input', async () => {
-    const dateTimeInput = surface.querySelector('.a2ui-datetime-input-webkit') as HTMLInputElement;
+    const dateTimeInput = surface.querySelector('.a2ui-date-time-input') as HTMLInputElement;
     expect(dateTimeInput).withContext('Should have a date time input element').toBeTruthy();
     expect(dateTimeInput.value).toContain('2025-07-15');
   });

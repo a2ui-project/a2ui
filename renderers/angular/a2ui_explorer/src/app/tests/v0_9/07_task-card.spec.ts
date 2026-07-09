@@ -41,7 +41,7 @@ describe('Example: Task Card', () => {
 
   it('should render date time input', async () => {
     const dateTimeInput = fixture.nativeElement.querySelector(
-      '.a2ui-datetime-input-webkit',
+      '.a2ui-date-time-input',
     ) as HTMLInputElement;
     expect(dateTimeInput).withContext('Should have a date time input element').toBeTruthy();
     expect(dateTimeInput.value).toContain('2025-12-15');

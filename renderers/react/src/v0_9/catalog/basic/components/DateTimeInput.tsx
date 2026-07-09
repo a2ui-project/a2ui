@@ -20,13 +20,13 @@ import {DateTimeInputApi} from '@a2ui/web_core/v0_9/basic_catalog';
 import {useBasicCatalogStyles} from '../utils';
 
 if (typeof document !== 'undefined') {
-  const styleId = 'a2ui-datetime-input-webkit-styles';
+  const styleId = 'a2ui-date-time-input-webkit-styles';
   if (!document.getElementById(styleId)) {
     const style = document.createElement('style');
     style.id = styleId;
     style.textContent = `
-      .a2ui-datetime-input-webkit::-webkit-datetime-edit,
-      .a2ui-datetime-input-webkit::-webkit-datetime-edit-fields-wrapper {
+      .a2ui-date-time-input::-webkit-datetime-edit,
+      .a2ui-date-time-input::-webkit-datetime-edit-fields-wrapper {
         color: var(--a2ui-datetimeinput-color, var(--a2ui-color-on-input, #333));
       }
     `;
@@ -104,7 +104,7 @@ export const DateTimeInput = createComponentImplementation(DateTimeInputApi, ({p
       )}
       <input
         id={uniqueId}
-        className="a2ui-datetime-input-webkit"
+        className="a2ui-date-time-input"
         type={type}
         style={style}
         value={normalizedValue}
