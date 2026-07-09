@@ -14,6 +14,7 @@
 
 import json
 import re
+from functools import partial
 from typing import List, Any
 from a2ui.schema.catalog import A2uiCatalog
 from a2ui.parser.response_part import ResponsePart
@@ -45,6 +46,39 @@ Surround the entire output with `<body>` and `</body>` tags, including a `<link 
     - Surface Deletion: `<ui-delete-surface surface-id="id" />`.
     - Standalone Function Call: `<ui-call-function id="id" name="func"><script type="application/json" slot="args">{"args"}</script></ui-call-function>`.
 """
+
+
+def _replace_json_block(match, decompiler) -> str:
+    json_content = match.group(1).strip()
+    try:
+        parsed = json.loads(json_content)
+        if isinstance(parsed, dict):
+            messages = [parsed]
+        elif isinstance(parsed, list):
+            messages = parsed
+        else:
+            return match.group(0)
+
+        html_blocks = []
+        for msg in messages:
+            if isinstance(msg, dict) and any(
+                k in msg
+                for k in [
+                    "createSurface",
+                    "updateDataModel",
+                    "deleteSurface",
+                    "callFunction",
+                ]
+            ):
+                html = decompiler.decompile(msg)
+                html_blocks.append(html)
+            else:
+                return match.group(0)
+
+        full_html = "\n\n".join(html_blocks)
+        return f"```html\n{full_html}\n```"
+    except Exception:
+        return match.group(0)
 
 
 class ElementalInferenceFormat(InferenceFormat):
@@ -95,41 +129,9 @@ You can call these functions inside attribute expressions `{{...}}` using named 
         decompiler = ElementalDecompiler(catalog)
         pattern = r"```json\s*\n(.*?)\n```"
 
-        def replace_json_block(match):
-            json_content = match.group(1).strip()
-            try:
-                parsed = json.loads(json_content)
-                if isinstance(parsed, dict):
-                    messages = [parsed]
-                elif isinstance(parsed, list):
-                    messages = parsed
-                else:
-                    return match.group(0)
-
-                html_blocks = []
-                for msg in messages:
-                    if any(
-                        k in msg
-                        for k in [
-                            "createSurface",
-                            "updateDataModel",
-                            "deleteSurface",
-                            "callFunction",
-                        ]
-                    ):
-                        html = decompiler.decompile(msg)
-                        html_blocks.append(html)
-                    else:
-                        return match.group(0)
-
-                full_html = "\n\n".join(html_blocks)
-                return f"```html\n{full_html}\n```"
-            except Exception:
-                return match.group(0)
-
-        # Replace catalog ID link with generic link representation if needed
+        replace_func = partial(_replace_json_block, decompiler=decompiler)
         transformed = re.sub(
-            pattern, replace_json_block, raw_examples_markdown, flags=re.DOTALL
+            pattern, replace_func, raw_examples_markdown, flags=re.DOTALL
         )
         return transformed
 

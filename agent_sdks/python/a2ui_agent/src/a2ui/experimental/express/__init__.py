@@ -41,4 +41,3 @@ __all__ = [
     "parse_express_response",
     "ExpressInferenceFormat",
 ]
-

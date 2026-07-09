@@ -14,6 +14,7 @@
 
 import json
 import re
+from functools import partial
 from typing import List, Any
 from a2ui.schema.catalog import A2uiCatalog
 from a2ui.parser.response_part import ResponsePart
@@ -80,6 +81,40 @@ IMPORTANT: You must ALWAYS output A2UI Express DSL notation wrapped inside `<a2u
 '''
 
 
+def _replace_json_block(match, decompiler) -> str:
+    json_content = match.group(1).strip()
+    try:
+        parsed = json.loads(json_content)
+        if isinstance(parsed, dict):
+            messages = [parsed]
+        elif isinstance(parsed, list):
+            messages = parsed
+        else:
+            return match.group(0)
+
+        dsl_blocks = []
+        for msg in messages:
+            if isinstance(msg, dict) and any(
+                k in msg
+                for k in [
+                    "createSurface",
+                    "updateDataModel",
+                    "deleteSurface",
+                    "callFunction",
+                ]
+            ):
+                dsl = decompiler.decompile(msg)
+                dsl_clean = dsl.replace("<a2ui>\n", "").replace("\n</a2ui>", "")
+                dsl_blocks.append(dsl_clean)
+            else:
+                return match.group(0)
+
+        full_dsl = "<a2ui>\n" + "\n".join(dsl_blocks) + "\n</a2ui>"
+        return f"```\n{full_dsl}\n```"
+    except Exception:
+        return match.group(0)
+
+
 class ExpressInferenceFormat(InferenceFormat):
     """A2UI Express DSL format strategy."""
 
@@ -112,43 +147,8 @@ class ExpressInferenceFormat(InferenceFormat):
         decompiler = ExpressDecompiler(catalog)
         pattern = r"```json\s*\n(.*?)\n```"
 
-        def replace_json_block(match):
-            json_content = match.group(1).strip()
-            try:
-                parsed = json.loads(json_content)
-                if isinstance(parsed, dict):
-                    messages = [parsed]
-                elif isinstance(parsed, list):
-                    messages = parsed
-                else:
-                    return match.group(0)
-
-                dsl_blocks = []
-                for msg in messages:
-                    if any(
-                        k in msg
-                        for k in [
-                            "createSurface",
-                            "updateDataModel",
-                            "deleteSurface",
-                            "callFunction",
-                        ]
-                    ):
-                        dsl = decompiler.decompile(msg)
-                        # Strip outer <a2ui> / </a2ui> wrapper tags
-                        dsl_clean = dsl.replace("<a2ui>\n", "").replace("\n</a2ui>", "")
-                        dsl_blocks.append(dsl_clean)
-                    else:
-                        return match.group(0)
-
-                full_dsl = "<a2ui>\n" + "\n".join(dsl_blocks) + "\n</a2ui>"
-                return f"```\n{full_dsl}\n```"
-            except Exception:
-                return match.group(0)
-
-        return re.sub(
-            pattern, replace_json_block, raw_examples_markdown, flags=re.DOTALL
-        )
+        replace_func = partial(_replace_json_block, decompiler=decompiler)
+        return re.sub(pattern, replace_func, raw_examples_markdown, flags=re.DOTALL)
 
     def parse_response(
         self,
