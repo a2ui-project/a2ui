@@ -74,6 +74,10 @@ class InferenceFormat(ABC):
         """Returns True if the content contains this format's sentinel/payload tags."""
         return False
 
+    def extract_surface_ids(self, content: str) -> List[str]:
+        """Extracts any surface IDs declared or defined in the content according to this format."""
+        return []
+
 
 class InferenceFormatRegistry:
     """Registry to register and retrieve inference formats."""
