@@ -13,7 +13,7 @@
 # limitations under the License.
 
 import json
-from typing import List, Any
+from typing import List, Any, Optional
 from a2ui.schema.catalog import A2uiCatalog
 from a2ui.parser.response_part import ResponsePart
 from . import InferenceFormat
@@ -22,11 +22,18 @@ from . import InferenceFormat
 class JsonInferenceFormat(InferenceFormat):
     """Standard JSON envelope format."""
 
+    def __init__(
+        self,
+        catalog: Optional[A2uiCatalog] = None,
+        surface_id: str = "main",
+    ):
+        super().__init__(catalog, surface_id)
+
     @property
     def name(self) -> str:
         return "json"
 
-    def generate_workflow_rules(self, custom_workflow_description: str = "") -> str:
+    def format_description(self, custom_workflow_description: str = "") -> str:
         from a2ui.schema.constants import DEFAULT_WORKFLOW_RULES
 
         rules = DEFAULT_WORKFLOW_RULES
@@ -34,23 +41,20 @@ class JsonInferenceFormat(InferenceFormat):
             rules += f"\n{custom_workflow_description}"
         return rules
 
-    def generate_instructions(self, catalog: A2uiCatalog) -> str:
-        return catalog.render_as_llm_instructions()
+    def catalog_description(self, include_schema: bool = True) -> str:
+        if not self.catalog:
+            return ""
+        return self.catalog.render_as_llm_instructions()
 
-    def parse_response(
-        self,
-        content: str,
-        catalog: A2uiCatalog | None = None,
-        surface_id: str | None = None,
-    ) -> List[ResponsePart]:
+    def parse_response(self, content: str) -> List[ResponsePart]:
         from a2ui.parser.parser import parse_response
 
         return parse_response(content)
 
-    def decompile(self, val: dict[str, Any], catalog: A2uiCatalog) -> str:
+    def decompile(self, val: dict[str, Any]) -> str:
         return json.dumps(val, indent=2)
 
-    def detect_format(self, content: str) -> bool:
-        from a2ui.schema.constants import A2UI_OPEN_TAG, A2UI_CLOSE_TAG
-
-        return A2UI_OPEN_TAG in content and A2UI_CLOSE_TAG in content
+    def wrap_decompiled_blocks(self, blocks: List[str]) -> str:
+        full_json = "\n\n".join(blocks)
+        triple_backticks = chr(96) * 3
+        return f"{triple_backticks}json\n{full_json}\n{triple_backticks}"

@@ -13,8 +13,10 @@
 # limitations under the License.
 
 import os
+import re
+import json
 from abc import ABC, abstractmethod
-from typing import List, Any, Callable
+from typing import List, Any, Optional
 from a2ui.schema.catalog import A2uiCatalog
 from a2ui.parser.response_part import ResponsePart
 
@@ -22,11 +24,20 @@ __all__ = [
     "InferenceFormat",
     "InferenceFormatRegistry",
     "JsonInferenceFormat",
+    "PromptGenerator",
 ]
 
 
 class InferenceFormat(ABC):
     """Abstract interface defining an alternative A2UI payload format."""
+
+    def __init__(
+        self,
+        catalog: Optional[A2uiCatalog] = None,
+        surface_id: str = "main",
+    ):
+        self.catalog = catalog
+        self.surface_id = surface_id
 
     @property
     @abstractmethod
@@ -35,48 +46,110 @@ class InferenceFormat(ABC):
         pass
 
     @abstractmethod
-    def generate_workflow_rules(self, custom_workflow_description: str = "") -> str:
+    def format_description(self, custom_workflow_description: str = "") -> str:
         """Generates formatting rules and sentinel tag expectations."""
         pass
 
     @abstractmethod
-    def generate_instructions(self, catalog: A2uiCatalog) -> str:
+    def catalog_description(self, include_schema: bool = True) -> str:
         """Generates component and function signatures for the catalog in this format."""
         pass
 
-    def transform_examples(
-        self, raw_examples_markdown: str, catalog: A2uiCatalog
-    ) -> str:
-        """Transforms examples markdown (e.g., converting JSON blocks to the target format)."""
-        return raw_examples_markdown
-
-    @property
-    def default_surface_id(self) -> str:
-        """The default surface ID used if none is specified."""
-        return "main"
-
     @abstractmethod
-    def parse_response(
-        self,
-        content: str,
-        catalog: A2uiCatalog | None = None,
-        surface_id: str | None = None,
-    ) -> List[ResponsePart]:
+    def parse_response(self, content: str) -> List[ResponsePart]:
         """Parses model response content and compiles it to standard A2UI JSON payload parts."""
         pass
 
     @abstractmethod
-    def decompile(self, val: dict[str, Any], catalog: A2uiCatalog) -> str:
+    def decompile(self, val: dict[str, Any]) -> str:
         """Decompiles standard JSON payload back into this format's string representation."""
+        pass
+
+    @abstractmethod
+    def wrap_decompiled_blocks(self, blocks: List[str]) -> str:
+        """Wraps decompiled code blocks in format-specific tags and code block wrappers."""
         pass
 
     def detect_format(self, content: str) -> bool:
         """Returns True if the content contains this format's sentinel/payload tags."""
-        return False
+        return "<a2ui" in content
 
-    def extract_surface_ids(self, content: str) -> List[str]:
-        """Extracts any surface IDs declared or defined in the content according to this format."""
-        return []
+
+class PromptGenerator:
+    """Helper to assemble prompt instructions and transform examples."""
+
+    def __init__(self, format_strategy: InferenceFormat):
+        self.strategy = format_strategy
+
+    def generate_system_prompt(
+        self,
+        role_description: str,
+        workflow_description: str = "",
+        ui_description: str = "",
+        include_schema: bool = True,
+        include_examples: bool = False,
+        examples_raw: str = "",
+    ) -> str:
+        """Assembles the final system prompt instructions."""
+        parts = [role_description]
+
+        workflow = self.strategy.format_description(workflow_description)
+        parts.append(f"## Workflow Description:\n{workflow}")
+
+        if ui_description:
+            parts.append(f"## UI Description:\n{ui_description}")
+
+        if include_schema:
+            parts.append(self.strategy.catalog_description(include_schema))
+
+        if include_examples and examples_raw:
+            formatted_examples = self.transform_examples(examples_raw)
+            parts.append(f"### Examples:\n{formatted_examples}")
+
+        return "\n\n".join(parts)
+
+    def transform_examples(self, raw_examples_markdown: str) -> str:
+        """Transforms JSON blocks in raw markdown into the target format syntax."""
+        if not self.strategy.catalog:
+            return raw_examples_markdown
+
+        triple_backticks = chr(96) * 3
+        pattern = rf"{triple_backticks}json\s*\n(.*?)\n{triple_backticks}"
+
+        def replace_json_block(match) -> str:
+            json_content = match.group(1).strip()
+            try:
+                parsed = json.loads(json_content)
+                if isinstance(parsed, dict):
+                    messages = [parsed]
+                elif isinstance(parsed, list):
+                    messages = parsed
+                else:
+                    return match.group(0)
+
+                blocks = []
+                for msg in messages:
+                    if isinstance(msg, dict) and any(
+                        k in msg
+                        for k in [
+                            "createSurface",
+                            "updateDataModel",
+                            "deleteSurface",
+                            "callFunction",
+                        ]
+                    ):
+                        decompiled = self.strategy.decompile(msg)
+                        blocks.append(decompiled)
+                    else:
+                        return match.group(0)
+
+                return self.strategy.wrap_decompiled_blocks(blocks)
+            except Exception:
+                return match.group(0)
+
+        return re.sub(
+            pattern, replace_json_block, raw_examples_markdown, flags=re.DOTALL
+        )
 
 
 class InferenceFormatRegistry:

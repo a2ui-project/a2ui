@@ -19,7 +19,7 @@ from ..inference_strategy import InferenceStrategy
 from .constants import *
 from .catalog import CatalogConfig, A2uiCatalog
 from a2ui.core import A2uiCatalogError
-from a2ui.formats import InferenceFormat, JsonInferenceFormat
+from a2ui.formats import InferenceFormat, JsonInferenceFormat, PromptGenerator
 
 
 class A2uiSchemaManager(InferenceStrategy):
@@ -221,30 +221,26 @@ class A2uiSchemaManager(InferenceStrategy):
         format_strategy: Optional[InferenceFormat] = None,
     ) -> str:
         """Assembles the final system instruction for the LLM."""
-        parts = [role_description]
-
-        strategy = format_strategy or self._format_strategy
-        workflow = strategy.generate_workflow_rules(workflow_description)
-        parts.append(f"## Workflow Description:\n{workflow}")
-
-        if ui_description:
-            parts.append(f"## UI Description:\n{ui_description}")
-
         selected_catalog = self.get_selected_catalog(
             client_ui_capabilities, allowed_components, allowed_messages
         )
 
-        if include_schema:
-            parts.append(strategy.generate_instructions(selected_catalog))
+        strategy_base = format_strategy or self._format_strategy
+        # Construct strategy instance parameterized with selected catalog and main surface ID
+        fmt = strategy_base.__class__(catalog=selected_catalog, surface_id="main")
 
+        examples_str = ""
         if include_examples:
             examples_str = self.load_examples(
                 selected_catalog, validate=validate_examples
             )
-            if examples_str:
-                formatted_examples = strategy.transform_examples(
-                    examples_str, selected_catalog
-                )
-                parts.append(f"### Examples:\n{formatted_examples}")
 
-        return "\n\n".join(parts)
+        generator = PromptGenerator(fmt)
+        return generator.generate_system_prompt(
+            role_description=role_description,
+            workflow_description=workflow_description,
+            ui_description=ui_description,
+            include_schema=include_schema,
+            include_examples=include_examples,
+            examples_raw=examples_str,
+        )

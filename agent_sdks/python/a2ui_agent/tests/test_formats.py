@@ -14,7 +14,7 @@
 
 import json
 import pytest
-from a2ui.formats import InferenceFormat, InferenceFormatRegistry
+from a2ui.formats import InferenceFormat, InferenceFormatRegistry, PromptGenerator
 from a2ui.formats.json_inference_format import JsonInferenceFormat
 from a2ui.schema.catalog import A2uiCatalog
 from a2ui.schema.constants import VERSION_0_9
@@ -26,19 +26,20 @@ class MockFormat(InferenceFormat):
     def name(self) -> str:
         return "mock"
 
-    def generate_workflow_rules(self, custom_workflow_description: str = "") -> str:
+    def format_description(self, custom_workflow_description: str = "") -> str:
         return f"mock rules: {custom_workflow_description}"
 
-    def generate_instructions(self, catalog: A2uiCatalog) -> str:
+    def catalog_description(self, include_schema: bool = True) -> str:
         return "mock instructions"
 
-    def parse_response(
-        self, content: str, catalog: A2uiCatalog, surface_id: str = "main"
-    ) -> list:
+    def parse_response(self, content: str) -> list:
         return []
 
-    def decompile(self, val: dict, catalog: A2uiCatalog) -> str:
+    def decompile(self, val: dict) -> str:
         return "mock decompiled"
+
+    def wrap_decompiled_blocks(self, blocks: list[str]) -> str:
+        return f"wrapped: {blocks}"
 
 
 @pytest.fixture
@@ -88,34 +89,56 @@ def test_registry_operations():
 
 
 def test_json_inference_format(test_catalog):
-    fmt = JsonInferenceFormat()
+    fmt = JsonInferenceFormat(catalog=test_catalog)
     assert fmt.name == "json"
 
     # Workflow rules
     assert (
         "The response can contain one or more A2UI JSON blocks."
-        in fmt.generate_workflow_rules()
+        in fmt.format_description()
     )
-    assert "custom rules" in fmt.generate_workflow_rules("custom rules")
+    assert "custom rules" in fmt.format_description("custom rules")
 
     # Instructions
-    instructions = fmt.generate_instructions(test_catalog)
+    instructions = fmt.catalog_description()
     assert "### Catalog Schema:" in instructions
-
-    # Transform examples (default is identity)
-    examples = "some markdown"
-    assert fmt.transform_examples(examples, test_catalog) == examples
 
     # Parse response
     parsed = fmt.parse_response(
         '<a2ui-json>[{"createSurface": {"surfaceId": "main", "layout": {"component":'
-        ' "Text"}}}]</a2ui-json>',
-        test_catalog,
+        ' "Text"}}}]</a2ui-json>'
     )
     assert len(parsed) == 1
     assert parsed[0].a2ui_json is not None
 
     # Decompile
     data = {"createSurface": {"surfaceId": "main"}}
-    decompiled = fmt.decompile(data, test_catalog)
+    decompiled = fmt.decompile(data)
     assert '"createSurface"' in decompiled
+
+
+def test_prompt_generator(test_catalog):
+    fmt = MockFormat(catalog=test_catalog)
+    generator = PromptGenerator(fmt)
+
+    # Test system prompt generation
+    prompt = generator.generate_system_prompt(
+        role_description="You are a helpful assistant.",
+        workflow_description="Please adhere to constraints.",
+        include_schema=True,
+    )
+    assert "You are a helpful assistant." in prompt
+    assert "Please adhere to constraints." in prompt
+    assert "mock instructions" in prompt
+
+    # Test transforming examples markdown
+    raw_md = (
+        "Here is an example:\n"
+        "```json\n"
+        '{"createSurface": {"surfaceId": "main", "layout": {"component": "Text", "text": "Hello"}}}\n'
+        "```\n"
+        "End of example."
+    )
+    transformed = generator.transform_examples(raw_md)
+    assert "wrapped:" in transformed
+    assert "mock decompiled" in transformed

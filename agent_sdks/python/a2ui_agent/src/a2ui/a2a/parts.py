@@ -107,11 +107,12 @@ def parse_response_to_parts(
     Returns:
         A list of A2A Part objects (TextPart and/or DataPart).
     """
-    strategy = format_strategy or JsonInferenceFormat()
+    strategy_base = format_strategy or JsonInferenceFormat()
+    strategy = strategy_base.__class__(catalog=catalog, surface_id="main")
 
     parts = []
     try:
-        response_parts = strategy.parse_response(content, catalog)
+        response_parts = strategy.parse_response(content)
 
         for part in response_parts:
             if part.text:
