@@ -77,14 +77,15 @@ def compile_format_payload(format_name: str, version: str) -> Solver:
 
         completion = state.output.completion.strip()
 
-        # Try to extract target surface ID from the prompt input
-        prompt_text = state.input_text
-        surface_id_match = re.search(
-            r"surface(?:Id|\s+Id)?(?:\s+of)?\s+['\"]([^'\"]+)['\"]",
-            prompt_text,
-            re.IGNORECASE,
-        )
-        surface_id = surface_id_match.group(1) if surface_id_match else "main"
+        allowed_surface_ids = state.metadata.get("allowed_surface_ids", ["main"])
+        default_surface_id = allowed_surface_ids[0]
+
+        surface_id = default_surface_id
+        match = re.search(r"<a2ui\b[^>]*\bid=['\"]([^'\"]+)['\"]", completion, re.IGNORECASE)
+        if match:
+            found_id = match.group(1)
+            if found_id in allowed_surface_ids:
+                surface_id = found_id
 
         try:
             parts = fmt.parse_response(completion, catalog, surface_id=surface_id)
@@ -98,8 +99,8 @@ def compile_format_payload(format_name: str, version: str) -> Solver:
 
             if not compiled_jsons:
                 raise ValueError(
-                    f"No compiled A2UI {format_name} JSON payload found in parsed"
-                    " parts."
+                    f"No compiled A2UI {format_name} user interface found "
+                    "in parsed parts."
                 )
 
             validator.validate(compiled_jsons)

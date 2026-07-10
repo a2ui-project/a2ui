@@ -21,7 +21,13 @@ import jsonschema
 import yaml
 from inspect_ai.dataset import MemoryDataset, Sample
 
-from datasets.defaults import DEFAULT_CATALOG_PATH, DEFAULT_WORKFLOW_DESCRIPTION, DEFAULT_ROLE_DESCRIPTION
+from datasets.defaults import (
+    DEFAULT_CATALOG_PATH,
+    DEFAULT_WORKFLOW_DESCRIPTION,
+    DEFAULT_ROLE_DESCRIPTION,
+    FORMAT_AGNOSTIC_ROLE_DESCRIPTION,
+    FORMAT_AGNOSTIC_WORKFLOW_DESCRIPTION,
+)
 from a2ui_eval.shared.utils import GIT_ROOT
 
 SCHEMA_PATH = GIT_ROOT / 'eval' / 'datasets' / 'dataset_schema.json'
@@ -36,6 +42,7 @@ def load_a2ui_dataset(
     file_path: str,
     default_catalog_path: str | None = None,
     version: str | None = None,
+    format_name: str | None = None,
 ) -> MemoryDataset:
     """Loads A2UI evaluation samples from a YAML file.
 
@@ -62,6 +69,8 @@ def load_a2ui_dataset(
 
     jsonschema.validate(instance=data, schema=schema)
 
+    is_json = format_name is None or format_name == "json"
+
     samples = []
     for item in data:
         catalog_path = (
@@ -71,6 +80,17 @@ def load_a2ui_dataset(
             catalog_path = catalog_path.replace(
                 '{version}', _version_to_dir_name(version)
             )
+        
+        default_role = (
+            DEFAULT_ROLE_DESCRIPTION if is_json else FORMAT_AGNOSTIC_ROLE_DESCRIPTION
+        )
+        default_workflow = (
+            DEFAULT_WORKFLOW_DESCRIPTION if is_json else FORMAT_AGNOSTIC_WORKFLOW_DESCRIPTION
+        )
+
+        role_description = item.get('role_description') or default_role
+        workflow_description = item.get('workflow_description') or default_workflow
+
         samples.append(
             Sample(
                 input=item['promptText'],
@@ -79,11 +99,10 @@ def load_a2ui_dataset(
                     'name': item.get('name'),
                     'description': item.get('description'),
                     'catalog': catalog_path,
-                    'role_description': (
-                        item.get('role_description') or DEFAULT_ROLE_DESCRIPTION
-                    ),
-                    'workflow_description': (
-                        item.get('workflow_description') or DEFAULT_WORKFLOW_DESCRIPTION
+                    'role_description': role_description,
+                    'workflow_description': workflow_description,
+                    'allowed_surface_ids': (
+                        item.get('allowed_surface_ids') or ["main"]
                     ),
                 },
             )

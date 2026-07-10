@@ -139,9 +139,10 @@ You can call these functions inside attribute expressions `{{...}}` using named 
         self,
         content: str,
         catalog: A2uiCatalog,
-        surface_id: str = "main",
+        surface_id: str | None = None,
     ) -> List[ResponsePart]:
-        return parse_elemental_response(content, catalog, surface_id=surface_id)
+        surf_id = surface_id or self.default_surface_id
+        return parse_elemental_response(content, catalog, surface_id=surf_id)
 
     def decompile(self, val: dict[str, Any], catalog: A2uiCatalog) -> str:
         return ElementalDecompiler(catalog).decompile(val)

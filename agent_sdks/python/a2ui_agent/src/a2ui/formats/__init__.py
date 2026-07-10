@@ -50,12 +50,17 @@ class InferenceFormat(ABC):
         """Transforms examples markdown (e.g., converting JSON blocks to the target format)."""
         return raw_examples_markdown
 
+    @property
+    def default_surface_id(self) -> str:
+        """The default surface ID used if none is specified."""
+        return "main"
+
     @abstractmethod
     def parse_response(
         self,
         content: str,
         catalog: A2uiCatalog,
-        surface_id: str = "main",
+        surface_id: str | None = None,
     ) -> List[ResponsePart]:
         """Parses model response content and compiles it to standard A2UI JSON payload parts."""
         pass

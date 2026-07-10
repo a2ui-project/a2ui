@@ -16,6 +16,7 @@
 
 import json
 import os
+import re
 import time
 from inspect_ai.scorer import scorer, Score, Target, accuracy, model_graded_qa
 from inspect_ai.solver import TaskState
@@ -53,6 +54,14 @@ def a2ui_scorer(version: str):
         validator = catalog.validator
 
         answer_text = state.output.completion or ""
+        
+        if "Compilation/validation failed:" in answer_text:
+            return Score(
+                value=0.0,
+                answer=answer_text,
+                explanation="Format compilation/validation failed during solver step.",
+            )
+
         try:
             parts = parse_response(answer_text)
             all_messages = []
