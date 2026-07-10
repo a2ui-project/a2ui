@@ -103,9 +103,7 @@ def load_a2ui_dataset(
                     "catalog": catalog_path,
                     "role_description": role_description,
                     "workflow_description": workflow_description,
-                    "allowed_surface_ids": (
-                        item.get("allowed_surface_ids") or ["main"]
-                    ),
+                    "allowed_surface_ids": item.get("allowed_surface_ids") or ["main"],
                 },
             )
         )

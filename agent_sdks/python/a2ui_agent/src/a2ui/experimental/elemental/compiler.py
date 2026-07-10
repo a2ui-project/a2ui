@@ -266,6 +266,7 @@ def _property_schema_accepts_components(schema: Any) -> bool:
             if any(_property_schema_accepts_components(sub) for sub in schema[k]):
                 return True
 
+
 def _property_schema_expects_array(schema: Any) -> bool:
     """Recursively checks if a property schema accepts or expects a JSON array."""
     if not isinstance(schema, dict):
@@ -274,8 +275,7 @@ def _property_schema_expects_array(schema: Any) -> bool:
         return True
     ref = schema.get("$ref", "")
     if isinstance(ref, str) and any(
-        ref.endswith(suffix)
-        for suffix in ["ComponentIdArray", "ChildList"]
+        ref.endswith(suffix) for suffix in ["ComponentIdArray", "ChildList"]
     ):
         return True
     for k in ["oneOf", "anyOf", "allOf"]:
@@ -322,7 +322,9 @@ class ElementalCompiler:
                 )
                 self.container_tags.add(kebab_name)
 
-    def _resolve_action_property_name(self, name: str, comp_name: str, properties: List[str]) -> str:
+    def _resolve_action_property_name(
+        self, name: str, comp_name: str, properties: List[str]
+    ) -> str:
         """Maps React-like event names (onclick, onSubmitAction) back to catalog properties (action, submitAction)."""
         action_props = []
         for p in properties:
@@ -334,7 +336,7 @@ class ElementalCompiler:
             if not action_props:
                 raise ValueError(
                     f"Component '{comp_name}' does not accept any action properties, "
-                    f"but 'onclick' was specified."
+                    "but 'onclick' was specified."
                 )
             return action_props[0]
 
@@ -599,7 +601,9 @@ class ElementalCompiler:
             prop_name = prop_parts[0] + "".join(p.capitalize() for p in prop_parts[1:])
 
             # Map TS/HTML action names back to catalog properties
-            prop_name = self._resolve_action_property_name(prop_name, comp_name, properties)
+            prop_name = self._resolve_action_property_name(
+                prop_name, comp_name, properties
+            )
 
             if comp_name in self.helper.components and prop_name not in properties:
                 continue
@@ -755,7 +759,9 @@ class ElementalCompiler:
                             slot_schema = self.helper.get_property_schema(
                                 comp_name, slot_name
                             )
-                            if slot_schema and _property_schema_expects_array(slot_schema):
+                            if slot_schema and _property_schema_expects_array(
+                                slot_schema
+                            ):
                                 if slot_name not in comp_dict:
                                     comp_dict[slot_name] = []
                                 comp_dict[slot_name].append(child_id)

@@ -455,6 +455,7 @@ class TestElementalCompiler(unittest.TestCase):
         components = result["createSurface"]["components"]
         lst = next(c for c in components if c["id"] == "lst_1")
         self.assertEqual(lst["children"], {"path": "/items", "componentId": "txt_1"})
+
     def test_compile_onclick_no_actions_raises_error(self):
         html_input = (
             '<a2ui id="test-surf">\n'
@@ -464,7 +465,6 @@ class TestElementalCompiler(unittest.TestCase):
         with self.assertRaises(ValueError) as ctx:
             self.compiler.compile(html_input)
         self.assertIn("does not accept any action properties", str(ctx.exception))
-
 
 
 if __name__ == "__main__":

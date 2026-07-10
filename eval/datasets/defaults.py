@@ -29,7 +29,8 @@ Additional Rules:
 """
 
 FORMAT_AGNOSTIC_ROLE_DESCRIPTION = (
-    "You are an AI assistant. Based on the following request, generate a user interface."
+    "You are an AI assistant. Based on the following request, generate a user"
+    " interface."
 )
 
 FORMAT_AGNOSTIC_WORKFLOW_DESCRIPTION = """
