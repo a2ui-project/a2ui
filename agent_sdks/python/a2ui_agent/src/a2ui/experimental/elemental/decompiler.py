@@ -157,7 +157,7 @@ class ElementalDecompiler:
             surface_id = val_op.get("surfaceId", "default_surface")
             data_val = val_op.get("value", {})
 
-            lines = [f'<body id="{surface_id}">']
+            lines = [f'<a2ui id="{surface_id}">']
             if data_val:
                 json_str = json.dumps(data_val, indent=2)
                 indented_json = "\n".join(
@@ -166,7 +166,7 @@ class ElementalDecompiler:
                 lines.append('  <script type="application/json">')
                 lines.append(indented_json)
                 lines.append("  </script>")
-            lines.append("</body>")
+            lines.append("</a2ui>")
             return "\n".join(lines)
 
         # 4. Handle createSurface
@@ -206,7 +206,7 @@ class ElementalDecompiler:
 
         roots = [c["id"] for c in components if c["id"] not in child_to_parent]
 
-        lines = [f'<body id="{surface_id}">']
+        lines = [f'<a2ui id="{surface_id}">']
         default_catalog_id = self.helper.catalog.get("catalogId", "")
         if catalog_id and catalog_id != default_catalog_id:
             lines.append(f'  <link rel="catalog" href="{catalog_id}">')
@@ -221,7 +221,7 @@ class ElementalDecompiler:
         for root_id in roots:
             lines.append(self._render_component(root_id, indent=1))
 
-        lines.append("</body>")
+        lines.append("</a2ui>")
         return "\n".join(lines)
 
     def _render_component(

@@ -371,7 +371,7 @@ Surround the entire output with `<body>` and `</body>` tags, including a `<link 
 6. **Slots & Children**: Nest children inside parent elements. Use the `slot` attribute to specify child properties: `<ui-card slot="leading">`.
 7. **Complex Properties**: For objects/arrays, use `<script type="application/json" slot="prop">`. For HTML/long text, use `<script type="text/html" slot="prop">`.
 8. **Templates**: For dynamic lists, nest child elements inside a `<template>` tag, and specify the bound data array path via the `path` attribute on the list component itself (e.g. `<ui-list path="{$/items}"><template>...</template></ui-list>`).
-9. **Actions**: Use `on-<property-name>` in kebab-case (e.g. `onclick="{Event('name', {args})}"`). If submitting or validating data, pass the data paths inside the event context dict (e.g. `onclick="{Event('login', {username: $/login/username})}"`).
+9. **Actions**: Use `on-<property-name>` in kebab-case, or `onclick` for primary button click events (e.g. `onclick="{Event('name', {args})}"`). If submitting or validating data, pass the data paths inside the event context dict (e.g. `onclick="{Event('login', {username: $/login/username})}"`).
 10. **Standalone Directives**:
     - Data Initialization: `<script type="application/json">{"data"}</script>` at root of body.
     - Surface Deletion: `<ui-delete-surface surface-id="id" />`.

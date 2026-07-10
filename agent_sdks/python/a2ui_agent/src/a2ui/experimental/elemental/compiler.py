@@ -265,6 +265,23 @@ def _property_schema_accepts_components(schema: Any) -> bool:
         if k in schema and isinstance(schema[k], list):
             if any(_property_schema_accepts_components(sub) for sub in schema[k]):
                 return True
+
+def _property_schema_expects_array(schema: Any) -> bool:
+    """Recursively checks if a property schema accepts or expects a JSON array."""
+    if not isinstance(schema, dict):
+        return False
+    if schema.get("type") == "array":
+        return True
+    ref = schema.get("$ref", "")
+    if isinstance(ref, str) and any(
+        ref.endswith(suffix)
+        for suffix in ["ComponentIdArray", "ChildList"]
+    ):
+        return True
+    for k in ["oneOf", "anyOf", "allOf"]:
+        if k in schema and isinstance(schema[k], list):
+            if any(_property_schema_expects_array(sub) for sub in schema[k]):
+                return True
     return False
 
 
@@ -288,7 +305,7 @@ class ElementalCompiler:
         self.expr_parser = ElementalExpressionParser()
 
         # Pre-compute container tags for forgiving parsing
-        self.container_tags = {"body", "template"}
+        self.container_tags = {"a2ui", "template"}
         for comp_name in self.helper.components:
             properties = self.helper.get_component_properties(comp_name)
             has_slotted_children = False
@@ -305,10 +322,22 @@ class ElementalCompiler:
                 )
                 self.container_tags.add(kebab_name)
 
-    def _resolve_action_property_name(self, name: str, properties: List[str]) -> str:
+    def _resolve_action_property_name(self, name: str, comp_name: str, properties: List[str]) -> str:
         """Maps React-like event names (onclick, onSubmitAction) back to catalog properties (action, submitAction)."""
-        if name == "onclick" and "action" in properties and "onclick" not in properties:
-            return "action"
+        action_props = []
+        for p in properties:
+            p_schema = self.helper.get_property_schema(comp_name, p)
+            if p_schema and _is_action_property(p_schema):
+                action_props.append(p)
+
+        if name.lower() == "onclick":
+            if not action_props:
+                raise ValueError(
+                    f"Component '{comp_name}' does not accept any action properties, "
+                    f"but 'onclick' was specified."
+                )
+            return action_props[0]
+
         if name.startswith("on") and len(name) > 2:
             camel_action = name[2].lower() + name[3:]
             if camel_action in properties and name not in properties:
@@ -331,7 +360,7 @@ class ElementalCompiler:
         if not root:
             raise ValueError("A2UI Elemental document is empty.")
 
-        if root.tag == "body":
+        if root.tag == "a2ui":
             # If there is a standalone operation inside body, treat it as the root
             standalone = None
             for child in root.children:
@@ -389,9 +418,9 @@ class ElementalCompiler:
                 envelope["functionCallId"] = func_call_id
             return envelope
 
-        if root.tag != "body":
+        if root.tag != "a2ui":
             raise ValueError(
-                "A2UI Elemental document must have a <body>,"
+                "A2UI Elemental document must have a <a2ui>,"
                 f" <{TAG_PREFIX}delete-surface>, or <{TAG_PREFIX}call-function> root"
                 " element."
             )
@@ -449,7 +478,7 @@ class ElementalCompiler:
         for child in remaining_children:
             if not child.tag.startswith(TAG_PREFIX):
                 raise ValueError(
-                    f"Invalid element tag '{child.tag}' under <body>. Only"
+                    f"Invalid element tag '{child.tag}' under <a2ui>. Only"
                     f" '{TAG_PREFIX}*' components are supported inside A2UI surfaces."
                 )
 
@@ -570,7 +599,7 @@ class ElementalCompiler:
             prop_name = prop_parts[0] + "".join(p.capitalize() for p in prop_parts[1:])
 
             # Map TS/HTML action names back to catalog properties
-            prop_name = self._resolve_action_property_name(prop_name, properties)
+            prop_name = self._resolve_action_property_name(prop_name, comp_name, properties)
 
             if comp_name in self.helper.components and prop_name not in properties:
                 continue
@@ -685,7 +714,7 @@ class ElementalCompiler:
                     slot_name = child.attrs.get("slot")
                     if slot_name:
                         slot_name = self._resolve_action_property_name(
-                            slot_name, properties
+                            slot_name, comp_name, properties
                         )
                         try:
                             comp_dict[slot_name] = json.loads(child.text.strip())
@@ -704,7 +733,7 @@ class ElementalCompiler:
                     slot_name = child.attrs.get("slot")
                     if slot_name:
                         slot_name = self._resolve_action_property_name(
-                            slot_name, properties
+                            slot_name, comp_name, properties
                         )
                         try:
                             comp_dict[slot_name] = json.loads(child.text.strip())
@@ -720,13 +749,13 @@ class ElementalCompiler:
                     slot_name = child.attrs.get("slot")
                     if slot_name:
                         slot_name = self._resolve_action_property_name(
-                            slot_name, properties
+                            slot_name, comp_name, properties
                         )
                         if slot_name in properties:
                             slot_schema = self.helper.get_property_schema(
                                 comp_name, slot_name
                             )
-                            if slot_schema and slot_schema.get("type") == "array":
+                            if slot_schema and _property_schema_expects_array(slot_schema):
                                 if slot_name not in comp_dict:
                                     comp_dict[slot_name] = []
                                 comp_dict[slot_name].append(child_id)

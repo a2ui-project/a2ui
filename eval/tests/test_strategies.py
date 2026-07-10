@@ -209,9 +209,9 @@ async def test_a2ui_elemental_solvers():
                 ChatCompletionChoice(
                     message=ChatMessageAssistant(
                         content=(
-                            '<body id="main"><link rel="catalog"'
+                            '<a2ui id="main"><link rel="catalog"'
                             ' href="https://a2ui.org/catalog"><ui-text id="root"'
-                            ' text="Hello"></ui-text></body>'
+                            ' text="Hello"></ui-text></a2ui>'
                         )
                     )
                 )

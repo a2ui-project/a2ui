@@ -210,11 +210,10 @@ def test_elemental_inference_format(test_catalog):
     raw_md_other = 'Some text\n```json\n{"otherKey": 1}\n```'
     assert fmt.transform_examples(raw_md_other, test_catalog) == raw_md_other
 
-    # Parse response
     parsed = fmt.parse_response(
-        '<body id="main"><link rel="catalog"'
+        '<a2ui id="main"><link rel="catalog"'
         ' href="https://a2ui.org/test_catalog"><ui-text id="root"'
-        ' text="hello"></ui-text></body>',
+        ' text="hello"></ui-text></a2ui>',
         test_catalog,
     )
     assert len(parsed) == 1
