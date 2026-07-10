@@ -453,6 +453,16 @@ class TestElementalCompiler(unittest.TestCase):
         lst = next(c for c in components if c["id"] == "lst_1")
         self.assertEqual(lst["children"], {"path": "/items", "componentId": "txt_1"})
 
+    def test_compile_onclick_no_actions_raises_error(self):
+        html_input = (
+            '<a2ui id="test-surf">\n'
+            '  <ui-text id="txt_1" text="Hello" onclick="{Event(\'click_text\')}" />\n'
+            "</a2ui>"
+        )
+        with self.assertRaises(ValueError) as ctx:
+            self.compiler.compile(html_input)
+        self.assertIn("does not accept any action properties", str(ctx.exception))
+
 
 if __name__ == "__main__":
     unittest.main()
