@@ -79,26 +79,30 @@ describe('Button Component', () => {
     const el = document.createElement('a2ui-basic-button') as any;
     document.body.appendChild(el);
 
-    const context = new ComponentContext(surface, 'btn1');
-    await asyncUpdate(el, e => {
-      e.context = context;
-    });
-
-    const button = el.shadowRoot.querySelector('button');
-    assert.ok(button);
-    assert.strictEqual(button.disabled, false);
-
-    let dispatchedAction: any = null;
-    const subscription = surface.onAction.subscribe((action: any) => {
-      dispatchedAction = action;
-    });
-
+    let subscription: any = null;
     try {
+      const context = new ComponentContext(surface, 'btn1');
+      await asyncUpdate(el, e => {
+        e.context = context;
+      });
+
+      const button = el.shadowRoot.querySelector('button');
+      assert.ok(button);
+      assert.strictEqual(button.disabled, false);
+
+      let dispatchedAction: any = null;
+      subscription = surface.onAction.subscribe((action: any) => {
+        dispatchedAction = action;
+      });
+
       button.click();
+      await new Promise(resolve => setTimeout(resolve, 0));
       assert.ok(dispatchedAction);
       assert.strictEqual(dispatchedAction.name, 'submit_clicked');
     } finally {
-      subscription.unsubscribe();
+      if (subscription) {
+        subscription.unsubscribe();
+      }
       document.body.removeChild(el);
     }
   });
@@ -107,25 +111,28 @@ describe('Button Component', () => {
     const el = document.createElement('a2ui-basic-button') as any;
     document.body.appendChild(el);
 
-    const context = new ComponentContext(surface, 'btn_disabled');
-    await asyncUpdate(el, e => {
-      e.context = context;
-    });
-
-    const button = el.shadowRoot.querySelector('button');
-    assert.ok(button);
-    assert.strictEqual(button.disabled, true);
-
-    let dispatchedAction = false;
-    const subscription = surface.onAction.subscribe(() => {
-      dispatchedAction = true;
-    });
-
+    let subscription: any = null;
     try {
+      const context = new ComponentContext(surface, 'btn_disabled');
+      await asyncUpdate(el, e => {
+        e.context = context;
+      });
+
+      const button = el.shadowRoot.querySelector('button');
+      assert.ok(button);
+      assert.strictEqual(button.disabled, true);
+
+      let dispatchedAction = false;
+      subscription = surface.onAction.subscribe(() => {
+        dispatchedAction = true;
+      });
+
       button.click();
       assert.strictEqual(dispatchedAction, false);
     } finally {
-      subscription.unsubscribe();
+      if (subscription) {
+        subscription.unsubscribe();
+      }
       document.body.removeChild(el);
     }
   });

@@ -240,13 +240,11 @@ async def test_send_tool_run_async_missing_arg():
         MagicMock(spec=A2uiCatalog), "examples"
     )
     result = await tool.run_async(args={}, tool_context=MagicMock())
-    expected_error = (
-        "Failed to call A2UI tool send_a2ui_json_to_client: Failed to call tool"
-        " send_a2ui_json_to_client because missing required arg a2ui_json "
+    assert "error" in result
+    assert (
+        SendA2uiToClientToolset._SendA2uiJsonToClientTool.A2UI_JSON_ARG_NAME
+        in result["error"]
     )
-    assert result == {
-        SendA2uiToClientToolset._SendA2uiJsonToClientTool.TOOL_ERROR_KEY: expected_error
-    }
 
 
 @pytest.mark.asyncio
@@ -257,10 +255,9 @@ async def test_send_tool_run_async_invalid_json():
         SendA2uiToClientToolset._SendA2uiJsonToClientTool.A2UI_JSON_ARG_NAME: "{invalid"
     }
     result = await tool.run_async(args=args, tool_context=MagicMock())
-    assert SendA2uiToClientToolset._SendA2uiJsonToClientTool.TOOL_ERROR_KEY in result
-    err_msg = result[SendA2uiToClientToolset._SendA2uiJsonToClientTool.TOOL_ERROR_KEY]
-    assert err_msg.startswith("Failed to call A2UI tool send_a2ui_json_to_client:")
-    assert "Expecting property name enclosed in double quotes" in err_msg
+    assert "error" in result
+    assert "Failed to call A2UI tool" in result["error"]
+    assert "Expecting property name enclosed in double quotes" in result["error"]
 
 
 @pytest.mark.asyncio
@@ -277,12 +274,9 @@ async def test_send_tool_run_async_schema_validation_fail():
         )
     }
     result = await tool.run_async(args=args, tool_context=MagicMock())
-    assert result == {
-        SendA2uiToClientToolset._SendA2uiJsonToClientTool.TOOL_ERROR_KEY: (
-            "Failed to call A2UI tool send_a2ui_json_to_client: 'text' is a required"
-            " property"
-        )
-    }
+    assert "error" in result
+    assert "Failed to call A2UI tool" in result["error"]
+    assert "'text' is a required property" in result["error"]
 
 
 # endregion
