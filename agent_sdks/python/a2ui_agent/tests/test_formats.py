@@ -163,3 +163,194 @@ def test_prompt_generator(test_catalog):
     transformed = generator.transform_examples(raw_md)
     assert "wrapped:" in transformed
     assert "mock decompiled" in transformed
+
+
+def test_express_inference_format(test_catalog):
+    # Conditionally test if Express is enabled / imported
+    try:
+        from a2ui.experimental.express.format import ExpressInferenceFormat
+    except ImportError:
+        pytest.skip("Express inference format not available")
+
+    fmt = ExpressInferenceFormat(catalog=test_catalog)
+    assert fmt.name == "express"
+
+    # Workflow rules
+    assert "A2UI Express Output Contract" in fmt.format_description()
+    assert "custom workflow" in fmt.format_description("custom workflow")
+
+    # Instructions
+    instructions = fmt.catalog_description()
+    assert "## Positional Component Signatures" in instructions
+
+    # Transform examples via PromptGenerator
+    generator = PromptGenerator(fmt)
+    raw_md = (
+        'Some text before\n```json\n{\n  "createSurface": {\n    "surfaceId": "main",\n'
+        '    "components": [\n      {\n        "id": "root",\n        "component":'
+        ' "Text",\n        "properties": {"text": "hello"}\n      }\n    ]\n '
+        " }\n}\n```\nSome text after"
+    )
+    transformed = generator.transform_examples(raw_md)
+    assert "```\n<a2ui>\n" in transformed
+    assert "Text" in transformed
+
+    # Parse response
+    parsed = fmt.parse_response("<a2ui>\nroot = Text()\n</a2ui>")
+    assert len(parsed) == 1
+    assert parsed[0].a2ui_json is not None
+
+    # Decompile
+    data = {
+        "createSurface": {
+            "surfaceId": "main",
+            "components": [
+                {"id": "root", "component": "Text", "properties": {"text": "hello"}}
+            ],
+        }
+    }
+    decompiled = fmt.decompile(data)
+    assert "root = Text" in decompiled
+
+
+def test_elemental_inference_format(test_catalog):
+    try:
+        from a2ui.experimental.elemental.format import ElementalInferenceFormat
+    except ImportError:
+        pytest.skip("Elemental inference format not available")
+
+    fmt = ElementalInferenceFormat(catalog=test_catalog)
+    assert fmt.name == "elemental"
+
+    # Workflow rules
+    assert "A2UI Elemental Output Contract" in fmt.format_description()
+    assert "custom rules description" in fmt.format_description(
+        "custom rules description"
+    )
+
+    # Instructions
+    instructions = fmt.catalog_description()
+    assert "## Component Interfaces" in instructions
+    assert "type DataBinding =" in instructions
+
+    # Transform examples via PromptGenerator
+    generator = PromptGenerator(fmt)
+    raw_md = (
+        'Some text before\n```json\n{\n  "createSurface": {\n    "surfaceId": "main",\n'
+        '    "components": [\n      {\n        "id": "root",\n        "component":'
+        ' "Text",\n        "properties": {"text": "hello"}\n      }\n    ]\n '
+        " }\n}\n```\nSome text after"
+    )
+    transformed = generator.transform_examples(raw_md)
+    assert "```html\n" in transformed
+    assert "<ui-text" in transformed
+
+    # Check fallbacks for invalid JSON (default behavior of transform_examples)
+    raw_md_invalid = "Some text\n```json\ninvalid json\n```"
+    assert generator.transform_examples(raw_md_invalid) == raw_md_invalid
+
+    # Check fallbacks for non-surface action JSON
+    raw_md_other = 'Some text\n```json\n{"otherKey": 1}\n```'
+    assert generator.transform_examples(raw_md_other) == raw_md_other
+
+    parsed = fmt.parse_response(
+        '<a2ui id="main"><link rel="catalog"'
+        ' href="https://a2ui.org/test_catalog"><ui-text id="root"'
+        ' text="hello"></ui-text></a2ui>'
+    )
+    assert len(parsed) == 1
+    assert parsed[0].a2ui_json is not None
+
+    # Decompile
+    data = {
+        "createSurface": {
+            "surfaceId": "main",
+            "components": [
+                {"id": "root", "component": "Text", "properties": {"text": "hello"}}
+            ],
+        }
+    }
+    decompiled = fmt.decompile(data)
+    assert "<ui-text" in decompiled
+
+
+def test_dynamic_format_switching(test_catalog):
+    from a2ui.schema.manager import A2uiSchemaManager
+    from a2ui.adk.a2a.part_converter import A2uiPartConverter
+    from a2ui.experimental.express.format import ExpressInferenceFormat
+    from google.genai import types as genai_types
+
+    from a2ui.schema.catalog import CatalogConfig
+    from a2ui.schema.catalog_provider import A2uiCatalogProvider
+
+    class MemoryCatalogProvider(A2uiCatalogProvider):
+
+        def __init__(self, schema):
+            self.schema = schema
+
+        def load(self):
+            return self.schema
+
+    config = CatalogConfig(
+        name="test_catalog", provider=MemoryCatalogProvider(test_catalog.catalog_schema)
+    )
+
+    # 1. Test schema manager with dynamic format strategy parameter
+    manager = A2uiSchemaManager(version=VERSION_0_9, catalogs=[config])
+    # Default is JSON
+    default_prompt = manager.generate_system_prompt(
+        role_description="Test role",
+        include_schema=True,
+        client_ui_capabilities={
+            "supportedCatalogIds": ["https://a2ui.org/test_catalog"]
+        },
+    )
+    assert "### Catalog Schema:" in default_prompt
+
+    # Switch dynamically to Express
+    express_prompt = manager.generate_system_prompt(
+        role_description="Test role",
+        include_schema=True,
+        client_ui_capabilities={
+            "supportedCatalogIds": ["https://a2ui.org/test_catalog"]
+        },
+        format_strategy=ExpressInferenceFormat(),
+    )
+    assert "## Positional Component Signatures" in express_prompt
+
+    # 2. Test part converter with dynamic format strategy parameter
+    # Test JSON default (with `<a2ui>` tags)
+    json_converter = A2uiPartConverter(a2ui_catalog=test_catalog)
+    part_json = genai_types.Part(
+        text=(
+            '<a2ui-json>[{"version": "v0.9", "createSurface": {"surfaceId": "main",'
+            ' "catalogId": "https://a2ui.org/test_catalog"}}]</a2ui-json>'
+        )
+    )
+    parts_json = json_converter.convert(part_json)
+    assert len(parts_json) == 1
+
+    # Test Express dynamically
+    from a2ui.schema.constants import VERSION_1_0
+
+    test_catalog_v1_0 = A2uiCatalog(
+        version=VERSION_1_0,
+        name="test_catalog",
+        s2c_schema={
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "$id": "https://a2ui.org/s2c.json",
+        },
+        common_types_schema={
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "$id": "https://a2ui.org/common.json",
+        },
+        catalog_schema=test_catalog.catalog_schema,
+    )
+    express_converter = A2uiPartConverter(
+        a2ui_catalog=test_catalog_v1_0,
+        version=VERSION_1_0,
+        format_strategy=ExpressInferenceFormat(),
+    )
+    part_express = genai_types.Part(text="<a2ui>\nroot = Text()\n</a2ui>")
+    parts_express = express_converter.convert(part_express)
+    assert len(parts_express) == 1

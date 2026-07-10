@@ -79,14 +79,14 @@ class TestElementalDecompiler(unittest.TestCase):
         }
         html_output = decompiler.decompile(envelope)
         expected = (
-            '<body id="my-surf">\n'
+            '<a2ui id="my-surf">\n'
             '  <script type="application/json">\n'
             "    {\n"
             '      "foo": "bar",\n'
             '      "num": 42\n'
             "    }\n"
             "  </script>\n"
-            "</body>"
+            "</a2ui>"
         )
         self.assertEqual(html_output, expected)
 
@@ -115,7 +115,7 @@ class TestElementalDecompiler(unittest.TestCase):
         }
         html_output = decompiler.decompile(envelope)
         expected = (
-            '<body id="test-surf">\n'
+            '<a2ui id="test-surf">\n'
             '  <link rel="catalog" href="https://a2ui.org/catalog.json">\n'
             '  <script type="application/json">\n'
             "    {\n"
@@ -125,7 +125,7 @@ class TestElementalDecompiler(unittest.TestCase):
             '  <ui-card id="comp_0" weight="{4}">\n'
             '    <ui-text id="comp_1" text="{$/title}" />\n'
             "  </ui-card>\n"
-            "</body>"
+            "</a2ui>"
         )
         self.assertEqual(html_output, expected)
 
@@ -156,7 +156,7 @@ class TestElementalDecompiler(unittest.TestCase):
         }
         html_output = decompiler.decompile(envelope)
         expected = (
-            '<body id="test-surf">\n'
+            '<a2ui id="test-surf">\n'
             '  <script type="application/json">\n'
             "    {\n"
             '      "title": "Hello World"\n'
@@ -165,7 +165,7 @@ class TestElementalDecompiler(unittest.TestCase):
             '  <ui-card id="comp_0" weight="{4}">\n'
             '    <ui-text id="comp_1" text="{$/title}" />\n'
             "  </ui-card>\n"
-            "</body>"
+            "</a2ui>"
         )
         self.assertEqual(html_output, expected)
 
