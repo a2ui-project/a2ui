@@ -45,8 +45,8 @@ class ExpressParser(Parser):
         return "<a2ui" in content
 
     @property
-    def open_tag(self) -> str:
-        return "<a2ui>"
+    def open_tag_prefix(self) -> str:
+        return "<a2ui"
 
 
 @experimental

@@ -36,11 +36,9 @@ class Parser(ABC):
         pass
 
     @property
-    def open_tag(self) -> str:
-        """The opening tag string for this parser (e.g., '<a2ui-json>', '<a2ui>')."""
-        from a2ui.schema.constants import A2UI_OPEN_TAG
-
-        return A2UI_OPEN_TAG
+    def open_tag_prefix(self) -> str:
+        """The opening tag prefix to match in token stream (e.g. '<a2ui-json', '<a2ui')."""
+        return "<a2ui-json"
 
 
 class InferenceStrategy(ABC):
