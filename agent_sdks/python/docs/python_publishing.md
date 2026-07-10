@@ -2,7 +2,7 @@
 
 This guide details the technical publishing process for Python SDK packages in `agent_sdks/python/` (`a2ui-agent-sdk` and `a2ui-core`).
 
-For generic release principles, authentication prerequisites, and changelog rules, see [development/docs/package_releases.md](../../../development/docs/package_releases.md).
+For generic release principles, authentication prerequisites, and changelog rules, see [docs/contributing/package_releases.md](../../../docs/contributing/package_releases.md).
 
 ---
 

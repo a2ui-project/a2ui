@@ -9,7 +9,7 @@ Guidelines and tactical workflows for AI agents to release A2UI Python (`a2ui-ag
 
 Primary sources of truth:
 
-- Generic Release Guide & Policies: [development/docs/package_releases.md](../../../development/docs/package_releases.md)
+- Generic Release Guide & Policies: [docs/contributing/package_releases.md](../../../docs/contributing/package_releases.md)
 - Python Technical Publishing Guide: [agent_sdks/python/docs/python_publishing.md](../../../agent_sdks/python/docs/python_publishing.md)
 - TypeScript Technical Publishing Guide: [renderers/docs/web_publishing.md](../../../renderers/docs/web_publishing.md)
 

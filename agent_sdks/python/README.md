@@ -2,7 +2,7 @@
 
 For full release documentation and guides, see:
 
-- **General Release Guide**: [development/docs/package_releases.md](../../development/docs/package_releases.md)
+- **General Release Guide**: [docs/contributing/package_releases.md](../../docs/contributing/package_releases.md)
 - **Python Publishing Technical Guide**: [agent_sdks/python/docs/python_publishing.md](docs/python_publishing.md)
 
 ---
