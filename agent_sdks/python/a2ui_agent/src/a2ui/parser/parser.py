@@ -56,6 +56,13 @@ def parse_response(content: str) -> List[ResponsePart]:
     Raises:
         ValueError: If no A2UI tags are found or if the JSON part is invalid.
     """
+    is_truncated = False
+    last_open = content.rfind(A2UI_OPEN_TAG)
+    last_close = content.rfind(A2UI_CLOSE_TAG)
+    if last_open != -1 and last_open > last_close:
+        content += A2UI_CLOSE_TAG
+        is_truncated = True
+
     matches = list(_A2UI_BLOCK_PATTERN.finditer(content))
 
     if not matches:
@@ -66,7 +73,7 @@ def parse_response(content: str) -> List[ResponsePart]:
     response_parts = []
     last_end = 0
 
-    for match in matches:
+    for idx, match in enumerate(matches):
         start, end = match.span()
         # Text preceding the JSON block
         text_part = content[last_end:start].strip()
@@ -74,6 +81,12 @@ def parse_response(content: str) -> List[ResponsePart]:
         # The JSON content within the tags
         json_string = match.group(1)
         json_string_cleaned = _sanitize_json_string(json_string)
+
+        if is_truncated and idx == len(matches) - 1:
+            from json_repair import repair_json
+
+            json_string_cleaned = repair_json(json_string_cleaned)
+
         if not json_string_cleaned:
             raise A2uiParseError("A2UI JSON part is empty.")
 

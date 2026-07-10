@@ -142,6 +142,58 @@ def parse_response_to_parts(
     return parts
 
 
+class StreamingPartConverter:
+    """Stateful converter for mapping token streams directly into A2A Parts."""
+
+    def __init__(
+        self,
+        format_strategy: Optional[Any] = None,
+        catalog: Optional[Any] = None,
+        validator: Optional[Any] = None,
+        version: Optional[str] = None,
+    ):
+        strategy_base = format_strategy or JsonInferenceFormat()
+        self.strategy = strategy_base.__class__(catalog=catalog, surface_id="main")
+        self.parser = self.strategy.create_stream_parser()
+        self.validator = validator
+        self.version = version
+
+    def push_chunk(self, chunk: str) -> List[Part]:
+        """Pushes a token chunk, returning the current accumulated list of A2A Parts."""
+        from a2ui.parser.response_part import ResponsePart
+
+        response_parts = self.parser.push_chunk(chunk)
+        return self._convert_parts(response_parts)
+
+    def finalize(self) -> List[Part]:
+        """Finalizes the streaming session and returns completed A2A Parts."""
+        from a2ui.parser.response_part import ResponsePart
+
+        response_parts = self.parser.finalize()
+        return self._convert_parts(response_parts)
+
+    def _convert_parts(self, response_parts: List[Any]) -> List[Part]:
+        parts = []
+        for part in response_parts:
+            if part.text:
+                parts.append(Part(root=TextPart(text=part.text)))
+
+            if part.a2ui_json:
+                json_data = part.a2ui_json
+                if self.validator:
+                    try:
+                        self.validator.validate(json_data)
+                    except Exception:
+                        pass  # Ignore validation errors for intermediate incomplete chunks
+
+                if isinstance(json_data, list):
+                    for message in json_data:
+                        parts.append(create_a2ui_part(message, version=self.version))
+                else:
+                    parts.append(create_a2ui_part(json_data, version=self.version))
+        return parts
+
+
 async def stream_response_to_parts(
     parser: "A2uiStreamParser",
     token_stream: AsyncIterable[str],
