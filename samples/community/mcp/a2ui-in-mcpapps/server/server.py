@@ -20,6 +20,7 @@ import json
 import pathlib
 import mcp.types as types
 from mcp.server.lowlevel import Server
+from mcp.server.lowlevel.helper_types import ReadResourceContents
 import smart_editor_agent
 
 # Set up logging for the server (especially useful for SSE debugging)
@@ -68,28 +69,26 @@ def main(port: int, transport: str) -> int:
         ]
 
     @app.read_resource()
-    async def read_resource(uri: str) -> str | bytes:
+    async def read_resource(uri: str) -> list[ReadResourceContents]:
+        # MCP Apps requires resources/read contents to carry the
+        # text/html;profile=mcp-app mime type, not just resources/list.
         if str(uri) == "ui://basic/app":
-            try:
-                app_path = (
-                    pathlib.Path(__file__).parent / "apps" / "public" / "app.html"
-                )
-                return app_path.read_text()
-            except FileNotFoundError:
-                raise ValueError(
-                    f"Resource file not found for uri: {uri} at {app_path}"
-                )
+            app_file = "app.html"
         elif str(uri) == "ui://editor/app":
-            try:
-                app_path = (
-                    pathlib.Path(__file__).parent / "apps" / "public" / "editor.html"
+            app_file = "editor.html"
+        else:
+            raise ValueError(f"Unknown resource: {uri}")
+
+        app_path = pathlib.Path(__file__).parent / "apps" / "public" / app_file
+        try:
+            return [
+                ReadResourceContents(
+                    content=app_path.read_text(),
+                    mime_type="text/html;profile=mcp-app",
                 )
-                return app_path.read_text()
-            except FileNotFoundError:
-                raise ValueError(
-                    f"Resource file not found for uri: {uri} at {app_path}"
-                )
-        raise ValueError(f"Unknown resource: {uri}")
+            ]
+        except FileNotFoundError:
+            raise ValueError(f"Resource file not found for uri: {uri} at {app_path}")
 
     @app.list_tools()
     async def list_tools() -> list[types.Tool]:
@@ -97,26 +96,46 @@ def main(port: int, transport: str) -> int:
             types.Tool(
                 name="get_basic_app",
                 title="Get Basic App",
-                description="Returns a simple A2UI-compatible HTML application.",
+                description=(
+                    "Returns the initial counter payload, rendered by the basic app"
+                    " view."
+                ),
                 inputSchema={"type": "object", "properties": {}, "required": []},
+                # MCP Apps: the UI template is predeclared via _meta.ui.resourceUri
+                # and fetched by the host with resources/read; it is never delivered
+                # as an embedded resource in the tool result.
+                _meta={
+                    "ui": {
+                        "resourceUri": "ui://basic/app",
+                        "visibility": ["model"],
+                    }
+                },
             ),
             types.Tool(
                 name="fetch_counter_a2ui",
                 title="Fetch Counter A2UI",
                 description="Fetches the initial counter A2UI payload.",
                 inputSchema={"type": "object", "properties": {}, "required": []},
+                _meta={"ui": {"visibility": ["app"]}},
             ),
             types.Tool(
                 name="increase_counter",
                 title="Increase Counter",
                 description="Increments the counter and returns the updated value.",
                 inputSchema={"type": "object", "properties": {}, "required": []},
+                _meta={"ui": {"visibility": ["app"]}},
             ),
             types.Tool(
                 name="get_editor_app",
                 title="Get Editor App",
-                description="Returns the Editor A2UI application resource.",
+                description="Opens the Editor A2UI application view.",
                 inputSchema={"type": "object", "properties": {}, "required": []},
+                _meta={
+                    "ui": {
+                        "resourceUri": "ui://editor/app",
+                        "visibility": ["model"],
+                    }
+                },
             ),
             types.Tool(
                 name="smart_editor_get_controls",
@@ -130,6 +149,7 @@ def main(port: int, transport: str) -> int:
                     },
                     "required": ["text"],
                 },
+                _meta={"ui": {"visibility": ["app"]}},
             ),
             types.Tool(
                 name="smart_editor_apply",
@@ -142,6 +162,7 @@ def main(port: int, transport: str) -> int:
                     "properties": {"original_text": {"type": "string"}},
                     "required": ["original_text"],
                 },
+                _meta={"ui": {"visibility": ["app"]}},
             ),
         ]
 
@@ -150,17 +171,22 @@ def main(port: int, transport: str) -> int:
         name: str, arguments: dict[str, Any]
     ) -> dict[str, Any] | list[Any]:
         if name == "get_basic_app":
-            # Just return a reference to the resource
-            return [
-                types.EmbeddedResource(
-                    type="resource",
-                    resource=types.TextResourceContents(
-                        uri="ui://basic/app",
-                        mimeType="text/html;profile=mcp-app",
-                        text="",
+            # The ui://basic/app template is declared in the tool's
+            # _meta.ui.resourceUri; this result is what the view renders,
+            # delivered to it via ui/notifications/tool-result.
+            return types.CallToolResult(
+                content=[
+                    types.TextContent(type="text", text="Initial counter UI"),
+                    types.EmbeddedResource(
+                        type="resource",
+                        resource=types.TextResourceContents(
+                            uri="a2ui://ping-result",
+                            mimeType=A2UI_MIME_TYPE,
+                            text=json.dumps(simple_counter_a2ui_json),
+                        ),
                     ),
-                )
-            ]
+                ]
+            )
         elif name == "fetch_counter_a2ui":
             return types.CallToolResult(
                 content=[
@@ -200,16 +226,12 @@ def main(port: int, transport: str) -> int:
             )
 
         elif name == "get_editor_app":
-            return [
-                types.EmbeddedResource(
-                    type="resource",
-                    resource=types.TextResourceContents(
-                        uri="ui://editor/app",
-                        mimeType="text/html;profile=mcp-app",
-                        text="",
-                    ),
-                )
-            ]
+            # The ui://editor/app template is declared in the tool's
+            # _meta.ui.resourceUri; the editor view drives itself, so the
+            # result carries no renderable payload.
+            return types.CallToolResult(
+                content=[types.TextContent(type="text", text="Editor app opened")]
+            )
 
         elif name == "smart_editor_get_controls":
             text_in = arguments.get("text", "")

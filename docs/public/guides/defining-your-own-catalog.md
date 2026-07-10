@@ -1,6 +1,6 @@
 # Defining Your Own Catalog
 
-While the [Basic Catalog](../../specification/v0_9/catalogs/basic/catalog.json) is useful for starting out and bootstrapping an application, most production applications will define their own catalog to reflect their specific design system.
+While the [Basic Catalog](../../../specification/v0_9/catalogs/basic/catalog.json) is useful for starting out and bootstrapping an application, most production applications will define their own catalog to reflect their specific design system.
 
 By defining your own catalog, you restrict the agent to using exactly the components and visual language that exist in your application, rather than generic inputs or buttons.
 

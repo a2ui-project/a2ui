@@ -75,7 +75,7 @@ This command will:
 4. Launch the development server
 5. Open your browser to `http://localhost:5173`
 
-The source code for the Restaurant Finder agent is located in [`samples/agent/adk/restaurant_finder`](../samples/agent/adk/restaurant_finder).
+The source code for the Restaurant Finder agent is located in [`samples/agent/adk/restaurant_finder`](../../samples/agent/adk/restaurant_finder).
 
 > [!NOTE]
 > **Package Manager Usage:** Running the quickstart demo application within the A2UI repository requires Yarn as configured by Corepack workspaces. For your own regular usage and standalone projects outside this repository, use the package manager of your choice (e.g. npm, pnpm).
@@ -230,7 +230,7 @@ While this guide uses the Lit client as an example, A2UI provides samples for ot
 - **Angular**: `samples/client/angular`
 - **React**: `samples/client/react`
 
-Explore the [samples/client](../samples/client) directory to see all available client implementations.
+Explore the [samples/client](../../samples/client) directory to see all available client implementations.
 
 ## What's Next?
 
@@ -286,7 +286,7 @@ uv run .
 ### Still Having Issues?
 
 - Check the [GitHub Issues](https://github.com/a2ui-project/a2ui/issues)
-- Review the [samples/client/lit/README.md](../samples/client/lit)
+- Review the [samples/client/lit/README.md](../../samples/client/lit)
 - Join the community discussions
 
 ## Understanding the Demo Code

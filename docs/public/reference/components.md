@@ -6,11 +6,11 @@ This page showcases all A2UI components with examples and usage patterns.
 >
 > === "v0.8"
 >
->     [:material-code-json: Standard Catalog Definition (JSON Schema)](../../specification/v0_8/json/standard_catalog_definition.json)
+>     [:material-code-json: Standard Catalog Definition (JSON Schema)](../../../specification/v0_8/json/standard_catalog_definition.json)
 >
 > === "v0.9"
 >
->     [:material-code-json: Basic Catalog Definition (JSON Schema)](../../specification/v0_9/catalogs/basic/catalog.json)
+>     [:material-code-json: Basic Catalog Definition (JSON Schema)](../../../specification/v0_9/catalogs/basic/catalog.json)
 
 ---
 
@@ -643,11 +643,11 @@ yarn start gallery
 >
 > === "v0.8"
 >
->     [:material-code-json: Standard Catalog Definition (JSON Schema)](../../specification/v0_8/json/standard_catalog_definition.json)
+>     [:material-code-json: Standard Catalog Definition (JSON Schema)](../../../specification/v0_8/json/standard_catalog_definition.json)
 >
 > === "v0.9"
 >
->     [:material-code-json: Basic Catalog Definition (JSON Schema)](../../specification/v0_9/catalogs/basic/catalog.json)
+>     [:material-code-json: Basic Catalog Definition (JSON Schema)](../../../specification/v0_9/catalogs/basic/catalog.json)
 
 - **[Defining Your Own Catalog](../guides/defining-your-own-catalog.md)**: Build your own components
 - **[Theming Guide](../guides/theming.md)**: Style components to match your brand
