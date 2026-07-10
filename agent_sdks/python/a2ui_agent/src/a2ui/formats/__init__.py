@@ -112,7 +112,7 @@ class PromptGenerator:
         triple_backticks = chr(96) * 3
         pattern = rf"{triple_backticks}json\s*\n(.*?)\n{triple_backticks}"
 
-        def replace_json_block(match) -> str:
+        def replace_json_block(match: re.Match[str]) -> str:
             json_content = match.group(1).strip()
             try:
                 parsed = json.loads(json_content)
@@ -121,7 +121,7 @@ class PromptGenerator:
                 elif isinstance(parsed, list):
                     messages = parsed
                 else:
-                    return match.group(0)
+                    return str(match.group(0))
 
                 blocks = []
                 for msg in messages:
@@ -137,11 +137,11 @@ class PromptGenerator:
                         decompiled = self.strategy.decompile(msg)
                         blocks.append(decompiled)
                     else:
-                        return match.group(0)
+                        return str(match.group(0))
 
                 return self.strategy.wrap_decompiled_blocks(blocks)
             except Exception:
-                return match.group(0)
+                return str(match.group(0))
 
         return re.sub(
             pattern, replace_json_block, raw_examples_markdown, flags=re.DOTALL
