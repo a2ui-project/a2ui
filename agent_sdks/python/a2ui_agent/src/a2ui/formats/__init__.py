@@ -89,6 +89,34 @@ class InferenceFormatRegistry:
     """Registry to register and retrieve inference formats."""
 
     _formats: dict[str, InferenceFormat] = {}
+    _initialized: bool = False
+
+    @classmethod
+    def _ensure_initialized(cls) -> None:
+        if cls._initialized:
+            return
+        cls._initialized = True
+
+        # Lazy-import and register default JSON format
+        from .json_inference_format import JsonInferenceFormat
+
+        cls.register(JsonInferenceFormat())
+
+        # Lazy-import and conditionally register experimental Express and Elemental formats if enabled
+        if os.environ.get("A2UI_EXPRESS_ENABLED", "").lower() in ("true", "1", "yes"):
+            try:
+                from a2ui.experimental.express.format import ExpressInferenceFormat
+
+                cls.register(ExpressInferenceFormat())
+            except ImportError:
+                pass
+
+            try:
+                from a2ui.experimental.elemental.format import ElementalInferenceFormat
+
+                cls.register(ElementalInferenceFormat())
+            except ImportError:
+                pass
 
     @classmethod
     def register(cls, format_strategy: InferenceFormat) -> None:
@@ -96,36 +124,17 @@ class InferenceFormatRegistry:
 
     @classmethod
     def unregister(cls, name: str) -> None:
+        cls._ensure_initialized()
         cls._formats.pop(name, None)
 
     @classmethod
     def get(cls, name: str) -> InferenceFormat:
+        cls._ensure_initialized()
         if name not in cls._formats:
             raise ValueError(f"Unknown inference format: {name}")
         return cls._formats[name]
 
     @classproperty
     def available_formats(cls) -> list[str]:
+        cls._ensure_initialized()
         return list(cls._formats.keys())
-
-
-# Automatically register standard JSON format
-from .json_inference_format import JsonInferenceFormat
-
-InferenceFormatRegistry.register(JsonInferenceFormat())
-
-# Conditionally register experimental Express and Elemental formats if enabled
-if os.environ.get("A2UI_EXPRESS_ENABLED", "").lower() in ("true", "1", "yes"):
-    try:
-        from a2ui.experimental.express.format import ExpressInferenceFormat
-
-        InferenceFormatRegistry.register(ExpressInferenceFormat())
-    except ImportError:
-        pass
-
-    try:
-        from a2ui.experimental.elemental.format import ElementalInferenceFormat
-
-        InferenceFormatRegistry.register(ElementalInferenceFormat())
-    except ImportError:
-        pass
