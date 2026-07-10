@@ -96,7 +96,7 @@ class InferenceFormatRegistry:
 
         cls.register(JsonInferenceFormat())
 
-        # Lazy-import and conditionally register experimental Express and Elemental formats if enabled
+        # Lazy-import and conditionally register experimental Express format if enabled
         if os.environ.get("A2UI_EXPRESS_ENABLED", "").lower() in ("true", "1", "yes"):
             try:
                 import importlib
@@ -109,6 +109,8 @@ class InferenceFormatRegistry:
             except ImportError:
                 pass
 
+        # Lazy-import and conditionally register experimental Elemental format if enabled
+        if os.environ.get("A2UI_ELEMENTAL_ENABLED", "").lower() in ("true", "1", "yes"):
             try:
                 import importlib
 
