@@ -18,7 +18,7 @@ import asyncio
 import re
 import os
 import httpx
-from typing import Optional, Any, List, override
+from typing import Optional, Any, List, override, Union
 
 from google.adk.agents.invocation_context import new_invocation_context_id, InvocationContext
 from google.adk.events.event_actions import EventActions
@@ -29,6 +29,8 @@ from google.adk.runners import Runner
 from google.adk.sessions import InMemorySessionService
 from google.adk.a2a.converters.request_converter import AgentRunRequest
 from google.adk.a2a.executor.a2a_agent_executor import A2aAgentExecutorConfig, A2aAgentExecutor
+from google.adk.a2a.executor.executor_context import ExecutorContext
+from google.adk.a2a.executor.config import ExecuteInterceptor
 from google.adk.a2a.converters import event_converter, part_converter
 from google.adk.agents.callback_context import CallbackContext
 from google.adk.models.llm_request import LlmRequest
@@ -48,27 +50,36 @@ from a2a.client.client import ClientConfig as A2AClientConfig
 from a2a.client.client_factory import ClientFactory as A2AClientFactory
 from a2a.client.middleware import ClientCallContext, ClientCallInterceptor
 from a2a.extensions.common import HTTP_EXTENSION_HEADER
-from a2a.types import TransportProtocol as A2ATransport, AgentCard, AgentCapabilities
+from a2a.types import TransportProtocol as A2ATransport, AgentCard, AgentCapabilities, Message
 
 from a2ui.a2a.extension import (
     try_activate_a2ui_extension,
+    get_a2ui_extension_uri,
     A2UI_EXTENSION_BASE_URI,
     AGENT_EXTENSION_SUPPORTED_CATALOG_IDS_KEY,
     AGENT_EXTENSION_ACCEPTS_INLINE_CATALOGS_KEY,
 )
 from a2ui.a2a.parts import is_a2ui_part
-from a2ui.schema.constants import A2UI_CLIENT_CAPABILITIES_KEY
+from a2ui.schema.constants import (
+    A2UI_CLIENT_CAPABILITIES_KEY,
+    A2UI_CLIENT_DATA_MODEL_KEY,
+    A2UI_CLIENT_DATA_MODEL_SURFACES_KEY,
+    A2UI_ACTIONS_KEY,
+    A2UI_ERROR_KEY,
+    A2UI_SURFACE_ID_KEY,
+    A2UI_VERSION_KEY,
+    A2UI_CODE_KEY,
+    A2UI_MESSAGE_KEY,
+    A2UI_BEGIN_RENDERING_KEY,
+    A2UI_DELETE_SURFACE_KEY,
+)
 
-from a2ui_subagent_map import A2uiSubagentMap
+from a2ui.adk.orchestration.a2ui_subagent_map import A2uiSubagentMap, SurfaceIdAlreadyExistsError
 
 logger = logging.getLogger(__name__)
 
-
-def _log_background_task_result(future: asyncio.Future) -> None:
-    try:
-        future.result()
-    except Exception as e:
-        logger.exception(f"Background task failed: {e}", exc_info=True)
+ACTIVE_UI_VERSION_STATE_KEY = "active_ui_version"
+CLIENT_CAPABILITIES_STATE_KEY = "client_capabilities"
 
 
 class A2UIMetadataInterceptor(ClientCallInterceptor):
@@ -90,31 +101,32 @@ class A2UIMetadataInterceptor(ClientCallInterceptor):
             + json.dumps(request_payload)
         )
 
-        if context and context.state and context.state.get("active_ui_version"):
+        if context and context.state and context.state.get(ACTIVE_UI_VERSION_STATE_KEY):
             # Add A2UI extension header
-            a2ui_extension_uri = (
-                f"{A2UI_EXTENSION_BASE_URI}/v{context.state.get('active_ui_version')}"
+            a2ui_extension_uri = get_a2ui_extension_uri(
+                context.state.get(ACTIVE_UI_VERSION_STATE_KEY)
             )
             http_kwargs["headers"] = {HTTP_EXTENSION_HEADER: a2ui_extension_uri}
 
             # Add A2UI client capabilities (supported catalogs, etc) to message metadata
-            if (params := request_payload.get("params")) and (
-                message := params.get("message")
-            ):
-                client_capabilities = context.state.get("client_capabilities")
-                if "metadata" not in message:
-                    message["metadata"] = {}
-                message["metadata"][A2UI_CLIENT_CAPABILITIES_KEY] = client_capabilities
+            if (params := request_payload.get("params")) and params.get("message"):
+                message = Message.model_validate(params["message"])
+                client_capabilities = context.state.get(CLIENT_CAPABILITIES_STATE_KEY)
+                if not message.metadata:
+                    message.metadata = {}
+                message.metadata[A2UI_CLIENT_CAPABILITIES_KEY] = client_capabilities
                 logger.info(
                     "Added client capabilities to remote agent message metadata:"
                     f" {client_capabilities}"
                 )
 
                 # Data Model Stripping to prevent data leakage
-                data_model = message.get("metadata", {}).get("a2uiClientDataModel")
-                if data_model and "surfaces" in data_model:
+                data_model = message.metadata.get(A2UI_CLIENT_DATA_MODEL_KEY)
+                if data_model and A2UI_CLIENT_DATA_MODEL_SURFACES_KEY in data_model:
                     if agent_card and agent_card.name:
-                        current_surfaces = data_model["surfaces"]
+                        current_surfaces = data_model[
+                            A2UI_CLIENT_DATA_MODEL_SURFACES_KEY
+                        ]
                         surface_ids_to_check = list(current_surfaces.keys())
                         owner_agents = await asyncio.gather(*[
                             A2uiSubagentMap.get_subagent_name(sid, context.state)
@@ -128,19 +140,25 @@ class A2UIMetadataInterceptor(ClientCallInterceptor):
                                     surface_id
                                 ]
 
-                        message["metadata"]["a2uiClientDataModel"][
-                            "surfaces"
+                        message.metadata[A2UI_CLIENT_DATA_MODEL_KEY][
+                            A2UI_CLIENT_DATA_MODEL_SURFACES_KEY
                         ] = filtered_surfaces
                         logger.info(
                             f"Stripped data model for {agent_card.name}. "
                             f"Kept surfaces: {list(filtered_surfaces.keys())}"
                         )
                     else:
-                        message["metadata"]["a2uiClientDataModel"]["surfaces"] = {}
+                        message.metadata[A2UI_CLIENT_DATA_MODEL_KEY][
+                            A2UI_CLIENT_DATA_MODEL_SURFACES_KEY
+                        ] = {}
                         logger.warning(
                             "No agent card or name provided. Stripped all surfaces from"
                             " data model."
                         )
+
+                params["message"] = message.model_dump(
+                    mode="json", exclude_none=True, by_alias=True
+                )
 
         return request_payload, http_kwargs
 
@@ -173,24 +191,13 @@ class OrchestratorAgentExecutor(A2aAgentExecutor):
             llm_request.contents
             and (last_content := llm_request.contents[-1]).parts
             and (a2a_part := convert_genai_part_to_a2a_part(last_content.parts[-1]))
-            and is_a2ui_part(a2a_part)
         ):
-            surface_id = None
-            data = a2a_part.root.data
-            if isinstance(data, dict):
-                if (action := data.get("action")) and isinstance(action, dict):
-                    surface_id = action.get("surfaceId")
-                elif (error := data.get("error")) and isinstance(error, dict):
-                    surface_id = error.get("surfaceId")
-
-            if surface_id and (
-                target_agent := await A2uiSubagentMap.get_subagent_name(
-                    surface_id, callback_context.state
-                )
+            if target_agent := await A2uiSubagentMap.get_subagent_name_for_client_event(
+                a2a_part, callback_context.state
             ):
                 logger.info(
-                    "Programmatically routing client event for surfaceId"
-                    f" '{surface_id}' to subagent '{target_agent}'"
+                    "Programmatically routing client event "
+                    f"to subagent '{target_agent}'"
                 )
                 return LlmResponse(
                     content=genai_types.Content(
@@ -344,7 +351,11 @@ class OrchestratorAgentExecutor(A2aAgentExecutor):
     def __init__(self, agent: LlmAgent, agent_card: AgentCard):
         self._agent_card = agent_card
         config = A2aAgentExecutorConfig(
-            event_converter=self.convert_event_to_a2a_events_and_save_surface_id_to_subagent_name,
+            execute_interceptors=[
+                ExecuteInterceptor(
+                    after_event=self.after_event_save_surface_id_to_subagent_name
+                )
+            ],
         )
 
         runner = Runner(
@@ -358,123 +369,89 @@ class OrchestratorAgentExecutor(A2aAgentExecutor):
         super().__init__(runner=runner, config=config)
 
     @classmethod
-    def convert_event_to_a2a_events_and_save_surface_id_to_subagent_name(
+    async def after_event_save_surface_id_to_subagent_name(
         cls,
+        executor_context: ExecutorContext,
+        a2a_event: A2AEvent,
         event: Event,
-        invocation_context: InvocationContext,
-        task_id: Optional[str] = None,
-        context_id: Optional[str] = None,
-        part_converter: part_converter.GenAIPartToA2APartConverter = part_converter.convert_genai_part_to_a2a_part,
-    ) -> List[A2AEvent]:
-        a2a_events = event_converter.convert_event_to_a2a_events(
-            event,
-            invocation_context,
-            task_id,
-            context_id,
-            part_converter,
-        )
+    ) -> Union[A2AEvent, list[A2AEvent], None]:
+        invocation_context = executor_context.invocation_context
 
-        for a2a_event in a2a_events:
-            # Try to populate subagent agent card if available.
-            subagent_obj = None
-            subagent_card = None
-            if active_subagent_name := event.author:
-                # We need to find the subagent by name
-                if subagent_obj := next(
-                    (
-                        sub
-                        for sub in invocation_context.agent.sub_agents
-                        if sub.name == active_subagent_name
-                    ),
-                    None,
-                ):
-                    try:
-                        subagent_card = json.loads(subagent_obj.description)
-                    except Exception:
-                        logger.warning(
-                            "Failed to parse agent description for"
-                            f" {active_subagent_name}"
-                        )
-            if subagent_card:
-                if a2a_event.metadata is None:
-                    a2a_event.metadata = {}
-                a2a_event.metadata["a2a_subagent"] = subagent_card
+        # Try to populate subagent agent card if available.
+        subagent_obj = None
+        subagent_card = None
+        if active_subagent_name := event.author:
+            # We need to find the subagent by name
+            if subagent_obj := next(
+                (
+                    sub
+                    for sub in invocation_context.agent.sub_agents
+                    if sub.name == active_subagent_name
+                ),
+                None,
+            ):
+                try:
+                    subagent_card = json.loads(subagent_obj.description)
+                except Exception:
+                    logger.warning(
+                        f"Failed to parse agent description for {active_subagent_name}"
+                    )
+        if subagent_card:
+            if a2a_event.metadata is None:
+                a2a_event.metadata = {}
+            a2a_event.metadata["a2a_subagent"] = subagent_card
 
-            new_parts = []
-            for a2a_part in a2a_event.status.message.parts:
-                if is_a2ui_part(a2a_part):
-                    data = a2a_part.root.data
-                    if (
-                        isinstance(data, dict)
-                        and (begin_rendering := data.get("beginRendering"))
-                        and isinstance(begin_rendering, dict)
-                        and (surface_id := begin_rendering.get("surfaceId"))
-                    ):
-                        key = A2uiSubagentMap._get_key(surface_id)
-                        existing_owner = invocation_context.session.state.get(key)
+        if not (
+            a2a_event.status
+            and a2a_event.status.message
+            and a2a_event.status.message.parts
+        ):
+            return a2a_event
 
-                        if existing_owner:
-                            logger.error(
-                                f"Surface ID {surface_id} already exists: surface was"
-                                f" previously created by {existing_owner}, and"
-                                f" {event.author} tried to create it again"
-                            )
-                            if subagent_obj:
-                                error_msg = json.dumps({
-                                    "version": "0.9",
-                                    "error": {
-                                        "code": "SURFACE_ID_ALREADY_EXISTS",
-                                        "surfaceId": surface_id,
-                                        "message": (
-                                            f"surfaceId '{surface_id}' already exists,"
-                                            " surfaceIds must be globally unique"
-                                        ),
-                                    },
-                                })
-                                error_req = LlmRequest(
-                                    contents=[
-                                        genai_types.Content(
-                                            parts=[genai_types.Part(text=error_msg)],
-                                            role="user",
-                                        )
-                                    ]
-                                )
-                                asyncio.run_coroutine_threadsafe(
-                                    subagent_obj.run_async(
-                                        error_req, invocation_context
-                                    ),
-                                    asyncio.get_event_loop(),
-                                ).add_done_callback(_log_background_task_result)
-                            continue
-                        else:
-                            if event.author:
-                                asyncio.run_coroutine_threadsafe(
-                                    A2uiSubagentMap.set_subagent(
-                                        surface_id,
-                                        event.author,
-                                        invocation_context.session_service,
-                                        invocation_context.session,
-                                    ),
-                                    asyncio.get_event_loop(),
-                                ).add_done_callback(_log_background_task_result)
-                    elif (
-                        isinstance(data, dict)
-                        and (delete_surface := data.get("deleteSurface"))
-                        and isinstance(delete_surface, dict)
-                        and (surface_id := delete_surface.get("surfaceId"))
-                    ):
-                        asyncio.run_coroutine_threadsafe(
-                            A2uiSubagentMap.remove_subagent(
-                                surface_id,
-                                invocation_context.session_service,
-                                invocation_context.session,
+        new_parts = []
+        for a2a_part in a2a_event.status.message.parts:
+            try:
+                await A2uiSubagentMap.update_from_server_event(
+                    a2a_part,
+                    event.author,
+                    invocation_context.session_service,
+                    invocation_context.session,
+                )
+            except SurfaceIdAlreadyExistsError as e:
+                logger.error(str(e))
+                if subagent_obj:
+                    error_msg = json.dumps({
+                        A2UI_VERSION_KEY: "0.9",
+                        A2UI_ERROR_KEY: {
+                            A2UI_CODE_KEY: "SURFACE_ID_ALREADY_EXISTS",
+                            A2UI_SURFACE_ID_KEY: e.surface_id,
+                            A2UI_MESSAGE_KEY: (
+                                f"surfaceId '{e.surface_id}' already exists,"
+                                " surfaceIds must be globally unique"
                             ),
-                            asyncio.get_event_loop(),
-                        ).add_done_callback(_log_background_task_result)
-                new_parts.append(a2a_part)
-            a2a_event.status.message.parts = new_parts
+                        },
+                    })
+                    error_req = LlmRequest(
+                        contents=[
+                            genai_types.Content(
+                                parts=[genai_types.Part(text=error_msg)],
+                                role="user",
+                            )
+                        ]
+                    )
 
-        return a2a_events
+                    async def _run_subagent_bg():
+                        try:
+                            await subagent_obj.run_async(error_req, invocation_context)
+                        except Exception as ex:
+                            logger.exception(f"Background subagent run failed: {ex}")
+
+                    asyncio.create_task(_run_subagent_bg())
+                continue
+            new_parts.append(a2a_part)
+        a2a_event.status.message.parts = new_parts
+
+        return a2a_event
 
     @override
     async def _prepare_session(
@@ -501,8 +478,8 @@ class OrchestratorAgentExecutor(A2aAgentExecutor):
                     actions=EventActions(
                         state_delta={
                             # These values are used to configure A2UI messages to remote agent calls
-                            "active_ui_version": active_ui_version,
-                            "client_capabilities": client_capabilities,
+                            ACTIVE_UI_VERSION_STATE_KEY: active_ui_version,
+                            CLIENT_CAPABILITIES_STATE_KEY: client_capabilities,
                         }
                     ),
                 ),

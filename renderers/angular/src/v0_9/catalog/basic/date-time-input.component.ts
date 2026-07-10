@@ -94,6 +94,10 @@ import {DateTimeInputApi} from '@a2ui/web_core/v0_9/basic_catalog';
         font-family: inherit;
         flex: 1;
       }
+      .a2ui-date-time-input::-webkit-datetime-edit,
+      .a2ui-date-time-input::-webkit-datetime-edit-fields-wrapper {
+        color: var(--a2ui-datetimeinput-color, var(--a2ui-color-on-input, #333));
+      }
     `,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,

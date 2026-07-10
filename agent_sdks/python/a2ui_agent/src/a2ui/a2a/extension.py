@@ -26,6 +26,16 @@ AGENT_EXTENSION_SUPPORTED_CATALOG_IDS_KEY = "supportedCatalogIds"
 AGENT_EXTENSION_ACCEPTS_INLINE_CATALOGS_KEY = "acceptsInlineCatalogs"
 
 
+def get_a2ui_extension_uri(version: str) -> str:
+    """Returns the full A2UI extension URI for a given version."""
+    return f"{A2UI_EXTENSION_BASE_URI}/v{version}"
+
+
+def get_a2ui_extension_uri_version(a2ui_extension_uri: str) -> str:
+    """Extracts the version string from an A2UI extension URI."""
+    return a2ui_extension_uri.replace(f"{A2UI_EXTENSION_BASE_URI}/v", "")
+
+
 def get_a2ui_agent_extension(
     version: str,
     accepts_inline_catalogs: bool = False,
@@ -51,7 +61,7 @@ def get_a2ui_agent_extension(
         params[AGENT_EXTENSION_SUPPORTED_CATALOG_IDS_KEY] = supported_catalog_ids
 
     return AgentExtension(
-        uri=f"{A2UI_EXTENSION_BASE_URI}/v{version}",
+        uri=get_a2ui_extension_uri(version),
         description="Provides agent driven UI using the A2UI JSON format.",
         params=params if params else None,
     )
@@ -109,7 +119,7 @@ def _select_newest_a2ui_extension(
         return None
 
     def _version_key(uri: str) -> Version:
-        version_str = uri.replace(f"{A2UI_EXTENSION_BASE_URI}/v", "")
+        version_str = get_a2ui_extension_uri_version(uri)
         return parse_version(version_str)
 
     return max(matched_extensions, key=_version_key)
@@ -140,6 +150,6 @@ def try_activate_a2ui_extension(
     )
     if selected_uri:
         context.add_activated_extension(selected_uri)
-        return selected_uri.replace(f"{A2UI_EXTENSION_BASE_URI}/v", "")
+        return get_a2ui_extension_uri_version(selected_uri)
 
     return None
