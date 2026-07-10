@@ -152,22 +152,24 @@ class StreamingPartConverter:
         validator: Optional[Any] = None,
         version: Optional[str] = None,
     ):
-        strategy_base = format_strategy or JsonInferenceFormat()
-        self.strategy = strategy_base.__class__(catalog=catalog, surface_id="main")
+        strategy_class = (
+            format_strategy
+            if isinstance(format_strategy, type)
+            else (format_strategy.__class__ if format_strategy else JsonInferenceFormat)
+        )
+        self.strategy = strategy_class(catalog=catalog, surface_id="main")
         self.parser = self.strategy.create_stream_parser()
         self.validator = validator
         self.version = version
 
     def push_chunk(self, chunk: str) -> List[Part]:
         """Pushes a token chunk, returning the current accumulated list of A2A Parts."""
-        from a2ui.parser.response_part import ResponsePart
 
         response_parts = self.parser.push_chunk(chunk)
         return self._convert_parts(response_parts)
 
     def finalize(self) -> List[Part]:
         """Finalizes the streaming session and returns completed A2A Parts."""
-        from a2ui.parser.response_part import ResponsePart
 
         response_parts = self.parser.finalize()
         return self._convert_parts(response_parts)

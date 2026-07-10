@@ -18,6 +18,7 @@ from .response_part import ResponsePart
 from ..schema.constants import A2UI_OPEN_TAG, A2UI_CLOSE_TAG
 from .payload_fixer import parse_and_fix
 from a2ui.core import A2uiParseError
+from json_repair import repair_json
 
 
 _A2UI_BLOCK_PATTERN = re.compile(
@@ -83,7 +84,6 @@ def parse_response(content: str) -> List[ResponsePart]:
         json_string_cleaned = _sanitize_json_string(json_string)
 
         if is_truncated and idx == len(matches) - 1:
-            from json_repair import repair_json
 
             json_string_cleaned = repair_json(json_string_cleaned)
 
