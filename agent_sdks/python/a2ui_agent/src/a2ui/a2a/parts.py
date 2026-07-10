@@ -166,32 +166,43 @@ class StreamingPartConverter:
         """Pushes a token chunk, returning the current accumulated list of A2A Parts."""
 
         response_parts = self.parser.push_chunk(chunk)
-        return self._convert_parts(response_parts)
+        return self._convert_parts(response_parts, is_final=False)
 
     def finalize(self) -> List[Part]:
         """Finalizes the streaming session and returns completed A2A Parts."""
 
         response_parts = self.parser.finalize()
-        return self._convert_parts(response_parts)
+        return self._convert_parts(response_parts, is_final=True)
 
-    def _convert_parts(self, response_parts: List[Any]) -> List[Part]:
+    def _convert_parts(
+        self, response_parts: List[Any], is_final: bool = False
+    ) -> List[Part]:
         parts = []
         for part in response_parts:
             if part.text:
                 parts.append(Part(root=TextPart(text=part.text)))
 
-            if part.a2ui_json:
+            if part.a2ui_json is not None:
                 json_data = part.a2ui_json
                 if self.validator:
                     try:
                         self.validator.validate(json_data)
-                    except Exception:
-                        pass  # Ignore validation errors for intermediate incomplete chunks
+                    except Exception as e:
+                        if is_final:
+                            logger.warning(
+                                f"Failed to validate final A2UI response: {e}"
+                            )
+                            continue
+                        else:
+                            pass  # Ignore validation errors for intermediate incomplete chunks
 
                 if isinstance(json_data, list):
                     for message in json_data:
-                        parts.append(create_a2ui_part(message, version=self.version))
-                else:
+                        if isinstance(message, dict):
+                            parts.append(
+                                create_a2ui_part(message, version=self.version)
+                            )
+                elif isinstance(json_data, dict):
                     parts.append(create_a2ui_part(json_data, version=self.version))
         return parts
 
