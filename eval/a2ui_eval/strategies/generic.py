@@ -84,15 +84,10 @@ def compile_format_payload(format_name: str, version: str) -> Solver:
         allowed_surface_ids = state.metadata.get("allowed_surface_ids", ["main"])
         default_surface_id = allowed_surface_ids[0] if allowed_surface_ids else "main"
 
-        surface_id = default_surface_id
-        extracted_ids = fmt.extract_surface_ids(completion)
-        for found_id in extracted_ids:
-            if found_id in allowed_surface_ids:
-                surface_id = found_id
-                break
+        strategy = fmt.__class__(catalog=catalog, surface_id=default_surface_id)
 
         try:
-            parts = fmt.parse_response(completion, catalog, surface_id=surface_id)
+            parts = strategy.parse_response(completion)
             compiled_jsons = []
             for p in parts:
                 a2ui_json = getattr(p, "a2ui_json", None)
