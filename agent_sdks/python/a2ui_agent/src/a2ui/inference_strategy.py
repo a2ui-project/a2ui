@@ -35,6 +35,13 @@ class Parser(ABC):
         """Checks if the content contains formatted structured blocks for this parser."""
         pass
 
+    @property
+    def open_tag(self) -> str:
+        """The opening tag string for this parser (e.g., '<a2ui-json>', '<a2ui>')."""
+        from a2ui.schema.constants import A2UI_OPEN_TAG
+
+        return A2UI_OPEN_TAG
+
 
 class InferenceStrategy(ABC):
     """Interface coordinating system prompt generation and response parsing."""

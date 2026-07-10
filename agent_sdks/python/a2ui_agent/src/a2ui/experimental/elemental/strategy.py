@@ -46,6 +46,10 @@ class ElementalParser(Parser):
     def has_a2ui_parts(self, content: str) -> bool:
         return "<a2ui" in content
 
+    @property
+    def open_tag(self) -> str:
+        return "<a2ui>"
+
 
 @experimental
 class ElementalInferenceStrategy(InferenceStrategy):
