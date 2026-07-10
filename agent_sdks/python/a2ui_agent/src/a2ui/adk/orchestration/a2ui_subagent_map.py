@@ -326,7 +326,11 @@ class A2uiSubagentMap:
         if (
             surfaces := client_data_model.get(A2UI_CLIENT_DATA_MODEL_SURFACES_KEY)
         ) is None:
-            logging.warning("'Surfaces' not found in client data model dict")
+            logging.warning("'Surfaces' not found in client data model")
+            return
+
+        if not isinstance(surfaces, dict):
+            logging.warning("'Surfaces' is not a dict in client data model")
             return
 
         if not surfaces:
