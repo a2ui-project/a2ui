@@ -14,6 +14,7 @@
 
 import logging
 from typing import Any, Optional, List, AsyncIterable, TYPE_CHECKING
+from a2ui.formats import JsonInferenceFormat
 
 if TYPE_CHECKING:
     from a2ui.parser.streaming import A2uiStreamParser
@@ -106,20 +107,11 @@ def parse_response_to_parts(
     Returns:
         A list of A2A Part objects (TextPart and/or DataPart).
     """
-    from a2ui.formats import JsonInferenceFormat
-
     strategy = format_strategy or JsonInferenceFormat()
 
     parts = []
     try:
-        if isinstance(strategy, JsonInferenceFormat):
-            from a2ui.parser.parser import parse_response
-
-            response_parts = parse_response(content)
-        else:
-            if not catalog:
-                raise ValueError("A catalog is required to parse non-JSON formats.")
-            response_parts = strategy.parse_response(content, catalog)
+        response_parts = strategy.parse_response(content, catalog)
 
         for part in response_parts:
             if part.text:
@@ -127,7 +119,7 @@ def parse_response_to_parts(
 
             if part.a2ui_json:
                 json_data = part.a2ui_json
-                if validator and isinstance(strategy, JsonInferenceFormat):
+                if validator:
                     validator.validate(json_data)
 
                 if isinstance(json_data, list):

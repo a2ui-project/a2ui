@@ -40,7 +40,7 @@ class JsonInferenceFormat(InferenceFormat):
     def parse_response(
         self,
         content: str,
-        catalog: A2uiCatalog,
+        catalog: A2uiCatalog | None = None,
         surface_id: str | None = None,
     ) -> List[ResponsePart]:
         from a2ui.parser.parser import parse_response

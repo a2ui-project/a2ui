@@ -69,7 +69,7 @@ def test_registry_operations():
 
     # 1. Test register and available_formats property
     InferenceFormatRegistry.register(fmt)
-    assert "mock" in InferenceFormatRegistry.available_formats
+    assert "mock" in InferenceFormatRegistry.available_formats()
 
     # 2. Test get
     retrieved = InferenceFormatRegistry.get("mock")
@@ -81,7 +81,7 @@ def test_registry_operations():
 
     # 4. Test unregister
     InferenceFormatRegistry.unregister("mock")
-    assert "mock" not in InferenceFormatRegistry.available_formats
+    assert "mock" not in InferenceFormatRegistry.available_formats()
 
     # 5. Test unregister nonexistent format does not crash
     InferenceFormatRegistry.unregister("nonexistent")
