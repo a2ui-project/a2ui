@@ -87,8 +87,9 @@ def compile_format_payload(format_name: str, version: str) -> Solver:
 
         surface_id = default_surface_id
         match = re.search(
-            r"<a2ui\b[^>]*\bid=['\"]([^'\"]+)['\"]", completion, re.IGNORECASE
+            r"<a2ui\b[^>]*\bid\s*=\s*['\"]([^'\"]+)['\"]", completion, re.IGNORECASE
         )
+
         if match:
             found_id = match.group(1)
             if found_id in allowed_surface_ids:
