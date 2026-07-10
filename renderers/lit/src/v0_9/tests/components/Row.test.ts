@@ -77,23 +77,25 @@ describe('Row Component', () => {
     const el = document.createElement('a2ui-basic-row') as any;
     document.body.appendChild(el);
 
-    const context = new ComponentContext(surface, 'row1');
-    await asyncUpdate(el, e => {
-      e.context = context;
-    });
+    try {
+      const context = new ComponentContext(surface, 'row1');
+      await asyncUpdate(el, e => {
+        e.context = context;
+      });
 
-    // Check flex styles on the host element style attribute
-    assert.strictEqual(el.style.justifyContent, 'center');
-    assert.strictEqual(el.style.alignItems, 'flex-end');
+      // Check flex styles on the host element style attribute
+      assert.strictEqual(el.style.justifyContent, 'center');
+      assert.strictEqual(el.style.alignItems, 'flex-end');
 
-    // Check children are rendered
-    // Since our test runner runs custom elements, they will register and render shadow roots.
-    // Let's check shadow root has slot or elements.
-    // Wait, row does: return html` ${map(children, child => html`${this.renderNode(child)}`)} `
-    // It renders nodes inside its own shadow DOM directly.
-    const textElements = el.shadowRoot.querySelectorAll('a2ui-basic-text');
-    assert.strictEqual(textElements.length, 2);
-
-    document.body.removeChild(el);
+      // Check children are rendered
+      // Since our test runner runs custom elements, they will register and render shadow roots.
+      // Let's check shadow root has slot or elements.
+      // Wait, row does: return html` ${map(children, child => html`${this.renderNode(child)}`)} `
+      // It renders nodes inside its own shadow DOM directly.
+      const textElements = el.shadowRoot.querySelectorAll('a2ui-basic-text');
+      assert.strictEqual(textElements.length, 2);
+    } finally {
+      document.body.removeChild(el);
+    }
   });
 });

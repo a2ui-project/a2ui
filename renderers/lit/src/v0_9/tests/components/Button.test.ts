@@ -93,14 +93,14 @@ describe('Button Component', () => {
       dispatchedAction = action;
     });
 
-    button.click();
-    await new Promise(resolve => setTimeout(resolve, 0));
-
-    assert.ok(dispatchedAction);
-    assert.strictEqual(dispatchedAction.name, 'submit_clicked');
-
-    subscription.unsubscribe();
-    document.body.removeChild(el);
+    try {
+      button.click();
+      assert.ok(dispatchedAction);
+      assert.strictEqual(dispatchedAction.name, 'submit_clicked');
+    } finally {
+      subscription.unsubscribe();
+      document.body.removeChild(el);
+    }
   });
 
   it('should be disabled when isValid is false', async () => {
@@ -121,10 +121,12 @@ describe('Button Component', () => {
       dispatchedAction = true;
     });
 
-    button.click();
-    assert.strictEqual(dispatchedAction, false);
-
-    subscription.unsubscribe();
-    document.body.removeChild(el);
+    try {
+      button.click();
+      assert.strictEqual(dispatchedAction, false);
+    } finally {
+      subscription.unsubscribe();
+      document.body.removeChild(el);
+    }
   });
 });

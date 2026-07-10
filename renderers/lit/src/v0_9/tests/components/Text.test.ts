@@ -76,52 +76,61 @@ describe('Text Component', () => {
     const el = document.createElement('a2ui-basic-text') as any;
     document.body.appendChild(el);
 
-    const context = new ComponentContext(surface, 't_static');
-    await asyncUpdate(el, e => {
-      e.context = context;
-    });
+    try {
+      const context = new ComponentContext(surface, 't_static');
+      await asyncUpdate(el, e => {
+        e.context = context;
+      });
 
-    const span = el.shadowRoot.querySelector('.no-markdown-renderer');
-    assert.ok(span);
-    assert.strictEqual(span.textContent.trim(), 'Hello static text');
-    document.body.removeChild(el);
+      const span = el.shadowRoot.querySelector('.no-markdown-renderer');
+      assert.ok(span);
+      assert.strictEqual(span.textContent.trim(), 'Hello static text');
+    } finally {
+      document.body.removeChild(el);
+    }
   });
 
   it('should render reactive dynamic text content', async () => {
     const el = document.createElement('a2ui-basic-text') as any;
     document.body.appendChild(el);
 
-    const context = new ComponentContext(surface, 't_dynamic');
-    await asyncUpdate(el, e => {
-      e.context = context;
-    });
+    try {
+      const context = new ComponentContext(surface, 't_dynamic');
+      await asyncUpdate(el, e => {
+        e.context = context;
+      });
 
-    const span = el.shadowRoot.querySelector('.no-markdown-renderer');
-    assert.ok(span);
-    assert.strictEqual(span.textContent.trim(), 'Hello dynamic text');
+      const span = el.shadowRoot.querySelector('.no-markdown-renderer');
+      assert.ok(span);
+      assert.strictEqual(span.textContent.trim(), 'Hello dynamic text');
 
-    // Update the data model value
-    surface.dataModel.set('/dynamic_msg', 'Updated dynamic text');
-    await asyncUpdate(el, () => {});
+      // Update the data model value
+      surface.dataModel.set('/dynamic_msg', 'Updated dynamic text');
+      await asyncUpdate(el, () => {});
 
-    assert.strictEqual(span.textContent.trim(), 'Updated dynamic text');
-    document.body.removeChild(el);
+      assert.strictEqual(span.textContent.trim(), 'Updated dynamic text');
+    } finally {
+      document.body.removeChild(el);
+    }
   });
 
   it('should apply caption variant styling structure', async () => {
     const el = document.createElement('a2ui-basic-text') as any;
     document.body.appendChild(el);
 
-    const context = new ComponentContext(surface, 't_caption');
-    await asyncUpdate(el, e => {
-      e.context = context;
-    });
+    try {
+      const context = new ComponentContext(surface, 't_caption');
+      await asyncUpdate(el, e => {
+        e.context = context;
+      });
 
-    const captionSpan = el.shadowRoot.querySelector('span.a2ui-caption');
-    assert.ok(captionSpan);
-    const innerSpan = captionSpan.querySelector('.no-markdown-renderer');
-    assert.ok(innerSpan);
-    assert.strictEqual(innerSpan.textContent.trim(), 'Caption text');
-    document.body.removeChild(el);
+      const captionSpan = el.shadowRoot.querySelector('span.a2ui-caption');
+      assert.ok(captionSpan);
+      const innerSpan = captionSpan.querySelector('.no-markdown-renderer');
+      assert.ok(innerSpan);
+      assert.strictEqual(innerSpan.textContent.trim(), 'Caption text');
+    } finally {
+      document.body.removeChild(el);
+    }
   });
 });
