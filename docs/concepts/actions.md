@@ -346,9 +346,12 @@ from a2ui.adk.orchestration.a2ui_subagent_map import A2uiSubagentMap
 from google.adk.agents.llm_agent import LlmAgent
 from google.adk.agents.callback_context import CallbackContext
 from google.adk.models.llm_request import LlmRequest
+from google.adk.models.llm_response import LlmResponse
+from google.genai import types as genai_types
+from google.adk.agents.remote_a2a_agent import convert_genai_part_to_a2a_part
 
 async def route_client_event(callback_context: CallbackContext, llm_request: LlmRequest):
-    a2a_part = convert_genai_part_to_a2a_part(llm_request.contents[-1].parts[-1])
+    a2a_part = convert_genai_part_to_a2a_part(llm_request.contents[-1].parts[-1]) # Assume response has a single a2a part 
     
     target_agent = await A2uiSubagentMap.get_subagent_name_for_client_event(
         a2a_part, 
@@ -356,7 +359,19 @@ async def route_client_event(callback_context: CallbackContext, llm_request: Llm
     )
 
     if target_agent:
-        return transfer_to(target_agent)
+        # Programmatically trigger the planner's transfer_to_agent function
+        return LlmResponse(
+            content=genai_types.Content(
+                parts=[
+                    genai_types.Part(
+                        function_call=genai_types.FunctionCall(
+                            name="transfer_to_agent",
+                            args={"agent_name": target_agent},
+                        )
+                    )
+                ]
+            )
+        )
 
 orchestrator_agent = LlmAgent(
     name="orchestrator",
