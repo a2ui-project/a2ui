@@ -658,15 +658,15 @@ Message ordering must satisfy the following requirements:
 
     Validate against:
 
-    - **[server_to_client.json](../../specification/v0_8/json/server_to_client.json)**: Message envelope schema.
-    - **[standard_catalog_definition.json](../../specification/v0_8/json/standard_catalog_definition.json)**: Component schemas.
+    - **[server_to_client.json](../../../specification/v0_8/json/server_to_client.json)**: Message envelope schema.
+    - **[standard_catalog_definition.json](../../../specification/v0_8/json/standard_catalog_definition.json)**: Component schemas.
 
 === "v0.9"
 
     Validate against:
 
-    - **[server_to_client.json](../../specification/v0_9/json/server_to_client.json)**: Message envelope schema.
-    - **[catalogs/basic/catalog.json](../../specification/v0_9/catalogs/basic/catalog.json)**: Component schemas.
+    - **[server_to_client.json](../../../specification/v0_9/json/server_to_client.json)**: Message envelope schema.
+    - **[catalogs/basic/catalog.json](../../../specification/v0_9/catalogs/basic/catalog.json)**: Component schemas.
 
 ## Further Reading
 

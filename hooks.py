@@ -94,10 +94,9 @@ def on_page_markdown(markdown, page, config, files):
             temp_path = temp_path[3:]
 
         if up_count > file_depth:
-            # To get to repo root from a file at file_depth, we need to go up file_depth + 1 levels.
-            strip_count = file_depth + 1
+            strip_count = up_count
 
-            # Remove the leading '../' sequences that take us to the repo root
+            # Remove the leading '../' sequences
             path_parts = path.split('/')
             while strip_count > 0 and path_parts and path_parts[0] == '..':
                 path_parts.pop(0)
