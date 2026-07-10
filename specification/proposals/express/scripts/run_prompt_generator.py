@@ -70,7 +70,9 @@ def generate_prompt_text(catalog_path: str) -> str:
 def main():
     """CLI entrypoint for the prompt generator."""
     parser = argparse.ArgumentParser(
-        description="Generate model system prompts for A2UI Express from a catalog schema."
+        description=(
+            "Generate model system prompts for A2UI Express from a catalog schema."
+        )
     )
     parser.add_argument(
         "--catalog",

@@ -32,57 +32,57 @@ logger = logging.getLogger(__name__)
 
 
 class MissingAPIKeyError(Exception):
-  """Exception for missing API key."""
+    """Exception for missing API key."""
 
 
 @click.command()
 @click.option("--host", default="localhost")
 @click.option("--port", default=10004)
 def main(host, port):
-  try:
-    # Check for API key only if Vertex AI is not configured
-    if not os.getenv("GOOGLE_GENAI_USE_VERTEXAI") == "TRUE":
-      if not os.getenv("GEMINI_API_KEY"):
-        raise MissingAPIKeyError(
-            "GEMINI_API_KEY environment variable not set and"
-            " GOOGLE_GENAI_USE_VERTEXAI is not TRUE."
+    try:
+        # Check for API key only if Vertex AI is not configured
+        if not os.getenv("GOOGLE_GENAI_USE_VERTEXAI") == "TRUE":
+            if not os.getenv("GEMINI_API_KEY"):
+                raise MissingAPIKeyError(
+                    "GEMINI_API_KEY environment variable not set and"
+                    " GOOGLE_GENAI_USE_VERTEXAI is not TRUE."
+                )
+
+        base_url = f"http://{host}:{port}"
+
+        agent = ContactAgent(base_url=base_url)
+
+        agent_executor = ContactAgentExecutor(agent=agent)
+
+        request_handler = DefaultRequestHandler(
+            agent_executor=agent_executor,
+            task_store=InMemoryTaskStore(),
+        )
+        server = A2AStarletteApplication(
+            agent_card=agent.agent_card, http_handler=request_handler
+        )
+        import uvicorn
+
+        app = server.build()
+
+        app.add_middleware(
+            CORSMiddleware,
+            allow_origins=["http://localhost:5173"],
+            allow_credentials=True,
+            allow_methods=["*"],
+            allow_headers=["*"],
         )
 
-    base_url = f"http://{host}:{port}"
+        app.mount("/static", StaticFiles(directory="images"), name="static")
 
-    agent = ContactAgent(base_url=base_url)
-
-    agent_executor = ContactAgentExecutor(agent=agent)
-
-    request_handler = DefaultRequestHandler(
-        agent_executor=agent_executor,
-        task_store=InMemoryTaskStore(),
-    )
-    server = A2AStarletteApplication(
-        agent_card=agent.agent_card, http_handler=request_handler
-    )
-    import uvicorn
-
-    app = server.build()
-
-    app.add_middleware(
-        CORSMiddleware,
-        allow_origins=["http://localhost:5173"],
-        allow_credentials=True,
-        allow_methods=["*"],
-        allow_headers=["*"],
-    )
-
-    app.mount("/static", StaticFiles(directory="images"), name="static")
-
-    uvicorn.run(app, host=host, port=port)
-  except MissingAPIKeyError as e:
-    logger.error(f"Error: {e}")
-    exit(1)
-  except Exception as e:
-    logger.error(f"An error occurred during server startup: {e}")
-    exit(1)
+        uvicorn.run(app, host=host, port=port)
+    except MissingAPIKeyError as e:
+        logger.error(f"Error: {e}")
+        exit(1)
+    except Exception as e:
+        logger.error(f"An error occurred during server startup: {e}")
+        exit(1)
 
 
 if __name__ == "__main__":
-  main()
+    main()

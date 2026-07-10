@@ -1,4 +1,4 @@
-// swift-tools-version: 6.0
+// swift-tools-version: 6.1
 // The swift-tools-version declares the minimum version of Swift required to build this package.
 
 // Copyright 2026 Google LLC
@@ -20,27 +20,80 @@ import PackageDescription
 let package = Package(
   name: "A2UISwiftCore",
   platforms: [
-    .iOS(.v16)
+    .iOS(.v16),
+    .macOS(.v13),
   ],
   products: [
     .library(
       name: "A2UISwiftCore",
-      targets: ["JSONSchema"]
+      targets: ["A2UIJSON", "A2UICore"]
+    ),
+    .library(
+      name: "A2UISwiftUI",
+      targets: ["A2UISwiftUI"]
+    ),
+  ],
+  dependencies: [
+    .package(
+      url: "https://github.com/ajevans99/swift-json-schema",
+      from: "0.13.1"
     )
   ],
-  dependencies: [],
   targets: [
+    // ── Core ──
     .target(
-      name: "JSONSchema",
-      dependencies: [],
-      path: "swift/core/JSONSchema/Sources"
+      name: "A2UIJSON",
+      dependencies: [
+        .product(name: "JSONSchema", package: "swift-json-schema"),
+        .product(
+          name: "OrderedJSON",
+          package: "swift-json-schema"
+        ),
+      ],
+      path: "swift/core/Sources/A2UIJSON"
+    ),
+    .target(
+      name: "A2UICore",
+      dependencies: [
+        "A2UIJSON",
+        .product(name: "JSONSchema", package: "swift-json-schema"),
+        .product(
+          name: "OrderedJSON",
+          package: "swift-json-schema"
+        ),
+      ],
+      path: "swift/core/Sources/A2UICore"
+    ),
+
+    // ── SwiftUI ──
+    .target(
+      name: "A2UISwiftUI",
+      dependencies: ["A2UICore"],
+      path: "swift/swiftui/Sources/A2UISwiftUI"
+    ),
+
+    // ── Sample Client ──
+    .executableTarget(
+      name: "A2UISampleClient",
+      dependencies: ["A2UISwiftUI", "A2UICore"],
+      path: "swift/sample/Sources/A2UISampleClient"
+    ),
+
+    // ── Tests ──
+    .testTarget(
+      name: "A2UIJSONTests",
+      dependencies: ["A2UIJSON"],
+      path: "swift/core/Tests/A2UIJSONTests"
     ),
     .testTarget(
-      name: "JSONSchemaTests",
-      dependencies: [
-        "JSONSchema"
-      ],
-      path: "swift/core/JSONSchema/Tests"
+      name: "A2UICoreTests",
+      dependencies: ["A2UICore", "A2UIJSON"],
+      path: "swift/core/Tests/A2UICoreTests"
+    ),
+    .testTarget(
+      name: "A2UISwiftUITests",
+      dependencies: ["A2UISwiftUI", "A2UICore"],
+      path: "swift/swiftui/Tests/A2UISwiftUITests"
     ),
   ]
 )

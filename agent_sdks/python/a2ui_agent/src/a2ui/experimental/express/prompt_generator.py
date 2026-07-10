@@ -28,254 +28,269 @@ from .schema_helper import CatalogSchemaHelper
 
 
 def _schema_allows_databinding(prop_schema: Any) -> bool:
-  """Helper to check if a JSON schema allows data binding (DynamicString/DataBinding, etc)."""
-  if not isinstance(prop_schema, dict):
+    """Helper to check if a JSON schema allows data binding (DynamicString/DataBinding, etc)."""
+    if not isinstance(prop_schema, dict):
+        return False
+    if "$ref" in prop_schema:
+        ref = prop_schema["$ref"]
+        if "DataBinding" in ref or "Dynamic" in ref or "ChildList" in ref:
+            return True
+    if "oneOf" in prop_schema or "anyOf" in prop_schema or "allOf" in prop_schema:
+        subs = (
+            prop_schema.get("oneOf", [])
+            + prop_schema.get("anyOf", [])
+            + prop_schema.get("allOf", [])
+        )
+        for sub in subs:
+            if _schema_allows_databinding(sub):
+                return True
     return False
-  if "$ref" in prop_schema:
-    ref = prop_schema["$ref"]
-    if "DataBinding" in ref or "Dynamic" in ref or "ChildList" in ref:
-      return True
-  if "oneOf" in prop_schema or "anyOf" in prop_schema or "allOf" in prop_schema:
-    subs = (
-        prop_schema.get("oneOf", [])
-        + prop_schema.get("anyOf", [])
-        + prop_schema.get("allOf", [])
-    )
-    for sub in subs:
-      if _schema_allows_databinding(sub):
-        return True
-  return False
 
 
 def _get_schema_enum(prop_schema: Any) -> Optional[list[str]]:
-  """Helper to recursively find enum definitions inside a JSON schema."""
-  if not isinstance(prop_schema, dict):
+    """Helper to recursively find enum definitions inside a JSON schema."""
+    if not isinstance(prop_schema, dict):
+        return None
+    if "enum" in prop_schema:
+        return prop_schema["enum"]
+    if "oneOf" in prop_schema or "anyOf" in prop_schema:
+        subs = prop_schema.get("oneOf", []) + prop_schema.get("anyOf", [])
+        for sub in subs:
+            enum_val = _get_schema_enum(sub)
+            if enum_val:
+                return enum_val
     return None
-  if "enum" in prop_schema:
-    return prop_schema["enum"]
-  if "oneOf" in prop_schema or "anyOf" in prop_schema:
-    subs = prop_schema.get("oneOf", []) + prop_schema.get("anyOf", [])
-    for sub in subs:
-      enum_val = _get_schema_enum(sub)
-      if enum_val:
-        return enum_val
-  return None
 
 
 class ExpressPromptGenerator:
-  """Generates system prompt contracts guiding models to produce A2UI Express.
+    """Generates system prompt contracts guiding models to produce A2UI Express.
 
-  Compiles component catalog structures and logic helper catalogs into standard
-  positional signatures, reducing prompt token utilization.
+    Compiles component catalog structures and logic helper catalogs into standard
+    positional signatures, reducing prompt token utilization.
 
-  Attributes:
-      helper: A CatalogSchemaHelper instance loaded with the target catalog.
-  """
-
-  def __init__(
-      self,
-      catalog: Union[Catalog[Any, Any], A2uiCatalog],
-  ):
-    """Initializes the generator with the specified catalog.
-
-    Args:
-        catalog: A Catalog or an A2uiCatalog.
+    Attributes:
+        helper: A CatalogSchemaHelper instance loaded with the target catalog.
     """
-    self.helper = CatalogSchemaHelper(catalog)
-    self.decompiler = ExpressDecompiler(catalog)
 
-  def generate_component_signatures(self) -> str:
-    """Compiles component definitions into clean function-like signatures.
+    def __init__(
+        self,
+        catalog: Union[Catalog[Any, Any], A2uiCatalog],
+    ):
+        """Initializes the generator with the specified catalog.
 
-    Returns:
-        A plain-text multi-line list of component signatures.
-    """
-    signatures = []
-    for name in sorted(self.helper.component_properties.keys()):
-      props = self.helper.get_component_properties(name)
-      reqs = self.helper.get_component_required(name)
+        Args:
+            catalog: A Catalog or an A2uiCatalog.
+        """
+        self.helper = CatalogSchemaHelper(catalog)
+        self.decompiler = ExpressDecompiler(catalog)
 
-      # Retrieve component-level description
-      comp_desc = self.helper.get_component_description(name)
+    def generate_component_signatures(self) -> str:
+        """Compiles component definitions into clean function-like signatures.
 
-      ordered_args = []
-      prop_details = []
-      for p in props:
-        is_req = p in reqs
-        opt_suffix = "" if is_req else "?"
+        Returns:
+            A plain-text multi-line list of component signatures.
+        """
+        signatures = []
+        for name in sorted(self.helper.component_properties.keys()):
+            props = self.helper.get_component_properties(name)
+            reqs = self.helper.get_component_required(name)
 
-        p_schema = self.helper.get_property_schema(name, p)
+            # Retrieve component-level description
+            comp_desc = self.helper.get_component_description(name)
 
-        # Determine signature argument label
-        arg_label = f"{p}{opt_suffix}"
+            ordered_args = []
+            prop_details = []
+            for p in props:
+                is_req = p in reqs
+                opt_suffix = "" if is_req else "?"
 
-        is_component_id = False
-        if isinstance(p_schema, dict) and "$ref" in p_schema:
-          if "ComponentId" in p_schema["$ref"]:
-            is_component_id = True
+                p_schema = self.helper.get_property_schema(name, p)
 
-        if is_component_id:
-          arg_label += " (component ID)"
-        elif not _schema_allows_databinding(p_schema):
-          arg_label += " (static only)"
+                # Determine signature argument label
+                arg_label = f"{p}{opt_suffix}"
 
-        ordered_args.append(arg_label)
+                is_component_id = False
+                if isinstance(p_schema, dict) and "$ref" in p_schema:
+                    if "ComponentId" in p_schema["$ref"]:
+                        is_component_id = True
 
-        # Retrieve parameter description
-        p_desc = p_schema.get("description") if isinstance(p_schema, dict) else None
-        enum_vals = _get_schema_enum(p_schema)
+                if is_component_id:
+                    arg_label += " (component ID)"
+                elif not _schema_allows_databinding(p_schema):
+                    arg_label += " (static only)"
 
-        # Build property detail description
-        if p_desc or enum_vals:
-          p_line_parts = []
-          if p_desc:
-            p_line_parts.append(p_desc)
-          if enum_vals:
-            enum_vals_str = ", ".join([f"'{v}'" for v in enum_vals])
-            p_line_parts.append(f"Must be one of: {enum_vals_str}")
-          prop_details.append(f"  - {p}: {' '.join(p_line_parts)}")
+                ordered_args.append(arg_label)
 
-        # Fetch property schema and check if it has nested object structure
-        if isinstance(p_schema, dict):
-          if p_schema.get("type") == "object" and "properties" in p_schema:
-            sub_keys = []
-            for sub_k, sub_v in p_schema["properties"].items():
-              desc = sub_v.get("description", "")
-              desc_suffix = f" - {desc}" if desc else ""
-              sub_keys.append(f"    * {sub_k}{desc_suffix}")
-
-            if prop_details and prop_details[-1].startswith(f"  - {p}:"):
-              prop_details[-1] += "\n    Map keys:\n" + "\n".join(sub_keys)
-            else:
-              prop_details.append(f"  - {p}: Map with keys:\n" + "\n".join(sub_keys))
-          elif p_schema.get("type") == "array" and "items" in p_schema:
-            items_schema = p_schema["items"]
-            if (
-                isinstance(items_schema, dict)
-                and items_schema.get("type") == "object"
-                and "properties" in items_schema
-            ):
-              sub_keys = []
-              for sub_k, sub_v in items_schema["properties"].items():
-                desc = sub_v.get("description", "")
-                desc_suffix = f" - {desc}" if desc else ""
-                sub_keys.append(f"    * {sub_k}{desc_suffix}")
-
-              if prop_details and prop_details[-1].startswith(f"  - {p}:"):
-                prop_details[-1] += "\n    List of maps keys:\n" + "\n".join(sub_keys)
-              else:
-                prop_details.append(
-                    f"  - {p}: List of maps with keys:\n" + "\n".join(sub_keys)
+                # Retrieve parameter description
+                p_desc = (
+                    p_schema.get("description") if isinstance(p_schema, dict) else None
                 )
+                enum_vals = _get_schema_enum(p_schema)
 
-      sig = f"• {name}({', '.join(ordered_args)})"
-      if comp_desc:
-        sig += f"\n  - Description: {comp_desc}"
-      if prop_details:
-        sig += "\n" + "\n".join(prop_details)
-      signatures.append(sig)
-    return "\n".join(signatures)
+                # Build property detail description
+                if p_desc or enum_vals:
+                    p_line_parts = []
+                    if p_desc:
+                        p_line_parts.append(p_desc)
+                    if enum_vals:
+                        enum_vals_str = ", ".join([f"'{v}'" for v in enum_vals])
+                        p_line_parts.append(f"Must be one of: {enum_vals_str}")
+                    prop_details.append(f"  - {p}: {' '.join(p_line_parts)}")
 
-  def generate_function_signatures(self) -> str:
-    """Compiles function definitions into clean signatures.
+                # Fetch property schema and check if it has nested object structure
+                if isinstance(p_schema, dict):
+                    if p_schema.get("type") == "object" and "properties" in p_schema:
+                        sub_keys = []
+                        for sub_k, sub_v in p_schema["properties"].items():
+                            desc = sub_v.get("description", "")
+                            desc_suffix = f" - {desc}" if desc else ""
+                            sub_keys.append(f"    * {sub_k}{desc_suffix}")
 
-    Returns:
-        A plain-text multi-line list of function signatures.
-    """
-    signatures = []
-    for name in sorted(self.helper.function_properties.keys()):
-      props = self.helper.get_function_properties(name)
-      reqs = self.helper.get_function_required(name)
+                        if prop_details and prop_details[-1].startswith(f"  - {p}:"):
+                            prop_details[-1] += "\n    Map keys:\n" + "\n".join(
+                                sub_keys
+                            )
+                        else:
+                            prop_details.append(
+                                f"  - {p}: Map with keys:\n" + "\n".join(sub_keys)
+                            )
+                    elif p_schema.get("type") == "array" and "items" in p_schema:
+                        items_schema = p_schema["items"]
+                        if (
+                            isinstance(items_schema, dict)
+                            and items_schema.get("type") == "object"
+                            and "properties" in items_schema
+                        ):
+                            sub_keys = []
+                            for sub_k, sub_v in items_schema["properties"].items():
+                                desc = sub_v.get("description", "")
+                                desc_suffix = f" - {desc}" if desc else ""
+                                sub_keys.append(f"    * {sub_k}{desc_suffix}")
 
-      # Retrieve function-level description
-      f_desc = self.helper.get_function_description(name)
+                            if prop_details and prop_details[-1].startswith(
+                                f"  - {p}:"
+                            ):
+                                prop_details[
+                                    -1
+                                ] += "\n    List of maps keys:\n" + "\n".join(sub_keys)
+                            else:
+                                prop_details.append(
+                                    f"  - {p}: List of maps with keys:\n"
+                                    + "\n".join(sub_keys)
+                                )
 
-      ordered_args = []
-      prop_details = []
+            sig = f"• {name}({', '.join(ordered_args)})"
+            if comp_desc:
+                sig += f"\n  - Description: {comp_desc}"
+            if prop_details:
+                sig += "\n" + "\n".join(prop_details)
+            signatures.append(sig)
+        return "\n".join(signatures)
 
-      func_schema = self.helper.functions.get(name, {})
-      args_properties = (
-          func_schema.get("properties", {}).get("args", {}).get("properties", {})
-      )
+    def generate_function_signatures(self) -> str:
+        """Compiles function definitions into clean signatures.
 
-      for p in props:
-        is_req = p in reqs
-        opt_suffix = "" if is_req else "?"
-        ordered_args.append(f"{p}{opt_suffix}")
+        Returns:
+            A plain-text multi-line list of function signatures.
+        """
+        signatures = []
+        for name in sorted(self.helper.function_properties.keys()):
+            props = self.helper.get_function_properties(name)
+            reqs = self.helper.get_function_required(name)
 
-        p_schema = args_properties.get(p, {})
-        p_desc = p_schema.get("description") if isinstance(p_schema, dict) else None
-        if p_desc:
-          prop_details.append(f"  - {p}: {p_desc}")
+            # Retrieve function-level description
+            f_desc = self.helper.get_function_description(name)
 
-      sig = f"• {name}({', '.join(ordered_args)})"
-      if f_desc:
-        sig += f"\n  - Description: {f_desc}"
-      if prop_details:
-        sig += "\n" + "\n".join(prop_details)
-      signatures.append(sig)
-    return "\n".join(signatures)
+            ordered_args = []
+            prop_details = []
 
-  def generate_prompt(self) -> str:
-    """Assembles the complete system instruction block for the LLM.
+            func_schema = self.helper.functions.get(name, {})
+            args_properties = (
+                func_schema.get("properties", {}).get("args", {}).get("properties", {})
+            )
 
-    Returns:
-        The full system prompt string explaining A2UI Express and its catalog.
-    """
-    comp_sigs = self.generate_component_signatures()
-    func_sigs = self.generate_function_signatures()
-    catalog_instructions = self.helper.catalog.get("instructions", "")
+            for p in props:
+                is_req = p in reqs
+                opt_suffix = "" if is_req else "?"
+                ordered_args.append(f"{p}{opt_suffix}")
 
-    # Translate json examples in catalog instructions into A2UI Express DSL
-    if catalog_instructions:
-      pattern = r"```json\s*\n(.*?)\n```"
+                p_schema = args_properties.get(p, {})
+                p_desc = (
+                    p_schema.get("description") if isinstance(p_schema, dict) else None
+                )
+                if p_desc:
+                    prop_details.append(f"  - {p}: {p_desc}")
 
-      def replace_json_block(match):
-        json_content = match.group(1).strip()
-        try:
-          parsed = json.loads(json_content)
-          if isinstance(parsed, dict):
-            messages = [parsed]
-          elif isinstance(parsed, list):
-            messages = parsed
-          else:
-            return match.group(0)
+            sig = f"• {name}({', '.join(ordered_args)})"
+            if f_desc:
+                sig += f"\n  - Description: {f_desc}"
+            if prop_details:
+                sig += "\n" + "\n".join(prop_details)
+            signatures.append(sig)
+        return "\n".join(signatures)
 
-          dsl_blocks = []
-          for msg in messages:
-            if any(
-                k in msg
-                for k in [
-                    "createSurface",
-                    "updateDataModel",
-                    "deleteSurface",
-                    "callFunction",
-                ]
-            ):
-              dsl = self.decompiler.decompile(msg)
-              # Strip outer <a2ui> / </a2ui> wrapper tags
-              dsl_clean = dsl.replace("<a2ui>\n", "").replace("\n</a2ui>", "")
-              dsl_blocks.append(dsl_clean)
-            else:
-              return match.group(0)
+    def generate_prompt(self) -> str:
+        """Assembles the complete system instruction block for the LLM.
 
-          full_dsl = "<a2ui>\n" + "\n".join(dsl_blocks) + "\n</a2ui>"
-          return f"```\n{full_dsl}\n```"
-        except Exception:
-          return match.group(0)
+        Returns:
+            The full system prompt string explaining A2UI Express and its catalog.
+        """
+        comp_sigs = self.generate_component_signatures()
+        func_sigs = self.generate_function_signatures()
+        catalog_instructions = self.helper.catalog.get("instructions", "")
 
-      catalog_instructions = re.sub(
-          pattern, replace_json_block, catalog_instructions, flags=re.DOTALL
-      )
+        # Translate json examples in catalog instructions into A2UI Express DSL
+        if catalog_instructions:
+            pattern = r"```json\s*\n(.*?)\n```"
 
-    # Format catalog instructions block if it exists
-    catalog_instructions_block = ""
-    if catalog_instructions:
-      catalog_instructions_block = (
-          f"\n\n## Catalog Instructions\n\n{catalog_instructions}"
-      )
+            def replace_json_block(match):
+                json_content = match.group(1).strip()
+                try:
+                    parsed = json.loads(json_content)
+                    if isinstance(parsed, dict):
+                        messages = [parsed]
+                    elif isinstance(parsed, list):
+                        messages = parsed
+                    else:
+                        return match.group(0)
 
-    prompt_template = r'''# A2UI Express Output Contract
+                    dsl_blocks = []
+                    for msg in messages:
+                        if any(
+                            k in msg
+                            for k in [
+                                "createSurface",
+                                "updateDataModel",
+                                "deleteSurface",
+                                "callFunction",
+                            ]
+                        ):
+                            dsl = self.decompiler.decompile(msg)
+                            # Strip outer <a2ui> / </a2ui> wrapper tags
+                            dsl_clean = dsl.replace("<a2ui>\n", "").replace(
+                                "\n</a2ui>", ""
+                            )
+                            dsl_blocks.append(dsl_clean)
+                        else:
+                            return match.group(0)
+
+                    full_dsl = "<a2ui>\n" + "\n".join(dsl_blocks) + "\n</a2ui>"
+                    return f"```\n{full_dsl}\n```"
+                except Exception:
+                    return match.group(0)
+
+            catalog_instructions = re.sub(
+                pattern, replace_json_block, catalog_instructions, flags=re.DOTALL
+            )
+
+        # Format catalog instructions block if it exists
+        catalog_instructions_block = ""
+        if catalog_instructions:
+            catalog_instructions_block = (
+                f"\n\n## Catalog Instructions\n\n{catalog_instructions}"
+            )
+
+        prompt_template = r'''# A2UI Express Output Contract
 
 You must output the user interface using the compact A2UI Express DSL notation.
 You MUST surround the entire A2UI Express DSL block with the sentinel tags `<a2ui>` and `</a2ui>`.
@@ -340,9 +355,9 @@ Use these exact positional signatures to instantiate components. Do not output p
 Use these exact positional signatures to instantiate check rules or logic functions:
 [FUNC_SIGS][CATALOG_INSTRUCTIONS_BLOCK]'''
 
-    prompt = (
-        prompt_template.replace("[COMP_SIGS]", comp_sigs)
-        .replace("[FUNC_SIGS]", func_sigs)
-        .replace("[CATALOG_INSTRUCTIONS_BLOCK]", catalog_instructions_block)
-    )
-    return prompt
+        prompt = (
+            prompt_template.replace("[COMP_SIGS]", comp_sigs)
+            .replace("[FUNC_SIGS]", func_sigs)
+            .replace("[CATALOG_INSTRUCTIONS_BLOCK]", catalog_instructions_block)
+        )
+        return prompt

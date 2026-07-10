@@ -169,9 +169,9 @@ Do not wrap the output in markdown formatting blocks, do not include explanation
                     )
         except urllib.error.URLError as e:
             raise ConnectionError(
-                f"Failed to connect to local MLX-LM server at {url}. "
-                f"Make sure you started the server: mlx_lm.server --model {model_name}. "
-                f"Error details: {e}"
+                f"Failed to connect to local MLX-LM server at {url}. Make sure you"
+                f" started the server: mlx_lm.server --model {model_name}. Error"
+                f" details: {e}"
             ) from e
     elif is_local:
         url = "http://localhost:11434/api/generate"
@@ -369,7 +369,8 @@ def main():
         print(json.dumps(compiled_json, indent=2))
 
         print(
-            "\nValidation successful! Compiler processed generated DSL with zero errors."
+            "\nValidation successful! Compiler processed generated DSL with zero"
+            " errors."
         )
         sys.exit(0)
     except Exception as e:  # pylint: disable=broad-exception-caught

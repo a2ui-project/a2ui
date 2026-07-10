@@ -89,7 +89,9 @@ def main():
     parser.add_argument(
         "--surface-id",
         default="express_surface",
-        help="The unique identifier for the compiled surface (default: express_surface).",
+        help=(
+            "The unique identifier for the compiled surface (default: express_surface)."
+        ),
     )
     parser.add_argument(
         "--catalog-id",
