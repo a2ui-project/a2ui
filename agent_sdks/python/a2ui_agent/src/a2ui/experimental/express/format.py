@@ -23,7 +23,6 @@ from .prompt_generator import ExpressPromptGenerator
 from .decompiler import ExpressDecompiler
 from .parser import parse_express_response
 
-
 EXPRESS_GRAMMAR_RULES = r'''# A2UI Express Output Contract
 
 You must output the user interface using the compact A2UI Express DSL notation.

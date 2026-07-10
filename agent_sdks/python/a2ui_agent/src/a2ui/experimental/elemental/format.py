@@ -23,7 +23,6 @@ from .prompt_generator import ElementalPromptGenerator
 from .parser import parse_elemental_response
 from .decompiler import ElementalDecompiler
 
-
 ELEMENTAL_RULES_TEMPLATE = r"""# A2UI Elemental Output Contract
 
 You must output the user interface using A2UI Elemental HTML5-like markup.

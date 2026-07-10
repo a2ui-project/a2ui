@@ -15,7 +15,12 @@
 import json
 import re
 from inspect_ai.solver import Solver, solver, TaskState, Generate
-from inspect_ai.model import ChatMessageSystem, ModelOutput, ChatCompletionChoice, ChatMessageAssistant
+from inspect_ai.model import (
+    ChatMessageSystem,
+    ModelOutput,
+    ChatCompletionChoice,
+    ChatMessageAssistant,
+)
 from a2ui.formats import InferenceFormatRegistry
 from a2ui.schema.catalog import CatalogConfig
 from a2ui.schema.manager import A2uiSchemaManager
@@ -81,7 +86,9 @@ def compile_format_payload(format_name: str, version: str) -> Solver:
         default_surface_id = allowed_surface_ids[0]
 
         surface_id = default_surface_id
-        match = re.search(r"<a2ui\b[^>]*\bid=['\"]([^'\"]+)['\"]", completion, re.IGNORECASE)
+        match = re.search(
+            r"<a2ui\b[^>]*\bid=['\"]([^'\"]+)['\"]", completion, re.IGNORECASE
+        )
         if match:
             found_id = match.group(1)
             if found_id in allowed_surface_ids:

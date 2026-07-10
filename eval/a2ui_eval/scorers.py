@@ -38,7 +38,9 @@ def a2ui_scorer(version: str):
         An Inspect Scorer that validates the response against the schema and integrity rules.
     """
 
-    async def score(state: TaskState, target: Target) -> Score:  # pylint: disable=unused-argument
+    async def score(
+        state: TaskState, target: Target
+    ) -> Score:  # pylint: disable=unused-argument
         if not state.output:
             return Score(
                 value=0.0,
@@ -54,7 +56,7 @@ def a2ui_scorer(version: str):
         validator = catalog.validator
 
         answer_text = state.output.completion or ""
-        
+
         if "Compilation/validation failed:" in answer_text:
             return Score(
                 value=0.0,

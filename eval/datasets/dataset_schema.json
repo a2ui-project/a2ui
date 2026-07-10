@@ -35,7 +35,7 @@
       },
       "allowed_surface_ids": {
         "type": "array",
-        "items": { "type": "string" },
+        "items": {"type": "string"},
         "description": "An optional list of allowed surface IDs. The first item is used as the default fallback."
       }
     },
