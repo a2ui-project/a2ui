@@ -62,7 +62,6 @@ class InferenceFormat(ABC):
         catalog: A2uiCatalog | None = None,
         surface_id: str | None = None,
     ) -> List[ResponsePart]:
-
         """Parses model response content and compiles it to standard A2UI JSON payload parts."""
         pass
 
@@ -96,17 +95,26 @@ class InferenceFormatRegistry:
         # Lazy-import and conditionally register experimental Express and Elemental formats if enabled
         if os.environ.get("A2UI_EXPRESS_ENABLED", "").lower() in ("true", "1", "yes"):
             try:
-                from a2ui.experimental.express.format import ExpressInferenceFormat  # type: ignore[import-untyped]
+                import importlib
 
+                express_mod = importlib.import_module(
+                    "a2ui.experimental.express.format"
+                )
+                ExpressInferenceFormat = getattr(express_mod, "ExpressInferenceFormat")
                 cls.register(ExpressInferenceFormat())
             except ImportError:
                 pass
 
             try:
-                from a2ui.experimental.elemental.format import ElementalInferenceFormat  # type: ignore[import-untyped]
+                import importlib
 
+                elemental_mod = importlib.import_module(
+                    "a2ui.experimental.elemental.format"
+                )
+                ElementalInferenceFormat = getattr(
+                    elemental_mod, "ElementalInferenceFormat"
+                )
                 cls.register(ElementalInferenceFormat())
-
             except ImportError:
                 pass
 
@@ -138,4 +146,3 @@ def __getattr__(name: str) -> Any:
 
         return JsonInferenceFormat
     raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
-
