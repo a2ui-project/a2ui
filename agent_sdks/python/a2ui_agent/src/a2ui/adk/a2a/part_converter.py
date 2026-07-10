@@ -120,9 +120,7 @@ class A2uiPartConverter:
 
             if function_response.response:
                 result = function_response.response.get("result")
-                if isinstance(result, str) and self._format_strategy.detect_format(
-                    result
-                ):
+                if isinstance(result, str) and "<a2ui" in result:
                     return parse_response_to_parts(
                         result,
                         validator=self._catalog.validator,
@@ -140,7 +138,7 @@ class A2uiPartConverter:
 
         # 3. Handle Text-based A2UI (TextPart)
         if text := part.text:
-            if self._format_strategy.detect_format(text):
+            if "<a2ui" in text:
                 return parse_response_to_parts(
                     text,
                     validator=self._catalog.validator,

@@ -133,11 +133,8 @@ def test_prompt_generator(test_catalog):
 
     # Test transforming examples markdown
     raw_md = (
-        "Here is an example:\n"
-        "```json\n"
-        '{"createSurface": {"surfaceId": "main", "layout": {"component": "Text", "text": "Hello"}}}\n'
-        "```\n"
-        "End of example."
+        'Here is an example:\n```json\n{"createSurface": {"surfaceId": "main",'
+        ' "layout": {"component": "Text", "text": "Hello"}}}\n```\nEnd of example.'
     )
     transformed = generator.transform_examples(raw_md)
     assert "wrapped:" in transformed

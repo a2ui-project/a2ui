@@ -70,10 +70,6 @@ class InferenceFormat(ABC):
         """Wraps decompiled code blocks in format-specific tags and code block wrappers."""
         pass
 
-    def detect_format(self, content: str) -> bool:
-        """Returns True if the content contains this format's sentinel/payload tags."""
-        return "<a2ui" in content
-
 
 class PromptGenerator:
     """Helper to assemble prompt instructions and transform examples."""
