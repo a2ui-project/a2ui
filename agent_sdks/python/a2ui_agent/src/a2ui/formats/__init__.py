@@ -138,3 +138,11 @@ class InferenceFormatRegistry:
     def available_formats(cls) -> list[str]:
         cls._ensure_initialized()
         return list(cls._formats.keys())
+
+
+def __getattr__(name: str) -> Any:
+    if name == "JsonInferenceFormat":
+        from .json_inference_format import JsonInferenceFormat
+
+        return JsonInferenceFormat
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
