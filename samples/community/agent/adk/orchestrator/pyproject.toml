@@ -21,7 +21,7 @@ requires-python = ">=3.10"
 dependencies = [
     "a2a-sdk[http-server]>=0.3.0",
     "click>=8.1.8",
-    "google-adk>=1.28.1",
+    "google-adk>=2.3.0",
     "google-genai>=1.27.0",
     "python-dotenv>=1.1.0",
     "litellm>=1.83.7",

@@ -60,6 +60,7 @@ export class McpAppRoot implements OnInit, AfterViewInit {
 
   ngOnInit() {
     this.initializeHandshake();
+    this.setupToolResultListener();
     this.setupActionRouting();
   }
 
@@ -69,12 +70,12 @@ export class McpAppRoot implements OnInit, AfterViewInit {
 
   private setupResizeObserver() {
     const observer = new ResizeObserver(() => {
-      const height = this.elementRef.nativeElement.scrollHeight;
-      console.log('[MCP App] Height updated:', height);
+      const element = this.elementRef.nativeElement;
+      console.log('[MCP App] Size updated:', element.scrollWidth, element.scrollHeight);
       this.postToParent({
         jsonrpc: '2.0',
-        method: 'ui/resize',
-        params: {height},
+        method: 'ui/notifications/size-changed',
+        params: {width: element.scrollWidth, height: element.scrollHeight},
       });
     });
     observer.observe(this.elementRef.nativeElement);
@@ -85,12 +86,45 @@ export class McpAppRoot implements OnInit, AfterViewInit {
       jsonrpc: '2.0',
       id: 'init-1',
       method: 'ui/initialize',
-      params: {},
+      params: {
+        protocolVersion: '2026-01-26',
+        clientInfo: {name: 'basic-counter-app', version: '1.0.0'},
+        appCapabilities: {availableDisplayModes: ['inline']},
+      },
     });
 
-    window.addEventListener('message', event => {
-      if (event.data.id === 'init-1') {
-        this.status.set('Initialized');
+    const handler = (event: MessageEvent) => {
+      if (event.source !== window.parent) return;
+      if (event.data?.id !== 'init-1') return;
+      window.removeEventListener('message', handler);
+      this.status.set('Initialized');
+      this.postToParent({
+        jsonrpc: '2.0',
+        method: 'ui/notifications/initialized',
+        params: {},
+      });
+    };
+    window.addEventListener('message', handler);
+  }
+
+  // Renders the result of the tools/call that instantiated this View,
+  // delivered by the host as ui/notifications/tool-result after initialized.
+  private setupToolResultListener() {
+    window.addEventListener('message', (event: MessageEvent) => {
+      if (event.source !== window.parent) return;
+      if (event.data?.method !== 'ui/notifications/tool-result') return;
+
+      const content = event.data.params?.content;
+      if (!Array.isArray(content)) return;
+
+      try {
+        const messages = this.getA2UIMessages(content);
+        if (!messages) return;
+        this.processor.clearSurfaces();
+        this.processor.processMessages(messages);
+        this.status.set('Rendered');
+      } catch (e: unknown) {
+        console.error('Failed to parse tool-result payload:', e);
       }
     });
   }
@@ -102,16 +136,20 @@ export class McpAppRoot implements OnInit, AfterViewInit {
       this.postToParent({
         jsonrpc: '2.0',
         id: requestId,
-        method: `ui/${event.message.userAction.name}`,
-        params: event.message.userAction.context,
+        method: 'tools/call',
+        params: {
+          name: event.message.userAction.name,
+          arguments: event.message.userAction.context || {},
+        },
       });
 
       const handler = (msgEvent: MessageEvent) => {
-        if (msgEvent.data.id !== requestId) return;
+        if (msgEvent.source !== window.parent) return;
+        if (msgEvent.data?.id !== requestId) return;
 
         window.removeEventListener('message', handler);
 
-        const content = msgEvent.data.result;
+        const content = msgEvent.data.result?.content;
         if (!content || !Array.isArray(content)) return;
 
         try {
@@ -134,12 +172,13 @@ export class McpAppRoot implements OnInit, AfterViewInit {
     this.postToParent({
       jsonrpc: '2.0',
       id: requestId,
-      method: 'ui/fetch_counter_a2ui',
-      params: {},
+      method: 'tools/call',
+      params: {name: 'fetch_counter_a2ui', arguments: {}},
     });
 
     const handler = (event: MessageEvent) => {
-      if (event.data.id !== requestId) return;
+      if (event.source !== window.parent) return;
+      if (event.data?.id !== requestId) return;
 
       this.isLoading.set(false);
       window.removeEventListener('message', handler);
@@ -149,7 +188,7 @@ export class McpAppRoot implements OnInit, AfterViewInit {
         return;
       }
 
-      const content = event.data.result;
+      const content = event.data.result?.content;
       if (!Array.isArray(content)) return;
 
       try {

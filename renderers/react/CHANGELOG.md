@@ -1,5 +1,7 @@
 ## Unreleased
 
+- (v0_9) Normalize Safari placeholder text color for `DateTimeInput` by injecting WebKit-specific styles via a global stylesheet and adding the `.a2ui-date-time-input` class.
+
 ## 0.10.1
 
 - (v0_9) Tighten resolved child list types in the basic catalog layout components.

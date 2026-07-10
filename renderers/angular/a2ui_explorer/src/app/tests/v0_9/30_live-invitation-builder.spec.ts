@@ -56,6 +56,14 @@ describe('Example: Live Invitation Builder', () => {
     expect(textContent).toContain('2025');
   });
 
+  it('should render date time input', async () => {
+    const dateTimeInputs = [
+      ...fixture.nativeElement.querySelectorAll('.a2ui-date-time-input'),
+    ] as HTMLInputElement[];
+    expect(dateTimeInputs.length).toBeGreaterThanOrEqual(1);
+    expect(dateTimeInputs[0].value).toContain('2025-07-15');
+  });
+
   it('should render image', async () => {
     const img = fixture.nativeElement.querySelector('img');
     expect(img).toBeTruthy();
