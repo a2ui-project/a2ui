@@ -16,7 +16,6 @@
 
 import json
 import os
-import re
 import time
 from inspect_ai.scorer import scorer, Score, Target, accuracy, model_graded_qa
 from inspect_ai.solver import TaskState
@@ -57,7 +56,7 @@ def a2ui_scorer(version: str):
 
         answer_text = state.output.completion or ""
 
-        if "Compilation/validation failed:" in answer_text:
+        if answer_text.strip().startswith("Compilation/validation failed:"):
             return Score(
                 value=0.0,
                 answer=answer_text,

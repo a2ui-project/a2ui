@@ -13,7 +13,6 @@
 # limitations under the License.
 
 import json
-import re
 from inspect_ai.solver import Solver, solver, TaskState, Generate
 from inspect_ai.model import (
     ChatMessageSystem,
@@ -83,27 +82,25 @@ def compile_format_payload(format_name: str, version: str) -> Solver:
         completion = state.output.completion.strip()
 
         allowed_surface_ids = state.metadata.get("allowed_surface_ids", ["main"])
-        default_surface_id = allowed_surface_ids[0]
+        default_surface_id = allowed_surface_ids[0] if allowed_surface_ids else "main"
 
         surface_id = default_surface_id
-        match = re.search(
-            r"<a2ui\b[^>]*\bid\s*=\s*['\"]([^'\"]+)['\"]", completion, re.IGNORECASE
-        )
-
-        if match:
-            found_id = match.group(1)
+        extracted_ids = fmt.extract_surface_ids(completion)
+        for found_id in extracted_ids:
             if found_id in allowed_surface_ids:
                 surface_id = found_id
+                break
 
         try:
             parts = fmt.parse_response(completion, catalog, surface_id=surface_id)
             compiled_jsons = []
             for p in parts:
-                if p.a2ui_json:
-                    if isinstance(p.a2ui_json, list):
-                        compiled_jsons.extend(p.a2ui_json)
+                a2ui_json = getattr(p, "a2ui_json", None)
+                if a2ui_json:
+                    if isinstance(a2ui_json, list):
+                        compiled_jsons.extend(a2ui_json)
                     else:
-                        compiled_jsons.append(p.a2ui_json)
+                        compiled_jsons.append(a2ui_json)
 
             if not compiled_jsons:
                 raise ValueError(
