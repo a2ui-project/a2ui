@@ -26,10 +26,12 @@ import express from 'express';
 import {join} from 'node:path';
 import {v4 as uuidv4} from 'uuid';
 
+import {MCP_APP_CATALOG_ID} from './a2ui-catalog/catalog';
+
 const browserDistFolder = join(import.meta.dirname, '../browser');
 const app = express();
 const angularApp = new AngularNodeAppEngine();
-let client: A2AClient | null = null;
+let clientPromise: Promise<A2AClient> | null = null;
 
 app.use(
   express.static(browserDistFolder, {
@@ -47,7 +49,13 @@ app.post('/a2a', (req, res) => {
   });
 
   req.on('end', async () => {
-    const data = JSON.parse(originalBody);
+    let data;
+    try {
+      data = JSON.parse(originalBody);
+    } catch (err) {
+      res.status(400).json({error: 'Invalid JSON body'});
+      return;
+    }
 
     console.log('[a2a-middleware] Received data:', data);
 
@@ -62,8 +70,8 @@ app.post('/a2a', (req, res) => {
         metadata: {
           a2uiClientCapabilities: {
             supportedCatalogIds: [
-              'https://a2ui.org/specification/v0_8/standard_catalog_definition.json',
-              'a2ui.org:a2ui/v0.8/mcp_app_catalog.json',
+              'https://a2ui.org/specification/v0_9/standard_catalog_definition.json',
+              MCP_APP_CATALOG_ID,
             ],
           },
         },
@@ -134,28 +142,21 @@ if (isMainModule(import.meta.url) || process.env['pm_id']) {
 
 async function fetchWithCustomHeader(url: string | URL | Request, init?: RequestInit) {
   const headers = new Headers(init?.headers);
-  headers.set('X-A2A-Extensions', 'https://a2ui.org/a2a-extension/a2ui/v0.8');
+  headers.set('X-A2A-Extensions', 'https://a2ui.org/a2a-extension/a2ui/v0.9');
   const newInit = {...init, headers};
   return fetch(url, newInit);
 }
 
 async function createOrGetClient() {
-  // Create a client pointing to the agent's Agent Card URL.
-  client ??= await A2AClient.fromCardUrl('http://localhost:10006/.well-known/agent-card.json', {
-    fetchImpl: fetchWithCustomHeader,
-  });
-
-  return client;
-}
-
-function _isJson(str: string): boolean {
-  try {
-    const parsed = JSON.parse(str);
-    return typeof parsed === 'object' && parsed !== null && !Array.isArray(parsed);
-  } catch (err) {
-    console.warn(err);
-    return false;
+  if (!clientPromise) {
+    clientPromise = A2AClient.fromCardUrl('http://localhost:10006/.well-known/agent-card.json', {
+      fetchImpl: fetchWithCustomHeader,
+    }).catch(err => {
+      clientPromise = null;
+      throw err;
+    });
   }
+  return clientPromise;
 }
 
 export const reqHandler = createNodeRequestHandler(app);

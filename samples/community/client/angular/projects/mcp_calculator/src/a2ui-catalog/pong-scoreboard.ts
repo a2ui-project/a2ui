@@ -14,10 +14,8 @@
  * limitations under the License.
  */
 
-import {DynamicComponent} from '@a2ui/angular';
-import * as Primitives from '@a2ui/web_core/types/primitives';
-import * as Types from '@a2ui/web_core/types/types';
-import {ChangeDetectionStrategy, Component, computed, input} from '@angular/core';
+import {CatalogComponent} from '@a2ui/angular/v0_9';
+import {ChangeDetectionStrategy, Component, computed} from '@angular/core';
 
 @Component({
   selector: 'a2ui-pong-scoreboard',
@@ -124,14 +122,12 @@ import {ChangeDetectionStrategy, Component, computed, input} from '@angular/core
     </div>
   `,
 })
-export class PongScoreBoard extends DynamicComponent<Types.CustomNode> {
-  readonly playerScore = input<Primitives.NumberValue | null>();
+export class PongScoreBoard extends CatalogComponent<any> {
   protected readonly resolvedPlayerScore = computed<number>(
-    () => super.resolvePrimitive(this.playerScore() ?? null) ?? 0,
+    () => this.props()['playerScore']?.value() ?? 0,
   );
 
-  readonly cpuScore = input<Primitives.NumberValue | null>();
   protected readonly resolvedCpuScore = computed<number>(
-    () => super.resolvePrimitive(this.cpuScore() ?? null) ?? 0,
+    () => this.props()['cpuScore']?.value() ?? 0,
   );
 }

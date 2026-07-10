@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://a2ui.org/specification/v1_0/client_data_model.json",
   "title": "A2UI Client Data Model Schema",
-  "description": "Schema for attaching the client data model to A2A message metadata. This object should be placed in the `a2uiClientDataModel` field of the metadata.",
+  "description": "Schema for conveying the client data models for all active surfaces. This is used for bidirectional data synchronization between the client and the agent.",
   "type": "object",
   "properties": {
     "version": {

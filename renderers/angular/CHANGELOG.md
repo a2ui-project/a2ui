@@ -1,5 +1,17 @@
 ## Unreleased
 
+- (v0_9) Normalize Safari placeholder text color for `DateTimeInput` by updating CSS selectors for `.a2ui-date-time-input`.
+
+## 0.10.3
+
+- (v0_9) Export Angular test utilities under `@a2ui/angular/testing` and secondary entry point `@a2ui/angular/v0_9/testing`. [#1737](https://github.com/a2ui-project/a2ui/pull/1737)
+
+## 0.10.2
+
+- (v0_9) Align with signal implementation changes in `@a2ui/web_core`.
+
+## 0.10.1
+
 - (v0_8) Export `MarkdownRenderer` in public API of v0.8. [#1658](https://github.com/a2ui-project/a2ui/pull/1658)
 - (v0_9) Fix null de-referencing TypeError in `ComponentBinder` when `children` property is null or undefined. [#1472](https://github.com/a2ui-project/a2ui/pull/1472)
 - (v0_8) Fix Icon component to handle camelCase and TitleCase names by converting them to snake_case for `g-icon`.

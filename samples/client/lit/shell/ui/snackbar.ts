@@ -26,13 +26,13 @@ const DEFAULT_TIMEOUT = 8000;
 @customElement('ui-snackbar')
 export class Snackbar extends LitElement {
   @property({reflect: true, type: Boolean})
-  accessor active = false;
+  active = false;
 
   @property({reflect: true, type: Boolean})
-  accessor error = false;
+  error = false;
 
   @property()
-  accessor timeout = DEFAULT_TIMEOUT;
+  timeout = DEFAULT_TIMEOUT;
 
   #messages: SnackbarMessage[] = [];
   #timeout = 0;

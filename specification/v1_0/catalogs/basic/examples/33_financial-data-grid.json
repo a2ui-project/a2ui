@@ -18,81 +18,81 @@
           {
             "id": "root",
             "component": "Card",
-            "child": "main-column"
+            "child": "main_column"
           },
           {
-            "id": "main-column",
+            "id": "main_column",
             "component": "Column",
-            "children": ["header-row", "grid-list"],
+            "children": ["header_row", "grid_list"],
             "align": "stretch"
           },
           {
-            "id": "header-row",
+            "id": "header_row",
             "component": "Row",
-            "children": ["col-asset", "col-price", "col-change", "col-market-cap"],
+            "children": ["col_asset", "col_price", "col_change", "col_market_cap"],
             "align": "center"
           },
           {
-            "id": "col-asset",
+            "id": "col_asset",
             "component": "Text",
             "text": "Asset",
             "variant": "caption",
             "weight": 2
           },
           {
-            "id": "col-price",
+            "id": "col_price",
             "component": "Text",
             "text": "Price",
             "variant": "caption",
             "weight": 1
           },
           {
-            "id": "col-change",
+            "id": "col_change",
             "component": "Text",
             "text": "24h Change",
             "variant": "caption",
             "weight": 1
           },
           {
-            "id": "col-market-cap",
+            "id": "col_market_cap",
             "component": "Text",
             "text": "Market Cap",
             "variant": "caption",
             "weight": 1.5
           },
           {
-            "id": "grid-list",
+            "id": "grid_list",
             "component": "List",
             "children": {
               "path": "/assets",
-              "componentId": "row-template"
+              "componentId": "row_template"
             }
           },
           {
-            "id": "row-template",
+            "id": "row_template",
             "component": "Row",
-            "children": ["asset-info", "asset-price", "asset-change", "asset-market-cap"],
+            "children": ["asset_info", "asset_price", "asset_change", "asset_market_cap"],
             "align": "center"
           },
           {
-            "id": "asset-info",
+            "id": "asset_info",
             "component": "Row",
-            "children": ["asset-icon", "asset-name-col"],
+            "children": ["asset_icon", "asset_name_col"],
             "weight": 2,
             "align": "center"
           },
           {
-            "id": "asset-icon",
+            "id": "asset_icon",
             "component": "Icon",
             "name": "payment"
           },
           {
-            "id": "asset-name-col",
+            "id": "asset_name_col",
             "component": "Column",
-            "children": ["asset-name", "asset-symbol"]
+            "children": ["asset_name", "asset_symbol"]
           },
           {
-            "id": "asset-name",
+            "id": "asset_name",
             "component": "Text",
             "text": {
               "path": "name"
@@ -100,7 +100,7 @@
             "variant": "body"
           },
           {
-            "id": "asset-symbol",
+            "id": "asset_symbol",
             "component": "Text",
             "text": {
               "path": "symbol"
@@ -108,7 +108,7 @@
             "variant": "caption"
           },
           {
-            "id": "asset-price",
+            "id": "asset_price",
             "component": "Text",
             "text": {
               "call": "formatCurrency",
@@ -122,7 +122,7 @@
             "weight": 1
           },
           {
-            "id": "asset-change",
+            "id": "asset_change",
             "component": "Text",
             "text": {
               "call": "formatString",
@@ -133,7 +133,7 @@
             "weight": 1
           },
           {
-            "id": "asset-market-cap",
+            "id": "asset_market_cap",
             "component": "Text",
             "text": {
               "call": "formatCurrency",

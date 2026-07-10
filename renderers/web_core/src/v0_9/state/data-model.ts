@@ -16,7 +16,15 @@
 
 import {Subscription as BaseSubscription} from '../common/events.js';
 import {A2uiDataError} from '../errors.js';
-import {signal, Signal, batch, effect} from '@preact/signals-core';
+import {
+  signal,
+  Signal,
+  batchWrite,
+  effect,
+  getValue,
+  setValue,
+  peekValue,
+} from '../reactivity/signals.js';
 
 /**
  * Represents a reactive connection to a specific path in the data model.
@@ -183,10 +191,10 @@ export class DataModel {
   subscribe<T>(path: string, onChange: (value: T | undefined) => void): DataSubscription<T> {
     const sig = this.getSignal<T>(path);
     let isSync = true;
-    let currentValue = sig.peek();
+    let currentValue = peekValue(sig);
 
     const dispose = effect(() => {
-      const val = sig.value;
+      const val = getValue(sig);
       currentValue = val;
       if (!isSync) {
         onChange(val);
@@ -226,13 +234,16 @@ export class DataModel {
   }
 
   private parsePath(path: string): string[] {
-    return path.split('/').filter(p => p.length > 0);
+    return path
+      .split('/')
+      .filter(p => p.length > 0)
+      .map(p => p.replace(/~([01])/g, (_, g) => (g === '1' ? '/' : '~')));
   }
 
   private notifySignals(path: string): void {
     const normalizedPath = this.normalizePath(path);
 
-    batch(() => {
+    batchWrite(() => {
       this.updateSignal(normalizedPath);
 
       // Notify Ancestors
@@ -256,17 +267,17 @@ export class DataModel {
     if (sig) {
       const val = this.get(path);
       if (Array.isArray(val)) {
-        sig.value = [...val];
+        setValue(sig, [...val]);
       } else if (typeof val === 'object' && val !== null) {
-        sig.value = {...val};
+        setValue(sig, {...val});
       } else {
-        sig.value = val;
+        setValue(sig, val);
       }
     }
   }
 
   private notifyAllSignals(): void {
-    batch(() => {
+    batchWrite(() => {
       for (const path of this.signals.keys()) {
         this.updateSignal(path);
       }

@@ -14,8 +14,8 @@
     "genkit:dev": "genkit start -- tsx --watch src/dev.ts",
     "format": "prettier --write src/**/*.ts",
     "format:check": "prettier --check .",
-    "lint": "echo \"Workspace has no lint configuration.\"",
-    "lint:fix": "echo \"Workspace has no lint configuration.\""
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix"
   },
   "keywords": [],
   "author": "",
@@ -25,6 +25,8 @@
     "@types/node": "^25.9.3",
     "@types/yargs": "^17.0.35",
     "dotenv-cli": "^11.0.0",
+    "eslint": "^10.4.1",
+    "gts": "^7.0.0",
     "prettier": "^3.8.4",
     "tsx": "^4.22.4",
     "typescript": "5.9.3",

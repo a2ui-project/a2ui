@@ -29,10 +29,10 @@ class SurfaceModel:
         self,
         surface_id: str,
         catalog: Catalog[TComponent, TFunction],
-        theme: Dict[str, Any] = None,
+        theme: Optional[Dict[str, Any]] = None,
         send_data_model: bool = False,
-        data_model: DataModel = None,
-    ):
+        data_model: Optional[DataModel] = None,
+    ) -> None:
         self.id = surface_id
         self.catalog = catalog
         self.theme = theme or {}
@@ -60,9 +60,11 @@ class SurfaceModel:
             "name": event_payload.get("name", event_payload.get("call", "")),
             "surfaceId": self.id,
             "sourceComponentId": source_component_id,
-            "timestamp": datetime.datetime.now(datetime.timezone.utc)
-            .isoformat()
-            .replace("+00:00", "Z"),
+            "timestamp": (
+                datetime.datetime.now(datetime.timezone.utc)
+                .isoformat()
+                .replace("+00:00", "Z")
+            ),
             "context": event_payload.get("context", event_payload.get("args", {})),
         }
         self.on_action.emit(action_event)

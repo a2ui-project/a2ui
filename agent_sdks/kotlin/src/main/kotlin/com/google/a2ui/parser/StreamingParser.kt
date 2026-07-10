@@ -16,6 +16,8 @@
 
 package com.google.a2ui.parser
 
+import com.google.a2ui.exceptions.A2uiIntegrityException
+import com.google.a2ui.exceptions.A2uiParseException
 import com.google.a2ui.schema.A2uiCatalog
 import com.google.a2ui.schema.A2uiConstants
 import com.google.a2ui.schema.A2uiValidator
@@ -357,7 +359,7 @@ abstract class StreamingParser(
           val jsonFragment = buffer.substring(0, idx)
           processJsonChunk(jsonFragment, messages)
           if (!foundValidJsonInBlock) {
-            throw IllegalArgumentException(
+            throw A2uiParseException(
               "Failed to parse JSON: No valid JSON object found in A2UI block."
             )
           }
@@ -427,7 +429,7 @@ abstract class StreamingParser(
 
   protected fun processJsonChunk(chunk: String, messages: MutableList<ResponsePart>) {
     if (jsonBuffer.length + chunk.length > MAX_JSON_BUFFER_SIZE) {
-      throw IllegalArgumentException("A2UI JSON buffer exceeded maximum size limit.")
+      throw A2uiParseException("A2UI JSON buffer exceeded maximum size limit.")
     }
     for (i in chunk.indices) {
       val char = chunk[i]
@@ -875,7 +877,7 @@ abstract class StreamingParser(
       val componentsToAnalyze = seenComponents.values.toList()
 
       if (checkRoot && !seenComponents.containsKey(currentRootId)) {
-        throw IllegalArgumentException(
+        throw A2uiIntegrityException(
           "No root component (id='$currentRootId') found in $activeMsgType"
         )
       }
@@ -891,7 +893,7 @@ abstract class StreamingParser(
       val availableReachable = reachableIds.intersect(seenComponents.keys)
 
       if (checkRoot && availableReachable.isEmpty()) {
-        throw IllegalArgumentException(
+        throw A2uiIntegrityException(
           "No root component (id='$currentRootId') found in $activeMsgType"
         )
       }

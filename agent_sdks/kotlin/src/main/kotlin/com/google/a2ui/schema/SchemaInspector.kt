@@ -16,6 +16,7 @@
 
 package com.google.a2ui.schema
 
+import com.google.a2ui.exceptions.A2uiRecursionException
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
@@ -240,7 +241,7 @@ internal object SchemaInspector {
 
     for ((refId, fieldName) in getComponentReferences(comp, refFieldsMap)) {
       if (refId == compId) {
-        throw IllegalArgumentException(
+        throw A2uiRecursionException(
           "Self-reference detected: Component '$compId' references itself in field '$fieldName'"
         )
       }
@@ -265,7 +266,7 @@ internal object SchemaInspector {
     depth: Int,
   ) {
     if (depth > MAX_GLOBAL_DEPTH) {
-      throw IllegalArgumentException(
+      throw A2uiRecursionException(
         "Global recursion limit exceeded: logical depth > $MAX_GLOBAL_DEPTH"
       )
     }
@@ -277,9 +278,7 @@ internal object SchemaInspector {
       if (neighbor !in visited) {
         dfs(neighbor, visited, adjList, recursionStack, depth + 1)
       } else if (neighbor in recursionStack) {
-        throw IllegalArgumentException(
-          "Circular reference detected involving component '$neighbor'"
-        )
+        throw A2uiRecursionException("Circular reference detected involving component '$neighbor'")
       }
     }
 

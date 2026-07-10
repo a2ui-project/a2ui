@@ -13,23 +13,27 @@
 # limitations under the License.
 
 import copy
-from typing import Any, Dict, List, Optional
-from ..common.events import Signal
+from typing import Any, Dict, List, Optional, TYPE_CHECKING
+from ..common.events import Signal, Subscription
 from .component_node import ComponentNode
 from .component_model import ComponentModel
 from .surface_model import SurfaceModel
 from ..catalog import Catalog
 from ..validating import CatalogSchemaValidator
 
+if TYPE_CHECKING:
+    from ..rendering.generic_binder import GenericBinder
+
 
 class NodeGraph:
     """Manages the lifecycle and resolution of living ComponentNodes for a surface."""
 
-    def __init__(self, surface: SurfaceModel):
+    def __init__(self, surface: SurfaceModel) -> None:
         self.surface = surface
 
         self.rootNode: Signal[Optional[ComponentNode]] = Signal(None)
         self.active_nodes: Dict[str, ComponentNode] = {}
+        self.binders: Dict[str, "GenericBinder"] = {}
 
         self._comp_created_sub = self.surface.components_model.on_created.subscribe(
             self._on_component_created
@@ -60,8 +64,22 @@ class NodeGraph:
         if instance_id in self.active_nodes:
             return self.active_nodes[instance_id]
 
+        def collect_nodes(value: Any) -> set[ComponentNode]:
+            nodes = set()
+            if isinstance(value, ComponentNode):
+                nodes.add(value)
+            elif isinstance(value, list):
+                for item in value:
+                    nodes.update(collect_nodes(item))
+            elif isinstance(value, dict):
+                for v in value.values():
+                    nodes.update(collect_nodes(v))
+            elif isinstance(value, Signal):
+                nodes.update(collect_nodes(value.value))
+            return nodes
+
         component_model = self.surface.components_model.get(component_id)
-        props_signal = Signal({})
+        props_signal: Signal[Dict[str, Any]] = Signal({})
 
         if component_model:
             node = ComponentNode(
@@ -77,7 +95,11 @@ class NodeGraph:
 
         # If placeholder, it has no properties. It cleans itself from cache on disposal.
         if not component_model:
-            node.add_cleanup(lambda: self.active_nodes.pop(instance_id, None))
+
+            def cleanup_placeholder() -> None:
+                self.active_nodes.pop(instance_id, None)
+
+            node.add_cleanup(cleanup_placeholder)
             return node
 
         # Set up reactive context and binder
@@ -97,17 +119,17 @@ class NodeGraph:
         )
 
         binder = GenericBinder(comp_context)
-        node._binder = binder
+        self.binders[instance_id] = binder
 
-        child_nodes_by_prop = {}
-        template_subs = {}
+        child_nodes_by_prop: Dict[str, Any] = {}
+        template_subs: Dict[str, Subscription] = {}
 
         def on_properties_changed(resolved_props: Dict[str, Any]) -> None:
-            new_props = {}
+            new_props: Dict[str, Any] = {}
             for k, v in resolved_props.items():
                 new_props[k] = v
 
-            current_resolved = {}
+            current_resolved: Dict[str, Any] = {}
 
             # Wrap actions into closures
             for k, v in list(new_props.items()):
@@ -117,7 +139,7 @@ class NodeGraph:
                     action_payload = copy.deepcopy(v)
 
                     # Create closure wrapping resolution and dispatch
-                    def make_action_closure(payload=action_payload):
+                    def make_action_closure(payload: Any = action_payload) -> None:
                         resolved_payload = data_context.resolve_dynamic_value(payload)
                         self.surface.dispatch_action(resolved_payload, component_id)
 
@@ -128,7 +150,12 @@ class NodeGraph:
                 self.surface.catalog
             ).extract_ref_fields()
             comp_type = component_model.type if component_model else ""
-            single_refs, list_refs = ref_map.get(comp_type, (set(), set()))
+            ref_tuple = ref_map.get(comp_type)
+            if ref_tuple:
+                single_refs, list_refs = ref_tuple[0], ref_tuple[1]
+                nested_refs = getattr(ref_tuple, "nested_refs", {})
+            else:
+                single_refs, list_refs, nested_refs = set(), set(), {}
 
             # Resolve single-child references
             for single_ref in single_refs:
@@ -147,20 +174,52 @@ class NodeGraph:
                 if list_ref in new_props:
                     val = new_props[list_ref]
                     if isinstance(val, list):
-                        child_list = []
+                        child_list: List[Any] = []
                         for item in val:
                             if isinstance(item, str) and item:
                                 child_list.append(
                                     self.get_or_create_node(item, data_path)
                                 )
-                            elif isinstance(item, dict) and "child" in item:
-                                resolved_item = copy.deepcopy(item)
-                                item_child_id = item["child"]
-                                if isinstance(item_child_id, str) and item_child_id:
-                                    resolved_item["child"] = self.get_or_create_node(
-                                        item_child_id, data_path
+                            elif isinstance(item, dict) and "componentId" in item:
+                                cid = item["componentId"]
+                                if isinstance(cid, str) and cid:
+                                    child_list.append(
+                                        self.get_or_create_node(cid, data_path)
                                     )
-                                child_list.append(resolved_item)
+                                else:
+                                    child_list.append(item)
+                            elif isinstance(item, dict):
+                                resolved_item = copy.deepcopy(item)
+                                has_resolved = False
+                                for sub_key in nested_refs.get(list_ref, {"child"}):
+                                    if sub_key in item:
+                                        item_child_id = item[sub_key]
+                                        if (
+                                            isinstance(item_child_id, str)
+                                            and item_child_id
+                                        ):
+                                            resolved_item[sub_key] = (
+                                                self.get_or_create_node(
+                                                    item_child_id, data_path
+                                                )
+                                            )
+                                            has_resolved = True
+                                        elif (
+                                            isinstance(item_child_id, dict)
+                                            and "componentId" in item_child_id
+                                        ):
+                                            cid = item_child_id["componentId"]
+                                            if isinstance(cid, str) and cid:
+                                                resolved_item[sub_key] = (
+                                                    self.get_or_create_node(
+                                                        cid, data_path
+                                                    )
+                                                )
+                                                has_resolved = True
+                                if has_resolved:
+                                    child_list.append(resolved_item)
+                                else:
+                                    child_list.append(item)
                             else:
                                 child_list.append(item)
                         current_resolved[list_ref] = child_list
@@ -176,7 +235,7 @@ class NodeGraph:
                             template_subs[list_ref].unsubscribe()
                             del template_subs[list_ref]
 
-                        spawned_nodes_signal = Signal([])
+                        spawned_nodes_signal: Signal[List[ComponentNode]] = Signal([])
                         new_props[list_ref] = spawned_nodes_signal
 
                         def on_array_changed(array_data: Any) -> None:
@@ -210,19 +269,6 @@ class NodeGraph:
                         current_resolved[list_ref] = spawned_nodes_signal
 
             # Compare current_resolved with child_nodes_by_prop to dispose of no-longer-referenced nodes
-            def collect_nodes(value):
-                nodes = set()
-                if isinstance(value, ComponentNode):
-                    nodes.add(value)
-                elif isinstance(value, list):
-                    for item in value:
-                        nodes.update(collect_nodes(item))
-                elif isinstance(value, dict):
-                    for v in value.values():
-                        nodes.update(collect_nodes(v))
-                elif isinstance(value, Signal):
-                    nodes.update(collect_nodes(value.value))
-                return nodes
 
             old_referenced_nodes = collect_nodes(list(child_nodes_by_prop.values()))
             new_referenced_nodes = collect_nodes(list(current_resolved.values()))
@@ -240,25 +286,17 @@ class NodeGraph:
         # Subscribe node to binder updates
         binder_sub = binder.subscribe(on_properties_changed)
 
-        def cleanup_node():
+        def cleanup_node() -> None:
             binder_sub.unsubscribe()
             binder.dispose()
             for sub in list(template_subs.values()):
                 sub.unsubscribe()
             template_subs.clear()
 
-            for item in list(child_nodes_by_prop.values()):
-                if isinstance(item, ComponentNode):
-                    item.dispose()
-                elif isinstance(item, list):
-                    for node_in_list in item:
-                        if isinstance(node_in_list, ComponentNode):
-                            node_in_list.dispose()
-                        elif isinstance(node_in_list, dict) and isinstance(
-                            node_in_list.get("child"), ComponentNode
-                        ):
-                            node_in_list["child"].dispose()
+            for child_node in collect_nodes(list(child_nodes_by_prop.values())):
+                child_node.dispose()
             child_nodes_by_prop.clear()
+            self.binders.pop(instance_id, None)
             self.active_nodes.pop(instance_id, None)
 
         node.add_cleanup(cleanup_node)
@@ -288,10 +326,11 @@ class NodeGraph:
         for active_node in list(self.active_nodes.values()):
             if active_node.component_id == component_id:
                 continue
-            if hasattr(active_node, "_binder") and active_node._binder:
-                raw_props = active_node._binder.context.component_model.properties
+            binder = self.binders.get(active_node.instance_id)
+            if binder:
+                raw_props = binder.context.component_model.properties
                 if self._references_component(raw_props, component_id):
-                    active_node._binder._rebuild_all_bindings()
+                    binder._rebuild_all_bindings()
 
     def _on_component_deleted(self, component_id: str) -> None:
         # 1. Dispose all active nodes for the component
@@ -307,10 +346,11 @@ class NodeGraph:
 
         # 3. Rebuild references on other parents referencing this component
         for active_node in list(self.active_nodes.values()):
-            if hasattr(active_node, "_binder") and active_node._binder:
-                raw_props = active_node._binder.context.component_model.properties
+            binder = self.binders.get(active_node.instance_id)
+            if binder:
+                raw_props = binder.context.component_model.properties
                 if self._references_component(raw_props, component_id):
-                    active_node._binder._rebuild_all_bindings()
+                    binder._rebuild_all_bindings()
 
     def _references_component(self, raw_props: Any, target_id: str) -> bool:
         if raw_props == target_id:

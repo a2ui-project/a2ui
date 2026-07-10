@@ -33,8 +33,8 @@ samples/client/angular/projects/mcp_calculator/public/mcp_apps_inner_iframe/
 .yarn/cache
 
 ## Generated files for a2ui-in-mcpapps
-samples/mcp/a2ui-in-mcpapps/server/apps/dist
-samples/mcp/a2ui-in-mcpapps/server/apps/public
+samples/community/mcp/a2ui-in-mcpapps/server/apps/dist
+samples/community/mcp/a2ui-in-mcpapps/server/apps/public
 
 # Vite cache
 .vite/
@@ -47,6 +47,12 @@ worktrees/
 
 # Local-only scratch files.
 .local/
+
+# Locally symlinked SDD blueprint skills
+/.agents/skills/a2ui-blueprint-maintenance
+/.agents/skills/a2ui-blueprint-navigator
+/.agents/skills/a2ui-create-feature-blueprint
+/.agents/skills/a2ui-implement-feature-from-blueprint
 
 # Diagrams, produced by https://pub.dev/packages/layerlens.
 DEPS.md

@@ -41,7 +41,9 @@
             component:
               Card:
                 child: c1
-  expect_error: Circular reference detected
+  expect_error:
+    category: "RecursionError"
+    message: "Circular reference detected"
 
 - name: test_validator_0_9
   description: Tests validation of v0.9 messages.
@@ -64,24 +66,40 @@
         - createSurface:
             surfaceId: "123"
             catalogId: standard
-      expect_error: "'version' is a required property"
+      expect_error:
+        category: "ValidationError"
+        details:
+          - path: "messages.0.version"
+            code: "missing_field"
     - payload:
         - version: v0.8
           createSurface:
             surfaceId: "123"
             catalogId: standard
-      expect_error: "'v0.9' was expected"
+      expect_error:
+        category: "ValidationError"
+        details:
+          - path: "messages.0.version"
+            code: "invalid_value"
     - payload:
         - version: v0.9
           createSurface:
             surfaceId: 123
             catalogId: standard
-      expect_error: 123 is not of type 'string'
+      expect_error:
+        category: "ValidationError"
+        details:
+          - path: "messages.0.createSurface.surfaceId"
+            code: "type_mismatch"
     - payload:
         - version: v0.9
           createSurface:
             surfaceId: "123"
-      expect_error: "'catalogId' is a required property"
+      expect_error:
+        category: "ValidationError"
+        details:
+          - path: "messages.0.createSurface.catalogId"
+            code: "missing_field"
 
 - name: test_validator_0_8
   description: Tests validation of v0.8 messages.
@@ -367,7 +385,9 @@
             component:
               Text:
                 text: World
-  expect_error: "Duplicate component ID: c1"
+  expect_error:
+    category: "IntegrityError"
+    message: "Duplicate component ID: c1"
 
 - name: test_validate_duplicate_ids_v09
   description: Tests that duplicate IDs are detected in v0.9.
@@ -440,7 +460,9 @@
             component:
               Text:
                 text: hi
-  expect_error: Missing root component
+  expect_error:
+    category: "IntegrityError"
+    message: "Missing root component"
 
 - name: test_validate_missing_root_v09
   description: Tests that missing root component is detected in v0.9.
