@@ -3,7 +3,7 @@
 This guide shows you how to serve **rich, interactive A2UI interfaces** from an **MCP server** using Tools and Embedded Resources. By the end, you'll have a working MCP server that returns A2UI components to any MCP-compatible client.
 
 <video width="100%" height="auto" controls playsinline style="display: block; aspect-ratio: 16/9; object-fit: cover; border-radius: 8px; margin-bottom: 24px;">
-  <source src="https://raw.githubusercontent.com/a2ui-project/a2ui/main/docs/assets/guides-a2ui-over-mcp-tour.mp4" type="video/mp4">
+  <source src="https://raw.githubusercontent.com/a2ui-project/a2ui/main/docs/public/assets/guides-a2ui-over-mcp-tour.mp4" type="video/mp4">
   Your browser does not support the video tag.
 </video>
 
