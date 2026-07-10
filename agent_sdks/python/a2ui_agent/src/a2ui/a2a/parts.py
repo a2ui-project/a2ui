@@ -90,6 +90,8 @@ def parse_response_to_parts(
     validator: Optional[Any] = None,
     fallback_text: Optional[str] = None,
     version: Optional[str] = None,
+    format_strategy: Optional[Any] = None,
+    catalog: Optional[Any] = None,
 ) -> List[Part]:
     """Helper to parse LLM response content into A2A Parts, with optional validation.
 
@@ -98,15 +100,26 @@ def parse_response_to_parts(
         validator: Optional validator to run against extracted JSON payloads.
         fallback_text: Optional text to return if no parts are successfully created.
         version: Optional version string.
+        format_strategy: Optional InferenceFormat strategy.
+        catalog: Optional A2uiCatalog for non-JSON formats.
 
     Returns:
         A list of A2A Part objects (TextPart and/or DataPart).
     """
-    from a2ui.parser.parser import parse_response
+    from a2ui.formats import JsonInferenceFormat
+
+    strategy = format_strategy or JsonInferenceFormat()
 
     parts = []
     try:
-        response_parts = parse_response(content)
+        if isinstance(strategy, JsonInferenceFormat):
+            from a2ui.parser.parser import parse_response
+
+            response_parts = parse_response(content)
+        else:
+            if not catalog:
+                raise ValueError("A catalog is required to parse non-JSON formats.")
+            response_parts = strategy.parse_response(content, catalog)
 
         for part in response_parts:
             if part.text:
@@ -114,7 +127,7 @@ def parse_response_to_parts(
 
             if part.a2ui_json:
                 json_data = part.a2ui_json
-                if validator:
+                if validator and isinstance(strategy, JsonInferenceFormat):
                     validator.validate(json_data)
 
                 if isinstance(json_data, list):

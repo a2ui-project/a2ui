@@ -13,17 +13,13 @@
 # limitations under the License.
 
 import copy
-import json
-import logging
-import os
-import importlib.resources
 from typing import Any, Optional, Callable
-from dataclasses import dataclass, field
 from .utils import load_from_bundled_resource
 from ..inference_strategy import InferenceStrategy
 from .constants import *
 from .catalog import CatalogConfig, A2uiCatalog
 from a2ui.core import A2uiCatalogError
+from a2ui.formats import InferenceFormat, JsonInferenceFormat
 
 
 class A2uiSchemaManager(InferenceStrategy):
@@ -33,6 +29,7 @@ class A2uiSchemaManager(InferenceStrategy):
         self,
         version: str,
         catalogs: Optional[list[CatalogConfig]] = None,
+        format_strategy: Optional[InferenceFormat] = None,
         accepts_inline_catalogs: bool = False,
         schema_modifiers: Optional[
             list[Callable[[dict[str, Any]], dict[str, Any]]]
@@ -40,6 +37,7 @@ class A2uiSchemaManager(InferenceStrategy):
     ):
         self._version = version
         self._accepts_inline_catalogs = accepts_inline_catalogs
+        self._format_strategy = format_strategy or JsonInferenceFormat()
 
         self._server_to_client_schema: dict[str, Any] = {}
         self._common_types_schema: dict[str, Any] = {}
@@ -220,13 +218,13 @@ class A2uiSchemaManager(InferenceStrategy):
         include_schema: bool = False,
         include_examples: bool = False,
         validate_examples: bool = False,
+        format_strategy: Optional[InferenceFormat] = None,
     ) -> str:
         """Assembles the final system instruction for the LLM."""
         parts = [role_description]
 
-        workflow = DEFAULT_WORKFLOW_RULES
-        if workflow_description:
-            workflow += f"\n{workflow_description}"
+        strategy = format_strategy or self._format_strategy
+        workflow = strategy.generate_workflow_rules(workflow_description)
         parts.append(f"## Workflow Description:\n{workflow}")
 
         if ui_description:
@@ -237,13 +235,16 @@ class A2uiSchemaManager(InferenceStrategy):
         )
 
         if include_schema:
-            parts.append(selected_catalog.render_as_llm_instructions())
+            parts.append(strategy.generate_instructions(selected_catalog))
 
         if include_examples:
             examples_str = self.load_examples(
                 selected_catalog, validate=validate_examples
             )
             if examples_str:
-                parts.append(f"### Examples:\n{examples_str}")
+                formatted_examples = strategy.transform_examples(
+                    examples_str, selected_catalog
+                )
+                parts.append(f"### Examples:\n{formatted_examples}")
 
         return "\n\n".join(parts)
