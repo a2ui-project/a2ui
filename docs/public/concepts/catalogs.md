@@ -6,9 +6,9 @@ This guide defines the A2UI Catalog architecture and provides a roadmap for impl
 
 ## Catalog Schema
 
-A catalog schema is a [JSON Schema file](../../specification/v0_9/json/client_capabilities.json#L62C5-L95C6) outlining the components, functions, and themes that agents can use to define A2UI surfaces using server-driven UI. All A2UI JSON sent from the agent is validated against the chosen catalog.
+A catalog schema is a [JSON Schema file](../../../specification/v0_9/json/client_capabilities.json#L62C5-L95C6) outlining the components, functions, and themes that agents can use to define A2UI surfaces using server-driven UI. All A2UI JSON sent from the agent is validated against the chosen catalog.
 
-[Catalog JSON Schema](../../specification/v0_9/json/client_capabilities.json#L62C5-L95C6) is below
+[Catalog JSON Schema](../../../specification/v0_9/json/client_capabilities.json#L62C5-L95C6) is below
 
 ```json
 {
@@ -57,7 +57,7 @@ Whether you are building a simple prototype or a complex production application,
 
 ### The Basic Catalog
 
-To help developers get started quickly, the A2UI team maintains the [Basic Catalog](../../specification/v0_9/catalogs/basic/catalog.json).
+To help developers get started quickly, the A2UI team maintains the [Basic Catalog](../../../specification/v0_9/catalogs/basic/catalog.json).
 
 This is a pre-defined catalog file that contains a basic set of general-purpose components (Buttons, Inputs, Cards) and functions. It is not a special "type" of catalog; it is simply a version of a catalog that we have already written and have open source renderers for.
 
@@ -65,7 +65,7 @@ The basic catalog allows you to bootstrap an application or validate A2UI concep
 
 Since A2UI is designed for LLMs to generate the UI at either design time or runtime, we do not think portability requires a standardized catalog across multiple clients; the LLM can interpret the catalog for each individual frontend.
 
-[See the A2UI v0.9 basic catalog](../../specification/v0_9/catalogs/basic/catalog.json)
+[See the A2UI v0.9 basic catalog](../../../specification/v0_9/catalogs/basic/catalog.json)
 
 ### Defining Your Own Catalog
 
@@ -75,7 +75,7 @@ By defining your own catalog, you restrict the agent to using exactly the compon
 
 For simplicity we recommend building catalogs that directly reflect a client's design system rather than trying to map the Basic Catalog to it through an adapter. Since A2UI is designed for GenUI, we expect the LLM can interpret different catalogs for different clients.
 
-[See an example Rizzcharts catalog](../../samples/community/agent/adk/rizzcharts/catalog_schemas/0.9/rizzcharts_catalog_definition.json)
+[See an example Rizzcharts catalog](../../../samples/community/agent/adk/rizzcharts/catalog_schemas/0.9/rizzcharts_catalog_definition.json)
 
 ### Recommendations
 
@@ -86,7 +86,7 @@ For simplicity we recommend building catalogs that directly reflect a client's d
 
 ## Building a Catalog
 
-A catalog is a JSON Schema file that conforms to the [Catalog schema](../../specification/v0_9/json/client_capabilities.json#L62C5-L95C6) that defines the components, themes and functions an agent can use when building a surface.
+A catalog is a JSON Schema file that conforms to the [Catalog schema](../../../specification/v0_9/json/client_capabilities.json#L62C5-L95C6) that defines the components, themes and functions an agent can use when building a surface.
 
 ### Example: A Minimal Catalog
 
@@ -259,7 +259,7 @@ export class HelloWorldBanner extends DynamicComponent {
 }
 ```
 
-You can see a working example of a client renderer in the [Orchestrator demo](../../samples/community/client/angular/projects/orchestrator/src/a2ui-catalog/catalog.ts).
+You can see a working example of a client renderer in the [Orchestrator demo](../../../samples/community/client/angular/projects/orchestrator/src/a2ui-catalog/catalog.ts).
 
 ## A2UI Catalog Negotiation
 
@@ -445,4 +445,4 @@ Example of client reporting a missing required field
 
 ## Inline Catalogs
 
-Inline catalogs sent by the client at runtime are supported but not recommended in production. More details about them can be found [here](../../specification/v0_9/docs/a2ui_protocol.md#client-capabilities--metadata).
+Inline catalogs sent by the client at runtime are supported but not recommended in production. More details about them can be found [here](../../../specification/v0_9/docs/a2ui_protocol.md#client-capabilities--metadata).

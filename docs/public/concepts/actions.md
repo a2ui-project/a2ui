@@ -4,10 +4,10 @@ This guide explains how A2UI handles user interactions. Components use the `acti
 
 ## Action Architecture
 
-Actions allow UI components to trigger behavior defined in the [`Action`](../../specification/v0_9/json/common_types.json#L271-L313) schema in `common_types.json`. Actions can trigger:
+Actions allow UI components to trigger behavior defined in the [`Action`](../../../specification/v0_9/json/common_types.json#L271-L313) schema in `common_types.json`. Actions can trigger:
 
 1.  **Events**: Dispatched to the Agent for processing (executed on Agent, e.g., clicking "Submit").
-2.  **Functions**: Executed entirely on the renderer using [`FunctionCall`](../../specification/v0_9/json/common_types.json#L200-L242) (executed on Renderer, e.g., opening a URL).
+2.  **Functions**: Executed entirely on the renderer using [`FunctionCall`](../../../specification/v0_9/json/common_types.json#L200-L242) (executed on Renderer, e.g., opening a URL).
 
 ### 1. Functions (Local)
 
@@ -62,7 +62,7 @@ NOTE: **Context vs. Data Model**: While the Data Model represents the entire sta
 
 ### Basic Catalog Function Validation (Checks)
 
-The basic catalog defines a limited set of checks that can be performed on the renderer. Interactive components can define a list of `checks` (using the [`Checkable`](../../specification/v0_9/json/common_types.json#L258-L270) schema in `common_types.json`). For a `Button`, if any check fails, the button is **automatically disabled** on the renderer.
+The basic catalog defines a limited set of checks that can be performed on the renderer. Interactive components can define a list of `checks` (using the [`Checkable`](../../../specification/v0_9/json/common_types.json#L258-L270) schema in `common_types.json`). For a `Button`, if any check fails, the button is **automatically disabled** on the renderer.
 
 - **UX Focus**: Validation checks are designed to manage **UI State (User Experience)** by preventing invalid interactions before they happen. They are not a replacement for **Data Integrity** checks, which must still be performed on the agent.
 
@@ -112,7 +112,7 @@ This separation allows for a robust form submission pattern:
 When a user interacts with a component (e.g., clicks a button):
 
 1.  **Resolve**: The renderer resolves all `path` references in the `context` against the local **Data Model**.
-2.  **Construct**: The renderer builds an `action` payload conforming to [`client_to_server.json`](../../specification/v0_9/json/client_to_server.json).
+2.  **Construct**: The renderer builds an `action` payload conforming to [`client_to_server.json`](../../../specification/v0_9/json/client_to_server.json).
 3.  **Dispatch**: The payload is sent via the chosen transport (e.g., A2A, WebSockets).
 
 ### Example: The Action Payload (v0.9)
@@ -154,7 +154,7 @@ if action_name == "submit_reservation":
 
 ## Renderer-to-Agent Error Reporting
 
-In addition to Events triggered by the user, the renderer can report system-level errors back to the agent using the `error` payload defined in [`client_to_server.json`](../../specification/v0_9/json/client_to_server.json).
+In addition to Events triggered by the user, the renderer can report system-level errors back to the agent using the `error` payload defined in [`client_to_server.json`](../../../specification/v0_9/json/client_to_server.json).
 
 ### Validation Failures
 
