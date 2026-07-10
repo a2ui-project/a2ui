@@ -305,14 +305,35 @@ class ElementalCompiler:
                 )
                 self.container_tags.add(kebab_name)
 
-    def _resolve_action_property_name(self, name: str, properties: List[str]) -> str:
+    def _resolve_action_property_name(
+        self, name: str, comp_name: str, properties: list[str]
+    ) -> str:
         """Maps React-like event names (onclick, onSubmitAction) back to catalog properties (action, submitAction)."""
-        if name == "onclick" and "action" in properties and "onclick" not in properties:
-            return "action"
+        action_props = []
+        for p in properties:
+            p_schema = self.helper.get_property_schema(comp_name, p)
+            if p_schema and _is_action_property(p_schema):
+                action_props.append(p)
+
+        if name.lower() == "onclick":
+            if "onclick" in properties:
+                return "onclick"
+            if not action_props:
+                raise ValueError(
+                    f"Component '{comp_name}' does not accept any action properties, "
+                    "but 'onclick' was specified."
+                )
+            return action_props[0]
+
         if name.startswith("on") and len(name) > 2:
+            if name in properties:
+                return name
             camel_action = name[2].lower() + name[3:]
-            if camel_action in properties and name not in properties:
+            if camel_action in properties:
                 return camel_action
+            for p in properties:
+                if p.lower() == camel_action.lower():
+                    return p
         return name
 
     def compile(
@@ -570,7 +591,9 @@ class ElementalCompiler:
             prop_name = prop_parts[0] + "".join(p.capitalize() for p in prop_parts[1:])
 
             # Map TS/HTML action names back to catalog properties
-            prop_name = self._resolve_action_property_name(prop_name, properties)
+            prop_name = self._resolve_action_property_name(
+                prop_name, comp_name, properties
+            )
 
             if comp_name in self.helper.components and prop_name not in properties:
                 continue
@@ -685,7 +708,7 @@ class ElementalCompiler:
                     slot_name = child.attrs.get("slot")
                     if slot_name:
                         slot_name = self._resolve_action_property_name(
-                            slot_name, properties
+                            slot_name, comp_name, properties
                         )
                         try:
                             comp_dict[slot_name] = json.loads(child.text.strip())
@@ -704,7 +727,7 @@ class ElementalCompiler:
                     slot_name = child.attrs.get("slot")
                     if slot_name:
                         slot_name = self._resolve_action_property_name(
-                            slot_name, properties
+                            slot_name, comp_name, properties
                         )
                         try:
                             comp_dict[slot_name] = json.loads(child.text.strip())
@@ -720,7 +743,7 @@ class ElementalCompiler:
                     slot_name = child.attrs.get("slot")
                     if slot_name:
                         slot_name = self._resolve_action_property_name(
-                            slot_name, properties
+                            slot_name, comp_name, properties
                         )
                         if slot_name in properties:
                             slot_schema = self.helper.get_property_schema(

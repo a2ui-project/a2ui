@@ -368,7 +368,10 @@ class ElementalDecompiler:
                 if len(action_props) == 1:
                     kebab_name = "onclick"
                 else:
-                    kebab_name = f"on-{kebab_name}"
+                    if not (
+                        kebab_name.startswith("on-") or kebab_name.startswith("on")
+                    ):
+                        kebab_name = f"on-{kebab_name}"
 
         if isinstance(val, str):
             escaped = html.escape(val, quote=True)
