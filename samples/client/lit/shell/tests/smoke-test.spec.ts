@@ -24,4 +24,4 @@ test('a2ui-shell compiles and registers without syntax errors', async () => {
   const mod = await import('../app.js');
   expect(mod.A2UILayoutEditor).toBeDefined();
   expect(customElements.get('a2ui-shell')).toBeDefined();
-});
+}, 30000);

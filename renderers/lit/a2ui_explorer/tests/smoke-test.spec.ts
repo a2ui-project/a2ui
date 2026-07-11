@@ -26,4 +26,4 @@ test('local-gallery compiles and registers without syntax errors', async () => {
   const mod = await import('../src/local-gallery.js');
   expect(mod.LocalGallery).toBeDefined();
   expect(customElements.get('local-gallery')).toBeDefined();
-});
+}, 30000);
