@@ -54,7 +54,7 @@ describe('MessageProcessor', () => {
       const cat = new Catalog('cat-1', [buttonApi]);
       const proc = new MessageProcessor([cat]);
 
-      const caps = proc.getClientCapabilities({includeInlineCatalogs: true});
+      const caps = proc.getClientCapabilities({includeInlineCatalogs: true}) as {'v0.9': any};
       const inlineCat = caps['v0.9'].inlineCatalogs![0];
 
       assert.strictEqual(inlineCat.catalogId, 'cat-1');
@@ -77,7 +77,7 @@ describe('MessageProcessor', () => {
       const cat = new Catalog('cat-ref', [customApi]);
       const proc = new MessageProcessor([cat]);
 
-      const caps = proc.getClientCapabilities({includeInlineCatalogs: true});
+      const caps = proc.getClientCapabilities({includeInlineCatalogs: true}) as {'v0.9': any};
       const titleSchema =
         caps['v0.9'].inlineCatalogs![0].components!.Custom.allOf[1].properties.title;
 
@@ -111,7 +111,7 @@ describe('MessageProcessor', () => {
       const cat = new Catalog('cat-full', [buttonApi], [addFn], themeSchema);
       const proc = new MessageProcessor([cat]);
 
-      const caps = proc.getClientCapabilities({includeInlineCatalogs: true});
+      const caps = proc.getClientCapabilities({includeInlineCatalogs: true}) as {'v0.9': any};
       const inlineCat = caps['v0.9'].inlineCatalogs![0];
 
       assert.strictEqual(inlineCat.catalogId, 'cat-full');
@@ -135,7 +135,7 @@ describe('MessageProcessor', () => {
       const compApi: ComponentApi = {name: 'EmptyComp', schema: z.object({})};
       const cat = new Catalog('cat-empty', [compApi]);
       const proc = new MessageProcessor([cat]);
-      const caps = proc.getClientCapabilities({includeInlineCatalogs: true});
+      const caps = proc.getClientCapabilities({includeInlineCatalogs: true}) as {'v0.9': any};
       const inlineCat = caps['v0.9'].inlineCatalogs![0];
 
       assert.strictEqual(inlineCat.catalogId, 'cat-empty');
@@ -158,7 +158,7 @@ describe('MessageProcessor', () => {
       };
       const cat = new Catalog('cat-deep', [deepApi]);
       const proc = new MessageProcessor([cat]);
-      const caps = proc.getClientCapabilities({includeInlineCatalogs: true});
+      const caps = proc.getClientCapabilities({includeInlineCatalogs: true}) as {'v0.9': any};
 
       const properties = caps['v0.9'].inlineCatalogs![0].components!.DeepComp.allOf[1].properties;
       const actionSchema = properties.items.items.properties.action;
@@ -178,7 +178,7 @@ describe('MessageProcessor', () => {
       };
       const cat = new Catalog('cat-edge', [edgeApi]);
       const proc = new MessageProcessor([cat]);
-      const caps = proc.getClientCapabilities({includeInlineCatalogs: true});
+      const caps = proc.getClientCapabilities({includeInlineCatalogs: true}) as {'v0.9': any};
 
       const properties = caps['v0.9'].inlineCatalogs![0].components!.EdgeComp.allOf[1].properties;
 
@@ -203,7 +203,7 @@ describe('MessageProcessor', () => {
       const cat2 = new Catalog('cat-2', [], [addFn], themeSchema);
 
       const proc = new MessageProcessor([cat1, cat2]);
-      const caps = proc.getClientCapabilities({includeInlineCatalogs: true});
+      const caps = proc.getClientCapabilities({includeInlineCatalogs: true}) as {'v0.9': any};
 
       assert.strictEqual(caps['v0.9'].inlineCatalogs!.length, 2);
 
@@ -296,6 +296,25 @@ describe('MessageProcessor', () => {
       },
     ]);
     assert.strictEqual(processor.getClientDataModel(), undefined);
+  });
+
+  it('uses configured processor version for getClientCapabilities and getClientDataModel', () => {
+    const v091Proc = new MessageProcessor([testCatalog], undefined, {version: 'v0.9.1'});
+    assert.strictEqual(v091Proc.version, 'v0.9.1');
+
+    const caps: any = v091Proc.getClientCapabilities();
+    assert.ok(caps['v0.9.1']);
+    assert.strictEqual(caps['v0.9'], undefined);
+
+    v091Proc.processMessages([
+      {
+        version: 'v0.9.1',
+        createSurface: {surfaceId: 's1', catalogId: 'test-catalog', sendDataModel: true},
+      },
+    ]);
+    const dataModel = v091Proc.getClientDataModel();
+    assert.ok(dataModel);
+    assert.strictEqual(dataModel.version, 'v0.9.1');
   });
 
   it('updates components on correct surface', () => {
