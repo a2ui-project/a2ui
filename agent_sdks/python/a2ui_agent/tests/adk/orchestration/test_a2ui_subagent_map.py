@@ -19,6 +19,7 @@ from google.adk.sessions.state import State
 from google.adk.sessions.session import Session
 
 from a2ui.adk.orchestration.a2ui_subagent_map import A2uiSubagentMap, SurfaceIdAlreadyExistsError
+from a2ui.schema.constants import A2UI_CLIENT_DATA_MODEL_SURFACES_KEY
 from a2a.types import DataPart, TextPart
 
 
@@ -348,6 +349,91 @@ class TestA2uiSubagentMap(unittest.IsolatedAsyncioTestCase):
 
         mock_set_subagent.assert_not_called()
         mock_remove_subagent.assert_not_called()
+
+    @patch("a2ui.adk.orchestration.a2ui_subagent_map.logging")
+    async def test_strip_unowned_surfaces_no_surfaces_key(self, mock_logging):
+        client_data_model = {"other_key": "value"}
+        state = {}
+
+        await A2uiSubagentMap.strip_unowned_surfaces_from_data_model(
+            "subagent_a", client_data_model, state
+        )
+
+        mock_logging.warning.assert_called_with(
+            "'Surfaces' not found in client data model dict"
+        )
+        self.assertEqual(client_data_model, {"other_key": "value"})
+
+    @patch("a2ui.adk.orchestration.a2ui_subagent_map.logging")
+    async def test_strip_unowned_surfaces_empty_surfaces(self, mock_logging):
+        client_data_model = {A2UI_CLIENT_DATA_MODEL_SURFACES_KEY: {}}
+        state = {}
+
+        await A2uiSubagentMap.strip_unowned_surfaces_from_data_model(
+            "subagent_a", client_data_model, state
+        )
+
+        mock_logging.warning.assert_not_called()
+        self.assertEqual(client_data_model, {A2UI_CLIENT_DATA_MODEL_SURFACES_KEY: {}})
+
+    @patch("a2ui.adk.orchestration.a2ui_subagent_map.logging")
+    async def test_strip_unowned_surfaces_no_subagent_name(self, mock_logging):
+        client_data_model = {
+            A2UI_CLIENT_DATA_MODEL_SURFACES_KEY: {"surface_1": {}, "surface_2": {}}
+        }
+        state = {}
+
+        await A2uiSubagentMap.strip_unowned_surfaces_from_data_model(
+            None, client_data_model, state
+        )
+
+        mock_logging.warning.assert_called_with(
+            "No subagent name provided. Stripped all 2 surfaces from data model."
+        )
+        self.assertEqual(client_data_model, {A2UI_CLIENT_DATA_MODEL_SURFACES_KEY: {}})
+
+    @patch.object(A2uiSubagentMap, "get_subagent_name")
+    async def test_strip_unowned_surfaces_with_subagent(self, mock_get_subagent_name):
+        client_data_model = {
+            A2UI_CLIENT_DATA_MODEL_SURFACES_KEY: {
+                "surface_1": {"data": "1"},
+                "surface_2": {"data": "2"},
+                "surface_3": {"data": "3"},
+            }
+        }
+        state = {}
+
+        async def mock_get_subagent(sid, s):
+            mapping = {
+                "surface_1": "subagent_a",
+                "surface_2": "subagent_b",
+                "surface_3": "subagent_a",
+            }
+            return mapping.get(sid)
+
+        mock_get_subagent_name.side_effect = mock_get_subagent
+
+        # Test stripping for subagent_a
+        await A2uiSubagentMap.strip_unowned_surfaces_from_data_model(
+            "subagent_a", client_data_model, state
+        )
+
+        # Original dictionary should have been mutated in place (surface_2 removed)
+        self.assertEqual(
+            client_data_model,
+            {
+                A2UI_CLIENT_DATA_MODEL_SURFACES_KEY: {
+                    "surface_1": {"data": "1"},
+                    "surface_3": {"data": "3"},
+                }
+            },
+        )
+
+        # Ensure we can run it again on the mutated dictionary for subagent_b (should remove everything left)
+        await A2uiSubagentMap.strip_unowned_surfaces_from_data_model(
+            "subagent_b", client_data_model, state
+        )
+        self.assertEqual(client_data_model, {A2UI_CLIENT_DATA_MODEL_SURFACES_KEY: {}})
 
 
 if __name__ == "__main__":
