@@ -43,7 +43,6 @@ class ElementalParser(Parser):
             "Streaming parsing is not supported for Elemental HTML."
         )
 
-
     def has_a2ui_parts(self, content: str) -> bool:
         return "<a2ui" in content
 
