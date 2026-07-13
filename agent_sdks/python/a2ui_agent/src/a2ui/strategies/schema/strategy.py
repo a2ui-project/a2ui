@@ -52,7 +52,9 @@ class A2uiSchemaManager(InferenceStrategy):
     def parser(self) -> Parser:
         """Returns the Parser instance for this strategy."""
         if not self._supported_catalogs:
-            raise ValueError("No supported catalogs configured for the schema strategy.")
+            raise ValueError(
+                "No supported catalogs configured for the schema strategy."
+            )
         default_catalog = self._supported_catalogs[0]
         return A2uiSchemaParser(
             default_catalog,
