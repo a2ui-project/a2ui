@@ -30,16 +30,10 @@ class Parser(ABC):
         """Processes a streamed token chunk (incremental parsing)."""
         pass
 
-    @property
-    def open_tag_prefix(self) -> str:
-        """The opening tag prefix to match in token stream (e.g. '<a2ui-json', '<a2ui')."""
-        from a2ui.schema.constants import A2UI_OPEN_TAG
-
-        return A2UI_OPEN_TAG.rstrip(">")
-
+    @abstractmethod
     def has_a2ui_parts(self, content: str) -> bool:
         """Checks if the content contains formatted structured blocks for this parser."""
-        return self.open_tag_prefix in content
+        pass
 
 
 class InferenceStrategy(ABC):

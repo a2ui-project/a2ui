@@ -41,6 +41,9 @@ class ExpressParser(Parser):
         """Express DSL is parsed as a whole script block; streaming is not supported."""
         raise NotImplementedError("Streaming parsing is not supported for Express DSL.")
 
+    def has_a2ui_parts(self, content: str) -> bool:
+        return "<a2ui" in content
+
 
 @experimental
 class ExpressInferenceStrategy(InferenceStrategy):

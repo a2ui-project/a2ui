@@ -22,9 +22,6 @@ from a2ui.experimental.elemental import ElementalInferenceStrategy, ElementalPar
 from a2ui.adk.a2a.part_converter import A2uiPartConverter
 from google.genai import types as genai_types
 
-    def has_a2ui_parts(self, content: str) -> bool:
-        return "mock" in content
-
 
 @pytest.fixture
 def test_catalog():
@@ -144,7 +141,6 @@ def test_strategy_based_converters(test_catalog, monkeypatch):
     parts_json = json_converter.convert(part_json)
     assert len(parts_json) == 1
 
-    # Test Express dynamically by passing the ExpressParser directly
     test_catalog_v1_0 = A2uiCatalog(
         version=VERSION_1_0,
         name="test_catalog",
@@ -157,6 +153,7 @@ def test_strategy_based_converters(test_catalog, monkeypatch):
             "$id": "https://a2ui.org/common.json",
         },
         catalog_schema=test_catalog.catalog_schema,
+        experiments=frozenset({"version_1_0"}),
     )
 
     express_parser = ExpressParser(test_catalog_v1_0)
