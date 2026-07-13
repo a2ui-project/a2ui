@@ -31,7 +31,7 @@ class A2uiSchemaParser(Parser):
     ):
         self._catalog = catalog
         self._validator = validator
-        self._stream_parser = None
+        self._stream_parser: Optional[A2uiStreamParser] = None
 
     def parse_response(self, content: str) -> List[ResponsePart]:
         """Parses standard A2UI JSON tags in LLM responses."""

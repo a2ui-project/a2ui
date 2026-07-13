@@ -30,8 +30,7 @@ from a2ui.core import A2uiValidationError, A2uiCatalogError
 
 
 if TYPE_CHECKING:
-    from .catalog import A2uiCatalog
-
+    from a2ui.schema.catalog import A2uiCatalog
 
 def extract_component_required_fields(catalog: A2uiCatalog) -> Dict[str, Set[str]]:
     if catalog.version == VERSION_0_8:

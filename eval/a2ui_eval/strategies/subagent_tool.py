@@ -31,7 +31,7 @@ from inspect_ai.model import (
 )
 from inspect_ai.tool import tool, Tool
 from inspect_ai.util import store
-from a2ui.schema.manager import A2uiSchemaManager
+from a2ui.strategies.schema import A2uiSchemaManager
 from a2ui.schema.catalog import CatalogConfig
 from a2ui.parser.parser import parse_response
 from ..shared.utils import GIT_ROOT, measured_generate
@@ -54,7 +54,11 @@ def a2ui_specialist() -> Tool:
         resolved_catalog_path = str(GIT_ROOT / catalog_path)
 
         catalog_config = CatalogConfig.from_path("basic_catalog", resolved_catalog_path)
-        manager = A2uiSchemaManager(version=version, catalogs=[catalog_config])
+        manager = A2uiSchemaManager(
+            version=version,
+            catalogs=[catalog_config],
+            experiments={"version_1_0"},
+        )
 
         role_description = store().get("role_description")
         workflow_description = store().get("workflow_description")

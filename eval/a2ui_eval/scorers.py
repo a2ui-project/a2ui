@@ -20,7 +20,7 @@ import time
 from inspect_ai.scorer import scorer, Score, Target, accuracy, model_graded_qa
 from inspect_ai.solver import TaskState
 from inspect_ai.model._model import sample_model_usage
-from a2ui.schema.manager import A2uiSchemaManager
+from a2ui.strategies.schema import A2uiSchemaManager
 from a2ui.schema.catalog import CatalogConfig
 from a2ui.parser.parser import parse_response
 from .shared.utils import GIT_ROOT

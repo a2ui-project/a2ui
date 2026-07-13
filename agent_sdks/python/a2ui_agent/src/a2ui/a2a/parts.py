@@ -108,6 +108,8 @@ def parse_response_to_parts(
         A list of A2A Part objects (TextPart and/or DataPart).
     """
     if parser is None:
+        if catalog is None:
+            raise ValueError("catalog is required when parser is None.")
         from a2ui.strategies.schema.parser import A2uiSchemaParser
 
         parser = A2uiSchemaParser(catalog)
