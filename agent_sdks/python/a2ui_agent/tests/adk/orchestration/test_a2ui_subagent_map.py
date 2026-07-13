@@ -360,7 +360,7 @@ class TestA2uiSubagentMap(unittest.IsolatedAsyncioTestCase):
         )
 
         mock_logging.warning.assert_called_with(
-            "'Surfaces' not found in client data model dict"
+            "'Surfaces' not found in client data model"
         )
         self.assertEqual(client_data_model, {"other_key": "value"})
 
