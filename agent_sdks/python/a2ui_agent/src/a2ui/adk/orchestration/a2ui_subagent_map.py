@@ -73,7 +73,7 @@ Usage Examples:
 """
 
 import logging
-from typing import Optional
+from typing import Optional, Any
 from google.adk.agents.invocation_context import new_invocation_context_id
 from google.adk.events.event import Event
 from google.adk.events.event_actions import EventActions
@@ -310,7 +310,7 @@ class A2uiSubagentMap:
 
     @classmethod
     async def strip_unowned_surfaces_from_data_model(
-        cls, subagent_name: Optional[str], client_data_model: dict, state: State
+        cls, subagent_name: Optional[str], client_data_model: dict[str, Any], state: State
     ) -> None:
         """Strips data model surfaces not owned by the given subagent in place.
 

@@ -351,10 +351,10 @@ from google.genai import types as genai_types
 from google.adk.agents.remote_a2a_agent import convert_genai_part_to_a2a_part
 
 async def route_client_event(callback_context: CallbackContext, llm_request: LlmRequest):
-    a2a_part = convert_genai_part_to_a2a_part(llm_request.contents[-1].parts[-1]) # Assume response has a single a2a part 
-    
+    a2a_part = convert_genai_part_to_a2a_part(llm_request.contents[-1].parts[-1]) # Assume response has a single a2a part
+
     target_agent = await A2uiSubagentMap.get_subagent_name_for_client_event(
-        a2a_part, 
+        a2a_part,
         callback_context.state
     )
 
@@ -396,7 +396,7 @@ from a2a.types import AgentCard
 class A2UIMetadataInterceptor(ClientCallInterceptor):
     async def intercept(self, request_payload: dict, agent_card: AgentCard, context: ClientCallContext):
         message = request_payload.get("params", {}).get("message")
-        
+
         # Strip the data model to prevent data leakage
         if data_model := message.get("metadata", {}).get("a2uiClientDataModel"):
             await A2uiSubagentMap.strip_unowned_surfaces_from_data_model(
