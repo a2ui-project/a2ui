@@ -14,7 +14,7 @@
 
 import json
 import re
-from typing import List, Any, Optional
+from typing import Any, Optional
 from a2ui.schema.catalog import A2uiCatalog
 from a2ui.parser.response_part import ResponsePart
 from a2ui.formats import InferenceFormat
@@ -36,6 +36,14 @@ class ExpressInferenceFormat(InferenceFormat):
     ):
         super().__init__(catalog, surface_id)
         self._prompt_gen = ExpressPromptGenerator(catalog) if catalog else None
+        self._decompiler = ExpressDecompiler(catalog) if catalog else None
+
+    def _ensure_catalog(self) -> None:
+        if not self.catalog or not self._decompiler:
+            raise ValueError(
+                f"Catalog is required for parsing and decompiling in {self.name}"
+                " format."
+            )
 
     @property
     def name(self) -> str:
@@ -133,11 +141,7 @@ IMPORTANT: You must ALWAYS output A2UI Express DSL notation wrapped inside `<a2u
                                 "callFunction",
                             ]
                         ):
-                            dsl = self._prompt_gen.decompiler.decompile(msg)
-                            # Strip outer <a2ui> / </a2ui> wrapper tags
-                            dsl_clean = dsl.replace("<a2ui>\n", "").replace(
-                                "\n</a2ui>", ""
-                            )
+                            dsl_clean = self.decompile(msg)
                             dsl_blocks.append(dsl_clean)
                         else:
                             return match.group(0)
@@ -167,16 +171,17 @@ IMPORTANT: You must ALWAYS output A2UI Express DSL notation wrapped inside `<a2u
         )
         return desc
 
-    def parse_response(self, content: str) -> List[ResponsePart]:
+    def parse_response(self, content: str) -> list[ResponsePart]:
+        self._ensure_catalog()
         return parse_express_response(content, self.catalog, self.surface_id)
 
     def decompile(self, val: dict[str, Any]) -> str:
+        self._ensure_catalog()
         # Decompile standard JSON payload to express syntax and strip outer <a2ui> tags
-        decompiler = ExpressDecompiler(self.catalog)
-        dsl = decompiler.decompile(val)
+        dsl = self._decompiler.decompile(val)
         return dsl.replace("<a2ui>\n", "").replace("\n</a2ui>", "")
 
-    def wrap_decompiled_blocks(self, blocks: List[str]) -> str:
+    def wrap_decompiled_blocks(self, blocks: list[str]) -> str:
         # Merge individual express blocks into a single <a2ui> wrapper block
         full_dsl = "\n".join(blocks)
         return f"<a2ui>\n{full_dsl}\n</a2ui>"

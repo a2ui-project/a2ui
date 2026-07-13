@@ -14,7 +14,7 @@
 
 import json
 import re
-from typing import List, Any, Optional
+from typing import Any, Optional
 from a2ui.schema.catalog import A2uiCatalog
 from a2ui.parser.response_part import ResponsePart
 from a2ui.formats import InferenceFormat
@@ -36,6 +36,14 @@ class ElementalInferenceFormat(InferenceFormat):
     ):
         super().__init__(catalog, surface_id)
         self._prompt_gen = ElementalPromptGenerator(catalog) if catalog else None
+        self._decompiler = ElementalDecompiler(catalog) if catalog else None
+
+    def _ensure_catalog(self) -> None:
+        if not self.catalog or not self._decompiler:
+            raise ValueError(
+                f"Catalog is required for parsing and decompiling in {self.name}"
+                " format."
+            )
 
     @property
     def name(self) -> str:
@@ -81,7 +89,6 @@ Surround the entire output with `<body>` and `</body>` tags, including a `<link 
         catalog_instructions_block = ""
         if catalog_instructions:
             try:
-                decompiler = ElementalDecompiler(self.catalog)
                 json_blocks = re.findall(
                     r"```json\s*(.*?)\s*```", catalog_instructions, re.DOTALL
                 )
@@ -92,10 +99,10 @@ Surround the entire output with `<body>` and `</body>` tags, including a `<link 
                             html_parts = []
                             for item in parsed_json:
                                 if isinstance(item, dict):
-                                    html_parts.append(decompiler.decompile(item))
+                                    html_parts.append(self._decompiler.decompile(item))
                             html_block = "\n\n".join(html_parts)
                         elif isinstance(parsed_json, dict):
-                            html_block = decompiler.decompile(parsed_json)
+                            html_block = self._decompiler.decompile(parsed_json)
                         else:
                             continue
 
@@ -145,13 +152,15 @@ You can call these functions inside attribute expressions `{...}` using named ar
             .replace("[CATALOG_INSTRUCTIONS_BLOCK]", catalog_instructions_block)
         )
 
-    def parse_response(self, content: str) -> List[ResponsePart]:
+    def parse_response(self, content: str) -> list[ResponsePart]:
+        self._ensure_catalog()
         return parse_elemental_response(content, self.catalog, self.surface_id)
 
     def decompile(self, val: dict[str, Any]) -> str:
-        return ElementalDecompiler(self.catalog).decompile(val)
+        self._ensure_catalog()
+        return self._decompiler.decompile(val)
 
-    def wrap_decompiled_blocks(self, blocks: List[str]) -> str:
+    def wrap_decompiled_blocks(self, blocks: list[str]) -> str:
         full_html = "\n\n".join(blocks)
         triple_backticks = chr(96) * 3
         return f"{triple_backticks}html\n{full_html}\n{triple_backticks}"

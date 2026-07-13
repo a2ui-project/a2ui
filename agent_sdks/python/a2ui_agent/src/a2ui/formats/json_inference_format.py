@@ -13,7 +13,7 @@
 # limitations under the License.
 
 import json
-from typing import List, Any, Optional
+from typing import Any, Optional
 from a2ui.schema.catalog import A2uiCatalog
 from a2ui.parser.response_part import ResponsePart
 from . import InferenceFormat
@@ -46,7 +46,7 @@ class JsonInferenceFormat(InferenceFormat):
             return ""
         return self.catalog.render_as_llm_instructions()
 
-    def parse_response(self, content: str) -> List[ResponsePart]:
+    def parse_response(self, content: str) -> list[ResponsePart]:
         from a2ui.parser.parser import parse_response
 
         return parse_response(content)
@@ -54,7 +54,7 @@ class JsonInferenceFormat(InferenceFormat):
     def decompile(self, val: dict[str, Any]) -> str:
         return json.dumps(val, indent=2)
 
-    def wrap_decompiled_blocks(self, blocks: List[str]) -> str:
+    def wrap_decompiled_blocks(self, blocks: list[str]) -> str:
         full_json = "\n\n".join(blocks)
         triple_backticks = chr(96) * 3
         return f"{triple_backticks}json\n{full_json}\n{triple_backticks}"

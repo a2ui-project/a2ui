@@ -83,6 +83,32 @@ def test_elemental_format_strategy(test_catalog):
     assert "## Component Interfaces" in fmt.catalog_description()
 
 
+def test_express_format_strategy_missing_catalog():
+    from a2ui.experimental.express.format import ExpressInferenceFormat
+
+    fmt = ExpressInferenceFormat(catalog=None)
+    assert fmt.name == "express"
+
+    with pytest.raises(ValueError, match="Catalog is required"):
+        fmt.decompile({"some": "json"})
+
+    with pytest.raises(ValueError, match="Catalog is required"):
+        fmt.parse_response("<a2ui>some content</a2ui>")
+
+
+def test_elemental_format_strategy_missing_catalog():
+    from a2ui.experimental.elemental.format import ElementalInferenceFormat
+
+    fmt = ElementalInferenceFormat(catalog=None)
+    assert fmt.name == "elemental"
+
+    with pytest.raises(ValueError, match="Catalog is required"):
+        fmt.decompile({"some": "json"})
+
+    with pytest.raises(ValueError, match="Catalog is required"):
+        fmt.parse_response("<body>some content</body>")
+
+
 def test_json_inference_format(test_catalog):
     fmt = JsonInferenceFormat(catalog=test_catalog)
     assert fmt.name == "json"

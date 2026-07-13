@@ -16,7 +16,7 @@ import os
 import re
 import json
 from abc import ABC, abstractmethod
-from typing import List, Any, Optional
+from typing import Any, Optional
 from a2ui.schema.catalog import A2uiCatalog
 from a2ui.parser.response_part import ResponsePart
 
@@ -56,7 +56,7 @@ class InferenceFormat(ABC):
         pass
 
     @abstractmethod
-    def parse_response(self, content: str) -> List[ResponsePart]:
+    def parse_response(self, content: str) -> list[ResponsePart]:
         """Parses model response content and compiles it to standard A2UI JSON payload parts."""
         pass
 
@@ -66,7 +66,7 @@ class InferenceFormat(ABC):
         pass
 
     @abstractmethod
-    def wrap_decompiled_blocks(self, blocks: List[str]) -> str:
+    def wrap_decompiled_blocks(self, blocks: list[str]) -> str:
         """Wraps decompiled code blocks in format-specific tags and code block wrappers."""
         pass
 
