@@ -58,3 +58,8 @@ class JsonInferenceFormat(InferenceFormat):
         full_json = "\n\n".join(blocks)
         triple_backticks = chr(96) * 3
         return f"{triple_backticks}json\n{full_json}\n{triple_backticks}"
+
+    def has_a2ui_parts(self, content: str) -> bool:
+        from a2ui.schema.constants import A2UI_OPEN_TAG
+
+        return A2UI_OPEN_TAG.rstrip(">") in content

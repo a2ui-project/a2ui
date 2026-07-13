@@ -69,16 +69,10 @@ class InferenceFormat(ABC):
         """Wraps decompiled code blocks in format-specific tags and code block wrappers."""
         pass
 
-    @property
-    def open_tag_prefix(self) -> str:
-        """The opening tag prefix to match in token stream (e.g. '<a2ui-json', '<a2ui')."""
-        from a2ui.schema.constants import A2UI_OPEN_TAG
-
-        return A2UI_OPEN_TAG.rstrip(">")
-
+    @abstractmethod
     def has_a2ui_parts(self, content: str) -> bool:
         """Checks if the content contains formatted structured blocks for this format."""
-        return self.open_tag_prefix in content
+        pass
 
 
 class PromptGenerator:

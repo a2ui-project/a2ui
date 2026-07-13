@@ -41,6 +41,9 @@ class MockFormat(InferenceFormat):
     def wrap_decompiled_blocks(self, blocks: list[str]) -> str:
         return f"wrapped: {blocks}"
 
+    def has_a2ui_parts(self, content: str) -> bool:
+        return "mock" in content
+
 
 @pytest.fixture
 def test_catalog():
