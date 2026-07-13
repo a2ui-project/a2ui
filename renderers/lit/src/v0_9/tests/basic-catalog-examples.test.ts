@@ -89,3 +89,42 @@ describe('v0.9 Basic Catalog Examples', () => {
     });
   }
 });
+
+// TODO: Replace this by actual 0.9.1 tests by loading from the examples.
+// Note that this cannot be done now, because the v0_9_1 examples have the wrong
+// "version" field ("0.9" instead of "0.9.1").
+describe('v0.9.1 Basic Catalog Example Processing', () => {
+  it('should successfully process v0.9.1 messages using basic catalog', () => {
+    const processor = new MessageProcessor([basicCatalog]);
+    const messages = [
+      {
+        version: 'v0.9.1' as const,
+        createSurface: {
+          surfaceId: 'v091-surface',
+          catalogId: basicCatalog.id,
+        },
+      },
+      {
+        version: 'v0.9.1' as const,
+        updateComponents: {
+          surfaceId: 'v091-surface',
+          components: [
+            {
+              id: 'root',
+              component: 'Text',
+              text: 'Hello from v0.9.1 in lit test!',
+            },
+          ],
+        },
+      },
+    ];
+
+    processor.processMessages(messages);
+    const surface = processor.model.getSurface('v091-surface');
+    assert.ok(surface, 'Surface v091-surface should exist');
+
+    const rootNode = surface.componentsModel.get('root');
+    assert.ok(rootNode, 'Surface should have a root component');
+    assert.strictEqual(rootNode.type, 'Text');
+  });
+});
