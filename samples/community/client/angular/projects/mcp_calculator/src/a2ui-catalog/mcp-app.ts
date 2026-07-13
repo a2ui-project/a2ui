@@ -116,7 +116,8 @@ export class McpApp extends CatalogComponent<any> implements OnDestroy, OnInit {
   private resizeTimeout: any = null;
   private lastWidth?: number;
   private lastHeight?: number;
-  private lastBoundValue: string | null = null;
+  private lastBoundRootValue: string | null = null;
+  private isProcessingAppWrite = false;
 
   ngOnInit() {
     this.setupSandbox();
@@ -259,17 +260,50 @@ export class McpApp extends CatalogComponent<any> implements OnDestroy, OnInit {
 
     // Two-way local data binding: Subscribe to host Data Model changes
     if (surface && dataPath) {
-      this.lastBoundValue = JSON.stringify(surface.dataModel.get(dataPath));
+      this.lastBoundRootValue = JSON.stringify(surface.dataModel.get(dataPath));
+
       this.dataSubscription = surface.dataModel.subscribe(dataPath, value => {
+        // Suppress echoes: If the update was initiated by the app itself, do not
+        // send a data-model-update notification back to it to prevent feedback loops.
+        // This is safe because JavaScript is single-threaded and the dataModel write +
+        // signals propagation run synchronously in a single call stack, meaning no other
+        // host or sibling writes can run or be blocked during this window.
+        if (this.isProcessingAppWrite) {
+          return;
+        }
+
         const currentBridge = this.appBridge();
-        if (currentBridge) {
-          // Deduplication loop check: do not push host state back to the embedded app
-          // if it is structurally identical to the last sent/received value.
-          const serialized = JSON.stringify(value);
-          if (this.lastBoundValue === serialized) {
+        if (!currentBridge) return;
+
+        // Compare the new state tree against the last cached value to perform change detection:
+        // - For objects: diff individual keys and send targeted subpath notifications to prevent
+        //   overwriting unrelated properties (and causing concurrent clobbering).
+        // - For primitives: do a direct comparison of the values and update accordingly.
+        const prev = this.lastBoundRootValue ? JSON.parse(this.lastBoundRootValue) : null;
+        this.lastBoundRootValue = JSON.stringify(value);
+
+        if (value && typeof value === 'object') {
+          // Diff the current root object against the previous cached root object
+          for (const [k, v] of Object.entries(value)) {
+            const oldVal = prev ? prev[k] : undefined;
+            if (JSON.stringify(oldVal) === JSON.stringify(v)) {
+              continue;
+            }
+            (currentBridge as any)
+              .notification({
+                method: 'ui/notifications/data-model-update',
+                params: {
+                  subpath: `/${k}`,
+                  value: v,
+                },
+              })
+              .catch((err: any) => console.error(`Failed to send data-model-update for /${k}:`, err));
+          }
+        } else {
+          // Fallback for primitives
+          if (JSON.stringify(prev) === JSON.stringify(value)) {
             return;
           }
-          this.lastBoundValue = serialized;
           (currentBridge as any)
             .notification({
               method: 'ui/notifications/data-model-update',
@@ -284,6 +318,7 @@ export class McpApp extends CatalogComponent<any> implements OnDestroy, OnInit {
     const DataModelChangeNotificationSchema = z.object({
       method: z.literal('ui/notifications/data-model-change'),
       params: z.object({
+        subpath: z.string().optional(),
         value: z.any(),
       }),
     });
@@ -291,14 +326,23 @@ export class McpApp extends CatalogComponent<any> implements OnDestroy, OnInit {
     bridge.setNotificationHandler(DataModelChangeNotificationSchema, notification => {
       const params = notification.params;
       if (surface && dataPath) {
-        // Deduplication loop check: do not write to the host data model
-        // if the incoming data is structurally identical to the last sent/received value.
-        const serialized = JSON.stringify(params.value);
-        if (this.lastBoundValue === serialized) {
+        const subpath = params.subpath;
+        const targetPath = subpath
+          ? `${dataPath}${subpath.startsWith('/') ? '' : '/'}${subpath}`
+          : dataPath;
+
+        // Perform basic check against current live store state to prevent redundant writes
+        const currentValue = surface.dataModel.get(targetPath);
+        if (JSON.stringify(currentValue) === JSON.stringify(params.value)) {
           return;
         }
-        this.lastBoundValue = serialized;
-        surface.dataModel.set(dataPath, params.value);
+
+        this.isProcessingAppWrite = true;
+        try {
+          surface.dataModel.set(targetPath, params.value);
+        } finally {
+          this.isProcessingAppWrite = false;
+        }
       }
     });
 

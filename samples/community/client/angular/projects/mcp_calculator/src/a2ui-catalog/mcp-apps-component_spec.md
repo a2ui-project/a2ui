@@ -158,22 +158,24 @@ Dispatched when the embedded application updates its internal state and wants to
   "jsonrpc": "2.0",
   "method": "ui/notifications/data-model-change",
   "params": {
+    "subpath": "string",
     "value": "any-primitive-or-json-object"
   }
 }
 ```
 
 **Host action**  
-The host writes the `value` back to the Data Model at the path specified in the component's `data.path` definition, which updates any sibling components bound to that model path.
+The host writes the `value` back to the Data Model at the path specified in the component's `data.path` definition.
+* If `subpath` (an optional JSON Pointer or key-based path) is provided, the host resolves it relative to the root bound data path (e.g., `dataPath + subpath`) and updates only that specific sub-field.
+* If `subpath` is omitted, the host replaces the entire root value at `dataPath`.
 
-To avoid infinite update loops, deep-equality checks are performed on both sides. The host discards incoming `ui/notifications/data-model-change` messages if the value is structurally identical to the current state, and the embedded app does the same for incoming `ui/notifications/data-model-update` messages.
+To avoid infinite update loops and redundant echoes, both sides should implement cycle prevention:
+1. **Host-side Write Lock / Echo Suppression:** When the host processes an incoming `data-model-change` message from the app, it should temporarily set a transaction flag (or write lock) during the write to its local store. The host's data subscription listener should check this flag and suppress sending a loopback `data-model-update` notification to the app for the duration of that synchronous write stack.
+2. **Deep-Equality Checking:** The host discards incoming `data-model-change` messages if the value is structurally identical to the current state at the target path, and the embedded app does the same for incoming `ui/notifications/data-model-update` messages to prevent unnecessary redraw cycles.
 
 > [!WARNING]
-> Because state propagation is bi-directional over an asynchronous sandbox boundary, race conditions or state clobbering can occur if the host and the embedded app write to the same path concurrently. To minimize clobbering:
->
-> 1. Implement strict state deduplication (e.g., deep-equality checking) before dispatching updates.
-> 2. Partition state by using sub-paths within the bound object (e.g. host writes to `/state/host_data` and app writes to `/state/app_data`).
-> 3. Mutations are a no-op if `data` is mapped to a constant value instead of a path.
+> Because state propagation is bi-directional over an asynchronous sandbox boundary, race conditions or state clobbering can occur if the host and the embedded app write to the same path concurrently. 
+> To prevent race conditions, the embedded application and the host SHOULD use targeted subpath updates (via the `subpath` parameter) rather than transmitting full object snapshots. Doing so isolates concurrent updates (e.g., the app updating a score/input field while the host resets state or changes game modes) and prevents them from overwriting each other.
 
 ### C. Local client-side function execution (`ui/requests/function-call`)
 
@@ -251,13 +253,14 @@ Sent whenever the data bound to the `data.path` updates in the parent A2UI Data 
   "jsonrpc": "2.0",
   "method": "ui/notifications/data-model-update",
   "params": {
+    "subpath": "string",
     "value": "any-primitive-or-json-object"
   }
 }
 ```
 
 **Embedded app action**  
-The embedded app consumes this update and updates its internal state. Deep-equality checks must be used to prevent circular update loops.
+The embedded app consumes this update and updates its internal state at the specified `subpath` (if provided), or replaces its entire local state (if `subpath` is omitted). Deep-equality checks must be used to prevent circular update loops.
 
 ### B. Local function execution output
 

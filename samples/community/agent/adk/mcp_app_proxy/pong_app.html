@@ -250,33 +250,43 @@
           }
         } else if (data?.method === 'ui/notifications/data-model-update') {
           // TODO: Refactor message handlers to use `@modelcontextprotocol/ext-apps/app-bridge` App client.
-          const value = data.params?.value;
-          if (value && typeof value === 'object') {
+          const params = data.params;
+          const subpath = params?.subpath;
+          const value = params?.value;
+
+          if (subpath) {
+            if (subpath === '/player_score' && typeof value === 'number') {
+              localPlayerScore = value;
+            } else if (subpath === '/cpu_score' && typeof value === 'number') {
+              localCpuScore = value;
+            }
+          } else if (value && typeof value === 'object') {
             if (typeof value.player_score === 'number') {
               localPlayerScore = value.player_score;
             }
             if (typeof value.cpu_score === 'number') {
               localCpuScore = value.cpu_score;
             }
-            // Automatically restart if scores reset to 0
-            if (localPlayerScore === 0 && localCpuScore === 0) {
-              if (typeof isPaused !== 'undefined') {
-                isPaused = false;
-              }
-              if (typeof hideOverlay === 'function') {
-                hideOverlay();
-              }
-              if (typeof resetBall === 'function') {
-                resetBall();
-              }
-              sendRequest('tools/call', {
-                name: 'commentate_pong',
-                arguments: {
-                  game_event: 'Match started! Current Score: Player 0 - CPU 0.',
-                  silent: true,
-                },
-              }).catch(e => console.error('Failed to request commentary:', e));
+          }
+
+          // Automatically restart if scores reset to 0
+          if (localPlayerScore === 0 && localCpuScore === 0) {
+            if (typeof isPaused !== 'undefined') {
+              isPaused = false;
             }
+            if (typeof hideOverlay === 'function') {
+              hideOverlay();
+            }
+            if (typeof resetBall === 'function') {
+              resetBall();
+            }
+            sendRequest('tools/call', {
+              name: 'commentate_pong',
+              arguments: {
+                game_event: 'Match started! Current Score: Player 0 - CPU 0.',
+                silent: true,
+              },
+            }).catch(e => console.error('Failed to request commentary:', e));
           }
         }
       });
@@ -548,12 +558,17 @@
 
         console.log('Updating score: ', localPlayerScore, localCpuScore);
 
-        sendNotification('ui/notifications/data-model-change', {
-          value: {
-            player_score: localPlayerScore,
-            cpu_score: localCpuScore,
-          },
-        });
+        if (player === 'player') {
+          sendNotification('ui/notifications/data-model-change', {
+            subpath: '/player_score',
+            value: localPlayerScore,
+          });
+        } else if (player === 'cpu') {
+          sendNotification('ui/notifications/data-model-change', {
+            subpath: '/cpu_score',
+            value: localCpuScore,
+          });
+        }
 
         let eventDescription = 'player scored';
         if (localPlayerScore >= 3) {
