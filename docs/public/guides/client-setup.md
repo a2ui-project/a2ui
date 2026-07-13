@@ -64,14 +64,14 @@ A2UI uses versioned imports for its protocol-specific implementations. For v0.9,
 
 ```typescript
 import {ApplicationConfig} from '@angular/core';
-import {A2UI_RENDERER_CONFIG, A2uiRendererService, minimalCatalog} from '@a2ui/angular/v0_9';
+import {A2UI_RENDERER_CONFIG, A2uiRendererService, BasicCatalog} from '@a2ui/angular/v0_9';
 
 export const appConfig: ApplicationConfig = {
   providers: [
     {
       provide: A2UI_RENDERER_CONFIG,
       useValue: {
-        catalogs: [minimalCatalog],
+        catalogs: [new BasicCatalog()],
         actionHandler: action => {
           console.log('Action dispatched:', action);
         },
