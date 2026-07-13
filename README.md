@@ -5,7 +5,7 @@ optimized for representing updatable agent-generated
 UIs and an initial set of renderers, that allows agents
 to generate or populate rich user interfaces.
 
-<img src="docs/assets/a2ui_gallery_examples.png" alt="Gallery of A2UI components" height="400">
+<img src="docs/public/assets/a2ui_gallery_examples.png" alt="Gallery of A2UI components" height="400">
 
 _A gallery of A2UI rendered cards, showing a variety of UI compositions that A2UI can achieve._
 
@@ -107,7 +107,7 @@ Pick the path that matches where you want to start:
 | Path                                                                                                                          | What you get                                                                                                                            | Time   |
 | ----------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- | ------ |
 | 🍜 **[Quickstart Restaurant Finder Demo](https://a2ui.org/quickstart/)**                                                      | Full-stack A2UI running locally with a Gemini powered ADK agent and Lit renderer. Learn A2UI end-to-end and customize to your use case. | ~5 min |
-| ⚛️ **[Use A2UI with Any Agent Framework & Harness](docs/guides/a2ui-with-any-agent-framework.md)**                            | Scaffold an AG-UI app or harness for your framework of choice, then enable A2UI rendering over AG-UI.                                   | ~5 min |
+| ⚛️ **[Use A2UI with Any Agent Framework & Harness](docs/public/guides/a2ui-with-any-agent-framework.md)**                     | Scaffold an AG-UI app or harness for your framework of choice, then enable A2UI rendering over AG-UI.                                   | ~5 min |
 | 🎨 **[A2UI Composer](https://a2ui-composer.ag-ui.com/)** · **[Widget Builder](https://go.copilotkit.ai/A2UI-widget-builder)** | Generate A2UI JSON from a visual editor and paste it into any agent prompt — no install required.                                       | ~1 min |
 | 🎬 **[A2UI Theater](https://a2ui-composer.ag-ui.com/theater)**                                                                | Step through pre-built A2UI streaming scenarios across Lit, React, and Angular renderers — no install required.                         | ~1 min |
 
@@ -137,7 +137,7 @@ yarn demo:restaurant
 > corepack enable
 > ```
 
-These commands install dependencies across workspaces, build the renderers, start the Python agent, and open the client at `http://localhost:5173`. For step-by-step instructions, alternative demos, and troubleshooting see the **[full Quickstart](docs/quickstart.md)**.
+These commands install dependencies across workspaces, build the renderers, start the Python agent, and open the client at `http://localhost:5173`. For step-by-step instructions, alternative demos, and troubleshooting see the **[full Quickstart](docs/public/quickstart.md)**.
 
 ### Use A2UI with Any Agent Framework & Harness — Summary
 
@@ -145,11 +145,11 @@ These commands install dependencies across workspaces, build the renderers, star
 npx create-ag-ui-app@latest
 ```
 
-Use the AG-UI CLI with your framework or harness of choice (Google Chat, ADK, LangGraph, CrewAI, Mastra, Strands, Slack, Teams, etc.), then follow the **[AG-UI guide](docs/guides/a2ui-with-any-agent-framework.md)** to enable A2UI rendering. Some scaffold paths use [CopilotKit's A2UI runtime](https://docs.copilotkit.ai/generative-ui/a2ui) with Next.js under the hood, but the setup surface is AG-UI-first.
+Use the AG-UI CLI with your framework or harness of choice (Google Chat, ADK, LangGraph, CrewAI, Mastra, Strands, Slack, Teams, etc.), then follow the **[AG-UI guide](docs/public/guides/a2ui-with-any-agent-framework.md)** to enable A2UI rendering. Some scaffold paths use [CopilotKit's A2UI runtime](https://docs.copilotkit.ai/generative-ui/a2ui) with Next.js under the hood, but the setup surface is AG-UI-first.
 
 ### Other renderers
 
-For Flutter, check out the [GenUI SDK](https://github.com/flutter/genui), which uses A2UI under the hood. See [docs/reference/renderers.md](docs/reference/renderers.md) for the full list of client implementations.
+For Flutter, check out the [GenUI SDK](https://github.com/flutter/genui), which uses A2UI under the hood. See [docs/public/reference/renderers.md](docs/public/reference/renderers.md) for the full list of client implementations.
 
 ## Roadmap
 

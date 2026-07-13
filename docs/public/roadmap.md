@@ -46,7 +46,7 @@ This roadmap outlines the current state and future plans for the A2UI project. T
 | **Any agent with A2A support**   | ✅ Complete    | Day-zero compatibility thanks to A2A protocol                                      |
 | **Any agent with AG-UI support** | ✅ Complete    | Day-zero compatibility thanks to AG-UI protocol                                    |
 | **AG2**                          | ✅ Complete    | [A2UIAgent](https://docs.ag2.ai/latest/docs/user-guide/reference-agents/a2uiagent) |
-| **ADK**                          | 🚧 In Progress | Still designing developer ergonomics, see [samples](../samples/agent/adk)          |
+| **ADK**                          | 🚧 In Progress | Still designing developer ergonomics, see [samples](../../samples/agent/adk)       |
 | **Genkit**                       | 💡 Proposed    | Community interest                                                                 |
 | **LangGraph**                    | 💡 Proposed    | Community interest                                                                 |
 | **CrewAI**                       | 💡 Proposed    | Community interest                                                                 |

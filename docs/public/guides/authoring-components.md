@@ -19,7 +19,7 @@ The catalog schema defines the API of your catalog. It lists available component
 
 **This schema acts as a contract between the client and the server (agent).** Both must agree on this schema for rendering to work. The client advertises what catalogs it supports, and the server selects a compatible one. For details on how this handshake works, see [A2UI Catalog Negotiation](../concepts/catalogs.md#a2ui-catalog-negotiation).
 
-In the [`rizzcharts`](../../samples/community/agent/adk/rizzcharts/python/README.md) example, the catalog schema is defined in [`rizzcharts_catalog_definition.json`](../../samples/community/agent/adk/rizzcharts/catalog_schemas/0.9/rizzcharts_catalog_definition.json).
+In the [`rizzcharts`](../../../samples/community/agent/adk/rizzcharts/python/README.md) example, the catalog schema is defined in [`rizzcharts_catalog_definition.json`](../../../samples/community/agent/adk/rizzcharts/catalog_schemas/0.9/rizzcharts_catalog_definition.json).
 
 Here is the schema for the `Chart` component:
 
@@ -108,7 +108,7 @@ Here is the schema for the `Chart` component:
 
 Implement your component using your client-side framework. For Angular, your component should extend `DynamicComponent` provided by `@a2ui/angular`.
 
-In the [`orchestrator`](../../samples/community/client/angular/projects/orchestrator/README.md) example, the `Chart` component is defined in [`chart.ts`](../../samples/community/client/angular/projects/orchestrator/src/a2ui-catalog/chart.ts).
+In the [`orchestrator`](../../../samples/community/client/angular/projects/orchestrator/README.md) example, the `Chart` component is defined in [`chart.ts`](../../../samples/community/client/angular/projects/orchestrator/src/a2ui-catalog/chart.ts).
 
 {% raw %}
 
@@ -152,7 +152,7 @@ Keep these key points in mind when implementing components:
 
 Once the component is implemented, register it in your client catalog. This maps the component name (used by agents) to the implementation class.
 
-In the [`orchestrator`](../../samples/community/client/angular/projects/orchestrator/README.md) example, this is done in [`catalog.ts`](../../samples/community/client/angular/projects/orchestrator/src/a2ui-catalog/catalog.ts).
+In the [`orchestrator`](../../../samples/community/client/angular/projects/orchestrator/README.md) example, this is done in [`catalog.ts`](../../../samples/community/client/angular/projects/orchestrator/src/a2ui-catalog/catalog.ts).
 
 ```typescript
 import {Catalog, DEFAULT_CATALOG} from '@a2ui/angular';
@@ -219,7 +219,7 @@ if use_ui:
 
 ### 4.2 Agent Tool Setup
 
-The Agent uses [SendA2uiToClientToolset](../../agent_sdks/python/a2ui_agent/src/a2ui/adk/send_a2ui_to_client_toolset.py) to give the agent a tool that it can use to send A2UI to the client.
+The Agent uses [SendA2uiToClientToolset](../../../agent_sdks/python/a2ui_agent/src/a2ui/adk/send_a2ui_to_client_toolset.py) to give the agent a tool that it can use to send A2UI to the client.
 
 ```python
 from a2ui.adk.send_a2ui_to_client_toolset import SendA2uiToClientToolset
@@ -237,7 +237,7 @@ agent.tools = [
 
 ### 4.3 Tool Execution
 
-Invocations of the tool in [SendA2uiToClientToolset](../../agent_sdks/python/a2ui_agent/src/a2ui/adk/send_a2ui_to_client_toolset.py) by the LLM are intercepted in the A2A Agent Executor using the [A2uiEventConverter](../../agent_sdks/python/a2ui_agent/src/a2ui/adk/a2a/event_converter.py). This automatically translates tool calls into A2A Dataparts with the A2UI payload.
+Invocations of the tool in [SendA2uiToClientToolset](../../../agent_sdks/python/a2ui_agent/src/a2ui/adk/send_a2ui_to_client_toolset.py) by the LLM are intercepted in the A2A Agent Executor using the [A2uiEventConverter](../../../agent_sdks/python/a2ui_agent/src/a2ui/adk/a2a/event_converter.py). This automatically translates tool calls into A2A Dataparts with the A2UI payload.
 
 ```python
 from a2ui.adk.a2a.event_converter import (

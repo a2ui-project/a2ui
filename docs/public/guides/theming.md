@@ -56,8 +56,8 @@ The A2UI protocol allows for an arbitrary `theme` property in the `createSurface
 defined as `z.any().optional()` in the Zod schema, meaning the agent can pass any JSON structure that the client
 renderer and catalog understand.
 
-- See the schema definition in [server-to-client.ts](../../renderers/web_core/src/v0_9/schema/server-to-client.ts).
-- See the `Catalog` class and `themeSchema` in [catalog/types.ts](../../renderers/web_core/src/v0_9/catalog/types.ts).
+- See the schema definition in [server-to-client.ts](../../../renderers/web_core/src/v0_9/schema/server-to-client.ts).
+- See the `Catalog` class and `themeSchema` in [catalog/types.ts](../../../renderers/web_core/src/v0_9/catalog/types.ts).
 
 **Note:** The _basic catalog_ components are not wired to use the `theme` coming from the agent.
 
@@ -83,13 +83,13 @@ For example, to override the primary color, you can simply add this to your app'
 }
 ```
 
-See the default styles in [default.ts](../../renderers/web_core/src/v0_9/basic_catalog/styles/default.ts).
+See the default styles in [default.ts](../../../renderers/web_core/src/v0_9/basic_catalog/styles/default.ts).
 
 **See some examples per-platform:**
 
-- [Lit samples](../../samples/client/lit)
-- [Angular samples](../../samples/client/angular)
-- [React samples](../../samples/client/react)
+- [Lit samples](../../../samples/client/lit)
+- [Angular samples](../../../samples/client/angular)
+- [React samples](../../../samples/client/react)
 
 ### Per-component overrides
 
