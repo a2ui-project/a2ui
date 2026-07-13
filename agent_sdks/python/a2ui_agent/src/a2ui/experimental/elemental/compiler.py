@@ -288,7 +288,7 @@ class ElementalCompiler:
         self.expr_parser = ElementalExpressionParser()
 
         # Pre-compute container tags for forgiving parsing
-        self.container_tags = {"body", "template"}
+        self.container_tags = {"a2ui", "template"}
         for comp_name in self.helper.components:
             properties = self.helper.get_component_properties(comp_name)
             has_slotted_children = False
@@ -352,8 +352,8 @@ class ElementalCompiler:
         if not root:
             raise ValueError("A2UI Elemental document is empty.")
 
-        if root.tag == "body":
-            # If there is a standalone operation inside body, treat it as the root
+        if root.tag == "a2ui":
+            # If there is a standalone operation inside a2ui, treat it as the root
             standalone = None
             for child in root.children:
                 if child.tag in [
@@ -410,14 +410,14 @@ class ElementalCompiler:
                 envelope["functionCallId"] = func_call_id
             return envelope
 
-        if root.tag != "body":
+        if root.tag != "a2ui":
             raise ValueError(
-                "A2UI Elemental document must have a <body>,"
+                "A2UI Elemental document must have a <a2ui>,"
                 f" <{TAG_PREFIX}delete-surface>, or <{TAG_PREFIX}call-function> root"
                 " element."
             )
 
-        # 1. Surface ID from body
+        # 1. Surface ID from a2ui
         surface_id = root.attrs.get("id", surface_id)
 
         # 2. Extract catalog ID and data model from children
@@ -470,7 +470,7 @@ class ElementalCompiler:
         for child in remaining_children:
             if not child.tag.startswith(TAG_PREFIX):
                 raise ValueError(
-                    f"Invalid element tag '{child.tag}' under <body>. Only"
+                    f"Invalid element tag '{child.tag}' under <a2ui>. Only"
                     f" '{TAG_PREFIX}*' components are supported inside A2UI surfaces."
                 )
 
@@ -533,8 +533,6 @@ class ElementalCompiler:
                                 compiled_args[fn_props[idx]] = self._compile_value(
                                     v, is_action
                                 )
-
-                    fn_schema = self.helper.functions[fn_name]
 
                     if is_action:
                         return {

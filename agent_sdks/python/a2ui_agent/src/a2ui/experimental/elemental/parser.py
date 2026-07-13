@@ -15,13 +15,13 @@
 """Parser utilities to extract and compile A2UI Elemental HTML from LLM responses."""
 
 import re
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, List, Union
 from a2ui.core.catalog import Catalog
 from a2ui.schema.catalog import A2uiCatalog
 from a2ui.parser.response_part import ResponsePart
 from .compiler import ElementalCompiler
 
-_BODY_OPEN_PATTERN = re.compile(r"<body\b[^>]*>", re.IGNORECASE)
+_A2UI_OPEN_PATTERN = re.compile(r"<a2ui\b[^>]*>", re.IGNORECASE)
 
 
 def parse_elemental_response(
@@ -32,7 +32,7 @@ def parse_elemental_response(
     """Parses response containing A2UI Elemental HTML and compiles it to ResponseParts.
 
     NOTE: This parser supports unclosed tag auto-closing for real-time streaming preview
-    rendering. If the final <body> block is unclosed (truncated), it will be auto-closed
+    rendering. If the final <a2ui> block is unclosed (truncated), it will be auto-closed
     and compiled with is_final=False to discard any trailing incomplete statements.
 
     Args:
@@ -44,21 +44,21 @@ def parse_elemental_response(
         A list of ResponsePart objects containing compiled JSON payload list.
     """
     content_lower = content.lower()
-    last_open_match = list(_BODY_OPEN_PATTERN.finditer(content))
-    last_close = content_lower.rfind("</body>")
+    last_open_match = list(_A2UI_OPEN_PATTERN.finditer(content))
+    last_close = content_lower.rfind("</a2ui>")
 
     is_truncated = False
     if last_open_match:
         last_open = last_open_match[-1].start()
         if last_open > last_close:
-            content += "\n</body>"
+            content += "\n</a2ui>"
             is_truncated = True
 
     from .compiler import TAG_PREFIX
 
-    # Match <body>...</body>, <ui-delete-surface.../>, and <ui-call-function.../> blocks
+    # Match <a2ui>...</a2ui>, <ui-delete-surface.../>, and <ui-call-function.../> blocks
     block_pattern = re.compile(
-        r"<body\b[^>]*>.*</body>"
+        r"<a2ui\b[^>]*>.*</a2ui>"
         f"|<{TAG_PREFIX}delete-surface\\b[^>]*>(?:.*?</{TAG_PREFIX}delete-surface>|/>)?"
         f"|<{TAG_PREFIX}call-function\\b[^>]*>(?:.*?</{TAG_PREFIX}call-function>|/>)?",
         re.DOTALL | re.IGNORECASE,
@@ -94,7 +94,7 @@ def parse_elemental_response(
                     a2ui_json=[compiled_json],
                 )
             )
-        except Exception as e:
+        except Exception:
             # Graceful fallback: treat malformed/unparseable blocks as plain text
             fallback_text = html_content
             full_text = f"{text_part}\n{fallback_text}" if text_part else fallback_text

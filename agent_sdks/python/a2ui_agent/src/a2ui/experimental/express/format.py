@@ -187,4 +187,5 @@ IMPORTANT: You must ALWAYS output A2UI Express DSL notation wrapped inside `<a2u
     def wrap_decompiled_blocks(self, blocks: list[str]) -> str:
         # Merge individual express blocks into a single <a2ui> wrapper block
         full_dsl = "\n".join(blocks)
-        return f"<a2ui>\n{full_dsl}\n</a2ui>"
+        triple_backticks = chr(96) * 3
+        return f"{triple_backticks}\n<a2ui>\n{full_dsl}\n</a2ui>\n{triple_backticks}"

@@ -20,7 +20,7 @@ Reconstructs standard A2UI v1.0 JSON envelopes back into A2UI Elemental HTML5-li
 import html
 import json
 import re
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Optional, Union
 from a2ui.core.catalog import Catalog
 from a2ui.schema.catalog import A2uiCatalog
 from a2ui.experimental.express.schema_helper import CatalogSchemaHelper
@@ -157,7 +157,7 @@ class ElementalDecompiler:
             surface_id = val_op.get("surfaceId", "default_surface")
             data_val = val_op.get("value", {})
 
-            lines = [f'<body id="{surface_id}">']
+            lines = [f'<a2ui id="{surface_id}">']
             if data_val:
                 json_str = json.dumps(data_val, indent=2)
                 indented_json = "\n".join(
@@ -166,7 +166,7 @@ class ElementalDecompiler:
                 lines.append('  <script type="application/json">')
                 lines.append(indented_json)
                 lines.append("  </script>")
-            lines.append("</body>")
+            lines.append("</a2ui>")
             return "\n".join(lines)
 
         # 4. Handle createSurface
@@ -206,7 +206,7 @@ class ElementalDecompiler:
 
         roots = [c["id"] for c in components if c["id"] not in child_to_parent]
 
-        lines = [f'<body id="{surface_id}">']
+        lines = [f'<a2ui id="{surface_id}">']
         default_catalog_id = self.helper.catalog.get("catalogId", "")
         if catalog_id and catalog_id != default_catalog_id:
             lines.append(f'  <link rel="catalog" href="{catalog_id}">')
@@ -221,7 +221,7 @@ class ElementalDecompiler:
         for root_id in roots:
             lines.append(self._render_component(root_id, indent=1))
 
-        lines.append("</body>")
+        lines.append("</a2ui>")
         return "\n".join(lines)
 
     def _render_component(
@@ -254,7 +254,6 @@ class ElementalDecompiler:
             if k not in ["id", "component"] and k not in all_props:
                 all_props.append(k)
 
-        has_text_content = False
         text_content = ""
 
         for prop_name in all_props:
