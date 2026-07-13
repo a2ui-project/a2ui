@@ -166,15 +166,17 @@ Dispatched when the embedded application updates its internal state and wants to
 
 **Host action**  
 The host writes the `value` back to the Data Model at the path specified in the component's `data.path` definition.
-* If `subpath` (an optional JSON Pointer or key-based path) is provided, the host resolves it relative to the root bound data path (e.g., `dataPath + subpath`) and updates only that specific sub-field.
-* If `subpath` is omitted, the host replaces the entire root value at `dataPath`.
+
+- If `subpath` (an optional JSON Pointer or key-based path) is provided, the host resolves it relative to the root bound data path (e.g., `dataPath + subpath`) and updates only that specific sub-field.
+- If `subpath` is omitted, the host replaces the entire root value at `dataPath`.
 
 To avoid infinite update loops and redundant echoes, both sides should implement cycle prevention:
+
 1. **Host-side Write Lock / Echo Suppression:** When the host processes an incoming `data-model-change` message from the app, it should temporarily set a transaction flag (or write lock) during the write to its local store. The host's data subscription listener should check this flag and suppress sending a loopback `data-model-update` notification to the app for the duration of that synchronous write stack.
 2. **Deep-Equality Checking:** The host discards incoming `data-model-change` messages if the value is structurally identical to the current state at the target path, and the embedded app does the same for incoming `ui/notifications/data-model-update` messages to prevent unnecessary redraw cycles.
 
 > [!WARNING]
-> Because state propagation is bi-directional over an asynchronous sandbox boundary, race conditions or state clobbering can occur if the host and the embedded app write to the same path concurrently. 
+> Because state propagation is bi-directional over an asynchronous sandbox boundary, race conditions or state clobbering can occur if the host and the embedded app write to the same path concurrently.
 > To prevent race conditions, the embedded application and the host SHOULD use targeted subpath updates (via the `subpath` parameter) rather than transmitting full object snapshots. Doing so isolates concurrent updates (e.g., the app updating a score/input field while the host resets state or changes game modes) and prevents them from overwriting each other.
 
 ### C. Local client-side function execution (`ui/requests/function-call`)
@@ -412,10 +414,10 @@ To prevent layout instability, the host enforces the following rules on `ui/noti
 # 6. Implementation guidelines
 
 For web-based platforms, developers SHOULD reuse the official `@modelcontextprotocol/ext-apps` SDK to handle the host-side bridge and sandbox proxy:
+
 - **Host bridge:** Use `AppBridge` and `PostMessageTransport` from `@modelcontextprotocol/ext-apps/app-bridge`.
 - **Sandbox proxy:** Implement the outer sandbox proxy (`sandbox.html`/`sandbox.ts`) in the client application by copying the reference template from the MCP Apps SDK's [examples/basic-host](https://github.com/modelcontextprotocol/ext-apps/tree/main/examples/basic-host) directory.
 
 # References
 
 - MCP Apps in A2UI ([https://a2ui.org/guides/mcp-apps-in-a2ui/](https://a2ui.org/guides/mcp-apps-in-a2ui/))
-

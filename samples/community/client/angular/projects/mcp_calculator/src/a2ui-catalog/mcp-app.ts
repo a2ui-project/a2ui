@@ -297,7 +297,9 @@ export class McpApp extends CatalogComponent<any> implements OnDestroy, OnInit {
                   value: v,
                 },
               })
-              .catch((err: any) => console.error(`Failed to send data-model-update for /${k}:`, err));
+              .catch((err: any) =>
+                console.error(`Failed to send data-model-update for /${k}:`, err),
+              );
           }
         } else {
           // Fallback for primitives
