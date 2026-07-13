@@ -64,14 +64,8 @@ jobs:
           uv run --all-packages mypy agent_sdks/python/a2ui_core/scripts
       - name: Run Unit Tests
         run: uv run pytest
-        env:
-          A2UI_EXPRESS_ENABLED: "true"
-          A2UI_ELEMENTAL_ENABLED: "true"
       - name: Verify Load Real
         run: uv run python agent_sdks/python/a2ui_agent/tests/integration/verify_load_real.py
-        env:
-          A2UI_EXPRESS_ENABLED: "true"
-          A2UI_ELEMENTAL_ENABLED: "true"
       - name: Build All Packages
         run: uv build --all
       - name: Run Skills Unit Tests

@@ -67,17 +67,12 @@ jobs:
       - name: Run Unit Tests
         working-directory: eval
         run: uv run python -m pytest
-        env:
-          A2UI_EXPRESS_ENABLED: "true"
-          A2UI_ELEMENTAL_ENABLED: "true"
 
       - name: Run Evals
         working-directory: eval
         if: ${{ env.TRANSCRYPT_PASSWORD != '' && env.REPO_GEMINI_API_KEY != '' }}
         env:
           GEMINI_API_KEY: ${{ env.REPO_GEMINI_API_KEY }}
-          A2UI_EXPRESS_ENABLED: "true"
-          A2UI_ELEMENTAL_ENABLED: "true"
         run: ./bin/run_ci_evals.py --threshold 90
 
       - name: Create Issue if evals fail on main branch
