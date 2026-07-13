@@ -18,9 +18,6 @@ import json
 import os
 import re
 
-# Enable experimental extensions
-os.environ["A2UI_VERSION_1_0"] = "true"
-
 from inspect_ai.solver import Solver, solver, TaskState, Generate
 from inspect_ai.model import ChatMessageSystem, ModelOutput, ChatCompletionChoice, ChatMessageAssistant
 from a2ui.core.catalog import Catalog
@@ -62,7 +59,11 @@ def compile_elemental_dsl(version: str) -> Solver:
 
         # Initialize the catalog schema validator for parsing and validation
         catalog_config = CatalogConfig.from_path("basic_catalog", resolved_catalog_path)
-        manager = A2uiSchemaManager(version=version, catalogs=[catalog_config])
+        manager = A2uiSchemaManager(
+            version=version,
+            catalogs=[catalog_config],
+            experiments={"version_1_0"},
+        )
         catalog = manager.get_selected_catalog()
         validator = catalog.validator
 

@@ -223,9 +223,17 @@ class A2uiValidatorWrapperV10:
 class A2uiValidator:
     """Version-aware validation facade dispatching to v0.8 or v0.9+ engines."""
 
-    def __init__(self, catalog: A2uiCatalog):
+    def __init__(
+        self,
+        catalog: A2uiCatalog,
+        experiments: Optional[Union[set[str], frozenset[str]]] = None,
+    ):
         ver = catalog.version
         self.version = ver if isinstance(ver, str) else VERSION_0_8
+        self.experiments = (set(experiments) if experiments else set()) | (
+            set(catalog.experiments) if catalog and catalog.experiments else set()
+        )
+
         if self.version == VERSION_0_8:
             self._delegator: Union[
                 LegacyA2uiValidatorV08, A2uiValidatorWrapper, A2uiValidatorWrapperV10
@@ -234,19 +242,13 @@ class A2uiValidator:
         elif self.version == VERSION_0_9_1:
             self._delegator = A2uiValidatorWrapperV10(catalog)
         elif self.version == VERSION_1_0:
-            import os
-
-            v1_0_enabled = os.environ.get("A2UI_VERSION_1_0", "").lower() in (
-                "true",
-                "1",
-                "yes",
-            )
-            if v1_0_enabled:
+            if "version_1_0" in self.experiments:
                 self._delegator = A2uiValidatorWrapperV10(catalog)
             else:
                 raise A2uiCatalogError(
-                    "A2UI v1.0 validation is experimental and is disabled by default. "
-                    "To enable it, set the environment variable A2UI_VERSION_1_0=true."
+                    "A2UI v1.0 validation is experimental and is disabled by default."
+                    " To enable it, pass the experiment name 'version_1_0' in the"
+                    " experiments configuration."
                 )
         else:
             self._delegator = A2uiValidatorWrapper(catalog)

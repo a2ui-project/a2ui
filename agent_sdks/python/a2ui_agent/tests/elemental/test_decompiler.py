@@ -18,8 +18,6 @@ import json
 import os
 import unittest
 
-os.environ["A2UI_VERSION_1_0"] = "true"
-
 from a2ui.core.catalog import Catalog
 from a2ui.experimental.elemental.decompiler import ElementalDecompiler
 

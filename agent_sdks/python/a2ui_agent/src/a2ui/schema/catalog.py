@@ -163,6 +163,7 @@ class A2uiCatalog:
     common_types_schema: Dict[str, Any]
     catalog_schema: Dict[str, Any]
     custom_cuttable_keys: Optional[frozenset[str]] = None
+    experiments: Optional[frozenset[str]] = None
 
     @property
     def cuttable_keys(self) -> frozenset[str]:
@@ -183,7 +184,7 @@ class A2uiCatalog:
     def validator(self) -> "A2uiValidator":
         from .validator import A2uiValidator
 
-        return A2uiValidator(self)
+        return A2uiValidator(self, experiments=self.experiments)
 
     @property
     def core_catalog(self) -> Catalog[Any, Any]:

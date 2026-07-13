@@ -13,7 +13,7 @@
 # limitations under the License.
 
 import copy
-from typing import Any, Optional, Callable
+from typing import Any, Optional, Callable, Union
 from .utils import load_from_bundled_resource
 from ..inference_strategy import InferenceStrategy
 from .constants import *
@@ -34,10 +34,12 @@ class A2uiSchemaManager(InferenceStrategy):
         schema_modifiers: Optional[
             list[Callable[[dict[str, Any]], dict[str, Any]]]
         ] = None,
+        experiments: Optional[Union[set[str], frozenset[str]]] = None,
     ):
         self._version = version
         self._accepts_inline_catalogs = accepts_inline_catalogs
         self._format_strategy = format_strategy or JsonInferenceFormat()
+        self.experiments = frozenset(experiments) if experiments else frozenset()
 
         self._server_to_client_schema: dict[str, Any] = {}
         self._common_types_schema: dict[str, Any] = {}
@@ -96,6 +98,7 @@ class A2uiSchemaManager(InferenceStrategy):
                 s2c_schema=self._server_to_client_schema,
                 common_types_schema=self._common_types_schema,
                 custom_cuttable_keys=config.custom_cuttable_keys,
+                experiments=self.experiments,
             )
             self._supported_catalogs.append(catalog)
             if config.examples_path:
@@ -173,6 +176,7 @@ class A2uiSchemaManager(InferenceStrategy):
                 catalog_schema=merged_schema,
                 s2c_schema=self._server_to_client_schema,
                 common_types_schema=self._common_types_schema,
+                experiments=self.experiments,
             )
 
         if not client_supported_catalog_ids:

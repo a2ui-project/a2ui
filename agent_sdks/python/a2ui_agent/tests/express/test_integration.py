@@ -20,8 +20,6 @@ import json
 import unittest
 from typing import Any
 
-os.environ["A2UI_VERSION_1_0"] = "true"
-
 from a2ui.core.catalog import Catalog
 from a2ui.experimental.express.compiler import ExpressCompiler
 from a2ui.experimental.express.decompiler import ExpressDecompiler

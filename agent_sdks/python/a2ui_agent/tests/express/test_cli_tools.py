@@ -22,8 +22,6 @@ import unittest
 import tempfile
 from unittest.mock import patch, MagicMock
 
-# Set up environment variables
-os.environ["A2UI_VERSION_1_0"] = "true"
 
 # Add express proposals directory to sys.path to import run_* scripts
 EXPRESS_DIR = os.path.abspath(

@@ -119,7 +119,9 @@ class A2uiPartConverter:
 
             if function_response.response:
                 result = function_response.response.get("result")
-                if isinstance(result, str) and self._format_strategy.has_a2ui_parts(result):
+                if isinstance(result, str) and self._format_strategy.has_a2ui_parts(
+                    result
+                ):
                     return parse_response_to_parts(
                         result,
                         validator=self._catalog.validator,
