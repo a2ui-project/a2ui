@@ -310,7 +310,10 @@ class A2uiSubagentMap:
 
     @classmethod
     async def strip_unowned_surfaces_from_data_model(
-        cls, subagent_name: Optional[str], client_data_model: dict[str, Any], state: State
+        cls,
+        subagent_name: Optional[str],
+        client_data_model: dict[str, Any],
+        state: State,
     ) -> None:
         """Strips data model surfaces not owned by the given subagent in place.
 
