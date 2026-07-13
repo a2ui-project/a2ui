@@ -147,31 +147,69 @@ class StreamingPartConverter:
 
     def __init__(
         self,
-        format_strategy: Optional[Any] = None,
+        parser: Optional[Parser] = None,
         catalog: Optional[Any] = None,
         validator: Optional[Any] = None,
         version: Optional[str] = None,
+        format_strategy: Optional[Any] = None,
     ):
-        strategy_class = (
-            format_strategy
-            if isinstance(format_strategy, type)
-            else (format_strategy.__class__ if format_strategy else JsonInferenceFormat)
-        )
-        self.strategy = strategy_class(catalog=catalog, surface_id="main")
-        self.parser = self.strategy.create_stream_parser()
+        if parser is not None:
+            self.parser = parser
+        else:
+            strategy = format_strategy
+            if isinstance(strategy, type):
+                strategy = strategy(catalog=catalog)
+
+            if strategy is not None:
+                self.parser = strategy.parser
+            else:
+                from a2ui.strategies.schema.parser import A2uiSchemaParser
+
+                self.parser = A2uiSchemaParser(catalog, validator)
+
         self.validator = validator
         self.version = version
 
     def push_chunk(self, chunk: str) -> List[Part]:
         """Pushes a token chunk, returning the current accumulated list of A2A Parts."""
+        from a2ui.parser.response_part import ResponsePart
 
-        response_parts = self.parser.push_chunk(chunk)
+        try:
+            response_parts = self.parser.process_chunk(chunk)
+        except NotImplementedError:
+            # Fallback to accumulating buffer and full parsing
+            if not hasattr(self, "_buffer"):
+                self._buffer = ""
+            self._buffer += chunk
+            try:
+                response_parts = self.parser.parse_response(self._buffer)
+            except Exception:
+                open_prefix = self.parser.open_tag_prefix
+                open_idx = self._buffer.find(open_prefix)
+                if open_idx != -1:
+                    response_parts = [ResponsePart(text=self._buffer[:open_idx])]
+                else:
+                    response_parts = [ResponsePart(text=self._buffer)]
+
         return self._convert_parts(response_parts, is_final=False)
 
     def finalize(self) -> List[Part]:
         """Finalizes the streaming session and returns completed A2A Parts."""
+        from a2ui.parser.response_part import ResponsePart
 
-        response_parts = self.parser.finalize()
+        if hasattr(self, "_buffer"):
+            try:
+                response_parts = self.parser.parse_response(self._buffer)
+            except Exception:
+                open_prefix = self.parser.open_tag_prefix
+                open_idx = self._buffer.find(open_prefix)
+                if open_idx != -1:
+                    response_parts = [ResponsePart(text=self._buffer[:open_idx])]
+                else:
+                    response_parts = [ResponsePart(text=self._buffer)]
+        else:
+            response_parts = []
+
         return self._convert_parts(response_parts, is_final=True)
 
     def _convert_parts(

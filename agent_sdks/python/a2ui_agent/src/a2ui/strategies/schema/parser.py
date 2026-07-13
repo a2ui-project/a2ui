@@ -39,9 +39,7 @@ class A2uiSchemaParser(Parser):
 
     def process_chunk(self, chunk: str) -> List[ResponsePart]:
         """Processes streamed token chunks incrementally."""
-        if not self._stream_parser:
-            self._stream_parser = A2uiStreamParser(self._catalog)
-        return self._stream_parser.process_chunk(chunk)
+        raise NotImplementedError("Incremental streaming parser is not supported.")
 
     def has_a2ui_parts(self, content: str) -> bool:
         from a2ui.schema.constants import A2UI_OPEN_TAG

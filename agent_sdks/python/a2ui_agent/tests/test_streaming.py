@@ -16,11 +16,10 @@ import os
 import pytest
 from typing import Any
 
-os.environ["A2UI_EXPRESS_ENABLED"] = "true"
-os.environ["A2UI_ELEMENTAL_ENABLED"] = "true"
-
-from a2ui.formats.json_inference_format import JsonInferenceFormat
 from a2ui.a2a.parts import StreamingPartConverter
+from a2ui.strategies.schema.parser import A2uiSchemaParser
+from a2ui.experimental.express import ExpressParser
+from a2ui.experimental.elemental import ElementalParser
 from a2ui.schema.catalog import A2uiCatalog
 from a2ui.schema.constants import VERSION_0_9
 from a2a.types import TextPart, DataPart
@@ -50,10 +49,7 @@ def test_catalog():
 
 
 def test_json_inference_format_streaming(test_catalog):
-    converter = StreamingPartConverter(
-        format_strategy=JsonInferenceFormat(),
-        catalog=test_catalog,
-    )
+    converter = StreamingPartConverter(parser=A2uiSchemaParser(test_catalog))
 
     # 1. Push leading text
     parts = converter.push_chunk("Here is the search result:\n")
@@ -109,13 +105,8 @@ def test_json_inference_format_streaming(test_catalog):
 
 
 def test_express_inference_format_streaming(test_catalog):
-    try:
-        from a2ui.experimental.express.format import ExpressInferenceFormat
-    except ImportError:
-        pytest.skip("Express inference format not available")
-
     converter = StreamingPartConverter(
-        format_strategy=ExpressInferenceFormat(),
+        parser=ExpressParser(test_catalog),
         catalog=test_catalog,
     )
 
@@ -144,13 +135,8 @@ def test_express_inference_format_streaming(test_catalog):
 
 
 def test_elemental_inference_format_streaming(test_catalog):
-    try:
-        from a2ui.experimental.elemental.format import ElementalInferenceFormat
-    except ImportError:
-        pytest.skip("Elemental inference format not available")
-
     converter = StreamingPartConverter(
-        format_strategy=ElementalInferenceFormat(),
+        parser=ElementalParser(test_catalog),
         catalog=test_catalog,
     )
 
