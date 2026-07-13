@@ -14,7 +14,7 @@
 
 import json
 import pytest
-from a2ui.formats import InferenceFormat, InferenceFormatRegistry, PromptGenerator
+from a2ui.formats import InferenceFormat, PromptGenerator
 from a2ui.formats.json_inference_format import JsonInferenceFormat
 from a2ui.schema.catalog import A2uiCatalog
 from a2ui.schema.constants import VERSION_0_9
@@ -65,27 +65,22 @@ def test_catalog():
     )
 
 
-def test_registry_operations():
-    fmt = MockFormat()
+def test_express_format_strategy(test_catalog):
+    from a2ui.experimental.express.format import ExpressInferenceFormat
 
-    # 1. Test register and available_formats property
-    InferenceFormatRegistry.register(fmt)
-    assert "mock" in InferenceFormatRegistry.available_formats()
+    fmt = ExpressInferenceFormat(catalog=test_catalog)
+    assert fmt.name == "express"
+    assert "# A2UI Express Output Contract" in fmt.format_description()
+    assert "## Positional Component Signatures" in fmt.catalog_description()
 
-    # 2. Test get
-    retrieved = InferenceFormatRegistry.get("mock")
-    assert retrieved == fmt
 
-    # 3. Test get unknown format raises ValueError
-    with pytest.raises(ValueError, match="Unknown inference format: nonexistent"):
-        InferenceFormatRegistry.get("nonexistent")
+def test_elemental_format_strategy(test_catalog):
+    from a2ui.experimental.elemental.format import ElementalInferenceFormat
 
-    # 4. Test unregister
-    InferenceFormatRegistry.unregister("mock")
-    assert "mock" not in InferenceFormatRegistry.available_formats()
-
-    # 5. Test unregister nonexistent format does not crash
-    InferenceFormatRegistry.unregister("nonexistent")
+    fmt = ElementalInferenceFormat(catalog=test_catalog)
+    assert fmt.name == "elemental"
+    assert "# A2UI Elemental Output Contract" in fmt.format_description()
+    assert "## Component Interfaces" in fmt.catalog_description()
 
 
 def test_json_inference_format(test_catalog):

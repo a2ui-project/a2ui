@@ -20,9 +20,9 @@ from typing import List, Any, Optional
 from a2ui.schema.catalog import A2uiCatalog
 from a2ui.parser.response_part import ResponsePart
 
+
 __all__ = [
     "InferenceFormat",
-    "InferenceFormatRegistry",
     "JsonInferenceFormat",
     "PromptGenerator",
 ]
@@ -148,76 +148,4 @@ class PromptGenerator:
         )
 
 
-class InferenceFormatRegistry:
-    """Registry to register and retrieve inference formats."""
-
-    _formats: dict[str, InferenceFormat] = {}
-    _initialized: bool = False
-
-    @classmethod
-    def _ensure_initialized(cls) -> None:
-        if cls._initialized:
-            return
-        cls._initialized = True
-
-        # Lazy-import and register default JSON format
-        from .json_inference_format import JsonInferenceFormat
-
-        cls.register(JsonInferenceFormat())
-
-        # Lazy-import and conditionally register experimental Express format if enabled
-        if os.environ.get("A2UI_EXPRESS_ENABLED", "").lower() in ("true", "1", "yes"):
-            try:
-                import importlib
-
-                express_mod = importlib.import_module(
-                    "a2ui.experimental.express.format"
-                )
-                ExpressInferenceFormat = getattr(express_mod, "ExpressInferenceFormat")
-                cls.register(ExpressInferenceFormat())
-            except ImportError:
-                pass
-
-        # Lazy-import and conditionally register experimental Elemental format if enabled
-        if os.environ.get("A2UI_ELEMENTAL_ENABLED", "").lower() in ("true", "1", "yes"):
-            try:
-                import importlib
-
-                elemental_mod = importlib.import_module(
-                    "a2ui.experimental.elemental.format"
-                )
-                ElementalInferenceFormat = getattr(
-                    elemental_mod, "ElementalInferenceFormat"
-                )
-                cls.register(ElementalInferenceFormat())
-            except ImportError:
-                pass
-
-    @classmethod
-    def register(cls, format_strategy: InferenceFormat) -> None:
-        cls._formats[format_strategy.name] = format_strategy
-
-    @classmethod
-    def unregister(cls, name: str) -> None:
-        cls._ensure_initialized()
-        cls._formats.pop(name, None)
-
-    @classmethod
-    def get(cls, name: str) -> InferenceFormat:
-        cls._ensure_initialized()
-        if name not in cls._formats:
-            raise ValueError(f"Unknown inference format: {name}")
-        return cls._formats[name]
-
-    @classmethod
-    def available_formats(cls) -> list[str]:
-        cls._ensure_initialized()
-        return list(cls._formats.keys())
-
-
-def __getattr__(name: str) -> Any:
-    if name == "JsonInferenceFormat":
-        from .json_inference_format import JsonInferenceFormat
-
-        return JsonInferenceFormat
-    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+from .json_inference_format import JsonInferenceFormat

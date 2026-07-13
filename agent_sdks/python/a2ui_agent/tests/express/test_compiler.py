@@ -18,7 +18,7 @@ import json
 import os
 import unittest
 
-os.environ["A2UI_EXPRESS_ENABLED"] = "true"
+os.environ["A2UI_VERSION_1_0"] = "true"
 
 from a2ui.core.catalog import Catalog
 from a2ui.schema.catalog import A2uiCatalog, CatalogConfig
@@ -461,11 +461,8 @@ btnLabel = Text("Click Thread 2")
         manager = A2uiSchemaManager(version="1.0", catalogs=[catalog_config])
         catalog = manager.get_selected_catalog()
 
-        orig_express = os.environ.get("A2UI_EXPRESS_ENABLED")
         orig_v1_0 = os.environ.get("A2UI_VERSION_1_0")
 
-        if "A2UI_EXPRESS_ENABLED" in os.environ:
-            del os.environ["A2UI_EXPRESS_ENABLED"]
         if "A2UI_VERSION_1_0" in os.environ:
             del os.environ["A2UI_VERSION_1_0"]
 
@@ -480,18 +477,7 @@ btnLabel = Text("Click Thread 2")
             validator = A2uiValidator(catalog)
             self.assertEqual(validator.version, "1.0")
 
-            del os.environ["A2UI_VERSION_1_0"]
-
-            os.environ["A2UI_EXPRESS_ENABLED"] = "true"
-            validator = A2uiValidator(catalog)
-            self.assertEqual(validator.version, "1.0")
-
         finally:
-            if orig_express is not None:
-                os.environ["A2UI_EXPRESS_ENABLED"] = orig_express
-            elif "A2UI_EXPRESS_ENABLED" in os.environ:
-                del os.environ["A2UI_EXPRESS_ENABLED"]
-
             if orig_v1_0 is not None:
                 os.environ["A2UI_VERSION_1_0"] = orig_v1_0
             elif "A2UI_VERSION_1_0" in os.environ:

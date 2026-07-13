@@ -19,7 +19,7 @@ import os
 import unittest
 from a2ui.core.catalog import Catalog
 
-os.environ["A2UI_EXPRESS_ENABLED"] = "true"
+os.environ["A2UI_VERSION_1_0"] = "true"
 
 from a2ui.experimental.express.compiler import ExpressCompiler
 from a2ui.experimental.express.decompiler import ExpressDecompiler

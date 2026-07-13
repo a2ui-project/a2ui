@@ -241,12 +241,7 @@ class A2uiValidator:
                 "1",
                 "yes",
             )
-            express_enabled = os.environ.get("A2UI_EXPRESS_ENABLED", "").lower() in (
-                "true",
-                "1",
-                "yes",
-            )
-            if v1_0_enabled or express_enabled:
+            if v1_0_enabled:
                 self._delegator = A2uiValidatorWrapperV10(catalog)
             else:
                 raise A2uiCatalogError(

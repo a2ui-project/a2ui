@@ -16,7 +16,7 @@ import json
 import os
 import re
 
-os.environ["A2UI_EXPRESS_ENABLED"] = "true"
+os.environ["A2UI_VERSION_1_0"] = "true"
 from inspect_ai.solver import Solver, solver, TaskState, Generate
 from inspect_ai.model import ChatMessageSystem, ModelOutput, ChatCompletionChoice, ChatMessageAssistant, ChatMessageUser
 from a2ui.core.catalog import Catalog
