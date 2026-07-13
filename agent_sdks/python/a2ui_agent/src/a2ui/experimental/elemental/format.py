@@ -49,6 +49,10 @@ class ElementalInferenceFormat(InferenceFormat):
     def name(self) -> str:
         return "elemental"
 
+    @property
+    def open_tag_prefix(self) -> str:
+        return "<a2ui"
+
     def format_description(self, custom_workflow_description: str = "") -> str:
         rules = r"""# A2UI Elemental Output Contract
 

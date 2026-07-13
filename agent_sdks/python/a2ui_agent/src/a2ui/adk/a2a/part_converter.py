@@ -39,7 +39,6 @@ from typing import Optional
 from a2a import types as a2a_types
 from a2ui.a2a.parts import create_a2ui_part, parse_response_to_parts
 from a2ui.formats import InferenceFormat, JsonInferenceFormat
-from a2ui.parser.parser import has_a2ui_parts
 from a2ui.schema import constants
 from a2ui.schema.catalog import A2uiCatalog
 from google.adk.a2a.converters import part_converter
@@ -120,7 +119,7 @@ class A2uiPartConverter:
 
             if function_response.response:
                 result = function_response.response.get("result")
-                if isinstance(result, str) and "<a2ui" in result:
+                if isinstance(result, str) and self._format_strategy.has_a2ui_parts(result):
                     return parse_response_to_parts(
                         result,
                         validator=self._catalog.validator,
@@ -138,7 +137,7 @@ class A2uiPartConverter:
 
         # 3. Handle Text-based A2UI (TextPart)
         if text := part.text:
-            if "<a2ui" in text:
+            if self._format_strategy.has_a2ui_parts(text):
                 return parse_response_to_parts(
                     text,
                     validator=self._catalog.validator,
