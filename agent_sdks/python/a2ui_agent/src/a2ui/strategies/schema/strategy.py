@@ -14,12 +14,14 @@
 
 import copy
 from typing import Any, Optional, Callable, Union
-from .utils import load_from_bundled_resource
-from ..inference_strategy import InferenceStrategy
-from .constants import *
-from .catalog import CatalogConfig, A2uiCatalog
+
+from a2ui.schema.utils import load_from_bundled_resource
+from a2ui.inference_strategy import InferenceStrategy, Parser
+from a2ui.schema.constants import *
+from a2ui.schema.catalog import CatalogConfig, A2uiCatalog
 from a2ui.core import A2uiCatalogError
-from a2ui.formats import InferenceFormat, JsonInferenceFormat, PromptGenerator
+from a2ui.strategies.schema.parser import A2uiSchemaParser
+from a2ui.strategies.schema.prompt_generator import SchemaPromptGenerator
 
 
 class A2uiSchemaManager(InferenceStrategy):
@@ -29,7 +31,6 @@ class A2uiSchemaManager(InferenceStrategy):
         self,
         version: str,
         catalogs: Optional[list[CatalogConfig]] = None,
-        format_strategy: Optional[InferenceFormat] = None,
         accepts_inline_catalogs: bool = False,
         schema_modifiers: Optional[
             list[Callable[[dict[str, Any]], dict[str, Any]]]
@@ -38,7 +39,6 @@ class A2uiSchemaManager(InferenceStrategy):
     ):
         self._version = version
         self._accepts_inline_catalogs = accepts_inline_catalogs
-        self._format_strategy = format_strategy or JsonInferenceFormat()
         self.experiments = frozenset(experiments) if experiments else frozenset()
 
         self._server_to_client_schema: dict[str, Any] = {}
@@ -47,6 +47,17 @@ class A2uiSchemaManager(InferenceStrategy):
         self._catalog_example_paths: dict[str, str] = {}
         self._schema_modifiers = schema_modifiers or []
         self._load_schemas(version, catalogs or [])
+
+    @property
+    def parser(self) -> Parser:
+        """Returns the Parser instance for this strategy."""
+        default_catalog = (
+            self._supported_catalogs[0] if self._supported_catalogs else None
+        )
+        return A2uiSchemaParser(
+            default_catalog,
+            default_catalog.validator if default_catalog else None,
+        )
 
     @property
     def accepts_inline_catalogs(self) -> bool:
@@ -222,16 +233,12 @@ class A2uiSchemaManager(InferenceStrategy):
         include_schema: bool = False,
         include_examples: bool = False,
         validate_examples: bool = False,
-        format_strategy: Optional[InferenceFormat] = None,
+        format_strategy: Optional[Any] = None,
     ) -> str:
         """Assembles the final system instruction for the LLM."""
         selected_catalog = self.get_selected_catalog(
             client_ui_capabilities, allowed_components, allowed_messages
         )
-
-        strategy_base = format_strategy or self._format_strategy
-        # Construct strategy instance parameterized with selected catalog and main surface ID
-        fmt = strategy_base.__class__(catalog=selected_catalog, surface_id="main")
 
         examples_str = ""
         if include_examples:
@@ -239,12 +246,11 @@ class A2uiSchemaManager(InferenceStrategy):
                 selected_catalog, validate=validate_examples
             )
 
-        generator = PromptGenerator(fmt)
-        return generator.generate_system_prompt(
+        generator = SchemaPromptGenerator(selected_catalog)
+        return generator.generate(
             role_description=role_description,
             workflow_description=workflow_description,
             ui_description=ui_description,
+            examples=examples_str,
             include_schema=include_schema,
-            include_examples=include_examples,
-            examples_raw=examples_str,
         )

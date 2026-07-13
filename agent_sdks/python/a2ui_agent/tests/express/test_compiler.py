@@ -452,8 +452,8 @@ btnLabel = Text("Click Thread 2")
     def test_v10_validator_gating(self):
         """Verifies that A2uiValidator gates v1.0 validation behind flags."""
         from a2ui.schema.catalog import CatalogConfig
-        from a2ui.schema.manager import A2uiSchemaManager
-        from a2ui.schema.validator import A2uiValidator
+        from a2ui.strategies.schema import A2uiSchemaManager
+        from a2ui.validation.validator import A2uiValidator
         from a2ui.core import A2uiCatalogError
 
         catalog_config = CatalogConfig.from_path("basic_catalog", self.catalog_path)

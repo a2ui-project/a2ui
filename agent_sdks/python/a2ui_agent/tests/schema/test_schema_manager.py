@@ -14,7 +14,8 @@ import pytest
 import json
 import os
 from unittest.mock import patch, MagicMock, PropertyMock
-from a2ui.schema.manager import A2uiSchemaManager, A2uiCatalog, CatalogConfig
+from a2ui.strategies.schema import A2uiSchemaManager
+from a2ui.schema.catalog import A2uiCatalog, CatalogConfig
 from a2ui.basic_catalog import BasicCatalog
 from a2ui.basic_catalog.constants import BASIC_CATALOG_NAME
 from a2ui.schema.constants import (

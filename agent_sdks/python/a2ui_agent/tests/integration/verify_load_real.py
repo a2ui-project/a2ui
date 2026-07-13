@@ -14,7 +14,7 @@
 
 import sys
 
-from a2ui.schema.manager import A2uiSchemaManager
+from a2ui.strategies.schema import A2uiSchemaManager
 from a2ui.schema.constants import CATALOG_COMPONENTS_KEY, VERSION_0_8, VERSION_0_9
 from a2ui.schema.common_modifiers import remove_strict_validation
 from a2ui.basic_catalog.provider import BasicCatalog

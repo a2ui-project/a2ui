@@ -14,10 +14,10 @@
 
 import json
 import re
-from typing import Any, Optional
+from typing import Any, Optional, List
 from a2ui.schema.catalog import A2uiCatalog
 from a2ui.parser.response_part import ResponsePart
-from a2ui.formats import InferenceFormat
+from a2ui.inference_strategy import InferenceStrategy, Parser
 from google.adk.utils.feature_decorator import experimental
 
 from .prompt_generator import ExpressPromptGenerator
@@ -26,28 +26,47 @@ from .parser import parse_express_response
 
 
 @experimental
-class ExpressInferenceFormat(InferenceFormat):
+class ExpressParser(Parser):
+    """Concrete parser implementation for A2UI Express DSL responses."""
+
+    def __init__(self, catalog: A2uiCatalog, surface_id: str = "main"):
+        self.catalog = catalog
+        self.surface_id = surface_id
+
+    def parse_response(self, content: str) -> List[ResponsePart]:
+        """Parses Express DSL blocks wrapped inside <a2ui> tags."""
+        return parse_express_response(content, self.catalog, self.surface_id)
+
+    def process_chunk(self, chunk: str) -> List[ResponsePart]:
+        """Express DSL is parsed as a whole script block; streaming is not supported."""
+        raise NotImplementedError("Streaming parsing is not supported for Express DSL.")
+
+
+@experimental
+class ExpressInferenceStrategy(InferenceStrategy):
     """Concrete strategy for Express DSL representation."""
 
     def __init__(
         self,
         catalog: Optional[A2uiCatalog] = None,
         surface_id: str = "main",
+        examples_path: Optional[str] = None,
     ):
-        super().__init__(catalog, surface_id)
-        self._prompt_gen = ExpressPromptGenerator(catalog) if catalog else None
+        self.catalog = catalog
+        self.surface_id = surface_id
+        self.examples_path = examples_path
         self._decompiler = ExpressDecompiler(catalog) if catalog else None
 
     def _ensure_catalog(self) -> None:
         if not self.catalog or not self._decompiler:
             raise ValueError(
-                f"Catalog is required for parsing and decompiling in {self.name}"
-                " format."
+                "Catalog is required for parsing and decompiling in express format."
             )
 
     @property
-    def name(self) -> str:
-        return "express"
+    def parser(self) -> Parser:
+        self._ensure_catalog()
+        return ExpressParser(self.catalog, self.surface_id)
 
     def has_a2ui_parts(self, content: str) -> bool:
         return "<a2ui" in content
@@ -111,12 +130,14 @@ IMPORTANT: You must ALWAYS output A2UI Express DSL notation wrapped inside `<a2u
             rules += f"\n\n{custom_workflow_description}"
         return rules
 
-    def catalog_description(self, include_schema: bool = True) -> str:
-        if not self._prompt_gen or not include_schema:
+    def catalog_description(
+        self, prompt_gen: ExpressPromptGenerator, include_schema: bool = True
+    ) -> str:
+        if not include_schema:
             return ""
-        comp_sigs = self._prompt_gen.generate_component_signatures()
-        func_sigs = self._prompt_gen.generate_function_signatures()
-        catalog_instructions = self._prompt_gen.helper.catalog.get("instructions", "")
+        comp_sigs = prompt_gen.generate_component_signatures()
+        func_sigs = prompt_gen.generate_function_signatures()
+        catalog_instructions = prompt_gen.helper.catalog.get("instructions", "")
 
         # Translate json examples in catalog instructions into A2UI Express DSL
         if catalog_instructions:
@@ -174,10 +195,6 @@ IMPORTANT: You must ALWAYS output A2UI Express DSL notation wrapped inside `<a2u
         )
         return desc
 
-    def parse_response(self, content: str) -> list[ResponsePart]:
-        self._ensure_catalog()
-        return parse_express_response(content, self.catalog, self.surface_id)
-
     def decompile(self, val: dict[str, Any]) -> str:
         self._ensure_catalog()
         # Decompile standard JSON payload to express syntax and strip outer <a2ui> tags
@@ -187,5 +204,88 @@ IMPORTANT: You must ALWAYS output A2UI Express DSL notation wrapped inside `<a2u
     def wrap_decompiled_blocks(self, blocks: list[str]) -> str:
         # Merge individual express blocks into a single <a2ui> wrapper block
         full_dsl = "\n".join(blocks)
+        return f"<a2ui>\n{full_dsl}\n</a2ui>"
+
+    def transform_examples(self, raw_examples_markdown: str) -> str:
+        """Transforms JSON blocks in raw markdown into Express DSL syntax."""
+        if not self.catalog:
+            return raw_examples_markdown
+
         triple_backticks = chr(96) * 3
-        return f"{triple_backticks}\n<a2ui>\n{full_dsl}\n</a2ui>\n{triple_backticks}"
+        pattern = rf"{triple_backticks}json\s*\n(.*?)\n{triple_backticks}"
+
+        def replace_json_block(match: re.Match[str]) -> str:
+            json_content = match.group(1).strip()
+            try:
+                parsed = json.loads(json_content)
+                if isinstance(parsed, dict):
+                    messages = [parsed]
+                elif isinstance(parsed, list):
+                    messages = parsed
+                else:
+                    return str(match.group(0))
+
+                blocks = []
+                for msg in messages:
+                    if isinstance(msg, dict) and any(
+                        k in msg
+                        for k in [
+                            "createSurface",
+                            "updateDataModel",
+                            "deleteSurface",
+                            "callFunction",
+                        ]
+                    ):
+                        decompiled = self.decompile(msg)
+                        blocks.append(decompiled)
+                    else:
+                        return str(match.group(0))
+
+                return self.wrap_decompiled_blocks(blocks)
+            except Exception:
+                return str(match.group(0))
+
+        return re.sub(
+            pattern, replace_json_block, raw_examples_markdown, flags=re.DOTALL
+        )
+
+    def generate_system_prompt(
+        self,
+        role_description: str,
+        workflow_description: str = "",
+        ui_description: str = "",
+        client_ui_capabilities: Optional[dict[str, Any]] = None,
+        allowed_components: Optional[list[str]] = None,
+        allowed_messages: Optional[list[str]] = None,
+        include_schema: bool = False,
+        include_examples: bool = False,
+        validate_examples: bool = False,
+        format_strategy: Optional[Any] = None,
+    ) -> str:
+        """Assembles the final system instruction prompt for Express DSL."""
+        catalog = self.catalog
+        if catalog and (allowed_components or allowed_messages):
+            catalog = catalog.with_pruning(allowed_components, allowed_messages)
+
+        prompt_gen = ExpressPromptGenerator(catalog) if catalog else None
+
+        parts = [role_description]
+
+        workflow = self.format_description(workflow_description)
+        parts.append(f"## Workflow Description:\n{workflow}")
+
+        if ui_description:
+            parts.append(f"## UI Description:\n{ui_description}")
+
+        if include_schema and prompt_gen:
+            parts.append(self.catalog_description(prompt_gen, include_schema))
+
+        if include_examples and self.examples_path and catalog:
+            raw_examples = catalog.load_examples(
+                self.examples_path, validate=validate_examples
+            )
+            if raw_examples:
+                formatted_examples = self.transform_examples(raw_examples)
+                parts.append(f"### Examples:\n{formatted_examples}")
+
+        return "\n\n".join(parts)

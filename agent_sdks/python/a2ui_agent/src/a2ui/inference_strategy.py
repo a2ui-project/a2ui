@@ -13,10 +13,43 @@
 # limitations under the License.
 
 from abc import ABC, abstractmethod
-from typing import Optional, Any
+from typing import Optional, Any, List
+from a2ui.parser.response_part import ResponsePart
+
+
+class Parser(ABC):
+    """Abstract interface defining the response parser and tokenizer."""
+
+    @abstractmethod
+    def parse_response(self, content: str) -> List[ResponsePart]:
+        """Parses full response content into standard JSON payload parts."""
+        pass
+
+    @abstractmethod
+    def process_chunk(self, chunk: str) -> List[ResponsePart]:
+        """Processes a streamed token chunk (incremental parsing)."""
+        pass
+
+    @property
+    def open_tag_prefix(self) -> str:
+        """The opening tag prefix to match in token stream (e.g. '<a2ui-json', '<a2ui')."""
+        from a2ui.schema.constants import A2UI_OPEN_TAG
+
+        return A2UI_OPEN_TAG.rstrip(">")
+
+    def has_a2ui_parts(self, content: str) -> bool:
+        """Checks if the content contains formatted structured blocks for this parser."""
+        return self.open_tag_prefix in content
 
 
 class InferenceStrategy(ABC):
+    """Interface coordinating system prompt generation and response parsing."""
+
+    @property
+    @abstractmethod
+    def parser(self) -> Parser:
+        """The Parser instance associated with this inference strategy."""
+        pass
 
     @abstractmethod
     def generate_system_prompt(
@@ -30,22 +63,9 @@ class InferenceStrategy(ABC):
         include_schema: bool = False,
         include_examples: bool = False,
         validate_examples: bool = False,
+        format_strategy: Optional[Any] = None,
     ) -> str:
         """
         Generates a system prompt for all LLM requests.
-
-        Args:
-          role_description: Description of the agent's role.
-          workflow_description: Description of the workflow.
-          ui_description: Description of the UI.
-          client_ui_capabilities: Capabilities reported by the client for targeted schema pruning.
-          allowed_components: List of allowed catalog components.
-          allowed_messages: List of allowed messages.
-          include_schema: Whether to include the schema.
-          include_examples: Whether to include examples.
-          validate_examples: Whether to validate examples.
-
-        Returns:
-          The system prompt.
         """
         pass

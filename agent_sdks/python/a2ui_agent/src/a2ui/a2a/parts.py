@@ -14,7 +14,7 @@
 
 import logging
 from typing import Any, Optional, List, AsyncIterable, TYPE_CHECKING
-from a2ui.formats import JsonInferenceFormat
+from a2ui.inference_strategy import Parser
 
 if TYPE_CHECKING:
     from a2ui.parser.streaming import A2uiStreamParser
@@ -88,31 +88,33 @@ def get_a2ui_datapart(part: Part) -> Optional[DataPart]:
 
 def parse_response_to_parts(
     content: str,
+    parser: Optional[Parser] = None,
     validator: Optional[Any] = None,
     fallback_text: Optional[str] = None,
     version: Optional[str] = None,
-    format_strategy: Optional[Any] = None,
     catalog: Optional[Any] = None,
 ) -> List[Part]:
     """Helper to parse LLM response content into A2A Parts, with optional validation.
 
     Args:
         content: The LLM response content, potentially containing A2UI delimiters.
+        parser: Optional Parser instance.
         validator: Optional validator to run against extracted JSON payloads.
         fallback_text: Optional text to return if no parts are successfully created.
         version: Optional version string.
-        format_strategy: Optional InferenceFormat strategy.
-        catalog: Optional A2uiCatalog for non-JSON formats.
+        catalog: Optional A2uiCatalog for fallback schema parser creation.
 
     Returns:
         A list of A2A Part objects (TextPart and/or DataPart).
     """
-    strategy_base = format_strategy or JsonInferenceFormat()
-    strategy = strategy_base.__class__(catalog=catalog, surface_id="main")
+    if parser is None:
+        from a2ui.strategies.schema.parser import A2uiSchemaParser
+
+        parser = A2uiSchemaParser(catalog)
 
     parts = []
     try:
-        response_parts = strategy.parse_response(content)
+        response_parts = parser.parse_response(content)
 
         for part in response_parts:
             if part.text:

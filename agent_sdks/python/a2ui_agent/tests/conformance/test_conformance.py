@@ -19,8 +19,9 @@ import pytest
 from a2ui.basic_catalog import BasicCatalog
 from a2ui.schema.catalog import A2uiCatalog
 from a2ui.parser.streaming import A2uiStreamParser
-from a2ui.schema.validator import A2uiValidator
-from a2ui.schema.manager import A2uiSchemaManager, CatalogConfig
+from a2ui.validation.validator import A2uiValidator
+from a2ui.strategies.schema import A2uiSchemaManager
+from a2ui.schema.catalog import CatalogConfig
 from a2ui.schema.common_modifiers import remove_strict_validation
 from a2ui.schema.constants import VERSION_0_8, VERSION_0_9
 from a2ui.core import (

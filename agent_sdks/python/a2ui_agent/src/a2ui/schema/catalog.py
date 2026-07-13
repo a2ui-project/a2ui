@@ -39,7 +39,7 @@ from .constants import (
 )
 
 if TYPE_CHECKING:
-    from .validator import A2uiValidator
+    from a2ui.validation.validator import A2uiValidator
 
 
 @dataclass
@@ -182,7 +182,7 @@ class A2uiCatalog:
 
     @property
     def validator(self) -> "A2uiValidator":
-        from .validator import A2uiValidator
+        from a2ui.validation.validator import A2uiValidator
 
         return A2uiValidator(self, experiments=self.experiments)
 

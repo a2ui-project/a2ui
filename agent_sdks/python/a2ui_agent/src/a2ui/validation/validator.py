@@ -15,7 +15,7 @@
 from __future__ import annotations
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Set, Tuple, Union, Mapping
 
-from .constants import VERSION_0_8, VERSION_0_9, VERSION_0_9_1, VERSION_1_0
+from a2ui.schema.constants import VERSION_0_8, VERSION_0_9, VERSION_0_9_1, VERSION_1_0
 from .validator_v08 import (
     LegacyA2uiValidatorV08,
     extract_component_required_fields as v08_req,

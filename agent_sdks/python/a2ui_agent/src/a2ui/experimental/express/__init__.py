@@ -23,6 +23,7 @@ from .decompiler import ExpressDecompiler
 from .prompt_generator import ExpressPromptGenerator
 from .constants import SurfaceOperation
 from .parser import parse_express_response
+from .strategy import ExpressInferenceStrategy, ExpressParser
 
 __all__ = [
     "ExpressCompiler",
@@ -30,4 +31,6 @@ __all__ = [
     "ExpressPromptGenerator",
     "SurfaceOperation",
     "parse_express_response",
+    "ExpressInferenceStrategy",
+    "ExpressParser",
 ]

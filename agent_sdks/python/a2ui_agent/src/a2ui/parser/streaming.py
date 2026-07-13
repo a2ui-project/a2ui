@@ -29,11 +29,11 @@ from ..schema.constants import (
     SURFACE_ID_KEY,
     CATALOG_COMPONENTS_KEY,
 )
-from ..schema.validator import (
+from a2ui.validation.validator import (
     extract_component_ref_fields,
     extract_component_required_fields,
 )
-from ..schema.validator import A2uiValidator
+from a2ui.validation.validator import A2uiValidator
 from a2ui.core.validating import analyze_topology
 from .response_part import ResponsePart
 from a2ui.core.validating.validator import RELAXED_VALIDATION, STRICT_VALIDATION, ValidationConfig

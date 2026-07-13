@@ -28,12 +28,12 @@ from a2ui.core.validating.integrity_checker import (
 from a2ui.core.validating.topology_analyzer import analyze_topology as core_analyze_topology
 
 from a2ui.core import A2uiValidationError
-from .utils import wrap_as_json_array
+from a2ui.schema.utils import wrap_as_json_array
 
 if TYPE_CHECKING:
-    from .catalog import A2uiCatalog
+    from a2ui.schema.catalog import A2uiCatalog
 
-from .constants import (
+from a2ui.schema.constants import (
     BASE_SCHEMA_URL,
     CATALOG_COMPONENTS_KEY,
     CATALOG_ID_KEY,
