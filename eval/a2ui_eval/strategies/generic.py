@@ -20,10 +20,23 @@ from inspect_ai.model import (
     ChatCompletionChoice,
     ChatMessageAssistant,
 )
-from a2ui.formats import InferenceFormatRegistry
+from a2ui.formats import JsonInferenceFormat
+from a2ui.experimental.express.format import ExpressInferenceFormat
+from a2ui.experimental.elemental.format import ElementalInferenceFormat
 from a2ui.schema.catalog import CatalogConfig
 from a2ui.schema.manager import A2uiSchemaManager
 from ..shared.utils import GIT_ROOT, measured_generate
+
+
+def _get_format_strategy(format_name: str):
+    if format_name == "json":
+        return JsonInferenceFormat()
+    elif format_name == "express":
+        return ExpressInferenceFormat()
+    elif format_name == "elemental":
+        return ElementalInferenceFormat()
+    else:
+        raise ValueError(f"Unknown format strategy: {format_name}")
 
 
 @solver
@@ -35,7 +48,7 @@ def format_system_prompt(format_name: str, version: str) -> Solver:
         resolved_catalog_path = str(GIT_ROOT / catalog_path)
 
         catalog_config = CatalogConfig.from_path("basic_catalog", resolved_catalog_path)
-        fmt = InferenceFormatRegistry.get(format_name)
+        fmt = _get_format_strategy(format_name)
 
         manager = A2uiSchemaManager(
             version=version,
@@ -69,7 +82,7 @@ def compile_format_payload(format_name: str, version: str) -> Solver:
         resolved_catalog_path = str(GIT_ROOT / catalog_path)
 
         catalog_config = CatalogConfig.from_path("basic_catalog", resolved_catalog_path)
-        fmt = InferenceFormatRegistry.get(format_name)
+        fmt = _get_format_strategy(format_name)
 
         manager = A2uiSchemaManager(
             version=version,
