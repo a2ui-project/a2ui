@@ -18,6 +18,7 @@ import {
   Catalog,
   DynamicNumberSchema,
   DynamicStringSchema,
+  DynamicValueSchema,
   createFunctionImplementation,
 } from '@a2ui/web_core/v0_9';
 import {z} from 'zod';
@@ -34,15 +35,11 @@ export const MCP_APP_CATALOG_ID =
   'https://a2ui.org/samples/community/agent/adk/mcp_app_proxy/catalogs/0.9/mcp_app_catalog.json';
 
 const McpAppSchema = z.object({
-  htmlContent: z.string().optional(),
+  htmlContent: DynamicStringSchema.optional(),
   allowedTools: z.array(z.string()).optional(),
   allowedFunctions: z.array(z.string()).optional(),
-  data: z
-    .object({
-      path: z.string(),
-    })
-    .optional(),
-  title: z.string().optional(),
+  data: DynamicValueSchema.optional(),
+  title: DynamicStringSchema.optional(),
 });
 
 const PongScoreBoardSchema = z.object({

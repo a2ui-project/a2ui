@@ -68,8 +68,8 @@
               }
             },
             "data": {
-              "$ref": "common_types.json#/$defs/DataBinding",
-              "description": "The A2UI data model path bound to this component for reactive state synchronization."
+              "$ref": "common_types.json#/$defs/DynamicValue",
+              "description": "The A2UI data model path or value bound to this component for reactive state synchronization."
             }
           },
           "required": ["component", "htmlContent"],

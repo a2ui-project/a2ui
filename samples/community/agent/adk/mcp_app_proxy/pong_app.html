@@ -297,7 +297,7 @@
         .then(result => {
           console.log('Initialized with host:', result);
           sendNotification('ui/notifications/initialized', {});
-          sendNotification('ui/notifications/size-change', {width: 728, height: 502});
+          sendNotification('ui/notifications/size-changed', {width: 728, height: 502});
         })
         .catch(err => {
           console.error('Initialization failed:', err);

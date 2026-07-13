@@ -53,9 +53,38 @@ All communications between the host, the sandbox proxy, and the embedded app use
 
 ## 3.1. Handshake lifecycle
 
-To establish communication without race conditions, the following lifecycle is followed:
+To establish secure communication across the sandboxed boundaries without race conditions, the handshake is divided into two distinct phases:
 
-1. **Proxy ready (`ui/notifications/sandbox-proxy-ready`):** The sandbox proxy notifies the host when it has loaded and is ready to establish the bridge.
+```mermaid
+sequenceDiagram
+    participant Host as Host Client (McpApp Component)
+    participant Proxy as Sandbox Proxy (sandbox.html)
+    participant App as Embedded App (Inner Iframe)
+
+    Note over Host, Proxy: Phase A: Sandbox Bootstrap
+    Proxy->>Host: 1. ui/notifications/sandbox-proxy-ready
+    Host->>Proxy: 2. ui/notifications/sandbox-resource-ready (HTML, sandbox)
+    Proxy->>App: 3. postMessage("sandbox-init")
+
+    Note over Host, App: Phase B: App Initialization
+    App->>Host: 4. ui/initialize (capabilities, version)
+    Host-->>App: 5. Response (host capabilities)
+    App->>Host: 6. ui/notifications/initialized
+```
+
+---
+
+### Phase A: Sandbox Bootstrap (Aligned to [MCP Apps Specification: Sandbox Proxy](https://github.com/modelcontextprotocol/ext-apps/blob/main/specification/2026-01-26/apps.mdx#sandbox-proxy))
+
+- **Participants:** **Host Client** (the outer `McpApp` component) $\leftrightarrow$ **Sandbox Proxy** (the intermediate `sandbox.html` frame).
+- **Implementation Location:**
+  - Host-side: Handled by `mcp-app.ts` (`setupSandbox` listening for proxy-ready; `contentUpdate` effect sending resource-ready).
+  - Proxy-side: Handled by `sandbox.ts` (listens for resource-ready, sets iframe attributes, sets `srcdoc`, and triggers load).
+- **Goal/Achievement:** Decodes, configures, and injects the raw application HTML string into the sandboxed inner iframe under the correct Content Security Policy (CSP) and permissions context before any execution begins.
+
+#### Sequence:
+
+1. **Proxy ready (`ui/notifications/sandbox-proxy-ready`):** Sent from the Sandbox Proxy to the Host once its document has fully loaded and registered its message handler.
    ```json
    {
      "jsonrpc": "2.0",
@@ -63,7 +92,7 @@ To establish communication without race conditions, the following lifecycle is f
      "params": {}
    }
    ```
-2. **Resource ready (`ui/notifications/sandbox-resource-ready`):** The host responds to the proxy with the application content, sandbox flags, and permissions.
+2. **Resource ready (`ui/notifications/sandbox-resource-ready`):** Sent from the Host to the Sandbox Proxy in response, delivering the application HTML code and sandbox/permission attributes.
    ```json
    {
      "jsonrpc": "2.0",
@@ -75,11 +104,27 @@ To establish communication without race conditions, the following lifecycle is f
      }
    }
    ```
-3. **Sandbox initialization (`sandbox-init`):** The proxy loads the inner iframe with the application HTML and dispatches a `sandbox-init` message to the inner frame to signal that the connection is active.
+3. **Sandbox initialization (`sandbox-init`):** Sent from the Sandbox Proxy to the Inner Iframe via `postMessage("sandbox-init")` as soon as the inner iframe completes loading the HTML content, signaling that the communication bridge is open.
+
+---
+
+### Phase B: Standard MCP Connection Handshake (Aligned to [MCP Apps Specification: Communication Protocol](https://github.com/modelcontextprotocol/ext-apps/blob/main/specification/2026-01-26/apps.mdx#communication-protocol))
+
+- **Participants:** **Host Client** (via `@modelcontextprotocol/ext-apps/app-bridge`) $\leftrightarrow$ **Embedded App** (the running JS script within the inner iframe).
+- **Implementation Location:**
+  - Host-side: Evaluated automatically by the `AppBridge` instance initialized in `mcp-app.ts`'s `initializeBridge()`.
+  - App-side: Initiated by the application bootstrap script (e.g. `sendRequest('ui/initialize')` and `sendNotification('ui/notifications/initialized')` in `pong_app.html`).
+- **Goal/Achievement:** Establishes protocol compatibility, registers display mode capabilities, and activates the JSON-RPC event channel for standard MCP requests and notifications.
+
+#### Sequence:
+
+1. **Initialize request (`ui/initialize`):** Sent from the Embedded App to the Host client to announce its capabilities (e.g. supported display modes, sampling, tool list notifications) and request protocol negotiation.
+2. **Initialize response:** Sent from the Host `AppBridge` to the Embedded App, resolving the promise with the host's supported capabilities and platform metadata.
+3. **Initialized notification (`ui/notifications/initialized`):** Sent from the Embedded App to the Host to signal that initialization is complete and that it is ready to dispatch outgoing notifications (such as `ui/notifications/size-changed`).
 
 ## 3.2. Outgoing messages (Embedded app to host)
 
-### A. Tool call execution (`tools/call`)
+### A. Tool call execution (`tools/call`) (Aligned to [Model Context Protocol Specification: Tools](https://github.com/modelcontextprotocol/ext-apps/blob/main/specification/2026-01-26/apps.mdx#standard-mcp-messages))
 
 Dispatched when the embedded application requests an MCP tool execution (representing a user interaction like clicking an action button).
 
@@ -123,6 +168,13 @@ The host writes the `value` back to the Data Model at the path specified in the 
 
 To avoid infinite update loops, deep-equality checks are performed on both sides. The host discards incoming `ui/notifications/data-model-change` messages if the value is structurally identical to the current state, and the embedded app does the same for incoming `ui/notifications/data-model-update` messages.
 
+> [!WARNING]
+> Because state propagation is bi-directional over an asynchronous sandbox boundary, race conditions or state clobbering can occur if the host and the embedded app write to the same path concurrently. To minimize clobbering:
+>
+> 1. Implement strict state deduplication (e.g., deep-equality checking) before dispatching updates.
+> 2. Partition state by using sub-paths within the bound object (e.g. host writes to `/state/host_data` and app writes to `/state/app_data`).
+> 3. Mutations are a no-op if `data` is mapped to a constant value instead of a path.
+
 ### C. Local client-side function execution (`ui/requests/function-call`)
 
 Dispatched when the embedded app wants to execute a registered local A2UI v0.9 function.
@@ -146,16 +198,16 @@ Dispatched when the embedded app wants to execute a registered local A2UI v0.9 f
 **Host action**  
 The host checks if the target function is listed in the component's `allowedFunctions` list. If verified, it evaluates the function using the A2UI client catalog engine and returns the result (or error) to the app.
 
-### D. Frame resize request (`ui/notifications/size-change`)
+### D. Frame resize request (`ui/notifications/size-changed`)
 
-Allows the embedded app to dynamically request height or width changes.
+Allows the embedded app to dynamically request height or width changes, following standard parameters defined in the [Model Context Protocol Apps Specification: Container Dimensions](https://github.com/modelcontextprotocol/ext-apps/blob/main/specification/2026-01-26/apps.mdx#container-dimensions).
 
 **Message schema**
 
 ```json
 {
   "jsonrpc": "2.0",
-  "method": "ui/notifications/size-change",
+  "method": "ui/notifications/size-changed",
   "params": {
     "width": "number",
     "height": "number"
@@ -166,16 +218,16 @@ Allows the embedded app to dynamically request height or width changes.
 **Host action**  
 The host updates the dimensions of the wrapper element to match the requested size.
 
-### E. Logging notification (`ui/notifications/logging`)
+### E. Logging notification (`notifications/message`)
 
-Dispatched when the embedded app publishes diagnostic logging.
+Dispatched when the embedded app publishes diagnostic logging, following standard parameters defined in the [Model Context Protocol Apps Specification](https://github.com/modelcontextprotocol/ext-apps/blob/main/specification/2026-01-26/apps.mdx).
 
 **Message schema**
 
 ```json
 {
   "jsonrpc": "2.0",
-  "method": "ui/notifications/logging",
+  "method": "notifications/message",
   "params": {
     "level": "string",
     "data": "any"
@@ -299,15 +351,11 @@ The `McpApp` component is registered in the A2UI Component Catalog.
         "description": "The list of local client-side functions the embedded application is authorized to call."
       },
       "data": {
-        "type": "object",
-        "properties": {
-          "path": {"type": "string"}
-        },
-        "required": ["path"],
-        "description": "The A2UI data model path bound to this component for reactive state synchronization."
+        "$ref": "common_types.json#/$defs/DynamicValue",
+        "description": "The A2UI data model path or value bound to this component for reactive state synchronization."
       },
       "title": {
-        "type": "string",
+        "$ref": "common_types.json#/$defs/DynamicString",
         "description": "The title attribute for accessibility."
       }
     },
@@ -350,24 +398,9 @@ To prevent the application from sending network requests, the proxy injects a Co
 
 This blocks connection protocols like fetch, XHR, WebSockets, and Server-Sent Events, forcing all communication to be routed through the `AppBridge` channel to the host.
 
-### Security self-test
-
-The sandbox proxy performs a self-test to verify that sandbox isolation is active before loading any third-party code. It attempts to access the parent window:
-
-```javascript
-try {
-  window.top.alert('Sandbox breakout check failed.');
-  throw new Error('FAIL');
-} catch (e) {
-  if (e.message === 'FAIL') throw new Error('Sandbox isolation is inactive.');
-}
-```
-
-If the sandbox is secure, the browser blocks access with a security exception, allowing execution to continue. If it succeeds, the script halts execution.
-
 ### Dynamic resizing controls
 
-To prevent layout instability, the host enforces the following rules on `ui/notifications/size-change` requests:
+To prevent layout instability, the host enforces the following rules on `ui/notifications/size-changed` requests (leveraging the [Model Context Protocol Apps Specification: Container Dimensions](https://github.com/modelcontextprotocol/ext-apps/blob/main/specification/2026-01-26/apps.mdx#container-dimensions)):
 
 1. **Clamping:** Height must be clamped between 100px and 2000px; width must be clamped between 200px and 3000px.
 2. **Throttling:** Consecutive size changes must be throttled to a maximum of one redraw per 100 milliseconds.
@@ -376,6 +409,9 @@ To prevent layout instability, the host enforces the following rules on `ui/noti
 # 6. Double-iframe proxy blueprint
 
 This section provides the reference implementation for the sandbox proxy page (`sandbox.html` and `sandbox.ts`).
+
+> [!NOTE]
+> Compliant implementations SHOULD reuse the official `@modelcontextprotocol/ext-apps/app-bridge` SDK and build any proprietary/A2UI-specific message routing, size clamping, and origin verification on top of it only if the SDK doesn't support them.
 
 ## 6.1. sandbox.html
 
