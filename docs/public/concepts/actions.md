@@ -300,67 +300,117 @@ In multi-agent systems, a central **Orchestrator** often manages interactions be
 
 ### The Surface Ownership Pattern
 
-To handle this, an orchestrator must maintain a mapping of `surfaceId` to its owning sub-agent. This is typically stored in the **Session State**.
+To handle routing in a multi-agent architecture, an orchestrator must maintain a mapping of each `surfaceId` to its owning sub-agent. The official Python SDK provides the [`A2uiSubagentMap`](../../../agent_sdks/python/a2ui_agent/src/a2ui/adk/orchestration/a2ui_subagent_map.py) utility to manage this mapping safely.
 
-#### 1. Mapping Ownership
+For a complete working example, see the [orchestrator agent executor](../../../samples/community/agent/adk/orchestrator/orchestrator_agent_executor.py) sample.
 
-When a sub-agent emits a `createSurface` message, the orchestrator intercepts it and records the ownership.
+#### 1. Mapping Ownership from Server Events
+
+When a sub-agent emits an A2UI `createSurface` or `deleteSurface` the orchestrator intercepts the message and records the ownership in the session state using `update_from_server_event`.
 
 ```python
-# Simplified Orchestrator Logic: Record Ownership
-def on_surface_created(surface_id, agent_name, session):
-    # Store the mapping in the orchestrator's session state
-    session.state.update({f"owner_of_{surface_id}": agent_name})
+from a2ui.adk.orchestration.a2ui_subagent_map import A2uiSubagentMap, SurfaceIdAlreadyExistsError
+from google.adk.a2a.executor.a2a_agent_executor import A2aAgentExecutorConfig
+from google.adk.a2a.executor.config import ExecuteInterceptor
+from google.adk.a2a.events import Event as A2AEvent
+from google.adk.events.event import Event
+from google.adk.sessions import SessionService, Session
+
+async def after_event_save_surface_id(a2a_event: A2AEvent, event: Event, session_service: SessionService, session: Session):
+    for a2a_part in a2a_event.status.message.parts:
+        try:
+            await A2uiSubagentMap.update_from_server_event(
+                a2a_part,
+                event.author,
+                session_service,
+                session
+            )
+        except SurfaceIdAlreadyExistsError as e:
+            # Handle surface ID collision
+            pass
+    return a2a_event
+
+config = A2aAgentExecutorConfig(
+    execute_interceptors=[
+        ExecuteInterceptor(after_event=after_event_save_surface_id)
+    ]
+)
 ```
 
-#### 2. Routing Events
+#### 2. Routing Client Events
 
-When the renderer sends an `action` back to the orchestrator, the orchestrator looks up the `surfaceId` and transfers the request to the correct sub-agent.
+When the client renderer sends an A2UI `action` or `error` message back, the orchestrator looks up the `surfaceId` in the session state using `get_subagent_name_for_client_event` and routes the request to the correct sub-agent.
 
 ```python
-# Simplified Orchestrator Logic: Route Event
-async def handle_incoming_action(payload, session):
-    action = payload.get("action")
-    surface_id = action.get("surfaceId")
+from a2ui.adk.orchestration.a2ui_subagent_map import A2uiSubagentMap
+from google.adk.agents.llm_agent import LlmAgent
+from google.adk.agents.callback_context import CallbackContext
+from google.adk.models.llm_request import LlmRequest
+from google.adk.models.llm_response import LlmResponse
+from google.genai import types as genai_types
+from google.adk.agents.remote_a2a_agent import convert_genai_part_to_a2a_part
 
-    # Lookup the owning agent
-    target_agent = session.state.get(f"owner_of_{surface_id}")
+async def route_client_event(callback_context: CallbackContext, llm_request: LlmRequest):
+    a2a_part = convert_genai_part_to_a2a_part(llm_request.contents[-1].parts[-1]) # Assume response has a single a2a part
+
+    target_agent = await A2uiSubagentMap.get_subagent_name_for_client_event(
+        a2a_part,
+        callback_context.state
+    )
 
     if target_agent:
-        # Programmatically route the request to the sub-agent
-        return transfer_to(target_agent)
+        # Programmatically trigger the planner's transfer_to_agent function
+        return LlmResponse(
+            content=genai_types.Content(
+                parts=[
+                    genai_types.Part(
+                        function_call=genai_types.FunctionCall(
+                            name="transfer_to_agent",
+                            args={"agent_name": target_agent},
+                        )
+                    )
+                ]
+            )
+        )
+
+orchestrator_agent = LlmAgent(
+    name="orchestrator",
+    before_model_callback=route_client_event,
+    # other configs ...
+)
 ```
 
-This pattern ensures that even in complex, multi-agent environments, the bidirectional communication loop remains intact and stateful for each feature area.
+This pattern ensures that the bidirectional communication loop remains intact and stateful for each feature area.
 
 ### Preventing Data Leakage via Metadata Stripping
 
-In multi-agent environments, the `a2uiClientDataModel` may contain state for multiple surfaces owned by different agents. To prevent sensitive data leakage, an orchestrator must **strip** the data model metadata to only include surfaces owned by the specific sub-agent being called.
+In a multi-agent environment, the `a2uiClientDataModel` object can contain the state for multiple surfaces owned by different sub-agents. To prevent sensitive data leakage, an orchestrator must **strip** the data model metadata to include only the surfaces owned by the target sub-agent.
 
-This is best implemented in an outbound metadata interceptor:
+You can use the `strip_unowned_surfaces_from_data_model` method in an outbound interceptor to mutate the data model dictionary in place.
 
 ```python
-# Simplified Orchestrator Interceptor: Strip Data Model
-async def intercept(self, request_payload, target_agent, session):
-    message = request_payload["params"]["message"]
-    data_model = message.get("metadata", {}).get("a2uiClientDataModel")
+from a2ui.adk.orchestration.a2ui_subagent_map import A2uiSubagentMap
+from a2a.client.middleware import ClientCallInterceptor, ClientCallContext
+from a2a.types import AgentCard
 
-    if data_model:
-        # Filter surfaces to only those owned by the target_agent
-        filtered_surfaces = {
-            surface_id: state for surface_id, state in data_model["surfaces"].items()
-            if session.state.get(f"owner_of_{surface_id}") == target_agent.name
-        }
+class A2UIMetadataInterceptor(ClientCallInterceptor):
+    async def intercept(self, request_payload: dict, agent_card: AgentCard, context: ClientCallContext):
+        message = request_payload.get("params", {}).get("message")
 
-        # Replace with the stripped data model
-        message["metadata"]["a2uiClientDataModel"]["surfaces"] = filtered_surfaces
+        # Strip the data model to prevent data leakage
+        if data_model := message.get("metadata", {}).get("a2uiClientDataModel"):
+            await A2uiSubagentMap.strip_unowned_surfaces_from_data_model(
+                agent_card.name,
+                data_model,
+                context.state,
+            )
 
-    return request_payload
+        return request_payload
 ```
 
-By stripping the metadata, the orchestrator ensures that sub-agents only receive the portion of the data model they are authorized to see.
+By stripping the metadata, the orchestrator ensures that each sub-agent receives only the portion of the data model that it is authorized to see.
 
-CAUTION: **Security Risk: State Scraping**: If an Orchestrator fails to strip the `a2uiClientDataModel`, a malicious or compromised sub-agent could potentially "scrape" the state of other active surfaces. For example, a weather sub-agent could read sensitive data from a banking surface if the orchestrator leaks the entire multi-surface data model. Stripping is a mandatory security requirement in multi-agent systems.
+WARNING: **Security Risk - State Scraping**: If an orchestrator fails to strip the `a2uiClientDataModel`, a malicious or compromised sub-agent could read the state of other active surfaces. For example, a weather sub-agent could scrape sensitive data from a banking surface if the orchestrator leaks the entire multi-surface data model. Stripping is a mandatory security requirement for multi-agent systems.
 
 ---
 

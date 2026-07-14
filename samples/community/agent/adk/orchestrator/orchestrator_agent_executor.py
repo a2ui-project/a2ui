@@ -121,40 +121,14 @@ class A2UIMetadataInterceptor(ClientCallInterceptor):
                 )
 
                 # Data Model Stripping to prevent data leakage
-                data_model = message.metadata.get(A2UI_CLIENT_DATA_MODEL_KEY)
-                if data_model and A2UI_CLIENT_DATA_MODEL_SURFACES_KEY in data_model:
-                    if agent_card and agent_card.name:
-                        current_surfaces = data_model[
-                            A2UI_CLIENT_DATA_MODEL_SURFACES_KEY
-                        ]
-                        surface_ids_to_check = list(current_surfaces.keys())
-                        owner_agents = await asyncio.gather(*[
-                            A2uiSubagentMap.get_subagent_name(sid, context.state)
-                            for sid in surface_ids_to_check
-                        ])
-
-                        filtered_surfaces = {}
-                        for i, surface_id in enumerate(surface_ids_to_check):
-                            if owner_agents[i] == agent_card.name:
-                                filtered_surfaces[surface_id] = current_surfaces[
-                                    surface_id
-                                ]
-
-                        message.metadata[A2UI_CLIENT_DATA_MODEL_KEY][
-                            A2UI_CLIENT_DATA_MODEL_SURFACES_KEY
-                        ] = filtered_surfaces
-                        logger.info(
-                            f"Stripped data model for {agent_card.name}. "
-                            f"Kept surfaces: {list(filtered_surfaces.keys())}"
-                        )
-                    else:
-                        message.metadata[A2UI_CLIENT_DATA_MODEL_KEY][
-                            A2UI_CLIENT_DATA_MODEL_SURFACES_KEY
-                        ] = {}
-                        logger.warning(
-                            "No agent card or name provided. Stripped all surfaces from"
-                            " data model."
-                        )
+                if message.metadata and (
+                    data_model := message.metadata.get(A2UI_CLIENT_DATA_MODEL_KEY)
+                ):
+                    await A2uiSubagentMap.strip_unowned_surfaces_from_data_model(
+                        agent_card.name if agent_card else None,
+                        data_model,
+                        context.state,
+                    )
 
                 params["message"] = message.model_dump(
                     mode="json", exclude_none=True, by_alias=True

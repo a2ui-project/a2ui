@@ -21,7 +21,7 @@ import {parseArgs} from 'node:util';
 /**
  * The default output file path where the generated examples bundle will be written.
  */
-const DEFAULT_OUT_FILE = 'a2ui_explorer/src/app/generated/examples-bundle.ts';
+const DEFAULT_OUT_FILE = 'src/app/generated/examples-bundle.ts';
 
 /**
  * The default catalogs to generate examples for if none are specified.
@@ -125,8 +125,8 @@ async function main() {
 
   const catalogs = values.catalog;
 
-  const examplesV08 = readExamples('../../specification/v0_8/json/catalogs', catalogs, '0.8');
-  const examplesV09 = readExamples('../../specification/v0_9_1/catalogs', catalogs, '0.9');
+  const examplesV08 = readExamples('../../../specification/v0_8/json/catalogs', catalogs, '0.8');
+  const examplesV09 = readExamples('../../../specification/v0_9_1/catalogs', catalogs, '0.9');
 
   // Generate the file now!
   const tsContent = `/**
