@@ -110,8 +110,12 @@ describe('Row Component', () => {
     // Let's check shadow root has slot or elements.
     // Wait, row does: return html` ${map(children, child => html`${this.renderNode(child)}`)} `
     // It renders nodes inside its own shadow DOM directly.
-    const textElements = el.shadowRoot?.querySelectorAll('a2ui-basic-text');
+    const textElements = el.shadowRoot?.querySelectorAll('a2ui-basic-text') as
+      | NodeListOf<HTMLElement & {context?: ComponentContext}>
+      | undefined;
     assert.ok(textElements);
     assert.strictEqual(textElements.length, 2);
+    assert.strictEqual(textElements[0].context?.componentModel.id, 'txt1');
+    assert.strictEqual(textElements[1].context?.componentModel.id, 'txt2');
   });
 });
