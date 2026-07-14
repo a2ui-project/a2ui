@@ -56,7 +56,7 @@ Notes:
 - The provided catalogs must be freestanding, i.e. they should not reference any
   external schemas or components, except for the common types.
 - If you have a modular catalog that references other catalogs, refer
-  to [Freestanding Catalogs](../../../docs/concepts/catalogs.md#freestanding-catalogs)
+  to [Freestanding Catalogs](../../../docs/public/concepts/catalogs.md#freestanding-catalogs)
   for more information.
 - You can define multiple `A2uiSchemaManager` instances (one for each protocol version)
   and select the active one at runtime based on the client request.

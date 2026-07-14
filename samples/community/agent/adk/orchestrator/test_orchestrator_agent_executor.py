@@ -26,20 +26,26 @@ from orchestrator_agent_executor import (
     OrchestratorAgentExecutor,
     A2UIMetadataInterceptor,
 )
-from a2ui_subagent_map import A2uiSubagentMap
+from a2ui.adk.orchestration.a2ui_subagent_map import A2uiSubagentMap
+from a2ui.schema.constants import (
+    A2UI_CLIENT_DATA_MODEL_KEY,
+    A2UI_CLIENT_DATA_MODEL_SURFACES_KEY,
+)
+from a2a.types import DataPart
 
 
 class DummyA2aPart:
 
     def __init__(self, root_data):
         self.root = MagicMock()
+        self.root.__class__ = DataPart
         self.root.data = root_data
 
 
 class TestOrchestratorAgentExecutor(unittest.IsolatedAsyncioTestCase):
 
     @patch("orchestrator_agent_executor.convert_genai_part_to_a2a_part")
-    @patch("orchestrator_agent_executor.is_a2ui_part")
+    @patch("a2ui.adk.orchestration.a2ui_subagent_map.is_a2ui_part")
     @patch.object(A2uiSubagentMap, "get_subagent_name")
     async def test_programmatically_route_client_event_to_subagent(
         self,
@@ -83,7 +89,7 @@ class TestOrchestratorAgentExecutor(unittest.IsolatedAsyncioTestCase):
         )
 
     @patch("orchestrator_agent_executor.convert_genai_part_to_a2a_part")
-    @patch("orchestrator_agent_executor.is_a2ui_part")
+    @patch("a2ui.adk.orchestration.a2ui_subagent_map.is_a2ui_part")
     @patch.object(A2uiSubagentMap, "get_subagent_name")
     async def test_programmatically_route_client_error_to_subagent(
         self,
@@ -150,15 +156,18 @@ class TestOrchestratorAgentExecutor(unittest.IsolatedAsyncioTestCase):
         request_payload = {
             "params": {
                 "message": {
+                    "role": "user",
+                    "parts": [],
+                    "messageId": "msg-123",
                     "metadata": {
-                        "a2uiClientDataModel": {
-                            "surfaces": {
+                        A2UI_CLIENT_DATA_MODEL_KEY: {
+                            A2UI_CLIENT_DATA_MODEL_SURFACES_KEY: {
                                 "surface_A": {"data": "A"},
                                 "surface_B": {"data": "B"},
                                 "surface_C": {"data": "C"},
                             }
                         }
-                    }
+                    },
                 }
             }
         }
@@ -175,18 +184,15 @@ class TestOrchestratorAgentExecutor(unittest.IsolatedAsyncioTestCase):
 
         # Assertions: We expect only surface_A and surface_C to remain for agent_alpha
         filtered_surfaces = new_payload["params"]["message"]["metadata"][
-            "a2uiClientDataModel"
-        ]["surfaces"]
+            A2UI_CLIENT_DATA_MODEL_KEY
+        ][A2UI_CLIENT_DATA_MODEL_SURFACES_KEY]
         self.assertIn("surface_A", filtered_surfaces)
         self.assertIn("surface_C", filtered_surfaces)
         self.assertNotIn("surface_B", filtered_surfaces)
 
-    @patch("orchestrator_agent_executor.event_converter.convert_event_to_a2a_events")
-    @patch("orchestrator_agent_executor.is_a2ui_part")
+    @patch("a2ui.adk.orchestration.a2ui_subagent_map.is_a2ui_part")
     @patch.object(A2uiSubagentMap, "set_subagent")
-    def test_surface_id_collision(
-        self, mock_set_subagent, mock_is_a2ui_part, mock_convert_events
-    ):
+    async def test_surface_id_collision(self, mock_set_subagent, mock_is_a2ui_part):
         # Use Case 3: surfaceId collision between subagents
 
         event = MagicMock()
@@ -213,17 +219,17 @@ class TestOrchestratorAgentExecutor(unittest.IsolatedAsyncioTestCase):
         a2a_event.metadata = {}
         a2a_event.status.message.parts = [dummy_a2a_part]
 
-        mock_convert_events.return_value = [a2a_event]
-        mock_is_a2ui_part.return_value = True
+        executor_context = MagicMock()
+        executor_context.invocation_context = invocation_context
 
-        result_events = OrchestratorAgentExecutor.convert_event_to_a2a_events_and_save_surface_id_to_subagent_name(
-            event, invocation_context
+        result_event = await OrchestratorAgentExecutor.after_event_save_surface_id_to_subagent_name(
+            executor_context, a2a_event, event
         )
 
         mock_set_subagent.assert_not_called()
 
         # The part should be dropped
-        self.assertEqual(len(result_events[0].status.message.parts), 0)
+        self.assertEqual(len(result_event.status.message.parts), 0)
 
         # The subagent should have received a run_async call with the error
         mock_subagent_2.run_async.assert_called_once()
@@ -243,11 +249,10 @@ class TestOrchestratorAgentExecutor(unittest.IsolatedAsyncioTestCase):
             error_json["error"]["message"],
         )
 
-    @patch("orchestrator_agent_executor.event_converter.convert_event_to_a2a_events")
-    @patch("orchestrator_agent_executor.is_a2ui_part")
+    @patch("a2ui.adk.orchestration.a2ui_subagent_map.is_a2ui_part")
     @patch.object(A2uiSubagentMap, "remove_subagent")
-    def test_delete_surface_removes_from_map(
-        self, mock_remove_subagent, mock_is_a2ui_part, mock_convert_events
+    async def test_delete_surface_removes_from_map(
+        self, mock_remove_subagent, mock_is_a2ui_part
     ):
         event = MagicMock()
         event.author = "subagent_1"
@@ -261,11 +266,11 @@ class TestOrchestratorAgentExecutor(unittest.IsolatedAsyncioTestCase):
         a2a_event.metadata = {}
         a2a_event.status.message.parts = [dummy_a2a_part]
 
-        mock_convert_events.return_value = [a2a_event]
-        mock_is_a2ui_part.return_value = True
+        executor_context = MagicMock()
+        executor_context.invocation_context = invocation_context
 
-        result_events = OrchestratorAgentExecutor.convert_event_to_a2a_events_and_save_surface_id_to_subagent_name(
-            event, invocation_context
+        result_event = await OrchestratorAgentExecutor.after_event_save_surface_id_to_subagent_name(
+            executor_context, a2a_event, event
         )
 
         # Verify remove_subagent was called

@@ -120,5 +120,5 @@ Writing excellent tests ensures high confidence in our SDKs and services.
 
 - **Compiler Warnings:** Avoid introducing compiler warnings. Fix warnings as they appear,
   for example, by replacing unmutated variables (`var`) with constants (`let`).
-- **Directory Structure:** All sources must reside under `<ModuleName>/Sources` and all test
-  files under `<ModuleName>/Tests`.
+- **Directory Structure:** All sources must reside under `swift/<Layer>/Sources/<ModuleName>` and all test
+  files under `swift/<Layer>/Tests/<ModuleName>Tests`.
