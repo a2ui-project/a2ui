@@ -16,11 +16,23 @@
 
 import {setupTestDom, teardownTestDom, asyncUpdate} from '../dom-setup.js';
 import assert from 'node:assert';
-import {describe, it, beforeEach, after, before} from 'node:test';
-import {ComponentContext, MessageProcessor} from '@a2ui/web_core/v0_9';
+import {describe, it, beforeEach, afterEach, after, before} from 'node:test';
+import {
+  ComponentContext,
+  MessageProcessor,
+  Catalog,
+  ComponentApi,
+  SurfaceModel,
+  Subscription,
+  A2uiClientAction,
+} from '@a2ui/web_core/v0_9';
+import type {A2uiBasicButtonElement} from '../../catalogs/basic/components/Button.js';
 
 describe('Button Component', () => {
-  let basicCatalog: any;
+  // Note: basicCatalog and the component files must be imported dynamically inside before()
+  // because setupTestDom() initializes global browser variables (window, document, customElements)
+  // that need to exist when the modules are evaluated and components register themselves.
+  let basicCatalog: Catalog<ComponentApi>;
 
   before(async () => {
     setupTestDom();
@@ -32,8 +44,10 @@ describe('Button Component', () => {
 
   after(teardownTestDom);
 
-  let processor: MessageProcessor<any>;
-  let surface: any;
+  let processor: MessageProcessor<ComponentApi>;
+  let surface: SurfaceModel;
+  let element: A2uiBasicButtonElement | null = null;
+  let subscription: Subscription | null = null;
 
   beforeEach(() => {
     processor = new MessageProcessor([basicCatalog]);
@@ -75,65 +89,60 @@ describe('Button Component', () => {
     surface = processor.model.getSurface('test-surface')!;
   });
 
-  it('should render and dispatch action on click', async () => {
-    const el = document.createElement('a2ui-basic-button') as any;
-    document.body.appendChild(el);
-
-    let subscription: any = null;
-    try {
-      const context = new ComponentContext(surface, 'btn1');
-      await asyncUpdate(el, e => {
-        e.context = context;
-      });
-
-      const button = el.shadowRoot.querySelector('button');
-      assert.ok(button);
-      assert.strictEqual(button.disabled, false);
-
-      let dispatchedAction: any = null;
-      subscription = surface.onAction.subscribe((action: any) => {
-        dispatchedAction = action;
-      });
-
-      button.click();
-      await new Promise(resolve => setTimeout(resolve, 0));
-      assert.ok(dispatchedAction);
-      assert.strictEqual(dispatchedAction.name, 'submit_clicked');
-    } finally {
-      if (subscription) {
-        subscription.unsubscribe();
-      }
-      document.body.removeChild(el);
+  afterEach(() => {
+    subscription?.unsubscribe();
+    subscription = null;
+    if (element) {
+      element.remove();
+      element = null;
     }
   });
 
-  it('should be disabled when isValid is false', async () => {
-    const el = document.createElement('a2ui-basic-button') as any;
+  it('should render and dispatch action on click', async () => {
+    const el = document.createElement('a2ui-basic-button') as A2uiBasicButtonElement;
+    element = el;
     document.body.appendChild(el);
 
-    let subscription: any = null;
-    try {
-      const context = new ComponentContext(surface, 'btn_disabled');
-      await asyncUpdate(el, e => {
-        e.context = context;
-      });
+    const context = new ComponentContext(surface, 'btn1');
+    await asyncUpdate(el, e => {
+      e.context = context;
+    });
 
-      const button = el.shadowRoot.querySelector('button');
-      assert.ok(button);
-      assert.strictEqual(button.disabled, true);
+    const button = el.shadowRoot?.querySelector('button');
+    assert.ok(button);
+    assert.strictEqual(button.disabled, false);
 
-      let dispatchedAction = false;
-      subscription = surface.onAction.subscribe(() => {
-        dispatchedAction = true;
-      });
+    const dispatched = {action: null as A2uiClientAction | null};
+    subscription = surface.onAction.subscribe((action: A2uiClientAction) => {
+      dispatched.action = action;
+    });
 
-      button.click();
-      assert.strictEqual(dispatchedAction, false);
-    } finally {
-      if (subscription) {
-        subscription.unsubscribe();
-      }
-      document.body.removeChild(el);
-    }
+    button.click();
+    await new Promise(resolve => setTimeout(resolve, 0));
+    assert.ok(dispatched.action);
+    assert.strictEqual(dispatched.action.name, 'submit_clicked');
+  });
+
+  it('should be disabled when isValid is false', async () => {
+    const el = document.createElement('a2ui-basic-button') as A2uiBasicButtonElement;
+    element = el;
+    document.body.appendChild(el);
+
+    const context = new ComponentContext(surface, 'btn_disabled');
+    await asyncUpdate(el, e => {
+      e.context = context;
+    });
+
+    const button = el.shadowRoot?.querySelector('button');
+    assert.ok(button);
+    assert.strictEqual(button.disabled, true);
+
+    let dispatchedAction = false;
+    subscription = surface.onAction.subscribe(() => {
+      dispatchedAction = true;
+    });
+
+    button.click();
+    assert.strictEqual(dispatchedAction, false);
   });
 });
