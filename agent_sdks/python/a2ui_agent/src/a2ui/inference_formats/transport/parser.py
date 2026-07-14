@@ -141,8 +141,8 @@ class TransportParser(Parser):
         Returns:
             A list of parsed or completed ResponsePart objects.
         """
-        from a2ui.inference_formats.transport.streaming import A2uiStreamParser
+        from a2ui.inference_formats.transport.streaming import TransportStreamParser
 
         if not self._stream_parser:
-            self._stream_parser = A2uiStreamParser(self._catalog)
+            self._stream_parser = TransportStreamParser(self._catalog)
         return self._stream_parser.process_chunk(chunk)

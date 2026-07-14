@@ -46,26 +46,26 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
-class A2uiStreamParser:
+class TransportStreamParser:
     """Parses a stream of text for A2UI JSON messages with fine-grained component yielding.
 
     This class acts as a factory that returns a version-specific parser instance
     (V08 or V09) depending on the catalog version.
     """
 
-    def __new__(cls, catalog: A2uiCatalog) -> A2uiStreamParser:
-        if cls is A2uiStreamParser:
+    def __new__(cls, catalog: A2uiCatalog) -> TransportStreamParser:
+        if cls is TransportStreamParser:
             version = catalog.version
             # Lazy import inside __new__ to prevent circular import errors, as the
-            # version-specific subclass modules import A2uiStreamParser from this module.
+            # version-specific subclass modules import TransportStreamParser from this module.
             if version == VERSION_0_8:
-                from .streaming_v08 import A2uiStreamParserV08
+                from .streaming_v08 import TransportStreamParserV08
 
-                return A2uiStreamParserV08(catalog=catalog)
+                return TransportStreamParserV08(catalog=catalog)
             else:
-                from .streaming_v09 import A2uiStreamParserV09
+                from .streaming_v09 import TransportStreamParserV09
 
-                return A2uiStreamParserV09(catalog=catalog)
+                return TransportStreamParserV09(catalog=catalog)
         return super().__new__(cls)
 
     def __init__(self, catalog: A2uiCatalog):
@@ -1142,3 +1142,7 @@ class A2uiStreamParser:
                 self._traverse_component_topology(
                     item, extra_components, comp_id, parent_key
                 )
+
+
+A2uiStreamParser = TransportStreamParser
+

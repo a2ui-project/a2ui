@@ -30,7 +30,7 @@ from a2ui.parser.constants import (
     MSG_TYPE_DATA_MODEL_UPDATE,
 )
 from a2ui.schema.catalog import A2uiCatalog
-from a2ui.inference_formats.transport.streaming import A2uiStreamParser
+from a2ui.inference_formats.transport.streaming import TransportStreamParser
 from a2ui.parser.response_part import ResponsePart
 
 
@@ -356,7 +356,7 @@ def assertResponseContainsText(response, expected_text):
 
 
 def test_add_msg_type_deduplication(mock_catalog):
-    parser = A2uiStreamParser(catalog=mock_catalog)
+    parser = TransportStreamParser(catalog=mock_catalog)
     parser.add_msg_type(MSG_TYPE_UPDATE_COMPONENTS)
     parser.add_msg_type(MSG_TYPE_UPDATE_COMPONENTS)
     assert parser.msg_types == [MSG_TYPE_UPDATE_COMPONENTS]
@@ -368,7 +368,7 @@ def test_add_msg_type_deduplication(mock_catalog):
 
 
 def test_streaming_msg_type_deduplication(mock_catalog):
-    parser = A2uiStreamParser(catalog=mock_catalog)
+    parser = TransportStreamParser(catalog=mock_catalog)
     # 1. Send partial chunk that triggers sniffing
     chunk1 = (
         A2UI_OPEN_TAG
@@ -392,7 +392,7 @@ def test_streaming_msg_type_deduplication(mock_catalog):
 
 def test_v09_path_heuristic_relative_path(mock_catalog):
     """Tests that v0.9 allows relative paths (no leading slash)."""
-    parser = A2uiStreamParser(catalog=mock_catalog)
+    parser = TransportStreamParser(catalog=mock_catalog)
     # Disable validation to avoid needing full catalog for this test
     parser._validator = None
 
@@ -426,7 +426,7 @@ def test_v09_path_heuristic_relative_path(mock_catalog):
 
 def test_v09_path_heuristic_absolute_path(mock_catalog):
     """Tests that v0.9 still supports absolute paths (leading slash)."""
-    parser = A2uiStreamParser(catalog=mock_catalog)
+    parser = TransportStreamParser(catalog=mock_catalog)
     parser._validator = None
 
     # 1. Create surface
@@ -458,7 +458,7 @@ def test_v09_path_heuristic_absolute_path(mock_catalog):
 
 def test_v09_single_top_level_object(mock_catalog):
     """Tests that v0.9 supports a single top-level object without array wrapping."""
-    parser = A2uiStreamParser(catalog=mock_catalog)
+    parser = TransportStreamParser(catalog=mock_catalog)
 
     chunk = (
         A2UI_OPEN_TAG
@@ -476,7 +476,7 @@ def test_v09_single_top_level_object(mock_catalog):
 
 def test_v09_multiple_top_level_objects(mock_catalog):
     """Tests that v0.9 supports multiple consecutive top-level objects without array wrapping."""
-    parser = A2uiStreamParser(catalog=mock_catalog)
+    parser = TransportStreamParser(catalog=mock_catalog)
 
     chunk = (
         A2UI_OPEN_TAG

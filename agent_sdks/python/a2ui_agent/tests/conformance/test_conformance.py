@@ -18,7 +18,7 @@ import pytest
 
 from a2ui.basic_catalog import BasicCatalog
 from a2ui.schema.catalog import A2uiCatalog
-from a2ui.inference_formats.transport.streaming import A2uiStreamParser
+from a2ui.inference_formats.transport.streaming import TransportStreamParser
 from a2ui.validation.validator import A2uiValidator
 from a2ui.inference_formats.transport import TransportFormat
 from a2ui.schema.catalog import CatalogConfig
@@ -183,7 +183,7 @@ cases_parser = get_conformance_cases("streaming_parser.yaml")
 def test_parser_conformance(name, test_case):
     catalog_config = test_case["catalog"]
     catalog = setup_catalog(catalog_config)
-    parser = A2uiStreamParser(catalog=catalog)
+    parser = TransportStreamParser(catalog=catalog)
     if test_case.get("disable_validation"):
         parser._validator = None
 

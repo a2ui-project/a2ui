@@ -14,10 +14,11 @@
 
 from .format import TransportFormat
 from .parser import TransportParser
-from .streaming import A2uiStreamParser
+from .streaming import TransportStreamParser, A2uiStreamParser
 
 __all__ = [
     "TransportFormat",
     "TransportParser",
-    "A2uiStreamParser",
+    "TransportStreamParser",
+    "A2uiStreamParser", # Deprecated. Use TransportStreamParser instead.
 ]
