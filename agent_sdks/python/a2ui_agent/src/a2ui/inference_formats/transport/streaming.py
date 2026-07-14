@@ -1143,6 +1143,6 @@ class TransportStreamParser:
                     item, extra_components, comp_id, parent_key
                 )
 
-
+# Deprecated redirect.
 A2uiStreamParser = TransportStreamParser
 

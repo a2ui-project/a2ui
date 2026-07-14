@@ -45,9 +45,8 @@ from tools import get_contact_info
 
 from a2ui.schema.constants import VERSION_0_8, VERSION_0_9, A2UI_OPEN_TAG, A2UI_CLOSE_TAG
 from a2ui.schema.common_modifiers import remove_strict_validation
-from a2ui.inference_formats.transport import TransportFormat
+from a2ui.inference_formats.transport import TransportFormat, TransportStreamParser
 from a2ui.parser.parser import parse_response, ResponsePart
-from a2ui.parser.streaming import A2uiStreamParser
 from a2ui.basic_catalog.provider import BasicCatalog
 from a2ui.a2a.extension import get_a2ui_agent_extension
 from a2ui.a2a.parts import create_a2ui_part, parse_response_to_parts, stream_response_to_parts
@@ -70,7 +69,7 @@ class ContactAgent:
 
         self._inference_formats: Dict[str, TransportFormat] = {}
         self._ui_runners: Dict[str, Runner] = {}
-        self._parsers: OrderedDict[str, A2uiStreamParser] = OrderedDict()
+        self._parsers: OrderedDict[str, TransportStreamParser] = OrderedDict()
         self._max_parsers = 1000  # Max active sessions to keep in memory
 
         for version in [VERSION_0_8, VERSION_0_9]:
@@ -433,7 +432,7 @@ class ContactAgent:
                 if session_id in self._parsers:
                     self._parsers.move_to_end(session_id)
                 else:
-                    self._parsers[session_id] = A2uiStreamParser(
+                    self._parsers[session_id] = TransportStreamParser(
                         catalog=selected_catalog
                     )
                     if len(self._parsers) > self._max_parsers:
