@@ -14,12 +14,10 @@
 
 from .format import TransportFormat
 from .parser import TransportParser
-from .prompt_generator import TransportPromptGenerator
 from .streaming import A2uiStreamParser
 
 __all__ = [
     "TransportFormat",
     "TransportParser",
-    "TransportPromptGenerator",
     "A2uiStreamParser",
 ]
