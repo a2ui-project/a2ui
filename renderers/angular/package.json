@@ -20,13 +20,15 @@
     "renderer"
   ],
   "scripts": {
-    "generate-examples": "node scripts/generate-examples.mjs",
     "build": "wireit",
     "prepublishOnly": "node -e \"if(!process.cwd().endsWith('dist')) { console.error('Error: This package must be published from the dist/ directory. Run `yarn build` then `cd dist && yarn npm publish`'); process.exit(1); }\"",
     "publish:package": "yarn build && cd dist && touch yarn.lock && yarn install && yarn npm publish --access public",
-    "demo": "yarn generate-examples && ng serve a2ui_explorer",
+    "demo": "yarn workspace @a2ui/angular-explorer dev",
     "test": "wireit",
-    "test:watch": "yarn generate-examples && ng test lib --browsers=ChromeHeadless",
+    "test:unit": "wireit",
+    "test:integration": "wireit",
+    "test:closure-compiler": "wireit",
+    "test:watch": "ng test lib --browsers=ChromeHeadless",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
     "clean": "wireit",
@@ -75,7 +77,6 @@
     "karma-jasmine": "^5.1.0",
     "karma-jasmine-html-reporter": "^2.2.0",
     "ng-packagr": "^22.0.0",
-    "playwright": "^1.60.0",
     "prettier": "^3.8.4",
     "sass": "^1.100.0",
     "tslib": "^2.8.1",
@@ -98,22 +99,28 @@
   },
   "wireit": {
     "build": {
-      "command": "yarn generate-examples && ng build && node ../scripts/prepare-publish.mjs --source ./dist/package.json --skip-path-adjustment",
+      "command": "ng build lib && node ../scripts/prepare-publish.mjs --source ./dist/package.json --skip-path-adjustment",
       "dependencies": [
         "../../renderers/web_core:build",
         "../../renderers/markdown/markdown-it:build"
       ],
       "files": [
         "src/**/*",
-        "tsconfig.json",
-        "scripts/**/*"
+        "tsconfig.json"
       ],
       "output": [
         "dist/"
       ]
     },
     "test": {
-      "command": "yarn generate-examples && ng test lib --watch=false --browsers=ChromeHeadless",
+      "dependencies": [
+        "test:unit",
+        "test:integration",
+        "test:closure-compiler"
+      ]
+    },
+    "test:unit": {
+      "command": "ng test lib --watch=false --browsers=ChromeHeadless",
       "dependencies": [
         "build"
       ],
@@ -121,6 +128,12 @@
         "src/**/*",
         "tsconfig.json"
       ]
+    },
+    "test:integration": {
+      "command": "yarn workspace @a2ui/angular-explorer test:integration"
+    },
+    "test:closure-compiler": {
+      "command": "yarn workspace @a2ui/angular-explorer test:closure-compiler"
     },
     "clean": {
       "command": "rm -rf dist .tsbuildinfo .wireit"

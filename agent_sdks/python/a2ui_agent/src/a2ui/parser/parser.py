@@ -54,7 +54,7 @@ def parse_response(content: str) -> List[ResponsePart]:
         A list of ResponsePart objects.
 
     Raises:
-        ValueError: If no A2UI tags are found or if the JSON part is invalid.
+        A2uiParseError: If no A2UI tags are found or if the JSON part is invalid.
     """
     matches = list(_A2UI_BLOCK_PATTERN.finditer(content))
 

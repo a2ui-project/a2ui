@@ -4,6 +4,7 @@
   "packageManager": "yarn@4.13.0",
   "workspaces": [
     "renderers/*",
+    "renderers/angular/*",
     "renderers/lit/*",
     "renderers/markdown/*",
     "renderers/react/*",
@@ -37,6 +38,8 @@
   },
   "resolutions": {
     "@playwright/test": "1.58.1",
+    "playwright": "1.58.1",
+    "playwright-core": "1.58.1",
     "typescript": "5.9.3",
     "zod": "^3.25.76",
     "hono": "^4.11.10",
