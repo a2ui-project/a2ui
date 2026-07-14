@@ -16,11 +16,21 @@
 
 import {setupTestDom, teardownTestDom, asyncUpdate} from '../dom-setup.js';
 import assert from 'node:assert';
-import {describe, it, beforeEach, after, before} from 'node:test';
-import {ComponentContext, MessageProcessor} from '@a2ui/web_core/v0_9';
+import {describe, it, beforeEach, afterEach, after, before} from 'node:test';
+import {
+  ComponentContext,
+  MessageProcessor,
+  Catalog,
+  ComponentApi,
+  SurfaceModel,
+} from '@a2ui/web_core/v0_9';
+import type {A2uiBasicTextElement} from '../../catalogs/basic/components/Text.js';
 
 describe('Text Component', () => {
-  let basicCatalog: any;
+  // Note: basicCatalog and the component files must be imported dynamically inside before()
+  // because setupTestDom() initializes global browser variables (window, document, customElements)
+  // that need to exist when the modules are evaluated and components register themselves.
+  let basicCatalog: Catalog<ComponentApi>;
 
   before(async () => {
     setupTestDom();
@@ -30,8 +40,9 @@ describe('Text Component', () => {
 
   after(teardownTestDom);
 
-  let processor: MessageProcessor<any>;
-  let surface: any;
+  let processor: MessageProcessor<ComponentApi>;
+  let surface: SurfaceModel;
+  let element: A2uiBasicTextElement | null = null;
 
   beforeEach(() => {
     processor = new MessageProcessor([basicCatalog]);
@@ -72,65 +83,63 @@ describe('Text Component', () => {
     surface.dataModel.set('/dynamic_msg', 'Hello dynamic text');
   });
 
+  afterEach(() => {
+    if (element) {
+      element.remove();
+      element = null;
+    }
+  });
+
   it('should render static text content', async () => {
-    const el = document.createElement('a2ui-basic-text') as any;
+    const el = document.createElement('a2ui-basic-text') as A2uiBasicTextElement;
+    element = el;
     document.body.appendChild(el);
 
-    try {
-      const context = new ComponentContext(surface, 't_static');
-      await asyncUpdate(el, e => {
-        e.context = context;
-      });
+    const context = new ComponentContext(surface, 't_static');
+    await asyncUpdate(el, e => {
+      e.context = context;
+    });
 
-      const span = el.shadowRoot.querySelector('.no-markdown-renderer');
-      assert.ok(span);
-      assert.strictEqual(span.textContent.trim(), 'Hello static text');
-    } finally {
-      document.body.removeChild(el);
-    }
+    const span = el.shadowRoot?.querySelector('.no-markdown-renderer');
+    assert.ok(span);
+    assert.strictEqual(span.textContent?.trim(), 'Hello static text');
   });
 
   it('should render reactive dynamic text content', async () => {
-    const el = document.createElement('a2ui-basic-text') as any;
+    const el = document.createElement('a2ui-basic-text') as A2uiBasicTextElement;
+    element = el;
     document.body.appendChild(el);
 
-    try {
-      const context = new ComponentContext(surface, 't_dynamic');
-      await asyncUpdate(el, e => {
-        e.context = context;
-      });
+    const context = new ComponentContext(surface, 't_dynamic');
+    await asyncUpdate(el, e => {
+      e.context = context;
+    });
 
-      const span = el.shadowRoot.querySelector('.no-markdown-renderer');
-      assert.ok(span);
-      assert.strictEqual(span.textContent.trim(), 'Hello dynamic text');
+    const span = el.shadowRoot?.querySelector('.no-markdown-renderer');
+    assert.ok(span);
+    assert.strictEqual(span.textContent?.trim(), 'Hello dynamic text');
 
-      // Update the data model value
-      surface.dataModel.set('/dynamic_msg', 'Updated dynamic text');
-      await asyncUpdate(el, () => {});
+    // Update the data model value
+    surface.dataModel.set('/dynamic_msg', 'Updated dynamic text');
+    await asyncUpdate(el, () => {});
 
-      assert.strictEqual(span.textContent.trim(), 'Updated dynamic text');
-    } finally {
-      document.body.removeChild(el);
-    }
+    assert.strictEqual(span.textContent?.trim(), 'Updated dynamic text');
   });
 
   it('should apply caption variant styling structure', async () => {
-    const el = document.createElement('a2ui-basic-text') as any;
+    const el = document.createElement('a2ui-basic-text') as A2uiBasicTextElement;
+    element = el;
     document.body.appendChild(el);
 
-    try {
-      const context = new ComponentContext(surface, 't_caption');
-      await asyncUpdate(el, e => {
-        e.context = context;
-      });
+    const context = new ComponentContext(surface, 't_caption');
+    await asyncUpdate(el, e => {
+      e.context = context;
+    });
 
-      const captionSpan = el.shadowRoot.querySelector('span.a2ui-caption');
-      assert.ok(captionSpan);
-      const innerSpan = captionSpan.querySelector('.no-markdown-renderer');
-      assert.ok(innerSpan);
-      assert.strictEqual(innerSpan.textContent.trim(), 'Caption text');
-    } finally {
-      document.body.removeChild(el);
-    }
+    const captionSpan = el.shadowRoot?.querySelector('span.a2ui-caption');
+    assert.ok(captionSpan);
+    const innerSpan = captionSpan.querySelector('.no-markdown-renderer');
+    assert.ok(innerSpan);
+    assert.strictEqual(innerSpan.textContent?.trim(), 'Caption text');
   });
 });

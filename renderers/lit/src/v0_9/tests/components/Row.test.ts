@@ -16,11 +16,21 @@
 
 import {setupTestDom, teardownTestDom, asyncUpdate} from '../dom-setup.js';
 import assert from 'node:assert';
-import {describe, it, beforeEach, after, before} from 'node:test';
-import {ComponentContext, MessageProcessor} from '@a2ui/web_core/v0_9';
+import {describe, it, beforeEach, afterEach, after, before} from 'node:test';
+import {
+  ComponentContext,
+  MessageProcessor,
+  Catalog,
+  ComponentApi,
+  SurfaceModel,
+} from '@a2ui/web_core/v0_9';
+import type {A2uiBasicRowElement} from '../../catalogs/basic/components/Row.js';
 
 describe('Row Component', () => {
-  let basicCatalog: any;
+  // Note: basicCatalog and the component files must be imported dynamically inside before()
+  // because setupTestDom() initializes global browser variables (window, document, customElements)
+  // that need to exist when the modules are evaluated and components register themselves.
+  let basicCatalog: Catalog<ComponentApi>;
 
   before(async () => {
     setupTestDom();
@@ -31,8 +41,9 @@ describe('Row Component', () => {
 
   after(teardownTestDom);
 
-  let processor: MessageProcessor<any>;
-  let surface: any;
+  let processor: MessageProcessor<ComponentApi>;
+  let surface: SurfaceModel;
+  let element: A2uiBasicRowElement | null = null;
 
   beforeEach(() => {
     processor = new MessageProcessor([basicCatalog]);
@@ -73,29 +84,34 @@ describe('Row Component', () => {
     surface = processor.model.getSurface('test-surface')!;
   });
 
+  afterEach(() => {
+    if (element) {
+      element.remove();
+      element = null;
+    }
+  });
+
   it('should render children and apply flex alignment styles', async () => {
-    const el = document.createElement('a2ui-basic-row') as any;
+    const el = document.createElement('a2ui-basic-row') as A2uiBasicRowElement;
+    element = el;
     document.body.appendChild(el);
 
-    try {
-      const context = new ComponentContext(surface, 'row1');
-      await asyncUpdate(el, e => {
-        e.context = context;
-      });
+    const context = new ComponentContext(surface, 'row1');
+    await asyncUpdate(el, e => {
+      e.context = context;
+    });
 
-      // Check flex styles on the host element style attribute
-      assert.strictEqual(el.style.justifyContent, 'center');
-      assert.strictEqual(el.style.alignItems, 'flex-end');
+    // Check flex styles on the host element style attribute
+    assert.strictEqual(el.style.justifyContent, 'center');
+    assert.strictEqual(el.style.alignItems, 'flex-end');
 
-      // Check children are rendered
-      // Since our test runner runs custom elements, they will register and render shadow roots.
-      // Let's check shadow root has slot or elements.
-      // Wait, row does: return html` ${map(children, child => html`${this.renderNode(child)}`)} `
-      // It renders nodes inside its own shadow DOM directly.
-      const textElements = el.shadowRoot.querySelectorAll('a2ui-basic-text');
-      assert.strictEqual(textElements.length, 2);
-    } finally {
-      document.body.removeChild(el);
-    }
+    // Check children are rendered
+    // Since our test runner runs custom elements, they will register and render shadow roots.
+    // Let's check shadow root has slot or elements.
+    // Wait, row does: return html` ${map(children, child => html`${this.renderNode(child)}`)} `
+    // It renders nodes inside its own shadow DOM directly.
+    const textElements = el.shadowRoot?.querySelectorAll('a2ui-basic-text');
+    assert.ok(textElements);
+    assert.strictEqual(textElements.length, 2);
   });
 });

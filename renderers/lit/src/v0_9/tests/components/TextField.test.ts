@@ -16,11 +16,21 @@
 
 import {setupTestDom, teardownTestDom, asyncUpdate} from '../dom-setup.js';
 import assert from 'node:assert';
-import {describe, it, beforeEach, after, before} from 'node:test';
-import {ComponentContext, MessageProcessor} from '@a2ui/web_core/v0_9';
+import {describe, it, beforeEach, afterEach, after, before} from 'node:test';
+import {
+  ComponentContext,
+  MessageProcessor,
+  Catalog,
+  ComponentApi,
+  SurfaceModel,
+} from '@a2ui/web_core/v0_9';
+import type {A2uiBasicTextFieldElement} from '../../catalogs/basic/components/TextField.js';
 
 describe('TextField Component', () => {
-  let basicCatalog: any;
+  // Note: basicCatalog and the component files must be imported dynamically inside before()
+  // because setupTestDom() initializes global browser variables (window, document, customElements)
+  // that need to exist when the modules are evaluated and components register themselves.
+  let basicCatalog: Catalog<ComponentApi>;
 
   before(async () => {
     setupTestDom();
@@ -30,8 +40,9 @@ describe('TextField Component', () => {
 
   after(teardownTestDom);
 
-  let processor: MessageProcessor<any>;
-  let surface: any;
+  let processor: MessageProcessor<ComponentApi>;
+  let surface: SurfaceModel;
+  let element: A2uiBasicTextFieldElement | null = null;
 
   beforeEach(() => {
     processor = new MessageProcessor([basicCatalog]);
@@ -77,92 +88,87 @@ describe('TextField Component', () => {
     surface.dataModel.set('/user/name', 'Bob');
   });
 
+  afterEach(() => {
+    if (element) {
+      element.remove();
+      element = null;
+    }
+  });
+
   it('should render input field with label and initial value', async () => {
-    const el = document.createElement('a2ui-basic-textfield') as any;
+    const el = document.createElement('a2ui-basic-textfield') as A2uiBasicTextFieldElement;
+    element = el;
     document.body.appendChild(el);
 
-    try {
-      const context = new ComponentContext(surface, 'field_name');
-      await asyncUpdate(el, e => {
-        e.context = context;
-      });
+    const context = new ComponentContext(surface, 'field_name');
+    await asyncUpdate(el, e => {
+      e.context = context;
+    });
 
-      const label = el.shadowRoot.querySelector('label');
-      assert.ok(label);
-      assert.strictEqual(label.textContent.trim(), 'Username');
+    const label = el.shadowRoot?.querySelector('label');
+    assert.ok(label);
+    assert.strictEqual(label.textContent?.trim(), 'Username');
 
-      const input = el.shadowRoot.querySelector('input');
-      assert.ok(input);
-      assert.strictEqual(input.value, 'Bob');
-    } finally {
-      document.body.removeChild(el);
-    }
+    const input = el.shadowRoot?.querySelector('input');
+    assert.ok(input);
+    assert.strictEqual(input.value, 'Bob');
   });
 
   it('should update the data model value on input event', async () => {
-    const el = document.createElement('a2ui-basic-textfield') as any;
+    const el = document.createElement('a2ui-basic-textfield') as A2uiBasicTextFieldElement;
+    element = el;
     document.body.appendChild(el);
 
-    try {
-      const context = new ComponentContext(surface, 'field_name');
-      await asyncUpdate(el, e => {
-        e.context = context;
-      });
+    const context = new ComponentContext(surface, 'field_name');
+    await asyncUpdate(el, e => {
+      e.context = context;
+    });
 
-      const input = el.shadowRoot.querySelector('input');
-      assert.ok(input);
+    const input = el.shadowRoot?.querySelector('input');
+    assert.ok(input);
 
-      input.value = 'Alice';
-      input.dispatchEvent(new Event('input'));
-      await asyncUpdate(el, () => {});
+    input.value = 'Alice';
+    input.dispatchEvent(new Event('input'));
+    await asyncUpdate(el, () => {});
 
-      // Check that the value is updated in the data model
-      assert.strictEqual(surface.dataModel.get('/user/name'), 'Alice');
-    } finally {
-      document.body.removeChild(el);
-    }
+    // Check that the value is updated in the data model
+    assert.strictEqual(surface.dataModel.get('/user/name'), 'Alice');
   });
 
   it('should render textarea for longText variant', async () => {
-    const el = document.createElement('a2ui-basic-textfield') as any;
+    const el = document.createElement('a2ui-basic-textfield') as A2uiBasicTextFieldElement;
+    element = el;
     document.body.appendChild(el);
 
-    try {
-      const context = new ComponentContext(surface, 'field_long');
-      await asyncUpdate(el, e => {
-        e.context = context;
-      });
+    const context = new ComponentContext(surface, 'field_long');
+    await asyncUpdate(el, e => {
+      e.context = context;
+    });
 
-      const textarea = el.shadowRoot.querySelector('textarea');
-      assert.ok(textarea);
-      assert.strictEqual(textarea.value, 'Initial Bio');
+    const textarea = el.shadowRoot?.querySelector('textarea');
+    assert.ok(textarea);
+    assert.strictEqual(textarea.value, 'Initial Bio');
 
-      const input = el.shadowRoot.querySelector('input');
-      assert.strictEqual(input, null);
-    } finally {
-      document.body.removeChild(el);
-    }
+    const input = el.shadowRoot?.querySelector('input');
+    assert.strictEqual(input, null);
   });
 
   it('should render validation error message when invalid', async () => {
-    const el = document.createElement('a2ui-basic-textfield') as any;
+    const el = document.createElement('a2ui-basic-textfield') as A2uiBasicTextFieldElement;
+    element = el;
     document.body.appendChild(el);
 
-    try {
-      const context = new ComponentContext(surface, 'field_invalid');
-      await asyncUpdate(el, e => {
-        e.context = context;
-      });
+    const context = new ComponentContext(surface, 'field_invalid');
+    await asyncUpdate(el, e => {
+      e.context = context;
+    });
 
-      const error = el.shadowRoot.querySelector('.error');
-      assert.ok(error);
-      assert.strictEqual(error.textContent.trim(), 'Email is invalid');
+    const error = el.shadowRoot?.querySelector('.error');
+    assert.ok(error);
+    assert.strictEqual(error.textContent?.trim(), 'Email is invalid');
 
-      const input = el.shadowRoot.querySelector('input');
-      assert.ok(input);
-      assert.ok(input.classList.contains('invalid'));
-    } finally {
-      document.body.removeChild(el);
-    }
+    const input = el.shadowRoot?.querySelector('input');
+    assert.ok(input);
+    assert.ok(input.classList.contains('invalid'));
   });
 });
