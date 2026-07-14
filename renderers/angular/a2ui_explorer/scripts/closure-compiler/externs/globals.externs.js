@@ -1,5 +1,5 @@
 /**
- * Copyright 2025 Google LLC
+ * Copyright 2026 Google LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,13 +14,16 @@
  * limitations under the License.
  */
 
-module.exports = function (config) {
-  config.set({
-    hostname: '127.0.0.1',
-    listenAddress: '127.0.0.1',
-    captureTimeout: 210000, // 3.5 minutes
-    browserNoActivityTimeout: 210000,
-    browserDisconnectTimeout: 10000,
-    browserDisconnectTolerance: 3,
-  });
-};
+/* eslint-disable no-unused-vars */
+
+/**
+ * @externs
+ * @fileoverview Google Closure Compiler externs for browser globals and third-party libraries.
+ */
+
+let localStorage;
+let NOOP_AFTER_RENDER_REF;
+let logHmrWarning;
+let goog;
+let resolveJitResources;
+let Hammer;
