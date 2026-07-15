@@ -122,7 +122,7 @@ class A2uiPartConverter:
 
             if function_response.response:
                 result = function_response.response.get("result")
-                if isinstance(result, str) and "<a2ui" in result:
+                if isinstance(result, str) and self._parser.has_format_content(result):
                     return parse_content_to_parts(
                         result,
                         parser=self._parser,

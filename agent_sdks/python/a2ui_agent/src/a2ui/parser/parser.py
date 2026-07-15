@@ -23,6 +23,18 @@ from .response_part import ResponsePart
 class Parser(ABC):
     """Abstract interface defining the response parser and compiler."""
 
+    @abstractmethod
+    def has_format_content(self, content: str) -> bool:
+        """Checks if the content contains blocks belonging to this parser's format.
+
+        Args:
+            content: The raw LLM response.
+
+        Returns:
+            True if the content contains blocks belonging to this format.
+        """
+        pass
+
     def parse_response(self, content: str) -> List[ResponsePart]:
         """Parses full response content into standard JSON payload parts by unwrapping and compiling.
 
