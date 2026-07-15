@@ -15,7 +15,7 @@
 """Parser utilities to extract and compile A2UI Elemental HTML from LLM responses."""
 
 import re
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, List, Union
 from a2ui.core.catalog import Catalog
 from a2ui.schema.catalog import A2uiCatalog
 from a2ui.parser.response_part import ResponsePart
@@ -94,7 +94,7 @@ def parse_elemental_response(
                     a2ui_json=[compiled_json],
                 )
             )
-        except Exception as e:
+        except Exception:
             # Graceful fallback: treat malformed/unparseable blocks as plain text
             fallback_text = html_content
             full_text = f"{text_part}\n{fallback_text}" if text_part else fallback_text

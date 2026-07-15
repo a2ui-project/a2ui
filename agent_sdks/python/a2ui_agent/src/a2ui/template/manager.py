@@ -12,11 +12,15 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from ..inference_strategy import InferenceStrategy
 from typing import Optional, Any
+from a2ui.inference_format import InferenceFormat
 
 
-class A2uiTemplateManager(InferenceStrategy):
+class A2uiTemplateManager(InferenceFormat):
+
+    @property
+    def parser(self) -> Any:
+        raise NotImplementedError("This method is not yet implemented.")
 
     def generate_system_prompt(
         self,

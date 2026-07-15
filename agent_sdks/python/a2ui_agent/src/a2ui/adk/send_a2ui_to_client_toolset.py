@@ -96,25 +96,17 @@ from google.adk.tools import tool_context
 from google.adk.utils.feature_decorator import experimental
 from google.genai import types as genai_types
 
-from a2ui.adk.a2a.event_converter import A2uiEventConverter
 from a2ui.adk.a2a.part_converter import A2uiPartConverter
 from a2ui.parser.payload_fixer import parse_and_fix
 from a2ui.schema import catalog
 from a2ui.core import A2uiValidationError
 
 from a2ui.schema import constants
-from a2ui.schema.catalog import A2uiCatalog
 from a2ui.schema.constants import (
-    A2UI_SCHEMA_BLOCK_END,
-    A2UI_SCHEMA_BLOCK_START,
     A2UI_TOOL_ERROR_KEY,
     A2UI_TOOL_NAME,
     A2UI_VALIDATED_JSON_KEY,
 )
-
-if TYPE_CHECKING:
-    from google.adk.agents.invocation_context import InvocationContext
-    from google.adk.events.event import Event
 
 logger = logging.getLogger(__name__)
 

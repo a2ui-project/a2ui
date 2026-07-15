@@ -12,18 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Deprecated compatibility redirect for A2uiStreamParser."""
+"""Prompt generation contracts and helpers package."""
 
-import warnings
-from a2ui.inference_formats.transport.streaming import A2uiStreamParser
+from .generator import PromptGenerator
 
-warnings.warn(
-    "a2ui.parser.streaming is deprecated. "
-    "Please import from a2ui.inference_formats.transport instead.",
-    DeprecationWarning,
-    stacklevel=2,
-)
-
-__all__ = [
-    "A2uiStreamParser",
-]
+__all__ = ["PromptGenerator"]

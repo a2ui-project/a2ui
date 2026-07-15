@@ -20,7 +20,7 @@ definitions and instruction blocks for on-device models.
 
 import json
 import re
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Union
 from a2ui.core.catalog import Catalog
 from a2ui.schema.catalog import A2uiCatalog
 from a2ui.experimental.express.schema_helper import CatalogSchemaHelper

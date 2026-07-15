@@ -22,10 +22,13 @@ class ResponsePart:
 
     Attributes:
         text: The conversational text part. Can be an empty string.
-        a2ui_json: The parsed A2UI JSON data, always a list of dictionaries if
-          it contains A2UI messages. None if this part only contains trailing
-          text.
+        a2ui_raw: The raw uncompiled format content string (e.g. raw XML/DSL/JSON).
+          None if this part only contains conversational text.
+        a2ui_json: The parsed/compiled A2UI JSON data, always a list of
+          dictionaries if it contains A2UI messages. None if this part only
+          contains conversational text.
     """
 
     text: str = ""
+    a2ui_raw: Optional[str] = None
     a2ui_json: Optional[Any] = None

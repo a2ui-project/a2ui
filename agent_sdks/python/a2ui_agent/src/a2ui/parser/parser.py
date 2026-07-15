@@ -12,78 +12,123 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import re
-from typing import List, Optional, Any
+"""Abstract parser interface and legacy parsing compatibility helpers."""
+
+import warnings
+from abc import ABC, abstractmethod
+from typing import List, Any
 from .response_part import ResponsePart
-from ..schema.constants import A2UI_OPEN_TAG, A2UI_CLOSE_TAG
-from .payload_fixer import parse_and_fix
-from a2ui.core import A2uiParseError
 
 
-_A2UI_BLOCK_PATTERN = re.compile(
-    f"{re.escape(A2UI_OPEN_TAG)}(.*?){re.escape(A2UI_CLOSE_TAG)}", re.DOTALL
-)
+class Parser(ABC):
+    """Abstract interface defining the response parser and compiler."""
+
+    @abstractmethod
+    def has_format_content(self, content: str, *, complete: bool = False) -> bool:
+        """Checks if the content contains blocks belonging to this parser's format.
+
+        Args:
+            content: The raw LLM response.
+            complete: If True, checks that the format block is closed/complete.
+
+        Returns:
+            True if the content contains blocks belonging to this format.
+        """
+        pass
+
+    def parse_response(self, content: str) -> List[ResponsePart]:
+        """Parses full response content into standard JSON payload parts by unwrapping and compiling.
+
+        Args:
+            content: The raw LLM response.
+
+        Returns:
+            A list of ResponsePart objects containing text and compiled JSON.
+        """
+        parts = self.unwrap(content)
+        for part in parts:
+            if part.a2ui_raw is not None:
+                part.a2ui_json = self.compile(part.a2ui_raw)
+        return parts
+
+    @abstractmethod
+    def unwrap(self, content: str) -> List[ResponsePart]:
+        """Tokenizes response content into raw format-content parts.
+
+        Args:
+            content: The raw LLM response.
+
+        Returns:
+            A list of ResponsePart objects with a2ui_raw populated.
+        """
+        pass
+
+    @abstractmethod
+    def compile(self, format_content: str) -> List[dict[str, Any]]:
+        """Compiles raw format-content (inference format string) to structured A2UI messages.
+
+        Args:
+            format_content: The raw format-content extracted from response.
+
+        Returns:
+            A list of compiled A2UI message dictionaries.
+        """
+        pass
+
+    @abstractmethod
+    def process_chunk(self, chunk: str) -> List[ResponsePart]:
+        """Processes a streamed token chunk (incremental parsing).
+
+        Args:
+            chunk: The next text chunk from the stream.
+
+        Returns:
+            A list of parsed or completed ResponsePart objects.
+        """
+        pass
 
 
 def has_a2ui_parts(content: str) -> bool:
-    """Checks if the content has A2UI parts."""
+    """Checks if the content has A2UI parts (legacy compatibility helper).
+
+    Args:
+        content: The raw response text.
+
+    Returns:
+        Whether the content contains open and close A2UI tags.
+    """
+    warnings.warn(
+        "has_a2ui_parts is deprecated. Please use"
+        " format.parser.has_format_content(content, complete=True) on your"
+        " InferenceFormat instance instead.",
+        DeprecationWarning,
+        stacklevel=2,
+    )
+    from a2ui.schema.constants import A2UI_OPEN_TAG, A2UI_CLOSE_TAG
+
     return A2UI_OPEN_TAG in content and A2UI_CLOSE_TAG in content
 
 
-def _sanitize_json_string(json_string: str) -> str:
-    """Sanitizes the JSON string by removing markdown code blocks."""
-    json_string = json_string.strip()
-    if json_string.startswith("```json"):
-        json_string = json_string[len("```json") :]
-    elif json_string.startswith("```"):
-        json_string = json_string[len("```") :]
-    if json_string.endswith("```"):
-        json_string = json_string[: -len("```")]
-    json_string = json_string.strip()
-    return json_string
-
-
 def parse_response(content: str) -> List[ResponsePart]:
-    """
-    Parses the LLM response into a list of ResponsePart objects.
+    """Parses the LLM response into a list of ResponsePart objects (legacy).
 
     Args:
         content: The raw LLM response.
 
     Returns:
         A list of ResponsePart objects.
-
-    Raises:
-        A2uiParseError: If no A2UI tags are found or if the JSON part is invalid.
     """
-    matches = list(_A2UI_BLOCK_PATTERN.finditer(content))
+    warnings.warn(
+        "parse_response is deprecated. Please use format.parser.parse_response(...) "
+        "on your InferenceFormat instance instead.",
+        DeprecationWarning,
+        stacklevel=2,
+    )
+    from a2ui.inference_formats.transport.parser import unwrap_response
+    from a2ui.parser.payload_fixer import parse_and_fix
 
-    if not matches:
-        raise A2uiParseError(
-            f"A2UI tags '{A2UI_OPEN_TAG}' and '{A2UI_CLOSE_TAG}' not found in response."
-        )
-
-    response_parts = []
-    last_end = 0
-
-    for match in matches:
-        start, end = match.span()
-        # Text preceding the JSON block
-        text_part = content[last_end:start].strip()
-
-        # The JSON content within the tags
-        json_string = match.group(1)
-        json_string_cleaned = _sanitize_json_string(json_string)
-        if not json_string_cleaned:
-            raise A2uiParseError("A2UI JSON part is empty.")
-
-        json_data = parse_and_fix(json_string_cleaned)
-        response_parts.append(ResponsePart(text=text_part, a2ui_json=json_data))
-        last_end = end
-
-    # Trailing text after the last JSON block
-    trailing_text = content[last_end:].strip()
-    if trailing_text:
-        response_parts.append(ResponsePart(text=trailing_text, a2ui_json=None))
-
-    return response_parts
+    parts = unwrap_response(content)
+    for part in parts:
+        if part.a2ui_raw is not None:
+            part.a2ui_json = parse_and_fix(part.a2ui_raw)
+    return parts

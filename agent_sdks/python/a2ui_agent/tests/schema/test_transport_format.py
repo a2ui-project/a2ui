@@ -11,23 +11,11 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 import io
 import pytest
-import json
-import os
-from unittest.mock import patch, MagicMock, PropertyMock
-from a2ui.schema.manager import A2uiSchemaManager, A2uiCatalog, CatalogConfig
+from unittest.mock import patch, MagicMock
+from a2ui.inference_formats.transport.format import TransportFormat
 from a2ui.basic_catalog import BasicCatalog
-from a2ui.basic_catalog.constants import BASIC_CATALOG_NAME
 from a2ui.schema.constants import (
-    DEFAULT_WORKFLOW_RULES,
-    INLINE_CATALOG_NAME,
     VERSION_0_8,
-    VERSION_0_9,
-)
-from a2ui.schema.constants import (
-    A2UI_SCHEMA_BLOCK_START,
-    A2UI_SCHEMA_BLOCK_END,
-    INLINE_CATALOGS_KEY,
-    SUPPORTED_CATALOG_IDS_KEY,
 )
 
 
@@ -72,23 +60,23 @@ def test_schema_manager_init_valid_version(mock_importlib_resources):
 
     mock_traversable.joinpath.side_effect = joinpath_side_effect
 
-    manager = A2uiSchemaManager(
+    transport_format = TransportFormat(
         VERSION_0_8, catalogs=[BasicCatalog.get_config(VERSION_0_8)]
     )
 
-    assert manager._server_to_client_schema["defs"] == "server_defs"
+    assert transport_format._server_to_client_schema["defs"] == "server_defs"
     # Basic catalog might have a URI-based ID if not explicitly matched
     # So we check if any catalog exists
-    assert len(manager._supported_catalogs) >= 1
+    assert len(transport_format._supported_catalogs) >= 1
     # The first one should be the basic one
-    catalog = manager._supported_catalogs[0]
+    catalog = transport_format._supported_catalogs[0]
     assert catalog.catalog_schema["version"] == VERSION_0_8
     assert "Text" in catalog.catalog_schema["components"]
 
 
 def test_schema_manager_init_invalid_version():
     with pytest.raises(ValueError, match="Unknown A2UI specification version"):
-        A2uiSchemaManager("invalid_version")
+        TransportFormat("invalid_version")
 
 
 def test_schema_manager_fallback_local_assets(mock_importlib_resources):
@@ -117,11 +105,11 @@ def test_schema_manager_fallback_local_assets(mock_importlib_resources):
 
         mock_open.side_effect = open_side_effect
 
-        manager = A2uiSchemaManager(
+        transport_format = TransportFormat(
             VERSION_0_8, catalogs=[BasicCatalog.get_config(VERSION_0_8)]
         )
 
-        assert manager._server_to_client_schema["defs"] == "local_server"
-        assert len(manager._supported_catalogs) >= 1
-        catalog = manager._supported_catalogs[0]
+        assert transport_format._server_to_client_schema["defs"] == "local_server"
+        assert len(transport_format._supported_catalogs) >= 1
+        catalog = transport_format._supported_catalogs[0]
         assert "LocalText" in catalog.catalog_schema["components"]

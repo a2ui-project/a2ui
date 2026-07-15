@@ -20,7 +20,7 @@ from a2a.types import AgentCapabilities, AgentCard, AgentExtension, AgentSkill
 from a2ui.a2a.extension import try_activate_a2ui_extension
 from a2ui.adk.a2a.event_converter import A2uiEventConverter
 from a2ui.schema.constants import A2UI_CLIENT_CAPABILITIES_KEY
-from a2ui.schema.manager import A2uiSchemaManager
+from a2ui.inference_formats.transport import TransportFormat
 from google.adk.a2a.converters.request_converter import AgentRunRequest
 from google.adk.a2a.executor.a2a_agent_executor import A2aAgentExecutor
 from google.adk.a2a.executor.a2a_agent_executor import A2aAgentExecutorConfig
@@ -106,7 +106,7 @@ class McpAppProxyAgentExecutor(A2aAgentExecutor):
 
         active_ui_version = try_activate_a2ui_extension(context, self._agent.agent_card)
         runner = self._agent.get_runner(active_ui_version)
-        schema_manager = self._agent.get_schema_manager(active_ui_version)
+        inference_format = self._agent.get_inference_format(active_ui_version)
 
         session = await super()._prepare_session(context, run_request, runner)
 
@@ -120,10 +120,10 @@ class McpAppProxyAgentExecutor(A2aAgentExecutor):
                 else None
             )
             a2ui_catalog = (
-                schema_manager.get_selected_catalog(
+                inference_format.get_selected_catalog(
                     client_ui_capabilities=client_capabilities
                 )
-                if schema_manager
+                if inference_format
                 else None
             )
 

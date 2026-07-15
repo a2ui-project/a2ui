@@ -20,7 +20,7 @@ import time
 from inspect_ai.scorer import scorer, Score, Target, accuracy, model_graded_qa
 from inspect_ai.solver import TaskState
 from inspect_ai.model._model import sample_model_usage
-from a2ui.schema.manager import A2uiSchemaManager
+from a2ui.inference_formats.transport.format import TransportFormat
 from a2ui.schema.catalog import CatalogConfig
 from a2ui.parser.parser import parse_response
 from .shared.utils import GIT_ROOT
@@ -48,8 +48,8 @@ def a2ui_scorer(version: str):
         resolved_catalog_path = str(GIT_ROOT / catalog_path)
 
         catalog_config = CatalogConfig.from_path("basic_catalog", resolved_catalog_path)
-        manager = A2uiSchemaManager(version=version, catalogs=[catalog_config])
-        catalog = manager.get_selected_catalog()
+        transport_format = TransportFormat(version=version, catalogs=[catalog_config])
+        catalog = transport_format.get_selected_catalog()
         validator = catalog.validator
 
         answer_text = state.output.completion or ""

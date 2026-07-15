@@ -18,17 +18,17 @@ import re
 import json
 from typing import Any, List, Dict, Optional, Set, TYPE_CHECKING
 
-from .streaming import A2uiStreamParser
-from .response_part import ResponsePart
-from .constants import *
-from ..schema.constants import VERSION_0_9, SURFACE_ID_KEY, CATALOG_COMPONENTS_KEY
+from a2ui.inference_formats.transport.streaming import TransportStreamParser
+from a2ui.parser.response_part import ResponsePart
+from a2ui.parser.constants import *
+from a2ui.schema.constants import SURFACE_ID_KEY, CATALOG_COMPONENTS_KEY
 from a2ui.core.validating.validator import RELAXED_VALIDATION
 
 if TYPE_CHECKING:
-    from ..schema.catalog import A2uiCatalog
+    from a2ui.schema.catalog import A2uiCatalog
 
 
-class A2uiStreamParserV09(A2uiStreamParser):
+class TransportStreamParserV09(TransportStreamParser):
     """Streaming parser implementation for A2UI v0.9 specification."""
 
     def __init__(self, catalog: A2uiCatalog):

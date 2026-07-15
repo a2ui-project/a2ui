@@ -18,7 +18,7 @@ Subclasses the core ExpressionParser to support JSX-style expression syntax,
 including array literals, object literals, and path bindings prefixed with '$'.
 """
 
-from typing import Any, Dict, List, Union
+from typing import Any, Dict, List
 from a2ui.core.basic_catalog.expression_parser import ExpressionParser, Scanner
 
 
