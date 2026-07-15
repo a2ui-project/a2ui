@@ -12,16 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Deprecated compatibility wrapper. Use a2ui.prompt instead."""
+"""Prompt generation contracts and helpers package."""
 
-import warnings
-
-warnings.warn(
-    "a2ui.prompt_generator is deprecated. Use a2ui.prompt instead.",
-    DeprecationWarning,
-    stacklevel=2,
-)
-
-from a2ui.prompt.generator import PromptGenerator
+from .generator import PromptGenerator
 
 __all__ = ["PromptGenerator"]

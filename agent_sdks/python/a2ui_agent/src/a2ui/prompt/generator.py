@@ -12,31 +12,17 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Unified interface coordinating prompt generation and parsing of LLM response payloads."""
+"""Abstract prompt generator interface for inference formats."""
 
-import warnings
 from abc import ABC, abstractmethod
 from typing import Any, Optional
-from a2ui.prompt.generator import PromptGenerator
-from a2ui.parser.parser import Parser
 
 
-class InferenceFormat(ABC):
-    """Interface coordinating system prompt generation and response parsing."""
+class PromptGenerator(ABC):
+    """Abstract base class for inference format prompt generators."""
 
-    @property
     @abstractmethod
-    def prompt_generator(self) -> PromptGenerator:
-        """The PromptGenerator instance associated with this inference format."""
-        pass
-
-    @property
-    @abstractmethod
-    def parser(self) -> Parser:
-        """The Parser instance associated with this inference format."""
-        pass
-
-    def generate_system_prompt(
+    def generate(
         self,
         role_description: str,
         workflow_description: str = "",
@@ -48,7 +34,7 @@ class InferenceFormat(ABC):
         include_examples: bool = False,
         validate_examples: bool = False,
     ) -> str:
-        """Generates a system prompt for all LLM requests (deprecated compatibility helper).
+        """Assembles prompt instructions contract for standard JSON.
 
         Args:
             role_description: Description of the agent's role.
@@ -56,28 +42,12 @@ class InferenceFormat(ABC):
             ui_description: Optional UI context or rules.
             client_ui_capabilities: Optional client UI capability details.
             allowed_components: Optional list of component tags the LLM may use.
-            allowed_messages: Optional list of message types allowed.
+            allowed_messages: Optional list of A2UI message types allowed.
             include_schema: Whether to include component schemas in the prompt.
             include_examples: Whether to include few-shot examples.
             validate_examples: Whether to validate few-shot examples on generation.
 
         Returns:
-            The complete system prompt string.
+            The complete generated prompt system instruction.
         """
-        warnings.warn(
-            "generate_system_prompt is deprecated. Use prompt_generator.generate(...)"
-            " instead.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-        return self.prompt_generator.generate(
-            role_description=role_description,
-            workflow_description=workflow_description,
-            ui_description=ui_description,
-            client_ui_capabilities=client_ui_capabilities,
-            allowed_components=allowed_components,
-            allowed_messages=allowed_messages,
-            include_schema=include_schema,
-            include_examples=include_examples,
-            validate_examples=validate_examples,
-        )
+        pass
