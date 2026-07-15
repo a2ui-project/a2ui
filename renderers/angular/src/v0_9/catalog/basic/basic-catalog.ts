@@ -33,6 +33,7 @@ import {DividerComponent} from './divider.component';
 import {CheckBoxComponent} from './check-box.component';
 import {ChoicePickerComponent} from './choice-picker.component';
 import {SliderComponent} from './slider.component';
+import {ProgressBarComponent} from './progress-bar.component';
 import {DateTimeInputComponent} from './date-time-input.component';
 
 import {
@@ -55,6 +56,7 @@ import {
   CheckBoxApi,
   ChoicePickerApi,
   SliderApi,
+  ProgressBarApi,
   DateTimeInputApi,
 } from '@a2ui/web_core/v0_9/basic_catalog';
 import {FunctionImplementation} from '@a2ui/web_core/v0_9';
@@ -83,6 +85,7 @@ const DEFAULT_COMPONENT_IMPLEMENTATIONS: Record<string, AngularComponentImplemen
   'checkBox': {...CheckBoxApi, component: CheckBoxComponent},
   'choicePicker': {...ChoicePickerApi, component: ChoicePickerComponent},
   'slider': {...SliderApi, component: SliderComponent},
+  'progressBar': {...ProgressBarApi, component: ProgressBarComponent},
   'dateTimeInput': {...DateTimeInputApi, component: DateTimeInputComponent},
 } as const;
 

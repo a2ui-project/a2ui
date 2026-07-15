@@ -32,6 +32,7 @@ import {A2uiCard} from './components/Card.js';
 import {A2uiDivider} from './components/Divider.js';
 import {A2uiCheckBox} from './components/CheckBox.js';
 import {A2uiSlider} from './components/Slider.js';
+import {A2uiProgressBar} from './components/ProgressBar.js';
 import {A2uiDateTimeInput} from './components/DateTimeInput.js';
 import {A2uiChoicePicker} from './components/ChoicePicker.js';
 import {A2uiTabs} from './components/Tabs.js';
@@ -62,6 +63,7 @@ export const basicCatalog = new Catalog<LitComponentApi>(
     A2uiDivider,
     A2uiCheckBox,
     A2uiSlider,
+    A2uiProgressBar,
     A2uiDateTimeInput,
     A2uiChoicePicker,
     A2uiTabs,

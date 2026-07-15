@@ -55,4 +55,5 @@ export * from './catalog/basic/divider.component';
 export * from './catalog/basic/check-box.component';
 export * from './catalog/basic/choice-picker.component';
 export * from './catalog/basic/slider.component';
+export * from './catalog/basic/progress-bar.component';
 export * from './catalog/basic/date-time-input.component';

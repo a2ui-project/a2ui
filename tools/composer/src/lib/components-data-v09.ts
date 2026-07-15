@@ -1049,4 +1049,80 @@ export const COMPONENTS_DATA_V09: ComponentCategory[] = [
       },
     ],
   },
+  {
+    name: 'Feedback',
+    components: [
+      {
+        name: 'ProgressBar',
+        description:
+          'Displays progress or loading state with determinate and indeterminate modes.',
+        usage: `{
+  "id": "progress-1",
+  "component": "ProgressBar",
+  "value": { "path": "/progress" },
+  "max": 100,
+  "variant": "determinate",
+  "showPercentage": true
+}`,
+        props: [
+          {
+            name: 'value',
+            description:
+              'The current progress value (0 to max). Can be a plain number or a data binding path.',
+            type: 'number | { path: string }',
+          },
+          {
+            name: 'max',
+            description: 'Maximum value of the progress bar.',
+            type: 'number',
+            default: '100',
+          },
+          {
+            name: 'label',
+            description: 'A text label displayed above the progress bar.',
+            type: 'string | { path: string }',
+          },
+          {
+            name: 'variant',
+            description: 'Visual style of the progress bar.',
+            type: 'enum',
+            values: ['determinate', 'indeterminate'],
+            default: 'determinate',
+          },
+          {
+            name: 'showPercentage',
+            description: 'Whether to display the percentage text overlay.',
+            type: 'boolean',
+            default: 'true',
+          },
+        ],
+        preview: {
+          root: 'progress-demo',
+          components: [
+            {
+              id: 'progress-demo',
+              component: 'Column',
+              children: ['progress-1', 'progress-2'],
+            } as A2UIComponent,
+            {
+              id: 'progress-1',
+              component: 'ProgressBar',
+              value: {path: '/progress'},
+              max: 100,
+              variant: 'determinate',
+              showPercentage: true,
+            } as A2UIComponent,
+            {
+              id: 'progress-2',
+              component: 'ProgressBar',
+              value: {path: '/indeterminate'},
+              variant: 'indeterminate',
+              showPercentage: false,
+            } as A2UIComponent,
+          ],
+          data: {progress: 65, indeterminate: 0},
+        },
+      },
+    ],
+  },
 ];

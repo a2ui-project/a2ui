@@ -494,6 +494,25 @@ class DateTimeInputComponent(CatalogComponentCommon):
     )
 
 
+class ProgressBarComponent(CatalogComponentCommon):
+    component: Literal["ProgressBar"] = "ProgressBar"
+    value: DynamicNumber = Field(..., description="The current progress value (0 to max).")
+    max: Optional[float] = Field(
+        description="The maximum value of the progress bar.", default=100
+    )
+    label: Optional[DynamicString] = Field(
+        None, description="A text label for the progress bar."
+    )
+    variant: Optional[Literal["determinate", "indeterminate"]] = Field(
+        description="The style of the progress bar.", default="determinate"
+    )
+    show_percentage: Optional[bool] = Field(
+        alias="showPercentage",
+        description="Whether to display the percentage text overlay.",
+        default=True,
+    )
+
+
 AnyComponent = Annotated[
     Union[
         TextComponent,
@@ -514,6 +533,7 @@ AnyComponent = Annotated[
         ChoicePickerComponent,
         SliderComponent,
         DateTimeInputComponent,
+        ProgressBarComponent,
     ],
     Field(..., discriminator="component"),
 ]
@@ -554,6 +574,8 @@ SLIDER_COMPONENT_API = ModelComponentApi(SliderComponent)
 
 DATE_TIME_INPUT_COMPONENT_API = ModelComponentApi(DateTimeInputComponent)
 
+PROGRESS_BAR_COMPONENT_API = ModelComponentApi(ProgressBarComponent)
+
 BASIC_COMPONENTS = [
     TEXT_COMPONENT_API,
     IMAGE_COMPONENT_API,
@@ -573,4 +595,5 @@ BASIC_COMPONENTS = [
     CHOICE_PICKER_COMPONENT_API,
     SLIDER_COMPONENT_API,
     DATE_TIME_INPUT_COMPONENT_API,
+    PROGRESS_BAR_COMPONENT_API,
 ]

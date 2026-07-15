@@ -417,6 +417,29 @@ Numeric range input.
     }
     ```
 
+### ProgressBar
+
+Displays progress or loading state.
+
+=== "v0.8"
+
+    **Properties:** Not available in v0.8.
+
+=== "v0.9"
+
+    **Properties:** `value` (DataBinding), `max`, `label`, `variant`, `showPercentage`
+
+    ```json
+    {
+      "id": "loading-progress",
+      "component": "ProgressBar",
+      "value": { "path": "/uploadProgress" },
+      "max": 100,
+      "variant": "determinate",
+      "showPercentage": true
+    }
+    ```
+
 ### DateTimeInput
 
 Date and/or time picker.

@@ -35,6 +35,7 @@ import {TextField} from './components/TextField';
 import {CheckBox} from './components/CheckBox';
 import {ChoicePicker} from './components/ChoicePicker';
 import {Slider} from './components/Slider';
+import {ProgressBar} from './components/ProgressBar';
 import {DateTimeInput} from './components/DateTimeInput';
 
 export * from './context/MarkdownContext';
@@ -57,6 +58,7 @@ const basicComponents: ReactComponentImplementation[] = [
   CheckBox,
   ChoicePicker,
   Slider,
+  ProgressBar,
   DateTimeInput,
 ];
 
@@ -84,5 +86,6 @@ export {
   CheckBox,
   ChoicePicker,
   Slider,
+  ProgressBar,
   DateTimeInput,
 };

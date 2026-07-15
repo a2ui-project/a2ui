@@ -824,6 +824,52 @@
         }
       ],
       "unevaluatedProperties": false
+    },
+    "ProgressBar": {
+      "type": "object",
+      "allOf": [
+        {
+          "$ref": "https://a2ui.org/specification/v1_0/common_types.json#/$defs/ComponentCommon"
+        },
+        {
+          "type": "object",
+          "properties": {
+            "component": {
+              "const": "ProgressBar"
+            },
+            "value": {
+              "$ref": "https://a2ui.org/specification/v1_0/common_types.json#/$defs/DynamicNumber",
+              "description": "The current progress value (0 to max)."
+            },
+            "max": {
+              "type": "number",
+              "description": "The maximum value of the progress bar.",
+              "default": 100
+            },
+            "label": {
+              "$ref": "https://a2ui.org/specification/v1_0/common_types.json#/$defs/DynamicString",
+              "description": "A text label for the progress bar."
+            },
+            "variant": {
+              "type": "string",
+              "description": "The style of the progress bar.",
+              "enum": ["determinate", "indeterminate"],
+              "default": "determinate"
+            },
+            "showPercentage": {
+              "type": "boolean",
+              "description": "Whether to display the percentage text overlay.",
+              "default": true
+            },
+            "weight": {
+              "type": "number",
+              "description": "The relative weight of this component within a Row or Column. This is similar to the CSS 'flex-grow' property. Note: this may ONLY be set when the component is a direct descendant of a Row or Column."
+            }
+          },
+          "required": ["component", "value"]
+        }
+      ],
+      "unevaluatedProperties": false
     }
   },
   "functions": {
@@ -1320,6 +1366,9 @@
         },
         {
           "$ref": "#/components/DateTimeInput"
+        },
+        {
+          "$ref": "#/components/ProgressBar"
         }
       ],
       "discriminator": {

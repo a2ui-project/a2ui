@@ -1,0 +1,115 @@
+{
+  "schema": "server_to_client.json",
+  "tests": [
+    {
+      "description": "ProgressBar with required fields only",
+      "valid": true,
+      "data": {
+        "version": "v1.0",
+        "updateComponents": {
+          "surfaceId": "test_surface",
+          "components": [
+            {
+              "id": "progress-1",
+              "component": "ProgressBar",
+              "value": 50
+            }
+          ]
+        }
+      }
+    },
+    {
+      "description": "ProgressBar with all fields",
+      "valid": true,
+      "data": {
+        "version": "v1.0",
+        "updateComponents": {
+          "surfaceId": "test_surface",
+          "components": [
+            {
+              "id": "progress-2",
+              "component": "ProgressBar",
+              "value": 75,
+              "max": 100,
+              "label": "Loading",
+              "variant": "determinate",
+              "showPercentage": true
+            }
+          ]
+        }
+      }
+    },
+    {
+      "description": "ProgressBar with indeterminate variant",
+      "valid": true,
+      "data": {
+        "version": "v1.0",
+        "updateComponents": {
+          "surfaceId": "test_surface",
+          "components": [
+            {
+              "id": "progress-3",
+              "component": "ProgressBar",
+              "value": 0,
+              "variant": "indeterminate",
+              "showPercentage": false
+            }
+          ]
+        }
+      }
+    },
+    {
+      "description": "ProgressBar with data binding value",
+      "valid": true,
+      "data": {
+        "version": "v1.0",
+        "updateComponents": {
+          "surfaceId": "test_surface",
+          "components": [
+            {
+              "id": "progress-4",
+              "component": "ProgressBar",
+              "value": { "path": "/progress" },
+              "max": 100,
+              "label": { "path": "/label" }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "description": "ProgressBar missing value (should fail)",
+      "valid": false,
+      "data": {
+        "version": "v1.0",
+        "updateComponents": {
+          "surfaceId": "test_surface",
+          "components": [
+            {
+              "id": "progress-invalid",
+              "component": "ProgressBar"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "description": "ProgressBar with invalid variant (should fail)",
+      "valid": false,
+      "data": {
+        "version": "v1.0",
+        "updateComponents": {
+          "surfaceId": "test_surface",
+          "components": [
+            {
+              "id": "progress-invalid-variant",
+              "component": "ProgressBar",
+              "value": 50,
+              "variant": "invalid_variant"
+            }
+          ]
+        }
+      }
+    }
+  ]
+}

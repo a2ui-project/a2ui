@@ -16,7 +16,7 @@
 
 import {describe, it} from 'node:test';
 import * as assert from 'node:assert';
-import {ImageApi} from './basic_components.js';
+import {ImageApi, ProgressBarApi} from './basic_components.js';
 
 describe('Basic Components Schema', () => {
   describe('ImageApi', () => {
@@ -44,6 +44,50 @@ describe('Basic Components Schema', () => {
         url: 123, // Invalid type
       };
       assert.throws(() => ImageApi.schema.parse(invalidImage));
+    });
+  });
+
+  describe('ProgressBarApi', () => {
+    it('should parse valid progress bar with required fields', () => {
+      const valid = {value: 50};
+      const parsed = ProgressBarApi.schema.parse(valid);
+      assert.strictEqual(parsed.value, 50);
+      assert.strictEqual(parsed.max, 100);
+      assert.strictEqual(parsed.variant, 'determinate');
+      assert.strictEqual(parsed.showPercentage, true);
+    });
+
+    it('should parse progress bar with all fields', () => {
+      const valid = {
+        value: 75,
+        max: 100,
+        label: 'Loading',
+        variant: 'determinate',
+        showPercentage: true,
+      };
+      const parsed = ProgressBarApi.schema.parse(valid);
+      assert.strictEqual(parsed.value, 75);
+      assert.strictEqual(parsed.max, 100);
+      assert.strictEqual(parsed.label, 'Loading');
+      assert.strictEqual(parsed.variant, 'determinate');
+      assert.strictEqual(parsed.showPercentage, true);
+    });
+
+    it('should parse progress bar with indeterminate variant', () => {
+      const valid = {value: 0, variant: 'indeterminate', showPercentage: false};
+      const parsed = ProgressBarApi.schema.parse(valid);
+      assert.strictEqual(parsed.variant, 'indeterminate');
+      assert.strictEqual(parsed.showPercentage, false);
+    });
+
+    it('should throw on missing value', () => {
+      assert.throws(() => ProgressBarApi.schema.parse({}));
+    });
+
+    it('should throw on invalid variant', () => {
+      assert.throws(() =>
+        ProgressBarApi.schema.parse({value: 50, variant: 'invalid'}),
+      );
     });
   });
 });

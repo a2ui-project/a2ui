@@ -481,6 +481,29 @@ export const DateTimeInputApi = {
     .strict(),
 } satisfies ComponentApi;
 
+export const ProgressBarApi = {
+  name: 'ProgressBar',
+  schema: z
+    .object({
+      ...CommonProps,
+      value: DynamicNumberSchema.describe('The current progress value (0 to max).'),
+      max: z
+        .number()
+        .default(100)
+        .describe('The maximum value of the progress bar.'),
+      label: DynamicStringSchema.describe('A text label for the progress bar.').optional(),
+      variant: z
+        .enum(['determinate', 'indeterminate'])
+        .default('determinate')
+        .describe('The style of the progress bar.'),
+      showPercentage: z
+        .boolean()
+        .default(true)
+        .describe('Whether to display the percentage text overlay.'),
+    })
+    .strict(),
+} satisfies ComponentApi;
+
 export const BASIC_COMPONENTS: ComponentApi[] = [
   TextApi,
   ImageApi,
@@ -500,4 +523,5 @@ export const BASIC_COMPONENTS: ComponentApi[] = [
   ChoicePickerApi,
   SliderApi,
   DateTimeInputApi,
+  ProgressBarApi,
 ];

@@ -102,6 +102,25 @@
           "required": [ "component", "children" ]
         }
       ]
+    },
+    "ProgressBar": {
+      "type": "object",
+      "allOf": [
+        { "$ref": "common_types.json#/$defs/ComponentCommon" },
+        { "$ref": "#/$defs/CatalogComponentCommon" },
+        {
+          "type": "object",
+          "properties": {
+            "component": { "const": "ProgressBar" },
+            "value": { "$ref": "common_types.json#/$defs/DynamicNumber" },
+            "max": { "type": "number" },
+            "label": { "$ref": "common_types.json#/$defs/DynamicString" },
+            "variant": { "type": "string", "enum": ["determinate", "indeterminate"] },
+            "showPercentage": { "type": "boolean" }
+          },
+          "required": [ "component", "value" ]
+        }
+      ]
     }
   },
   "$defs": {
@@ -117,7 +136,8 @@
         { "$ref": "#/components/Column" },
         { "$ref": "#/components/AudioPlayer" },
         { "$ref": "#/components/List" },
-        { "$ref": "#/components/Row" }
+        { "$ref": "#/components/Row" },
+        { "$ref": "#/components/ProgressBar" }
       ],
       "discriminator": { "propertyName": "component" }
     }

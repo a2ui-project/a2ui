@@ -1016,6 +1016,7 @@ The [`catalogs/basic/catalog.json`] provides the baseline set of components and 
 | **TextField**     | A field for user text input.                                                                |
 | **DateTimeInput** | An input for date and/or time.                                                              |
 | **ChoicePicker**  | A component for selecting one or more options.                                              |
+| **ProgressBar**   | A bar that displays progress or loading state.                                              |
 | **Slider**        | A slider for selecting a numeric value within a range.                                      |
 
 ### Functions
