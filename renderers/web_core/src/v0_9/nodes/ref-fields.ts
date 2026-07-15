@@ -15,35 +15,17 @@
  */
 
 import {z} from 'zod';
-import {ChildListSchema, ComponentIdSchema} from '../schema/common-types.js';
 
 /**
- * Marker strings embedded in a schema's description so the node layer can
- * identify component-reference properties at runtime.
- *
- * A bare `z.string()` component id is indistinguishable from any other string
- * (`scrapeSchemaBehavior` deliberately lets it fall back to STATIC), so single
- * child references are invisible to schema inspection unless the catalog
- * declares them with a distinguishable type. These helpers are that type.
+ * The `REF:` description pointers from common-types that mark a property as
+ * referencing child components. The same convention the capabilities
+ * generator resolves into wire `$ref`s, reused here as the machine-readable
+ * classification source. Catalogs declare single-child properties with
+ * `ComponentIdSchema` (or `componentIdWithDescription`, which keeps the
+ * pointer when adding prose).
  */
-const SINGLE_REF_MARKER = 'A2UI_COMPONENT_REF:single';
-const LIST_REF_MARKER = 'A2UI_COMPONENT_REF:list';
-
-/**
- * Declares a property holding the id of a single child component.
- * Use in place of a bare string id so the node layer can resolve the child.
- */
-export function componentReference(): z.ZodTypeAny {
-  return ComponentIdSchema.describe(`${SINGLE_REF_MARKER}|${ComponentIdSchema.description ?? ''}`);
-}
-
-/**
- * Declares a property holding a list of children: either a static array of
- * component ids or a `{componentId, path}` template.
- */
-export function componentReferenceList(): z.ZodTypeAny {
-  return ChildListSchema.describe(`${LIST_REF_MARKER}|${ChildListSchema.description ?? ''}`);
-}
+const COMPONENT_ID_REF = 'REF:common_types.json#/$defs/ComponentId';
+const CHILD_LIST_REF = 'REF:common_types.json#/$defs/ChildList';
 
 /** Which properties of a component's schema reference child components. */
 export interface RefFields {
@@ -70,10 +52,11 @@ const refFieldsCache = new WeakMap<z.ZodTypeAny, RefFields>();
 /**
  * Derives the {@link RefFields} of a component schema.
  *
- * Detection is by the marker types above, plus the same structural test the
- * binder uses for `ChildList` unions (an option object with both `componentId`
- * and `path`), so catalogs that already use `ChildListSchema` need no marker
- * for list properties. Results are memoized per schema object.
+ * Detection is by the `REF:` pointers above, plus the same structural test
+ * the binder uses for `ChildList` unions (an option object with both
+ * `componentId` and `path`), so catalogs that build their own child-list
+ * union need no pointer for list properties. Results are memoized per schema
+ * object.
  */
 export function extractRefFields(schema: z.ZodTypeAny): RefFields {
   const cached = refFieldsCache.get(schema);
@@ -94,12 +77,12 @@ export function extractRefFields(schema: z.ZodTypeAny): RefFields {
   const shape = (unwrapped.schema as z.AnyZodObject).shape as Record<string, z.ZodTypeAny>;
   for (const [key, value] of Object.entries(shape)) {
     const field = unwrap(value);
-    if (hasMarker(field.descriptions, SINGLE_REF_MARKER)) {
-      single.add(key);
+    if (hasPointer(field.descriptions, CHILD_LIST_REF) || isChildListUnion(field.schema)) {
+      list.add(key);
       continue;
     }
-    if (hasMarker(field.descriptions, LIST_REF_MARKER) || isChildListUnion(field.schema)) {
-      list.add(key);
+    if (hasPointer(field.descriptions, COMPONENT_ID_REF)) {
+      single.add(key);
       continue;
     }
     if (field.schema._def.typeName === 'ZodArray') {
@@ -111,7 +94,7 @@ export function extractRefFields(schema: z.ZodTypeAny): RefFields {
           z.ZodTypeAny
         >;
         for (const [subKey, subValue] of Object.entries(elementShape)) {
-          if (hasMarker(unwrap(subValue).descriptions, SINGLE_REF_MARKER)) {
+          if (hasPointer(unwrap(subValue).descriptions, COMPONENT_ID_REF)) {
             subKeys.add(subKey);
           }
         }
@@ -129,7 +112,7 @@ export function extractRefFields(schema: z.ZodTypeAny): RefFields {
 
 /**
  * Unwraps optional/nullable/default/effects wrappers, collecting every
- * description seen along the way (a marker may sit on the wrapper or on the
+ * description seen along the way (a pointer may sit on the wrapper or on the
  * inner type).
  */
 function unwrap(schema: z.ZodTypeAny): {schema: z.ZodTypeAny; descriptions: string[]} {
@@ -150,8 +133,8 @@ function unwrap(schema: z.ZodTypeAny): {schema: z.ZodTypeAny; descriptions: stri
   }
 }
 
-function hasMarker(descriptions: string[], marker: string): boolean {
-  return descriptions.some(d => d.includes(marker));
+function hasPointer(descriptions: string[], pointer: string): boolean {
+  return descriptions.some(d => d.startsWith(pointer));
 }
 
 /** Matches the binder's STRUCTURAL detection for `ChildList`-shaped unions. */

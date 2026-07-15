@@ -28,7 +28,7 @@
  * `{id, basePath}` pairs, `ResolvedBinding`s as value + `set<Prop>` pairs)
  * and `buildChild` maps those refs back to their live nodes. A ref the node
  * layer did not resolve (a single-child id whose schema
- * is not declared with `componentReference()`) falls back to `DeferredChild`
+ * is not declared with `ComponentIdSchema`) falls back to `DeferredChild`
  * recursion over the raw definitions, so catalogs can migrate incrementally.
  */
 

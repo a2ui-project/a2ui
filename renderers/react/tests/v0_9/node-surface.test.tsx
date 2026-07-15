@@ -23,8 +23,8 @@ import {
   CommonSchemas,
   ComponentModel,
   SurfaceModel,
-  componentReference,
-  componentReferenceList,
+  ChildListSchema,
+  ComponentIdSchema,
   type A2uiClientAction,
 } from '@a2ui/web_core/v0_9';
 import {
@@ -52,7 +52,7 @@ const TextImpl = createComponentImplementation(
 );
 
 const ColumnImpl = createComponentImplementation(
-  {name: 'Column', schema: z.object({children: componentReferenceList().optional()})},
+  {name: 'Column', schema: z.object({children: ChildListSchema.optional()})},
   ({props, buildChild, context}) => {
     bump(`Column:${context.componentModel.id}`);
     const children = props.children as Array<string | {id: string; basePath: string}> | undefined;
@@ -75,7 +75,7 @@ const ColumnImpl = createComponentImplementation(
 );
 
 const CardImpl = createComponentImplementation(
-  {name: 'Card', schema: z.object({child: componentReference().optional()})},
+  {name: 'Card', schema: z.object({child: ComponentIdSchema.optional()})},
   ({props, buildChild, context}) => {
     bump(`Card:${context.componentModel.id}`);
     return <div>{props.child ? buildChild(props.child as string) : null}</div>;

@@ -97,6 +97,25 @@ export const ComponentIdSchema = z
 /** The unique identifier for a component. */
 export type ComponentId = z.infer<typeof ComponentIdSchema>;
 
+/**
+ * Describes a component-id property without losing its `REF:` pointer.
+ * `.describe()` replaces the whole description, so calling it directly on
+ * {@link ComponentIdSchema} silently drops the pointer that the capabilities
+ * generator turns into a wire `$ref` and the node layer reads to classify
+ * child-reference properties.
+ */
+export function componentIdWithDescription(description: string): typeof ComponentIdSchema {
+  return ComponentIdSchema.describe(`REF:common_types.json#/$defs/ComponentId|${description}`);
+}
+
+/**
+ * Describes a child-list property without losing its `REF:` pointer; the
+ * same hazard {@link componentIdWithDescription} exists for.
+ */
+export function childListWithDescription(description: string): typeof ChildListSchema {
+  return ChildListSchema.describe(`REF:common_types.json#/$defs/ChildList|${description}`);
+}
+
 export const ChildListSchema = z
   .union([
     z.array(ComponentIdSchema).describe('A static list of child component IDs.'),

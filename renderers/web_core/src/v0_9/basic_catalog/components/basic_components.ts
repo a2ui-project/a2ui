@@ -20,8 +20,8 @@ import {
   DynamicNumberSchema,
   DynamicBooleanSchema,
   DynamicStringListSchema,
-  ChildListSchema,
-  ComponentIdSchema,
+  childListWithDescription,
+  componentIdWithDescription,
   ActionSchema,
   AccessibilityAttributesSchema,
   CheckableSchema,
@@ -194,7 +194,7 @@ export const RowApi = {
   schema: z
     .object({
       ...CommonProps,
-      children: ChildListSchema.describe(
+      children: childListWithDescription(
         'Defines the children. Use an array of strings for a fixed set of children, or a template object to generate children from a data list. Children cannot be defined inline, they must be referred to by ID.',
       ),
       justify: z
@@ -223,7 +223,7 @@ export const ColumnApi = {
   schema: z
     .object({
       ...CommonProps,
-      children: ChildListSchema.describe(
+      children: childListWithDescription(
         'Defines the children. Use an array of strings for a fixed set of children, or a template object to generate children from a data list. Children cannot be defined inline, they must be referred to by ID.',
       ),
       justify: z
@@ -252,7 +252,7 @@ export const ListApi = {
   schema: z
     .object({
       ...CommonProps,
-      children: ChildListSchema.describe(
+      children: childListWithDescription(
         'Defines the children. Use an array of strings for a fixed set of children, or a template object to generate children from a data list.',
       ),
       direction: z
@@ -278,7 +278,7 @@ export const CardApi = {
   schema: z
     .object({
       ...CommonProps,
-      child: ComponentIdSchema.describe(
+      child: componentIdWithDescription(
         "The ID of the single child component to be rendered inside the card. To display multiple elements, you MUST wrap them in a layout component (like Column or Row) and pass that container's ID here. Do NOT pass multiple IDs or a non-existent ID. Do NOT define the child component inline.",
       ),
     })
@@ -295,7 +295,7 @@ export const TabsApi = {
           z
             .object({
               title: DynamicStringSchema.describe('The tab title.'),
-              child: ComponentIdSchema.describe(
+              child: componentIdWithDescription(
                 'The ID of the child component. Do NOT define the component inline.',
               ),
             })
@@ -314,10 +314,10 @@ export const ModalApi = {
   schema: z
     .object({
       ...CommonProps,
-      trigger: ComponentIdSchema.describe(
+      trigger: componentIdWithDescription(
         'The ID of the component that opens the modal when interacted with (e.g., a button). Do NOT define the component inline.',
       ),
-      content: ComponentIdSchema.describe(
+      content: componentIdWithDescription(
         'The ID of the component to be displayed inside the modal. Do NOT define the component inline.',
       ),
     })
@@ -343,7 +343,7 @@ export const ButtonApi = {
   schema: z
     .object({
       ...CommonProps,
-      child: ComponentIdSchema.describe(
+      child: componentIdWithDescription(
         "The ID of the child component. Use a 'Text' component for a labeled button. Only use an 'Icon' if the requirements explicitly ask for an icon-only button. Do NOT define the child component inline.",
       ),
       variant: z
