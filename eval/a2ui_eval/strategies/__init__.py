@@ -14,7 +14,7 @@
 
 from inspect_ai.solver import Solver
 from .subagent_tool import subagent_tool_solver
-from .generic import format_solver
+from .format import format_solver
 
 STRATEGIES = {
     "direct": lambda version: format_solver("json", version),

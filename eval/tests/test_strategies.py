@@ -13,7 +13,7 @@
 # limitations under the License.
 
 import pytest
-from a2ui_eval.strategies.generic import format_system_prompt
+from a2ui_eval.strategies.format import format_system_prompt
 from inspect_ai.solver import TaskState
 from inspect_ai.model import ModelName
 
@@ -109,7 +109,7 @@ def test_express_solver():
 
 @pytest.mark.asyncio
 async def test_a2ui_express_solvers():
-    from a2ui_eval.strategies.generic import format_system_prompt, compile_format_payload
+    from a2ui_eval.strategies.format import format_system_prompt, compile_format_payload
     from inspect_ai.model import ModelName, ModelOutput, ChatCompletionChoice, ChatMessageAssistant
     from inspect_ai.solver import TaskState
     from a2ui_eval.shared.utils import GIT_ROOT
@@ -131,10 +131,10 @@ async def test_a2ui_express_solvers():
         return state
 
     # Mock GIT_ROOT in the solver module dynamically for testing
-    import a2ui_eval.strategies.generic as generic_module
+    import a2ui_eval.strategies.format as format_module
 
-    original_git_root = getattr(generic_module, "GIT_ROOT", None)
-    generic_module.GIT_ROOT = GIT_ROOT
+    original_git_root = getattr(format_module, "GIT_ROOT", None)
+    format_module.GIT_ROOT = GIT_ROOT
 
     try:
         state = await prompt_solver(state, dummy_generate)
@@ -159,7 +159,7 @@ async def test_a2ui_express_solvers():
         assert '"component": "Text"' in state.output.completion
     finally:
         if original_git_root is not None:
-            generic_module.GIT_ROOT = original_git_root
+            format_module.GIT_ROOT = original_git_root
 
 
 def test_elemental_solver():
@@ -169,7 +169,7 @@ def test_elemental_solver():
 
 @pytest.mark.asyncio
 async def test_a2ui_elemental_solvers():
-    from a2ui_eval.strategies.generic import format_system_prompt, compile_format_payload
+    from a2ui_eval.strategies.format import format_system_prompt, compile_format_payload
     from inspect_ai.model import ModelName, ModelOutput, ChatCompletionChoice, ChatMessageAssistant
     from inspect_ai.solver import TaskState
     from a2ui_eval.shared.utils import GIT_ROOT
@@ -190,10 +190,10 @@ async def test_a2ui_elemental_solvers():
     async def dummy_generate(state, **kwargs):
         return state
 
-    import a2ui_eval.strategies.generic as generic_module
+    import a2ui_eval.strategies.format as format_module
 
-    original_git_root = getattr(generic_module, "GIT_ROOT", None)
-    generic_module.GIT_ROOT = GIT_ROOT
+    original_git_root = getattr(format_module, "GIT_ROOT", None)
+    format_module.GIT_ROOT = GIT_ROOT
 
     try:
         state = await prompt_solver(state, dummy_generate)
@@ -222,4 +222,4 @@ async def test_a2ui_elemental_solvers():
         assert '"component": "Text"' in state.output.completion
     finally:
         if original_git_root is not None:
-            generic_module.GIT_ROOT = original_git_root
+            format_module.GIT_ROOT = original_git_root
