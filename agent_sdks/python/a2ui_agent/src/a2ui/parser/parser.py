@@ -98,8 +98,9 @@ def has_a2ui_parts(content: str) -> bool:
         Whether the content contains open and close A2UI tags.
     """
     warnings.warn(
-        "has_a2ui_parts is deprecated. Please use format.parser.has_format_content(content, complete=True) "
-        "on your InferenceFormat instance instead.",
+        "has_a2ui_parts is deprecated. Please use"
+        " format.parser.has_format_content(content, complete=True) on your"
+        " InferenceFormat instance instead.",
         DeprecationWarning,
         stacklevel=2,
     )

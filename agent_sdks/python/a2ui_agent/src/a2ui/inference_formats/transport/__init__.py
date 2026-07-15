@@ -20,5 +20,5 @@ __all__ = [
     "TransportFormat",
     "TransportParser",
     "TransportStreamParser",
-    "A2uiStreamParser", # Deprecated. Use TransportStreamParser instead.
+    "A2uiStreamParser",  # Deprecated. Use TransportStreamParser instead.
 ]
