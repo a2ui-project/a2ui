@@ -15,6 +15,7 @@
  */
 
 export * from './A2uiSurface';
+export * from './A2uiNodeSurface';
 export * from './adapter';
 
 // Export basic catalog components directly for 3P developers

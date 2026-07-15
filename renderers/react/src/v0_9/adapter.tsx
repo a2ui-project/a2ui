@@ -28,6 +28,13 @@ export interface ReactComponentImplementation extends ComponentApi {
     context: ComponentContext;
     buildChild: (id: string, basePath?: string) => React.ReactNode;
   }>;
+  /**
+   * The unwrapped view function `render` wraps. `A2uiNodeSurface` renders it
+   * directly with props resolved by the node layer, so the component works
+   * without `render`'s own binder. Absent on binderless implementations,
+   * which the node surface falls back to rendering through `render`.
+   */
+  view?: React.FC<ReactA2uiComponentProps<any>>;
 }
 
 export type ReactA2uiComponentProps<T> = {
@@ -98,6 +105,7 @@ export function createComponentImplementation<Api extends ComponentApi>(
     name: api.name,
     schema: api.schema,
     render: ReactWrapper,
+    view: RenderComponent as React.FC<ReactA2uiComponentProps<any>>,
   };
 }
 
