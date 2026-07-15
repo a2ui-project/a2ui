@@ -138,7 +138,7 @@ class A2uiPartConverter:
 
         # 3. Handle Text-based A2UI (TextPart)
         if text := part.text:
-            if "<a2ui" in text:
+            if self._parser.has_format_content(text):
                 return parse_content_to_parts(
                     text,
                     parser=self._parser,
