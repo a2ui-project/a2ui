@@ -453,6 +453,35 @@ class TestElementalCompiler(unittest.TestCase):
         lst = next(c for c in components if c["id"] == "lst_1")
         self.assertEqual(lst["children"], {"path": "/items", "componentId": "txt_1"})
 
+    def test_resolve_action_property_name_case_insensitive_multiple(self):
+        original_get_property_schema = self.compiler.helper.get_property_schema
+        try:
+            self.compiler.helper.get_property_schema = lambda comp, prop: (
+                {"type": "object", "$ref": "#/definitions/Action"}
+                if prop in ["onSubmit", "onClick"]
+                else None
+            )
+
+            # 1. Exact match onSubmit
+            res1 = self.compiler._resolve_action_property_name(
+                "onSubmit", "TestComponent", ["onSubmit", "onClick"]
+            )
+            self.assertEqual(res1, "onSubmit")
+
+            # 2. Case-insensitive onClick vs onClick
+            res2 = self.compiler._resolve_action_property_name(
+                "onclick", "TestComponent", ["onSubmit", "onClick"]
+            )
+            self.assertEqual(res2, "onClick")
+
+            # 3. Exact match onClick
+            res3 = self.compiler._resolve_action_property_name(
+                "onClick", "TestComponent", ["onSubmit", "onClick"]
+            )
+            self.assertEqual(res3, "onClick")
+        finally:
+            self.compiler.helper.get_property_schema = original_get_property_schema
+
 
 if __name__ == "__main__":
     unittest.main()

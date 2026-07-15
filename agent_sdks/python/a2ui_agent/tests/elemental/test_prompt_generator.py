@@ -54,3 +54,9 @@ class TestElementalPromptGenerator(unittest.TestCase):
         assert "Please output Elemental HTML." in prompt
         assert "# A2UI Elemental Output Contract" in prompt
         assert "interface Text {" in prompt
+
+    def test_catalog_description_before_generate(self):
+        elemental_format = ElementalFormat(catalog=self.catalog)
+        generator = elemental_format.prompt_generator
+        desc = elemental_format.catalog_description(generator, include_schema=True)
+        self.assertIn("interface Text {", desc)

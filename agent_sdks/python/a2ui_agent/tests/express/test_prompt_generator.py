@@ -54,3 +54,9 @@ class TestExpressPromptGenerator(unittest.TestCase):
         assert "Please adhere to constraints." in prompt
         assert "# A2UI Express Output Contract" in prompt
         assert "Text(" in prompt
+
+    def test_catalog_description_before_generate(self):
+        express_format = ExpressFormat(catalog=self.catalog)
+        generator = express_format.prompt_generator
+        desc = express_format.catalog_description(generator, include_schema=True)
+        self.assertIn("Text(", desc)

@@ -40,7 +40,9 @@ class ExpressParser(Parser):
 
     def unwrap(self, content: str) -> List[ResponsePart]:
         """Unwraps/tokenizes the response content into raw Express DSL parts."""
-        from a2ui.inference_formats.experimental.express.parser import _A2UI_DSL_BLOCK_PATTERN
+        from a2ui.inference_formats.experimental.express.parser import (
+            _A2UI_DSL_BLOCK_PATTERN,
+        )
 
         # Handle unclosed tag auto-closing
         last_open = content.rfind("<a2ui>")
@@ -123,9 +125,6 @@ class ExpressFormat(InferenceFormat):
         self._ensure_catalog()
         return ExpressParser(self.catalog, self.surface_id)
 
-    def has_a2ui_parts(self, content: str) -> bool:
-        return "<a2ui" in content
-
     def format_description(
         self,
         custom_workflow_description: str = "",
@@ -192,9 +191,19 @@ IMPORTANT: You must ALWAYS output A2UI Express DSL notation wrapped inside `<a2u
     def catalog_description(self, prompt_gen: Any, include_schema: bool = True) -> str:
         if not include_schema:
             return ""
+        if prompt_gen.helper is None and self.catalog:
+            from .schema_helper import CatalogSchemaHelper
+
+            prompt_gen.helper = CatalogSchemaHelper(self.catalog)
+            prompt_gen.decompiler = ExpressDecompiler(self.catalog)
+
         comp_sigs = prompt_gen.generate_component_signatures()
         func_sigs = prompt_gen.generate_function_signatures()
-        catalog_instructions = prompt_gen.helper.catalog.get("instructions", "")
+        catalog_instructions = (
+            prompt_gen.helper.catalog.get("instructions", "")
+            if prompt_gen.helper
+            else ""
+        )
 
         # Translate json examples in catalog instructions into A2UI Express DSL
         if catalog_instructions:

@@ -23,6 +23,14 @@ from google.adk.utils.feature_decorator import experimental
 
 from .prompt_generator import ElementalPromptGenerator
 from .decompiler import ElementalDecompiler
+from .compiler import TAG_PREFIX
+
+_BLOCK_PATTERN = re.compile(
+    r"<a2ui\b[^>]*>.*</a2ui>"
+    f"|<{TAG_PREFIX}delete-surface\\b[^>]*>(?:.*?</{TAG_PREFIX}delete-surface>|/>)?"
+    f"|<{TAG_PREFIX}call-function\\b[^>]*>(?:.*?</{TAG_PREFIX}call-function>|/>)?",
+    re.DOTALL | re.IGNORECASE,
+)
 
 
 @experimental
@@ -41,8 +49,9 @@ class ElementalParser(Parser):
     def unwrap(self, content: str) -> List[ResponsePart]:
         """Unwraps/tokenizes the response content into raw Elemental HTML parts."""
         import re
-        from a2ui.inference_formats.experimental.elemental.parser import _A2UI_OPEN_PATTERN
-        from a2ui.inference_formats.experimental.elemental.compiler import TAG_PREFIX
+        from a2ui.inference_formats.experimental.elemental.parser import (
+            _A2UI_OPEN_PATTERN,
+        )
 
         content_lower = content.lower()
         last_open_match = list(_A2UI_OPEN_PATTERN.finditer(content))
@@ -53,13 +62,7 @@ class ElementalParser(Parser):
             if last_open > last_close:
                 content += "\n</a2ui>"
 
-        block_pattern = re.compile(
-            r"<a2ui\b[^>]*>.*</a2ui>"
-            f"|<{TAG_PREFIX}delete-surface\\b[^>]*>(?:.*?</{TAG_PREFIX}delete-surface>|/>)?"
-            f"|<{TAG_PREFIX}call-function\\b[^>]*>(?:.*?</{TAG_PREFIX}call-function>|/>)?",
-            re.DOTALL | re.IGNORECASE,
-        )
-        matches = list(block_pattern.finditer(content))
+        matches = list(_BLOCK_PATTERN.finditer(content))
 
         if not matches:
             return [ResponsePart(text=content, a2ui_raw=None)]
@@ -92,7 +95,9 @@ class ElementalParser(Parser):
 
     def compile(self, format_content: str) -> List[dict[str, Any]]:
         """Compiles raw Elemental HTML to structured A2UI messages."""
-        from a2ui.inference_formats.experimental.elemental.compiler import ElementalCompiler
+        from a2ui.inference_formats.experimental.elemental.compiler import (
+            ElementalCompiler,
+        )
 
         compiler = ElementalCompiler(self.catalog)
         compiled_json = compiler.compile(
@@ -181,10 +186,22 @@ Surround the entire output with `<body>` and `</body>` tags, including a `<link 
     def catalog_description(self, prompt_gen: Any, include_schema: bool = True) -> str:
         if not include_schema:
             return ""
+        if prompt_gen.helper is None and self.catalog:
+            from a2ui.inference_formats.experimental.express.schema_helper import (
+                CatalogSchemaHelper,
+            )
+
+            prompt_gen.catalog = self.catalog
+            prompt_gen.helper = CatalogSchemaHelper(self.catalog)
+
         comp_decls = prompt_gen.generate_component_declarations()
         func_decls = prompt_gen.generate_function_declarations()
 
-        catalog_instructions = prompt_gen.helper.catalog.get("instructions", "")
+        catalog_instructions = (
+            prompt_gen.helper.catalog.get("instructions", "")
+            if prompt_gen.helper
+            else ""
+        )
         # Decompile json blocks in catalog instructions to HTML
         catalog_instructions_block = ""
         if catalog_instructions:

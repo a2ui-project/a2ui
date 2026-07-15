@@ -24,7 +24,9 @@ from html.parser import HTMLParser
 from typing import Any, Dict, List, Optional, Union
 from a2ui.core.catalog import Catalog
 from a2ui.schema.catalog import A2uiCatalog
-from a2ui.inference_formats.experimental.express.schema_helper import CatalogSchemaHelper
+from a2ui.inference_formats.experimental.express.schema_helper import (
+    CatalogSchemaHelper,
+)
 from a2ui.inference_formats.experimental.express.constants import SurfaceOperation
 from .expression_parser import ElementalExpressionParser
 
@@ -309,6 +311,13 @@ class ElementalCompiler:
         self, name: str, comp_name: str, properties: list[str]
     ) -> str:
         """Maps React-like event names (onclick, onSubmitAction) back to catalog properties (action, submitAction)."""
+        if name in properties:
+            return name
+
+        for p in properties:
+            if p.lower() == name.lower():
+                return p
+
         action_props = []
         for p in properties:
             p_schema = self.helper.get_property_schema(comp_name, p)
