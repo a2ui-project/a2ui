@@ -472,16 +472,6 @@ btnLabel = Text("Click Thread 2")
         validator = A2uiValidator(catalog, experiments={"version_1_0"})
         self.assertEqual(validator.version, "1.0")
 
-        # It can be enabled via A2UI_VERSION_1_0 env var
-        with patch.dict(os.environ, {"A2UI_VERSION_1_0": "true"}, clear=True):
-            validator = A2uiValidator(catalog)
-            self.assertEqual(validator.version, "1.0")
-
-        # It can be enabled via A2UI_EXPRESS_ENABLED env var
-        with patch.dict(os.environ, {"A2UI_EXPRESS_ENABLED": "true"}, clear=True):
-            validator = A2uiValidator(catalog)
-            self.assertEqual(validator.version, "1.0")
-
     def test_semicolons_and_trailing_commas_and_line_continuation(self):
         """Verifies that optional semicolons, trailing commas, and line continuations compile correctly."""
         compiler = ExpressCompiler(self.catalog)

@@ -15,10 +15,9 @@
 """Facade validator dispatching to version-specific validation engines."""
 
 from __future__ import annotations
-import os
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Set, Tuple, Union, Mapping
 
-from a2ui.schema.constants import VERSION_0_8, VERSION_0_9, VERSION_0_9_1, VERSION_1_0
+from a2ui.schema.constants import VERSION_0_8, VERSION_0_9_1, VERSION_1_0
 from .validator_v08 import (
     LegacyA2uiValidatorV08,
     extract_component_required_fields as v08_req,
@@ -234,18 +233,8 @@ class A2uiValidator:
         ver = catalog.version
         self.version = ver if isinstance(ver, str) else VERSION_0_8
 
-        env_experiments = set()
-        if os.environ.get("A2UI_VERSION_1_0", "").lower() in (
-            "true",
-            "1",
-            "yes",
-        ) or os.environ.get("A2UI_EXPRESS_ENABLED", "").lower() in ("true", "1", "yes"):
-            env_experiments.add("version_1_0")
-
-        self.experiments = (
-            (set(experiments) if experiments else set())
-            | (set(catalog.experiments) if catalog and catalog.experiments else set())
-            | env_experiments
+        self.experiments = (set(experiments) if experiments else set()) | (
+            set(catalog.experiments) if catalog and catalog.experiments else set()
         )
 
         if self.version == VERSION_0_8:
