@@ -20,8 +20,19 @@ import {test, expect} from 'vitest';
  * esbuild to serve uncompiled Stage-3 class decorators raw to the browser,
  * resulting in runtime SyntaxErrors.
  */
-test('a2ui-shell compiles and registers without syntax errors', async () => {
-  const mod = await import('../app.js');
-  expect(mod.A2UILayoutEditor).toBeDefined();
-  expect(customElements.get('a2ui-shell')).toBeDefined();
-});
+/**
+ * Vite dev server compilation under JSDOM can be slow during cold runs,
+ * particularly on CI environments. We use an increased timeout of 30 seconds
+ * to prevent sporadic/flaky test timeouts.
+ */
+const VITE_COMPILE_TIMEOUT = 30000;
+
+test(
+  'a2ui-shell compiles and registers without syntax errors',
+  async () => {
+    const mod = await import('../app.js');
+    expect(mod.A2UILayoutEditor).toBeDefined();
+    expect(customElements.get('a2ui-shell')).toBeDefined();
+  },
+  VITE_COMPILE_TIMEOUT,
+);
