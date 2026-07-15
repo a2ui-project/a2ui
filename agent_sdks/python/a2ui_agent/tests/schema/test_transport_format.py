@@ -11,24 +11,11 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 import io
 import pytest
-import json
-import os
-from unittest.mock import patch, MagicMock, PropertyMock
+from unittest.mock import patch, MagicMock
 from a2ui.inference_formats.transport.format import TransportFormat
-from a2ui.schema.catalog import A2uiCatalog, CatalogConfig
 from a2ui.basic_catalog import BasicCatalog
-from a2ui.basic_catalog.constants import BASIC_CATALOG_NAME
 from a2ui.schema.constants import (
-    DEFAULT_WORKFLOW_RULES,
-    INLINE_CATALOG_NAME,
     VERSION_0_8,
-    VERSION_0_9,
-)
-from a2ui.schema.constants import (
-    A2UI_SCHEMA_BLOCK_START,
-    A2UI_SCHEMA_BLOCK_END,
-    INLINE_CATALOGS_KEY,
-    SUPPORTED_CATALOG_IDS_KEY,
 )
 
 

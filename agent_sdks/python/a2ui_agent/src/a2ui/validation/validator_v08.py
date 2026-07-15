@@ -15,9 +15,8 @@
 from __future__ import annotations
 
 import copy
-import logging
 import re
-from typing import TYPE_CHECKING, Any, Dict, List, Optional, Set, Tuple, Union, Iterator
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Set, Tuple, Union
 
 from jsonschema import Draft202012Validator
 from a2ui.core.validating.validator import ValidationConfig, STRICT_VALIDATION
@@ -34,9 +33,7 @@ if TYPE_CHECKING:
     from a2ui.schema.catalog import A2uiCatalog
 
 from a2ui.schema.constants import (
-    BASE_SCHEMA_URL,
     CATALOG_COMPONENTS_KEY,
-    CATALOG_ID_KEY,
     CATALOG_STYLES_KEY,
     VERSION_0_8,
 )

@@ -513,7 +513,7 @@ class ElementalCompiler:
                                     v, is_action
                                 )
 
-                    fn_schema = self.helper.functions[fn_name]
+                    self.helper.functions[fn_name]
 
                     if is_action:
                         return {

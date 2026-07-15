@@ -20,8 +20,8 @@ import glob
 import json
 import logging
 import os
-from dataclasses import dataclass, field, replace
-from typing import Any, Dict, List, Optional, Union, TYPE_CHECKING
+from dataclasses import dataclass, replace
+from typing import Any, Dict, List, Optional, TYPE_CHECKING
 from urllib.parse import urlparse
 from a2ui.core.catalog import Catalog
 from a2ui.core import A2uiCatalogError

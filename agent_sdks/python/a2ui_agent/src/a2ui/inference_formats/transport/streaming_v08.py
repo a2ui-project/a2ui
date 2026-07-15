@@ -15,14 +15,13 @@
 from __future__ import annotations
 
 import re
-import json
 from typing import Any, List, Dict, Optional, Set, TYPE_CHECKING
 
 from a2ui.inference_formats.transport.streaming import TransportStreamParser
 from a2ui.parser.response_part import ResponsePart
 from a2ui.parser.constants import *
-from a2ui.schema.constants import VERSION_0_8, SURFACE_ID_KEY, CATALOG_COMPONENTS_KEY
-from a2ui.core.validating.validator import ValidationConfig, RELAXED_VALIDATION, STRICT_VALIDATION
+from a2ui.schema.constants import SURFACE_ID_KEY, CATALOG_COMPONENTS_KEY
+from a2ui.core.validating.validator import RELAXED_VALIDATION
 
 if TYPE_CHECKING:
     from a2ui.schema.catalog import A2uiCatalog

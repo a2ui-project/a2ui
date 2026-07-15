@@ -12,22 +12,17 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import json
 import copy
-from unittest.mock import MagicMock
 import pytest
 from a2ui.schema.constants import (
     A2UI_OPEN_TAG,
     A2UI_CLOSE_TAG,
     VERSION_0_9,
-    SURFACE_ID_KEY,
     CATALOG_COMPONENTS_KEY,
 )
 from a2ui.parser.constants import (
     MSG_TYPE_CREATE_SURFACE,
     MSG_TYPE_UPDATE_COMPONENTS,
-    MSG_TYPE_DELETE_SURFACE,
-    MSG_TYPE_DATA_MODEL_UPDATE,
 )
 from a2ui.schema.catalog import A2uiCatalog
 from a2ui.inference_formats.transport.streaming import TransportStreamParser
@@ -344,7 +339,7 @@ def assertResponseContainsMessages(response, expected_messages):
 
 
 def assertResponseContainsNoA2UI(response):
-    assert len(response) == 0 or response[0].a2ui_json == None
+    assert len(response) == 0 or response[0].a2ui_json is None
 
 
 def assertResponseContainsText(response, expected_text):

@@ -25,8 +25,8 @@ from .validator_v08 import (
     extract_component_ref_fields as v08_ref,
 )
 from a2ui.core.validating import A2uiValidator as CoreValidator
-from a2ui.core.validating.integrity_checker import get_component_references
-from a2ui.core.validating.topology_analyzer import analyze_topology
+from a2ui.core.validating.integrity_checker import get_component_references as get_component_references
+from a2ui.core.validating.topology_analyzer import analyze_topology as analyze_topology
 from a2ui.core.validating.validator import ValidationConfig, STRICT_VALIDATION
 from a2ui.core.validating.catalog_schema_validator import CatalogSchemaValidator
 from a2ui.core import A2uiValidationError, A2uiCatalogError

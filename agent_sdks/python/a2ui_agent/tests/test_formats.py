@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import json
 import pytest
 from a2ui.schema.catalog import A2uiCatalog
 from a2ui.schema.constants import VERSION_0_9

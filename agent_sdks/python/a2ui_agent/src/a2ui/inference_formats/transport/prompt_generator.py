@@ -14,7 +14,7 @@
 
 """Generator for standard A2UI JSON schema system prompt instructions."""
 
-from typing import Optional, List, Any, TYPE_CHECKING
+from typing import Optional, Any, TYPE_CHECKING
 from a2ui.prompt_generator import PromptGenerator
 
 if TYPE_CHECKING:
