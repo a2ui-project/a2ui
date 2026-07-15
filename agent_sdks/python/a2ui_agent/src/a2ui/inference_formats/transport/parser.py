@@ -107,9 +107,11 @@ class TransportParser(Parser):
         self._validator = validator
         self._stream_parser: Optional[Any] = None
 
-    def has_format_content(self, content: str) -> bool:
-        from a2ui.schema.constants import A2UI_OPEN_TAG
+    def has_format_content(self, content: str, *, complete: bool = False) -> bool:
+        from a2ui.schema.constants import A2UI_OPEN_TAG, A2UI_CLOSE_TAG
 
+        if complete:
+            return A2UI_OPEN_TAG in content and A2UI_CLOSE_TAG in content
         return A2UI_OPEN_TAG in content
 
     def unwrap(self, content: str) -> List[ResponsePart]:

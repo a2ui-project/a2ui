@@ -24,11 +24,12 @@ class Parser(ABC):
     """Abstract interface defining the response parser and compiler."""
 
     @abstractmethod
-    def has_format_content(self, content: str) -> bool:
+    def has_format_content(self, content: str, *, complete: bool = False) -> bool:
         """Checks if the content contains blocks belonging to this parser's format.
 
         Args:
             content: The raw LLM response.
+            complete: If True, checks that the format block is closed/complete.
 
         Returns:
             True if the content contains blocks belonging to this format.
@@ -96,6 +97,12 @@ def has_a2ui_parts(content: str) -> bool:
     Returns:
         Whether the content contains open and close A2UI tags.
     """
+    warnings.warn(
+        "has_a2ui_parts is deprecated. Please use format.parser.has_format_content(content, complete=True) "
+        "on your InferenceFormat instance instead.",
+        DeprecationWarning,
+        stacklevel=2,
+    )
     from a2ui.schema.constants import A2UI_OPEN_TAG, A2UI_CLOSE_TAG
 
     return A2UI_OPEN_TAG in content and A2UI_CLOSE_TAG in content
