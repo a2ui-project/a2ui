@@ -17,6 +17,7 @@ This URI is the canonical way to communicate protocol versioning between clients
 Agents are encouraged to advertise their A2UI capabilities in their AgentCard within the `AgentCapabilities.extensions` list. This advertisement is optional, but it informs the client whether to send `message.metadata["a2uiClientCapabilities"]`. The `params` object defines the agent's specific UI support and corresponds directly to the [Server Capabilities Schema](../../../json/server_capabilities.json).
 
 Example AgentCard payload:
+
 ```json
 {
   "name": "Dashboard Agent",
@@ -50,6 +51,7 @@ The `params` object corresponds to the `v0.9.1` object in the `server_capabiliti
 Activating the A2UI extension is optional. Clients and agents can negotiate A2UI support using `message.metadata["a2uiClientCapabilities"]` A2A `DataPart.data.metadata["mimeType"] = "application/a2ui+json"`.
 
 Specifically:
+
 - If a client includes `message.metadata["a2uiClientCapabilities"]`, the agent can use this object to determine the supported A2UI protocol version and catalogs.
 - If an agent returns A2A A2A `DataPart.data.metadata["mimeType"] = "application/a2ui+json"`, the client knows the payload contains A2UI messages.
 

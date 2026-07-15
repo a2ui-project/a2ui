@@ -51,6 +51,7 @@ The `params` object corresponds to the `v0.9.1` object in the `server_capabiliti
 Activating the A2UI extension is optional. Clients and agents can negotiate A2UI support using `message.metadata["a2uiClientCapabilities"]` A2A `DataPart.data.metadata["mimeType"] = "application/a2ui+json"`.
 
 Specifically:
+
 - If a client includes `message.metadata["a2uiClientCapabilities"]`, the agent can use this object to determine the supported A2UI protocol version and catalogs.
 - If an agent returns A2A A2A `DataPart.data.metadata["mimeType"] = "application/a2ui+json"`, the client knows the payload contains A2UI messages.
 
