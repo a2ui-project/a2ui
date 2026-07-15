@@ -108,9 +108,6 @@ from a2ui.schema.constants import (
     A2UI_VALIDATED_JSON_KEY,
 )
 
-if TYPE_CHECKING:
-    pass
-
 logger = logging.getLogger(__name__)
 
 A2uiEnabledProvider: TypeAlias = Callable[
