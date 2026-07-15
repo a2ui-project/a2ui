@@ -43,7 +43,7 @@ sys.path.insert(
 )
 import json
 from a2ui.core.catalog import Catalog
-from a2ui.experimental.express.decompiler import ExpressDecompiler
+from a2ui.inference_formats.experimental.express.decompiler import ExpressDecompiler
 
 
 def decompile_example(example_path: str, catalog_path: str) -> str:

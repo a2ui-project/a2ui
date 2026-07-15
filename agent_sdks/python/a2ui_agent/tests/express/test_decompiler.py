@@ -20,8 +20,8 @@ import unittest
 from a2ui.core.catalog import Catalog
 
 
-from a2ui.experimental.express.compiler import ExpressCompiler
-from a2ui.experimental.express.decompiler import ExpressDecompiler
+from a2ui.inference_formats.experimental.express.compiler import ExpressCompiler
+from a2ui.inference_formats.experimental.express.decompiler import ExpressDecompiler
 
 SPEC_DIR = os.path.abspath(
     os.path.join(
@@ -217,7 +217,7 @@ class TestExpressDecompiler(unittest.TestCase):
 
     def test_schema_driven_child_reference_helper(self):
         """Verify that _is_component_reference_property correctly inspects JSON schema structures."""
-        from a2ui.experimental.express.decompiler import _is_component_reference_property
+        from a2ui.inference_formats.experimental.express.decompiler import _is_component_reference_property
 
         # Case A: Direct ref to ComponentId
         direct_ref = {

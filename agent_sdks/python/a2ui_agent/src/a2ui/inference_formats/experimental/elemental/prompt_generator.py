@@ -20,10 +20,13 @@ definitions and instruction blocks for on-device models.
 
 import json
 import re
-from typing import Any, Union
-from a2ui.core.catalog import Catalog
+from typing import Any, Optional, TYPE_CHECKING
 from a2ui.schema.catalog import A2uiCatalog
-from a2ui.experimental.express.schema_helper import CatalogSchemaHelper
+from a2ui.inference_formats.experimental.express.schema_helper import CatalogSchemaHelper
+from a2ui.prompt import PromptGenerator
+
+if TYPE_CHECKING:
+    from .format import ElementalFormat
 
 
 def _schema_allows_databinding(prop_schema: Any) -> bool:
@@ -71,28 +74,24 @@ def _to_kebab_case(name: str) -> str:
     return re.sub(r"(?<!^)(?=[A-Z])", "-", name).lower()
 
 
-class ElementalPromptGenerator:
+class ElementalPromptGenerator(PromptGenerator):
     """Generates system prompt contracts guiding models to produce A2UI Elemental.
 
     Translates component catalog structures and logic helper catalogs into
     TypeScript/TSX interfaces and function declarations.
-
-    Attributes:
-        helper: A CatalogSchemaHelper instance loaded with the target catalog.
-        catalog_id: The ID of the catalog.
     """
 
-    def __init__(self, catalog: Union[Catalog[Any, Any], A2uiCatalog]):
-        """Initializes the generator with the specified catalog.
+    def __init__(self, format_inst: "ElementalFormat"):
+        """Initializes the generator with the specified format instance.
 
         Args:
-            catalog: A Catalog or an A2uiCatalog.
+            format_inst: An ElementalFormat instance.
         """
-        self.catalog = catalog
-        self.helper = CatalogSchemaHelper(catalog)
-        self.catalog_id = self.helper.catalog.get(
-            "catalogId",
-            "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
+        self._format = format_inst
+        self.catalog: Optional[A2uiCatalog] = None
+        self.helper: Optional[CatalogSchemaHelper] = None
+        self.catalog_id: str = (
+            "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
         )
 
     def _map_schema_to_ts_type(
@@ -294,15 +293,54 @@ class ElementalPromptGenerator:
 
         return "\n".join(declarations)
 
-    def generate_prompt(self) -> str:
+    def generate(
+        self,
+        role_description: str,
+        workflow_description: str = "",
+        ui_description: str = "",
+        client_ui_capabilities: Optional[dict[str, Any]] = None,
+        allowed_components: Optional[list[str]] = None,
+        allowed_messages: Optional[list[str]] = None,
+        include_schema: bool = False,
+        include_examples: bool = False,
+        validate_examples: bool = False,
+    ) -> str:
         """Assembles the complete system instruction block for the LLM.
 
+        Args:
+            role_description: Description of the agent's role.
+            workflow_description: Optional description of the task workflow.
+            ui_description: Optional UI context or rules.
+            client_ui_capabilities: Optional client UI capability details.
+            allowed_components: Optional list of component tags the LLM may use.
+            allowed_messages: Optional list of A2UI message types allowed.
+            include_schema: Whether to include component schemas in the prompt.
+            include_examples: Whether to include few-shot examples.
+            validate_examples: Whether to validate few-shot examples on generation.
+
         Returns:
-            The full system prompt string explaining A2UI Elemental and its catalog.
+            The complete system prompt string explaining A2UI Elemental and its catalog.
         """
-        comp_decls = self.generate_component_declarations()
-        func_decls = self.generate_function_declarations()
-        catalog_instructions = self.helper.catalog.get("instructions", "")
+        catalog = self._format.catalog
+        if catalog and (allowed_components or allowed_messages):
+            catalog = catalog.with_pruning(allowed_components, allowed_messages)
+
+        self.catalog = catalog
+        self.helper = CatalogSchemaHelper(catalog) if catalog else None
+        self.catalog_id = (
+            self.helper.catalog.get(
+                "catalogId",
+                "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
+            )
+            if self.helper
+            else "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
+        )
+
+        comp_decls = self.generate_component_declarations() if self.helper else ""
+        func_decls = self.generate_function_declarations() if self.helper else ""
+        catalog_instructions = (
+            self.helper.catalog.get("instructions", "") if self.helper else ""
+        )
 
         # Format catalog instructions block if it exists
         catalog_instructions_block = ""
@@ -333,10 +371,7 @@ class ElementalPromptGenerator:
 
                         target_block = f"```json\n{block}\n```"
                         # Use link placeholder for decompiler output link if present
-                        catalog_id = self.helper.catalog.get(
-                            "catalogId", "[CATALOG_ID]"
-                        )
-                        html_block = html_block.replace(catalog_id, "[CATALOG_ID]")
+                        html_block = html_block.replace(self.catalog_id, "[CATALOG_ID]")
                         replacement_block = f"```html\n{html_block}\n```"
                         catalog_instructions = catalog_instructions.replace(
                             target_block, replacement_block
@@ -402,4 +437,23 @@ You can call these functions inside attribute expressions `{...}` using named ar
             .replace("[FUNCTION_DECLARATIONS]", func_decls)
             .replace("[CATALOG_INSTRUCTIONS_BLOCK]", catalog_instructions_block)
         )
-        return prompt
+
+        parts = [role_description]
+        workflow = self._format.format_description(self, workflow_description)
+        parts.append(f"## Workflow Description:\n{workflow}")
+
+        if ui_description:
+            parts.append(f"## UI Description:\n{ui_description}")
+
+        if include_schema and self.helper:
+            parts.append(prompt)
+
+        if include_examples and self._format.examples_path and catalog:
+            raw_examples = catalog.load_examples(
+                self._format.examples_path, validate=validate_examples
+            )
+            if raw_examples:
+                formatted_examples = self._format.transform_examples(raw_examples)
+                parts.append(f"### Examples:\n{formatted_examples}")
+
+        return "\n\n".join(parts)

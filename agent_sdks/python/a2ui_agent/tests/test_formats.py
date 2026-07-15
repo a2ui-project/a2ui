@@ -85,7 +85,7 @@ def test_schema_parser(test_catalog):
 
 def test_strategy_based_converters(test_catalog, monkeypatch):
     monkeypatch.setenv("A2UI_VERSION_1_0", "true")
-    # Test JSON default (A2uiSchemaParser)
+    # Test JSON default (TransportParser)
     json_converter = A2uiPartConverter(a2ui_catalog=test_catalog)
     part_json = genai_types.Part(
         text=(

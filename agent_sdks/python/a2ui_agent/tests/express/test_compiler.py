@@ -20,11 +20,11 @@ import unittest
 
 from a2ui.core.catalog import Catalog
 from a2ui.schema.catalog import A2uiCatalog, CatalogConfig
-from a2ui.experimental.express.prompt_generator import ExpressPromptGenerator
-from a2ui.experimental.express.compiler import ExpressCompiler
-from a2ui.experimental.express.decompiler import ExpressDecompiler
-from a2ui.experimental.express.schema_helper import CatalogSchemaHelper
-from a2ui.experimental.express.parser import parse_express_response
+from a2ui.inference_formats.experimental.express.prompt_generator import ExpressPromptGenerator
+from a2ui.inference_formats.experimental.express.compiler import ExpressCompiler
+from a2ui.inference_formats.experimental.express.decompiler import ExpressDecompiler
+from a2ui.inference_formats.experimental.express.schema_helper import CatalogSchemaHelper
+from a2ui.inference_formats.experimental.express.parser import parse_express_response
 
 SPEC_DIR = os.path.abspath(
     os.path.join(

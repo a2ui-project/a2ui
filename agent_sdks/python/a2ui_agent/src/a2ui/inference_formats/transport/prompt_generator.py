@@ -15,7 +15,7 @@
 """Generator for standard A2UI JSON schema system prompt instructions."""
 
 from typing import Optional, Any, TYPE_CHECKING
-from a2ui.prompt.generator import PromptGenerator
+from a2ui.prompt import PromptGenerator
 
 if TYPE_CHECKING:
     from a2ui.inference_formats.transport.format import TransportFormat

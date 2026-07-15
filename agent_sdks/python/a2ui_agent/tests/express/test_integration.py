@@ -22,10 +22,10 @@ from typing import Any
 
 
 from a2ui.core.catalog import Catalog
-from a2ui.experimental.express.compiler import ExpressCompiler
-from a2ui.experimental.express.decompiler import ExpressDecompiler
-from a2ui.experimental.express.parser import parse_express_response
-from a2ui.experimental.express.schema_helper import CatalogSchemaHelper
+from a2ui.inference_formats.experimental.express.compiler import ExpressCompiler
+from a2ui.inference_formats.experimental.express.decompiler import ExpressDecompiler
+from a2ui.inference_formats.experimental.express.parser import parse_express_response
+from a2ui.inference_formats.experimental.express.schema_helper import CatalogSchemaHelper
 
 SPEC_DIR = os.path.abspath(
     os.path.join(

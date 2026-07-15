@@ -24,8 +24,8 @@ from html.parser import HTMLParser
 from typing import Any, Dict, List, Optional, Union
 from a2ui.core.catalog import Catalog
 from a2ui.schema.catalog import A2uiCatalog
-from a2ui.experimental.express.schema_helper import CatalogSchemaHelper
-from a2ui.experimental.express.constants import SurfaceOperation
+from a2ui.inference_formats.experimental.express.schema_helper import CatalogSchemaHelper
+from a2ui.inference_formats.experimental.express.constants import SurfaceOperation
 from .expression_parser import ElementalExpressionParser
 
 TAG_PREFIX = "ui-"
@@ -288,7 +288,7 @@ class ElementalCompiler:
         self.expr_parser = ElementalExpressionParser()
 
         # Pre-compute container tags for forgiving parsing
-        self.container_tags = {"body", "template"}
+        self.container_tags = {"a2ui", "template"}
         for comp_name in self.helper.components:
             properties = self.helper.get_component_properties(comp_name)
             has_slotted_children = False
@@ -305,14 +305,35 @@ class ElementalCompiler:
                 )
                 self.container_tags.add(kebab_name)
 
-    def _resolve_action_property_name(self, name: str, properties: List[str]) -> str:
+    def _resolve_action_property_name(
+        self, name: str, comp_name: str, properties: list[str]
+    ) -> str:
         """Maps React-like event names (onclick, onSubmitAction) back to catalog properties (action, submitAction)."""
-        if name == "onclick" and "action" in properties and "onclick" not in properties:
-            return "action"
+        action_props = []
+        for p in properties:
+            p_schema = self.helper.get_property_schema(comp_name, p)
+            if p_schema and _is_action_property(p_schema):
+                action_props.append(p)
+
+        if name.lower() == "onclick":
+            if "onclick" in properties:
+                return "onclick"
+            if not action_props:
+                raise ValueError(
+                    f"Component '{comp_name}' does not accept any action properties, "
+                    "but 'onclick' was specified."
+                )
+            return action_props[0]
+
         if name.startswith("on") and len(name) > 2:
+            if name in properties:
+                return name
             camel_action = name[2].lower() + name[3:]
-            if camel_action in properties and name not in properties:
+            if camel_action in properties:
                 return camel_action
+            for p in properties:
+                if p.lower() == camel_action.lower():
+                    return p
         return name
 
     def compile(
@@ -331,8 +352,8 @@ class ElementalCompiler:
         if not root:
             raise ValueError("A2UI Elemental document is empty.")
 
-        if root.tag == "body":
-            # If there is a standalone operation inside body, treat it as the root
+        if root.tag == "a2ui":
+            # If there is a standalone operation inside a2ui, treat it as the root
             standalone = None
             for child in root.children:
                 if child.tag in [
@@ -389,14 +410,14 @@ class ElementalCompiler:
                 envelope["functionCallId"] = func_call_id
             return envelope
 
-        if root.tag != "body":
+        if root.tag != "a2ui":
             raise ValueError(
-                "A2UI Elemental document must have a <body>,"
+                "A2UI Elemental document must have a <a2ui>,"
                 f" <{TAG_PREFIX}delete-surface>, or <{TAG_PREFIX}call-function> root"
                 " element."
             )
 
-        # 1. Surface ID from body
+        # 1. Surface ID from a2ui
         surface_id = root.attrs.get("id", surface_id)
 
         # 2. Extract catalog ID and data model from children
@@ -449,7 +470,7 @@ class ElementalCompiler:
         for child in remaining_children:
             if not child.tag.startswith(TAG_PREFIX):
                 raise ValueError(
-                    f"Invalid element tag '{child.tag}' under <body>. Only"
+                    f"Invalid element tag '{child.tag}' under <a2ui>. Only"
                     f" '{TAG_PREFIX}*' components are supported inside A2UI surfaces."
                 )
 
@@ -513,8 +534,6 @@ class ElementalCompiler:
                                     v, is_action
                                 )
 
-                    self.helper.functions[fn_name]
-
                     if is_action:
                         return {
                             "functionCall": {"call": fn_name, "args": compiled_args}
@@ -570,7 +589,9 @@ class ElementalCompiler:
             prop_name = prop_parts[0] + "".join(p.capitalize() for p in prop_parts[1:])
 
             # Map TS/HTML action names back to catalog properties
-            prop_name = self._resolve_action_property_name(prop_name, properties)
+            prop_name = self._resolve_action_property_name(
+                prop_name, comp_name, properties
+            )
 
             if comp_name in self.helper.components and prop_name not in properties:
                 continue
@@ -685,7 +706,7 @@ class ElementalCompiler:
                     slot_name = child.attrs.get("slot")
                     if slot_name:
                         slot_name = self._resolve_action_property_name(
-                            slot_name, properties
+                            slot_name, comp_name, properties
                         )
                         try:
                             comp_dict[slot_name] = json.loads(child.text.strip())
@@ -704,7 +725,7 @@ class ElementalCompiler:
                     slot_name = child.attrs.get("slot")
                     if slot_name:
                         slot_name = self._resolve_action_property_name(
-                            slot_name, properties
+                            slot_name, comp_name, properties
                         )
                         try:
                             comp_dict[slot_name] = json.loads(child.text.strip())
@@ -720,7 +741,7 @@ class ElementalCompiler:
                     slot_name = child.attrs.get("slot")
                     if slot_name:
                         slot_name = self._resolve_action_property_name(
-                            slot_name, properties
+                            slot_name, comp_name, properties
                         )
                         if slot_name in properties:
                             slot_schema = self.helper.get_property_schema(

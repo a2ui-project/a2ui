@@ -20,9 +20,8 @@ instruction blocks for on-device models (e.g., Gemma 4).
 
 import json
 import re
-from typing import Any, Optional, Union
-from a2ui.core.catalog import Catalog
-from a2ui.schema.catalog import A2uiCatalog
+from typing import Any, Optional, TYPE_CHECKING
+from a2ui.prompt import PromptGenerator
 from .decompiler import ExpressDecompiler
 from .schema_helper import CatalogSchemaHelper
 
@@ -62,27 +61,29 @@ def _get_schema_enum(prop_schema: Any) -> Optional[list[str]]:
     return None
 
 
-class ExpressPromptGenerator:
+class ExpressPromptGenerator(PromptGenerator):
     """Generates system prompt contracts guiding models to produce A2UI Express.
 
     Compiles component catalog structures and logic helper catalogs into standard
     positional signatures, reducing prompt token utilization.
-
-    Attributes:
-        helper: A CatalogSchemaHelper instance loaded with the target catalog.
     """
 
-    def __init__(
-        self,
-        catalog: Union[Catalog[Any, Any], A2uiCatalog],
-    ):
-        """Initializes the generator with the specified catalog.
+    def __init__(self, format_or_catalog: Any):
+        """Initializes the generator with the specified format or catalog.
 
         Args:
-            catalog: A Catalog or an A2uiCatalog.
+            format_or_catalog: An ExpressFormat or Catalog instance.
         """
-        self.helper = CatalogSchemaHelper(catalog)
-        self.decompiler = ExpressDecompiler(catalog)
+        from .format import ExpressFormat
+
+        if isinstance(format_or_catalog, ExpressFormat):
+            self._format = format_or_catalog
+            self.helper = None
+            self.decompiler = None
+        else:
+            self._format = None
+            self.helper = CatalogSchemaHelper(format_or_catalog)
+            self.decompiler = ExpressDecompiler(format_or_catalog)
 
     def generate_component_signatures(self) -> str:
         """Compiles component definitions into clean function-like signatures.
@@ -229,15 +230,17 @@ class ExpressPromptGenerator:
             signatures.append(sig)
         return "\n".join(signatures)
 
-    def generate_prompt(self) -> str:
-        """Assembles the complete system instruction block for the LLM.
+    def _build_schema_prompt(self) -> str:
+        if self._format is not None:
+            catalog = self._format.catalog
+            self.helper = CatalogSchemaHelper(catalog) if catalog else None
+            self.decompiler = ExpressDecompiler(catalog) if catalog else None
 
-        Returns:
-            The full system prompt string explaining A2UI Express and its catalog.
-        """
-        comp_sigs = self.generate_component_signatures()
-        func_sigs = self.generate_function_signatures()
-        catalog_instructions = self.helper.catalog.get("instructions", "")
+        comp_sigs = self.generate_component_signatures() if self.helper else ""
+        func_sigs = self.generate_function_signatures() if self.helper else ""
+        catalog_instructions = (
+            self.helper.catalog.get("instructions", "") if self.helper else ""
+        )
 
         # Translate json examples in catalog instructions into A2UI Express DSL
         if catalog_instructions:
@@ -361,3 +364,75 @@ Use these exact positional signatures to instantiate check rules or logic functi
             .replace("[CATALOG_INSTRUCTIONS_BLOCK]", catalog_instructions_block)
         )
         return prompt
+
+    def generate_prompt(self) -> str:
+        """Assembles the complete system instruction block for the LLM (deprecated compatibility helper)."""
+        import warnings
+
+        warnings.warn(
+            "generate_prompt is deprecated. Use generate(...) instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return self._build_schema_prompt()
+
+    def generate(
+        self,
+        role_description: str,
+        workflow_description: str = "",
+        ui_description: str = "",
+        client_ui_capabilities: Optional[dict[str, Any]] = None,
+        allowed_components: Optional[list[str]] = None,
+        allowed_messages: Optional[list[str]] = None,
+        include_schema: bool = False,
+        include_examples: bool = False,
+        validate_examples: bool = False,
+    ) -> str:
+        """Assembles the complete system instruction block for the LLM.
+
+        Args:
+            role_description: Description of the agent's role.
+            workflow_description: Optional description of the task workflow.
+            ui_description: Optional UI context or rules.
+            client_ui_capabilities: Optional client UI capability details.
+            allowed_components: Optional list of component tags the LLM may use.
+            allowed_messages: Optional list of A2UI message types allowed.
+            include_schema: Whether to include component schemas in the prompt.
+            include_examples: Whether to include few-shot examples.
+            validate_examples: Whether to validate few-shot examples on generation.
+
+        Returns:
+            The complete system prompt string explaining A2UI Express and its catalog.
+        """
+        catalog = self._format.catalog if self._format else None
+        if catalog and (allowed_components or allowed_messages):
+            catalog = catalog.with_pruning(allowed_components, allowed_messages)
+
+        if self._format:
+            self.helper = CatalogSchemaHelper(catalog) if catalog else None
+            self.decompiler = ExpressDecompiler(catalog) if catalog else None
+
+        parts = [role_description]
+        workflow = (
+            self._format.format_description(workflow_description)
+            if self._format
+            else ""
+        )
+        parts.append(f"## Workflow Description:\n{workflow}")
+
+        if ui_description:
+            parts.append(f"## UI Description:\n{ui_description}")
+
+        if include_schema and self.helper:
+            prompt = self._build_schema_prompt()
+            parts.append(prompt)
+
+        if include_examples and self._format and self._format.examples_path and catalog:
+            raw_examples = catalog.load_examples(
+                self._format.examples_path, validate=validate_examples
+            )
+            if raw_examples:
+                formatted_examples = self._format.transform_examples(raw_examples)
+                parts.append(f"### Examples:\n{formatted_examples}")
+
+        return "\n\n".join(parts)

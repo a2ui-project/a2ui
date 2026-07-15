@@ -17,10 +17,8 @@
 import json
 import os
 import unittest
-
-
 from a2ui.core.catalog import Catalog
-from a2ui.experimental.elemental.compiler import ElementalCompiler
+from a2ui.inference_formats.experimental.elemental.compiler import ElementalCompiler
 
 SPEC_DIR = os.path.abspath(
     os.path.join(
@@ -69,14 +67,14 @@ class TestElementalCompiler(unittest.TestCase):
 
     def test_compile_update_data_model(self):
         html_input = (
-            '<body id="my-surf">\n'
+            '<a2ui id="my-surf">\n'
             '  <script type="application/json">\n'
             "    {\n"
             '      "foo": "bar",\n'
             '      "num": 42\n'
             "    }\n"
             "  </script>\n"
-            "</body>"
+            "</a2ui>"
         )
         result = self.compiler.compile(html_input)
         expected = {
@@ -91,7 +89,7 @@ class TestElementalCompiler(unittest.TestCase):
 
     def test_compile_create_surface_basic(self):
         html_input = (
-            '<body id="test-surf">\n'
+            '<a2ui id="test-surf">\n'
             '  <link rel="catalog" href="https://a2ui.org/catalog.json">\n'
             '  <script type="application/json">\n'
             "    {\n"
@@ -101,7 +99,7 @@ class TestElementalCompiler(unittest.TestCase):
             '  <ui-card id="comp_0" weight="{4}">\n'
             '    <ui-text id="comp_1" text="{$/title}" />\n'
             "  </ui-card>\n"
-            "</body>"
+            "</a2ui>"
         )
         result = self.compiler.compile(html_input)
         self.assertEqual(result["version"], "v1.0")
@@ -128,9 +126,9 @@ class TestElementalCompiler(unittest.TestCase):
     def test_compile_options_expansion(self):
         # ChoicePicker is the dropdown component in the basic catalog
         html_input = (
-            '<body id="test-surf">\n'
+            '<a2ui id="test-surf">\n'
             "  <ui-choice-picker id=\"picker_1\" options=\"{['Red', 'Blue']}\" />\n"
-            "</body>"
+            "</a2ui>"
         )
         result = self.compiler.compile(html_input)
         components = result["createSurface"]["components"]
@@ -147,7 +145,7 @@ class TestElementalCompiler(unittest.TestCase):
     def test_compile_complex_slot_property(self):
         # Test script slot using ChoicePicker options (where label and value differ in case)
         html_input = (
-            '<body id="test-surf">\n'
+            '<a2ui id="test-surf">\n'
             '  <ui-choice-picker id="picker_1">\n'
             '    <script type="application/json" slot="options">\n'
             "      [\n"
@@ -156,7 +154,7 @@ class TestElementalCompiler(unittest.TestCase):
             "      ]\n"
             "    </script>\n"
             "  </ui-choice-picker>\n"
-            "</body>"
+            "</a2ui>"
         )
         result = self.compiler.compile(html_input)
         components = result["createSurface"]["components"]
@@ -172,11 +170,11 @@ class TestElementalCompiler(unittest.TestCase):
 
     def test_compile_actions_and_events(self):
         html_input = (
-            '<body id="test-surf">\n'
+            '<a2ui id="test-surf">\n'
             '  <ui-button id="btn_1" onclick="{Event(\'submit\', {id: 123})}">\n'
             '    <ui-text id="text_1" text="Submit" />\n'
             "  </ui-button>\n"
-            "</body>"
+            "</a2ui>"
         )
         result = self.compiler.compile(html_input)
         components = result["createSurface"]["components"]
@@ -196,8 +194,8 @@ class TestElementalCompiler(unittest.TestCase):
     def test_compile_checks_with_implicit_value(self):
         # TextField is the input component in the basic catalog
         html_input = (
-            '<body id="test-surf">\n  <ui-text-field id="input_1" value="{$/dob}"'
-            ' checks="{[required()]}" />\n</body>'
+            '<a2ui id="test-surf">\n  <ui-text-field id="input_1" value="{$/dob}"'
+            ' checks="{[required()]}" />\n</a2ui>'
         )
         result = self.compiler.compile(html_input)
         components = result["createSurface"]["components"]
@@ -218,8 +216,8 @@ class TestElementalCompiler(unittest.TestCase):
 
     def test_compile_checks_with_custom_message(self):
         html_input = (
-            '<body id="test-surf">\n  <ui-text-field id="input_1" value="{$/dob}"'
-            " checks=\"{[required(message: 'DOB is required')]}\" />\n</body>"
+            '<a2ui id="test-surf">\n  <ui-text-field id="input_1" value="{$/dob}"'
+            " checks=\"{[required(message: 'DOB is required')]}\" />\n</a2ui>"
         )
         result = self.compiler.compile(html_input)
         components = result["createSurface"]["components"]
@@ -237,9 +235,9 @@ class TestElementalCompiler(unittest.TestCase):
 
     def test_compile_checks_with_condition_custom_message(self):
         html_input = (
-            '<body id="test-surf">\n  <ui-text-field id="input_1" value="{$/dob}"'
+            '<a2ui id="test-surf">\n  <ui-text-field id="input_1" value="{$/dob}"'
             " checks=\"{[{condition: required(message: 'DOB is required')}]}\""
-            " />\n</body>"
+            " />\n</a2ui>"
         )
         result = self.compiler.compile(html_input)
         components = result["createSurface"]["components"]
@@ -257,21 +255,21 @@ class TestElementalCompiler(unittest.TestCase):
 
     def test_compile_checks_mixed_positional_named_error(self):
         html_input = (
-            '<body id="test-surf">\n  <ui-text-field id="input_1" value="{$/dob}"'
-            " checks=\"{[required(1, message: 'DOB is required')]}\" />\n</body>"
+            '<a2ui id="test-surf">\n  <ui-text-field id="input_1" value="{$/dob}"'
+            " checks=\"{[required(1, message: 'DOB is required')]}\" />\n</a2ui>"
         )
         with self.assertRaises(ValueError):
             self.compiler.compile(html_input)
 
     def test_compile_list_with_template(self):
         html_input = (
-            '<body id="test-surf">\n'
+            '<a2ui id="test-surf">\n'
             '  <ui-list id="list_1" path="{$/items}">\n'
             "    <template>\n"
             '      <ui-text id="item_text" text="{$name}" />\n'
             "    </template>\n"
             "  </ui-list>\n"
-            "</body>"
+            "</a2ui>"
         )
         result = self.compiler.compile(html_input)
         components = result["createSurface"]["components"]
@@ -293,27 +291,27 @@ class TestElementalCompiler(unittest.TestCase):
 
     def test_compile_nested_script_tags(self):
         html_input = (
-            '<body id="test-surf">\n  <script type="application/json">\n    {\n     '
+            '<a2ui id="test-surf">\n  <script type="application/json">\n    {\n     '
             ' "embedded_html":'
-            " \"<html><body><script>console.log('hello');</script></body></html>\"\n   "
+            " \"<html><a2ui><script>console.log('hello');</script></a2ui></html>\"\n   "
             ' }\n  </script>\n  <ui-text id="text1" text="{$/embedded_html}"'
-            " />\n</body>"
+            " />\n</a2ui>"
         )
         result = self.compiler.compile(html_input)
         self.assertEqual(
             result["createSurface"]["dataModel"]["embedded_html"],
-            "<html><body><script>console.log('hello');</script></body></html>",
+            "<html><a2ui><script>console.log('hello');</script></a2ui></html>",
         )
 
     def test_compile_unknown_html_tag_raises_error(self):
         html_input = (
-            '<body id="test-surf">\n'
+            '<a2ui id="test-surf">\n'
             '  <ui-card id="card_1">\n'
             "    <div>\n"
             '      <ui-text id="text_1" text="Hello" />\n'
             "    </div>\n"
             "  </ui-card>\n"
-            "</body>"
+            "</a2ui>"
         )
         with self.assertRaises(ValueError) as ctx:
             self.compiler.compile(html_input)
@@ -322,11 +320,11 @@ class TestElementalCompiler(unittest.TestCase):
     def test_compile_case_insensitive_enum_matching(self):
         # 'align' on Column expects 'center', 'start', 'end'. Test passing 'CENTER' or 'Center'
         html_input = (
-            '<body id="test-surf">\n'
+            '<a2ui id="test-surf">\n'
             '  <ui-column id="col_1" align="CENTER">\n'
             '    <ui-text id="text_1" text="Hello" />\n'
             "  </ui-column>\n"
-            "</body>"
+            "</a2ui>"
         )
         result = self.compiler.compile(html_input)
         components = result["createSurface"]["components"]
@@ -335,11 +333,11 @@ class TestElementalCompiler(unittest.TestCase):
 
     def test_compile_invalid_enum_raises_error(self):
         html_input = (
-            '<body id="test-surf">\n'
+            '<a2ui id="test-surf">\n'
             '  <ui-column id="col_1" align="invalid_alignment">\n'
             '    <ui-text id="text_1" text="Hello" />\n'
             "  </ui-column>\n"
-            "</body>"
+            "</a2ui>"
         )
         with self.assertRaises(ValueError) as ctx:
             self.compiler.compile(html_input)
@@ -349,14 +347,14 @@ class TestElementalCompiler(unittest.TestCase):
         # text_1 is a leaf component inside col_1. It is unclosed.
         # text_2 is a sibling leaf component.
         html_input = (
-            '<body id="test-surf">\n'
+            '<a2ui id="test-surf">\n'
             '  <ui-card id="card_1">\n'
             '    <ui-column id="col_1">\n'
             '      <ui-text id="text_1" text="Text 1">\n'
             '      <ui-text id="text_2" text="Text 2" />\n'
             "    </ui-column>\n"
             "  </ui-card>\n"
-            "</body>"
+            "</a2ui>"
         )
         result = self.compiler.compile(html_input)
         components = result["createSurface"]["components"]
@@ -374,7 +372,7 @@ class TestElementalCompiler(unittest.TestCase):
     def test_compile_component_with_slots(self):
         # Modal is not a standard container tag but has slot properties (trigger, content)
         html_input = (
-            '<body id="test-surf">\n'
+            '<a2ui id="test-surf">\n'
             '  <ui-modal id="delete_modal">\n'
             '    <ui-button id="delete_trigger_btn" slot="trigger">\n'
             '      <ui-text id="delete_trigger_text" text="Delete Account" />\n'
@@ -383,7 +381,7 @@ class TestElementalCompiler(unittest.TestCase):
             '      <ui-text id="confirm_title" text="# Confirm Account Deletion" />\n'
             "    </ui-column>\n"
             "  </ui-modal>\n"
-            "</body>"
+            "</a2ui>"
         )
         result = self.compiler.compile(html_input)
         components = result["createSurface"]["components"]
@@ -396,11 +394,11 @@ class TestElementalCompiler(unittest.TestCase):
     def test_compile_kebab_case_enum_matching(self):
         # 'justify' on Row expects 'spaceBetween'. Test passing 'space-between'
         html_input = (
-            '<body id="test-surf">\n'
+            '<a2ui id="test-surf">\n'
             '  <ui-row id="row_1" justify="space-between">\n'
             '    <ui-text id="text_1" text="Hello" />\n'
             "  </ui-row>\n"
-            "</body>"
+            "</a2ui>"
         )
         result = self.compiler.compile(html_input)
         components = result["createSurface"]["components"]
@@ -409,9 +407,9 @@ class TestElementalCompiler(unittest.TestCase):
 
     def test_compile_bracket_indexing(self):
         html_input = (
-            '<body id="test-surf">\n'
+            '<a2ui id="test-surf">\n'
             '  <ui-image id="img_1" url="{$/product/thumbs[0]}" />\n'
-            "</body>"
+            "</a2ui>"
         )
         result = self.compiler.compile(html_input)
         components = result["createSurface"]["components"]
@@ -420,11 +418,11 @@ class TestElementalCompiler(unittest.TestCase):
 
     def test_compile_button_fallback_action(self):
         html_input = (
-            '<body id="test-surf">\n'
+            '<a2ui id="test-surf">\n'
             '  <ui-button id="btn_1" variant="primary">\n'
             '    <ui-text id="txt_1" text="Submit" />\n'
             "  </ui-button>\n"
-            "</body>"
+            "</a2ui>"
         )
         result = self.compiler.compile(html_input)
         components = result["createSurface"]["components"]
@@ -442,13 +440,13 @@ class TestElementalCompiler(unittest.TestCase):
 
     def test_compile_list_template_path(self):
         html_input = (
-            '<body id="test-surf">\n'
+            '<a2ui id="test-surf">\n'
             '  <ui-list id="lst_1">\n'
             '    <template path="{$/items}">\n'
             '      <ui-text id="txt_1" text="{$name}" />\n'
             "    </template>\n"
             "  </ui-list>\n"
-            "</body>"
+            "</a2ui>"
         )
         result = self.compiler.compile(html_input)
         components = result["createSurface"]["components"]

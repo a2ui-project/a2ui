@@ -13,16 +13,14 @@
 # limitations under the License.
 
 from inspect_ai.solver import Solver
-from .direct import direct_solver
 from .subagent_tool import subagent_tool_solver
-from .express import express_solver
-from .elemental import elemental_solver
+from .generic import format_solver
 
 STRATEGIES = {
-    "direct": direct_solver,
+    "direct": lambda version: format_solver("json", version),
     "subagent_tool": subagent_tool_solver,
-    "express": express_solver,
-    "elemental": elemental_solver,
+    "express": lambda version: format_solver("express", version),
+    "elemental": lambda version: format_solver("elemental", version),
 }
 
 

@@ -58,7 +58,7 @@ class ContactAgentExecutor(AgentExecutor):
             f"--- Client requested extensions: {context.requested_extensions} ---"
         )
         active_ui_version = try_activate_a2ui_extension(context, self._agent.agent_card)
-        schema_manager = self._agent.get_schema_manager(active_ui_version)
+        inference_format = self._agent.get_inference_format(active_ui_version)
 
         if active_ui_version:
             logger.info(
@@ -80,8 +80,8 @@ class ContactAgentExecutor(AgentExecutor):
                 if isinstance(part.root, DataPart):
                     # Extract client UI capabilities from any DataPart that has them
                     if (
-                        schema_manager
-                        and schema_manager.accepts_inline_catalogs
+                        inference_format
+                        and inference_format.accepts_inline_catalogs
                         and "metadata" in part.root.data
                         and "a2uiClientCapabilities" in part.root.data["metadata"]
                     ):
@@ -160,9 +160,9 @@ class ContactAgentExecutor(AgentExecutor):
             client_ui_capabilities is not None
             and "query" in locals()
             and query
-            and schema_manager
+            and inference_format
         ):
-            catalog = schema_manager.get_selected_catalog(
+            catalog = inference_format.get_selected_catalog(
                 client_ui_capabilities=client_ui_capabilities
             )
             catalog_schema_str = catalog.render_as_llm_instructions()

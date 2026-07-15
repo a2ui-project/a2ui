@@ -59,8 +59,8 @@ sys.path.insert(
 # pylint: disable=import-error, wrong-import-position
 import json
 from a2ui.core.catalog import Catalog
-from a2ui.experimental.express.compiler import ExpressCompiler
-from a2ui.experimental.express.prompt_generator import ExpressPromptGenerator
+from a2ui.inference_formats.experimental.express.compiler import ExpressCompiler
+from a2ui.inference_formats.experimental.express.prompt_generator import ExpressPromptGenerator
 # pylint: enable=import-error, wrong-import-position
 
 
