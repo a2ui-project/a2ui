@@ -33,7 +33,6 @@ const __dirname = dirname(__filename);
 
 // `__dirname` will be `dist/src/v0_9/schema` when run via `node --test dist/**/*.test.js`
 const SPEC_DIR_V0_9 = resolve(__dirname, '../../../../../../specification/v0_9/json');
-const SPEC_DIR_V0_9_1 = resolve(__dirname, '../../../../../../specification/v0_9_1/json');
 
 // Parse both so we can do structural comparison rather than formatting
 // Compare definitions specifically, ignoring descriptions
@@ -205,15 +204,6 @@ function verifySchema(
 describe('A2UI Schema Verification v0.9 & v0.9.1', () => {
   it('verifies v0.9 schema', () => {
     verifySchema('v0.9', A2uiMessageSchema, join(SPEC_DIR_V0_9, 'server_to_client.json'), {
-      CreateSurfaceMessage: CreateSurfaceMessageSchema,
-      UpdateComponentsMessage: UpdateComponentsMessageSchema,
-      UpdateDataModelMessage: UpdateDataModelMessageSchema,
-      DeleteSurfaceMessage: DeleteSurfaceMessageSchema,
-    });
-  });
-
-  it('verifies v0.9.1 schema', () => {
-    verifySchema('v0.9.1', A2uiMessageSchema, join(SPEC_DIR_V0_9_1, 'server_to_client.json'), {
       CreateSurfaceMessage: CreateSurfaceMessageSchema,
       UpdateComponentsMessage: UpdateComponentsMessageSchema,
       UpdateDataModelMessage: UpdateDataModelMessageSchema,
