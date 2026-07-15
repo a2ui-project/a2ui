@@ -48,7 +48,6 @@ class ElementalParser(Parser):
 
     def unwrap(self, content: str) -> List[ResponsePart]:
         """Unwraps/tokenizes the response content into raw Elemental HTML parts."""
-        import re
         from a2ui.inference_formats.experimental.elemental.parser import (
             _A2UI_OPEN_PATTERN,
         )
@@ -278,6 +277,37 @@ You can call these functions inside attribute expressions `{...}` using named ar
         triple_backticks = chr(96) * 3
         return f"{triple_backticks}html\n{full_html}\n{triple_backticks}"
 
+    def _replace_json_block(self, match: re.Match[str]) -> str:
+        json_content = match.group(1).strip()
+        try:
+            parsed = json.loads(json_content)
+            if isinstance(parsed, dict):
+                messages = [parsed]
+            elif isinstance(parsed, list):
+                messages = parsed
+            else:
+                return str(match.group(0))
+
+            blocks = []
+            for msg in messages:
+                if isinstance(msg, dict) and any(
+                    k in msg
+                    for k in [
+                        "createSurface",
+                        "updateDataModel",
+                        "deleteSurface",
+                        "callFunction",
+                    ]
+                ):
+                    decompiled = self.decompile(msg)
+                    blocks.append(decompiled)
+                else:
+                    return str(match.group(0))
+
+            return self.wrap_decompiled_blocks(blocks)
+        except Exception:
+            return str(match.group(0))
+
     def transform_examples(self, raw_examples_markdown: str) -> str:
         """Transforms JSON blocks in raw markdown into Elemental HTML syntax."""
         if not self.catalog:
@@ -286,37 +316,9 @@ You can call these functions inside attribute expressions `{...}` using named ar
         triple_backticks = chr(96) * 3
         pattern = rf"{triple_backticks}json\s*\n(.*?)\n{triple_backticks}"
 
-        def replace_json_block(match: re.Match[str]) -> str:
-            json_content = match.group(1).strip()
-            try:
-                parsed = json.loads(json_content)
-                if isinstance(parsed, dict):
-                    messages = [parsed]
-                elif isinstance(parsed, list):
-                    messages = parsed
-                else:
-                    return str(match.group(0))
-
-                blocks = []
-                for msg in messages:
-                    if isinstance(msg, dict) and any(
-                        k in msg
-                        for k in [
-                            "createSurface",
-                            "updateDataModel",
-                            "deleteSurface",
-                            "callFunction",
-                        ]
-                    ):
-                        decompiled = self.decompile(msg)
-                        blocks.append(decompiled)
-                    else:
-                        return str(match.group(0))
-
-                return self.wrap_decompiled_blocks(blocks)
-            except Exception:
-                return str(match.group(0))
-
         return re.sub(
-            pattern, replace_json_block, raw_examples_markdown, flags=re.DOTALL
+            pattern,
+            self._replace_json_block,
+            raw_examples_markdown,
+            flags=re.DOTALL,
         )

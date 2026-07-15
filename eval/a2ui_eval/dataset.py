@@ -96,10 +96,10 @@ def load_a2ui_dataset(
         samples.append(
             Sample(
                 input=item["promptText"],
-                target=item.get("target") or item.get("description"),
+                target=item.get("target") or item["description"],
                 metadata={
                     "name": item.get("name"),
-                    "description": item.get("description"),
+                    "description": item["description"],
                     "catalog": catalog_path,
                     "role_description": role_description,
                     "workflow_description": workflow_description,

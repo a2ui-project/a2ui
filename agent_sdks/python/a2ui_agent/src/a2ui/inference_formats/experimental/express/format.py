@@ -208,41 +208,11 @@ IMPORTANT: You must ALWAYS output A2UI Express DSL notation wrapped inside `<a2u
         # Translate json examples in catalog instructions into A2UI Express DSL
         if catalog_instructions:
             pattern = r"```json\s*\n(.*?)\n```"
-
-            def replace_json_block(match):
-                json_content = match.group(1).strip()
-                try:
-                    parsed = json.loads(json_content)
-                    if isinstance(parsed, dict):
-                        messages = [parsed]
-                    elif isinstance(parsed, list):
-                        messages = parsed
-                    else:
-                        return match.group(0)
-
-                    dsl_blocks = []
-                    for msg in messages:
-                        if any(
-                            k in msg
-                            for k in [
-                                "createSurface",
-                                "updateDataModel",
-                                "deleteSurface",
-                                "callFunction",
-                            ]
-                        ):
-                            dsl_clean = self.decompile(msg)
-                            dsl_blocks.append(dsl_clean)
-                        else:
-                            return match.group(0)
-
-                    full_dsl = "<a2ui>\n" + "\n".join(dsl_blocks) + "\n</a2ui>"
-                    return f"```\n{full_dsl}\n```"
-                except Exception:
-                    return match.group(0)
-
             catalog_instructions = re.sub(
-                pattern, replace_json_block, catalog_instructions, flags=re.DOTALL
+                pattern,
+                self._replace_json_block_in_instructions,
+                catalog_instructions,
+                flags=re.DOTALL,
             )
 
         # Format catalog instructions block if it exists
@@ -272,6 +242,69 @@ IMPORTANT: You must ALWAYS output A2UI Express DSL notation wrapped inside `<a2u
         full_dsl = "\n".join(blocks)
         return f"<a2ui>\n{full_dsl}\n</a2ui>"
 
+    def _replace_json_block_in_instructions(self, match: re.Match[str]) -> str:
+        json_content = match.group(1).strip()
+        try:
+            parsed = json.loads(json_content)
+            if isinstance(parsed, dict):
+                messages = [parsed]
+            elif isinstance(parsed, list):
+                messages = parsed
+            else:
+                return str(match.group(0))
+
+            dsl_blocks = []
+            for msg in messages:
+                if isinstance(msg, dict) and any(
+                    k in msg
+                    for k in [
+                        "createSurface",
+                        "updateDataModel",
+                        "deleteSurface",
+                        "callFunction",
+                    ]
+                ):
+                    dsl_clean = self.decompile(msg)
+                    dsl_blocks.append(dsl_clean)
+                else:
+                    return str(match.group(0))
+
+            full_dsl = self.wrap_decompiled_blocks(dsl_blocks)
+            return f"```\n{full_dsl}\n```"
+        except Exception:
+            return str(match.group(0))
+
+    def _replace_json_block(self, match: re.Match[str]) -> str:
+        json_content = match.group(1).strip()
+        try:
+            parsed = json.loads(json_content)
+            if isinstance(parsed, dict):
+                messages = [parsed]
+            elif isinstance(parsed, list):
+                messages = parsed
+            else:
+                return str(match.group(0))
+
+            blocks = []
+            for msg in messages:
+                if isinstance(msg, dict) and any(
+                    k in msg
+                    for k in [
+                        "createSurface",
+                        "updateDataModel",
+                        "deleteSurface",
+                        "callFunction",
+                    ]
+                ):
+                    decompiled = self.decompile(msg)
+                    blocks.append(decompiled)
+                else:
+                    return str(match.group(0))
+
+            return self.wrap_decompiled_blocks(blocks)
+        except Exception:
+            return str(match.group(0))
+
     def transform_examples(self, raw_examples_markdown: str) -> str:
         """Transforms JSON blocks in raw markdown into Express DSL syntax."""
         if not self.catalog:
@@ -280,37 +313,9 @@ IMPORTANT: You must ALWAYS output A2UI Express DSL notation wrapped inside `<a2u
         triple_backticks = chr(96) * 3
         pattern = rf"{triple_backticks}json\s*\n(.*?)\n{triple_backticks}"
 
-        def replace_json_block(match: re.Match[str]) -> str:
-            json_content = match.group(1).strip()
-            try:
-                parsed = json.loads(json_content)
-                if isinstance(parsed, dict):
-                    messages = [parsed]
-                elif isinstance(parsed, list):
-                    messages = parsed
-                else:
-                    return str(match.group(0))
-
-                blocks = []
-                for msg in messages:
-                    if isinstance(msg, dict) and any(
-                        k in msg
-                        for k in [
-                            "createSurface",
-                            "updateDataModel",
-                            "deleteSurface",
-                            "callFunction",
-                        ]
-                    ):
-                        decompiled = self.decompile(msg)
-                        blocks.append(decompiled)
-                    else:
-                        return str(match.group(0))
-
-                return self.wrap_decompiled_blocks(blocks)
-            except Exception:
-                return str(match.group(0))
-
         return re.sub(
-            pattern, replace_json_block, raw_examples_markdown, flags=re.DOTALL
+            pattern,
+            self._replace_json_block,
+            raw_examples_markdown,
+            flags=re.DOTALL,
         )
