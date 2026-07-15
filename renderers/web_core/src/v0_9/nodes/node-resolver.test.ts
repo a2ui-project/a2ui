@@ -730,6 +730,32 @@ describe('NodeResolver resolved bindings (write path)', () => {
   });
 });
 
+describe('NodeResolver stale event delivery', () => {
+  it('reconciles events emitted before construction but delivered after', async () => {
+    const catalog = makeCatalog();
+    const surface = new SurfaceModel('surf-1', catalog);
+    add(surface, 'root', 'Text', {text: 'original'});
+    // Model events deliver to each listener in turn, awaiting async
+    // listeners, so this delayer forces later subscribers to receive the
+    // deletion after further mutations have happened.
+    surface.componentsModel.onDeleted.subscribe(async () => {
+      await flush();
+    });
+    surface.componentsModel.removeComponent('root');
+    add(surface, 'root', 'Text', {text: 'fresh'});
+
+    const resolver = new NodeResolver(surface, catalog);
+    await flush();
+    await flush();
+
+    const root = getValue(resolver.rootNode);
+    assert.ok(root);
+    assert.strictEqual(root.disposed, false);
+    assert.strictEqual(bound(root, 'text'), 'fresh');
+    resolver.dispose();
+  });
+});
+
 describe('NodeResolver constructor checks and disposal', () => {
   it('rejects a catalog instance other than the surface catalog', () => {
     const catalogA = makeCatalog();

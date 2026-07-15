@@ -164,6 +164,11 @@ export class NodeResolver<
       return;
     }
     if (component.id === ROOT_COMPONENT_ID) {
+      if (this.rootRecord && this.rootRecord.componentModel !== component) {
+        // The root was replaced; rebind to the new model instance.
+        this.disposeNode(this.rootRecord.node);
+        this.rootRecord = undefined;
+      }
       this.buildRoot();
     }
     const waiting = this.pendingParents.get(component.id);
@@ -182,12 +187,19 @@ export class NodeResolver<
     if (this._disposed) {
       return;
     }
+    // Model events are delivered asynchronously, so this handler may run
+    // after further mutations, including on a resolver constructed between
+    // the removal and its delivery. Reconcile against the current model
+    // state: when the component exists (again), refresh rather than dispose,
+    // and let materialize/childNode rebind nodes whose model instance is
+    // stale.
+    const model = this.surface.componentsModel.get(id);
     const affected = this.nodesByComponentId.get(id);
     if (!affected) {
       return;
     }
     const parentsToRefresh = new Set<MutableComponentNode>();
-    let rootDeleted = false;
+    let rootAffected = false;
     for (const node of [...affected]) {
       const record = this.records.get(node);
       if (!record) {
@@ -196,13 +208,19 @@ export class NodeResolver<
       if (record.parent) {
         parentsToRefresh.add(record.parent);
       } else {
-        rootDeleted = true;
+        rootAffected = true;
       }
     }
-    if (rootDeleted && this.rootRecord) {
-      this.disposeNode(this.rootRecord.node);
-      this.rootRecord = undefined;
-      setValue(this.rootNode, undefined);
+    if (rootAffected && this.rootRecord) {
+      if (!model) {
+        this.disposeNode(this.rootRecord.node);
+        this.rootRecord = undefined;
+        setValue(this.rootNode, undefined);
+      } else if (this.rootRecord.componentModel !== model) {
+        this.disposeNode(this.rootRecord.node);
+        this.rootRecord = undefined;
+        this.buildRoot();
+      }
     }
     for (const parent of parentsToRefresh) {
       const record = this.records.get(parent);
@@ -379,14 +397,18 @@ export class NodeResolver<
       // A placeholder stays up to date only while its own state's
       // preconditions hold, so a pending node whose definition arrives with
       // an unknown type is replaced (once) by an unknown-type node, and
-      // either kind resolves when the type gains a catalog entry.
+      // either kind resolves when the type gains a catalog entry. A resolved
+      // node must also still be bound to the current model instance.
+      const existingRecord = this.records.get(existing);
       const upToDate =
         existing.componentId === componentId &&
         existing.dataPath === dataPath &&
         (existing.isPlaceholder
           ? (model === undefined && existing.state === 'pending') ||
             (model !== undefined && api === undefined && existing.state === 'unknown-type')
-          : model !== undefined && existing.type === model.type);
+          : model !== undefined &&
+            existing.type === model.type &&
+            existingRecord?.componentModel === model);
       if (upToDate) {
         return existing;
       }
