@@ -48,12 +48,10 @@ class ElementalParser(Parser):
         last_open_match = list(_A2UI_OPEN_PATTERN.finditer(content))
         last_close = content_lower.rfind("</a2ui>")
 
-        is_truncated = False
         if last_open_match:
             last_open = last_open_match[-1].start()
             if last_open > last_close:
                 content += "\n</a2ui>"
-                is_truncated = True
 
         block_pattern = re.compile(
             r"<a2ui\b[^>]*>.*</a2ui>"
@@ -145,8 +143,8 @@ class ElementalFormat(InferenceFormat):
 
     def format_description(
         self,
-        prompt_gen: Optional[ElementalPromptGenerator] = None,
         custom_workflow_description: str = "",
+        catalog_id: Optional[str] = None,
     ) -> str:
         rules = r"""# A2UI Elemental Output Contract
 
@@ -170,15 +168,17 @@ Surround the entire output with `<body>` and `</body>` tags, including a `<link 
     - Surface Deletion: `<ui-delete-surface surface-id="id" />`.
     - Standalone Function Call: `<ui-call-function id="id" name="func"><script type="application/json" slot="args">{"args"}</script></ui-call-function>`.
 """
-        catalog_id = prompt_gen.catalog_id if prompt_gen else "[CATALOG_ID]"
-        rules = rules.replace("[CATALOG_ID]", catalog_id)
+        cid = catalog_id
+        if not cid and self.catalog:
+            cid = self.catalog.get("catalogId")
+        if not cid:
+            cid = "[CATALOG_ID]"
+        rules = rules.replace("[CATALOG_ID]", cid)
         if custom_workflow_description:
             rules += f"\n\n{custom_workflow_description}"
         return rules
 
-    def catalog_description(
-        self, prompt_gen: ElementalPromptGenerator, include_schema: bool = True
-    ) -> str:
+    def catalog_description(self, prompt_gen: Any, include_schema: bool = True) -> str:
         if not include_schema:
             return ""
         comp_decls = prompt_gen.generate_component_declarations()

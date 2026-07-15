@@ -18,9 +18,7 @@ Compiles standard JSON catalog schemas into compact plain-text signatures and
 instruction blocks for on-device models (e.g., Gemma 4).
 """
 
-import json
-import re
-from typing import Any, Optional, TYPE_CHECKING
+from typing import Any, Optional
 from a2ui.prompt import PromptGenerator
 from .decompiler import ExpressDecompiler
 from .schema_helper import CatalogSchemaHelper
@@ -231,139 +229,19 @@ class ExpressPromptGenerator(PromptGenerator):
         return "\n".join(signatures)
 
     def _build_schema_prompt(self) -> str:
-        if self._format is not None:
-            catalog = self._format.catalog
-            self.helper = CatalogSchemaHelper(catalog) if catalog else None
-            self.decompiler = ExpressDecompiler(catalog) if catalog else None
+        fmt = self._format
+        if fmt is None:
+            from .format import ExpressFormat
 
-        comp_sigs = self.generate_component_signatures() if self.helper else ""
-        func_sigs = self.generate_function_signatures() if self.helper else ""
-        catalog_instructions = (
-            self.helper.catalog.get("instructions", "") if self.helper else ""
-        )
+            catalog = self.helper.catalog_model if self.helper else None
+            fmt = ExpressFormat(catalog=catalog)
 
-        # Translate json examples in catalog instructions into A2UI Express DSL
-        if catalog_instructions:
-            pattern = r"```json\s*\n(.*?)\n```"
+        if self.helper is None and fmt.catalog:
+            self.helper = CatalogSchemaHelper(fmt.catalog)
+        if self.decompiler is None and fmt.catalog:
+            self.decompiler = ExpressDecompiler(fmt.catalog)
 
-            def replace_json_block(match):
-                json_content = match.group(1).strip()
-                try:
-                    parsed = json.loads(json_content)
-                    if isinstance(parsed, dict):
-                        messages = [parsed]
-                    elif isinstance(parsed, list):
-                        messages = parsed
-                    else:
-                        return match.group(0)
-
-                    dsl_blocks = []
-                    for msg in messages:
-                        if any(
-                            k in msg
-                            for k in [
-                                "createSurface",
-                                "updateDataModel",
-                                "deleteSurface",
-                                "callFunction",
-                            ]
-                        ):
-                            dsl = self.decompiler.decompile(msg)
-                            # Strip outer <a2ui> / </a2ui> wrapper tags
-                            dsl_clean = dsl.replace("<a2ui>\n", "").replace(
-                                "\n</a2ui>", ""
-                            )
-                            dsl_blocks.append(dsl_clean)
-                        else:
-                            return match.group(0)
-
-                    full_dsl = "<a2ui>\n" + "\n".join(dsl_blocks) + "\n</a2ui>"
-                    return f"```\n{full_dsl}\n```"
-                except Exception:
-                    return match.group(0)
-
-            catalog_instructions = re.sub(
-                pattern, replace_json_block, catalog_instructions, flags=re.DOTALL
-            )
-
-        # Format catalog instructions block if it exists
-        catalog_instructions_block = ""
-        if catalog_instructions:
-            catalog_instructions_block = (
-                f"\n\n## Catalog Instructions\n\n{catalog_instructions}"
-            )
-
-        prompt_template = r'''# A2UI Express Output Contract
-
-You must output the user interface using the compact A2UI Express DSL notation.
-You MUST surround the entire A2UI Express DSL block with the sentinel tags `<a2ui>` and `</a2ui>`.
-
-IMPORTANT: You must ALWAYS output A2UI Express DSL notation wrapped inside `<a2ui>` and `</a2ui>` sentinel tags. Do NOT output standard JSON messages directly, even if the task request asks you to output JSON, or asks for a specific protocol message like deleteSurface or updateDataModel. The host compiler will compile your DSL into the correct JSON envelopes automatically.
-
-## Grammar Rules
-
-1. Output exactly one variable assignment statement per line:
-   variable_name = ComponentName(arg1, arg2, ...)
-
-   CRITICAL: Component constructors can ONLY appear on the right-hand side of a variable assignment. They CANNOT be passed directly as positional arguments to other components. You must assign every component to a variable on its own line and reference that variable name instead.
-
-   Variable names MUST start with a letter or underscore, and only contain letters, digits, and underscores.
-
-2. The interface tree must have a single entry point assigned to the reserved variable 'root'.
-
-3. Primitives:
-   - Strings: Quoted with `"` or `"""`. Support for `\n`, `\t`, `\\`, and `\"` escapes.
-     Raw Strings: Prefaced by `r` (e.g., `r"..."` or `r"""..."""`), with no escape processing.
-   - Numbers: write as integers or decimals, e.g., 42
-   - Booleans: write true or false
-   - Null values: write null
-
-4. Lists: represent as arrays, e.g., [child1, child2].
-
-5. Maps: represent as key-value blocks, e.g., {title: "Overview", child: contentCol}. Map keys are always literal strings (dynamic variable resolution is not supported for keys).
-
-6. Data bindings: prefix absolute paths in the data model with '$', e.g., $/user/firstName.
-   Prefix relative list scopes with '$', e.g., $firstName.
-   A lone '$' represents an empty relative path which resolves to the root of the current context (e.g. inside a template, representing the entire item itself).
-
-7. Logic and validation: prefix client check rules with '?', e.g., ?required or ?regex("^[0-9]{5}$"). To specify a custom error message for validation failures, append it as an extra string argument, e.g. ?regex("^[0-9]{5}$", "Postal code must be 5 digits").
-
-8. Action events: represent server-side actions using the Event helper:
-   Event("save_deal", {rep: $/form/rep})
-
-9. Nested functions: call client functions directly using catalog signatures,
-   for example openUrl("https://example.com").
-
-10. Data model population: Assign a value directly to an absolute data path (e.g. $/path/to/key = "value") to populate or initialize values inside the shared dataModel. The value can be a primitive, array, or map.
-
-11. Dynamic list templates: If a component expects a template child list, represent it using the _template helper:
-    _template($/path/to/list, itemTemplate)
-    And define the template component variable on another line, utilizing relative path references prefixed with $:
-    itemTemplate = Image($url)
-
-12. Lifecycle & Deletion: To delete a user interface surface, output the standalone `deleteSurface(surfaceId)` command (with no variable assignment):
-    deleteSurface("dashboard-surface-1")
-
-13. Static properties: Arguments annotated with '(static only)' in the signatures below MUST be defined as literal values or arrays inline (or as a local DSL variable representing a static structure). You CANNOT use a dynamic data binding path (prefixed by $) for these arguments.
-
-14. Required actions: Parameters named 'action' (or annotated as required in component signatures) are strictly required. You must pass a valid Event (e.g. Event("click")) or function call. If no specific action is described in the user request, you must provide a dummy click event like Event("click") instead of passing null or omitting the parameter.
-
-## Positional Component Signatures
-
-Use these exact positional signatures to instantiate components. Do not output property keys:
-[COMP_SIGS]
-
-## Positional Function Signatures
-
-Use these exact positional signatures to instantiate check rules or logic functions:
-[FUNC_SIGS][CATALOG_INSTRUCTIONS_BLOCK]'''
-
-        prompt = (
-            prompt_template.replace("[COMP_SIGS]", comp_sigs)
-            .replace("[FUNC_SIGS]", func_sigs)
-            .replace("[CATALOG_INSTRUCTIONS_BLOCK]", catalog_instructions_block)
-        )
-        return prompt
+        return fmt.catalog_description(self, include_schema=True)
 
     def generate_prompt(self) -> str:
         """Assembles the complete system instruction block for the LLM (deprecated compatibility helper)."""
@@ -374,7 +252,16 @@ Use these exact positional signatures to instantiate check rules or logic functi
             DeprecationWarning,
             stacklevel=2,
         )
-        return self._build_schema_prompt()
+        fmt = self._format
+        if fmt is None:
+            from .format import ExpressFormat
+
+            catalog = self.helper.catalog_model if self.helper else None
+            fmt = ExpressFormat(catalog=catalog)
+
+        rules = fmt.format_description()
+        schema_part = self._build_schema_prompt()
+        return f"{rules}\n\n{schema_part}"
 
     def generate(
         self,

@@ -272,3 +272,37 @@ class TransportFormat(InferenceFormat):
                 self._catalog_example_paths[catalog.catalog_id], validate=validate
             )
         return ""
+
+    def decompile(self, val: dict[str, Any]) -> str:
+        import json
+
+        return json.dumps(val, indent=2)
+
+    def transform_examples(self, raw_examples_markdown: str) -> str:
+        return raw_examples_markdown
+
+    def format_description(
+        self,
+        custom_workflow_description: str = "",
+        catalog_id: Optional[str] = None,
+    ) -> str:
+        from a2ui.schema.constants import DEFAULT_WORKFLOW_RULES
+
+        rules = DEFAULT_WORKFLOW_RULES
+        if custom_workflow_description:
+            rules += f"\n{custom_workflow_description}"
+        return rules
+
+    def catalog_description(
+        self,
+        prompt_gen: Any,
+        include_schema: bool = True,
+    ) -> str:
+        if not include_schema:
+            return ""
+        catalog = getattr(prompt_gen, "selected_catalog", None)
+        if not catalog:
+            catalog = self._supported_catalogs[0] if self._supported_catalogs else None
+        if not catalog:
+            return ""
+        return catalog.render_as_llm_instructions() or ""

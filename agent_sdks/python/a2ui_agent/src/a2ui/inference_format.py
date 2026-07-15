@@ -81,3 +81,31 @@ class InferenceFormat(ABC):
             include_examples=include_examples,
             validate_examples=validate_examples,
         )
+
+    @abstractmethod
+    def decompile(self, val: dict[str, Any]) -> str:
+        """Decompiles a structured A2UI payload into this format's raw notation."""
+        pass
+
+    @abstractmethod
+    def transform_examples(self, raw_examples_markdown: str) -> str:
+        """Transforms JSON blocks in raw markdown into this format's syntax."""
+        pass
+
+    @abstractmethod
+    def format_description(
+        self,
+        custom_workflow_description: str = "",
+        catalog_id: Optional[str] = None,
+    ) -> str:
+        """Returns the format's system prompt instructions block."""
+        pass
+
+    @abstractmethod
+    def catalog_description(
+        self,
+        prompt_gen: Any,
+        include_schema: bool = True,
+    ) -> str:
+        """Returns the format's system prompt component catalog signatures block."""
+        pass

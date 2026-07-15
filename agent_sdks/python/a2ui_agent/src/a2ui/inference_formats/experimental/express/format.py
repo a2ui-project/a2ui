@@ -43,12 +43,10 @@ class ExpressParser(Parser):
         from a2ui.inference_formats.experimental.express.parser import _A2UI_DSL_BLOCK_PATTERN
 
         # Handle unclosed tag auto-closing
-        is_truncated = False
         last_open = content.rfind("<a2ui>")
         last_close = content.rfind("</a2ui>")
         if last_open != -1 and last_open > last_close:
             content += "</a2ui>"
-            is_truncated = True
 
         matches = list(_A2UI_DSL_BLOCK_PATTERN.finditer(content))
         if not matches:
@@ -128,7 +126,11 @@ class ExpressFormat(InferenceFormat):
     def has_a2ui_parts(self, content: str) -> bool:
         return "<a2ui" in content
 
-    def format_description(self, custom_workflow_description: str = "") -> str:
+    def format_description(
+        self,
+        custom_workflow_description: str = "",
+        catalog_id: Optional[str] = None,
+    ) -> str:
         rules = r'''# A2UI Express Output Contract
 
 You must output the user interface using the compact A2UI Express DSL notation.
@@ -187,9 +189,7 @@ IMPORTANT: You must ALWAYS output A2UI Express DSL notation wrapped inside `<a2u
             rules += f"\n\n{custom_workflow_description}"
         return rules
 
-    def catalog_description(
-        self, prompt_gen: ExpressPromptGenerator, include_schema: bool = True
-    ) -> str:
+    def catalog_description(self, prompt_gen: Any, include_schema: bool = True) -> str:
         if not include_schema:
             return ""
         comp_sigs = prompt_gen.generate_component_signatures()

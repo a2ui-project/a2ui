@@ -18,7 +18,6 @@ Translates standard JSON catalog schemas into TypeScript/TSX interface
 definitions and instruction blocks for on-device models.
 """
 
-import json
 import re
 from typing import Any, Optional, TYPE_CHECKING
 from a2ui.schema.catalog import A2uiCatalog
@@ -336,110 +335,16 @@ class ElementalPromptGenerator(PromptGenerator):
             else "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
         )
 
-        comp_decls = self.generate_component_declarations() if self.helper else ""
-        func_decls = self.generate_function_declarations() if self.helper else ""
-        catalog_instructions = (
-            self.helper.catalog.get("instructions", "") if self.helper else ""
-        )
-
-        # Format catalog instructions block if it exists
-        catalog_instructions_block = ""
-        if catalog_instructions:
-            # Dynamically convert any JSON examples in catalog instructions to Elemental HTML using decompiler
-            try:
-                from .decompiler import ElementalDecompiler
-
-                decompiler = ElementalDecompiler(self.catalog)
-
-                # Find all ```json ... ``` blocks
-                json_blocks = re.findall(
-                    r"```json\s*(.*?)\s*```", catalog_instructions, re.DOTALL
-                )
-                for block in json_blocks:
-                    try:
-                        parsed_json = json.loads(block)
-                        if isinstance(parsed_json, list):
-                            html_parts = []
-                            for item in parsed_json:
-                                if isinstance(item, dict):
-                                    html_parts.append(decompiler.decompile(item))
-                            html_block = "\n\n".join(html_parts)
-                        elif isinstance(parsed_json, dict):
-                            html_block = decompiler.decompile(parsed_json)
-                        else:
-                            continue
-
-                        target_block = f"```json\n{block}\n```"
-                        # Use link placeholder for decompiler output link if present
-                        html_block = html_block.replace(self.catalog_id, "[CATALOG_ID]")
-                        replacement_block = f"```html\n{html_block}\n```"
-                        catalog_instructions = catalog_instructions.replace(
-                            target_block, replacement_block
-                        )
-                    except Exception:
-                        pass
-            except Exception:
-                pass
-
-            catalog_instructions_block = (
-                f"\n\n## Catalog Instructions\n\n{catalog_instructions}"
-            )
-
-        common_types = """type DataBinding = string;
-type A2UIElement = string; // ID of the referenced component
-type Action = any;
-type FunctionCall = any;"""
-
-        prompt_template = r"""# A2UI Elemental Output Contract
-
-You must output the user interface using A2UI Elemental HTML5-like markup.
-Surround the entire output with `<body>` and `</body>` tags, including a `<link rel="catalog" href="[CATALOG_ID]">` at the start.
-**CRITICAL**: DO NOT output raw JSON or `<a2ui-json>`. Direct JSON outputs are strictly prohibited.
-
-## HTML5 Markup Rules
-
-1. **Component Tags**: Use elements prefixed with `ui-` in kebab-case (e.g. `<ui-card>`).
-2. **Component IDs**: Provide a unique `id` attribute for every component. The single top-level element MUST have `id="root"`.
-3. **Attributes**: Pass static string values as regular attributes (`variant="primary"`). Wrap numbers, booleans, and expressions in double-quoted curly braces: `elevation="{4}"`, `disabled="{true}"`.
-4. **Data Binding**: Bind data using curly braces prefixed with `$`: `value="{$/user/name}"` (absolute) or `value="{$name}"` (relative in list templates). Use `{$/items/0}` for arrays, never brackets.
-5. **Expressions**: Call catalog functions inside curly braces using named arguments: `text="{formatCurrency(value: $/price, currency: 'USD')}"`.
-6. **Slots & Children**: Nest children inside parent elements. Use the `slot` attribute to specify child properties: `<ui-card slot="leading">`.
-7. **Complex Properties**: For objects/arrays, use `<script type="application/json" slot="prop">`. For HTML/long text, use `<script type="text/html" slot="prop">`.
-8. **Templates**: For dynamic lists, nest child elements inside a `<template>` tag, and specify the bound data array path via the `path` attribute on the list component itself (e.g. `<ui-list path="{$/items}"><template>...</template></ui-list>`).
-9. **Actions**: Use `on-<property-name>` in kebab-case (e.g. `onclick="{Event('name', {args})}"`). If submitting or validating data, pass the data paths inside the event context dict (e.g. `onclick="{Event('login', {username: $/login/username})}"`).
-10. **Standalone Directives**:
-    - Data Initialization: `<script type="application/json">{"data"}</script>` at root of body.
-    - Surface Deletion: `<ui-delete-surface surface-id="id" />`.
-    - Standalone Function Call: `<ui-call-function id="id" name="func"><script type="application/json" slot="args">{"args"}</script></ui-call-function>`.
-
-## Component Interfaces
-
-Your elements and attributes must match these TypeScript definitions (converting camelCase props to kebab-case attributes in HTML, e.g. `errorMessage` -> `error-message`).
-
-```typescript
-[COMMON_TYPES]
-
-[COMPONENT_DECLARATIONS]
-```
-
-## Helper Functions
-
-You can call these functions inside attribute expressions `{...}` using named arguments.
-
-```typescript
-[FUNCTION_DECLARATIONS]
-```[CATALOG_INSTRUCTIONS_BLOCK]"""
-
         prompt = (
-            prompt_template.replace("[CATALOG_ID]", self.catalog_id)
-            .replace("[COMMON_TYPES]", common_types)
-            .replace("[COMPONENT_DECLARATIONS]", comp_decls)
-            .replace("[FUNCTION_DECLARATIONS]", func_decls)
-            .replace("[CATALOG_INSTRUCTIONS_BLOCK]", catalog_instructions_block)
+            self._format.catalog_description(self, include_schema=True)
+            if self._format
+            else ""
         )
 
         parts = [role_description]
-        workflow = self._format.format_description(self, workflow_description)
+        workflow = self._format.format_description(
+            custom_workflow_description=workflow_description, catalog_id=self.catalog_id
+        )
         parts.append(f"## Workflow Description:\n{workflow}")
 
         if ui_description:

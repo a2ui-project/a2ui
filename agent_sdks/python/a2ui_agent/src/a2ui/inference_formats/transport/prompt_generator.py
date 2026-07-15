@@ -63,6 +63,7 @@ class TransportPromptGenerator(PromptGenerator):
         selected_catalog = self._format.get_selected_catalog(
             client_ui_capabilities, allowed_components, allowed_messages
         )
+        self.selected_catalog = selected_catalog
 
         examples_str = ""
         if include_examples:
@@ -72,18 +73,14 @@ class TransportPromptGenerator(PromptGenerator):
 
         parts = [role_description]
 
-        from a2ui.schema.constants import DEFAULT_WORKFLOW_RULES
-
-        rules = DEFAULT_WORKFLOW_RULES
-        if workflow_description:
-            rules += f"\n{workflow_description}"
+        rules = self._format.format_description(workflow_description)
         parts.append(f"## Workflow Description:\n{rules}")
 
         if ui_description:
             parts.append(f"## UI Description:\n{ui_description}")
 
         if include_schema:
-            instructions = selected_catalog.render_as_llm_instructions()
+            instructions = self._format.catalog_description(self, include_schema=True)
             if instructions:
                 parts.append(instructions)
 
