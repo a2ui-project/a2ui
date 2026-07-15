@@ -94,11 +94,10 @@ To activate the A2UI A2A Extension, the client adds the extension URI to A2A `se
   "metadata": {
     "X-A2A-Extensions": "https://a2ui.org/a2a-extension/a2ui/v0.9.1"
   },
-  {
-    "message": {
-      "parts": [
-        {
-          "text": "Hello, show me the dashboard"
+  "message": {
+    "parts": [
+      {
+        "text": "Hello, show me the dashboard"
         }
       ]
     }
@@ -225,7 +224,7 @@ Example DataPart:
 
 ### Client-to-server events
 
-When a client (or an agent forwarding an event) sends a message to an agent, it also uses a `DataPart` with the same `application/a2ui+json` MIME type. However, the `data` payload must validate against the - [Client-to-Server Message List Schema](../json/client_to_server_list.json).
+When a client (or an agent forwarding an event) sends a message to an agent, it also uses a `DataPart` with the same `application/a2ui+json` MIME type. However, the `data` payload must validate against the [Client-to-Server Message List Schema](../json/client_to_server_list.json).
 
 Example `action` DataPart:
 
