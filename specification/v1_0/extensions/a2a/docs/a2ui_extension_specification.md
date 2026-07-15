@@ -14,10 +14,9 @@ This URI is the canonical way to communicate protocol versioning between clients
 
 ## Agent Card
 
-Agents are encouraged to advertise their A2UI capabilities in their AgentCard within the `AgentCapabilities.extensions` list. This advertisement is optional, but it informs the client whether to send `message.metadata["a2uiClientCapabilities"]`. The `params` object defines the agent's specific UI support and corresponds directly to the [Server Capabilities Schema](../json/server_capabilities.json).
+Agents are encouraged to advertise their A2UI capabilities in their AgentCard within the `AgentCapabilities.extensions` list. This advertisement is optional, but it informs the client whether to send `message.metadata["a2uiClientCapabilities"]`. The `params` object defines the agent's specific UI support and corresponds directly to the [Server Capabilities Schema](../../../json/server_capabilities.json).
 
 Example AgentCard payload:
-
 ```json
 {
   "name": "Dashboard Agent",
@@ -81,7 +80,7 @@ Content-Type: application/json
 }
 ```
 
-To see how the agent parses the extension URI, see [`extension.py`](../../../agent_sdks/python/a2ui_agent/src/a2ui/a2a/extension.py).
+To see how the agent parses the extension URI, see [`extension.py`](../../../../../agent_sdks/python/a2ui_agent/src/a2ui/a2a/extension.py).
 
 ### GRPC transport
 
@@ -111,7 +110,7 @@ Clients attach `a2uiClientCapabilities` and `a2uiClientDataModel` to A2A message
 
 ### `a2uiClientCapabilities`
 
-The client sends `sendMessageRequest.message["a2uiClientCapabilities"]` = [Client Capabilities Schema](../json/client_capabilities.json) to advertise which catalogs the renderer supports.
+The client sends `sendMessageRequest.message["a2uiClientCapabilities"]` = [Client Capabilities Schema](../../../json/client_capabilities.json) to advertise which catalogs the renderer supports.
 
 **Example `SendMessageRequest` with Capabilities:**
 
@@ -139,7 +138,7 @@ The client sends `sendMessageRequest.message["a2uiClientCapabilities"]` = [Clien
 
 ### `a2uiClientDataModel`
 
-When a surface enables Data Model Sync, the client sends `sendMessageRequest.message["a2uiClientDataModel"]` = [Client Data Model Schema](../json/client_data_model.json) on every message. This model provides the agent with the latest UI state. For more details, see the [Actions Guide](../../../docs/public/concepts/actions.md).
+When a surface enables Data Model Sync, the client sends `sendMessageRequest.message["a2uiClientDataModel"]` = [Client Data Model Schema](../json/client_data_model.json) on every message. This model provides the agent with the latest UI state. For more details, see the [Actions Guide](../../../../../docs/public/concepts/actions.md).
 
 **Example `SendMessageRequest` with Data Model:**
 
@@ -186,7 +185,7 @@ Atomicity is guaranteed only at the individual message level. However, for a bet
 
 ### Server-to-client messages
 
-When an agent sends a message to a client (or another agent acting as a client/renderer), the `data` payload must validate against the [Server-to-Client Message List Schema](../json/server_to_client_list.json).
+When an agent sends a message to a client (or another agent acting as a client/renderer), the `data` payload must validate against the [Server-to-Client Message List Schema](../../../json/server_to_client_list.json).
 
 Example DataPart:
 
@@ -224,7 +223,7 @@ Example DataPart:
 
 ### Client-to-server events
 
-When a client (or an agent forwarding an event) sends a message to an agent, it also uses a `DataPart` with the same `application/a2ui+json` MIME type. However, the `data` payload must validate against the [Client-to-Server Message List Schema](../json/client_to_server_list.json).
+When a client (or an agent forwarding an event) sends a message to an agent, it also uses a `DataPart` with the same `application/a2ui+json` MIME type. However, the `data` payload must validate against the [Client-to-Server Message List Schema](../../../json/client_to_server_list.json).
 
 Example `action` DataPart:
 
