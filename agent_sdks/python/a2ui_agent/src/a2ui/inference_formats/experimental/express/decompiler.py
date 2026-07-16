@@ -156,14 +156,24 @@ class ExpressDecompiler(Decompiler):
             args_list = []
             if fn_name in self.helper.functions:
                 fn_props = self.helper.get_function_properties(fn_name)
-                for prop_name in fn_props:
-                    if isinstance(fn_args, dict) and prop_name in fn_args:
-                        val_str = self._decompile_value(
-                            fn_args[prop_name], set(), False
-                        )
-                        args_list.append(val_str)
-                    else:
-                        args_list.append("_")
+                if isinstance(fn_args, dict):
+                    for prop_name in fn_props:
+                        if prop_name in fn_args:
+                            val_str = self._decompile_value(
+                                fn_args[prop_name], set(), False
+                            )
+                            args_list.append(val_str)
+                        else:
+                            args_list.append("_")
+                elif isinstance(fn_args, list):
+                    for idx, prop_name in enumerate(fn_props):
+                        if idx < len(fn_args):
+                            val_str = self._decompile_value(fn_args[idx], set(), False)
+                            args_list.append(val_str)
+                        else:
+                            args_list.append("_")
+                else:
+                    pass
             else:
                 if isinstance(fn_args, dict):
                     for v in fn_args.values():
@@ -380,7 +390,7 @@ class ExpressDecompiler(Decompiler):
                 items_reprs.append(
                     f"{k_repr}: {self._decompile_value(v, comp_ids, item_is_ref)}"
                 )
-            return f'{{{", ".join(items_reprs)}}}'
+            return f"{{{', '.join(items_reprs)}}}"
 
         if isinstance(val, list):
             # Decompile array

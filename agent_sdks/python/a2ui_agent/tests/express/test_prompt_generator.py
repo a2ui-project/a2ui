@@ -12,19 +12,29 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+"""Unit tests focusing on the A2UI Express Prompt Generator."""
+
+import json
+import os
+import tempfile
 import unittest
 from a2ui.schema.catalog import A2uiCatalog
-from a2ui.schema.constants import VERSION_0_9
+from a2ui.schema.constants import VERSION_1_0
 from a2ui.inference_formats.experimental.express.format import ExpressFormat
 
 
 class TestExpressPromptGenerator(unittest.TestCase):
+    """Test suite covering Express prompt generation, examples pruning, and validation."""
 
     def setUp(self):
         self.catalog = A2uiCatalog(
-            version=VERSION_0_9,
+            version=VERSION_1_0,
             name="test_catalog",
-            s2c_schema={},
+            experiments={"version_1_0"},
+            s2c_schema={
+                "$id": "https://a2ui.org/specification/v1_0/json/server_to_client.json",
+                "$schema": "https://json-schema.org/draft/2020-12/schema",
+            },
             common_types_schema={},
             catalog_schema={
                 "catalogId": "https://a2ui.org/test_catalog",
@@ -40,6 +50,10 @@ class TestExpressPromptGenerator(unittest.TestCase):
                 },
             },
         )
+        self.tmp_dir = tempfile.TemporaryDirectory()
+
+    def tearDown(self):
+        self.tmp_dir.cleanup()
 
     def test_express_prompt_generator_property(self):
         express_format = ExpressFormat(catalog=self.catalog)
@@ -50,13 +64,99 @@ class TestExpressPromptGenerator(unittest.TestCase):
             workflow_description="Please adhere to constraints.",
             include_schema=True,
         )
-        assert "You are a helpful assistant." in prompt
-        assert "Please adhere to constraints." in prompt
-        assert "# A2UI Express Output Contract" in prompt
-        assert "Text(" in prompt
+        self.assertIn("You are a helpful assistant.", prompt)
+        self.assertIn("Please adhere to constraints.", prompt)
+        self.assertIn("# A2UI Express Output Contract", prompt)
+        self.assertIn("Text(", prompt)
 
     def test_catalog_description_before_generate(self):
         express_format = ExpressFormat(catalog=self.catalog)
         generator = express_format.prompt_generator
         desc = express_format.catalog_description(generator, include_schema=True)
         self.assertIn("Text(", desc)
+
+    def test_express_allowed_components_pruning(self):
+        express_format = ExpressFormat(catalog=self.catalog)
+        generator = express_format.prompt_generator
+
+        # Only allow other component tags, Text should be pruned out
+        prompt = generator.generate(
+            role_description="Test role",
+            include_schema=True,
+            allowed_components=["Button"],
+        )
+        self.assertNotIn("Text(", prompt)
+
+    def test_express_include_examples_transformation(self):
+        # Write a markdown file containing a JSON block wrapped in backticks
+        example_payload = {
+            "version": "1.0",
+            "createSurface": {
+                "surfaceId": "welcome",
+                "components": [
+                    {"id": "root", "component": "Text", "text": "Hello World"}
+                ],
+            },
+        }
+        md_content = (
+            f"Some markdown text.\n\n```json\n{json.dumps(example_payload)}\n```\n"
+        )
+        md_file_path = os.path.join(self.tmp_dir.name, "examples.md")
+        with open(md_file_path, "w", encoding="utf-8") as f:
+            f.write(md_content)
+
+        # Initialize ExpressFormat with examples.md path
+        express_format = ExpressFormat(catalog=self.catalog, examples_path=md_file_path)
+        generator = express_format.prompt_generator
+
+        prompt = generator.generate(
+            role_description="Test role",
+            workflow_description="Custom workflow instructions",
+            ui_description="Custom UI rules",
+            include_schema=True,
+            include_examples=True,
+            validate_examples=False,
+        )
+
+        # Verify workflow_description and ui_description are included
+        self.assertIn("Custom workflow instructions", prompt)
+        self.assertIn("Custom UI rules", prompt)
+
+        # Verify examples are included and decompiled
+        self.assertIn("### Examples:", prompt)
+        self.assertIn('root = Text("Hello World")', prompt)
+
+    def test_express_examples_validation(self):
+        # Write a valid standard A2UI JSON example file
+        example_payload = {
+            "version": "1.0",
+            "createSurface": {
+                "surfaceId": "welcome",
+                "components": [
+                    {"id": "root", "component": "Text", "text": "Hello World"}
+                ],
+            },
+        }
+        json_file_path = os.path.join(self.tmp_dir.name, "example_1.json")
+        with open(json_file_path, "w", encoding="utf-8") as f:
+            json.dump(example_payload, f)
+
+        # Initialize ExpressFormat with directory path
+        express_format = ExpressFormat(
+            catalog=self.catalog, examples_path=self.tmp_dir.name
+        )
+        generator = express_format.prompt_generator
+
+        prompt = generator.generate(
+            role_description="Test role",
+            include_schema=True,
+            include_examples=True,
+            validate_examples=True,
+        )
+
+        self.assertIn("### Examples:", prompt)
+        self.assertIn("---BEGIN example_1---", prompt)
+
+
+if __name__ == "__main__":
+    unittest.main()

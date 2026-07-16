@@ -18,7 +18,14 @@ import json
 import os
 import unittest
 from a2ui.core.catalog import Catalog
-from a2ui.inference_formats.experimental.elemental.compiler import ElementalCompiler
+from a2ui.inference_formats.experimental.elemental.compiler import (
+    ElementalCompiler,
+    _is_action_property,
+    _has_label_value,
+    _schema_expects_option_objects,
+    _get_enum_values,
+    _escape_nested_script_tags,
+)
 
 SPEC_DIR = os.path.abspath(
     os.path.join(
@@ -205,13 +212,15 @@ class TestElementalCompiler(unittest.TestCase):
         self.assertEqual(text_field["value"], {"path": "/dob"})
         self.assertEqual(
             text_field["checks"],
-            [{
-                "condition": {
-                    "call": "required",
-                    "args": {"value": {"path": "/dob"}},
-                },
-                "message": "Invalid input",
-            }],
+            [
+                {
+                    "condition": {
+                        "call": "required",
+                        "args": {"value": {"path": "/dob"}},
+                    },
+                    "message": "Invalid input",
+                }
+            ],
         )
 
     def test_compile_checks_with_custom_message(self):
@@ -224,13 +233,15 @@ class TestElementalCompiler(unittest.TestCase):
         text_field = components[0]
         self.assertEqual(
             text_field["checks"],
-            [{
-                "condition": {
-                    "call": "required",
-                    "args": {"value": {"path": "/dob"}},
-                },
-                "message": "DOB is required",
-            }],
+            [
+                {
+                    "condition": {
+                        "call": "required",
+                        "args": {"value": {"path": "/dob"}},
+                    },
+                    "message": "DOB is required",
+                }
+            ],
         )
 
     def test_compile_checks_with_condition_custom_message(self):
@@ -244,13 +255,15 @@ class TestElementalCompiler(unittest.TestCase):
         text_field = components[0]
         self.assertEqual(
             text_field["checks"],
-            [{
-                "condition": {
-                    "call": "required",
-                    "args": {"value": {"path": "/dob"}},
-                },
-                "message": "DOB is required",
-            }],
+            [
+                {
+                    "condition": {
+                        "call": "required",
+                        "args": {"value": {"path": "/dob"}},
+                    },
+                    "message": "DOB is required",
+                }
+            ],
         )
 
     def test_compile_checks_mixed_positional_named_error(self):
@@ -481,6 +494,53 @@ class TestElementalCompiler(unittest.TestCase):
             self.assertEqual(res3, "onClick")
         finally:
             self.compiler.helper.get_property_schema = original_get_property_schema
+
+    def test_is_action_property_edge_cases(self):
+        # 1. Non-dict input
+        self.assertFalse(_is_action_property(None))
+        self.assertFalse(_is_action_property("string"))
+        # 2. oneOf/anyOf/allOf recursive match
+        schema = {"oneOf": [{"type": "string"}, {"$ref": "#/definitions/Action"}]}
+        self.assertTrue(_is_action_property(schema))
+        schema_none = {"anyOf": [{"type": "string"}]}
+        self.assertFalse(_is_action_property(schema_none))
+
+    def test_has_label_value_edge_cases(self):
+        # 1. Non-dict input
+        self.assertFalse(_has_label_value(None))
+        # 2. allOf/oneOf/anyOf matching options
+        schema = {"oneOf": [{"properties": {"label": {}, "value": {}}}]}
+        self.assertTrue(_has_label_value(schema))
+
+    def test_schema_expects_option_objects_edge_cases(self):
+        # 1. Non-dict input
+        self.assertFalse(_schema_expects_option_objects(None))
+        # 2. oneOf/anyOf/allOf recursive match
+        schema = {"oneOf": [{"items": {"properties": {"label": {}, "value": {}}}}]}
+        self.assertTrue(_schema_expects_option_objects(schema))
+
+    def test_get_enum_values_edge_cases(self):
+        # 1. Non-dict input
+        self.assertIsNone(_get_enum_values(None))
+        # 2. recursive enum lookup
+        schema = {"oneOf": [{"enum": [1, 2, 3]}]}
+        self.assertEqual(_get_enum_values(schema), [1, 2, 3])
+
+    def test_escape_nested_script_tags_edge_cases(self):
+        # 1. Unclosed script tag
+        self.assertEqual(
+            _escape_nested_script_tags("<script type='application/json'"),
+            "<script type='application/json'",
+        )
+        # 2. Backslash and escape sequence inside JSON string properties
+        html = '<script type="application/json">{"code": "foo\\\\\\"bar"}</script>'
+        self.assertEqual(_escape_nested_script_tags(html), html)
+        # 3. script closing tag in JSON string
+        html_with_nested = (
+            '<script type="application/json">{"html": "</script>"}</script>'
+        )
+        expected = '<script type="application/json">{"html": "<\\/script>"}</script>'
+        self.assertEqual(_escape_nested_script_tags(html_with_nested), expected)
 
 
 if __name__ == "__main__":

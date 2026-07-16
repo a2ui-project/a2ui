@@ -19,7 +19,10 @@ from a2ui.schema.catalog import A2uiCatalog
 from a2ui.schema.constants import VERSION_0_9
 from a2ui.inference_formats.transport import TransportFormat
 from a2ui.inference_formats.experimental.express import ExpressFormat, ExpressParser
-from a2ui.inference_formats.experimental.elemental import ElementalFormat, ElementalParser
+from a2ui.inference_formats.experimental.elemental import (
+    ElementalFormat,
+    ElementalParser,
+)
 
 
 @pytest.fixture
@@ -33,16 +36,12 @@ def sample_catalog():
             "catalogId": "https://a2ui.org/test_catalog",
             "components": {
                 "Text": {
-                    "properties": {
-                        "text": {"type": "string", "positionalIndex": 0}
-                    }
+                    "properties": {"text": {"type": "string", "positionalIndex": 0}}
                 }
             },
             "functions": {
                 "openUrl": {
-                    "properties": {
-                        "url": {"type": "string", "positionalIndex": 0}
-                    }
+                    "properties": {"url": {"type": "string", "positionalIndex": 0}}
                 }
             },
         },
@@ -54,7 +53,6 @@ def test_supports_streaming_property(sample_catalog):
     from a2ui.schema.catalog_provider import A2uiCatalogProvider
 
     class MemoryCatalogProvider(A2uiCatalogProvider):
-
         def __init__(self, schema):
             self.schema = schema
 
@@ -94,8 +92,6 @@ def test_process_chunk_raises_not_implemented(sample_catalog):
     assert "Streaming is not supported by ElementalParser" in str(exc_info.value)
 
 
-
-
 def test_decompiler_delegation(sample_catalog):
     # Verify Transport Decompiler
     transport_fmt = TransportFormat(version=VERSION_0_9, catalogs=[])
@@ -121,4 +117,52 @@ def test_decompiler_delegation(sample_catalog):
         },
     }
     decompiled_dsl = expr_decompiler.decompile(envelope)
-    assert "root = Text(\"Hello World\")" in decompiled_dsl
+    assert 'root = Text("Hello World")' in decompiled_dsl
+
+    # Verify wrap_decompiled_blocks implementation
+    assert (
+        transport_fmt.decompiler.wrap_decompiled_blocks(["{}", "{}"])
+        == "<a2ui-json>\n{}\n{}\n</a2ui-json>"
+    )
+    assert (
+        expr_decompiler.wrap_decompiled_blocks(["a = 1", "b = 2"])
+        == "<a2ui>\na = 1\nb = 2\n</a2ui>"
+    )
+
+    # Verify base class fallback
+    from a2ui.decompiler import Decompiler
+
+    class DummyDecompiler(Decompiler):
+        def decompile(self, val):
+            return ""
+
+    assert (
+        DummyDecompiler().wrap_decompiled_blocks(["a = 1", "b = 2"]) == "a = 1\nb = 2"
+    )
+
+    # Verify abstract PromptGenerator generate pass
+    from a2ui.prompt.generator import PromptGenerator
+
+    class DummyPromptGenerator(PromptGenerator):
+        def generate(self, *args, **kwargs):
+            return super().generate(*args, **kwargs)
+
+    assert DummyPromptGenerator().generate("role") is None
+
+    # Verify invalid catalog_id check
+    bad_catalog = A2uiCatalog(
+        version="1.0",
+        name="bad",
+        experiments=None,
+        s2c_schema={},
+        common_types_schema={},
+        catalog_schema={"catalogId": 12345}
+    )
+    from a2ui.core.exceptions import A2uiCatalogError
+    with pytest.raises(A2uiCatalogError) as ctx:
+        _ = bad_catalog.catalog_id
+    assert "catalogId is not a string" in str(ctx.value)
+
+    # Verify empty pruned components and messages fallback
+    assert sample_catalog._with_pruned_components([]) is sample_catalog
+    assert sample_catalog._with_pruned_messages([]) is sample_catalog

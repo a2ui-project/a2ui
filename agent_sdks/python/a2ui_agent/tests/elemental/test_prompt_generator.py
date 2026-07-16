@@ -12,34 +12,119 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+"""Unit tests focusing on the A2UI Elemental Prompt Generator."""
+
+import json
+import os
+import tempfile
 import unittest
 from a2ui.schema.catalog import A2uiCatalog
-from a2ui.schema.constants import VERSION_0_9
+from a2ui.schema.constants import VERSION_1_0
 from a2ui.inference_formats.experimental.elemental.format import ElementalFormat
 
 
 class TestElementalPromptGenerator(unittest.TestCase):
+    """Test suite covering Elemental prompt generation, type mappings, and example pruning."""
 
     def setUp(self):
+        # Rich catalog testing all mapping branches of _map_schema_to_ts_type
         self.catalog = A2uiCatalog(
-            version=VERSION_0_9,
-            name="test_catalog",
-            s2c_schema={},
+            version=VERSION_1_0,
+            name="rich_catalog",
+            experiments={"version_1_0"},
+            s2c_schema={
+                "$id": "https://a2ui.org/specification/v1_0/json/server_to_client.json",
+                "$schema": "https://json-schema.org/draft/2020-12/schema",
+            },
             common_types_schema={},
             catalog_schema={
-                "catalogId": "https://a2ui.org/test_catalog",
+                "catalogId": "https://a2ui.org/rich_catalog",
                 "components": {
                     "Text": {
                         "properties": {"text": {"type": "string", "positionalIndex": 0}}
-                    }
+                    },
+                    "RichComponent": {
+                        "properties": {
+                            "checks": {"type": "array", "items": {"type": "string"}},
+                            "refComponent": {"$ref": "#/definitions/ComponentId"},
+                            "refChildList": {"$ref": "#/definitions/ChildList"},
+                            "refAction": {"$ref": "#/definitions/Action"},
+                            "refString": {"$ref": "#/definitions/DynamicString"},
+                            "refNumber": {"$ref": "#/definitions/DynamicNumber"},
+                            "refBoolean": {"$ref": "#/definitions/DynamicBoolean"},
+                            "nestedObj": {
+                                "type": "object",
+                                "properties": {"path": {"type": "string"}},
+                            },
+                            "unionType": {
+                                "oneOf": [{"type": "string"}, {"type": "number"}]
+                            },
+                            "enumType": {
+                                "type": "string",
+                                "enum": ["option1", "option2"],
+                            },
+                            "primitiveArray": {
+                                "type": "array",
+                                "items": {"type": "string"},
+                            },
+                            "objectArray": {
+                                "type": "array",
+                                "items": {
+                                    "type": "object",
+                                    "properties": {
+                                        "id": {"type": "string"},
+                                        "val": {"type": "number"},
+                                    },
+                                    "required": ["id"],
+                                },
+                            },
+                            "plainObject": {
+                                "type": "object",
+                                "properties": {
+                                    "name": {"type": "string"},
+                                    "age": {"type": "number"},
+                                },
+                                "required": ["name"],
+                            },
+                            "genericObject": {"type": "object"},
+                        }
+                    },
                 },
                 "functions": {
                     "openUrl": {
-                        "properties": {"url": {"type": "string", "positionalIndex": 0}}
-                    }
+                        "properties": {
+                            "args": {
+                                "properties": {
+                                    "url": {"type": "string", "positionalIndex": 0}
+                                }
+                            }
+                        }
+                    },
+                    "someFunc": {
+                        "description": "A dummy function description.",
+                        "properties": {
+                            "args": {
+                                "properties": {
+                                    "arg1": {"type": "string", "positionalIndex": 0}
+                                }
+                            }
+                        },
+                    },
+                },
+                "definitions": {
+                    "ComponentId": {"type": "string"},
+                    "ChildList": {"type": "array", "items": {"type": "string"}},
+                    "Action": {"type": "object"},
+                    "DynamicString": {"type": "string"},
+                    "DynamicNumber": {"type": "number"},
+                    "DynamicBoolean": {"type": "boolean"},
                 },
             },
         )
+        self.tmp_dir = tempfile.TemporaryDirectory()
+
+    def tearDown(self):
+        self.tmp_dir.cleanup()
 
     def test_elemental_prompt_generator_property(self):
         elemental_format = ElementalFormat(catalog=self.catalog)
@@ -50,13 +135,124 @@ class TestElementalPromptGenerator(unittest.TestCase):
             workflow_description="Please output Elemental HTML.",
             include_schema=True,
         )
-        assert "You are an HTML generator." in prompt
-        assert "Please output Elemental HTML." in prompt
-        assert "# A2UI Elemental Output Contract" in prompt
-        assert "interface Text {" in prompt
+        self.assertIn("You are an HTML generator.", prompt)
+        self.assertIn("Please output Elemental HTML.", prompt)
+        self.assertIn("# A2UI Elemental Output Contract", prompt)
+        self.assertIn("interface Text {", prompt)
 
     def test_catalog_description_before_generate(self):
         elemental_format = ElementalFormat(catalog=self.catalog)
         generator = elemental_format.prompt_generator
         desc = elemental_format.catalog_description(generator, include_schema=True)
         self.assertIn("interface Text {", desc)
+
+    def test_elemental_ts_type_mapping(self):
+        elemental_format = ElementalFormat(catalog=self.catalog)
+        generator = elemental_format.prompt_generator
+
+        prompt = generator.generate(
+            role_description="Test role",
+            include_schema=True,
+        )
+
+        # Check checks property maps to FunctionCall[]
+        self.assertIn("checks?: FunctionCall[]", prompt)
+        # Check $ref mappings
+        self.assertIn("refComponent?: A2UIElement", prompt)
+        self.assertIn("refChildList?: A2UIElement | A2UIElement[]", prompt)
+        self.assertIn("onclick?: Action", prompt)
+        self.assertIn("refString?: string | DataBinding", prompt)
+        self.assertIn("refNumber?: number | DataBinding", prompt)
+        self.assertIn("refBoolean?: boolean | DataBinding", prompt)
+        # Check nested object properties
+        self.assertIn("nestedObj?: DataBinding", prompt)
+        # Check union type mapping
+        self.assertIn("unionType?: string | number", prompt)
+        # Check enum type mapping
+        self.assertIn("enumType?: 'option1' | 'option2'", prompt)
+        # Check primitive array mapping
+        self.assertIn("primitiveArray?: string[]", prompt)
+        # Check object array mapping
+        self.assertIn("objectArray?: Array<{id: string; val?: number}>", prompt)
+        # Check plain object mapping
+        self.assertIn("plainObject?: {name: string; age?: number}", prompt)
+        # Check generic object mapping
+        self.assertIn("genericObject?: Record<string, any>", prompt)
+
+    def test_allowed_components_pruning(self):
+        elemental_format = ElementalFormat(catalog=self.catalog)
+        generator = elemental_format.prompt_generator
+
+        # Only allow Text component, which should prune RichComponent
+        prompt = generator.generate(
+            role_description="Test role",
+            include_schema=True,
+            allowed_components=["Text"],
+        )
+        self.assertNotIn("interface RichComponent", prompt)
+        self.assertIn("interface Text", prompt)
+
+    def test_elemental_include_examples_transformation(self):
+        example_payload = {
+            "version": "1.0",
+            "createSurface": {
+                "surfaceId": "welcome",
+                "components": [
+                    {"id": "root", "component": "RichComponent", "refString": "hello"}
+                ],
+            },
+        }
+        md_content = (
+            f"Some markdown text.\n\n```json\n{json.dumps(example_payload)}\n```\n"
+        )
+        md_file_path = os.path.join(self.tmp_dir.name, "examples.md")
+        with open(md_file_path, "w", encoding="utf-8") as f:
+            f.write(md_content)
+
+        elemental_format = ElementalFormat(
+            catalog=self.catalog, examples_path=md_file_path
+        )
+        generator = elemental_format.prompt_generator
+
+        prompt = generator.generate(
+            role_description="Test role",
+            include_schema=True,
+            include_examples=True,
+            validate_examples=False,
+        )
+
+        self.assertIn("### Examples:", prompt)
+        self.assertIn('<ui-rich-component id="root" ref-string="hello" />', prompt)
+
+    def test_elemental_examples_validation(self):
+        example_payload = {
+            "version": "1.0",
+            "createSurface": {
+                "surfaceId": "welcome",
+                "components": [
+                    {"id": "root", "component": "RichComponent", "refString": "hello"}
+                ],
+            },
+        }
+        json_file_path = os.path.join(self.tmp_dir.name, "example_1.json")
+        with open(json_file_path, "w", encoding="utf-8") as f:
+            json.dump(example_payload, f)
+
+        elemental_format = ElementalFormat(
+            catalog=self.catalog, examples_path=self.tmp_dir.name
+        )
+        generator = elemental_format.prompt_generator
+
+        prompt = generator.generate(
+            role_description="Test role",
+            include_schema=True,
+            include_examples=True,
+            validate_examples=True,
+        )
+
+        self.assertIn("### Examples:", prompt)
+        self.assertIn("---BEGIN example_1---", prompt)
+
+
+if __name__ == "__main__":
+    unittest.main()

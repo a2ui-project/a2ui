@@ -410,6 +410,85 @@ class TestElementalDecompiler(unittest.TestCase):
         self.assertIn('slot="leading"', html_output)
         self.assertIn('slot="trailing"', html_output)
 
+    def test_decompile_boolean_and_null_attributes(self):
+        decompiler = ElementalDecompiler(self.catalog)
+        envelope = {
+            "version": "v1.0",
+            "createSurface": {
+                "surfaceId": "test-surf",
+                "components": [
+                    {
+                        "id": "comp_1",
+                        "component": "TextField",
+                        "disabled": True,
+                        "required": False,
+                        "placeholder": None,
+                    }
+                ],
+            },
+        }
+        html_output = decompiler.decompile(envelope)
+        self.assertIn('disabled="{true}"', html_output)
+        self.assertIn('required="{false}"', html_output)
+        self.assertIn('placeholder="{null}"', html_output)
+
+    def test_decompile_checks_with_positional_args(self):
+        decompiler = ElementalDecompiler(self.catalog)
+        envelope = {
+            "version": "v1.0",
+            "createSurface": {
+                "surfaceId": "test-surf",
+                "components": [
+                    {
+                        "id": "input_1",
+                        "component": "TextField",
+                        "value": {"path": "/dob"},
+                        "checks": [
+                            {
+                                "condition": {
+                                    "call": "required",
+                                    "args": [{"path": "/dob"}],
+                                }
+                            }
+                        ],
+                    }
+                ],
+            },
+        }
+        html_output = decompiler.decompile(envelope)
+        self.assertIn('checks="{[required()]}"', html_output)
+
+    def test_decompile_dict_expressions_and_function_calls(self):
+        decompiler = ElementalDecompiler(self.catalog)
+        envelope = {
+            "version": "v1.0",
+            "createSurface": {
+                "surfaceId": "test-surf",
+                "components": [
+                    {
+                        "id": "btn_1",
+                        "component": "Button",
+                        "action": {
+                            "functionCall": {
+                                "call": "openUrl",
+                                "args": {"url": "https://example.com"},
+                            }
+                        },
+                        "child": "text_1",
+                    },
+                    {
+                        "id": "text_1",
+                        "component": "Text",
+                        "text": {"foo": "bar", "num": 123},
+                    },
+                ],
+            },
+        }
+        html_output = decompiler.decompile(envelope)
+        self.assertIn("onclick=\"{openUrl(url: 'https://example.com')}\"", html_output)
+        self.assertIn('<script type="application/json" slot="text">', html_output)
+        self.assertIn('"foo": "bar"', html_output)
+
 
 if __name__ == "__main__":
     unittest.main()
