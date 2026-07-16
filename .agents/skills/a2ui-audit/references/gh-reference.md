@@ -1,11 +1,6 @@
----
-name: gh-investigate-skill
-description: Use the GitHub CLI (gh) to search, list, view, and audit repository state, issues, pull requests, actions workflows, and releases, and to create/update issues and pull requests.
----
+# GitHub CLI Reference
 
-# GitHub Investigation Skill
-
-This skill provides a reference for using the GitHub CLI (`gh`) to perform read-only investigations of repository state, and to manage issues and pull requests.
+This reference provides information about using the GitHub CLI (`gh`) to perform read-only investigations of repository state, and to manage issues and pull requests.
 
 > [!IMPORTANT]
 > To run the `gh` command-line tool, you must prefix it with `env -u GITHUB_TOKEN` to unset the dummy environment variable (e.g., `env -u GITHUB_TOKEN gh auth status`).
