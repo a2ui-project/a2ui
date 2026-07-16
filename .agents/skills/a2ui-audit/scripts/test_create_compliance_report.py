@@ -12,6 +12,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+"""Tests for the create_compliance_report script.
+
+This module verifies that the script parses command-line arguments correctly,
+validates input file paths, handles GitHub CLI subprocess errors, and executes
+with the expected options.
+"""
+
 import datetime
 import io
 import os
@@ -27,6 +34,7 @@ from create_compliance_report import main
 
 
 class TestCreateComplianceReport(unittest.TestCase):
+    """Unit tests for the create_compliance_report script."""
 
     def setUp(self) -> None:
         self.temp_dir = tempfile.TemporaryDirectory()

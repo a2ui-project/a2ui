@@ -13,6 +13,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+"""Publishes the weekly blueprint compliance report as a GitHub issue.
+
+This script parses command-line arguments to locate the compiled markdown report
+and post it as a new GitHub issue in the target repository using the `gh` CLI.
+"""
+
 import argparse
 import datetime
 import os
@@ -21,6 +27,12 @@ import sys
 
 
 def main() -> None:
+    """Parses arguments and creates a GitHub issue with the compliance report.
+
+    Validates that the input report exists, formats the issue title, and invokes
+    the GitHub CLI (`gh`) to file the issue under the target repository with
+    the required labels.
+    """
     parser = argparse.ArgumentParser(
         description="Post blueprint compliance report as a GitHub issue."
     )
