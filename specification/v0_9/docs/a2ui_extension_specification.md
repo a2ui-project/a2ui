@@ -10,7 +10,7 @@ Note that A2UI extension activation is optional as clients and agents can negoti
 
 The URI of this extension is https://a2ui.org/a2a-extension/a2ui/v0.9
 
-This URI is the canonical way to communicate protocol versioning between clients and agents. The extension URI explicitly encodes the version (e.g., `v0.9.1`). A client requesting this specific URI indicates it supports the v0.9.1 schema format.
+This URI is the canonical way to communicate protocol versioning between clients and agents. The extension URI explicitly encodes the version (e.g., `v0.9`). A client requesting this specific URI indicates it supports the v0.9 schema format.
 
 ## Agent Card
 
@@ -26,12 +26,12 @@ Example AgentCard payload:
     "extensions": [
       {
         "uri": "https://a2ui.org/a2a-extension/a2ui/v0.9",
-        "description": "Ability to render A2UI v0.9.1",
+        "description": "Ability to render A2UI v0.9",
         "required": false,
         "params": {
           "supportedCatalogIds": [
-            "https://a2ui.org/specification/v0_9_1/catalogs/basic/catalog.json",
-            "https://my-company.com/a2ui/v0.9.1/my_custom_catalog.json"
+            "https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json",
+            "https://my-company.com/a2ui/v0.9/my_custom_catalog.json"
           ],
           "acceptsInlineCatalogs": true
         }
@@ -128,8 +128,8 @@ The client sends `sendMessageRequest.message["a2uiClientCapabilities"]` = [Clien
       "a2uiClientCapabilities": {
         "v0.9": {
           "supportedCatalogIds": [
-            "https://a2ui.org/specification/v0_9_1/catalogs/basic/catalog.json",
-            "https://my-company.com/a2ui/v0.9.1/my_custom_catalog.json"
+            "https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json",
+            "https://my-company.com/a2ui/v0.9/my_custom_catalog.json"
           ]
         }
       }
@@ -195,14 +195,14 @@ Example DataPart:
 {
   "data": [
     {
-      "version": "v0.9.1",
+      "version": "v0.9",
       "createSurface": {
         "surfaceId": "example_surface",
-        "catalogId": "https://a2ui.org/specification/v0_9_1/catalogs/basic/catalog.json"
+        "catalogId": "https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json"
       }
     },
     {
-      "version": "v0.9.1",
+      "version": "v0.9",
       "updateComponents": {
         "surfaceId": "example_surface",
         "components": [
@@ -233,7 +233,7 @@ Example `action` DataPart:
 {
   "data": [
     {
-      "version": "v0.9.1",
+      "version": "v0.9",
       "action": {
         "name": "submit_form",
         "surfaceId": "contact_form_1",

@@ -10,7 +10,7 @@ Note that A2UI extension activation is optional as clients and agents can negoti
 
 The URI of this extension is https://a2ui.org/a2a-extension/a2ui/v1.0
 
-This URI is the canonical way to communicate protocol versioning between clients and agents. The extension URI explicitly encodes the version (e.g., `v0.9.1`). A client requesting this specific URI indicates it supports the v0.9.1 schema format.
+This URI is the canonical way to communicate protocol versioning between clients and agents. The extension URI explicitly encodes the version (e.g., `v1.0`). A client requesting this specific URI indicates it supports the v1.0 schema format.
 
 ## Agent Card
 
@@ -26,12 +26,12 @@ Example AgentCard payload:
     "extensions": [
       {
         "uri": "https://a2ui.org/a2a-extension/a2ui/v1.0",
-        "description": "Ability to render A2UI v0.9.1",
+        "description": "Ability to render A2UI v1.0",
         "required": false,
         "params": {
           "supportedCatalogIds": [
-            "https://a2ui.org/specification/v0_9_1/catalogs/basic/catalog.json",
-            "https://my-company.com/a2ui/v0.9.1/my_custom_catalog.json"
+            "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
+            "https://my-company.com/a2ui/v1.0/my_custom_catalog.json"
           ],
           "acceptsInlineCatalogs": true
         }
@@ -130,8 +130,8 @@ Additionally, the client determines a function's execution boundary (e.g., `clie
       "a2uiClientCapabilities": {
         "v1.0": {
           "supportedCatalogIds": [
-            "https://a2ui.org/specification/v0_9_1/catalogs/basic/catalog.json",
-            "https://my-company.com/a2ui/v0.9.1/my_custom_catalog.json"
+            "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
+            "https://my-company.com/a2ui/v1.0/my_custom_catalog.json"
           ]
         }
       }
@@ -156,7 +156,7 @@ When a surface enables Data Model Sync, the client sends `sendMessageRequest.mes
     ],
     "metadata": {
       "a2uiClientDataModel": {
-        "version": "v0.9.1",
+        "version": "v1.0",
         "surfaces": {
           "main_surface_id": {
             "user_id": "12345",
@@ -197,14 +197,14 @@ Example DataPart:
 {
   "data": [
     {
-      "version": "v0.9.1",
+      "version": "v1.0",
       "createSurface": {
         "surfaceId": "example_surface",
-        "catalogId": "https://a2ui.org/specification/v0_9_1/catalogs/basic/catalog.json"
+        "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
       }
     },
     {
-      "version": "v0.9.1",
+      "version": "v1.0",
       "updateComponents": {
         "surfaceId": "example_surface",
         "components": [
@@ -235,7 +235,7 @@ Example `action` DataPart:
 {
   "data": [
     {
-      "version": "v0.9.1",
+      "version": "v1.0",
       "action": {
         "name": "submit_form",
         "surfaceId": "contact_form_1",

@@ -30,8 +30,8 @@ Example AgentCard payload:
         "required": false,
         "params": {
           "supportedCatalogIds": [
-            "https://a2ui.org/specification/v0_9_1/catalogs/basic/catalog.json",
-            "https://my-company.com/a2ui/v0.9.1/my_custom_catalog.json"
+            "https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json",
+            "https://my-company.com/a2ui/v0.9/my_custom_catalog.json"
           ],
           "acceptsInlineCatalogs": true
         }
@@ -126,10 +126,10 @@ The client sends `sendMessageRequest.message["a2uiClientCapabilities"]` = [Clien
     ],
     "metadata": {
       "a2uiClientCapabilities": {
-        "v0.9": {
+        "v0.9.1": {
           "supportedCatalogIds": [
-            "https://a2ui.org/specification/v0_9_1/catalogs/basic/catalog.json",
-            "https://my-company.com/a2ui/v0.9.1/my_custom_catalog.json"
+            "https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json",
+            "https://my-company.com/a2ui/v0.9/my_custom_catalog.json"
           ]
         }
       }
@@ -198,7 +198,7 @@ Example DataPart:
       "version": "v0.9.1",
       "createSurface": {
         "surfaceId": "example_surface",
-        "catalogId": "https://a2ui.org/specification/v0_9_1/catalogs/basic/catalog.json"
+        "catalogId": "https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json"
       }
     },
     {
