@@ -20,6 +20,7 @@ from a2ui.schema.capabilities import ClientUiCapabilities
 
 if TYPE_CHECKING:
     from a2ui.inference_formats.transport.format import TransportFormat
+    from a2ui.schema.catalog import A2uiCatalog
 
 
 class TransportPromptGenerator(PromptGenerator):
@@ -32,6 +33,7 @@ class TransportPromptGenerator(PromptGenerator):
             format_inst: The TransportFormat instance.
         """
         self._format = format_inst
+        self.selected_catalog: Optional["A2uiCatalog"] = None
 
     def generate(
         self,

@@ -58,15 +58,15 @@ class BlockLexer:
         self.string_delimiters = string_delimiters or {"'", '"'}
         self.single_line_comments = single_line_comments or {"#"}
 
-    def _clean_markdown(self, text: Optional[str]) -> Optional[str]:
+    def _clean_markdown(self, text: str) -> str:
         """Cleans Markdown code block wrapper backticks from conversational text."""
         if not text:
-            return None
+            return ""
         # Remove opening backticks followed by language indicator at the end (e.g. ```html)
         text = re.sub(r"```[a-zA-Z-]*\s*$", "", text, flags=re.IGNORECASE)
         # Remove leading closing backticks from the start of subsequent text
         text = re.sub(r"^\s*```", "", text)
-        return text.strip() or None
+        return text.strip()
 
     def tokenize(self, content: str) -> List[ResponsePart]:
         """Scans response content character-by-character to extract format blocks."""
@@ -76,10 +76,10 @@ class BlockLexer:
 
         state = LexerState.NORMAL
 
-        current_text = []
-        current_raw = []
+        current_text: list[str] = []
+        current_raw: list[str] = []
 
-        string_delim = None
+        string_delim: Optional[str] = None
         triple_quote = False
 
         while i < n:
@@ -151,6 +151,7 @@ class BlockLexer:
 
             # Handle string literal scanning (respect escaping)
             if state == LexerState.IN_STRING:
+                assert string_delim is not None
                 if content[i] == "\\":
                     if i + 1 < n:
                         current_raw.append(content[i : i + 2])

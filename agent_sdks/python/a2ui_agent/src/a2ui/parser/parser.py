@@ -46,7 +46,7 @@ class Parser(ABC):
             A list of ResponsePart objects containing text and compiled JSON.
         """
         parts = self.unwrap(content)
-        parsed_so_far = []
+        parsed_so_far: list[ResponsePart] = []
         for part in parts:
             if part.a2ui_raw is not None:
                 try:

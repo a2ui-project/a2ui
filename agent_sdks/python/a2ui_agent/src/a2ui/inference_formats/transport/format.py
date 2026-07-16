@@ -15,7 +15,7 @@
 """Standard A2UI transport inference format coordination."""
 
 import copy
-from typing import Any, Optional, Callable, Union
+from typing import Any, Optional, Callable, Union, cast
 
 from a2ui.schema.utils import load_from_bundled_resource
 from a2ui.inference_format import InferenceFormat
@@ -183,11 +183,13 @@ class TransportFormat(InferenceFormat):
         if not client_ui_capabilities or not isinstance(client_ui_capabilities, dict):
             return self._supported_catalogs[0]
 
-        inline_catalogs: list[dict[str, Any]] = client_ui_capabilities.get(
-            INLINE_CATALOGS_KEY, []
+        inline_catalogs = cast(
+            list[dict[str, Any]],
+            client_ui_capabilities.get(INLINE_CATALOGS_KEY, []),
         )
-        client_supported_catalog_ids: list[str] = client_ui_capabilities.get(
-            SUPPORTED_CATALOG_IDS_KEY, []
+        client_supported_catalog_ids = cast(
+            list[str],
+            client_ui_capabilities.get(SUPPORTED_CATALOG_IDS_KEY, []),
         )
 
         if not self._accepts_inline_catalogs and inline_catalogs:

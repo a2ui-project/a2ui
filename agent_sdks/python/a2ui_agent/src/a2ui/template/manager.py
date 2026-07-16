@@ -14,6 +14,7 @@
 
 from typing import Optional, Any
 from a2ui.inference_format import InferenceFormat
+from a2ui.schema.capabilities import ClientUiCapabilities
 
 
 class A2uiTemplateManager(InferenceFormat):
@@ -22,12 +23,20 @@ class A2uiTemplateManager(InferenceFormat):
     def parser(self) -> Any:
         raise NotImplementedError("This method is not yet implemented.")
 
+    @property
+    def decompiler(self) -> Any:
+        raise NotImplementedError("This method is not yet implemented.")
+
+    @property
+    def prompt_generator(self) -> Any:
+        raise NotImplementedError("This method is not yet implemented.")
+
     def generate_system_prompt(
         self,
         role_description: str,
         workflow_description: str = "",
         ui_description: str = "",
-        client_ui_capabilities: Optional[dict[str, Any]] = None,
+        client_ui_capabilities: Optional[ClientUiCapabilities] = None,
         allowed_components: Optional[list[str]] = None,
         allowed_messages: Optional[list[str]] = None,
         include_schema: bool = False,

@@ -315,7 +315,7 @@ title = Text($/title, "body")"""
         ui_only_content = '<a2ui>root = Text("Hello")</a2ui>'
         parts_ui = ExpressParser(self.catalog).parse_response(ui_only_content)
         self.assertEqual(len(parts_ui), 1)
-        self.assertIsNone(parts_ui[0].text)
+        self.assertEqual(parts_ui[0].text, "")
         self.assertIsNotNone(parts_ui[0].a2ui_json)
 
     def test_template_validation_and_decompiler_quoted_keys(self):
