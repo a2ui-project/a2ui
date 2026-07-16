@@ -61,12 +61,11 @@ exclude_path = [
   ".git",
   "dist",
   "build",
-  # The specification/ tree is copied into docs/specification/ at build time
-  # (see the "Copy schemas" step in docs.yml). Check only the published copies:
-  # the source files use asset paths that resolve only after that copy, so
-  # checking them directly is a false positive. Anchored to the source root so
-  # the docs/specification/ copies are still verified.
-  "^specification",
+  # The specification/ tree is copied into docs/public/specification/ at build time
+  # (see the "Copy schemas" step in docs.yml). Check only the original source copies
+  # because the published copies have broken relative links due to being nested
+  # deeper inside docs/public/.
+  "^docs/public/specification",
   # Exclude Python virtual environment directories
   "\\.venv",
   "venv",
