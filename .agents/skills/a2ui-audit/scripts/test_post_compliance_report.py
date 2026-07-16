@@ -73,9 +73,7 @@ class TestPostComplianceReport(unittest.TestCase):
         mock_res.stderr = ""
         mock_run.return_value = mock_res
 
-        with patch.object(
-            sys, "argv", ["post_compliance_report.py", self.report_file]
-        ):
+        with patch.object(sys, "argv", ["post_compliance_report.py", self.report_file]):
             main()
 
         # Verify subprocess call
@@ -100,9 +98,7 @@ class TestPostComplianceReport(unittest.TestCase):
         )
 
         output = mock_stdout.getvalue()
-        self.assertIn(
-            "Success: Compliance report issue posted successfully.", output
-        )
+        self.assertIn("Success: Compliance report issue posted successfully.", output)
         self.assertIn("https://github.com/a2ui-project/a2ui/issues/123", output)
 
     @patch("subprocess.run")
@@ -162,17 +158,13 @@ class TestPostComplianceReport(unittest.TestCase):
         mock_res.stderr = "some github cli error"
         mock_run.return_value = mock_res
 
-        with patch.object(
-            sys, "argv", ["post_compliance_report.py", self.report_file]
-        ):
+        with patch.object(sys, "argv", ["post_compliance_report.py", self.report_file]):
             with self.assertRaises(SystemExit) as cm:
                 main()
             self.assertEqual(cm.exception.code, 1)
 
         output = mock_stdout.getvalue()
-        self.assertIn(
-            "Error: Failed to create GitHub issue via gh CLI.", output
-        )
+        self.assertIn("Error: Failed to create GitHub issue via gh CLI.", output)
         self.assertIn("some github cli error", output)
 
     @patch("sys.stdout", new_callable=io.StringIO)
@@ -181,9 +173,7 @@ class TestPostComplianceReport(unittest.TestCase):
         """Verifies that the script prints an error and exits if gh is not installed."""
         mock_run.side_effect = FileNotFoundError
 
-        with patch.object(
-            sys, "argv", ["post_compliance_report.py", self.report_file]
-        ):
+        with patch.object(sys, "argv", ["post_compliance_report.py", self.report_file]):
             with self.assertRaises(SystemExit) as cm:
                 main()
             self.assertEqual(cm.exception.code, 1)
