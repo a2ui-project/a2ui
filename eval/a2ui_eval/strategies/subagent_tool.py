@@ -57,7 +57,7 @@ def a2ui_specialist() -> Tool:
         transport_format = TransportFormat(
             version=version,
             catalogs=[catalog_config],
-            experiments={"version_1_0"},
+            experiments={"version_1_0"} if version == "1.0" else None,
         )
 
         role_description = store().get("role_description")
