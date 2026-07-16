@@ -34,7 +34,7 @@ sys.path.insert(
         os.path.join(os.path.dirname(os.path.realpath(__file__)), "..", "..", "..")
     ),
 )
-from validate_blueprints import parse_frontmatter  # type: ignore
+from validate_blueprints import parse_frontmatter
 
 
 def run_cmd(args: List[str], cwd: Optional[str] = None) -> Optional[str]:
@@ -106,8 +106,11 @@ def main() -> None:
     for file_path in sorted(codebase_files):
         rel_path = os.path.relpath(file_path, blueprints_root)
         data, err = parse_frontmatter(file_path)
-        if err:
-            print(f"Error parsing {rel_path}: {err}", file=sys.stderr)
+        if err or data is None:
+            print(
+                f"Error parsing {rel_path}: {err or 'No data returned'}",
+                file=sys.stderr,
+            )
             continue
 
         associated_module = data.get("associated_module")
