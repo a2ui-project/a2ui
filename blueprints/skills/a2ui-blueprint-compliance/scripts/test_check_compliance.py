@@ -60,8 +60,7 @@ class TestCheckCompliance(unittest.TestCase):
         mock_res.stdout = "abcdef1234567890\n"
         mock_run.return_value = mock_res
 
-        with patch.object(sys, "argv", ["check_compliance.py"]):
-            main()
+        main()
 
         output = mock_stdout.getvalue()
         self.assertIn("🟢 Up to Date", output)
@@ -111,8 +110,7 @@ class TestCheckCompliance(unittest.TestCase):
 
         mock_run.side_effect = [mock_latest, mock_ancestor, mock_log]
 
-        with patch.object(sys, "argv", ["check_compliance.py"]):
-            main()
+        main()
 
         output = mock_stdout.getvalue()
         self.assertIn("🟡 Out of Date", output)
@@ -156,8 +154,7 @@ class TestCheckCompliance(unittest.TestCase):
 
         mock_run.side_effect = [mock_latest, mock_log]
 
-        with patch.object(sys, "argv", ["check_compliance.py"]):
-            main()
+        main()
 
         output = mock_stdout.getvalue()
         self.assertIn("🔴 Not Baselined", output)
@@ -188,68 +185,13 @@ class TestCheckCompliance(unittest.TestCase):
         )
         mock_exists.return_value = False  # File missing
 
-        with patch.object(sys, "argv", ["check_compliance.py"]):
-            main()
+        main()
 
         output = mock_stdout.getvalue()
         self.assertIn("🔴 Error", output)
         self.assertIn(
             "| `renderers/flutter` | `flutter_core` | 🔴 Error | 0 | `12345678` |"
             " `unknown` |",
-            output,
-        )
-
-    @patch("sys.stdout", new_callable=io.StringIO)
-    @patch("glob.glob")
-    @patch("check_compliance.parse_frontmatter")
-    @patch("os.path.exists")
-    @patch("subprocess.run")
-    def test_create_issue_flow(
-        self, mock_run, mock_exists, mock_parse, mock_glob, mock_stdout
-    ):
-        """Verifies that the script triggers the issue creation command via gh CLI when --create-issue is provided."""
-        mock_glob.return_value = [
-            "/path/to/blueprints/codebases/flutter/codebase.blueprint.md"
-        ]
-        mock_parse.return_value = (
-            {
-                "codebase_path": "renderers/flutter",
-                "associated_module": "flutter_core",
-                "module_blueprint_commit": "abcdef1234567890",
-            },
-            None,
-        )
-        mock_exists.return_value = True
-
-        # git commands mock response
-        mock_res = MagicMock()
-        mock_res.returncode = 0
-        mock_res.stdout = "abcdef1234567890\n"
-
-        # gh issue create mock response
-        mock_gh = MagicMock()
-        mock_gh.returncode = 0
-        mock_gh.stdout = "https://github.com/a2ui-project/a2ui/issues/456\n"
-
-        mock_run.side_effect = [mock_res, mock_gh]
-
-        with patch.object(sys, "argv", ["check_compliance.py", "--create-issue"]):
-            main()
-
-        # Check that gh issue create was called in the subprocess list
-        mock_run.assert_called()
-        self.assertEqual(mock_run.call_count, 2)
-        gh_args = mock_run.call_args_list[1][0][0]
-        self.assertEqual(gh_args[0], "gh")
-        self.assertEqual(gh_args[1], "issue")
-        self.assertEqual(gh_args[2], "create")
-        self.assertIn("Weekly Blueprint Compliance Report", gh_args[4])
-        self.assertEqual(gh_args[5], "--body-file")
-
-        output = mock_stdout.getvalue()
-        self.assertIn(
-            "Successfully created issue:"
-            " https://github.com/a2ui-project/a2ui/issues/456",
             output,
         )
 

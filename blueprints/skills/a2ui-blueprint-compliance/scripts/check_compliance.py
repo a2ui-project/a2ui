@@ -70,10 +70,6 @@ def main():
     blueprints_root = os.path.abspath(os.path.join(script_dir, "..", "..", ".."))
     workspace_root = os.path.abspath(os.path.join(blueprints_root, ".."))
 
-    # Parse arguments
-    create_issue = "--create-issue" in sys.argv
-    dry_run = not create_issue
-
     # 1. Discover all codebase blueprints
     codebases_pattern = os.path.join(
         blueprints_root, "codebases", "**", "codebase.blueprint.md"
@@ -236,45 +232,8 @@ def main():
 
     report_content = "\n".join(report)
 
-    # 3. Output / Posting
-    if dry_run:
-        print(report_content)
-
-    if create_issue:
-        # Create temp file for the issue body
-        temp_file = os.path.join(workspace_root, "tmp_compliance_report.md")
-        with open(temp_file, "w", encoding="utf-8") as f:
-            f.write(report_content)
-
-        # Issue parameters
-        title = f"Weekly Blueprint Compliance Report ({date_str})"
-        labels = ["status: needs review", "component: specification"]
-
-        cmd = [
-            "gh",
-            "issue",
-            "create",
-            "--title",
-            title,
-            "--body-file",
-            temp_file,
-        ]
-
-        for label in labels:
-            cmd.extend(["--label", label])
-
-        print(f"Creating GitHub issue: {title}...")
-        result = subprocess.run(cmd, capture_output=True, text=True, check=False)
-
-        # Clean up temp file
-        if os.path.exists(temp_file):
-            os.remove(temp_file)
-
-        if result.returncode == 0:
-            print(f"Successfully created issue: {result.stdout.strip()}")
-        else:
-            print(f"Error creating issue: {result.stderr.strip()}", file=sys.stderr)
-            sys.exit(1)
+    # 3. Output
+    print(report_content)
 
 
 if __name__ == "__main__":
