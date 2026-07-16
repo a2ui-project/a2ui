@@ -140,7 +140,7 @@ The client sends `sendMessageRequest.message["a2uiClientCapabilities"]` = [Clien
 
 ### `a2uiClientDataModel`
 
-When a surface enables Data Model Sync, the client sends `sendMessageRequest.message["a2uiClientDataModel"]` = [Client Data Model Schema](../json/client_data_model.json) on every message. This model provides the agent with the latest UI state. For more details, see the [Actions Guide](../../../../../docs/public/concepts/actions.md).
+When a surface enables Data Model Sync, the client sends `sendMessageRequest.message["a2uiClientDataModel"]` = [Client Data Model Schema](../../../json/client_data_model.json) on every message. This model provides the agent with the latest UI state. For more details, see the [Actions Guide](../../../../../docs/public/concepts/actions.md).
 
 **Example `SendMessageRequest` with Data Model:**
 
