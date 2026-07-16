@@ -22,7 +22,7 @@ from unittest.mock import patch, MagicMock
 # Ensure the directory containing check_compliance.py is in the Python search path
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-from check_compliance import main
+from check_compliance import main, run_cmd
 
 
 class TestCheckCompliance(unittest.TestCase):
@@ -191,6 +191,67 @@ class TestCheckCompliance(unittest.TestCase):
         self.assertIn("🔴 Error", output)
         self.assertIn(
             "| `renderers/flutter` | `flutter_core` | 🔴 Error | 0 | `12345678` |"
+            " `unknown` |",
+            output,
+        )
+
+    @patch("sys.stderr", new_callable=io.StringIO)
+    @patch("subprocess.run")
+    def test_run_cmd_file_not_found(self, mock_run, mock_stderr):
+        """Verifies that run_cmd handles FileNotFoundError safely and prints to stderr."""
+        mock_run.side_effect = FileNotFoundError(
+            "[Errno 2] No such file or directory: 'git'"
+        )
+
+        result = run_cmd(["git", "status"])
+
+        self.assertIsNone(result)
+        self.assertIn(
+            "Error running command ['git', 'status']: executable not found",
+            mock_stderr.getvalue(),
+        )
+
+    @patch("sys.stdout", new_callable=io.StringIO)
+    @patch("glob.glob")
+    @patch("check_compliance.parse_frontmatter")
+    @patch("os.path.exists")
+    @patch("subprocess.run")
+    def test_compliance_with_none_commits(
+        self, mock_run, mock_exists, mock_parse, mock_glob, mock_stdout
+    ):
+        """Verifies that the script handles None or non-string commits without throwing TypeError."""
+        mock_glob.return_value = [
+            "/path/to/blueprints/codebases/flutter/codebase.blueprint.md"
+        ]
+        # module_blueprint_commit is explicitly None (not the string "None")
+        mock_parse.return_value = (
+            {
+                "codebase_path": "renderers/flutter",
+                "associated_module": "flutter_core",
+                "module_blueprint_commit": None,
+            },
+            None,
+        )
+        mock_exists.return_value = True
+
+        # mock git commands: get_latest_commit fails (returncode = 1), so run_cmd returns None
+        mock_latest = MagicMock()
+        mock_latest.returncode = 1
+        mock_latest.stdout = ""
+
+        # mock git log (which shouldn't run or fail)
+        mock_log = MagicMock()
+        mock_log.returncode = 1
+        mock_log.stdout = ""
+
+        mock_run.side_effect = [mock_latest, mock_log]
+
+        main()
+
+        output = mock_stdout.getvalue()
+        self.assertIn("🔴 Not Baselined", output)
+        self.assertIn(
+            "| `renderers/flutter` | `flutter_core` | 🔴 Not Baselined | All | `None` |"
             " `unknown` |",
             output,
         )

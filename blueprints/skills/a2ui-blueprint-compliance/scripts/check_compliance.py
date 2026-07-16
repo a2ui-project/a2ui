@@ -31,10 +31,19 @@ from validate_blueprints import parse_frontmatter
 
 def run_cmd(args, cwd=None):
     """Runs a shell command and returns output, or None on error."""
-    result = subprocess.run(args, capture_output=True, text=True, cwd=cwd, check=False)
-    if result.returncode != 0:
+    try:
+        result = subprocess.run(
+            args, capture_output=True, text=True, cwd=cwd, check=False
+        )
+        if result.returncode != 0:
+            return None
+        return result.stdout.strip()
+    except FileNotFoundError as e:
+        print(
+            f"Error running command {args}: executable not found. Details: {e}",
+            file=sys.stderr,
+        )
         return None
-    return result.stdout.strip()
 
 
 def get_latest_commit(file_path, cwd=None):
@@ -174,12 +183,16 @@ def main():
 
     for item in compliance_data:
         codebase_name = os.path.dirname(item["codebase"]).replace("codebases/", "")
+        current_val = item["current_commit"]
         current_short = (
-            item["current_commit"][:8] if item["current_commit"] != "None" else "None"
+            current_val[:8]
+            if isinstance(current_val, str) and current_val != "None"
+            else "None"
         )
+        latest_val = item["latest_commit"]
         latest_short = (
-            item["latest_commit"][:8]
-            if item["latest_commit"] != "unknown"
+            latest_val[:8]
+            if isinstance(latest_val, str) and latest_val != "unknown"
             else "unknown"
         )
         commits_behind_str = (
