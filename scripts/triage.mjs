@@ -230,76 +230,81 @@ async function fetchContributions({github, owner, repo}, item) {
 export default async function issueTriage({github, context}) {
   console.log('A2UI triage-flag reconciliation started');
 
-  const {owner, repo} = context.repo;
-  const now = Date.now();
+  try {
+    const {owner, repo} = context.repo;
+    const now = Date.now();
 
-  // `listForRepo` returns both issues and PRs; PRs carry a `pull_request` key.
-  const openItems = await github.paginate(github.rest.issues.listForRepo, {
-    owner,
-    repo,
-    state: 'open',
-    per_page: 100,
-  });
+    // `listForRepo` returns both issues and PRs; PRs carry a `pull_request` key.
+    const openItems = await github.paginate(github.rest.issues.listForRepo, {
+      owner,
+      repo,
+      state: 'open',
+      per_page: 100,
+    });
 
-  // Fetch each item's contributions in bounded concurrent batches to avoid a
-  // slow serial loop without flooding the API.
-  const itemsWithContributions = await mapInBatches(openItems, async item => ({
-    item,
-    contributions: await fetchContributions({github, owner, repo}, item),
-  }));
+    // Fetch each item's contributions in bounded concurrent batches to avoid a
+    // slow serial loop without flooding the API.
+    const itemsWithContributions = await mapInBatches(openItems, async item => ({
+      item,
+      contributions: await fetchContributions({github, owner, repo}, item),
+    }));
 
-  // Decide each item's desired state from the snapshot, and keep only those
-  // whose label needs to change. The snapshot from `listForRepo` can be stale
-  // if another run (the daily schedule overlapping an issue event) already
-  // changed the label, so the actual mutation re-checks the live state below.
-  const itemsToUpdate = itemsWithContributions
-    .map(({item, contributions}) => ({item, reason: flagReason(item, contributions, now)}))
-    .filter(({item, reason}) => Boolean(reason) !== labelNames(item).includes(FLAG_LABEL));
+    // Decide each item's desired state from the snapshot, and keep only those
+    // whose label needs to change. The snapshot from `listForRepo` can be stale
+    // if another run (the daily schedule overlapping an issue event) already
+    // changed the label, so the actual mutation re-checks the live state below.
+    const itemsToUpdate = itemsWithContributions
+      .map(({item, contributions}) => ({item, reason: flagReason(item, contributions, now)}))
+      .filter(({item, reason}) => Boolean(reason) !== labelNames(item).includes(FLAG_LABEL));
 
-  let added = 0;
-  let removed = 0;
+    let added = 0;
+    let removed = 0;
 
-  await mapInBatches(itemsToUpdate, async ({item, reason}) => {
-    const wantsFlag = Boolean(reason);
-    try {
-      // Re-read the live labels so a concurrent run cannot make us add the
-      // label twice.
-      const {data: fresh} = await github.rest.issues.get({
-        owner,
-        repo,
-        issue_number: item.number,
-      });
-      const hasFlag = labelNames(fresh).includes(FLAG_LABEL);
-      if (wantsFlag === hasFlag) {
-        return; // Another run already reconciled this item.
-      }
-
-      if (wantsFlag) {
-        await github.rest.issues.addLabels({
+    await mapInBatches(itemsToUpdate, async ({item, reason}) => {
+      const wantsFlag = Boolean(reason);
+      try {
+        // Re-read the live labels so a concurrent run cannot make us add the
+        // label twice.
+        const {data: fresh} = await github.rest.issues.get({
           owner,
           repo,
           issue_number: item.number,
-          labels: [FLAG_LABEL],
         });
-        added += 1;
-        console.log(`Flagged ${item.html_url} — ${reason}`);
-      } else {
-        await github.rest.issues.removeLabel({
-          owner,
-          repo,
-          issue_number: item.number,
-          name: FLAG_LABEL,
-        });
-        removed += 1;
-        console.log(`Unflagged ${item.html_url} — no longer matches any triage rule.`);
-      }
-    } catch (error) {
-      console.error(`Failed to update #${item.number}:`, error);
-    }
-  });
+        const hasFlag = labelNames(fresh).includes(FLAG_LABEL);
+        if (wantsFlag === hasFlag) {
+          return; // Another run already reconciled this item.
+        }
 
-  console.log(
-    `A2UI triage-flag reconciliation completed: ` +
-      `${openItems.length} items, +${added} / -${removed} label changes`,
-  );
+        if (wantsFlag) {
+          await github.rest.issues.addLabels({
+            owner,
+            repo,
+            issue_number: item.number,
+            labels: [FLAG_LABEL],
+          });
+          added += 1;
+          console.log(`Flagged ${item.html_url} — ${reason}`);
+        } else {
+          await github.rest.issues.removeLabel({
+            owner,
+            repo,
+            issue_number: item.number,
+            name: FLAG_LABEL,
+          });
+          removed += 1;
+          console.log(`Unflagged ${item.html_url} — no longer matches any triage rule.`);
+        }
+      } catch (error) {
+        console.error(`Failed to update #${item.number}:`, error);
+      }
+    });
+
+    console.log(
+      `A2UI triage-flag reconciliation completed: ` +
+        `${openItems.length} items, +${added} / -${removed} label changes`,
+    );
+  } catch (error) {
+    console.error('Error during triage reconciliation:', error);
+    throw error;
+  }
 }
