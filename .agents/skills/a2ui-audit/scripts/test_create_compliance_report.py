@@ -20,27 +20,27 @@ import tempfile
 import unittest
 from unittest.mock import patch, MagicMock
 
-# Ensure the directory containing post_compliance_report.py is in the Python search path
+# Ensure the directory containing create_compliance_report.py is in the Python search path
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-from post_compliance_report import main
+from create_compliance_report import main
 
 
-class TestPostComplianceReport(unittest.TestCase):
+class TestCreateComplianceReport(unittest.TestCase):
 
-    def setUp(self):
+    def setUp(self) -> None:
         self.temp_dir = tempfile.TemporaryDirectory()
         self.report_file = os.path.join(self.temp_dir.name, "report.md")
         with open(self.report_file, "w") as f:
             f.write("Test Report Content")
 
-    def tearDown(self):
+    def tearDown(self) -> None:
         self.temp_dir.cleanup()
 
     @patch("sys.stderr", new_callable=io.StringIO)
-    def test_missing_argument(self, mock_stderr):
+    def test_missing_argument(self, mock_stderr: MagicMock) -> None:
         """Verifies that the script exits if the report path argument is missing."""
-        with patch.object(sys, "argv", ["post_compliance_report.py"]):
+        with patch.object(sys, "argv", ["create_compliance_report.py"]):
             with self.assertRaises(SystemExit) as cm:
                 main()
             self.assertEqual(cm.exception.code, 2)
@@ -50,10 +50,10 @@ class TestPostComplianceReport(unittest.TestCase):
         )
 
     @patch("sys.stdout", new_callable=io.StringIO)
-    def test_report_file_not_found(self, mock_stdout):
+    def test_report_file_not_found(self, mock_stdout: MagicMock) -> None:
         """Verifies that the script exits with code 1 if the report file does not exist."""
         with patch.object(
-            sys, "argv", ["post_compliance_report.py", "nonexistent_file.md"]
+            sys, "argv", ["create_compliance_report.py", "nonexistent_file.md"]
         ):
             with self.assertRaises(SystemExit) as cm:
                 main()
@@ -62,7 +62,7 @@ class TestPostComplianceReport(unittest.TestCase):
 
     @patch("sys.stdout", new_callable=io.StringIO)
     @patch("subprocess.run")
-    def test_successful_run(self, mock_run, mock_stdout):
+    def test_successful_run(self, mock_run: MagicMock, mock_stdout: MagicMock) -> None:
         """Verifies a successful run without --repo option."""
         today = datetime.date.today().isoformat()
         expected_title = f"Weekly Blueprint Compliance Report ({today})"
@@ -73,7 +73,9 @@ class TestPostComplianceReport(unittest.TestCase):
         mock_res.stderr = ""
         mock_run.return_value = mock_res
 
-        with patch.object(sys, "argv", ["post_compliance_report.py", self.report_file]):
+        with patch.object(
+            sys, "argv", ["create_compliance_report.py", self.report_file]
+        ):
             main()
 
         # Verify subprocess call
@@ -102,7 +104,7 @@ class TestPostComplianceReport(unittest.TestCase):
         self.assertIn("https://github.com/a2ui-project/a2ui/issues/123", output)
 
     @patch("subprocess.run")
-    def test_successful_run_with_repo(self, mock_run):
+    def test_successful_run_with_repo(self, mock_run: MagicMock) -> None:
         """Verifies a successful run with --repo option."""
         today = datetime.date.today().isoformat()
         expected_title = f"Weekly Blueprint Compliance Report ({today})"
@@ -117,7 +119,7 @@ class TestPostComplianceReport(unittest.TestCase):
             sys,
             "argv",
             [
-                "post_compliance_report.py",
+                "create_compliance_report.py",
                 self.report_file,
                 "--repo",
                 "a2ui-project/a2ui",
@@ -150,7 +152,7 @@ class TestPostComplianceReport(unittest.TestCase):
 
     @patch("sys.stdout", new_callable=io.StringIO)
     @patch("subprocess.run")
-    def test_failed_run(self, mock_run, mock_stdout):
+    def test_failed_run(self, mock_run: MagicMock, mock_stdout: MagicMock) -> None:
         """Verifies that the script exits with code 1 if the gh command fails."""
         mock_res = MagicMock()
         mock_res.returncode = 1
@@ -158,7 +160,9 @@ class TestPostComplianceReport(unittest.TestCase):
         mock_res.stderr = "some github cli error"
         mock_run.return_value = mock_res
 
-        with patch.object(sys, "argv", ["post_compliance_report.py", self.report_file]):
+        with patch.object(
+            sys, "argv", ["create_compliance_report.py", self.report_file]
+        ):
             with self.assertRaises(SystemExit) as cm:
                 main()
             self.assertEqual(cm.exception.code, 1)
@@ -169,11 +173,15 @@ class TestPostComplianceReport(unittest.TestCase):
 
     @patch("sys.stdout", new_callable=io.StringIO)
     @patch("subprocess.run")
-    def test_gh_cli_not_found(self, mock_run, mock_stdout):
+    def test_gh_cli_not_found(
+        self, mock_run: MagicMock, mock_stdout: MagicMock
+    ) -> None:
         """Verifies that the script prints an error and exits if gh is not installed."""
         mock_run.side_effect = FileNotFoundError
 
-        with patch.object(sys, "argv", ["post_compliance_report.py", self.report_file]):
+        with patch.object(
+            sys, "argv", ["create_compliance_report.py", self.report_file]
+        ):
             with self.assertRaises(SystemExit) as cm:
                 main()
             self.assertEqual(cm.exception.code, 1)

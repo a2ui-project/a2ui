@@ -35,7 +35,7 @@ fix issues.
 5. **Publish Report**:
    - Execute the local Python helper script to create the GitHub issue containing the combined reports:
      ```bash
-     python3 .agents/skills/a2ui-audit/scripts/post_compliance_report.py compliance_report.md --repo a2ui-project/a2ui
+     python3 .agents/skills/a2ui-audit/scripts/create_compliance_report.py compliance_report.md --repo a2ui-project/a2ui
      ```
    - Ensure the helper script runs successfully.
    - Clean up the temporary file `compliance_report.md` after completion.

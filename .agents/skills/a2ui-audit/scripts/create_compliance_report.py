@@ -20,7 +20,7 @@ import subprocess
 import sys
 
 
-def main():
+def main() -> None:
     parser = argparse.ArgumentParser(
         description="Post blueprint compliance report as a GitHub issue."
     )
