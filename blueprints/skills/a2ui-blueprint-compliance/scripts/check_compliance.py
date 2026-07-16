@@ -13,11 +13,19 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+"""Checks codebase compliance against module blueprints.
+
+This script scans codebase blueprint definitions and compares them against
+their corresponding module blueprints using Git history to verify if the
+implementations are up to date.
+"""
+
 import os
 import sys
 import subprocess
 import glob
 from datetime import datetime
+from typing import List, Optional
 
 # Add blueprints directory to path so we can import validate_blueprints
 sys.path.insert(
@@ -26,10 +34,10 @@ sys.path.insert(
         os.path.join(os.path.dirname(os.path.realpath(__file__)), "..", "..", "..")
     ),
 )
-from validate_blueprints import parse_frontmatter
+from validate_blueprints import parse_frontmatter  # type: ignore
 
 
-def run_cmd(args, cwd=None):
+def run_cmd(args: List[str], cwd: Optional[str] = None) -> Optional[str]:
     """Runs a shell command and returns output, or None on error."""
     try:
         result = subprocess.run(
@@ -46,14 +54,16 @@ def run_cmd(args, cwd=None):
         return None
 
 
-def get_latest_commit(file_path, cwd=None):
+def get_latest_commit(file_path: str, cwd: Optional[str] = None) -> Optional[str]:
     """Gets the latest commit hash for a specific file."""
     return run_cmd(
         ["git", "log", "-n", "1", "--pretty=format:%H", "--", file_path], cwd=cwd
     )
 
 
-def get_commits_since(file_path, since_commit=None, cwd=None):
+def get_commits_since(
+    file_path: str, since_commit: Optional[str] = None, cwd: Optional[str] = None
+) -> List[str]:
     """Gets commits for a file since a specific hash. If since_commit is None, returns all commits."""
     if since_commit:
         # Check if the commit exists in the history of the file first
@@ -74,7 +84,13 @@ def get_commits_since(file_path, since_commit=None, cwd=None):
     return [line.strip() for line in output.splitlines() if line.strip()]
 
 
-def main():
+def main() -> None:
+    """Discovers all codebase blueprints and audits their compliance.
+
+    Compares the pinned module commit of each codebase blueprint against the
+    latest commit in the corresponding module blueprint, building a markdown
+    report showing compliance statuses.
+    """
     script_dir = os.path.dirname(os.path.realpath(__file__))
     blueprints_root = os.path.abspath(os.path.join(script_dir, "..", "..", ".."))
     workspace_root = os.path.abspath(os.path.join(blueprints_root, ".."))

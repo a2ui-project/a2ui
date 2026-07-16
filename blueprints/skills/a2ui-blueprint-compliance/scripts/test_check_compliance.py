@@ -12,6 +12,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+"""Tests for the check_compliance script.
+
+This module validates that the compliance check script successfully identifies
+codebases as up-to-date, out-of-date, not baselined, or erroneous based on
+associated module blueprints.
+"""
+
 import datetime
 import io
 import os
@@ -26,6 +33,7 @@ from check_compliance import main, run_cmd
 
 
 class TestCheckCompliance(unittest.TestCase):
+    """Unit tests for the check_compliance script."""
 
     @patch("sys.stdout", new_callable=io.StringIO)
     @patch("glob.glob")
@@ -33,8 +41,13 @@ class TestCheckCompliance(unittest.TestCase):
     @patch("os.path.exists")
     @patch("subprocess.run")
     def test_up_to_date_codebase(
-        self, mock_run, mock_exists, mock_parse, mock_glob, mock_stdout
-    ):
+        self,
+        mock_run: MagicMock,
+        mock_exists: MagicMock,
+        mock_parse: MagicMock,
+        mock_glob: MagicMock,
+        mock_stdout: MagicMock,
+    ) -> None:
         """Verifies that a codebase that matches the latest module blueprint version is marked Up to Date."""
         # 1. Mock codebase blueprint file discovery
         mock_glob.return_value = [
@@ -76,8 +89,13 @@ class TestCheckCompliance(unittest.TestCase):
     @patch("os.path.exists")
     @patch("subprocess.run")
     def test_out_of_date_codebase(
-        self, mock_run, mock_exists, mock_parse, mock_glob, mock_stdout
-    ):
+        self,
+        mock_run: MagicMock,
+        mock_exists: MagicMock,
+        mock_parse: MagicMock,
+        mock_glob: MagicMock,
+        mock_stdout: MagicMock,
+    ) -> None:
         """Verifies that a codebase behind by a few commits is marked Out of Date and lists the commits."""
         mock_glob.return_value = [
             "/path/to/blueprints/codebases/flutter/codebase.blueprint.md"
@@ -128,8 +146,13 @@ class TestCheckCompliance(unittest.TestCase):
     @patch("os.path.exists")
     @patch("subprocess.run")
     def test_not_baselined_codebase(
-        self, mock_run, mock_exists, mock_parse, mock_glob, mock_stdout
-    ):
+        self,
+        mock_run: MagicMock,
+        mock_exists: MagicMock,
+        mock_parse: MagicMock,
+        mock_glob: MagicMock,
+        mock_stdout: MagicMock,
+    ) -> None:
         """Verifies that a codebase missing the commit pin in its blueprint is marked Not Baselined."""
         mock_glob.return_value = [
             "/path/to/blueprints/codebases/flutter/codebase.blueprint.md"
@@ -169,8 +192,12 @@ class TestCheckCompliance(unittest.TestCase):
     @patch("check_compliance.parse_frontmatter")
     @patch("os.path.exists")
     def test_missing_module_blueprint(
-        self, mock_exists, mock_parse, mock_glob, mock_stdout
-    ):
+        self,
+        mock_exists: MagicMock,
+        mock_parse: MagicMock,
+        mock_glob: MagicMock,
+        mock_stdout: MagicMock,
+    ) -> None:
         """Verifies that a codebase whose module blueprint does not exist is marked Error."""
         mock_glob.return_value = [
             "/path/to/blueprints/codebases/flutter/codebase.blueprint.md"
@@ -197,7 +224,9 @@ class TestCheckCompliance(unittest.TestCase):
 
     @patch("sys.stderr", new_callable=io.StringIO)
     @patch("subprocess.run")
-    def test_run_cmd_file_not_found(self, mock_run, mock_stderr):
+    def test_run_cmd_file_not_found(
+        self, mock_run: MagicMock, mock_stderr: MagicMock
+    ) -> None:
         """Verifies that run_cmd handles FileNotFoundError safely and prints to stderr."""
         mock_run.side_effect = FileNotFoundError(
             "[Errno 2] No such file or directory: 'git'"
@@ -217,8 +246,13 @@ class TestCheckCompliance(unittest.TestCase):
     @patch("os.path.exists")
     @patch("subprocess.run")
     def test_compliance_with_none_commits(
-        self, mock_run, mock_exists, mock_parse, mock_glob, mock_stdout
-    ):
+        self,
+        mock_run: MagicMock,
+        mock_exists: MagicMock,
+        mock_parse: MagicMock,
+        mock_glob: MagicMock,
+        mock_stdout: MagicMock,
+    ) -> None:
         """Verifies that the script handles None or non-string commits without throwing TypeError."""
         mock_glob.return_value = [
             "/path/to/blueprints/codebases/flutter/codebase.blueprint.md"
