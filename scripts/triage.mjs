@@ -305,6 +305,5 @@ export default async function issueTriage({github, context}) {
     );
   } catch (error) {
     console.error('Error during triage reconciliation:', error);
-    throw error;
   }
 }

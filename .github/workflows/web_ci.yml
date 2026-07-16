@@ -47,6 +47,7 @@ jobs:
       - uses: dorny/paths-filter@d1c1ffe0248fe513906c8e24db8ea791d46f8590 # v3
         id: filter
         with:
+          base: ${{ github.event.pull_request.base.sha || 'main' }}
           filters: |
             renderers:
               - 'renderers/**'

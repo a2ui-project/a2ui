@@ -3,7 +3,7 @@
 This reference provides information about using the GitHub CLI (`gh`) to perform read-only investigations of repository state, and to manage issues and pull requests.
 
 > [!IMPORTANT]
-> To run the `gh` command-line tool, you must prefix it with `env -u GITHUB_TOKEN` to unset the dummy environment variable (e.g., `env -u GITHUB_TOKEN gh auth status`).
+> If the GITHUB_TOKEN environment variable has a dummy value in it, to run the `gh` command-line tool, you must prefix it with `env -u GITHUB_TOKEN` to unset the dummy environment variable (e.g., `env -u GITHUB_TOKEN gh auth status`). Don't do this if the token appears to be a valid token.
 
 ---
 
