@@ -560,9 +560,9 @@ gh repo edit --description "New description"
 # Set homepage
 gh repo edit --homepage https://example.com
 
-# Change visibility
-gh repo edit --visibility private
-gh repo edit --visibility public
+# Change visibility (consequences confirmation flag is required)
+gh repo edit --visibility private --accept-visibility-change-consequences
+gh repo edit --visibility public --accept-visibility-change-consequences
 
 # Enable/disable features
 gh repo edit --enable-issues
@@ -1436,7 +1436,7 @@ gh project item-list 123
 gh project item-create 123 --title "New item"
 
 # Add item to project
-gh project item-add 123 --owner-owner --repo repo --issue 456
+gh project item-add 123 --owner owner --repo repo --issue 456
 
 # Edit item
 gh project item-edit 123 --id 456 --title "Updated title"
@@ -1497,8 +1497,8 @@ gh release upload v1.0.0 ./file.tar.gz
 # Upload multiple assets
 gh release upload v1.0.0 ./file1.tar.gz ./file2.tar.gz
 
-# Upload with label (casing sensitive)
-gh release upload v1.0.0 ./file.tar.gz --casing
+# Upload with label
+gh release upload v1.0.0 './file.tar.gz#My Asset Label'
 
 # Delete release
 gh release delete v1.0.0
@@ -1610,11 +1610,11 @@ gh codespace ssh --command "cd /workspaces && ls"
 # Open codespace in browser
 gh codespace code
 
-# Open in VS Code
-gh codespace code --codec
+# Open in VS Code Insiders
+gh codespace code --insiders
 
-# Open with specific path
-gh codespace code --path /workspaces/repo
+# Open in browser (web version)
+gh codespace code --web
 
 # Stop codespace
 gh codespace stop
@@ -1623,15 +1623,13 @@ gh codespace stop
 gh codespace delete
 
 # View logs
-gh codespace logs
-
---tail 100
+gh codespace logs --tail 100
 
 # View ports
 gh codespace ports
 
 # Forward port
-gh codespace cp 8080:8080
+gh codespace ports forward 8080:8080
 
 # Rebuild codespace
 gh codespace rebuild
@@ -1653,17 +1651,11 @@ gh codespace cp :/workspaces/file.txt ./file.txt
 # List organizations
 gh org list
 
-# List for user
-gh org list --user username
+# List organizations (default first 30)
+gh org list
 
-# JSON output
-gh org list --json login,name,description
-
-# View organization
-gh org view orgname
-
-# View organization members
-gh org view orgname --json members --jq '.members[] | .login'
+# List more organizations
+gh org list --limit 100
 ```
 
 ## Search (gh search)
@@ -1754,7 +1746,7 @@ gh ssh-key delete --title "My laptop"
 gh gpg-key list
 
 # Add GPG key
-gh gpg-key add ~/.ssh/id_rsa.pub
+gh gpg-key add public-key.gpg
 
 # Delete GPG key
 gh gpg-key delete 12345
@@ -1769,11 +1761,11 @@ gh gpg-key delete ABCD1234
 # Show status overview
 gh status
 
-# Status for specific repositories
-gh status --repo owner/repo
+# Exclude repositories from status
+gh status -e owner/repo -e owner/other-repo
 
-# JSON output
-gh status --json
+# Limit status to a single organization
+gh status -o my-org
 ```
 
 ## Configuration (gh config)
