@@ -38,6 +38,13 @@ class ExpressFormat(InferenceFormat):
         surface_id: str = "main",
         examples_path: Optional[str] = None,
     ):
+        """Initializes the Express DSL inference format.
+
+        Args:
+            catalog: The component catalog containing valid elements.
+            surface_id: The surface identifier for layout targeting.
+            examples_path: Optional path to markdown files containing examples.
+        """
         self.catalog = catalog
         self.surface_id = surface_id
         self.examples_path = examples_path
@@ -45,6 +52,11 @@ class ExpressFormat(InferenceFormat):
         self._prompt_generator: Optional[ExpressPromptGenerator] = None
 
     def _ensure_catalog(self) -> None:
+        """Ensures a valid catalog is set, raising ValueError otherwise.
+
+        Raises:
+            ValueError: If the catalog or decompiler has not been initialized.
+        """
         if not self.catalog or not self._decompiler:
             raise ValueError(
                 "Catalog is required for parsing and decompiling in express format."
@@ -52,7 +64,7 @@ class ExpressFormat(InferenceFormat):
 
     @property
     def prompt_generator(self) -> ExpressPromptGenerator:
-        """Returns the PromptGenerator instance for this format."""
+        """The prompt generator instance configured for this Express format."""
         if self._prompt_generator is None:
             self._ensure_catalog()
             self._prompt_generator = ExpressPromptGenerator(self)
@@ -60,11 +72,13 @@ class ExpressFormat(InferenceFormat):
 
     @property
     def parser(self) -> Parser:
+        """The parser instance configured for this Express format."""
         self._ensure_catalog()
         return ExpressParser(self.catalog, self.surface_id)
 
     @property
     def decompiler(self) -> ExpressDecompiler:
+        """The decompiler instance configured for this Express format."""
         self._ensure_catalog()
         assert self._decompiler is not None
         return self._decompiler

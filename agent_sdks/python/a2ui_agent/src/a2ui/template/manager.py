@@ -18,17 +18,21 @@ from a2ui.schema.capabilities import ClientUiCapabilities
 
 
 class A2uiTemplateManager(InferenceFormat):
+    """Manages prompt compilation and payload processing for template definitions."""
 
     @property
     def parser(self) -> Any:
+        """The parser instance associated with the template manager."""
         raise NotImplementedError("This method is not yet implemented.")
 
     @property
     def decompiler(self) -> Any:
+        """The decompiler instance associated with the template manager."""
         raise NotImplementedError("This method is not yet implemented.")
 
     @property
     def prompt_generator(self) -> Any:
+        """The prompt generator instance associated with the template manager."""
         raise NotImplementedError("This method is not yet implemented.")
 
     def generate_system_prompt(
@@ -43,5 +47,6 @@ class A2uiTemplateManager(InferenceFormat):
         include_examples: bool = False,
         validate_examples: bool = False,
     ) -> str:
+        """Generates a system prompt for requests (not yet implemented)."""
         # TODO: Implementation logic for Template Manager
         raise NotImplementedError("This method is not yet implemented.")

@@ -74,14 +74,14 @@ class TransportFormat(InferenceFormat):
 
     @property
     def prompt_generator(self) -> TransportPromptGenerator:
-        """Returns the PromptGenerator instance for this format."""
+        """The prompt generator instance configured for this Transport format."""
         if self._prompt_generator is None:
             self._prompt_generator = TransportPromptGenerator(self)
         return self._prompt_generator
 
     @property
     def parser(self) -> TransportParser:
-        """Returns the Parser instance for this format."""
+        """The parser instance configured for this Transport format."""
         if self._parser is None:
             if not self._supported_catalogs:
                 raise ValueError(
@@ -264,7 +264,7 @@ class TransportFormat(InferenceFormat):
 
     @property
     def decompiler(self) -> TransportDecompiler:
-        """Returns the Decompiler instance for this format."""
+        """The decompiler instance configured for this Transport format."""
         return TransportDecompiler()
 
     def load_examples(self, catalog: A2uiCatalog, validate: bool = False) -> str:

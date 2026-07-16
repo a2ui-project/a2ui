@@ -286,7 +286,14 @@ class ExpressPromptGenerator(PromptGenerator):
         return self.catalog_description(include_schema=True)
 
     def catalog_description(self, include_schema: bool = True) -> str:
-        """Returns the format's system prompt component catalog signatures block."""
+        """Assembles the system prompt component catalog signatures block.
+
+        Args:
+            include_schema: Whether to include the schema description.
+
+        Returns:
+            The rendered LLM instructions string block containing positional signatures.
+        """
         if not include_schema:
             return ""
 
@@ -323,6 +330,14 @@ class ExpressPromptGenerator(PromptGenerator):
         return desc
 
     def decompile(self, val: dict[str, Any]) -> str:
+        """Decompiles a structured JSON surface block into Express DSL.
+
+        Args:
+            val: The structured JSON dictionary representing surface instructions.
+
+        Returns:
+            The Express DSL string representation of the surface.
+        """
         decompiler = self.decompiler or self._format.decompiler
         if not decompiler:
             self._format._ensure_catalog()
@@ -331,6 +346,14 @@ class ExpressPromptGenerator(PromptGenerator):
         return decompiler.decompile(val)
 
     def wrap_decompiled_blocks(self, blocks: list[str]) -> str:
+        """Encloses decompiled DSL code blocks in markdown code fences and sentinel tags.
+
+        Args:
+            blocks: A list of Express DSL snippet strings.
+
+        Returns:
+            The enclosed and formatted markdown block.
+        """
         decompiler = self.decompiler or self._format.decompiler
         if not decompiler:
             self._format._ensure_catalog()

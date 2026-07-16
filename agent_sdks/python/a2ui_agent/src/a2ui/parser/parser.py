@@ -94,7 +94,7 @@ class Parser(ABC):
 
     @property
     def supports_streaming(self) -> bool:
-        """Returns True if the parser supports streaming token chunk compilation."""
+        """Whether the parser supports streaming token chunk compilation."""
         return False
 
     def process_chunk(self, chunk: str) -> List[ResponsePart]:

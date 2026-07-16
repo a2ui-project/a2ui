@@ -43,6 +43,14 @@ class BlockLexer:
         string_delimiters: Optional[Set[str]] = None,
         single_line_comments: Optional[Set[str]] = None,
     ):
+        """Initializes the block lexer with tag patterns, string delimiters, and comments.
+
+        Args:
+            open_tag: Either the literal open tag string or a pre-compiled regex pattern.
+            close_tag: Either the literal close tag string or a pre-compiled regex pattern.
+            string_delimiters: Character set representing string bounds.
+            single_line_comments: Character set representing single-line comment markers.
+        """
         if isinstance(open_tag, str):
             tag_name = open_tag.strip("<>")
             self.open_tag_pattern = re.compile(rf"<{tag_name}\b[^>]*>", re.IGNORECASE)
@@ -59,7 +67,14 @@ class BlockLexer:
         self.single_line_comments = single_line_comments or {"#"}
 
     def _clean_markdown(self, text: str) -> str:
-        """Cleans Markdown code block wrapper backticks from conversational text."""
+        """Cleans Markdown code block wrapper backticks from conversational text.
+
+        Args:
+            text: The raw conversational text to strip.
+
+        Returns:
+            The cleaned text with code block wrappers removed.
+        """
         if not text:
             return ""
         # Remove opening backticks followed by language indicator at the end (e.g. ```html)
@@ -69,7 +84,17 @@ class BlockLexer:
         return text.strip()
 
     def tokenize(self, content: str) -> List[ResponsePart]:
-        """Scans response content character-by-character to extract format blocks."""
+        """Scans response content character-by-character to extract format blocks.
+
+        Properly respects nested comments, strings, and escaped characters to avoid
+        premature close tag detection.
+
+        Args:
+            content: The raw text response string to scan.
+
+        Returns:
+            A list of tokenized response parts.
+        """
         parts: List[ResponsePart] = []
         n = len(content)
         i = 0

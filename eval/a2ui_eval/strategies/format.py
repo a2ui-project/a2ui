@@ -33,6 +33,17 @@ def _get_strategy(
     catalog_config: CatalogConfig,
     surface_id: str = "main",
 ) -> InferenceFormat:
+    """Resolves and instantiates the InferenceFormat strategy for the given format.
+
+    Args:
+        format_name: The name of the format strategy (json, express, or elemental).
+        version: The specification version (e.g. 0.9.1 or 1.0).
+        catalog_config: The catalog configuration details.
+        surface_id: The surface identifier target.
+
+    Returns:
+        The instantiated InferenceFormat strategy object.
+    """
     transport_format = TransportFormat(
         version=version,
         catalogs=[catalog_config],
@@ -56,7 +67,7 @@ def _get_strategy(
 
 @solver
 def format_system_prompt(format_name: str, version: str) -> Solver:
-    """Solver to inject system prompt instructions using the selected format strategy."""
+    """Injects system prompt instructions using the selected format strategy."""
 
     async def solve(state: TaskState, generate: Generate) -> TaskState:
         catalog_path = state.metadata["catalog"]

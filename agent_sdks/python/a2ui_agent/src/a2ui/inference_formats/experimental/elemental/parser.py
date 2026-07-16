@@ -30,16 +30,38 @@ class ElementalParser(Parser):
     def __init__(
         self, catalog: Union[Catalog[Any, Any], A2uiCatalog], surface_id: str = "main"
     ):
+        """Initializes the parser with a component catalog and target surface ID.
+
+        Args:
+            catalog: The component catalog containing valid A2UI elements.
+            surface_id: The surface identifier for layout targeting.
+        """
         self.catalog = catalog
         self.surface_id = surface_id
 
     def has_format_content(self, content: str, *, complete: bool = False) -> bool:
+        """Checks if the content contains any A2UI Elemental sentinel tags.
+
+        Args:
+            content: The raw text content to inspect.
+            complete: Whether to check for both opening and closing tags.
+
+        Returns:
+            True if sentinel tags are detected, False otherwise.
+        """
         if complete:
             return "<a2ui" in content and "</a2ui>" in content
         return "<a2ui" in content
 
     def unwrap(self, content: str) -> List[ResponsePart]:
-        """Unwraps/tokenizes the response content into raw Elemental HTML parts."""
+        """Unwraps and tokenizes response content into raw Elemental HTML parts.
+
+        Args:
+            content: The raw conversational text response containing HTML blocks.
+
+        Returns:
+            A list of response parts containing conversational or raw HTML text.
+        """
         from a2ui.parser.lexer import BlockLexer
 
         lexer = BlockLexer(
@@ -53,7 +75,21 @@ class ElementalParser(Parser):
     def compile(
         self, format_content: str, *, is_final: bool = True
     ) -> List[dict[str, Any]]:
-        """Compiles raw Elemental HTML to structured A2UI messages."""
+        """Compiles raw Elemental HTML into structured A2UI layout operation messages.
+
+        For partial streams (when `is_final` is False), missing trailing tags (like
+        `</body>` or `</a2ui>`) are automatically appended to ensure successful DOM parsing.
+
+        Args:
+            format_content: The raw unwrapped Elemental HTML snippet to compile.
+            is_final: Whether this represents the final complete snippet.
+
+        Returns:
+            A list of compiled A2UI operation dictionaries (e.g. createSurface).
+
+        Raises:
+            A2uiCompilationError: If compilation or schema validation fails.
+        """
         from a2ui.parser.errors import A2uiCompilationError
 
         if not is_final:

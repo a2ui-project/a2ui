@@ -96,7 +96,14 @@ class TransportPromptGenerator(PromptGenerator):
         return "\n\n".join(parts)
 
     def catalog_description(self, include_schema: bool = True) -> str:
-        """Returns the format's system prompt component catalog signatures block."""
+        """Assembles the system prompt component catalog signatures block.
+
+        Args:
+            include_schema: Whether to include the schema description.
+
+        Returns:
+            The rendered LLM instructions string block.
+        """
         if not include_schema:
             return ""
         catalog = self.selected_catalog
