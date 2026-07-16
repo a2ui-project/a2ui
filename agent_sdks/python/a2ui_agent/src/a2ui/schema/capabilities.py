@@ -18,7 +18,14 @@ from typing import Any, List, Optional, TypedDict
 
 
 class ClientUiCapabilities(TypedDict, total=False):
-    """Structured representation of client UI capabilities."""
+    """Structured representation of client UI capabilities.
+
+    Attributes:
+        supportedCatalogIds: A list of catalog identifiers supported by the
+            client, used for layout rendering.
+        inlineCatalogs: A list of embedded A2UI catalogs containing component
+            schemas defined inline.
+    """
 
     supportedCatalogIds: Optional[List[str]]
     inlineCatalogs: Optional[List[dict[str, Any]]]

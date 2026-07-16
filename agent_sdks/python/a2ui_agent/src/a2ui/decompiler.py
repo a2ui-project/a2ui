@@ -19,7 +19,7 @@ from typing import Any, List
 
 
 class Decompiler(ABC):
-    """Abstract interface defining the A2UI decompiler."""
+    """Abstract interface defining an A2UI decompiler."""
 
     @abstractmethod
     def decompile(self, val: dict[str, Any]) -> str:

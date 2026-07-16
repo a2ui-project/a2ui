@@ -300,14 +300,14 @@ class TestElementalCompiler(unittest.TestCase):
         html_input = (
             '<body id="test-surf">\n  <script type="application/json">\n    {\n     '
             ' "embedded_html":'
-            " \"<html><a2ui><script>console.log('hello');</script></a2ui></html>\"\n   "
-            ' }\n  </script>\n  <ui-text id="text1" text="{$/embedded_html}"'
+            " \"<html><a2ui><body><script>console.log('hello');</script></body></a2ui></html>\"\n"
+            '    }\n  </script>\n  <ui-text id="text1" text="{$/embedded_html}"'
             " />\n</body>"
         )
         result = self.compiler.compile(html_input)
         self.assertEqual(
             result["createSurface"]["dataModel"]["embedded_html"],
-            "<html><a2ui><script>console.log('hello');</script></a2ui></html>",
+            "<html><a2ui><body><script>console.log('hello');</script></body></a2ui></html>",
         )
 
     def test_compile_unknown_html_tag_raises_error(self):
