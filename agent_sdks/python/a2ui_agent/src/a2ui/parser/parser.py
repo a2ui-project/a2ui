@@ -46,9 +46,23 @@ class Parser(ABC):
             A list of ResponsePart objects containing text and compiled JSON.
         """
         parts = self.unwrap(content)
+        parsed_so_far = []
         for part in parts:
             if part.a2ui_raw is not None:
-                part.a2ui_json = self.compile(part.a2ui_raw)
+                try:
+                    part.a2ui_json = self.compile(part.a2ui_raw, is_final=part.is_final)
+                except Exception as e:
+                    from a2ui.parser.errors import A2uiCompilationError
+
+                    if isinstance(e, A2uiCompilationError):
+                        e.partial_results = parsed_so_far
+                        raise e
+                    raise A2uiCompilationError(
+                        message=str(e),
+                        raw_content=part.a2ui_raw,
+                        partial_results=parsed_so_far,
+                    ) from e
+            parsed_so_far.append(part)
         return parts
 
     @abstractmethod
@@ -64,11 +78,14 @@ class Parser(ABC):
         pass
 
     @abstractmethod
-    def compile(self, format_content: str) -> List[dict[str, Any]]:
+    def compile(
+        self, format_content: str, *, is_final: bool = True
+    ) -> List[dict[str, Any]]:
         """Compiles raw format-content (inference format string) to structured A2UI messages.
 
         Args:
             format_content: The raw format-content extracted from response.
+            is_final: Whether this format block is complete (not truncated).
 
         Returns:
             A list of compiled A2UI message dictionaries.

@@ -125,7 +125,9 @@ class TransportParser(Parser):
         """
         return unwrap_response(content)
 
-    def compile(self, format_content: str) -> List[dict[str, Any]]:
+    def compile(
+        self, format_content: str, *, is_final: bool = True
+    ) -> List[dict[str, Any]]:
         """Validates and compiles raw A2UI JSON schema content.
 
         Args:

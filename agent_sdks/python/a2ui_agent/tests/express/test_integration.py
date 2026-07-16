@@ -25,7 +25,9 @@ from a2ui.core.catalog import Catalog
 from a2ui.inference_formats.experimental.express.compiler import ExpressCompiler
 from a2ui.inference_formats.experimental.express.decompiler import ExpressDecompiler
 from a2ui.inference_formats.experimental.express.parser import ExpressParser
-from a2ui.inference_formats.experimental.express.schema_helper import CatalogSchemaHelper
+from a2ui.inference_formats.experimental.express.schema_helper import (
+    CatalogSchemaHelper,
+)
 
 SPEC_DIR = os.path.abspath(
     os.path.join(
@@ -338,16 +340,20 @@ title = Text($/title, "body")"""
                 "catalogId": (
                     "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
                 ),
-                "components": [{
-                    "id": "root",
-                    "component": "Tabs",
-                    "tabs": [{
-                        "title": "Overview",
-                        "user-id-hyphen": 123,
-                        "session token space": "abc",
-                        "valid_id": True,
-                    }],
-                }],
+                "components": [
+                    {
+                        "id": "root",
+                        "component": "Tabs",
+                        "tabs": [
+                            {
+                                "title": "Overview",
+                                "user-id-hyphen": 123,
+                                "session token space": "abc",
+                                "valid_id": True,
+                            }
+                        ],
+                    }
+                ],
             },
         }
         decompiled_dsl = decompiler.decompile(wire_json_dict)
@@ -367,19 +373,23 @@ title = Text($/title, "body")"""
             "version": "v1.0",
             "createSurface": {
                 "surfaceId": "main",
-                "components": [{
-                    "id": "root",
-                    "component": "TextField",
-                    "label": "Name",
-                    "value": {"path": "/name"},
-                    "checks": [{
-                        "condition": {
-                            "call": "required",
-                            "args": {"value": {"path": "/name"}},
-                        },
-                        "message": "First Line\nSecond Line",
-                    }],
-                }],
+                "components": [
+                    {
+                        "id": "root",
+                        "component": "TextField",
+                        "label": "Name",
+                        "value": {"path": "/name"},
+                        "checks": [
+                            {
+                                "condition": {
+                                    "call": "required",
+                                    "args": {"value": {"path": "/name"}},
+                                },
+                                "message": "First Line\nSecond Line",
+                            }
+                        ],
+                    }
+                ],
             },
         }
         decompiled_msg = decompiler.decompile(multiline_msg_envelope)
@@ -444,6 +454,49 @@ This is bold.
         self.assertEqual(compiled_components[0]["id"], "root")
         self.assertEqual(compiled_components[1]["id"], "text1")
         self.assertFalse(any(c["id"] == "btn" for c in compiled_components))
+
+    def test_parser_compilation_error_handling(self):
+        """Verify that parsing invalid Express syntax raises A2uiCompilationError with error details."""
+        from a2ui.parser.errors import A2uiCompilationError
+
+        invalid_response = (
+            "Preceding conversation text.\n"
+            "<a2ui>\n"
+            "root = Column([text1])\n"
+            'text1 = Text("Hello")\n'
+            "MY_BAD_SYNTAX = {\n"
+            "</a2ui>"
+        )
+
+        with self.assertRaises(A2uiCompilationError) as ctx:
+            ExpressParser(self.catalog).parse_response(invalid_response)
+
+        exc = ctx.exception
+        self.assertIn("Syntax error", str(exc))
+        self.assertEqual(len(exc.partial_results), 0)
+        self.assertIn("MY_BAD_SYNTAX", exc.raw_content)
+        self.assertIsNotNone(exc.line)
+
+        # Test multi-block scenario where first compiles and second fails
+        multi_response = (
+            "First part text.\n"
+            "<a2ui>\n"
+            'root = Text("First")\n'
+            "</a2ui>\n"
+            "Second part text.\n"
+            "<a2ui>\n"
+            "MY_BAD_SYNTAX = {\n"
+            "</a2ui>"
+        )
+
+        with self.assertRaises(A2uiCompilationError) as ctx:
+            ExpressParser(self.catalog).parse_response(multi_response)
+
+        exc_multi = ctx.exception
+        self.assertEqual(len(exc_multi.partial_results), 1)
+        self.assertEqual(exc_multi.partial_results[0].text, "First part text.")
+        self.assertIsNotNone(exc_multi.partial_results[0].a2ui_json)
+        self.assertIn("MY_BAD_SYNTAX", exc_multi.raw_content)
 
 
 if __name__ == "__main__":

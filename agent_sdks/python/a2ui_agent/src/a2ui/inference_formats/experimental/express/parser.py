@@ -30,10 +30,11 @@ _A2UI_DSL_BLOCK_PATTERN = re.compile(r"<a2ui>(.*?)</a2ui>", re.DOTALL)
 class ExpressParser(Parser):
     """Concrete parser implementation for A2UI Express DSL responses."""
 
-    def __init__(self, catalog: Union[Catalog[Any, Any], A2uiCatalog], surface_id: str = "main"):
+    def __init__(
+        self, catalog: Union[Catalog[Any, Any], A2uiCatalog], surface_id: str = "main"
+    ):
         self.catalog = catalog
         self.surface_id = surface_id
-        self._truncated_blocks = set()
 
     def has_format_content(self, content: str, *, complete: bool = False) -> bool:
         if complete:
@@ -62,15 +63,14 @@ class ExpressParser(Parser):
             text_part = content[last_end:start].strip()
 
             dsl_content = match.group(1).strip()
-            
+
             is_block_final = not (is_truncated and idx == len(matches) - 1)
-            if not is_block_final:
-                self._truncated_blocks.add(dsl_content)
 
             response_parts.append(
                 ResponsePart(
                     text=text_part if text_part else None,
                     a2ui_raw=dsl_content,
+                    is_final=is_block_final,
                 )
             )
             last_end = end
@@ -81,15 +81,31 @@ class ExpressParser(Parser):
 
         return response_parts
 
-    def compile(self, format_content: str) -> List[dict[str, Any]]:
+    def compile(
+        self, format_content: str, *, is_final: bool = True
+    ) -> List[dict[str, Any]]:
         """Compiles raw Express DSL to structured A2UI messages."""
+        from a2ui.parser.errors import A2uiCompilationError
+
         compiler = ExpressCompiler(self.catalog)
-        is_final = format_content not in self._truncated_blocks
-        compiled_json = compiler.compile(
-            format_content, surface_id=self.surface_id, is_final=is_final
-        )
-        self._truncated_blocks.discard(format_content)
-        return [compiled_json]
+        try:
+            compiled_json = compiler.compile(
+                format_content, surface_id=self.surface_id, is_final=is_final
+            )
+            return [compiled_json]
+        except (SyntaxError, ValueError) as e:
+            orig_err = e
+            if isinstance(e, ValueError) and isinstance(e.__cause__, SyntaxError):
+                orig_err = e.__cause__
+            line = getattr(orig_err, "lineno", None)
+            column = getattr(orig_err, "offset", None)
+            raise A2uiCompilationError(
+                message=str(e),
+                raw_content=format_content,
+                line=line,
+                column=column,
+                help_message="Please correct the syntax error in your Express DSL.",
+            ) from e
 
     def process_chunk(self, chunk: str) -> List[ResponsePart]:
         """Express DSL is parsed as a whole script block; streaming is not supported."""

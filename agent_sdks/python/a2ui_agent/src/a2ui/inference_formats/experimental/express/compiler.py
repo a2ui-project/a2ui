@@ -205,6 +205,8 @@ class ExpressCompiler:
             if is_final and error_listener.errors:
                 line, col, msg, is_lexer = error_listener.errors[0]
                 err = SyntaxError(f"Syntax error at line {line}:{col}: {msg}")
+                err.lineno = line
+                err.offset = col
                 err._is_lexer = is_lexer
                 raise err
 
@@ -481,10 +483,12 @@ class ExpressCompiler:
                             if isinstance(c_arg, str):
                                 message_val = c_arg
 
-                    compiled_checks.append({
-                        "condition": {"call": check_name, "args": compiled_args},
-                        "message": message_val,
-                    })
+                    compiled_checks.append(
+                        {
+                            "condition": {"call": check_name, "args": compiled_args},
+                            "message": message_val,
+                        }
+                    )
             if compiled_checks:
                 comp_dict["checks"] = compiled_checks
 

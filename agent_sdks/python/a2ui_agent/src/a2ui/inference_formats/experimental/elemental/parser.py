@@ -26,7 +26,7 @@ from .compiler import ElementalCompiler, TAG_PREFIX
 _A2UI_OPEN_PATTERN = re.compile(r"<a2ui\b[^>]*>", re.IGNORECASE)
 
 _BLOCK_PATTERN = re.compile(
-    r"<a2ui\b[^>]*>.*</a2ui>"
+    r"<a2ui\b[^>]*>.*?</a2ui>"
     f"|<{TAG_PREFIX}delete-surface\\b[^>]*>(?:.*?</{TAG_PREFIX}delete-surface>|/>)?"
     f"|<{TAG_PREFIX}call-function\\b[^>]*>(?:.*?</{TAG_PREFIX}call-function>|/>)?",
     re.DOTALL | re.IGNORECASE,
@@ -37,10 +37,11 @@ _BLOCK_PATTERN = re.compile(
 class ElementalParser(Parser):
     """Concrete parser implementation for A2UI Elemental TSX/HTML5 responses."""
 
-    def __init__(self, catalog: Union[Catalog[Any, Any], A2uiCatalog], surface_id: str = "main"):
+    def __init__(
+        self, catalog: Union[Catalog[Any, Any], A2uiCatalog], surface_id: str = "main"
+    ):
         self.catalog = catalog
         self.surface_id = surface_id
-        self._truncated_blocks = set()
 
     def has_format_content(self, content: str, *, complete: bool = False) -> bool:
         if complete:
@@ -77,15 +78,14 @@ class ElementalParser(Parser):
             ).strip()
 
             html_content = match.group(0).strip()
-            
+
             is_block_final = not (is_truncated and idx == len(matches) - 1)
-            if not is_block_final:
-                self._truncated_blocks.add(html_content)
 
             response_parts.append(
                 ResponsePart(
                     text=text_part_stripped if text_part_stripped else None,
                     a2ui_raw=html_content,
+                    is_final=is_block_final,
                 )
             )
             last_end = end
@@ -96,15 +96,24 @@ class ElementalParser(Parser):
 
         return response_parts
 
-    def compile(self, format_content: str) -> List[dict[str, Any]]:
+    def compile(
+        self, format_content: str, *, is_final: bool = True
+    ) -> List[dict[str, Any]]:
         """Compiles raw Elemental HTML to structured A2UI messages."""
+        from a2ui.parser.errors import A2uiCompilationError
+
         compiler = ElementalCompiler(self.catalog)
-        is_final = format_content not in self._truncated_blocks
-        compiled_json = compiler.compile(
-            format_content, surface_id=self.surface_id, is_final=is_final
-        )
-        self._truncated_blocks.discard(format_content)
-        return [compiled_json]
+        try:
+            compiled_json = compiler.compile(
+                format_content, surface_id=self.surface_id, is_final=is_final
+            )
+            return [compiled_json]
+        except Exception as e:
+            raise A2uiCompilationError(
+                message=str(e),
+                raw_content=format_content,
+                help_message="Please correct the validation or syntax error in your Elemental XML/HTML.",
+            ) from e
 
     def process_chunk(self, chunk: str) -> List[ResponsePart]:
         """Elemental is parsed as a whole HTML5 document; streaming is not supported."""
