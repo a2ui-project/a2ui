@@ -121,7 +121,8 @@ class ElementalDecompiler(Decompiler):
         self.helper = CatalogSchemaHelper(catalog)
 
     def wrap_decompiled_blocks(self, blocks: list[str]) -> str:
-        full_html = "\n\n".join(blocks)
+        wrapped_blocks = [f"<a2ui>\n{b}\n</a2ui>" for b in blocks]
+        full_html = "\n\n".join(wrapped_blocks)
         triple_backticks = chr(96) * 3
         return f"{triple_backticks}html\n{full_html}\n{triple_backticks}"
 
@@ -163,7 +164,7 @@ class ElementalDecompiler(Decompiler):
             surface_id = val_op.get("surfaceId", "default_surface")
             data_val = val_op.get("value", {})
 
-            lines = [f'<a2ui id="{surface_id}">']
+            lines = [f'<body id="{surface_id}">']
             if data_val:
                 json_str = json.dumps(data_val, indent=2)
                 indented_json = "\n".join(
@@ -172,7 +173,7 @@ class ElementalDecompiler(Decompiler):
                 lines.append('  <script type="application/json">')
                 lines.append(indented_json)
                 lines.append("  </script>")
-            lines.append("</a2ui>")
+            lines.append("</body>")
             return "\n".join(lines)
 
         # 4. Handle createSurface
@@ -212,7 +213,7 @@ class ElementalDecompiler(Decompiler):
 
         roots = [c["id"] for c in components if c["id"] not in child_to_parent]
 
-        lines = [f'<a2ui id="{surface_id}">']
+        lines = [f'<body id="{surface_id}">']
         default_catalog_id = self.helper.catalog.get("catalogId", "")
         if catalog_id and catalog_id != default_catalog_id:
             lines.append(f'  <link rel="catalog" href="{catalog_id}">')
@@ -227,7 +228,7 @@ class ElementalDecompiler(Decompiler):
         for root_id in roots:
             lines.append(self._render_component(root_id, indent=1))
 
-        lines.append("</a2ui>")
+        lines.append("</body>")
         return "\n".join(lines)
 
     def _render_component(

@@ -286,8 +286,7 @@ class ExpressPromptGenerator(PromptGenerator):
         return self._format.catalog_description(self, include_schema=True)
 
     def decompile(self, val: dict[str, Any]) -> str:
-        dsl = self._format.decompiler.decompile(val)
-        return dsl.replace("<a2ui>\n", "").replace("\n</a2ui>", "")
+        return self._format.decompiler.decompile(val)
 
     def wrap_decompiled_blocks(self, blocks: list[str]) -> str:
         return self._format.decompiler.wrap_decompiled_blocks(blocks)

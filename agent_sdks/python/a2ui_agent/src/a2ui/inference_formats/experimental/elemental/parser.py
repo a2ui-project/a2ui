@@ -47,7 +47,6 @@ class ElementalParser(Parser):
             close_tag="</a2ui>",
             string_delimiters={"'", '"', "`"},
             single_line_comments={"//", "<!--"},
-            preserve_enclosing_tags=True,
         )
         return lexer.tokenize(content)
 
@@ -56,6 +55,11 @@ class ElementalParser(Parser):
     ) -> List[dict[str, Any]]:
         """Compiles raw Elemental HTML to structured A2UI messages."""
         from a2ui.parser.errors import A2uiCompilationError
+
+        if not is_final:
+            stripped = format_content.strip()
+            if "<body" in stripped and not stripped.endswith("</body>"):
+                format_content = format_content + "\n</body>"
 
         compiler = ElementalCompiler(self.catalog)
         try:

@@ -127,7 +127,10 @@ def run_inference_and_validate(
 
     express_format = ExpressFormat(catalog=catalog)
     system_instruction = express_format.prompt_generator.generate(
-        role_description="You are a helpful UI assistant that outputs interfaces using A2UI Express DSL.",
+        role_description=(
+            "You are a helpful UI assistant that outputs interfaces using A2UI Express"
+            " DSL."
+        ),
         include_schema=True,
     )
 

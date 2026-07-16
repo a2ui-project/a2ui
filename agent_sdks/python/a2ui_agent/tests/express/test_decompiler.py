@@ -271,7 +271,7 @@ class TestExpressDecompiler(unittest.TestCase):
         decompiler = ExpressDecompiler(self.catalog)
         envelope = {"version": "v1.0", "deleteSurface": {"surfaceId": "surf_1"}}
         decompiled = decompiler.decompile(envelope)
-        self.assertEqual(decompiled, '<a2ui>\ndeleteSurface("surf_1")\n</a2ui>')
+        self.assertEqual(decompiled, 'deleteSurface("surf_1")')
 
     def test_decompile_update_data_model(self):
         decompiler = ExpressDecompiler(self.catalog)
@@ -315,9 +315,7 @@ class TestExpressDecompiler(unittest.TestCase):
             "version": "v1.0",
             "callFunction": {"call": "myCustomFunc", "args": {"arg1": "hello"}},
         }
-        self.assertEqual(
-            decompiler.decompile(envelope_1), '<a2ui>\nmyCustomFunc("hello")\n</a2ui>'
-        )
+        self.assertEqual(decompiler.decompile(envelope_1), 'myCustomFunc("hello")')
 
         # 2. Middle optional missing should keep "_"
         envelope_2 = {
@@ -329,7 +327,7 @@ class TestExpressDecompiler(unittest.TestCase):
         }
         self.assertEqual(
             decompiler.decompile(envelope_2),
-            '<a2ui>\nmyCustomFunc("hello", _, "world")\n</a2ui>',
+            'myCustomFunc("hello", _, "world")',
         )
 
         # 3. List of args should decompile directly
@@ -342,7 +340,7 @@ class TestExpressDecompiler(unittest.TestCase):
         }
         self.assertEqual(
             decompiler.decompile(envelope_3),
-            '<a2ui>\nmyCustomFunc("hello", "middle", "world")\n</a2ui>',
+            'myCustomFunc("hello", "middle", "world")',
         )
 
 

@@ -134,7 +134,7 @@ class ExpressDecompiler(Decompiler):
         if SurfaceOperation.DELETE in envelope_json:
             surf_op = envelope_json[SurfaceOperation.DELETE]
             surface_id = surf_op.get("surfaceId", "")
-            return f'<a2ui>\ndeleteSurface("{surface_id}")\n</a2ui>'
+            return f'deleteSurface("{surface_id}")'
 
         # Handle updateDataModel action
         if SurfaceOperation.UPDATE_DATA in envelope_json:
@@ -146,7 +146,7 @@ class ExpressDecompiler(Decompiler):
                     val_str = self._decompile_value(val, set(), False)
                     dsl_lines.append(f"${path} = {val_str}")
             dsl_body = "\n".join(dsl_lines)
-            return f"<a2ui>\n{dsl_body}\n</a2ui>"
+            return dsl_body
 
         # Handle callFunction action
         if SurfaceOperation.CALL_FUNC in envelope_json:
@@ -186,7 +186,7 @@ class ExpressDecompiler(Decompiler):
             while args_list and args_list[-1] == "_":
                 args_list.pop()
             args_str = ", ".join(args_list)
-            return f"<a2ui>\n{fn_name}({args_str})\n</a2ui>"
+            return f"{fn_name}({args_str})"
 
         create_surface = envelope_json.get(SurfaceOperation.CREATE, {})
         components = create_surface.get("components", [])
@@ -286,7 +286,7 @@ class ExpressDecompiler(Decompiler):
             dsl_lines.append(f"{comp_id} = {comp_name}({', '.join(args_reprs)})")
 
         dsl_body = "\n".join(dsl_lines)
-        return f"<a2ui>\n{dsl_body}\n</a2ui>"
+        return dsl_body
 
     def _decompile_value(
         self, val: Any, comp_ids: set[str], is_ref: bool = False

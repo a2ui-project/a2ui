@@ -33,7 +33,8 @@ if TYPE_CHECKING:
 ELEMENTAL_RULES = r"""# A2UI Elemental Output Contract
 
 You must output the user interface using A2UI Elemental HTML5-like markup.
-Surround the entire output with `<body>` and `</body>` tags, including a `<link rel="catalog" href="[CATALOG_ID]">` at the start.
+You MUST surround the entire block with the sentinel tags `<a2ui>` and `</a2ui>`.
+Inside the sentinel tags, surround the UI layout with `<body>` and `</body>` tags, including a `<link rel="catalog" href="[CATALOG_ID]">` at the start.
 **CRITICAL**: DO NOT output raw JSON or `<a2ui-json>`. Direct JSON outputs are strictly prohibited.
 
 ## HTML5 Markup Rules

@@ -290,7 +290,7 @@ class ElementalCompiler:
         self.expr_parser = ElementalExpressionParser()
 
         # Pre-compute container tags for forgiving parsing
-        self.container_tags = {"a2ui", "template"}
+        self.container_tags = {"a2ui", "body", "template"}
         for comp_name in self.helper.components:
             properties = self.helper.get_component_properties(comp_name)
             has_slotted_children = False
@@ -361,8 +361,8 @@ class ElementalCompiler:
         if not root:
             raise ValueError("A2UI Elemental document is empty.")
 
-        if root.tag == "a2ui":
-            # If there is a standalone operation inside a2ui, treat it as the root
+        if root.tag in ["a2ui", "body"]:
+            # If there is a standalone operation inside a2ui/body, treat it as the root
             standalone = None
             for child in root.children:
                 if child.tag in [
@@ -419,9 +419,9 @@ class ElementalCompiler:
                 envelope["functionCallId"] = func_call_id
             return envelope
 
-        if root.tag != "a2ui":
+        if root.tag not in ["a2ui", "body"]:
             raise ValueError(
-                "A2UI Elemental document must have a <a2ui>,"
+                "A2UI Elemental document must have a <body> or <a2ui>,"
                 f" <{TAG_PREFIX}delete-surface>, or <{TAG_PREFIX}call-function> root"
                 " element."
             )

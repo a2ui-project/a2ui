@@ -56,9 +56,11 @@ class TestElementalIntegration(unittest.TestCase):
         content = (
             "Here is the UI:\n"
             "<a2ui>\n"
-            "  <ui-Column>\n"
-            '    <ui-Text text="Hello" />\n'
-            "  </ui-Column>\n"
+            '  <body id="welcome">\n'
+            "    <ui-Column>\n"
+            '      <ui-Text text="Hello" />\n'
+            "    </ui-Column>\n"
+            "  </body>\n"
             "</a2ui>"
         )
 
@@ -77,10 +79,12 @@ class TestElementalIntegration(unittest.TestCase):
         """Verifies parsing preserves surface ID defined on `<a2ui>` start tag attributes."""
         content = (
             "Here is the UI:\n"
-            '<a2ui id="my-custom-surface-id">\n'
-            "  <ui-Column>\n"
-            '    <ui-Text text="Hello" />\n'
-            "  </ui-Column>\n"
+            "<a2ui>\n"
+            '  <body id="my-custom-surface-id">\n'
+            "    <ui-Column>\n"
+            '      <ui-Text text="Hello" />\n'
+            "    </ui-Column>\n"
+            "  </body>\n"
             "</a2ui>"
         )
 
@@ -96,7 +100,8 @@ class TestElementalIntegration(unittest.TestCase):
     def test_elemental_parser_unclosed_tag_parsing(self):
         """Verify parser unclosed tag auto-closing and compilation with is_final=False."""
         truncated_response = (
-            'Conversational preamble:\n<a2ui>\n  <ui-Column>\n    <ui-Text text="Hello"'
+            'Conversational preamble:\n<a2ui>\n  <body id="welcome">\n    <ui-Column>\n'
+            '      <ui-Text text="Hello"'
         )
 
         parts = ElementalParser(self.catalog).parse_response(truncated_response)
@@ -117,7 +122,9 @@ class TestElementalIntegration(unittest.TestCase):
         invalid_response = (
             "Preceding conversation text.\n"
             "<a2ui>\n"
-            "  <ui-UnknownComponent>Text</ui-UnknownComponent>\n"
+            '  <body id="welcome">\n'
+            "    <ui-UnknownComponent>Text</ui-UnknownComponent>\n"
+            "  </body>\n"
             "</a2ui>"
         )
 
@@ -132,11 +139,15 @@ class TestElementalIntegration(unittest.TestCase):
         multi_response = (
             "First block:\n"
             "<a2ui>\n"
-            "  <ui-Text>First</ui-Text>\n"
+            '  <body id="welcome">\n'
+            "    <ui-Text>First</ui-Text>\n"
+            "  </body>\n"
             "</a2ui>\n"
             "Second block:\n"
             "<a2ui>\n"
-            "  <ui-UnknownComponent>Second</ui-UnknownComponent>\n"
+            '  <body id="welcome">\n'
+            "    <ui-UnknownComponent>Second</ui-UnknownComponent>\n"
+            "  </body>\n"
             "</a2ui>"
         )
 

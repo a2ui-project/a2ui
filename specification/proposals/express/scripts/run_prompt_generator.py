@@ -68,7 +68,10 @@ def generate_prompt_text(catalog_path: str) -> str:
 
     express_format = ExpressFormat(catalog=catalog)
     return express_format.prompt_generator.generate(
-        role_description="You are a helpful UI assistant that outputs interfaces using A2UI Express DSL.",
+        role_description=(
+            "You are a helpful UI assistant that outputs interfaces using A2UI Express"
+            " DSL."
+        ),
         include_schema=True,
     )
 
