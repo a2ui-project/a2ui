@@ -209,10 +209,9 @@ Example DataPart:
         "surfaceId": "example_surface",
         "components": [
           {
-            "Text": {
-              "id": "root",
-              "text": "Hello!"
-            }
+            "id": "root",
+            "component": "Text",
+            "text": "Hello!"
           }
         ]
       }

@@ -84,7 +84,8 @@ def on_page_markdown(markdown, page, config, files):
 
             # Rewrite relative paths to json schemas regardless of depth (e.g. "../json/..." or "../../../json/...")
             if '/json/' in path:
-                return version_folder + path[path.index('/json/') :]
+                rel_prefix = '../' * file_depth
+                return rel_prefix + version_folder + path[path.index('/json/') :]
 
         # Check if the link points outside the docs folder
         up_count = 0
