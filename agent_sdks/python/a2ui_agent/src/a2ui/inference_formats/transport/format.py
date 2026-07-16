@@ -281,17 +281,7 @@ class TransportFormat(InferenceFormat):
     def transform_examples(self, raw_examples_markdown: str) -> str:
         return raw_examples_markdown
 
-    def format_description(
-        self,
-        custom_workflow_description: str = "",
-        catalog_id: Optional[str] = None,
-    ) -> str:
-        from a2ui.schema.constants import DEFAULT_WORKFLOW_RULES
 
-        rules = DEFAULT_WORKFLOW_RULES
-        if custom_workflow_description:
-            rules += f"\n{custom_workflow_description}"
-        return rules
 
     def catalog_description(
         self,

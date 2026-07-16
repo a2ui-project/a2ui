@@ -24,7 +24,7 @@ from a2ui.inference_formats.experimental.express.prompt_generator import Express
 from a2ui.inference_formats.experimental.express.compiler import ExpressCompiler
 from a2ui.inference_formats.experimental.express.decompiler import ExpressDecompiler
 from a2ui.inference_formats.experimental.express.schema_helper import CatalogSchemaHelper
-from a2ui.inference_formats.experimental.express.parser import parse_express_response
+from a2ui.inference_formats.experimental.express.parser import ExpressParser
 
 SPEC_DIR = os.path.abspath(
     os.path.join(
@@ -594,7 +594,7 @@ valueField = TextField("Deal Value", $/form/value, "0.00", "number", ?required)"
 
             # Parser
             response = f"<a2ui>\n{dsl}\n</a2ui>"
-            parts = parse_express_response(response, cat_input, surface_id="test_surf")
+            parts = ExpressParser(cat_input, surface_id="test_surf").parse_response(response)
             self.assertEqual(len(parts), 1)
             self.assertIsNotNone(parts[0].a2ui_json)
 

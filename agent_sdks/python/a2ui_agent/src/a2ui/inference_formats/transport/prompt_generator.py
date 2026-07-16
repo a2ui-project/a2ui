@@ -70,10 +70,13 @@ class TransportPromptGenerator(PromptGenerator):
             examples_str = self._format.load_examples(
                 selected_catalog, validate=validate_examples
             )
-
         parts = [role_description]
 
-        rules = self._format.format_description(workflow_description)
+        from a2ui.schema.constants import DEFAULT_WORKFLOW_RULES
+
+        rules = DEFAULT_WORKFLOW_RULES
+        if workflow_description:
+            rules += f"\n{workflow_description}"
         parts.append(f"## Workflow Description:\n{rules}")
 
         if ui_description:

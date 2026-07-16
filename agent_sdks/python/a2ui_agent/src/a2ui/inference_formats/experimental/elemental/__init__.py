@@ -14,13 +14,12 @@
 
 """A2UI Elemental experimental package."""
 
-from .parser import parse_elemental_response
 from .compiler import ElementalCompiler
 from .decompiler import ElementalDecompiler
-from .format import ElementalFormat, ElementalParser
+from .format import ElementalFormat
+from .parser import ElementalParser
 
 __all__ = [
-    "parse_elemental_response",
     "ElementalCompiler",
     "ElementalDecompiler",
     "ElementalFormat",

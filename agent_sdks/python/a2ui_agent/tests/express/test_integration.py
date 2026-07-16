@@ -24,7 +24,7 @@ from typing import Any
 from a2ui.core.catalog import Catalog
 from a2ui.inference_formats.experimental.express.compiler import ExpressCompiler
 from a2ui.inference_formats.experimental.express.decompiler import ExpressDecompiler
-from a2ui.inference_formats.experimental.express.parser import parse_express_response
+from a2ui.inference_formats.experimental.express.parser import ExpressParser
 from a2ui.inference_formats.experimental.express.schema_helper import CatalogSchemaHelper
 
 SPEC_DIR = os.path.abspath(
@@ -304,14 +304,14 @@ title = Text($/title, "body")"""
         conversational_content = (
             "Hello there! I am a conversational response without any UI tags."
         )
-        parts = parse_express_response(conversational_content, self.catalog)
+        parts = ExpressParser(self.catalog).parse_response(conversational_content)
         self.assertEqual(len(parts), 1)
         self.assertEqual(parts[0].text, conversational_content)
         self.assertIsNone(parts[0].a2ui_json)
 
         # 3. Empty text part omission
         ui_only_content = '<a2ui>root = Text("Hello")</a2ui>'
-        parts_ui = parse_express_response(ui_only_content, self.catalog)
+        parts_ui = ExpressParser(self.catalog).parse_response(ui_only_content)
         self.assertEqual(len(parts_ui), 1)
         self.assertIsNone(parts_ui[0].text)
         self.assertIsNotNone(parts_ui[0].a2ui_json)
@@ -434,7 +434,7 @@ This is bold.
             'text1 = Text("Hello")\n'
             'btn = Button("Cli'
         )
-        parts = parse_express_response(truncated_response, self.catalog)
+        parts = ExpressParser(self.catalog).parse_response(truncated_response)
         self.assertEqual(len(parts), 1)
         self.assertEqual(parts[0].text, "Here is the partial UI:")
         self.assertIsNotNone(parts[0].a2ui_json)

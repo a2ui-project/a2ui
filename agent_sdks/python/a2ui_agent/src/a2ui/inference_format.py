@@ -93,15 +93,6 @@ class InferenceFormat(ABC):
         pass
 
     @abstractmethod
-    def format_description(
-        self,
-        custom_workflow_description: str = "",
-        catalog_id: Optional[str] = None,
-    ) -> str:
-        """Returns the format's system prompt instructions block."""
-        pass
-
-    @abstractmethod
     def catalog_description(
         self,
         prompt_gen: Any,
