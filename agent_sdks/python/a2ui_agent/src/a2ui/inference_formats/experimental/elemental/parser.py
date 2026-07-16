@@ -78,8 +78,4 @@ class ElementalParser(Parser):
                 help_message="Please correct the validation or syntax error in your Elemental XML/HTML.",
             ) from e
 
-    def process_chunk(self, chunk: str) -> List[ResponsePart]:
-        """Elemental is parsed as a whole HTML5 document; streaming is not supported."""
-        raise NotImplementedError(
-            "Streaming parsing is not supported for Elemental HTML."
-        )
+

@@ -20,10 +20,14 @@ instruction blocks for on-device models (e.g., Gemma 4).
 
 import json
 import re
-from typing import Any, Optional
+from typing import Any, Optional, TYPE_CHECKING
 from a2ui.prompt import PromptGenerator
+from a2ui.schema.capabilities import ClientUiCapabilities
 from .decompiler import ExpressDecompiler
 from .schema_helper import CatalogSchemaHelper
+
+if TYPE_CHECKING:
+    from .format import ExpressFormat
 
 EXPRESS_RULES = r'''# A2UI Express Output Contract
 
@@ -81,7 +85,6 @@ IMPORTANT: You must ALWAYS output A2UI Express DSL notation wrapped inside `<a2u
 14. Required actions: Parameters named 'action' (or annotated as required in component signatures) are strictly required. You must pass a valid Event (e.g. Event("click")) or function call. If no specific action is described in the user request, you must provide a dummy click event like Event("click") instead of passing null or omitting the parameter.'''
 
 
-
 def _schema_allows_databinding(prop_schema: Any) -> bool:
     """Helper to check if a JSON schema allows data binding (DynamicString/DataBinding, etc)."""
     if not isinstance(prop_schema, dict):
@@ -124,22 +127,15 @@ class ExpressPromptGenerator(PromptGenerator):
     positional signatures, reducing prompt token utilization.
     """
 
-    def __init__(self, format_or_catalog: Any):
-        """Initializes the generator with the specified format or catalog.
+    def __init__(self, format_inst: "ExpressFormat"):
+        """Initializes the generator with the specified format.
 
         Args:
-            format_or_catalog: An ExpressFormat or Catalog instance.
+            format_inst: An ExpressFormat instance.
         """
-        from .format import ExpressFormat
-
-        if isinstance(format_or_catalog, ExpressFormat):
-            self._format = format_or_catalog
-            self.helper = None
-            self.decompiler = None
-        else:
-            self._format = None
-            self.helper = CatalogSchemaHelper(format_or_catalog)
-            self.decompiler = ExpressDecompiler(format_or_catalog)
+        self._format = format_inst
+        self.catalog = format_inst.catalog
+        self.helper = CatalogSchemaHelper(format_inst.catalog)
 
     def generate_component_signatures(self) -> str:
         """Compiles component definitions into clean function-like signatures.
@@ -227,9 +223,9 @@ class ExpressPromptGenerator(PromptGenerator):
                             if prop_details and prop_details[-1].startswith(
                                 f"  - {p}:"
                             ):
-                                prop_details[
-                                    -1
-                                ] += "\n    List of maps keys:\n" + "\n".join(sub_keys)
+                                prop_details[-1] += (
+                                    "\n    List of maps keys:\n" + "\n".join(sub_keys)
+                                )
                             else:
                                 prop_details.append(
                                     f"  - {p}: List of maps with keys:\n"
@@ -287,31 +283,14 @@ class ExpressPromptGenerator(PromptGenerator):
         return "\n".join(signatures)
 
     def _build_schema_prompt(self) -> str:
-        fmt = self._format
-        if fmt is None:
-            from .format import ExpressFormat
-
-            catalog = self.helper.catalog_model if self.helper else None
-            fmt = ExpressFormat(catalog=catalog)
-
-        if self.helper is None and fmt.catalog:
-            self.helper = CatalogSchemaHelper(fmt.catalog)
-        if self.decompiler is None and fmt.catalog:
-            self.decompiler = ExpressDecompiler(fmt.catalog)
-
-        return fmt.catalog_description(self, include_schema=True)
+        return self._format.catalog_description(self, include_schema=True)
 
     def decompile(self, val: dict[str, Any]) -> str:
-        if self._format:
-            return self._format.decompile(val)
-        dsl = self.decompiler.decompile(val)
+        dsl = self._format.decompiler.decompile(val)
         return dsl.replace("<a2ui>\n", "").replace("\n</a2ui>", "")
 
     def wrap_decompiled_blocks(self, blocks: list[str]) -> str:
-        if self._format:
-            return self._format.wrap_decompiled_blocks(blocks)
-        full_dsl = "\n".join(blocks)
-        return f"<a2ui>\n{full_dsl}\n</a2ui>"
+        return self._format.decompiler.wrap_decompiled_blocks(blocks)
 
     def _replace_json_block_in_instructions(self, match: re.Match[str]) -> str:
         json_content = match.group(1).strip()
@@ -391,25 +370,12 @@ class ExpressPromptGenerator(PromptGenerator):
             flags=re.DOTALL,
         )
 
-    def generate_prompt(self) -> str:
-        """Assembles the complete system instruction block for the LLM (deprecated compatibility helper)."""
-        import warnings
-
-        warnings.warn(
-            "generate_prompt is deprecated. Use generate(...) instead.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-        rules = EXPRESS_RULES
-        schema_part = self._build_schema_prompt()
-        return f"{rules}\n\n{schema_part}"
-
     def generate(
         self,
         role_description: str,
         workflow_description: str = "",
         ui_description: str = "",
-        client_ui_capabilities: Optional[dict[str, Any]] = None,
+        client_ui_capabilities: Optional[ClientUiCapabilities] = None,
         allowed_components: Optional[list[str]] = None,
         allowed_messages: Optional[list[str]] = None,
         include_schema: bool = False,
@@ -441,7 +407,7 @@ class ExpressPromptGenerator(PromptGenerator):
             self.decompiler = ExpressDecompiler(catalog) if catalog else None
 
         parts = [role_description]
-        
+
         rules = EXPRESS_RULES
         if workflow_description:
             rules += f"\n\n{workflow_description}"

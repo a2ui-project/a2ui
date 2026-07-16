@@ -76,6 +76,4 @@ class ExpressParser(Parser):
                 help_message="Please correct the syntax error in your Express DSL.",
             ) from e
 
-    def process_chunk(self, chunk: str) -> List[ResponsePart]:
-        """Express DSL is parsed as a whole script block; streaming is not supported."""
-        raise NotImplementedError("Streaming parsing is not supported for Express DSL.")
+

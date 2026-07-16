@@ -18,6 +18,8 @@ from typing import Any, Optional, List
 from a2ui.schema.catalog import A2uiCatalog
 from a2ui.parser.response_part import ResponsePart
 from a2ui.inference_format import InferenceFormat
+from a2ui.decompiler import Decompiler
+from a2ui.schema.capabilities import ClientUiCapabilities
 from a2ui.parser.parser import Parser
 from google.adk.utils.feature_decorator import experimental
 
@@ -53,6 +55,7 @@ class ElementalFormat(InferenceFormat):
     def prompt_generator(self) -> ElementalPromptGenerator:
         """Returns the PromptGenerator instance for this format."""
         if self._prompt_generator is None:
+            self._ensure_catalog()
             self._prompt_generator = ElementalPromptGenerator(self)
         return self._prompt_generator
 
@@ -60,6 +63,12 @@ class ElementalFormat(InferenceFormat):
     def parser(self) -> Parser:
         self._ensure_catalog()
         return ElementalParser(self.catalog, self.surface_id)
+
+    @property
+    def decompiler(self) -> ElementalDecompiler:
+        self._ensure_catalog()
+        assert self._decompiler is not None
+        return self._decompiler
 
 
 
@@ -149,15 +158,3 @@ You can call these functions inside attribute expressions `{...}` using named ar
             .replace("[CATALOG_INSTRUCTIONS_BLOCK]", catalog_instructions_block)
         )
 
-    def decompile(self, val: dict[str, Any]) -> str:
-        self._ensure_catalog()
-        return self._decompiler.decompile(val)
-
-    def wrap_decompiled_blocks(self, blocks: list[str]) -> str:
-        full_html = "\n\n".join(blocks)
-        triple_backticks = chr(96) * 3
-        return f"{triple_backticks}html\n{full_html}\n{triple_backticks}"
-
-    def transform_examples(self, raw_examples_markdown: str) -> str:
-        """Transforms JSON blocks in raw markdown into Elemental HTML syntax."""
-        return self.prompt_generator.transform_examples(raw_examples_markdown)

@@ -92,7 +92,11 @@ class Parser(ABC):
         """
         pass
 
-    @abstractmethod
+    @property
+    def supports_streaming(self) -> bool:
+        """Returns True if the parser supports streaming token chunk compilation."""
+        return False
+
     def process_chunk(self, chunk: str) -> List[ResponsePart]:
         """Processes a streamed token chunk (incremental parsing).
 
@@ -102,7 +106,8 @@ class Parser(ABC):
         Returns:
             A list of parsed or completed ResponsePart objects.
         """
-        pass
+        raise NotImplementedError(f"Streaming is not supported by {self.__class__.__name__}")
+
 
 
 def has_a2ui_parts(content: str) -> bool:

@@ -19,6 +19,8 @@ from abc import ABC, abstractmethod
 from typing import Any, Optional
 from a2ui.prompt import PromptGenerator
 from a2ui.parser.parser import Parser
+from a2ui.decompiler import Decompiler
+from a2ui.schema.capabilities import ClientUiCapabilities
 
 
 class InferenceFormat(ABC):
@@ -36,12 +38,23 @@ class InferenceFormat(ABC):
         """The Parser instance associated with this inference format."""
         pass
 
+    @property
+    @abstractmethod
+    def decompiler(self) -> Decompiler:
+        """The Decompiler instance associated with this inference format."""
+        pass
+
+    @property
+    def supports_streaming(self) -> bool:
+        """Whether this inference format supports streaming token chunk parsing."""
+        return self.parser.supports_streaming
+
     def generate_system_prompt(
         self,
         role_description: str,
         workflow_description: str = "",
         ui_description: str = "",
-        client_ui_capabilities: Optional[dict[str, Any]] = None,
+        client_ui_capabilities: Optional[ClientUiCapabilities] = None,
         allowed_components: Optional[list[str]] = None,
         allowed_messages: Optional[list[str]] = None,
         include_schema: bool = False,
@@ -82,15 +95,6 @@ class InferenceFormat(ABC):
             validate_examples=validate_examples,
         )
 
-    @abstractmethod
-    def decompile(self, val: dict[str, Any]) -> str:
-        """Decompiles a structured A2UI payload into this format's raw notation."""
-        pass
-
-    @abstractmethod
-    def transform_examples(self, raw_examples_markdown: str) -> str:
-        """Transforms JSON blocks in raw markdown into this format's syntax."""
-        pass
 
     @abstractmethod
     def catalog_description(
@@ -100,3 +104,4 @@ class InferenceFormat(ABC):
     ) -> str:
         """Returns the format's system prompt component catalog signatures block."""
         pass
+

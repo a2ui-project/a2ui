@@ -141,6 +141,10 @@ class TransportParser(Parser):
             self._validator.validate(json_data)
         return json_data
 
+    @property
+    def supports_streaming(self) -> bool:
+        return True
+
     def process_chunk(self, chunk: str) -> List[ResponsePart]:
         """Processes streamed token chunks incrementally.
 

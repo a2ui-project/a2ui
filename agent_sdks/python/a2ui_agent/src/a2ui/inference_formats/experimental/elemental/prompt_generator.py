@@ -24,6 +24,7 @@ from typing import Any, Optional, TYPE_CHECKING
 from a2ui.schema.catalog import A2uiCatalog
 from a2ui.inference_formats.experimental.express.schema_helper import CatalogSchemaHelper
 from a2ui.prompt import PromptGenerator
+from a2ui.schema.capabilities import ClientUiCapabilities
 
 if TYPE_CHECKING:
     from .format import ElementalFormat
@@ -112,11 +113,9 @@ class ElementalPromptGenerator(PromptGenerator):
             format_inst: An ElementalFormat instance.
         """
         self._format = format_inst
-        self.catalog: Optional[A2uiCatalog] = None
-        self.helper: Optional[CatalogSchemaHelper] = None
-        self.catalog_id: str = (
-            "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
-        )
+        self.catalog: A2uiCatalog = format_inst.catalog
+        self.helper: CatalogSchemaHelper = CatalogSchemaHelper(format_inst.catalog)
+        self.catalog_id: str = format_inst.catalog.catalog_id
 
     def _map_schema_to_ts_type(
         self, component_name: str, prop_name: str, prop_schema: Any
@@ -339,12 +338,12 @@ class ElementalPromptGenerator(PromptGenerator):
                         "callFunction",
                     ]
                 ):
-                    decompiled = self._format.decompile(msg)
+                    decompiled = self._format.decompiler.decompile(msg)
                     blocks.append(decompiled)
                 else:
                     return str(match.group(0))
 
-            return self._format.wrap_decompiled_blocks(blocks)
+            return self._format.decompiler.wrap_decompiled_blocks(blocks)
         except Exception:
             return str(match.group(0))
 
@@ -368,7 +367,7 @@ class ElementalPromptGenerator(PromptGenerator):
         role_description: str,
         workflow_description: str = "",
         ui_description: str = "",
-        client_ui_capabilities: Optional[dict[str, Any]] = None,
+        client_ui_capabilities: Optional[ClientUiCapabilities] = None,
         allowed_components: Optional[list[str]] = None,
         allowed_messages: Optional[list[str]] = None,
         include_schema: bool = False,
@@ -391,26 +390,14 @@ class ElementalPromptGenerator(PromptGenerator):
         Returns:
             The complete system prompt string explaining A2UI Elemental and its catalog.
         """
-        catalog = self._format.catalog
-        if catalog and (allowed_components or allowed_messages):
+        catalog = self.catalog
+        if allowed_components or allowed_messages:
             catalog = catalog.with_pruning(allowed_components, allowed_messages)
+            self.catalog = catalog
+            self.helper = CatalogSchemaHelper(catalog)
+            self.catalog_id = catalog.catalog_id
 
-        self.catalog = catalog
-        self.helper = CatalogSchemaHelper(catalog) if catalog else None
-        self.catalog_id = (
-            self.helper.catalog.get(
-                "catalogId",
-                "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
-            )
-            if self.helper
-            else "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
-        )
-
-        prompt = (
-            self._format.catalog_description(self, include_schema=True)
-            if self._format
-            else ""
-        )
+        prompt = self._format.catalog_description(self, include_schema=True)
 
         parts = [role_description]
         

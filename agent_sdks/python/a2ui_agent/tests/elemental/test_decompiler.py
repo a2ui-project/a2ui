@@ -19,6 +19,7 @@ import os
 import unittest
 
 from a2ui.core.catalog import Catalog
+from a2ui.schema.catalog import A2uiCatalog
 from a2ui.inference_formats.experimental.elemental.decompiler import ElementalDecompiler
 
 SPEC_DIR = os.path.abspath(
@@ -176,14 +177,16 @@ class TestElementalDecompiler(unittest.TestCase):
             "version": "v1.0",
             "createSurface": {
                 "surfaceId": "test-surf",
-                "components": [{
-                    "id": "picker_1",
-                    "component": "ChoicePicker",
-                    "options": [
-                        {"label": "Red", "value": "Red"},
-                        {"label": "Blue", "value": "Blue"},
-                    ],
-                }],
+                "components": [
+                    {
+                        "id": "picker_1",
+                        "component": "ChoicePicker",
+                        "options": [
+                            {"label": "Red", "value": "Red"},
+                            {"label": "Blue", "value": "Blue"},
+                        ],
+                    }
+                ],
             },
         }
         html_output = decompiler.decompile(envelope)
@@ -196,14 +199,16 @@ class TestElementalDecompiler(unittest.TestCase):
             "version": "v1.0",
             "createSurface": {
                 "surfaceId": "test-surf",
-                "components": [{
-                    "id": "picker_1",
-                    "component": "ChoicePicker",
-                    "options": [
-                        {"label": "Red", "value": "red"},
-                        {"label": "Blue", "value": "blue"},
-                    ],
-                }],
+                "components": [
+                    {
+                        "id": "picker_1",
+                        "component": "ChoicePicker",
+                        "options": [
+                            {"label": "Red", "value": "red"},
+                            {"label": "Blue", "value": "blue"},
+                        ],
+                    }
+                ],
             },
         }
         html_output = decompiler.decompile(envelope)
@@ -247,17 +252,21 @@ class TestElementalDecompiler(unittest.TestCase):
             "version": "v1.0",
             "createSurface": {
                 "surfaceId": "test-surf",
-                "components": [{
-                    "id": "input_1",
-                    "component": "TextField",
-                    "value": {"path": "/dob"},
-                    "checks": [{
-                        "condition": {
-                            "call": "required",
-                            "args": {"value": {"path": "/dob"}},
-                        }
-                    }],
-                }],
+                "components": [
+                    {
+                        "id": "input_1",
+                        "component": "TextField",
+                        "value": {"path": "/dob"},
+                        "checks": [
+                            {
+                                "condition": {
+                                    "call": "required",
+                                    "args": {"value": {"path": "/dob"}},
+                                }
+                            }
+                        ],
+                    }
+                ],
             },
         }
         html_output = decompiler.decompile(envelope)
@@ -270,18 +279,22 @@ class TestElementalDecompiler(unittest.TestCase):
             "version": "v1.0",
             "createSurface": {
                 "surfaceId": "test-surf",
-                "components": [{
-                    "id": "input_1",
-                    "component": "TextField",
-                    "value": {"path": "/dob"},
-                    "checks": [{
-                        "condition": {
-                            "call": "required",
-                            "args": {"value": {"path": "/dob"}},
-                        },
-                        "message": "DOB is required",
-                    }],
-                }],
+                "components": [
+                    {
+                        "id": "input_1",
+                        "component": "TextField",
+                        "value": {"path": "/dob"},
+                        "checks": [
+                            {
+                                "condition": {
+                                    "call": "required",
+                                    "args": {"value": {"path": "/dob"}},
+                                },
+                                "message": "DOB is required",
+                            }
+                        ],
+                    }
+                ],
             },
         }
         html_output = decompiler.decompile(envelope)
@@ -321,6 +334,81 @@ class TestElementalDecompiler(unittest.TestCase):
             "  </ui-list>"
         )
         self.assertIn(expected_list, html_output)
+
+    def test_decompile_custom_template_property(self):
+        catalog = A2uiCatalog(
+            version="1.0",
+            name="custom_catalog",
+            experiments={"version_1_0"},
+            s2c_schema={},
+            common_types_schema={},
+            catalog_schema={
+                "catalogId": "https://a2ui.org/custom_catalog",
+                "components": {
+                    "CustomList": {"properties": {"template": {"type": "string"}}},
+                    "Text": {"properties": {"text": {"type": "string"}}},
+                },
+            },
+        )
+        decompiler = ElementalDecompiler(catalog)
+        envelope = {
+            "version": "1.0",
+            "createSurface": {
+                "surfaceId": "test-surf",
+                "components": [
+                    {"id": "list_1", "component": "CustomList", "template": "item_1"},
+                    {"id": "item_1", "component": "Text", "text": "Hello"},
+                ],
+            },
+        }
+        html_output = decompiler.decompile(envelope)
+        self.assertIn("<template>", html_output)
+        self.assertIn('<ui-text id="item_1"', html_output)
+
+    def test_decompile_named_slots(self):
+        catalog = A2uiCatalog(
+            version="1.0",
+            name="custom_catalog",
+            experiments={"version_1_0"},
+            s2c_schema={},
+            common_types_schema={},
+            catalog_schema={
+                "catalogId": "https://a2ui.org/custom_catalog",
+                "components": {
+                    "CustomCard": {
+                        "properties": {
+                            "leading": {"$ref": "#/definitions/ComponentId"},
+                            "trailing": {
+                                "type": "array",
+                                "items": {"$ref": "#/definitions/ComponentId"},
+                            },
+                        }
+                    },
+                    "Text": {"properties": {"text": {"type": "string"}}},
+                },
+                "definitions": {"ComponentId": {"type": "string"}},
+            },
+        )
+        decompiler = ElementalDecompiler(catalog)
+        envelope = {
+            "version": "1.0",
+            "createSurface": {
+                "surfaceId": "test-surf",
+                "components": [
+                    {
+                        "id": "card_1",
+                        "component": "CustomCard",
+                        "leading": "item_1",
+                        "trailing": ["item_2"],
+                    },
+                    {"id": "item_1", "component": "Text", "text": "Leading Item"},
+                    {"id": "item_2", "component": "Text", "text": "Trailing Item"},
+                ],
+            },
+        }
+        html_output = decompiler.decompile(envelope)
+        self.assertIn('slot="leading"', html_output)
+        self.assertIn('slot="trailing"', html_output)
 
 
 if __name__ == "__main__":

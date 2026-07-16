@@ -18,6 +18,8 @@ from typing import Any, Optional, List
 from a2ui.schema.catalog import A2uiCatalog
 from a2ui.parser.response_part import ResponsePart
 from a2ui.inference_format import InferenceFormat
+from a2ui.decompiler import Decompiler
+from a2ui.schema.capabilities import ClientUiCapabilities
 from a2ui.parser.parser import Parser
 from google.adk.utils.feature_decorator import experimental
 
@@ -59,6 +61,12 @@ class ExpressFormat(InferenceFormat):
     def parser(self) -> Parser:
         self._ensure_catalog()
         return ExpressParser(self.catalog, self.surface_id)
+
+    @property
+    def decompiler(self) -> ExpressDecompiler:
+        self._ensure_catalog()
+        assert self._decompiler is not None
+        return self._decompiler
 
 
     def catalog_description(self, prompt_gen: Any, include_schema: bool = True) -> str:
@@ -104,17 +112,3 @@ class ExpressFormat(InferenceFormat):
         )
         return desc
 
-    def decompile(self, val: dict[str, Any]) -> str:
-        self._ensure_catalog()
-        # Decompile standard JSON payload to express syntax and strip outer <a2ui> tags
-        dsl = self._decompiler.decompile(val)
-        return dsl.replace("<a2ui>\n", "").replace("\n</a2ui>", "")
-
-    def wrap_decompiled_blocks(self, blocks: list[str]) -> str:
-        # Merge individual express blocks into a single <a2ui> wrapper block
-        full_dsl = "\n".join(blocks)
-        return f"<a2ui>\n{full_dsl}\n</a2ui>"
-
-    def transform_examples(self, raw_examples_markdown: str) -> str:
-        """Transforms JSON blocks in raw markdown into Express DSL syntax."""
-        return self.prompt_generator.transform_examples(raw_examples_markdown)

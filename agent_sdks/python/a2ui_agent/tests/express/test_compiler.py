@@ -47,8 +47,12 @@ class TestExpressCompiler(unittest.TestCase):
 
     def test_prompt_generator(self):
         """Verifies prompt signature compiler loads catalog components correctly."""
-        generator = ExpressPromptGenerator(self.catalog)
-        prompt = generator.generate_prompt()
+        from a2ui.inference_formats.experimental.express.format import ExpressFormat
+
+        fmt = ExpressFormat(catalog=self.catalog)
+        prompt = fmt.prompt_generator.generate(
+            role_description="", include_schema=True
+        )
         self.assertIn("Text(", prompt)
         self.assertIn("Column(", prompt)
         self.assertIn("required(", prompt)
@@ -283,9 +287,13 @@ $/breeds = [{"url": "https://example.com/poodle.jpg"}]"""
 
         self.helper.get_property_schema = mock_get_property_schema
         try:
-            generator = ExpressPromptGenerator(self.catalog)
-            generator.helper = self.helper
-            prompt = generator.generate_prompt()
+            from a2ui.inference_formats.experimental.express.format import ExpressFormat
+
+            fmt = ExpressFormat(catalog=self.catalog)
+            fmt.prompt_generator.helper = self.helper
+            prompt = fmt.prompt_generator.generate(
+                role_description="", include_schema=True
+            )
             self.assertIsNotNone(prompt)
         finally:
             self.helper.get_property_schema = original_get_property_schema
@@ -588,8 +596,12 @@ valueField = TextField("Deal Value", $/form/value, "0.00", "number", ?required)"
             self.assertIn("repField = TextField(", decompiled_dsl)
 
             # Prompt Generator
-            generator = ExpressPromptGenerator(cat_input)
-            prompt = generator.generate_prompt()
+            from a2ui.inference_formats.experimental.express.format import ExpressFormat
+
+            fmt = ExpressFormat(catalog=cat_input)
+            prompt = fmt.prompt_generator.generate(
+                role_description="", include_schema=True
+            )
             self.assertIn("TextField(", prompt)
 
             # Parser

@@ -1,4 +1,4 @@
-# Copyright 2025 Google LLC
+# Copyright 2026 Google LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -12,10 +12,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Schema package supporting validators, catalogs, and capabilities."""
+"""Client UI Capabilities structures."""
 
-from .capabilities import ClientUiCapabilities
+from typing import Any, List, Optional, TypedDict
 
-__all__ = [
-    "ClientUiCapabilities",
-]
+
+class ClientUiCapabilities(TypedDict, total=False):
+    """Structured representation of client UI capabilities."""
+
+    supportedCatalogIds: Optional[List[str]]
+    inlineCatalogs: Optional[List[dict[str, Any]]]

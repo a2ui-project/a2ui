@@ -19,6 +19,9 @@ from typing import Any, Optional, Callable, Union
 
 from a2ui.schema.utils import load_from_bundled_resource
 from a2ui.inference_format import InferenceFormat
+from a2ui.decompiler import Decompiler
+from a2ui.schema.capabilities import ClientUiCapabilities
+from a2ui.inference_formats.transport.decompiler import TransportDecompiler
 from a2ui.schema.constants import (
     SERVER_TO_CLIENT_SCHEMA_KEY,
     COMMON_TYPES_SCHEMA_KEY,
@@ -150,7 +153,7 @@ class TransportFormat(InferenceFormat):
                 self._catalog_example_paths[catalog.catalog_id] = config.examples_path
 
     def _select_catalog(
-        self, client_ui_capabilities: Optional[dict[str, Any]] = None
+        self, client_ui_capabilities: Optional[ClientUiCapabilities] = None
     ) -> A2uiCatalog:
         """Selects the component catalog for the prompt based on client capabilities.
 
@@ -239,7 +242,7 @@ class TransportFormat(InferenceFormat):
 
     def get_selected_catalog(
         self,
-        client_ui_capabilities: Optional[dict[str, Any]] = None,
+        client_ui_capabilities: Optional[ClientUiCapabilities] = None,
         allowed_components: Optional[list[str]] = None,
         allowed_messages: Optional[list[str]] = None,
     ) -> A2uiCatalog:
@@ -257,6 +260,11 @@ class TransportFormat(InferenceFormat):
         pruned_catalog = catalog.with_pruning(allowed_components, allowed_messages)
         return pruned_catalog
 
+    @property
+    def decompiler(self) -> TransportDecompiler:
+        """Returns the Decompiler instance for this format."""
+        return TransportDecompiler()
+
     def load_examples(self, catalog: A2uiCatalog, validate: bool = False) -> str:
         """Loads and optionally validates few-shot examples for the specified catalog.
 
@@ -272,14 +280,6 @@ class TransportFormat(InferenceFormat):
                 self._catalog_example_paths[catalog.catalog_id], validate=validate
             )
         return ""
-
-    def decompile(self, val: dict[str, Any]) -> str:
-        import json
-
-        return json.dumps(val, indent=2)
-
-    def transform_examples(self, raw_examples_markdown: str) -> str:
-        return raw_examples_markdown
 
 
 

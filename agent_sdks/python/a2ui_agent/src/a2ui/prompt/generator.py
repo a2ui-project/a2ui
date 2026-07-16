@@ -16,6 +16,7 @@
 
 from abc import ABC, abstractmethod
 from typing import Any, Optional
+from a2ui.schema.capabilities import ClientUiCapabilities
 
 
 class PromptGenerator(ABC):
@@ -27,7 +28,7 @@ class PromptGenerator(ABC):
         role_description: str,
         workflow_description: str = "",
         ui_description: str = "",
-        client_ui_capabilities: Optional[dict[str, Any]] = None,
+        client_ui_capabilities: Optional[ClientUiCapabilities] = None,
         allowed_components: Optional[list[str]] = None,
         allowed_messages: Optional[list[str]] = None,
         include_schema: bool = False,
@@ -51,3 +52,4 @@ class PromptGenerator(ABC):
             The complete generated prompt system instruction.
         """
         pass
+
