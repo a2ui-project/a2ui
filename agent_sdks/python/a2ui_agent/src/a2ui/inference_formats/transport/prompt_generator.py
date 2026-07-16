@@ -84,7 +84,7 @@ class TransportPromptGenerator(PromptGenerator):
             parts.append(f"## UI Description:\n{ui_description}")
 
         if include_schema:
-            instructions = self._format.catalog_description(self, include_schema=True)
+            instructions = self.catalog_description(include_schema=True)
             if instructions:
                 parts.append(instructions)
 
@@ -92,3 +92,18 @@ class TransportPromptGenerator(PromptGenerator):
             parts.append(f"### Examples:\n{examples_str}")
 
         return "\n\n".join(parts)
+
+    def catalog_description(self, include_schema: bool = True) -> str:
+        """Returns the format's system prompt component catalog signatures block."""
+        if not include_schema:
+            return ""
+        catalog = self.selected_catalog
+        if not catalog:
+            catalog = (
+                self._format._supported_catalogs[0]
+                if self._format._supported_catalogs
+                else None
+            )
+        if not catalog:
+            return ""
+        return catalog.render_as_llm_instructions() or ""

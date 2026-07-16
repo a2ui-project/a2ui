@@ -94,12 +94,3 @@ class InferenceFormat(ABC):
             include_examples=include_examples,
             validate_examples=validate_examples,
         )
-
-    @abstractmethod
-    def catalog_description(
-        self,
-        prompt_gen: Any,
-        include_schema: bool = True,
-    ) -> str:
-        """Returns the format's system prompt component catalog signatures block."""
-        pass

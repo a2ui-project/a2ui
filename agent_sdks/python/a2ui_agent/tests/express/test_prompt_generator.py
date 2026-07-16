@@ -72,7 +72,7 @@ class TestExpressPromptGenerator(unittest.TestCase):
     def test_catalog_description_before_generate(self):
         express_format = ExpressFormat(catalog=self.catalog)
         generator = express_format.prompt_generator
-        desc = express_format.catalog_description(generator, include_schema=True)
+        desc = generator.catalog_description(include_schema=True)
         self.assertIn("Text(", desc)
 
     def test_express_allowed_components_pruning(self):

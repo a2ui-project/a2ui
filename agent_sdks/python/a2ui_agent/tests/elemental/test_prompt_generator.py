@@ -143,8 +143,104 @@ class TestElementalPromptGenerator(unittest.TestCase):
     def test_catalog_description_before_generate(self):
         elemental_format = ElementalFormat(catalog=self.catalog)
         generator = elemental_format.prompt_generator
-        desc = elemental_format.catalog_description(generator, include_schema=True)
+        desc = generator.catalog_description(include_schema=True)
         self.assertIn("interface Text {", desc)
+
+    def test_catalog_description_no_schema(self):
+        """Verifies catalog_description returns an empty string when include_schema is False."""
+        fmt = ElementalFormat(catalog=self.catalog)
+        generator = fmt.prompt_generator
+        desc = generator.catalog_description(include_schema=False)
+        self.assertEqual(desc, "")
+
+    def test_catalog_description_initializes_helper_and_decompiles_instructions(self):
+        """Verifies helper initialization and JSON instructions decompiling in catalog_description."""
+        custom_catalog = A2uiCatalog(
+            version=VERSION_1_0,
+            name="custom_catalog",
+            experiments={"version_1_0"},
+            s2c_schema={},
+            common_types_schema={},
+            catalog_schema={
+                "catalogId": "https://a2ui.org/custom_catalog",
+                "instructions": (
+                    "Please output components in the following format:\n"
+                    "```json\n"
+                    "{\n"
+                    '  "version": "1.0",\n'
+                    '  "createSurface": {\n'
+                    '    "surfaceId": "welcome",\n'
+                    '    "components": [\n'
+                    "      {\n"
+                    '        "id": "root",\n'
+                    '        "component": "Text",\n'
+                    '        "text": "Hello"\n'
+                    "      }\n"
+                    "    ]\n"
+                    "  }\n"
+                    "}\n"
+                    "```"
+                ),
+                "components": {"Text": {"properties": {"text": {"type": "string"}}}},
+            },
+        )
+
+        fmt = ElementalFormat(catalog=custom_catalog)
+        generator = fmt.prompt_generator
+
+        desc = generator.catalog_description(include_schema=True)
+
+        # Verify JSON block in catalog instructions is decompiled to HTML block
+        self.assertIn("## Catalog Instructions", desc)
+        self.assertIn("```html", desc)
+        self.assertIn('<ui-text id="root" text="Hello" />', desc)
+        self.assertNotIn("```json", desc)
+
+    def test_catalog_description_initializes_helper_and_decompiles_list_instructions(
+        self,
+    ):
+        """Verifies helper initialization and list JSON instructions decompiling in catalog_description."""
+        custom_catalog = A2uiCatalog(
+            version=VERSION_1_0,
+            name="custom_catalog",
+            experiments={"version_1_0"},
+            s2c_schema={},
+            common_types_schema={},
+            catalog_schema={
+                "catalogId": "https://a2ui.org/custom_catalog",
+                "instructions": (
+                    "Please output components in the following format:\n"
+                    "```json\n"
+                    "[\n"
+                    "  {\n"
+                    '    "version": "1.0",\n'
+                    '    "createSurface": {\n'
+                    '      "surfaceId": "welcome",\n'
+                    '      "components": [\n'
+                    "        {\n"
+                    '          "id": "root",\n'
+                    '          "component": "Text",\n'
+                    '          "text": "Hello List"\n'
+                    "        }\n"
+                    "      ]\n"
+                    "    }\n"
+                    "  }\n"
+                    "]\n"
+                    "```"
+                ),
+                "components": {"Text": {"properties": {"text": {"type": "string"}}}},
+            },
+        )
+
+        fmt = ElementalFormat(catalog=custom_catalog)
+        generator = fmt.prompt_generator
+
+        desc = generator.catalog_description(include_schema=True)
+
+        self.assertIn("## Catalog Instructions", desc)
+        self.assertIn("```html", desc)
+        self.assertIn('<ui-text id="root" text="Hello List" />', desc)
+        self.assertNotIn("```json", desc)
 
     def test_elemental_ts_type_mapping(self):
         elemental_format = ElementalFormat(catalog=self.catalog)

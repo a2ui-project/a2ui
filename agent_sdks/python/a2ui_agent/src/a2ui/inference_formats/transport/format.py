@@ -280,17 +280,3 @@ class TransportFormat(InferenceFormat):
                 self._catalog_example_paths[catalog.catalog_id], validate=validate
             )
         return ""
-
-    def catalog_description(
-        self,
-        prompt_gen: Any,
-        include_schema: bool = True,
-    ) -> str:
-        if not include_schema:
-            return ""
-        catalog = getattr(prompt_gen, "selected_catalog", None)
-        if not catalog:
-            catalog = self._supported_catalogs[0] if self._supported_catalogs else None
-        if not catalog:
-            return ""
-        return catalog.render_as_llm_instructions() or ""

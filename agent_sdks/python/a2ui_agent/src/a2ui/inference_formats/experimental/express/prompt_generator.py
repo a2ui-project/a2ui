@@ -283,7 +283,44 @@ class ExpressPromptGenerator(PromptGenerator):
         return "\n".join(signatures)
 
     def _build_schema_prompt(self) -> str:
-        return self._format.catalog_description(self, include_schema=True)
+        return self.catalog_description(include_schema=True)
+
+    def catalog_description(self, include_schema: bool = True) -> str:
+        """Returns the format's system prompt component catalog signatures block."""
+        if not include_schema:
+            return ""
+
+        comp_sigs = self.generate_component_signatures()
+        func_sigs = self.generate_function_signatures()
+        catalog_instructions = (
+            self.helper.catalog.get("instructions", "") if self.helper else ""
+        )
+
+        # Translate json examples in catalog instructions into A2UI Express DSL
+        if catalog_instructions:
+            pattern = r"```json\s*\n(.*?)\n```"
+            catalog_instructions = re.sub(
+                pattern,
+                self._replace_json_block_in_instructions,
+                catalog_instructions,
+                flags=re.DOTALL,
+            )
+
+        # Format catalog instructions block if it exists
+        catalog_instructions_block = ""
+        if catalog_instructions:
+            catalog_instructions_block = (
+                f"\n\n## Catalog Instructions\n\n{catalog_instructions}"
+            )
+
+        desc = (
+            "## Positional Component Signatures\n\nUse these exact positional"
+            " signatures to instantiate components. Do not output property"
+            f" keys:\n{comp_sigs}\n\n## Positional Function Signatures\n\nUse these"
+            " exact positional signatures to instantiate check rules or logic"
+            f" functions:\n{func_sigs}{catalog_instructions_block}"
+        )
+        return desc
 
     def decompile(self, val: dict[str, Any]) -> str:
         return self._format.decompiler.decompile(val)
