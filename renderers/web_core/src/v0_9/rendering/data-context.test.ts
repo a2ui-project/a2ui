@@ -106,10 +106,22 @@ describe('DataContext', () => {
     assert.deepStrictEqual(context.resolveDynamicValue(['literal', 'array']), ['literal', 'array']);
   });
 
+  it('returns fully static arrays as-is without re-allocation', () => {
+    const staticArray = ['literal', 1, true, null, [2, 'nested']];
+    assert.strictEqual(context.resolveDynamicValue(staticArray), staticArray);
+  });
+
   it('resolves arrays of DynamicValues element-wise', () => {
     assert.deepStrictEqual(context.resolveDynamicValue([{path: 'name'}, 'literal']), [
       'Alice',
       'literal',
+    ]);
+  });
+
+  it('resolves DynamicValues nested inside inner arrays', () => {
+    assert.deepStrictEqual(context.resolveDynamicValue(['outer', [{path: 'name'}, 'inner']]), [
+      'outer',
+      ['Alice', 'inner'],
     ]);
   });
 
