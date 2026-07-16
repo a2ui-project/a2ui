@@ -54,6 +54,7 @@ class ExpressFormat(InferenceFormat):
     def prompt_generator(self) -> ExpressPromptGenerator:
         """Returns the PromptGenerator instance for this format."""
         if self._prompt_generator is None:
+            self._ensure_catalog()
             self._prompt_generator = ExpressPromptGenerator(self)
         return self._prompt_generator
 

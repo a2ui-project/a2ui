@@ -25,6 +25,7 @@ from a2ui.schema.catalog import A2uiCatalog
 from a2ui.inference_formats.experimental.express.schema_helper import CatalogSchemaHelper
 from a2ui.prompt import PromptGenerator
 from a2ui.schema.capabilities import ClientUiCapabilities
+from .decompiler import ElementalDecompiler
 
 if TYPE_CHECKING:
     from .format import ElementalFormat
@@ -117,6 +118,7 @@ class ElementalPromptGenerator(PromptGenerator):
         self.catalog: A2uiCatalog = format_inst.catalog
         self.helper: CatalogSchemaHelper = CatalogSchemaHelper(format_inst.catalog)
         self.catalog_id: str = format_inst.catalog.catalog_id
+        self.decompiler: Optional[ElementalDecompiler] = None
 
     def _map_schema_to_ts_type(
         self, component_name: str, prop_name: str, prop_schema: Any
@@ -339,12 +341,22 @@ class ElementalPromptGenerator(PromptGenerator):
                         "callFunction",
                     ]
                 ):
-                    decompiled = self._format.decompiler.decompile(msg)
+                    decompiler = self.decompiler or self._format.decompiler
+                    if not decompiler:
+                        self._format._ensure_catalog()
+                        decompiler = self._format.decompiler
+                        assert decompiler is not None
+                    decompiled = decompiler.decompile(msg)
                     blocks.append(decompiled)
                 else:
                     return str(match.group(0))
 
-            return self._format.decompiler.wrap_decompiled_blocks(blocks)
+            decompiler = self.decompiler or self._format.decompiler
+            if not decompiler:
+                self._format._ensure_catalog()
+                decompiler = self._format.decompiler
+                assert decompiler is not None
+            return decompiler.wrap_decompiled_blocks(blocks)
         except Exception:
             return str(match.group(0))
 
@@ -397,6 +409,7 @@ class ElementalPromptGenerator(PromptGenerator):
             self.catalog = catalog
             self.helper = CatalogSchemaHelper(catalog)
             self.catalog_id = catalog.catalog_id
+            self.decompiler = ElementalDecompiler(catalog)
 
         prompt = self.catalog_description(include_schema=True)
 
@@ -448,12 +461,23 @@ class ElementalPromptGenerator(PromptGenerator):
                             html_parts = []
                             for item in parsed_json:
                                 if isinstance(item, dict):
-                                    html_parts.append(
-                                        self._format.decompiler.decompile(item)
+                                    decompiler = (
+                                        self.decompiler or self._format.decompiler
                                     )
+                                    if not decompiler:
+                                        self._format._ensure_catalog()
+                                        decompiler = self._format.decompiler
+                                        assert decompiler is not None
+                                    html_parts.append(decompiler.decompile(item))
                             html_block = "\n\n".join(html_parts)
                         elif isinstance(parsed_json, dict):
-                            html_block = self._format.decompiler.decompile(parsed_json)
+                            decompiler = self.decompiler or self._format.decompiler
+                            if not decompiler:
+                                self._format._ensure_catalog()
+                                compiler_inst = self._format.decompiler
+                                assert compiler_inst is not None
+                                decompiler = compiler_inst
+                            html_block = decompiler.decompile(parsed_json)
                         else:
                             continue
 

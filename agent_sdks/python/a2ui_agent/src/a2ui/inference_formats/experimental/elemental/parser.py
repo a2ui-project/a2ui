@@ -60,6 +60,8 @@ class ElementalParser(Parser):
             stripped = format_content.strip()
             if "<body" in stripped and not stripped.endswith("</body>"):
                 format_content = format_content + "\n</body>"
+            elif "<a2ui" in stripped and not stripped.endswith("</a2ui>"):
+                format_content = format_content + "\n</a2ui>"
 
         compiler = ElementalCompiler(self.catalog)
         try:

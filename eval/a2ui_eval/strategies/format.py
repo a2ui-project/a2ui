@@ -36,7 +36,7 @@ def _get_strategy(
     transport_format = TransportFormat(
         version=version,
         catalogs=[catalog_config],
-        experiments={"version_1_0"},
+        experiments={"version_1_0"} if version == "1.0" else None,
     )
     if format_name == "json":
         return transport_format
@@ -98,10 +98,10 @@ def compile_format_payload(format_name: str, version: str) -> Solver:
 
         surface_id = default_surface_id
         match = re.search(
-            r"<a2ui\b[^>]*\bid=['\"]([^'\"]+)['\"]", completion, re.IGNORECASE
+            r"<(a2ui|body)\b[^>]*\bid=['\"]([^'\"]+)['\"]", completion, re.IGNORECASE
         )
         if match:
-            found_id = match.group(1)
+            found_id = match.group(2)
             if found_id in allowed_surface_ids:
                 surface_id = found_id
 

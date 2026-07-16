@@ -374,9 +374,7 @@ class ElementalDecompiler(Decompiler):
                 if len(action_props) == 1:
                     kebab_name = "onclick"
                 else:
-                    if not (
-                        kebab_name.startswith("on-") or kebab_name.startswith("on")
-                    ):
+                    if not kebab_name.startswith("on-"):
                         kebab_name = f"on-{kebab_name}"
 
         if isinstance(val, str):

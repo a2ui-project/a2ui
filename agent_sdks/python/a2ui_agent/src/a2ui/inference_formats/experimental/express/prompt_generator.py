@@ -323,10 +323,20 @@ class ExpressPromptGenerator(PromptGenerator):
         return desc
 
     def decompile(self, val: dict[str, Any]) -> str:
-        return self._format.decompiler.decompile(val)
+        decompiler = self.decompiler or self._format.decompiler
+        if not decompiler:
+            self._format._ensure_catalog()
+            decompiler = self._format.decompiler
+            assert decompiler is not None
+        return decompiler.decompile(val)
 
     def wrap_decompiled_blocks(self, blocks: list[str]) -> str:
-        return self._format.decompiler.wrap_decompiled_blocks(blocks)
+        decompiler = self.decompiler or self._format.decompiler
+        if not decompiler:
+            self._format._ensure_catalog()
+            decompiler = self._format.decompiler
+            assert decompiler is not None
+        return decompiler.wrap_decompiled_blocks(blocks)
 
     def _replace_json_block_in_instructions(self, match: re.Match[str]) -> str:
         json_content = match.group(1).strip()
