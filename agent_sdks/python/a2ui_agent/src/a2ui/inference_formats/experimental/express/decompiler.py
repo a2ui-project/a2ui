@@ -22,6 +22,7 @@ from typing import Any, Union
 from a2ui.core.catalog import Catalog
 from a2ui.schema.catalog import A2uiCatalog
 from a2ui.decompiler import Decompiler
+from a2ui.schema.constants import A2UI_INFERENCE_OPEN_TAG, A2UI_INFERENCE_CLOSE_TAG
 from .schema_helper import CatalogSchemaHelper
 from .constants import SurfaceOperation
 
@@ -117,9 +118,9 @@ class ExpressDecompiler(Decompiler):
         self.helper = CatalogSchemaHelper(catalog)
 
     def wrap_decompiled_blocks(self, blocks: list[str]) -> str:
-        # Merge individual express blocks into a single <a2ui> wrapper block
+        # Merge individual express blocks into a single wrapper block
         full_dsl = "\n".join(blocks)
-        return f"<a2ui>\n{full_dsl}\n</a2ui>"
+        return f"{A2UI_INFERENCE_OPEN_TAG}\n{full_dsl}\n{A2UI_INFERENCE_CLOSE_TAG}"
 
     def decompile(self, envelope_json: dict) -> str:
         """Decompiles standard A2UI wire JSON into clean A2UI Express lines.

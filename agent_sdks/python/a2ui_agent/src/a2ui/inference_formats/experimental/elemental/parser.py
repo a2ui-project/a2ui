@@ -20,6 +20,7 @@ from a2ui.schema.catalog import A2uiCatalog
 from a2ui.parser.response_part import ResponsePart
 from a2ui.parser.parser import Parser
 from google.adk.utils.feature_decorator import experimental
+from a2ui.schema.constants import A2UI_INFERENCE_OPEN_TAG, A2UI_INFERENCE_CLOSE_TAG
 from .compiler import ElementalCompiler
 
 
@@ -50,8 +51,11 @@ class ElementalParser(Parser):
             True if sentinel tags are detected, False otherwise.
         """
         if complete:
-            return "<a2ui" in content and "</a2ui>" in content
-        return "<a2ui" in content
+            return (
+                A2UI_INFERENCE_OPEN_TAG[:-1] in content
+                and A2UI_INFERENCE_CLOSE_TAG in content
+            )
+        return A2UI_INFERENCE_OPEN_TAG[:-1] in content
 
     def unwrap(self, content: str) -> List[ResponsePart]:
         """Unwraps and tokenizes response content into raw Elemental HTML parts.
@@ -65,8 +69,8 @@ class ElementalParser(Parser):
         from a2ui.parser.lexer import BlockLexer
 
         lexer = BlockLexer(
-            open_tag="<a2ui>",
-            close_tag="</a2ui>",
+            open_tag=A2UI_INFERENCE_OPEN_TAG,
+            close_tag=A2UI_INFERENCE_CLOSE_TAG,
             string_delimiters={"'", '"', "`"},
             single_line_comments={"//", "<!--"},
         )
@@ -96,8 +100,10 @@ class ElementalParser(Parser):
             stripped = format_content.strip()
             if "<body" in stripped and not stripped.endswith("</body>"):
                 format_content = format_content + "\n</body>"
-            elif "<a2ui" in stripped and not stripped.endswith("</a2ui>"):
-                format_content = format_content + "\n</a2ui>"
+            elif A2UI_INFERENCE_OPEN_TAG[:-1] in stripped and not stripped.endswith(
+                A2UI_INFERENCE_CLOSE_TAG
+            ):
+                format_content = format_content + f"\n{A2UI_INFERENCE_CLOSE_TAG}"
 
         compiler = ElementalCompiler(self.catalog)
         try:

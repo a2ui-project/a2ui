@@ -26,6 +26,7 @@ from a2ui.schema.catalog import A2uiCatalog
 from a2ui.decompiler import Decompiler
 from a2ui.inference_formats.experimental.express.schema_helper import CatalogSchemaHelper
 from a2ui.inference_formats.experimental.express.constants import SurfaceOperation
+from a2ui.schema.constants import A2UI_INFERENCE_OPEN_TAG, A2UI_INFERENCE_CLOSE_TAG
 
 TAG_PREFIX = "ui-"
 
@@ -121,7 +122,10 @@ class ElementalDecompiler(Decompiler):
         self.helper = CatalogSchemaHelper(catalog)
 
     def wrap_decompiled_blocks(self, blocks: list[str]) -> str:
-        wrapped_blocks = [f"<a2ui>\n{b}\n</a2ui>" for b in blocks]
+        wrapped_blocks = [
+            f"{A2UI_INFERENCE_OPEN_TAG}\n{b}\n{A2UI_INFERENCE_CLOSE_TAG}"
+            for b in blocks
+        ]
         full_html = "\n\n".join(wrapped_blocks)
         triple_backticks = chr(96) * 3
         return f"{triple_backticks}html\n{full_html}\n{triple_backticks}"

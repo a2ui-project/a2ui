@@ -20,6 +20,7 @@ from a2ui.schema.catalog import A2uiCatalog
 from a2ui.parser.response_part import ResponsePart
 from a2ui.parser.parser import Parser
 from google.adk.utils.feature_decorator import experimental
+from a2ui.schema.constants import A2UI_INFERENCE_OPEN_TAG, A2UI_INFERENCE_CLOSE_TAG
 from .compiler import ExpressCompiler
 
 
@@ -35,16 +36,19 @@ class ExpressParser(Parser):
 
     def has_format_content(self, content: str, *, complete: bool = False) -> bool:
         if complete:
-            return "<a2ui>" in content and "</a2ui>" in content
-        return "<a2ui" in content
+            return (
+                A2UI_INFERENCE_OPEN_TAG in content
+                and A2UI_INFERENCE_CLOSE_TAG in content
+            )
+        return A2UI_INFERENCE_OPEN_TAG[:-1] in content
 
     def unwrap(self, content: str) -> List[ResponsePart]:
         """Unwraps/tokenizes the response content into raw Express DSL parts."""
         from a2ui.parser.lexer import BlockLexer
 
         lexer = BlockLexer(
-            open_tag="<a2ui>",
-            close_tag="</a2ui>",
+            open_tag=A2UI_INFERENCE_OPEN_TAG,
+            close_tag=A2UI_INFERENCE_CLOSE_TAG,
             string_delimiters={"'", '"'},
             single_line_comments={"#"},
         )
