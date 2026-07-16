@@ -14,7 +14,6 @@
 
 """Parser utilities to extract and compile A2UI Express DSL from LLM responses."""
 
-import re
 from typing import Any, List, Union
 from a2ui.core.catalog import Catalog
 from a2ui.schema.catalog import A2uiCatalog
@@ -22,8 +21,6 @@ from a2ui.parser.response_part import ResponsePart
 from a2ui.parser.parser import Parser
 from google.adk.utils.feature_decorator import experimental
 from .compiler import ExpressCompiler
-
-_A2UI_DSL_BLOCK_PATTERN = re.compile(r"<a2ui>(.*?)</a2ui>", re.DOTALL)
 
 
 @experimental
@@ -43,43 +40,15 @@ class ExpressParser(Parser):
 
     def unwrap(self, content: str) -> List[ResponsePart]:
         """Unwraps/tokenizes the response content into raw Express DSL parts."""
-        # Handle unclosed tag auto-closing
-        last_open = content.rfind("<a2ui>")
-        last_close = content.rfind("</a2ui>")
-        is_truncated = False
-        if last_open != -1 and last_open > last_close:
-            content += "</a2ui>"
-            is_truncated = True
+        from a2ui.parser.lexer import BlockLexer
 
-        matches = list(_A2UI_DSL_BLOCK_PATTERN.finditer(content))
-        if not matches:
-            return [ResponsePart(text=content, a2ui_raw=None)]
-
-        response_parts = []
-        last_end = 0
-
-        for idx, match in enumerate(matches):
-            start, end = match.span()
-            text_part = content[last_end:start].strip()
-
-            dsl_content = match.group(1).strip()
-
-            is_block_final = not (is_truncated and idx == len(matches) - 1)
-
-            response_parts.append(
-                ResponsePart(
-                    text=text_part if text_part else None,
-                    a2ui_raw=dsl_content,
-                    is_final=is_block_final,
-                )
-            )
-            last_end = end
-
-        trailing_text = content[last_end:].strip()
-        if trailing_text:
-            response_parts.append(ResponsePart(text=trailing_text, a2ui_raw=None))
-
-        return response_parts
+        lexer = BlockLexer(
+            open_tag="<a2ui>",
+            close_tag="</a2ui>",
+            string_delimiters={"'", '"'},
+            single_line_comments={"#"},
+        )
+        return lexer.tokenize(content)
 
     def compile(
         self, format_content: str, *, is_final: bool = True

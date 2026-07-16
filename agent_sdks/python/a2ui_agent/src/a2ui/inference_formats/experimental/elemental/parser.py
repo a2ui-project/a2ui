@@ -14,23 +14,13 @@
 
 """Parser utilities to extract and compile A2UI Elemental HTML from LLM responses."""
 
-import re
 from typing import Any, List, Union
 from a2ui.core.catalog import Catalog
 from a2ui.schema.catalog import A2uiCatalog
 from a2ui.parser.response_part import ResponsePart
 from a2ui.parser.parser import Parser
 from google.adk.utils.feature_decorator import experimental
-from .compiler import ElementalCompiler, TAG_PREFIX
-
-_A2UI_OPEN_PATTERN = re.compile(r"<a2ui\b[^>]*>", re.IGNORECASE)
-
-_BLOCK_PATTERN = re.compile(
-    r"<a2ui\b[^>]*>.*?</a2ui>"
-    f"|<{TAG_PREFIX}delete-surface\\b[^>]*>(?:.*?</{TAG_PREFIX}delete-surface>|/>)?"
-    f"|<{TAG_PREFIX}call-function\\b[^>]*>(?:.*?</{TAG_PREFIX}call-function>|/>)?",
-    re.DOTALL | re.IGNORECASE,
-)
+from .compiler import ElementalCompiler
 
 
 @experimental
@@ -50,51 +40,24 @@ class ElementalParser(Parser):
 
     def unwrap(self, content: str) -> List[ResponsePart]:
         """Unwraps/tokenizes the response content into raw Elemental HTML parts."""
-        content_lower = content.lower()
-        last_open_match = list(_A2UI_OPEN_PATTERN.finditer(content))
-        last_close = content_lower.rfind("</a2ui>")
+        from a2ui.parser.lexer import BlockLexer
 
-        is_truncated = False
-        if last_open_match:
-            last_open = last_open_match[-1].start()
-            if last_open > last_close:
-                content += "\n</a2ui>"
-                is_truncated = True
-
-        matches = list(_BLOCK_PATTERN.finditer(content))
-
-        if not matches:
-            return [ResponsePart(text=content, a2ui_raw=None)]
-
-        response_parts = []
-        last_end = 0
-
-        for idx, match in enumerate(matches):
-            start, end = match.span()
-
-            text_part = content[last_end:start]
-            text_part_stripped = re.sub(
-                r"```html\s*$", "", text_part, flags=re.IGNORECASE
-            ).strip()
-
-            html_content = match.group(0).strip()
-
-            is_block_final = not (is_truncated and idx == len(matches) - 1)
-
-            response_parts.append(
-                ResponsePart(
-                    text=text_part_stripped if text_part_stripped else None,
-                    a2ui_raw=html_content,
-                    is_final=is_block_final,
-                )
-            )
-            last_end = end
-
-        trailing_text = content[last_end:].strip()
-        if trailing_text:
-            response_parts.append(ResponsePart(text=trailing_text, a2ui_raw=None))
-
-        return response_parts
+        lexer = BlockLexer(
+            open_tag="<a2ui>",
+            close_tag="</a2ui>",
+            string_delimiters={"'", '"', "`"},
+            single_line_comments={"//", "<!--"},
+        )
+        parts = lexer.tokenize(content)
+        for part in parts:
+            if part.a2ui_raw is not None:
+                # The Elemental HTML compiler (DomBuilder) parses standard DOM nodes and
+                # expects the root node of the parsed document to be the enclosing <a2ui> tag.
+                # Since BlockLexer returns raw content without the enclosing tags, we wrap it
+                # back in `<a2ui>...</a2ui>` here before compilation.
+                if not part.a2ui_raw.startswith("<a2ui"):
+                    part.a2ui_raw = f"<a2ui>{part.a2ui_raw}</a2ui>"
+        return parts
 
     def compile(
         self, format_content: str, *, is_final: bool = True
