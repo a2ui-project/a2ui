@@ -473,6 +473,50 @@ class TestElementalDecompiler(unittest.TestCase):
         self.assertIn('<script type="application/json" slot="text">', html_output)
         self.assertIn('"foo": "bar"', html_output)
 
+    def test_decompile_multiple_actions_prefixing(self):
+        catalog = A2uiCatalog(
+            version="1.0",
+            name="custom_catalog",
+            experiments={"version_1_0"},
+            s2c_schema={},
+            common_types_schema={},
+            catalog_schema={
+                "catalogId": "https://a2ui.org/custom_catalog",
+                "components": {
+                    "MultiActionButton": {
+                        "properties": {
+                            "onPress": {"$ref": "#/definitions/Action"},
+                            "ongoing": {"$ref": "#/definitions/Action"},
+                        }
+                    }
+                },
+            },
+        )
+        decompiler = ElementalDecompiler(catalog)
+        envelope = {
+            "version": "1.0",
+            "createSurface": {
+                "surfaceId": "test-surf",
+                "components": [{
+                    "id": "btn_1",
+                    "component": "MultiActionButton",
+                    "onPress": {
+                        "event": {
+                            "name": "press",
+                        }
+                    },
+                    "ongoing": {
+                        "event": {
+                            "name": "going",
+                        }
+                    },
+                }],
+            },
+        }
+        html_output = decompiler.decompile(envelope)
+        self.assertIn("on-press=\"{Event('press')}\"", html_output)
+        self.assertIn("on-ongoing=\"{Event('going')}\"", html_output)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -324,6 +324,14 @@ class TestElementalCompiler(unittest.TestCase):
             self.compiler.compile(html_input)
         self.assertIn("Invalid element tag 'div'", str(ctx.exception))
 
+    def test_compile_invalid_root_tag_raises_error(self):
+        html_input = (
+            '<ui-card id="card_1">\n  <ui-text id="text_1" text="Hello" />\n</ui-card>'
+        )
+        with self.assertRaises(ValueError) as ctx:
+            self.compiler.compile(html_input)
+        self.assertIn("A2UI Elemental document must have a <body>", str(ctx.exception))
+
     def test_compile_case_insensitive_enum_matching(self):
         # 'align' on Column expects 'center', 'start', 'end'. Test passing 'CENTER' or 'Center'
         html_input = (
