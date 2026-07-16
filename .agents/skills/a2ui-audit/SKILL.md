@@ -18,7 +18,7 @@ fix issues.
 ## **Instructions**
 
 1. **Audit Codebase Blueprint Compliance**:
-   - Run the sub-skill [`a2ui-blueprint-compliance`](../blueprints/skills/a2ui-blueprint-compliance/SKILL.md) to generate the Markdown report of codebase blueprint statuses.
+   - Run the sub-skill [`a2ui-blueprint-compliance`](../../../blueprints/skills/a2ui-blueprint-compliance/SKILL.md) to generate the Markdown report of codebase blueprint statuses.
    - Save the returned Markdown report to a temporary file in the workspace (e.g., `compliance_report.md`) under the header `## Codebase Blueprint Compliance Audit`.
 
 2. **Audit Code vs. Documentation Synchronization**:
@@ -44,7 +44,7 @@ fix issues.
 
 ## **References**
 
-- Refer to the [`a2ui-blueprint-compliance`](../a2ui-blueprint-compliance/SKILL.md) skill for codebase blueprint checking.
+- Refer to the [`a2ui-blueprint-compliance`](../../../blueprints/skills/a2ui-blueprint-compliance/SKILL.md) skill for codebase blueprint checking.
 - Refer to the [`a2ui-doc-sync-check`](../a2ui-doc-sync-check/SKILL.md) skill for documentation sync checking.
 - Refer to the [`a2ui-test-quality-check`](../a2ui-test-quality-check/SKILL.md) skill for test quality and assertion checking.
 - Refer to the [`gh-cli`](../gh-cli/SKILL.md) skill for GitHub CLI operations.
