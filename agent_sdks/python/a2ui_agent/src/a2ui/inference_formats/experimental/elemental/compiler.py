@@ -290,7 +290,7 @@ class ElementalCompiler:
         self.expr_parser = ElementalExpressionParser()
 
         # Pre-compute container tags for forgiving parsing
-        self.container_tags = {"a2ui", "body", "template"}
+        self.container_tags = {"body", "template"}
         for comp_name in self.helper.components:
             properties = self.helper.get_component_properties(comp_name)
             has_slotted_children = False
@@ -361,8 +361,8 @@ class ElementalCompiler:
         if not root:
             raise ValueError("A2UI Elemental document is empty.")
 
-        if root.tag in ["a2ui", "body"]:
-            # If there is a standalone operation inside a2ui/body, treat it as the root
+        if root.tag == "body":
+            # If there is a standalone operation inside body, treat it as the root
             standalone = None
             for child in root.children:
                 if child.tag in [
@@ -419,14 +419,14 @@ class ElementalCompiler:
                 envelope["functionCallId"] = func_call_id
             return envelope
 
-        if root.tag not in ["a2ui", "body"]:
+        if root.tag != "body":
             raise ValueError(
-                "A2UI Elemental document must have a <body> or <a2ui>,"
+                "A2UI Elemental document must have a <body>,"
                 f" <{TAG_PREFIX}delete-surface>, or <{TAG_PREFIX}call-function> root"
                 " element."
             )
 
-        # 1. Surface ID from a2ui
+        # 1. Surface ID from body
         surface_id = root.attrs.get("id", surface_id)
 
         # 2. Extract catalog ID and data model from children
