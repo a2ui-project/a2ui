@@ -3,7 +3,7 @@
 <!-- markdownlint-disable MD034 -->
 <div style="text-align: center;">
   <div class="centered-logo-text-group">
-    <img src="../../../assets/A2UI_dark.svg" alt="A2UI Protocol Logo" width="100">
+    <img src="../../../docs/public/assets/A2UI_dark.svg" alt="A2UI Protocol Logo" width="100">
     <h1>A2UI (Agent to UI) Protocol v0.9.1</h1>
   </div>
 </div>
