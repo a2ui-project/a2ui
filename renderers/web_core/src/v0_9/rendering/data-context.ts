@@ -87,9 +87,14 @@ export class DataContext {
    * @returns The synchronously resolved value.
    */
   resolveDynamicValue<V>(value: DynamicValue): V {
-    // 1. Literal check (excluding arrays and objects)
-    if (value === null || typeof value !== 'object' || Array.isArray(value)) {
+    // 1. Primitive literals (null, string, number, boolean)
+    if (value === null || typeof value !== 'object') {
       return value as V;
+    }
+
+    // 1b. Arrays: each element may itself be a DynamicValue (e.g. `and`/`or` `values`)
+    if (Array.isArray(value)) {
+      return value.map(item => this.resolveDynamicValue(item)) as V;
     }
 
     // 2. Path Check: { path: "..." }
@@ -173,9 +178,21 @@ export class DataContext {
    * @returns A Preact Signal containing the reactive result of the evaluation.
    */
   resolveSignal<V>(value: DynamicValue): Signal<V> {
-    // 1. Literal
-    if (typeof value !== 'object' || value === null || Array.isArray(value)) {
+    // 1. Primitive literals
+    if (typeof value !== 'object' || value === null) {
       return signal(value as V);
+    }
+
+    // 1b. Arrays: each element may itself be a DynamicValue (e.g. `and`/`or` `values`)
+    if (Array.isArray(value)) {
+      const itemSignals = value.map(item => this.resolveSignal(item));
+      const resultSig = computed(() => itemSignals.map(s => getValue(s))) as Signal<V>;
+      resultSig.unsubscribe = () => {
+        for (const s of itemSignals) {
+          s.unsubscribe?.();
+        }
+      };
+      return resultSig;
     }
 
     // 2. Path Check
