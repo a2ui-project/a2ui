@@ -21,6 +21,7 @@ from a2ui.validation.validator import A2uiValidator, A2uiValidationError
 
 
 class TestA2uiValidatorWrapperV10(unittest.TestCase):
+
     def setUp(self):
         self.catalog = A2uiCatalog(
             version=VERSION_1_0,
@@ -67,29 +68,23 @@ class TestA2uiValidatorWrapperV10(unittest.TestCase):
         self.validator = A2uiValidator(self.catalog, experiments={"version_1_0"})
 
     def test_validation_success(self):
-        payload = [
-            {
-                "version": "1.0",
-                "createSurface": {
-                    "surfaceId": "welcome",
-                    "components": [
-                        {"id": "root", "component": "Text", "text": "Hello World"}
-                    ],
-                },
-            }
-        ]
+        payload = [{
+            "version": "1.0",
+            "createSurface": {
+                "surfaceId": "welcome",
+                "components": [
+                    {"id": "root", "component": "Text", "text": "Hello World"}
+                ],
+            },
+        }]
         # Should not raise any exception
         self.validator.validate(payload)
 
     def test_validation_missing_field(self):
-        payload = [
-            {
-                "version": "1.0",
-                "createSurface": {
-                    "components": []  # missing surfaceId
-                },
-            }
-        ]
+        payload = [{
+            "version": "1.0",
+            "createSurface": {"components": []},  # missing surfaceId
+        }]
         with self.assertRaises(A2uiValidationError) as ctx:
             self.validator.validate(payload)
 
@@ -98,15 +93,13 @@ class TestA2uiValidatorWrapperV10(unittest.TestCase):
         self.assertTrue(any("surfaceId" in detail.message for detail in err.details))
 
     def test_validation_type_mismatch(self):
-        payload = [
-            {
-                "version": "1.0",
-                "createSurface": {
-                    "surfaceId": 12345,  # should be string
-                    "components": [],
-                },
-            }
-        ]
+        payload = [{
+            "version": "1.0",
+            "createSurface": {
+                "surfaceId": 12345,  # should be string
+                "components": [],
+            },
+        }]
         with self.assertRaises(A2uiValidationError) as ctx:
             self.validator.validate(payload)
 
@@ -114,16 +107,14 @@ class TestA2uiValidatorWrapperV10(unittest.TestCase):
         self.assertTrue(any(detail.code == "type_mismatch" for detail in err.details))
 
     def test_validation_extra_field(self):
-        payload = [
-            {
-                "version": "1.0",
-                "createSurface": {
-                    "surfaceId": "welcome",
-                    "components": [],
-                    "extra_key": "not_allowed",  # additionalProperties: False
-                },
-            }
-        ]
+        payload = [{
+            "version": "1.0",
+            "createSurface": {
+                "surfaceId": "welcome",
+                "components": [],
+                "extra_key": "not_allowed",  # additionalProperties: False
+            },
+        }]
         with self.assertRaises(A2uiValidationError) as ctx:
             self.validator.validate(payload)
 
@@ -163,12 +154,12 @@ class TestA2uiValidatorWrapperV10(unittest.TestCase):
             },
         )
         validator = A2uiValidator(oneof_catalog, experiments={"version_1_0"})
-        payload = [
-            {
-                "version": "1.0",
-                "first": 12345,  # should be string, meaning first branch fails on type, second fails on missing "second"
-            }
-        ]
+        payload = [{
+            "version": "1.0",
+            "first": (
+                12345
+            ),  # should be string, meaning first branch fails on type, second fails on missing "second"
+        }]
         with self.assertRaises(A2uiValidationError) as ctx:
             validator.validate(payload)
 

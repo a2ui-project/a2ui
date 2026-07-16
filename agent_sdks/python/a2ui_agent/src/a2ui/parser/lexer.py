@@ -42,6 +42,7 @@ class BlockLexer:
         close_tag: str = "</a2ui>",
         string_delimiters: Optional[Set[str]] = None,
         single_line_comments: Optional[Set[str]] = None,
+        preserve_enclosing_tags: bool = False,
     ):
         if isinstance(open_tag, str):
             tag_name = open_tag.strip("<>")
@@ -57,6 +58,8 @@ class BlockLexer:
 
         self.string_delimiters = string_delimiters or {"'", '"'}
         self.single_line_comments = single_line_comments or {"#"}
+        self.preserve_enclosing_tags = preserve_enclosing_tags
+        self.close_tag_str = close_tag if isinstance(close_tag, str) else "</a2ui>"
 
     def _clean_markdown(self, text: Optional[str]) -> Optional[str]:
         """Cleans Markdown code block wrapper backticks from conversational text."""
@@ -87,9 +90,10 @@ class BlockLexer:
             if state == LexerState.NORMAL:
                 match = self.open_tag_pattern.match(content, i)
                 if match:
+                    start_tag = match.group(0)
                     i = match.end()
                     state = LexerState.IN_A2UI
-                    current_raw = []
+                    current_raw = [start_tag] if self.preserve_enclosing_tags else []
                     continue
                 else:
                     current_text.append(content[i])
@@ -100,6 +104,8 @@ class BlockLexer:
             if state == LexerState.IN_A2UI:
                 match = self.close_tag_pattern.match(content, i)
                 if match:
+                    if self.preserve_enclosing_tags:
+                        current_raw.append(match.group(0))
                     raw_content = "".join(current_raw).strip()
                     text_part = self._clean_markdown("".join(current_text))
                     parts.append(
@@ -188,6 +194,8 @@ class BlockLexer:
 
         # Post-loop checks (handle unclosed/truncated tags)
         if state in (LexerState.IN_A2UI, LexerState.IN_STRING, LexerState.IN_COMMENT):
+            if self.preserve_enclosing_tags:
+                current_raw.append(self.close_tag_str)
             raw_content = "".join(current_raw).strip()
             text_part = self._clean_markdown("".join(current_text))
             parts.append(

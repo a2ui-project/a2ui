@@ -483,12 +483,10 @@ class ExpressCompiler:
                             if isinstance(c_arg, str):
                                 message_val = c_arg
 
-                    compiled_checks.append(
-                        {
-                            "condition": {"call": check_name, "args": compiled_args},
-                            "message": message_val,
-                        }
-                    )
+                    compiled_checks.append({
+                        "condition": {"call": check_name, "args": compiled_args},
+                        "message": message_val,
+                    })
             if compiled_checks:
                 comp_dict["checks"] = compiled_checks
 

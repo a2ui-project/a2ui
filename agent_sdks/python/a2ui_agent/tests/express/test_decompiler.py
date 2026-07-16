@@ -90,16 +90,14 @@ class TestExpressDecompiler(unittest.TestCase):
             "version": "v1.0",
             "createSurface": {
                 "surfaceId": "test_surf",
-                "components": [
-                    {
-                        "id": "root",
-                        "component": "Text",
-                        "text": {
-                            "call": "length",
-                            "args": {"value": {"path": "/name"}, "min": 5},
-                        },
-                    }
-                ],
+                "components": [{
+                    "id": "root",
+                    "component": "Text",
+                    "text": {
+                        "call": "length",
+                        "args": {"value": {"path": "/name"}, "min": 5},
+                    },
+                }],
             },
         }
         decompiled_func = decompiler.decompile(func_expr_envelope)
@@ -110,23 +108,19 @@ class TestExpressDecompiler(unittest.TestCase):
             "version": "v1.0",
             "createSurface": {
                 "surfaceId": "test_surf",
-                "components": [
-                    {
-                        "id": "root",
-                        "component": "TextField",
-                        "label": "Name",
-                        "value": {"path": "/name"},
-                        "checks": [
-                            {
-                                "condition": {
-                                    "call": "required",
-                                    "args": {"value": {"path": "/name"}},
-                                },
-                                "message": "Name is required!",
-                            }
-                        ],
-                    }
-                ],
+                "components": [{
+                    "id": "root",
+                    "component": "TextField",
+                    "label": "Name",
+                    "value": {"path": "/name"},
+                    "checks": [{
+                        "condition": {
+                            "call": "required",
+                            "args": {"value": {"path": "/name"}},
+                        },
+                        "message": "Name is required!",
+                    }],
+                }],
             },
         }
         decompiled_msg = decompiler.decompile(custom_msg_envelope)

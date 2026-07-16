@@ -99,13 +99,7 @@ class TestElementalFormat(unittest.TestCase):
         fmt = ElementalFormat(catalog=custom_catalog)
         prompt_gen = ElementalPromptGenerator(fmt)
 
-        # Manually clear helper to force lazy initialization
-        prompt_gen.helper = None
-
         desc = fmt.catalog_description(prompt_gen=prompt_gen, include_schema=True)
-
-        # Verify helper is initialized
-        self.assertIsNotNone(prompt_gen.helper)
 
         # Verify JSON block in catalog instructions is decompiled to HTML block
         self.assertIn("## Catalog Instructions", desc)
@@ -151,11 +145,9 @@ class TestElementalFormat(unittest.TestCase):
 
         fmt = ElementalFormat(catalog=custom_catalog)
         prompt_gen = ElementalPromptGenerator(fmt)
-        prompt_gen.helper = None
 
         desc = fmt.catalog_description(prompt_gen=prompt_gen, include_schema=True)
 
-        self.assertIsNotNone(prompt_gen.helper)
         self.assertIn("## Catalog Instructions", desc)
         self.assertIn("```html", desc)
         self.assertIn('<ui-text id="root" text="Hello List" />', desc)

@@ -223,9 +223,9 @@ class ExpressPromptGenerator(PromptGenerator):
                             if prop_details and prop_details[-1].startswith(
                                 f"  - {p}:"
                             ):
-                                prop_details[-1] += (
-                                    "\n    List of maps keys:\n" + "\n".join(sub_keys)
-                                )
+                                prop_details[
+                                    -1
+                                ] += "\n    List of maps keys:\n" + "\n".join(sub_keys)
                             else:
                                 prop_details.append(
                                     f"  - {p}: List of maps with keys:\n"

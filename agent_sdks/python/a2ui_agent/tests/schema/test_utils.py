@@ -84,6 +84,7 @@ class TestSchemaUtils(unittest.TestCase):
         """Verifies abstract A2uiCatalogProvider load pass."""
 
         class DummyProvider(A2uiCatalogProvider):
+
             def load(self):
                 return super().load()
 
@@ -103,13 +104,11 @@ class TestSchemaUtils(unittest.TestCase):
             "properties": {"foo": {"type": "string"}},
             "additionalProperties": False,
             "unevaluatedProperties": False,
-            "sub": [
-                {
-                    "type": "object",
-                    "additionalProperties": False,
-                    "unevaluatedProperties": False,
-                }
-            ],
+            "sub": [{
+                "type": "object",
+                "additionalProperties": False,
+                "unevaluatedProperties": False,
+            }],
         }
         expected = {
             "type": "object",

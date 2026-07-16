@@ -53,6 +53,7 @@ def test_supports_streaming_property(sample_catalog):
     from a2ui.schema.catalog_provider import A2uiCatalogProvider
 
     class MemoryCatalogProvider(A2uiCatalogProvider):
+
         def __init__(self, schema):
             self.schema = schema
 
@@ -107,13 +108,11 @@ def test_decompiler_delegation(sample_catalog):
         "version": "v1.0",
         "createSurface": {
             "surfaceId": "main",
-            "components": [
-                {
-                    "id": "root",
-                    "component": "Text",
-                    "text": "Hello World",
-                }
-            ],
+            "components": [{
+                "id": "root",
+                "component": "Text",
+                "text": "Hello World",
+            }],
         },
     }
     decompiled_dsl = expr_decompiler.decompile(envelope)
@@ -133,6 +132,7 @@ def test_decompiler_delegation(sample_catalog):
     from a2ui.decompiler import Decompiler
 
     class DummyDecompiler(Decompiler):
+
         def decompile(self, val):
             return ""
 
@@ -144,6 +144,7 @@ def test_decompiler_delegation(sample_catalog):
     from a2ui.prompt.generator import PromptGenerator
 
     class DummyPromptGenerator(PromptGenerator):
+
         def generate(self, *args, **kwargs):
             return super().generate(*args, **kwargs)
 
@@ -156,9 +157,10 @@ def test_decompiler_delegation(sample_catalog):
         experiments=None,
         s2c_schema={},
         common_types_schema={},
-        catalog_schema={"catalogId": 12345}
+        catalog_schema={"catalogId": 12345},
     )
     from a2ui.core.exceptions import A2uiCatalogError
+
     with pytest.raises(A2uiCatalogError) as ctx:
         _ = bad_catalog.catalog_id
     assert "catalogId is not a string" in str(ctx.value)

@@ -47,17 +47,9 @@ class ElementalParser(Parser):
             close_tag="</a2ui>",
             string_delimiters={"'", '"', "`"},
             single_line_comments={"//", "<!--"},
+            preserve_enclosing_tags=True,
         )
-        parts = lexer.tokenize(content)
-        for part in parts:
-            if part.a2ui_raw is not None:
-                # The Elemental HTML compiler (DomBuilder) parses standard DOM nodes and
-                # expects the root node of the parsed document to be the enclosing <a2ui> tag.
-                # Since BlockLexer returns raw content without the enclosing tags, we wrap it
-                # back in `<a2ui>...</a2ui>` here before compilation.
-                if not part.a2ui_raw.startswith("<a2ui"):
-                    part.a2ui_raw = f"<a2ui>{part.a2ui_raw}</a2ui>"
-        return parts
+        return lexer.tokenize(content)
 
     def compile(
         self, format_content: str, *, is_final: bool = True
@@ -75,7 +67,8 @@ class ElementalParser(Parser):
             raise A2uiCompilationError(
                 message=str(e),
                 raw_content=format_content,
-                help_message="Please correct the validation or syntax error in your Elemental XML/HTML.",
+                help_message=(
+                    "Please correct the validation or syntax error in your Elemental"
+                    " XML/HTML."
+                ),
             ) from e
-
-

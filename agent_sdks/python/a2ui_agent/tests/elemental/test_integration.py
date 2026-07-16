@@ -73,6 +73,26 @@ class TestElementalIntegration(unittest.TestCase):
         self.assertEqual(compiled_components[1]["id"], "comp_2")
         self.assertEqual(compiled_components[1]["text"], "Hello")
 
+    def test_elemental_parser_preserves_custom_surface_id(self):
+        """Verifies parsing preserves surface ID defined on `<a2ui>` start tag attributes."""
+        content = (
+            "Here is the UI:\n"
+            '<a2ui id="my-custom-surface-id">\n'
+            "  <ui-Column>\n"
+            '    <ui-Text text="Hello" />\n'
+            "  </ui-Column>\n"
+            "</a2ui>"
+        )
+
+        parts = ElementalParser(self.catalog).parse_response(content)
+        self.assertEqual(len(parts), 1)
+        self.assertEqual(parts[0].text, "Here is the UI:")
+        self.assertIsNotNone(parts[0].a2ui_json)
+
+        create_surface = parts[0].a2ui_json[0]["createSurface"]
+        self.assertEqual(create_surface["surfaceId"], "my-custom-surface-id")
+        self.assertEqual(len(create_surface["components"]), 2)
+
     def test_elemental_parser_unclosed_tag_parsing(self):
         """Verify parser unclosed tag auto-closing and compilation with is_final=False."""
         truncated_response = (

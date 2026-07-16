@@ -70,18 +70,9 @@ class ElementalFormat(InferenceFormat):
         assert self._decompiler is not None
         return self._decompiler
 
-
-
     def catalog_description(self, prompt_gen: Any, include_schema: bool = True) -> str:
         if not include_schema:
             return ""
-        if prompt_gen.helper is None and self.catalog:
-            from a2ui.inference_formats.experimental.express.schema_helper import (
-                CatalogSchemaHelper,
-            )
-
-            prompt_gen.catalog = self.catalog
-            prompt_gen.helper = CatalogSchemaHelper(self.catalog)
 
         comp_decls = prompt_gen.generate_component_declarations()
         func_decls = prompt_gen.generate_function_declarations()
@@ -157,4 +148,3 @@ You can call these functions inside attribute expressions `{...}` using named ar
             .replace("[FUNCTION_DECLARATIONS]", func_decls)
             .replace("[CATALOG_INSTRUCTIONS_BLOCK]", catalog_instructions_block)
         )
-

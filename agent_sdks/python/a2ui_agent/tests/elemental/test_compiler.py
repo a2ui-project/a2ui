@@ -212,15 +212,13 @@ class TestElementalCompiler(unittest.TestCase):
         self.assertEqual(text_field["value"], {"path": "/dob"})
         self.assertEqual(
             text_field["checks"],
-            [
-                {
-                    "condition": {
-                        "call": "required",
-                        "args": {"value": {"path": "/dob"}},
-                    },
-                    "message": "Invalid input",
-                }
-            ],
+            [{
+                "condition": {
+                    "call": "required",
+                    "args": {"value": {"path": "/dob"}},
+                },
+                "message": "Invalid input",
+            }],
         )
 
     def test_compile_checks_with_custom_message(self):
@@ -233,15 +231,13 @@ class TestElementalCompiler(unittest.TestCase):
         text_field = components[0]
         self.assertEqual(
             text_field["checks"],
-            [
-                {
-                    "condition": {
-                        "call": "required",
-                        "args": {"value": {"path": "/dob"}},
-                    },
-                    "message": "DOB is required",
-                }
-            ],
+            [{
+                "condition": {
+                    "call": "required",
+                    "args": {"value": {"path": "/dob"}},
+                },
+                "message": "DOB is required",
+            }],
         )
 
     def test_compile_checks_with_condition_custom_message(self):
@@ -255,15 +251,13 @@ class TestElementalCompiler(unittest.TestCase):
         text_field = components[0]
         self.assertEqual(
             text_field["checks"],
-            [
-                {
-                    "condition": {
-                        "call": "required",
-                        "args": {"value": {"path": "/dob"}},
-                    },
-                    "message": "DOB is required",
-                }
-            ],
+            [{
+                "condition": {
+                    "call": "required",
+                    "args": {"value": {"path": "/dob"}},
+                },
+                "message": "DOB is required",
+            }],
         )
 
     def test_compile_checks_mixed_positional_named_error(self):

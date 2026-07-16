@@ -106,8 +106,9 @@ class Parser(ABC):
         Returns:
             A list of parsed or completed ResponsePart objects.
         """
-        raise NotImplementedError(f"Streaming is not supported by {self.__class__.__name__}")
-
+        raise NotImplementedError(
+            f"Streaming is not supported by {self.__class__.__name__}"
+        )
 
 
 def has_a2ui_parts(content: str) -> bool:

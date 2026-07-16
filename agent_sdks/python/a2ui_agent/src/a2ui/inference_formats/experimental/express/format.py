@@ -68,15 +68,9 @@ class ExpressFormat(InferenceFormat):
         assert self._decompiler is not None
         return self._decompiler
 
-
     def catalog_description(self, prompt_gen: Any, include_schema: bool = True) -> str:
         if not include_schema:
             return ""
-        if prompt_gen.helper is None and self.catalog:
-            from .schema_helper import CatalogSchemaHelper
-
-            prompt_gen.helper = CatalogSchemaHelper(self.catalog)
-            prompt_gen.decompiler = ExpressDecompiler(self.catalog)
 
         comp_sigs = prompt_gen.generate_component_signatures()
         func_sigs = prompt_gen.generate_function_signatures()
@@ -111,4 +105,3 @@ class ExpressFormat(InferenceFormat):
             f" functions:\n{func_sigs}{catalog_instructions_block}"
         )
         return desc
-

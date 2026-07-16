@@ -14,7 +14,10 @@
 
 """Custom exception types raised by the A2UI parser."""
 
-from typing import Any, List, Optional
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from a2ui.parser.response_part import ResponsePart
 
 
 class A2uiCompilationError(Exception):
@@ -24,10 +27,10 @@ class A2uiCompilationError(Exception):
         self,
         message: str,
         raw_content: str,
-        line: Optional[int] = None,
-        column: Optional[int] = None,
-        help_message: Optional[str] = None,
-        partial_results: Optional[List[Any]] = None,
+        line: int | None = None,
+        column: int | None = None,
+        help_message: str | None = None,
+        partial_results: list["ResponsePart"] | None = None,
     ):
         super().__init__(message)
         self.raw_content = raw_content
@@ -35,3 +38,14 @@ class A2uiCompilationError(Exception):
         self.column = column
         self.help_message = help_message
         self.partial_results = partial_results or []
+
+    def __str__(self) -> str:
+        parts = [super().__str__()]
+        if self.line is not None:
+            loc = f"Line {self.line}"
+            if self.column is not None:
+                loc += f", Col {self.column}"
+            parts.append(loc)
+        if self.help_message:
+            parts.append(f"Help: {self.help_message}")
+        return " - ".join(parts)

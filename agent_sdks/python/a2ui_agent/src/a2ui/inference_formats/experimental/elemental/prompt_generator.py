@@ -400,7 +400,7 @@ class ElementalPromptGenerator(PromptGenerator):
         prompt = self._format.catalog_description(self, include_schema=True)
 
         parts = [role_description]
-        
+
         rules = ELEMENTAL_RULES.replace("[CATALOG_ID]", self.catalog_id)
         if workflow_description:
             rules += f"\n\n{workflow_description}"

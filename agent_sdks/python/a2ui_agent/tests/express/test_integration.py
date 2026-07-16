@@ -340,20 +340,16 @@ title = Text($/title, "body")"""
                 "catalogId": (
                     "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
                 ),
-                "components": [
-                    {
-                        "id": "root",
-                        "component": "Tabs",
-                        "tabs": [
-                            {
-                                "title": "Overview",
-                                "user-id-hyphen": 123,
-                                "session token space": "abc",
-                                "valid_id": True,
-                            }
-                        ],
-                    }
-                ],
+                "components": [{
+                    "id": "root",
+                    "component": "Tabs",
+                    "tabs": [{
+                        "title": "Overview",
+                        "user-id-hyphen": 123,
+                        "session token space": "abc",
+                        "valid_id": True,
+                    }],
+                }],
             },
         }
         decompiled_dsl = decompiler.decompile(wire_json_dict)
@@ -373,23 +369,19 @@ title = Text($/title, "body")"""
             "version": "v1.0",
             "createSurface": {
                 "surfaceId": "main",
-                "components": [
-                    {
-                        "id": "root",
-                        "component": "TextField",
-                        "label": "Name",
-                        "value": {"path": "/name"},
-                        "checks": [
-                            {
-                                "condition": {
-                                    "call": "required",
-                                    "args": {"value": {"path": "/name"}},
-                                },
-                                "message": "First Line\nSecond Line",
-                            }
-                        ],
-                    }
-                ],
+                "components": [{
+                    "id": "root",
+                    "component": "TextField",
+                    "label": "Name",
+                    "value": {"path": "/name"},
+                    "checks": [{
+                        "condition": {
+                            "call": "required",
+                            "args": {"value": {"path": "/name"}},
+                        },
+                        "message": "First Line\nSecond Line",
+                    }],
+                }],
             },
         }
         decompiled_msg = decompiler.decompile(multiline_msg_envelope)

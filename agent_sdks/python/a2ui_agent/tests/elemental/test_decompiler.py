@@ -177,16 +177,14 @@ class TestElementalDecompiler(unittest.TestCase):
             "version": "v1.0",
             "createSurface": {
                 "surfaceId": "test-surf",
-                "components": [
-                    {
-                        "id": "picker_1",
-                        "component": "ChoicePicker",
-                        "options": [
-                            {"label": "Red", "value": "Red"},
-                            {"label": "Blue", "value": "Blue"},
-                        ],
-                    }
-                ],
+                "components": [{
+                    "id": "picker_1",
+                    "component": "ChoicePicker",
+                    "options": [
+                        {"label": "Red", "value": "Red"},
+                        {"label": "Blue", "value": "Blue"},
+                    ],
+                }],
             },
         }
         html_output = decompiler.decompile(envelope)
@@ -199,16 +197,14 @@ class TestElementalDecompiler(unittest.TestCase):
             "version": "v1.0",
             "createSurface": {
                 "surfaceId": "test-surf",
-                "components": [
-                    {
-                        "id": "picker_1",
-                        "component": "ChoicePicker",
-                        "options": [
-                            {"label": "Red", "value": "red"},
-                            {"label": "Blue", "value": "blue"},
-                        ],
-                    }
-                ],
+                "components": [{
+                    "id": "picker_1",
+                    "component": "ChoicePicker",
+                    "options": [
+                        {"label": "Red", "value": "red"},
+                        {"label": "Blue", "value": "blue"},
+                    ],
+                }],
             },
         }
         html_output = decompiler.decompile(envelope)
@@ -252,21 +248,17 @@ class TestElementalDecompiler(unittest.TestCase):
             "version": "v1.0",
             "createSurface": {
                 "surfaceId": "test-surf",
-                "components": [
-                    {
-                        "id": "input_1",
-                        "component": "TextField",
-                        "value": {"path": "/dob"},
-                        "checks": [
-                            {
-                                "condition": {
-                                    "call": "required",
-                                    "args": {"value": {"path": "/dob"}},
-                                }
-                            }
-                        ],
-                    }
-                ],
+                "components": [{
+                    "id": "input_1",
+                    "component": "TextField",
+                    "value": {"path": "/dob"},
+                    "checks": [{
+                        "condition": {
+                            "call": "required",
+                            "args": {"value": {"path": "/dob"}},
+                        }
+                    }],
+                }],
             },
         }
         html_output = decompiler.decompile(envelope)
@@ -279,22 +271,18 @@ class TestElementalDecompiler(unittest.TestCase):
             "version": "v1.0",
             "createSurface": {
                 "surfaceId": "test-surf",
-                "components": [
-                    {
-                        "id": "input_1",
-                        "component": "TextField",
-                        "value": {"path": "/dob"},
-                        "checks": [
-                            {
-                                "condition": {
-                                    "call": "required",
-                                    "args": {"value": {"path": "/dob"}},
-                                },
-                                "message": "DOB is required",
-                            }
-                        ],
-                    }
-                ],
+                "components": [{
+                    "id": "input_1",
+                    "component": "TextField",
+                    "value": {"path": "/dob"},
+                    "checks": [{
+                        "condition": {
+                            "call": "required",
+                            "args": {"value": {"path": "/dob"}},
+                        },
+                        "message": "DOB is required",
+                    }],
+                }],
             },
         }
         html_output = decompiler.decompile(envelope)
@@ -416,15 +404,13 @@ class TestElementalDecompiler(unittest.TestCase):
             "version": "v1.0",
             "createSurface": {
                 "surfaceId": "test-surf",
-                "components": [
-                    {
-                        "id": "comp_1",
-                        "component": "TextField",
-                        "disabled": True,
-                        "required": False,
-                        "placeholder": None,
-                    }
-                ],
+                "components": [{
+                    "id": "comp_1",
+                    "component": "TextField",
+                    "disabled": True,
+                    "required": False,
+                    "placeholder": None,
+                }],
             },
         }
         html_output = decompiler.decompile(envelope)
@@ -438,21 +424,19 @@ class TestElementalDecompiler(unittest.TestCase):
             "version": "v1.0",
             "createSurface": {
                 "surfaceId": "test-surf",
-                "components": [
-                    {
-                        "id": "input_1",
-                        "component": "TextField",
-                        "value": {"path": "/dob"},
-                        "checks": [
-                            {
-                                "condition": {
-                                    "call": "required",
-                                    "args": [{"path": "/dob"}],
-                                }
+                "components": [{
+                    "id": "input_1",
+                    "component": "TextField",
+                    "value": {"path": "/dob"},
+                    "checks": [
+                        {
+                            "condition": {
+                                "call": "required",
+                                "args": [{"path": "/dob"}],
                             }
-                        ],
-                    }
-                ],
+                        }
+                    ],
+                }],
             },
         }
         html_output = decompiler.decompile(envelope)

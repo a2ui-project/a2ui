@@ -281,8 +281,6 @@ class TransportFormat(InferenceFormat):
             )
         return ""
 
-
-
     def catalog_description(
         self,
         prompt_gen: Any,

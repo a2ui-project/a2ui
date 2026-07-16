@@ -50,9 +50,7 @@ class TestExpressCompiler(unittest.TestCase):
         from a2ui.inference_formats.experimental.express.format import ExpressFormat
 
         fmt = ExpressFormat(catalog=self.catalog)
-        prompt = fmt.prompt_generator.generate(
-            role_description="", include_schema=True
-        )
+        prompt = fmt.prompt_generator.generate(role_description="", include_schema=True)
         self.assertIn("Text(", prompt)
         self.assertIn("Column(", prompt)
         self.assertIn("required(", prompt)
@@ -606,7 +604,9 @@ valueField = TextField("Deal Value", $/form/value, "0.00", "number", ?required)"
 
             # Parser
             response = f"<a2ui>\n{dsl}\n</a2ui>"
-            parts = ExpressParser(cat_input, surface_id="test_surf").parse_response(response)
+            parts = ExpressParser(cat_input, surface_id="test_surf").parse_response(
+                response
+            )
             self.assertEqual(len(parts), 1)
             self.assertIsNotNone(parts[0].a2ui_json)
 

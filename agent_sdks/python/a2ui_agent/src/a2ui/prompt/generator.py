@@ -52,4 +52,3 @@ class PromptGenerator(ABC):
             The complete generated prompt system instruction.
         """
         pass
-
