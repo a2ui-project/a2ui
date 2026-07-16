@@ -48,7 +48,7 @@ def main() -> None:
         sys.exit(1)
 
     today = datetime.date.today().isoformat()
-    issue_title = f"Weekly Blueprint Compliance Report ({today})"
+    issue_title = f"Weekly A2UI Compliance Report ({today})"
 
     cmd = [
         "gh",

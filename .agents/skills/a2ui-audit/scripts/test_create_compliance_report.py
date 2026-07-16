@@ -73,7 +73,7 @@ class TestCreateComplianceReport(unittest.TestCase):
     def test_successful_run(self, mock_run: MagicMock, mock_stdout: MagicMock) -> None:
         """Verifies a successful run without --repo option."""
         today = datetime.date.today().isoformat()
-        expected_title = f"Weekly Blueprint Compliance Report ({today})"
+        expected_title = f"Weekly A2UI Compliance Report ({today})"
 
         mock_res = MagicMock()
         mock_res.returncode = 0
@@ -115,7 +115,7 @@ class TestCreateComplianceReport(unittest.TestCase):
     def test_successful_run_with_repo(self, mock_run: MagicMock) -> None:
         """Verifies a successful run with --repo option."""
         today = datetime.date.today().isoformat()
-        expected_title = f"Weekly Blueprint Compliance Report ({today})"
+        expected_title = f"Weekly A2UI Compliance Report ({today})"
 
         mock_res = MagicMock()
         mock_res.returncode = 0
