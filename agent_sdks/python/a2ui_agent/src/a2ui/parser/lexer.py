@@ -59,7 +59,7 @@ class BlockLexer:
 
         if isinstance(close_tag, str):
             tag_name = close_tag.strip("<>/")
-            self.close_tag_pattern = re.compile(rf"</{tag_name}>", re.IGNORECASE)
+            self.close_tag_pattern = re.compile(rf"</{tag_name}\s*>", re.IGNORECASE)
         else:
             self.close_tag_pattern = close_tag
 

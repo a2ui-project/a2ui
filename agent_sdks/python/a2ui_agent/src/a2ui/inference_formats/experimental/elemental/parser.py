@@ -100,10 +100,6 @@ class ElementalParser(Parser):
             stripped = format_content.strip()
             if "<body" in stripped and not stripped.endswith("</body>"):
                 format_content = format_content + "\n</body>"
-            elif A2UI_INFERENCE_OPEN_TAG[:-1] in stripped and not stripped.endswith(
-                A2UI_INFERENCE_CLOSE_TAG
-            ):
-                format_content = format_content + f"\n{A2UI_INFERENCE_CLOSE_TAG}"
 
         compiler = ElementalCompiler(self.catalog)
         try:

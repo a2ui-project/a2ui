@@ -466,7 +466,10 @@ class ElementalCompiler:
                 ):
                     if "slot" not in child.attrs:
                         try:
-                            data_model = json.loads(child.text.strip())
+                            text_content = child.text.strip() if child.text else ""
+                            data_model = (
+                                json.loads(text_content) if text_content else {}
+                            )
                         except json.JSONDecodeError as e:
                             raise ValueError(
                                 f"Invalid JSON in dataModel script: {e}"
@@ -676,8 +679,15 @@ class ElementalCompiler:
                     parsed_val.startswith("[") or parsed_val.startswith("{")
                 ):
                     try:
-                        # Wrap in braces virtually to compile using expression parser
-                        parsed_val = self.expr_parser.parse(f"{{{parsed_val}}}")
+                        # Wrap in braces virtually to compile using expression parser if not already wrapped
+                        stripped_val = parsed_val.strip()
+                        expr_str = (
+                            stripped_val
+                            if stripped_val.startswith("{")
+                            and stripped_val.endswith("}")
+                            else f"{{{stripped_val}}}"
+                        )
+                        parsed_val = self.expr_parser.parse(expr_str)
                     except Exception:
                         pass
 
