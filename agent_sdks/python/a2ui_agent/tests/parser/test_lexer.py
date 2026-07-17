@@ -104,6 +104,18 @@ class TestBlockLexer(unittest.TestCase):
         self.assertTrue(parts[0].is_final)
         self.assertEqual(parts[1].text, "Postamble")
 
+    def test_lexer_inner_markdown_cleaning(self):
+        """Verify that markdown code block wrappers inside the tag are stripped from the raw content."""
+        content = "Preamble\n<a2ui>\n```json\ncode_here\n```\n</a2ui>\nPostamble"
+        lexer = BlockLexer()
+        parts = lexer.tokenize(content)
+
+        self.assertEqual(len(parts), 2)
+        self.assertEqual(parts[0].text, "Preamble")
+        self.assertEqual(parts[0].a2ui_raw, "code_here")
+        self.assertTrue(parts[0].is_final)
+        self.assertEqual(parts[1].text, "Postamble")
+
 
 if __name__ == "__main__":
     unittest.main()

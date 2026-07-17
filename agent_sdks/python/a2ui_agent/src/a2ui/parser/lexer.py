@@ -67,20 +67,21 @@ class BlockLexer:
         self.single_line_comments = single_line_comments or {"#"}
 
     def _clean_markdown(self, text: str) -> str:
-        """Cleans Markdown code block wrapper backticks from conversational text.
+        """Cleans Markdown code block wrappers from either conversational text or inner raw content.
 
         Args:
-            text: The raw conversational text to strip.
+            text: The text to clean.
 
         Returns:
-            The cleaned text with code block wrappers removed.
+            The cleaned text.
         """
         if not text:
             return ""
-        # Remove opening backticks followed by language indicator at the end (e.g. ```html)
-        text = re.sub(r"```[a-zA-Z-]*\s*$", "", text, flags=re.IGNORECASE)
-        # Remove leading closing backticks from the start of subsequent text
-        text = re.sub(r"^\s*```", "", text)
+        text = text.strip()
+        # Remove leading backticks (with optional language indicator, e.g. ```json or ```)
+        text = re.sub(r"^```[a-zA-Z-]*\s*", "", text, flags=re.IGNORECASE)
+        # Remove trailing backticks (with optional language indicator, e.g. ``` or ```html)
+        text = re.sub(r"\s*```[a-zA-Z-]*$", "", text, flags=re.IGNORECASE)
         return text.strip()
 
     def tokenize(self, content: str) -> List[ResponsePart]:
@@ -125,7 +126,7 @@ class BlockLexer:
             if state == LexerState.IN_A2UI:
                 match = self.close_tag_pattern.match(content, i)
                 if match:
-                    raw_content = "".join(current_raw).strip()
+                    raw_content = self._clean_markdown("".join(current_raw))
                     text_part = self._clean_markdown("".join(current_text))
                     parts.append(
                         ResponsePart(
@@ -214,7 +215,7 @@ class BlockLexer:
 
         # Post-loop checks (handle unclosed/truncated tags)
         if state in (LexerState.IN_A2UI, LexerState.IN_STRING, LexerState.IN_COMMENT):
-            raw_content = "".join(current_raw).strip()
+            raw_content = self._clean_markdown("".join(current_raw))
             text_part = self._clean_markdown("".join(current_text))
             parts.append(
                 ResponsePart(

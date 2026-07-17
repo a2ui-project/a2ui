@@ -88,6 +88,28 @@ def test_schema_parser(test_catalog):
     assert parsed[0].a2ui_json is not None
 
 
+def test_schema_parser_with_nested_close_tag(test_catalog):
+    parser = TransportParser(test_catalog)
+    # The JSON string literal itself contains '</a2ui-json>'
+    response = (
+        "<a2ui-json>[{\n"
+        '  "createSurface": {\n'
+        '    "surfaceId": "main",\n'
+        '    "layout": {\n'
+        '      "component": "Text",\n'
+        '      "text": "This is a literal close tag: </a2ui-json> inside a string."\n'
+        "    }\n"
+        "  }\n"
+        "}]</a2ui-json>"
+    )
+    parsed = parser.parse_response(response)
+    assert len(parsed) == 1
+    assert parsed[0].a2ui_json is not None
+    assert parsed[0].a2ui_json[0]["createSurface"]["layout"]["text"] == (
+        "This is a literal close tag: </a2ui-json> inside a string."
+    )
+
+
 def test_strategy_based_converters(test_catalog, monkeypatch):
     monkeypatch.setenv("A2UI_VERSION_1_0", "true")
     # Test JSON default (TransportParser)

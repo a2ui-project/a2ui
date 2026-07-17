@@ -277,13 +277,11 @@ class ElementalPromptGenerator(PromptGenerator):
             comp_desc = self.helper.get_component_description(name)
             interface_lines = []
             interface_lines.extend(self._to_comments(comp_desc))
-            interface_lines.extend(
-                [
-                    f"// Tag: <ui-{_to_kebab_case(name)}>",
-                    f"interface {name} {{",
-                    "  id?: string;",
-                ]
-            )
+            interface_lines.extend([
+                f"// Tag: <ui-{_to_kebab_case(name)}>",
+                f"interface {name} {{",
+                "  id?: string;",
+            ])
 
             for p in props:
                 p_schema = self.helper.get_property_schema(name, p)
@@ -483,8 +481,14 @@ class ElementalPromptGenerator(PromptGenerator):
         )
         if catalog_instructions:
             catalog_instructions = catalog_instructions.replace(
-                "specify any custom error messages directly in the check's 'message' property. Do NOT create separate text-display components to display validation errors.",
-                "specify any custom error messages directly as a named argument `message` inside the validation function call (e.g. `checks=\"{[regex(pattern: '^[a-zA-Z0-9]{3,}$', message: 'Error message')]}\"`). Do NOT create separate text-display components to display validation errors.",
+                "specify any custom error messages directly in the check's 'message'"
+                " property. Do NOT create separate text-display components to display"
+                " validation errors.",
+                "specify any custom error messages directly as a named argument"
+                " `message` inside the validation function call (e.g."
+                " `checks=\"{[regex(pattern: '^[a-zA-Z0-9]{3,}$', message: 'Error"
+                " message')]}\"`). Do NOT create separate text-display components to"
+                " display validation errors.",
             )
         # Decompile json blocks in catalog instructions to HTML
         catalog_instructions_block = ""
