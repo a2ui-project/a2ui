@@ -36,6 +36,7 @@ export const ChildList: React.FC<{
   return (
     <>
       {childList.map((childRef, index) => {
+        if (!childRef) return null;
         if (typeof childRef === 'string') {
           return (
             <React.Fragment key={`${childRef}-${index}`}>{buildChild(childRef)}</React.Fragment>

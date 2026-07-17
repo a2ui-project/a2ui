@@ -24,11 +24,7 @@ export const Text = createComponentImplementation(TextApi, ({props}) => {
   const text = stripMarkdown(raw);
   const style = textVariantStyle(props.variant);
 
-  const node = (
-    <InkText wrap="truncate-end" {...style}>
-      {text}
-    </InkText>
-  );
+  const node = <InkText {...style}>{text}</InkText>;
 
   // Only introduce a Box when weight participates in flex layout, so that
   // Text stays inline inside e.g. Button labels.

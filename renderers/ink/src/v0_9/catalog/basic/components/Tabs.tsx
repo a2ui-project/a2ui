@@ -31,7 +31,7 @@ export const Tabs = createComponentImplementation(TabsApi, ({props, buildChild})
   const tabs: ResolvedTab[] = Array.isArray(props.tabs) ? props.tabs : [];
   const [selectedIndex, setSelectedIndex] = useState(0);
   const {isFocused} = useFocus();
-  const activeTab = tabs[Math.min(selectedIndex, tabs.length - 1)];
+  const activeTab = tabs[Math.min(selectedIndex, Math.max(tabs.length - 1, 0))];
 
   useInput(
     (_input, key) => {
@@ -49,21 +49,24 @@ export const Tabs = createComponentImplementation(TabsApi, ({props, buildChild})
     <Box flexDirection="column" {...weightProps(props.weight)}>
       <Box flexDirection="row" gap={1}>
         {isFocused ? <Text color="cyan">‹</Text> : null}
-        {tabs.map((tab, i) => (
-          <Text
-            key={i}
-            inverse={i === selectedIndex}
-            color={i === selectedIndex ? 'cyan' : undefined}
-            dimColor={i !== selectedIndex}
-            bold={i === selectedIndex}
-          >
-            {` ${String(tab.title ?? `Tab ${i + 1}`)} `}
-          </Text>
-        ))}
+        {tabs.map((tab, i) => {
+          if (!tab) return null;
+          return (
+            <Text
+              key={i}
+              inverse={i === selectedIndex}
+              color={i === selectedIndex ? 'cyan' : undefined}
+              dimColor={i !== selectedIndex}
+              bold={i === selectedIndex}
+            >
+              {` ${String(tab.title ?? `Tab ${i + 1}`)} `}
+            </Text>
+          );
+        })}
         {isFocused ? <Text color="cyan">›</Text> : null}
       </Box>
       <Box borderStyle="single" borderColor={isFocused ? 'cyan' : 'gray'} paddingX={1}>
-        {activeTab ? buildChild(activeTab.child) : null}
+        {activeTab?.child ? buildChild(activeTab.child) : null}
       </Box>
     </Box>
   );

@@ -35,6 +35,7 @@ export const List = createComponentImplementation(ListApi, ({props, buildChild})
       {...weightProps(props.weight)}
     >
       {children.map((childRef, index) => {
+        if (!childRef) return null;
         const isRef = typeof childRef !== 'string';
         const marker = style === 'ordered' ? `${index + 1}. ` : style === 'unordered' ? '• ' : '';
         const key = isRef ? `${childRef.id}-${childRef.basePath}` : `${childRef}-${index}`;

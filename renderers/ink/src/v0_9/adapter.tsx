@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import React, {useRef, useSyncExternalStore, useCallback, memo, useEffect} from 'react';
+import React, {useMemo, useSyncExternalStore, useCallback, memo, useEffect} from 'react';
 import {type ComponentContext, GenericBinder} from '@a2ui/web_core/v0_9';
 import type {
   ComponentApi,
@@ -58,15 +58,10 @@ export function createComponentImplementation<Api extends ComponentApi>(
     context: ComponentContext;
     buildChild: (id: string, basePath?: string) => React.ReactNode;
   }> = ({context, buildChild}) => {
-    const bindingRef = useRef<GenericBinder<Props> | null>(null);
-
-    if (!bindingRef.current) {
-      bindingRef.current = new GenericBinder<Props>(context, api.schema);
-    } else if ((bindingRef.current as unknown as {context: ComponentContext}).context !== context) {
-      bindingRef.current.dispose();
-      bindingRef.current = new GenericBinder<Props>(context, api.schema);
-    }
-    const binding = bindingRef.current;
+    // DeferredChild memoizes `context`, so reference changes correspond to
+    // ComponentModel updates or base-path adjustments. Cleanup disposes the
+    // previous binder when this instance changes (or on unmount).
+    const binding = useMemo(() => new GenericBinder<Props>(context, api.schema), [context]);
 
     const subscribe = useCallback(
       (callback: () => void) => {
