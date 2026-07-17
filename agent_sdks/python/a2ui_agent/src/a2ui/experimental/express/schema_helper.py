@@ -18,8 +18,7 @@ Provides dynamic schema crawling to identify component properties, logical funct
 signatures, and requirements directly from standard catalog JSON schemas.
 """
 
-import json
-from typing import Any, Dict, Optional, Union
+from typing import Any, Optional, Union
 from a2ui.core.catalog import Catalog
 from a2ui.schema.catalog import A2uiCatalog
 

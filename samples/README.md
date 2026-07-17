@@ -2,7 +2,7 @@
 
 This is the registry of examples and dev tools for A2UI.
 
-## Samples
+## Maintained samples
 
 Please, help us maintain samples in this table.
 Contribute the fix to the code and/or table below if:
@@ -19,6 +19,8 @@ Contribute the fix to the code and/or table below if:
 | [Verdure][vr-f-readme]           | Python | Flutter  |                 | [2026-05-11][vr-f-video] |        |
 | [Restaurant finder][rf-l-readme] | Python | Lit      |                 | [2026-04-14][rf-l-video] |        |
 | [Restaurant finder][rf-r-readme] | Python | React    |                 | [2026-06-17][rf-r-video] |        |
+
+## Community samples
 
 Have you built and open-sourced a sample using A2UI? Show it on our [Community Showcase](https://a2ui.org/ecosystem/community/#community-showcase).
 

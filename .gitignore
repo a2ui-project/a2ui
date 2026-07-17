@@ -7,7 +7,6 @@ dist
 .idea/
 *.pyc
 .angular/
-*.tsbuildinfo
 
 # MkDocs build output
 site/
@@ -44,6 +43,9 @@ worktrees/
 
 # TypeScript incremental build info
 *.tsbuildinfo
+
+# Playwright test artifacts
+.playwright/
 
 # Local-only scratch files.
 .local/
@@ -131,3 +133,6 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
+
+# SwiftPM
+Package.resolved

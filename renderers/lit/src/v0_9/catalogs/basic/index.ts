@@ -40,10 +40,10 @@ import {A2uiModal} from './components/Modal.js';
 /**
  * The basic catalog for A2UI components in Lit.
  *
- * This catalog includes a wider range of components compared to the minimal catalog,
- * such as list, image, icon, video, audio player, card, divider, checkbox, slider,
- * date-time input, choice picker, tabs, and modal. It also includes the basic functions
- * from package @a2ui/web_core.
+ * This catalog includes a wide range of components such as list, image, icon,
+ * video, audio player, card, divider, checkbox, slider, date-time input, choice
+ * picker, tabs, and modal. It also includes the basic functions from package
+ * @a2ui/web_core.
  */
 export const basicCatalog = new Catalog<LitComponentApi>(
   'https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json',

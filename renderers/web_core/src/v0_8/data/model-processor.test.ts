@@ -773,4 +773,46 @@ describe('A2uiMessageProcessor', () => {
     const result = (processor as any).parseIfJsonString(123);
     assert.strictEqual(result, 123);
   });
+
+  it('does not resolve component references inside action context', () => {
+    processor.processMessages([
+      {beginRendering: {surfaceId: 's1', root: 'btn'}},
+      {
+        surfaceUpdate: {
+          surfaceId: 's1',
+          components: [
+            {
+              id: 'btn',
+              component: {
+                Button: {
+                  child: 'btn_txt',
+                  action: {
+                    name: 'send-feedback',
+                    context: [{key: 'comments', value: {path: '/comments'}}],
+                  },
+                },
+              } as any,
+            },
+            {
+              id: 'comments',
+              component: {
+                TextField: {label: {literalString: 'Feedback'}},
+              } as any,
+            },
+            {
+              id: 'btn_txt',
+              component: {
+                Text: {text: {literalString: 'Click'}},
+              } as any,
+            },
+          ],
+        },
+      },
+    ]);
+
+    const surface = processor.getSurfaces().get('s1');
+    const root = surface?.componentTree as any;
+    const action = root.properties.action;
+    assert.strictEqual(action.context[0].key, 'comments');
+  });
 });

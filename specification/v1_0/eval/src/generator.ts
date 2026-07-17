@@ -148,7 +148,7 @@ export class Generator {
     components: any[],
   ) {
     if (!this.outputDir) return;
-    const modelDir = path.join(this.outputDir, `output-${model.name.replace(/[\/:]/g, '_')}`);
+    const modelDir = path.join(this.outputDir, `output-${model.name.replace(/[/:]/g, '_')}`);
     const detailsDir = path.join(modelDir, 'details');
     fs.mkdirSync(detailsDir, {recursive: true});
 
@@ -183,7 +183,7 @@ ${prompt.promptText
     error: any,
   ) {
     if (!this.outputDir) return;
-    const modelDir = path.join(this.outputDir, `output-${model.name.replace(/[\/:]/g, '_')}`);
+    const modelDir = path.join(this.outputDir, `output-${model.name.replace(/[/:]/g, '_')}`);
     const detailsDir = path.join(modelDir, 'details');
     fs.mkdirSync(detailsDir, {recursive: true});
 

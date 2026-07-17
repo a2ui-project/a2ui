@@ -18,6 +18,14 @@ import {Component, signal, ViewChild, ElementRef, AfterViewInit} from '@angular/
 import {Client} from '@modelcontextprotocol/sdk/client/index.js';
 import {SSEClientTransport} from '@modelcontextprotocol/sdk/client/sse.js';
 
+// Per the MCP Apps spec, a tool that omits `_meta.ui.visibility` defaults to
+// ["model", "app"], i.e. it is app-callable. We name that permissive fallback
+// so the host's default is explicit rather than a bare `true`. This is a
+// sample-friendly default; a stricter host may prefer to deny tools that don't
+// explicitly opt into "app" visibility.
+// Spec: https://github.com/modelcontextprotocol/ext-apps/blob/main/specification/2026-01-26/apps.mdx
+const APP_CALLABLE_WHEN_VISIBILITY_UNDECLARED = true;
+
 @Component({
   selector: 'app-root',
   templateUrl: './app.html',
@@ -29,6 +37,10 @@ export class App implements AfterViewInit {
   protected readonly status = signal<string>('Not connected');
 
   private htmlContent: string | null = null;
+  // Input arguments and result of the tools/call that instantiated the View,
+  // delivered via ui/notifications/tool-input and ui/notifications/tool-result.
+  private toolCallArguments: Record<string, unknown> = {};
+  private toolCallResult: Record<string, unknown> | null = null;
   private messageListenerAdded = false;
   protected readonly mcpAppHtmlUrl = signal<string | null>(null);
   protected readonly isAppLoading = signal<boolean>(false);
@@ -36,12 +48,11 @@ export class App implements AfterViewInit {
 
   private mcpClient: Client | null = null;
 
-  private readonly allowedTools = new Set([
-    'fetch_counter_a2ui',
-    'increase_counter',
-    'smart_editor_get_controls',
-    'smart_editor_apply',
-  ]);
+  // Tools the View may invoke, derived from each tool's declared
+  // _meta.ui.visibility. Per the MCP Apps spec an absent declaration defaults
+  // to ["model", "app"], i.e. app-callable (see
+  // APP_CALLABLE_WHEN_VISIBILITY_UNDECLARED above for the spec link).
+  private allowedTools = new Set<string>();
 
   ngAfterViewInit() {
     if (this.messageListenerAdded) return;
@@ -72,8 +83,8 @@ export class App implements AfterViewInit {
             window.location.origin,
           );
         }
-      } else if (data?.method === 'ui/ping') {
-        if (data.id && target) {
+      } else if (data?.method === 'ping') {
+        if (data.id != null && target) {
           target.postMessage(
             {
               jsonrpc: '2.0',
@@ -84,37 +95,63 @@ export class App implements AfterViewInit {
           );
         }
       } else if (data?.method === 'ui/initialize') {
-        if (data.id && target) {
+        if (data.id != null && target) {
           target.postMessage(
             {
               jsonrpc: '2.0',
               id: data.id,
               result: {
+                protocolVersion: '2026-01-26',
+                hostInfo: {name: 'a2ui-mcp-apps-host', version: '1.0.0'},
                 hostCapabilities: {
-                  displayModes: ['inline'],
+                  serverTools: {},
+                },
+                hostContext: {
+                  displayMode: 'inline',
+                  availableDisplayModes: ['inline'],
                 },
               },
             },
             window.location.origin,
           );
         }
-      } else if (data?.method === 'ui/resize') {
+      } else if (data?.method === 'ui/notifications/initialized') {
+        // The host must not message the View before this notification; once it
+        // arrives, deliver the instantiating tool call's input and result.
+        target.postMessage(
+          {
+            jsonrpc: '2.0',
+            method: 'ui/notifications/tool-input',
+            params: {arguments: this.toolCallArguments},
+          },
+          window.location.origin,
+        );
+        if (this.toolCallResult) {
+          target.postMessage(
+            {
+              jsonrpc: '2.0',
+              method: 'ui/notifications/tool-result',
+              params: this.toolCallResult,
+            },
+            window.location.origin,
+          );
+        }
+      } else if (data?.method === 'ui/notifications/size-changed') {
         const height = data.params?.height;
         if (typeof height === 'number') {
           iframe.style.height = `${height}px`;
         }
-      } else if (data?.method?.startsWith('ui/')) {
-        // Generic tool relay for unknown verbs
-        const toolName = data.method.replace('ui/', '');
+      } else if (data?.method === 'tools/call') {
+        const toolName = data.params?.name;
 
-        if (!this.allowedTools.has(toolName)) {
+        if (typeof toolName !== 'string' || !this.allowedTools.has(toolName)) {
           console.warn(`[Host] Blocked unauthorized tool call: ${toolName}`);
-          if (data.id && target) {
+          if (data.id != null && target) {
             target.postMessage(
               {
                 jsonrpc: '2.0',
                 id: data.id,
-                error: {message: `Tool '${toolName}' is not whitelisted.`},
+                error: {code: -32000, message: `Tool '${toolName}' is not whitelisted.`},
               },
               window.location.origin,
             );
@@ -122,18 +159,18 @@ export class App implements AfterViewInit {
           return;
         }
 
-        if (data.id && target && this.mcpClient) {
+        if (data.id != null && target && this.mcpClient) {
           this.mcpClient
             .callTool({
               name: toolName,
-              arguments: data.params || {},
+              arguments: data.params?.arguments || {},
             })
             .then(result => {
               target.postMessage(
                 {
                   jsonrpc: '2.0',
                   id: data.id,
-                  result: result.content,
+                  result,
                 },
                 window.location.origin,
               );
@@ -143,7 +180,7 @@ export class App implements AfterViewInit {
                 {
                   jsonrpc: '2.0',
                   id: data.id,
-                  error: {message: error.message},
+                  error: {code: -32000, message: error.message},
                 },
                 window.location.origin,
               );
@@ -182,22 +219,39 @@ export class App implements AfterViewInit {
       await client.connect(transport);
       this.mcpClient = client;
 
-      this.status.set('Calling MCP App tool...');
       const toolName = this.selectedApp() === 'editor' ? 'get_editor_app' : 'get_basic_app';
 
-      // 2. Call the tool to get the app
+      // 2. Discover the tool's predeclared UI template (_meta.ui.resourceUri)
+      // and which tools the View may call (_meta.ui.visibility).
+      this.status.set('Listing tools...');
+      const {tools} = await client.listTools();
+      this.allowedTools = new Set(
+        tools
+          .filter(tool => {
+            const visibility = (tool._meta as any)?.ui?.visibility;
+            return Array.isArray(visibility)
+              ? visibility.includes('app')
+              : APP_CALLABLE_WHEN_VISIBILITY_UNDECLARED;
+          })
+          .map(tool => tool.name),
+      );
+
+      const entryTool = tools.find(tool => tool.name === toolName);
+      const resourceUri = (entryTool?._meta as any)?.ui?.resourceUri;
+      if (typeof resourceUri !== 'string' || !resourceUri.startsWith('ui://')) {
+        throw new Error(`Tool '${toolName}' does not declare a ui:// resource in _meta.ui`);
+      }
+
+      // 3. Call the tool; its result is delivered to the View via
+      // ui/notifications/tool-result once the View reports initialized.
+      this.status.set('Calling MCP App tool...');
       const result = await client.callTool({
         name: toolName,
         arguments: {},
       });
+      this.toolCallArguments = {};
+      this.toolCallResult = result as Record<string, unknown>;
 
-      // 3. Extract resource URI
-      const resourceContent = (result.content as any[]).find((c: any) => c.type === 'resource');
-      if (!resourceContent || !resourceContent.resource?.uri) {
-        throw new Error('Tool did not return a resource URI');
-      }
-
-      const resourceUri = resourceContent.resource.uri;
       this.status.set(`Reading resource: ${resourceUri}`);
 
       // 4. Read the resource

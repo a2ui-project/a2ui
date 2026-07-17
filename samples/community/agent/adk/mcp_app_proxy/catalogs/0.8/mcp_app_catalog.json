@@ -5,7 +5,7 @@
       "type": "object",
       "additionalProperties": false,
       "properties": {
-        "content": {
+        "htmlContent": {
           "type": "object",
           "description": "The HTML content of the app.",
           "additionalProperties": false,
@@ -39,7 +39,7 @@
           }
         }
       },
-      "required": ["content"]
+      "required": ["htmlContent"]
     },
     "Column": {
       "type": "object",
@@ -73,6 +73,15 @@
           "additionalProperties": false,
           "properties": {
             "literalNumber": {"type": "number"},
+            "literalString": {"type": "string"},
+            "path": {"type": "string"}
+          }
+        },
+        "commentary": {
+          "type": "object",
+          "description": "AI Live commentary value or path.",
+          "additionalProperties": false,
+          "properties": {
             "literalString": {"type": "string"},
             "path": {"type": "string"}
           }

@@ -20,8 +20,7 @@ AST, compiling it directly into standard A2UI v1.0 JSON messages.
 The grammar for A2UI Express is defined in Express.g4.
 """
 
-import re
-from typing import Any, Dict, Optional, Union
+from typing import Any, Optional, Union
 from antlr4 import InputStream, CommonTokenStream
 from a2ui.core.catalog import Catalog
 from a2ui.schema.catalog import A2uiCatalog

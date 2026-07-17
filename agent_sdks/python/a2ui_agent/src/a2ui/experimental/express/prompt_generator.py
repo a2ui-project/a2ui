@@ -20,7 +20,7 @@ instruction blocks for on-device models (e.g., Gemma 4).
 
 import json
 import re
-from typing import Any, Dict, Optional, Union
+from typing import Any, Optional, Union
 from a2ui.core.catalog import Catalog
 from a2ui.schema.catalog import A2uiCatalog
 from .decompiler import ExpressDecompiler

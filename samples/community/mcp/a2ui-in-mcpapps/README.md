@@ -20,8 +20,12 @@ sequenceDiagram
     participant A2UI as A2UI Surface
 
     Note over Host: 1. Loaded from Hosting server
-    Host->>Server: 2. Fetch MCP App resource
-    Server-->>Host: Return MCP App resource
+    Host->>Server: 2a. tools/list
+    Server-->>Host: Tool definitions (_meta.ui.resourceUri -> ui:// template)
+    Host->>Server: 2b. tools/call (app entry tool)
+    Server-->>Host: CallToolResult (relayed later via ui/notifications/tool-result)
+    Host->>Server: 2c. resources/read (declared ui:// template)
+    Server-->>Host: Return MCP App HTML resource
     Host->>Proxy: 3a. Load Sandbox Proxy
     Proxy->>App: 3b. Serve App in isolated iframe
 
@@ -37,9 +41,9 @@ sequenceDiagram
     Note over A2UI: Click on A2UI Button
 
     A2UI->>App: 8. A2UI Button triggers UserAction
-    App->>Proxy: Forward UserAction event
-    Proxy->>Host: Relay UserAction to Host
-    Note over Host: 9. Map Action to Tool Call
+    Note over App: 9. Map Action to tools/call request
+    App->>Proxy: Send tools/call request
+    Proxy->>Host: Relay tools/call to Host
     Host->>Server: Forward Tool Call
     Server-->>Host: 10. Respond with A2UI payload (datamodelupdate)
     Host->>Proxy: Relay payload

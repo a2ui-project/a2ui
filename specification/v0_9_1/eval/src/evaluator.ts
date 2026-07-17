@@ -170,7 +170,7 @@ export class Evaluator {
     // Only save if the evaluation failed
     if (evaluationResult.pass) return;
 
-    const modelDir = path.join(this.outputDir, `output-${result.modelName.replace(/[\/:]/g, '_')}`);
+    const modelDir = path.join(this.outputDir, `output-${result.modelName.replace(/[/:]/g, '_')}`);
     const detailsDir = path.join(modelDir, 'details');
     fs.writeFileSync(
       path.join(detailsDir, `${result.prompt.name}.${result.runNumber}.failed.yaml`),

@@ -18,7 +18,7 @@ Reconstructs standard A2UI v1.0 JSON envelopes back into A2UI Express DSL code,
 tailored for prompt tokens compression.
 """
 
-from typing import Any, Dict, Optional, Union
+from typing import Any, Union
 from a2ui.core.catalog import Catalog
 from a2ui.schema.catalog import A2uiCatalog
 from .schema_helper import CatalogSchemaHelper

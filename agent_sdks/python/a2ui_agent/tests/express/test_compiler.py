@@ -18,8 +18,6 @@ import json
 import os
 import unittest
 
-os.environ["A2UI_EXPRESS_ENABLED"] = "true"
-
 from a2ui.core.catalog import Catalog
 from a2ui.schema.catalog import A2uiCatalog, CatalogConfig
 from a2ui.experimental.express.prompt_generator import ExpressPromptGenerator
@@ -453,49 +451,26 @@ btnLabel = Text("Click Thread 2")
 
     def test_v10_validator_gating(self):
         """Verifies that A2uiValidator gates v1.0 validation behind flags."""
-        from a2ui.schema.catalog import CatalogConfig
-        from a2ui.schema.manager import A2uiSchemaManager
-        from a2ui.schema.validator import A2uiValidator
+        from a2ui.inference_formats.transport.format import TransportFormat
+        from a2ui.validation.validator import A2uiValidator
+        from a2ui.core import A2uiCatalogError
 
         catalog_config = CatalogConfig.from_path("basic_catalog", self.catalog_path)
-        manager = A2uiSchemaManager(version="1.0", catalogs=[catalog_config])
-        catalog = manager.get_selected_catalog()
+        transport_format = TransportFormat(version="1.0", catalogs=[catalog_config])
+        catalog = transport_format.get_selected_catalog()
 
-        orig_express = os.environ.get("A2UI_EXPRESS_ENABLED")
-        orig_v1_0 = os.environ.get("A2UI_VERSION_1_0")
+        from unittest.mock import patch
+        import os
 
-        if "A2UI_EXPRESS_ENABLED" in os.environ:
-            del os.environ["A2UI_EXPRESS_ENABLED"]
-        if "A2UI_VERSION_1_0" in os.environ:
-            del os.environ["A2UI_VERSION_1_0"]
-
-        try:
-            with self.assertRaises(ValueError) as context:
+        # By default, version 1.0 is disabled
+        with patch.dict(os.environ, {}, clear=True):
+            with self.assertRaises(A2uiCatalogError) as context:
                 A2uiValidator(catalog)
-            self.assertIn(
-                "A2UI v1.0 validation is experimental", str(context.exception)
-            )
+        self.assertIn("A2UI v1.0 validation is experimental", str(context.exception))
 
-            os.environ["A2UI_VERSION_1_0"] = "true"
-            validator = A2uiValidator(catalog)
-            self.assertEqual(validator.version, "1.0")
-
-            del os.environ["A2UI_VERSION_1_0"]
-
-            os.environ["A2UI_EXPRESS_ENABLED"] = "true"
-            validator = A2uiValidator(catalog)
-            self.assertEqual(validator.version, "1.0")
-
-        finally:
-            if orig_express is not None:
-                os.environ["A2UI_EXPRESS_ENABLED"] = orig_express
-            elif "A2UI_EXPRESS_ENABLED" in os.environ:
-                del os.environ["A2UI_EXPRESS_ENABLED"]
-
-            if orig_v1_0 is not None:
-                os.environ["A2UI_VERSION_1_0"] = orig_v1_0
-            elif "A2UI_VERSION_1_0" in os.environ:
-                del os.environ["A2UI_VERSION_1_0"]
+        # It can be enabled by passing 'version_1_0' in experiments
+        validator = A2uiValidator(catalog, experiments={"version_1_0"})
+        self.assertEqual(validator.version, "1.0")
 
     def test_semicolons_and_trailing_commas_and_line_continuation(self):
         """Verifies that optional semicolons, trailing commas, and line continuations compile correctly."""

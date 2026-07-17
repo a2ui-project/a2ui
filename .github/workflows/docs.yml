@@ -83,11 +83,12 @@ jobs:
 
       - name: Copy schemas to documentation
         run: |
-          cp -R specification/* docs/specification/
+          mkdir -p docs/public/specification/
+          cp -R specification/* docs/public/specification/
           # Flatten JSON files to version roots to support clean URLs without redirects
           for version in v0_8 v0_9 v0_9_1 v1_0; do
-            if [ -d "docs/specification/$version/json" ]; then
-              cp docs/specification/$version/json/*.json docs/specification/$version/
+            if [ -d "docs/public/specification/$version/json" ]; then
+              cp docs/public/specification/$version/json/*.json docs/public/specification/$version/
             fi
           done
 

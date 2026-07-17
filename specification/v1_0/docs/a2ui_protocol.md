@@ -3,7 +3,7 @@
 <!-- markdownlint-disable MD034 -->
 <div style="text-align: center;">
   <div class="centered-logo-text-group">
-    <img src="../../../assets/A2UI_dark.svg" alt="A2UI Protocol Logo" width="100">
+    <img src="../../../docs/public/assets/A2UI_dark.svg" alt="A2UI Protocol Logo" width="100">
     <h1>A2UI (Agent to UI) Protocol v1.0</h1>
   </div>
 </div>
@@ -28,7 +28,7 @@ Communication occurs via a stream of JSON objects. The renderer parses each obje
 - `updateDataModel`: Provides new data to be inserted into or to replace a surface's data model.
 - `deleteSurface`: Explicitly removes a surface and its contents from the UI.
 
-End of agent turn is signaled by [transport layer](https://github.com/a2ui-project/a2ui/tree/main/docs/concepts/transports.md).
+End of agent turn is signaled by [transport layer](https://github.com/a2ui-project/a2ui/tree/main/docs/public/concepts/transports.md).
 
 ## Changes from previous versions
 

@@ -22,7 +22,7 @@ import click
 import mcp.types as types
 from a2ui.basic_catalog.provider import BasicCatalog
 from a2ui.schema.constants import VERSION_0_9
-from a2ui.schema.manager import A2uiSchemaManager
+from a2ui.inference_formats.transport import TransportFormat
 from mcp.server.lowlevel import Server
 from mcp.server.lowlevel.helper_types import ReadResourceContents
 from starlette.requests import Request
@@ -49,10 +49,10 @@ BASIC_CATALOG_ID = "https://a2ui.org/specification/v0_9/basic_catalog.json"
 )
 def main(port: int, transport: str, bypass_verification: bool) -> int:
     # Initialize schema manager and validate sample
-    schema_manager = A2uiSchemaManager(
+    inference_format = TransportFormat(
         version=VERSION_0_9, catalogs=[BasicCatalog.get_config(version=VERSION_0_9)]
     )
-    selected_catalog = schema_manager.get_selected_catalog()
+    selected_catalog = inference_format.get_selected_catalog()
 
     recipe_a2ui_json = json.loads(
         (pathlib.Path(__file__).resolve().parent / "recipe_a2ui.json").read_text()

@@ -53,10 +53,10 @@ import {BoundProperty} from './types';
         *ngComponentOutlet="
           componentType;
           inputs: {
-            props: props,
-            surfaceId: surfaceId(),
-            componentId: resolvedComponentId,
-            dataContextPath: resolvedDataContextPath,
+            'props': props,
+            'surfaceId': surfaceId(),
+            'componentId': resolvedComponentId,
+            'dataContextPath': resolvedDataContextPath,
           }
         "
       ></ng-container>

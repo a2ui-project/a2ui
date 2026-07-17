@@ -45,7 +45,7 @@
             "component": {
               "const": "McpApp"
             },
-            "content": {
+            "htmlContent": {
               "$ref": "common_types.json#/$defs/DynamicString",
               "description": "The HTML content of the app."
             },
@@ -59,9 +59,21 @@
               "items": {
                 "type": "string"
               }
+            },
+            "allowedFunctions": {
+              "type": "array",
+              "description": "List of local function names the app is allowed to call.",
+              "items": {
+                "type": "string"
+              }
+            },
+            "data": {
+              "$ref": "common_types.json#/$defs/DynamicValue",
+              "description": "The A2UI data model path or value bound to this component for reactive state synchronization."
             }
           },
-          "required": ["component", "content"]
+          "required": ["component", "htmlContent"],
+          "additionalProperties": false
         }
       ],
       "unevaluatedProperties": false
@@ -85,6 +97,10 @@
             "cpuScore": {
               "$ref": "common_types.json#/$defs/DynamicNumber",
               "description": "CPU score value or path."
+            },
+            "commentary": {
+              "$ref": "common_types.json#/$defs/DynamicString",
+              "description": "AI Live commentary value or path."
             }
           },
           "required": ["component"]

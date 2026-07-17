@@ -79,7 +79,7 @@ export const A2uiClientErrorSchema = z.union([A2uiValidationErrorSchema, A2uiGen
  */
 export const A2uiClientMessageSchema = z
   .object({
-    version: z.literal('v0.9'),
+    version: z.enum(['v0.9', 'v0.9.1']),
   })
   .and(
     z.union([z.object({action: A2uiClientActionSchema}), z.object({error: A2uiClientErrorSchema})]),
@@ -91,7 +91,7 @@ export const A2uiClientMessageSchema = z
  */
 export const A2uiClientDataModelSchema = z
   .object({
-    version: z.literal('v0.9'),
+    version: z.enum(['v0.9', 'v0.9.1']),
     surfaces: z
       .record(z.object({}).passthrough())
       .describe('A map of surface IDs to their current data models.'),
