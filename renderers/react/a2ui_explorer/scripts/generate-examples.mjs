@@ -19,7 +19,7 @@ import path from 'path';
 
 const SPEC_EXAMPLES_DIR = path.resolve(
   import.meta.dirname,
-  '../../../../specification/v0_9_1/catalogs/basic/examples',
+  '../../../../specification/v0_9/catalogs/basic/examples',
 );
 const OUT_FILE = path.resolve(import.meta.dirname, '../src/generated/examples-list.ts');
 
@@ -48,7 +48,7 @@ function generateExamplesBundle() {
 
   files.forEach((file, index) => {
     // Relative path from src/generated/examples-list.ts to the specification examples folder
-    const relativePath = `../../../../../specification/v0_9_1/catalogs/basic/examples/${file}`;
+    const relativePath = `../../../../../specification/v0_9/catalogs/basic/examples/${file}`;
     const variableName = `example_${index}`;
 
     imports.push(`import ${variableName} from '${relativePath}';`);

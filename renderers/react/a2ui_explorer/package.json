@@ -76,7 +76,7 @@
     "generate-examples": {
       "command": "node scripts/generate-examples.mjs",
       "files": [
-        "../../../specification/v0_9_1/catalogs/basic/examples/*.json",
+        "../../../specification/v0_9/catalogs/basic/examples/*.json",
         "scripts/generate-examples.mjs"
       ],
       "output": [
