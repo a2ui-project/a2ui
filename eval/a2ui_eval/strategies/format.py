@@ -127,7 +127,7 @@ def compile_format_payload(format_name: str, version: str) -> Solver:
         catalog = (
             strategy.get_selected_catalog()
             if isinstance(strategy, TransportFormat)
-            else strategy.catalog
+            else getattr(strategy, "catalog")
         )
         validator = catalog.validator
 

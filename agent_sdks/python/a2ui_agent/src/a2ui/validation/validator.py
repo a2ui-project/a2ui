@@ -101,7 +101,7 @@ class A2uiValidatorWrapperV10:
         format_checker = FormatChecker()
 
         @format_checker.checks("date-time")
-        def is_datetime(val):
+        def is_datetime(val: Any) -> bool:
             if not isinstance(val, str):
                 return True
             try:
@@ -111,7 +111,7 @@ class A2uiValidatorWrapperV10:
                 return False
 
         @format_checker.checks("time")
-        def is_time(val):
+        def is_time(val: Any) -> bool:
             if not isinstance(val, str):
                 return True
             try:
@@ -121,7 +121,7 @@ class A2uiValidatorWrapperV10:
                 return False
 
         @format_checker.checks("date")
-        def is_date(val):
+        def is_date(val: Any) -> bool:
             if not isinstance(val, str):
                 return True
             try:

@@ -24,7 +24,7 @@ from a2ui_eval.strategies import STRATEGIES
 os.environ["INSPECT_MAX_CONNECTIONS"] = "50"
 
 
-def main():
+def main() -> None:
     parser = argparse.ArgumentParser(description="Run A2UI evaluations")
     parser.add_argument(
         "--sanity",

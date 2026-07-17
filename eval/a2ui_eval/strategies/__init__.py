@@ -12,11 +12,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from typing import Callable, List
 from inspect_ai.solver import Solver
 from .subagent_tool import subagent_tool_solver
 from .format import format_solver
 
-STRATEGIES = {
+STRATEGIES: dict[str, Callable[[str], List[Solver]]] = {
     "direct": lambda version: format_solver("json", version),
     "subagent_tool": subagent_tool_solver,
     "express": lambda version: format_solver("express", version),

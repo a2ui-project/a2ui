@@ -12,14 +12,20 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from pathlib import Path
+from typing import Any
 import pytest
 from a2ui_eval.strategies.format import format_system_prompt
 from inspect_ai.solver import TaskState
 from inspect_ai.model import ModelName
 
 
+async def dummy_generate(state: TaskState, *args: Any, **kwargs: Any) -> TaskState:
+    return state
+
+
 @pytest.mark.asyncio
-async def test_a2ui_system_prompt(tmp_path):
+async def test_a2ui_system_prompt(tmp_path: Path) -> None:
     schema_file = tmp_path / "schema.json"
     schema_file.write_text("schema content")
     catalog_file = tmp_path / "catalog.json"
@@ -42,9 +48,6 @@ async def test_a2ui_system_prompt(tmp_path):
         },
     )
 
-    async def dummy_generate(state, **kwargs):
-        return state
-
     state = await solver(state, dummy_generate)
 
     assert len(state.messages) == 1
@@ -57,7 +60,7 @@ from inspect_ai.model import ModelOutput, ChatCompletionChoice, ChatMessageAssis
 
 
 @pytest.mark.asyncio
-async def test_extract_subagent_payload():
+async def test_extract_subagent_payload() -> None:
     solver = extract_subagent_payload()
 
     state = TaskState(
@@ -79,9 +82,6 @@ async def test_extract_subagent_payload():
     )
     state.store.set(PAYLOAD_STORE_KEY, '{"test": "payload"}')
 
-    async def dummy_generate(state, **kwargs):
-        return state
-
     state = await solver(state, dummy_generate)
     assert state.output.completion == '<a2ui-json>\n{"test": "payload"}\n</a2ui-json>'
 
@@ -89,7 +89,7 @@ async def test_extract_subagent_payload():
 from a2ui_eval.strategies.subagent_tool import subagent_tool_solver
 
 
-def test_subagent_tool_solver(tmp_path):
+def test_subagent_tool_solver(tmp_path: Path) -> None:
     schema_file = tmp_path / "schema.json"
     schema_file.write_text("schema content")
     catalog_file = tmp_path / "catalog.json"
@@ -102,13 +102,13 @@ def test_subagent_tool_solver(tmp_path):
 from a2ui_eval.strategies import STRATEGIES
 
 
-def test_express_solver():
-    solvers = STRATEGIES["express"](version="1.0")
+def test_express_solver() -> None:
+    solvers = STRATEGIES["express"]("1.0")
     assert len(solvers) == 3
 
 
 @pytest.mark.asyncio
-async def test_a2ui_express_solvers():
+async def test_a2ui_express_solvers() -> None:
     from a2ui_eval.strategies.format import format_system_prompt, compile_format_payload
     from inspect_ai.model import ModelName, ModelOutput, ChatCompletionChoice, ChatMessageAssistant
     from inspect_ai.solver import TaskState
@@ -127,14 +127,11 @@ async def test_a2ui_express_solvers():
         metadata={"catalog": str(catalog_file)},
     )
 
-    async def dummy_generate(state, **kwargs):
-        return state
-
     # Mock GIT_ROOT in the solver module dynamically for testing
     import a2ui_eval.strategies.format as format_module
 
     original_git_root = getattr(format_module, "GIT_ROOT", None)
-    format_module.GIT_ROOT = GIT_ROOT
+    setattr(format_module, "GIT_ROOT", GIT_ROOT)
 
     try:
         state = await prompt_solver(state, dummy_generate)
@@ -159,16 +156,16 @@ async def test_a2ui_express_solvers():
         assert '"component": "Text"' in state.output.completion
     finally:
         if original_git_root is not None:
-            format_module.GIT_ROOT = original_git_root
+            setattr(format_module, "GIT_ROOT", original_git_root)
 
 
-def test_elemental_solver():
-    solvers = STRATEGIES["elemental"](version="1.0")
+def test_elemental_solver() -> None:
+    solvers = STRATEGIES["elemental"]("1.0")
     assert len(solvers) == 3
 
 
 @pytest.mark.asyncio
-async def test_a2ui_elemental_solvers():
+async def test_a2ui_elemental_solvers() -> None:
     from a2ui_eval.strategies.format import format_system_prompt, compile_format_payload
     from inspect_ai.model import ModelName, ModelOutput, ChatCompletionChoice, ChatMessageAssistant
     from inspect_ai.solver import TaskState
@@ -187,13 +184,10 @@ async def test_a2ui_elemental_solvers():
         metadata={"catalog": str(catalog_file)},
     )
 
-    async def dummy_generate(state, **kwargs):
-        return state
-
     import a2ui_eval.strategies.format as format_module
 
     original_git_root = getattr(format_module, "GIT_ROOT", None)
-    format_module.GIT_ROOT = GIT_ROOT
+    setattr(format_module, "GIT_ROOT", GIT_ROOT)
 
     try:
         state = await prompt_solver(state, dummy_generate)
@@ -222,4 +216,4 @@ async def test_a2ui_elemental_solvers():
         assert '"component": "Text"' in state.output.completion
     finally:
         if original_git_root is not None:
-            format_module.GIT_ROOT = original_git_root
+            setattr(format_module, "GIT_ROOT", original_git_root)
