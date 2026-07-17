@@ -41,24 +41,20 @@ Inside the sentinel tags, surround the UI layout with `<body>` and `</body>` tag
 
 ## HTML5 Markup Rules
 
-1. **Component Tags**: Use elements prefixed with `ui-` in kebab-case (e.g. `<ui-my-component>`).
-2. **Component IDs**: Provide a unique `id` attribute for every component. The single top-level element MUST have `id="root"`.
-3. **Attributes**: Pass static string values as regular attributes (`attribute="value"`). Wrap numbers, booleans, and expressions in double-quoted curly braces: `numberProperty="{4}"`, `booleanProperty="{true}"`.
-4. **Data Binding**: Bind data using curly braces prefixed with `$`: `value="{$/user/name}"` (absolute) or `value="{$name}"` (relative in list templates). Use `{$/items/0}` for arrays, never brackets. Do not wrap path bindings starting with `$` in single or double quotes, and do not append trailing quotes to them (e.g. write `$/myValue`, not `$/myValue'` or `'$/myValue'`).
-   **CRITICAL**: You can ONLY bind properties that expect dynamic state/data to data binding paths. Properties expecting static options, lists, configurations, or schemas must be specified as literal static arrays/objects inside slot script tags, NOT bound to a data path.
-5. **Expressions**: Call catalog functions inside curly braces using named arguments: `text="{myFunction(arg1: $/myPath, arg2: 'literal')}"`.
-6. **Slots & Children**: Nest child components directly inside their parent tags. For named slots (properties expecting a single component, like a leading, trailing, or child element), specify the slot attribute on the child: `<ui-my-child slot="leading">`.
-7. **Complex Properties**: For objects/arrays, use `<script type="application/json" slot="prop">`.
-8. **Templates**: For dynamic lists, nest child elements inside a `<template>` tag, and specify the bound data array path via the `path` attribute on the list component itself (e.g. `<ui-my-list path="{$/items}"><template>...</template></ui-list>`).
-9. **Actions**: Use `on-<property-name>` in kebab-case (e.g. `on-click="{Event('name', {args})}"`). If submitting or validating data, pass the data paths inside the event context dict (e.g. `on-submit="{Event('myEvent', {myKey: $/myPath})}"`).
-   **CRITICAL**: Do NOT output JSON blocks for component actions (like `action="..."`). Component actions MUST be declared using the `on-<event>` attributes using the inline expression syntax.
-10. **Dates & Times**: Values for date-time inputs (e.g. properties expecting date-time strings) must strictly use RFC 3339 format with a timezone offset (e.g. "2026-03-14T00:00:00Z").
-11. **Strict Enum Conformity**: Any component attribute that accepts enum values (represented as literal string union types in the TypeScript declarations) must strictly use one of the literal values listed in its interface definition. Do not use any value that is not explicitly present in the type declarations.
-12. **Standalone Directives**:
-    - Data Initialization: `<script type="application/json">{"data"}</script>` at root of body.
+1. Prefix component tags with `ui-` in kebab-case (e.g., `<ui-text-field />`).
+2. Provide a unique `id` attribute for every component. The top-level root element must have `id="root"`.
+3. Wrap numbers, booleans, and expressions in double-quoted curly braces (e.g., `value="{4}"`, `checked="{true}"`, `value="{$/path}"`). Pass static strings as regular attributes without curly braces.
+4. Bind data paths using `{$/path}` (absolute) or `{$name}` (relative in list templates). Use `{$/items/0}` for arrays (never brackets).
+5. For static options, schemas, or configurations, write literal JSON inside slot script tags instead of binding to a data path: `<script type="application/json" slot="options">[...]</script>`.
+6. Call functions inside curly braces using named arguments: `text="{myFunction(arg1: $/myPath, arg2: 'literal')}"`.
+7. Nest child components directly inside parent tags. Do NOT pass layout properties (like `children` or `child`) as attributes. For named slots (properties expecting a single component, like a leading, trailing, or child element), add the slot attribute to the child: `<ui-icon slot="leading" />`.
+8. For dynamic lists, specify the data array path on the `path` attribute and nest the repeated layout inside a `<template>` tag: `<ui-list path="{$/items}"><template>...</template></ui-list>`. Do NOT define or duplicate the template's child components anywhere else in the document.
+9. Declare component actions using `on-<event>` attributes with inline expressions: `on-click="{Event('click_event')}"` or `on-click="{openUrl(url: '...')}"`. Do not use `action` properties.
+10. Do not use values starting with `{` and ending with `}` (like JSON object literals) directly as attribute string values (e.g. `placeholder="{ 'key': 'val' }"`), as the compiler will treat it as an expression. Prefix or write without matching outer braces (e.g., `placeholder="JSON: { 'key': 'val' }"`).
+11. Standalone directives:
+    - Data Initialization: `<script type="application/json">{"data"}</script>` at the root of the body.
     - Surface Deletion: `<ui-delete-surface surface-id="id" />`.
     - Standalone Function Call: `<ui-call-function id="id" name="func"><script type="application/json" slot="args">{"args"}</script></ui-call-function>`.
-13. Do NOT use values starting with `{` and ending with `}` (like JSON object literals) directly as attribute string values (e.g. `placeholder="{ 'key': 'val' }"`). It will be incorrectly interpreted as an expression."`).
 """
 
 
