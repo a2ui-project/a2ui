@@ -22,42 +22,47 @@ import pytest
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "../bin")))
 from run_ci_evals import check_threshold, build_main_command
 from report_evals import extract_accuracy, print_results_summary, generate_markdown_summary
+from typing import Any
 import argparse
 
 
-def test_extract_accuracy_valid():
-    log_data = {"results": {"scores": [{"metrics": {"accuracy": {"value": 0.85}}}]}}
+def test_extract_accuracy_valid() -> None:
+    log_data: dict[str, Any] = {
+        "results": {"scores": [{"metrics": {"accuracy": {"value": 0.85}}}]}
+    }
     assert extract_accuracy(log_data) == 0.85
 
 
-def test_extract_accuracy_no_scores():
-    log_data = {"results": {}}
+def test_extract_accuracy_no_scores() -> None:
+    log_data: dict[str, Any] = {"results": {}}
     with pytest.raises(ValueError, match="No scores found"):
         extract_accuracy(log_data)
 
 
-def test_extract_accuracy_no_accuracy():
-    log_data = {"results": {"scores": [{"metrics": {}}]}}
+def test_extract_accuracy_no_accuracy() -> None:
+    log_data: dict[str, Any] = {"results": {"scores": [{"metrics": {}}]}}
     with pytest.raises(ValueError, match="Could not find accuracy"):
         extract_accuracy(log_data)
 
 
-def test_extract_accuracy_null_accuracy():
-    log_data = {"results": {"scores": [{"metrics": {"accuracy": None}}]}}
+def test_extract_accuracy_null_accuracy() -> None:
+    log_data: dict[str, Any] = {
+        "results": {"scores": [{"metrics": {"accuracy": None}}]}
+    }
     with pytest.raises(ValueError, match="Could not find accuracy"):
         extract_accuracy(log_data)
 
 
-def test_check_threshold_pass():
+def test_check_threshold_pass() -> None:
     assert check_threshold(85.0, 80.0) is True
     assert check_threshold(80.0, 80.0) is True
 
 
-def test_check_threshold_fail():
+def test_check_threshold_fail() -> None:
     assert check_threshold(75.0, 80.0) is False
 
 
-def test_build_main_command_default():
+def test_build_main_command_default() -> None:
     args = argparse.Namespace(
         model="google/gemini-3-flash-preview",
         max_samples=100,
@@ -85,7 +90,7 @@ def test_build_main_command_default():
     ]
 
 
-def test_build_main_command_no_limit():
+def test_build_main_command_no_limit() -> None:
     args = argparse.Namespace(
         model="google/gemini-3-flash-preview",
         max_samples=0,
@@ -96,8 +101,8 @@ def test_build_main_command_no_limit():
     assert "--limit" not in cmd
 
 
-def test_print_results_summary_valid(capsys):
-    log_data = {
+def test_print_results_summary_valid(capsys: pytest.CaptureFixture[str]) -> None:
+    log_data: dict[str, Any] = {
         "samples": [
             {
                 "id": 1,
@@ -143,8 +148,8 @@ def test_print_results_summary_valid(capsys):
     assert "Inference Time - Average: 7.50s | Median: 7.50s" in captured.out
 
 
-def test_print_results_summary_fail(capsys):
-    log_data = {
+def test_print_results_summary_fail(capsys: pytest.CaptureFixture[str]) -> None:
+    log_data: dict[str, Any] = {
         "samples": [{
             "id": 2,
             "metadata": {"name": "fail_task"},
@@ -168,8 +173,8 @@ def test_print_results_summary_fail(capsys):
     assert "    Incorrect" in captured.out
 
 
-def test_generate_markdown_summary_valid():
-    log_data = {
+def test_generate_markdown_summary_valid() -> None:
+    log_data: dict[str, Any] = {
         "eval": {"task": "test_task", "model": "test_model"},
         "samples": [{
             "id": 1,
@@ -189,8 +194,8 @@ def test_generate_markdown_summary_valid():
     assert "#### Failure Details" not in summary
 
 
-def test_generate_markdown_summary_fail():
-    log_data = {
+def test_generate_markdown_summary_fail() -> None:
+    log_data: dict[str, Any] = {
         "eval": {"task": "test_task", "model": "test_model"},
         "samples": [{
             "id": 2,

@@ -24,7 +24,9 @@ from .validator_v08 import (
     extract_component_ref_fields as v08_ref,
 )
 from a2ui.core.validating import A2uiValidator as CoreValidator
-from a2ui.core.validating.integrity_checker import get_component_references as get_component_references
+from a2ui.core.validating.integrity_checker import (
+    get_component_references as get_component_references,
+)
 from a2ui.core.validating.topology_analyzer import analyze_topology as analyze_topology
 from a2ui.core.validating.validator import ValidationConfig, STRICT_VALIDATION
 from a2ui.core.validating.catalog_schema_validator import CatalogSchemaValidator
@@ -92,8 +94,41 @@ class A2uiValidatorWrapperV10:
     def __init__(self, catalog: A2uiCatalog):
         self._catalog = catalog
         from urllib.parse import urljoin
-        from jsonschema import Draft202012Validator
+        from jsonschema import Draft202012Validator, FormatChecker
         from referencing import Registry, Resource
+        from datetime import datetime, time, date
+
+        format_checker = FormatChecker()
+
+        @format_checker.checks("date-time")
+        def is_datetime(val: Any) -> bool:
+            if not isinstance(val, str):
+                return True
+            try:
+                datetime.fromisoformat(val)
+                return True
+            except ValueError:
+                return False
+
+        @format_checker.checks("time")
+        def is_time(val: Any) -> bool:
+            if not isinstance(val, str):
+                return True
+            try:
+                time.fromisoformat(val)
+                return True
+            except ValueError:
+                return False
+
+        @format_checker.checks("date")
+        def is_date(val: Any) -> bool:
+            if not isinstance(val, str):
+                return True
+            try:
+                date.fromisoformat(val)
+                return True
+            except ValueError:
+                return False
 
         s2c = catalog.s2c_schema
         common = catalog.common_types_schema
@@ -119,6 +154,11 @@ class A2uiValidatorWrapperV10:
                 )
             if "$id" in cat:
                 resources.append((cat["$id"], Resource.from_contents(cat_copy)))
+                resolved_common_uri = urljoin(cat["$id"], "common_types.json")
+                if common:
+                    resources.append(
+                        (resolved_common_uri, Resource.from_contents(common))
+                    )
 
         self._registry = Registry().with_resources(resources)
         self._wrapped_schema = {
@@ -127,7 +167,9 @@ class A2uiValidatorWrapperV10:
             "items": {"$ref": s2c["$id"]},
         }
         self._schema_validator = Draft202012Validator(
-            self._wrapped_schema, registry=self._registry
+            self._wrapped_schema,
+            registry=self._registry,
+            format_checker=format_checker,
         )
 
     def validate(

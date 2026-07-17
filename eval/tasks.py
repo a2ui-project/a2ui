@@ -22,14 +22,25 @@ from google import genai
 from google.genai import errors
 from inspect_ai import task, Task
 from inspect_ai.dataset import MemoryDataset, Sample
-from inspect_ai.scorer import scorer, Score
+from inspect_ai.scorer import scorer, Score, Scorer, Target
+from inspect_ai.solver import TaskState
 from a2ui_eval.dataset import load_a2ui_dataset
 from a2ui_eval.strategies import get_solver
 from a2ui_eval.scorers import a2ui_scorer, measured_model_graded_qa
 
 # Paths relative to the eval directory where we run inspect
 CURRENT_DIR = Path(__file__).resolve().parent
-DATASET_PATH = (CURRENT_DIR / "datasets/prompts.yaml").resolve()
+DATASET_V0_9_1_PATH = (CURRENT_DIR / "datasets/prompts_v0_9_1.yaml").resolve()
+DATASET_V1_0_PATH = (CURRENT_DIR / "datasets/prompts_v1_0.yaml").resolve()
+
+
+@scorer(metrics=[])
+def dummy_scorer() -> Scorer:
+    async def score(state: TaskState, target: Target) -> Score:  # pylint: disable=unused-argument
+        return Score(value=1.0, explanation="Dummy pass")
+
+    return score
+
 
 GRADER_INSTRUCTIONS = """
 After assessing the submitted answer, reply with 'GRADE: $LETTER' (without quotes) where LETTER is one of C, P or I.  Please choose ONE option for the grade: either "C" for correct answers, "P" for partial credit, or "I" for incorrect answers.
@@ -75,27 +86,23 @@ def a2ui_v0_9_1_eval(
         except errors.APIError as e:
             print(f"Error listing models: {e}")
 
-        @scorer(metrics=[])
-        def dummy_scorer():
-            async def score(state, target):  # pylint: disable=unused-argument
-                return Score(value=1.0, explanation="Dummy pass")
-
-            return score
-
         return Task(
             dataset=MemoryDataset(samples=[Sample(input="dummy", target="dummy")]),
             solver=[],
             scorer=[dummy_scorer()],
         )
 
-    active_dataset_path = DATASET_PATH
+    active_dataset_path = DATASET_V0_9_1_PATH
     active_version = "0.9.1"
     default_catalog_path = "specification/v0_9_1/catalogs/basic/catalog.json"
+
+    format_name = strategy if strategy in ["express", "elemental"] else "json"
 
     dataset = load_a2ui_dataset(
         str(active_dataset_path),
         default_catalog_path=default_catalog_path,
         version=active_version,
+        format_name=format_name,
     )
 
     return Task(
@@ -136,27 +143,23 @@ def a2ui_v1_0_eval(
         except errors.APIError as e:
             print(f"Error listing models: {e}")
 
-        @scorer(metrics=[])
-        def dummy_scorer():
-            async def score(state, target):  # pylint: disable=unused-argument
-                return Score(value=1.0, explanation="Dummy pass")
-
-            return score
-
         return Task(
             dataset=MemoryDataset(samples=[Sample(input="dummy", target="dummy")]),
             solver=[],
             scorer=[dummy_scorer()],
         )
 
-    active_dataset_path = DATASET_PATH
+    active_dataset_path = DATASET_V1_0_PATH
     active_version = "1.0"
     default_catalog_path = "specification/v1_0/catalogs/basic/catalog.json"
+
+    format_name = strategy if strategy in ["express", "elemental"] else "json"
 
     dataset = load_a2ui_dataset(
         str(active_dataset_path),
         default_catalog_path=default_catalog_path,
         version=active_version,
+        format_name=format_name,
     )
 
     return Task(

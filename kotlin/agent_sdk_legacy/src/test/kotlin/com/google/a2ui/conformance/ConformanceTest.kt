@@ -719,7 +719,7 @@ class ConformanceTest {
     private const val TEST_CATALOG_NAME = "test_catalog"
     private const val VALIDATOR_YAML_FILE = "suites/validator.yaml"
     private const val CATALOG_YAML_FILE = "suites/catalog.yaml"
-    private const val SCHEMA_MANAGER_YAML_FILE = "suites/schema_manager.yaml"
+    private const val SCHEMA_MANAGER_YAML_FILE = "suites/inference_format.yaml"
     private const val PARSER_YAML_FILE = "suites/parser.yaml"
 
     private const val KEY_EXPECT_CONTAINS = "expect_contains"

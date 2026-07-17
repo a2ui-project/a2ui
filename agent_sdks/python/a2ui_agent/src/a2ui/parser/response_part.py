@@ -27,8 +27,10 @@ class ResponsePart:
         a2ui_json: The parsed/compiled A2UI JSON data, always a list of
           dictionaries if it contains A2UI messages. None if this part only
           contains conversational text.
+        is_final: Whether this format-content block is complete/closed (not truncated).
     """
 
     text: str = ""
     a2ui_raw: Optional[str] = None
     a2ui_json: Optional[Any] = None
+    is_final: bool = True
