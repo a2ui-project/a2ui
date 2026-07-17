@@ -20,9 +20,10 @@ instruction blocks for on-device models (e.g., Gemma 4).
 
 import json
 import re
-from typing import Any, Optional, TYPE_CHECKING
+from typing import Any, Optional, TYPE_CHECKING, Union
 from a2ui.prompt import PromptGenerator
-from a2ui.schema.capabilities import ClientUiCapabilities
+from a2ui.core.schema.client_capabilities import V09Capabilities
+
 from .parser import ExpressParser
 from .schema_helper import CatalogSchemaHelper
 
@@ -447,7 +448,7 @@ class ExpressPromptGenerator(PromptGenerator):
         role_description: str,
         workflow_description: str = "",
         ui_description: str = "",
-        client_ui_capabilities: Optional[ClientUiCapabilities] = None,
+        client_ui_capabilities: Optional[Union[dict[str, Any], V09Capabilities]] = None,
         allowed_components: Optional[list[str]] = None,
         allowed_messages: Optional[list[str]] = None,
         include_schema: bool = False,

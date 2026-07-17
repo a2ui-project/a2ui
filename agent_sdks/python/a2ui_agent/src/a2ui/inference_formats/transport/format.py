@@ -19,7 +19,7 @@ from typing import Any, Optional, Callable, Union, cast
 
 from a2ui.schema.utils import load_from_bundled_resource
 from a2ui.inference_format import InferenceFormat
-from a2ui.schema.capabilities import ClientUiCapabilities
+from a2ui.core.schema.client_capabilities import V09Capabilities
 
 from a2ui.schema.constants import (
     SERVER_TO_CLIENT_SCHEMA_KEY,
@@ -152,7 +152,8 @@ class TransportFormat(InferenceFormat):
                 self._catalog_example_paths[catalog.catalog_id] = config.examples_path
 
     def _select_catalog(
-        self, client_ui_capabilities: Optional[ClientUiCapabilities] = None
+        self,
+        client_ui_capabilities: Optional[Union[dict[str, Any], V09Capabilities]] = None,
     ) -> A2uiCatalog:
         """Selects the component catalog for the prompt based on client capabilities.
 
@@ -179,17 +180,28 @@ class TransportFormat(InferenceFormat):
                 "No supported catalogs found."
             )  # This should not happen.
 
-        if not client_ui_capabilities or not isinstance(client_ui_capabilities, dict):
+        if not client_ui_capabilities:
             return self._supported_catalogs[0]
 
-        inline_catalogs = cast(
-            list[dict[str, Any]],
-            client_ui_capabilities.get(INLINE_CATALOGS_KEY, []),
-        )
-        client_supported_catalog_ids = cast(
-            list[str],
-            client_ui_capabilities.get(SUPPORTED_CATALOG_IDS_KEY, []),
-        )
+        if isinstance(client_ui_capabilities, dict):
+            # Inject default supportedCatalogIds if missing to pass validation
+            data = dict(client_ui_capabilities)
+            if (
+                "supportedCatalogIds" not in data
+                and "supported_catalog_ids" not in data
+            ):
+                data["supportedCatalogIds"] = []
+            try:
+                capabilities = V09Capabilities.model_validate(data)
+            except Exception as e:
+                raise A2uiCatalogError(f"Invalid client capabilities format: {e}")
+        else:
+            capabilities = client_ui_capabilities
+
+        inline_catalogs = [
+            c.model_dump(by_alias=True) for c in capabilities.inline_catalogs or []
+        ]
+        client_supported_catalog_ids = capabilities.supported_catalog_ids or []
 
         if not self._accepts_inline_catalogs and inline_catalogs:
             raise A2uiCatalogError(
@@ -243,7 +255,7 @@ class TransportFormat(InferenceFormat):
 
     def get_selected_catalog(
         self,
-        client_ui_capabilities: Optional[ClientUiCapabilities] = None,
+        client_ui_capabilities: Optional[Union[dict[str, Any], V09Capabilities]] = None,
         allowed_components: Optional[list[str]] = None,
         allowed_messages: Optional[list[str]] = None,
     ) -> A2uiCatalog:

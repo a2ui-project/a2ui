@@ -14,8 +14,4 @@
 
 """Schema package supporting validators, catalogs, and capabilities."""
 
-from .capabilities import ClientUiCapabilities
-
-__all__ = [
-    "ClientUiCapabilities",
-]
+__all__ = []

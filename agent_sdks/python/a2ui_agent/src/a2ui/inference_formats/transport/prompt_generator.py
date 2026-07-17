@@ -14,9 +14,9 @@
 
 """Generator for standard A2UI JSON schema system prompt instructions."""
 
-from typing import Optional, Any, TYPE_CHECKING
+from typing import Optional, Any, TYPE_CHECKING, Union
 from a2ui.prompt import PromptGenerator
-from a2ui.schema.capabilities import ClientUiCapabilities
+from a2ui.core.schema.client_capabilities import V09Capabilities
 
 if TYPE_CHECKING:
     from a2ui.inference_formats.transport.format import TransportFormat
@@ -40,7 +40,7 @@ class TransportPromptGenerator(PromptGenerator):
         role_description: str,
         workflow_description: str = "",
         ui_description: str = "",
-        client_ui_capabilities: Optional[ClientUiCapabilities] = None,
+        client_ui_capabilities: Optional[Union[dict[str, Any], V09Capabilities]] = None,
         allowed_components: Optional[list[str]] = None,
         allowed_messages: Optional[list[str]] = None,
         include_schema: bool = False,

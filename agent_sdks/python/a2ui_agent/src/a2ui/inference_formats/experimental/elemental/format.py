@@ -18,7 +18,6 @@ from typing import Any, Optional, List
 from a2ui.schema.catalog import A2uiCatalog
 from a2ui.parser.response_part import ResponsePart
 from a2ui.inference_format import InferenceFormat
-from a2ui.schema.capabilities import ClientUiCapabilities
 from a2ui.parser.parser import Parser
 from google.adk.utils.feature_decorator import experimental
 

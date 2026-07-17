@@ -12,9 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Optional, Any
+from typing import Optional, Any, Union
 from a2ui.inference_format import InferenceFormat
-from a2ui.schema.capabilities import ClientUiCapabilities
+from a2ui.core.schema.client_capabilities import V09Capabilities
 
 
 class A2uiTemplateManager(InferenceFormat):
@@ -23,11 +23,6 @@ class A2uiTemplateManager(InferenceFormat):
     @property
     def parser(self) -> Any:
         """The parser instance associated with the template manager."""
-        raise NotImplementedError("This method is not yet implemented.")
-
-    @property
-    def decompiler(self) -> Any:
-        """The decompiler instance associated with the template manager."""
         raise NotImplementedError("This method is not yet implemented.")
 
     @property
@@ -40,7 +35,7 @@ class A2uiTemplateManager(InferenceFormat):
         role_description: str,
         workflow_description: str = "",
         ui_description: str = "",
-        client_ui_capabilities: Optional[ClientUiCapabilities] = None,
+        client_ui_capabilities: Optional[Union[dict[str, Any], V09Capabilities]] = None,
         allowed_components: Optional[list[str]] = None,
         allowed_messages: Optional[list[str]] = None,
         include_schema: bool = False,
