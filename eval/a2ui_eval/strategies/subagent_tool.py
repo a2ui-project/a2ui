@@ -14,7 +14,7 @@
 
 import json
 from inspect_ai.solver import Solver, solver, TaskState, Generate, use_tools, system_message
-from inspect_ai.model import ChatMessageSystem, get_model, ModelOutput, ChatCompletionChoice, ChatMessageAssistant, ChatMessageUser
+from inspect_ai.model import ChatMessage, ChatMessageSystem, get_model, ModelOutput, ChatCompletionChoice, ChatMessageAssistant, ChatMessageUser
 from inspect_ai.tool import tool, Tool
 from inspect_ai.util import store
 from a2ui.inference_formats.transport import TransportFormat
@@ -52,7 +52,7 @@ def a2ui_specialist() -> Tool:
             include_schema=True,
         )
 
-        messages = [
+        messages: list[ChatMessage] = [
             ChatMessageSystem(content=system_content),
             ChatMessageUser(content=input),
         ]

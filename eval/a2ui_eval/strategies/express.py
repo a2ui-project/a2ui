@@ -22,7 +22,7 @@ from a2ui.experimental.express.prompt_generator import ExpressPromptGenerator
 from a2ui.experimental.express.parser import parse_express_response
 from a2ui.inference_formats.transport.format import TransportFormat
 from a2ui.schema.catalog import CatalogConfig
-from ..shared.utils import GIT_ROOT, measured_generate
+from ..shared.utils import GIT_ROOT as GIT_ROOT, measured_generate
 
 
 @solver

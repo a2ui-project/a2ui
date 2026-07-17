@@ -49,6 +49,7 @@ dev = [
     "pytest>=9.1.1",
     "mypy>=1.14.0",
     "types-jsonschema>=4.26.0",
+    "types-PyYAML>=6.0.12.20241221",
     "pytest-asyncio>=1.3.0",
 ]
 release = [
@@ -103,7 +104,7 @@ pyink-annotation-pragmas = [
 strict = true
 explicit_package_bases = true
 namespace_packages = true
-mypy_path = "agent_sdks/python/a2ui_core/src:agent_sdks/python/a2ui_agent/src"
+mypy_path = "agent_sdks/python/a2ui_core/src:agent_sdks/python/a2ui_agent/src:eval:eval/bin"
 exclude = [
     "^agent_sdks/python/a2ui_core/tests/",
     "^agent_sdks/python/a2ui_agent/tests/",
@@ -112,7 +113,6 @@ exclude = [
     "^agent_sdks/python/a2ui_agent/src/a2ui/experimental/",
     "^agent_sdks/python/a2ui_agent/pack_specs_hook\\.py$",
     "^samples/",
-    "^eval/",
     "^tools/",
     "^docs/",
     "^scripts/",

@@ -17,7 +17,14 @@
 import json
 import os
 import time
-from inspect_ai.scorer import scorer, Score, Target, accuracy, model_graded_qa
+from inspect_ai.scorer import (
+    scorer,
+    Score,
+    Scorer,
+    Target,
+    accuracy,
+    model_graded_qa,
+)
 from inspect_ai.solver import TaskState
 from inspect_ai.model._model import sample_model_usage
 from a2ui.inference_formats.transport.format import TransportFormat
@@ -27,7 +34,7 @@ from .shared.utils import GIT_ROOT
 
 
 @scorer(metrics=[accuracy()])
-def a2ui_scorer(version: str):
+def a2ui_scorer(version: str) -> Scorer:
     """Scorer for A2UI evaluation using the Python SDK.
 
     Args:
@@ -84,7 +91,7 @@ def a2ui_scorer(version: str):
 
 
 @scorer(metrics=[accuracy()])
-def measured_model_graded_qa(model: str, instructions: str | None = None):
+def measured_model_graded_qa(model: str, instructions: str | None = None) -> Scorer:
     """Scorer that wraps model_graded_qa and records the token usage in metadata."""
     base_scorer = model_graded_qa(model=model, instructions=instructions)
 
@@ -118,6 +125,7 @@ def measured_model_graded_qa(model: str, instructions: str | None = None):
         state.metadata["evaluation_output_tokens"] = after_output - before_output
         state.metadata["evaluation_cached_tokens"] = after_cached - before_cached
 
+        assert result is not None
         return result
 
     return score

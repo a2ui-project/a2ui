@@ -12,6 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from pathlib import Path
+from typing import Any
 import pytest
 from a2ui_eval.strategies.direct import a2ui_system_prompt
 from inspect_ai.solver import TaskState
@@ -19,7 +21,7 @@ from inspect_ai.model import ChatMessage, ChatMessageUser, ModelName
 
 
 @pytest.mark.asyncio
-async def test_a2ui_system_prompt(tmp_path):
+async def test_a2ui_system_prompt(tmp_path: Path) -> None:
     schema_file = tmp_path / "schema.json"
     schema_file.write_text("schema content")
     catalog_file = tmp_path / "catalog.json"
@@ -42,7 +44,7 @@ async def test_a2ui_system_prompt(tmp_path):
         },
     )
 
-    async def dummy_generate(state, **kwargs):
+    async def dummy_generate(state: TaskState, *args: Any, **kwargs: Any) -> TaskState:
         return state
 
     state = await solver(state, dummy_generate)
@@ -57,7 +59,7 @@ from inspect_ai.model import ModelOutput, ChatCompletionChoice, ChatMessageAssis
 
 
 @pytest.mark.asyncio
-async def test_extract_subagent_payload():
+async def test_extract_subagent_payload() -> None:
     solver = extract_subagent_payload()
 
     state = TaskState(
@@ -79,7 +81,7 @@ async def test_extract_subagent_payload():
     )
     state.store.set(PAYLOAD_STORE_KEY, '{"test": "payload"}')
 
-    async def dummy_generate(state, **kwargs):
+    async def dummy_generate(state: TaskState, *args: Any, **kwargs: Any) -> TaskState:
         return state
 
     state = await solver(state, dummy_generate)
@@ -89,7 +91,7 @@ async def test_extract_subagent_payload():
 from a2ui_eval.strategies.subagent_tool import subagent_tool_solver
 
 
-def test_subagent_tool_solver(tmp_path):
+def test_subagent_tool_solver(tmp_path: Path) -> None:
     schema_file = tmp_path / "schema.json"
     schema_file.write_text("schema content")
     catalog_file = tmp_path / "catalog.json"
@@ -102,13 +104,13 @@ def test_subagent_tool_solver(tmp_path):
 from a2ui_eval.strategies.express import express_solver
 
 
-def test_express_solver():
+def test_express_solver() -> None:
     solvers = express_solver(version="1.0")
     assert len(solvers) == 3
 
 
 @pytest.mark.asyncio
-async def test_a2ui_express_solvers():
+async def test_a2ui_express_solvers() -> None:
     from a2ui_eval.strategies.express import a2ui_express_prompt, compile_express_dsl
     from inspect_ai.model import ModelName, ModelOutput, ChatCompletionChoice, ChatMessageAssistant
     from inspect_ai.solver import TaskState
@@ -127,7 +129,7 @@ async def test_a2ui_express_solvers():
         metadata={"catalog": str(catalog_file)},
     )
 
-    async def dummy_generate(state, **kwargs):
+    async def dummy_generate(state: TaskState, *args: Any, **kwargs: Any) -> TaskState:
         return state
 
     # Mock GIT_ROOT in the solver module dynamically for testing

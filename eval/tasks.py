@@ -22,7 +22,8 @@ from google import genai
 from google.genai import errors
 from inspect_ai import task, Task
 from inspect_ai.dataset import MemoryDataset, Sample
-from inspect_ai.scorer import scorer, Score
+from inspect_ai.scorer import scorer, Score, Scorer, Target
+from inspect_ai.solver import TaskState
 from a2ui_eval.dataset import load_a2ui_dataset
 from a2ui_eval.strategies import get_solver
 from a2ui_eval.scorers import a2ui_scorer, measured_model_graded_qa
@@ -76,8 +77,8 @@ def a2ui_v0_9_1_eval(
             print(f"Error listing models: {e}")
 
         @scorer(metrics=[])
-        def dummy_scorer():
-            async def score(state, target):  # pylint: disable=unused-argument
+        def dummy_scorer() -> Scorer:
+            async def score(state: TaskState, target: Target) -> Score:  # pylint: disable=unused-argument
                 return Score(value=1.0, explanation="Dummy pass")
 
             return score
@@ -137,8 +138,8 @@ def a2ui_v1_0_eval(
             print(f"Error listing models: {e}")
 
         @scorer(metrics=[])
-        def dummy_scorer():
-            async def score(state, target):  # pylint: disable=unused-argument
+        def dummy_scorer() -> Scorer:
+            async def score(state: TaskState, target: Target) -> Score:  # pylint: disable=unused-argument
                 return Score(value=1.0, explanation="Dummy pass")
 
             return score
