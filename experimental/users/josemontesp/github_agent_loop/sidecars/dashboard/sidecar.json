@@ -1,0 +1,17 @@
+{
+  "command": "python3",
+  "args": ["dashboard.py"],
+  "restart_policy": "always",
+  "display_name": "Orchestrator Dashboard",
+  "description": "Local web UI tracking project health.",
+  "has_web_ui": true,
+  "ui_config": {
+    "display_name": "Orchestrator Dashboard",
+    "views": [
+      {
+        "entrypoint": "SIDECAR_UI_ENTRYPOINT_AUX_PANE",
+        "path": ""
+      }
+    ]
+  }
+}
