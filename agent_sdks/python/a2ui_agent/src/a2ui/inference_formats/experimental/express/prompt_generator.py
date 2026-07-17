@@ -53,6 +53,7 @@ IMPORTANT: You must ALWAYS output A2UI Express DSL notation wrapped inside `<a2u
    - Numbers: write as integers or decimals, e.g., 42
    - Booleans: write true or false
    - Null values: write null
+   - Dates & Times: Values for date-time inputs (e.g. in DateTimeInput) must strictly use RFC 3339 format with a timezone offset (e.g. "2026-03-14T00:00:00Z").
 
 4. Lists: represent as arrays, e.g., [child1, child2].
 
@@ -223,9 +224,9 @@ class ExpressPromptGenerator(PromptGenerator):
                             if prop_details and prop_details[-1].startswith(
                                 f"  - {p}:"
                             ):
-                                prop_details[
-                                    -1
-                                ] += "\n    List of maps keys:\n" + "\n".join(sub_keys)
+                                prop_details[-1] += (
+                                    "\n    List of maps keys:\n" + "\n".join(sub_keys)
+                                )
                             else:
                                 prop_details.append(
                                     f"  - {p}: List of maps with keys:\n"
