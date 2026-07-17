@@ -1,5 +1,7 @@
 ## Unreleased
 
+## 0.10.5
+
 - (v0_9) Accept both `v0.9` and `v0.9.1` versions when parsing messages. Allow `A2uiClientCapabilities` to support simultaneous version capability advertising (`'v0.9'` and `'v0.9.1'`).
 
 ## 0.10.4

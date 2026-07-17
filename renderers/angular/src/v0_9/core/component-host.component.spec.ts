@@ -18,8 +18,13 @@ import {TestBed, ComponentFixture} from '@angular/core/testing';
 import {By} from '@angular/platform-browser';
 import {ComponentHostComponent} from './component-host.component';
 import {A2uiRendererService} from './a2ui-renderer.service';
-import {ComponentModel, SurfaceComponentsModel, SurfaceModel} from '@a2ui/web_core/v0_9';
-import {Component, EnvironmentInjector, Input} from '@angular/core';
+import {
+  ComponentApi,
+  ComponentModel,
+  SurfaceComponentsModel,
+  SurfaceModel,
+} from '@a2ui/web_core/v0_9';
+import {Component, EnvironmentInjector, EventEmitter, Input, NgZone} from '@angular/core';
 import {initializeAngularReactivity} from './reactivity';
 
 @Component({
@@ -53,6 +58,7 @@ describe('ComponentHostComponent', () => {
     );
 
     mockSurface = {
+      id: 'surf1',
       componentsModel: mockSurfaceComponentsModel,
       catalog: mockCatalog,
     } as SurfaceModel<any>;
@@ -135,7 +141,44 @@ describe('ComponentHostComponent', () => {
 
       const childDebugElement = fixture.debugElement.query(By.directive(TestChildComponent));
       expect(childDebugElement).toBeFalsy();
-      expect(consoleWarnSpy).toHaveBeenCalledWith('Surface surf1 not found');
+      expect(consoleWarnSpy).toHaveBeenCalledWith('Surface surf1 not found. Waiting for it...');
+    });
+
+    it('should wait for surface creation and render component when surface arrives asynchronously', () => {
+      const surfaceCreatedEmitter = new EventEmitter<SurfaceModel<ComponentApi>>();
+      mockSurfaceGroup.onSurfaceCreated = surfaceCreatedEmitter;
+      mockSurfaceGroup.getSurface.and.returnValue(null);
+
+      fixture.detectChanges();
+      let childDebugElement = fixture.debugElement.query(By.directive(TestChildComponent));
+      expect(childDebugElement).toBeFalsy();
+
+      mockSurfaceGroup.getSurface.and.returnValue(mockSurface);
+      surfaceCreatedEmitter.emit(mockSurface);
+      fixture.detectChanges();
+
+      childDebugElement = fixture.debugElement.query(By.directive(TestChildComponent));
+      expect(childDebugElement).toBeTruthy();
+    });
+
+    it('should handle synchronous surface creation and unsubscribe cleanly', () => {
+      const mockSubscription = {unsubscribe: jasmine.createSpy('unsubscribe')};
+      mockSurfaceGroup.onSurfaceCreated = {
+        subscribe: jasmine
+          .createSpy('subscribe')
+          .and.callFake((callback: (s: SurfaceModel<any>) => void) => {
+            callback(mockSurface);
+            return mockSubscription;
+          }),
+      };
+      // First call returns null (not found), second recursive call returns mockSurface (found)
+      mockSurfaceGroup.getSurface.and.returnValues(null, mockSurface);
+
+      fixture.detectChanges();
+
+      const childDebugElement = fixture.debugElement.query(By.directive(TestChildComponent));
+      expect(childDebugElement).toBeTruthy();
+      expect(mockSubscription.unsubscribe).toHaveBeenCalledOnceWith();
     });
 
     it('should warn and return if component model not found', () => {
@@ -172,6 +215,35 @@ describe('ComponentHostComponent', () => {
 
       // Implicitly verifies no crash on destroy
       expect(component).toBeTruthy();
+    });
+
+    it('should execute setupComponent inside the Angular Zone when surface is created asynchronously', () => {
+      const surfaceCreatedEmitter = new EventEmitter<SurfaceModel<ComponentApi>>();
+      mockSurfaceGroup.onSurfaceCreated = surfaceCreatedEmitter;
+      mockSurfaceGroup.getSurface.and.returnValue(null);
+
+      fixture.detectChanges();
+
+      mockSurfaceGroup.getSurface.and.returnValue(mockSurface);
+
+      const ngZone = TestBed.inject(NgZone);
+      const runSpy = spyOn(ngZone, 'run').and.callThrough();
+
+      surfaceCreatedEmitter.emit(mockSurface);
+
+      expect(runSpy).toHaveBeenCalled();
+    });
+
+    it('should run property updates inside the Angular Zone when component model updates', () => {
+      fixture.detectChanges();
+
+      const ngZone = TestBed.inject(NgZone);
+      const runSpy = spyOn(ngZone, 'run').and.callThrough();
+
+      const compModel = mockSurface.componentsModel.get('comp1')!;
+      compModel.properties = {text: 'Hello', newProp: 'new value'};
+
+      expect(runSpy).toHaveBeenCalled();
     });
   });
 
