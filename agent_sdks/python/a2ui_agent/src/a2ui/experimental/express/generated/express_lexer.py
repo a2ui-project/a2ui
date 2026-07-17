@@ -1,6 +1,5 @@
 # Generated from Express.g4 by ANTLR 4.13.2
 from antlr4 import *
-from io import StringIO
 import sys
 if sys.version_info[1] > 5:
     from typing import TextIO
@@ -127,18 +126,18 @@ class ExpressLexer(Lexer):
     modeNames = [ "DEFAULT_MODE" ]
 
     literalNames = [ "<INVALID>",
-            "'='", "'['", "','", "']'", "'{'", "'}'", "':'", "'('", "')'",
+            "'='", "'['", "','", "']'", "'{'", "'}'", "':'", "'('", "')'", 
             "'_'", "'null'", "';'" ]
 
     symbolicNames = [ "<INVALID>",
-            "RAW_TRIPLE_STRING", "TRIPLE_STRING", "RAW_STRING", "STANDARD_STRING",
-            "PATH", "CHECK", "NUMBER", "BOOLEAN", "IDENTIFIER", "COMMENT",
+            "RAW_TRIPLE_STRING", "TRIPLE_STRING", "RAW_STRING", "STANDARD_STRING", 
+            "PATH", "CHECK", "NUMBER", "BOOLEAN", "IDENTIFIER", "COMMENT", 
             "BLOCK_COMMENT", "SEMICOLON", "WS" ]
 
-    ruleNames = [ "T__0", "T__1", "T__2", "T__3", "T__4", "T__5", "T__6",
-                  "T__7", "T__8", "T__9", "T__10", "RAW_TRIPLE_STRING",
-                  "TRIPLE_STRING", "RAW_STRING", "STANDARD_STRING", "PATH",
-                  "CHECK", "NUMBER", "BOOLEAN", "IDENTIFIER", "COMMENT",
+    ruleNames = [ "T__0", "T__1", "T__2", "T__3", "T__4", "T__5", "T__6", 
+                  "T__7", "T__8", "T__9", "T__10", "RAW_TRIPLE_STRING", 
+                  "TRIPLE_STRING", "RAW_STRING", "STANDARD_STRING", "PATH", 
+                  "CHECK", "NUMBER", "BOOLEAN", "IDENTIFIER", "COMMENT", 
                   "BLOCK_COMMENT", "SEMICOLON", "WS" ]
 
     grammarFileName = "Express.g4"

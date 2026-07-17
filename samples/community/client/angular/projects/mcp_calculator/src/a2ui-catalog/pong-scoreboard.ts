@@ -107,6 +107,35 @@ import {ChangeDetectionStrategy, Component, computed} from '@angular/core';
       color: #202124;
       line-height: 1;
     }
+    .commentary-box {
+      margin-top: 1rem;
+      background: #f8f9fa;
+      border-radius: 8px;
+      padding: 0.75rem 1rem;
+      border: 1px dashed #1a73e8;
+      font-size: 0.85rem;
+      color: #1a73e8;
+      text-align: center;
+      width: 100%;
+      box-sizing: border-box;
+      font-weight: 500;
+      min-height: 2.5rem;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      animation: fadeIn 0.3s ease;
+    }
+    @keyframes fadeIn {
+      from {
+        opacity: 0;
+        transform: translateY(5px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
   `,
   template: `
     <div class="a2ui-badge"><span class="a2ui-icon">✦</span> A2UI Native</div>
@@ -120,6 +149,9 @@ import {ChangeDetectionStrategy, Component, computed} from '@angular/core';
         <span class="score-value">{{ resolvedCpuScore() }}</span>
       </div>
     </div>
+    @if (resolvedCommentary()) {
+      <div class="commentary-box">💬 {{ resolvedCommentary() }}</div>
+    }
   `,
 })
 export class PongScoreBoard extends CatalogComponent<any> {
@@ -129,5 +161,9 @@ export class PongScoreBoard extends CatalogComponent<any> {
 
   protected readonly resolvedCpuScore = computed<number>(
     () => this.props()['cpuScore']?.value() ?? 0,
+  );
+
+  protected readonly resolvedCommentary = computed<string>(
+    () => this.props()['commentary']?.value() ?? '',
   );
 }

@@ -13,17 +13,14 @@
 # limitations under the License.
 
 import json
-import os
 import re
 
-os.environ["A2UI_EXPRESS_ENABLED"] = "true"
 from inspect_ai.solver import Solver, solver, TaskState, Generate
-from inspect_ai.model import ChatMessageSystem, ModelOutput, ChatCompletionChoice, ChatMessageAssistant, ChatMessageUser
+from inspect_ai.model import ChatMessageSystem, ModelOutput, ChatCompletionChoice, ChatMessageAssistant
 from a2ui.core.catalog import Catalog
 from a2ui.experimental.express.prompt_generator import ExpressPromptGenerator
-from a2ui.experimental.express.compiler import ExpressCompiler
 from a2ui.experimental.express.parser import parse_express_response
-from a2ui.schema.manager import A2uiSchemaManager
+from a2ui.inference_formats.transport.format import TransportFormat
 from a2ui.schema.catalog import CatalogConfig
 from ..shared.utils import GIT_ROOT, measured_generate
 
@@ -57,10 +54,13 @@ def compile_express_dsl(version: str) -> Solver:
         catalog_path = state.metadata["catalog"]
         resolved_catalog_path = str(GIT_ROOT / catalog_path)
 
-        # Initialize the catalog schema validator for parsing
         catalog_config = CatalogConfig.from_path("basic_catalog", resolved_catalog_path)
-        manager = A2uiSchemaManager(version=version, catalogs=[catalog_config])
-        catalog = manager.get_selected_catalog()
+        transport_format = TransportFormat(
+            version=version,
+            catalogs=[catalog_config],
+            experiments={"version_1_0"} if version == "1.0" else None,
+        )
+        catalog = transport_format.get_selected_catalog()
         validator = catalog.validator
 
         completion = state.output.completion.strip()

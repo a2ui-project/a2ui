@@ -106,7 +106,7 @@ In your agent file (e.g., `agent.py`), import the necessary classes:
 
 ```python
 from a2ui.schema.constants import VERSION_0_8, VERSION_0_9
-from a2ui.schema.manager import A2uiSchemaManager
+from a2ui.strategies.schema import A2uiSchemaManager
 from a2ui.basic_catalog.provider import BasicCatalog
 ```
 

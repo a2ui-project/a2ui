@@ -1,6 +1,7 @@
 ## Unreleased
 
-- (v0_9) Normalize Safari placeholder text color for `DateTimeInput` by updating CSS selectors for `.a2ui-date-time-input`.
+- (v0_9) Normalize Safari placeholder text color for `DateTimeInput` by updating CSS selectors for `.a2ui-date-time-input`. [#1795](https://github.com/a2ui-project/a2ui/pull/1795)
+- (v0_9) Use quoted input names in `a2ui-v09-component-host` to help it survive closure compiler minification. [#1902](https://github.com/a2ui-project/a2ui/pull/1902)
 
 ## 0.10.3
 

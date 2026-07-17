@@ -22,7 +22,7 @@ from a2ui.a2a.extension import get_a2ui_agent_extension, try_activate_a2ui_exten
 from a2ui.adk.a2a.event_converter import A2uiEventConverter
 from a2ui.adk.send_a2ui_to_client_toolset import SendA2uiToClientToolset
 from a2ui.schema.constants import A2UI_CLIENT_CAPABILITIES_KEY
-from a2ui.schema.manager import A2uiSchemaManager
+from a2ui.inference_formats.transport import TransportFormat
 
 from google.adk.a2a.converters.request_converter import AgentRunRequest
 from google.adk.a2a.executor.a2a_agent_executor import A2aAgentExecutor
@@ -105,7 +105,7 @@ class RizzchartsAgentExecutor(A2aAgentExecutor):
 
         active_ui_version = try_activate_a2ui_extension(context, self._agent.agent_card)
         runner = self._agent.get_runner(active_ui_version)
-        schema_manager = self._agent.get_schema_manager(active_ui_version)
+        inference_format = self._agent.get_inference_format(active_ui_version)
 
         session = await super()._prepare_session(context, run_request, runner)
 
@@ -119,14 +119,16 @@ class RizzchartsAgentExecutor(A2aAgentExecutor):
                 else None
             )
             a2ui_catalog = (
-                schema_manager.get_selected_catalog(client_ui_capabilities=capabilities)
-                if schema_manager
+                inference_format.get_selected_catalog(
+                    client_ui_capabilities=capabilities
+                )
+                if inference_format
                 else None
             )
 
             examples = (
-                schema_manager.load_examples(a2ui_catalog, validate=True)
-                if schema_manager
+                inference_format.load_examples(a2ui_catalog, validate=True)
+                if inference_format
                 else None
             )
 

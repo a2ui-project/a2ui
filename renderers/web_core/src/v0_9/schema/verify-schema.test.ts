@@ -70,8 +70,11 @@ function getObjectDiff(obj1: any, obj2: any, path = ''): Record<string, any> {
     const val1 = obj1 ? obj1[key] : undefined;
     const val2 = obj2 ? obj2[key] : undefined;
 
-    // Zod emits `type: "string"` for consts, whereas JSON Schema infers it.
-    if (path.endsWith('version') && key === 'type' && val1 === 'string' && val2 === undefined) {
+    // `type: 'string'` and `const: 'v0.9'` and `enum: ['v0.9', 'v0.9.1']` are accepted here.
+    if (
+      (path.endsWith('version') || currentPath.includes('properties.version')) &&
+      (key === 'type' || key === 'const' || key === 'enum')
+    ) {
       continue;
     }
 
@@ -198,7 +201,7 @@ function verifySchema(
   console.log(`Zod schema structurally matches the ${version} JSON spec!`);
 }
 
-describe('A2UI Schema Verification v0.9', () => {
+describe('A2UI Schema Verification v0.9 & v0.9.1', () => {
   it('verifies v0.9 schema', () => {
     verifySchema('v0.9', A2uiMessageSchema, join(SPEC_DIR_V0_9, 'server_to_client.json'), {
       CreateSurfaceMessage: CreateSurfaceMessageSchema,
@@ -208,11 +211,19 @@ describe('A2UI Schema Verification v0.9', () => {
     });
   });
 
-  it('validates A2uiMessage wrapper', () => {
-    const msg = {
+  it('validates A2uiMessage v0.9 wrapper', () => {
+    const msgV09 = {
       version: 'v0.9',
       deleteSurface: {surfaceId: 'surface-1'},
     };
-    assert.deepStrictEqual(A2uiMessageSchema.parse(msg), msg);
+    assert.deepStrictEqual(A2uiMessageSchema.parse(msgV09), msgV09);
+  });
+
+  it('validates A2uiMessage v0.9.1 wrapper', () => {
+    const msgV091 = {
+      version: 'v0.9.1',
+      deleteSurface: {surfaceId: 'surface-2'},
+    };
+    assert.deepStrictEqual(A2uiMessageSchema.parse(msgV091), msgV091);
   });
 });

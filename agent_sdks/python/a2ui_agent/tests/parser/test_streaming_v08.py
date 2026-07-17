@@ -12,25 +12,20 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import json
 import copy
-from unittest.mock import MagicMock
 import pytest
 from a2ui.schema.constants import (
     A2UI_OPEN_TAG,
     A2UI_CLOSE_TAG,
     VERSION_0_8,
-    SURFACE_ID_KEY,
     CATALOG_COMPONENTS_KEY,
 )
 from a2ui.parser.constants import (
     MSG_TYPE_SURFACE_UPDATE,
     MSG_TYPE_BEGIN_RENDERING,
-    MSG_TYPE_DELETE_SURFACE,
-    MSG_TYPE_DATA_MODEL_UPDATE,
 )
 from a2ui.schema.catalog import A2uiCatalog
-from a2ui.parser.streaming import A2uiStreamParser
+from a2ui.inference_formats.transport.streaming import TransportStreamParser
 from a2ui.parser.response_part import ResponsePart
 
 
@@ -232,7 +227,7 @@ def assertResponseContainsMessages(response, expected_messages):
 
 
 def assertResponseContainsNoA2UI(response):
-    assert len(response) == 0 or response[0].a2ui_json == None
+    assert len(response) == 0 or response[0].a2ui_json is None
 
 
 def assertResponseContainsText(response, expected_text):
@@ -244,7 +239,7 @@ def assertResponseContainsText(response, expected_text):
 
 
 def test_add_msg_type_deduplication(mock_catalog):
-    parser = A2uiStreamParser(catalog=mock_catalog)
+    parser = TransportStreamParser(catalog=mock_catalog)
     parser.add_msg_type(MSG_TYPE_SURFACE_UPDATE)
     parser.add_msg_type(MSG_TYPE_SURFACE_UPDATE)
     assert parser.msg_types == [MSG_TYPE_SURFACE_UPDATE]
@@ -256,7 +251,7 @@ def test_add_msg_type_deduplication(mock_catalog):
 
 
 def test_streaming_msg_type_deduplication(mock_catalog):
-    parser = A2uiStreamParser(catalog=mock_catalog)
+    parser = TransportStreamParser(catalog=mock_catalog)
     # 1. Send partial chunk that triggers sniffing
     chunk1 = A2UI_OPEN_TAG + '[{"surfaceUpdate": {"surfaceId": "s1", "components": ['
     parser.process_chunk(chunk1)
@@ -278,7 +273,7 @@ def test_streaming_msg_type_deduplication(mock_catalog):
 
 def test_v08_path_heuristic_adds_slash(mock_catalog):
     """Tests that v0.8 adds a leading slash to relative paths."""
-    parser = A2uiStreamParser(catalog=mock_catalog)
+    parser = TransportStreamParser(catalog=mock_catalog)
     # Disable validation for simplicity
     parser._validator = None
 

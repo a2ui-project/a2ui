@@ -217,6 +217,8 @@
        * and state updates.
        */
       let nextId = 1;
+      let localPlayerScore = 0;
+      let localCpuScore = 0;
 
       function sendRequest(method, params) {
         const id = nextId++;
@@ -246,11 +248,45 @@
           if (data.id) {
             window.parent.postMessage({jsonrpc: '2.0', id: data.id, result: {}}, '*');
           }
-        } else if (data === 'unpause' || data?.type === 'unpause') {
-          if (typeof unpauseGame === 'function') {
-            unpauseGame();
-          } else {
-            console.warn('unpauseGame is not defined yet');
+        } else if (data?.method === 'ui/notifications/data-model-update') {
+          // TODO: Refactor message handlers to use `@modelcontextprotocol/ext-apps/app-bridge` App client.
+          const params = data.params;
+          const subpath = params?.subpath;
+          const value = params?.value;
+
+          if (subpath) {
+            if (subpath === '/player_score' && typeof value === 'number') {
+              localPlayerScore = value;
+            } else if (subpath === '/cpu_score' && typeof value === 'number') {
+              localCpuScore = value;
+            }
+          } else if (value && typeof value === 'object') {
+            if (typeof value.player_score === 'number') {
+              localPlayerScore = value.player_score;
+            }
+            if (typeof value.cpu_score === 'number') {
+              localCpuScore = value.cpu_score;
+            }
+          }
+
+          // Automatically restart if scores reset to 0
+          if (localPlayerScore === 0 && localCpuScore === 0) {
+            if (typeof isPaused !== 'undefined') {
+              isPaused = false;
+            }
+            if (typeof hideOverlay === 'function') {
+              hideOverlay();
+            }
+            if (typeof resetBall === 'function') {
+              resetBall();
+            }
+            sendRequest('tools/call', {
+              name: 'commentate_pong',
+              arguments: {
+                game_event: 'Match started! Current Score: Player 0 - CPU 0.',
+                silent: true,
+              },
+            }).catch(e => console.error('Failed to request commentary:', e));
           }
         }
       });
@@ -271,6 +307,7 @@
         .then(result => {
           console.log('Initialized with host:', result);
           sendNotification('ui/notifications/initialized', {});
+          sendNotification('ui/notifications/size-changed', {width: 728, height: 502});
         })
         .catch(err => {
           console.error('Initialization failed:', err);
@@ -287,14 +324,7 @@
       </div>
 
       <div
-        style="
-          position: relative;
-          width: 100%;
-          display: flex;
-          justify-content: center;
-          flex: 1;
-          min-height: 0;
-        "
+        style="position: relative; display: flex; justify-content: center; flex: 1; min-height: 0"
       >
         <canvas id="pong"></canvas>
         <div id="game-overlay">
@@ -520,22 +550,50 @@
       }
 
       function syncScore(player) {
-        isPaused = true; // Local pause
-        displayOverlay('SYNCING SCORE...');
+        if (player === 'player') {
+          localPlayerScore++;
+        } else if (player === 'cpu') {
+          localCpuScore++;
+        }
+
+        console.log('Updating score: ', localPlayerScore, localCpuScore);
+
+        if (player === 'player') {
+          sendNotification('ui/notifications/data-model-change', {
+            subpath: '/player_score',
+            value: localPlayerScore,
+          });
+        } else if (player === 'cpu') {
+          sendNotification('ui/notifications/data-model-change', {
+            subpath: '/cpu_score',
+            value: localCpuScore,
+          });
+        }
+
+        let eventDescription = 'player scored';
+        if (localPlayerScore >= 3) {
+          eventDescription = 'player won the match';
+        } else if (localCpuScore >= 3) {
+          eventDescription = 'cpu won the match';
+        } else if (player === 'cpu') {
+          eventDescription = 'cpu scored';
+        }
 
         sendRequest('tools/call', {
-          name: 'score_update',
-          arguments: {player: player, silent: true},
-        })
-          .catch(e => console.error('Failed to send score update:', e))
-          .finally(() => unpauseGame());
-      }
+          name: 'commentate_pong',
+          arguments: {
+            game_event: `Score: Player ${localPlayerScore} - CPU ${localCpuScore} (${eventDescription}).`,
+            silent: true,
+          },
+        }).catch(e => console.error('Failed to request commentary:', e));
 
-      function unpauseGame() {
-        isPaused = false;
-        hideOverlay();
-        if (isRunning) {
-          document.getElementById('pause-btn').textContent = 'Pause';
+        if (localPlayerScore >= 3 || localCpuScore >= 3) {
+          isPaused = true;
+          displayOverlay(localPlayerScore >= 3 ? 'YOU WIN!' : 'CPU WINS!');
+          sendRequest('ui/requests/function-call', {
+            call: 'showWinnerModal',
+            args: {winner: localPlayerScore >= 3 ? 'player' : 'cpu'},
+          }).catch(e => console.error('Failed to trigger showWinnerModal:', e));
         }
       }
 

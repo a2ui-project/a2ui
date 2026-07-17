@@ -20,7 +20,7 @@ Reconstructs standard A2UI v1.0 JSON envelopes back into A2UI Elemental HTML5-li
 import html
 import json
 import re
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Optional, Union
 from a2ui.core.catalog import Catalog
 from a2ui.schema.catalog import A2uiCatalog
 from a2ui.experimental.express.schema_helper import CatalogSchemaHelper
@@ -254,7 +254,6 @@ class ElementalDecompiler:
             if k not in ["id", "component"] and k not in all_props:
                 all_props.append(k)
 
-        has_text_content = False
         text_content = ""
 
         for prop_name in all_props:

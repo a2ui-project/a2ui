@@ -15,7 +15,8 @@
 import json
 
 from a2ui.schema.constants import VERSION_0_8, VERSION_0_9, A2UI_OPEN_TAG, A2UI_CLOSE_TAG
-from a2ui.schema.manager import A2uiSchemaManager, CatalogConfig
+from a2ui.inference_formats.transport import TransportFormat
+from a2ui.schema.catalog import CatalogConfig
 from a2ui.schema.common_modifiers import remove_strict_validation
 from a2ui.schema.catalog_provider import A2uiCatalogProvider, FileSystemCatalogProvider
 from a2ui.basic_catalog.provider import BasicCatalog
@@ -71,7 +72,7 @@ if __name__ == "__main__":
     my_base_url = "http://localhost:8000"
     my_version = VERSION_0_9
     inline_catalog_path = f"inline_catalog_{my_version}.json"
-    schema_manager = A2uiSchemaManager(
+    transport_format = TransportFormat(
         my_version,
         catalogs=[
             CatalogConfig.from_path(
@@ -83,7 +84,7 @@ if __name__ == "__main__":
         accepts_inline_catalogs=True,
         schema_modifiers=[remove_strict_validation],
     )
-    contact_prompt = schema_manager.generate_system_prompt(
+    contact_prompt = transport_format.generate_system_prompt(
         role_description=ROLE_DESCRIPTION,
         workflow_description=WORKFLOW_DESCRIPTION,
         ui_description=UI_DESCRIPTION,
@@ -100,7 +101,7 @@ if __name__ == "__main__":
         inline_catalog = json.load(f)
 
     client_ui_capabilities = {"inlineCatalogs": [inline_catalog]}
-    inline_catalog = schema_manager.get_selected_catalog(
+    inline_catalog = transport_format.get_selected_catalog(
         client_ui_capabilities=client_ui_capabilities,
     )
     request_prompt = inline_catalog.render_as_llm_instructions()

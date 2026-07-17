@@ -19,7 +19,9 @@ from typing import Any, ClassVar, Optional, Dict
 from a2a.types import AgentCapabilities, AgentCard, AgentSkill
 from a2ui.a2a.extension import get_a2ui_agent_extension
 from a2ui.adk.send_a2ui_to_client_toolset import A2uiEnabledProvider, A2uiCatalogProvider, A2uiExamplesProvider, SendA2uiToClientToolset
-from a2ui.schema.manager import A2uiSchemaManager, VERSION_0_8, VERSION_0_9, CatalogConfig
+from a2ui.inference_formats.transport import TransportFormat
+from a2ui.schema.catalog import CatalogConfig
+from a2ui.schema.constants import VERSION_0_8, VERSION_0_9
 from google.adk.agents.llm_agent import LlmAgent
 from google.adk.artifacts import InMemoryArtifactService
 from google.adk.memory.in_memory_memory_service import InMemoryMemoryService
@@ -28,7 +30,7 @@ from google.adk.runners import Runner
 from google.adk.sessions import InMemorySessionService
 from google.genai import types
 from pydantic import PrivateAttr
-from tools import get_calculator_app, calculate_via_mcp, get_pong_app_a2ui_json, score_update
+from tools import get_calculator_app, calculate_via_mcp, get_pong_app_a2ui_json, commentate_pong_game
 from agent_executor import get_a2ui_enabled, get_a2ui_catalog, get_a2ui_examples
 
 logger = logging.getLogger(__name__)
@@ -40,8 +42,9 @@ When the user asks for Pong, you MUST call the `get_pong_app_a2ui_json` tool.
 
 IMPORTANT: Do NOT attempt to construct the JSON manually. The tools handle it automatically.
 
-When the user interacts with the calculator and issues a `calculate` action, you MUST call the `calculate_via_mcp` tool to perform the calculation via the remote MCP server. Return the resulting number directly as text to the user.
-When the user interacts with the Pong game and issues a `score_update` action, you MUST call the `score_update` tool with the scoring player to update the scoreboard.
+When the user interacts with the calculator and issues a `calculate` action, you MUST call the `calculate_via_mcp` tool. Return the resulting number directly as text to the user.
+
+When you receive a `"commentate_pong"` action, immediately call `commentate_pong_game` tool with `"game_event"` from `"context" -> "game_event"`. Do not reply with text; only call the tool.
 """
 
 WORKFLOW_DESCRIPTION = """
@@ -49,7 +52,7 @@ WORKFLOW_DESCRIPTION = """
    - If User asks for calculator: Call `get_calculator_app`.
    - If User asks for Pong: Call `get_pong_app_a2ui_json`.
    - If User interacts with the calculator (ACTION: calculate): Extract 'operation', 'a', and 'b' from the event context and call `calculate_via_mcp`. Return the result to the user.
-   - If User interacts with the Pong game (ACTION: score_update): Extract 'player' from the event context and call `score_update`.
+   - If you receive a `"commentate_pong"` action: Call `commentate_pong_game` with `"game_event"` from `"context" -> "game_event"`. Do not generate text responses; only call the tool.
 """
 
 UI_DESCRIPTION = """
@@ -85,13 +88,13 @@ class McpAppProxyAgent:
             self._build_llm_agent()
         )
 
-        self._schema_managers: Dict[str, A2uiSchemaManager] = {}
+        self._inference_formats: Dict[str, TransportFormat] = {}
         self._ui_runners: Dict[str, Runner] = {}
 
         for version in [VERSION_0_8, VERSION_0_9]:
-            schema_manager = self._build_schema_manager(version)
-            self._schema_managers[version] = schema_manager
-            agent = self._build_llm_agent(schema_manager)
+            inference_format = self._build_inference_format(version)
+            self._inference_formats[version] = inference_format
+            agent = self._build_llm_agent(inference_format)
             self._ui_runners[version] = self._build_runner(agent)
 
         self._agent_card = self._build_agent_card()
@@ -105,13 +108,13 @@ class McpAppProxyAgent:
             return self._text_runner
         return self._ui_runners[version]
 
-    def get_schema_manager(self, version: Optional[str]) -> Optional[A2uiSchemaManager]:
+    def get_inference_format(self, version: Optional[str]) -> Optional[TransportFormat]:
         if version is None:
             return None
-        return self._schema_managers[version]
+        return self._inference_formats[version]
 
-    def _build_schema_manager(self, version: str) -> A2uiSchemaManager:
-        return A2uiSchemaManager(
+    def _build_inference_format(self, version: str) -> TransportFormat:
+        return TransportFormat(
             version=version,
             catalogs=[
                 CatalogConfig.from_path(
@@ -124,8 +127,8 @@ class McpAppProxyAgent:
 
     def _build_agent_card(self) -> AgentCard:
         extensions = []
-        if self._schema_managers:
-            for version, sm in self._schema_managers.items():
+        if self._inference_formats:
+            for version, sm in self._inference_formats.items():
                 ext = get_a2ui_agent_extension(
                     version,
                     sm.accepts_inline_catalogs,
@@ -164,13 +167,6 @@ class McpAppProxyAgent:
                     tags=["html", "app", "demo", "tool"],
                     examples=["open pong", "show pong"],
                 ),
-                AgentSkill(
-                    id="score_update",
-                    name="Score Update",
-                    description="Updates the score for Pong game.",
-                    tags=["pong", "score", "tool"],
-                    examples=[],
-                ),
             ],
         )
 
@@ -184,11 +180,11 @@ class McpAppProxyAgent:
         )
 
     def _build_llm_agent(
-        self, schema_manager: Optional[A2uiSchemaManager] = None
+        self, inference_format: Optional[TransportFormat] = None
     ) -> LlmAgent:
         """Builds the LLM agent for the contact agent."""
         instruction = (
-            schema_manager.generate_system_prompt(
+            inference_format.generate_system_prompt(
                 role_description=ROLE_DESCRIPTION,
                 workflow_description=WORKFLOW_DESCRIPTION,
                 ui_description=UI_DESCRIPTION,
@@ -196,7 +192,7 @@ class McpAppProxyAgent:
                 include_examples=False,
                 validate_examples=False,
             )
-            if schema_manager
+            if inference_format
             else ""
         )
 
@@ -209,7 +205,7 @@ class McpAppProxyAgent:
                 get_calculator_app,
                 calculate_via_mcp,
                 get_pong_app_a2ui_json,
-                score_update,
+                commentate_pong_game,
             ],
             planner=BuiltInPlanner(
                 thinking_config=types.ThinkingConfig(

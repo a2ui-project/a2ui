@@ -12,19 +12,15 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import json
-import copy
 import pytest
-from unittest.mock import MagicMock
-from a2ui.schema.manager import A2uiSchemaManager, A2uiCatalog, CatalogConfig
-from a2ui.schema.common_modifiers import remove_strict_validation
+from a2ui.schema.catalog import A2uiCatalog
 from a2ui.schema.constants import VERSION_0_8, VERSION_0_9
-from a2ui.schema.validator import (
+from a2ui.validation.validator import (
     extract_component_ref_fields,
     analyze_topology,
     get_component_references,
 )
-from a2ui.schema.validator_v08 import _find_root_id as find_root_id
+from a2ui.validation.validator_v08 import _find_root_id as find_root_id
 
 
 class TestValidator:

@@ -14,7 +14,7 @@
 
 from inspect_ai.solver import Solver, solver, TaskState, Generate
 from inspect_ai.model import ChatMessageSystem
-from a2ui.schema.manager import A2uiSchemaManager
+from a2ui.inference_formats.transport.format import TransportFormat
 from a2ui.schema.catalog import CatalogConfig
 from ..shared.utils import GIT_ROOT, measured_generate
 
@@ -28,12 +28,12 @@ def a2ui_system_prompt(version: str) -> Solver:
         resolved_catalog_path = str(GIT_ROOT / catalog_path)
 
         catalog_config = CatalogConfig.from_path('basic_catalog', resolved_catalog_path)
-        manager = A2uiSchemaManager(version=version, catalogs=[catalog_config])
+        transport_format = TransportFormat(version=version, catalogs=[catalog_config])
 
         role_description = state.metadata['role_description']
         workflow_description = state.metadata['workflow_description']
 
-        prompt = manager.generate_system_prompt(
+        prompt = transport_format.generate_system_prompt(
             role_description=role_description,
             workflow_description=workflow_description,
             include_schema=True,

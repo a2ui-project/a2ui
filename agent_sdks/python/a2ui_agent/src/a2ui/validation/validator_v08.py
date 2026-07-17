@@ -15,9 +15,8 @@
 from __future__ import annotations
 
 import copy
-import logging
 import re
-from typing import TYPE_CHECKING, Any, Dict, List, Optional, Set, Tuple, Union, Iterator
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Set, Tuple, Union
 
 from jsonschema import Draft202012Validator
 from a2ui.core.validating.validator import ValidationConfig, STRICT_VALIDATION
@@ -28,15 +27,13 @@ from a2ui.core.validating.integrity_checker import (
 from a2ui.core.validating.topology_analyzer import analyze_topology as core_analyze_topology
 
 from a2ui.core import A2uiValidationError
-from .utils import wrap_as_json_array
+from a2ui.schema.utils import wrap_as_json_array
 
 if TYPE_CHECKING:
-    from .catalog import A2uiCatalog
+    from a2ui.schema.catalog import A2uiCatalog
 
-from .constants import (
-    BASE_SCHEMA_URL,
+from a2ui.schema.constants import (
     CATALOG_COMPONENTS_KEY,
-    CATALOG_ID_KEY,
     CATALOG_STYLES_KEY,
     VERSION_0_8,
 )

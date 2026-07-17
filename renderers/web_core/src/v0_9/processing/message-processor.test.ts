@@ -35,8 +35,8 @@ describe('MessageProcessor', () => {
 
   describe('getClientCapabilities', () => {
     it('generates basic client capabilities with supportedCatalogIds', () => {
-      const caps: any = processor.getClientCapabilities();
-      assert.strictEqual((caps['v0.9'] as any).inlineCatalogs, undefined);
+      const caps = processor.getClientCapabilities();
+      assert.strictEqual(caps['v0.9']?.inlineCatalogs, undefined);
       assert.deepStrictEqual(caps, {
         'v0.9': {
           supportedCatalogIds: ['test-catalog'],
@@ -55,11 +55,11 @@ describe('MessageProcessor', () => {
       const proc = new MessageProcessor([cat]);
 
       const caps = proc.getClientCapabilities({includeInlineCatalogs: true});
-      const inlineCat = caps['v0.9'].inlineCatalogs![0];
+      const inlineCat = caps['v0.9']?.inlineCatalogs?.[0];
+      assert.strictEqual(inlineCat?.catalogId, 'cat-1');
 
-      assert.strictEqual(inlineCat.catalogId, 'cat-1');
-      const buttonSchema = inlineCat.components!.Button;
-
+      const buttonSchema = inlineCat?.components?.Button;
+      assert.ok(buttonSchema);
       assert.ok(buttonSchema.allOf);
       assert.strictEqual(buttonSchema.allOf[0].$ref, 'common_types.json#/$defs/ComponentCommon');
       assert.strictEqual(buttonSchema.allOf[1].properties.component.const, 'Button');
@@ -79,8 +79,8 @@ describe('MessageProcessor', () => {
 
       const caps = proc.getClientCapabilities({includeInlineCatalogs: true});
       const titleSchema =
-        caps['v0.9'].inlineCatalogs![0].components!.Custom.allOf[1].properties.title;
-
+        caps['v0.9']?.inlineCatalogs?.[0].components?.Custom.allOf[1].properties.title;
+      assert.ok(titleSchema);
       assert.strictEqual(titleSchema.$ref, 'common_types.json#/$defs/DynamicString');
       assert.strictEqual(titleSchema.description, 'The title');
       // Ensure Zod's 'type: string' was removed
@@ -112,18 +112,16 @@ describe('MessageProcessor', () => {
       const proc = new MessageProcessor([cat]);
 
       const caps = proc.getClientCapabilities({includeInlineCatalogs: true});
-      const inlineCat = caps['v0.9'].inlineCatalogs![0];
-
-      assert.strictEqual(inlineCat.catalogId, 'cat-full');
-
+      const inlineCat = caps['v0.9']?.inlineCatalogs?.[0];
+      assert.strictEqual(inlineCat?.catalogId, 'cat-full');
       // Verify Functions
       assert.ok(inlineCat.functions);
       assert.strictEqual(inlineCat.functions.length, 1);
+
       const fn = inlineCat.functions[0];
       assert.strictEqual(fn.name, 'add');
       assert.strictEqual(fn.returnType, 'number');
       assert.strictEqual(fn.parameters.properties.a.description, 'First number');
-
       // Verify Theme
       assert.ok(inlineCat.theme);
       assert.ok(inlineCat.theme.primaryColor);
@@ -136,9 +134,8 @@ describe('MessageProcessor', () => {
       const cat = new Catalog('cat-empty', [compApi]);
       const proc = new MessageProcessor([cat]);
       const caps = proc.getClientCapabilities({includeInlineCatalogs: true});
-      const inlineCat = caps['v0.9'].inlineCatalogs![0];
-
-      assert.strictEqual(inlineCat.catalogId, 'cat-empty');
+      const inlineCat = caps['v0.9']?.inlineCatalogs?.[0];
+      assert.strictEqual(inlineCat?.catalogId, 'cat-empty');
       assert.strictEqual(inlineCat.functions, undefined);
       assert.strictEqual(inlineCat.theme, undefined);
     });
@@ -160,9 +157,10 @@ describe('MessageProcessor', () => {
       const proc = new MessageProcessor([cat]);
       const caps = proc.getClientCapabilities({includeInlineCatalogs: true});
 
-      const properties = caps['v0.9'].inlineCatalogs![0].components!.DeepComp.allOf[1].properties;
-      const actionSchema = properties.items.items.properties.action;
+      const properties = caps['v0.9']?.inlineCatalogs?.[0].components?.DeepComp.allOf[1].properties;
+      assert.ok(properties);
 
+      const actionSchema = properties.items.items.properties.action;
       assert.strictEqual(actionSchema.$ref, 'common_types.json#/$defs/Action');
       assert.strictEqual(actionSchema.description, 'The action to perform');
       assert.strictEqual(actionSchema.type, undefined);
@@ -180,11 +178,11 @@ describe('MessageProcessor', () => {
       const proc = new MessageProcessor([cat]);
       const caps = proc.getClientCapabilities({includeInlineCatalogs: true});
 
-      const properties = caps['v0.9'].inlineCatalogs![0].components!.EdgeComp.allOf[1].properties;
+      const properties = caps['v0.9']?.inlineCatalogs?.[0].components?.EdgeComp.allOf[1].properties;
+      assert.ok(properties);
 
       assert.strictEqual(properties.noPipe.$ref, 'common_types.json#/$defs/NoPipe');
       assert.strictEqual(properties.noPipe.description, undefined);
-
       assert.strictEqual(properties.multiPipe.$ref, 'common_types.json#/$defs/MultiPipe');
       assert.strictEqual(properties.multiPipe.description, 'First');
     });
@@ -204,15 +202,14 @@ describe('MessageProcessor', () => {
 
       const proc = new MessageProcessor([cat1, cat2]);
       const caps = proc.getClientCapabilities({includeInlineCatalogs: true});
+      assert.strictEqual(caps['v0.9']?.inlineCatalogs?.length, 2);
 
-      assert.strictEqual(caps['v0.9'].inlineCatalogs!.length, 2);
+      const inlineCat1 = caps['v0.9']?.inlineCatalogs?.[0];
+      assert.strictEqual(inlineCat1?.catalogId, 'cat-1');
+      assert.strictEqual(inlineCat1?.functions, undefined);
+      assert.strictEqual(inlineCat1?.theme, undefined);
 
-      const inlineCat1 = caps['v0.9'].inlineCatalogs![0];
-      assert.strictEqual(inlineCat1.catalogId, 'cat-1');
-      assert.strictEqual(inlineCat1.functions, undefined);
-      assert.strictEqual(inlineCat1.theme, undefined);
-
-      const inlineCat2 = caps['v0.9'].inlineCatalogs![1];
+      const inlineCat2 = caps['v0.9']?.inlineCatalogs?.[1];
       assert.strictEqual(inlineCat2.catalogId, 'cat-2');
       assert.strictEqual(inlineCat2.functions!.length, 1);
       assert.ok(inlineCat2.theme);
@@ -296,6 +293,25 @@ describe('MessageProcessor', () => {
       },
     ]);
     assert.strictEqual(processor.getClientDataModel(), undefined);
+  });
+
+  it('uses configured processor version for getClientCapabilities and getClientDataModel', () => {
+    const v091Proc = new MessageProcessor([testCatalog], undefined, {version: 'v0.9.1'});
+    assert.strictEqual(v091Proc.version, 'v0.9.1');
+
+    const caps = v091Proc.getClientCapabilities();
+    assert.ok(caps['v0.9.1']);
+    assert.strictEqual(caps['v0.9'], undefined);
+
+    v091Proc.processMessages([
+      {
+        version: 'v0.9.1',
+        createSurface: {surfaceId: 's1', catalogId: 'test-catalog', sendDataModel: true},
+      },
+    ]);
+    const dataModel = v091Proc.getClientDataModel();
+    assert.ok(dataModel);
+    assert.strictEqual(dataModel.version, 'v0.9.1');
   });
 
   it('updates components on correct surface', () => {
