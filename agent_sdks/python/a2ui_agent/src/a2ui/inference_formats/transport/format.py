@@ -19,9 +19,8 @@ from typing import Any, Optional, Callable, Union, cast
 
 from a2ui.schema.utils import load_from_bundled_resource
 from a2ui.inference_format import InferenceFormat
-from a2ui.decompiler import Decompiler
 from a2ui.schema.capabilities import ClientUiCapabilities
-from a2ui.inference_formats.transport.decompiler import TransportDecompiler
+
 from a2ui.schema.constants import (
     SERVER_TO_CLIENT_SCHEMA_KEY,
     COMMON_TYPES_SCHEMA_KEY,
@@ -261,11 +260,6 @@ class TransportFormat(InferenceFormat):
         catalog = self._select_catalog(client_ui_capabilities)
         pruned_catalog = catalog.with_pruning(allowed_components, allowed_messages)
         return pruned_catalog
-
-    @property
-    def decompiler(self) -> TransportDecompiler:
-        """The decompiler instance configured for this Transport format."""
-        return TransportDecompiler()
 
     def load_examples(self, catalog: A2uiCatalog, validate: bool = False) -> str:
         """Loads and optionally validates few-shot examples for the specified catalog.

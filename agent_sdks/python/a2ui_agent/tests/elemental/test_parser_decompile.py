@@ -20,7 +20,7 @@ import unittest
 
 from a2ui.core.catalog import Catalog
 from a2ui.schema.catalog import A2uiCatalog
-from a2ui.inference_formats.experimental.elemental.decompiler import ElementalDecompiler
+from a2ui.inference_formats.experimental.elemental.parser import ElementalParser
 
 SPEC_DIR = os.path.abspath(
     os.path.join(
@@ -30,7 +30,7 @@ SPEC_DIR = os.path.abspath(
 CATALOG_PATH = os.path.join(SPEC_DIR, "catalogs", "basic", "catalog.json")
 
 
-class TestElementalDecompiler(unittest.TestCase):
+class TestElementalParser(unittest.TestCase):
     """Test suite covering the Elemental decompiler and value formatting."""
 
     def setUp(self):
@@ -41,7 +41,7 @@ class TestElementalDecompiler(unittest.TestCase):
         self.catalog = Catalog.from_json(catalog_dict, spec_version="0.9.1")
 
     def test_decompile_delete_surface(self):
-        decompiler = ElementalDecompiler(self.catalog)
+        decompiler = ElementalParser(self.catalog)
         envelope = {
             "version": "v1.0",
             "deleteSurface": {"surfaceId": "dashboard-surface-1"},
@@ -52,7 +52,7 @@ class TestElementalDecompiler(unittest.TestCase):
         )
 
     def test_decompile_call_function(self):
-        decompiler = ElementalDecompiler(self.catalog)
+        decompiler = ElementalParser(self.catalog)
         envelope = {
             "version": "v1.0",
             "functionCallId": "call_1",
@@ -70,7 +70,7 @@ class TestElementalDecompiler(unittest.TestCase):
         )
 
     def test_decompile_update_data_model(self):
-        decompiler = ElementalDecompiler(self.catalog)
+        decompiler = ElementalParser(self.catalog)
         envelope = {
             "version": "v1.0",
             "updateDataModel": {
@@ -92,7 +92,7 @@ class TestElementalDecompiler(unittest.TestCase):
         self.assertEqual(html_output, expected)
 
     def test_decompile_create_surface_basic(self):
-        decompiler = ElementalDecompiler(self.catalog)
+        decompiler = ElementalParser(self.catalog)
         envelope = {
             "version": "v1.0",
             "createSurface": {
@@ -131,7 +131,7 @@ class TestElementalDecompiler(unittest.TestCase):
         self.assertEqual(html_output, expected)
 
     def test_decompile_omits_default_catalog_link(self):
-        decompiler = ElementalDecompiler(self.catalog)
+        decompiler = ElementalParser(self.catalog)
         envelope = {
             "version": "v1.0",
             "createSurface": {
@@ -172,7 +172,7 @@ class TestElementalDecompiler(unittest.TestCase):
 
     def test_decompile_options_contraction(self):
         # ChoicePicker is the dropdown component in the basic catalog
-        decompiler = ElementalDecompiler(self.catalog)
+        decompiler = ElementalParser(self.catalog)
         envelope = {
             "version": "v1.0",
             "createSurface": {
@@ -192,7 +192,7 @@ class TestElementalDecompiler(unittest.TestCase):
 
     def test_decompile_complex_slot_property(self):
         # Test script slot using ChoicePicker options (where label and value differ in case)
-        decompiler = ElementalDecompiler(self.catalog)
+        decompiler = ElementalParser(self.catalog)
         envelope = {
             "version": "v1.0",
             "createSurface": {
@@ -213,7 +213,7 @@ class TestElementalDecompiler(unittest.TestCase):
         self.assertIn('"value": "red"', html_output)
 
     def test_decompile_actions_and_events(self):
-        decompiler = ElementalDecompiler(self.catalog)
+        decompiler = ElementalParser(self.catalog)
         envelope = {
             "version": "v1.0",
             "createSurface": {
@@ -243,7 +243,7 @@ class TestElementalDecompiler(unittest.TestCase):
 
     def test_decompile_checks_with_implicit_value(self):
         # TextField is the input component in the basic catalog
-        decompiler = ElementalDecompiler(self.catalog)
+        decompiler = ElementalParser(self.catalog)
         envelope = {
             "version": "v1.0",
             "createSurface": {
@@ -266,7 +266,7 @@ class TestElementalDecompiler(unittest.TestCase):
         self.assertIn('checks="{[required()]}"', html_output)
 
     def test_decompile_checks_with_custom_message(self):
-        decompiler = ElementalDecompiler(self.catalog)
+        decompiler = ElementalParser(self.catalog)
         envelope = {
             "version": "v1.0",
             "createSurface": {
@@ -291,7 +291,7 @@ class TestElementalDecompiler(unittest.TestCase):
         )
 
     def test_decompile_list_with_template(self):
-        decompiler = ElementalDecompiler(self.catalog)
+        decompiler = ElementalParser(self.catalog)
         envelope = {
             "version": "v1.0",
             "createSurface": {
@@ -338,7 +338,7 @@ class TestElementalDecompiler(unittest.TestCase):
                 },
             },
         )
-        decompiler = ElementalDecompiler(catalog)
+        decompiler = ElementalParser(catalog)
         envelope = {
             "version": "1.0",
             "createSurface": {
@@ -377,7 +377,7 @@ class TestElementalDecompiler(unittest.TestCase):
                 "definitions": {"ComponentId": {"type": "string"}},
             },
         )
-        decompiler = ElementalDecompiler(catalog)
+        decompiler = ElementalParser(catalog)
         envelope = {
             "version": "1.0",
             "createSurface": {
@@ -399,7 +399,7 @@ class TestElementalDecompiler(unittest.TestCase):
         self.assertIn('slot="trailing"', html_output)
 
     def test_decompile_boolean_and_null_attributes(self):
-        decompiler = ElementalDecompiler(self.catalog)
+        decompiler = ElementalParser(self.catalog)
         envelope = {
             "version": "v1.0",
             "createSurface": {
@@ -419,7 +419,7 @@ class TestElementalDecompiler(unittest.TestCase):
         self.assertIn('placeholder="{null}"', html_output)
 
     def test_decompile_checks_with_positional_args(self):
-        decompiler = ElementalDecompiler(self.catalog)
+        decompiler = ElementalParser(self.catalog)
         envelope = {
             "version": "v1.0",
             "createSurface": {
@@ -443,7 +443,7 @@ class TestElementalDecompiler(unittest.TestCase):
         self.assertIn('checks="{[required()]}"', html_output)
 
     def test_decompile_dict_expressions_and_function_calls(self):
-        decompiler = ElementalDecompiler(self.catalog)
+        decompiler = ElementalParser(self.catalog)
         envelope = {
             "version": "v1.0",
             "createSurface": {
@@ -492,7 +492,7 @@ class TestElementalDecompiler(unittest.TestCase):
                 },
             },
         )
-        decompiler = ElementalDecompiler(catalog)
+        decompiler = ElementalParser(catalog)
         envelope = {
             "version": "1.0",
             "createSurface": {

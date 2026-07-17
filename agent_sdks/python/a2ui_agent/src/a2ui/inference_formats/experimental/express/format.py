@@ -18,13 +18,11 @@ from typing import Any, Optional, List
 from a2ui.schema.catalog import A2uiCatalog
 from a2ui.parser.response_part import ResponsePart
 from a2ui.inference_format import InferenceFormat
-from a2ui.decompiler import Decompiler
 from a2ui.schema.capabilities import ClientUiCapabilities
 from a2ui.parser.parser import Parser
 from google.adk.utils.feature_decorator import experimental
 
 from .prompt_generator import ExpressPromptGenerator
-from .decompiler import ExpressDecompiler
 from .parser import ExpressParser
 
 
@@ -48,16 +46,15 @@ class ExpressFormat(InferenceFormat):
         self.catalog = catalog
         self.surface_id = surface_id
         self.examples_path = examples_path
-        self._decompiler = ExpressDecompiler(catalog) if catalog else None
         self._prompt_generator: Optional[ExpressPromptGenerator] = None
 
     def _ensure_catalog(self) -> None:
         """Ensures a valid catalog is set, raising ValueError otherwise.
 
         Raises:
-            ValueError: If the catalog or decompiler has not been initialized.
+            ValueError: If the catalog has not been initialized.
         """
-        if not self.catalog or not self._decompiler:
+        if not self.catalog:
             raise ValueError(
                 "Catalog is required for parsing and decompiling in express format."
             )
@@ -75,10 +72,3 @@ class ExpressFormat(InferenceFormat):
         """The parser instance configured for this Express format."""
         self._ensure_catalog()
         return ExpressParser(self.catalog, self.surface_id)
-
-    @property
-    def decompiler(self) -> ExpressDecompiler:
-        """The decompiler instance configured for this Express format."""
-        self._ensure_catalog()
-        assert self._decompiler is not None
-        return self._decompiler

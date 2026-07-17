@@ -23,8 +23,9 @@ import re
 from typing import Any, Optional, TYPE_CHECKING
 from a2ui.prompt import PromptGenerator
 from a2ui.schema.capabilities import ClientUiCapabilities
-from .decompiler import ExpressDecompiler
+from .parser import ExpressParser
 from .schema_helper import CatalogSchemaHelper
+
 
 if TYPE_CHECKING:
     from .format import ExpressFormat
@@ -137,6 +138,7 @@ class ExpressPromptGenerator(PromptGenerator):
         self._format = format_inst
         self.catalog = format_inst.catalog
         self.helper = CatalogSchemaHelper(format_inst.catalog)
+        self.parser: Optional[ExpressParser] = None
 
     def generate_component_signatures(self) -> str:
         """Compiles component definitions into clean function-like signatures.
@@ -339,12 +341,12 @@ class ExpressPromptGenerator(PromptGenerator):
         Returns:
             The Express DSL string representation of the surface.
         """
-        decompiler = self.decompiler or self._format.decompiler
-        if not decompiler:
+        parser = self.parser or self._format.parser
+        if not parser:
             self._format._ensure_catalog()
-            decompiler = self._format.decompiler
-            assert decompiler is not None
-        return decompiler.decompile(val)
+            parser = self._format.parser
+            assert parser is not None
+        return parser.decompile(val)
 
     def wrap_decompiled_blocks(self, blocks: list[str]) -> str:
         """Encloses decompiled DSL code blocks in markdown code fences and sentinel tags.
@@ -355,12 +357,12 @@ class ExpressPromptGenerator(PromptGenerator):
         Returns:
             The enclosed and formatted markdown block.
         """
-        decompiler = self.decompiler or self._format.decompiler
-        if not decompiler:
+        parser = self.parser or self._format.parser
+        if not parser:
             self._format._ensure_catalog()
-            decompiler = self._format.decompiler
-            assert decompiler is not None
-        return decompiler.wrap_decompiled_blocks(blocks)
+            parser = self._format.parser
+            assert parser is not None
+        return parser.wrap_decompiled_blocks(blocks)
 
     def _replace_json_block_in_instructions(self, match: re.Match[str]) -> str:
         json_content = match.group(1).strip()
@@ -474,7 +476,7 @@ class ExpressPromptGenerator(PromptGenerator):
 
         if self._format:
             self.helper = CatalogSchemaHelper(catalog) if catalog else None
-            self.decompiler = ExpressDecompiler(catalog) if catalog else None
+            self.parser = ExpressParser(catalog) if catalog else None
 
         parts = [role_description]
 

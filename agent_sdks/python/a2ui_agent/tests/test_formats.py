@@ -170,16 +170,25 @@ def test_process_chunk_raises_not_implemented(test_catalog):
 
 
 def test_decompiler_delegation(test_catalog):
-    # Verify Transport Decompiler
-    transport_fmt = TransportFormat(version=VERSION_0_9, catalogs=[])
+    from a2ui.schema.catalog import CatalogConfig
+    from a2ui.schema.catalog_provider import A2uiCatalogProvider
+
+    class DummyProvider(A2uiCatalogProvider):
+
+        def load(self):
+            return test_catalog.catalog_schema
+
+    config = CatalogConfig(name="test_catalog", provider=DummyProvider())
+    # Verify Transport Parser Decompile
+    transport_fmt = TransportFormat(version=VERSION_0_9, catalogs=[config])
     payload = {"createSurface": {"surfaceId": "main"}}
-    direct_decompile = transport_fmt.decompiler.decompile(payload)
+    direct_decompile = transport_fmt.parser.decompile(payload)
     assert "createSurface" in direct_decompile
     assert "main" in direct_decompile
 
-    # Verify Express Decompiler
+    # Verify Express Parser Decompile
     express_fmt = ExpressFormat(catalog=test_catalog)
-    expr_decompiler = express_fmt.decompiler
+    expr_parser = express_fmt.parser
     envelope = {
         "version": "v1.0",
         "createSurface": {
@@ -191,29 +200,17 @@ def test_decompiler_delegation(test_catalog):
             }],
         },
     }
-    decompiled_dsl = expr_decompiler.decompile(envelope)
+    decompiled_dsl = expr_parser.decompile(envelope)
     assert 'root = Text("Hello World")' in decompiled_dsl
 
     # Verify wrap_decompiled_blocks implementation
     assert (
-        transport_fmt.decompiler.wrap_decompiled_blocks(["{}", "{}"])
+        transport_fmt.parser.wrap_decompiled_blocks(["{}", "{}"])
         == "<a2ui-json>\n{}\n{}\n</a2ui-json>"
     )
     assert (
-        expr_decompiler.wrap_decompiled_blocks(["a = 1", "b = 2"])
+        expr_parser.wrap_decompiled_blocks(["a = 1", "b = 2"])
         == "<a2ui>\na = 1\nb = 2\n</a2ui>"
-    )
-
-    # Verify base class fallback
-    from a2ui.decompiler import Decompiler
-
-    class DummyDecompiler(Decompiler):
-
-        def decompile(self, val):
-            return ""
-
-    assert (
-        DummyDecompiler().wrap_decompiled_blocks(["a = 1", "b = 2"]) == "a = 1\nb = 2"
     )
 
     # Verify abstract PromptGenerator generate pass

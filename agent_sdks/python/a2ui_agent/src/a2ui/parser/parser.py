@@ -110,6 +110,15 @@ class Parser(ABC):
             f"Streaming is not supported by {self.__class__.__name__}"
         )
 
+    @abstractmethod
+    def decompile(self, val: dict[str, Any]) -> str:
+        """Decompiles a structured A2UI payload into this format's raw notation."""
+        pass
+
+    def wrap_decompiled_blocks(self, blocks: List[str]) -> str:
+        """Wraps multiple decompiled blocks with the format's enclosing tags/markers."""
+        return "\n".join(blocks)
+
 
 def has_a2ui_parts(content: str) -> bool:
     """Checks if the content has A2UI parts (legacy compatibility helper).

@@ -21,7 +21,7 @@ tailored for prompt tokens compression.
 from typing import Any, Union
 from a2ui.core.catalog import Catalog
 from a2ui.schema.catalog import A2uiCatalog
-from a2ui.decompiler import Decompiler
+
 from a2ui.schema.constants import A2UI_INFERENCE_OPEN_TAG, A2UI_INFERENCE_CLOSE_TAG
 from .schema_helper import CatalogSchemaHelper
 from .constants import SurfaceOperation
@@ -96,7 +96,7 @@ def _decompile_string(val: str) -> str:
     return f'"{escaped}"'
 
 
-class ExpressDecompiler(Decompiler):
+class _ExpressDecompiler:
     """Converts standard A2UI wire JSON trees back into A2UI Express syntax.
 
     Identifies component definitions, event trigger actions, validation logic rules,

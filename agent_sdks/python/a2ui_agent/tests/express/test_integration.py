@@ -23,7 +23,6 @@ from typing import Any
 
 from a2ui.core.catalog import Catalog
 from a2ui.inference_formats.experimental.express.compiler import ExpressCompiler
-from a2ui.inference_formats.experimental.express.decompiler import ExpressDecompiler
 from a2ui.inference_formats.experimental.express.parser import ExpressParser
 from a2ui.inference_formats.experimental.express.schema_helper import (
     CatalogSchemaHelper,
@@ -52,7 +51,7 @@ class TestExpressIntegration(unittest.TestCase):
     def test_round_trip_examples(self):
         """Runs a semantically rigorous round-trip test on real catalog examples."""
         compiler = ExpressCompiler(self.catalog)
-        decompiler = ExpressDecompiler(self.catalog)
+        decompiler = ExpressParser(self.catalog)
 
         example_files = glob.glob(os.path.join(EXAMPLES_DIR, "*.json"))
         self.assertTrue(
@@ -254,7 +253,7 @@ class TestExpressIntegration(unittest.TestCase):
     def test_data_model_compilation_and_decompilation(self):
         """Validates compiling and decompiling shared data model assignments in the DSL."""
         compiler = ExpressCompiler(self.catalog)
-        decompiler = ExpressDecompiler(self.catalog)
+        decompiler = ExpressParser(self.catalog)
 
         dsl = """$/icon = "check"
 $/title = "Enable notification"
@@ -321,7 +320,7 @@ title = Text($/title, "body")"""
     def test_template_validation_and_decompiler_quoted_keys(self):
         """Regression tests for template path validation, decompiler dictionary key quoting, and check message string formatting."""
         compiler = ExpressCompiler(self.catalog)
-        decompiler = ExpressDecompiler(self.catalog)
+        decompiler = ExpressParser(self.catalog)
 
         # 1. Test template path validation in compiler
         dsl_invalid_template = (
@@ -392,7 +391,7 @@ title = Text($/title, "body")"""
     ):
         """Regression tests for sentinel spacing, literal string matching, multiline string preservation, and boolean allOf schemas."""
         compiler = ExpressCompiler(self.catalog)
-        decompiler = ExpressDecompiler(self.catalog)
+        decompiler = ExpressParser(self.catalog)
 
         # 1. Regression test: Sentinel tag on the same line as a statement
         dsl_sentinel = '<a2ui>root = Column([text1])\ntext1 = Text("Hello")\n</a2ui>'

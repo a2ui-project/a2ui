@@ -43,15 +43,11 @@ class TestElementalFormat(unittest.TestCase):
         self.catalog = Catalog.from_json(catalog_dict, spec_version="0.9.1")
 
     def test_ensure_catalog_error(self):
-        """Verifies that accessing parser, decompiler, or prompt_generator raises ValueError when catalog is missing."""
+        """Verifies that accessing parser or prompt_generator raises ValueError when catalog is missing."""
         fmt_no_catalog = ElementalFormat(catalog=None)
 
         with self.assertRaises(ValueError) as ctx:
             _ = fmt_no_catalog.parser
-        self.assertIn("Catalog is required", str(ctx.exception))
-
-        with self.assertRaises(ValueError) as ctx:
-            _ = fmt_no_catalog.decompiler
         self.assertIn("Catalog is required", str(ctx.exception))
 
         with self.assertRaises(ValueError) as ctx:

@@ -22,6 +22,7 @@ from a2ui.parser.parser import Parser
 from google.adk.utils.feature_decorator import experimental
 from a2ui.schema.constants import A2UI_INFERENCE_OPEN_TAG, A2UI_INFERENCE_CLOSE_TAG
 from .compiler import ExpressCompiler
+from .decompiler import _ExpressDecompiler
 
 
 @experimental
@@ -79,3 +80,11 @@ class ExpressParser(Parser):
                 column=column,
                 help_message="Please correct the syntax error in your Express DSL.",
             ) from e
+
+    def decompile(self, val: dict[str, Any]) -> str:
+        """Decompiles a structured A2UI payload into this format's raw notation."""
+        return _ExpressDecompiler(self.catalog).decompile(val)
+
+    def wrap_decompiled_blocks(self, blocks: List[str]) -> str:
+        """Wraps multiple decompiled blocks with the format's enclosing tags/markers."""
+        return _ExpressDecompiler(self.catalog).wrap_decompiled_blocks(blocks)

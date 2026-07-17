@@ -19,14 +19,12 @@ into standard A2UI v1.0 wire JSON messages and vice-versa.
 """
 
 from .compiler import ExpressCompiler
-from .decompiler import ExpressDecompiler
 from .constants import SurfaceOperation
 from .format import ExpressFormat
 from .parser import ExpressParser
 
 __all__ = [
     "ExpressCompiler",
-    "ExpressDecompiler",
     "SurfaceOperation",
     "ExpressFormat",
     "ExpressParser",

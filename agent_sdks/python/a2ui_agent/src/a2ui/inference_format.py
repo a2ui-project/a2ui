@@ -19,7 +19,6 @@ from abc import ABC, abstractmethod
 from typing import Any, Optional
 from a2ui.prompt import PromptGenerator
 from a2ui.parser.parser import Parser
-from a2ui.decompiler import Decompiler
 from a2ui.schema.capabilities import ClientUiCapabilities
 
 
@@ -36,12 +35,6 @@ class InferenceFormat(ABC):
     @abstractmethod
     def parser(self) -> Parser:
         """The Parser instance associated with this inference format."""
-        pass
-
-    @property
-    @abstractmethod
-    def decompiler(self) -> Decompiler:
-        """The Decompiler instance associated with this inference format."""
         pass
 
     @property

@@ -16,12 +16,11 @@
 
 import json
 from typing import Any, List
-from a2ui.decompiler import Decompiler
 from a2ui.schema.constants import A2UI_OPEN_TAG, A2UI_CLOSE_TAG
 
 
-class TransportDecompiler(Decompiler):
-    """Decompiler implementation for standard JSON (Transport Format)."""
+class _TransportDecompiler:
+    """Private helper to decompile structured JSON payloads."""
 
     def decompile(self, val: dict[str, Any]) -> str:
         """Decompiles a structured JSON payload to pretty-printed JSON."""

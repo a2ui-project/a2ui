@@ -22,7 +22,6 @@ from a2ui.core.catalog import Catalog
 from a2ui.schema.catalog import A2uiCatalog, CatalogConfig
 from a2ui.inference_formats.experimental.express.prompt_generator import ExpressPromptGenerator
 from a2ui.inference_formats.experimental.express.compiler import ExpressCompiler
-from a2ui.inference_formats.experimental.express.decompiler import ExpressDecompiler
 from a2ui.inference_formats.experimental.express.schema_helper import CatalogSchemaHelper
 from a2ui.inference_formats.experimental.express.parser import ExpressParser
 
@@ -589,7 +588,7 @@ valueField = TextField("Deal Value", $/form/value, "0.00", "number", ?required)"
             )
 
             # Decompiler
-            decompiler = ExpressDecompiler(cat_input)
+            decompiler = ExpressParser(cat_input)
             decompiled_dsl = decompiler.decompile(envelope)
             self.assertIn("repField = TextField(", decompiled_dsl)
 

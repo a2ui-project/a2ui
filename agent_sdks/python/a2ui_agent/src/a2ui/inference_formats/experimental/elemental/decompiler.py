@@ -23,7 +23,7 @@ import re
 from typing import Any, Optional, Union
 from a2ui.core.catalog import Catalog
 from a2ui.schema.catalog import A2uiCatalog
-from a2ui.decompiler import Decompiler
+
 from a2ui.inference_formats.experimental.express.schema_helper import CatalogSchemaHelper
 from a2ui.inference_formats.experimental.express.constants import SurfaceOperation
 from a2ui.schema.constants import A2UI_INFERENCE_OPEN_TAG, A2UI_INFERENCE_CLOSE_TAG
@@ -115,7 +115,7 @@ def _get_action_properties(helper: CatalogSchemaHelper, comp_name: str) -> list[
     return action_props
 
 
-class ElementalDecompiler(Decompiler):
+class _ElementalDecompiler:
     """Decompiles A2UI JSON payloads back into A2UI Elemental HTML."""
 
     def __init__(self, catalog: Union[Catalog[Any, Any], A2uiCatalog]):

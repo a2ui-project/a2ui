@@ -18,14 +18,13 @@ from typing import Any, Optional, List
 from a2ui.schema.catalog import A2uiCatalog
 from a2ui.parser.response_part import ResponsePart
 from a2ui.inference_format import InferenceFormat
-from a2ui.decompiler import Decompiler
 from a2ui.schema.capabilities import ClientUiCapabilities
 from a2ui.parser.parser import Parser
 from google.adk.utils.feature_decorator import experimental
 
 from .prompt_generator import ElementalPromptGenerator
-from .decompiler import ElementalDecompiler
 from .compiler import TAG_PREFIX
+
 from .parser import ElementalParser
 
 
@@ -42,11 +41,10 @@ class ElementalFormat(InferenceFormat):
         self.catalog = catalog
         self.surface_id = surface_id
         self.examples_path = examples_path
-        self._decompiler = ElementalDecompiler(catalog) if catalog else None
         self._prompt_generator: Optional[ElementalPromptGenerator] = None
 
     def _ensure_catalog(self) -> None:
-        if not self.catalog or not self._decompiler:
+        if not self.catalog:
             raise ValueError(
                 "Catalog is required for parsing and decompiling in elemental format."
             )
@@ -63,9 +61,3 @@ class ElementalFormat(InferenceFormat):
     def parser(self) -> Parser:
         self._ensure_catalog()
         return ElementalParser(self.catalog, self.surface_id)
-
-    @property
-    def decompiler(self) -> ElementalDecompiler:
-        self._ensure_catalog()
-        assert self._decompiler is not None
-        return self._decompiler

@@ -22,6 +22,7 @@ from a2ui.validation.validator import A2uiValidator
 from a2ui.schema.constants import A2UI_OPEN_TAG, A2UI_CLOSE_TAG
 from a2ui.core import A2uiParseError
 from a2ui.parser.payload_fixer import parse_and_fix
+from a2ui.inference_formats.transport.decompiler import _TransportDecompiler
 
 
 def unwrap_response(content: str) -> List[ResponsePart]:
@@ -139,3 +140,11 @@ class TransportParser(Parser):
         if not self._stream_parser:
             self._stream_parser = TransportStreamParser(self._catalog)
         return self._stream_parser.process_chunk(chunk)
+
+    def decompile(self, val: dict[str, Any]) -> str:
+        """Decompiles a structured A2UI payload into this format's raw notation."""
+        return _TransportDecompiler().decompile(val)
+
+    def wrap_decompiled_blocks(self, blocks: List[str]) -> str:
+        """Wraps multiple decompiled blocks with the format's enclosing tags/markers."""
+        return _TransportDecompiler().wrap_decompiled_blocks(blocks)

@@ -23,7 +23,7 @@ from a2ui.schema.constants import VERSION_1_0
 
 
 from a2ui.inference_formats.experimental.express.compiler import ExpressCompiler
-from a2ui.inference_formats.experimental.express.decompiler import ExpressDecompiler
+from a2ui.inference_formats.experimental.express.parser import ExpressParser
 
 SPEC_DIR = os.path.abspath(
     os.path.join(
@@ -33,7 +33,7 @@ SPEC_DIR = os.path.abspath(
 CATALOG_PATH = os.path.join(SPEC_DIR, "catalogs", "basic", "catalog.json")
 
 
-class TestExpressDecompiler(unittest.TestCase):
+class TestExpressParser(unittest.TestCase):
     """Test suite covering the Express decompiler and value formatting."""
 
     def setUp(self):
@@ -45,7 +45,7 @@ class TestExpressDecompiler(unittest.TestCase):
 
     def test_decompiler_rpc_actions_functional_expressions_and_custom_checks(self):
         """Verifies decompilation of custom RPC calls, local action mappings, dynamic functional expressions, and custom checks."""
-        decompiler = ExpressDecompiler(self.catalog)
+        decompiler = ExpressParser(self.catalog)
 
         # 1. callFunction with custom function not in catalog
         rpc_envelope = {
@@ -132,7 +132,7 @@ class TestExpressDecompiler(unittest.TestCase):
     def test_string_quoting_and_escaping(self):
         """Verifies parsing, compilation, and decompilation of various string quoting forms."""
         compiler = ExpressCompiler(self.catalog)
-        decompiler = ExpressDecompiler(self.catalog)
+        decompiler = ExpressParser(self.catalog)
 
         def get_compiled_text(dsl_body: str) -> str:
             dsl = f"root = Column([t1])\nt1 = Text({dsl_body})"
@@ -268,13 +268,13 @@ class TestExpressDecompiler(unittest.TestCase):
         self.assertFalse(_is_component_reference_property(static_type))
 
     def test_decompile_delete_surface(self):
-        decompiler = ExpressDecompiler(self.catalog)
+        decompiler = ExpressParser(self.catalog)
         envelope = {"version": "v1.0", "deleteSurface": {"surfaceId": "surf_1"}}
         decompiled = decompiler.decompile(envelope)
         self.assertEqual(decompiled, 'deleteSurface("surf_1")')
 
     def test_decompile_update_data_model(self):
-        decompiler = ExpressDecompiler(self.catalog)
+        decompiler = ExpressParser(self.catalog)
         envelope = {
             "version": "v1.0",
             "updateDataModel": {"value": {"foo": "bar", "num": 123}},
@@ -308,7 +308,7 @@ class TestExpressDecompiler(unittest.TestCase):
                 },
             },
         )
-        decompiler = ExpressDecompiler(custom_catalog)
+        decompiler = ExpressParser(custom_catalog)
 
         # 1. Trailing optionals missing should be popped (popping trailing "_")
         envelope_1 = {
