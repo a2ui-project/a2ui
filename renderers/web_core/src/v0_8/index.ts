@@ -25,7 +25,6 @@ export * from './errors.js';
 export {A2uiMessageSchema} from './schema/server-to-client.js';
 export type {A2uiMessage} from './schema/server-to-client.js';
 
-
 import A2UIClientEventMessage from './schemas/server_to_client_with_standard_catalog.json' with {type: 'json'};
 
 export const Schemas = {
