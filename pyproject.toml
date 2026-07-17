@@ -105,8 +105,18 @@ explicit_package_bases = true
 namespace_packages = true
 mypy_path = "agent_sdks/python/a2ui_core/src:agent_sdks/python/a2ui_agent/src"
 exclude = [
-    "agent_sdks/python/a2ui_core/tests/",
-    "agent_sdks/python/a2ui_agent/tests/",
+    "^agent_sdks/python/a2ui_core/tests/",
+    "^agent_sdks/python/a2ui_agent/tests/",
+    "^agent_sdks/conformance/tests/",
     # TODO(#1614): Typecheck all packages here.
-    "agent_sdks/python/a2ui_agent/src/a2ui/experimental/",
+    "^agent_sdks/python/a2ui_agent/src/a2ui/experimental/",
+    "^agent_sdks/python/a2ui_agent/pack_specs_hook\\.py$",
+    "^samples/",
+    "^eval/",
+    "^tools/",
+    "^docs/",
+    "^scripts/",
+    "^specification/",
+    "^blueprints/",
+    "^hooks\\.py$",
 ]
