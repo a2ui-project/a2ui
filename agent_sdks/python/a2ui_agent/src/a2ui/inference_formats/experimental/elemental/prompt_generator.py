@@ -47,16 +47,18 @@ Inside the sentinel tags, surround the UI layout with `<body>` and `</body>` tag
 4. **Data Binding**: Bind data using curly braces prefixed with `$`: `value="{$/user/name}"` (absolute) or `value="{$name}"` (relative in list templates). Use `{$/items/0}` for arrays, never brackets. Do not wrap path bindings starting with `$` in single or double quotes, and do not append trailing quotes to them (e.g. write `$/myValue`, not `$/myValue'` or `'$/myValue'`).
    **CRITICAL**: You can ONLY bind properties that expect dynamic state/data to data binding paths. Properties expecting static options, lists, configurations, or schemas must be specified as literal static arrays/objects inside slot script tags, NOT bound to a data path.
 5. **Expressions**: Call catalog functions inside curly braces using named arguments: `text="{myFunction(arg1: $/myPath, arg2: 'literal')}"`.
-6. **Slots & Children**: Nest children inside parent elements. For named slots (properties expecting a single component, like a leading, trailing, or child element), specify the slot attribute on the child: `<ui-my-child slot="leading">`. Do NOT use `slot="children"`; regular nested children must be placed inside the parent tag without any slot attribute.
-7. **Complex Properties**: For objects/arrays, use `<script type="application/json" slot="prop">`. Any JSON written inside `<script type="application/json">` blocks must be strictly valid and well-formed, with all opening and closing braces matching perfectly.
+6. **Slots & Children**: Nest child components directly inside their parent tags. For named slots (properties expecting a single component, like a leading, trailing, or child element), specify the slot attribute on the child: `<ui-my-child slot="leading">`.
+7. **Complex Properties**: For objects/arrays, use `<script type="application/json" slot="prop">`.
 8. **Templates**: For dynamic lists, nest child elements inside a `<template>` tag, and specify the bound data array path via the `path` attribute on the list component itself (e.g. `<ui-my-list path="{$/items}"><template>...</template></ui-list>`).
 9. **Actions**: Use `on-<property-name>` in kebab-case (e.g. `on-click="{Event('name', {args})}"`). If submitting or validating data, pass the data paths inside the event context dict (e.g. `on-submit="{Event('myEvent', {myKey: $/myPath})}"`).
+   **CRITICAL**: Do NOT output JSON blocks for component actions (like `action="..."`). Component actions MUST be declared using the `on-<event>` attributes using the inline expression syntax.
 10. **Dates & Times**: Values for date-time inputs (e.g. properties expecting date-time strings) must strictly use RFC 3339 format with a timezone offset (e.g. "2026-03-14T00:00:00Z").
 11. **Strict Enum Conformity**: Any component attribute that accepts enum values (represented as literal string union types in the TypeScript declarations) must strictly use one of the literal values listed in its interface definition. Do not use any value that is not explicitly present in the type declarations.
 12. **Standalone Directives**:
     - Data Initialization: `<script type="application/json">{"data"}</script>` at root of body.
     - Surface Deletion: `<ui-delete-surface surface-id="id" />`.
     - Standalone Function Call: `<ui-call-function id="id" name="func"><script type="application/json" slot="args">{"args"}</script></ui-call-function>`.
+13. Do NOT use values starting with `{` and ending with `}` (like JSON object literals) directly as attribute string values (e.g. `placeholder="{ 'key': 'val' }"`). It will be incorrectly interpreted as an expression."`).
 """
 
 
@@ -142,7 +144,7 @@ class ElementalPromptGenerator(PromptGenerator):
             if "ComponentId" in ref:
                 base_type = "A2UIElement"
             elif "ChildList" in ref:
-                base_type = "A2UIElement | A2UIElement[]"
+                base_type = "A2UIElement[]"
             elif "Action" in ref:
                 base_type = "Action"
             else:
@@ -237,7 +239,7 @@ class ElementalPromptGenerator(PromptGenerator):
 
         if allows_db and base_type not in [
             "A2UIElement",
-            "A2UIElement | A2UIElement[]",
+            "A2UIElement[]",
             "Action",
             "any",
             "DataBinding",
@@ -249,6 +251,14 @@ class ElementalPromptGenerator(PromptGenerator):
                     base_type = f"{base_type} | DataBinding"
 
         return base_type
+
+    def _to_comments(self, description: Optional[str], indent: str = "") -> list[str]:
+        if not description:
+            return []
+        lines = []
+        for line in description.strip().split("\n"):
+            lines.append(f"{indent}// {line}")
+        return lines
 
     def generate_component_declarations(self) -> str:
         """Compiles component definitions into TypeScript element interfaces.
@@ -268,11 +278,16 @@ class ElementalPromptGenerator(PromptGenerator):
                 if _is_action(p_schema):
                     action_props.append(p)
 
-            interface_lines = [
-                f"// Tag: <ui-{_to_kebab_case(name)}>",
-                f"interface {name} {{",
-                "  id?: string;",
-            ]
+            comp_desc = self.helper.get_component_description(name)
+            interface_lines = []
+            interface_lines.extend(self._to_comments(comp_desc))
+            interface_lines.extend(
+                [
+                    f"// Tag: <ui-{_to_kebab_case(name)}>",
+                    f"interface {name} {{",
+                    "  id?: string;",
+                ]
+            )
 
             for p in props:
                 p_schema = self.helper.get_property_schema(name, p)
@@ -281,12 +296,17 @@ class ElementalPromptGenerator(PromptGenerator):
                 ts_prop_name = p
                 if p in action_props:
                     if len(action_props) == 1:
-                        ts_prop_name = "onclick"
+                        ts_prop_name = "onClick"
                     else:
                         ts_prop_name = "on" + p[0].upper() + p[1:]
 
                 ts_type = self._map_schema_to_ts_type(name, p, p_schema)
                 opt_sign = "" if is_req else "?"
+
+                p_desc = (
+                    p_schema.get("description") if isinstance(p_schema, dict) else None
+                )
+                interface_lines.extend(self._to_comments(p_desc, indent="  "))
                 interface_lines.append(f"  {ts_prop_name}{opt_sign}: {ts_type};")
 
             interface_lines.append("}")
@@ -307,6 +327,7 @@ class ElementalPromptGenerator(PromptGenerator):
 
             func_schema = self.helper.functions.get(name, {})
             return_type = func_schema.get("returnType", "any")
+            func_desc = func_schema.get("description")
 
             args_properties = (
                 func_schema.get("properties", {}).get("args", {}).get("properties", {})
@@ -320,8 +341,12 @@ class ElementalPromptGenerator(PromptGenerator):
                 opt_sign = "" if is_req else "?"
                 arg_decls.append(f"{p}{opt_sign}: {p_type}")
 
-            decl = f"function {name}({', '.join(arg_decls)}): {return_type};"
-            declarations.append(decl)
+            decl_lines = []
+            decl_lines.extend(self._to_comments(func_desc))
+            decl_lines.append(
+                f"function {name}({', '.join(arg_decls)}): {return_type};"
+            )
+            declarations.append("\n".join(decl_lines))
 
         return "\n".join(declarations)
 
@@ -460,6 +485,11 @@ class ElementalPromptGenerator(PromptGenerator):
         catalog_instructions = (
             self.helper.catalog.get("instructions", "") if self.helper else ""
         )
+        if catalog_instructions:
+            catalog_instructions = catalog_instructions.replace(
+                "specify any custom error messages directly in the check's 'message' property. Do NOT create separate text-display components to display validation errors.",
+                "specify any custom error messages directly as a named argument `message` inside the validation function call (e.g. `checks=\"{[regex(pattern: '^[a-zA-Z0-9]{3,}$', message: 'Error message')]}\"`). Do NOT create separate text-display components to display validation errors.",
+            )
         # Decompile json blocks in catalog instructions to HTML
         catalog_instructions_block = ""
         if catalog_instructions:
@@ -512,8 +542,8 @@ class ElementalPromptGenerator(PromptGenerator):
 
         common_types = """type DataBinding = string;
 type A2UIElement = string; // ID of the referenced component
-type Action = any;
-type FunctionCall = any;"""
+type Action = string; // An inline Event(...) call or catalog function call expression, e.g. "{Event('click', {arg: $/path})}" or "{openUrl(url: '...')}"
+type FunctionCall = string; // A catalog function call expression, e.g. "{formatString('Title: ${/path}')}" or "{regex(pattern: '^[A-Z]')}" """
 
         desc_template = r"""## Component Interfaces
 

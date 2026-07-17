@@ -255,8 +255,8 @@ class TestElementalPromptGenerator(unittest.TestCase):
         self.assertIn("checks?: FunctionCall[]", prompt)
         # Check $ref mappings
         self.assertIn("refComponent?: A2UIElement", prompt)
-        self.assertIn("refChildList?: A2UIElement | A2UIElement[]", prompt)
-        self.assertIn("onclick?: Action", prompt)
+        self.assertIn("refChildList?: A2UIElement[]", prompt)
+        self.assertIn("onClick?: Action", prompt)
         self.assertIn("refString?: string | DataBinding", prompt)
         self.assertIn("refNumber?: number | DataBinding", prompt)
         self.assertIn("refBoolean?: boolean | DataBinding", prompt)
