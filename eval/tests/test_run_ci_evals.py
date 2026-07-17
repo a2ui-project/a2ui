@@ -27,7 +27,9 @@ import argparse
 
 
 def test_extract_accuracy_valid() -> None:
-    log_data: dict[str, Any] = {"results": {"scores": [{"metrics": {"accuracy": {"value": 0.85}}}]}}
+    log_data: dict[str, Any] = {
+        "results": {"scores": [{"metrics": {"accuracy": {"value": 0.85}}}]}
+    }
     assert extract_accuracy(log_data) == 0.85
 
 
@@ -44,7 +46,9 @@ def test_extract_accuracy_no_accuracy() -> None:
 
 
 def test_extract_accuracy_null_accuracy() -> None:
-    log_data: dict[str, Any] = {"results": {"scores": [{"metrics": {"accuracy": None}}]}}
+    log_data: dict[str, Any] = {
+        "results": {"scores": [{"metrics": {"accuracy": None}}]}
+    }
     with pytest.raises(ValueError, match="Could not find accuracy"):
         extract_accuracy(log_data)
 

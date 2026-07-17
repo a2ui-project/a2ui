@@ -20,6 +20,10 @@ from inspect_ai.solver import TaskState
 from inspect_ai.model import ChatMessage, ChatMessageUser, ModelName
 
 
+async def dummy_generate(state: TaskState, *args: Any, **kwargs: Any) -> TaskState:
+    return state
+
+
 @pytest.mark.asyncio
 async def test_a2ui_system_prompt(tmp_path: Path) -> None:
     schema_file = tmp_path / "schema.json"
@@ -43,9 +47,6 @@ async def test_a2ui_system_prompt(tmp_path: Path) -> None:
             "workflow_description": "mock workflow",
         },
     )
-
-    async def dummy_generate(state: TaskState, *args: Any, **kwargs: Any) -> TaskState:
-        return state
 
     state = await solver(state, dummy_generate)
 
@@ -80,9 +81,6 @@ async def test_extract_subagent_payload() -> None:
         ),
     )
     state.store.set(PAYLOAD_STORE_KEY, '{"test": "payload"}')
-
-    async def dummy_generate(state: TaskState, *args: Any, **kwargs: Any) -> TaskState:
-        return state
 
     state = await solver(state, dummy_generate)
     assert state.output.completion == '<a2ui-json>\n{"test": "payload"}\n</a2ui-json>'
@@ -128,9 +126,6 @@ async def test_a2ui_express_solvers() -> None:
         messages=[],
         metadata={"catalog": str(catalog_file)},
     )
-
-    async def dummy_generate(state: TaskState, *args: Any, **kwargs: Any) -> TaskState:
-        return state
 
     # Mock GIT_ROOT in the solver module dynamically for testing
     import a2ui_eval.strategies.express as express_module
