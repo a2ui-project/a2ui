@@ -332,7 +332,7 @@ def test_catalog_conformance(name, test_case):
 
 
 # --- Schema Manager Conformance ---
-cases_schema_manager = get_conformance_cases("schema_manager.yaml")
+cases_schema_manager = get_conformance_cases("inference_format.yaml")
 
 
 @pytest.mark.parametrize(

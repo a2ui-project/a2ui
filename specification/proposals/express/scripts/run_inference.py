@@ -59,8 +59,8 @@ sys.path.insert(
 # pylint: disable=import-error, wrong-import-position
 import json
 from a2ui.core.catalog import Catalog
-from a2ui.experimental.express.compiler import ExpressCompiler
-from a2ui.experimental.express.prompt_generator import ExpressPromptGenerator
+from a2ui.inference_formats.experimental.express.compiler import ExpressCompiler
+from a2ui.inference_formats.experimental.express.prompt_generator import ExpressPromptGenerator
 # pylint: enable=import-error, wrong-import-position
 
 
@@ -123,8 +123,16 @@ def run_inference_and_validate(
         )
 
     # 2. Generate prompt contract instructions
-    prompt_generator = ExpressPromptGenerator(catalog)
-    system_instruction = prompt_generator.generate_prompt()
+    from a2ui.inference_formats.experimental.express.format import ExpressFormat
+
+    express_format = ExpressFormat(catalog=catalog)
+    system_instruction = express_format.prompt_generator.generate(
+        role_description=(
+            "You are a helpful UI assistant that outputs interfaces using A2UI Express"
+            " DSL."
+        ),
+        include_schema=True,
+    )
 
     # 3. Construct conversion task prompt
     user_prompt = f"""You are an advanced UI compiler agent.

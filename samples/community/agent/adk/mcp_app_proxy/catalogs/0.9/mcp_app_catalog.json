@@ -72,8 +72,7 @@
               "description": "The A2UI data model path or value bound to this component for reactive state synchronization."
             }
           },
-          "required": ["component", "htmlContent"],
-          "additionalProperties": false
+          "required": ["component", "htmlContent"]
         }
       ],
       "unevaluatedProperties": false

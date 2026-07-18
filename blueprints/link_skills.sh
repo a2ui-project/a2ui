@@ -20,7 +20,7 @@ SKILLS_DIR="$REPO_ROOT/.agents/skills"
 
 mkdir -p "$SKILLS_DIR"
 
-for skill in a2ui-blueprint-maintenance a2ui-blueprint-navigator a2ui-create-feature-blueprint a2ui-implement-feature-from-blueprint; do
+for skill in a2ui-blueprint-compliance a2ui-blueprint-maintenance a2ui-blueprint-navigator a2ui-create-feature-blueprint a2ui-implement-feature-from-blueprint; do
   ln -sfn "../../blueprints/skills/$skill" "$SKILLS_DIR/$skill"
   echo "Symlinked $skill -> .agents/skills/$skill"
 done

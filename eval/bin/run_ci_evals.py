@@ -73,7 +73,7 @@ def build_main_command(args: argparse.Namespace, seed: str) -> list[str]:
     return cmd
 
 
-def main():
+def main() -> None:
     parser = argparse.ArgumentParser(description="Run A2UI evals for CI.")
     parser.add_argument(
         "--max-samples",

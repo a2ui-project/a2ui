@@ -23,8 +23,10 @@ import re
 from typing import Any, Optional, Union
 from a2ui.core.catalog import Catalog
 from a2ui.schema.catalog import A2uiCatalog
-from a2ui.experimental.express.schema_helper import CatalogSchemaHelper
-from a2ui.experimental.express.constants import SurfaceOperation
+
+from a2ui.inference_formats.experimental.express.schema_helper import CatalogSchemaHelper
+from a2ui.inference_formats.experimental.express.constants import SurfaceOperation
+from a2ui.schema.constants import A2UI_INFERENCE_OPEN_TAG, A2UI_INFERENCE_CLOSE_TAG
 
 TAG_PREFIX = "ui-"
 
@@ -113,11 +115,20 @@ def _get_action_properties(helper: CatalogSchemaHelper, comp_name: str) -> list[
     return action_props
 
 
-class ElementalDecompiler:
+class _ElementalDecompiler:
     """Decompiles A2UI JSON payloads back into A2UI Elemental HTML."""
 
     def __init__(self, catalog: Union[Catalog[Any, Any], A2uiCatalog]):
         self.helper = CatalogSchemaHelper(catalog)
+
+    def wrap_decompiled_blocks(self, blocks: list[str]) -> str:
+        wrapped_blocks = [
+            f"{A2UI_INFERENCE_OPEN_TAG}\n{b}\n{A2UI_INFERENCE_CLOSE_TAG}"
+            for b in blocks
+        ]
+        full_html = "\n\n".join(wrapped_blocks)
+        triple_backticks = chr(96) * 3
+        return f"{triple_backticks}html\n{full_html}\n{triple_backticks}"
 
     def decompile(self, envelope_json: dict) -> str:
         """Decompiles standard A2UI wire JSON into A2UI Elemental HTML."""
@@ -367,7 +378,8 @@ class ElementalDecompiler:
                 if len(action_props) == 1:
                     kebab_name = "onclick"
                 else:
-                    kebab_name = f"on-{kebab_name}"
+                    if not kebab_name.startswith("on-"):
+                        kebab_name = f"on-{kebab_name}"
 
         if isinstance(val, str):
             escaped = html.escape(val, quote=True)

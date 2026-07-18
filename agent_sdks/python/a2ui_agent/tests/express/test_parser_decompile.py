@@ -18,10 +18,12 @@ import json
 import os
 import unittest
 from a2ui.core.catalog import Catalog
+from a2ui.schema.catalog import A2uiCatalog
+from a2ui.schema.constants import VERSION_1_0
 
 
-from a2ui.experimental.express.compiler import ExpressCompiler
-from a2ui.experimental.express.decompiler import ExpressDecompiler
+from a2ui.inference_formats.experimental.express.compiler import ExpressCompiler
+from a2ui.inference_formats.experimental.express.parser import ExpressParser
 
 SPEC_DIR = os.path.abspath(
     os.path.join(
@@ -31,7 +33,7 @@ SPEC_DIR = os.path.abspath(
 CATALOG_PATH = os.path.join(SPEC_DIR, "catalogs", "basic", "catalog.json")
 
 
-class TestExpressDecompiler(unittest.TestCase):
+class TestExpressParser(unittest.TestCase):
     """Test suite covering the Express decompiler and value formatting."""
 
     def setUp(self):
@@ -43,7 +45,7 @@ class TestExpressDecompiler(unittest.TestCase):
 
     def test_decompiler_rpc_actions_functional_expressions_and_custom_checks(self):
         """Verifies decompilation of custom RPC calls, local action mappings, dynamic functional expressions, and custom checks."""
-        decompiler = ExpressDecompiler(self.catalog)
+        decompiler = ExpressParser(self.catalog)
 
         # 1. callFunction with custom function not in catalog
         rpc_envelope = {
@@ -130,7 +132,7 @@ class TestExpressDecompiler(unittest.TestCase):
     def test_string_quoting_and_escaping(self):
         """Verifies parsing, compilation, and decompilation of various string quoting forms."""
         compiler = ExpressCompiler(self.catalog)
-        decompiler = ExpressDecompiler(self.catalog)
+        decompiler = ExpressParser(self.catalog)
 
         def get_compiled_text(dsl_body: str) -> str:
             dsl = f"root = Column([t1])\nt1 = Text({dsl_body})"
@@ -217,7 +219,9 @@ class TestExpressDecompiler(unittest.TestCase):
 
     def test_schema_driven_child_reference_helper(self):
         """Verify that _is_component_reference_property correctly inspects JSON schema structures."""
-        from a2ui.experimental.express.decompiler import _is_component_reference_property
+        from a2ui.inference_formats.experimental.express.decompiler import (
+            _is_component_reference_property,
+        )
 
         # Case A: Direct ref to ComponentId
         direct_ref = {
@@ -262,6 +266,82 @@ class TestExpressDecompiler(unittest.TestCase):
         # Case E: Non-ref static type
         static_type = {"type": "string"}
         self.assertFalse(_is_component_reference_property(static_type))
+
+    def test_decompile_delete_surface(self):
+        decompiler = ExpressParser(self.catalog)
+        envelope = {"version": "v1.0", "deleteSurface": {"surfaceId": "surf_1"}}
+        decompiled = decompiler.decompile(envelope)
+        self.assertEqual(decompiled, 'deleteSurface("surf_1")')
+
+    def test_decompile_update_data_model(self):
+        decompiler = ExpressParser(self.catalog)
+        envelope = {
+            "version": "v1.0",
+            "updateDataModel": {"value": {"foo": "bar", "num": 123}},
+        }
+        decompiled = decompiler.decompile(envelope)
+        self.assertIn('$/foo = "bar"', decompiled)
+        self.assertIn("$/num = 123", decompiled)
+
+    def test_decompile_call_function_positional_args(self):
+        custom_catalog = A2uiCatalog(
+            version=VERSION_1_0,
+            name="custom_catalog",
+            experiments={"version_1_0"},
+            s2c_schema={},
+            common_types_schema={},
+            catalog_schema={
+                "catalogId": "https://a2ui.org/custom_catalog",
+                "components": {},
+                "functions": {
+                    "myCustomFunc": {
+                        "properties": {
+                            "args": {
+                                "properties": {
+                                    "arg1": {"type": "string", "positionalIndex": 0},
+                                    "arg2": {"type": "string", "positionalIndex": 1},
+                                    "arg3": {"type": "string", "positionalIndex": 2},
+                                }
+                            }
+                        }
+                    }
+                },
+            },
+        )
+        decompiler = ExpressParser(custom_catalog)
+
+        # 1. Trailing optionals missing should be popped (popping trailing "_")
+        envelope_1 = {
+            "version": "v1.0",
+            "callFunction": {"call": "myCustomFunc", "args": {"arg1": "hello"}},
+        }
+        self.assertEqual(decompiler.decompile(envelope_1), 'myCustomFunc("hello")')
+
+        # 2. Middle optional missing should keep "_"
+        envelope_2 = {
+            "version": "v1.0",
+            "callFunction": {
+                "call": "myCustomFunc",
+                "args": {"arg1": "hello", "arg3": "world"},
+            },
+        }
+        self.assertEqual(
+            decompiler.decompile(envelope_2),
+            'myCustomFunc("hello", _, "world")',
+        )
+
+        # 3. List of args should decompile directly
+        envelope_3 = {
+            "version": "v1.0",
+            "callFunction": {
+                "call": "myCustomFunc",
+                "args": ["hello", "middle", "world"],
+            },
+        }
+        self.assertEqual(
+            decompiler.decompile(envelope_3),
+            'myCustomFunc("hello", "middle", "world")',
+        )
 
 
 if __name__ == "__main__":

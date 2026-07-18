@@ -14,7 +14,6 @@
 
 """Parser and compiler implementation for standard A2UI JSON schema responses."""
 
-import re
 from typing import List, Optional, Any
 from a2ui.parser.parser import Parser
 from a2ui.parser.response_part import ResponsePart
@@ -23,30 +22,7 @@ from a2ui.validation.validator import A2uiValidator
 from a2ui.schema.constants import A2UI_OPEN_TAG, A2UI_CLOSE_TAG
 from a2ui.core import A2uiParseError
 from a2ui.parser.payload_fixer import parse_and_fix
-
-_A2UI_BLOCK_PATTERN = re.compile(
-    f"{re.escape(A2UI_OPEN_TAG)}(.*?){re.escape(A2UI_CLOSE_TAG)}", re.DOTALL
-)
-
-
-def _sanitize_json_string(json_string: str) -> str:
-    """Sanitizes the JSON string by removing markdown code blocks.
-
-    Args:
-        json_string: The raw JSON string.
-
-    Returns:
-        The sanitized JSON string.
-    """
-    json_string = json_string.strip()
-    if json_string.startswith("```json"):
-        json_string = json_string[len("```json") :]
-    elif json_string.startswith("```"):
-        json_string = json_string[len("```") :]
-    if json_string.endswith("```"):
-        json_string = json_string[: -len("```")]
-    json_string = json_string.strip()
-    return json_string
+from a2ui.inference_formats.transport.decompiler import _TransportDecompiler
 
 
 def unwrap_response(content: str) -> List[ResponsePart]:
@@ -58,35 +34,40 @@ def unwrap_response(content: str) -> List[ResponsePart]:
     Returns:
         A list of ResponsePart objects.
     """
-    matches = list(_A2UI_BLOCK_PATTERN.finditer(content))
+    from a2ui.parser.lexer import BlockLexer
 
-    if not matches:
+    lexer = BlockLexer(
+        open_tag=A2UI_OPEN_TAG,
+        close_tag=A2UI_CLOSE_TAG,
+        string_delimiters={'"', "'"},
+        single_line_comments=None,  # Standard JSON doesn't support comments
+    )
+    parts = lexer.tokenize(content)
+
+    has_blocks = False
+    valid_parts: List[ResponsePart] = []
+
+    for part in parts:
+        if part.a2ui_raw is not None:
+            if not part.is_final:
+                raise A2uiParseError(
+                    f"A2UI close tag '{A2UI_CLOSE_TAG}' not found in response."
+                )
+            if not part.a2ui_raw:
+                raise A2uiParseError("A2UI JSON part is empty.")
+
+            valid_parts.append(part)
+            has_blocks = True
+        else:
+            if part.text:
+                valid_parts.append(part)
+
+    if not has_blocks:
         raise A2uiParseError(
             f"A2UI tags '{A2UI_OPEN_TAG}' and '{A2UI_CLOSE_TAG}' not found in response."
         )
 
-    response_parts = []
-    last_end = 0
-
-    for match in matches:
-        start, end = match.span()
-        text_part = content[last_end:start].strip()
-
-        json_string = match.group(1)
-        json_string_cleaned = _sanitize_json_string(json_string)
-        if not json_string_cleaned:
-            raise A2uiParseError("A2UI JSON part is empty.")
-
-        response_parts.append(
-            ResponsePart(text=text_part, a2ui_raw=json_string_cleaned)
-        )
-        last_end = end
-
-    trailing_text = content[last_end:].strip()
-    if trailing_text:
-        response_parts.append(ResponsePart(text=trailing_text, a2ui_raw=None))
-
-    return response_parts
+    return valid_parts
 
 
 class TransportParser(Parser):
@@ -125,7 +106,9 @@ class TransportParser(Parser):
         """
         return unwrap_response(content)
 
-    def compile(self, format_content: str) -> List[dict[str, Any]]:
+    def compile(
+        self, format_content: str, *, is_final: bool = True
+    ) -> List[dict[str, Any]]:
         """Validates and compiles raw A2UI JSON schema content.
 
         Args:
@@ -138,6 +121,10 @@ class TransportParser(Parser):
         if self._validator:
             self._validator.validate(json_data)
         return json_data
+
+    @property
+    def supports_streaming(self) -> bool:
+        return True
 
     def process_chunk(self, chunk: str) -> List[ResponsePart]:
         """Processes streamed token chunks incrementally.
@@ -153,3 +140,11 @@ class TransportParser(Parser):
         if not self._stream_parser:
             self._stream_parser = TransportStreamParser(self._catalog)
         return self._stream_parser.process_chunk(chunk)
+
+    def decompile(self, val: dict[str, Any]) -> str:
+        """Decompiles a structured A2UI payload into this format's raw notation."""
+        return _TransportDecompiler().decompile(val)
+
+    def wrap_decompiled_blocks(self, blocks: List[str]) -> str:
+        """Wraps multiple decompiled blocks with the format's enclosing tags/markers."""
+        return _TransportDecompiler().wrap_decompiled_blocks(blocks)
