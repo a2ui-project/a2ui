@@ -20,10 +20,43 @@ definitions and instruction blocks for on-device models.
 
 import json
 import re
-from typing import Any, Union
-from a2ui.core.catalog import Catalog
+from typing import Any, Optional, TYPE_CHECKING, Union
 from a2ui.schema.catalog import A2uiCatalog
-from a2ui.experimental.express.schema_helper import CatalogSchemaHelper
+from a2ui.inference_formats.experimental.express.schema_helper import (
+    CatalogSchemaHelper,
+)
+from a2ui.prompt import PromptGenerator
+from a2ui.core.schema.client_capabilities import V09Capabilities
+from .parser import ElementalParser
+
+
+if TYPE_CHECKING:
+    from .format import ElementalFormat
+
+
+ELEMENTAL_RULES = r"""# A2UI Elemental Output Contract
+
+You must output the user interface using A2UI Elemental HTML5-like markup.
+You MUST surround the entire block with the sentinel tags `<a2ui>` and `</a2ui>`.
+Inside the sentinel tags, surround the UI layout with `<body>` and `</body>` tags, including a `<link rel="catalog" href="[CATALOG_ID]">` at the start.
+
+## HTML5 Markup Rules
+
+1. Prefix component tags with `ui-` in kebab-case (e.g., `<ui-text-field />`).
+2. Provide a unique `id` attribute for every component. The top-level root element must have `id="root"`.
+3. Wrap numbers, booleans, and expressions in double-quoted curly braces (e.g., `value="{4}"`, `checked="{true}"`, `value="{$/path}"`). Pass static strings as regular attributes without curly braces.
+4. Bind data paths using `{$/path}` (absolute) or `{$name}` (relative in list templates). Use `{$/items/0}` for arrays (never brackets).
+5. For static options, schemas, or configurations, write literal JSON inside slot script tags instead of binding to a data path: `<script type="application/json" slot="options">[...]</script>`.
+6. Call functions inside curly braces using named arguments: `text="{myFunction(arg1: $/myPath, arg2: 'literal')}"`. Do NOT mix positional and named arguments in any call (e.g., use either all positional arguments like `{Event('click', {arg: $/path})}` or all named arguments).
+7. Nest child components directly inside parent tags. Do NOT pass layout properties (like `children` or `child`) as attributes. For named slots (properties expecting a single component, like a leading, trailing, or child element), add the slot attribute to the child: `<ui-icon slot="leading" />`.
+8. For dynamic lists, specify the data array path on the `path` attribute and nest the repeated layout inside a `<template>` tag: `<ui-list path="{$/items}"><template>...</template></ui-list>`. Do NOT define or duplicate the template's child components anywhere else in the document.
+9. Declare component actions using `on-<event>` attributes with inline expressions: `on-click="{Event('click_event')}"` or `on-click="{openUrl(url: '...')}"`. Do not use `action` properties.
+10. Do not use values starting with `{` and ending with `}` (like JSON object literals) directly as attribute string values (e.g. `placeholder="{ 'key': 'val' }"`), as the compiler will treat it as an expression. Prefix or write without matching outer braces (e.g., `placeholder="JSON: { 'key': 'val' }"`).
+11. Standalone directives:
+    - Data Initialization: `<script type="application/json">{"data"}</script>` at the root of the body.
+    - Surface Deletion: `<ui-delete-surface surface-id="id" />`.
+    - Standalone Function Call: `<ui-call-function id="id" name="func"><script type="application/json" slot="args">{"args"}</script></ui-call-function>`.
+"""
 
 
 def _schema_allows_databinding(prop_schema: Any) -> bool:
@@ -71,29 +104,24 @@ def _to_kebab_case(name: str) -> str:
     return re.sub(r"(?<!^)(?=[A-Z])", "-", name).lower()
 
 
-class ElementalPromptGenerator:
+class ElementalPromptGenerator(PromptGenerator):
     """Generates system prompt contracts guiding models to produce A2UI Elemental.
 
     Translates component catalog structures and logic helper catalogs into
     TypeScript/TSX interfaces and function declarations.
-
-    Attributes:
-        helper: A CatalogSchemaHelper instance loaded with the target catalog.
-        catalog_id: The ID of the catalog.
     """
 
-    def __init__(self, catalog: Union[Catalog[Any, Any], A2uiCatalog]):
-        """Initializes the generator with the specified catalog.
+    def __init__(self, format_inst: "ElementalFormat"):
+        """Initializes the generator with the specified format instance.
 
         Args:
-            catalog: A Catalog or an A2uiCatalog.
+            format_inst: An ElementalFormat instance.
         """
-        self.catalog = catalog
-        self.helper = CatalogSchemaHelper(catalog)
-        self.catalog_id = self.helper.catalog.get(
-            "catalogId",
-            "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
-        )
+        self._format = format_inst
+        self.catalog: A2uiCatalog = format_inst.catalog
+        self.helper: CatalogSchemaHelper = CatalogSchemaHelper(format_inst.catalog)
+        self.catalog_id: str = format_inst.catalog.catalog_id
+        self.parser: Optional[ElementalParser] = None
 
     def _map_schema_to_ts_type(
         self, component_name: str, prop_name: str, prop_schema: Any
@@ -113,7 +141,7 @@ class ElementalPromptGenerator:
             if "ComponentId" in ref:
                 base_type = "A2UIElement"
             elif "ChildList" in ref:
-                base_type = "A2UIElement | A2UIElement[]"
+                base_type = "A2UIElement[]"
             elif "Action" in ref:
                 base_type = "Action"
             else:
@@ -124,6 +152,8 @@ class ElementalPromptGenerator:
                     base_type = "number"
                 elif ref_name in ["DynamicBoolean", "Boolean"]:
                     base_type = "boolean"
+                elif ref_name == "DynamicStringList":
+                    base_type = "string[]"
                 else:
                     base_type = "any"
 
@@ -206,7 +236,7 @@ class ElementalPromptGenerator:
 
         if allows_db and base_type not in [
             "A2UIElement",
-            "A2UIElement | A2UIElement[]",
+            "A2UIElement[]",
             "Action",
             "any",
             "DataBinding",
@@ -218,6 +248,14 @@ class ElementalPromptGenerator:
                     base_type = f"{base_type} | DataBinding"
 
         return base_type
+
+    def _to_comments(self, description: Optional[str], indent: str = "") -> list[str]:
+        if not description:
+            return []
+        lines = []
+        for line in description.strip().split("\n"):
+            lines.append(f"{indent}// {line}")
+        return lines
 
     def generate_component_declarations(self) -> str:
         """Compiles component definitions into TypeScript element interfaces.
@@ -237,11 +275,14 @@ class ElementalPromptGenerator:
                 if _is_action(p_schema):
                     action_props.append(p)
 
-            interface_lines = [
+            comp_desc = self.helper.get_component_description(name)
+            interface_lines = []
+            interface_lines.extend(self._to_comments(comp_desc))
+            interface_lines.extend([
                 f"// Tag: <ui-{_to_kebab_case(name)}>",
                 f"interface {name} {{",
                 "  id?: string;",
-            ]
+            ])
 
             for p in props:
                 p_schema = self.helper.get_property_schema(name, p)
@@ -250,12 +291,17 @@ class ElementalPromptGenerator:
                 ts_prop_name = p
                 if p in action_props:
                     if len(action_props) == 1:
-                        ts_prop_name = "onclick"
+                        ts_prop_name = "onClick"
                     else:
                         ts_prop_name = "on" + p[0].upper() + p[1:]
 
                 ts_type = self._map_schema_to_ts_type(name, p, p_schema)
                 opt_sign = "" if is_req else "?"
+
+                p_desc = (
+                    p_schema.get("description") if isinstance(p_schema, dict) else None
+                )
+                interface_lines.extend(self._to_comments(p_desc, indent="  "))
                 interface_lines.append(f"  {ts_prop_name}{opt_sign}: {ts_type};")
 
             interface_lines.append("}")
@@ -276,6 +322,7 @@ class ElementalPromptGenerator:
 
             func_schema = self.helper.functions.get(name, {})
             return_type = func_schema.get("returnType", "any")
+            func_desc = func_schema.get("description")
 
             args_properties = (
                 func_schema.get("properties", {}).get("args", {}).get("properties", {})
@@ -289,31 +336,166 @@ class ElementalPromptGenerator:
                 opt_sign = "" if is_req else "?"
                 arg_decls.append(f"{p}{opt_sign}: {p_type}")
 
-            decl = f"function {name}({', '.join(arg_decls)}): {return_type};"
-            declarations.append(decl)
+            decl_lines = []
+            decl_lines.extend(self._to_comments(func_desc))
+            decl_lines.append(
+                f"function {name}({', '.join(arg_decls)}): {return_type};"
+            )
+            declarations.append("\n".join(decl_lines))
 
         return "\n".join(declarations)
 
-    def generate_prompt(self) -> str:
+    def _replace_json_block(self, match: re.Match[str]) -> str:
+        json_content = match.group(1).strip()
+        try:
+            parsed = json.loads(json_content)
+            if isinstance(parsed, dict):
+                messages = [parsed]
+            elif isinstance(parsed, list):
+                messages = parsed
+            else:
+                return str(match.group(0))
+
+            blocks = []
+            for msg in messages:
+                if isinstance(msg, dict) and any(
+                    k in msg
+                    for k in [
+                        "createSurface",
+                        "updateDataModel",
+                        "deleteSurface",
+                        "callFunction",
+                    ]
+                ):
+                    parser = self.parser or self._format.parser
+                    if not parser:
+                        self._format._ensure_catalog()
+                        parser = self._format.parser
+                        assert parser is not None
+                    decompiled = parser.decompile(msg)
+                    blocks.append(decompiled)
+                else:
+                    return str(match.group(0))
+
+            parser = self.parser or self._format.parser
+            if not parser:
+                self._format._ensure_catalog()
+                parser = self._format.parser
+                assert parser is not None
+            return parser.wrap_decompiled_blocks(blocks)
+
+        except Exception:
+            return str(match.group(0))
+
+    def transform_examples(self, raw_examples_markdown: str) -> str:
+        """Transforms JSON blocks in raw markdown into Elemental HTML syntax."""
+        if not self.catalog:
+            return raw_examples_markdown
+
+        triple_backticks = chr(96) * 3
+        pattern = rf"{triple_backticks}json\s*\n(.*?)\n{triple_backticks}"
+
+        return re.sub(
+            pattern,
+            self._replace_json_block,
+            raw_examples_markdown,
+            flags=re.DOTALL,
+        )
+
+    def generate(
+        self,
+        role_description: str,
+        workflow_description: str = "",
+        ui_description: str = "",
+        client_ui_capabilities: Optional[Union[dict[str, Any], V09Capabilities]] = None,
+        allowed_components: Optional[list[str]] = None,
+        allowed_messages: Optional[list[str]] = None,
+        include_schema: bool = False,
+        include_examples: bool = False,
+        validate_examples: bool = False,
+    ) -> str:
         """Assembles the complete system instruction block for the LLM.
 
+        Args:
+            role_description: Description of the agent's role.
+            workflow_description: Optional description of the task workflow.
+            ui_description: Optional UI context or rules.
+            client_ui_capabilities: Optional client UI capability details.
+            allowed_components: Optional list of component tags the LLM may use.
+            allowed_messages: Optional list of A2UI message types allowed.
+            include_schema: Whether to include component schemas in the prompt.
+            include_examples: Whether to include few-shot examples.
+            validate_examples: Whether to validate few-shot examples on generation.
+
         Returns:
-            The full system prompt string explaining A2UI Elemental and its catalog.
+            The complete system prompt string explaining A2UI Elemental and its catalog.
         """
+        catalog = self.catalog
+        if allowed_components or allowed_messages:
+            catalog = catalog.with_pruning(allowed_components, allowed_messages)
+            self.catalog = catalog
+            self.helper = CatalogSchemaHelper(catalog)
+            self.catalog_id = catalog.catalog_id
+            self.parser = ElementalParser(catalog)
+
+        prompt = self.catalog_description(include_schema=True)
+
+        parts = [role_description]
+
+        rules = ELEMENTAL_RULES.replace("[CATALOG_ID]", self.catalog_id)
+        if workflow_description:
+            rules += f"\n\n{workflow_description}"
+        parts.append(f"## Workflow Description:\n{rules}")
+
+        if ui_description:
+            parts.append(f"## UI Description:\n{ui_description}")
+
+        if include_schema and self.helper:
+            parts.append(prompt)
+
+        if include_examples and self._format.examples_path and catalog:
+            raw_examples = catalog.load_examples(
+                self._format.examples_path, validate=validate_examples
+            )
+            if raw_examples:
+                formatted_examples = self.transform_examples(raw_examples)
+                parts.append(f"### Examples:\n{formatted_examples}")
+
+        return "\n\n".join(parts)
+
+    def catalog_description(self, include_schema: bool = True) -> str:
+        """Assembles the system prompt component catalog signatures block.
+
+        Args:
+            include_schema: Whether to include the schema description.
+
+        Returns:
+            The rendered LLM instructions string block containing TypeScript element declarations.
+        """
+        if not include_schema:
+            return ""
+
         comp_decls = self.generate_component_declarations()
         func_decls = self.generate_function_declarations()
-        catalog_instructions = self.helper.catalog.get("instructions", "")
 
-        # Format catalog instructions block if it exists
+        catalog_instructions = (
+            self.helper.catalog.get("instructions", "") if self.helper else ""
+        )
+        if catalog_instructions:
+            catalog_instructions = catalog_instructions.replace(
+                "specify any custom error messages directly in the check's 'message'"
+                " property. Do NOT create separate text-display components to display"
+                " validation errors.",
+                "specify any custom error messages directly as a named argument"
+                " `message` inside the validation function call (e.g."
+                " `checks=\"{[regex(pattern: '^[a-zA-Z0-9]{3,}$', message: 'Error"
+                " message')]}\"`). Do NOT create separate text-display components to"
+                " display validation errors.",
+            )
+        # Decompile json blocks in catalog instructions to HTML
         catalog_instructions_block = ""
         if catalog_instructions:
-            # Dynamically convert any JSON examples in catalog instructions to Elemental HTML using decompiler
             try:
-                from .decompiler import ElementalDecompiler
-
-                decompiler = ElementalDecompiler(self.catalog)
-
-                # Find all ```json ... ``` blocks
                 json_blocks = re.findall(
                     r"```json\s*(.*?)\s*```", catalog_instructions, re.DOTALL
                 )
@@ -324,18 +506,27 @@ class ElementalPromptGenerator:
                             html_parts = []
                             for item in parsed_json:
                                 if isinstance(item, dict):
-                                    html_parts.append(decompiler.decompile(item))
+                                    parser = self.parser or self._format.parser
+                                    if not parser:
+                                        self._format._ensure_catalog()
+                                        parser = self._format.parser
+                                        assert parser is not None
+                                    html_parts.append(parser.decompile(item))
                             html_block = "\n\n".join(html_parts)
                         elif isinstance(parsed_json, dict):
-                            html_block = decompiler.decompile(parsed_json)
+                            parser = self.parser or self._format.parser
+                            if not parser:
+                                self._format._ensure_catalog()
+                                parser_inst = self._format.parser
+                                assert parser_inst is not None
+                                parser = parser_inst
+                            html_block = parser.decompile(parsed_json)
+
                         else:
                             continue
 
                         target_block = f"```json\n{block}\n```"
-                        # Use link placeholder for decompiler output link if present
-                        catalog_id = self.helper.catalog.get(
-                            "catalogId", "[CATALOG_ID]"
-                        )
+                        catalog_id = self.catalog_id
                         html_block = html_block.replace(catalog_id, "[CATALOG_ID]")
                         replacement_block = f"```html\n{html_block}\n```"
                         catalog_instructions = catalog_instructions.replace(
@@ -352,32 +543,10 @@ class ElementalPromptGenerator:
 
         common_types = """type DataBinding = string;
 type A2UIElement = string; // ID of the referenced component
-type Action = any;
-type FunctionCall = any;"""
+type Action = string; // An inline Event(...) call or catalog function call expression, e.g. "{Event('click', {arg: $/path})}" or "{openUrl(url: '...')}"
+type FunctionCall = string; // A catalog function call expression, e.g. "{formatString('Title: ${/path}')}" or "{regex(pattern: '^[A-Z]')}" """
 
-        prompt_template = r"""# A2UI Elemental Output Contract
-
-You must output the user interface using A2UI Elemental HTML5-like markup.
-Surround the entire output with `<body>` and `</body>` tags, including a `<link rel="catalog" href="[CATALOG_ID]">` at the start.
-**CRITICAL**: DO NOT output raw JSON or `<a2ui-json>`. Direct JSON outputs are strictly prohibited.
-
-## HTML5 Markup Rules
-
-1. **Component Tags**: Use elements prefixed with `ui-` in kebab-case (e.g. `<ui-card>`).
-2. **Component IDs**: Provide a unique `id` attribute for every component. The single top-level element MUST have `id="root"`.
-3. **Attributes**: Pass static string values as regular attributes (`variant="primary"`). Wrap numbers, booleans, and expressions in double-quoted curly braces: `elevation="{4}"`, `disabled="{true}"`.
-4. **Data Binding**: Bind data using curly braces prefixed with `$`: `value="{$/user/name}"` (absolute) or `value="{$name}"` (relative in list templates). Use `{$/items/0}` for arrays, never brackets.
-5. **Expressions**: Call catalog functions inside curly braces using named arguments: `text="{formatCurrency(value: $/price, currency: 'USD')}"`.
-6. **Slots & Children**: Nest children inside parent elements. Use the `slot` attribute to specify child properties: `<ui-card slot="leading">`.
-7. **Complex Properties**: For objects/arrays, use `<script type="application/json" slot="prop">`. For HTML/long text, use `<script type="text/html" slot="prop">`.
-8. **Templates**: For dynamic lists, nest child elements inside a `<template>` tag, and specify the bound data array path via the `path` attribute on the list component itself (e.g. `<ui-list path="{$/items}"><template>...</template></ui-list>`).
-9. **Actions**: Use `on-<property-name>` in kebab-case (e.g. `onclick="{Event('name', {args})}"`). If submitting or validating data, pass the data paths inside the event context dict (e.g. `onclick="{Event('login', {username: $/login/username})}"`).
-10. **Standalone Directives**:
-    - Data Initialization: `<script type="application/json">{"data"}</script>` at root of body.
-    - Surface Deletion: `<ui-delete-surface surface-id="id" />`.
-    - Standalone Function Call: `<ui-call-function id="id" name="func"><script type="application/json" slot="args">{"args"}</script></ui-call-function>`.
-
-## Component Interfaces
+        desc_template = r"""## Component Interfaces
 
 Your elements and attributes must match these TypeScript definitions (converting camelCase props to kebab-case attributes in HTML, e.g. `errorMessage` -> `error-message`).
 
@@ -395,11 +564,9 @@ You can call these functions inside attribute expressions `{...}` using named ar
 [FUNCTION_DECLARATIONS]
 ```[CATALOG_INSTRUCTIONS_BLOCK]"""
 
-        prompt = (
-            prompt_template.replace("[CATALOG_ID]", self.catalog_id)
-            .replace("[COMMON_TYPES]", common_types)
+        return (
+            desc_template.replace("[COMMON_TYPES]", common_types)
             .replace("[COMPONENT_DECLARATIONS]", comp_decls)
             .replace("[FUNCTION_DECLARATIONS]", func_decls)
             .replace("[CATALOG_INSTRUCTIONS_BLOCK]", catalog_instructions_block)
         )
-        return prompt
