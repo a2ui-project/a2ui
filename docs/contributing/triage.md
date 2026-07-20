@@ -1,4 +1,5 @@
 # Triage for PRs and issues
+
 go/a2ui-triage
 
 Point of contact: @polinach
@@ -9,22 +10,22 @@ See go/a2ui-triage for internal information.
 
 Continuously make sure that on [a2ui](https://github.com/a2ui-project/a2ui):
 
-1. External PRs are addressed  
-2. Issues are prioritized and addressed  
+1. External PRs are addressed
+2. Issues are prioritized and addressed
 3. Number of branches is observable
 
 ## Invariant we want to keep
 
 This section describes goals at a high level. See concrete steps in the section [Triage responsibilities](#triage-responsibilities).
 
-1. **Issues** priority (aligned with other teams in Dash):  
-   * **P0**: very urgent, should be assigned  
-   * **P1**: we are actively working on it, should be assigned  
-   * **P2**: is expected to be converted to P1 within quarter, as part of regular planning process  
-   * **P3**: not planned, but we will accept contributions  
-   * **P4**: we do not plan to invest into it, no PRs will be reviewed  
+1. **Issues** priority (aligned with other teams in Dash):
+    - **P0**: very urgent, should be assigned
+    - **P1**: we are actively working on it, should be assigned
+    - **P2**: is expected to be converted to P1 within quarter, as part of regular planning process
+    - **P3**: not planned, but we will accept contributions
+    - **P4**: we do not plan to invest into it, no PRs will be reviewed
 2. **PRs**: We will review PRs from external contributors if they contribute to a **P0-P3** issue that is assigned to the contributor (the issue should be linked in the first line of description).  
-   **Exception**: the change is absolutely clear and obviously needed.   
+   **Exception**: the change is absolutely clear and obviously needed.
 3. **Branches**: [list of stale branches](https://github.com/a2ui-project/a2ui/branches/stale) should fit on one screen and should not have a button ‘Next’.
 
 ## How to choose priority?
@@ -33,13 +34,13 @@ Prioritization process is not deterministic, so use your intuition.
 
 These questions help to test an issue against priorities from P4 to P0:
 
-1. Is this feature/fix worth its review and maintenance? If not, P4.  
-2. Is it just nice to have? If yes, P3.  
-3. Is it a natural expectation that, while not met, creates a significant toil for someone? If yes, P2. Does it seem easy to fix? If yes, do one of this:  
-   1. assign to yourself  
-   2. ask on team chat if someone wants to take it  
-   3. add label ‘small’ so that contractor could pick it up  
-4. Is it a bug that requires attention? Mark P1 and discuss on team chat who will take it. If this does not help to triage the issue, discuss it directly with TL.  
+1. Is this feature/fix worth its review and maintenance? If not, P4.
+2. Is it just nice to have? If yes, P3.
+3. Is it a natural expectation that, while not met, creates a significant toil for someone? If yes, P2. Does it seem easy to fix? If yes, do one of this:
+    1. assign to yourself
+    2. ask on team chat if someone wants to take it
+    3. add label ‘small’ so that contractor could pick it up
+4. Is it a bug that requires attention? Mark P1 and discuss on team chat who will take it. If this does not help to triage the issue, discuss it directly with TL.
 5. Is it a bug that makes usage impossible? If yes, P0 and send to team chat.
 
 ## GitHub labels used in triage
@@ -47,20 +48,20 @@ These questions help to test an issue against priorities from P4 to P0:
 1. P0-P4
 2. status: in-discussion
 3. status: needs-triage
-4. status: front-line-handled  
-5. size: small  
+4. status: front-line-handled
+5. size: small
 6. status: waiting-for-user-response
 
 See [all github labels](https://github.com/a2ui-project/a2ui/labels).
 
-## Triage responsibilities 
+## Triage responsibilities
 
 ### First line triage
 
-For each issue that is [not front-line-handled](https://github.com/a2ui-project/a2ui/issues?q=is%3Aissue%20state%3Aopen%20-label%3AP0%20-label%3AP1%20-label%3AP2%20-label%3AP3%20-label%3A%22status%3A%20front-line-handled%22):  
+For each issue that is [not front-line-handled](https://github.com/a2ui-project/a2ui/issues?q=is%3Aissue%20state%3Aopen%20-label%3AP0%20-label%3AP1%20-label%3AP2%20-label%3AP3%20-label%3A%22status%3A%20front-line-handled%22):
 
-  - If it is P0, add label `P0` and notify team chat  
-  - Add label `status: front-line-handled`
+- If it is P0, add label `P0` and notify team chat
+- Add label `status: front-line-handled`
 
 ### Second line triage
 
@@ -90,23 +91,23 @@ We want evals and e2e's to run on pre-submit at least for team members.
 
 Watching branches is not big extra toil for triage process, because:
 
-1. If we forbid branches, the work will not disappear, it will just move to the fork  
-2. It is easy to cleanup branches because ownership is clear  
+1. If we forbid branches, the work will not disappear, it will just move to the fork
+2. It is easy to cleanup branches because ownership is clear
 3. As team members know it is part of triage to clean them up, they are more careful managing their branches
 
 ### Why do we need P4? Why not just close the issue?
 
 We need the label P4, because:
 
-1. Just closing the issue will not give a clear searchable sign why it is closed  
+1. Just closing the issue will not give a clear searchable sign why it is closed
 2. External developers can reopen issue, but cannot change label
 
 It is better not to close P4, because:
 
-1. As we have label P4 anyway, closing the issue is an extra step.  
-2. If P4 is open, it is a sign that this feature request is still:  
-   1. not implemented  
-   2. seems to be valuable  
-   3. considered P4
+1. As we have label P4 anyway, closing the issue is an extra step.
+2. If P4 is open, it is a sign that this feature request is still:
+    1. not implemented
+    2. seems to be valuable
+    3. considered P4
 
-   which adds clarity and makes it harder to push for prioritization.
+    which adds clarity and makes it harder to push for prioritization.
