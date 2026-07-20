@@ -1,6 +1,7 @@
 ## Unreleased
 
 - Standardize package entry points to `index.ts` while maintaining `public-api.ts` wrappers for backward compatibility.
+- (v0_8) Export `A2uiMessageSchema` in public API.
 
 ## 0.10.4
 
