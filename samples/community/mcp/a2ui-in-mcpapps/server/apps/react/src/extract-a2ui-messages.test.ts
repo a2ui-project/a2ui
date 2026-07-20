@@ -72,6 +72,19 @@ describe('extractA2uiMessages', () => {
     expect(extractA2uiMessages(content)).toEqual([]);
   });
 
+  it('drops null and scalar entries inside array payloads', () => {
+    const content = [resourceBlock(JSON.stringify([null, 42, 'text', MESSAGE]))];
+    expect(extractA2uiMessages(content)).toEqual([MESSAGE]);
+  });
+
+  it('accepts mime types with parameters and different casing', () => {
+    const content = [
+      resourceBlock(JSON.stringify([MESSAGE]), 'application/a2ui+json; charset=utf-8'),
+      resourceBlock(JSON.stringify([MESSAGE]), 'Application/A2UI+JSON'),
+    ];
+    expect(extractA2uiMessages(content)).toEqual([MESSAGE, MESSAGE]);
+  });
+
   it('skips resources with invalid JSON and keeps the rest', () => {
     const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
     const content = [resourceBlock('{not json'), resourceBlock(JSON.stringify([MESSAGE]))];

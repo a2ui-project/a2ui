@@ -18,6 +18,13 @@ import type {A2uiMessage} from '@a2ui/web_core/v0_9';
 
 export const A2UI_MIME_TYPES = ['application/a2ui+json', 'application/json+a2ui'];
 
+// MIME types are case-insensitive and may carry parameters
+// (e.g. "application/a2ui+json; charset=utf-8").
+function isA2uiMimeType(mimeType: unknown): boolean {
+  if (typeof mimeType !== 'string') return false;
+  return A2UI_MIME_TYPES.includes(mimeType.split(';')[0].trim().toLowerCase());
+}
+
 /**
  * Collects and parses every A2UI embedded resource from a tool result's
  * content blocks. Each resource may hold a single message or an array.
@@ -28,14 +35,15 @@ export function extractA2uiMessages(content: unknown): A2uiMessage[] {
   for (const block of content) {
     if (block?.type !== 'resource') continue;
     const resource = block.resource;
-    if (!A2UI_MIME_TYPES.includes(resource?.mimeType) || typeof resource?.text !== 'string') {
+    if (!isA2uiMimeType(resource?.mimeType) || typeof resource?.text !== 'string') {
       continue;
     }
     try {
       const parsed = JSON.parse(resource.text);
-      if (parsed && typeof parsed === 'object') {
-        messages.push(...(Array.isArray(parsed) ? parsed : [parsed]));
-      }
+      const entries = Array.isArray(parsed) ? parsed : [parsed];
+      // MessageProcessor dispatches with the `in` operator, which throws on
+      // null/scalar values — drop them here.
+      messages.push(...entries.filter(entry => entry && typeof entry === 'object'));
     } catch (err) {
       console.error('Failed to parse A2UI payload:', err);
     }

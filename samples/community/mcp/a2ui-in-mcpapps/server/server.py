@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import copy
 import logging
 from typing import Any
 import anyio
@@ -269,7 +270,13 @@ def main(port: int, transport: str) -> int:
         elif name == "get_react_app":
             # The ui://react/app template is declared in the tool's
             # _meta.ui.resourceUri; the generic renderer draws whatever A2UI
-            # payload this result embeds.
+            # payload this result embeds. Patch the live COUNTER into the
+            # initial render so it stays in sync with earlier increments.
+            payload = copy.deepcopy(simple_counter_a2ui_v0_9_json)
+            for message in payload:
+                update = message.get("updateDataModel")
+                if update and update.get("path") == "/counter":
+                    update["value"] = COUNTER
             return types.CallToolResult(
                 content=[
                     types.TextContent(type="text", text="Initial counter UI (v0.9)"),
@@ -278,7 +285,7 @@ def main(port: int, transport: str) -> int:
                         resource=types.TextResourceContents(
                             uri="a2ui://counter-v0-9",
                             mimeType=A2UI_MIME_TYPE,
-                            text=json.dumps(simple_counter_a2ui_v0_9_json),
+                            text=json.dumps(payload),
                         ),
                     ),
                 ]

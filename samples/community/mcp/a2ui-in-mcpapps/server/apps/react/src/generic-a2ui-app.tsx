@@ -48,6 +48,8 @@ export interface GenericA2uiAppProps {
 
 export function GenericA2uiApp({actionToToolName}: GenericA2uiAppProps) {
   const [status, setStatus] = useState('Connecting to MCP host…');
+  // Unlike status, errors must stay visible while surfaces are rendered.
+  const [error, setError] = useState<string | null>(null);
 
   // Keep the latest mapping visible to the long-lived action handler.
   const actionToToolNameRef = useRef(actionToToolName);
@@ -69,14 +71,23 @@ export function GenericA2uiApp({actionToToolName}: GenericA2uiAppProps) {
           arguments: (action.context ?? {}) as Record<string, unknown>,
         })
         .then(result => {
+          if (result.isError) {
+            const textBlock = Array.isArray(result.content)
+              ? (result.content.find(c => c.type === 'text') as {text?: string} | undefined)
+              : undefined;
+            setError(`Tool '${toolName}' failed${textBlock?.text ? `: ${textBlock.text}` : '.'}`);
+            return;
+          }
           // Apply the response incrementally — no surface reset.
           const messages = extractA2uiMessages(result.content);
           if (messages.length > 0) {
             p.processMessages(messages);
           }
+          setError(null);
         })
         .catch(err => {
           console.error(`Tool call '${toolName}' failed:`, err);
+          setError(`Tool call '${toolName}' failed: ${err}`);
         });
     });
     return p;
@@ -96,17 +107,20 @@ export function GenericA2uiApp({actionToToolName}: GenericA2uiAppProps) {
       setSurfaces(prev => prev.filter(s => s.id !== id));
     });
 
-    // The entry tool's result is a full render: reset all surfaces first.
+    // The entry tool's result is a full render: reset all surfaces — but
+    // only once the payload is known to be valid, so a malformed result
+    // doesn't destroy a working view.
     mcpApp.ontoolresult = params => {
+      const messages = extractA2uiMessages(params.content);
+      if (messages.length === 0) {
+        setStatus('Tool result contained no A2UI payload.');
+        return;
+      }
       Array.from(processor.model.surfacesMap.keys()).forEach(id => {
         processor.model.deleteSurface(id);
       });
-      const messages = extractA2uiMessages(params.content);
-      if (messages.length > 0) {
-        processor.processMessages(messages);
-      } else {
-        setStatus('Tool result contained no A2UI payload.');
-      }
+      processor.processMessages(messages);
+      setError(null);
     };
 
     // connect() must run exactly once for this App instance, even if the
@@ -128,6 +142,7 @@ export function GenericA2uiApp({actionToToolName}: GenericA2uiAppProps) {
 
   return (
     <MarkdownContext.Provider value={renderMarkdown}>
+      {error && <p style={{padding: '8px', color: '#b3261e'}}>{error}</p>}
       {surfaces.length === 0 && <p style={{padding: '8px', color: '#666'}}>{status}</p>}
       {surfaces.map(surface => (
         <A2uiSurface key={surface.id} surface={surface} />

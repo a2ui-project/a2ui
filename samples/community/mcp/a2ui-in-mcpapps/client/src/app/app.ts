@@ -263,9 +263,10 @@ export class App implements AfterViewInit {
 
       // 4. Read the resource
       const appResource = await client.readResource({uri: resourceUri});
-      const htmlContentObj = appResource.contents.find(
-        (c: any) => c.mimeType === 'text/html;profile=mcp-app' || 'text' in c,
-      ) as any;
+      // Prefer the MCP App HTML block; fall back to any text-bearing block.
+      const htmlContentObj = (appResource.contents.find(
+        (c: any) => c.mimeType === 'text/html;profile=mcp-app',
+      ) ?? appResource.contents.find((c: any) => 'text' in c)) as any;
 
       if (!htmlContentObj || typeof htmlContentObj.text !== 'string') {
         throw new Error('Resource did not return valid HTML content');
