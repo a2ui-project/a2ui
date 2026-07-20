@@ -82,9 +82,10 @@ def on_page_markdown(markdown, page, config, files):
             if mapped_name:
                 return mapped_name + anchor
 
-            # Rewrite relative paths inside same version (e.g. "../json/...") to the copied location
-            if path.startswith('../') and not path.startswith('../../'):
-                return version_folder + '/' + path[3:]
+            # Rewrite relative paths to json schemas regardless of depth (e.g. "../json/..." or "../../../json/...")
+            if '/json/' in path:
+                rel_prefix = '../' * file_depth
+                return rel_prefix + version_folder + path[path.index('/json/') :]
 
         # Check if the link points outside the docs folder
         up_count = 0
@@ -102,6 +103,11 @@ def on_page_markdown(markdown, page, config, files):
                 path_parts.pop(0)
                 strip_count -= 1
             clean_path = '/'.join(path_parts)
+
+            # If the link points to another public documentation file, make it an internal link
+            if clean_path.startswith('docs/public/'):
+                rel_prefix = '../' * file_depth
+                return rel_prefix + clean_path[len('docs/public/') :]
 
             # Return the newly formatted absolute GitHub link
             return f'{github_base_url}/{clean_path}'

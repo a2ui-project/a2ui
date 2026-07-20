@@ -39,7 +39,7 @@
       "command": "node scripts/generate-examples.mjs",
       "files": [
         "../../../specification/v0_8/json/catalogs/**/*.json",
-        "../../../specification/v0_9_1/catalogs/**/*.json",
+        "../../../specification/v0_9/catalogs/**/*.json",
         "scripts/generate-examples.mjs"
       ],
       "output": [

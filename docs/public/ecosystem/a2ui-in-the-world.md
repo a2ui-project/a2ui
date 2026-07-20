@@ -41,6 +41,8 @@ A2UI is being integrated to allow enterprise agents to render **rich, interactiv
 >
 > **— Fred Jabbour**, Product Manager, Gemini Enterprise
 
+> **Note:** A2UI rendering in Gemini Enterprise currently requires self-serve agents registered using the Agent-to-Agent (A2A) path (`a2aAgentDefinition`). Managed agents deployed on Vertex AI Agent Engine and registered using the `adkAgentDefinition` path do not currently support A2UI rendering.
+
 **Learn more:** [Gemini Enterprise](https://cloud.google.com/gemini)
 
 ---
@@ -80,7 +82,7 @@ ADK integrated the A2UI v0.8 basic catalog to automatically render spec-complian
 
 - **Built-in rendering**: ADK Web renders A2UI components natively in the dev UI.
 - **A2A integration**: A2UI messages are converted between A2A DataPart metadata and ADK events.
-- **Agent SDK**: The [A2UI Python agent SDK](https://github.com/a2ui-project/a2ui/tree/main/agent_sdks/python) provides an ADK extension for generating A2UI from agents.
+- **Agent SDK**: The [A2UI Python agent SDK](../../../agent_sdks/python) provides an ADK extension for generating A2UI from agents.
 
 **Try it:**
 
@@ -165,12 +167,12 @@ The A2UI community is building exciting projects:
 
 ### Open Source Examples
 
-- **Restaurant Finder** ([samples/agent/adk/restaurant_finder](https://github.com/a2ui-project/a2ui/tree/main/samples/agent/adk/restaurant_finder))
+- **Restaurant Finder** ([samples/agent/adk/restaurant_finder](../../../samples/agent/adk/restaurant_finder))
     - Table reservation with dynamic forms
     - Gemini-powered agent
     - Full source code available
 
-- **Component Gallery** ([samples/client/angular - gallery mode](https://github.com/a2ui-project/a2ui/tree/main/samples/client/angular))
+- **Component Gallery** ([samples/client/angular - gallery mode](../../../samples/client/angular))
     - Interactive showcase of all components
     - Live examples with code
     - Great for learning

@@ -14,11 +14,13 @@
 
 """Generator for standard A2UI JSON schema system prompt instructions."""
 
-from typing import Optional, Any, TYPE_CHECKING
-from a2ui.prompt.generator import PromptGenerator
+from typing import Optional, Any, TYPE_CHECKING, Union
+from a2ui.prompt import PromptGenerator
+from a2ui.core.schema.client_capabilities import V09Capabilities
 
 if TYPE_CHECKING:
     from a2ui.inference_formats.transport.format import TransportFormat
+    from a2ui.schema.catalog import A2uiCatalog
 
 
 class TransportPromptGenerator(PromptGenerator):
@@ -31,13 +33,14 @@ class TransportPromptGenerator(PromptGenerator):
             format_inst: The TransportFormat instance.
         """
         self._format = format_inst
+        self.selected_catalog: Optional["A2uiCatalog"] = None
 
     def generate(
         self,
         role_description: str,
         workflow_description: str = "",
         ui_description: str = "",
-        client_ui_capabilities: Optional[dict[str, Any]] = None,
+        client_ui_capabilities: Optional[Union[dict[str, Any], V09Capabilities]] = None,
         allowed_components: Optional[list[str]] = None,
         allowed_messages: Optional[list[str]] = None,
         include_schema: bool = False,
@@ -63,13 +66,13 @@ class TransportPromptGenerator(PromptGenerator):
         selected_catalog = self._format.get_selected_catalog(
             client_ui_capabilities, allowed_components, allowed_messages
         )
+        self.selected_catalog = selected_catalog
 
         examples_str = ""
         if include_examples:
             examples_str = self._format.load_examples(
                 selected_catalog, validate=validate_examples
             )
-
         parts = [role_description]
 
         from a2ui.schema.constants import DEFAULT_WORKFLOW_RULES
@@ -83,7 +86,7 @@ class TransportPromptGenerator(PromptGenerator):
             parts.append(f"## UI Description:\n{ui_description}")
 
         if include_schema:
-            instructions = selected_catalog.render_as_llm_instructions()
+            instructions = self.catalog_description(include_schema=True)
             if instructions:
                 parts.append(instructions)
 
@@ -91,3 +94,25 @@ class TransportPromptGenerator(PromptGenerator):
             parts.append(f"### Examples:\n{examples_str}")
 
         return "\n\n".join(parts)
+
+    def catalog_description(self, include_schema: bool = True) -> str:
+        """Assembles the system prompt component catalog signatures block.
+
+        Args:
+            include_schema: Whether to include the schema description.
+
+        Returns:
+            The rendered LLM instructions string block.
+        """
+        if not include_schema:
+            return ""
+        catalog = self.selected_catalog
+        if not catalog:
+            catalog = (
+                self._format._supported_catalogs[0]
+                if self._format._supported_catalogs
+                else None
+            )
+        if not catalog:
+            return ""
+        return catalog.render_as_llm_instructions() or ""

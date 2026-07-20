@@ -15,7 +15,8 @@
 """Abstract prompt generator interface for inference formats."""
 
 from abc import ABC, abstractmethod
-from typing import Any, Optional
+from typing import Any, Optional, Union
+from a2ui.core.schema.client_capabilities import V09Capabilities
 
 
 class PromptGenerator(ABC):
@@ -27,7 +28,7 @@ class PromptGenerator(ABC):
         role_description: str,
         workflow_description: str = "",
         ui_description: str = "",
-        client_ui_capabilities: Optional[dict[str, Any]] = None,
+        client_ui_capabilities: Optional[Union[dict[str, Any], V09Capabilities]] = None,
         allowed_components: Optional[list[str]] = None,
         allowed_messages: Optional[list[str]] = None,
         include_schema: bool = False,

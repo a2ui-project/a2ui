@@ -110,10 +110,10 @@ if __name__ == "__main__":
         f.write(request_prompt)
     print("\nGenerated request prompt saved to request_prompt.txt")
 
-    basic_catalog = schema_manager.get_selected_catalog(
+    basic_catalog = inference_format.get_selected_catalog(
         client_ui_capabilities=client_ui_capabilities
     )
-    examples = schema_manager.load_examples(
+    examples = inference_format.load_examples(
         basic_catalog,
         validate=True,
     )

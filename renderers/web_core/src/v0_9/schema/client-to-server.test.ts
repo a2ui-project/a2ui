@@ -19,58 +19,64 @@ import * as assert from 'node:assert';
 import {A2uiClientMessageSchema, A2uiClientDataModelSchema} from './client-to-server.js';
 
 describe('Client-to-Server Schema Verification', () => {
-  it('validates a valid action message', () => {
-    const validAction = {
-      version: 'v0.9',
-      action: {
-        name: 'submit',
-        surfaceId: 's1',
-        sourceComponentId: 'c1',
-        timestamp: new Date().toISOString(),
-        context: {foo: 'bar'},
-      },
-    };
-    const result = A2uiClientMessageSchema.safeParse(validAction);
-    assert.ok(result.success, result.success ? '' : result.error.message);
-  });
+  const versions = ['v0.9', 'v0.9.1'];
 
-  it('validates a valid error message (validation failed)', () => {
-    const validError = {
-      version: 'v0.9',
-      error: {
-        code: 'VALIDATION_FAILED',
-        surfaceId: 's1',
-        path: '/components/0/text',
-        message: 'Too short',
-      },
-    };
-    const result = A2uiClientMessageSchema.safeParse(validError);
-    assert.ok(result.success, result.success ? '' : result.error.message);
-  });
+  versions.forEach(version => {
+    describe(`Protocol ${version}`, () => {
+      it(`validates a valid action message`, () => {
+        const validAction = {
+          version,
+          action: {
+            name: 'submit',
+            surfaceId: 's1',
+            sourceComponentId: 'c1',
+            timestamp: new Date().toISOString(),
+            context: {foo: 'bar'},
+          },
+        };
+        const result = A2uiClientMessageSchema.safeParse(validAction);
+        assert.ok(result.success, result.success ? '' : result.error.message);
+      });
 
-  it('validates a valid error message (generic)', () => {
-    const validError = {
-      version: 'v0.9',
-      error: {
-        code: 'INTERNAL_ERROR',
-        message: 'Something went wrong',
-        surfaceId: 's1',
-      },
-    };
-    const result = A2uiClientMessageSchema.safeParse(validError);
-    assert.ok(result.success, result.success ? '' : result.error.message);
-  });
+      it(`validates a valid error message (validation failed)`, () => {
+        const validError = {
+          version,
+          error: {
+            code: 'VALIDATION_FAILED',
+            surfaceId: 's1',
+            path: '/components/0/text',
+            message: 'Too short',
+          },
+        };
+        const result = A2uiClientMessageSchema.safeParse(validError);
+        assert.ok(result.success, result.success ? '' : result.error.message);
+      });
 
-  it('validates a valid data model message', () => {
-    const validDataModel = {
-      version: 'v0.9',
-      surfaces: {
-        s1: {user: 'Alice'},
-        s2: {cart: []},
-      },
-    };
-    const result = A2uiClientDataModelSchema.safeParse(validDataModel);
-    assert.ok(result.success, result.success ? '' : result.error.message);
+      it(`validates a valid error message (generic)`, () => {
+        const validError = {
+          version,
+          error: {
+            code: 'INTERNAL_ERROR',
+            message: 'Something went wrong',
+            surfaceId: 's1',
+          },
+        };
+        const result = A2uiClientMessageSchema.safeParse(validError);
+        assert.ok(result.success, result.success ? '' : result.error.message);
+      });
+
+      it(`validates a valid data model message`, () => {
+        const validDataModel = {
+          version,
+          surfaces: {
+            s1: {user: 'Alice'},
+            s2: {cart: []},
+          },
+        };
+        const result = A2uiClientDataModelSchema.safeParse(validDataModel);
+        assert.ok(result.success, result.success ? '' : result.error.message);
+      });
+    });
   });
 
   it('fails on invalid version', () => {

@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Prompt generation contracts and helpers package."""
+"""Prompts package providing abstract prompt generation interfaces."""
 
 from .generator import PromptGenerator
 

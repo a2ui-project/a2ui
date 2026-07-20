@@ -15,7 +15,7 @@
     "outDir": "./out-tsc/app",
     "types": [],
     "paths": {
-      "@a2ui/angular": ["../../../../../../renderers/angular/src/public-api.ts"],
+      "@a2ui/angular": ["../../../../../../renderers/angular/src/index.ts"],
       "@angular/*": ["./node_modules/@angular/*"]
     }
   },

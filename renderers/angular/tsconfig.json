@@ -18,10 +18,10 @@
     "moduleResolution": "bundler",
     "types": ["jasmine"],
     "paths": {
-      "@a2ui/angular/v0_8": ["./src/v0_8/public-api.ts"],
-      "@a2ui/angular/v0_9": ["./src/v0_9/public-api.ts"],
-      "@a2ui/angular/v0_9/testing": ["./src/v0_9/testing/public-api.ts"],
-      "@a2ui/angular/testing": ["./src/v0_9/testing/public-api.ts"]
+      "@a2ui/angular/v0_8": ["./src/v0_8/index.ts"],
+      "@a2ui/angular/v0_9": ["./src/v0_9/index.ts"],
+      "@a2ui/angular/v0_9/testing": ["./src/v0_9/testing/index.ts"],
+      "@a2ui/angular/testing": ["./src/v0_9/testing/index.ts"]
     }
   },
   "angularCompilerOptions": {
