@@ -28,21 +28,6 @@ This section describes goals at a high level. See concrete steps in the section 
    **Exception**: the change is absolutely clear and obviously needed.
 3. **Branches**: [list of stale branches](https://github.com/a2ui-project/a2ui/branches/stale) should fit on one screen and should not have a button ‘Next’.
 
-## How to choose priority?
-
-Prioritization process is not deterministic, so use your intuition.
-
-These questions help to test an issue against priorities from P4 to P0:
-
-1. Is this feature/fix worth its review and maintenance? If not, P4.
-2. Is it just nice to have? If yes, P3.
-3. Is it a natural expectation that, while not met, creates a significant toil for someone? If yes, P2. Does it seem easy to fix? If yes, do one of this:
-    1. assign to yourself
-    2. ask on team chat if someone wants to take it
-    3. add label ‘small’ so that contractor could pick it up
-4. Is it a bug that requires attention? Mark P1 and discuss on team chat who will take it. If this does not help to triage the issue, discuss it directly with TL.
-5. Is it a bug that makes usage impossible? If yes, P0 and send to team chat.
-
 ## GitHub labels used in triage
 
 1. P0-P4
@@ -71,7 +56,7 @@ Review issues [with label `status: needs-triage`][needs-triage], temporarily add
 
 ## AI assistance
 
-Use this skill to get agent's help with triage process: https://github.com/a2ui-project/a2ui/tree/main/.agents/skills/a2ui-issue-triage.
+Use this skill to get agent's help with triage process: [.agents/skills/a2ui-issue-triage](../../.agents/skills/a2ui-issue-triage).
 
 It forks multiple subagents (one for each issue) to try and tries to reproduce the issue if it is something that can be easily reproduced. It won't attempt to repro something that takes a lot of setup.
 
