@@ -20,11 +20,10 @@ import unittest
 
 from a2ui.core.catalog import Catalog
 from a2ui.schema.catalog import A2uiCatalog, CatalogConfig
-from a2ui.experimental.express.prompt_generator import ExpressPromptGenerator
-from a2ui.experimental.express.compiler import ExpressCompiler
-from a2ui.experimental.express.decompiler import ExpressDecompiler
-from a2ui.experimental.express.schema_helper import CatalogSchemaHelper
-from a2ui.experimental.express.parser import parse_express_response
+from a2ui.inference_formats.experimental.express.prompt_generator import ExpressPromptGenerator
+from a2ui.inference_formats.experimental.express.compiler import ExpressCompiler
+from a2ui.inference_formats.experimental.express.schema_helper import CatalogSchemaHelper
+from a2ui.inference_formats.experimental.express.parser import ExpressParser
 
 SPEC_DIR = os.path.abspath(
     os.path.join(
@@ -47,8 +46,10 @@ class TestExpressCompiler(unittest.TestCase):
 
     def test_prompt_generator(self):
         """Verifies prompt signature compiler loads catalog components correctly."""
-        generator = ExpressPromptGenerator(self.catalog)
-        prompt = generator.generate_prompt()
+        from a2ui.inference_formats.experimental.express.format import ExpressFormat
+
+        fmt = ExpressFormat(catalog=self.catalog)
+        prompt = fmt.prompt_generator.generate(role_description="", include_schema=True)
         self.assertIn("Text(", prompt)
         self.assertIn("Column(", prompt)
         self.assertIn("required(", prompt)
@@ -283,9 +284,13 @@ $/breeds = [{"url": "https://example.com/poodle.jpg"}]"""
 
         self.helper.get_property_schema = mock_get_property_schema
         try:
-            generator = ExpressPromptGenerator(self.catalog)
-            generator.helper = self.helper
-            prompt = generator.generate_prompt()
+            from a2ui.inference_formats.experimental.express.format import ExpressFormat
+
+            fmt = ExpressFormat(catalog=self.catalog)
+            fmt.prompt_generator.helper = self.helper
+            prompt = fmt.prompt_generator.generate(
+                role_description="", include_schema=True
+            )
             self.assertIsNotNone(prompt)
         finally:
             self.helper.get_property_schema = original_get_property_schema
@@ -583,18 +588,24 @@ valueField = TextField("Deal Value", $/form/value, "0.00", "number", ?required)"
             )
 
             # Decompiler
-            decompiler = ExpressDecompiler(cat_input)
+            decompiler = ExpressParser(cat_input)
             decompiled_dsl = decompiler.decompile(envelope)
             self.assertIn("repField = TextField(", decompiled_dsl)
 
             # Prompt Generator
-            generator = ExpressPromptGenerator(cat_input)
-            prompt = generator.generate_prompt()
+            from a2ui.inference_formats.experimental.express.format import ExpressFormat
+
+            fmt = ExpressFormat(catalog=cat_input)
+            prompt = fmt.prompt_generator.generate(
+                role_description="", include_schema=True
+            )
             self.assertIn("TextField(", prompt)
 
             # Parser
             response = f"<a2ui>\n{dsl}\n</a2ui>"
-            parts = parse_express_response(response, cat_input, surface_id="test_surf")
+            parts = ExpressParser(cat_input, surface_id="test_surf").parse_response(
+                response
+            )
             self.assertEqual(len(parts), 1)
             self.assertIsNotNone(parts[0].a2ui_json)
 

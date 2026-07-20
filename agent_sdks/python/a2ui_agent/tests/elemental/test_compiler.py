@@ -17,10 +17,15 @@
 import json
 import os
 import unittest
-
-
 from a2ui.core.catalog import Catalog
-from a2ui.experimental.elemental.compiler import ElementalCompiler
+from a2ui.inference_formats.experimental.elemental.compiler import (
+    ElementalCompiler,
+    _is_action_property,
+    _has_label_value,
+    _schema_expects_option_objects,
+    _get_enum_values,
+    _escape_nested_script_tags,
+)
 
 SPEC_DIR = os.path.abspath(
     os.path.join(
@@ -295,14 +300,14 @@ class TestElementalCompiler(unittest.TestCase):
         html_input = (
             '<body id="test-surf">\n  <script type="application/json">\n    {\n     '
             ' "embedded_html":'
-            " \"<html><body><script>console.log('hello');</script></body></html>\"\n   "
-            ' }\n  </script>\n  <ui-text id="text1" text="{$/embedded_html}"'
+            " \"<html><a2ui><body><script>console.log('hello');</script></body></a2ui></html>\"\n"
+            '    }\n  </script>\n  <ui-text id="text1" text="{$/embedded_html}"'
             " />\n</body>"
         )
         result = self.compiler.compile(html_input)
         self.assertEqual(
             result["createSurface"]["dataModel"]["embedded_html"],
-            "<html><body><script>console.log('hello');</script></body></html>",
+            "<html><a2ui><body><script>console.log('hello');</script></body></a2ui></html>",
         )
 
     def test_compile_unknown_html_tag_raises_error(self):
@@ -318,6 +323,14 @@ class TestElementalCompiler(unittest.TestCase):
         with self.assertRaises(ValueError) as ctx:
             self.compiler.compile(html_input)
         self.assertIn("Invalid element tag 'div'", str(ctx.exception))
+
+    def test_compile_invalid_root_tag_raises_error(self):
+        html_input = (
+            '<ui-card id="card_1">\n  <ui-text id="text_1" text="Hello" />\n</ui-card>'
+        )
+        with self.assertRaises(ValueError) as ctx:
+            self.compiler.compile(html_input)
+        self.assertIn("A2UI Elemental document must have a <body>", str(ctx.exception))
 
     def test_compile_case_insensitive_enum_matching(self):
         # 'align' on Column expects 'center', 'start', 'end'. Test passing 'CENTER' or 'Center'
@@ -454,6 +467,82 @@ class TestElementalCompiler(unittest.TestCase):
         components = result["createSurface"]["components"]
         lst = next(c for c in components if c["id"] == "lst_1")
         self.assertEqual(lst["children"], {"path": "/items", "componentId": "txt_1"})
+
+    def test_resolve_action_property_name_case_insensitive_multiple(self):
+        original_get_property_schema = self.compiler.helper.get_property_schema
+        try:
+            self.compiler.helper.get_property_schema = lambda comp, prop: (
+                {"type": "object", "$ref": "#/definitions/Action"}
+                if prop in ["onSubmit", "onClick"]
+                else None
+            )
+
+            # 1. Exact match onSubmit
+            res1 = self.compiler._resolve_action_property_name(
+                "onSubmit", "TestComponent", ["onSubmit", "onClick"]
+            )
+            self.assertEqual(res1, "onSubmit")
+
+            # 2. Case-insensitive onClick vs onClick
+            res2 = self.compiler._resolve_action_property_name(
+                "onclick", "TestComponent", ["onSubmit", "onClick"]
+            )
+            self.assertEqual(res2, "onClick")
+
+            # 3. Exact match onClick
+            res3 = self.compiler._resolve_action_property_name(
+                "onClick", "TestComponent", ["onSubmit", "onClick"]
+            )
+            self.assertEqual(res3, "onClick")
+        finally:
+            self.compiler.helper.get_property_schema = original_get_property_schema
+
+    def test_is_action_property_edge_cases(self):
+        # 1. Non-dict input
+        self.assertFalse(_is_action_property(None))
+        self.assertFalse(_is_action_property("string"))
+        # 2. oneOf/anyOf/allOf recursive match
+        schema = {"oneOf": [{"type": "string"}, {"$ref": "#/definitions/Action"}]}
+        self.assertTrue(_is_action_property(schema))
+        schema_none = {"anyOf": [{"type": "string"}]}
+        self.assertFalse(_is_action_property(schema_none))
+
+    def test_has_label_value_edge_cases(self):
+        # 1. Non-dict input
+        self.assertFalse(_has_label_value(None))
+        # 2. allOf/oneOf/anyOf matching options
+        schema = {"oneOf": [{"properties": {"label": {}, "value": {}}}]}
+        self.assertTrue(_has_label_value(schema))
+
+    def test_schema_expects_option_objects_edge_cases(self):
+        # 1. Non-dict input
+        self.assertFalse(_schema_expects_option_objects(None))
+        # 2. oneOf/anyOf/allOf recursive match
+        schema = {"oneOf": [{"items": {"properties": {"label": {}, "value": {}}}}]}
+        self.assertTrue(_schema_expects_option_objects(schema))
+
+    def test_get_enum_values_edge_cases(self):
+        # 1. Non-dict input
+        self.assertIsNone(_get_enum_values(None))
+        # 2. recursive enum lookup
+        schema = {"oneOf": [{"enum": [1, 2, 3]}]}
+        self.assertEqual(_get_enum_values(schema), [1, 2, 3])
+
+    def test_escape_nested_script_tags_edge_cases(self):
+        # 1. Unclosed script tag
+        self.assertEqual(
+            _escape_nested_script_tags("<script type='application/json'"),
+            "<script type='application/json'",
+        )
+        # 2. Backslash and escape sequence inside JSON string properties
+        html = '<script type="application/json">{"code": "foo\\\\\\"bar"}</script>'
+        self.assertEqual(_escape_nested_script_tags(html), html)
+        # 3. script closing tag in JSON string
+        html_with_nested = (
+            '<script type="application/json">{"html": "</script>"}</script>'
+        )
+        expected = '<script type="application/json">{"html": "<\\/script>"}</script>'
+        self.assertEqual(_escape_nested_script_tags(html_with_nested), expected)
 
 
 if __name__ == "__main__":

@@ -12,22 +12,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""A2UI Express parser, compiler, and generator package.
+"""A2UI Elemental experimental package."""
 
-Provides high-performance conversion utilities to compile A2UI Express DSL syntax
-into standard A2UI v1.0 wire JSON messages and vice-versa.
-"""
-
-from .compiler import ExpressCompiler
-from .decompiler import ExpressDecompiler
-from .prompt_generator import ExpressPromptGenerator
-from .constants import SurfaceOperation
-from .parser import parse_express_response
+from .compiler import ElementalCompiler
+from .format import ElementalFormat
+from .parser import ElementalParser
 
 __all__ = [
-    "ExpressCompiler",
-    "ExpressDecompiler",
-    "ExpressPromptGenerator",
-    "SurfaceOperation",
-    "parse_express_response",
+    "ElementalCompiler",
+    "ElementalFormat",
+    "ElementalParser",
 ]

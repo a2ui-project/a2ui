@@ -205,6 +205,8 @@ class ExpressCompiler:
             if is_final and error_listener.errors:
                 line, col, msg, is_lexer = error_listener.errors[0]
                 err = SyntaxError(f"Syntax error at line {line}:{col}: {msg}")
+                err.lineno = line
+                err.offset = col
                 err._is_lexer = is_lexer
                 raise err
 

@@ -21,6 +21,8 @@ tailored for prompt tokens compression.
 from typing import Any, Union
 from a2ui.core.catalog import Catalog
 from a2ui.schema.catalog import A2uiCatalog
+
+from a2ui.schema.constants import A2UI_INFERENCE_OPEN_TAG, A2UI_INFERENCE_CLOSE_TAG
 from .schema_helper import CatalogSchemaHelper
 from .constants import SurfaceOperation
 
@@ -94,7 +96,7 @@ def _decompile_string(val: str) -> str:
     return f'"{escaped}"'
 
 
-class ExpressDecompiler:
+class _ExpressDecompiler:
     """Converts standard A2UI wire JSON trees back into A2UI Express syntax.
 
     Identifies component definitions, event trigger actions, validation logic rules,
@@ -115,6 +117,11 @@ class ExpressDecompiler:
         """
         self.helper = CatalogSchemaHelper(catalog)
 
+    def wrap_decompiled_blocks(self, blocks: list[str]) -> str:
+        # Merge individual express blocks into a single wrapper block
+        full_dsl = "\n".join(blocks)
+        return f"{A2UI_INFERENCE_OPEN_TAG}\n{full_dsl}\n{A2UI_INFERENCE_CLOSE_TAG}"
+
     def decompile(self, envelope_json: dict) -> str:
         """Decompiles standard A2UI wire JSON into clean A2UI Express lines.
 
@@ -128,7 +135,7 @@ class ExpressDecompiler:
         if SurfaceOperation.DELETE in envelope_json:
             surf_op = envelope_json[SurfaceOperation.DELETE]
             surface_id = surf_op.get("surfaceId", "")
-            return f'<a2ui>\ndeleteSurface("{surface_id}")\n</a2ui>'
+            return f'deleteSurface("{surface_id}")'
 
         # Handle updateDataModel action
         if SurfaceOperation.UPDATE_DATA in envelope_json:
@@ -140,7 +147,7 @@ class ExpressDecompiler:
                     val_str = self._decompile_value(val, set(), False)
                     dsl_lines.append(f"${path} = {val_str}")
             dsl_body = "\n".join(dsl_lines)
-            return f"<a2ui>\n{dsl_body}\n</a2ui>"
+            return dsl_body
 
         # Handle callFunction action
         if SurfaceOperation.CALL_FUNC in envelope_json:
@@ -150,14 +157,24 @@ class ExpressDecompiler:
             args_list = []
             if fn_name in self.helper.functions:
                 fn_props = self.helper.get_function_properties(fn_name)
-                for prop_name in fn_props:
-                    if isinstance(fn_args, dict) and prop_name in fn_args:
-                        val_str = self._decompile_value(
-                            fn_args[prop_name], set(), False
-                        )
-                        args_list.append(val_str)
-                    else:
-                        args_list.append("_")
+                if isinstance(fn_args, dict):
+                    for prop_name in fn_props:
+                        if prop_name in fn_args:
+                            val_str = self._decompile_value(
+                                fn_args[prop_name], set(), False
+                            )
+                            args_list.append(val_str)
+                        else:
+                            args_list.append("_")
+                elif isinstance(fn_args, list):
+                    for idx, prop_name in enumerate(fn_props):
+                        if idx < len(fn_args):
+                            val_str = self._decompile_value(fn_args[idx], set(), False)
+                            args_list.append(val_str)
+                        else:
+                            args_list.append("_")
+                else:
+                    pass
             else:
                 if isinstance(fn_args, dict):
                     for v in fn_args.values():
@@ -170,7 +187,7 @@ class ExpressDecompiler:
             while args_list and args_list[-1] == "_":
                 args_list.pop()
             args_str = ", ".join(args_list)
-            return f"<a2ui>\n{fn_name}({args_str})\n</a2ui>"
+            return f"{fn_name}({args_str})"
 
         create_surface = envelope_json.get(SurfaceOperation.CREATE, {})
         components = create_surface.get("components", [])
@@ -270,7 +287,7 @@ class ExpressDecompiler:
             dsl_lines.append(f"{comp_id} = {comp_name}({', '.join(args_reprs)})")
 
         dsl_body = "\n".join(dsl_lines)
-        return f"<a2ui>\n{dsl_body}\n</a2ui>"
+        return dsl_body
 
     def _decompile_value(
         self, val: Any, comp_ids: set[str], is_ref: bool = False
@@ -374,7 +391,7 @@ class ExpressDecompiler:
                 items_reprs.append(
                     f"{k_repr}: {self._decompile_value(v, comp_ids, item_is_ref)}"
                 )
-            return f'{{{", ".join(items_reprs)}}}'
+            return f"{{{', '.join(items_reprs)}}}"
 
         if isinstance(val, list):
             # Decompile array

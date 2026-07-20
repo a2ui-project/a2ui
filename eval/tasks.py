@@ -30,7 +30,8 @@ from a2ui_eval.scorers import a2ui_scorer, measured_model_graded_qa
 
 # Paths relative to the eval directory where we run inspect
 CURRENT_DIR = Path(__file__).resolve().parent
-DATASET_PATH = (CURRENT_DIR / "datasets/prompts.yaml").resolve()
+DATASET_V0_9_1_PATH = (CURRENT_DIR / "datasets/prompts_v0_9_1.yaml").resolve()
+DATASET_V1_0_PATH = (CURRENT_DIR / "datasets/prompts_v1_0.yaml").resolve()
 
 
 @scorer(metrics=[])
@@ -91,14 +92,17 @@ def a2ui_v0_9_1_eval(
             scorer=[dummy_scorer()],
         )
 
-    active_dataset_path = DATASET_PATH
+    active_dataset_path = DATASET_V0_9_1_PATH
     active_version = "0.9.1"
     default_catalog_path = "specification/v0_9_1/catalogs/basic/catalog.json"
+
+    format_name = strategy if strategy in ["express", "elemental"] else "json"
 
     dataset = load_a2ui_dataset(
         str(active_dataset_path),
         default_catalog_path=default_catalog_path,
         version=active_version,
+        format_name=format_name,
     )
 
     return Task(
@@ -145,14 +149,17 @@ def a2ui_v1_0_eval(
             scorer=[dummy_scorer()],
         )
 
-    active_dataset_path = DATASET_PATH
+    active_dataset_path = DATASET_V1_0_PATH
     active_version = "1.0"
     default_catalog_path = "specification/v1_0/catalogs/basic/catalog.json"
+
+    format_name = strategy if strategy in ["express", "elemental"] else "json"
 
     dataset = load_a2ui_dataset(
         str(active_dataset_path),
         default_catalog_path=default_catalog_path,
         version=active_version,
+        format_name=format_name,
     )
 
     return Task(

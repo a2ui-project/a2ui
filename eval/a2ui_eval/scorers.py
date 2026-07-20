@@ -44,7 +44,9 @@ def a2ui_scorer(version: str) -> Scorer:
         An Inspect Scorer that validates the response against the schema and integrity rules.
     """
 
-    async def score(state: TaskState, target: Target) -> Score:  # pylint: disable=unused-argument
+    async def score(
+        state: TaskState, target: Target
+    ) -> Score:  # pylint: disable=unused-argument
         if not state.output:
             return Score(
                 value=0.0,
@@ -55,11 +57,23 @@ def a2ui_scorer(version: str) -> Scorer:
         resolved_catalog_path = str(GIT_ROOT / catalog_path)
 
         catalog_config = CatalogConfig.from_path("basic_catalog", resolved_catalog_path)
-        transport_format = TransportFormat(version=version, catalogs=[catalog_config])
+        transport_format = TransportFormat(
+            version=version,
+            catalogs=[catalog_config],
+            experiments={"version_1_0"} if version == "1.0" else None,
+        )
         catalog = transport_format.get_selected_catalog()
         validator = catalog.validator
 
         answer_text = state.output.completion or ""
+
+        if answer_text.strip().startswith("Compilation/validation failed:"):
+            return Score(
+                value=0.0,
+                answer=answer_text,
+                explanation="Format compilation/validation failed during solver step.",
+            )
+
         try:
             parts = parse_response(answer_text)
             all_messages = []
