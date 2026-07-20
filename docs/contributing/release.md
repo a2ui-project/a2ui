@@ -19,6 +19,7 @@ To release a new version of the SDK, follow these steps:
    - a2ui_agent [CHANGELOG](https://github.com/a2ui-project/a2ui/blob/main/agent_sdks/python/a2ui_agent/CHANGELOG.md)
 
 2. Update the version in [version.py](https://github.com/a2ui-project/a2ui/blob/main/agent_sdks/python/a2ui_agent/src/a2ui/version.py).
+
 3. Run the [release.sh](https://github.com/a2ui-project/a2ui/blob/main/agent_sdks/python/release.sh) script from the `agent_sdks/python` directory. The script will build the package, upload it to the Artifact Registry, and trigger the release pipeline.
 
 
