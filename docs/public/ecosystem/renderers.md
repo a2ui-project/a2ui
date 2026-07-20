@@ -70,7 +70,7 @@ To submit a renderer, follow these steps:
 3. **Open a PR** against `a2ui-project/a2ui` with a short description of your renderer
 4. **Post in [GitHub Discussions](https://github.com/a2ui-project/a2ui/discussions)** — let the community know what you built! A short demo video goes a long way.
 
-Need inspiration? Browse the **[community samples](https://github.com/a2ui-project/a2ui/tree/main/samples)** in the repo — these cover Angular, Lit, and ADK-based agents and are a good starting point.
+Need inspiration? Browse the **[community samples](../../../samples)** in the repo — these cover Angular, Lit, and ADK-based agents and are a good starting point.
 
 ### What makes a good community renderer?
 
