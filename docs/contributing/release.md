@@ -15,8 +15,8 @@ See https://github.com/a2ui-project/a2ui/blob/main/renderers/docs/web_publishing
 To release a new version of the SDK, follow these steps:
 
 1. Check if there are entries in the Unreleased sections of the CHANGELOG files. If not, you are done.
-   - a2ui_core [CHANGELOG](https://github.com/a2ui-project/a2ui/blob/main/agent_sdks/python/a2ui_core/CHANGELOG.md)
-   - a2ui_agent [CHANGELOG](https://github.com/a2ui-project/a2ui/blob/main/agent_sdks/python/a2ui_agent/CHANGELOG.md)
+    - a2ui_core [CHANGELOG](https://github.com/a2ui-project/a2ui/blob/main/agent_sdks/python/a2ui_core/CHANGELOG.md)
+    - a2ui_agent [CHANGELOG](https://github.com/a2ui-project/a2ui/blob/main/agent_sdks/python/a2ui_agent/CHANGELOG.md)
 
 2. Update the version in [version.py](https://github.com/a2ui-project/a2ui/blob/main/agent_sdks/python/a2ui_agent/src/a2ui/version.py).
 
@@ -25,7 +25,6 @@ To release a new version of the SDK, follow these steps:
 ### Documentation website
 
 [Mkdocs](https://www.mkdocs.org/), configured in https://github.com/google/A2UI/blob/main/.github/workflows/docs.yml, updates https://a2ui.org/ every time when content of [docs/public](https://github.com/a2ui-project/a2ui/tree/main/docs/public) changes.
-
 
 ## Internal troubleshooting and notes
 
