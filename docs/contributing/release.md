@@ -4,7 +4,7 @@
 
 ### Pub.dev
 
-See https://github.com/flutter/genui/blob/main/docs/contributing/publishing.md.
+See https://github.com/flutter/genui/blob/main/docs/contributing/release.md.
 
 ### NPM
 
