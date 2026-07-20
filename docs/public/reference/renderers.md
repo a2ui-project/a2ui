@@ -16,9 +16,9 @@ You have a lot of flexibility, to bring custom components to a renderer, or buil
 
 | Renderer                 | Platform           | v0.8      | v0.9.1    | v1.0       | Links                                                                                |
 | ------------------------ | ------------------ | --------- | --------- | ---------- | ------------------------------------------------------------------------------------ |
-| **React**                | Web                | ✅ Stable | ✅ Stable | 🚧 Planned | [Code](https://github.com/a2ui-project/a2ui/tree/main/renderers/react)               |
-| **Lit (Web Components)** | Web                | ✅ Stable | ✅ Stable | 🚧 Planned | [Code](https://github.com/a2ui-project/a2ui/tree/main/renderers/lit)                 |
-| **Angular**              | Web                | ✅ Stable | ✅ Stable | 🚧 Planned | [Code](https://github.com/a2ui-project/a2ui/tree/main/renderers/angular)             |
+| **React**                | Web                | ✅ Stable | ✅ Stable | 🚧 Planned | [Code](../../../renderers/react)                                                     |
+| **Lit (Web Components)** | Web                | ✅ Stable | ✅ Stable | 🚧 Planned | [Code](../../../renderers/lit)                                                       |
+| **Angular**              | Web                | ✅ Stable | ✅ Stable | 🚧 Planned | [Code](../../../renderers/angular)                                                   |
 | **Flutter (GenUI SDK)**  | Mobile/Desktop/Web | ✅ Stable | ✅ Stable | 🚧 Planned | [Docs](https://docs.flutter.dev/ai/genui) · [Code](https://github.com/flutter/genui) |
 
 ### Mobile

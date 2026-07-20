@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2026 Google LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -14,7 +14,4 @@
  * limitations under the License.
  */
 
-/**
- * @deprecated Please import from `./index` instead. Will be removed in v1.0.
- */
-export * from './index';
+export {type ComponentToProps, setComponentProps, createBoundProperty} from './test-utils';
