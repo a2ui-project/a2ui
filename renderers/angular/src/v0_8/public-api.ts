@@ -14,6 +14,8 @@
  * limitations under the License.
  */
 
-// Kept for backwards compatibility.
-// Please import from `./index` instead.
+/**
+ * @deprecated Please import from `./index` instead. Will be removed in v1.0.
+ */
 export * from './index';
+

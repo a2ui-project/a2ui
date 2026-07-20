@@ -14,6 +14,6 @@
  * limitations under the License.
  */
 
-// Kept for backwards compatibility.
-// Please import from `./index` instead.
-export * from './index';
+export const A2UI_ANGULAR_VERSION = '0.9.0';
+export * from './v0_8/public-api';
+
