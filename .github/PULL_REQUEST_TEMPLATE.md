@@ -18,7 +18,7 @@ For this PR:
 - [ ] I have updated the relevant CHANGELOG.md file.
 - [ ] I updated/added relevant documentation.
 - [ ] My code changes (if any) have tests.
-- [ ] If my branch is on fork, I have verified that [scripts/e2e_test.sh](https://github.com/a2ui-project/a2ui/blob/main/scripts/e2e_test.sh) passes.
+- [ ] If my branch is on a fork, I have verified that [scripts/e2e_test.sh](https://github.com/a2ui-project/a2ui/blob/main/scripts/e2e_test.sh) passes.
 
 If you need help, consider asking for advice on the [discussion board].
 
