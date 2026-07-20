@@ -22,6 +22,10 @@ To release a new version of the SDK, follow these steps:
 
 3. Run the [release.sh](https://github.com/a2ui-project/a2ui/blob/main/agent_sdks/python/release.sh) script from the `agent_sdks/python` directory. The script will build the package, upload it to the Artifact Registry, and trigger the release pipeline.
 
+### Documentation website
+
+[Mkdocs](https://www.mkdocs.org/), configured in https://github.com/google/A2UI/blob/main/.github/workflows/docs.yml, updates https://a2ui.org/ every time when content of [docs/public](https://github.com/a2ui-project/a2ui/tree/main/docs/public) changes.
+
 
 ## Internal troubleshooting and notes
 
