@@ -47,7 +47,6 @@ exclude = [
   "opal\\.google",
   # Known-dead external references (verified 404, no published replacement).
   # Excluded to keep CI green; drop the referencing content if gone for good.
-  "github\\.com/TanXudong-Vivo/A2UI-Android-Renderer",
   "github\\.com/orgs/community/discussions/187776",
   "flutter/genui/blob/main/examples/e2e/",
   # Flaky. See: https://github.com/a2ui-project/a2ui/issues/1747
