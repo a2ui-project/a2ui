@@ -95,7 +95,7 @@ We expect all contributors to adhere to these styles.
 
 ## More on contributing
 
-See more about contributing in [docs/contributing/ARCHITECTURE.md](https://github.com/a2ui-project/a2ui/blob/main/docs/contributing/ARCHITECTURE.md).
+See more about contributing in [docs/contributing](https://github.com/a2ui-project/a2ui/blob/main/docs/contributing).
 
 ## Internal information
 
