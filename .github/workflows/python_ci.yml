@@ -59,9 +59,7 @@ jobs:
           uv run pyink --check .
       - name: Type Check
         run: |
-          uv run --all-packages mypy agent_sdks/python/a2ui_agent/src
-          uv run --all-packages mypy -p a2ui.core
-          uv run --all-packages mypy agent_sdks/python/a2ui_core/scripts
+          uv run --all-packages mypy .
       - name: Run Unit Tests
         run: uv run pytest
       - name: Verify Load Real

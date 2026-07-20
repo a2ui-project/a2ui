@@ -126,7 +126,7 @@ async function main() {
   const catalogs = values.catalog;
 
   const examplesV08 = readExamples('../../../specification/v0_8/json/catalogs', catalogs, '0.8');
-  const examplesV09 = readExamples('../../../specification/v0_9_1/catalogs', catalogs, '0.9');
+  const examplesV09 = readExamples('../../../specification/v0_9/catalogs', catalogs, '0.9');
 
   // Generate the file now!
   const tsContent = `/**

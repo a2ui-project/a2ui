@@ -16,7 +16,8 @@
 
 # pylint: disable=g-importing-member, line-too-long
 from a2ui.schema.constants import VERSION_0_9
-from a2ui.schema.manager import A2uiSchemaManager, CatalogConfig
+from a2ui.inference_formats.transport import TransportFormat
+from a2ui.schema.catalog import CatalogConfig
 from a2ui.basic_catalog.provider import BasicCatalog
 from a2ui.schema.common_modifiers import remove_strict_validation
 from agent import ROLE_DESCRIPTION, WORKFLOW_DESCRIPTION, UI_DESCRIPTION
@@ -24,7 +25,7 @@ from agent import ROLE_DESCRIPTION, WORKFLOW_DESCRIPTION, UI_DESCRIPTION
 
 if __name__ == "__main__":
     version = VERSION_0_9
-    schema_manager = A2uiSchemaManager(
+    inference_format = TransportFormat(
         version,
         catalogs=[
             CatalogConfig.from_path(
@@ -43,7 +44,7 @@ if __name__ == "__main__":
 
     # Generate prompt for rizzcharts catalog
     print("Building prompt and validating rizzcharts examples...")
-    system_prompt = schema_manager.generate_system_prompt(
+    system_prompt = inference_format.generate_system_prompt(
         role_description=ROLE_DESCRIPTION,
         workflow_description=WORKFLOW_DESCRIPTION,
         ui_description=UI_DESCRIPTION,
@@ -57,7 +58,7 @@ if __name__ == "__main__":
     # Also validate standard catalog examples
     print("Validating standard catalog examples...")
     # We can trigger this by selecting the basic catalog
-    std_prompt = schema_manager.generate_system_prompt(
+    std_prompt = inference_format.generate_system_prompt(
         role_description=ROLE_DESCRIPTION,
         workflow_description=WORKFLOW_DESCRIPTION,
         ui_description=UI_DESCRIPTION,

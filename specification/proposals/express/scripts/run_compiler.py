@@ -43,7 +43,7 @@ sys.path.insert(
 )
 import json
 from a2ui.core.catalog import Catalog
-from a2ui.experimental.express.compiler import ExpressCompiler
+from a2ui.inference_formats.experimental.express.compiler import ExpressCompiler
 
 
 def compile_dsl_file(

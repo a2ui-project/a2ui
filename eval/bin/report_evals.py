@@ -21,9 +21,10 @@ import os
 import statistics
 import subprocess
 import sys
+from typing import Any
 
 
-def extract_accuracy(log_data: dict) -> float:
+def extract_accuracy(log_data: dict[str, Any]) -> float:
     """Extracts accuracy from parsed JSON log data.
 
     Args:
@@ -49,7 +50,7 @@ def extract_accuracy(log_data: dict) -> float:
     return float(accuracy)
 
 
-def print_results_summary(log_data: dict):
+def print_results_summary(log_data: dict[str, Any]) -> None:
     """Prints a summary of the results for each sample.
 
     Args:
@@ -116,7 +117,7 @@ def print_results_summary(log_data: dict):
 
 
 def generate_markdown_summary(
-    log_data: dict, accuracy_percentage: float, threshold: float
+    log_data: dict[str, Any], accuracy_percentage: float, threshold: float
 ) -> str:
     """Generates a markdown summary of the evaluation results.
 
@@ -211,7 +212,7 @@ def generate_markdown_summary(
     return "\n".join(lines)
 
 
-def load_log_data(log_path: str) -> dict:
+def load_log_data(log_path: str) -> dict[str, Any]:
     """Runs inspect log dump to get JSON and parses it.
 
     Args:
@@ -222,10 +223,11 @@ def load_log_data(log_path: str) -> dict:
     """
     dump_cmd = ["uv", "run", "inspect", "log", "dump", log_path]
     dump_output = subprocess.check_output(dump_cmd, text=True)
-    return json.loads(dump_output)
+    result: dict[str, Any] = json.loads(dump_output)
+    return result
 
 
-def main():
+def main() -> None:
     parser = argparse.ArgumentParser(
         description="Report results from an Inspect AI eval log file."
     )

@@ -51,6 +51,7 @@ worktrees/
 .local/
 
 # Locally symlinked SDD blueprint skills
+/.agents/skills/a2ui-blueprint-compliance
 /.agents/skills/a2ui-blueprint-maintenance
 /.agents/skills/a2ui-blueprint-navigator
 /.agents/skills/a2ui-create-feature-blueprint

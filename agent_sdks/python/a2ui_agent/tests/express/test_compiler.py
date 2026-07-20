@@ -18,15 +18,12 @@ import json
 import os
 import unittest
 
-os.environ["A2UI_EXPRESS_ENABLED"] = "true"
-
 from a2ui.core.catalog import Catalog
 from a2ui.schema.catalog import A2uiCatalog, CatalogConfig
-from a2ui.experimental.express.prompt_generator import ExpressPromptGenerator
-from a2ui.experimental.express.compiler import ExpressCompiler
-from a2ui.experimental.express.decompiler import ExpressDecompiler
-from a2ui.experimental.express.schema_helper import CatalogSchemaHelper
-from a2ui.experimental.express.parser import parse_express_response
+from a2ui.inference_formats.experimental.express.prompt_generator import ExpressPromptGenerator
+from a2ui.inference_formats.experimental.express.compiler import ExpressCompiler
+from a2ui.inference_formats.experimental.express.schema_helper import CatalogSchemaHelper
+from a2ui.inference_formats.experimental.express.parser import ExpressParser
 
 SPEC_DIR = os.path.abspath(
     os.path.join(
@@ -49,8 +46,10 @@ class TestExpressCompiler(unittest.TestCase):
 
     def test_prompt_generator(self):
         """Verifies prompt signature compiler loads catalog components correctly."""
-        generator = ExpressPromptGenerator(self.catalog)
-        prompt = generator.generate_prompt()
+        from a2ui.inference_formats.experimental.express.format import ExpressFormat
+
+        fmt = ExpressFormat(catalog=self.catalog)
+        prompt = fmt.prompt_generator.generate(role_description="", include_schema=True)
         self.assertIn("Text(", prompt)
         self.assertIn("Column(", prompt)
         self.assertIn("required(", prompt)
@@ -285,9 +284,13 @@ $/breeds = [{"url": "https://example.com/poodle.jpg"}]"""
 
         self.helper.get_property_schema = mock_get_property_schema
         try:
-            generator = ExpressPromptGenerator(self.catalog)
-            generator.helper = self.helper
-            prompt = generator.generate_prompt()
+            from a2ui.inference_formats.experimental.express.format import ExpressFormat
+
+            fmt = ExpressFormat(catalog=self.catalog)
+            fmt.prompt_generator.helper = self.helper
+            prompt = fmt.prompt_generator.generate(
+                role_description="", include_schema=True
+            )
             self.assertIsNotNone(prompt)
         finally:
             self.helper.get_property_schema = original_get_property_schema
@@ -453,49 +456,26 @@ btnLabel = Text("Click Thread 2")
 
     def test_v10_validator_gating(self):
         """Verifies that A2uiValidator gates v1.0 validation behind flags."""
-        from a2ui.schema.catalog import CatalogConfig
-        from a2ui.schema.manager import A2uiSchemaManager
-        from a2ui.schema.validator import A2uiValidator
+        from a2ui.inference_formats.transport.format import TransportFormat
+        from a2ui.validation.validator import A2uiValidator
+        from a2ui.core import A2uiCatalogError
 
         catalog_config = CatalogConfig.from_path("basic_catalog", self.catalog_path)
-        manager = A2uiSchemaManager(version="1.0", catalogs=[catalog_config])
-        catalog = manager.get_selected_catalog()
+        transport_format = TransportFormat(version="1.0", catalogs=[catalog_config])
+        catalog = transport_format.get_selected_catalog()
 
-        orig_express = os.environ.get("A2UI_EXPRESS_ENABLED")
-        orig_v1_0 = os.environ.get("A2UI_VERSION_1_0")
+        from unittest.mock import patch
+        import os
 
-        if "A2UI_EXPRESS_ENABLED" in os.environ:
-            del os.environ["A2UI_EXPRESS_ENABLED"]
-        if "A2UI_VERSION_1_0" in os.environ:
-            del os.environ["A2UI_VERSION_1_0"]
-
-        try:
-            with self.assertRaises(ValueError) as context:
+        # By default, version 1.0 is disabled
+        with patch.dict(os.environ, {}, clear=True):
+            with self.assertRaises(A2uiCatalogError) as context:
                 A2uiValidator(catalog)
-            self.assertIn(
-                "A2UI v1.0 validation is experimental", str(context.exception)
-            )
+        self.assertIn("A2UI v1.0 validation is experimental", str(context.exception))
 
-            os.environ["A2UI_VERSION_1_0"] = "true"
-            validator = A2uiValidator(catalog)
-            self.assertEqual(validator.version, "1.0")
-
-            del os.environ["A2UI_VERSION_1_0"]
-
-            os.environ["A2UI_EXPRESS_ENABLED"] = "true"
-            validator = A2uiValidator(catalog)
-            self.assertEqual(validator.version, "1.0")
-
-        finally:
-            if orig_express is not None:
-                os.environ["A2UI_EXPRESS_ENABLED"] = orig_express
-            elif "A2UI_EXPRESS_ENABLED" in os.environ:
-                del os.environ["A2UI_EXPRESS_ENABLED"]
-
-            if orig_v1_0 is not None:
-                os.environ["A2UI_VERSION_1_0"] = orig_v1_0
-            elif "A2UI_VERSION_1_0" in os.environ:
-                del os.environ["A2UI_VERSION_1_0"]
+        # It can be enabled by passing 'version_1_0' in experiments
+        validator = A2uiValidator(catalog, experiments={"version_1_0"})
+        self.assertEqual(validator.version, "1.0")
 
     def test_semicolons_and_trailing_commas_and_line_continuation(self):
         """Verifies that optional semicolons, trailing commas, and line continuations compile correctly."""
@@ -608,18 +588,24 @@ valueField = TextField("Deal Value", $/form/value, "0.00", "number", ?required)"
             )
 
             # Decompiler
-            decompiler = ExpressDecompiler(cat_input)
+            decompiler = ExpressParser(cat_input)
             decompiled_dsl = decompiler.decompile(envelope)
             self.assertIn("repField = TextField(", decompiled_dsl)
 
             # Prompt Generator
-            generator = ExpressPromptGenerator(cat_input)
-            prompt = generator.generate_prompt()
+            from a2ui.inference_formats.experimental.express.format import ExpressFormat
+
+            fmt = ExpressFormat(catalog=cat_input)
+            prompt = fmt.prompt_generator.generate(
+                role_description="", include_schema=True
+            )
             self.assertIn("TextField(", prompt)
 
             # Parser
             response = f"<a2ui>\n{dsl}\n</a2ui>"
-            parts = parse_express_response(response, cat_input, surface_id="test_surf")
+            parts = ExpressParser(cat_input, surface_id="test_surf").parse_response(
+                response
+            )
             self.assertEqual(len(parts), 1)
             self.assertIsNotNone(parts[0].a2ui_json)
 

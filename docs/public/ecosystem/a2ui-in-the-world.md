@@ -41,6 +41,8 @@ A2UI is being integrated to allow enterprise agents to render **rich, interactiv
 >
 > **— Fred Jabbour**, Product Manager, Gemini Enterprise
 
+> **Note:** A2UI rendering in Gemini Enterprise currently requires self-serve agents registered using the Agent-to-Agent (A2A) path (`a2aAgentDefinition`). Managed agents deployed on Vertex AI Agent Engine and registered using the `adkAgentDefinition` path do not currently support A2UI rendering.
+
 **Learn more:** [Gemini Enterprise](https://cloud.google.com/gemini)
 
 ---

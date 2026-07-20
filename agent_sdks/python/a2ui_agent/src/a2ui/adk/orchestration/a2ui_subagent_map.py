@@ -88,11 +88,9 @@ from a2ui.schema.constants import (
     A2UI_DELETE_SURFACE_KEY,
     A2UI_ACTIONS_KEY,
     A2UI_ERROR_KEY,
-    A2UI_CLIENT_DATA_MODEL_KEY,
     A2UI_CLIENT_DATA_MODEL_SURFACES_KEY,
 )
 from a2ui.a2a.parts import is_a2ui_part
-from a2a.server.events import Event as A2AEvent
 from a2a.types import Part, DataPart
 
 

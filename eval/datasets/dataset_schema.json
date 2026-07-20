@@ -32,6 +32,11 @@
       "workflow_description": {
         "type": "string",
         "description": "Corresponds to the `workflow_description` parameter of `A2uiSchemaManager.generate_system_prompt()`. If omitted, the default is loaded from eval/datasets/defaults.py."
+      },
+      "allowed_surface_ids": {
+        "type": "array",
+        "items": {"type": "string"},
+        "description": "An optional list of allowed surface IDs. The first item is used as the default fallback."
       }
     },
     "required": ["name", "description", "promptText"],

@@ -42,7 +42,7 @@ sys.path.insert(
 )
 import json
 from a2ui.core.catalog import Catalog
-from a2ui.experimental.express.prompt_generator import ExpressPromptGenerator
+from a2ui.inference_formats.experimental.express.prompt_generator import ExpressPromptGenerator
 
 
 def generate_prompt_text(catalog_path: str) -> str:
@@ -63,8 +63,17 @@ def generate_prompt_text(catalog_path: str) -> str:
     with open(catalog_path, "r", encoding="utf-8") as f:
         catalog_dict = json.load(f)
     catalog = Catalog.from_json(catalog_dict, spec_version="0.9.1")
-    generator = ExpressPromptGenerator(catalog)
-    return generator.generate_prompt()
+
+    from a2ui.inference_formats.experimental.express.format import ExpressFormat
+
+    express_format = ExpressFormat(catalog=catalog)
+    return express_format.prompt_generator.generate(
+        role_description=(
+            "You are a helpful UI assistant that outputs interfaces using A2UI Express"
+            " DSL."
+        ),
+        include_schema=True,
+    )
 
 
 def main():

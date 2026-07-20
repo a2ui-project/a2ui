@@ -13,20 +13,35 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+"""Validates blueprint specifications across the repository.
+
+This script discovers and checks the integrity of Module Blueprints, Feature
+Blueprints, and Codebase Blueprints. It ensures that all references are
+resolvable, file naming conventions are met, and fields follow requirements.
+"""
+
 import os
 import re
 import sys
 import glob
+from typing import Any, Dict, List, Optional, Tuple
 
 
-def parse_yaml(yaml_str):
-    """
+def parse_yaml(yaml_str: str) -> Dict[str, Any]:
+    """Parses a YAML string into a dictionary.
+
     A simple, zero-dependency YAML parser for blueprint frontmatter.
     Handles nested dicts and lists based on indentation.
+
+    Args:
+        yaml_str: The raw YAML string to parse.
+
+    Returns:
+        A dictionary containing the parsed YAML data.
     """
     lines = yaml_str.splitlines()
-    data = {}
-    path = []  # list of (indent_level, key)
+    data: Dict[str, Any] = {}
+    path: List[Tuple[int, str]] = []  # list of (indent_level, key)
 
     for line in lines:
         # Remove comments
@@ -42,7 +57,7 @@ def parse_yaml(yaml_str):
             path.pop()
 
         if stripped.startswith('- '):
-            val = stripped[2:].strip().strip('"\'')
+            val: Any = stripped[2:].strip().strip('"\'')
             if val.lower() == 'true':
                 val = True
             elif val.lower() == 'false':
@@ -62,9 +77,9 @@ def parse_yaml(yaml_str):
             continue
 
         if ':' in stripped:
-            key, val = stripped.split(':', 1)
+            key, val_str = stripped.split(':', 1)
             key = key.strip()
-            val = val.strip().strip('"\'')
+            val = val_str.strip().strip('"\'')
 
             # Type conversions
             if val.lower() == 'true':
@@ -91,7 +106,18 @@ def parse_yaml(yaml_str):
     return data
 
 
-def parse_frontmatter(file_path):
+def parse_frontmatter(
+    file_path: str,
+) -> Tuple[Optional[Dict[str, Any]], Optional[str]]:
+    """Parses the YAML frontmatter from a markdown file.
+
+    Args:
+        file_path: Absolute path to the markdown file.
+
+    Returns:
+        A tuple of (metadata, error_message). If successful, error_message is
+        None. If parsing fails, metadata is None.
+    """
     try:
         with open(file_path, 'r', encoding='utf-8') as f:
             content = f.read()
@@ -112,7 +138,12 @@ def parse_frontmatter(file_path):
         return None, f'Failed to parse YAML frontmatter: {e}'
 
 
-def main():
+def main() -> None:
+    """Discovers, validates, and reports on all blueprints in the repository.
+
+    Validates Module Blueprints, Feature Blueprints, and Codebase Blueprints.
+    Exits with code 0 on success, or code 1 with detailed error logs on failure.
+    """
     blueprints_root = os.path.abspath(os.path.dirname(__file__))
     workspace_root = os.path.abspath(os.path.join(blueprints_root, '..'))
     errors = []
@@ -125,8 +156,10 @@ def main():
         for file in glob.glob(os.path.join(modules_dir, '*.blueprint.md')):
             basename = os.path.basename(file)
             data, err = parse_frontmatter(file)
-            if err:
-                errors.append(f'Module blueprint {basename}: {err}')
+            if err or data is None:
+                errors.append(
+                    f'Module blueprint {basename}: {err or "No data returned"}'
+                )
                 continue
 
             name = data.get('name')
@@ -177,8 +210,11 @@ def main():
                     extracted_feature_name = match.group(1)
 
                     data, err = parse_frontmatter(full_path)
-                    if err:
-                        errors.append(f"Feature blueprint '{rel_path}': {err}")
+                    if err or data is None:
+                        errors.append(
+                            f"Feature blueprint '{rel_path}':"
+                            f" {err or 'No data returned'}"
+                        )
                         continue
 
                     feature_name = data.get('feature_name')
@@ -259,8 +295,10 @@ def main():
                 rel_path = os.path.relpath(full_path, blueprints_root)
 
                 data, err = parse_frontmatter(full_path)
-                if err:
-                    errors.append(f"Codebase blueprint '{rel_path}': {err}")
+                if err or data is None:
+                    errors.append(
+                        f"Codebase blueprint '{rel_path}': {err or 'No data returned'}"
+                    )
                     continue
 
                 associated_module = data.get('associated_module')

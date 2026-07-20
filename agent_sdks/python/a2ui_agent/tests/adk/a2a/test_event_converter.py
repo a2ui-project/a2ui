@@ -16,7 +16,6 @@
 
 from unittest.mock import MagicMock, patch
 
-import pytest
 
 from a2ui.adk.a2a.event_converter import A2uiEventConverter
 from a2ui.adk.a2a.part_converter import A2uiPartConverter
