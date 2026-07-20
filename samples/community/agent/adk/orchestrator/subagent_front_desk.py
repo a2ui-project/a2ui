@@ -35,16 +35,16 @@ from a2ui.schema.constants import VERSION_0_8, VERSION_0_9
 from a2ui.a2a.extension import get_a2ui_agent_extension
 
 from a2ui.basic_catalog.provider import BasicCatalog
-from a2ui.schema.manager import A2uiSchemaManager
+from a2ui.inference_formats.transport import TransportFormat
 from a2ui.adk.a2a.part_converter import A2uiPartConverter
 from a2ui.schema.common_modifiers import remove_strict_validation
 
-schema_manager = A2uiSchemaManager(
+inference_format = TransportFormat(
     version=VERSION_0_9,
     catalogs=[BasicCatalog.get_config(version=VERSION_0_9)],
     schema_modifiers=[remove_strict_validation],
 )
-my_catalog = schema_manager.get_selected_catalog()
+my_catalog = inference_format.get_selected_catalog()
 a2ui_converter = A2uiPartConverter(a2ui_catalog=my_catalog, version=VERSION_0_9)
 
 load_dotenv()

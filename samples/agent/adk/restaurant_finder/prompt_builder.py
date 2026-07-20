@@ -13,7 +13,7 @@
 # limitations under the License.
 
 from a2ui.schema.constants import VERSION_0_9
-from a2ui.schema.manager import A2uiSchemaManager
+from a2ui.inference_formats.transport import TransportFormat
 from a2ui.basic_catalog.provider import BasicCatalog
 from a2ui.schema.common_modifiers import remove_strict_validation
 
@@ -61,7 +61,7 @@ if __name__ == "__main__":
     # For a different agent (e.g., a flight booker), you would pass in
     # different examples but use the same `get_ui_prompt` function.
     version = VERSION_0_9
-    restaurant_prompt = A2uiSchemaManager(
+    restaurant_prompt = TransportFormat(
         version,
         catalogs=[
             BasicCatalog.get_config(

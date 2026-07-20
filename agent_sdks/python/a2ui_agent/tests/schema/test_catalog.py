@@ -12,14 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import json
-import os
 import pytest
-from typing import Any, Dict, List
 from a2ui.schema.catalog import A2uiCatalog
 from a2ui.schema.constants import (
-    A2UI_SCHEMA_BLOCK_START,
-    A2UI_SCHEMA_BLOCK_END,
     VERSION_0_8,
     VERSION_0_9,
 )
@@ -93,7 +88,6 @@ def test_catalog_config_from_path_schemes():
 
 def test_basic_catalog_get_config_examples_path():
     from a2ui.basic_catalog.provider import BasicCatalog
-    from a2ui.schema.constants import VERSION_0_9
 
     # Test get_config with file:// scheme examples path
     config = BasicCatalog.get_config(

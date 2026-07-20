@@ -43,7 +43,7 @@ sys.path.insert(
 )
 import json
 from a2ui.core.catalog import Catalog
-from a2ui.experimental.express.decompiler import ExpressDecompiler
+from a2ui.inference_formats.experimental.express.parser import ExpressParser
 
 
 def decompile_example(example_path: str, catalog_path: str) -> str:
@@ -97,7 +97,7 @@ def decompile_example(example_path: str, catalog_path: str) -> str:
     with open(catalog_path, "r", encoding="utf-8") as f:
         catalog_dict = json.load(f)
     catalog = Catalog.from_json(catalog_dict, spec_version="0.9.1")
-    decompiler = ExpressDecompiler(catalog)
+    decompiler = ExpressParser(catalog)
     return decompiler.decompile(envelope)
 
 

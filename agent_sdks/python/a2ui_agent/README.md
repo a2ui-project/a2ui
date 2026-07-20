@@ -1,6 +1,6 @@
 # A2UI Agent implementation
 
-The `agent_sdks/python/src/a2ui` directory contains the Python implementation of
+The `agent_sdks/python/a2ui_agent/src/a2ui` directory contains the Python implementation of
 the A2UI agent SDK.
 
 ## Core Components
@@ -51,7 +51,13 @@ protocol.
    uv sync --all-packages
    ```
 
-2. Run the tests:
+2. Navigate to the package directory:
+
+   ```bash
+   cd agent_sdks/python/a2ui_agent
+   ```
+
+3. Run the tests:
 
    ```bash
    uv run pytest
@@ -59,11 +65,11 @@ protocol.
 
 ## Building the SDK
 
-To build the SDK, run the following command from the `agent_sdks/python`
+To build the SDK, run the following command from the `agent_sdks/python/a2ui_agent`
 directory:
 
 ```bash
-uv build .
+uv build
 ```
 
 ## Formatting code

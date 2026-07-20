@@ -22,8 +22,19 @@ import {test, expect} from 'vitest';
  *
  * For more details, see: https://github.com/a2ui-project/a2ui/issues/1645
  */
-test('local-gallery compiles and registers without syntax errors', async () => {
-  const mod = await import('../src/local-gallery.js');
-  expect(mod.LocalGallery).toBeDefined();
-  expect(customElements.get('local-gallery')).toBeDefined();
-});
+/**
+ * Vite dev server compilation under JSDOM can be slow during cold runs,
+ * particularly on CI environments. We use an increased timeout of 30 seconds
+ * to prevent sporadic/flaky test timeouts.
+ */
+const VITE_COMPILE_TIMEOUT = 30000;
+
+test(
+  'local-gallery compiles and registers without syntax errors',
+  async () => {
+    const mod = await import('../src/local-gallery.js');
+    expect(mod.LocalGallery).toBeDefined();
+    expect(customElements.get('local-gallery')).toBeDefined();
+  },
+  VITE_COMPILE_TIMEOUT,
+);

@@ -19,7 +19,8 @@ from typing import Dict, Any
 import pytest
 
 from a2ui.schema.constants import VERSION_0_9
-from a2ui.schema.manager import A2uiSchemaManager, CatalogConfig
+from a2ui.inference_formats.transport.format import TransportFormat
+from a2ui.schema.catalog import CatalogConfig
 from a2ui.basic_catalog.provider import BasicCatalog
 from a2ui.schema.common_modifiers import remove_strict_validation
 from a2ui.schema.catalog_provider import A2uiCatalogProvider
@@ -69,7 +70,7 @@ def test_sample_examples_validation(config):
         sample_path
     )  # Change to sample dir to resolve relative catalog paths if any
 
-    manager = A2uiSchemaManager(
+    transport_format = TransportFormat(
         VERSION_0_9,
         catalogs=config["catalogs"],
         accepts_inline_catalogs=True,
@@ -77,8 +78,8 @@ def test_sample_examples_validation(config):
     )
 
     # Iterate through each catalog and validate its examples
-    for catalog in manager._supported_catalogs:
-        examples_path = manager._catalog_example_paths.get(catalog.catalog_id)
+    for catalog in transport_format._supported_catalogs:
+        examples_path = transport_format._catalog_example_paths.get(catalog.catalog_id)
         if not examples_path:
             continue
 

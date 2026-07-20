@@ -14,9 +14,10 @@
 
 import logging
 from typing import Any, Optional, List, AsyncIterable, TYPE_CHECKING
+from a2ui.parser.parser import Parser
 
 if TYPE_CHECKING:
-    from a2ui.parser.streaming import A2uiStreamParser
+    from a2ui.inference_formats.transport.streaming import TransportStreamParser
 from a2a.types import (
     Part,
     DataPart,
@@ -85,28 +86,26 @@ def get_a2ui_datapart(part: Part) -> Optional[DataPart]:
     return None
 
 
-def parse_response_to_parts(
+def parse_content_to_parts(
     content: str,
-    validator: Optional[Any] = None,
+    parser: Parser,
     fallback_text: Optional[str] = None,
     version: Optional[str] = None,
 ) -> List[Part]:
-    """Helper to parse LLM response content into A2A Parts, with optional validation.
+    """Helper to parse LLM response content into A2A Parts using a Parser instance.
 
     Args:
         content: The LLM response content, potentially containing A2UI delimiters.
-        validator: Optional validator to run against extracted JSON payloads.
+        parser: The Parser instance used to extract and compile format parts.
         fallback_text: Optional text to return if no parts are successfully created.
         version: Optional version string.
 
     Returns:
         A list of A2A Part objects (TextPart and/or DataPart).
     """
-    from a2ui.parser.parser import parse_response
-
     parts = []
     try:
-        response_parts = parse_response(content)
+        response_parts = parser.parse_response(content)
 
         for part in response_parts:
             if part.text:
@@ -114,7 +113,53 @@ def parse_response_to_parts(
 
             if part.a2ui_json:
                 json_data = part.a2ui_json
-                if validator:
+                if isinstance(json_data, list):
+                    for message in json_data:
+                        parts.append(create_a2ui_part(message, version=version))
+                else:
+                    parts.append(create_a2ui_part(json_data, version=version))
+
+    except Exception as e:
+        logger.warning(f"Failed to parse A2UI response: {e}")
+
+    if not parts and fallback_text:
+        parts.append(Part(root=TextPart(text=fallback_text)))
+
+    return parts
+
+
+def parse_response_to_parts(
+    content: str,
+    validator: Optional[Any] = None,
+    fallback_text: Optional[str] = None,
+    version: Optional[str] = None,
+) -> List[Part]:
+    """Deprecated compatibility wrapper around parse_response_to_parts.
+
+    Please use parse_content_to_parts instead, providing a Parser instance.
+    """
+    import warnings
+
+    warnings.warn(
+        "parse_response_to_parts is deprecated. Please use parse_content_to_parts(...) "
+        "providing a Parser instance instead.",
+        DeprecationWarning,
+        stacklevel=2,
+    )
+
+    from a2ui.parser.parser import parse_response as legacy_parse_response
+
+    parts = []
+    try:
+        response_parts = legacy_parse_response(content)
+
+        for part in response_parts:
+            if part.text:
+                parts.append(Part(root=TextPart(text=part.text)))
+
+            if part.a2ui_json:
+                json_data = part.a2ui_json
+                if validator is not None:
                     validator.validate(json_data)
 
                 if isinstance(json_data, list):
@@ -124,7 +169,7 @@ def parse_response_to_parts(
                     parts.append(create_a2ui_part(json_data, version=version))
 
     except Exception as e:
-        logger.warning(f"Failed to parse or validate A2UI response: {e}")
+        logger.warning(f"Failed to parse legacy A2UI response: {e}")
 
     if not parts and fallback_text:
         parts.append(Part(root=TextPart(text=fallback_text)))
@@ -133,14 +178,14 @@ def parse_response_to_parts(
 
 
 async def stream_response_to_parts(
-    parser: "A2uiStreamParser",
+    parser: "TransportStreamParser",
     token_stream: AsyncIterable[str],
     version: Optional[str] = None,
 ) -> AsyncIterable[Part]:
     """Helper to parse a stream of LLM tokens into A2A Parts incrementally.
 
     Args:
-        parser: A2uiStreamParser instance to process the stream.
+        parser: TransportStreamParser instance to process the stream.
         token_stream: An async iterable of strings (tokens).
         version: Optional version string.
 

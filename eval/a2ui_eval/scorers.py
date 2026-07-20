@@ -17,17 +17,24 @@
 import json
 import os
 import time
-from inspect_ai.scorer import scorer, Score, Target, accuracy, model_graded_qa
+from inspect_ai.scorer import (
+    scorer,
+    Score,
+    Scorer,
+    Target,
+    accuracy,
+    model_graded_qa,
+)
 from inspect_ai.solver import TaskState
 from inspect_ai.model._model import sample_model_usage
-from a2ui.schema.manager import A2uiSchemaManager
+from a2ui.inference_formats.transport.format import TransportFormat
 from a2ui.schema.catalog import CatalogConfig
 from a2ui.parser.parser import parse_response
 from .shared.utils import GIT_ROOT
 
 
 @scorer(metrics=[accuracy()])
-def a2ui_scorer(version: str):
+def a2ui_scorer(version: str) -> Scorer:
     """Scorer for A2UI evaluation using the Python SDK.
 
     Args:
@@ -37,7 +44,9 @@ def a2ui_scorer(version: str):
         An Inspect Scorer that validates the response against the schema and integrity rules.
     """
 
-    async def score(state: TaskState, target: Target) -> Score:  # pylint: disable=unused-argument
+    async def score(
+        state: TaskState, target: Target
+    ) -> Score:  # pylint: disable=unused-argument
         if not state.output:
             return Score(
                 value=0.0,
@@ -48,11 +57,23 @@ def a2ui_scorer(version: str):
         resolved_catalog_path = str(GIT_ROOT / catalog_path)
 
         catalog_config = CatalogConfig.from_path("basic_catalog", resolved_catalog_path)
-        manager = A2uiSchemaManager(version=version, catalogs=[catalog_config])
-        catalog = manager.get_selected_catalog()
+        transport_format = TransportFormat(
+            version=version,
+            catalogs=[catalog_config],
+            experiments={"version_1_0"} if version == "1.0" else None,
+        )
+        catalog = transport_format.get_selected_catalog()
         validator = catalog.validator
 
         answer_text = state.output.completion or ""
+
+        if answer_text.strip().startswith("Compilation/validation failed:"):
+            return Score(
+                value=0.0,
+                answer=answer_text,
+                explanation="Format compilation/validation failed during solver step.",
+            )
+
         try:
             parts = parse_response(answer_text)
             all_messages = []
@@ -84,7 +105,7 @@ def a2ui_scorer(version: str):
 
 
 @scorer(metrics=[accuracy()])
-def measured_model_graded_qa(model: str, instructions: str | None = None):
+def measured_model_graded_qa(model: str, instructions: str | None = None) -> Scorer:
     """Scorer that wraps model_graded_qa and records the token usage in metadata."""
     base_scorer = model_graded_qa(model=model, instructions=instructions)
 
@@ -118,6 +139,7 @@ def measured_model_graded_qa(model: str, instructions: str | None = None):
         state.metadata["evaluation_output_tokens"] = after_output - before_output
         state.metadata["evaluation_cached_tokens"] = after_cached - before_cached
 
+        assert result is not None
         return result
 
     return score
