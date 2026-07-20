@@ -18,4 +18,3 @@
  * @deprecated Please import from `./index` instead. Will be removed in v1.0.
  */
 export * from './index';
-
