@@ -33,307 +33,16 @@ from compare_results import (  # type: ignore[import-not-found]
     resolve_results_file,
     generate_markdown_table,
 )
-
-
-def _get_uv_binary() -> str:
-    return shutil.which("uv") or "/usr/local/google/home/gspencer/.local/bin/uv"
-
-
-def run_unit_tests() -> Dict[str, Any]:
-    """Runs pytest unit tests for the python SDK."""
-    print("Running pytest unit tests...")
-    script_dir = os.path.dirname(os.path.abspath(__file__))
-    eval_root = os.path.dirname(script_dir)
-    workspace_root = os.path.dirname(eval_root)
-
-    cmd = [_get_uv_binary(), "run", "pytest", "agent_sdks/python/a2ui_agent/tests/"]
-    result = subprocess.run(cmd, cwd=workspace_root, capture_output=True, text=True)
-
-    return {
-        "success": result.returncode == 0,
-        "stdout": result.stdout,
-        "stderr": result.stderr,
-        "returncode": result.returncode,
-    }
-
-
-def run_evaluation(
-    format_name: str,
-    model: str,
-    prompts: Optional[List[str]],
-    sanity: bool,
-    log_dir: str,
-) -> bool:
-    """Runs the main evaluation framework for the target format strategy."""
-    print(f"Running evaluation for strategy '{format_name}' using model '{model}'...")
-    script_dir = os.path.dirname(os.path.abspath(__file__))
-    eval_root = os.path.dirname(script_dir)
-
-    strategy_name = "direct" if format_name == "transport" else format_name
-    cmd = [
-        _get_uv_binary(),
-        "run",
-        "python",
-        "main.py",
-        "--strategies",
-        strategy_name,
-        "--model",
-        model,
-        "--log-dir",
-        log_dir,
-    ]
-
-    if sanity:
-        cmd.append("--sanity")
-
-    if prompts:
-        for p in prompts:
-            cmd.extend(["--prompt", p])
-
-    print(f"Executing: {' '.join(cmd)}")
-    result = subprocess.run(cmd, cwd=eval_root, capture_output=False)
-    return result.returncode == 0
-
-
-def load_log_data(log_path: str) -> Dict[str, Any]:
-    """Runs inspect log dump and parses the JSON."""
-    dump_cmd = [_get_uv_binary(), "run", "inspect", "log", "dump", log_path]
-    dump_output = subprocess.check_output(dump_cmd, text=True)
-    res: Dict[str, Any] = json.loads(dump_output)
-    return res
-
-
-def get_git_diff(workspace_root: str) -> str:
-    """Gets the git diff of python sdk format files and templates."""
-    paths = [
-        "agent_sdks/python/a2ui_agent/src/a2ui/inference_formats/",
-        "agent_sdks/python/a2ui_agent/tests/",
-    ]
-    cmd = ["git", "diff"] + paths
-    result = subprocess.run(cmd, cwd=workspace_root, capture_output=True, text=True)
-    return result.stdout.strip()
-
-
-def extract_metrics_from_log(log_data: Dict[str, Any]) -> Dict[str, Any]:
-    """Extracts algorithmic/graded accuracies, latency, and token usages."""
-    samples = log_data.get("samples", [])
-    total_samples = len(samples)
-
-    # Extract score values
-    scores = log_data.get("results", {}).get("scores", [])
-    accuracy_scorer: Dict[str, Any] = next(
-        (s for s in scores if s.get("name") == "a2ui_scorer"), {}
-    )
-    accuracy_metrics = accuracy_scorer.get("metrics", {})
-    algo_accuracy = (
-        accuracy_metrics.get("accuracy", {}).get("value", 0.0)
-        if accuracy_metrics
-        else 0.0
-    )
-
-    judging_scorer: Dict[str, Any] = next(
-        (s for s in scores if s.get("name") == "measured_model_graded_qa"), {}
-    )
-    judging_metrics = judging_scorer.get("metrics", {})
-    overall_accuracy = (
-        judging_metrics.get("accuracy", {}).get("value", 0.0)
-        if judging_metrics
-        else 0.0
-    )
-
-    # Latency & Tokens
-    latencies = []
-    input_tokens = []
-    output_tokens = []
-
-    for s in samples:
-        duration = s.get("metadata", {}).get("evaluation_duration_seconds")
-        if duration is not None:
-            latencies.append(float(duration))
-        for event in s.get("events", []):
-            if event.get("event") == "model":
-                usage = event.get("usage") or {}
-                if "input_tokens" in usage:
-                    input_tokens.append(usage["input_tokens"])
-                if "output_tokens" in usage:
-                    output_tokens.append(usage["output_tokens"])
-                if duration is None:
-                    working_time = event.get("working_time") or event.get("duration")
-                    if working_time is not None:
-                        latencies.append(float(working_time))
-
-    avg_latency = (sum(latencies) / len(latencies)) if latencies else 0.0
-    avg_input = (sum(input_tokens) / len(input_tokens)) if input_tokens else 0.0
-    avg_output = (sum(output_tokens) / len(output_tokens)) if output_tokens else 0.0
-
-    return {
-        "overall_accuracy": overall_accuracy,
-        "algo_accuracy": algo_accuracy,
-        "avg_latency_seconds": avg_latency,
-        "avg_input_tokens": avg_input,
-        "avg_output_tokens": avg_output,
-        "total_samples": total_samples,
-    }
-
-
-def generate_optimization_report(
-    log_data: Dict[str, Any],
-    pytest_results: Dict[str, Any],
-    baseline_data: Optional[Dict[str, Any]],
-    git_diff: str,
-    format_name: str,
-    model: str,
-) -> str:
-    """Generates a detailed markdown report for LLM / Human inspection."""
-    metrics = extract_metrics_from_log(log_data)
-    pytest_status = "PASS" if pytest_results["success"] else "FAIL"
-
-    base_pytest = "-"
-    base_overall = "-"
-    base_algo = "-"
-    base_latency = "-"
-    base_input = "-"
-    base_output = "-"
-
-    diff_overall = ""
-    diff_algo = ""
-    diff_latency = ""
-    diff_input = ""
-    diff_output = ""
-
-    if baseline_data:
-        base_pytest = "PASS"
-        base_metrics = extract_metrics_from_log(baseline_data)
-
-        base_overall = f"{base_metrics['overall_accuracy'] * 100:.1f}%"
-        base_algo = f"{base_metrics['algo_accuracy'] * 100:.1f}%"
-        base_latency = f"{base_metrics['avg_latency_seconds']:.2f}s"
-        base_input = f"{base_metrics['avg_input_tokens']:.0f}"
-        base_output = f"{base_metrics['avg_output_tokens']:.0f}"
-
-        diff_overall = format_delta_pct(
-            metrics["overall_accuracy"],
-            base_metrics["overall_accuracy"],
-            is_percentage_points=True,
-        )
-        diff_algo = format_delta_pct(
-            metrics["algo_accuracy"],
-            base_metrics["algo_accuracy"],
-            is_percentage_points=True,
-        )
-        diff_latency = format_delta_pct(
-            metrics["avg_latency_seconds"], base_metrics["avg_latency_seconds"]
-        )
-        diff_input = format_delta_pct(
-            metrics["avg_input_tokens"], base_metrics["avg_input_tokens"]
-        )
-        diff_output = format_delta_pct(
-            metrics["avg_output_tokens"], base_metrics["avg_output_tokens"]
-        )
-
-    report = []
-    report.append("# Inference Format Optimization Report")
-    report.append(f"- **Strategy (Format)**: `{format_name}`")
-    report.append(f"- **Evaluation Model**: `{model}`")
-    report.append("")
-    report.append("## Summary Table")
-    report.append("| Metric | Baseline | Current | Diff |")
-    report.append("| :--- | :--- | :--- | :--- |")
-    report.append(f"| **Pytest Conformance** | {base_pytest} | {pytest_status} | - |")
-    report.append(
-        f"| **Overall Pass Rate** | {base_overall} |"
-        f" {metrics['overall_accuracy'] * 100:.1f}% | {diff_overall} |"
-    )
-    report.append(
-        f"| **Algorithmic Schema Pass Rate** | {base_algo} |"
-        f" {metrics['algo_accuracy'] * 100:.1f}% | {diff_algo} |"
-    )
-    report.append(
-        f"| **Inference Duration (sec)** | {base_latency} |"
-        f" {metrics['avg_latency_seconds']:.2f}s | {diff_latency} |"
-    )
-    report.append(
-        f"| **Avg Input Tokens** | {base_input} | {metrics['avg_input_tokens']:.0f} |"
-        f" {diff_input} |"
-    )
-    report.append(
-        f"| **Avg Output Tokens** | {base_output} | {metrics['avg_output_tokens']:.0f}"
-        f" | {diff_output} |"
-    )
-    report.append("")
-
-    if not pytest_results["success"]:
-        report.append("## ❌ Pytest Unit Test Failures")
-        report.append("```")
-        report.append(pytest_results["stdout"])
-        report.append(pytest_results["stderr"])
-        report.append("```")
-        report.append("")
-
-    report.append("## Active Git Diff")
-    if git_diff:
-        report.append("```diff")
-        report.append(git_diff)
-        report.append("```")
-    else:
-        report.append("*No files modified under `agent_sdks`.*")
-    report.append("")
-
-    failures = []
-    for sample in log_data.get("samples", []):
-        s_scores = sample.get("scores", {})
-        algo_passed = s_scores.get("a2ui_scorer", {}).get("value") == 1.0
-        judging_val = s_scores.get("measured_model_graded_qa", {}).get("value", "N/A")
-
-        if not algo_passed or judging_val != "C":
-            failures.append((sample, algo_passed, judging_val))
-
-    report.append(
-        f"## Failure Details (Count: {len(failures)} / {metrics['total_samples']})"
-    )
-    if not failures:
-        report.append("🎉 *All tests passed successfully!*")
-    else:
-        for sample, algo_passed, judging_val in failures:
-            name = (
-                sample.get("metadata", {}).get("name") or f"Sample {sample.get('id')}"
-            )
-            report.append(f"### ❌ Sample: `{name}`")
-            report.append(
-                f"- **Algorithmic Schema**: `{'PASS' if algo_passed else 'FAIL'}`"
-            )
-            report.append(f"- **LLM Judge Grade**: `{judging_val}`")
-            report.append(
-                f"- **Prompt**:\n  > {sample.get('input').replace('\n', '\n  > ')}"
-            )
-            report.append("")
-
-            output_content = ""
-            for event in sample.get("events", []):
-                if event.get("event") == "model":
-                    output_content = event.get("output", {}).get("completion", "")
-                    break
-
-            report.append("- **Raw Model Output**:")
-            report.append("  ```")
-            for line in output_content.splitlines():
-                report.append(f"  {line}")
-            report.append("  ```")
-            report.append("")
-
-            if not algo_passed:
-                expl = s_scores.get("a2ui_scorer", {}).get("explanation")
-                report.append("- **Algorithmic Failure Explanation**:")
-                report.append("  > " + str(expl).replace("\n", "\n  > "))
-                report.append("")
-
-            if judging_val != "C":
-                expl = s_scores.get("measured_model_graded_qa", {}).get("explanation")
-                report.append(f"- **Grader Reasoning (Grade {judging_val})**:")
-                report.append("  > " + str(expl).replace("\n", "\n  > "))
-                report.append("")
-
-    return "\n".join(report)
+from utils.runner import (  # type: ignore[import-not-found]
+    run_unit_tests,
+    run_evaluation,
+    load_log_data,
+    get_git_diff,
+)
+from utils.reporter import (  # type: ignore[import-not-found]
+    extract_metrics_from_log,
+    generate_optimization_report,
+)
 
 
 def regenerate_master_index(iterative_dir: str) -> None:
@@ -489,7 +198,80 @@ def main(argv: Optional[List[str]] = None) -> None:
         default=None,
         help="Directory to read/write baseline files",
     )
+    parser.add_argument(
+        "--compile",
+        type=str,
+        default=None,
+        help="Test compiling an inference format payload snippet",
+    )
+    parser.add_argument(
+        "--decompile",
+        type=str,
+        default=None,
+        help="Test decompiling an A2UI v1.0 JSON payload",
+    )
+    parser.add_argument(
+        "--parse",
+        type=str,
+        default=None,
+        help="Test parsing an inference format snippet into raw AST representation",
+    )
+    parser.add_argument(
+        "--archive",
+        action="store_true",
+        help="Atomically archive current run artifacts into history/",
+    )
+    parser.add_argument(
+        "--hypothesis",
+        type=str,
+        default=None,
+        help="Hypothesis description for archived run",
+    )
+    parser.add_argument(
+        "--status",
+        type=str,
+        choices=["KEEP", "REVERT", "Backtracked", "Kept", "Pending"],
+        default="KEEP",
+        help="Decision status for archived run",
+    )
+    parser.add_argument(
+        "--notes",
+        type=str,
+        default=None,
+        help="Qualitative notes for archived run",
+    )
     args = parser.parse_args(argv)
+
+    if args.compile:
+        from utils.format_tools import test_compile_snippet
+
+        print(test_compile_snippet(args.format, args.compile))
+        sys.exit(0)
+
+    if args.decompile:
+        from utils.format_tools import test_decompile_payload
+
+        print(test_decompile_payload(args.format, args.decompile))
+        sys.exit(0)
+
+    if args.parse:
+        from utils.format_tools import test_parse_ast
+
+        print(test_parse_ast(args.format, args.parse))
+        sys.exit(0)
+
+    if args.archive:
+        from utils.archiver import archive_run
+
+        hypo = args.hypothesis or "Format optimization run"
+        st = "Kept" if args.status in ("KEEP", "Kept") else "Backtracked"
+        archive_run(
+            format_name=args.format,
+            hypothesis=hypo,
+            status=st,
+            notes=args.notes,
+        )
+        sys.exit(0)
 
     script_dir = os.path.dirname(os.path.abspath(__file__))
     eval_root = os.path.dirname(script_dir)

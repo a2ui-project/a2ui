@@ -18,6 +18,29 @@ Execute all subsequent steps inside that worktree directory.
 
 ---
 
+## ⚡ Quick-Command Cheatsheet
+
+Use these unified CLI commands to avoid writing custom Python scripts or manual archiving steps:
+
+| Task                         | Unified Command                                                                                               |
+| :--------------------------- | :------------------------------------------------------------------------------------------------------------ |
+| **Test S-Expr Compilation**  | `uv run python eval/iterative/optimize_format.py --format atom --compile "(Card (Text \"Hi\"))"`              |
+| **Test S-Expr AST Parsing**  | `uv run python eval/iterative/optimize_format.py --format atom --parse "(Card (Text \"Hi\"))"`                |
+| **Test Decompilation**       | `uv run python eval/iterative/optimize_format.py --format atom --decompile '{"version":"v1.0",...}'`          |
+| **Run Fast Subset Eval**     | `uv run python eval/iterative/optimize_format.py --format atom`                                               |
+| **Run Targeted Prompt Eval** | `uv run python eval/iterative/optimize_format.py --format atom --prompt loginForm`                            |
+| **Compare vs Baseline**      | `uv run python eval/iterative/compare_results.py --baseline eval/baselines/atom eval/logs/temp_optimization/` |
+| **Archive Run (Atomic)**     | `uv run python eval/iterative/optimize_format.py --format atom --archive --hypothesis "..." --status KEEP`    |
+| **Full Milestone Check**     | `uv run python eval/iterative/optimize_format.py --format atom --full`                                        |
+
+### 🚫 Anti-Patterns & Operational Guardrails
+
+1. **DO NOT write ad-hoc `python -c` scripts** to import `AtomCompiler` or test S-expressions. Use `--compile` or `--parse` instead.
+2. **DO NOT run manual 5-step shell archiving dances** (`mkdir`, `cp`, `git diff > patch.diff`). Use `optimize_format.py --archive` instead.
+3. **DO NOT retry backtracked hypotheses**. Always check `eval/iterative/history_summary.md` first.
+
+---
+
 ## The Optimization Loop
 
 For each iteration, perform the following steps:
