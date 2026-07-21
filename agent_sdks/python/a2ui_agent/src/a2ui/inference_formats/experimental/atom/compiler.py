@@ -118,9 +118,9 @@ class SExprParser:
             ("STRING", r'"(?:\\.|[^"\\])*"'),
             ("LPAREN", r"[(\[]"),
             ("RPAREN", r"[\])]"),
-            ("KEYWORD_VAL", r':\w+=[^\s()":\[\],]+'),
-            ("KEYWORD", r":\w+:?"),
-            ("PATH", r"\$/?[\w/]+"),
+            ("KEYWORD_VAL", r':[\w-]+=[^\s()":\[\],]+'),
+            ("KEYWORD", r":[\w-]+:?"),
+            ("PATH", r"\$/?[\w/-]+"),
             ("SYMBOL", r'[^\s()":\[\],]+'),
             ("SKIP", r"[,\s]+"),
         ]
@@ -546,16 +546,7 @@ class AtomCompiler:
 
             return [self._clean_data_value(item) for item in val]
         if isinstance(val, str):
-            val_clean = val.strip()
-            if val_clean.endswith("}") or val_clean.endswith("]"):
-                val_clean = val_clean.rstrip("}]").strip()
-            try:
-                if "." in val_clean:
-                    return float(val_clean)
-                else:
-                    return int(val_clean)
-            except ValueError:
-                return val_clean
+            return val
         return val
 
     def _extract_and_remove_embedded_components(

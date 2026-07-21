@@ -52,6 +52,7 @@ class AtomFormat(InferenceFormat):
         self.surface_id = surface_id
         self.examples_path = examples_path
         self._prompt_generator: Optional[AtomPromptGenerator] = None
+        self._parser: Optional[AtomParser] = None
 
     def _ensure_catalog(self) -> None:
         """Ensures a valid catalog is set."""
@@ -71,5 +72,7 @@ class AtomFormat(InferenceFormat):
     @property
     def parser(self) -> Parser:
         """The parser instance configured for Atom format."""
-        self._ensure_catalog()
-        return AtomParser(self.catalog, self.surface_id)
+        if self._parser is None:
+            self._ensure_catalog()
+            self._parser = AtomParser(self.catalog, self.surface_id)
+        return self._parser
