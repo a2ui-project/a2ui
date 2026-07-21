@@ -31,3 +31,7 @@ renderers/lit/a2ui_explorer/src/generated/**
 # Evaluation logs
 eval/logs
 **/eval/logs
+
+# Untracked agent files
+.lavish/
+proxy.js
