@@ -14,6 +14,7 @@ Version 1.0 differs from 0.9 in the following ways:
 - Standard JSON Schema metadata fields (`$schema`, `$id`, `title`, and `description`) are supported in catalogs, preventing validation failures on inline catalogs with strict property checks.
 - Identifier naming rules across all catalog entities (component names, function names, and argument keys) must conform to Unicode Standard Annex #31 (UAX #31).
 - The `@index` built-in function dynamically retrieves iteration indices during list template rendering. The `@` prefix is reserved for core system context evaluations.
+- Catalogs may now use `$ref` to reference other catalogs. This removes the requirement that catalogs be freestanding / have no external references except to core libraries.
 
 ## 2. Changes
 
@@ -25,6 +26,7 @@ Version 1.0 differs from 0.9 in the following ways:
 - Added an optional `instructions` field to the `Catalog` schema to embed design guidelines and component usage rules directly in the catalog, replacing the external `rules.txt` file.
 - Supported standard JSON Schema metadata fields (`$schema`, `$id`, `title`, and `description`) in the Catalog object definition. Since the Catalog schema restricts properties with `additionalProperties: false`, this ensures inline catalogs containing standard schema metadata do not fail schema validation.
 - Enforced Unicode Standard Annex #31 (UAX #31) identifier naming constraints (`XID_Start`, `XID_Continue`) across component names, function names, and argument keys.
+- Catalogs may now use `$ref` to reference other catalogs. This removes the requirement that catalogs be freestanding / have no external references except to core libraries.
 
 ### 2.2. Standard catalogs (basic)
 
