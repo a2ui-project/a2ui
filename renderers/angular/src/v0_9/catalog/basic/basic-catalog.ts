@@ -110,6 +110,8 @@ export interface BasicCatalogOptions {
   /**
    * Optional additional components to include in the catalog beyond
    * the standard basic catalog components.
+   *
+   * @deprecated Use AngularCatalog constructor directly to combine BASIC_COMPONENTS with custom ones.
    */
   extraComponents?: AngularComponentImplementation[];
 

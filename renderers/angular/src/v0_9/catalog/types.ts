@@ -49,3 +49,15 @@ export interface AngularComponentImplementation extends ComponentApi {
  * correct Angular components.
  */
 export class AngularCatalog extends Catalog<AngularComponentImplementation> {}
+
+export function createAngularComponentImplementation(
+  api: ComponentApi,
+  component: Type<CatalogComponentInstance>,
+): AngularComponentImplementation {
+  return {
+    name: api.name,
+    schema: api.schema,
+    component,
+  };
+}
+
