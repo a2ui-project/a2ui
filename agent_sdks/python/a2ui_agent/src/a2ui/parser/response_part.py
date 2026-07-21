@@ -1,0 +1,36 @@
+# Copyright 2026 Google LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#      https://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+from dataclasses import dataclass
+from typing import Any, Optional
+
+
+@dataclass
+class ResponsePart:
+    """Represents a part of the LLM response.
+
+    Attributes:
+        text: The conversational text part. Can be an empty string.
+        a2ui_raw: The raw uncompiled format content string (e.g. raw XML/DSL/JSON).
+          None if this part only contains conversational text.
+        a2ui_json: The parsed/compiled A2UI JSON data, always a list of
+          dictionaries if it contains A2UI messages. None if this part only
+          contains conversational text.
+        is_final: Whether this format-content block is complete/closed (not truncated).
+    """
+
+    text: str = ""
+    a2ui_raw: Optional[str] = None
+    a2ui_json: Optional[Any] = None
+    is_final: bool = True

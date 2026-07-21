@@ -18,8 +18,11 @@ import {html, nothing, css, PropertyValues} from 'lit';
 import {customElement} from 'lit/decorators.js';
 import {map} from 'lit/directives/map.js';
 import {ColumnApi} from '@a2ui/web_core/v0_9/basic_catalog';
-import {BasicCatalogA2uiLitElement} from '../basic-catalog-a2ui-lit-element.js';
-import {A2uiController} from '@a2ui/lit/v0_9';
+import {
+  BasicCatalogA2uiLitElement,
+  type ResolvedChildList,
+} from '../basic-catalog-a2ui-lit-element.js';
+import {A2uiController} from '../../../a2ui-controller.js';
 
 const JUSTIFY_MAP: Record<string, string> = {
   start: 'flex-start',
@@ -46,7 +49,7 @@ export class A2uiBasicColumnElement extends BasicCatalogA2uiLitElement<typeof Co
    *
    * - `--a2ui-column-gap`: The gap between items in the column. Defaults to `--a2ui-spacing-m`.
    */
-  static styles = css`
+  static override styles = css`
     :host {
       display: flex;
       flex-direction: column;
@@ -58,7 +61,7 @@ export class A2uiBasicColumnElement extends BasicCatalogA2uiLitElement<typeof Co
     return new A2uiController(this, ColumnApi);
   }
 
-  updated(changedProperties: PropertyValues) {
+  override updated(changedProperties: PropertyValues) {
     super.updated(changedProperties);
     const props = this.controller.props;
     if (props) {
@@ -67,13 +70,13 @@ export class A2uiBasicColumnElement extends BasicCatalogA2uiLitElement<typeof Co
     }
   }
 
-  render() {
+  override render() {
     const props = this.controller.props;
     if (!props) return nothing;
 
-    const children = Array.isArray(props.children) ? props.children : [];
+    const children: ResolvedChildList = Array.isArray(props.children) ? props.children : [];
 
-    return html` ${map(children, (child: any) => html`${this.renderNode(child)}`)} `;
+    return html` ${map(children, child => html`${this.renderNode(child)}`)} `;
   }
 }
 

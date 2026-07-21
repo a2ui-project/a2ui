@@ -1,14 +1,14 @@
 {
   "name": "@a2ui/markdown-it",
-  "version": "0.0.4",
+  "version": "0.1.0",
   "description": "A Markdown renderer using markdown-it and dompurify.",
   "repository": {
     "directory": "renderers/markdown/markdown-it",
     "type": "git",
-    "url": "git+https://github.com/google/A2UI.git"
+    "url": "git+https://github.com/a2ui-project/a2ui.git"
   },
   "bugs": {
-    "url": "https://github.com/google/A2UI/issues"
+    "url": "https://github.com/a2ui-project/a2ui/issues"
   },
   "keywords": [
     "a2ui",
@@ -34,33 +34,41 @@
   ],
   "scripts": {
     "build": "wireit",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
     "format": "prettier --ignore-path ../.gitignore --write .",
     "format:check": "prettier --ignore-path ../.gitignore --check .",
-    "prepublishOnly": "node -e \"if(!process.cwd().endsWith('dist')) { console.error('Error: This package must be published from the dist/ directory. Run `npm run build` then `npm publish dist/`'); process.exit(1); }\"",
-    "publish:package": "npm run build && node ../../scripts/prepare-publish.mjs && npm publish dist/ --access public",
-    "test": "wireit"
+    "prepublishOnly": "node -e \"if(!process.cwd().endsWith('dist')) { console.error('Error: This package must be published from the dist/ directory. Run `yarn build` then `cd dist && yarn npm publish`'); process.exit(1); }\"",
+    "publish:package": "yarn build && node ../../scripts/prepare-publish.mjs && cd dist && touch yarn.lock && yarn install && yarn npm publish --access public",
+    "test": "wireit",
+    "clean": "wireit"
   },
   "dependencies": {
-    "dompurify": "3.3.1",
-    "markdown-it": "^14.1.0"
+    "dompurify": "3.4.11",
+    "markdown-it": "^14.2.0"
   },
   "devDependencies": {
-    "@a2ui/web_core": "file:../../web_core",
-    "@types/dompurify": "^3.0.5",
-    "@types/jsdom": "^28.0.0",
+    "@a2ui/web_core": "workspace:*",
+    "@types/dompurify": "^3.2.0",
+    "@types/jsdom": "^28.0.3",
     "@types/markdown-it": "^14.1.2",
-    "@types/node": "^24.10.1",
-    "jsdom": "^28.1.0",
-    "prettier": "^3.4.2",
-    "typescript": "^5.8.3",
+    "@types/node": "^25.9.3",
+    "eslint": "^10.4.1",
+    "gts": "^7.0.0",
+    "jsdom": "^29.1.1",
+    "prettier": "^3.8.4",
+    "typescript": "5.9.3",
     "wireit": "^0.15.0-pre.2"
   },
   "peerDependencies": {
-    "@a2ui/web_core": "file:../../web_core"
+    "@a2ui/web_core": "workspace:*"
   },
   "wireit": {
     "build": {
       "command": "tsc -b --pretty",
+      "dependencies": [
+        "../../../renderers/web_core:build"
+      ],
       "files": [
         "src/**/*.ts",
         "src/**/*.json",
@@ -77,6 +85,9 @@
       "dependencies": [
         "build"
       ]
+    },
+    "clean": {
+      "command": "rm -rf dist .tsbuildinfo .wireit"
     }
   }
 }

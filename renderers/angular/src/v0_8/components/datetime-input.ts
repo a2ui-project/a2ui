@@ -41,6 +41,11 @@ import type {DateTimeInputNode, StringValue} from '../types';
     :host {
       display: block;
     }
+    input,
+    input::-webkit-datetime-edit,
+    input::-webkit-datetime-edit-fields-wrapper {
+      color: #333;
+    }
   `,
   changeDetection: ChangeDetectionStrategy.OnPush,
 })

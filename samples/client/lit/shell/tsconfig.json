@@ -17,6 +17,7 @@
     "useDefineForClassFields": false,
     "types": [],
 
+    "rootDir": "..",
     "outDir": "dist",
     "tsBuildInfoFile": "dist/.tsbuildinfo",
 
@@ -24,6 +25,7 @@
     "moduleResolution": "bundler",
     "resolveJsonModule": true,
     "isolatedModules": true,
+    "experimentalDecorators": true,
 
     /* Linting */
     "strict": false,

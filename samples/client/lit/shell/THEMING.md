@@ -14,10 +14,10 @@ Lit renderer basic catalog implementation.
 Design tokens are defined in two layers:
 
 - **Web Core**: Supplies base design tokens (color palettes, typography, spacing)
-  that are used by the A2UI-provided renderers via global CSS custom properties on the root element. See the [Basic Catalog default styles](renderers/web_core/src/v0_9/basic_catalog/styles/default.ts).
+  that are used by the A2UI-provided renderers via global CSS custom properties on the root element. See the [Basic Catalog default styles](../../../../renderers/web_core/src/v0_9/basic_catalog/styles/default.ts).
 - **Lit Renderer**: Each Basic Catalog component provided by the Lit renderer
   has additional design tokens to target more-specific properties (e.g., `--a2ui-button-background`). View available components and the tokens they
-  expose in the [Lit Basic Catalog Components](renderers/lit/src/v0_9/catalogs/basic/components).
+  expose in the [Lit Basic Catalog Components](../../../../renderers/lit/src/v0_9/catalogs/basic/components).
 
 ### Application Configuration
 

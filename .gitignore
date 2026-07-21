@@ -18,14 +18,22 @@ coverage/
 # Generated spec assets in the agent SDK
 ## old agent SDK path
 a2a_agents/python/a2ui_agent/src/a2ui/assets/**/*.json
-## new agent SDK path
 agent_sdks/python/src/a2ui/assets/**/*.json
+## new agent SDK path
+agent_sdks/python/a2ui_agent/src/a2ui/assets/**/*.json
 ## Generated files for sandbox frame.
 samples/client/angular/projects/mcp_calculator/public/mcp_apps_inner_iframe/
 
+# Yarn Modern
+.yarn/*
+!.yarn/patches
+!.yarn/plugins
+!.yarn/sdks
+.yarn/cache
+
 ## Generated files for a2ui-in-mcpapps
-samples/mcp/a2ui-in-mcpapps/server/apps/dist
-samples/mcp/a2ui-in-mcpapps/server/apps/public
+samples/community/mcp/a2ui-in-mcpapps/server/apps/dist
+samples/community/mcp/a2ui-in-mcpapps/server/apps/public
 
 # Vite cache
 .vite/
@@ -36,8 +44,18 @@ worktrees/
 # TypeScript incremental build info
 *.tsbuildinfo
 
+# Playwright test artifacts
+.playwright/
+
 # Local-only scratch files.
 .local/
+
+# Locally symlinked SDD blueprint skills
+/.agents/skills/a2ui-blueprint-compliance
+/.agents/skills/a2ui-blueprint-maintenance
+/.agents/skills/a2ui-blueprint-navigator
+/.agents/skills/a2ui-create-feature-blueprint
+/.agents/skills/a2ui-implement-feature-from-blueprint
 
 # Diagrams, produced by https://pub.dev/packages/layerlens.
 DEPS.md
@@ -96,6 +114,13 @@ migrate_working_dir/
 .pub-cache/
 .pub/
 /build/
+
+# iOS/macOS generated files
+**/ios/Runner/GeneratedPluginRegistrant.h
+**/ios/Runner/GeneratedPluginRegistrant.m
+**/ios/Runner/GeneratedPluginRegistrant.swift
+**/macos/Flutter/GeneratedPluginRegistrant.swift
+
 /coverage/
 pubspec.lock
 
@@ -109,3 +134,6 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
+
+# SwiftPM
+Package.resolved

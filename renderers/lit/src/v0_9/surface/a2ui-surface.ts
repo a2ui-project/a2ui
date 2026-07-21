@@ -18,7 +18,7 @@ import {html, nothing, LitElement, PropertyValues} from 'lit';
 import {customElement, property, state} from 'lit/decorators.js';
 import {SurfaceModel, ComponentContext} from '@a2ui/web_core/v0_9';
 import {renderA2uiNode} from './render-a2ui-node.js';
-import {LitComponentApi} from '@a2ui/lit/v0_9';
+import {LitComponentApi} from '../types.js';
 
 /**
  * A Lit component that renders an A2UI Surface.
@@ -55,7 +55,7 @@ export class A2uiSurface extends LitElement {
    *
    * @param changedProperties Map of changed properties.
    */
-  protected willUpdate(changedProperties: PropertyValues) {
+  protected override willUpdate(changedProperties: PropertyValues) {
     if (changedProperties.has('surface')) {
       if (this.unsubscribe) {
         this.unsubscribe();
@@ -80,7 +80,7 @@ export class A2uiSurface extends LitElement {
   /**
    * Cleans up subscriptions.
    */
-  disconnectedCallback() {
+  override disconnectedCallback() {
     super.disconnectedCallback();
     if (this.unsubscribe) {
       this.unsubscribe();
@@ -95,7 +95,7 @@ export class A2uiSurface extends LitElement {
    * If the root component is not yet available, renders a loading state.
    * Otherwise, renders the root component using `renderA2uiNode`.
    */
-  render() {
+  override render() {
     if (!this.surface) return nothing;
     if (!this._hasRoot) {
       return html`<slot name="loading"><div>Loading surface...</div></slot>`;

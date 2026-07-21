@@ -1,0 +1,115 @@
+{
+  "name": "Credit Card",
+  "description": "Example of credit card",
+  "messages": [
+    {
+      "version": "v1.0",
+      "createSurface": {
+        "surfaceId": "gallery-credit-card",
+        "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
+        "sendDataModel": true
+      }
+    },
+    {
+      "version": "v1.0",
+      "updateComponents": {
+        "surfaceId": "gallery-credit-card",
+        "components": [
+          {
+            "id": "root",
+            "component": "Card",
+            "child": "main_column"
+          },
+          {
+            "id": "main_column",
+            "component": "Column",
+            "children": ["card_type_row", "card_number", "card_details"]
+          },
+          {
+            "id": "card_type_row",
+            "component": "Row",
+            "children": ["card_icon", "card_type"],
+            "justify": "spaceBetween",
+            "align": "center"
+          },
+          {
+            "id": "card_icon",
+            "component": "Icon",
+            "name": "payment"
+          },
+          {
+            "id": "card_type",
+            "component": "Text",
+            "text": {
+              "path": "/cardType"
+            }
+          },
+          {
+            "id": "card_number",
+            "component": "Text",
+            "text": {
+              "path": "/cardNumber"
+            }
+          },
+          {
+            "id": "card_details",
+            "component": "Row",
+            "children": ["holder_col", "expiry_col"],
+            "justify": "spaceBetween"
+          },
+          {
+            "id": "holder_col",
+            "component": "Column",
+            "children": ["holder_label", "holder_name"]
+          },
+          {
+            "id": "holder_label",
+            "component": "Text",
+            "text": "CARD HOLDER",
+            "variant": "caption"
+          },
+          {
+            "id": "holder_name",
+            "component": "Text",
+            "text": {
+              "path": "/holderName"
+            },
+            "variant": "body"
+          },
+          {
+            "id": "expiry_col",
+            "component": "Column",
+            "children": ["expiry_label", "expiry_date"],
+            "align": "end"
+          },
+          {
+            "id": "expiry_label",
+            "component": "Text",
+            "text": "EXPIRES",
+            "variant": "caption"
+          },
+          {
+            "id": "expiry_date",
+            "component": "Text",
+            "text": {
+              "path": "/expiryDate"
+            },
+            "variant": "body"
+          }
+        ]
+      }
+    },
+    {
+      "version": "v1.0",
+      "updateDataModel": {
+        "surfaceId": "gallery-credit-card",
+        "value": {
+          "cardType": "VISA",
+          "cardNumber": "\u2022\u2022\u2022\u2022 \u2022\u2022\u2022\u2022 \u2022\u2022\u2022\u2022 4242",
+          "holderName": "SARAH JOHNSON",
+          "expiryDate": "09/27"
+        }
+      }
+    }
+  ]
+}

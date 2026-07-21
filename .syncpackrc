@@ -1,0 +1,17 @@
+{
+  "dependencyTypes": ["dev", "prod", "peer"],
+  "versionGroups": [
+    {
+      "label": "Unified TypeScript version",
+      "packages": ["**"],
+      "dependencies": ["typescript"],
+      "pinVersion": "5.9.3"
+    },
+    {
+      "label": "Unified Zod version",
+      "packages": ["**"],
+      "dependencies": ["zod"],
+      "pinVersion": "^3.25.76"
+    }
+  ]
+}

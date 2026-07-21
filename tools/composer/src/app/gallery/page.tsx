@@ -18,7 +18,11 @@
 
 import {useState} from 'react';
 import {useRouter} from 'next/navigation';
-import {GalleryWidget} from '@/components/gallery/gallery-widget';
+import dynamic from 'next/dynamic';
+const GalleryWidget = dynamic(
+  () => import('@/components/gallery/gallery-widget').then(mod => mod.GalleryWidget),
+  {ssr: false},
+);
 import {WidgetPreviewModal} from '@/components/gallery/widget-preview-modal';
 import {Widget} from '@/types/widget';
 import {useWidgets} from '@/contexts/widgets-context';

@@ -20,6 +20,7 @@
 # Arguments:
 #   $1 - WORKFLOW_NAME: The name of the workflow that failed (e.g., "Evals", "E2E tests").
 #   $2 - LABEL_NAME: The label to apply to the newly created issue (e.g., "eval_failure", "e2e_failure").
+#   $3 - SUMMARY_FILE: (Optional) Path to a file containing a detailed summary to include in the issue body.
 #
 # Expected Environment Variables (provided by GitHub Actions):
 #   GITHUB_REPOSITORY, GITHUB_SHA, GITHUB_SERVER_URL, GITHUB_RUN_ID
@@ -29,6 +30,7 @@ set -e
 
 WORKFLOW_NAME="${1:-Evals}"
 LABEL_NAME="${2:-eval_failure}"
+SUMMARY_FILE="${3:-}"
 
 # Check required environment variables
 if [[ -z "$GITHUB_REPOSITORY" || -z "$GITHUB_SHA" || -z "$GITHUB_SERVER_URL" || -z "$GITHUB_RUN_ID" ]]; then
@@ -63,6 +65,14 @@ LOWER_WORKFLOW_NAME=$(echo "$WORKFLOW_NAME" | tr '[:upper:]' '[:lower:]')
 BODY="The ${LOWER_WORKFLOW_NAME} workflow failed on main for commit ${GITHUB_SHA}.
 ${PR_LINK}
 See logs: ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
+
+if [[ -n "$SUMMARY_FILE" && -s "$SUMMARY_FILE" ]]; then
+  echo "Found summary file at $SUMMARY_FILE. Appending to body..."
+  BODY="${BODY}
+
+### Detailed Summary
+$(cat "$SUMMARY_FILE")"
+fi
 
 echo "Checking for existing open issues with label '$LABEL_NAME' and title '$TITLE'..."
 EXISTING_ISSUE=$(gh issue list --label "$LABEL_NAME" --state open --search "\"$TITLE\" in:title" --json url,title --jq ".[] | select(.title == \"$TITLE\") | .url" | head -n 1)

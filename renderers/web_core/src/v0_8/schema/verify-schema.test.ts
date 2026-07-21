@@ -62,8 +62,8 @@ function getObjectDiff(obj1: any, obj2: any, path = ''): Record<string, any> {
     if (ignoreKeys.has(key)) continue;
 
     const currentPath = path ? `${path}.${key}` : key;
-    let val1 = obj1 ? obj1[key] : undefined;
-    let val2 = obj2 ? obj2[key] : undefined;
+    const val1 = obj1 ? obj1[key] : undefined;
+    const val2 = obj2 ? obj2[key] : undefined;
 
     // Zod emits `type: "string"` for consts, whereas JSON Schema infers it.
     if (path.endsWith('version') && key === 'type' && val1 === 'string' && val2 === undefined) {

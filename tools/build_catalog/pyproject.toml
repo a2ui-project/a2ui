@@ -16,17 +16,14 @@
 name = "a2ui-scripts"
 version = "0.1.0"
 description = "Scripts for A2UI"
-requires-python = ">=3.11"
+requires-python = ">=3.10"
 dependencies = []
 
 [[tool.uv.index]]
 url = "https://pypi.org/simple"
 default = true
 
-[dependency-groups]
-dev = [
-    "pytest>=8.0.0",
-]
+
 
 [tool.pytest.ini_options]
 pythonpath = ["."]

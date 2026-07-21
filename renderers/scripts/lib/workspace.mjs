@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-import {readFileSync, readdirSync, statSync, existsSync} from 'node:fs';
-import {join, resolve, relative, dirname} from 'node:path';
+import {readFileSync, readdirSync, statSync} from 'node:fs';
+import {join, resolve, dirname} from 'node:path';
 import {spawnSync} from 'node:child_process';
 import {fileURLToPath} from 'node:url';
 
@@ -29,6 +29,7 @@ export const ansi = {
   yellow: '\x1b[33m',
   red: '\x1b[31m',
   green: '\x1b[32m',
+  bold: '\x1b[1m',
   reset: '\x1b[0m',
 };
 
@@ -101,7 +102,7 @@ export function getPackageGraph() {
 
     const allDeps = {...pkg.dependencies, ...pkg.devDependencies, ...pkg.peerDependencies};
     for (const depName in allDeps) {
-      if (packages[depName] && allDeps[depName].startsWith('file:')) {
+      if (packages[depName]) {
         pkg.internalDependencies.push(depName);
       }
     }

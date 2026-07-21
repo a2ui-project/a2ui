@@ -22,54 +22,72 @@ import {useMarkdown} from '../hooks/useMarkdown';
 // Import CSS Module
 import styles from './Text.module.css';
 
-/**
- * Wraps the plain text with appropriate Markdown syntax based on the requested variant.
- *
- * @param text The plain text to be wrapped.
- * @param variant The typography variant (e.g., 'h1', 'caption').
- * @returns The text wrapped in Markdown syntax.
- */
-const handleVariant = (text: string, variant?: string): string => {
-  switch (variant) {
-    case 'h1':
-      return `# ${text}`;
-    case 'h2':
-      return `## ${text}`;
-    case 'h3':
-      return `### ${text}`;
-    case 'h4':
-      return `#### ${text}`;
-    case 'h5':
-      return `##### ${text}`;
-    case 'caption':
-      return `*${text}*`;
-    default:
-      return text;
-  }
-};
+/** Variants rendered with declarative HTML instead of the Markdown pipeline. */
+const NON_MARKDOWN_VARIANTS = new Set(['h1', 'h2', 'h3', 'h4', 'h5', 'caption']);
 
+/** Renders text through the Markdown pipeline for unknown/default variants. */
+function MarkdownText({
+  text,
+  className,
+  style,
+}: {
+  text: string;
+  className: string;
+  style: React.CSSProperties;
+}) {
+  const renderedHtml = useMarkdown(text);
+  const classes = renderedHtml === null ? `${className} no-markdown-renderer` : className;
+  const contentProps =
+    renderedHtml !== null ? {dangerouslySetInnerHTML: {__html: renderedHtml}} : {children: text};
+
+  return <div className={classes} style={style} {...contentProps} />;
+}
+
+/** Renders known variants (h1–h5, caption) as native HTML elements without Markdown. */
+function NonMarkdownText({
+  text,
+  variant,
+  className,
+  style,
+}: {
+  text: string;
+  variant: string;
+  className: string;
+  style: React.CSSProperties;
+}) {
+  const isCaption = variant === 'caption';
+  const HeadingTag = isCaption ? 'em' : (variant as 'h1' | 'h2' | 'h3' | 'h4' | 'h5');
+  if (isCaption) {
+    return (
+      <span className={className} style={style}>
+        <HeadingTag>{text}</HeadingTag>
+      </span>
+    );
+  }
+  return (
+    <div className={className} style={style}>
+      <HeadingTag>{text}</HeadingTag>
+    </div>
+  );
+}
+
+/** Renders text content, using the Markdown pipeline for rich text or native HTML elements for known typographic variants. */
 export const Text = createComponentImplementation(TextApi, ({props}) => {
   useBasicCatalogStyles();
   const text = typeof props.text === 'string' ? props.text : String(props.text ?? '');
-  const markdownText = handleVariant(text, props.variant);
-  const renderedHtml = useMarkdown(markdownText);
+  const variant = props.variant;
+
   const style: React.CSSProperties = {
     ...getBaseLeafStyle(),
     ...getWeightStyle(props.weight),
   };
 
-  const isCaption = props.variant === 'caption';
-  const classes = [styles.a2uiText, isCaption ? styles.a2uiCaption : props.variant || 'body'];
-  if (renderedHtml === null) {
-    classes.push('no-markdown-renderer');
+  if (variant && NON_MARKDOWN_VARIANTS.has(variant)) {
+    const isCaption = variant === 'caption';
+    const className = [styles.a2uiText, isCaption ? styles.a2uiCaption : variant].join(' ');
+    return <NonMarkdownText text={text} variant={variant} className={className} style={style} />;
   }
-  const contentProps =
-    renderedHtml !== null
-      ? {dangerouslySetInnerHTML: {__html: renderedHtml}}
-      : {children: markdownText};
 
-  if (isCaption) {
-    return <span className={classes.join(' ')} style={style} {...contentProps} />;
-  }
-  return <div className={classes.join(' ')} style={style} {...contentProps} />;
+  const className = [styles.a2uiText, variant || 'body'].join(' ');
+  return <MarkdownText text={text} className={className} style={style} />;
 });

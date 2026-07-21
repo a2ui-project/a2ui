@@ -1,0 +1,59 @@
+{
+  "schema": "server_to_client.json",
+  "tests": [
+    {
+      "description": "Text with valid variant 'caption'",
+      "valid": true,
+      "data": {
+        "version": "v1.0",
+        "updateComponents": {
+          "surfaceId": "test_surface",
+          "components": [
+            {
+              "id": "text_caption",
+              "component": "Text",
+              "text": "Caption text",
+              "variant": "caption"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "description": "Text with h1 variant (should fail)",
+      "valid": false,
+      "data": {
+        "version": "v1.0",
+        "updateComponents": {
+          "surfaceId": "test_surface",
+          "components": [
+            {
+              "id": "text_h1",
+              "component": "Text",
+              "text": "Header",
+              "variant": "h1"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "description": "Text with invalid variant (should fail)",
+      "valid": false,
+      "data": {
+        "version": "v1.0",
+        "updateComponents": {
+          "surfaceId": "test_surface",
+          "components": [
+            {
+              "id": "text_invalid",
+              "component": "Text",
+              "text": "Invalid",
+              "variant": "not_a_variant"
+            }
+          ]
+        }
+      }
+    }
+  ]
+}

@@ -24,7 +24,8 @@ export const prompts: TestPrompt[] = [
   {
     name: 'deleteSurface',
     description: 'A DeleteSurface message to remove a UI surface.',
-    promptText: `Generate a JSON message containing a deleteSurface for the surface 'dashboard-surface-1'.`,
+    promptText:
+      "Generate a JSON message containing a deleteSurface for the surface 'dashboard-surface-1'.",
   },
   {
     name: 'dogBreedGenerator',
@@ -52,12 +53,14 @@ The dog generator is another card which is a form that generates a fictional dog
     name: 'loginForm',
     description:
       'A simple login form with username, password, a "remember me" checkbox, and a submit button.',
-    promptText: `Generate a 'createSurface' message and a 'updateComponents' message with surfaceId 'main' for a login form. It should have a "Login" text (variant 'h1'), two text fields for username and password (bound to /login/username and /login/password), a checkbox for "Remember Me" (bound to /login/rememberMe), and a "Sign In" button. The button's action should have a 'event' property with 'name': 'login', and a 'context' containing the username, password, and rememberMe status.`,
+    promptText:
+      "Generate a 'createSurface' message and a 'updateComponents' message with surfaceId 'main' for a login form. It should have a \"Login\" text (variant 'h1'), two text fields for username and password (bound to /login/username and /login/password), a checkbox for \"Remember Me\" (bound to /login/rememberMe), and a \"Sign In\" button. The button's action should have a 'event' property with 'name': 'login', and a 'context' containing the username, password, and rememberMe status.",
   },
   {
     name: 'productGallery',
     description: 'A gallery of products using a list with a template.',
-    promptText: `Generate a 'createSurface' message and a 'updateComponents' message with surfaceId 'main' for a product gallery. It should display a list of products from the data model at '/products'. Use a template for the list items. Each item should be a Card containing a Column. The Column should contain an Image (from '/products/item/imageUrl'), a Text component for the product name (from '/products/item/name'), and a Button labeled "Add to Cart". The button's action should have a 'event' with 'name': 'addToCart' and a 'context' with the product ID, for example, 'productId': 'static-id-123' (use this exact literal string). You should create a template component and then a list that uses it.`,
+    promptText:
+      "Generate a 'createSurface' message and a 'updateComponents' message with surfaceId 'main' for a product gallery. It should display a list of products from the data model at '/products'. Use a template for the list items. Each item should be a Card containing a Column. The Column should contain an Image (from '/products/item/imageUrl'), a Text component for the product name (from '/products/item/name'), and a Button labeled \"Add to Cart\". The button's action should have a 'event' with 'name': 'addToCart' and a 'context' with the product ID, for example, 'productId': 'static-id-123' (use this exact literal string). You should create a template component and then a list that uses it.",
   },
   {
     name: 'productGalleryData',
@@ -74,12 +77,14 @@ The dog generator is another card which is a form that generates a fictional dog
   {
     name: 'settingsPage',
     description: 'A settings page with tabs and a modal dialog.',
-    promptText: `Generate a 'createSurface' message and a 'updateComponents' message with surfaceId 'main' for a user settings page. Use a Tabs component with two tabs: "Profile" and "Notifications". The "Profile" tab should contain a simple column with a text field for the user's name. The "Notifications" tab should contain a checkbox for "Enable email notifications". Also, include a Modal component. The modal's trigger should be a button labeled "Delete Account", and its content should be a column with a confirmation text and two buttons: "Confirm Deletion" and "Cancel".`,
+    promptText:
+      'Generate a \'createSurface\' message and a \'updateComponents\' message with surfaceId \'main\' for a user settings page. Use a Tabs component with two tabs: "Profile" and "Notifications". The "Profile" tab should contain a simple column with a text field for the user\'s name. The "Notifications" tab should contain a checkbox for "Enable email notifications". Also, include a Modal component. The modal\'s trigger should be a button labeled "Delete Account", and its content should be a column with a confirmation text and two buttons: "Confirm Deletion" and "Cancel".',
   },
   {
     name: 'updateDataModel',
     description: 'An updateDataModel message to update user data.',
-    promptText: `Generate a 'createSurface' message with surfaceId 'main', followed by an updateDataModel message. This is used to update the client's data model. The scenario is that a user has just logged in, and we need to populate their profile information. Create a single data model update message to set '/user/name' to "John Doe" and '/user/email' to "john.doe@example.com".`,
+    promptText:
+      "Generate a 'createSurface' message with surfaceId 'main', followed by an updateDataModel message. This is used to update the client's data model. The scenario is that a user has just logged in, and we need to populate their profile information. Create a single data model update message to set '/user/name' to \"John Doe\" and '/user/email' to \"john.doe@example.com\".",
   },
   {
     name: 'animalKingdomExplorer',
@@ -123,52 +128,62 @@ IMPORTANT: Do not skip any of the classes, orders, or species above. Include eve
   {
     name: 'recipeCard',
     description: 'A UI to display a recipe with ingredients and instructions.',
-    promptText: `Generate a 'createSurface' message and a 'updateComponents' message with surfaceId 'main' for a recipe card. It should have a 'Text' (variant 'h1') for the recipe title, "Classic Lasagna". Below the title, an 'Image' of the lasagna. Then, a 'Row' containing two 'Column's. The first column has a 'Text' (variant 'h2') "Ingredients" and a 'List' of ingredients (use 'Text' components for items: "Pasta", "Cheese", "Sauce"). The second column has a 'Text' (variant 'h2') "Instructions" and a 'List' of step-by-step instructions (use 'Text' components: "Boil pasta", "Layer ingredients", "Bake"). Finally, a 'Button' at the bottom labeled "Watch Video Tutorial".`,
+    promptText:
+      "Generate a 'createSurface' message and a 'updateComponents' message with surfaceId 'main' for a recipe card. It should have a 'Text' (variant 'h1') for the recipe title, \"Classic Lasagna\". Below the title, an 'Image' of the lasagna. Then, a 'Row' containing two 'Column's. The first column has a 'Text' (variant 'h2') \"Ingredients\" and a 'List' of ingredients (use 'Text' components for items: \"Pasta\", \"Cheese\", \"Sauce\"). The second column has a 'Text' (variant 'h2') \"Instructions\" and a 'List' of step-by-step instructions (use 'Text' components: \"Boil pasta\", \"Layer ingredients\", \"Bake\"). Finally, a 'Button' at the bottom labeled \"Watch Video Tutorial\".",
   },
   {
     name: 'musicPlayer',
     description: 'A simple music player UI.',
-    promptText: `Generate a 'createSurface' message and a 'updateComponents' message with surfaceId 'main' for a music player. It should be a 'Card' containing a 'Column'. Inside the column, there's an 'Image' for the album art, a 'Text' for the song title "Bohemian Rhapsody", another 'Text' for the artist "Queen", a 'Slider' labeled "Progress", and a 'Row' with three 'Button' components. Each Button should have a child 'Text' component. The Text components should have the labels "Previous", "Play", and "Next" respectively.`,
+    promptText:
+      "Generate a 'createSurface' message and a 'updateComponents' message with surfaceId 'main' for a music player. It should be a 'Card' containing a 'Column'. Inside the column, there's an 'Image' for the album art, a 'Text' for the song title \"Bohemian Rhapsody\", another 'Text' for the artist \"Queen\", a 'Slider' labeled \"Progress\", and a 'Row' with three 'Button' components. Each Button should have a child 'Text' component. The Text components should have the labels \"Previous\", \"Play\", and \"Next\" respectively.",
   },
   {
     name: 'weatherForecast',
     description: 'A UI to display the weather forecast.',
-    promptText: `Generate a 'createSurface' message and a 'updateComponents' message with surfaceId 'main' for a weather forecast UI. It should have a 'Text' (variant 'h1') with the city name, "New York". Below it, a 'Row' with the current temperature as a 'Text' component ("68°F") and an 'Image' for the weather icon (e.g., a sun). Below that, a 'Divider'. Then, a 'List' component to display the 5-day forecast. Each item in the list should be a 'Row' with the day, an icon, and high/low temperatures.`,
+    promptText:
+      "Generate a 'createSurface' message and a 'updateComponents' message with surfaceId 'main' for a weather forecast UI. It should have a 'Text' (variant 'h1') with the city name, \"New York\". Below it, a 'Row' with the current temperature as a 'Text' component (\"68°F\") and an 'Image' for the weather icon (e.g., a sun). Below that, a 'Divider'. Then, a 'List' component to display the 5-day forecast. Each item in the list should be a 'Row' with the day, an icon, and high/low temperatures.",
   },
   {
     name: 'surveyForm',
     description: 'A customer feedback survey form.',
-    promptText: `Create a customer feedback survey form. It should have a 'Text' (variant 'h1') "Customer Feedback". Then a 'ChoicePicker' (variant 'mutuallyExclusive') with label "How would you rate our service?" and options "Excellent", "Good", "Average", "Poor". Then a 'ChoicePicker' (variant 'multipleSelection') with label "What did you like?" and options "Product Quality", "Price", "Customer Support". Finally, a 'TextField' with the label "Any other comments?" and a 'Button' labeled "Submit Feedback".`,
+    promptText:
+      'Create a customer feedback survey form. It should have a \'Text\' (variant \'h1\') "Customer Feedback". Then a \'ChoicePicker\' (variant \'mutuallyExclusive\') with label "How would you rate our service?" and options "Excellent", "Good", "Average", "Poor". Then a \'ChoicePicker\' (variant \'multipleSelection\') with label "What did you like?" and options "Product Quality", "Price", "Customer Support". Finally, a \'TextField\' with the label "Any other comments?" and a \'Button\' labeled "Submit Feedback".',
   },
   {
     name: 'flightBooker',
     description: 'A form to search for flights.',
-    promptText: `Generate a 'createSurface' message and a 'updateComponents' message with surfaceId 'main' for a flight booking form. It should have a 'Text' (variant 'h1') "Book a Flight". Then a 'Row' with two 'TextField's for "Origin" and "Destination". Below that, a 'Row' with two 'DateTimeInput's for "Departure Date" and "Return Date" (initialize with empty values). Add a 'Slider' labeled "Passengers" (min 1, max 10, value 1). Finally, a 'Button' labeled "Search Flights".`,
+    promptText:
+      "Generate a 'createSurface' message and a 'updateComponents' message with surfaceId 'main' for a flight booking form. It should have a 'Text' (variant 'h1') \"Book a Flight\". Then a 'Row' with two 'TextField's for \"Origin\" and \"Destination\". Below that, a 'Row' with two 'DateTimeInput's for \"Departure Date\" and \"Return Date\" (initialize with empty values). Add a 'Slider' labeled \"Passengers\" (min 1, max 10, value 1). Finally, a 'Button' labeled \"Search Flights\".",
   },
   {
     name: 'dashboard',
     description: 'A simple dashboard with statistics.',
-    promptText: `Generate a 'createSurface' message and a 'updateComponents' message with surfaceId 'main' for a simple dashboard. It should have a 'Text' (variant 'h1') "Sales Dashboard". Below, a 'Row' containing three 'Card's. The first card has a 'Text' "Revenue" and another 'Text' "$50,000". The second card has "New Customers" and "1,200". The third card has "Conversion Rate" and "4.5%".`,
+    promptText:
+      "Generate a 'createSurface' message and a 'updateComponents' message with surfaceId 'main' for a simple dashboard. It should have a 'Text' (variant 'h1') \"Sales Dashboard\". Below, a 'Row' containing three 'Card's. The first card has a 'Text' \"Revenue\" and another 'Text' \"$50,000\". The second card has \"New Customers\" and \"1,200\". The third card has \"Conversion Rate\" and \"4.5%\".",
   },
   {
     name: 'contactCard',
     description: 'A UI to display contact information.',
-    promptText: `Generate a 'createSurface' message and a 'updateComponents' message with surfaceId 'main' for a contact card. The root component of the surface must be a 'Card'. This Card should contain a 'Row'. The row contains an 'Image' (as an avatar) and a 'Column'. The column contains a 'Text' for the name "Jane Doe", a 'Text' for the email "jane.doe@example.com", and a 'Text' for the phone number "(123) 456-7890". Below the main row, add a 'Button' labeled "View on Map" (using a child 'Text' component).`,
+    promptText:
+      "Generate a 'createSurface' message and a 'updateComponents' message with surfaceId 'main' for a contact card. The root component of the surface must be a 'Card'. This Card should contain a 'Row'. The row contains an 'Image' (as an avatar) and a 'Column'. The column contains a 'Text' for the name \"Jane Doe\", a 'Text' for the email \"jane.doe@example.com\", and a 'Text' for the phone number \"(123) 456-7890\". Below the main row, add a 'Button' labeled \"View on Map\" (using a child 'Text' component).",
   },
   {
     name: 'calendarEventCreator',
     description: 'A form to create a new calendar event.',
-    promptText: `Generate a 'createSurface' message and a 'updateComponents' message with surfaceId 'main' for a calendar event creation form. It should have a 'Text' (variant 'h1') "New Event". Include a 'TextField' for the "Event Title". Use a 'Row' for two 'DateTimeInput's for "Start Time" and "End Time" (initialize both with a literal empty string value: '' (do not bind to a data path)). Add a 'CheckBox' labeled "All-day event". Finally, a 'Row' with two 'Button's: "Save" and "Cancel".`,
+    promptText:
+      "Generate a 'createSurface' message and a 'updateComponents' message with surfaceId 'main' for a calendar event creation form. It should have a 'Text' (variant 'h1') \"New Event\". Include a 'TextField' for the \"Event Title\". Use a 'Row' for two 'DateTimeInput's for \"Start Time\" and \"End Time\" (initialize both with a literal empty string value: '' (do not bind to a data path)). Add a 'CheckBox' labeled \"All-day event\". Finally, a 'Row' with two 'Button's: \"Save\" and \"Cancel\".",
   },
   {
     name: 'checkoutPage',
     description: 'A simplified e-commerce checkout page.',
-    promptText: `Create a simplified e-commerce checkout page. It should have a 'Text' (variant 'h1') "Checkout". A 'Column' for shipping info with 'TextField's for "Name", "Address", "City", "Zip Code". A 'Column' for payment info with 'TextField's for "Card Number", "Expiry Date", "CVV". Finally, a 'Text' "Total: $99.99" and a 'Button' "Place Order".`,
+    promptText:
+      'Create a simplified e-commerce checkout page. It should have a \'Text\' (variant \'h1\') "Checkout". A \'Column\' for shipping info with \'TextField\'s for "Name", "Address", "City", "Zip Code". A \'Column\' for payment info with \'TextField\'s for "Card Number", "Expiry Date", "CVV". Finally, a \'Text\' "Total: $99.99" and a \'Button\' "Place Order".',
   },
   {
     name: 'socialMediaPost',
     description: 'A component representing a social media post.',
-    promptText: `Generate a 'createSurface' message and a 'updateComponents' message with surfaceId 'main' for a social media post. It should be a 'Card' containing a 'Column'. The first item is a 'Row' with an 'Image' (user avatar) and a 'Text' (username "user123"). Below that, a 'Text' component for the post content: "Enjoying the beautiful weather today!". Then, an 'Image' for the main post picture. Finally, a 'Row' with three 'Button's: "Like", "Comment", and "Share".`,
+    promptText:
+      "Generate a 'createSurface' message and a 'updateComponents' message with surfaceId 'main' for a social media post. It should be a 'Card' containing a 'Column'. The first item is a 'Row' with an 'Image' (user avatar) and a 'Text' (username \"user123\"). Below that, a 'Text' component for the post content: \"Enjoying the beautiful weather today!\". Then, an 'Image' for the main post picture. Finally, a 'Row' with three 'Button's: \"Like\", \"Comment\", and \"Share\".",
   },
   {
     name: 'eCommerceProductPage',
@@ -222,27 +237,32 @@ Each activity in the inner lists should be a 'Row' containing a 'CheckBox' (to m
   {
     name: 'videoCallInterface',
     description: 'A video conference UI.',
-    promptText: `Create a video call interface. It should have a 'Text' (variant 'h1') "Video Call". A 'Video' component with a valid placeholder URL (e.g. 'https://example.com/video.mp4'). Below that, a 'Row' with three 'Button's, each with a child 'Text' component with the text "Mute", "Camera", and "End Call" respectively.`,
+    promptText:
+      "Create a video call interface. It should have a 'Text' (variant 'h1') \"Video Call\". A 'Video' component with a valid placeholder URL (e.g. 'https://example.com/video.mp4'). Below that, a 'Row' with three 'Button's, each with a child 'Text' component with the text \"Mute\", \"Camera\", and \"End Call\" respectively.",
   },
   {
     name: 'fileBrowser',
     description: 'A file explorer list.',
-    promptText: `Create a file browser. It should have a 'Text' (variant 'h1') "My Files". A 'List' of 'Row's. Each row has an 'Icon' (folder or attachFile) and a 'Text' (filename). Examples (create these as static rows, not data bound): "Documents", "Images", "Work.txt".`,
+    promptText:
+      "Create a file browser. It should have a 'Text' (variant 'h1') \"My Files\". A 'List' of 'Row's. Each row has an 'Icon' (folder or attachFile) and a 'Text' (filename). Examples (create these as static rows, not data bound): \"Documents\", \"Images\", \"Work.txt\".",
   },
   {
     name: 'chatRoom',
     description: 'A chat application interface.',
-    promptText: `Create a chat room interface. It should have a 'Column' for the message history. Inside, include several 'Card's representing messages, each with a 'Text' for the sender and a 'Text' for the message body. Specifically include these messages: "Alice: Hi there!", "Bob: Hello!". At the bottom, a 'Row' with a 'TextField' (label "Type a message...") and a 'Button' labeled "Send".`,
+    promptText:
+      "Create a chat room interface. It should have a 'Column' for the message history. Inside, include several 'Card's representing messages, each with a 'Text' for the sender and a 'Text' for the message body. Specifically include these messages: \"Alice: Hi there!\", \"Bob: Hello!\". At the bottom, a 'Row' with a 'TextField' (label \"Type a message...\") and a 'Button' labeled \"Send\".",
   },
   {
     name: 'fitnessTracker',
     description: 'A daily activity summary.',
-    promptText: `Create a fitness tracker dashboard. It should have a 'Text' (variant 'h1') "Daily Activity", and a 'Row' of 'Card's. Each card should contain a 'Column' with a 'Text' label (e.g. "Steps") and a 'Text' value (e.g. "10,000"). Create cards for "Steps" ("10,000"), "Calories" ("500 kcal"), "Distance" ("5 km"). Below that, a 'Slider' labeled "Daily Goal" (initialize value to 50). Finally, a 'List' of recent workouts. Use 'Text' components for the list items, for example: "Morning Run", "Evening Yoga", "Gym Session".`,
+    promptText:
+      'Create a fitness tracker dashboard. It should have a \'Text\' (variant \'h1\') "Daily Activity", and a \'Row\' of \'Card\'s. Each card should contain a \'Column\' with a \'Text\' label (e.g. "Steps") and a \'Text\' value (e.g. "10,000"). Create cards for "Steps" ("10,000"), "Calories" ("500 kcal"), "Distance" ("5 km"). Below that, a \'Slider\' labeled "Daily Goal" (initialize value to 50). Finally, a \'List\' of recent workouts. Use \'Text\' components for the list items, for example: "Morning Run", "Evening Yoga", "Gym Session".',
   },
   {
     name: 'smartHome',
     description: 'A smart home control panel.',
-    promptText: `Create a smart home dashboard. It should have a 'Text' (variant 'h1') "Living Room". A 'Grid' of 'Card's. To create the grid, use a 'Column' that contains multiple 'Row's. Each 'Row' should contain 'Card's. Create a row with cards for "Lights" (CheckBox, label "Lights", value true) and "Thermostat" (Slider, label "Thermostat", value 72). Create another row with a card for "Music" (CheckBox, label "Music", value false). Ensure the CheckBox labels are exactly "Lights" and "Music".`,
+    promptText:
+      'Create a smart home dashboard. It should have a \'Text\' (variant \'h1\') "Living Room". A \'Grid\' of \'Card\'s. To create the grid, use a \'Column\' that contains multiple \'Row\'s. Each \'Row\' should contain \'Card\'s. Create a row with cards for "Lights" (CheckBox, label "Lights", value true) and "Thermostat" (Slider, label "Thermostat", value 72). Create another row with a card for "Music" (CheckBox, label "Music", value false). Ensure the CheckBox labels are exactly "Lights" and "Music".',
   },
   {
     name: 'restaurantMenu',
@@ -255,17 +275,20 @@ Each activity in the inner lists should be a 'Row' containing a 'CheckBox' (to m
   {
     name: 'newsAggregator',
     description: 'A news feed with article cards.',
-    promptText: `Create a news aggregator. The root component should be a 'Column'. Inside this column, place a 'Text' (variant 'h1') "Top Headlines". Below the text, place a 'List' of 'Card's. The 'List' should be a sibling of the 'Text', not a parent. Each card has a 'Column' with an 'Image', a 'Text' (headline), and a 'Text' (summary). Include headlines "Tech Breakthrough" and "Local Sports". Each card should have a 'Button' labeled "Read More". Create these as static components, not data bound.`,
+    promptText:
+      "Create a news aggregator. The root component should be a 'Column'. Inside this column, place a 'Text' (variant 'h1') \"Top Headlines\". Below the text, place a 'List' of 'Card's. The 'List' should be a sibling of the 'Text', not a parent. Each card has a 'Column' with an 'Image', a 'Text' (headline), and a 'Text' (summary). Include headlines \"Tech Breakthrough\" and \"Local Sports\". Each card should have a 'Button' labeled \"Read More\". Create these as static components, not data bound.",
   },
   {
     name: 'photoEditor',
     description: 'A photo editing interface with sliders.',
-    promptText: `Create a photo editor. It should have a large 'Image' (photo). Below it, a 'Row' of 'Button's (Filters, Crop, Adjust). Below that, a 'Slider' labeled "Intensity" (initialize value to 50).`,
+    promptText:
+      "Create a photo editor. It should have a large 'Image' (photo). Below it, a 'Row' of 'Button's (Filters, Crop, Adjust). Below that, a 'Slider' labeled \"Intensity\" (initialize value to 50).",
   },
   {
     name: 'triviaQuiz',
     description: 'A trivia question card.',
-    promptText: `Create a trivia quiz. It should have a 'Text' (variant 'h1') "Question 1". A 'Text' "What is the capital of France?". A 'ChoicePicker' (variant 'mutuallyExclusive') for answers (options: "Paris", "London", "Berlin", "Madrid"). A 'Button' "Submit Answer".`,
+    promptText:
+      'Create a trivia quiz. It should have a \'Text\' (variant \'h1\') "Question 1". A \'Text\' "What is the capital of France?". A \'ChoicePicker\' (variant \'mutuallyExclusive\') for answers (options: "Paris", "London", "Berlin", "Madrid"). A \'Button\' "Submit Answer".',
   },
   {
     name: 'simpleCalculator',
@@ -280,7 +303,8 @@ Each activity in the inner lists should be a 'Row' containing a 'CheckBox' (to m
   {
     name: 'jobApplication',
     description: 'A job application form.',
-    promptText: `Create a job application form. It should have 'TextField's for "Name", "Email", "Phone", "Resume URL". A 'ChoicePicker' (variant 'mutuallyExclusive') labeled "Years of Experience" (options: "0-1", "2-5", "5+"). A 'Button' "Submit Application".`,
+    promptText:
+      'Create a job application form. It should have \'TextField\'s for "Name", "Email", "Phone", "Resume URL". A \'ChoicePicker\' (variant \'mutuallyExclusive\') labeled "Years of Experience" (options: "0-1", "2-5", "5+"). A \'Button\' "Submit Application".',
   },
   {
     name: 'courseSyllabus',
@@ -318,7 +342,8 @@ Each activity in the inner lists should be a 'Row' containing a 'CheckBox' (to m
   {
     name: 'notificationCenter',
     description: 'A list of notifications.',
-    promptText: `Create a notification center. It should have a 'Text' (variant 'h1') "Notifications". A 'List' of 'Card's. Include cards for "New message from Sarah" and "Your order has shipped". Each card should have a 'Button' "Dismiss".`,
+    promptText:
+      "Create a notification center. It should have a 'Text' (variant 'h1') \"Notifications\". A 'List' of 'Card's. Include cards for \"New message from Sarah\" and \"Your order has shipped\". Each card should have a 'Button' \"Dismiss\".",
   },
   {
     name: 'nestedDataBinding',
@@ -353,7 +378,8 @@ Each activity in the inner lists should be a 'Row' containing a 'CheckBox' (to m
   {
     name: 'profileEditor',
     description: 'A user profile editing form.',
-    promptText: `Generate a 'createSurface' message and a 'updateComponents' message with surfaceId 'main' for editing a profile. 'Text' (h1) "Edit Profile". 'Image' (Current Avatar). 'Button' "Change Photo". 'TextField' "Display Name". 'TextField' "Bio" (multiline). 'TextField' "Website". 'Button' "Save Changes".`,
+    promptText:
+      "Generate a 'createSurface' message and a 'updateComponents' message with surfaceId 'main' for editing a profile. 'Text' (h1) \"Edit Profile\". 'Image' (Current Avatar). 'Button' \"Change Photo\". 'TextField' \"Display Name\". 'TextField' \"Bio\" (multiline). 'TextField' \"Website\". 'Button' \"Save Changes\".",
   },
   {
     name: 'cinemaSeatSelection',
@@ -367,7 +393,8 @@ Each activity in the inner lists should be a 'Row' containing a 'CheckBox' (to m
   {
     name: 'flashcardApp',
     description: 'A language learning flashcard.',
-    promptText: `Generate a 'createSurface' message and a 'updateComponents' message with surfaceId 'main' for a flashcard app. 'Text' (h1) "Spanish Vocabulary". 'Card' (the flashcard). Inside the card, a 'Column' with 'Text' (h2) "Hola" (Front). 'Divider'. 'Text' "Hello" (Back - conceptually hidden, but rendered here). 'Row' of buttons: "Hard", "Good", "Easy".`,
+    promptText:
+      "Generate a 'createSurface' message and a 'updateComponents' message with surfaceId 'main' for a flashcard app. 'Text' (h1) \"Spanish Vocabulary\". 'Card' (the flashcard). Inside the card, a 'Column' with 'Text' (h2) \"Hola\" (Front). 'Divider'. 'Text' \"Hello\" (Back - conceptually hidden, but rendered here). 'Row' of buttons: \"Hard\", \"Good\", \"Easy\".",
   },
   {
     name: 'clientSideValidation',
