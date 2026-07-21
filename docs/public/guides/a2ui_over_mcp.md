@@ -3,7 +3,7 @@
 This guide shows you how to serve **rich, interactive A2UI interfaces** from an **MCP server** using Tools and Embedded Resources. By the end, you'll have a working MCP server that returns A2UI components to any MCP-compatible client.
 
 <video width="100%" height="auto" controls playsinline style="display: block; aspect-ratio: 16/9; object-fit: cover; border-radius: 8px; margin-bottom: 24px;">
-  <source src="https://raw.githubusercontent.com/a2ui-project/a2ui/main/docs/public/assets/guides-a2ui-over-mcp-tour.mp4" type="video/mp4">
+  <source src="../assets/guides-a2ui-over-mcp-tour.mp4" type="video/mp4">
   Your browser does not support the video tag.
 </video>
 
@@ -78,7 +78,7 @@ You will see a premium, responsive dual-column interface where the left column r
 
 ![Dynamic Recipe Studio demo showing selection form on the left and dynamic recipe card generation on the right](../assets/recipe_sample.gif)
 
-See all samples at [`samples/community/mcp/`](https://github.com/a2ui-project/a2ui/tree/main/samples/community/mcp).
+See all samples at [`samples/community/mcp/`](../../../samples/community/mcp).
 
 ## How It Works
 
