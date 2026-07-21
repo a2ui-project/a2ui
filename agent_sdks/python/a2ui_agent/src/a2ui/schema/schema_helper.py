@@ -35,7 +35,6 @@ class CatalogSchemaHelper:
     to support positional parameter mapping for compact generative notations.
 
     Attributes:
-        catalog_path: The absolute filesystem path to the catalog JSON file (if loaded from file).
         catalog: The parsed catalog JSON dictionary.
         components: A dictionary mapping component names to their catalog schemas.
         functions: A dictionary mapping function names to their catalog schemas.
@@ -64,40 +63,41 @@ class CatalogSchemaHelper:
         self.functions = {
             name: fn.schema for name, fn in self.catalog_model.functions.items()
         }
+        self.component_properties: dict[str, list[str]] = {}
+        self.component_required: dict[str, list[str]] = {}
+        self.component_is_checkable: dict[str, bool] = {}
+        self.component_property_enums: dict[tuple[str, str], list[str]] = {}
+        self.function_properties: dict[str, list[str]] = {}
+        self.function_required: dict[str, list[str]] = {}
         self._load_mappings()
 
     def _load_mappings(self) -> None:
         """Crawls the component and function schemas to build internal mappings."""
-        self.component_properties = {}
-        self.component_required = {}
-        self.component_is_checkable = {}
-        self.component_property_enums = {}
-
         for name, schema in self.components.items():
-            props = {}
-            reqs = []
+            props: dict[str, Any] = {}
+            reqs: list[str] = []
             is_checkable = False
 
             # Crawl allOf and root schema for properties
             sub_schemas = [schema]
-            if "allOf" in schema:
+            if isinstance(schema, dict) and "allOf" in schema and isinstance(schema["allOf"], list):
                 sub_schemas.extend(schema["allOf"])
 
             for sub in sub_schemas:
                 if not isinstance(sub, dict):
                     continue
-                if "$ref" in sub:
+                if "$ref" in sub and isinstance(sub["$ref"], str):
                     ref = sub["$ref"]
                     if "Checkable" in ref:
                         is_checkable = True
-                if "properties" in sub:
+                if "properties" in sub and isinstance(sub["properties"], dict):
                     props.update(sub["properties"])
                     for pk, pv in sub["properties"].items():
 
-                        def _find_enum(s):
+                        def _find_enum(s: Any) -> Optional[list[str]]:
                             if isinstance(s, dict):
-                                if "enum" in s:
-                                    return s["enum"]
+                                if "enum" in s and isinstance(s["enum"], list):
+                                    return [str(x) for x in s["enum"]]
                                 for k in ("oneOf", "anyOf", "allOf"):
                                     if k in s and isinstance(s[k], list):
                                         for sub_s in s[k]:
@@ -109,8 +109,8 @@ class CatalogSchemaHelper:
                         enum_val = _find_enum(pv)
                         if enum_val:
                             self.component_property_enums[(name, pk)] = enum_val
-                if "required" in sub:
-                    reqs.extend(sub["required"])
+                if "required" in sub and isinstance(sub["required"], list):
+                    reqs.extend([str(r) for r in sub["required"]])
 
             # Filter out structural properties component and id
             ordered_keys = []
@@ -126,15 +126,19 @@ class CatalogSchemaHelper:
             self.component_required[name] = reqs
             self.component_is_checkable[name] = is_checkable
 
-        self.function_properties = {}
-        self.function_required = {}
-
         for name, schema in self.functions.items():
-            args_obj = schema.get("properties", {}).get("args", {})
-            props = args_obj.get("properties", {})
-            reqs = args_obj.get("required", [])
-            self.function_properties[name] = list(props.keys())
-            self.function_required[name] = reqs
+            if not isinstance(schema, dict):
+                continue
+            args_obj = schema.get("properties", {})
+            if isinstance(args_obj, dict):
+                args_props = args_obj.get("args", {})
+                if isinstance(args_props, dict):
+                    props = args_props.get("properties", {})
+                    reqs_raw = args_props.get("required", [])
+                    if isinstance(props, dict):
+                        self.function_properties[name] = list(props.keys())
+                    if isinstance(reqs_raw, list):
+                        self.function_required[name] = [str(r) for r in reqs_raw]
 
     def get_component_properties(self, name: str) -> list[str]:
         """Returns the ordered properties of the specified component."""
@@ -158,15 +162,22 @@ class CatalogSchemaHelper:
 
     def get_function_property_schema(
         self, fn_name: str, prop_name: str
-    ) -> Optional[dict]:
+    ) -> Optional[dict[str, Any]]:
         """Retrieves the JSON schema for a specific function argument property."""
         fn_schema = self.functions.get(fn_name, {})
-        return (
-            fn_schema.get("properties", {})
-            .get("args", {})
-            .get("properties", {})
-            .get(prop_name)
-        )
+        if not isinstance(fn_schema, dict):
+            return None
+        props_obj = fn_schema.get("properties", {})
+        if not isinstance(props_obj, dict):
+            return None
+        args_obj = props_obj.get("args", {})
+        if not isinstance(args_obj, dict):
+            return None
+        arg_props = args_obj.get("properties", {})
+        if not isinstance(arg_props, dict):
+            return None
+        res = arg_props.get(prop_name)
+        return res if isinstance(res, dict) else None
 
     def get_property_enum(
         self, component_name: str, property_name: str
@@ -177,42 +188,46 @@ class CatalogSchemaHelper:
     def get_component_description(self, name: str) -> Optional[str]:
         """Retrieves the description of the component from its catalog schema."""
         schema = self.components.get(name)
-        if not schema:
+        if not schema or not isinstance(schema, dict):
             return None
-        if "description" in schema:
-            return schema["description"]
-        if "allOf" in schema:
+        desc = schema.get("description")
+        if isinstance(desc, str):
+            return desc
+        if "allOf" in schema and isinstance(schema["allOf"], list):
             for sub in schema["allOf"]:
-                if isinstance(sub, dict) and "description" in sub:
-                    return sub["description"]
+                if isinstance(sub, dict) and isinstance(sub.get("description"), str):
+                    return str(sub["description"])
         return None
 
     def get_function_description(self, name: str) -> Optional[str]:
         """Retrieves the description of the function from its catalog schema."""
         schema = self.functions.get(name)
-        if not schema:
+        if not schema or not isinstance(schema, dict):
             return None
-        return schema.get("description")
+        desc = schema.get("description")
+        return desc if isinstance(desc, str) else None
 
     def get_property_schema(
         self, component_name: str, property_name: str
-    ) -> Optional[dict]:
+    ) -> Optional[dict[str, Any]]:
         """Crawls all sub-schemas of a component to retrieve a property's schema definition."""
         schema = self.components.get(component_name)
-        if not schema:
+        if not schema or not isinstance(schema, dict):
             return None
 
         sub_schemas = [schema]
-        if "allOf" in schema:
+        if "allOf" in schema and isinstance(schema["allOf"], list):
             sub_schemas.extend(schema["allOf"])
 
         for sub in sub_schemas:
             if (
                 isinstance(sub, dict)
                 and "properties" in sub
+                and isinstance(sub["properties"], dict)
                 and property_name in sub["properties"]
             ):
-                return sub["properties"][property_name]
+                res = sub["properties"][property_name]
+                return res if isinstance(res, dict) else None
         return None
 
     def get_property_type(
@@ -225,7 +240,7 @@ class CatalogSchemaHelper:
 
         def _crawl_ref(s: Any) -> Optional[str]:
             if isinstance(s, dict):
-                if "$ref" in s:
+                if "$ref" in s and isinstance(s["$ref"], str):
                     ref = s["$ref"]
                     if "ChildList" in ref:
                         return "ChildList"
