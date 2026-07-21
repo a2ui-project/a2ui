@@ -117,6 +117,8 @@ export interface BasicCatalogOptions {
 
   /**
    * An optional set of function implementations to use instead of the defaults.
+   *
+   * @deprecated Use AngularCatalog constructor directly to combine BASIC_FUNCTIONS with custom ones.
    */
   functions?: FunctionImplementation[];
 }

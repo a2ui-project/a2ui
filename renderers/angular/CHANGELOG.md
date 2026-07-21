@@ -1,6 +1,6 @@
 ## Unreleased
 
-- (v0_9) Implement `createAngularComponentImplementation` helper and deprecate `extraComponents` in `BasicCatalogOptions` to align with the core API. [#2060](https://github.com/a2ui-project/a2ui/pull/2060)
+- (v0_9) Implement `createAngularComponentImplementation` helper and deprecate `extraComponents` and `functions` in `BasicCatalogOptions` to align with the core API. [#2060](https://github.com/a2ui-project/a2ui/pull/2060)
 - Standardize package entry points to `index.ts` while maintaining `public-api.ts` wrappers for backward compatibility.
 - (v0_8) Export `A2uiMessageSchema` in public API.
 
