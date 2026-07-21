@@ -19,7 +19,12 @@ signatures, and requirements directly from standard catalog JSON schemas.
 """
 
 from typing import Any, Optional, Union
-from a2ui.core.catalog import Catalog
+
+try:
+    from a2ui.core.catalog import Catalog
+except ImportError:
+    Catalog = Any  # type: ignore
+
 from a2ui.schema.catalog import A2uiCatalog
 
 

@@ -14,6 +14,4 @@
 
 """Schema package supporting validators, catalogs, and capabilities."""
 
-from .schema_helper import CatalogSchemaHelper
-
-__all__ = ["CatalogSchemaHelper"]
+__all__ = []
