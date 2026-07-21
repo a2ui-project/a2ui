@@ -39,4 +39,3 @@ __all__ = [
     "get_component_references",
     "wrap_as_json_array",
 ]
-
