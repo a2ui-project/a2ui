@@ -86,7 +86,7 @@ describe('A2uiRendererService', () => {
 });
 
 describe('provideA2Ui', () => {
-  it('should provide the configuration', () => {
+  it('should provide the configuration and allow A2uiRendererService to be instantiated', () => {
     const mockCatalog = {
       components: new Map(),
       functions: new Map(),
@@ -98,5 +98,25 @@ describe('provideA2Ui', () => {
     });
     const config = TestBed.inject(A2UI_RENDERER_CONFIG);
     expect(config).toEqual({catalogs: [mockCatalog as any]});
+
+    const service = TestBed.inject(A2uiRendererService);
+    expect(service).toBeTruthy();
+  });
+
+  it('should support providing the configuration via a factory function', () => {
+    const mockCatalog = {
+      components: new Map(),
+      functions: new Map(),
+    };
+    TestBed.configureTestingModule({
+      providers: [
+        provideA2Ui(() => ({catalogs: [mockCatalog as any]})),
+      ],
+    });
+    const config = TestBed.inject(A2UI_RENDERER_CONFIG);
+    expect(config).toEqual({catalogs: [mockCatalog as any]});
+
+    const service = TestBed.inject(A2uiRendererService);
+    expect(service).toBeTruthy();
   });
 });

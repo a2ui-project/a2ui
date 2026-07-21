@@ -58,14 +58,18 @@ export const A2UI_RENDERER_CONFIG = new InjectionToken<RendererConfiguration>(
 /**
  * Provides the A2UI renderer configuration.
  *
- * @param config The configuration for the A2UI renderer.
+ * @param configOrFactory The configuration or a factory function that returns the configuration.
  * @returns The providers for the A2UI renderer.
  */
-export function provideA2Ui(config: RendererConfiguration): EnvironmentProviders {
+export function provideA2Ui(
+  configOrFactory: RendererConfiguration | (() => RendererConfiguration),
+): EnvironmentProviders {
   return makeEnvironmentProviders([
     {
       provide: A2UI_RENDERER_CONFIG,
-      useValue: config,
+      ...(typeof configOrFactory === 'function'
+        ? {useFactory: configOrFactory}
+        : {useValue: configOrFactory}),
     },
   ]);
 }
