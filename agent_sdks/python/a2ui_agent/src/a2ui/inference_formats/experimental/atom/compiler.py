@@ -28,8 +28,13 @@ class CatalogSchemaHelperWrapper:
         self._helper = None
         if catalog is not None:
             try:
-                from a2ui.inference_formats.experimental.express.schema_helper import CatalogSchemaHelper
+                from a2ui.schema.schema_helper import CatalogSchemaHelper
+            except ImportError:
+                from a2ui.inference_formats.experimental.express.schema_helper import (
+                    CatalogSchemaHelper,
+                )
 
+            try:
                 self._helper = CatalogSchemaHelper(self.catalog)
             except (ImportError, TypeError):
                 self._helper = None

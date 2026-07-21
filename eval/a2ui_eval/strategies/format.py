@@ -36,7 +36,7 @@ def _get_strategy(
     """Resolves and instantiates the InferenceFormat strategy for the given format.
 
     Args:
-        format_name: The name of the format strategy (json, express, or elemental).
+        format_name: The name of the format strategy (json, express, elemental, or atom).
         version: The specification version (e.g. 0.9.1 or 1.0).
         catalog_config: The catalog configuration details.
         surface_id: The surface identifier target.

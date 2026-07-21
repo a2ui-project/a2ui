@@ -105,8 +105,13 @@ class AtomPromptGenerator(PromptGenerator):
     def __init__(self, format_inst: "AtomFormat"):
         self.format = format_inst
         try:
-            from a2ui.inference_formats.experimental.express.schema_helper import CatalogSchemaHelper
+            from a2ui.schema.schema_helper import CatalogSchemaHelper
+        except ImportError:
+            from a2ui.inference_formats.experimental.express.schema_helper import (
+                CatalogSchemaHelper,
+            )
 
+        try:
             self.schema_helper = CatalogSchemaHelper(format_inst.catalog)
         except Exception:
             self.schema_helper = None
