@@ -416,7 +416,7 @@ export class McpApp extends CatalogComponent<any> implements OnDestroy, OnInit {
           containerDimensions: {
             width: entry.contentRect.width,
             height: entry.contentRect.height,
-          }
+          },
         });
       }
     });

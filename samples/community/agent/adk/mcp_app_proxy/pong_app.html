@@ -322,11 +322,11 @@
         .then(result => {
           console.log('Initialized with host:', result);
           sendNotification('ui/notifications/initialized', {});
-          
-          // The app is fully reactive to the host dimensions. 
+
+          // The app is fully reactive to the host dimensions.
           // The host determines the container dimensions and passes them to the app.
           applyContainerDimensions(result.hostContext?.containerDimensions);
-          
+
           // Alternatively, if the app is to control the dimensions, uncomment and use:
           // sendNotification('ui/notifications/size-changed', {width: 728, height: 502});
         })
