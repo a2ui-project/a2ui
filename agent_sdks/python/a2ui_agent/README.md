@@ -22,15 +22,6 @@ The following directories contain the base protocol logic, parsing, and schema o
 - **`streaming.py`**: Incremental streaming parsers with automatic JSON healing and validation.
 - **`payload_fixer.py`**: Utilities to automatically correct common LLM output
   issues in A2UI payloads.
-
-## Inference Formats (`src/a2ui/inference_formats`)
-
-Pluggable format strategies for generating and parsing alternative generative notations:
-
-- **`experimental/atom/`**: The Atom S-expression AST format. Provides compact, token-efficient S-expression representations (`AtomFormat`, `AtomCompiler`, `AtomParser`, `AtomDecompiler`, `AtomPromptGenerator`).
-- **`experimental/express/`**: Express concise JSON notation strategy (`ExpressFormat`, `ExpressParser`).
-- **`experimental/elemental/`**: Elemental compact notation strategy (`ElementalFormat`, `ElementalParser`).
-
 ## Basic Catalog (`src/a2ui/basic_catalog`)
 
 - **`provider.py`**: Implementation of `BasicCatalog` for handling the basic
