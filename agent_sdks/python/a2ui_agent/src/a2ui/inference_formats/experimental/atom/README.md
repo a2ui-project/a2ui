@@ -8,13 +8,13 @@ Atom represents user interface component trees as compact, token-efficient S-exp
 
 ## Core Components
 
-| Class | Module | Role |
-| :--- | :--- | :--- |
-| **`AtomFormat`** | `format.py` | Strategy provider implementing `InferenceFormat`. Configures parser and prompt generator. |
-| **`AtomParser`** | `parser.py` | Extracts, unwraps, compiles, and decompiles Atom S-expression blocks enclosed in `<a2ui>` sentinel tags. |
-| **`AtomCompiler`** | `compiler.py` | Compiles S-expression ASTs into standard A2UI v1.0 JSON payloads. |
-| **`AtomDecompiler`** | `decompiler.py` | Decompiles A2UI v1.0 JSON payloads into clean Atom S-expressions. |
-| **`AtomPromptGenerator`** | `prompt_generator.py` | Builds system prompts, grammar instructions, and catalog signatures. |
+| Class                     | Module                | Role                                                                                                     |
+| :------------------------ | :-------------------- | :------------------------------------------------------------------------------------------------------- |
+| **`AtomFormat`**          | `format.py`           | Strategy provider implementing `InferenceFormat`. Configures parser and prompt generator.                |
+| **`AtomParser`**          | `parser.py`           | Extracts, unwraps, compiles, and decompiles Atom S-expression blocks enclosed in `<a2ui>` sentinel tags. |
+| **`AtomCompiler`**        | `compiler.py`         | Compiles S-expression ASTs into standard A2UI v1.0 JSON payloads.                                        |
+| **`AtomDecompiler`**      | `decompiler.py`       | Decompiles A2UI v1.0 JSON payloads into clean Atom S-expressions.                                        |
+| **`AtomPromptGenerator`** | `prompt_generator.py` | Builds system prompts, grammar instructions, and catalog signatures.                                     |
 
 ---
 
@@ -33,6 +33,7 @@ Atom uses parenthesized S-expressions to represent component nodes and propertie
 ```
 
 ### Key Notation Features
+
 - **Direct Tree Nesting**: Child components are nested directly inside parent container expressions without requiring explicit IDs or flat adjacency lists.
 - **Tagged & Positional Properties**: Attributes use colon prefixes (`:variant "h2"`) or sequential positional parameter ordering matching catalog signatures.
 - **Data Bindings**: Data paths use `$/` prefixes (e.g. `$/user/name`).

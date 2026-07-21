@@ -22,6 +22,7 @@ The following directories contain the base protocol logic, parsing, and schema o
 - **`streaming.py`**: Incremental streaming parsers with automatic JSON healing and validation.
 - **`payload_fixer.py`**: Utilities to automatically correct common LLM output
   issues in A2UI payloads.
+
 ## Basic Catalog (`src/a2ui/basic_catalog`)
 
 - **`provider.py`**: Implementation of `BasicCatalog` for handling the basic
