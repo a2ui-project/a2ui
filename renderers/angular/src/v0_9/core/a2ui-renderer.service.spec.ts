@@ -92,9 +92,7 @@ describe('provideA2Ui', () => {
       functions: new Map(),
     };
     TestBed.configureTestingModule({
-      providers: [
-        provideA2Ui({catalogs: [mockCatalog as any]}),
-      ],
+      providers: [provideA2Ui({catalogs: [mockCatalog as any]})],
     });
     const config = TestBed.inject(A2UI_RENDERER_CONFIG);
     expect(config).toEqual({catalogs: [mockCatalog as any]});
@@ -109,9 +107,7 @@ describe('provideA2Ui', () => {
       functions: new Map(),
     };
     TestBed.configureTestingModule({
-      providers: [
-        provideA2Ui(() => ({catalogs: [mockCatalog as any]})),
-      ],
+      providers: [provideA2Ui(() => ({catalogs: [mockCatalog as any]}))],
     });
     const config = TestBed.inject(A2UI_RENDERER_CONFIG);
     expect(config).toEqual({catalogs: [mockCatalog as any]});
