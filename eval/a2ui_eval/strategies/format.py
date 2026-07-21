@@ -61,6 +61,10 @@ def _get_strategy(
         from a2ui.inference_formats.experimental.elemental.format import ElementalFormat
 
         return ElementalFormat(catalog=catalog, surface_id=surface_id)
+    elif format_name == "atom":
+        from a2ui.inference_formats.experimental.atom.format import AtomFormat
+
+        return AtomFormat(catalog=catalog, surface_id=surface_id)
     else:
         raise ValueError(f"Unknown format strategy: {format_name}")
 

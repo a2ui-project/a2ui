@@ -38,6 +38,10 @@
       },
       "required": ["id"]
     },
+    "Child": {
+      "$ref": "#/$defs/ComponentId",
+      "description": "A reference to a single child component ID."
+    },
     "ChildList": {
       "oneOf": [
         {

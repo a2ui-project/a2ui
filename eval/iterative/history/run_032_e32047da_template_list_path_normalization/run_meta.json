@@ -1,0 +1,14 @@
+{
+  "hypothesis": "Dynamic list template item variable resolution optimizations in _compile_template.",
+  "notes": "Pytest 100% pass, 100.0% Schema Acc, 100.0% Quality Score. Reduced reasoning tokens by -6.3% (4,714 vs 5,032). However, Code Output Tokens expanded by +80.8% (273 vs 151), exceeding 5% efficiency cap. Score S_opt dropped from +0.600 to +0.482 (-0.118). Reverted per Rule 2 and Rule 3.",
+  "status": "Backtracked",
+  "metrics": {
+    "schema_acc": 0.0,
+    "quality_acc": 0.0,
+    "code_tokens_median": 273.0,
+    "reasoning_tokens_median": 4714.0,
+    "input_tokens_median": 4446.0,
+    "latency_seconds_median": 0.0,
+    "total_samples": 0
+  }
+}
