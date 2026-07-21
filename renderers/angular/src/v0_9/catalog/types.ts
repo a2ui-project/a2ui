@@ -60,4 +60,3 @@ export function createAngularComponentImplementation(
     component,
   };
 }
-
