@@ -660,6 +660,231 @@ class TestAtomFormat(unittest.TestCase):
         self.assertNotIn("items", container)
         self.assertNotIn("template", container)
 
+    def test_atom_compiler_extended_coverage(self):
+        """Test think tags, a2ui-json, direct JSON, createSurface forms, weight conversions, and functions with real catalog."""
+        from a2ui.inference_formats.experimental.atom import AtomCompiler, AtomDecompiler, AtomFormat, AtomParser
+        from a2ui.schema.catalog import CatalogConfig
+        from a2ui.inference_formats.transport import TransportFormat
+
+        cat_path = str(REPO_ROOT / "specification/v1_0/catalogs/basic/catalog.json")
+        cat_cfg = CatalogConfig.from_path("basic_catalog", cat_path)
+        transport_format = TransportFormat(
+            version="1.0", catalogs=[cat_cfg], experiments={"version_1_0"}
+        )
+        cat = transport_format.get_selected_catalog()
+        compiler = AtomCompiler(catalog=cat)
+        decompiler = AtomDecompiler(catalog=cat)
+
+        # 1. Think tags and clean up
+        think_text = '<think>reasoning process...</think>\n(Card (Text "Hello"))'
+        compiled = compiler.compile(think_text)
+        self.assertIn("createSurface", compiled)
+
+        # 2. <a2ui-json> block
+        json_tag_text = (
+            '<a2ui-json>{"version": "v1.0", "deleteSurface": {"surfaceId":'
+            ' "json_surf"}}</a2ui-json>'
+        )
+        compiled_json_tag = compiler.compile(json_tag_text)
+        self.assertEqual(
+            compiled_json_tag.get("deleteSurface", {}).get("surfaceId"), "json_surf"
+        )
+
+        # 3. Direct JSON
+        raw_json_text = (
+            '{"version": "v1.0", "updateDataModel": {"value": {"score": 42}}}'
+        )
+        compiled_raw_json = compiler.compile(raw_json_text)
+        self.assertEqual(
+            compiled_raw_json.get("updateDataModel", {}).get("value"), {"score": 42}
+        )
+
+        # 4. <a2ui> wrapper
+        a2ui_tag_text = '<a2ui>(deleteSurface "tag_surf")</a2ui>'
+        compiled_tag = compiler.compile(a2ui_tag_text)
+        self.assertEqual(
+            compiled_tag.get("deleteSurface", {}).get("surfaceId"), "tag_surf"
+        )
+
+        # 5. createSurface macro forms
+        create_surf_text = (
+            '(createSurface :id "custom_surf" :data (data $/foo "bar") :child (Card'
+            ' (Text "Sub")))'
+        )
+        compiled_cs = compiler.compile(create_surf_text)
+        self.assertIn("createSurface", compiled_cs)
+        self.assertEqual(compiled_cs["createSurface"]["surfaceId"], "custom_surf")
+        self.assertEqual(compiled_cs["createSurface"]["dataModel"], {"foo": "bar"})
+
+        create_surf_children_text = (
+            '(createSurface :id "cs2" :children [ (Card (Text "A")) (Card (Text'
+            ' "B")) ])'
+        )
+        compiled_cs2 = compiler.compile(create_surf_children_text)
+        self.assertEqual(compiled_cs2["createSurface"]["surfaceId"], "cs2")
+
+        # 6. Weight conversions
+        weight_text = '(Column :weight "2.5" (Text "Weighted"))'
+        compiled_w = compiler.compile(weight_text)
+        col = compiled_w["createSurface"]["components"][0]
+        self.assertEqual(col.get("weight"), 2.5)
+
+        invalid_weight_text = '(Column :weight "invalid" (Text "Weighted"))'
+        compiled_iw = compiler.compile(invalid_weight_text)
+        col_iw = compiled_iw["createSurface"]["components"][0]
+        self.assertNotIn("weight", col_iw)
+
+        # 7. Function expressions (regex, openUrl, pluralize, required, min, max, email, formatString)
+        fn_text = """(Card
+          (Text :text (regex :pattern "^[0-9]+$")
+                :variant (formatString "${user/name}")))"""
+        compiled_fn = compiler.compile(fn_text)
+        txt = next(
+            c
+            for c in compiled_fn["createSurface"]["components"]
+            if c["component"] == "Text"
+        )
+        self.assertEqual(
+            txt["text"], {"call": "regex", "args": {"pattern": "^[0-9]+$"}}
+        )
+        self.assertEqual(
+            txt["variant"], {"call": "formatString", "args": {"value": "${user/name}"}}
+        )
+
+        # Additional function calls
+        fn_call_text = '(callFunction "openUrl" :url "https://example.com")'
+        compiled_fc = compiler.compile(fn_call_text)
+        self.assertIn("callFunction", compiled_fc)
+
+        fn_direct_text = (
+            '(Button :action (Event "click" :context (data $/a 1)) (Text "Click"))'
+        )
+        compiled_fd = compiler.compile(fn_direct_text)
+        self.assertIn("createSurface", compiled_fd)
+
+        # 8. Event contexts
+        ev_list_text = (
+            '(Button :action (Event "ev2" :context [ :x $/x :y $/y ]) (Text "Btn"))'
+        )
+        compiled_ev_list = compiler.compile(ev_list_text)
+        btn_list = next(
+            c
+            for c in compiled_ev_list["createSurface"]["components"]
+            if c["component"] == "Button"
+        )
+        self.assertEqual(btn_list["action"]["event"]["name"], "ev2")
+
+        ev_val_text = (
+            '(Button :action (Event "ev3" :context $/single_val) (Text "Btn"))'
+        )
+        compiled_ev_val = compiler.compile(ev_val_text)
+        btn_val = next(
+            c
+            for c in compiled_ev_val["createSurface"]["components"]
+            if c["component"] == "Button"
+        )
+        self.assertEqual(btn_val["action"]["event"]["name"], "ev3")
+
+        # 9. Tabs compilation
+        tabs_text = (
+            '(Tabs :tabs [ (Tab :title "Tab1" :content (Text "Content1")) (tab :label'
+            ' "Tab2" (Text "Content2")) ])'
+        )
+        compiled_tabs = compiler.compile(tabs_text)
+        tabs_comp = compiled_tabs["createSurface"]["components"][0]
+        self.assertEqual(tabs_comp["component"], "Tabs")
+        self.assertEqual(len(tabs_comp["tabs"]), 2)
+
+        # 11. Validation checks, ChoicePicker variant, and options in component properties
+        fn_val_text = """
+        (Card
+          (Column
+            (Text :text (formatDate $/created_at))
+            (Text :text (formatCurrency $/amount))
+            (ChoicePicker :value $/sel :options [ "Option A" "Option B" ] :variant "checkboxes")
+            (TextField :label "Email" :value $/email :checks [ (required) (min 5) (regex :pattern "^[a-z]+$") ])))
+        """
+        compiled_fn_val = compiler.compile(fn_val_text)
+        self.assertIn("createSurface", compiled_fn_val)
+        cp = next(
+            c
+            for c in compiled_fn_val["createSurface"]["components"]
+            if c["component"] == "ChoicePicker"
+        )
+        self.assertEqual(cp.get("variant"), "multipleSelection")
+
+        # 12. Prompt generator with function signatures and enum details
+        from a2ui.inference_formats.experimental.atom import AtomFormat
+
+        fmt = AtomFormat(catalog=cat)
+        prompt_gen = fmt.prompt_generator
+        func_sigs = prompt_gen.generate_function_signatures()
+        self.assertIsInstance(func_sigs, str)
+        prompt_full = prompt_gen.generate(include_schema=True, include_examples=True)
+        self.assertIn("Instructions", prompt_full)
+
+    def test_catalog_schema_helper_wrapper_direct(self):
+        """Direct tests for CatalogSchemaHelperWrapper methods and fallback branches."""
+        from a2ui.inference_formats.experimental.atom.compiler import CatalogSchemaHelperWrapper
+
+        class PlainCatalog:
+            pass
+
+        plain_cat = PlainCatalog()
+        wrapper_plain = CatalogSchemaHelperWrapper(plain_cat)
+        self.assertIn("Button", wrapper_plain.get_available_components())
+        self.assertEqual(wrapper_plain.get_component_properties("Unknown"), {})
+        self.assertEqual(wrapper_plain.get_component_required("Unknown"), [])
+        self.assertIsNone(wrapper_plain.get_property_type("Unknown", "prop"))
+        self.assertIsNone(wrapper_plain.get_child_list_property("Unknown"))
+        self.assertIsNone(wrapper_plain.get_single_child_property("Unknown"))
+
+        class CustomDictPropsCatalog:
+
+            def get_components(self):
+                return {
+                    "CustomComp": {
+                        "properties": ["child", "children"],
+                    }
+                }
+
+        cat_list_props = CustomDictPropsCatalog()
+        wrapper_list = CatalogSchemaHelperWrapper(cat_list_props)
+        self.assertEqual(wrapper_list.get_child_list_property("CustomComp"), "children")
+        self.assertEqual(wrapper_list.get_single_child_property("CustomComp"), "child")
+
+    def test_atom_prompt_generator_signatures_with_enum(self):
+        """Test function signature generation with property descriptions and enum values."""
+        from a2ui.inference_formats.experimental.atom.prompt_generator import AtomPromptGenerator
+        from unittest.mock import MagicMock
+
+        mock_helper = MagicMock()
+        mock_helper.component_properties = {"CompA": {"prop1": {}}}
+        mock_helper.get_component_properties.return_value = {"id": {}, "prop1": {}}
+        mock_helper.get_component_required.return_value = ["prop1"]
+        mock_helper.get_component_description.return_value = "A test component"
+        mock_helper.get_property_schema.return_value = {
+            "description": "Property 1",
+            "enum": ["val1", "val2"],
+        }
+
+        mock_helper.function_properties = {"FuncA": {"arg1": {}}}
+        mock_helper.get_function_properties.return_value = {"arg1": {}}
+        mock_helper.get_function_required.return_value = []
+        mock_helper.get_function_description.return_value = "A test function"
+
+        mock_fmt = MagicMock()
+        pg = AtomPromptGenerator(mock_fmt)
+        pg.schema_helper = mock_helper
+
+        comp_sigs = pg.generate_component_signatures()
+        self.assertIn("- (CompA :prop1)", comp_sigs)
+        self.assertIn("Must be one of: 'val1', 'val2'", comp_sigs)
+
+        func_sigs = pg.generate_function_signatures()
+        self.assertIn("- (FuncA :arg1?)", func_sigs)
+        self.assertIn("Must be one of: 'val1', 'val2'", func_sigs)
+
 
 if __name__ == "__main__":
     unittest.main()

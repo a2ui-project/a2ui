@@ -113,3 +113,17 @@ def test_schema_manager_fallback_local_assets(mock_importlib_resources):
         assert len(transport_format._supported_catalogs) >= 1
         catalog = transport_format._supported_catalogs[0]
         assert "LocalText" in catalog.catalog_schema["components"]
+
+
+def test_transport_parser_methods():
+    from a2ui.inference_formats.transport.parser import TransportParser
+
+    tf = TransportFormat(VERSION_0_8, catalogs=[BasicCatalog.get_config(VERSION_0_8)])
+    cat = tf._supported_catalogs[0]
+    parser = TransportParser(cat)
+
+    assert parser.has_format_content("<a2ui-json>", complete=True) is False
+    assert parser.has_format_content("<a2ui-json></a2ui-json>", complete=True) is True
+
+    parts = parser.process_chunk("<a2ui-json>")
+    assert len(parts) >= 0
