@@ -80,7 +80,11 @@ class CatalogSchemaHelper:
 
             # Crawl allOf and root schema for properties
             sub_schemas = [schema]
-            if isinstance(schema, dict) and "allOf" in schema and isinstance(schema["allOf"], list):
+            if (
+                isinstance(schema, dict)
+                and "allOf" in schema
+                and isinstance(schema["allOf"], list)
+            ):
                 sub_schemas.extend(schema["allOf"])
 
             for sub in sub_schemas:
