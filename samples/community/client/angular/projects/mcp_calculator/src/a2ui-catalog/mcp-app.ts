@@ -405,7 +405,16 @@ export class McpApp extends CatalogComponent<any> implements OnDestroy, OnInit {
       return {content: []};
     };
 
-    // Inform the app of its dimensions
+    // Set initial host context synchronously so it is available during the handshake
+    const rect = iframe.getBoundingClientRect();
+    bridge.setHostContext({
+      containerDimensions: {
+        width: rect.width,
+        height: rect.height,
+      },
+    });
+
+    // Inform the app of subsequent dimension changes
     if (this.hostResizeObserver) {
       this.hostResizeObserver.disconnect();
     }
