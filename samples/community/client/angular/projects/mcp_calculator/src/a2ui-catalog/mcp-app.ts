@@ -118,6 +118,7 @@ export class McpApp extends CatalogComponent<any> implements OnDestroy, OnInit {
   private lastHeight?: number;
   private lastBoundRootValue: string | null = null;
   private isProcessingAppWrite = false;
+  private hostResizeObserver: ResizeObserver | null = null;
 
   ngOnInit() {
     this.setupSandbox();
@@ -134,6 +135,10 @@ export class McpApp extends CatalogComponent<any> implements OnDestroy, OnInit {
     }
     if (this.messageHandler) {
       window.removeEventListener('message', this.messageHandler);
+    }
+    if (this.hostResizeObserver) {
+      this.hostResizeObserver.disconnect();
+      this.hostResizeObserver = null;
     }
     const bridge = this.appBridge();
     if (bridge) {
@@ -399,6 +404,23 @@ export class McpApp extends CatalogComponent<any> implements OnDestroy, OnInit {
       // Return empty result immediately (calculator UI can forget about it)
       return {content: []};
     };
+
+    // Inform the app of its dimensions
+    if (this.hostResizeObserver) {
+      this.hostResizeObserver.disconnect();
+    }
+    this.hostResizeObserver = new ResizeObserver(entries => {
+      const entry = entries[0];
+      if (entry && bridge) {
+        bridge.setHostContext({
+          containerDimensions: {
+            width: entry.contentRect.width,
+            height: entry.contentRect.height,
+          }
+        });
+      }
+    });
+    this.hostResizeObserver.observe(iframe);
 
     // Connect the bridge
     // We must pass the iframe's contentWindow as the target

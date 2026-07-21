@@ -242,12 +242,27 @@
         window.parent.postMessage({jsonrpc: '2.0', method, params}, '*');
       }
 
+      function applyContainerDimensions(containerDimensions) {
+        if (!containerDimensions) return;
+        if (containerDimensions.width) {
+          document.documentElement.style.width = `${containerDimensions.width}px`;
+          document.body.style.width = `${containerDimensions.width}px`;
+        }
+        if (containerDimensions.height) {
+          document.documentElement.style.height = `${containerDimensions.height}px`;
+          document.body.style.height = `${containerDimensions.height}px`;
+        }
+        if (typeof resize === 'function') resize();
+      }
+
       window.addEventListener('message', event => {
         const data = event.data;
         if (data?.method === 'ping') {
           if (data.id) {
             window.parent.postMessage({jsonrpc: '2.0', id: data.id, result: {}}, '*');
           }
+        } else if (data?.method === 'ui/notifications/host-context-changed') {
+          applyContainerDimensions(data.params?.containerDimensions);
         } else if (data?.method === 'ui/notifications/data-model-update') {
           // TODO: Refactor message handlers to use `@modelcontextprotocol/ext-apps/app-bridge` App client.
           const params = data.params;
@@ -307,7 +322,13 @@
         .then(result => {
           console.log('Initialized with host:', result);
           sendNotification('ui/notifications/initialized', {});
-          sendNotification('ui/notifications/size-changed', {width: 728, height: 502});
+          
+          // The app is fully reactive to the host dimensions. 
+          // The host determines the container dimensions and passes them to the app.
+          applyContainerDimensions(result.hostContext?.containerDimensions);
+          
+          // Alternatively, if the app is to control the dimensions, uncomment and use:
+          // sendNotification('ui/notifications/size-changed', {width: 728, height: 502});
         })
         .catch(err => {
           console.error('Initialization failed:', err);
