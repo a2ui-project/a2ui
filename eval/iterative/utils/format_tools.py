@@ -22,10 +22,11 @@ from a2ui.schema.catalog import CatalogConfig
 from a2ui.inference_formats.transport import TransportFormat
 
 
+REPO_ROOT = Path(__file__).resolve().parents[3]
+
+
 def _load_basic_catalog() -> Any:
-    script_dir = Path(__file__).resolve().parent
-    repo_root = script_dir.parent.parent.parent
-    cat_path = str(repo_root / "specification/v1_0/catalogs/basic/catalog.json")
+    cat_path = str(REPO_ROOT / "specification/v1_0/catalogs/basic/catalog.json")
     cat_cfg = CatalogConfig.from_path("basic", cat_path)
     transport_format = TransportFormat(
         version="1.0", catalogs=[cat_cfg], experiments={"version_1_0"}

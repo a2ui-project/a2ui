@@ -101,8 +101,13 @@ def sync_worktree_history(target_worktrees: Optional[List[str]] = None) -> List[
                     if run_id_num is not None and run_id_num > current_max_id:
                         current_max_id = run_id_num
 
-                shutil.copytree(entry.path, dest_dir)
-                copied_runs.append(os.path.basename(dest_dir))
+                try:
+                    shutil.copytree(entry.path, dest_dir)
+                    copied_runs.append(os.path.basename(dest_dir))
+                except Exception:
+                    if os.path.exists(dest_dir):
+                        shutil.rmtree(dest_dir)
+                    raise
 
     # Rebuild master index
     regenerate_master_index(main_history_dir)
