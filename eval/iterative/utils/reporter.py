@@ -260,9 +260,8 @@ def generate_optimization_report(
                 f"- **Algorithmic Schema**: `{'PASS' if algo_passed else 'FAIL'}`"
             )
             report.append(f"- **LLM Judge Grade**: `{judging_val}`")
-            report.append(
-                f"- **Prompt**:\n  > {sample.get('input').replace('\n', '\n  > ')}"
-            )
+            prompt_str = str(sample.get("input") or "")
+            report.append(f"- **Prompt**:\n  > {prompt_str.replace('\n', '\n  > ')}")
             report.append("")
 
             output_content = ""

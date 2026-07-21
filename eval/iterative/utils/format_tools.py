@@ -24,10 +24,8 @@ from a2ui.inference_formats.transport import TransportFormat
 
 def _load_basic_catalog() -> Any:
     script_dir = Path(__file__).resolve().parent
-    eval_root = script_dir.parent.parent
-    workspace_root = eval_root.parent
-
-    cat_path = str(workspace_root / "specification/v1_0/catalogs/basic/catalog.json")
+    repo_root = script_dir.parent.parent.parent
+    cat_path = str(repo_root / "specification/v1_0/catalogs/basic/catalog.json")
     cat_cfg = CatalogConfig.from_path("basic", cat_path)
     transport_format = TransportFormat(
         version="1.0", catalogs=[cat_cfg], experiments={"version_1_0"}
@@ -44,20 +42,22 @@ def test_compile_snippet(format_name: str, snippet: str) -> str:
         from a2ui.inference_formats.experimental.atom import AtomCompiler
 
         compiler = AtomCompiler(catalog=cat)
+        res = compiler.compile(snippet)
     elif fmt_lower == "express":
-        from a2ui.inference_formats.experimental.express import ExpressCompiler
+        from a2ui.inference_formats.experimental.express.parser import ExpressParser
 
-        compiler = ExpressCompiler(catalog=cat)  # type: ignore[assignment]
+        parser = ExpressParser(catalog=cat)
+        res = parser.compile(snippet)
     elif fmt_lower == "elemental":
-        from a2ui.inference_formats.experimental.elemental import ElementalCompiler
+        from a2ui.inference_formats.experimental.elemental.parser import ElementalParser
 
-        compiler = ElementalCompiler(catalog=cat)  # type: ignore[assignment]
+        parser = ElementalParser(catalog=cat)
+        res = parser.compile(snippet)
     else:
         raise ValueError(
             f"Unsupported format strategy for compilation: '{format_name}'"
         )
 
-    res = compiler.compile(snippet)
     return json.dumps(res, indent=2)
 
 
@@ -76,16 +76,21 @@ def test_decompile_payload(format_name: str, json_str_or_dict: Any) -> str:
         from a2ui.inference_formats.experimental.atom import AtomDecompiler
 
         decompiler = AtomDecompiler(catalog=cat)
+        return decompiler.decompile(payload)
     elif fmt_lower == "express":
-        from a2ui.inference_formats.experimental.express import ExpressDecompiler
+        from a2ui.inference_formats.experimental.express.parser import ExpressParser
 
-        decompiler = ExpressDecompiler(catalog=cat)  # type: ignore[assignment]
+        parser = ExpressParser(catalog=cat)
+        return parser.decompile(payload)
+    elif fmt_lower == "elemental":
+        from a2ui.inference_formats.experimental.elemental.parser import ElementalParser
+
+        parser = ElementalParser(catalog=cat)
+        return parser.decompile(payload)
     else:
         raise ValueError(
             f"Unsupported format strategy for decompilation: '{format_name}'"
         )
-
-    return decompiler.decompile(payload)
 
 
 def test_parse_ast(format_name: str, snippet: str) -> str:
@@ -103,13 +108,13 @@ def test_parse_ast(format_name: str, snippet: str) -> str:
 
         parser = ExpressParser(catalog=cat)
         parts = parser.unwrap(snippet)
-        return str([p.content for p in parts])
+        return str([str(p) for p in parts])
     elif fmt_lower == "elemental":
         from a2ui.inference_formats.experimental.elemental.parser import ElementalParser
 
         parser = ElementalParser(catalog=cat)
         parts = parser.unwrap(snippet)
-        return str([p.content for p in parts])
+        return str([str(p) for p in parts])
     else:
         raise ValueError(
             f"Unsupported format strategy for AST parsing: '{format_name}'"

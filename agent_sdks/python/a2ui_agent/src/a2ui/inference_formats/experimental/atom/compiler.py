@@ -25,12 +25,14 @@ class CatalogSchemaHelperWrapper:
 
     def __init__(self, catalog: Any):
         self.catalog = catalog
-        try:
-            from a2ui.inference_formats.experimental.express.schema_helper import CatalogSchemaHelper
+        self._helper = None
+        if catalog is not None:
+            try:
+                from a2ui.inference_formats.experimental.express.schema_helper import CatalogSchemaHelper
 
-            self._helper = CatalogSchemaHelper(self.catalog)
-        except (ImportError, TypeError, AttributeError, ValueError):
-            self._helper = None
+                self._helper = CatalogSchemaHelper(self.catalog)
+            except (ImportError, TypeError):
+                self._helper = None
 
     def get_available_components(self) -> List[str]:
         if hasattr(self.catalog, "catalog_schema") and isinstance(
@@ -43,24 +45,7 @@ class CatalogSchemaHelperWrapper:
             comps = self.catalog.get_components()
             if comps:
                 return sorted(list(comps.keys()))
-        return [
-            "Button",
-            "Card",
-            "CheckBox",
-            "ChoicePicker",
-            "Column",
-            "DateTimeInput",
-            "Divider",
-            "Icon",
-            "Image",
-            "List",
-            "Modal",
-            "Row",
-            "Slider",
-            "Text",
-            "TextField",
-            "Video",
-        ]
+        return []
 
     def get_component_properties(self, comp_type: str) -> Any:
         if self._helper:

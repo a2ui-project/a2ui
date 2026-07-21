@@ -108,8 +108,14 @@ def extract_metrics(
         if matching_samples:
             import statistics
 
-            s_accs = [s["schema_acc"] for s in matching_samples.values()]
-            q_accs = [s["quality_acc"] for s in matching_samples.values()]
+            s_accs = [
+                s.get("schema_acc", 1.0 if s.get("schema_passed") else 0.0)
+                for s in matching_samples.values()
+            ]
+            q_accs = [
+                s.get("quality_acc", 1.0 if s.get("quality_passed") else 0.0)
+                for s in matching_samples.values()
+            ]
             c_toks = [
                 s["code_tokens"]
                 for s in matching_samples.values()
@@ -142,8 +148,10 @@ def extract_metrics(
                 "name": name,
                 "task_name": task_name,
                 "total_samples": len(matching_samples),
+                "schema_acc": s_acc,
                 "schema_accuracy": s_acc,
                 "algo_accuracy": s_acc,
+                "quality_acc": q_acc,
                 "quality_accuracy": q_acc,
                 "overall_accuracy": q_acc,
                 "avg_latency_seconds": med_lat,
@@ -446,33 +454,31 @@ def generate_markdown_table(
     b = baseline_metrics
     b_s_opt = compute_s_opt(b, b)
     b_s_opt_str = f"**{b_s_opt:+.3f}**"
-    b_schema_str = (
-        f"{b['schema_acc']*100:.1f}%" if b["schema_acc"] is not None else "N/A"
-    )
-    b_quality_str = (
-        f"{b['quality_acc']*100:.1f}%" if b["quality_acc"] is not None else "N/A"
-    )
-    b_wall_str = (
-        f"{b['wall_clock_per_sample']:.2f}s"
-        if b["wall_clock_per_sample"] > 0
-        else "N/A"
-    )
-    b_lat_str = f"{b['avg_duration']:.2f}s"
+    b_s_acc = b.get("schema_acc", b.get("schema_accuracy"))
+    b_q_acc = b.get("quality_acc", b.get("quality_accuracy"))
+    b_schema_str = f"{b_s_acc*100:.1f}%" if b_s_acc is not None else "N/A"
+    b_quality_str = f"{b_q_acc*100:.1f}%" if b_q_acc is not None else "N/A"
+    b_wall_val = b.get("wall_clock_per_sample", 0)
+    b_wall_str = f"{b_wall_val:.2f}s" if b_wall_val > 0 else "N/A"
+    b_lat_str = f"{b.get('avg_duration', 0):.2f}s"
     b_ctime_str = f"{b.get('est_code_time', 0):.2f}s"
-    b_inp_str = f"{b['avg_input_tokens']:,.0f}"
+    b_inp_str = f"{b.get('avg_input_tokens', 0):,.0f}"
     b_rtok_str = f"{b.get('avg_reasoning_tokens', 0):,.0f}"
-    b_out_str = f"{b['avg_output_tokens']:,.0f}"
+    b_out_str = f"{b.get('avg_output_tokens', 0):,.0f}"
+    b_name = b.get("name", "baseline")
+    b_count = b.get("sample_count", b.get("total_samples", 0))
 
     lines.append(
-        f"| **Baseline**: `{b['name']}` | {b['sample_count']} | {b_s_opt_str} |"
+        f"| **Baseline**: `{b_name}` | {b_count} | {b_s_opt_str} |"
         f" {b_schema_str} | {b_quality_str} | {b_wall_str} | {b_lat_str} |"
         f" {b_ctime_str} | {b_inp_str} | {b_rtok_str} | {b_out_str} |"
     )
 
     # Format comparison rows
     for c in comparison_metrics_list:
-        name_str = f"`{c['name']}`"
-        samples_str = str(c["sample_count"])
+        c_name = c.get("name") or c.get("run_name") or "run"
+        name_str = f"`{c_name}`"
+        samples_str = str(c.get("sample_count", c.get("total_samples", 0)))
 
         c_s_opt = compute_s_opt(c, b)
         d_s_opt = c_s_opt - b_s_opt
@@ -480,38 +486,40 @@ def generate_markdown_table(
         s_opt_str = f"**{c_s_opt:+.3f}** ({sign_opt}{d_s_opt:.3f})"
 
         # Schema Acc
-        if c["schema_acc"] is not None:
-            c_schema_val = f"{c['schema_acc']*100:.1f}%"
-            d_schema = format_delta_pct(
-                c["schema_acc"], b["schema_acc"], is_percentage_points=True
-            )
+        c_s_acc = c.get("schema_acc", c.get("schema_accuracy"))
+        b_s_acc = b.get("schema_acc", b.get("schema_accuracy", 0.0))
+        if c_s_acc is not None:
+            c_schema_val = f"{c_s_acc*100:.1f}%"
+            d_schema = format_delta_pct(c_s_acc, b_s_acc, is_percentage_points=True)
             schema_cell = f"{c_schema_val} ({d_schema})"
         else:
             schema_cell = "N/A"
 
         # Quality Acc
-        if c["quality_acc"] is not None:
-            c_qual_val = f"{c['quality_acc']*100:.1f}%"
-            d_qual = format_delta_pct(
-                c["quality_acc"], b["quality_acc"], is_percentage_points=True
-            )
+        c_q_acc = c.get("quality_acc", c.get("quality_accuracy"))
+        b_q_acc = b.get("quality_acc", b.get("quality_accuracy", 0.0))
+        if c_q_acc is not None:
+            c_qual_val = f"{c_q_acc*100:.1f}%"
+            d_qual = format_delta_pct(c_q_acc, b_q_acc, is_percentage_points=True)
             quality_cell = f"{c_qual_val} ({d_qual})"
         else:
             quality_cell = "N/A"
 
         # Parallel Wall Latency
-        if c["wall_clock_per_sample"] > 0:
-            c_wall_val = f"{c['wall_clock_per_sample']:.2f}s"
-            d_wall = format_delta_pct(
-                c["wall_clock_per_sample"], b["wall_clock_per_sample"]
-            )
+        c_wall = c.get("wall_clock_per_sample", 0)
+        b_wall = b.get("wall_clock_per_sample", 0)
+        if c_wall > 0:
+            c_wall_val = f"{c_wall:.2f}s"
+            d_wall = format_delta_pct(c_wall, b_wall)
             wall_cell = f"{c_wall_val} ({d_wall})"
         else:
             wall_cell = "N/A"
 
         # Sample Latency
-        c_lat_val = f"{c['avg_duration']:.2f}s"
-        d_lat = format_delta_pct(c["avg_duration"], b["avg_duration"])
+        c_dur = c.get("avg_duration", c.get("avg_latency_seconds", 0.0))
+        b_dur = b.get("avg_duration", b.get("avg_latency_seconds", 0.0))
+        c_lat_val = f"{c_dur:.2f}s"
+        d_lat = format_delta_pct(c_dur, b_dur)
         latency_cell = f"{c_lat_val} ({d_lat})"
 
         # Non-reasoning Output Time
@@ -520,8 +528,10 @@ def generate_markdown_table(
         ctime_cell = f"{c_ctime_val} ({d_ctime})"
 
         # Input Tokens
-        c_inp_val = f"{c['avg_input_tokens']:,.0f}"
-        d_inp = format_delta_pct(c["avg_input_tokens"], b["avg_input_tokens"])
+        c_inp = c.get("avg_input_tokens", 0.0)
+        b_inp = b.get("avg_input_tokens", 0.0)
+        c_inp_val = f"{c_inp:,.0f}"
+        d_inp = format_delta_pct(c_inp, b_inp)
         inp_cell = f"{c_inp_val} ({d_inp})"
 
         # Reasoning Tokens
@@ -532,8 +542,10 @@ def generate_markdown_table(
         rtok_cell = f"{c_rtok_val} ({d_rtok})"
 
         # Output Tokens
-        c_out_val = f"{c['avg_output_tokens']:,.0f}"
-        d_out = format_delta_pct(c["avg_output_tokens"], b["avg_output_tokens"])
+        c_out = c.get("avg_output_tokens", 0.0)
+        b_out = b.get("avg_output_tokens", 0.0)
+        c_out_val = f"{c_out:,.0f}"
+        d_out = format_delta_pct(c_out, b_out)
         out_cell = f"{c_out_val} ({d_out})"
 
         lines.append(
@@ -603,7 +615,7 @@ def generate_markdown_table(
     return "\n".join(lines)
 
 
-def main() -> None:
+def main(argv: Optional[List[str]] = None) -> None:
     parser = argparse.ArgumentParser(
         description="Compare A2UI evaluation results against a baseline directory."
     )
@@ -636,7 +648,7 @@ def main() -> None:
         help="Optional output markdown file path to save report",
     )
 
-    args = parser.parse_args()
+    args = parser.parse_args(argv)
 
     use_median = not args.average
 

@@ -109,7 +109,7 @@ def sync_worktree_history(target_worktrees: Optional[List[str]] = None) -> List[
     return copied_runs
 
 
-def main() -> None:
+def main(argv: Optional[List[str]] = None) -> None:
     parser = argparse.ArgumentParser(
         description=(
             "Sync history run directories from parallel worktrees into main history."
@@ -126,7 +126,7 @@ def main() -> None:
         ),
     )
 
-    args = parser.parse_args()
+    args = parser.parse_args(argv)
     synced = sync_worktree_history(args.worktrees)
 
     if synced:

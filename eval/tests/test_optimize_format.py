@@ -416,3 +416,41 @@ def test_main_full_flow(
     assert mock_load.called
     assert mock_diff.called
     assert mock_regen.called
+
+
+def test_main_cli_compile_flag() -> None:
+    with pytest.raises(SystemExit) as e:
+        main(["--format", "atom", "--compile", '(Card (Text "Hello"))'])
+    assert e.value.code == 0
+
+
+def test_main_cli_parse_flag() -> None:
+    with pytest.raises(SystemExit) as e:
+        main(["--format", "atom", "--parse", '(Card (Text "Hello"))'])
+    assert e.value.code == 0
+
+
+def test_main_cli_decompile_flag() -> None:
+    payload = json.dumps(
+        {"version": "v1.0", "createSurface": {"surfaceId": "main", "components": []}}
+    )
+    with pytest.raises(SystemExit) as e:
+        main(["--format", "atom", "--decompile", payload])
+    assert e.value.code == 0
+
+
+@patch("utils.archiver.archive_run")
+def test_main_cli_archive_flag(mock_archive: MagicMock) -> None:
+    mock_archive.return_value = "/tmp/history/run_053"
+    with pytest.raises(SystemExit) as e:
+        main([
+            "--format",
+            "atom",
+            "--archive",
+            "--hypothesis",
+            "TestHypothesis",
+            "--status",
+            "KEEP",
+        ])
+    assert e.value.code == 0
+    assert mock_archive.called

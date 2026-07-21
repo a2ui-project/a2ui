@@ -832,7 +832,7 @@ class TestAtomFormat(unittest.TestCase):
 
         plain_cat = PlainCatalog()
         wrapper_plain = CatalogSchemaHelperWrapper(plain_cat)
-        self.assertIn("Button", wrapper_plain.get_available_components())
+        self.assertEqual(wrapper_plain.get_available_components(), [])
         self.assertEqual(wrapper_plain.get_component_properties("Unknown"), {})
         self.assertEqual(wrapper_plain.get_component_required("Unknown"), [])
         self.assertIsNone(wrapper_plain.get_property_type("Unknown", "prop"))
