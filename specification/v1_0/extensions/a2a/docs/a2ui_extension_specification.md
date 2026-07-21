@@ -4,7 +4,7 @@
 
 This document is intended for developers implementing the A2UI A2A extension. The extension adds A2UI v1.0 support to A2A, a format for agents to send streaming, interactive user interfaces to clients.
 
-Note that A2UI extension activation is optional as clients and agents can negotiate A2UI support using A2A `message.metadata["a2uiClientCapabilities"]` which is attached to every A2A message from the client and contains the supported protocol version and catalogs. Agents advertising A2UI support in their AgentCard is encouraged as clients may rely on it to determine if they should send `message.metadata["a2uiClientCapabilities"]`, however it is not explicitly required.
+A2UI does not use A2A extension activation, and only uses the AgentCard part of A2A Extensions. Clients and agents negotiate supported A2UI version and catalogs using A2A `message.metadata["a2uiClientCapabilities"]` which is attached to every A2A message from the client. Agents advertising A2UI support in their AgentCard is encouraged as clients may rely on it to determine if they should send `message.metadata["a2uiClientCapabilities"]`, however it is not explicitly required.
 
 ## Extension URI
 
@@ -48,63 +48,7 @@ The `params` object corresponds to the `v1.0` object in the `server_capabilities
 
 ## A2A Extension activation
 
-Activating the A2UI extension is optional. Clients and agents can negotiate A2UI support using `message.metadata["a2uiClientCapabilities"]` A2A `DataPart.data.metadata["mimeType"] = "application/a2ui+json"`.
-
-Specifically:
-
-- If a client includes `message.metadata["a2uiClientCapabilities"]`, the agent can use this object to determine the supported A2UI protocol version and catalogs.
-- If an agent returns A2A A2A `DataPart.data.metadata["mimeType"] = "application/a2ui+json"`, the client knows the payload contains A2UI messages.
-
-While explicit activation is not required, clients can still explicitly activate the extension using the transport-defined A2A extension activation mechanism. The [A2A Extensions Guide](https://a2a-protocol.org/latest/topics/extensions/) defines this process.
-
-Note: You should not use `accepted_output_modes: ['a2ui']` (which is not an A2UI standard) to trigger A2UI.
-
-### JSON-RPC and HTTP transports
-
-To activate the A2UI A2A Extension, the `X-A2A-Extensions` HTTP header includes the extension URI.
-
-**Example HTTP `SendMessageRequest`:**
-
-```http
-POST /v1/messages HTTP/1.1
-Host: agent.example.com
-X-A2A-Extensions: https://a2ui.org/a2a-extension/a2ui/v1.0
-Content-Type: application/json
-
-{
-  "message": {
-    "parts": [
-      {
-        "text": "Hello, show me the dashboard"
-      }
-    ]
-  }
-}
-```
-
-To see how the agent parses the extension URI, see [`extension.py`](../../../../../agent_sdks/python/a2ui_agent/src/a2ui/a2a/extension.py).
-
-### GRPC transport
-
-To activate the A2UI A2A Extension, the client adds the extension URI to A2A `sendMessageParams.metadata["X-A2A-Extensions"]`.
-
-**Example gRPC `SendMessageRequest`:**
-
-```json
-{
-  "metadata": {
-    "X-A2A-Extensions": "https://a2ui.org/a2a-extension/a2ui/v1.0"
-  },
-  "message": {
-    "parts": [
-      {
-        "text": "Hello, show me the dashboard"
-        }
-      ]
-    }
-  }
-}
-```
+A2UI does not use A2A extension activation. Clients advertise supported A2UI version and catalogs by attaching `message.metadata["a2uiClientCapabilities"]` to their messages. Agents use A2UI by sending payloads with `DataPart.data.metadata["mimeType"] = "application/a2ui+json"` to clients.
 
 ## A2A Client to Server Metadata
 

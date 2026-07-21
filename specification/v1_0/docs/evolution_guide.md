@@ -57,6 +57,7 @@ Version 1.0 differs from 0.9 in the following ways:
 
 ### 2.6. Agent card and transport metadata
 
+- Removed the A2A extension activation mechanism entirely. Clients and agents now rely purely on A2A metadata to negotiate supported A2UI version and catalogs.
 - Standardized the official MIME type to `application/a2ui+json` to conform to IANA media type guidelines.
 - Updated capabilities namespace in transport metadata and A2A metadata parameters from `v0.9`/`v0.9.1` to `v1.0`.
 
@@ -79,6 +80,7 @@ This section outlines the steps required to migrate existing applications and co
 
 ### For agents and servers
 
+- Stop parsing or requiring the A2A extension activation header (e.g., `X-A2A-Extensions`). Use A2A metadata for capability negotiation instead.
 - Set the `version` field in all streamed JSON envelopes to `"v1.0"`.
 - Change the MIME type of A2UI payloads in transport layers from `application/json+a2ui` to `application/a2ui+json`.
 - Rename the `theme` field in `createSurface` messages to `surfaceProperties` and remove `primaryColor`. You can also pass initial `components` and `dataModel` directly in the `createSurface` payload.
@@ -91,6 +93,7 @@ This section outlines the steps required to migrate existing applications and co
 
 ### For renderers and clients
 
+- Stop sending the A2A extension activation header (e.g., `X-A2A-Extensions`). Use A2A metadata for capability negotiation instead.
 - Implement function execution by adding support for parsing `callFunction` messages, checking boundary definitions in the catalog (`callableFrom`), rejecting invalid calls with `INVALID_FUNCTION_CALL`, and returning `functionResponse` messages.
 - Support synchronous action responses by generating `actionId` for actions with `wantResponse: true` and writing returned values from `actionResponse` messages into the data model.
 - Support simultaneous version handling during session initialization by inspecting the `version` property (e.g., `"v1.0"`) to route payloads to version-specific controllers.
