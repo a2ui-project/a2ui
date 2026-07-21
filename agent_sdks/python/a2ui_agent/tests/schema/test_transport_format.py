@@ -122,8 +122,30 @@ def test_transport_parser_methods():
     cat = tf._supported_catalogs[0]
     parser = TransportParser(cat)
 
+    # 1. has_format_content
     assert parser.has_format_content("<a2ui-json>", complete=True) is False
     assert parser.has_format_content("<a2ui-json></a2ui-json>", complete=True) is True
 
-    parts = parser.process_chunk("<a2ui-json>")
-    assert len(parts) >= 0
+    # 2. process_chunk incremental streaming
+    parts1 = parser.process_chunk("<a2ui-json>")
+    assert parts1 == []  # Buffering open tag
+
+    parts2 = parser.process_chunk(
+        '[{"beginRendering": {"surfaceId": "main", "root": "c1"}}]</a2ui-json>'
+    )
+    assert len(parts2) == 1
+    assert parts2[0].is_final is True
+
+    # 3. decompile and wrap_decompiled_blocks
+    payload = {"beginRendering": {"surfaceId": "s1", "root": "c1"}}
+    decompiled = parser.decompile(payload)
+    assert "beginRendering" in decompiled
+    assert '"surfaceId": "s1"' in decompiled
+
+    wrapped = parser.wrap_decompiled_blocks(
+        ['{"beginRendering": {"surfaceId": "s1", "root": "c1"}}']
+    )
+    assert wrapped == (
+        '<a2ui-json>\n{"beginRendering": {"surfaceId": "s1", "root":'
+        ' "c1"}}\n</a2ui-json>'
+    )

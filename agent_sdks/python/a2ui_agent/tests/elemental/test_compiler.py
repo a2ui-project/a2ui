@@ -720,6 +720,7 @@ class TestElementalCompiler(unittest.TestCase):
         res2 = self.compiler.compile(html_raw_act)
         comps2 = res2["createSurface"]["components"]
         btn = next(c for c in comps2 if c["id"] == "b2")
+        self.assertEqual(btn["action"], "Event('press')")
 
     def test_resolve_action_property_name_direct(self):
         """Test _resolve_action_property_name with various on-handler casing variations."""
@@ -742,7 +743,7 @@ class TestElementalCompiler(unittest.TestCase):
         res_evt = self.compiler.compile(html_evt_dict)
         comps_evt = res_evt["createSurface"]["components"]
         btn4 = next(c for c in comps_evt if c["id"] == "b4")
-        self.assertIn("action", btn4)
+        self.assertEqual(btn4["action"], "event({name: 'ev1', context: {x: 99}})")
 
 
 if __name__ == "__main__":

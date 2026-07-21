@@ -636,6 +636,8 @@ valueField = TextField("Deal Value", $/form/value, "0.00", "number", ?required)"
         _set_nested_path(d, "$", "ignored")
         self.assertEqual(d["user"]["name"], "Alice")
         self.assertEqual(d["config"]["theme"], "dark")
+        self.assertNotIn("", d)
+        self.assertNotIn("$", d)
 
         # 2. set! and data statements compilation
         compiler = ExpressCompiler(self.catalog)
