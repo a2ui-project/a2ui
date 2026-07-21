@@ -69,22 +69,18 @@ class AtomDecompiler:
                     if "child" in c and isinstance(c["child"], str):
                         all_children.add(c["child"])
                     if "children" in c:
-                        if isinstance(c["children"], list):
-                            all_children.update(c["children"])
-                        elif (
-                            isinstance(c["children"], dict)
-                            and "componentId" in c["children"]
-                        ):
-                            all_children.add(c["children"]["componentId"])
+                        ch = c["children"]
+                        if isinstance(ch, list):
+                            all_children.update(elem for elem in ch if isinstance(elem, str) and elem in comp_map)
+                        elif isinstance(ch, dict) and "componentId" in ch:
+                            all_children.add(ch["componentId"])
                     for pk, pv in c.items():
-                        if pk in ("id", "component"):
+                        if pk in ("id", "component", "child", "children"):
                             continue
                         if isinstance(pv, dict) and "componentId" in pv:
                             all_children.add(pv["componentId"])
                         elif isinstance(pv, list):
-                            for elem in pv:
-                                if isinstance(elem, str) and elem in comp_map:
-                                    all_children.add(elem)
+                            all_children.update(elem for elem in pv if isinstance(elem, str) and elem in comp_map)
 
                 root_id = components[0]["id"]
                 for c in components:

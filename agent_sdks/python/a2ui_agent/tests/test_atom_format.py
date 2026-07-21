@@ -885,6 +885,20 @@ class TestAtomFormat(unittest.TestCase):
         self.assertIn("- (FuncA :arg1?)", func_sigs)
         self.assertIn("Must be one of: 'val1', 'val2'", func_sigs)
 
+    def test_sexpr_parser_unicode_and_strict_tokens(self):
+        """Test Unicode string unescaping and strict token gap handling in SExprParser."""
+        from a2ui.inference_formats.experimental.atom.compiler import SExprParser
+
+        # 1. Unicode & emoji string literals
+        parser = SExprParser('(Text :text "Hello 🚀 world café")')
+        ast = parser.parse()
+        self.assertEqual(ast, [["Text", ":text", "Hello 🚀 world café"]])
+
+        # 2. String unescaping for multiline/escaped quotes
+        parser2 = SExprParser(r'(Text :text "Line1\nLine2 \"quoted\"")')
+        ast2 = parser2.parse()
+        self.assertEqual(ast2, [["Text", ":text", 'Line1\nLine2 "quoted"']])
+
 
 if __name__ == "__main__":
     unittest.main()

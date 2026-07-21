@@ -121,14 +121,33 @@ class SExprParser:
         ]
         tok_regex = "|".join(f"(?P<{pair[0]}>{pair[1]})" for pair in token_spec)
         tokens = []
-        for mo in re.finditer(tok_regex, text):
+        last_end = 0
+        while last_end < len(text):
+            if text[last_end] == '"':
+                m = re.match(r'"(?:\\.|[^"\\])*"', text[last_end:])
+                if m:
+                    tokens.append(m.group())
+                    last_end += len(m.group())
+                    continue
+                else:
+                    tokens.append(text[last_end:] + '"')
+                    break
+            mo = re.match(tok_regex, text[last_end:])
+            if not mo:
+                skipped = text[last_end:].strip()
+                if skipped:
+                    raise SyntaxError(
+                        f"Unexpected character in Atom input: {skipped!r}"
+                    )
+                break
             kind = mo.lastgroup
             value = mo.group()
+            last_end += len(value)
             if kind in ("SKIP", "COMMENT"):
                 continue
             if kind == "KEYWORD_VAL":
                 k, v = value.split("=", 1)
-                tokens.append(k)
+                tokens.append(k.rstrip(":"))
                 tokens.append(v)
             elif kind == "KEYWORD":
                 tokens.append(value.rstrip(":"))
@@ -170,7 +189,10 @@ class SExprParser:
 
     def _parse_atom(self, tok: str) -> Any:
         if tok.startswith('"') and tok.endswith('"'):
-            return tok[1:-1].encode().decode("unicode_escape")
+            try:
+                return json.loads(tok, strict=False)
+            except Exception:
+                return tok[1:-1]
         if tok == "true":
             return True
         if tok == "false":
