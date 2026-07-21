@@ -22,8 +22,18 @@ from a2ui.schema.catalog import A2uiCatalog
 
 
 class CatalogSchemaHelperWrapper:
+    """Wraps catalog schema helpers to provide component and property schema resolution.
+
+    Attributes:
+        catalog: The catalog containing component and function definitions.
+    """
 
     def __init__(self, catalog: Any):
+        """Initializes a CatalogSchemaHelperWrapper instance.
+
+        Args:
+            catalog: The catalog containing component and function definitions.
+        """
         self.catalog = catalog
         self._helper = None
         if catalog is not None:
@@ -104,9 +114,20 @@ class CatalogSchemaHelperWrapper:
 
 
 class SExprParser:
-    """Tokenizer and S-expression AST parser for Atom syntax."""
+    """Tokenizes and parses Atom S-expressions into Abstract Syntax Tree (AST) lists.
+
+    Attributes:
+        text: The raw S-expression string.
+        tokens: The tokenized list of S-expression elements.
+        pos: The current scanner position in the token list.
+    """
 
     def __init__(self, text: str):
+        """Initializes an SExprParser instance.
+
+        Args:
+            text: The raw S-expression input string to parse.
+        """
         self.text = text
         self.tokens = self._tokenize(text)
         self.pos = 0
@@ -213,9 +234,20 @@ class SExprParser:
 
 
 class AtomCompiler:
-    """Compiles Atom S-Expression AST into standard A2UI v1.0 JSON payloads."""
+    """Compiles Atom S-expression ASTs into structured A2UI v1.0 JSON surface payloads.
+
+    Attributes:
+        catalog: The catalog containing component and function schemas.
+        schema_helper: The catalog schema helper wrapper instance.
+        node_counter: Auto-incrementing node ID generator counter.
+    """
 
     def __init__(self, catalog: Union[Catalog[Any, Any], A2uiCatalog, Any]):
+        """Initializes an AtomCompiler instance.
+
+        Args:
+            catalog: The catalog containing component and function schemas.
+        """
         self.catalog = catalog
         self.schema_helper = CatalogSchemaHelperWrapper(catalog)
         self.node_counter = 0
@@ -308,7 +340,16 @@ class AtomCompiler:
     def compile(
         self, text: str, surface_id: str = "main", is_final: bool = True
     ) -> Dict[str, Any]:
-        """Compiles raw Atom text into an A2UI message dictionary."""
+        """Compiles raw Atom S-expression text into an A2UI message dictionary.
+
+        Args:
+            text: The raw Atom format text string to compile.
+            surface_id: The target surface identifier. Defaults to "main".
+            is_final: Whether this is the final stream chunk.
+
+        Returns:
+            The compiled A2UI JSON surface update payload dictionary.
+        """
         cleaned_text = text.strip()
         if "<think>" in cleaned_text:
             cleaned_text = re.sub(

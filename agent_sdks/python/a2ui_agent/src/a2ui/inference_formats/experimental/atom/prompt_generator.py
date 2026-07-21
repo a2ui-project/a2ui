@@ -100,9 +100,19 @@ def _get_schema_enum(prop_schema: Any) -> Optional[list[str]]:
 
 
 class AtomPromptGenerator(PromptGenerator):
-    """Generates catalog prompts for Atom S-Expression format."""
+    """Generates system prompts, grammar instructions, and component catalog signatures for Atom format.
+
+    Attributes:
+        format: The AtomFormat strategy instance.
+        schema_helper: The catalog schema crawler helper.
+    """
 
     def __init__(self, format_inst: "AtomFormat"):
+        """Initializes an AtomPromptGenerator instance.
+
+        Args:
+            format_inst: The AtomFormat strategy instance.
+        """
         self.format = format_inst
         try:
             from a2ui.schema.schema_helper import CatalogSchemaHelper
@@ -128,7 +138,22 @@ class AtomPromptGenerator(PromptGenerator):
         include_examples: bool = True,
         validate_examples: bool = False,
     ) -> str:
-        """Generates system prompt for Atom format."""
+        """Generates a complete system prompt configured for Atom S-expression UI generation.
+
+        Args:
+            role_description: The system role description text.
+            workflow_description: Additional workflow guidance text.
+            ui_description: Target UI requirement details.
+            client_ui_capabilities: Optional client UI capabilities specification.
+            allowed_components: Optional list of allowed component names.
+            allowed_messages: Optional list of allowed message types.
+            include_schema: Whether to include component and function catalog signatures.
+            include_examples: Whether to include prompt examples.
+            validate_examples: Whether to validate prompt examples.
+
+        Returns:
+            The complete system prompt string.
+        """
         parts = []
         if role_description:
             parts.append(role_description)

@@ -33,7 +33,16 @@ from .parser import AtomParser
 
 @experimental
 class AtomFormat(InferenceFormat):
-    """Concrete strategy for A2UI Atom S-Expression AST representation."""
+    """Configures and provides components for the Atom S-expression inference format strategy.
+
+    Atom is a compact, token-efficient S-expression representation for generating
+    and parsing A2UI user interfaces.
+
+    Attributes:
+        catalog: The catalog containing component and function schemas.
+        surface_id: The target surface identifier.
+        examples_path: The filesystem path to prompt example definitions.
+    """
 
     def __init__(
         self,
@@ -41,12 +50,12 @@ class AtomFormat(InferenceFormat):
         surface_id: str = "main",
         examples_path: Optional[str] = None,
     ):
-        """Initializes the Atom inference format.
+        """Initializes an AtomFormat strategy instance.
 
         Args:
-            catalog: The component catalog containing valid elements.
-            surface_id: The surface identifier for layout targeting.
-            examples_path: Optional path to example files.
+            catalog: The catalog containing component and function schemas.
+            surface_id: The target surface identifier. Defaults to "main".
+            examples_path: The filesystem path to prompt example definitions.
         """
         self.catalog = catalog
         self.surface_id = surface_id

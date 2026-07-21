@@ -21,13 +21,29 @@ from a2ui.schema.catalog import A2uiCatalog
 
 
 class AtomDecompiler:
-    """Decompiles A2UI JSON payloads back into clean Atom S-Expressions."""
+    """Decompiles structured A2UI JSON payloads back into compact Atom S-expressions.
+
+    Attributes:
+        catalog: The catalog containing component and function schemas.
+    """
 
     def __init__(self, catalog: Optional[Union[Catalog[Any, Any], A2uiCatalog]] = None):
+        """Initializes an AtomDecompiler instance.
+
+        Args:
+            catalog: The catalog containing component and function schemas.
+        """
         self.catalog = catalog
 
     def decompile(self, payload: Dict[str, Any]) -> str:
-        """Decompiles payload dictionary into Atom syntax string."""
+        """Decompiles an A2UI JSON payload dictionary into Atom S-expression syntax.
+
+        Args:
+            payload: The A2UI JSON message dictionary payload.
+
+        Returns:
+            The decompiled Atom S-expression formatted string.
+        """
         if "deleteSurface" in payload:
             surf_id = payload["deleteSurface"].get("surfaceId", "main")
             return f'(deleteSurface "{surf_id}")'
@@ -193,4 +209,12 @@ class AtomDecompiler:
         return str(val)
 
     def wrap_decompiled_blocks(self, blocks: List[str]) -> str:
+        """Wraps decompiled Atom S-expression blocks within <a2ui> sentinel tags.
+
+        Args:
+            blocks: A list of decompiled S-expression string blocks.
+
+        Returns:
+            The formatted text block enclosed in sentinel tags.
+        """
         return "<a2ui>\n" + "\n\n".join(blocks) + "\n</a2ui>"

@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""A2UI Atom inference format package."""
+"""Provides the Atom compact S-expression inference format strategy for A2UI."""
 
 from .format import AtomFormat
 from .parser import AtomParser

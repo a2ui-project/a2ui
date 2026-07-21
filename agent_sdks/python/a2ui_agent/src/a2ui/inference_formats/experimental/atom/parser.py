@@ -35,15 +35,35 @@ from .decompiler import AtomDecompiler
 
 @experimental
 class AtomParser(Parser):
-    """Concrete parser implementation for A2UI Atom responses."""
+    """Parses, unwraps, compiles, and decompiles A2UI Atom S-expression responses.
+
+    Attributes:
+        catalog: The component catalog containing element definitions.
+        surface_id: The target surface identifier.
+    """
 
     def __init__(
         self, catalog: Union[Catalog[Any, Any], A2uiCatalog], surface_id: str = "main"
     ):
+        """Initializes an AtomParser instance.
+
+        Args:
+            catalog: The component catalog containing element definitions.
+            surface_id: The target surface identifier. Defaults to "main".
+        """
         self.catalog = catalog
         self.surface_id = surface_id
 
     def has_format_content(self, content: str, *, complete: bool = False) -> bool:
+        """Determines whether content contains Atom format sentinel tags.
+
+        Args:
+            content: The text response content to inspect.
+            complete: Whether to require both open and close sentinel tags.
+
+        Returns:
+            True if format content is detected, False otherwise.
+        """
         if complete:
             return (
                 A2UI_INFERENCE_OPEN_TAG in content
@@ -52,7 +72,14 @@ class AtomParser(Parser):
         return A2UI_INFERENCE_OPEN_TAG[:-1] in content
 
     def unwrap(self, content: str) -> List[ResponsePart]:
-        """Unwraps response content into raw Atom parts."""
+        """Tokenizes response content into raw Atom blocks and text parts.
+
+        Args:
+            content: The raw LLM text response.
+
+        Returns:
+            A list of tokenized response parts.
+        """
         from a2ui.parser.lexer import BlockLexer
 
         lexer = BlockLexer(
@@ -66,7 +93,18 @@ class AtomParser(Parser):
     def compile(
         self, format_content: str, *, is_final: bool = True
     ) -> List[dict[str, Any]]:
-        """Compiles raw Atom syntax into structured A2UI messages."""
+        """Compiles raw Atom S-expression syntax into structured A2UI JSON messages.
+
+        Args:
+            format_content: The raw Atom format text string to compile.
+            is_final: Whether this is the final stream chunk.
+
+        Returns:
+            A list of compiled A2UI JSON surface update payloads.
+
+        Raises:
+            A2uiCompilationError: If compilation or token parsing fails.
+        """
         from a2ui.parser.errors import A2uiCompilationError
 
         compiler = AtomCompiler(self.catalog)
@@ -85,9 +123,23 @@ class AtomParser(Parser):
             ) from e
 
     def decompile(self, val: dict[str, Any]) -> str:
-        """Decompiles a structured A2UI payload into Atom syntax."""
+        """Decompiles a structured A2UI JSON payload into Atom S-expression syntax.
+
+        Args:
+            val: The A2UI JSON message payload dictionary.
+
+        Returns:
+            The decompiled Atom S-expression text.
+        """
         return AtomDecompiler(self.catalog).decompile(val)
 
     def wrap_decompiled_blocks(self, blocks: List[str]) -> str:
-        """Wraps decompiled blocks with <a2ui> sentinel tags."""
+        """Wraps decompiled Atom S-expression blocks within <a2ui> sentinel tags.
+
+        Args:
+            blocks: A list of decompiled S-expression string blocks.
+
+        Returns:
+            The formatted text block enclosed in sentinel tags.
+        """
         return AtomDecompiler(self.catalog).wrap_decompiled_blocks(blocks)
