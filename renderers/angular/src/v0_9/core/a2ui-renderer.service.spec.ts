@@ -15,7 +15,7 @@
  */
 
 import {TestBed} from '@angular/core/testing';
-import {A2uiRendererService, A2UI_RENDERER_CONFIG} from './a2ui-renderer.service';
+import {A2uiRendererService, A2UI_RENDERER_CONFIG, provideA2Ui} from './a2ui-renderer.service';
 
 describe('A2uiRendererService', () => {
   let service: A2uiRendererService;
@@ -82,5 +82,21 @@ describe('A2uiRendererService', () => {
 
       expect(disposeSpy).toHaveBeenCalled();
     });
+  });
+});
+
+describe('provideA2Ui', () => {
+  it('should provide the configuration', () => {
+    const mockCatalog = {
+      components: new Map(),
+      functions: new Map(),
+    };
+    TestBed.configureTestingModule({
+      providers: [
+        provideA2Ui({catalogs: [mockCatalog as any]}),
+      ],
+    });
+    const config = TestBed.inject(A2UI_RENDERER_CONFIG);
+    expect(config).toEqual({catalogs: [mockCatalog as any]});
   });
 });

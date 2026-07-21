@@ -14,7 +14,15 @@
  * limitations under the License.
  */
 
-import {Injectable, OnDestroy, InjectionToken, inject, EnvironmentInjector} from '@angular/core';
+import {
+  Injectable,
+  OnDestroy,
+  InjectionToken,
+  inject,
+  EnvironmentInjector,
+  EnvironmentProviders,
+  makeEnvironmentProviders,
+} from '@angular/core';
 import {
   MessageProcessor,
   SurfaceGroupModel,
@@ -46,6 +54,21 @@ export interface RendererConfiguration {
 export const A2UI_RENDERER_CONFIG = new InjectionToken<RendererConfiguration>(
   'A2UI_RENDERER_CONFIG',
 );
+
+/**
+ * Provides the A2UI renderer configuration.
+ *
+ * @param config The configuration for the A2UI renderer.
+ * @returns The providers for the A2UI renderer.
+ */
+export function provideA2Ui(config: RendererConfiguration): EnvironmentProviders {
+  return makeEnvironmentProviders([
+    {
+      provide: A2UI_RENDERER_CONFIG,
+      useValue: config,
+    },
+  ]);
+}
 
 /**
  * Manages A2UI v0.9 rendering sessions by bridging the MessageProcessor to Angular.
