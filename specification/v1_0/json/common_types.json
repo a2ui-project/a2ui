@@ -239,7 +239,7 @@
       }
     },
     "Action": {
-      "description": "Defines an interaction handler that can either trigger a server-side event or execute a local client-side function.",
+      "description": "Defines an interaction handler that can either trigger an agent-side event or execute a local renderer-side function.",
       "oneOf": [
         {
           "type": "object",

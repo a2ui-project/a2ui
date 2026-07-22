@@ -1,6 +1,6 @@
 # A2UI Basic Catalog Implementation Guide
 
-This guide is designed for renderer and renderer developers implementing the A2UI Basic Catalog (v1.0). It details how to visually present and functionally implement each component and renderer-side function defined in the catalog.
+This guide is designed for renderer developers implementing the A2UI Basic Catalog (v1.0). It details how to visually present and functionally implement each component and renderer-side function defined in the catalog.
 
 When building your framework-specific adapters (Layer 3) over the generic A2UI bindings, refer to this document for the expected visual behaviors, suggested layouts, and interaction patterns. This guide uses generic terminology applicable to Web, Mobile (iOS/Android), and Desktop platforms.
 

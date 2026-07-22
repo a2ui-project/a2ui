@@ -45,7 +45,7 @@ export interface EvaluatedResult extends ValidatedResult {
 export interface FunctionDefinition {
   description?: string;
   args?: Record<string, unknown>;
-  callableFrom?: 'clientOnly' | 'remoteOnly' | 'clientOrRemote';
+  callableFrom?: 'rendererOnly' | 'agentOnly' | 'rendererOrAgent';
   returnType?: string;
   [key: string]: unknown;
 }

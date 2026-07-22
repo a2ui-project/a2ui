@@ -14,7 +14,7 @@ This URI is the canonical way to communicate protocol versioning between rendere
 
 ## Agent Card
 
-Agents are encouraged to advertise their A2UI capabilities in their AgentCard within the `AgentCapabilities.extensions` list. This advertisement is optional, but it informs the renderer whether to send `message.metadata["a2uiRendererCapabilities"]`. The `params` object defines the agent's specific UI support and corresponds directly to the [Server Capabilities Schema](../../../json/agent_capabilities.json).
+Agents are encouraged to advertise their A2UI capabilities in their AgentCard within the `AgentCapabilities.extensions` list. This advertisement is optional, but it informs the renderer whether to send `message.metadata["a2uiRendererCapabilities"]`. The `params` object defines the agent's specific UI support and corresponds directly to the [Agent Capabilities Schema](../../../json/agent_capabilities.json).
 
 Example AgentCard payload:
 
@@ -44,7 +44,7 @@ Example AgentCard payload:
 The `params` object corresponds to the `v1.0` object in the `agent_capabilities.json` schema:
 
 - `params.supportedCatalogIds` (optional): An array of strings, where each string is an ID identifying a Catalog Definition Schema that the agent can generate. This is not necessarily a resolvable URI.
-- `params.acceptsInlineCatalogs` (optional): A boolean indicating if the agent can accept an `inlineCatalogs` array in the client's `a2uiRendererCapabilities`. If omitted, this defaults to `false`.
+- `params.acceptsInlineCatalogs` (optional): A boolean indicating if the agent can accept an `inlineCatalogs` array in the renderer's `a2uiRendererCapabilities`. If omitted, this defaults to `false`.
 
 ## A2A Extension activation
 
@@ -108,11 +108,11 @@ To activate the A2UI A2A Extension, the renderer adds the extension URI to A2A `
 
 ## A2A Renderer to Agent Metadata
 
-Clients attach `a2uiRendererCapabilities` and `a2uiRendererDataModel` to A2A messages to communicate their state and supported catalogs.
+Renderers attach `a2uiRendererCapabilities` and `a2uiRendererDataModel` to A2A messages to communicate their state and supported catalogs.
 
 ### `a2uiRendererCapabilities`
 
-The renderer sends `sendMessageRequest.message["a2uiRendererCapabilities"]` = [Client Capabilities Schema](../../../json/renderer_capabilities.json) to advertise which catalogs the renderer supports.
+The renderer sends `sendMessageRequest.message["a2uiRendererCapabilities"]` = [Renderer Capabilities Schema](../../../json/renderer_capabilities.json) to advertise which catalogs the renderer supports.
 
 Additionally, the renderer determines a function's execution boundary (e.g., `rendererOnly` status) at runtime by reading its configuration from the active catalog definition.
 
@@ -142,7 +142,7 @@ Additionally, the renderer determines a function's execution boundary (e.g., `re
 
 ### `a2uiRendererDataModel`
 
-When a surface enables Data Model Sync, the renderer sends `sendMessageRequest.message["a2uiRendererDataModel"]` = [Client Data Model Schema](../../../json/renderer_data_model.json) on every message. This model provides the agent with the latest UI state. For more details, see the [Actions Guide](../../../../../docs/public/concepts/actions.md).
+When a surface enables Data Model Sync, the renderer sends `sendMessageRequest.message["a2uiRendererDataModel"]` = [Renderer Data Model Schema](../../../json/renderer_data_model.json) on every message. This model provides the agent with the latest UI state. For more details, see the [Actions Guide](../../../../../docs/public/concepts/actions.md).
 
 **Example `SendMessageRequest` with Data Model:**
 
@@ -189,7 +189,7 @@ Atomicity is guaranteed only at the individual message level. However, for a bet
 
 ### Agent-to-renderer messages
 
-When an agent sends a message to a renderer (or another agent acting as a client/renderer), the `data` payload must validate against the [Agent-to-Renderer Message List Schema](../../../json/agent_to_renderer_list.json).
+When an agent sends a message to a renderer (or another agent acting as a renderer), the `data` payload must validate against the [Agent-to-Renderer Message List Schema](../../../json/agent_to_renderer_list.json).
 
 Example DataPart:
 

@@ -63,7 +63,7 @@ sequenceDiagram
     Agent->>+Renderer: 1. createSurface(surfaceId: "main")
     Agent->>+Renderer: 2. updateComponents(surfaceId: "main", components: [...])
     Agent->>+Renderer: 3. updateDataModel(surfaceId: "main", path: "/user", value: "Alice")
-    User->>+Client: Interact with UI (e.g. click button)
+    User->>+Renderer: Interact with UI (e.g. click button)
     Renderer->>+Agent: action(name: "submit", context: {...})
     Renderer-->>-Agent: (UI is displayed)
 
@@ -80,7 +80,7 @@ sequenceDiagram
 
 ## Transport decoupling
 
-The A2UI protocol is designed to be transport-agnostic. It defines the JSON message structure and the semantic contract between the agent (Agent) and the renderer (Renderer), but it does not mandate a specific transport layer.
+The A2UI protocol is designed to be transport-agnostic. It defines the JSON message structure and the semantic contract between the Agent and the Renderer, but it does not mandate a specific transport layer.
 
 ### The transport contract
 
@@ -91,7 +91,7 @@ To support A2UI, a transport layer must fulfill the following contract:
 3.  **Metadata support**: The transport must provide a mechanism to associate metadata with messages. This is critical for:
     - **Data model synchronization**: The `sendDataModel` feature requires the renderer to send the current data model state as metadata alongside user actions.
     - **Capabilities exchange**: Renderer capabilities (supported catalogs, custom components) and Agent capabilities are exchanged via metadata or transport-specific handshakes (like Agent Cards in A2A or initialization in MCP).
-4.  **Bidirectional capability (optional)**: While the rendering stream is unidirectional (Server -> Client), interactive applications require a return channel for `action` messages (Client -> Server).
+4.  **Bidirectional capability (optional)**: While the rendering stream is unidirectional (Agent -> Renderer), interactive applications require a return channel for `action` messages (Renderer -> Agent).
 
 ### Transport bindings
 
@@ -314,7 +314,7 @@ Exactly one of `value` or `error` must be present.
 
 **Example:**
 
-Client sends this to the server:
+Renderer sends this to the agent:
 
 ```json
 {
@@ -332,7 +332,7 @@ Client sends this to the server:
 }
 ```
 
-Server responds with:
+Agent responds with:
 
 ```json
 {
@@ -365,7 +365,7 @@ Execution boundary verification (`agentOnly` vs `rendererOnly`) is enforced stri
 
 **Example:**
 
-Server sends this message to the client:
+Agent sends this message to the renderer:
 
 ```json
 {
@@ -911,7 +911,7 @@ _Replace the entire data model:_
 
 When `sendDataModel` is set to `true` for a surface, the renderer automatically appends the **entire data model** of that surface to the metadata of every message (such as `action` or user query) sent to the agent that created the surface. The data model is included using the transport's metadata facility (the exact location and format are defined by the specific transport binding). The payload follows the schema in [`renderer_data_model.json`](../json/renderer_data_model.json).
 
-- **Targeted Delivery**: The data model is sent exclusively to the agent that created the surface. Data cannot leak to other agents or agents.
+- **Targeted Delivery**: The data model is sent exclusively to the agent that created the surface. Data cannot leak to other agents.
 - **Trigger:** Data is sent only when a renderer-to-agent message is triggered (e.g., by a user action like a button click). Passive data changes (like typing in a text field) do not trigger a network request on their own; they simply update the local state, which will be sent with the next action.
 - **Payload:** The data model is included in the transport metadata, tagged by its `surfaceId`.
 - **Convergence:** The agent treats the received data model as the current state of the renderer at the time of the action.
@@ -1054,7 +1054,7 @@ The basic catalog defines the following surface properties that can be set in th
 
 The `iconUrl` and `agentDisplayName` fields are used to provide attribution to the user, identifying which sub-agent or tool is responsible for a particular UI surface.
 
-In multi-agent systems or orchestrators, the orchestrator is responsible for setting or validating these fields. This ensures that the identity displayed to the user matches the actual agent agent being contacted, preventing malicious agents from impersonating trusted services. For example, an orchestrator might overwrite these fields with the verified identity of the sub-agent before forwarding the `createSurface` message to the renderer.
+In multi-agent systems or orchestrators, the orchestrator is responsible for setting or validating these fields. This ensures that the identity displayed to the user matches the actual agent being contacted, preventing malicious agents from impersonating trusted services. For example, an orchestrator might overwrite these fields with the verified identity of the sub-agent before forwarding the `createSurface` message to the renderer.
 
 ### The `formatString` function
 
@@ -1182,7 +1182,7 @@ The protocol defines messages that the renderer can send to the agent to report 
 
 ### `action`
 
-This message is sent when a user interacts with a component that has a agent action defined (such as a `Button`).
+This message is sent when a user interacts with a component that has an agent action defined (such as a `Button`).
 
 **Properties:**
 
@@ -1215,12 +1215,12 @@ This message is sent when a user interacts with a component that has a agent act
 
 ### `functionResponse`
 
-This message is sent by the renderer to return the successful execution result of a agent-initiated function call. It is required only if the agent sent the `callFunction` request with `wantResponse: true`.
+This message is sent by the renderer to return the successful execution result of an agent-initiated function call. It is required only if the agent sent the `callFunction` request with `wantResponse: true`.
 
 **Properties:**
 
-- `functionCallId` (string, required): The unique invocation ID copied verbatim from the server's `callFunction` message.
-- `call` (string, required): The name of the executed function, copied verbatim from the server's `callFunction` message.
+- `functionCallId` (string, required): The unique invocation ID copied verbatim from the agent's `callFunction` message.
+- `call` (string, required): The name of the executed function, copied verbatim from the agent's `callFunction` message.
 - `value` (any, required): The returned execution value of the function call.
 
 **Example:**
@@ -1245,7 +1245,7 @@ This message is sent by the renderer to report runtime or execution errors to th
 - `code` (string, required): The machine-readable error code (e.g., `"INVALID_FUNCTION_CALL"`).
 - `message` (string, required): A short, human-readable description of the error.
 - `surfaceId` (string, optional): The unique ID of the surface where the error occurred. This field is mutually exclusive with `functionCallId`.
-- `functionCallId` (string, optional): The unique ID of the function invocation that failed. This field is mutually exclusive with `surfaceId` and MUST be included if the error is triggered by a agent-initiated function call failure.
+- `functionCallId` (string, optional): The unique ID of the function invocation that failed. This field is mutually exclusive with `surfaceId` and MUST be included if the error is triggered by an agent-initiated function call failure.
 
 **Example (Execution Boundary Failure):**
 
@@ -1268,7 +1268,7 @@ In A2UI v1.0, capabilities and other metadata are exchanged via **transport meta
 
 ### Agent capabilities
 
-A agent (or agent) advertises its capabilities using the [`agent_capabilities.json`] schema. This indicates which catalogs it can generate UI for, and whether it accepts inline catalogs from the renderer. The exact mechanism depends on the transport (e.g., the `params` object in an A2A AgentCard, or agent capabilities in MCP).
+An agent advertises its capabilities using the [`agent_capabilities.json`] schema. This indicates which catalogs it can generate UI for, and whether it accepts inline catalogs from the renderer. The exact mechanism depends on the transport (e.g., the `params` object in an A2A AgentCard, or agent capabilities in MCP).
 
 **Properties:**
 
@@ -1278,7 +1278,7 @@ A agent (or agent) advertises its capabilities using the [`agent_capabilities.js
 
 ### Renderer capabilities
 
-The `a2uiRendererCapabilities` object in the transport metadata follows the [`renderer_capabilities.json`] schema to describe the client's rendering capabilities.
+The `a2uiRendererCapabilities` object in the transport metadata follows the [`renderer_capabilities.json`] schema to describe the renderer's capabilities.
 
 **Properties:**
 
