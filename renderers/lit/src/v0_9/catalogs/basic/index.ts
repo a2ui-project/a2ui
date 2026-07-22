@@ -36,14 +36,18 @@ import {A2uiDateTimeInput} from './components/DateTimeInput.js';
 import {A2uiChoicePicker} from './components/ChoicePicker.js';
 import {A2uiTabs} from './components/Tabs.js';
 import {A2uiModal} from './components/Modal.js';
+import {A2uiSelect} from './components/Select.js';
+import {A2uiSwitch} from './components/Switch.js';
+import {A2uiDialog} from './components/Dialog.js';
+import {A2uiToast} from './components/Toast.js';
 
 /**
  * The basic catalog for A2UI components in Lit.
  *
  * This catalog includes a wide range of components such as list, image, icon,
  * video, audio player, card, divider, checkbox, slider, date-time input, choice
- * picker, tabs, and modal. It also includes the basic functions from package
- * @a2ui/web_core.
+ * picker, tabs, modal, select, switch, dialog, and toast. It also includes the
+ * basic functions from package @a2ui/web_core.
  */
 export const basicCatalog = new Catalog<LitComponentApi>(
   'https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json',
@@ -66,6 +70,13 @@ export const basicCatalog = new Catalog<LitComponentApi>(
     A2uiChoicePicker,
     A2uiTabs,
     A2uiModal,
+    A2uiSelect,
+    A2uiSwitch,
+    A2uiDialog,
+    A2uiToast,
   ],
   BASIC_FUNCTIONS,
 );
+
+export {A2uiSelect, A2uiSwitch, A2uiDialog, A2uiToast};
+

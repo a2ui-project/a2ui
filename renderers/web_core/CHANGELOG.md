@@ -1,6 +1,8 @@
 ## Unreleased
 
+- (v0_9) Add Select, Switch, Dialog, and Toast component schemas and catalog adapter helpers.
 - (v0_8) Export `A2uiMessageSchema` in public API.
+
 
 ## 0.10.5
 

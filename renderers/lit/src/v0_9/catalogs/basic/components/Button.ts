@@ -118,7 +118,12 @@ export class A2uiBasicButtonElement extends BasicCatalogA2uiLitElement<typeof Bu
   }
 }
 
+@customElement('a2ui-button')
+export class A2uiButtonElement extends A2uiBasicButtonElement {}
+
 export const A2uiButton = {
   ...ButtonApi,
-  tagName: 'a2ui-basic-button',
+  tagName: 'a2ui-button',
 };
+
+

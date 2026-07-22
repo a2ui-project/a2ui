@@ -1,5 +1,8 @@
 ## Unreleased
 
+- (v0_9) Add portable Web Components for Select, Switch, Dialog, and Toast.
+
+
 ## 0.10.2
 
 - (v0_9) Normalize Safari placeholder text color for `DateTimeInput` by updating CSS selectors for `.a2ui-date-time-input`.

@@ -23,6 +23,8 @@
 
 export * from './catalog/function_invoker.js';
 export * from './catalog/types.js';
+export * from './catalog/adapters.js';
+
 export * from './common/events.js';
 export * from './processing/message-processor.js';
 export * from './rendering/component-context.js';

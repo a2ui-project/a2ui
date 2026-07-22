@@ -481,6 +481,69 @@ export const DateTimeInputApi = {
     .strict(),
 } satisfies ComponentApi;
 
+export const SelectApi = {
+  name: 'Select',
+  schema: z
+    .object({
+      ...CommonProps,
+      label: DynamicStringSchema.describe('The label for the select dropdown.').optional(),
+      options: z
+        .array(
+          z
+            .object({
+              label: DynamicStringSchema.describe('The option display label.'),
+              value: z.string().describe('The option value.'),
+            })
+            .strict(),
+        )
+        .describe('The list of available options.'),
+      value: DynamicStringSchema.describe('The currently selected value.').optional(),
+      checks: CheckableSchema.shape.checks,
+    })
+    .strict(),
+} satisfies ComponentApi;
+
+export const SwitchApi = {
+  name: 'Switch',
+  schema: z
+    .object({
+      ...CommonProps,
+      label: DynamicStringSchema.describe('The text label for the switch toggle.').optional(),
+      value: DynamicBooleanSchema.describe('The current on/off state of the switch.'),
+      checks: CheckableSchema.shape.checks,
+    })
+    .strict(),
+} satisfies ComponentApi;
+
+export const DialogApi = {
+  name: 'Dialog',
+  schema: z
+    .object({
+      ...CommonProps,
+      title: DynamicStringSchema.describe('The dialog header title.').optional(),
+      child: ComponentIdSchema.describe('The ID of the child component rendered inside the dialog body.'),
+      open: DynamicBooleanSchema.default(false).describe('Whether the dialog is open or closed.').optional(),
+      action: ActionSchema.optional(),
+    })
+    .strict(),
+} satisfies ComponentApi;
+
+export const ToastApi = {
+  name: 'Toast',
+  schema: z
+    .object({
+      ...CommonProps,
+      message: DynamicStringSchema.describe('The message displayed in the toast banner/snackbar.'),
+      variant: z
+        .enum(['info', 'success', 'warning', 'error'])
+        .default('info')
+        .describe('Visual variant hint for the toast message.')
+        .optional(),
+      durationMs: z.number().default(3000).describe('Auto-dismiss duration in milliseconds.').optional(),
+    })
+    .strict(),
+} satisfies ComponentApi;
+
 export const BASIC_COMPONENTS: ComponentApi[] = [
   TextApi,
   ImageApi,
@@ -500,4 +563,9 @@ export const BASIC_COMPONENTS: ComponentApi[] = [
   ChoicePickerApi,
   SliderApi,
   DateTimeInputApi,
+  SelectApi,
+  SwitchApi,
+  DialogApi,
+  ToastApi,
 ];
+
