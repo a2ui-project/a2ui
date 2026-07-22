@@ -28,9 +28,9 @@ import {
   UpdateDataModelMessage,
   DeleteSurfaceMessage,
   A2uiMessageListWrapper,
-} from '../schema/server-to-client.js';
-import {A2uiClientCapabilities, InlineCatalog} from '../schema/client-capabilities.js';
-import {A2uiClientDataModel} from '../schema/client-to-server.js';
+} from '../schema/agent-to-renderer.js';
+import {A2uiRendererCapabilities, InlineCatalog} from '../schema/renderer-capabilities.js';
+import {A2uiRendererDataModel} from '../schema/renderer-to-agent.js';
 import {A2uiStateError, A2uiValidationError} from '../errors.js';
 
 /**
@@ -79,12 +79,12 @@ export class MessageProcessor<T extends ComponentApi> {
   }
 
   /**
-   * Generates the a2uiClientCapabilities object for the current processor.
+   * Generates the a2uiRendererCapabilities object for the current processor.
    *
    * @param options Configuration for capability generation.
    * @returns The capabilities object.
    */
-  getClientCapabilities(options?: CapabilitiesOptions): A2uiClientCapabilities {
+  getRendererCapabilities(options?: CapabilitiesOptions): A2uiRendererCapabilities {
     // `version` can be used to fine-tune the returned capabilities.
     const version = options?.version ?? this.version;
     const versionCaps: any = {
@@ -95,7 +95,7 @@ export class MessageProcessor<T extends ComponentApi> {
       versionCaps.inlineCatalogs = this.catalogs.map(c => this.generateInlineCatalog(c));
     }
 
-    return {[version]: versionCaps} as A2uiClientCapabilities;
+    return {[version]: versionCaps} as A2uiRendererCapabilities;
   }
 
   private generateInlineCatalog(catalog: Catalog<T>): InlineCatalog {
@@ -195,7 +195,9 @@ export class MessageProcessor<T extends ComponentApi> {
   /**
    * Returns the aggregated data model for all surfaces that have 'sendDataModel' enabled.
    */
-  getClientDataModel(version: 'v0.9' | 'v0.9.1' = this.version): A2uiClientDataModel | undefined {
+  getRendererDataModel(
+    version: 'v0.9' | 'v0.9.1' = this.version,
+  ): A2uiRendererDataModel | undefined {
     const surfaces: Record<string, any> = {};
 
     for (const surface of this.model.surfacesMap.values()) {

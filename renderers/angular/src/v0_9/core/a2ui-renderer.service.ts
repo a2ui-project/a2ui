@@ -20,7 +20,7 @@ import {
   SurfaceGroupModel,
   ActionListener as ActionHandler,
   A2uiMessage,
-  A2uiClientAction as Action,
+  A2uiRendererAction as Action,
 } from '@a2ui/web_core/v0_9';
 import {AngularComponentImplementation, AngularCatalog} from '../catalog/types';
 import {initializeAngularReactivity} from './reactivity';

@@ -87,9 +87,9 @@ See the default styles in [default.ts](../../../renderers/web_core/src/v0_9/basi
 
 **See some examples per-platform:**
 
-- [Lit samples](../../../samples/client/lit)
-- [Angular samples](../../../samples/client/angular)
-- [React samples](../../../samples/client/react)
+- [Lit samples](../../../samples/renderer/lit)
+- [Angular samples](../../../samples/renderer/angular)
+- [React samples](../../../samples/renderer/react)
 
 ### Per-component overrides
 

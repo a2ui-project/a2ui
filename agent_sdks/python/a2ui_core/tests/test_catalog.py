@@ -927,11 +927,11 @@ def test_basic_catalog_validate_theme():
     catalog = BasicCatalog()
 
     # 1. Test Valid Theme
-    _val(catalog).validate_theme({"primaryColor": "#00BFFF"})
+    _val(catalog).validate_theme({"iconUrl": "https://example.com/icon.png"})
 
-    # 2. Test Invalid Theme raises ValidationError
+    # 2. Test Invalid Theme raises ValidationError (type mismatch)
     with pytest.raises((ValidationError, ValueError)):
-        _val(catalog).validate_theme({"primaryColor": "invalid-color-name"})
+        _val(catalog).validate_theme({"iconUrl": 12345})
 
 
 def test_basic_catalog_validate_functions():

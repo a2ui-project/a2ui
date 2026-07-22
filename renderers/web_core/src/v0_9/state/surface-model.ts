@@ -18,10 +18,10 @@ import {DataModel} from './data-model.js';
 import {Catalog, ComponentApi} from '../catalog/types.js';
 import {SurfaceComponentsModel} from './surface-components-model.js';
 import {EventEmitter, EventSource} from '../common/events.js';
-import {A2uiClientAction, A2uiClientActionSchema} from '../schema/client-to-server.js';
+import {A2uiRendererAction, A2uiRendererActionSchema} from '../schema/renderer-to-agent.js';
 
 /** A function that listens for actions emitted from a surface. */
-export type ActionListener = (action: A2uiClientAction) => void | Promise<void>;
+export type ActionListener = (action: A2uiRendererAction) => void | Promise<void>;
 
 /**
  * The state model for a single UI surface.
@@ -37,11 +37,11 @@ export class SurfaceModel<T extends ComponentApi = ComponentApi> {
   /** The collection of component models for this surface. */
   readonly componentsModel: SurfaceComponentsModel;
 
-  private readonly _onAction = new EventEmitter<A2uiClientAction>();
+  private readonly _onAction = new EventEmitter<A2uiRendererAction>();
   private readonly _onError = new EventEmitter<any>();
 
   /** Fires whenever an action is dispatched from this surface. */
-  readonly onAction: EventSource<A2uiClientAction> = this._onAction;
+  readonly onAction: EventSource<A2uiRendererAction> = this._onAction;
 
   /** Fires whenever an error occurs on this surface. */
   readonly onError: EventSource<any> = this._onError;
@@ -80,7 +80,7 @@ export class SurfaceModel<T extends ComponentApi = ComponentApi> {
         context: payload.event.context || {},
       };
 
-      const validationResult = A2uiClientActionSchema.safeParse(actionToValidate);
+      const validationResult = A2uiRendererActionSchema.safeParse(actionToValidate);
       if (validationResult.success) {
         await this._onAction.emit(validationResult.data);
       } else {

@@ -240,15 +240,15 @@ def test_a2ui_validator_validate_valid_payload():
 
     messages = [
         {
-            "version": "v0.9",
+            "version": "v1.0",
             "createSurface": {
                 "surfaceId": "main",
                 "catalogId": "https://a2ui.org/catalog",
-                "theme": {"primaryColor": "#000000"},
+                "surfaceProperties": {"primaryColor": "#000000"},
             },
         },
         {
-            "version": "v0.9",
+            "version": "v1.0",
             "updateComponents": {
                 "surfaceId": "main",
                 "components": [
@@ -275,7 +275,7 @@ def test_a2ui_validator_validate_components_error():
     validator = A2uiValidator()
 
     messages = [{
-        "version": "v0.9",
+        "version": "v1.0",
         "updateComponents": {
             "surfaceId": "main",
             "components": [{
@@ -345,9 +345,9 @@ def test_integrity_dangling_and_duplicate_pointers():
 
 
 def test_validate_recursion_and_paths_syntax_coverage():
-    # 1. Realistic A2UI v0.9 Payload with Invalid Pointer Syntax
+    # 1. Realistic A2UI v1.0 Payload with Invalid Pointer Syntax
     invalid_path_payload = {
-        "version": "v0.9",
+        "version": "v1.0",
         "updateDataModel": {
             "surfaceId": "s1",
             "path": "/users/~3name",  # Unescaped pointer!
@@ -357,9 +357,9 @@ def test_validate_recursion_and_paths_syntax_coverage():
     with pytest.raises(ValueError, match="Invalid path syntax"):
         validate_recursion_and_paths(invalid_path_payload)
 
-    # 2. Realistic A2UI v0.9 Payload with Max Function Call Recursion Depth
+    # 2. Realistic A2UI v1.0 Payload with Max Function Call Recursion Depth
     payload_deep_func = {
-        "version": "v0.9",
+        "version": "v1.0",
         "updateComponents": {
             "surfaceId": "s1",
             "components": [{
@@ -404,7 +404,7 @@ def test_validate_recursion_and_paths_syntax_coverage():
 def test_validator_aggregated_pydantic_error_formatting():
     validator = A2uiValidator()
 
-    invalid_s2c_payload = [{"version": "v0.9"}]
+    invalid_s2c_payload = [{"version": "v1.0"}]
 
     with pytest.raises(A2uiValidatorError) as exc_info:
         validator.validate_protocol_envelope(invalid_s2c_payload)
@@ -447,7 +447,7 @@ def test_validator_config_parameter():
 
     # 3. Full message validation
     payload = {
-        "version": "v0.9",
+        "version": "v1.0",
         "updateComponents": {
             "surfaceId": "s1",
             "components": dangling_components,

@@ -17,7 +17,7 @@
 import {act} from 'react';
 import {createRoot, type Root} from 'react-dom/client';
 import {App} from '../../src/App';
-import type {A2uiClientAction} from '@a2ui/web_core/v0_9';
+import type {A2uiRendererAction} from '@a2ui/web_core/v0_9';
 
 /** Reference to the active React root instance used to render the App. */
 let activeRoot: Root | null = null;
@@ -33,7 +33,7 @@ const TEST_CONTAINER_ID = 'test-container';
  */
 export async function loadExample(
   filename: string,
-  onAction?: (action: A2uiClientAction) => void,
+  onAction?: (action: A2uiRendererAction) => void,
 ): Promise<HTMLDivElement> {
   // Clean up previous runs
   await cleanup();

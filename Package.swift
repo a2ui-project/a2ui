@@ -72,11 +72,11 @@ let package = Package(
       path: "swift/swiftui/Sources/A2UISwiftUI"
     ),
 
-    // ── Sample Client ──
+    // ── Sample Renderer ──
     .executableTarget(
-      name: "A2UISampleClient",
+      name: "A2UISampleRenderer",
       dependencies: ["A2UISwiftUI", "A2UICore"],
-      path: "swift/sample/Sources/A2UISampleClient"
+      path: "swift/sample/Sources/A2UISampleRenderer"
     ),
 
     // ── Tests ──

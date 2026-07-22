@@ -630,7 +630,7 @@ The component names and properties are largely the same across versions. The str
 To see all components in action:
 
 ```bash
-cd samples/client/angular
+cd samples/renderer/angular
 yarn start gallery
 ```
 

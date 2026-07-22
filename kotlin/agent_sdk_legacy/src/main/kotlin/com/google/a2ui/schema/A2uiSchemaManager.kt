@@ -26,12 +26,13 @@ import kotlinx.serialization.json.jsonPrimitive
 /** Represents the supported A2UI specification versions. */
 enum class A2uiVersion(
   val value: String,
-  val serverToClientSchemaPath: String,
+  val agentToRendererSchemaPath: String,
   val commonTypesSchemaPath: String? = null,
 ) {
   VERSION_0_8(A2uiConstants.VERSION_0_8, "server_to_client.json"),
   VERSION_0_9(A2uiConstants.VERSION_0_9, "server_to_client.json", "common_types.json"),
   VERSION_0_9_1(A2uiConstants.VERSION_0_9_1, "server_to_client.json", "common_types.json"),
+  VERSION_1_0(A2uiConstants.VERSION_1_0, "agent_to_renderer.json", "common_types.json"),
 }
 
 /**
@@ -59,7 +60,7 @@ constructor(
   private val schemaModifiers: List<(JsonObject) -> JsonObject> = emptyList(),
 ) : InferenceStrategy {
 
-  private val serverToClientSchema: JsonObject
+  private val agentToRendererSchema: JsonObject
   private val commonTypesSchema: JsonObject
   private val supportedCatalogs = mutableListOf<A2uiCatalog>()
   private val catalogExamplePaths = mutableMapOf<String, String?>()
@@ -72,11 +73,11 @@ constructor(
     get() = supportedCatalogs.map { it.catalogId }
 
   init {
-    serverToClientSchema =
+    agentToRendererSchema =
       applyModifiers(
         SchemaResourceLoader.loadFromBundledResource(
           version.value,
-          version.serverToClientSchemaPath,
+          version.agentToRendererSchemaPath,
         ) ?: JsonObject(emptyMap())
       )
 
@@ -94,7 +95,7 @@ constructor(
           version = version,
           name = config.name,
           catalogSchema = catalogSchema,
-          serverToClientSchema = serverToClientSchema,
+          agentToRendererSchema = agentToRendererSchema,
           commonTypesSchema = commonTypesSchema,
         )
       supportedCatalogs.add(catalog)
@@ -105,24 +106,24 @@ constructor(
   private fun applyModifiers(schema: JsonObject): JsonObject =
     schemaModifiers.fold(schema) { current, modifier -> modifier(current) }
 
-  private fun selectCatalog(clientUiCapabilities: JsonObject?): A2uiCatalog {
+  private fun selectCatalog(rendererUiCapabilities: JsonObject?): A2uiCatalog {
     check(supportedCatalogs.isNotEmpty()) { "No supported catalogs found." }
 
-    if (clientUiCapabilities == null) return supportedCatalogs.first()
+    if (rendererUiCapabilities == null) return supportedCatalogs.first()
 
     val inlineCatalogs =
-      (clientUiCapabilities[A2uiConstants.INLINE_CATALOGS_KEY] as? JsonArray)?.mapNotNull {
+      (rendererUiCapabilities[A2uiConstants.INLINE_CATALOGS_KEY] as? JsonArray)?.mapNotNull {
         it as? JsonObject
       } ?: emptyList()
 
-    val clientSupportedCatalogIds =
-      (clientUiCapabilities[A2uiConstants.SUPPORTED_CATALOG_IDS_KEY] as? JsonArray)?.mapNotNull {
+    val rendererSupportedCatalogIds =
+      (rendererUiCapabilities[A2uiConstants.SUPPORTED_CATALOG_IDS_KEY] as? JsonArray)?.mapNotNull {
         it.jsonPrimitive.content
       } ?: emptyList()
 
     if (!acceptsInlineCatalogs && inlineCatalogs.isNotEmpty()) {
       throw A2uiCatalogException(
-        "Inline catalog '${A2uiConstants.INLINE_CATALOGS_KEY}' is provided in client UI capabilities. However, the agent does not accept inline catalogs."
+        "Inline catalog '${A2uiConstants.INLINE_CATALOGS_KEY}' is provided in renderer UI capabilities. However, the agent does not accept inline catalogs."
       )
     }
 
@@ -130,9 +131,9 @@ constructor(
       // Determine the base catalog: use supportedCatalogIds if provided,
       // otherwise fall back to the agent's default catalog.
       var baseCatalog = supportedCatalogs.first()
-      if (clientSupportedCatalogIds.isNotEmpty()) {
+      if (rendererSupportedCatalogIds.isNotEmpty()) {
         val agentSupportedCatalogs = supportedCatalogs.associateBy { it.catalogId }
-        for (cscid in clientSupportedCatalogIds) {
+        for (cscid in rendererSupportedCatalogIds) {
           agentSupportedCatalogs[cscid]?.let { baseCatalog = it }
           if (baseCatalog != supportedCatalogs.first()) break
         }
@@ -157,36 +158,36 @@ constructor(
         version = version,
         name = A2uiConstants.INLINE_CATALOG_NAME,
         catalogSchema = mergedSchema,
-        serverToClientSchema = serverToClientSchema,
+        agentToRendererSchema = agentToRendererSchema,
         commonTypesSchema = commonTypesSchema,
       )
     }
 
-    if (clientSupportedCatalogIds.isEmpty()) return supportedCatalogs.first()
+    if (rendererSupportedCatalogIds.isEmpty()) return supportedCatalogs.first()
 
     val agentSupportedCatalogs = supportedCatalogs.associateBy { it.catalogId }
-    for (cscid in clientSupportedCatalogIds) {
+    for (cscid in rendererSupportedCatalogIds) {
       agentSupportedCatalogs[cscid]?.let {
         return it
       }
     }
 
     throw A2uiCatalogException(
-      "No client-supported catalog found on the agent side. Agent-supported catalogs are: ${supportedCatalogs.map { it.catalogId }}"
+      "No client-supported catalog found (also referred to as renderer-supported) on the agent side. Agent-supported catalogs are: ${supportedCatalogs.map { it.catalogId }}"
     )
   }
 
   /**
-   * Resolves the desired catalog based on the client capabilities, returning it with pruned unused
+   * Resolves the desired catalog based on the renderer capabilities, returning it with pruned unused
    * components and messages.
    */
   @JvmOverloads
   fun getSelectedCatalog(
-    clientUiCapabilities: JsonObject? = null,
+    rendererUiCapabilities: JsonObject? = null,
     allowedComponents: List<String> = emptyList(),
     allowedMessages: List<String> = emptyList(),
   ): A2uiCatalog =
-    selectCatalog(clientUiCapabilities).withPruning(allowedComponents, allowedMessages)
+    selectCatalog(rendererUiCapabilities).withPruning(allowedComponents, allowedMessages)
 
   /** Renders LLM examples for a given catalog, loaded from its configured examples path. */
   @JvmOverloads
@@ -199,7 +200,7 @@ constructor(
     roleDescription: String,
     workflowDescription: String,
     uiDescription: String,
-    clientUiCapabilities: JsonObject?,
+    rendererUiCapabilities: JsonObject?,
     allowedComponents: List<String>,
     allowedMessages: List<String>,
     includeSchema: Boolean,
@@ -218,7 +219,7 @@ constructor(
     }
 
     val selectedCatalog =
-      getSelectedCatalog(clientUiCapabilities, allowedComponents, allowedMessages)
+      getSelectedCatalog(rendererUiCapabilities, allowedComponents, allowedMessages)
 
     if (includeSchema) {
       parts.add(selectedCatalog.renderAsLlmInstructions())

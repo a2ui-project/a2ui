@@ -15,7 +15,7 @@
  */
 
 import {useState, useEffect, useSyncExternalStore, useCallback, useRef} from 'react';
-import {MessageProcessor, type SurfaceModel, type A2uiClientAction} from '@a2ui/web_core/v0_9';
+import {MessageProcessor, type SurfaceModel, type A2uiRendererAction} from '@a2ui/web_core/v0_9';
 import {
   basicCatalog,
   A2uiSurface,
@@ -64,7 +64,7 @@ export interface AppProps {
    * Callback to intercept dispatched actions.
    * @internal @visibleForTesting
    */
-  onAction?: (action: A2uiClientAction) => void;
+  onAction?: (action: A2uiRendererAction) => void;
 }
 
 /**
@@ -74,7 +74,7 @@ interface LogEntry {
   /** ISO timestamp of when the action was intercepted. */
   time: string;
   /** The intercepted client action object. */
-  action: A2uiClientAction;
+  action: A2uiRendererAction;
 }
 
 export const App = ({initialExampleId, onAction}: AppProps) => {
@@ -102,7 +102,7 @@ export const App = ({initialExampleId, onAction}: AppProps) => {
         }
         const newProcessor = new MessageProcessor<ReactComponentImplementation>(
           [basicCatalog],
-          async (action: A2uiClientAction) => {
+          async (action: A2uiRendererAction) => {
             setLogs(l => [...l, {time: new Date().toISOString(), action}]);
             if (onActionRef.current) {
               onActionRef.current(action);

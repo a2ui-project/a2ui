@@ -52,26 +52,26 @@ class A2uiPartConverter(
 
   fun convert(part: Part): List<A2aPart<*>> {
     val functionResponse = part.functionResponse().orElse(null)
-    val isSendA2uiJsonToClientResponse =
+    val isSendA2uiJsonToRendererResponse =
       functionResponse != null &&
-        functionResponse.name().orElse(null) == SendA2uiToClientToolset.TOOL_NAME
+        functionResponse.name().orElse(null) == SendA2uiToRendererToolset.TOOL_NAME
 
-    if (isSendA2uiJsonToClientResponse || bypassToolCheck) {
+    if (isSendA2uiJsonToRendererResponse || bypassToolCheck) {
       if (functionResponse == null) return emptyList()
       val responseMap = functionResponse.response().orElse(null) as? Map<*, *>
 
-      responseMap?.get(SendA2uiToClientToolset.TOOL_ERROR_KEY)?.let {
+      responseMap?.get(SendA2uiToRendererToolset.TOOL_ERROR_KEY)?.let {
         logger.warning("A2UI tool call failed: $it")
         return emptyList()
       }
 
-      return (responseMap?.get(SendA2uiToClientToolset.VALIDATED_A2UI_JSON_KEY) as? JsonElement)
+      return (responseMap?.get(SendA2uiToRendererToolset.VALIDATED_A2UI_JSON_KEY) as? JsonElement)
         ?.let { listOf(A2uiA2a.createA2uiPart(it)) } ?: emptyList()
     }
 
     val functionCall = part.functionCall().orElse(null)
     if (
-      functionCall != null && functionCall.name().orElse(null) == SendA2uiToClientToolset.TOOL_NAME
+      functionCall != null && functionCall.name().orElse(null) == SendA2uiToRendererToolset.TOOL_NAME
     ) {
       return emptyList()
     }

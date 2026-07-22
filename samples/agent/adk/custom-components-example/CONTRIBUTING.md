@@ -27,7 +27,7 @@ The agent manages multiple distinct UI areas ("surfaces") simultaneously:
 
 A custom LitElement component created in the client that renders a hierarchical view.
 
-- **Schema**: Defined in `samples/client/lit/contact/ui/custom-components`.
+- **Schema**: Defined in `samples/renderer/lit/contact/ui/custom-components`.
 - **Usage**: The agent sends a JSON structure matching the schema, and the client renders it natively.
 
 #### `WebFrame` (Iframe Component)
@@ -51,7 +51,7 @@ A powerful component that allows embedding external web content or local static 
 
 2.  **Start the Client**:
     ```bash
-    cd samples/client/lit/contact
+    cd samples/renderer/lit/contact
     yarn dev
     ```
     _Configured to connect to localhost:10004._

@@ -34,14 +34,7 @@ from ..catalog.components import ModelComponentApi
 
 
 class CatalogComponentCommon(ComponentCommon):
-    weight: Optional[float] = Field(
-        None,
-        description=(
-            "The relative weight of this component within a Row or Column. This is"
-            " similar to the CSS 'flex-grow' property. Note: this may ONLY be set when"
-            " the component is a direct descendant of a Row or Column."
-        ),
-    )
+    pass
 
 
 class OptionItem(StrictBaseModel):
@@ -52,7 +45,7 @@ class OptionItem(StrictBaseModel):
 
 
 class SvgPath(StrictBaseModel):
-    svg_path: str = Field(..., alias="svgPath")
+    svg_path: DynamicString = Field(..., alias="svgPath")
 
 
 class TabItem(StrictBaseModel):
@@ -75,7 +68,7 @@ class TextComponent(CatalogComponentCommon):
             " is generally preferred for a richer and more structured presentation."
         ),
     )
-    variant: Optional[Literal["h1", "h2", "h3", "h4", "h5", "caption", "body"]] = Field(
+    variant: Optional[Literal["caption", "body"]] = Field(
         description="A hint for the base text style.", default="body"
     )
 
@@ -174,6 +167,11 @@ class IconComponent(CatalogComponentCommon):
 class VideoComponent(CatalogComponentCommon):
     component: Literal["Video"] = "Video"
     url: DynamicString = Field(..., description="The URL of the video to display.")
+    poster_url: Optional[DynamicString] = Field(
+        None,
+        alias="posterUrl",
+        description="The URL of the poster image to display before the video plays.",
+    )
 
 
 class AudioPlayerComponent(CatalogComponentCommon):
@@ -369,15 +367,11 @@ class TextFieldComponent(CatalogComponentCommon):
     value: Optional[DynamicString] = Field(
         None, description="The value of the text field."
     )
+    placeholder: Optional[DynamicString] = Field(
+        None, description="The placeholder text for the input field."
+    )
     variant: Optional[Literal["longText", "number", "shortText", "obscured"]] = Field(
         description="The type of input field to display.", default="shortText"
-    )
-    validation_regexp: Optional[str] = Field(
-        None,
-        alias="validationRegexp",
-        description=(
-            "A regular expression used for client-side validation of the input."
-        ),
     )
 
 
@@ -455,6 +449,13 @@ class SliderComponent(CatalogComponentCommon):
     )
     max: float = Field(..., description="The maximum value of the slider.")
     value: DynamicNumber = Field(..., description="The current value of the slider.")
+    steps: Optional[int] = Field(
+        None,
+        description=(
+            "The number of discrete divisions in the slider range. If specified, the"
+            " slider will snap to discrete values."
+        ),
+    )
 
 
 class DateTimeInputComponent(CatalogComponentCommon):

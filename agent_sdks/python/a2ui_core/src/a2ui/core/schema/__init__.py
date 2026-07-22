@@ -24,7 +24,7 @@ from .common_types import (
     ComponentCommon as ComponentCommon,
 )
 from .constants import *
-from .server_to_client import (
+from .agent_to_renderer import (
     CreateSurfaceMessage as CreateSurfaceMessage,
     CreateSurface as CreateSurface,
     UpdateComponentsMessage as UpdateComponentsMessage,
@@ -33,24 +33,26 @@ from .server_to_client import (
     UpdateDataModel as UpdateDataModel,
     DeleteSurfaceMessage as DeleteSurfaceMessage,
     DeleteSurface as DeleteSurface,
+    CallFunctionMessage as CallFunctionMessage,
+    CallFunction as CallFunction,
+    ActionResponseMessage as ActionResponseMessage,
+    ActionResponse as ActionResponse,
     A2uiMessage as A2uiMessage,
     A2uiMessageListWrapper as A2uiMessageListWrapper,
 )
-from .client_capabilities import (
-    A2uiClientCapabilities as A2uiClientCapabilities,
-    V09Capabilities as V09Capabilities,
-    InlineCatalog as InlineCatalog,
-    FunctionDefinition as FunctionDefinition,
+from .renderer_capabilities import (
+    A2uiRendererCapabilities as A2uiRendererCapabilities,
+    V1_0Capabilities as V1_0Capabilities,
 )
-from .client_to_server import (
-    A2uiClientMessage as A2uiClientMessage,
-    A2uiClientActionMessage as A2uiClientActionMessage,
-    A2uiClientErrorMessage as A2uiClientErrorMessage,
-    A2uiClientAction as A2uiClientAction,
+from .renderer_to_agent import (
+    A2uiRendererMessage as A2uiRendererMessage,
+    A2uiRendererActionMessage as A2uiRendererActionMessage,
+    A2uiRendererErrorMessage as A2uiRendererErrorMessage,
+    A2uiRendererAction as A2uiRendererAction,
     A2uiValidationError as A2uiValidationError,
     A2uiGenericError as A2uiGenericError,
-    A2uiClientError as A2uiClientError,
-    A2uiClientDataModel as A2uiClientDataModel,
-    A2uiClientMessageList as A2uiClientMessageList,
-    A2uiClientMessageListWrapper as A2uiClientMessageListWrapper,
+    A2uiRendererError as A2uiRendererError,
+    A2uiRendererDataModel as A2uiRendererDataModel,
+    A2uiRendererMessageList as A2uiRendererMessageList,
+    A2uiRendererMessageListWrapper as A2uiRendererMessageListWrapper,
 )

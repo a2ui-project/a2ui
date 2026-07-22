@@ -81,7 +81,7 @@ object A2uiA2a {
   /**
    * Selects the newest A2UI extension URI from the matched extensions.
    *
-   * @param requestedExtensions List of extension URIs requested by the client.
+   * @param requestedExtensions List of extension URIs requested by the renderer.
    * @param advertisedExtensions List of extension URIs advertised by the agent.
    * @return The newest overlapping A2UI extension URI, or null if none match.
    */
@@ -121,7 +121,7 @@ object A2uiA2a {
   /**
    * Activates the A2UI extension if requested in the context.
    *
-   * @param requestedExtensions List of extension URIs requested by the client.
+   * @param requestedExtensions List of extension URIs requested by the renderer.
    * @param advertisedExtensions List of extension URIs advertised by the agent.
    * @param addActivatedExtension Callback to register an activated extension.
    * @return The version string of the activated A2UI extension, or null if not activated.

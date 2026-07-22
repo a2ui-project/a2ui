@@ -22,7 +22,7 @@ To prevent this, A2UI strictly excludes `allow-same-origin` for the inner iframe
 
 ### The Architecture
 
-1.  **[Sandbox Proxy (`sandbox.html`)](../../../samples/client/shared/mcp_apps_inner_iframe/sandbox.html)**: An intermediate `iframe` served from the same origin. It isolates raw DOM injection from the main app while maintaining a structured JSON-RPC channel.
+1.  **[Sandbox Proxy (`sandbox.html`)](../../../samples/renderer/shared/mcp_apps_inner_iframe/sandbox.html)**: An intermediate `iframe` served from the same origin. It isolates raw DOM injection from the main app while maintaining a structured JSON-RPC channel.
     - Permissions: **Do not sandbox** in the host template (e.g., [`mcp-app.ts`](../../../samples/community/client/lit/mcp-apps-in-a2ui-sample/mcp-app.ts) or [`mcp-apps-component.ts`](../../../samples/community/client/lit/mcp-apps-in-a2ui-sample/ui/custom-components/mcp-apps-component.ts)).
     - Host origin validation: Validates that messages come from the expected host origin.
 2.  **Embedded App (Inner Iframe)**: The innermost `iframe`. Injected dynamically via `srcdoc` with restricted permissions.
@@ -226,7 +226,7 @@ The agent will run on `http://localhost:8000`.
 In a new terminal, navigate to the client directory and start the dev server (requires building the Lit renderer first):
 
 ```bash
-cd samples/client/lit/mcp-apps-in-a2ui-sample
+cd samples/renderer/lit/mcp-apps-in-a2ui-sample
 yarn install
 yarn dev
 ```
@@ -328,7 +328,7 @@ http://localhost:4200/?disable_security_self_test=true
 | ------------------------------------------------- | ------------------------------------------------------------------------------------------------ |
 | `GEMINI_API_KEY environment variable not set`     | Export the key or add a `.env` file in the agent directory                                       |
 | Python version error on `restaurant_finder` agent | Install Python 3.13+ (required by that sample's `pyproject.toml`)                                |
-| `yarn build:renderer` fails                       | Make sure you ran `yarn install` first in `samples/client/lit/`                                  |
+| `yarn build:renderer` fails                       | Make sure you ran `yarn install` first in `samples/renderer/lit/`                                |
 | Angular client shows blank page                   | Ensure you ran `yarn build:sandbox` before `yarn start`                                          |
 | MCP app iframe doesn't load                       | Check that both the MCP server (port 8000) and proxy agent (port 10006) are running              |
 | `ng serve` not found                              | Run `yarn install` to install dev dependencies including `@angular/cli`                          |

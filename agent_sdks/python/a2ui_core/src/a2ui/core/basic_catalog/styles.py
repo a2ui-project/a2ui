@@ -20,17 +20,7 @@ from ..schema.common_types import StrictBaseModel
 
 
 class Theme(BaseModel):
-    model_config = ConfigDict(populate_by_name=True)
-    primary_color: Optional[str] = Field(
-        None,
-        alias="primaryColor",
-        description=(
-            "The primary brand color used for highlights (e.g., primary buttons, active"
-            " borders). Renderers may generate variants of this color for different"
-            " contexts. Format: Hexadecimal code (e.g., '#00BFFF')."
-        ),
-        pattern="^#[0-9a-fA-F]{6}$",
-    )
+    model_config = ConfigDict(populate_by_name=True, extra="allow")
     icon_url: Optional[str] = Field(
         None,
         alias="iconUrl",

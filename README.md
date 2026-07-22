@@ -124,7 +124,7 @@ export GEMINI_API_KEY="your_gemini_api_key"
 corepack enable
 
 yarn install
-cd samples/client/lit
+cd samples/renderer/lit
 yarn demo:restaurant
 ```
 

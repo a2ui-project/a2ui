@@ -51,7 +51,7 @@ nav:
       - Transports: concepts/transports.md
       - Actions: concepts/actions.md
   - Guides:
-      - Client Setup: guides/client-setup.md
+      - Renderer Setup: guides/renderer-setup.md
       - Agent Development: guides/agent-development.md
       - Use A2UI with Any Agent Framework & Harness: guides/a2ui-with-any-agent-framework.md
       - Renderer Development: guides/renderer-development.md
@@ -65,8 +65,8 @@ nav:
   - Reference:
       - Component Gallery: reference/components.md
       - Message Reference: reference/messages.md
-      - Renderers (Clients): reference/renderers.md
-      - Agents (Server-side): reference/agents.md
+      - Renderers: reference/renderers.md
+      - Agents: reference/agents.md
   - Specifications:
       - v1.0 (Candidate):
           - A2UI Protocol: specification/v1.0-a2ui.md

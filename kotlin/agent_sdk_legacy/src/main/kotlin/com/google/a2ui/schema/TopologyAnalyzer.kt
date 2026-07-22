@@ -65,7 +65,7 @@ internal object TopologyAnalyzer {
   private fun extractComponents(catalog: A2uiCatalog): JsonObject? {
     if (catalog.version == A2uiVersion.VERSION_0_8) {
       try {
-        val s2c = catalog.serverToClientSchema
+        val s2c = catalog.agentToRendererSchema
         val props = s2c[PROP_PROPERTIES] as? JsonObject
         if (props != null && "surfaceUpdate" in props) {
           val su = (props["surfaceUpdate"] as? JsonObject)?.get(PROP_PROPERTIES) as? JsonObject
@@ -82,7 +82,7 @@ internal object TopologyAnalyzer {
           }
         }
       } catch (e: Exception) {
-        logger.severe { "Unable to extract components from serverToClientSchema: ${e.message}" }
+        logger.severe { "Unable to extract components from agentToRendererSchema: ${e.message}" }
       }
     }
     return catalog.catalogSchema[A2uiConstants.CATALOG_COMPONENTS_KEY] as? JsonObject

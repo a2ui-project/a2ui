@@ -65,9 +65,9 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@a2ui/angular-sample-lib@workspace:samples/client/angular/projects/lib":
+"@a2ui/angular-sample-lib@workspace:samples/renderer/angular/projects/lib":
   version: 0.0.0-use.local
-  resolution: "@a2ui/angular-sample-lib@workspace:samples/client/angular/projects/lib"
+  resolution: "@a2ui/angular-sample-lib@workspace:samples/renderer/angular/projects/lib"
   dependencies:
     "@a2ui/web_core": "workspace:*"
     markdown-it: "npm:^14.2.0"
@@ -193,9 +193,9 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@a2ui/lit-samples@workspace:samples/client/lit":
+"@a2ui/lit-samples@workspace:samples/renderer/lit":
   version: 0.0.0-use.local
-  resolution: "@a2ui/lit-samples@workspace:samples/client/lit"
+  resolution: "@a2ui/lit-samples@workspace:samples/renderer/lit"
   dependencies:
     "@a2a-js/sdk": "npm:^0.3.13"
     "@a2ui/lit": "workspace:*"
@@ -284,9 +284,9 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@a2ui/react-shell@workspace:samples/client/react/shell":
+"@a2ui/react-shell@workspace:samples/renderer/react/shell":
   version: 0.0.0-use.local
-  resolution: "@a2ui/react-shell@workspace:samples/client/react/shell"
+  resolution: "@a2ui/react-shell@workspace:samples/renderer/react/shell"
   dependencies:
     "@a2a-js/sdk": "npm:^0.3.13"
     "@a2ui/markdown-it": "npm:*"
@@ -363,9 +363,9 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@a2ui/restaurant@workspace:samples/client/angular/projects/restaurant":
+"@a2ui/restaurant@workspace:samples/renderer/angular/projects/restaurant":
   version: 0.0.0-use.local
-  resolution: "@a2ui/restaurant@workspace:samples/client/angular/projects/restaurant"
+  resolution: "@a2ui/restaurant@workspace:samples/renderer/angular/projects/restaurant"
   dependencies:
     "@a2ui/angular": "workspace:*"
     "@a2ui/markdown-it": "npm:*"
@@ -374,9 +374,9 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@a2ui/shell@workspace:samples/client/lit/shell":
+"@a2ui/shell@workspace:samples/renderer/lit/shell":
   version: 0.0.0-use.local
-  resolution: "@a2ui/shell@workspace:samples/client/lit/shell"
+  resolution: "@a2ui/shell@workspace:samples/renderer/lit/shell"
   dependencies:
     "@a2a-js/sdk": "npm:^0.3.13"
     "@a2ui/lit": "workspace:*"
@@ -12172,9 +12172,9 @@ __metadata:
   languageName: node
   linkType: hard
 
-"angular-a2ui@workspace:samples/client/angular":
+"angular-a2ui@workspace:samples/renderer/angular":
   version: 0.0.0-use.local
-  resolution: "angular-a2ui@workspace:samples/client/angular"
+  resolution: "angular-a2ui@workspace:samples/renderer/angular"
   dependencies:
     "@a2a-js/sdk": "npm:^0.3.13"
     "@a2ui/markdown-it": "npm:*"

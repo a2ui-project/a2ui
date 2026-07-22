@@ -68,13 +68,13 @@ def test_any_component_discriminated_union():
         "id": "text-1",
         "component": "Text",
         "text": "Hello, A2UI!",
-        "variant": "h1",
+        "variant": "caption",
     }
     comp = adapter.validate_python(text_data)
     assert isinstance(comp, TextComponent)
     assert comp.component == "Text"
     assert comp.text == "Hello, A2UI!"
-    assert comp.variant == "h1"
+    assert comp.variant == "caption"
 
     # 2. Test ImageComponent routing
     image_data = {
@@ -122,11 +122,11 @@ def test_text_component_validation():
         id="welcome_text",
         component="Text",
         text="Hello World!",
-        variant="h1",
+        variant="caption",
     )
     assert comp.id == "welcome_text"
     assert comp.text == "Hello World!"
-    assert comp.variant == "h1"
+    assert comp.variant == "caption"
 
     # 2. Validation Fails on missing required properties
     with pytest.raises(ValidationError):
@@ -146,9 +146,7 @@ def test_text_component_variant_enum():
             text="Hello Mismatch",
             variant="bold",  # type: ignore
         )
-    assert "Input should be 'h1', 'h2', 'h3', 'h4', 'h5', 'caption' or 'body'" in str(
-        exc_info.value
-    )
+    assert "Input should be 'caption' or 'body'" in str(exc_info.value)
 
 
 def test_button_component_strict_extra_forbid():
@@ -165,7 +163,7 @@ def test_button_component_strict_extra_forbid():
 
 def test_message_payload_parsing():
     payload = {
-        "version": "v0.9",
+        "version": "v1.0",
         "updateComponents": {
             "surfaceId": "surface_1",
             "components": [
@@ -181,7 +179,7 @@ def test_message_payload_parsing():
     }
 
     msg = UpdateComponentsMessage.model_validate(payload)
-    assert msg.version == "v0.9"
+    assert msg.version == "v1.0"
     assert msg.update_components.surface_id == "surface_1"
     assert len(msg.update_components.components) == 2
     assert msg.update_components.components[0]["component"] == "Text"

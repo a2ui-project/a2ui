@@ -16,7 +16,7 @@
 
 import {Injectable, signal, computed} from '@angular/core';
 import {MessageProcessor as MessageProcessorV08, Theme as ThemeV08} from '@a2ui/angular/v0_8';
-import {A2uiClientAction} from '@a2ui/web_core/v0_9';
+import {A2uiRendererAction} from '@a2ui/web_core/v0_9';
 import {ServerToClientMessage} from 'src/v0_8/types';
 import {AgentStubService} from './agent-stub.service';
 import {UserAction} from '@a2ui/web_core/types/client-event';
@@ -39,7 +39,7 @@ interface UpdatePropertyContext {
   providedIn: 'root',
 })
 export class AgentStubV08Service extends AgentStubService {
-  override eventsLog = signal<Array<{timestamp: Date; action: A2uiClientAction}>>([]);
+  override eventsLog = signal<Array<{timestamp: Date; action: A2uiRendererAction}>>([]);
   override surfaceId = signal<string>('demo-surface', {equal: () => false});
   override currentCreateSurfaceMessage = signal<ServerToClientMessage[] | null>(null);
   private actionSub?: {unsubscribe: () => void};
@@ -124,7 +124,7 @@ export class AgentStubV08Service extends AgentStubService {
     }, 0);
   }
 
-  private userActionToClientAction(action: UserAction): A2uiClientAction {
+  private userActionToClientAction(action: UserAction): A2uiRendererAction {
     return {
       name: action.name,
       surfaceId: action.surfaceId,

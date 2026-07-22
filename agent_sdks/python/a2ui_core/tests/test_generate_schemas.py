@@ -389,10 +389,10 @@ def test_generate_basic_catalog_functions():
 def test_generate_basic_catalog_styles():
     mock_catalog_data = {
         "$defs": {
-            "theme": {
+            "surfaceProperties": {
                 "type": "object",
                 "properties": {
-                    "primaryColor": {"type": "string", "description": "Test color."}
+                    "iconUrl": {"type": "string", "description": "Test icon."}
                 },
                 "additionalProperties": True,
             }
@@ -401,8 +401,8 @@ def test_generate_basic_catalog_styles():
     code = generate_schemas.generate_basic_catalog_styles(mock_catalog_data)
     assert "class Theme(BaseModel):" in code
     assert (
-        'primary_color: Optional[str] = Field(None, alias="primaryColor",'
-        ' description="Test color.")'
+        'icon_url: Optional[str] = Field(None, alias="iconUrl",'
+        ' description="Test icon.")'
         in code
     )
 
@@ -435,10 +435,10 @@ def test_generate_schema_init():
     assert "    CreateSurface as CreateSurface," in code
 
 
-def test_generate_client_capabilities():
+def test_generate_renderer_capabilities():
     mock_capabilities_data = {
         "properties": {
-            "v0.9": {
+            "v1.0": {
                 "properties": {
                     "supportedCatalogIds": {
                         "type": "array",
@@ -458,14 +458,14 @@ def test_generate_client_capabilities():
             }
         },
     }
-    code = generate_schemas.generate_client_capabilities(mock_capabilities_data)
+    code = generate_schemas.generate_renderer_capabilities(mock_capabilities_data)
     assert "class FunctionDefinition(StrictBaseModel):" in code
-    assert "class V09Capabilities(StrictBaseModel):" in code
-    assert "class A2uiClientCapabilities(StrictBaseModel):" in code
-    assert "v0_9: Optional[V09Capabilities] = Field(None, alias=SPEC_VERSION)" in code
+    assert "class V1_0Capabilities(StrictBaseModel):" in code
+    assert "class A2uiRendererCapabilities(StrictBaseModel):" in code
+    assert "v1_0: Optional[V1_0Capabilities] = Field(None, alias=SPEC_VERSION)" in code
 
 
-def test_generate_client_to_server():
+def test_generate_renderer_to_agent():
     mock_c2s_data = {
         "properties": {
             "action": {
@@ -481,15 +481,16 @@ def test_generate_client_to_server():
             },
         }
     }
-    code = generate_schemas.generate_client_to_server(mock_c2s_data)
-    assert "class A2uiClientAction(StrictBaseModel):" in code
+    code = generate_schemas.generate_renderer_to_agent(mock_c2s_data)
+    assert "class A2uiRendererAction(StrictBaseModel):" in code
     assert "class A2uiValidationError(StrictBaseModel):" in code
     assert "code: Literal['VALIDATION_FAILED'] = Field(\"VALIDATION_FAILED\")" in code
-    assert "A2uiClientError = Union[A2uiValidationError]\n" in code
-    assert "class A2uiClientActionMessage(StrictBaseModel):" in code
-    assert "class A2uiClientErrorMessage(StrictBaseModel):" in code
+    assert "A2uiRendererError = Union[A2uiValidationError]\n" in code
+    assert "class A2uiRendererActionMessage(StrictBaseModel):" in code
+    assert "class A2uiRendererErrorMessage(StrictBaseModel):" in code
     assert (
-        "A2uiClientMessage = Union[A2uiClientActionMessage, A2uiClientErrorMessage]"
+        "A2uiRendererMessage = Union[A2uiRendererActionMessage,"
+        " A2uiRendererErrorMessage]"
         in code
     )
 

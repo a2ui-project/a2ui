@@ -162,7 +162,7 @@ class ValidatorTest {
       A2uiCatalog(
         version = A2uiVersion.VERSION_0_9,
         name = "standard",
-        serverToClientSchema = s2cSchema,
+        agentToRendererSchema = s2cSchema,
         commonTypesSchema = JsonObject(emptyMap()),
         catalogSchema = catalogSchema,
       )
@@ -225,7 +225,7 @@ class ValidatorTest {
     A2uiCatalog(
       version = A2uiVersion.VERSION_0_8,
       name = "test",
-      serverToClientSchema = JsonObject(mapOf("type" to JsonPrimitive("object"))),
+      agentToRendererSchema = JsonObject(mapOf("type" to JsonPrimitive("object"))),
       commonTypesSchema = JsonObject(emptyMap()),
       catalogSchema = JsonObject(mapOf(A2uiConstants.CATALOG_ID_KEY to JsonPrimitive("test_id"))),
     )

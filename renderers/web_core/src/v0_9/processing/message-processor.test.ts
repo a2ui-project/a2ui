@@ -33,9 +33,9 @@ describe('MessageProcessor', () => {
     });
   });
 
-  describe('getClientCapabilities', () => {
-    it('generates basic client capabilities with supportedCatalogIds', () => {
-      const caps = processor.getClientCapabilities();
+  describe('getRendererCapabilities', () => {
+    it('generates basic renderer capabilities with supportedCatalogIds', () => {
+      const caps = processor.getRendererCapabilities();
       assert.strictEqual(caps['v0.9']?.inlineCatalogs, undefined);
       assert.deepStrictEqual(caps, {
         'v0.9': {
@@ -54,7 +54,7 @@ describe('MessageProcessor', () => {
       const cat = new Catalog('cat-1', [buttonApi]);
       const proc = new MessageProcessor([cat]);
 
-      const caps = proc.getClientCapabilities({includeInlineCatalogs: true});
+      const caps = proc.getRendererCapabilities({includeInlineCatalogs: true});
       const inlineCat = caps['v0.9']?.inlineCatalogs?.[0];
       assert.strictEqual(inlineCat?.catalogId, 'cat-1');
 
@@ -77,7 +77,7 @@ describe('MessageProcessor', () => {
       const cat = new Catalog('cat-ref', [customApi]);
       const proc = new MessageProcessor([cat]);
 
-      const caps = proc.getClientCapabilities({includeInlineCatalogs: true});
+      const caps = proc.getRendererCapabilities({includeInlineCatalogs: true});
       const titleSchema =
         caps['v0.9']?.inlineCatalogs?.[0].components?.Custom.allOf[1].properties.title;
       assert.ok(titleSchema);
@@ -111,7 +111,7 @@ describe('MessageProcessor', () => {
       const cat = new Catalog('cat-full', [buttonApi], [addFn], themeSchema);
       const proc = new MessageProcessor([cat]);
 
-      const caps = proc.getClientCapabilities({includeInlineCatalogs: true});
+      const caps = proc.getRendererCapabilities({includeInlineCatalogs: true});
       const inlineCat = caps['v0.9']?.inlineCatalogs?.[0];
       assert.strictEqual(inlineCat?.catalogId, 'cat-full');
       // Verify Functions
@@ -133,7 +133,7 @@ describe('MessageProcessor', () => {
       const compApi: ComponentApi = {name: 'EmptyComp', schema: z.object({})};
       const cat = new Catalog('cat-empty', [compApi]);
       const proc = new MessageProcessor([cat]);
-      const caps = proc.getClientCapabilities({includeInlineCatalogs: true});
+      const caps = proc.getRendererCapabilities({includeInlineCatalogs: true});
       const inlineCat = caps['v0.9']?.inlineCatalogs?.[0];
       assert.strictEqual(inlineCat?.catalogId, 'cat-empty');
       assert.strictEqual(inlineCat.functions, undefined);
@@ -155,7 +155,7 @@ describe('MessageProcessor', () => {
       };
       const cat = new Catalog('cat-deep', [deepApi]);
       const proc = new MessageProcessor([cat]);
-      const caps = proc.getClientCapabilities({includeInlineCatalogs: true});
+      const caps = proc.getRendererCapabilities({includeInlineCatalogs: true});
 
       const properties = caps['v0.9']?.inlineCatalogs?.[0].components?.DeepComp.allOf[1].properties;
       assert.ok(properties);
@@ -176,7 +176,7 @@ describe('MessageProcessor', () => {
       };
       const cat = new Catalog('cat-edge', [edgeApi]);
       const proc = new MessageProcessor([cat]);
-      const caps = proc.getClientCapabilities({includeInlineCatalogs: true});
+      const caps = proc.getRendererCapabilities({includeInlineCatalogs: true});
 
       const properties = caps['v0.9']?.inlineCatalogs?.[0].components?.EdgeComp.allOf[1].properties;
       assert.ok(properties);
@@ -201,7 +201,7 @@ describe('MessageProcessor', () => {
       const cat2 = new Catalog('cat-2', [], [addFn], themeSchema);
 
       const proc = new MessageProcessor([cat1, cat2]);
-      const caps = proc.getClientCapabilities({includeInlineCatalogs: true});
+      const caps = proc.getRendererCapabilities({includeInlineCatalogs: true});
       assert.strictEqual(caps['v0.9']?.inlineCatalogs?.length, 2);
 
       const inlineCat1 = caps['v0.9']?.inlineCatalogs?.[0];
@@ -248,7 +248,7 @@ describe('MessageProcessor', () => {
     assert.strictEqual(surface?.sendDataModel, true);
   });
 
-  it('getClientDataModel filters surfaces correctly', () => {
+  it('getRendererDataModel filters surfaces correctly', () => {
     processor.processMessages([
       {
         version: 'v0.9',
@@ -276,7 +276,7 @@ describe('MessageProcessor', () => {
       },
     ]);
 
-    const dataModel = processor.getClientDataModel();
+    const dataModel = processor.getRendererDataModel();
     assert.ok(dataModel);
     assert.strictEqual(dataModel.version, 'v0.9');
     assert.deepStrictEqual(dataModel.surfaces, {
@@ -285,21 +285,21 @@ describe('MessageProcessor', () => {
     assert.strictEqual((dataModel.surfaces as any).s2, undefined);
   });
 
-  it('getClientDataModel returns undefined if no surfaces have sendDataModel enabled', () => {
+  it('getRendererDataModel returns undefined if no surfaces have sendDataModel enabled', () => {
     processor.processMessages([
       {
         version: 'v0.9',
         createSurface: {surfaceId: 's1', catalogId: 'test-catalog'},
       },
     ]);
-    assert.strictEqual(processor.getClientDataModel(), undefined);
+    assert.strictEqual(processor.getRendererDataModel(), undefined);
   });
 
-  it('uses configured processor version for getClientCapabilities and getClientDataModel', () => {
+  it('uses configured processor version for getRendererCapabilities and getRendererDataModel', () => {
     const v091Proc = new MessageProcessor([testCatalog], undefined, {version: 'v0.9.1'});
     assert.strictEqual(v091Proc.version, 'v0.9.1');
 
-    const caps = v091Proc.getClientCapabilities();
+    const caps = v091Proc.getRendererCapabilities();
     assert.ok(caps['v0.9.1']);
     assert.strictEqual(caps['v0.9'], undefined);
 
@@ -309,7 +309,7 @@ describe('MessageProcessor', () => {
         createSurface: {surfaceId: 's1', catalogId: 'test-catalog', sendDataModel: true},
       },
     ]);
-    const dataModel = v091Proc.getClientDataModel();
+    const dataModel = v091Proc.getRendererDataModel();
     assert.ok(dataModel);
     assert.strictEqual(dataModel.version, 'v0.9.1');
   });

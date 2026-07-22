@@ -26,7 +26,7 @@ For more details on building the renderers, see:
 1.  **Navigate to this directory**:
 
     ```bash
-    cd samples/client/lit/gallery_v0_9
+    cd samples/renderer/lit/gallery_v0_9
     ```
 
 2.  **Run the development server**:

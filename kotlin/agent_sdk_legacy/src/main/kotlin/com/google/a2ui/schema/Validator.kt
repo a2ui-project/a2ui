@@ -107,7 +107,7 @@ constructor(
   }
 
   private fun bundle0_8Schemas(): JsonObject {
-    if (catalog.serverToClientSchema.isEmpty()) return JsonObject(emptyMap())
+    if (catalog.agentToRendererSchema.isEmpty()) return JsonObject(emptyMap())
 
     val sourceProperties = mutableMapOf<String, JsonElement>()
     val catalogSchema = catalog.catalogSchema
@@ -121,7 +121,7 @@ constructor(
       }
     }
 
-    val (bundled) = injectAdditionalProperties(catalog.serverToClientSchema, sourceProperties)
+    val (bundled) = injectAdditionalProperties(catalog.agentToRendererSchema, sourceProperties)
     return bundled as JsonObject
   }
 
@@ -131,7 +131,7 @@ constructor(
     fullSchema[KEY_DOLLAR_SCHEMA] = JsonPrimitive(SCHEMA_DRAFT_2020_12)
 
     val baseUri =
-      catalog.serverToClientSchema[KEY_DOLLAR_ID]?.jsonPrimitive?.content
+      catalog.agentToRendererSchema[KEY_DOLLAR_ID]?.jsonPrimitive?.content
         ?: A2uiConstants.BASE_SCHEMA_URL
     val baseDirUri = baseUri.substringBeforeLast("/")
     val commonTypesUri = "$baseDirUri/$FILE_COMMON_TYPES"
@@ -156,7 +156,7 @@ constructor(
 
   private fun build0_9Validator(): Schema {
     val fullSchema =
-      SchemaResourceLoader.wrapAsJsonArray(catalog.serverToClientSchema).toMutableMap()
+      SchemaResourceLoader.wrapAsJsonArray(catalog.agentToRendererSchema).toMutableMap()
     fullSchema[KEY_DOLLAR_SCHEMA] = JsonPrimitive(SCHEMA_DRAFT_2020_12)
 
     val jsonFmt = Json { prettyPrint = false }
@@ -304,7 +304,7 @@ constructor(
   private fun getSubValidator(defName: String): Schema {
     return subValidators.getOrPut(defName) {
       val defs =
-        catalog.serverToClientSchema["\$defs"] as? JsonObject
+        catalog.agentToRendererSchema["\$defs"] as? JsonObject
           ?: throw A2uiValidationException("No \$defs found in schema")
       val subSchema =
         defs[defName] as? JsonObject

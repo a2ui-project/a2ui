@@ -15,14 +15,14 @@
  */
 
 import {WritableSignal, Signal} from '@angular/core';
-import {A2uiClientAction, A2uiMessage, CreateSurfaceMessage} from '@a2ui/web_core/v0_9';
+import {A2uiRendererAction, A2uiMessage, CreateSurfaceMessage} from '@a2ui/web_core/v0_9';
 import {ServerToClientMessage} from 'src/v0_8/types';
 
 /**
  * Abstract base class for agent stub services.
  */
 export abstract class AgentStubService {
-  abstract eventsLog: WritableSignal<Array<{timestamp: Date; action: A2uiClientAction}>>;
+  abstract eventsLog: WritableSignal<Array<{timestamp: Date; action: A2uiRendererAction}>>;
   abstract dataModel: Signal<Record<string, unknown>>;
   abstract surfaceId: Signal<string>;
   abstract currentCreateSurfaceMessage: Signal<

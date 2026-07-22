@@ -172,7 +172,7 @@ The A2UI community is building exciting projects:
     - Gemini-powered agent
     - Full source code available
 
-- **Component Gallery** ([samples/client/angular - gallery mode](../../../samples/client/angular))
+- **Component Gallery** ([samples/renderer/angular - gallery mode](../../../samples/renderer/angular))
     - Interactive showcase of all components
     - Live examples with code
     - Great for learning

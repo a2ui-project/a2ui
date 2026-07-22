@@ -75,6 +75,16 @@ val copySpecs by tasks.registering(Copy::class) {
     into("com/google/a2ui/assets/0.9/catalogs/basic")
   }
 
+  from(File(repoRoot, "specification/v1_0/json/agent_to_renderer.json")) {
+    into("com/google/a2ui/assets/1.0")
+  }
+  from(File(repoRoot, "specification/v1_0/json/common_types.json")) {
+    into("com/google/a2ui/assets/1.0")
+  }
+  from(File(repoRoot, "specification/v1_0/catalogs/basic/catalog.json")) {
+    into("com/google/a2ui/assets/1.0/catalogs/basic")
+  }
+
   into(layout.buildDirectory.dir("generated/resources/specs"))
 }
 

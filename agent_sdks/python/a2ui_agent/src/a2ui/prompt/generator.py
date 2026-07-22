@@ -16,7 +16,7 @@
 
 from abc import ABC, abstractmethod
 from typing import Any, Optional, Union
-from a2ui.core.schema.client_capabilities import V09Capabilities
+from a2ui.core.schema.renderer_capabilities import V1_0Capabilities
 
 
 class PromptGenerator(ABC):
@@ -28,7 +28,9 @@ class PromptGenerator(ABC):
         role_description: str,
         workflow_description: str = "",
         ui_description: str = "",
-        client_ui_capabilities: Optional[Union[dict[str, Any], V09Capabilities]] = None,
+        client_ui_capabilities: Optional[
+            Union[dict[str, Any], V1_0Capabilities]
+        ] = None,
         allowed_components: Optional[list[str]] = None,
         allowed_messages: Optional[list[str]] = None,
         include_schema: bool = False,

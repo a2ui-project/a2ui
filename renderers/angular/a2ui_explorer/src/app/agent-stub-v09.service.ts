@@ -16,7 +16,7 @@
 
 import {Injectable, signal} from '@angular/core';
 import {A2uiRendererService} from '@a2ui/angular/v0_9';
-import {A2uiClientAction, A2uiMessage, CreateSurfaceMessage} from '@a2ui/web_core/v0_9';
+import {A2uiRendererAction, A2uiMessage, CreateSurfaceMessage} from '@a2ui/web_core/v0_9';
 import {ActionDispatcher} from './action-dispatcher.service';
 import {AgentStubService} from './agent-stub.service';
 
@@ -48,7 +48,7 @@ interface SubmitFormContext {
 export class AgentStubV09Service extends AgentStubService {
   override dataModel = signal<Record<string, unknown>>({});
   override surfaceId = signal<string>('demo-surface', {equal: () => false});
-  override eventsLog = signal<Array<{timestamp: Date; action: A2uiClientAction}>>([]);
+  override eventsLog = signal<Array<{timestamp: Date; action: A2uiRendererAction}>>([]);
   override currentCreateSurfaceMessage = signal<CreateSurfaceMessage | null>(null);
   private actionSub?: {unsubscribe: () => void};
   private dataModelSub?: {unsubscribe: () => void};
@@ -60,7 +60,7 @@ export class AgentStubV09Service extends AgentStubService {
     super();
   }
 
-  private handleAction(action: A2uiClientAction) {
+  private handleAction(action: A2uiRendererAction) {
     console.log('[AgentStubV09] handleAction action:', action);
 
     setTimeout(() => {

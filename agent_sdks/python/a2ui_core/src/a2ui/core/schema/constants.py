@@ -14,8 +14,8 @@
 
 from typing import Final, Literal, TypeAlias
 
-SPEC_VERSION: Final = "v0.9"
-SPEC_VERSION_TYPE: TypeAlias = str
+SPEC_VERSION: Final = "v1.0"
+SPEC_VERSION_TYPE: TypeAlias = Literal["v1.0"]
 SPEC_BASE_URL = "https://a2ui.org/specification"
 
 MSG_TYPE_CREATE_SURFACE = "createSurface"
@@ -25,6 +25,6 @@ MSG_TYPE_DELETE_SURFACE = "deleteSurface"
 
 CATALOG_COMPONENTS_KEY = "components"
 SURFACE_ID_KEY = "surfaceId"
-THEME_KEY = "theme"
+THEME_KEY = "surfaceProperties"
 
 ROOT_ID = "root"

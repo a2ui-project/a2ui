@@ -7,7 +7,7 @@ This sample demonstrates how to integrate an **MCP (Model Context Protocol) App*
 The sample consists of:
 
 1.  **Agent** (`agent.py`): A Python FastAPI server that acts as the agent. It serves the UI manifest containing the `McpApp` component and handles tool calls forwarded by the client.
-2.  **Client** (`samples/client/lit/mcp-apps-in-a2ui-sample`): A Lit-based client application that renders the A2UI interface and the `McpApp` component.
+2.  **Client** (`samples/renderer/lit/mcp-apps-in-a2ui-sample`): A Lit-based client application that renders the A2UI interface and the `McpApp` component.
 
 ## Architecture
 

@@ -140,7 +140,8 @@ class A2aHandler(private val runner: Runner) {
     val parsedParts = mutableListOf<Map<String, Any>>()
 
     val functionCall = part.functionCall().orElse(null)
-    if (functionCall != null && functionCall.name().orElse(null) == "send_a2ui_json_to_client") {
+    val fnName = functionCall?.name()?.orElse(null)
+    if (fnName == "send_a2ui_json_to_renderer" || fnName == "send_a2ui_json_to_client") {
       val argsMap = functionCall.args().orElse(null) as? Map<*, *>
       val a2uiJsonStr = argsMap?.get("a2ui_json") as? String
       if (a2uiJsonStr != null) {

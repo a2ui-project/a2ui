@@ -14,7 +14,7 @@
 
 from typing import Optional, Any, Union
 from a2ui.inference_format import InferenceFormat
-from a2ui.core.schema.client_capabilities import V09Capabilities
+from a2ui.core.schema.renderer_capabilities import V1_0Capabilities
 
 
 class A2uiTemplateManager(InferenceFormat):
@@ -35,7 +35,9 @@ class A2uiTemplateManager(InferenceFormat):
         role_description: str,
         workflow_description: str = "",
         ui_description: str = "",
-        client_ui_capabilities: Optional[Union[dict[str, Any], V09Capabilities]] = None,
+        client_ui_capabilities: Optional[
+            Union[dict[str, Any], V1_0Capabilities]
+        ] = None,
         allowed_components: Optional[list[str]] = None,
         allowed_messages: Optional[list[str]] = None,
         include_schema: bool = False,

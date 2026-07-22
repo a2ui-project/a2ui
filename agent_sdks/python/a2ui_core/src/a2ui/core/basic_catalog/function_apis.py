@@ -16,7 +16,7 @@
 from typing import Any, Dict, List, Literal, Optional, Union, Annotated
 from pydantic import BaseModel, Field, ConfigDict
 
-from ..schema.common_types import StrictBaseModel, DynamicString, DynamicNumber, DynamicBoolean, DynamicValue, DynamicStringList
+from ..schema.common_types import StrictBaseModel, DynamicString, DynamicNumber, DynamicBoolean, DynamicValue, DynamicStringList, DataBinding, FunctionCall
 from ..catalog.functions import FunctionApi
 
 
@@ -82,7 +82,7 @@ class FormatStringArgs(StrictBaseModel):
 class FormatStringApi(FunctionApi):
     name = "formatString"
     schema = FormatStringArgs
-    return_type = "string"
+    return_type = "boolean"
 
 
 class FormatNumberArgs(StrictBaseModel):
@@ -106,7 +106,7 @@ class FormatNumberArgs(StrictBaseModel):
 class FormatNumberApi(FunctionApi):
     name = "formatNumber"
     schema = FormatNumberArgs
-    return_type = "string"
+    return_type = "boolean"
 
 
 class FormatCurrencyArgs(StrictBaseModel):
@@ -133,7 +133,7 @@ class FormatCurrencyArgs(StrictBaseModel):
 class FormatCurrencyApi(FunctionApi):
     name = "formatCurrency"
     schema = FormatCurrencyArgs
-    return_type = "string"
+    return_type = "boolean"
 
 
 class FormatDateArgs(StrictBaseModel):
@@ -156,7 +156,7 @@ class FormatDateArgs(StrictBaseModel):
 class FormatDateApi(FunctionApi):
     name = "formatDate"
     schema = FormatDateArgs
-    return_type = "string"
+    return_type = "boolean"
 
 
 class PluralizeArgs(StrictBaseModel):
@@ -192,17 +192,19 @@ class PluralizeArgs(StrictBaseModel):
 class PluralizeApi(FunctionApi):
     name = "pluralize"
     schema = PluralizeArgs
-    return_type = "string"
+    return_type = "boolean"
 
 
 class OpenUrlArgs(StrictBaseModel):
-    url: str = Field(..., description="The URL to open.")
+    url: Union[str, DataBinding, FunctionCall] = Field(
+        ..., description="The URL to open."
+    )
 
 
 class OpenUrlApi(FunctionApi):
     name = "openUrl"
     schema = OpenUrlArgs
-    return_type = "void"
+    return_type = "boolean"
 
 
 class AndArgs(StrictBaseModel):

@@ -14,7 +14,7 @@
 
 # Auto-generated. Do not edit manually.
 from typing import Annotated, Any, Dict, List, Literal, Optional, Union
-from pydantic import BaseModel, Field, ConfigDict, GetCoreSchemaHandler, field_validator, ValidationInfo
+from pydantic import BaseModel, Field, ConfigDict, GetCoreSchemaHandler
 from pydantic_core import CoreSchema
 
 
@@ -44,22 +44,10 @@ class ListReference(ComponentReference):
 class StrictBaseModel(BaseModel):
     model_config = ConfigDict(extra="forbid", populate_by_name=True)
 
-    @field_validator("version", mode="after", check_fields=False)
-    @classmethod
-    def validate_version_field(cls, v: Any, info: ValidationInfo) -> Any:
-        context = info.context or {}
-        target_version = context.get("target_version")
-        if target_version is None:
-            from .constants import SPEC_VERSION
-
-            target_version = SPEC_VERSION
-
-        if v != target_version:
-            raise ValueError(f"Input should be '{target_version}'")
-        return v
-
 
 ComponentId = SingleReference
+
+CallId = str
 
 
 class DataBinding(StrictBaseModel):
@@ -72,13 +60,6 @@ class FunctionCall(StrictBaseModel):
     call: str = Field(..., description="The name of the function to call.")
     args: Optional[Dict[str, Any]] = Field(
         None, description="Arguments passed to the function."
-    )
-    return_type: Optional[
-        Literal["string", "number", "boolean", "array", "object", "any", "void"]
-    ] = Field(
-        alias="returnType",
-        description="The expected return type of the function call.",
-        default="boolean",
     )
 
 
@@ -136,7 +117,7 @@ class CheckRule(StrictBaseModel):
 
 class ActionEvent(StrictBaseModel):
     name: str = Field(
-        ..., description="The name of the action to be dispatched to the server."
+        ..., description="The name of the action to be dispatched to the agent."
     )
     context: Optional[Dict[str, Any]] = Field(
         None,
@@ -146,10 +127,23 @@ class ActionEvent(StrictBaseModel):
             " be dynamically bound to the data model. Do NOT use paths for static IDs."
         ),
     )
+    want_response: Optional[bool] = Field(
+        alias="wantResponse",
+        description="If true, the renderer expects an actionResponse from the agent.",
+        default=False,
+    )
+    response_path: Optional[str] = Field(
+        None,
+        alias="responsePath",
+        description=(
+            "Optional JSON Pointer path where the renderer should save the response"
+            " value in its local data model."
+        ),
+    )
 
 
 class ActionEventWrapper(StrictBaseModel):
-    event: ActionEvent = Field(..., description="The event to dispatch to the server.")
+    event: ActionEvent = Field(..., description="The event to dispatch to the agent.")
 
 
 class ActionFunctionCallWrapper(StrictBaseModel):

@@ -19,7 +19,7 @@ from typing import Any, Dict, List, Optional
 
 # Base directories
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
-SPEC_VERSION = "v0_9"
+SPEC_VERSION = "v1_0"
 SPEC_VERSION_DOT = SPEC_VERSION.replace("_", ".")
 SPEC_DIR = os.path.abspath(
     os.path.join(SCRIPT_DIR, "../../../../specification", SPEC_VERSION)
@@ -29,10 +29,12 @@ CATALOGS_DIR = "catalogs"
 
 # Input file paths
 COMMON_TYPES_PATH = os.path.join(SPEC_DIR, JSON_DIR, "common_types.json")
-CLIENT_CAPABILITIES_PATH = os.path.join(SPEC_DIR, JSON_DIR, "client_capabilities.json")
-CLIENT_TO_SERVER_PATH = os.path.join(SPEC_DIR, JSON_DIR, "client_to_server.json")
+RENDERER_CAPABILITIES_PATH = os.path.join(
+    SPEC_DIR, JSON_DIR, "renderer_capabilities.json"
+)
+RENDERER_TO_AGENT_PATH = os.path.join(SPEC_DIR, JSON_DIR, "renderer_to_agent.json")
 BASIC_CATALOG_PATH = os.path.join(SPEC_DIR, CATALOGS_DIR, "basic", "catalog.json")
-SERVER_TO_CLIENT_PATH = os.path.join(SPEC_DIR, JSON_DIR, "server_to_client.json")
+AGENT_TO_RENDERER_PATH = os.path.join(SPEC_DIR, JSON_DIR, "agent_to_renderer.json")
 
 # Output directories
 SCHEMA_DIR = os.path.abspath(os.path.join(SCRIPT_DIR, "../src/a2ui/core/schema"))
@@ -44,12 +46,12 @@ CATALOG_DIR = os.path.abspath(os.path.join(SCRIPT_DIR, "../src/a2ui/core/catalog
 # Output file paths
 COMMON_TYPES_OUT_PATH = os.path.join(SCHEMA_DIR, "common_types.py")
 CONSTANTS_OUT_PATH = os.path.join(SCHEMA_DIR, "constants.py")
-CLIENT_CAPABILITIES_OUT_PATH = os.path.join(SCHEMA_DIR, "client_capabilities.py")
-CLIENT_TO_SERVER_OUT_PATH = os.path.join(SCHEMA_DIR, "client_to_server.py")
+RENDERER_CAPABILITIES_OUT_PATH = os.path.join(SCHEMA_DIR, "renderer_capabilities.py")
+RENDERER_TO_AGENT_OUT_PATH = os.path.join(SCHEMA_DIR, "renderer_to_agent.py")
 COMPONENTS_OUT_PATH = os.path.join(BASIC_CATALOG_DIR, "components.py")
 FUNCTION_APIS_OUT_PATH = os.path.join(BASIC_CATALOG_DIR, "function_apis.py")
 STYLES_OUT_PATH = os.path.join(BASIC_CATALOG_DIR, "styles.py")
-SERVER_TO_CLIENT_OUT_PATH = os.path.join(SCHEMA_DIR, "server_to_client.py")
+AGENT_TO_RENDERER_OUT_PATH = os.path.join(SCHEMA_DIR, "agent_to_renderer.py")
 SCHEMA_INIT_OUT_PATH = os.path.join(SCHEMA_DIR, "__init__.py")
 BASIC_CATALOG_INIT_OUT_PATH = os.path.join(BASIC_CATALOG_DIR, "__init__.py")
 CATALOG_FUNCTIONS_OUT_PATH = os.path.join(CATALOG_DIR, "functions.py")
@@ -274,7 +276,7 @@ def compile_object_def(
         bcls = base_class or "BaseModel"
         lines = [
             f"class {class_name}({bcls}):",
-            "    model_config = ConfigDict(populate_by_name=True)",
+            '    model_config = ConfigDict(populate_by_name=True, extra="allow")',
         ]
     else:
         bcls = base_class or "StrictBaseModel"
@@ -383,6 +385,10 @@ def generate_common_types(common_data: Dict[str, Any]) -> str:
 
     # 1. Generate ComponentId type alias
     output.append("ComponentId = SingleReference\n")
+
+    # 1.1 Generate CallId type alias
+    if "CallId" in defs:
+        output.append("CallId = str\n")
 
     # 2. Generate DataBinding
     output.append(compile_object_def("DataBinding", defs["DataBinding"]))
@@ -563,7 +569,8 @@ def generate_basic_catalog_functions(
         "from pydantic import BaseModel, Field, ConfigDict\n",
         (
             "from ..schema.common_types import StrictBaseModel, DynamicString,"
-            " DynamicNumber, DynamicBoolean, DynamicValue, DynamicStringList"
+            " DynamicNumber, DynamicBoolean, DynamicValue, DynamicStringList,"
+            " DataBinding, FunctionCall"
         ),
         "from ..catalog.functions import FunctionApi\n",
     ]
@@ -601,7 +608,7 @@ def generate_basic_catalog_styles(catalog_data: Dict[str, Any]) -> str:
         "from ..schema.common_types import StrictBaseModel\n",
     ]
 
-    theme_spec = catalog_data.get("$defs", {}).get("theme", {})
+    theme_spec = catalog_data.get("$defs", {}).get("surfaceProperties", {})
     if theme_spec:
         output.append(compile_object_def("Theme", theme_spec))
     else:
@@ -615,42 +622,83 @@ def generate_server_to_client(s2c_data: Dict[str, Any]) -> tuple[str, List[str]]
     output = [
         "from typing import Any, Dict, List, Literal, Optional, Union",
         "from pydantic import BaseModel, Field, ConfigDict\n",
-        "from .common_types import StrictBaseModel",
+        "from .common_types import *",
         "from .constants import SPEC_VERSION, SPEC_VERSION_TYPE\n",
     ]
 
     defs = s2c_data.get("$defs", {})
-    msg_names = list(defs.keys())
-    for mname, mschema in defs.items():
+    # Generate helper schemas (non-Message keys under $defs)
+    helper_names = [k for k in defs.keys() if not k.endswith("Message")]
+    for hname in helper_names:
+        hschema = defs[hname]
+        mapped = map_json_type_to_python(hname, hschema)
+        output.append(f"{hname} = {mapped}\n")
+    output.append("\n")
+
+    msg_names = [k for k in defs.keys() if k.endswith("Message")]
+    for mname in msg_names:
+        mschema = defs[mname]
         payload_name = mname.replace("Message", "")
+        envelope_key = payload_name[0].lower() + payload_name[1:]
+
+        # Compile the payload class (if it has inline properties)
+        payload_schema = mschema.get("properties", {}).get(envelope_key, {})
+        payload_props = {}
+        payload_required = []
+        if "properties" in payload_schema:
+            payload_props = payload_schema.get("properties", {})
+            payload_required = payload_schema.get("required", [])
+
         output.append(f"class {payload_name}(StrictBaseModel):")
-
-        payload_props = (
-            mschema.get("properties", {})
-            .get(mschema.get("required", [""])[0], {})
-            .get("properties", {})
-        )
-        payload_required = (
-            mschema.get("properties", {})
-            .get(mschema.get("required", [""])[0], {})
-            .get("required", [])
-        )
-
-        lines = compile_properties_to_pydantic(payload_props, payload_required)
-        output.extend(lines)
+        if payload_props:
+            lines = compile_properties_to_pydantic(payload_props, payload_required)
+            output.extend(lines)
+        else:
+            output.append("    pass")
         output.append("\n")
 
-        # Message envelopes
-        envelope_key = [
-            k for k in mschema.get("properties", {}).keys() if k != "version"
-        ][0]
-        snake_envelope = to_snake_case(envelope_key)
-        alias_opt = (
-            f', alias="{envelope_key}"' if snake_envelope != envelope_key else ""
-        )
+        # Compile the envelope class
         output.append(f"class {mname}(StrictBaseModel):")
-        output.append(f"    version: SPEC_VERSION_TYPE = SPEC_VERSION")
-        output.append(f"    {snake_envelope}: {payload_name} = Field(...{alias_opt})")
+        env_props = mschema.get("properties", {})
+        env_required = mschema.get("required", [])
+
+        for prop_name, prop_schema in env_props.items():
+            snake_prop = to_snake_case(prop_name)
+            alias_opt = f', alias="{prop_name}"' if snake_prop != prop_name else ""
+            if prop_name == "version":
+                output.append(f"    version: SPEC_VERSION_TYPE = SPEC_VERSION")
+            elif prop_name == envelope_key:
+                output.append(
+                    f"    {snake_prop}: {payload_name} = Field(...{alias_opt})"
+                )
+            else:
+                is_req = prop_name in env_required
+                mapped_type = map_json_type_to_python(prop_name, prop_schema)
+                desc = prop_schema.get("description", "")
+                desc_opt = f', description="{desc}"' if desc else ""
+                if is_req:
+                    output.append(
+                        f"    {snake_prop}: {mapped_type} ="
+                        f" Field(...{alias_opt}{desc_opt})"
+                    )
+                else:
+                    default_val = prop_schema.get("default", None)
+                    if default_val is not None:
+                        if isinstance(default_val, bool):
+                            default_str = str(default_val)
+                        elif isinstance(default_val, str):
+                            default_str = f'"{default_val}"'
+                        else:
+                            default_str = str(default_val)
+                        output.append(
+                            f"    {snake_prop}: Optional[{mapped_type}] ="
+                            f" Field({default_str}{alias_opt}{desc_opt})"
+                        )
+                    else:
+                        output.append(
+                            f"    {snake_prop}: Optional[{mapped_type}] ="
+                            f" Field(None{alias_opt}{desc_opt})"
+                        )
         output.append("\n")
 
     # Envelope wrappers
@@ -665,12 +713,12 @@ def generate_server_to_client(s2c_data: Dict[str, Any]) -> tuple[str, List[str]]
     return "\n".join(output), msg_names
 
 
-def generate_client_capabilities(capabilities_data: Dict[str, Any]) -> str:
-    """Generates client_capabilities.py mirroring the TS schema."""
+def generate_renderer_capabilities(capabilities_data: Dict[str, Any]) -> str:
+    """Generates renderer_capabilities.py mirroring the TS schema."""
     output = [
         "from typing import Any, Dict, List, Literal, Optional",
         "from pydantic import BaseModel, Field, ConfigDict",
-        "from .common_types import StrictBaseModel",
+        "from .common_types import *",
         "from .constants import SPEC_VERSION, SPEC_VERSION_TYPE\n",
     ]
     defs = capabilities_data.get("$defs", {})
@@ -681,23 +729,26 @@ def generate_client_capabilities(capabilities_data: Dict[str, Any]) -> str:
     if "Catalog" in defs:
         output.append(compile_object_def("InlineCatalog", defs["Catalog"]))
 
-    output.append("class V09Capabilities(StrictBaseModel):")
-    v9_props = (
+    spec_version_clean = SPEC_VERSION.replace(".", "_")
+    cap_class_name = f"{spec_version_clean.upper()}Capabilities"
+    output.append(f"class {cap_class_name}(StrictBaseModel):")
+    v_props = (
         capabilities_data.get("properties", {})
         .get(SPEC_VERSION_DOT, {})
         .get("properties", {})
     )
-    v9_req = (
+    v_req = (
         capabilities_data.get("properties", {})
         .get(SPEC_VERSION_DOT, {})
         .get("required", [])
     )
-    output.extend(compile_properties_to_pydantic(v9_props, v9_req))
+    output.extend(compile_properties_to_pydantic(v_props, v_req))
     output.append("\n")
 
-    output.append("class A2uiClientCapabilities(StrictBaseModel):")
+    output.append("class A2uiRendererCapabilities(StrictBaseModel):")
     output.append(
-        f"    v0_9: Optional[V09Capabilities] = Field(None, alias=SPEC_VERSION)"
+        f"    {spec_version_clean}: Optional[{cap_class_name}] = Field(None,"
+        " alias=SPEC_VERSION)"
     )
 
     code = "\n".join(output)
@@ -705,19 +756,19 @@ def generate_client_capabilities(capabilities_data: Dict[str, Any]) -> str:
     return code
 
 
-def generate_client_to_server(c2s_data: Dict[str, Any]) -> str:
-    """Generates client_to_server.py mirroring the TS event schema."""
+def generate_renderer_to_agent(c2s_data: Dict[str, Any]) -> str:
+    """Generates renderer_to_agent.py mirroring the TS event schema."""
     output = [
         "from typing import Any, Dict, List, Literal, Optional, Union",
         "from pydantic import BaseModel, Field, ConfigDict",
-        "from .common_types import StrictBaseModel",
+        "from .common_types import *",
         "from .constants import SPEC_VERSION, SPEC_VERSION_TYPE\n",
     ]
     props = c2s_data.get("properties", {})
 
     if "action" in props:
         action_spec = props["action"]
-        output.append(compile_object_def("A2uiClientAction", action_spec))
+        output.append(compile_object_def("A2uiRendererAction", action_spec))
 
     error_variants = props.get("error", {}).get("oneOf", [])
     error_class_names = []
@@ -733,43 +784,44 @@ def generate_client_to_server(c2s_data: Dict[str, Any]) -> str:
         error_class_names.append(cname)
 
     if error_class_names:
-        output.append(f"A2uiClientError = Union[{', '.join(error_class_names)}]\n")
+        output.append(f"A2uiRendererError = Union[{', '.join(error_class_names)}]\n")
 
-    output.append("class A2uiClientActionMessage(StrictBaseModel):")
+    output.append("class A2uiRendererActionMessage(StrictBaseModel):")
     output.append(f"    version: SPEC_VERSION_TYPE = SPEC_VERSION")
-    output.append("    action: A2uiClientAction = Field(...)")
+    output.append("    action: A2uiRendererAction = Field(...)")
     output.append("\n")
 
-    output.append("class A2uiClientErrorMessage(StrictBaseModel):")
+    output.append("class A2uiRendererErrorMessage(StrictBaseModel):")
     output.append(f"    version: SPEC_VERSION_TYPE = SPEC_VERSION")
-    output.append("    error: A2uiClientError = Field(...)")
+    output.append("    error: A2uiRendererError = Field(...)")
     output.append("\n")
 
     output.append(
-        "A2uiClientMessage = Union[A2uiClientActionMessage, A2uiClientErrorMessage]\n"
+        "A2uiRendererMessage = Union[A2uiRendererActionMessage,"
+        " A2uiRendererErrorMessage]\n"
     )
 
-    # Client Data Model
-    output.append("class A2uiClientDataModel(StrictBaseModel):")
+    # Renderer Data Model
+    output.append("class A2uiRendererDataModel(StrictBaseModel):")
     output.append(f"    version: SPEC_VERSION_TYPE = SPEC_VERSION")
     output.append(
         '    surfaces: Dict[str, Dict[str, Any]] = Field(..., description="A map of'
         ' surface IDs to their current data models.")\n'
     )
 
-    # Client Message List and List Wrapper
-    output.append("A2uiClientMessageList = List[A2uiClientMessage]\n")
+    # Renderer Message List and List Wrapper
+    output.append("A2uiRendererMessageList = List[A2uiRendererMessage]\n")
 
-    output.append("class A2uiClientMessageListWrapper(StrictBaseModel):")
+    output.append("class A2uiRendererMessageListWrapper(StrictBaseModel):")
     output.append(
-        '    messages: A2uiClientMessageList = Field(..., description="An object'
-        ' wrapping a list of A2UI Client-to-Server messages.")'
+        '    messages: A2uiRendererMessageList = Field(..., description="An object'
+        ' wrapping a list of A2UI Renderer-to-Agent messages.")'
     )
     return "\n".join(output)
 
 
 def generate_schema_init(msg_names: List[str]) -> str:
-    """Generates schema/__init__.py re-exporting only common types and server messages."""
+    """Generates schema/__init__.py re-exporting only common types and agent messages."""
     output = [
         "from .common_types import (",
         "    StrictBaseModel as StrictBaseModel,",
@@ -782,7 +834,7 @@ def generate_schema_init(msg_names: List[str]) -> str:
         "    ComponentCommon as ComponentCommon,",
         ")",
         "from .constants import *",
-        "from .server_to_client import (",
+        "from .agent_to_renderer import (",
     ]
     for mname in msg_names:
         output.append(f"    {mname} as {mname},")
@@ -791,23 +843,23 @@ def generate_schema_init(msg_names: List[str]) -> str:
     output.append("    A2uiMessage as A2uiMessage,")
     output.append("    A2uiMessageListWrapper as A2uiMessageListWrapper,")
     output.append(")")
-    output.append("from .client_capabilities import (")
-    output.append("    A2uiClientCapabilities as A2uiClientCapabilities,")
-    output.append("    V09Capabilities as V09Capabilities,")
-    output.append("    InlineCatalog as InlineCatalog,")
-    output.append("    FunctionDefinition as FunctionDefinition,")
+    output.append("from .renderer_capabilities import (")
+    output.append("    A2uiRendererCapabilities as A2uiRendererCapabilities,")
+    output.append("    V1_0Capabilities as V1_0Capabilities,")
     output.append(")")
-    output.append("from .client_to_server import (")
-    output.append("    A2uiClientMessage as A2uiClientMessage,")
-    output.append("    A2uiClientActionMessage as A2uiClientActionMessage,")
-    output.append("    A2uiClientErrorMessage as A2uiClientErrorMessage,")
-    output.append("    A2uiClientAction as A2uiClientAction,")
+    output.append("from .renderer_to_agent import (")
+    output.append("    A2uiRendererMessage as A2uiRendererMessage,")
+    output.append("    A2uiRendererActionMessage as A2uiRendererActionMessage,")
+    output.append("    A2uiRendererErrorMessage as A2uiRendererErrorMessage,")
+    output.append("    A2uiRendererAction as A2uiRendererAction,")
     output.append("    A2uiValidationError as A2uiValidationError,")
     output.append("    A2uiGenericError as A2uiGenericError,")
-    output.append("    A2uiClientError as A2uiClientError,")
-    output.append("    A2uiClientDataModel as A2uiClientDataModel,")
-    output.append("    A2uiClientMessageList as A2uiClientMessageList,")
-    output.append("    A2uiClientMessageListWrapper as A2uiClientMessageListWrapper,")
+    output.append("    A2uiRendererError as A2uiRendererError,")
+    output.append("    A2uiRendererDataModel as A2uiRendererDataModel,")
+    output.append("    A2uiRendererMessageList as A2uiRendererMessageList,")
+    output.append(
+        "    A2uiRendererMessageListWrapper as A2uiRendererMessageListWrapper,"
+    )
     output.append(")")
     return "\n".join(output)
 
@@ -855,29 +907,29 @@ def main() -> None:
         f.write(FILE_HEADER + styles_code)
     print(f"Generated: {STYLES_OUT_PATH}")
 
-    # 5.1. Generate schema/server_to_client.py
-    with open(SERVER_TO_CLIENT_PATH, "r") as f:
+    # 5.1. Generate schema/agent_to_renderer.py
+    with open(AGENT_TO_RENDERER_PATH, "r") as f:
         s2c_data = json.load(f)
     s2c_code, msg_names = generate_server_to_client(s2c_data)
-    with open(SERVER_TO_CLIENT_OUT_PATH, "w") as f:
+    with open(AGENT_TO_RENDERER_OUT_PATH, "w") as f:
         f.write(FILE_HEADER + s2c_code)
-    print(f"Generated: {SERVER_TO_CLIENT_OUT_PATH}")
+    print(f"Generated: {AGENT_TO_RENDERER_OUT_PATH}")
 
-    # 5.2 Generate schema/client_capabilities.py
-    with open(CLIENT_CAPABILITIES_PATH, "r") as f:
+    # 5.2 Generate schema/renderer_capabilities.py
+    with open(RENDERER_CAPABILITIES_PATH, "r") as f:
         cc_data = json.load(f)
-    cc_code = generate_client_capabilities(cc_data)
-    with open(CLIENT_CAPABILITIES_OUT_PATH, "w") as f:
+    cc_code = generate_renderer_capabilities(cc_data)
+    with open(RENDERER_CAPABILITIES_OUT_PATH, "w") as f:
         f.write(FILE_HEADER + cc_code)
-    print(f"Generated: {CLIENT_CAPABILITIES_OUT_PATH}")
+    print(f"Generated: {RENDERER_CAPABILITIES_OUT_PATH}")
 
-    # 5.3 Generate schema/client_to_server.py
-    with open(CLIENT_TO_SERVER_PATH, "r") as f:
+    # 5.3 Generate schema/renderer_to_agent.py
+    with open(RENDERER_TO_AGENT_PATH, "r") as f:
         cts_data = json.load(f)
-    cts_code = generate_client_to_server(cts_data)
-    with open(CLIENT_TO_SERVER_OUT_PATH, "w") as f:
+    cts_code = generate_renderer_to_agent(cts_data)
+    with open(RENDERER_TO_AGENT_OUT_PATH, "w") as f:
         f.write(FILE_HEADER + cts_code)
-    print(f"Generated: {CLIENT_TO_SERVER_OUT_PATH}")
+    print(f"Generated: {RENDERER_TO_AGENT_OUT_PATH}")
 
     # 6. Generate schema/__init__.py
     schema_init_code = generate_schema_init(msg_names)
@@ -895,9 +947,9 @@ def main() -> None:
             COMPONENTS_OUT_PATH,
             FUNCTION_APIS_OUT_PATH,
             STYLES_OUT_PATH,
-            SERVER_TO_CLIENT_OUT_PATH,
-            CLIENT_CAPABILITIES_OUT_PATH,
-            CLIENT_TO_SERVER_OUT_PATH,
+            AGENT_TO_RENDERER_OUT_PATH,
+            RENDERER_CAPABILITIES_OUT_PATH,
+            RENDERER_TO_AGENT_OUT_PATH,
             SCHEMA_INIT_OUT_PATH,
         ]
         # Format files using pyink via workspace environment

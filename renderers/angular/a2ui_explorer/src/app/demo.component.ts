@@ -32,7 +32,7 @@ import {SurfaceComponent as SurfaceComponentV09} from '@a2ui/angular/v0_9';
 import {provideMarkdownRenderer, Surface as SurfaceV08} from '@a2ui/angular/v0_8';
 import {AngularCatalog} from '@a2ui/angular/v0_9';
 import {DemoCatalog} from './demo-catalog';
-import {A2uiClientAction} from '@a2ui/web_core/v0_9';
+import {A2uiRendererAction} from '@a2ui/web_core/v0_9';
 import {A2uiExample, A2UI_VERSION, A2UI_EXAMPLES, Version} from './types';
 import {ActionDispatcher} from './action-dispatcher.service';
 import {Catalog as CatalogV08, DEFAULT_CATALOG as DEFAULT_CATALOG_V08} from '@a2ui/angular/v0_8';
@@ -577,7 +577,7 @@ import {Catalog as CatalogV08, DEFAULT_CATALOG as DEFAULT_CATALOG_V08} from '@a2
       provide: A2UI_RENDERER_CONFIG,
       useFactory: (catalog: AngularCatalog, dispatcher: ActionDispatcher) => ({
         catalogs: [catalog],
-        actionHandler: (action: A2uiClientAction) => dispatcher.dispatch(action),
+        actionHandler: (action: A2uiRendererAction) => dispatcher.dispatch(action),
       }),
       deps: [AngularCatalog, ActionDispatcher],
     },
@@ -677,7 +677,7 @@ export class DemoComponent implements OnInit, OnDestroy {
   }
 
   /** Gets a display string for the action type. */
-  getActionType(action: A2uiClientAction): string {
+  getActionType(action: A2uiRendererAction): string {
     return action.name || 'Action';
   }
 

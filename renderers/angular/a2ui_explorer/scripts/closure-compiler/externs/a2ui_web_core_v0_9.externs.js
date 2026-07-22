@@ -87,7 +87,7 @@ function DeleteSurfaceMessageExterns() {}
 /** @type {?} */ DeleteSurfaceMessageExterns.prototype.deleteSurface;
 
 /**
- * Externs for `Action` and `A2uiClientAction` interfaces (`renderers/web_core/src/v0_9/schema/common-types.ts`, `renderers/web_core/src/v0_9/schema/client-to-server.ts`).
+ * Externs for `Action` and `A2uiRendererAction` interfaces (`renderers/web_core/src/v0_9/schema/common-types.ts`, `renderers/web_core/src/v0_9/schema/client-to-server.ts`).
  * @record
  * @struct
  */

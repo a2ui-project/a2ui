@@ -69,7 +69,7 @@ def test_message_processor_surface_lifecycle(mock_catalog):
         "createSurface": {
             "surfaceId": "surface_1",
             "catalogId": mock_catalog.catalog_id,
-            "theme": {"primaryColor": "red"},
+            "surfaceProperties": {"agentDisplayName": "My Agent"},
             "sendDataModel": True,
         },
     }
@@ -78,7 +78,7 @@ def test_message_processor_surface_lifecycle(mock_catalog):
     surface = processor.model.get_surface("surface_1")
     assert surface is not None
     assert surface.id == "surface_1"
-    assert surface.theme == {"primaryColor": "red"}
+    assert surface.theme == {"agentDisplayName": "My Agent"}
     assert surface.send_data_model is True
 
     # 2. Delete surface
@@ -173,7 +173,7 @@ def test_message_processor_capabilities_and_sync(mock_catalog):
     processor = MessageProcessor(catalogs=[mock_catalog])
 
     # Check Capabilities
-    caps = processor.get_client_capabilities()
+    caps = processor.get_renderer_capabilities()
     assert caps == {
         SPEC_VERSION: {"supportedCatalogIds": ["https://a2ui.org/mock.json"]}
     }
@@ -195,7 +195,7 @@ def test_message_processor_capabilities_and_sync(mock_catalog):
     ])
 
     # Retrieve client data model sync payload
-    client_dm = processor.get_client_data_model()
+    client_dm = processor.get_renderer_data_model()
     assert client_dm == {"version": SPEC_VERSION, "surfaces": {"s1": {"val": 100}}}
 
 
@@ -605,14 +605,17 @@ def test_message_processor_theme_validation(real_catalog_09):
     processor = MessageProcessor(catalogs=[real_catalog_09], strict_mode=True)
     with pytest.raises(
         ValueError,
-        match="Validation failed for theme on surface 's1'|String should match pattern",
+        match=(
+            "Validation failed for theme on surface 's1'|is not of type 'string'|Input"
+            " should be a valid string"
+        ),
     ):
         processor.process_messages([{
             "version": SPEC_VERSION,
             "createSurface": {
                 "surfaceId": "s1",
                 "catalogId": real_catalog_09.catalog_id,
-                "theme": {"primaryColor": "invalid-color-name"},
+                "surfaceProperties": {"iconUrl": 12345},
             },
         }])
 
@@ -696,10 +699,10 @@ def test_message_processor_json_catalog_validation():
 
 
 def test_message_processor_json_catalog_theme_validation():
-    # Define JSON catalog schema containing theme and functions specs
+    # Define JSON catalog schema containing surfaceProperties and functions specs
     catalog_json = {
         "catalogId": "https://rizzcharts.com/catalog.json",
-        "theme": {
+        "surfaceProperties": {
             "type": "object",
             "properties": {
                 "primaryColor": {"type": "string", "pattern": "^#[0-9a-fA-F]{6}$"}
@@ -738,6 +741,8 @@ def test_message_processor_json_catalog_theme_validation():
             "createSurface": {
                 "surfaceId": "s1",
                 "catalogId": catalog.catalog_id,
-                "theme": {"primaryColor": "red"},  # Must match hex color regex!
+                "surfaceProperties": {
+                    "primaryColor": "red"
+                },  # Must match hex color regex!
             },
         }])

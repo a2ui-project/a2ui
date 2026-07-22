@@ -132,12 +132,19 @@ class Catalog(Generic[TComponent, TFunction]):
                         )
                     )
 
+        theme_schema = (
+            catalog_schema.get("surfaceProperties")
+            or catalog_schema.get("$defs", {}).get("surfaceProperties")
+            or catalog_schema.get("theme")
+            or catalog_schema.get("$defs", {}).get("theme")
+            or {}
+        )
         cat = Catalog[ComponentApi, FunctionApi](
             catalog_id=catalog_id,
             spec_version=spec_version,
             components=components,
             functions=functions,
-            theme_schema=catalog_schema.get("theme") or {},
+            theme_schema=theme_schema,
         )
         cat._catalog_schema = catalog_schema
         return cat

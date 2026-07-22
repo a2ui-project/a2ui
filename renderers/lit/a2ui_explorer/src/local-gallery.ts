@@ -17,7 +17,7 @@
 import {LitElement, html, nothing} from 'lit';
 import {provide} from '@lit/context';
 import {customElement, state} from 'lit/decorators.js';
-import {MessageProcessor, A2uiMessage, A2uiClientAction} from '@a2ui/web_core/v0_9';
+import {MessageProcessor, A2uiMessage, A2uiRendererAction} from '@a2ui/web_core/v0_9';
 import {basicCatalog, Context} from '@a2ui/lit/v0_9';
 import {renderMarkdown} from '@a2ui/markdown-it';
 import {getDemoItems, DemoItem} from './examples';
@@ -32,12 +32,12 @@ export class LocalGallery extends LitElement {
   @state() currentDataModelText = '{}';
   @state() primaryColor = '#1177ee';
   // Expose the dispatched actions log for automated integration tests to inspect
-  actionLog: A2uiClientAction[] = [];
+  actionLog: A2uiRendererAction[] = [];
 
   @provide({context: Context.markdown})
   private markdownRenderer = renderMarkdown;
 
-  private processor = new MessageProcessor([basicCatalog], (action: A2uiClientAction) => {
+  private processor = new MessageProcessor([basicCatalog], (action: A2uiRendererAction) => {
     this.log(`Action dispatched: ${action.surfaceId}`, action);
     this.actionLog.push(action);
   });

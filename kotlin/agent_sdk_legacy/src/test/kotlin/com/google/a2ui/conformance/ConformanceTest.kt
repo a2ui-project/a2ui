@@ -242,7 +242,7 @@ class ConformanceTest {
       A2uiCatalog(
         version = version,
         name = TEST_CATALOG_NAME,
-        serverToClientSchema = s2cSchema,
+        agentToRendererSchema = s2cSchema,
         commonTypesSchema = commonTypesSchema,
         catalogSchema = catalogSchema,
         customCuttableKeys = customCuttableKeys,
@@ -322,7 +322,7 @@ class ConformanceTest {
             }
             if (expect.containsKey("s2c_schema")) {
               val expectSchema = jsonMapper.writeValueAsString(expect["s2c_schema"])
-              assertEquals(Json.parseToJsonElement(expectSchema), pruned.serverToClientSchema)
+              assertEquals(Json.parseToJsonElement(expectSchema), pruned.agentToRendererSchema)
             }
             if (expect.containsKey("common_types_schema")) {
               val expectSchema = jsonMapper.writeValueAsString(expect["common_types_schema"])
@@ -510,7 +510,7 @@ class ConformanceTest {
                 roleDescription = role,
                 workflowDescription = workflow,
                 uiDescription = uiDesc,
-                clientUiCapabilities = capsJson,
+                rendererUiCapabilities = capsJson,
                 allowedComponents = allowedComponents,
                 includeSchema = includeSchema,
                 includeExamples = includeExamples,

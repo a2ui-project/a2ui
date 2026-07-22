@@ -19,7 +19,7 @@ package com.google.a2ui.schema
 /** Central repository for A2UI protocol constants, aligned with the Python SDK. */
 object A2uiConstants {
   const val A2UI_ASSET_PACKAGE = "com.google.a2ui.assets"
-  const val SERVER_TO_CLIENT_SCHEMA_KEY = "server_to_client"
+  const val AGENT_TO_RENDERER_SCHEMA_KEY = "agent_to_renderer"
   const val COMMON_TYPES_SCHEMA_KEY = "common_types"
   const val CATALOG_SCHEMA_KEY = "catalog"
   const val CATALOG_COMPONENTS_KEY = "components"
@@ -36,6 +36,7 @@ object A2uiConstants {
   const val ACCEPTS_INLINE_CATALOGS_KEY = "acceptsInlineCatalogs"
 
   const val A2UI_CLIENT_CAPABILITIES_KEY = "a2uiClientCapabilities"
+  const val A2UI_RENDERER_CAPABILITIES_KEY = "a2uiRendererCapabilities"
 
   const val BASE_SCHEMA_URL = "https://a2ui.org/"
   const val INLINE_CATALOG_NAME = "inline"
@@ -43,6 +44,7 @@ object A2uiConstants {
   const val VERSION_0_8 = "0.8"
   const val VERSION_0_9 = "0.9"
   const val VERSION_0_9_1 = "0.9.1"
+  const val VERSION_1_0 = "1.0"
 
   const val A2UI_OPEN_TAG = "<a2ui-json>"
   const val A2UI_CLOSE_TAG = "</a2ui-json>"

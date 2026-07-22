@@ -24,7 +24,7 @@ import {
   ComponentApi,
   SurfaceModel,
   Subscription,
-  A2uiClientAction,
+  A2uiRendererAction,
 } from '@a2ui/web_core/v0_9';
 import type {A2uiBasicButtonElement} from '../../catalogs/basic/components/Button.js';
 
@@ -112,8 +112,8 @@ describe('Button Component', () => {
     assert.ok(button);
     assert.strictEqual(button.disabled, false);
 
-    const dispatched = {action: null as A2uiClientAction | null};
-    subscription = surface.onAction.subscribe((action: A2uiClientAction) => {
+    const dispatched = {action: null as A2uiRendererAction | null};
+    subscription = surface.onAction.subscribe((action: A2uiRendererAction) => {
       dispatched.action = action;
     });
 

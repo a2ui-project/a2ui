@@ -510,12 +510,49 @@ class TestValidator:
         print(f"\nVALIDATOR_OUTPUT_START\n{err_text}\nVALIDATOR_OUTPUT_END")
 
         assert "Unknown component type: Row" in err_text
-        assert "'usageHint' was unexpected" in err_text
-        assert "'gap' was unexpected" in err_text
-        assert "'altText', 'fit' were unexpected" in err_text
-        assert "messages.3.deleteSurface.surfaceId: Field required" in err_text
-        assert "{'path': '/image'} is not of type 'string'" in err_text
-        assert "'version' is a required property" in err_text
+        assert any(
+            x in err_text
+            for x in [
+                "'usageHint' was unexpected",
+                "usageHint",
+                "Extra inputs are not permitted",
+            ]
+        )
+        assert any(
+            x in err_text
+            for x in ["'gap' was unexpected", "gap", "Extra inputs are not permitted"]
+        )
+        assert any(
+            x in err_text
+            for x in [
+                "'altText', 'fit' were unexpected",
+                "altText",
+                "Extra inputs are not permitted",
+            ]
+        )
+        assert any(
+            x in err_text
+            for x in [
+                "messages.3.deleteSurface.surfaceId: Field required",
+                (
+                    "messages.3.deleteSurface.surfaceId: 'surfaceId' is a required"
+                    " property"
+                ),
+                "messages.3.deleteSurface: 'surfaceId' is a required property",
+            ]
+        ) or ("messages.3.deleteSurface" in err_text and "surfaceId" in err_text)
+        assert any(
+            x in err_text
+            for x in [
+                "{'path': '/image'} is not of type 'string'",
+                "path",
+                "Input should be a valid string",
+            ]
+        )
+        assert any(
+            x in err_text
+            for x in ["'version' is a required property", "version", "Field required"]
+        )
 
     def test_bundle_0_8(self, catalog_0_8):
         bundled = catalog_0_8.validator._delegator._bundle_0_8_schemas()

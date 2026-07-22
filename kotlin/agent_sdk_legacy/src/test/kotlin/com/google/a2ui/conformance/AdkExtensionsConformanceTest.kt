@@ -19,7 +19,7 @@ package com.google.a2ui.conformance
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory
 import com.google.a2ui.adk.a2a_extension.A2uiEventConverter
-import com.google.a2ui.adk.a2a_extension.SendA2uiToClientToolset
+import com.google.a2ui.adk.a2a_extension.SendA2uiToRendererToolset
 import com.google.a2ui.schema.A2uiCatalog
 import com.google.a2ui.schema.A2uiVersion
 import com.google.adk.a2a.converters.EventConverter
@@ -168,7 +168,7 @@ class AdkExtensionsConformanceTest {
               A2uiCatalog(
                 version = A2uiVersion.VERSION_0_8,
                 name = "dummy",
-                serverToClientSchema = serverToClientSchema,
+                agentToRendererSchema = serverToClientSchema,
                 commonTypesSchema = JsonObject(emptyMap()),
                 catalogSchema = catalogSchema,
               )
@@ -176,7 +176,7 @@ class AdkExtensionsConformanceTest {
             val mockContext = mockk<ReadonlyContext>(relaxed = true)
             val mockToolContext = mockk<ToolContext>(relaxed = true)
 
-            val toolset = SendA2uiToClientToolset.create(true, dummyCatalog, "")
+            val toolset = SendA2uiToRendererToolset.create(true, dummyCatalog, "")
             val tool = toolset.getTools(mockContext).blockingFirst()
 
             val result = tool.runAsync(toolArgs, mockToolContext).blockingGet()
@@ -185,18 +185,18 @@ class AdkExtensionsConformanceTest {
             val expectSuccess = expect["success"] as Boolean
 
             if (expectSuccess) {
-              assertTrue(result.containsKey(SendA2uiToClientToolset.VALIDATED_A2UI_JSON_KEY))
+              assertTrue(result.containsKey(SendA2uiToRendererToolset.VALIDATED_A2UI_JSON_KEY))
               val containsValidatedJson = expect["contains_validated_json"] as? Boolean ?: false
               if (containsValidatedJson) {
                 val validatedPayload =
-                  result[SendA2uiToClientToolset.VALIDATED_A2UI_JSON_KEY].toString()
+                  result[SendA2uiToRendererToolset.VALIDATED_A2UI_JSON_KEY].toString()
                 assertTrue(validatedPayload.contains("beginRendering"))
               }
             } else {
-              assertTrue(result.containsKey(SendA2uiToClientToolset.TOOL_ERROR_KEY))
+              assertTrue(result.containsKey(SendA2uiToRendererToolset.TOOL_ERROR_KEY))
               val errorContains = expect["error_contains"] as? String
               if (errorContains != null) {
-                val errorMsg = result[SendA2uiToClientToolset.TOOL_ERROR_KEY] as String
+                val errorMsg = result[SendA2uiToRendererToolset.TOOL_ERROR_KEY] as String
                 assertTrue(errorMsg.contains(errorContains))
               }
             }

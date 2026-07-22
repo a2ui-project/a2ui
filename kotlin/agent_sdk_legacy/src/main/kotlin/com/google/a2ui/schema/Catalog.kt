@@ -99,7 +99,7 @@ internal fun resolveExamplesPath(path: String?): String? {
 data class A2uiCatalog(
   @JvmField val version: A2uiVersion,
   @JvmField val name: String,
-  @JvmField val serverToClientSchema: JsonObject,
+  @JvmField val agentToRendererSchema: JsonObject,
   @JvmField val commonTypesSchema: JsonObject,
   @JvmField val catalogSchema: JsonObject,
   @JvmField val customCuttableKeys: Set<String>? = null,
@@ -127,7 +127,7 @@ data class A2uiCatalog(
    * Returns a new catalog with pruned components and messages.
    *
    * @param allowedComponents List of component names to include.
-   * @param allowedMessages List of message names to include in serverToClientSchema.
+   * @param allowedMessages List of message names to include in agentToRendererSchema.
    * @return A copy of the catalog with pruned components and messages.
    */
   fun withPruning(
@@ -170,7 +170,7 @@ data class A2uiCatalog(
   private fun withPrunedMessages(allowedMessages: List<String>): A2uiCatalog {
     if (allowedMessages.isEmpty()) return this
 
-    val s2cCopy = serverToClientSchema.toMutableMap()
+    val s2cCopy = agentToRendererSchema.toMutableMap()
 
     if (version == A2uiVersion.VERSION_0_8) {
       (s2cCopy["properties"] as? JsonObject)?.let { props ->
@@ -201,7 +201,7 @@ data class A2uiCatalog(
       }
     }
 
-    return copy(serverToClientSchema = JsonObject(s2cCopy))
+    return copy(agentToRendererSchema = JsonObject(s2cCopy))
   }
 
   /** Returns a new catalog with unused common types pruned from the schema. */
@@ -211,7 +211,7 @@ data class A2uiCatalog(
 
     val externalRefs = mutableSetOf<String>()
     collectRefs(catalogSchema, externalRefs)
-    collectRefs(serverToClientSchema, externalRefs)
+    collectRefs(agentToRendererSchema, externalRefs)
 
     val prefix = "common_types.json#/\$defs/"
     val rootDefs =
@@ -300,8 +300,9 @@ data class A2uiCatalog(
     appendLine()
     val jsonFmt = Json
 
-    appendLine("### Server To Client Schema:")
-    appendLine(jsonFmt.encodeToString(JsonElement.serializer(), serverToClientSchema))
+    val header = if (version == A2uiVersion.VERSION_1_0) "### Agent To Renderer Schema:" else "### Server To Client Schema:"
+    appendLine(header)
+    appendLine(jsonFmt.encodeToString(JsonElement.serializer(), agentToRendererSchema))
 
     val defs = commonTypesSchema["\$defs"] as? JsonObject
     if (!defs.isNullOrEmpty()) {

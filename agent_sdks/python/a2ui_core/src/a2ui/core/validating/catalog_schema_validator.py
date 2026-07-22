@@ -311,11 +311,22 @@ class CatalogSchemaValidator:
         theme_spec = self.catalog.get_theme_schema()
         if theme_spec:
             ref_path = (
-                f"{CATALOG_SCHEMA_FILE}#/$defs/theme"
+                f"{CATALOG_SCHEMA_FILE}#/$defs/surfaceProperties"
                 if self.catalog.catalog_schema is not None
                 and "$defs" in self.catalog.catalog_schema
-                and "theme" in self.catalog.catalog_schema["$defs"]
-                else f"{CATALOG_SCHEMA_FILE}#/theme"
+                and "surfaceProperties" in self.catalog.catalog_schema["$defs"]
+                else (
+                    f"{CATALOG_SCHEMA_FILE}#/surfaceProperties"
+                    if self.catalog.catalog_schema is not None
+                    and "surfaceProperties" in self.catalog.catalog_schema
+                    else (
+                        f"{CATALOG_SCHEMA_FILE}#/$defs/theme"
+                        if self.catalog.catalog_schema is not None
+                        and "$defs" in self.catalog.catalog_schema
+                        and "theme" in self.catalog.catalog_schema["$defs"]
+                        else f"{CATALOG_SCHEMA_FILE}#/theme"
+                    )
+                )
             )
             try:
                 validator = self._get_validator("theme:schema", ref_path)

@@ -16,14 +16,14 @@
 
 import {Injectable} from '@angular/core';
 import {Subject} from 'rxjs';
-import {A2uiClientAction} from '@a2ui/web_core/v0_9';
+import {A2uiRendererAction} from '@a2ui/web_core/v0_9';
 
 @Injectable({providedIn: 'root'})
 export class ActionDispatcher {
-  private action$ = new Subject<A2uiClientAction>();
+  private action$ = new Subject<A2uiRendererAction>();
   actions = this.action$.asObservable();
 
-  dispatch(action: A2uiClientAction) {
+  dispatch(action: A2uiRendererAction) {
     this.action$.next(action);
   }
 }

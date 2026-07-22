@@ -40,10 +40,10 @@ export GEMINI_API_KEY="your_gemini_api_key_here"
 
 ## Step 3: Navigate to the Lit Client Samples Directory
 
-The client application source code is located in `samples/client/lit/shell`. Navigate to the parent samples directory to run the demo:
+The client application source code is located in `samples/renderer/lit/shell`. Navigate to the parent samples directory to run the demo:
 
 ```bash
-cd samples/client/lit
+cd samples/renderer/lit
 ```
 
 ## Step 4: Install and Run
@@ -94,7 +94,7 @@ uv run .
 **2. Run the Client:**
 
 ```bash
-cd samples/client/lit/shell
+cd samples/renderer/lit/shell
 yarn dev
 ```
 
@@ -225,12 +225,12 @@ This runs a client-only demo showcasing every standard component (Card, Button, 
 
 ### Other Languages and Frameworks
 
-While this guide uses the Lit client as an example, A2UI provides samples for other popular frameworks in the `samples/client` directory:
+While this guide uses the Lit client as an example, A2UI provides samples for other popular frameworks in the `samples/renderer` directory:
 
-- **Angular**: `samples/client/angular`
-- **React**: `samples/client/react`
+- **Angular**: `samples/renderer/angular`
+- **React**: `samples/renderer/react`
 
-Explore the [samples/client](../../samples/client) directory to see all available client implementations.
+Explore the [samples/renderer](../../samples/renderer) directory to see all available client implementations.
 
 ## What's Next?
 
@@ -286,7 +286,7 @@ uv run .
 ### Still Having Issues?
 
 - Check the [GitHub Issues](https://github.com/a2ui-project/a2ui/issues)
-- Review the [samples/client/lit/README.md](../../samples/client/lit)
+- Review the [samples/renderer/lit/README.md](../../samples/renderer/lit)
 - Join the community discussions
 
 ## Understanding the Demo Code
@@ -294,7 +294,7 @@ uv run .
 Want to see how it works? Check out:
 
 - **Agent Code**: `samples/agent/adk/restaurant_finder/` — The Python A2A agent
-- **Client Code**: `samples/client/lit/` — The Lit web client with A2UI renderer
+- **Client Code**: `samples/renderer/lit/` — The Lit web client with A2UI renderer
 - **A2UI Renderers**: `renderers/lit/` (Lit) and `renderers/web_core/` (framework-agnostic core)
 
 Each directory has its own README with detailed documentation.

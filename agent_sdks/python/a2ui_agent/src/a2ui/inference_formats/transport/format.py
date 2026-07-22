@@ -19,7 +19,7 @@ from typing import Any, Optional, Callable, Union, cast
 
 from a2ui.schema.utils import load_from_bundled_resource
 from a2ui.inference_format import InferenceFormat
-from a2ui.core.schema.client_capabilities import V09Capabilities
+from a2ui.core.schema.renderer_capabilities import V1_0Capabilities
 
 from a2ui.schema.constants import (
     SERVER_TO_CLIENT_SCHEMA_KEY,
@@ -153,7 +153,9 @@ class TransportFormat(InferenceFormat):
 
     def _select_catalog(
         self,
-        client_ui_capabilities: Optional[Union[dict[str, Any], V09Capabilities]] = None,
+        client_ui_capabilities: Optional[
+            Union[dict[str, Any], V1_0Capabilities]
+        ] = None,
     ) -> A2uiCatalog:
         """Selects the component catalog for the prompt based on client capabilities.
 
@@ -192,14 +194,15 @@ class TransportFormat(InferenceFormat):
             ):
                 data["supportedCatalogIds"] = []
             try:
-                capabilities = V09Capabilities.model_validate(data)
+                capabilities = V1_0Capabilities.model_validate(data)
             except Exception as e:
                 raise A2uiCatalogError(f"Invalid client capabilities format: {e}")
         else:
             capabilities = client_ui_capabilities
 
         inline_catalogs = [
-            c.model_dump(by_alias=True) for c in capabilities.inline_catalogs or []
+            c.model_dump(by_alias=True) if hasattr(c, "model_dump") else c
+            for c in capabilities.inline_catalogs or []
         ]
         client_supported_catalog_ids = capabilities.supported_catalog_ids or []
 
@@ -255,7 +258,9 @@ class TransportFormat(InferenceFormat):
 
     def get_selected_catalog(
         self,
-        client_ui_capabilities: Optional[Union[dict[str, Any], V09Capabilities]] = None,
+        client_ui_capabilities: Optional[
+            Union[dict[str, Any], V1_0Capabilities]
+        ] = None,
         allowed_components: Optional[list[str]] = None,
         allowed_messages: Optional[list[str]] = None,
     ) -> A2uiCatalog:

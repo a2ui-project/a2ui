@@ -17,10 +17,10 @@ from pydantic import ValidationError
 from typing import get_args
 
 from a2ui.core.schema import (
-    A2uiClientMessageListWrapper,
-    A2uiClientActionMessage,
-    A2uiClientErrorMessage,
-    A2uiClientDataModel,
+    A2uiRendererMessageListWrapper,
+    A2uiRendererActionMessage,
+    A2uiRendererErrorMessage,
+    A2uiRendererDataModel,
     A2uiValidationError,
     A2uiGenericError,
     A2uiMessage,
@@ -30,7 +30,7 @@ from a2ui.core.schema import (
 
 def test_valid_action_message():
     valid_action = {
-        "version": "v0.9",
+        "version": "v1.0",
         "action": {
             "name": "submit",
             "surfaceId": "s1",
@@ -39,15 +39,15 @@ def test_valid_action_message():
             "context": {"foo": "bar"},
         },
     }
-    msg = A2uiClientActionMessage.model_validate(valid_action)
-    assert msg.version == "v0.9"
+    msg = A2uiRendererActionMessage.model_validate(valid_action)
+    assert msg.version == "v1.0"
     assert msg.action.name == "submit"
     assert msg.action.context == {"foo": "bar"}
 
 
 def test_valid_validation_error_message():
     valid_error = {
-        "version": "v0.9",
+        "version": "v1.0",
         "error": {
             "code": "VALIDATION_FAILED",
             "surfaceId": "s1",
@@ -55,8 +55,8 @@ def test_valid_validation_error_message():
             "message": "Too short",
         },
     }
-    msg = A2uiClientErrorMessage.model_validate(valid_error)
-    assert msg.version == "v0.9"
+    msg = A2uiRendererErrorMessage.model_validate(valid_error)
+    assert msg.version == "v1.0"
     assert isinstance(msg.error, A2uiValidationError)
     assert msg.error.code == "VALIDATION_FAILED"
     assert msg.error.path == "/components/0/text"
@@ -64,15 +64,15 @@ def test_valid_validation_error_message():
 
 def test_valid_generic_error_message():
     valid_error = {
-        "version": "v0.9",
+        "version": "v1.0",
         "error": {
             "code": "INTERNAL_ERROR",
             "message": "Something went wrong",
             "surfaceId": "s1",
         },
     }
-    msg = A2uiClientErrorMessage.model_validate(valid_error)
-    assert msg.version == "v0.9"
+    msg = A2uiRendererErrorMessage.model_validate(valid_error)
+    assert msg.version == "v1.0"
     assert isinstance(msg.error, A2uiGenericError)
     assert msg.error.code == "INTERNAL_ERROR"
     assert msg.error.message == "Something went wrong"
@@ -80,21 +80,21 @@ def test_valid_generic_error_message():
 
 def test_valid_data_model_message():
     valid_data_model = {
-        "version": "v0.9",
+        "version": "v1.0",
         "surfaces": {
             "s1": {"user": "Alice"},
             "s2": {"cart": []},
         },
     }
-    msg = A2uiClientDataModel.model_validate(valid_data_model)
-    assert msg.version == "v0.9"
+    msg = A2uiRendererDataModel.model_validate(valid_data_model)
+    assert msg.version == "v1.0"
     assert msg.surfaces["s1"] == {"user": "Alice"}
     assert msg.surfaces["s2"] == {"cart": []}
 
 
 def test_fails_on_invalid_version():
     invalid_action = {
-        "version": "v0.8",
+        "version": "v0.9",
         "action": {
             "name": "submit",
             "surfaceId": "s1",
@@ -104,16 +104,16 @@ def test_fails_on_invalid_version():
         },
     }
     with pytest.raises(ValidationError):
-        A2uiClientActionMessage.model_validate(invalid_action)
+        A2uiRendererActionMessage.model_validate(invalid_action)
 
 
 def test_valid_delete_surface_server_message():
     msg = {
-        "version": "v0.9",
+        "version": "v1.0",
         "deleteSurface": {"surfaceId": "surface-1"},
     }
     parsed = DeleteSurfaceMessage.model_validate(msg)
-    assert parsed.version == "v0.9"
+    assert parsed.version == "v1.0"
     assert parsed.delete_surface.surface_id == "surface-1"
 
 

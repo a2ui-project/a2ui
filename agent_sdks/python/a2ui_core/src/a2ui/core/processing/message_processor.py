@@ -24,6 +24,8 @@ from ..schema.constants import (
     MSG_TYPE_DELETE_SURFACE,
     MSG_TYPE_UPDATE_COMPONENTS,
     MSG_TYPE_UPDATE_DATA_MODEL,
+    THEME_KEY,
+    SPEC_VERSION,
 )
 
 
@@ -59,29 +61,28 @@ class MessageProcessor:
         for msg in message_list:
             self._process_message(msg)
 
-    def get_client_capabilities(
+    def get_renderer_capabilities(
         self, include_inline_catalogs: bool = False
     ) -> Dict[str, Any]:
         """Aggregates supported catalog schemas into standard A2UI capabilities."""
-        v09_caps: Dict[str, Any] = {
+        caps: Dict[str, Any] = {
             "supportedCatalogIds": [
                 cat_id
                 for c in self.catalogs
                 if (cat_id := getattr(c, "catalog_id", None)) is not None
             ]
         }
-        capabilities: Dict[str, Any] = {"v0.9": v09_caps}
         if include_inline_catalogs:
             # In Python core, we can export direct schemas as inline catalogs
-            v09_caps["inlineCatalogs"] = [
+            caps["inlineCatalogs"] = [
                 schema
                 for c in self.catalogs
                 if (schema := getattr(c, "catalog_schema", None)) is not None
             ]
-        return capabilities
+        return {SPEC_VERSION: caps}
 
-    def get_client_data_model(self) -> Optional[Dict[str, Any]]:
-        """Aggregates active client data models for sync metadata."""
+    def get_renderer_data_model(self) -> Optional[Dict[str, Any]]:
+        """Aggregates active renderer data models for sync metadata."""
         surfaces = {}
         for surface in self.model.surfaces.values():
             if surface.send_data_model:
@@ -90,7 +91,7 @@ class MessageProcessor:
         if not surfaces:
             return None
 
-        return {"version": "v0.9", "surfaces": surfaces}
+        return {"version": SPEC_VERSION, "surfaces": surfaces}
 
     def _process_message(self, message: Dict[str, Any]) -> None:
         """Dispatches individual message payloads."""
@@ -123,7 +124,7 @@ class MessageProcessor:
         if not isinstance(surface_id, str):
             raise ValueError("surfaceId must be a string")
         catalog_id = payload.get("catalogId")
-        theme = payload.get("theme", {})
+        theme = payload.get(THEME_KEY) or payload.get("theme") or {}
         send_data_model = payload.get("sendDataModel", False)
 
         # Find matching catalog definition

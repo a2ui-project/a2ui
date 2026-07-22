@@ -21,8 +21,8 @@ environment:
   flutter: ">=3.35.7 <4.0.0"
 
 workspace:
-  - samples/client/flutter/restaurant_finder/app
-  - samples/client/flutter/restaurant_finder/e2e_test
+  - samples/renderer/flutter/restaurant_finder/app
+  - samples/renderer/flutter/restaurant_finder/e2e_test
 
 flutter:
   uses-material-design: true
