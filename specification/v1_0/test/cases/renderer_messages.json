@@ -18,6 +18,58 @@
       }
     },
     {
+      "description": "Valid action requesting a response with an actionId",
+      "valid": true,
+      "data": {
+        "version": "v1.0",
+        "action": {
+          "name": "submit",
+          "surfaceId": "main",
+          "sourceComponentId": "btn_submit",
+          "timestamp": "2023-10-27T10:00:00Z",
+          "context": {
+            "foo": "bar"
+          },
+          "wantResponse": true,
+          "actionId": "submit-1"
+        }
+      }
+    },
+    {
+      "description": "Invalid action requesting a response without an actionId",
+      "valid": false,
+      "data": {
+        "version": "v1.0",
+        "action": {
+          "name": "submit",
+          "surfaceId": "main",
+          "sourceComponentId": "btn_submit",
+          "timestamp": "2023-10-27T10:00:00Z",
+          "context": {
+            "foo": "bar"
+          },
+          "wantResponse": true
+        }
+      }
+    },
+    {
+      "description": "Valid action not requesting a response without an actionId",
+      "valid": true,
+      "data": {
+        "version": "v1.0",
+        "action": {
+          "name": "submit",
+          "surfaceId": "main",
+          "sourceComponentId": "btn_submit",
+          "timestamp": "2023-10-27T10:00:00Z",
+          "context": {
+            "foo": "bar"
+          },
+          "wantResponse": false
+        }
+      }
+    },
+    {
       "description": "Valid error message (validation failed)",
       "valid": true,
       "data": {
