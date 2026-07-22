@@ -32,7 +32,6 @@ Version 1.0 differs from 0.9 in the following ways:
 - Added `placeholder` prop to the `TextField` component schema.
 - Added a `steps` property to the `Slider` component schema to snap values to discrete intervals.
 - Added an optional `instructions` field to the `Catalog` schema (`catalogs/basic/catalog.json`) to embed Markdown guidelines/rules directly, replacing the external `rules.txt` file.
-- Renamed `svgPath` to `path` in the custom SVG icon definition object schema.
 - Renamed `$defs/theme` to `$defs/surfaceProperties` in the basic catalog.
 
 ### 2.3. Server-to-client messages
@@ -86,7 +85,7 @@ This section outlines the steps required to migrate existing applications and co
 - Rename the `$defs/theme` catalog definition to `$defs/surfaceProperties` and remove the `primaryColor` field.
 - Ensure all generated catalog entity names conform to UAX #31 identifier rules.
 - Do not include `callableFrom` or `returnType` properties in wire-level `FunctionCall` payloads. Set static `callableFrom` and `returnType` metadata in catalog function definitions where needed.
-- Update custom SVG icon definitions in `Icon` components to rename `svgPath` to `path`. Update `Video`, `TextField`, and `Slider` components to support optional `posterUrl`, `placeholder`, and `steps` properties.
+- Update `Video`, `TextField`, and `Slider` components to support optional `posterUrl`, `placeholder`, and `steps` properties.
 - Explicitly set values to `null` in `updateDataModel` messages to delete keys at specified paths. Do not omit keys or send undefined to indicate deletion.
 
 ### For renderers and clients
