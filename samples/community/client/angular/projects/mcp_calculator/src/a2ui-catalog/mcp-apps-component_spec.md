@@ -298,7 +298,30 @@ Sent as a response to a `ui/requests/function-call` request.
 **Embedded app action**  
 The embedded app processes the result or error based on its own logic.
 
-### C. Resource update (`ui/notifications/sandbox-resource-ready`)
+### C. Host context update (`ui/notifications/host-context-changed`)
+
+Sent when the host's context changes, such as when the container dimensions are resized or the theme is toggled. This aligns with the [Model Context Protocol Apps Specification: Host Context](https://github.com/modelcontextprotocol/ext-apps/blob/main/specification/2026-01-26/apps.mdx).
+
+**Message schema**
+
+```json
+{
+  "jsonrpc": "2.0",
+  "method": "ui/notifications/host-context-changed",
+  "params": {
+    "theme": "string",
+    "containerDimensions": {
+      "width": "number",
+      "height": "number"
+    }
+  }
+}
+```
+
+**Embedded app action**  
+The embedded app SHOULD merge the received context fields with its current state. If `containerDimensions` are provided, the app SHOULD adapt its internal layout to fit within the newly specified fixed or flexible boundaries.
+
+### D. Resource update (`ui/notifications/sandbox-resource-ready`)
 
 Sent when the application HTML content is modified or updated by the A2UI agent.
 
