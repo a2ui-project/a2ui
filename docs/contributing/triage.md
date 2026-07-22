@@ -33,7 +33,7 @@ This section describes goals at a high level. See concrete steps in the section 
 1. P0-P4
 2. status: in-discussion
 3. status: needs-triage
-4. status: front-line-handled
+4. status: first-line-handled
 5. size: small
 6. status: waiting-for-user-response
 
@@ -43,10 +43,10 @@ See [all github labels](https://github.com/a2ui-project/a2ui/labels).
 
 ### First line triage
 
-For each issue that is [not front-line-handled](https://github.com/a2ui-project/a2ui/issues?q=is%3Aissue%20state%3Aopen%20-label%3AP0%20-label%3AP1%20-label%3AP2%20-label%3AP3%20-label%3A%22status%3A%20front-line-handled%22):
+For each issue that is [not first-line-handled](https://github.com/a2ui-project/a2ui/issues?q=is%3Aissue%20state%3Aopen%20-label%3AP0%20-label%3AP1%20-label%3AP2%20-label%3AP3%20-label%3A%22status%3A%20first-line-handled%22):
 
 - If it is P0, add label `P0` and notify team chat
-- Add label `status: front-line-handled`
+- Add label `status: first-line-handled`
 
 ### Second line triage
 
