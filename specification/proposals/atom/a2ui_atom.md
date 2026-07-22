@@ -21,11 +21,14 @@ A2UI Atom layout blocks must be enclosed inside `<a2ui>` and `</a2ui>` sentinel 
 
 ```lisp
 <a2ui>
+; Initial data state
+(data $/title "Notification")
+
 (Card
   (Column :align "center"
     (Icon $/icon)
     (Text $/title)
-    (Text $/description "body")
+    "Get alerts for order status changes"
     (Row :justify "center"
       (Button :action (Event "accept") (Text "Yes"))
       (Button :action (Event "decline") (Text "No")))))
@@ -43,9 +46,10 @@ Every component definition in A2UI Atom is a parenthesized expression starting w
 ```
 
 - **Component Identifier:** The first symbol inside an expression is the catalog component name (e.g., `Card`, `Column`, `Text`, `Button`).
-- **Tagged Keyword Attributes:** Properties prefixed with a colon `:` map directly to catalog schema keys (e.g., `:align "stretch"`, `:variant "body"`). Tagged keywords are order-independent.
+- **Tagged Keyword Attributes:** Properties prefixed with a colon `:` map directly to catalog schema keys (e.g., `:align "stretch"`, `:variant "body"`). Tagged keywords support space separation (`:align "center"`) as well as assignment shorthand (`:align="center"`), and are order-independent.
 - **Positional Attributes:** For high-frequency components, positional arguments map sequentially to catalog property definitions according to catalog schema order.
-- **Child Elements:** Any nested parenthesized expression `(Component ...)` that is not bound to a specific property key is treated as a child element of the parent container's primary slot (`children` or `child`).
+- **Child Elements & Auto-wrapping:** Any nested parenthesized expression `(Component ...)` that is not bound to a specific property key is treated as a child element of the parent container's primary slot (`children` or `child`). Direct text string literals inside container children lists are automatically wrapped into primitive text components (e.g. `(Text "content")`).
+- **Comments:** Single-line comments starting with `;` (or `;;` or `#`) are supported and stripped by the parser.
 
 ---
 
@@ -65,14 +69,14 @@ Every component definition in A2UI Atom is a parenthesized expression starting w
 To connect component properties to the application data model, path references use the `$` prefix:
 
 - **Absolute Paths:** Prefixed with `$/` (e.g., `$/user/email`, `$/flight/status`). Resolves from the root of the shared data model.
-- **Relative Paths:** Prefixed with `$` (e.g., `$name`, `$price`). Resolves within template iteration contexts.
+- **Relative Paths:** Prefixed with `$/` or `$` or relative symbol name (e.g., `$/item/name`, `item/name`, `$name`). Resolves within template iteration contexts.
 - **Root Context:** A lone `$` represents the root item itself in template lists.
 
 ---
 
 ### Data Model Population
 
-To populate or initialize data in the shared model directly from the stream, Atom supports top-level data assignment expressions:
+To populate or initialize data in the shared model directly from the stream, Atom supports top-level or embedded data assignment expressions:
 
 ```lisp
 (set! $/user/name "Alice")
@@ -88,7 +92,15 @@ Or a single combined data block:
   $/description "Get alerts for order status changes")
 ```
 
-The compiler extracts these assignments and populates the `dataModel` payload in the resulting `createSurface` message. If the block contains only `set!` or `data` expressions and no component tree, the compiler emits a standalone `updateDataModel` protocol message.
+`(data ...)` also supports nested map and list structures:
+
+```lisp
+(data
+  $/user (:name "Alice" :role "admin")
+  $/items [(:id 1 :title "First") (:id 2 :title "Second")])
+```
+
+The compiler extracts these assignments and populates the `dataModel` payload in the resulting `createSurface` message. If the stream contains only `set!` or `data` expressions and no component tree, the compiler emits a standalone `updateDataModel` protocol message.
 
 ---
 
@@ -100,23 +112,41 @@ Dynamic list repetition uses the `template` helper expression:
 (List :items $/breeds
   (template :item item
     (Card
-      (Text :text item/name))))
+      (Text $/item/name))))
 ```
 
-The compiler translates this into the standard A2UI v1.0 `ChildList` template node payload.
+The template expression accepts `:item <var>` to define the relative iteration variable name (defaulting to `item`). Relative property paths inside the template (such as `$/item/name` or `item/name`) resolve relative to each item in the list context. The compiler translates this into the standard A2UI v1.0 `ChildList` template node payload.
 
 ---
 
 ### Validation and Logic Expressions
 
-Validation rules are expressed using nested logic expressions:
+Validation rules and logic functions are expressed using nested function expressions inside the `:checks` property:
 
 ```lisp
 (TextInput :value $/user/zip
   :checks [ (required) (regex "^[0-9]{5}$" "Zip code must be 5 digits") ])
 ```
 
+Supported logic and utility function primitives include:
+- **Validation:** `(required)`, `(regex pattern message)`
+- **Logic:** `(not expr)`, `(and expr1 expr2)`, `(or expr1 expr2)`, `(equal a b)`, `(greaterThan a b)`, `(lessThan a b)`
+- **Formatting:** `(formatString template arg1 ...)`, `(formatDate date format)`, `(formatCurrency amount currency)`, `(pluralize count singular plural)`
+
 The compiler maps these into standard `FunctionCall` objects in the component's `checks` array.
+
+---
+
+### Action Events
+
+Interactive controls trigger action events using the `Event` helper:
+
+```lisp
+(Button :action (Event "submitForm" :formId "user_form" :value $/user/zip)
+  (Text "Submit"))
+```
+
+Action expressions support both tagged parameter pairs (`:param value`) and positional arguments. The compiler formats these into standard A2UI action event objects: `{"event": {"name": "action_name", "context": {...}}}`.
 
 ---
 
@@ -129,6 +159,7 @@ The compiler maps these into standard `FunctionCall` objects in the component's 
 2. **Executing Client RPC Functions:**
    ```lisp
    (callFunction "openUrl" :url "https://example.com")
+   (callFunction "customRPC" :arg1 "value1")
    ```
 
 ---
@@ -148,7 +179,7 @@ The compiler maps these into standard `FunctionCall` objects in the component's 
   (Column :align "center"
     (Icon $/icon)
     (Text $/title)
-    (Text $/description "body")
+    "Get alerts for order status changes"
     (Row :justify "center"
       (Button :action (Event "accept") (Text "Yes"))
       (Button :action (Event "decline") (Text "No")))))
@@ -164,21 +195,21 @@ The compiler maps these into standard `FunctionCall` objects in the component's 
     "surfaceId": "main",
     "catalogId": "basic",
     "components": [
-      {"id": "node_0", "component": "Card", "child": "node_1"},
+      {"id": "root", "component": "Card", "child": "node_0"},
       {
-        "id": "node_1",
+        "id": "node_0",
         "component": "Column",
-        "children": ["node_2", "node_3", "node_4", "node_5"],
+        "children": ["node_1", "node_2", "node_3", "node_4"],
         "align": "center"
       },
-      {"id": "node_2", "component": "Icon", "name": {"path": "/icon"}},
-      {"id": "node_3", "component": "Text", "text": {"path": "/title"}},
-      {"id": "node_4", "component": "Text", "text": {"path": "/description"}, "variant": "body"},
-      {"id": "node_5", "component": "Row", "children": ["node_6", "node_8"], "justify": "center"},
-      {"id": "node_6", "component": "Button", "child": "node_7", "action": {"event": "accept"}},
-      {"id": "node_7", "component": "Text", "text": "Yes"},
-      {"id": "node_8", "component": "Button", "child": "node_9", "action": {"event": "decline"}},
-      {"id": "node_9", "component": "Text", "text": "No"}
+      {"id": "node_1", "component": "Icon", "name": {"path": "/icon"}},
+      {"id": "node_2", "component": "Text", "text": {"path": "/title"}},
+      {"id": "node_3", "component": "Text", "text": "Get alerts for order status changes"},
+      {"id": "node_4", "component": "Row", "children": ["node_5", "node_7"], "justify": "center"},
+      {"id": "node_5", "component": "Button", "child": "node_6", "action": {"event": {"name": "accept"}}},
+      {"id": "node_6", "component": "Text", "text": "Yes"},
+      {"id": "node_7", "component": "Button", "child": "node_8", "action": {"event": {"name": "decline"}}},
+      {"id": "node_8", "component": "Text", "text": "No"}
     ],
     "dataModel": {
       "icon": "check",
@@ -188,3 +219,4 @@ The compiler maps these into standard `FunctionCall` objects in the component's 
   }
 }
 ```
+

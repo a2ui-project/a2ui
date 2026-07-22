@@ -28,16 +28,18 @@ Atom uses parenthesized S-expressions to represent component nodes and propertie
   (Column
     (Text "Order Confirmed!" :variant "h2")
     "Your package #12345 will arrive tomorrow."
-    (Button "Track Order" :onClick (Event "trackPackage" :orderId "12345"))))
+    (Button :action (Event "trackPackage" :orderId "12345") (Text "Track Order"))))
 </a2ui>
 ```
 
 ### Key Notation Features
 
 - **Direct Tree Nesting**: Child components are nested directly inside parent container expressions without requiring explicit IDs or flat adjacency lists.
-- **Tagged & Positional Properties**: Attributes use colon prefixes (`:variant "h2"`) or sequential positional parameter ordering matching catalog signatures.
+- **Tagged & Positional Properties**: Attributes use colon prefixes (`:variant "h2"`, `:align="center"`) or sequential positional parameter ordering matching catalog signatures.
+- **Primitive Auto-Wrapping**: Raw string literals in container children lists are automatically wrapped into primitive text components (e.g., `(Text "content")`).
+- **Comments**: Single-line comments starting with `;`, `;;`, or `#` are supported and ignored by the parser.
 - **Data Bindings**: Data paths use `$/` prefixes (e.g. `$/user/name`).
-- **Data State Initialization**: Data state is initialized using `(data $/path "value")`.
+- **Data State Initialization**: Data state is initialized using `(data $/path "value")` or `(set! $/path "value")`.
 - **Dynamic List Templates**: List templates use `(template :item item (ChildComponent $/item/name))`.
 - **Action Events**: Interactive controls express actions using `(Event "action_name" :param1 $/value)`.
 
@@ -64,7 +66,7 @@ raw_response = """
 (Card
   (Column
     (Text "Hello World!" :variant "h1")
-    (Button "Click Me" :onClick (Event "buttonClick"))))
+    (Button :action (Event "buttonClick") (Text "Click Me"))))
 </a2ui>
 """
 
