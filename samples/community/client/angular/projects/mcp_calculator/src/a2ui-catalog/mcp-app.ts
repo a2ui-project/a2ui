@@ -125,10 +125,7 @@ export class McpApp extends CatalogComponent<any> implements OnDestroy, OnInit {
   }
 
   ngOnDestroy() {
-    if (this.dataSubscriptions) {
-      this.dataSubscriptions.forEach(sub => sub.unsubscribe());
-      this.dataSubscriptions = [];
-    }
+    this.clearDataSubscriptions();
     if (this.resizeTimeout) {
       clearTimeout(this.resizeTimeout);
       this.resizeTimeout = null;
@@ -143,6 +140,13 @@ export class McpApp extends CatalogComponent<any> implements OnDestroy, OnInit {
     const bridge = this.appBridge();
     if (bridge) {
       bridge.close().catch(e => console.error('Error closing AppBridge on destroy:', e));
+    }
+  }
+
+  private clearDataSubscriptions() {
+    if (this.dataSubscriptions) {
+      this.dataSubscriptions.forEach(sub => sub.unsubscribe());
+      this.dataSubscriptions = [];
     }
   }
 
@@ -229,6 +233,9 @@ export class McpApp extends CatalogComponent<any> implements OnDestroy, OnInit {
       return;
     }
 
+    // Unsubscribe from any existing data subscriptions to prevent memory leaks on re-initialization
+    this.clearDataSubscriptions();
+
     const iframe = this.iframe().nativeElement;
 
     // The app bridge is initialized without a direct connection to MCP server.
@@ -275,7 +282,7 @@ export class McpApp extends CatalogComponent<any> implements OnDestroy, OnInit {
     // Two-way local data binding: Subscribe to host Data Model changes
     if (surface && Object.keys(dataPaths).length > 0) {
       for (const [key, dataPath] of Object.entries(dataPaths)) {
-        this.lastBoundRootValues[key] = JSON.stringify(surface.dataModel.get(dataPath));
+        this.lastBoundRootValues[key] = JSON.stringify(surface.dataModel.get(dataPath) ?? null);
 
         const sub = surface.dataModel.subscribe(dataPath, value => {
           // Suppress echoes: If the update was initiated by the app itself, do not
@@ -296,7 +303,7 @@ export class McpApp extends CatalogComponent<any> implements OnDestroy, OnInit {
           // - For primitives: do a direct comparison of the values and update accordingly.
           const prevStr = this.lastBoundRootValues[key];
           const prev = prevStr ? JSON.parse(prevStr) : null;
-          this.lastBoundRootValues[key] = JSON.stringify(value);
+          this.lastBoundRootValues[key] = JSON.stringify(value ?? null);
 
           if (value && typeof value === 'object') {
             // Diff the current root object against the previous cached root object
