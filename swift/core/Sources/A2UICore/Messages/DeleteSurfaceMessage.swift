@@ -12,11 +12,21 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import A2UICore
-import Testing
+/// A message commanding the client to dismantle and delete an active
+/// surface.
+public struct DeleteSurfaceMessage: Codable, Sendable, Equatable {
+  public let surfaceID: String
 
-struct A2UICoreTests {
-  @Test func placeholderTest() {
-    #expect(Bool(true))
+  private enum CodingKeys: String, CodingKey {
+    case surfaceID = "surfaceId"
+  }
+
+  public init(surfaceID: String) {
+    self.surfaceID = surfaceID
+  }
+
+  public init(from decoder: Decoder) throws {
+    let container = try decoder.container(keyedBy: CodingKeys.self)
+    surfaceID = try container.decode(String.self, forKey: .surfaceID)
   }
 }
