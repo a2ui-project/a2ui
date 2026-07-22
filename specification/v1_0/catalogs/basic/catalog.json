@@ -162,12 +162,15 @@
                 {
                   "type": "object",
                   "properties": {
-                    "path": {
-                      "type": "string"
+                    "svgPath": {
+                      "$ref": "https://a2ui.org/specification/v1_0/common_types.json#/$defs/DynamicString"
                     }
                   },
-                  "required": ["path"],
+                  "required": ["svgPath"],
                   "additionalProperties": false
+                },
+                {
+                  "$ref": "https://a2ui.org/specification/v1_0/common_types.json#/$defs/DataBinding"
                 }
               ]
             },

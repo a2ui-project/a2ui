@@ -107,11 +107,10 @@
               "description": "An optional path to a location within the data model (e.g., '/user/name'). If omitted, or set to '/', refers to the entire data model."
             },
             "value": {
-              "description": "The data to be updated in the data model. If present, the value at 'path' is replaced (or created). If omitted, the key at 'path' is removed.",
-              "additionalProperties": true
+              "description": "The data to be updated in the data model. To delete the key/value at 'path', set 'value' explicitly to null."
             }
           },
-          "required": ["surfaceId"],
+          "required": ["surfaceId", "value"],
           "additionalProperties": false
         }
       },
