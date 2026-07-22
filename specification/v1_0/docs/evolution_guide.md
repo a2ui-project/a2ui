@@ -62,7 +62,7 @@ Version 1.0 differs from 0.9 in the following ways:
 
 ### 2.7. Data encoding
 
-- Standardized data deletion behavior in `updateDataModel`. Setting a path's value to `null` deletes the key at that path. Removing or omitting keys in `updateDataModel` is no longer used for deletion.
+- Standardized data deletion behavior in `updateDataModel` by making the `value` property required. Setting a path's value to `null` deletes the key at that path. Omitting the `value` property is now a schema validation error.
 - Removed `callableFrom` and `returnType` properties and validation constraints from `FunctionCall` and dynamic value schemas in `common_types.json`, deferring boundary checking and return type validation entirely to runtime execution.
 - Added built-in `@index` function (with optional `offset` parameter) under `FunctionCall` to retrieve the iteration index during list template rendering. Reserved the `@` prefix for core system context evaluations.
 
@@ -87,7 +87,7 @@ This section outlines the steps required to migrate existing applications and co
 - Ensure all generated catalog entity names conform to UAX #31 identifier rules.
 - Do not include `callableFrom` or `returnType` properties in wire-level `FunctionCall` payloads. Set static `callableFrom` and `returnType` metadata in catalog function definitions where needed.
 - Update custom SVG icon definitions in `Icon` components to rename `svgPath` to `path`. Update `Video`, `TextField`, and `Slider` components to support optional `posterUrl`, `placeholder`, and `steps` properties.
-- Explicitly set values to `null` in `updateDataModel` messages to delete keys at specified paths. Do not omit keys or send undefined to indicate deletion.
+- Explicitly set values to `null` in `updateDataModel` messages to delete keys at specified paths. The `value` property is now required, and omitting it is a schema validation error.
 
 ### For renderers and clients
 
