@@ -1,0 +1,122 @@
+{
+  "schema": "server_to_client.json",
+  "tests": [
+    {
+      "description": "Icon: Valid standard icon string",
+      "valid": true,
+      "data": {
+        "version": "v1.0",
+        "updateComponents": {
+          "surfaceId": "test_surface",
+          "components": [
+            {
+              "id": "icon_std",
+              "component": "Icon",
+              "name": "star"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "description": "Icon: Valid custom SVG icon with literal svgPath string",
+      "valid": true,
+      "data": {
+        "version": "v1.0",
+        "updateComponents": {
+          "surfaceId": "test_surface",
+          "components": [
+            {
+              "id": "icon_custom_literal",
+              "component": "Icon",
+              "name": {
+                "svgPath": "M10 10 H 90 V 90 H 10 Z"
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "description": "Icon: Valid custom SVG icon with data bound svgPath path",
+      "valid": true,
+      "data": {
+        "version": "v1.0",
+        "updateComponents": {
+          "surfaceId": "test_surface",
+          "components": [
+            {
+              "id": "icon_custom_bound",
+              "component": "Icon",
+              "name": {
+                "svgPath": {
+                  "path": "/custom/svg/path"
+                }
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "description": "Icon: Valid data bound Icon.name",
+      "valid": true,
+      "data": {
+        "version": "v1.0",
+        "updateComponents": {
+          "surfaceId": "test_surface",
+          "components": [
+            {
+              "id": "icon_name_bound",
+              "component": "Icon",
+              "name": {
+                "path": "/dynamic/icon/name"
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "description": "Icon: Invalid custom SVG icon with type mismatch on svgPath (should fail)",
+      "valid": false,
+      "data": {
+        "version": "v1.0",
+        "updateComponents": {
+          "surfaceId": "test_surface",
+          "components": [
+            {
+              "id": "icon_invalid_type",
+              "component": "Icon",
+              "name": {
+                "svgPath": 12345
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "description": "Icon: Invalid custom SVG icon with extra fields in svgPath binding (should fail)",
+      "valid": false,
+      "data": {
+        "version": "v1.0",
+        "updateComponents": {
+          "surfaceId": "test_surface",
+          "components": [
+            {
+              "id": "icon_invalid_extra",
+              "component": "Icon",
+              "name": {
+                "svgPath": {
+                  "path": "/custom/svg/path",
+                  "extra": 1
+                }
+              }
+            }
+          ]
+        }
+      }
+    }
+  ]
+}

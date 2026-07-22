@@ -163,7 +163,7 @@
                   "type": "object",
                   "properties": {
                     "svgPath": {
-                      "type": "string"
+                      "$ref": "https://a2ui.org/specification/v1_0/common_types.json#/$defs/DynamicString"
                     }
                   },
                   "required": ["svgPath"],
