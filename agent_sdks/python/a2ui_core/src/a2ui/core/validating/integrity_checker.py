@@ -124,8 +124,8 @@ def validate_component_integrity(
         for ref_id, field_name in get_component_references(comp, ref_fields_map):
             if ref_id not in ids:
                 raise A2uiIntegrityError(
-                    f"Component '{comp_id}' references non-existent component '{ref_id}'"
-                    f" in field '{field_name}'"
+                    f"Component '{comp_id}' references non-existent component"
+                    f" '{ref_id}' in field '{field_name}'"
                 )
 
 
@@ -164,13 +164,15 @@ def validate_recursion_and_paths(data: Any) -> None:
             if is_func_v08:
                 if func_depth >= MAX_FUNC_CALL_DEPTH:
                     raise A2uiRecursionError(
-                        f"Recursion limit exceeded: functionCall depth > {MAX_FUNC_CALL_DEPTH}"
+                        "Recursion limit exceeded: functionCall depth >"
+                        f" {MAX_FUNC_CALL_DEPTH}"
                     )
                 traverse(item["functionCall"], global_depth + 1, func_depth + 1)
             elif is_func_v09:
                 if func_depth >= MAX_FUNC_CALL_DEPTH:
                     raise A2uiRecursionError(
-                        f"Recursion limit exceeded: functionCall depth > {MAX_FUNC_CALL_DEPTH}"
+                        "Recursion limit exceeded: functionCall depth >"
+                        f" {MAX_FUNC_CALL_DEPTH}"
                     )
                 for k, v in item.items():
                     if k == "args":

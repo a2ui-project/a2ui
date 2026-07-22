@@ -35,12 +35,12 @@ import {
   Signal,
   getValue,
   setValue,
-  PREACT_SIGNAL_IMPLEMENTATION,
+  _PRIVATE_DEFAULT_SIGNAL_IMPLEMENTATION,
 } from './signals.js';
 
 describe('Signals abstraction', () => {
   after(() => {
-    setSignalImplementation(PREACT_SIGNAL_IMPLEMENTATION);
+    setSignalImplementation(_PRIVATE_DEFAULT_SIGNAL_IMPLEMENTATION);
   });
 
   it('uses default (preact) implementation correctly', () => {
@@ -70,7 +70,7 @@ describe('Signals abstraction', () => {
         const c = aComputed(fn);
         return c as unknown as Signal<T>;
       },
-      isSignal: (val: any): val is Signal<any> => aIsSignal(val),
+      isSignal: (val: unknown): val is Signal<unknown> => aIsSignal(val),
       signal: <T>(initialValue: T) => {
         const s = aSignal(initialValue);
         return s as unknown as Signal<T>;

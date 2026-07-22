@@ -3,7 +3,7 @@
 <!-- markdownlint-disable MD034 -->
 <div style="text-align: center;">
   <div class="centered-logo-text-group">
-    <img src="../../../assets/A2UI_dark.svg" alt="A2UI Protocol Logo" width="100">
+    <img src="../../../docs/public/assets/A2UI_dark.svg" alt="A2UI Protocol Logo" width="100">
     <h1>A2UI (Agent to UI) Protocol v1.0</h1>
   </div>
 </div>
@@ -28,7 +28,7 @@ Communication occurs via a stream of JSON objects. The renderer parses each obje
 - `updateDataModel`: Provides new data to be inserted into or to replace a surface's data model.
 - `deleteSurface`: Explicitly removes a surface and its contents from the UI.
 
-End of agent turn is signaled by [transport layer](https://github.com/a2ui-project/a2ui/tree/main/docs/concepts/transports.md).
+End of agent turn is signaled by [transport layer](../../../docs/public/concepts/transports.md).
 
 ## Changes from previous versions
 
@@ -181,7 +181,7 @@ One of the components in one of the component lists MUST have an `id` of `root` 
 **Properties:**
 
 - `surfaceId` (string, required): The unique identifier for the UI surface to be rendered. This must be globally unique for the renderer's lifetime.
-- `catalogId` (string, required): A string that uniquely identifies the catalog (components and functions) used for this surface. It is recommended to prefix this with an internet domain that you own, to avoid conflicts (e.g., `https://mycompany.com/1.0/somecatalog`). If it is a URL, the URL does not need to have any deployed resources, it is simply a unique identifier.
+- `catalogId` (string, required): A string that uniquely identifies the catalog (components and functions) used for this surface. Note that `catalogId` is a string identifier, not a resolvable URI; while it is conventionally formatted as a URI (e.g., `https://mycompany.com/1.0/somecatalog`) to avoid naming collisions across organizations, it does not need to point to any deployed resource or downloadable file. Client and server developers must agree on shared catalogs with well-known IDs in order to build systems that are compatible with each other.
 - `surfaceProperties` (object, optional): A JSON object containing surface properties (e.g., `agentDisplayName`) defined in the catalog's surfaceProperties schema.
 - `sendDataModel` (boolean, optional): If true, the client will send the full data model of this surface in the metadata of every message sent to the server (via the Transport's metadata mechanism). This ensures the surface owner receives the full current state of the UI alongside the user's action or query. Defaults to false.
 - `components` (array, optional): A list containing UI components for the surface, allowing the client to build and populate the UI tree immediately on surface creation. Conforms to the `ComponentsList` schema.
@@ -263,7 +263,7 @@ This message is used to send or update the data that populates the UI components
 
 - `surfaceId` (string, required): The unique identifier for the UI surface this data model update applies to. This must be globally unique for the renderer's lifetime.
 - `path` (string, optional): A JSON Pointer to the location in the data model to update. Defaults to `/`.
-- `value` (any, optional): The new value for the specified path. If omitted, the key at `path` is removed.
+- `value` (any, required): The new value for the specified path. To delete the key/value at `path`, set `value` explicitly to `null`.
 
 **Example:**
 
@@ -440,7 +440,7 @@ The set of available UI components and functions is defined in a **Catalog**. Th
 
 Every catalog follows the standard `Catalog` object definition:
 
-- **catalogId** (string, required): A unique identifier URI for this catalog.
+- **catalogId** (string, required): A unique string identifier for this catalog. While conventionally formatted as a URI to avoid naming collisions across organizations, it is an arbitrary string ID and not a resolvable URI. Client and server developers must agree on shared catalogs with well-known IDs in order to build systems that are compatible with each other.
 - **instructions** (string, optional): Markdown-formatted design principles, rules, or developer guidelines specific to this catalog. These rules guide LLMs when generating UI layouts under this catalog.
 - **components** (object, optional): A map of supported UI components, where each key is the component type (e.g., `Text`) and its value is its JSON Schema definition. All keys MUST conform to the UAX #31 entity naming rules defined below.
 - **functions** (object, optional): A map of client-side validation or utility functions supported by the catalog, where each key is the function name and its value is its definition. All function names MUST conform to the UAX #31 entity naming rules defined below. The client determines a function's execution boundary (e.g., clientOnly status) at runtime by reading its configuration from the active catalog definition.
@@ -862,7 +862,7 @@ The `updateDataModel` message replaces the value at the specified `path` with th
 
 - `surfaceId` (string, required): The ID of the surface to update.
 - `path` (string, optional): A JSON Pointer to the location in the data model to update. Defaults to `/`.
-- `value` (any, optional): The new value for the specified path. If omitted, the key at `path` is removed.
+- `value` (any, required): The new value for the specified path. To delete the key/value at `path`, set `value` explicitly to `null`.
 
 **Examples:**
 
@@ -886,7 +886,8 @@ _Remove a field:_
   "version": "v1.0",
   "updateDataModel": {
     "surfaceId": "surface_123",
-    "path": "/user/tempData"
+    "path": "/user/tempData",
+    "value": null
   }
 }
 ```
@@ -1282,7 +1283,7 @@ The `a2uiClientCapabilities` object in the transport metadata follows the [`clie
 **Properties:**
 
 - `v1.0` (object, required): The capability structure for version 1.0 of the A2UI protocol.
-  - `supportedCatalogIds` (array of strings, required): The URIs of supported component and function catalogs.
+  - `supportedCatalogIds` (array of strings, required): The string identifiers of supported component and function catalogs.
   - `inlineCatalogs` (array, optional): An array of custom catalog definitions provided inline by the client. Functions defined within inline catalogs support declaring execution boundaries (`callableFrom: "clientOnly" | "remoteOnly" | "clientOrRemote"`) to statically specify remote invocation safety.
 
 ### Client data model

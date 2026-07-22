@@ -81,7 +81,7 @@ Version 0.9 represents a fundamental philosophical shift from "Structured Output
 - **Purpose**: `createSurface` signals the client to create a new surface and prepare for rendering.
 - **Theme Information**: `createSurface` includes a `theme` property to specify theme parameters (like `primaryColor`). This replaces the `styles` property in v0.8.
 - **Root Rule**: The rule is: "There must be exactly one component with the `ComponentId` 'root'." The "root" attribute that `beginRendering` had has been removed. The client is expected to render as soon as it has a valid tree with a root component.
-- **New Requirement**: `createSurface` now requires a **`catalogId`** (URI) to explicitly state which unified catalog (components and functions) is being used.
+- **New Requirement**: `createSurface` now requires a **`catalogId`** (string identifier) to explicitly state which unified catalog (components and functions) is being used.
 
 **Example:**
 

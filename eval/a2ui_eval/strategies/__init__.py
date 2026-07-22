@@ -12,20 +12,22 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from typing import Callable, List
 from inspect_ai.solver import Solver
-from .direct import direct_solver
 from .subagent_tool import subagent_tool_solver
-from .express import express_solver
+from .format import format_solver
 
-STRATEGIES = {
-    "direct": direct_solver,
+STRATEGIES: dict[str, Callable[[str], List[Solver]]] = {
+    "direct": lambda version: format_solver("json", version),
     "subagent_tool": subagent_tool_solver,
-    "express": express_solver,
+    "express": lambda version: format_solver("express", version),
+    "elemental": lambda version: format_solver("elemental", version),
 }
 
-def get_solver(strategy: str) -> list[Solver]:
+
+def get_solver(strategy: str, version: str) -> list[Solver]:
     """Returns the solver chain for the specified evaluation strategy."""
     if strategy not in STRATEGIES:
         raise ValueError(f"Unknown evaluation strategy: {strategy}")
-        
-    return STRATEGIES[strategy]()
+
+    return STRATEGIES[strategy](version)

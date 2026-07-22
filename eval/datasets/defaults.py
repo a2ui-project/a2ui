@@ -15,7 +15,10 @@
 from pathlib import Path
 
 DEFAULT_CATALOG_PATH = "specification/v0_9/catalogs/basic/catalog.json"
-DEFAULT_ROLE_DESCRIPTION = "You are an AI assistant. Based on the following request, generate a stream of JSON messages that conform to the provided JSON Schemas."
+DEFAULT_ROLE_DESCRIPTION = (
+    "You are an AI assistant. Based on the following request, generate a stream of JSON"
+    " messages that conform to the provided JSON Schemas."
+)
 
 DEFAULT_WORKFLOW_DESCRIPTION = """
 Additional Rules:
@@ -23,4 +26,15 @@ Additional Rules:
 2. Generate a 'updateComponents' message with surfaceId 'main' containing the requested UI.
 3. Among the 'updateComponents' messages in the output, there MUST be one root component with id: 'root'.
 4. Ensure all component children are referenced by ID, NOT nested inline as objects.
+"""
+
+FORMAT_AGNOSTIC_ROLE_DESCRIPTION = (
+    "You are an AI assistant. Based on the following request, generate a user"
+    " interface."
+)
+
+FORMAT_AGNOSTIC_WORKFLOW_DESCRIPTION = """
+Additional Rules:
+1. Construct the user interface on surfaceId 'main'.
+2. If components are defined, ensure there is one root component with id: 'root'.
 """

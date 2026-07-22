@@ -6,7 +6,11 @@
     "test": "node --test *.test.mjs",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "lint": "echo \"Workspace has no lint configuration.\"",
-    "lint:fix": "echo \"Workspace has no lint configuration.\""
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix"
+  },
+  "devDependencies": {
+    "eslint": "^10.4.1",
+    "gts": "^7.0.0"
   }
 }

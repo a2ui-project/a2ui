@@ -35,117 +35,120 @@ from agent import ContactAgent
 
 
 class ContactAgentExecutor(AgentExecutor):
-  """Contact AgentExecutor Example."""
+    """Contact AgentExecutor Example."""
 
-  def __init__(self, base_url: str = "http://0.0.0.0:8080"):
-    self._agent = ContactAgent(base_url)
+    def __init__(self, base_url: str = "http://0.0.0.0:8080"):
+        self._agent = ContactAgent(base_url)
 
-  async def execute(
-      self,
-      context: RequestContext,
-      event_queue: EventQueue,
-  ) -> None:
-    query = ""
-    ui_event_part = None
-    action = None
+    async def execute(
+        self,
+        context: RequestContext,
+        event_queue: EventQueue,
+    ) -> None:
+        query = ""
+        ui_event_part = None
+        action = None
 
-    print(f"--- Client requested extensions: {context.requested_extensions} ---")
-    print(f"--- Agent card: {self._agent.agent_card} ---")
-    # active_ui_version = try_activate_a2ui_extension(
-    #     context, self._agent.agent_card
-    # )
-    # Hardcoded for now to test the UI flow.
-    active_ui_version = VERSION_0_8
+        print(f"--- Client requested extensions: {context.requested_extensions} ---")
+        print(f"--- Agent card: {self._agent.agent_card} ---")
+        # active_ui_version = try_activate_a2ui_extension(
+        #     context, self._agent.agent_card
+        # )
+        # Hardcoded for now to test the UI flow.
+        active_ui_version = VERSION_0_8
 
-    if active_ui_version:
-      print(
-          "--- AGENT_EXECUTOR: A2UI extension is active"
-          f" (v{active_ui_version}). Using UI runner. ---"
-      )
-    else:
-      print("--- AGENT_EXECUTOR: A2UI extension is not active. Using text runner. ---")
-
-    if context.message and context.message.parts:
-      print(
-          f"--- AGENT_EXECUTOR: Processing {len(context.message.parts)} message"
-          " parts ---"
-      )
-      for i, part in enumerate(context.message.parts):
-        if isinstance(part.root, DataPart):
-          if "userAction" in part.root.data:
-            print(f"  Part {i}: Found a2ui UI ClientEvent payload.")
-            ui_event_part = part.root.data["userAction"]
-          else:
-            print(f"  Part {i}: DataPart (data: {part.root.data})")
-        elif isinstance(part.root, TextPart):
-          print(f"  Part {i}: TextPart (text: {part.root.text})")
+        if active_ui_version:
+            print(
+                "--- AGENT_EXECUTOR: A2UI extension is active"
+                f" (v{active_ui_version}). Using UI runner. ---"
+            )
         else:
-          print(f"  Part {i}: Unknown part type ({type(part.root)})")
+            print(
+                "--- AGENT_EXECUTOR: A2UI extension is not active. Using text"
+                " runner. ---"
+            )
 
-    if ui_event_part:
-      print(f"Received a2ui ClientEvent: {ui_event_part}")
-      # Fix: Check both 'actionName' and 'name'
-      action = ui_event_part.get("name")
-      ctx = ui_event_part.get("context", {})
+        if context.message and context.message.parts:
+            print(
+                f"--- AGENT_EXECUTOR: Processing {len(context.message.parts)} message"
+                " parts ---"
+            )
+            for i, part in enumerate(context.message.parts):
+                if isinstance(part.root, DataPart):
+                    if "userAction" in part.root.data:
+                        print(f"  Part {i}: Found a2ui UI ClientEvent payload.")
+                        ui_event_part = part.root.data["userAction"]
+                    else:
+                        print(f"  Part {i}: DataPart (data: {part.root.data})")
+                elif isinstance(part.root, TextPart):
+                    print(f"  Part {i}: TextPart (text: {part.root.text})")
+                else:
+                    print(f"  Part {i}: Unknown part type ({type(part.root)})")
 
-      if action == "view_profile":
-        contact_name = ctx.get("contactName", "Unknown")
-        department = ctx.get("department", "")
-        query = f"WHO_IS: {contact_name} from {department}"
+        if ui_event_part:
+            print(f"Received a2ui ClientEvent: {ui_event_part}")
+            # Fix: Check both 'actionName' and 'name'
+            action = ui_event_part.get("name")
+            ctx = ui_event_part.get("context", {})
 
-      elif action == "send_email":
-        contact_name = ctx.get("contactName", "Unknown")
-        email = ctx.get("email", "Unknown")
-        query = f"USER_WANTS_TO_EMAIL: {contact_name} at {email}"
+            if action == "view_profile":
+                contact_name = ctx.get("contactName", "Unknown")
+                department = ctx.get("department", "")
+                query = f"WHO_IS: {contact_name} from {department}"
 
-      elif action == "send_message":
-        contact_name = ctx.get("contactName", "Unknown")
-        query = f"USER_WANTS_TO_MESSAGE: {contact_name}"
+            elif action == "send_email":
+                contact_name = ctx.get("contactName", "Unknown")
+                email = ctx.get("email", "Unknown")
+                query = f"USER_WANTS_TO_EMAIL: {contact_name} at {email}"
 
-      elif action == "follow_contact":
-        query = "ACTION: follow_contact"
+            elif action == "send_message":
+                contact_name = ctx.get("contactName", "Unknown")
+                query = f"USER_WANTS_TO_MESSAGE: {contact_name}"
 
-      elif action == "view_full_profile":
-        contact_name = ctx.get("contactName", "Unknown")
-        query = f"USER_WANTS_FULL_PROFILE: {contact_name}"
+            elif action == "follow_contact":
+                query = "ACTION: follow_contact"
 
-      else:
-        query = f"User submitted an event: {action} with data: {ctx}"
-    else:
-      print("No a2ui UI event part found. Falling back to text input.")
-      query = context.get_user_input()
+            elif action == "view_full_profile":
+                contact_name = ctx.get("contactName", "Unknown")
+                query = f"USER_WANTS_FULL_PROFILE: {contact_name}"
 
-    print(f"--- AGENT_EXECUTOR: Final query for LLM: '{query}' ---")
+            else:
+                query = f"User submitted an event: {action} with data: {ctx}"
+        else:
+            print("No a2ui UI event part found. Falling back to text input.")
+            query = context.get_user_input()
 
-    task = context.current_task
+        print(f"--- AGENT_EXECUTOR: Final query for LLM: '{query}' ---")
 
-    if not task:
-      task = new_task(context.message)
-      await event_queue.enqueue_event(task)
+        task = context.current_task
 
-    updater = TaskUpdater(event_queue, task.id, task.context_id)
+        if not task:
+            task = new_task(context.message)
+            await event_queue.enqueue_event(task)
 
-    await updater.start_work()
+        updater = TaskUpdater(event_queue, task.id, task.context_id)
 
-    final_parts = await self._agent.fetch_response(
-        query, task.context_id, active_ui_version
-    )
-    self._log_parts(final_parts)
+        await updater.start_work()
 
-    await updater.add_artifact(final_parts, name="response")
-    await updater.complete()
+        final_parts = await self._agent.fetch_response(
+            query, task.context_id, active_ui_version
+        )
+        self._log_parts(final_parts)
 
-  async def cancel(
-      self, request: RequestContext, event_queue: EventQueue
-  ) -> Task | None:
-    raise ServerError(error=UnsupportedOperationError())
+        await updater.add_artifact(final_parts, name="response")
+        await updater.complete()
 
-  def _log_parts(self, parts: list[Part]):
-    print("--- PARTS TO BE SENT ---")
-    for i, part in enumerate(parts):
-      print(f"  - Part {i}: Type = {type(part.root)}")
-      if isinstance(part.root, TextPart):
-        print(f"    - Text: {part.root.text[:200]}...")
-      elif isinstance(part.root, DataPart):
-        print(f"    - Data: {str(part.root.data)[:200]}...")
-    print("-----------------------------")
+    async def cancel(
+        self, request: RequestContext, event_queue: EventQueue
+    ) -> Task | None:
+        raise ServerError(error=UnsupportedOperationError())
+
+    def _log_parts(self, parts: list[Part]):
+        print("--- PARTS TO BE SENT ---")
+        for i, part in enumerate(parts):
+            print(f"  - Part {i}: Type = {type(part.root)}")
+            if isinstance(part.root, TextPart):
+                print(f"    - Text: {part.root.text[:200]}...")
+            elif isinstance(part.root, DataPart):
+                print(f"    - Data: {str(part.root.data)[:200]}...")
+        print("-----------------------------")

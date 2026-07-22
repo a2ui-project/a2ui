@@ -1,5 +1,9 @@
 ## Unreleased
 
+## 0.10.2
+
+- (v0_9) Normalize Safari placeholder text color for `DateTimeInput` by updating CSS selectors for `.a2ui-date-time-input`.
+
 ## 0.10.1
 
 - (v0_9) Tighten resolved child list types in the basic catalog layout components.

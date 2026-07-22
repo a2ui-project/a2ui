@@ -12,7 +12,7 @@
   },
   "dependencies": {
     "@a2ui/angular": "^0.10.0",
-    "@a2ui/markdown-it": "^0.0.4",
+    "@a2ui/markdown-it": "*",
     "@a2ui/web_core": "^0.10.0"
   },
   "devDependencies": {

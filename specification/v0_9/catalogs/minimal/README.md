@@ -1,6 +1,6 @@
 # Minimal A2UI Catalog
 
-This folder contains a minimal A2UI component catalog (`minimal_catalog.json`) to be used as a test bed for testing new renderer implementations.
+This folder contains a minimal A2UI component catalog (`catalog.json`) to be used as a test bed for testing new renderer implementations.
 
 ## Purpose
 

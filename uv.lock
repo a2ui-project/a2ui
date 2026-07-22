@@ -74,9 +74,7 @@ dependencies = [
 dev = [
     { name = "antlr4-tools" },
     { name = "hatchling" },
-    { name = "pyink" },
-    { name = "pytest" },
-    { name = "pytest-asyncio" },
+    { name = "types-jsonschema" },
 ]
 
 [package.metadata]
@@ -93,9 +91,7 @@ requires-dist = [
 dev = [
     { name = "antlr4-tools", specifier = ">=0.2.1" },
     { name = "hatchling", specifier = ">=1.30.1" },
-    { name = "pyink", specifier = ">=24.10.0" },
-    { name = "pytest", specifier = ">=9.0.2" },
-    { name = "pytest-asyncio", specifier = ">=1.3.0" },
+    { name = "types-jsonschema" },
 ]
 
 [[package]]
@@ -170,11 +166,7 @@ dependencies = [
 
 [package.dev-dependencies]
 dev = [
-    { name = "mypy" },
-    { name = "pyink" },
-    { name = "pytest" },
     { name = "pyyaml" },
-    { name = "types-jsonschema" },
 ]
 
 [package.metadata]
@@ -185,13 +177,7 @@ requires-dist = [
 ]
 
 [package.metadata.requires-dev]
-dev = [
-    { name = "mypy", specifier = ">=1.14.0" },
-    { name = "pyink", specifier = ">=24.10.0" },
-    { name = "pytest", specifier = ">=8.0.0" },
-    { name = "pyyaml", specifier = ">=6.0.3" },
-    { name = "types-jsonschema" },
-]
+dev = [{ name = "pyyaml", specifier = ">=6.0.3" }]
 
 [[package]]
 name = "a2ui-custom-components-example"
@@ -405,16 +391,6 @@ name = "a2ui-scripts"
 version = "0.1.0"
 source = { virtual = "tools/build_catalog" }
 
-[package.dev-dependencies]
-dev = [
-    { name = "pytest" },
-]
-
-[package.metadata]
-
-[package.metadata.requires-dev]
-dev = [{ name = "pytest", specifier = ">=9.0.3" }]
-
 [[package]]
 name = "a2ui-workspace"
 version = "0.1.0"
@@ -422,8 +398,12 @@ source = { virtual = "." }
 
 [package.dev-dependencies]
 dev = [
+    { name = "mypy" },
     { name = "pyink" },
     { name = "pytest" },
+    { name = "pytest-asyncio" },
+    { name = "types-jsonschema" },
+    { name = "types-pyyaml" },
 ]
 release = [
     { name = "hatch" },
@@ -436,8 +416,12 @@ release = [
 
 [package.metadata.requires-dev]
 dev = [
+    { name = "mypy", specifier = ">=1.14.0" },
     { name = "pyink", specifier = ">=25.12.0" },
     { name = "pytest", specifier = ">=9.1.1" },
+    { name = "pytest-asyncio", specifier = ">=1.3.0" },
+    { name = "types-jsonschema", specifier = ">=4.26.0" },
+    { name = "types-pyyaml", specifier = ">=6.0.12.20241221" },
 ]
 release = [
     { name = "hatch", specifier = ">=1.14.0" },
@@ -3765,7 +3749,7 @@ requires-dist = [
     { name = "a2a-sdk", extras = ["http-server"], specifier = ">=0.3.0" },
     { name = "a2ui-agent-sdk", editable = "agent_sdks/python/a2ui_agent" },
     { name = "click", specifier = ">=8.1.8" },
-    { name = "google-adk", specifier = ">=1.28.1" },
+    { name = "google-adk", specifier = ">=2.3.0" },
     { name = "google-genai", specifier = ">=1.27.0" },
     { name = "jsonschema", specifier = ">=4.0.0" },
     { name = "litellm", specifier = ">=1.83.7" },
@@ -5411,6 +5395,15 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/dd/46/73b6a5d61a61015c4248030a8cb07e5bdddb4041430fae9e585a68692578/types_jsonschema-4.26.0.20260518.tar.gz", hash = "sha256:e1dd53dc97a64f5eccdd6fa9839666e09bb500a8ebba2db6fdaf1789faea81a6", size = 16638, upload-time = "2026-05-18T06:06:44.106Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/07/d5/134f8a147dcecda10db7f60cfc6af0578a25a5c53c87b3907a64385e0184/types_jsonschema-4.26.0.20260518-py3-none-any.whl", hash = "sha256:30b30a518c7fe335df85c919fcbcc631b69c03d4a4b5b632fa916bea03065307", size = 16072, upload-time = "2026-05-18T06:06:43.264Z" },
+]
+
+[[package]]
+name = "types-pyyaml"
+version = "6.0.12.20260518"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/b8/83/4a1afc3fbfcf5b8d46fc390cd95ed6b0dc9010a265f4e9f46314efffa37a/types_pyyaml-6.0.12.20260518.tar.gz", hash = "sha256:d917f83fb38462550338c1297faedd860b3ec83912b96b1e3d73255f7473e466", size = 17850, upload-time = "2026-05-18T06:01:58.675Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/06/a2/c01db32be2ae7d6a1689972f3c492b149ee4e164b12fdfd9f64b50888215/types_pyyaml-6.0.12.20260518-py3-none-any.whl", hash = "sha256:d2150f75a231c9fe9c7463bd29487d93e60bac90400287351384bc2284eba7cd", size = 20312, upload-time = "2026-05-18T06:01:57.368Z" },
 ]
 
 [[package]]

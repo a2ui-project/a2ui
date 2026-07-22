@@ -17,8 +17,8 @@
 import {test, expect} from '@playwright/test';
 import {PNG} from 'pngjs';
 import pixelmatch from 'pixelmatch';
-import {allFixtures, fixtureNames, type FixtureName} from '../fixtures';
-import {themeNames, type ThemeName} from '../fixtures/themes';
+import {fixtureNames, type FixtureName} from '../fixtures';
+import {type ThemeName} from '../fixtures/themes';
 
 /**
  * Visual parity tests for A2UI React vs Lit renderers.
@@ -267,22 +267,8 @@ test.describe('DOM Structure Debug', () => {
         // Get button and text colors in React (Light DOM)
         const buttonEl = document.querySelector('.a2ui-surface button');
         const buttonStyle = buttonEl ? window.getComputedStyle(buttonEl) : null;
-        const textSection = buttonEl?.querySelector('section');
         const pEl = buttonEl?.querySelector('p');
-        const textStyle = textSection ? window.getComputedStyle(textSection) : null;
         const pStyle = pEl ? window.getComputedStyle(pEl) : null;
-
-        // Check CSS variable values from within the surface element (where they're scoped)
-        const surfaceEl = document.querySelector('.a2ui-surface');
-        const surfaceStyle = surfaceEl ? getComputedStyle(surfaceEl) : null;
-        const cssVarN10 = surfaceStyle?.getPropertyValue('--n-10') ?? 'N/A';
-        const cssVarP100 = surfaceStyle?.getPropertyValue('--p-100') ?? 'N/A';
-
-        // Also check from paragraph element
-        const pCssVarN10 = pStyle?.getPropertyValue('--n-10') ?? 'N/A';
-
-        // Check the actual class list on the paragraph
-        const pClassList = pEl?.className ?? 'no p element';
 
         // Test if the CSS rule is actually being applied
         const testDiv = document.createElement('div');
@@ -292,12 +278,6 @@ test.describe('DOM Structure Debug', () => {
         const testP = testDiv.querySelector('p');
         const testPColor = testP ? getComputedStyle(testP).color : 'N/A';
         document.body.removeChild(testDiv);
-
-        // Check for inline styles on the paragraph
-        const pInlineStyle = pEl?.getAttribute('style') ?? 'none';
-
-        // Get the HTML around the paragraph to see the structure
-        const buttonHtml = buttonEl?.innerHTML?.slice(0, 500) ?? 'N/A';
 
         // Check if there are any rules that match our paragraph AND set color
         const matchingRulesForP: string[] = [];
@@ -311,12 +291,12 @@ test.describe('DOM Structure Debug', () => {
                     if (pEl.matches(rule.selectorText) && rule.style.color) {
                       matchingRulesForP.push(`${rule.selectorText} -> color: ${rule.style.color}`);
                     }
-                  } catch (e) {
+                  } catch {
                     // Invalid selector
                   }
                 }
               }
-            } catch (e) {
+            } catch {
               // Cross-origin stylesheets can't be accessed
             }
           }

@@ -157,6 +157,6 @@ Educational content from [OpenStax](https://openstax.org/), licensed under [CC B
 
 ## Related
 
-- [A2UI Specification](../../../../../docs/)
+- [A2UI Specification](../../../../../docs/public/)
 - [A2UI Lit Renderer](../../../../../renderers/lit/)
 - [Main A2UI README](../../../../../README.md)

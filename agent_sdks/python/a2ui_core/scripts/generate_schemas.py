@@ -357,19 +357,24 @@ def generate_common_types(common_data: Dict[str, Any]) -> str:
         "from typing import Annotated, Any, Dict, List, Literal, Optional, Union",
         "from pydantic import BaseModel, Field, ConfigDict, GetCoreSchemaHandler",
         "from pydantic_core import CoreSchema\n",
-        'class ComponentReference:\n    """Base marker class for all A2UI component references."""\n',
-        "class SingleReference(str, ComponentReference):\n"
-        "    @classmethod\n"
-        "    def __get_pydantic_core_schema__(\n"
-        "        cls, source_type: Any, handler: GetCoreSchemaHandler\n"
-        "    ) -> CoreSchema:\n"
-        "        from pydantic_core import core_schema\n"
-        "        return core_schema.no_info_after_validator_function(\n"
-        "            cls,\n"
-        "            core_schema.str_schema(),\n"
-        "            serialization=core_schema.plain_serializer_function_ser_schema(str),\n"
-        "        )\n",
-        'class ListReference(ComponentReference):\n    """Marker class indicating a field holds a list of component references."""\n',
+        (
+            'class ComponentReference:\n    """Base marker class for all A2UI component'
+            ' references."""\n'
+        ),
+        (
+            "class SingleReference(str, ComponentReference):\n    @classmethod\n    def"
+            " __get_pydantic_core_schema__(\n        cls, source_type: Any, handler:"
+            " GetCoreSchemaHandler\n    ) -> CoreSchema:\n        from pydantic_core"
+            " import core_schema\n        return"
+            " core_schema.no_info_after_validator_function(\n            cls,\n        "
+            "    core_schema.str_schema(),\n           "
+            " serialization=core_schema.plain_serializer_function_ser_schema(str),\n   "
+            "     )\n"
+        ),
+        (
+            'class ListReference(ComponentReference):\n    """Marker class indicating a'
+            ' field holds a list of component references."""\n'
+        ),
         "class StrictBaseModel(BaseModel):",
         '    model_config = ConfigDict(extra="forbid", populate_by_name=True)\n',
     ]
@@ -418,7 +423,9 @@ def generate_common_types(common_data: Dict[str, Any]) -> str:
     orig_desc = defs["Action"]["oneOf"][0]["properties"]["event"].get("description")
     event_wrapper_spec = copy.deepcopy(defs["Action"]["oneOf"][0])
     event_wrapper_spec["properties"]["event"] = {
-        "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/ActionEvent"
+        "$ref": (
+            "https://a2ui.org/specification/v0_9/common_types.json#/$defs/ActionEvent"
+        )
     }
     if orig_desc:
         event_wrapper_spec["properties"]["event"]["description"] = orig_desc
@@ -446,8 +453,14 @@ def generate_basic_catalog_components(
         "from typing import Any, Dict, List, Literal, Optional, Union, Annotated",
         "from pydantic import BaseModel, Field, ConfigDict\n",
         "from ..schema.common_types import (",
-        "    StrictBaseModel, ComponentCommon, AccessibilityAttributes, DynamicString, DynamicNumber, ",
-        "    DynamicBoolean, DynamicStringList, ChildList, Action, CheckRule, DataBinding, ComponentId",
+        (
+            "    StrictBaseModel, ComponentCommon, AccessibilityAttributes,"
+            " DynamicString, DynamicNumber, "
+        ),
+        (
+            "    DynamicBoolean, DynamicStringList, ChildList, Action, CheckRule,"
+            " DataBinding, ComponentId"
+        ),
         ")",
         "from ..catalog.components import ModelComponentApi\n",
     ]
@@ -548,7 +561,10 @@ def generate_basic_catalog_functions(
     output = [
         "from typing import Any, Dict, List, Literal, Optional, Union, Annotated",
         "from pydantic import BaseModel, Field, ConfigDict\n",
-        "from ..schema.common_types import StrictBaseModel, DynamicString, DynamicNumber, DynamicBoolean, DynamicValue, DynamicStringList",
+        (
+            "from ..schema.common_types import StrictBaseModel, DynamicString,"
+            " DynamicNumber, DynamicBoolean, DynamicValue, DynamicStringList"
+        ),
         "from ..catalog.functions import FunctionApi\n",
     ]
 
@@ -642,7 +658,8 @@ def generate_server_to_client(s2c_data: Dict[str, Any]) -> tuple[str, List[str]]
     output.append(f"A2uiMessage = Union[{msg_union_str}]\n")
     output.append("class A2uiMessageListWrapper(StrictBaseModel):")
     output.append(
-        '    messages: List[A2uiMessage] = Field(..., description="A list of messages.")'
+        '    messages: List[A2uiMessage] = Field(..., description="A list of'
+        ' messages.")'
     )
 
     return "\n".join(output), msg_names
@@ -736,7 +753,8 @@ def generate_client_to_server(c2s_data: Dict[str, Any]) -> str:
     output.append("class A2uiClientDataModel(StrictBaseModel):")
     output.append(f"    version: SPEC_VERSION_TYPE = SPEC_VERSION")
     output.append(
-        '    surfaces: Dict[str, Dict[str, Any]] = Field(..., description="A map of surface IDs to their current data models.")\n'
+        '    surfaces: Dict[str, Dict[str, Any]] = Field(..., description="A map of'
+        ' surface IDs to their current data models.")\n'
     )
 
     # Client Message List and List Wrapper
@@ -744,7 +762,8 @@ def generate_client_to_server(c2s_data: Dict[str, Any]) -> str:
 
     output.append("class A2uiClientMessageListWrapper(StrictBaseModel):")
     output.append(
-        '    messages: A2uiClientMessageList = Field(..., description="An object wrapping a list of A2UI Client-to-Server messages.")'
+        '    messages: A2uiClientMessageList = Field(..., description="An object'
+        ' wrapping a list of A2UI Client-to-Server messages.")'
     )
     return "\n".join(output)
 

@@ -19,12 +19,12 @@ on:
     branches:
       - "*"
     paths:
-      - "agent_sdks/kotlin/**"
+      - "kotlin/agent_sdk_legacy/**"
       - "specification/**/json/**"
       - "agent_sdks/conformance/**"
   pull_request:
     paths:
-      - "agent_sdks/kotlin/**"
+      - "kotlin/agent_sdk_legacy/**"
       - "specification/**/json/**"
       - "agent_sdks/conformance/**"
 
@@ -49,13 +49,13 @@ jobs:
           cache: "gradle"
 
       - name: Make gradlew executable
-        working-directory: agent_sdks/kotlin
+        working-directory: kotlin/agent_sdk_legacy
         run: chmod +x gradlew
 
       - name: Check formatting
-        working-directory: agent_sdks/kotlin
+        working-directory: kotlin/agent_sdk_legacy
         run: ./gradlew ktfmtCheck
 
       - name: Run tests
-        working-directory: agent_sdks/kotlin
+        working-directory: kotlin/agent_sdk_legacy
         run: ./gradlew test --info
