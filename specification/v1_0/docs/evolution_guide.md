@@ -45,7 +45,7 @@ Version 1.0 differs from 0.9 in the following ways:
 ### 2.4. Client-to-server events
 
 - Added `actionId` to the `action` message properties, which the client generates if a response is expected (`wantResponse: true`).
-- Added `functionResponse` message structure (`FunctionResponseMessage`) to return the execution result (`value` or `error`) of a server-initiated function call.
+- Added the `functionResponse` client-to-server message to return the successful result (`value`) of a server-initiated function call. Function execution failures are reported via the separate `error` message (see next item), not via `functionResponse`.
 - Updated client `error` messages to support `functionCallId` when reporting function execution failures, enforcing mutual exclusivity with `surfaceId`.
 - Updated all protocol version references from `v0.9` or `v0.9.1` to `v1.0`.
 
