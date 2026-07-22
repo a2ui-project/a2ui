@@ -86,7 +86,7 @@ export interface JsonSchema {
 export interface ProtocolSchemas {
   'catalogs/basic/catalog.json'?: CatalogSchema;
   'json/common_types.json'?: JsonSchema;
-  'json/server_to_client.json'?: JsonSchema;
+  'json/agent_to_renderer.json'?: JsonSchema;
   'catalog.json'?: CatalogSchema;
   [key: string]: JsonSchema | CatalogSchema | undefined;
 }

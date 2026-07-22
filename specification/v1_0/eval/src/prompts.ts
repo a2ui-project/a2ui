@@ -84,7 +84,7 @@ The dog generator is another card which is a form that generates a fictional dog
     name: 'updateDataModel',
     description: 'An updateDataModel message to update user data.',
     promptText:
-      "Generate a 'createSurface' message with surfaceId 'main', followed by an updateDataModel message. This is used to update the client's data model. The scenario is that a user has just logged in, and we need to populate their profile information. Create a single data model update message to set '/user/name' to \"John Doe\" and '/user/email' to \"john.doe@example.com\".",
+      "Generate a 'createSurface' message with surfaceId 'main', followed by an updateDataModel message. This is used to update the renderer's data model. The scenario is that a user has just logged in, and we need to populate their profile information. Create a single data model update message to set '/user/name' to \"John Doe\" and '/user/email' to \"john.doe@example.com\".",
   },
   {
     name: 'animalKingdomExplorer',
@@ -397,8 +397,8 @@ Each activity in the inner lists should be a 'Row' containing a 'CheckBox' (to m
       "Generate a 'createSurface' message and a 'updateComponents' message with surfaceId 'main' for a flashcard app. 'Text' (h1) \"Spanish Vocabulary\". 'Card' (the flashcard). Inside the card, a 'Column' with 'Text' (h2) \"Hola\" (Front). 'Divider'. 'Text' \"Hello\" (Back - conceptually hidden, but rendered here). 'Row' of buttons: \"Hard\", \"Good\", \"Easy\".",
   },
   {
-    name: 'clientSideValidation',
-    description: 'A text field with client-side validation requirements.',
+    name: 'rendererSideValidation',
+    description: 'A text field with renderer-side validation requirements.',
     promptText: `Create a 'createSurface' and 'updateComponents' message for a registration form with validation. Surface ID 'main'.
     Include a 'TextField' for "Username" that MUST match the regex "^[a-zA-Z0-9]{3,}$". If it fails, show error "Username must be at least 3 alphanumeric characters".
     Include a 'Button' labeled "Register".`,
@@ -419,7 +419,7 @@ Each activity in the inner lists should be a 'Row' containing a 'CheckBox' (to m
     description: 'A button that opens an external URL.',
     promptText: `Create a 'createSurface' and 'updateComponents' message. Surface ID 'main'.
     Include a 'Button' labeled "Visit Website".
-    The button's action should be a client-side function call to 'openUrl' with the argument 'url': 'https://a2ui.org'.`,
+    The button's action should be a renderer-side function call to 'openUrl' with the argument 'url': 'https://a2ui.org'.`,
   },
   {
     name: 'nestedLayoutRecursive',
