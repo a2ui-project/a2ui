@@ -125,9 +125,22 @@ class CatalogSchemaHelper:
         self.function_required = {}
 
         for name, schema in self.functions.items():
-            args_obj = schema.get("properties", {}).get("args", {})
-            props = args_obj.get("properties", {})
-            reqs = args_obj.get("required", [])
+            sub_schemas = [schema]
+            if "allOf" in schema:
+                sub_schemas.extend(schema["allOf"])
+
+            props = {}
+            reqs = []
+            for sub in sub_schemas:
+                if not isinstance(sub, dict):
+                    continue
+                if "properties" in sub:
+                    args_obj = sub["properties"].get("args", {})
+                    if isinstance(args_obj, dict):
+                        if "properties" in args_obj:
+                            props.update(args_obj["properties"])
+                        if "required" in args_obj:
+                            reqs.extend(args_obj["required"])
             self.function_properties[name] = list(props.keys())
             self.function_required[name] = reqs
 
@@ -199,12 +212,20 @@ class CatalogSchemaHelper:
             The JSON schema dictionary for the property, or None.
         """
         fn_schema = self.functions.get(fn_name, {})
-        return (
-            fn_schema.get("properties", {})
-            .get("args", {})
-            .get("properties", {})
-            .get(prop_name)
-        )
+        if not fn_schema:
+            return None
+
+        sub_schemas = [fn_schema]
+        if "allOf" in fn_schema:
+            sub_schemas.extend(fn_schema["allOf"])
+
+        for sub in sub_schemas:
+            if isinstance(sub, dict) and "properties" in sub:
+                args_obj = sub["properties"].get("args", {})
+                if isinstance(args_obj, dict) and "properties" in args_obj:
+                    if prop_name in args_obj["properties"]:
+                        return args_obj["properties"][prop_name]
+        return None
 
     def get_property_enum(
         self, component_name: str, property_name: str
