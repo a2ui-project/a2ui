@@ -538,41 +538,14 @@ If Transcrypt is active, the staged diff will show encrypted cipher text.
 
 ## 5. Migration path for existing data points
 
-To guarantee a smooth transition from legacy monolithic files (`prompts_v0_9_1.yaml` and `prompts_v1_0.yaml`) to modular dataset files without breaking ongoing developer workflows or CI runs, the framework provides an automated migration script and an in-memory runtime fallback.
+The evaluation framework migrated legacy monolithic prompt files (`prompts_v0_9_1.yaml` and `prompts_v1_0.yaml`) into clean, modular dataset files (`core_v0_9_1.yaml` and `core_v1_0.yaml`) conforming to the new `messages` schema.
 
-### In-memory runtime fallback (loader safety)
+### Migration strategy
 
-To prevent failures if a developer branch or scratch file still contains legacy fields during the transition period, the dataset loader in [eval/a2ui_eval/dataset.py](../../eval/a2ui_eval/dataset.py) includes a runtime normalizer:
-
-1. If a sample contains `promptText` instead of `messages`, the loader automatically constructs `messages = [ChatMessageUser(content=item["promptText"])]` in memory.
-2. If `catalog` is missing from a legacy sample during loading, the loader defaults to `specification/{version}/catalogs/basic/catalog.json`.
-3. If a sample contains `role_description` or `workflow_description`, the loader automatically maps them to `protocol_role` and `generation_rules`.
-
-### Step-by-step migration workflow for maintainers
-
-1. **Decrypt datasets**: Initialize Transcrypt locally if not already unlocked:
-   ```bash
-   cd eval
-   bin/transcrypt -p <PASSWORD>
-   ```
-2. **Run migration script**: Execute the automated migration script:
-   ```bash
-
-   ```
-3. **Verify dataset schema compliance**: Run the dataset test suite:
-   ```bash
-   uv run python -m pytest tests/test_dataset.py
-   ```
-4. **Run sanity check evaluation**: Execute a quick eval run to confirm model inference and scoring work as expected:
-   ```bash
-   uv run main.py --sanity
-   ```
-5. **Stage and commit changes**: Git will automatically encrypt the new modular files via `.gitattributes`:
-   ```bash
-   git add eval/datasets/core_v0_9_1.yaml eval/datasets/core_v1_0.yaml
-   git rm eval/datasets/prompts_v0_9_1.yaml eval/datasets/prompts_v1_0.yaml
-   git commit -m "feat(eval): migrate dataset files to messages format"
-   ```
+1. **Standardizing on `messages`**: Single-string `promptText` queries are converted into structured `messages` arrays with role-based conversation turns (`user`, `assistant`, `tool`, `system`).
+2. **Mandatory component catalogs**: Every sample specifies an explicit relative `catalog` path (e.g. `specification/{version}/catalogs/basic/catalog.json`).
+3. **Modular dataset separation**: Data points are partitioned into logical, manageable YAML files under `eval/datasets/` that are dynamically discovered by the dataset loader.
+4. **In-memory runtime fallback (loader safety)**: To prevent breakage if a developer branch or scratch file still contains legacy fields, the dataset loader in [eval/a2ui_eval/dataset.py](../../eval/a2ui_eval/dataset.py) includes a runtime normalizer that converts `promptText` to `messages` and maps legacy field aliases on the fly.
 
 ---
 
