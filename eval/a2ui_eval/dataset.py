@@ -177,6 +177,16 @@ def load_a2ui_dataset(
             if filter_names and item_dataset not in filter_names:
                 continue
 
+            # Skip datasets specifically targeted at another protocol version if version is set
+            if version == "0.9.1" and (
+                item_dataset.endswith("v1_0") or item_dataset == "core_v1_0"
+            ):
+                continue
+            if version == "1.0" and (
+                item_dataset.endswith("v0_9_1") or item_dataset == "core_v0_9_1"
+            ):
+                continue
+
             catalog_path = (
                 item.get("catalog") or default_catalog_path or DEFAULT_CATALOG_PATH
             )
@@ -209,9 +219,15 @@ def load_a2ui_dataset(
 
             chat_messages = _parse_messages(item)
 
+            sample_id = (
+                f"{item_dataset}_{item.get('name')}"
+                if item.get("name")
+                else str(len(samples))
+            )
+
             samples.append(
                 Sample(
-                    id=item.get("name"),
+                    id=sample_id,
                     input=chat_messages,
                     target=item.get("target") or item["description"],
                     metadata={
