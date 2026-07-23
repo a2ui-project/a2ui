@@ -47,7 +47,9 @@ def _version_to_dir_name(version: str) -> str:
     return "v" + version.replace(".", "_")
 
 
-def _parse_tool_calls(raw_tool_calls: list[dict[str, Any]] | None) -> list[ToolCall] | None:
+def _parse_tool_calls(
+    raw_tool_calls: list[dict[str, Any]] | None,
+) -> list[ToolCall] | None:
     """Converts raw tool calls into Inspect AI ToolCall objects."""
     if not raw_tool_calls:
         return None
@@ -67,7 +69,11 @@ def _parse_tool_calls(raw_tool_calls: list[dict[str, Any]] | None) -> list[ToolC
                 func_args = json.loads(func_args)
             except Exception:
                 pass
-        parsed.append(ToolCall(id=call_id, function=func_name, arguments=func_args, type=call_type))
+        parsed.append(
+            ToolCall(
+                id=call_id, function=func_name, arguments=func_args, type=call_type
+            )
+        )
     return parsed
 
 
@@ -96,7 +102,11 @@ def _parse_messages(item: dict[str, Any]) -> list[Any]:
                 )
             elif role == "tool":
                 call_id = m.get("tool_call_id", "")
-                func_name = m.get("function") or m.get("name") or call_id_to_func.get(call_id, "tool_response")
+                func_name = (
+                    m.get("function")
+                    or m.get("name")
+                    or call_id_to_func.get(call_id, "tool_response")
+                )
                 parsed.append(
                     ChatMessageTool(
                         content=content,
@@ -112,7 +122,9 @@ def _parse_messages(item: dict[str, Any]) -> list[Any]:
     elif "promptText" in item:
         return [ChatMessageUser(content=item["promptText"])]
     else:
-        raise ValueError(f"Sample {item.get('name')} must specify 'messages' or 'promptText'.")
+        raise ValueError(
+            f"Sample {item.get('name')} must specify 'messages' or 'promptText'."
+        )
 
 
 def load_a2ui_dataset(
@@ -169,7 +181,9 @@ def load_a2ui_dataset(
                 )
 
             default_role = (
-                DEFAULT_ROLE_DESCRIPTION if is_json else FORMAT_AGNOSTIC_ROLE_DESCRIPTION
+                DEFAULT_ROLE_DESCRIPTION
+                if is_json
+                else FORMAT_AGNOSTIC_ROLE_DESCRIPTION
             )
             default_workflow = (
                 DEFAULT_WORKFLOW_DESCRIPTION
@@ -205,7 +219,9 @@ def load_a2ui_dataset(
                         "generation_rules": generation_rules,
                         "role_description": protocol_role,
                         "workflow_description": generation_rules,
-                        "allowed_surface_ids": item.get("allowed_surface_ids") or ["main"],
+                        "allowed_surface_ids": (
+                            item.get("allowed_surface_ids") or ["main"]
+                        ),
                     },
                 )
             )

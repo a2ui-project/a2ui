@@ -14,7 +14,9 @@ Evaluation data points live in `datasets/*.yaml` files (e.g., `datasets/core_v0_
 Every dataset file must conform to the JSON schema defined in `datasets/dataset_schema.json`.
 
 ### Dataset Structure
+
 Each sample in a dataset YAML file defines:
+
 - **`name`** (required): Unique identifier for the sample.
 - **`description`** (required): Human-readable summary of the test scenario.
 - **`catalog`** (required): Relative path to the component catalog (e.g., `"specification/{version}/catalogs/basic/catalog.json"`).
@@ -30,12 +32,14 @@ Make sure you are in the `eval/` directory.
 ### Prerequisites
 
 1. **Set your Gemini API key**:
+
    ```bash
    export GEMINI_API_KEY="your_api_key"
    ```
 
 2. **Decrypt Datasets (First Time Setup)**:
    The evaluation datasets are encrypted at rest in the repository to prevent base model contamination. To decrypt them locally, initialize Transcrypt with the shared password:
+
    ```bash
    bin/transcrypt -p <PASSWORD>
    ```
@@ -45,11 +49,13 @@ Make sure you are in the `eval/` directory.
 ### Executing Evals
 
 To run all datasets:
+
 ```bash
 uv run main.py
 ```
 
 To run a specific dataset or multiple datasets:
+
 ```bash
 # Run a single dataset
 uv run main.py --dataset multi_turn_conversation_dataset
@@ -59,11 +65,13 @@ uv run main.py --datasets core_v0_9_1,multi_turn_conversation_dataset
 ```
 
 To test across different inference formats (`direct` JSON, `express` XML tags, `elemental` DSL):
+
 ```bash
 uv run main.py --dataset multi_turn_conversation_dataset --strategies direct,express,elemental
 ```
 
 For a quick 2-sample validation using `gemini-3.1-flash-lite`:
+
 ```bash
 uv run main.py --sanity
 ```
@@ -79,6 +87,7 @@ uv run inspect view start
 This starts a local web server (usually at `http://localhost:7575`).
 
 To print a console summary or markdown table from an eval log file:
+
 ```bash
 uv run python bin/report_evals.py logs/<log_filename>.eval
 ```

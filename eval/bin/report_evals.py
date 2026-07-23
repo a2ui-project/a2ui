@@ -59,7 +59,9 @@ def print_results_summary(log_data: dict[str, Any]) -> None:
         passed = 0
         print(f"\n--- Dataset: {d_name} ---")
         for sample in d_samples:
-            name = sample.get("metadata", {}).get("name") or f"Sample {sample.get('id')}"
+            name = (
+                sample.get("metadata", {}).get("name") or f"Sample {sample.get('id')}"
+            )
             scores = sample.get("scores", {})
 
             # Algorithmic validity (a2ui_scorer)
@@ -77,7 +79,9 @@ def print_results_summary(log_data: dict[str, Any]) -> None:
                     inference_time = event.get("working_time") or event.get("duration")
                     break
             if inference_time is None:
-                inference_time = sample.get("metadata", {}).get("evaluation_duration_seconds")
+                inference_time = sample.get("metadata", {}).get(
+                    "evaluation_duration_seconds"
+                )
             inference_time_str = (
                 f"{float(inference_time):.2f}s" if inference_time is not None else "N/A"
             )
@@ -117,7 +121,10 @@ def print_results_summary(log_data: dict[str, Any]) -> None:
     if all_durations:
         avg_duration = statistics.mean(all_durations)
         med_duration = statistics.median(all_durations)
-        print(f"Inference Time - Average: {avg_duration:.2f}s | Median: {med_duration:.2f}s")
+        print(
+            f"Inference Time - Average: {avg_duration:.2f}s | Median:"
+            f" {med_duration:.2f}s"
+        )
     print("==================================")
 
 
@@ -151,28 +158,38 @@ def generate_markdown_summary(
 
     if any(k != "default" for k in datasets.keys()):
         lines.append("#### Dataset Performance Summary")
-        lines.append("| Dataset Name | Total Samples | Algorithmic Pass Rate | Judging Pass Rate | Dataset Pass Rate |")
+        lines.append(
+            "| Dataset Name | Total Samples | Algorithmic Pass Rate | Judging Pass Rate"
+            " | Dataset Pass Rate |"
+        )
         lines.append("| :--- | :---: | :---: | :---: | :---: |")
 
         for d_name, d_samples in datasets.items():
             total = len(d_samples)
             a2ui_pass_cnt = sum(
-                1 for s in d_samples if s.get("scores", {}).get("a2ui_scorer", {}).get("value") == 1.0
+                1
+                for s in d_samples
+                if s.get("scores", {}).get("a2ui_scorer", {}).get("value") == 1.0
             )
             qa_pass_cnt = sum(
-                1 for s in d_samples if s.get("scores", {}).get("measured_model_graded_qa", {}).get("value") == "C"
+                1
+                for s in d_samples
+                if s.get("scores", {}).get("measured_model_graded_qa", {}).get("value")
+                == "C"
             )
             both_pass_cnt = sum(
                 1
                 for s in d_samples
                 if s.get("scores", {}).get("a2ui_scorer", {}).get("value") == 1.0
-                and s.get("scores", {}).get("measured_model_graded_qa", {}).get("value") == "C"
+                and s.get("scores", {}).get("measured_model_graded_qa", {}).get("value")
+                == "C"
             )
             a2ui_pct = (a2ui_pass_cnt / total * 100) if total else 0.0
             qa_pct = (qa_pass_cnt / total * 100) if total else 0.0
             both_pct = (both_pass_cnt / total * 100) if total else 0.0
             lines.append(
-                f"| `{d_name}` | {total} | {a2ui_pct:.1f}% | {qa_pct:.1f}% | {both_pct:.1f}% |"
+                f"| `{d_name}` | {total} | {a2ui_pct:.1f}% | {qa_pct:.1f}% |"
+                f" {both_pct:.1f}% |"
             )
         lines.append("")
 

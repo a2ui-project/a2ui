@@ -36,8 +36,9 @@ def migrate_sample(item: dict, dataset_name: str) -> dict:
         "name": item["name"],
         "dataset": dataset_name,
         "description": item["description"],
-        "catalog": item.get("catalog")
-        or "specification/{version}/catalogs/basic/catalog.json",
+        "catalog": (
+            item.get("catalog") or "specification/{version}/catalogs/basic/catalog.json"
+        ),
     }
 
     if "messages" in item:
@@ -92,7 +93,8 @@ def main():
         with open(new_path, "w", encoding="utf-8") as f:
             yaml.dump(migrated_data, f, sort_keys=False, allow_unicode=True)
         print(
-            f"Successfully migrated {old_file} -> {new_file} ({len(migrated_data)} samples)."
+            f"Successfully migrated {old_file} -> {new_file} ({len(migrated_data)}"
+            " samples)."
         )
 
         # Delete legacy file

@@ -43,13 +43,13 @@
               "items": {
                 "type": "object",
                 "properties": {
-                  "id": { "type": "string" },
-                  "type": { "type": "string", "enum": ["function"] },
+                  "id": {"type": "string"},
+                  "type": {"type": "string", "enum": ["function"]},
                   "function": {
                     "type": "object",
                     "properties": {
-                      "name": { "type": "string" },
-                      "arguments": { "type": "string" }
+                      "name": {"type": "string"},
+                      "arguments": {"type": "string"}
                     },
                     "required": ["name", "arguments"]
                   }
@@ -95,15 +95,12 @@
       },
       "allowed_surface_ids": {
         "type": "array",
-        "items": { "type": "string" },
+        "items": {"type": "string"},
         "description": "Allowed surface IDs for the output."
       }
     },
     "required": ["name", "description", "catalog"],
-    "anyOf": [
-      { "required": ["messages"] },
-      { "required": ["promptText"] }
-    ],
+    "anyOf": [{"required": ["messages"]}, {"required": ["promptText"]}],
     "additionalProperties": false
   }
 }

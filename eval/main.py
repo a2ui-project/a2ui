@@ -34,7 +34,9 @@ def main() -> None:
         "--dataset",
         type=str,
         default=None,
-        help="Evaluate only a specific dataset (e.g. 'customer_a_data' or 'core_v0_9_1')",
+        help=(
+            "Evaluate only a specific dataset (e.g. 'customer_a_data' or 'core_v0_9_1')"
+        ),
     )
     parser.add_argument(
         "--datasets",

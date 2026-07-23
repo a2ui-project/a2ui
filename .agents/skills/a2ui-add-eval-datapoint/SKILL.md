@@ -10,6 +10,7 @@ Use this skill when adding new data points or datasets to the A2UI evaluation fr
 ## References
 
 For full architecture and setup details, consult:
+
 - `eval/README.md`: Evaluation quickstart, Transcrypt setup, and CLI flags.
 - `eval/DESIGN.md`: Architecture, multi-stage scorers, and encryption-at-rest design.
 - `eval/datasets/dataset_schema.json`: Formal JSON Schema defining required fields and structural rules for evaluation data points.
@@ -19,13 +20,16 @@ For full architecture and setup details, consult:
 ## Step-by-step workflow
 
 ### 1. Unlock Transcrypt
+
 Datasets in `eval/datasets/` are encrypted at rest. Unlock Transcrypt locally before authoring:
+
 ```bash
 cd eval
 bin/transcrypt -p <PASSWORD>
 ```
 
 ### 2. Author the data point
+
 Create or update a dataset file in `eval/datasets/<dataset_name>.yaml` (e.g. `eval/datasets/my_dataset.yaml`).
 
 Every data point **must conform** to the JSON Schema in `eval/datasets/dataset_schema.json`.
@@ -34,14 +38,14 @@ Every data point **must conform** to the JSON Schema in `eval/datasets/dataset_s
 - name: sample_unique_identifier
   dataset: my_dataset
   description: Clear summary of what this scenario tests.
-  catalog: "specification/{version}/catalogs/basic/catalog.json"
+  catalog: 'specification/{version}/catalogs/basic/catalog.json'
   system_prompt: |
     Optional domain-specific system instructions (e.g. company policies, triage rules).
   messages:
     - role: user
-      content: "Initial user request..."
+      content: 'Initial user request...'
     - role: assistant
-      content: "Assistant response..."
+      content: 'Assistant response...'
       tool_calls:
         - id: call_001
           type: function
@@ -53,20 +57,24 @@ Every data point **must conform** to the JSON Schema in `eval/datasets/dataset_s
       function: query_database
       content: '{"result": "data"}'
     - role: user
-      content: "Render the UI card with the retrieved data..."
+      content: 'Render the UI card with the retrieved data...'
   target: |
     Expected UI outcome and scoring criteria for the LLM judge.
 ```
 
 ### 3. Validate schema compliance
+
 Verify that all data points satisfy `eval/datasets/dataset_schema.json`:
+
 ```bash
 cd eval
 uv run python -m pytest tests/test_dataset.py
 ```
 
 ### 4. Run an evaluation on the new data point
+
 Always execute an evaluation run on the newly added dataset to verify model inference and scoring:
+
 ```bash
 cd eval
 # Quick validation on gemini-3.1-flash-lite
@@ -77,12 +85,15 @@ uv run main.py --dataset my_dataset
 ```
 
 View the interactive traces and judging rationales:
+
 ```bash
 uv run inspect view start
 ```
 
 ### 5. Verify encryption and commit
+
 When staging changes, Git applies the Transcrypt clean filter. Confirm that the staged file is encrypted ciphertext before committing:
+
 ```bash
 # Stage the new dataset file
 git add eval/datasets/my_dataset.yaml
