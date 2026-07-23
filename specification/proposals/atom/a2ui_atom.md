@@ -129,6 +129,7 @@ Validation rules and logic functions are expressed using nested function express
 ```
 
 Supported logic and utility function primitives include:
+
 - **Validation:** `(required)`, `(regex pattern message)`
 - **Logic:** `(not expr)`, `(and expr1 expr2)`, `(or expr1 expr2)`, `(equal a b)`, `(greaterThan a b)`, `(lessThan a b)`
 - **Formatting:** `(formatString template arg1 ...)`, `(formatDate date format)`, `(formatCurrency amount currency)`, `(pluralize count singular plural)`
@@ -206,9 +207,19 @@ Action expressions support both tagged parameter pairs (`:param value`) and posi
       {"id": "node_2", "component": "Text", "text": {"path": "/title"}},
       {"id": "node_3", "component": "Text", "text": "Get alerts for order status changes"},
       {"id": "node_4", "component": "Row", "children": ["node_5", "node_7"], "justify": "center"},
-      {"id": "node_5", "component": "Button", "child": "node_6", "action": {"event": {"name": "accept"}}},
+      {
+        "id": "node_5",
+        "component": "Button",
+        "child": "node_6",
+        "action": {"event": {"name": "accept"}}
+      },
       {"id": "node_6", "component": "Text", "text": "Yes"},
-      {"id": "node_7", "component": "Button", "child": "node_8", "action": {"event": {"name": "decline"}}},
+      {
+        "id": "node_7",
+        "component": "Button",
+        "child": "node_8",
+        "action": {"event": {"name": "decline"}}
+      },
       {"id": "node_8", "component": "Text", "text": "No"}
     ],
     "dataModel": {
@@ -219,4 +230,3 @@ Action expressions support both tagged parameter pairs (`:param value`) and posi
   }
 }
 ```
-
