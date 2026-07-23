@@ -445,4 +445,14 @@ describe('DataModel', () => {
     assert.strictEqual(model.get('/items/-1'), undefined);
     assert.strictEqual(model.get('/items/invalid'), undefined);
   });
+
+  it('rejects leading-zero array indices (RFC 6901)', () => {
+    assert.throws(() => {
+      model.set('/items/01', 'value');
+    }, /Cannot use non-numeric segment/);
+    assert.throws(() => {
+      model.set('/items/01/nested', 'value');
+    }, /Cannot use non-numeric segment/);
+    assert.strictEqual(model.get('/items/01'), undefined);
+  });
 });

@@ -37,7 +37,7 @@ export interface DataSubscription<T> extends BaseSubscription {
 }
 
 function isNumeric(value: string): boolean {
-  return /^\d+$/.test(value);
+  return /^(0|[1-9]\d*)$/.test(value);
 }
 
 /**
