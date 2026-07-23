@@ -24,7 +24,7 @@
           "id": "main-column",
           "component": "MaterialColumn",
           "align": "stretch",
-          "style": { "gap": "12px" },
+          "style": {"gap": "12px"},
           "children": ["title", "shipping-panel", "billing-check", "pay-btn"]
         },
         {
@@ -60,7 +60,7 @@
           "id": "billing-check",
           "component": "MaterialCheckbox",
           "label": "Billing address same as shipping",
-          "checked": { "path": "/sameBilling" },
+          "checked": {"path": "/sameBilling"},
           "color": "primary"
         },
         {
@@ -72,7 +72,7 @@
           "action": {
             "event": {
               "name": "confirm_checkout",
-              "context": { "prompt": "Confirm my checkout" }
+              "context": {"prompt": "Confirm my checkout"}
             }
           }
         },
@@ -80,7 +80,7 @@
           "id": "confirm-dialog",
           "component": "MaterialDialog",
           "title": "Confirmation",
-          "open": { "path": "/isConfirmDialogOpen" },
+          "open": {"path": "/isConfirmDialogOpen"},
           "children": ["confirm-text"]
         },
         {
@@ -96,7 +96,7 @@
     "updateDataModel": {
       "surfaceId": "checkout",
       "path": "/",
-      "value": { "sameBilling": true, "isConfirmDialogOpen": false }
+      "value": {"sameBilling": true, "isConfirmDialogOpen": false}
     }
   }
 ]

@@ -18,7 +18,7 @@
         {
           "id": "root",
           "component": "MaterialCard",
-          "style": { "height": "450px" },
+          "style": {"height": "450px"},
           "children": ["main-column"]
         },
         {
@@ -36,50 +36,50 @@
         {
           "id": "tabs",
           "component": "MaterialTabs",
-          "activeTab": { "path": "/activeTab" },
+          "activeTab": {"path": "/activeTab"},
           "tabs": [
-            { "label": "General", "content": "tab-general" },
-            { "label": "Notifications", "content": "tab-notif" },
-            { "label": "Appearance", "content": "tab-app" }
+            {"label": "General", "content": "tab-general"},
+            {"label": "Notifications", "content": "tab-notif"},
+            {"label": "Appearance", "content": "tab-app"}
           ]
         },
         {
           "id": "tab-general",
           "component": "MaterialColumn",
           "align": "stretch",
-          "style": { "gap": "12px" },
+          "style": {"gap": "12px"},
           "children": ["lang-select", "auto-update-toggle"]
         },
         {
           "id": "lang-select",
           "component": "MaterialSelect",
           "label": "Language",
-          "value": { "path": "/lang" },
+          "value": {"path": "/lang"},
           "options": [
-            { "label": "English", "value": "en" },
-            { "label": "Spanish", "value": "es" },
-            { "label": "French", "value": "fr" }
+            {"label": "English", "value": "en"},
+            {"label": "Spanish", "value": "es"},
+            {"label": "French", "value": "fr"}
           ]
         },
         {
           "id": "auto-update-toggle",
           "component": "MaterialSlideToggle",
           "label": "Auto-update components",
-          "checked": { "path": "/autoUpdate" },
+          "checked": {"path": "/autoUpdate"},
           "color": "primary"
         },
         {
           "id": "tab-notif",
           "component": "MaterialColumn",
           "align": "stretch",
-          "style": { "gap": "8px" },
+          "style": {"gap": "8px"},
           "children": ["push-toggle", "freq-label", "freq-radio"]
         },
         {
           "id": "push-toggle",
           "component": "MaterialSlideToggle",
           "label": "Push Notifications",
-          "checked": { "path": "/pushNotif" },
+          "checked": {"path": "/pushNotif"},
           "color": "primary"
         },
         {
@@ -91,12 +91,12 @@
         {
           "id": "freq-radio",
           "component": "MaterialRadioButton",
-          "value": { "path": "/notifFreq" },
+          "value": {"path": "/notifFreq"},
           "color": "primary",
           "options": [
-            { "label": "Instant", "value": "instant" },
-            { "label": "Daily Summary", "value": "daily" },
-            { "label": "Weekly Digest", "value": "weekly" }
+            {"label": "Instant", "value": "instant"},
+            {"label": "Daily Summary", "value": "daily"},
+            {"label": "Weekly Digest", "value": "weekly"}
           ]
         },
         {
@@ -120,10 +120,10 @@
         {
           "id": "theme-toggle",
           "component": "MaterialButtonToggle",
-          "value": { "path": "/theme" },
+          "value": {"path": "/theme"},
           "options": [
-            { "label": "Light", "value": "light" },
-            { "label": "Dark", "value": "dark" }
+            {"label": "Light", "value": "light"},
+            {"label": "Dark", "value": "dark"}
           ]
         },
         {
@@ -135,7 +135,7 @@
         {
           "id": "volume-slider",
           "component": "MaterialSlider",
-          "value": { "path": "/volume" },
+          "value": {"path": "/volume"},
           "min": 0,
           "max": 100,
           "step": 10,
@@ -144,12 +144,12 @@
         {
           "id": "cuisine-chips",
           "component": "MaterialChips",
-          "value": { "path": "/tags" },
+          "value": {"path": "/tags"},
           "ariaLabel": "Interests",
           "options": [
-            { "label": "News", "value": "news" },
-            { "label": "Sports", "value": "sports" },
-            { "label": "Tech", "value": "tech" }
+            {"label": "News", "value": "news"},
+            {"label": "Sports", "value": "sports"},
+            {"label": "Tech", "value": "tech"}
           ]
         }
       ]

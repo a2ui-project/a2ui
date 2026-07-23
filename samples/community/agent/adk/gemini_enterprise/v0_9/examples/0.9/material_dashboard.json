@@ -59,12 +59,12 @@
           "action": {
             "event": {
               "name": "menu_action",
-              "context": { "prompt": "Open the dashboard options menu" }
+              "context": {"prompt": "Open the dashboard options menu"}
             }
           },
           "options": [
-            { "label": "Refresh", "value": "refresh" },
-            { "label": "Settings", "value": "settings" }
+            {"label": "Refresh", "value": "refresh"},
+            {"label": "Settings", "value": "settings"}
           ]
         },
         {
@@ -95,7 +95,7 @@
         {
           "id": "cpu-spinner",
           "component": "MaterialProgressSpinner",
-          "value": { "path": "/cpuUsage" },
+          "value": {"path": "/cpuUsage"},
           "mode": "determinate",
           "diameter": 50,
           "color": "warn",
@@ -122,7 +122,7 @@
         {
           "id": "mem-spinner",
           "component": "MaterialProgressSpinner",
-          "value": { "path": "/memUsage" },
+          "value": {"path": "/memUsage"},
           "mode": "determinate",
           "diameter": 50,
           "color": "primary",
@@ -162,7 +162,7 @@
     "updateDataModel": {
       "surfaceId": "dashboard",
       "path": "/",
-      "value": { "cpuUsage": 65, "memUsage": 42 }
+      "value": {"cpuUsage": 65, "memUsage": 42}
     }
   }
 ]

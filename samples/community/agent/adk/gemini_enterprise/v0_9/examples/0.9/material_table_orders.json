@@ -35,23 +35,23 @@
         {
           "id": "filter-chips",
           "component": "MaterialChips",
-          "value": { "path": "/filter" },
+          "value": {"path": "/filter"},
           "ariaLabel": "Filter orders",
           "options": [
-            { "label": "All", "value": "all" },
-            { "label": "Completed", "value": "comp" },
-            { "label": "Pending", "value": "pend" }
+            {"label": "All", "value": "all"},
+            {"label": "Completed", "value": "comp"},
+            {"label": "Pending", "value": "pend"}
           ]
         },
         {
           "id": "table",
           "component": "MaterialTable",
-          "rows": { "path": "/orders" },
+          "rows": {"path": "/orders"},
           "columns": [
-            { "header": "Order #", "field": "id" },
-            { "header": "Item", "field": "item" },
-            { "header": "Status", "field": "status" },
-            { "header": "Total", "field": "total" }
+            {"header": "Order #", "field": "id"},
+            {"header": "Item", "field": "item"},
+            {"header": "Status", "field": "status"},
+            {"header": "Total", "field": "total"}
           ]
         }
       ]
@@ -65,9 +65,9 @@
       "value": {
         "filter": "all",
         "orders": [
-          { "id": "ORD-101", "item": "Wireless Mouse", "status": "Shipped", "total": "$29.99" },
-          { "id": "ORD-102", "item": "Mechanical Keyboard", "status": "Pending", "total": "$149.50" },
-          { "id": "ORD-103", "item": "USB-C Hub", "status": "Delivered", "total": "$45.00" }
+          {"id": "ORD-101", "item": "Wireless Mouse", "status": "Shipped", "total": "$29.99"},
+          {"id": "ORD-102", "item": "Mechanical Keyboard", "status": "Pending", "total": "$149.50"},
+          {"id": "ORD-103", "item": "USB-C Hub", "status": "Delivered", "total": "$45.00"}
         ]
       }
     }

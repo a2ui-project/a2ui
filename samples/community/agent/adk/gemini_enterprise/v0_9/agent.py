@@ -72,386 +72,386 @@ COMPOSITE_CATALOG_PATH = os.path.join(
 
 
 class A2uiDemoAgent:
-  """A generic agent that demos A2UI v0.9 Material and custom components."""
+    """A generic agent that demos A2UI v0.9 Material and custom components."""
 
-  SUPPORTED_CONTENT_TYPES = ["text", "text/plain"]
+    SUPPORTED_CONTENT_TYPES = ["text", "text/plain"]
 
-  def __init__(self, base_url: str):
-    self.base_url = base_url
-    self._agent_name = "A2UI v0.9 Demo"
-    self._user_id = "remote_agent"
-    self._text_runner: Optional[Runner] = self._build_runner(
-        self._build_llm_agent()
-    )
-
-    self._schema_manager: A2uiSchemaManager = self._build_schema_manager()
-    self._ui_runner: Runner = self._build_runner(
-        self._build_llm_agent(self._schema_manager)
-    )
-    self._parsers = OrderedDict()
-    self._max_parsers = 1000  # Max active sessions to keep in memory
-
-    self._agent_card = self._build_agent_card()
-
-  @property
-  def agent_card(self) -> AgentCard:
-    return self._agent_card
-
-  def _build_schema_manager(self) -> A2uiSchemaManager:
-    return A2uiSchemaManager(
-        version=A2UI_VERSION,
-        catalogs=[
-            CatalogConfig.from_path(
-                name=COMPOSITE_CATALOG_NAME,
-                catalog_path=COMPOSITE_CATALOG_PATH,
-                examples_path=f"examples/{A2UI_VERSION}",
-            )
-        ],
-        schema_modifiers=[remove_strict_validation],
-    )
-
-  def _build_agent_card(self) -> AgentCard:
-    ext = get_a2ui_agent_extension(
-        A2UI_VERSION,
-        self._schema_manager.accepts_inline_catalogs,
-        self._schema_manager.supported_catalog_ids,
-    )
-
-    capabilities = AgentCapabilities(
-        streaming=True,
-        extensions=[ext],
-    )
-    demo_skill = AgentSkill(
-        id="a2ui_demo",
-        name="A2UI v0.9 Component Demo",
-        description=(
-            "Demonstrates A2UI v0.9 UIs built from the Material catalog and"
-            " Gemini Enterprise custom components: cards, forms & inputs,"
-            " tabs, tables, progress indicators, dialogs & menus, the"
-            " Canvas side panel, and the Iframe (IFrameSrcdoc / IFrameUrl)"
-            " components."
-        ),
-        tags=["a2ui", "demo", "material", "canvas", "iframe"],
-        examples=[
-            "What can you do?",
-            "Show me a demo of Material components",
-            "Render a contact form",
-            "Show a data table of recent orders",
-            "Demo the Canvas side panel",
-            "Show an IFrameSrcdoc with custom HTML",
-            "Embed a web page with IFrameUrl",
-        ],
-    )
-    restaurant_skill = AgentSkill(
-        id="find_restaurants",
-        name="Find Restaurants Tool",
-        description=(
-            "Helps find restaurants based on user criteria (e.g., cuisine,"
-            " location) and renders the results as an A2UI list."
-        ),
-        tags=["restaurant", "finder"],
-        examples=["Find me the top 10 chinese restaurants in the US"],
-    )
-
-    return AgentCard(
-        name="A2UI v0.9 Demo",
-        description=(
-            "A demo agent that showcases A2UI v0.9 UIs built from the"
-            " Material component catalog and Gemini Enterprise custom"
-            " components (Canvas, Iframe). Ask it 'what can you do?' to see"
-            " the available demos."
-        ),
-        url=self.base_url,
-        version="1.0.0",
-        default_input_modes=A2uiDemoAgent.SUPPORTED_CONTENT_TYPES,
-        default_output_modes=A2uiDemoAgent.SUPPORTED_CONTENT_TYPES,
-        capabilities=capabilities,
-        skills=[demo_skill, restaurant_skill],
-    )
-
-  def _build_runner(self, agent: LlmAgent) -> Runner:
-    return Runner(
-        app_name=self._agent_name,
-        agent=agent,
-        artifact_service=InMemoryArtifactService(),
-        session_service=InMemorySessionService(),
-        memory_service=InMemoryMemoryService(),
-    )
-
-  def get_processing_message(self) -> str:
-    return "Building an A2UI demo for you..."
-
-  def _build_llm_agent(
-      self, schema_manager: Optional[A2uiSchemaManager] = None
-  ) -> LlmAgent:
-    """Builds the LLM agent for the A2UI demo agent."""
-    model_env = os.getenv("MODEL") or "gemini-2.5-flash"
-    model_name = model_env.split("/")[-1]
-
-    instruction = (
-        schema_manager.generate_system_prompt(
-            role_description=ROLE_DESCRIPTION,
-            ui_description=UI_DESCRIPTION,
-            include_schema=True,
-            include_examples=True,
-            validate_examples=True,
+    def __init__(self, base_url: str):
+        self.base_url = base_url
+        self._agent_name = "A2UI v0.9 Demo"
+        self._user_id = "remote_agent"
+        self._text_runner: Optional[Runner] = self._build_runner(
+            self._build_llm_agent()
         )
-        if schema_manager
-        else get_text_prompt()
-    )
 
-    return LlmAgent(
-        model=Gemini(model=model_name),
-        name="a2ui_demo_agent",
-        description=(
-            "An agent that demos A2UI v0.9 Material and custom components,"
-            " and can also find restaurants and help book tables."
-        ),
-        instruction=instruction,
-        tools=[get_restaurants],
-    )
+        self._schema_manager: A2uiSchemaManager = self._build_schema_manager()
+        self._ui_runner: Runner = self._build_runner(
+            self._build_llm_agent(self._schema_manager)
+        )
+        self._parsers = OrderedDict()
+        self._max_parsers = 1000  # Max active sessions to keep in memory
 
-  async def stream(
-      self,
-      query,
-      session_id,
-      ui_version: Optional[str] = None,
-      use_streaming: bool = True,
-  ) -> AsyncIterable[dict[str, Any]]:
-    session_state = {"base_url": self.base_url, "expression": "{expression}"}
+        self._agent_card = self._build_agent_card()
 
-    # Always use UI version 0.9
-    ui_version = A2UI_VERSION
+    @property
+    def agent_card(self) -> AgentCard:
+        return self._agent_card
 
-    # Determine which runner to use based on whether the a2ui extension is active.
-    if ui_version:
-      runner = self._ui_runner
-      schema_manager = self._schema_manager
-      selected_catalog = (
-          schema_manager.get_selected_catalog() if schema_manager else None
-      )
-    else:
-      runner = self._text_runner
-      schema_manager = None
-      selected_catalog = None
-
-    session = await runner.session_service.get_session(
-        app_name=self._agent_name,
-        user_id=self._user_id,
-        session_id=session_id,
-    )
-    if session is None:
-      session = await runner.session_service.create_session(
-          app_name=self._agent_name,
-          user_id=self._user_id,
-          state=session_state,
-          session_id=session_id,
-      )
-    elif "base_url" not in session.state:
-      session.state["base_url"] = self.base_url
-
-    # --- Begin: UI Validation and Retry Logic ---
-    max_retries = 1  # Total 2 attempts
-    attempt = 0
-    current_query_text = query
-
-    # Ensure schema was loaded
-    if ui_version and (
-        not selected_catalog or not selected_catalog.catalog_schema
-    ):
-      logger.error(
-          "--- A2uiDemoAgent.stream: A2UI_SCHEMA is not loaded. "
-          "Cannot perform UI validation. ---"
-      )
-      yield {
-          "is_task_complete": True,
-          "parts": [
-              Part(
-                  root=TextPart(
-                      text=(
-                          "I'm sorry, I'm facing an internal configuration"
-                          " error with my UI components. Please contact"
-                          " support."
-                      )
-                  )
-              )
-          ],
-      }
-      return
-
-    while attempt <= max_retries:
-      attempt += 1
-      logger.info(
-          f"--- A2uiDemoAgent.stream: Attempt {attempt}/{max_retries + 1} "
-          f"for session {session_id} ---"
-      )
-
-      current_message = types.Content(
-          role="user", parts=[types.Part.from_text(text=current_query_text)]
-      )
-
-      full_content_list = []
-      parts_streamed = False
-
-      async def token_stream():
-        async for event in runner.run_async(
-            user_id=self._user_id,
-            session_id=session.id,
-            run_config=run_config.RunConfig(
-                streaming_mode=(
-                    run_config.StreamingMode.SSE
-                    if use_streaming
-                    else run_config.StreamingMode.NONE
+    def _build_schema_manager(self) -> A2uiSchemaManager:
+        return A2uiSchemaManager(
+            version=A2UI_VERSION,
+            catalogs=[
+                CatalogConfig.from_path(
+                    name=COMPOSITE_CATALOG_NAME,
+                    catalog_path=COMPOSITE_CATALOG_PATH,
+                    examples_path=f"examples/{A2UI_VERSION}",
                 )
+            ],
+            schema_modifiers=[remove_strict_validation],
+        )
+
+    def _build_agent_card(self) -> AgentCard:
+        ext = get_a2ui_agent_extension(
+            A2UI_VERSION,
+            self._schema_manager.accepts_inline_catalogs,
+            self._schema_manager.supported_catalog_ids,
+        )
+
+        capabilities = AgentCapabilities(
+            streaming=True,
+            extensions=[ext],
+        )
+        demo_skill = AgentSkill(
+            id="a2ui_demo",
+            name="A2UI v0.9 Component Demo",
+            description=(
+                "Demonstrates A2UI v0.9 UIs built from the Material catalog and"
+                " Gemini Enterprise custom components: cards, forms & inputs,"
+                " tabs, tables, progress indicators, dialogs & menus, the"
+                " Canvas side panel, and the Iframe (IFrameSrcdoc / IFrameUrl)"
+                " components."
             ),
-            new_message=current_message,
-        ):
-          if event.content and event.content.parts:
-            for p in event.content.parts:
-              # Skip the model's "thought"/reasoning parts. Thinking
-              # models emit parts with thought=True (and .text set);
-              # streaming these would surface raw reasoning in the UI
-              # and corrupt the content we later validate/parse.
-              if p.text and not getattr(p, "thought", False):
-                full_content_list.append(p.text)
-                yield p.text
+            tags=["a2ui", "demo", "material", "canvas", "iframe"],
+            examples=[
+                "What can you do?",
+                "Show me a demo of Material components",
+                "Render a contact form",
+                "Show a data table of recent orders",
+                "Demo the Canvas side panel",
+                "Show an IFrameSrcdoc with custom HTML",
+                "Embed a web page with IFrameUrl",
+            ],
+        )
+        restaurant_skill = AgentSkill(
+            id="find_restaurants",
+            name="Find Restaurants Tool",
+            description=(
+                "Helps find restaurants based on user criteria (e.g., cuisine,"
+                " location) and renders the results as an A2UI list."
+            ),
+            tags=["restaurant", "finder"],
+            examples=["Find me the top 10 chinese restaurants in the US"],
+        )
 
-      if selected_catalog:
-        from a2ui.parser.streaming import A2uiStreamParser
+        return AgentCard(
+            name="A2UI v0.9 Demo",
+            description=(
+                "A demo agent that showcases A2UI v0.9 UIs built from the"
+                " Material component catalog and Gemini Enterprise custom"
+                " components (Canvas, Iframe). Ask it 'what can you do?' to see"
+                " the available demos."
+            ),
+            url=self.base_url,
+            version="1.0.0",
+            default_input_modes=A2uiDemoAgent.SUPPORTED_CONTENT_TYPES,
+            default_output_modes=A2uiDemoAgent.SUPPORTED_CONTENT_TYPES,
+            capabilities=capabilities,
+            skills=[demo_skill, restaurant_skill],
+        )
 
-        if session_id in self._parsers:
-          self._parsers.move_to_end(session_id)
+    def _build_runner(self, agent: LlmAgent) -> Runner:
+        return Runner(
+            app_name=self._agent_name,
+            agent=agent,
+            artifact_service=InMemoryArtifactService(),
+            session_service=InMemorySessionService(),
+            memory_service=InMemoryMemoryService(),
+        )
+
+    def get_processing_message(self) -> str:
+        return "Building an A2UI demo for you..."
+
+    def _build_llm_agent(
+        self, schema_manager: Optional[A2uiSchemaManager] = None
+    ) -> LlmAgent:
+        """Builds the LLM agent for the A2UI demo agent."""
+        model_env = os.getenv("MODEL") or "gemini-2.5-flash"
+        model_name = model_env.split("/")[-1]
+
+        instruction = (
+            schema_manager.generate_system_prompt(
+                role_description=ROLE_DESCRIPTION,
+                ui_description=UI_DESCRIPTION,
+                include_schema=True,
+                include_examples=True,
+                validate_examples=True,
+            )
+            if schema_manager
+            else get_text_prompt()
+        )
+
+        return LlmAgent(
+            model=Gemini(model=model_name),
+            name="a2ui_demo_agent",
+            description=(
+                "An agent that demos A2UI v0.9 Material and custom components,"
+                " and can also find restaurants and help book tables."
+            ),
+            instruction=instruction,
+            tools=[get_restaurants],
+        )
+
+    async def stream(
+        self,
+        query,
+        session_id,
+        ui_version: Optional[str] = None,
+        use_streaming: bool = True,
+    ) -> AsyncIterable[dict[str, Any]]:
+        session_state = {"base_url": self.base_url, "expression": "{expression}"}
+
+        # Always use UI version 0.9
+        ui_version = A2UI_VERSION
+
+        # Determine which runner to use based on whether the a2ui extension is active.
+        if ui_version:
+            runner = self._ui_runner
+            schema_manager = self._schema_manager
+            selected_catalog = (
+                schema_manager.get_selected_catalog() if schema_manager else None
+            )
         else:
-          self._parsers[session_id] = A2uiStreamParser(catalog=selected_catalog)
-          if len(self._parsers) > self._max_parsers:
-            self._parsers.popitem(last=False)
+            runner = self._text_runner
+            schema_manager = None
+            selected_catalog = None
 
-        async for part in stream_response_to_parts(
-            self._parsers[session_id],
-            token_stream(),
-            version=ui_version,
-        ):
-          parts_streamed = True
-          yield {
-              "is_task_complete": False,
-              "parts": [part],
-          }
-      else:
-        async for token in token_stream():
-          yield {
-              "is_task_complete": False,
-              "updates": token,
-          }
-
-      final_response_content = "".join(full_content_list)
-
-      is_valid = False
-      error_message = ""
-
-      if ui_version:
-        logger.info(
-            "--- A2uiDemoAgent.stream: Validating UI response (Attempt"
-            f" {attempt})... ---"
+        session = await runner.session_service.get_session(
+            app_name=self._agent_name,
+            user_id=self._user_id,
+            session_id=session_id,
         )
-        try:
-          response_parts = parse_response(final_response_content)
-
-          for part in response_parts:
-            if not part.a2ui_json:
-              continue
-
-            parsed_json_data = part.a2ui_json
-
-            # --- Validation Steps ---
-            # Check if it validates against the A2UI_SCHEMA
-            # This will raise jsonschema.exceptions.ValidationError if it fails
-            logger.info(
-                "--- A2uiDemoAgent.stream: Validating against A2UI_SCHEMA..."
-                " ---"
+        if session is None:
+            session = await runner.session_service.create_session(
+                app_name=self._agent_name,
+                user_id=self._user_id,
+                state=session_state,
+                session_id=session_id,
             )
-            selected_catalog.validator.validate(parsed_json_data)
-            # --- End Validation Steps ---
+        elif "base_url" not in session.state:
+            session.state["base_url"] = self.base_url
 
-            logger.info(
-                "--- A2uiDemoAgent.stream: UI JSON successfully parsed AND"
-                f" validated against schema. Validation OK (Attempt {attempt})."
-                " ---"
+        # --- Begin: UI Validation and Retry Logic ---
+        max_retries = 1  # Total 2 attempts
+        attempt = 0
+        current_query_text = query
+
+        # Ensure schema was loaded
+        if ui_version and (not selected_catalog or not selected_catalog.catalog_schema):
+            logger.error(
+                "--- A2uiDemoAgent.stream: A2UI_SCHEMA is not loaded. "
+                "Cannot perform UI validation. ---"
             )
-            is_valid = True
+            yield {
+                "is_task_complete": True,
+                "parts": [
+                    Part(
+                        root=TextPart(
+                            text=(
+                                "I'm sorry, I'm facing an internal configuration"
+                                " error with my UI components. Please contact"
+                                " support."
+                            )
+                        )
+                    )
+                ],
+            }
+            return
 
-        except (
-            ValueError,
-            json.JSONDecodeError,
-            jsonschema.exceptions.ValidationError,
-        ) as e:
-          logger.warning(
-              f"--- A2uiDemoAgent.stream: A2UI validation failed: {e} (Attempt"
-              f" {attempt}) ---"
-          )
-          logger.warning(
-              f"--- Failed response content: {final_response_content[:500]}..."
-              " ---"
-          )
-          error_message = f"Validation failed: {e}."
+        while attempt <= max_retries:
+            attempt += 1
+            logger.info(
+                f"--- A2uiDemoAgent.stream: Attempt {attempt}/{max_retries + 1} "
+                f"for session {session_id} ---"
+            )
 
-      else:  # Not using UI, so text is always "valid"
-        is_valid = True
+            current_message = types.Content(
+                role="user", parts=[types.Part.from_text(text=current_query_text)]
+            )
 
-      if is_valid:
-        logger.info(
-            "--- A2uiDemoAgent.stream: Response is valid. Sending final"
-            f" response (Attempt {attempt}). ---"
+            full_content_list = []
+            parts_streamed = False
+
+            async def token_stream():
+                async for event in runner.run_async(
+                    user_id=self._user_id,
+                    session_id=session.id,
+                    run_config=run_config.RunConfig(
+                        streaming_mode=(
+                            run_config.StreamingMode.SSE
+                            if use_streaming
+                            else run_config.StreamingMode.NONE
+                        )
+                    ),
+                    new_message=current_message,
+                ):
+                    if event.content and event.content.parts:
+                        for p in event.content.parts:
+                            # Skip the model's "thought"/reasoning parts. Thinking
+                            # models emit parts with thought=True (and .text set);
+                            # streaming these would surface raw reasoning in the UI
+                            # and corrupt the content we later validate/parse.
+                            if p.text and not getattr(p, "thought", False):
+                                full_content_list.append(p.text)
+                                yield p.text
+
+            if selected_catalog:
+                from a2ui.parser.streaming import A2uiStreamParser
+
+                if session_id in self._parsers:
+                    self._parsers.move_to_end(session_id)
+                else:
+                    self._parsers[session_id] = A2uiStreamParser(
+                        catalog=selected_catalog
+                    )
+                    if len(self._parsers) > self._max_parsers:
+                        self._parsers.popitem(last=False)
+
+                async for part in stream_response_to_parts(
+                    self._parsers[session_id],
+                    token_stream(),
+                    version=ui_version,
+                ):
+                    parts_streamed = True
+                    yield {
+                        "is_task_complete": False,
+                        "parts": [part],
+                    }
+            else:
+                async for token in token_stream():
+                    yield {
+                        "is_task_complete": False,
+                        "updates": token,
+                    }
+
+            final_response_content = "".join(full_content_list)
+
+            is_valid = False
+            error_message = ""
+
+            if ui_version:
+                logger.info(
+                    "--- A2uiDemoAgent.stream: Validating UI response (Attempt"
+                    f" {attempt})... ---"
+                )
+                try:
+                    response_parts = parse_response(final_response_content)
+
+                    for part in response_parts:
+                        if not part.a2ui_json:
+                            continue
+
+                        parsed_json_data = part.a2ui_json
+
+                        # --- Validation Steps ---
+                        # Check if it validates against the A2UI_SCHEMA
+                        # This will raise jsonschema.exceptions.ValidationError if it fails
+                        logger.info(
+                            "--- A2uiDemoAgent.stream: Validating against"
+                            " A2UI_SCHEMA... ---"
+                        )
+                        selected_catalog.validator.validate(parsed_json_data)
+                        # --- End Validation Steps ---
+
+                        logger.info(
+                            "--- A2uiDemoAgent.stream: UI JSON successfully parsed AND"
+                            " validated against schema. Validation OK (Attempt"
+                            f" {attempt}). ---"
+                        )
+                        is_valid = True
+
+                except (
+                    ValueError,
+                    json.JSONDecodeError,
+                    jsonschema.exceptions.ValidationError,
+                ) as e:
+                    logger.warning(
+                        f"--- A2uiDemoAgent.stream: A2UI validation failed: {e}"
+                        f" (Attempt {attempt}) ---"
+                    )
+                    logger.warning(
+                        "--- Failed response content:"
+                        f" {final_response_content[:500]}... ---"
+                    )
+                    error_message = f"Validation failed: {e}."
+
+            else:  # Not using UI, so text is always "valid"
+                is_valid = True
+
+            if is_valid:
+                logger.info(
+                    "--- A2uiDemoAgent.stream: Response is valid. Sending final"
+                    f" response (Attempt {attempt}). ---"
+                )
+                final_parts = parse_response_to_parts(
+                    final_response_content, fallback_text="OK.", version=ui_version
+                )
+
+                # Always include the full parts in the final message. Even when
+                # streaming working chunks, many A2UI clients only render the
+                # final message's parts (treating working updates as progress/
+                # "thought"). Sending empty final parts caused all content to be
+                # shown as thoughts with nothing rendered.
+                yield {
+                    "is_task_complete": True,
+                    "parts": final_parts,
+                }
+                return  # We're done, exit the generator
+
+            # --- If we're here, it means validation failed ---
+
+            if attempt <= max_retries:
+                logger.warning(
+                    "--- A2uiDemoAgent.stream: Retrying..."
+                    f" ({attempt}/{max_retries + 1}) ---"
+                )
+                # Prepare the query for the retry
+                current_query_text = (
+                    f"Your previous response was invalid. {error_message} You MUST"
+                    " generate a valid response that strictly follows the A2UI JSON"
+                    " SCHEMA. The response MUST be a JSON list of A2UI messages. Ensure"
+                    f" each JSON part is wrapped in '{A2UI_OPEN_TAG}' and"
+                    f" '{A2UI_CLOSE_TAG}' tags. Please retry the original request:"
+                    f" '{query}'"
+                )
+                # Loop continues...
+
+        # --- If we're here, it means we've exhausted retries ---
+        logger.error(
+            "--- A2uiDemoAgent.stream: Max retries exhausted. Sending text-only"
+            " error. ---"
         )
-        final_parts = parse_response_to_parts(
-            final_response_content, fallback_text="OK.", version=ui_version
-        )
-
-        # Always include the full parts in the final message. Even when
-        # streaming working chunks, many A2UI clients only render the
-        # final message's parts (treating working updates as progress/
-        # "thought"). Sending empty final parts caused all content to be
-        # shown as thoughts with nothing rendered.
         yield {
             "is_task_complete": True,
-            "parts": final_parts,
-        }
-        return  # We're done, exit the generator
-
-      # --- If we're here, it means validation failed ---
-
-      if attempt <= max_retries:
-        logger.warning(
-            "--- A2uiDemoAgent.stream: Retrying..."
-            f" ({attempt}/{max_retries + 1}) ---"
-        )
-        # Prepare the query for the retry
-        current_query_text = (
-            f"Your previous response was invalid. {error_message} You MUST"
-            " generate a valid response that strictly follows the A2UI JSON"
-            " SCHEMA. The response MUST be a JSON list of A2UI messages. Ensure"
-            f" each JSON part is wrapped in '{A2UI_OPEN_TAG}' and"
-            f" '{A2UI_CLOSE_TAG}' tags. Please retry the original request:"
-            f" '{query}'"
-        )
-        # Loop continues...
-
-    # --- If we're here, it means we've exhausted retries ---
-    logger.error(
-        "--- A2uiDemoAgent.stream: Max retries exhausted. Sending text-only"
-        " error. ---"
-    )
-    yield {
-        "is_task_complete": True,
-        "parts": [
-            Part(
-                root=TextPart(
-                    text=(
-                        "I'm sorry, I'm having trouble generating the interface"
-                        " for that request right now. Please try again in a"
-                        " moment."
+            "parts": [
+                Part(
+                    root=TextPart(
+                        text=(
+                            "I'm sorry, I'm having trouble generating the interface"
+                            " for that request right now. Please try again in a"
+                            " moment."
+                        )
                     )
                 )
-            )
-        ],
-    }
-    # --- End: UI Validation and Retry Logic ---
+            ],
+        }
+        # --- End: UI Validation and Retry Logic ---

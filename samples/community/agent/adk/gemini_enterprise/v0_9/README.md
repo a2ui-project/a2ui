@@ -8,20 +8,20 @@ custom components (`Canvas`, `IFrameSrcdoc`, `IFrameUrl`).
 
 Ask the agent **"what can you do?"** and it renders an A2UI `Canvas` listing the available demos. It can demo:
 
--   **Material components**: cards, text, buttons, icons, images, badges.
--   **Forms & inputs**: `MaterialInput`, `MaterialSelect`, `MaterialCheckbox`,
-    `MaterialRadioButton`, `MaterialSlideToggle`, `MaterialSlider`,
-    `MaterialChips`, `MaterialButtonToggle`, `MaterialDatepicker`,
-    `MaterialTimepicker`.
--   **Tabs & layout**: `MaterialTabs`, `MaterialExpansionPanel`,
-    `MaterialGridList`, `MaterialRow`, `MaterialColumn`.
--   **Data display**: `MaterialTable`, `MaterialProgressBar`,
-    `MaterialProgressSpinner`.
--   **Dialogs & menus**: `MaterialDialog`, `MaterialMenu`.
--   **Canvas**: render content in a resizable side panel (`Canvas` root).
--   **Iframe**: `IFrameSrcdoc` (sandboxed agent-supplied HTML) and `IFrameUrl`
-    (allowlisted embedded URL).
--   **Restaurant finder**: find restaurants and book a table.
+- **Material components**: cards, text, buttons, icons, images, badges.
+- **Forms & inputs**: `MaterialInput`, `MaterialSelect`, `MaterialCheckbox`,
+  `MaterialRadioButton`, `MaterialSlideToggle`, `MaterialSlider`,
+  `MaterialChips`, `MaterialButtonToggle`, `MaterialDatepicker`,
+  `MaterialTimepicker`.
+- **Tabs & layout**: `MaterialTabs`, `MaterialExpansionPanel`,
+  `MaterialGridList`, `MaterialRow`, `MaterialColumn`.
+- **Data display**: `MaterialTable`, `MaterialProgressBar`,
+  `MaterialProgressSpinner`.
+- **Dialogs & menus**: `MaterialDialog`, `MaterialMenu`.
+- **Canvas**: render content in a resizable side panel (`Canvas` root).
+- **Iframe**: `IFrameSrcdoc` (sandboxed agent-supplied HTML) and `IFrameUrl`
+  (allowlisted embedded URL).
+- **Restaurant finder**: find restaurants and book a table.
 
 This started as a port of the upstream
 [A2UI restaurant_finder sample](https://github.com/a2ui-project/a2ui/tree/main/samples/agent/adk/restaurant_finder)
@@ -41,9 +41,9 @@ with these notable differences:
 
 ## Prerequisites
 
--   Python 3.14 or higher
--   [uv](https://docs.astral.sh/uv/)
--   Access to an LLM and API key
+- Python 3.14 or higher
+- [uv](https://docs.astral.sh/uv/)
+- Access to an LLM and API key
 
 ## Running the Sample
 
@@ -59,30 +59,30 @@ with these notable differences:
 
 3.  In another terminal window:
 
-    -   verify that the agent is available via A2A:
+    - verify that the agent is available via A2A:
 
-        ```
-        curl http://localhost:10002/.well-known/agent-card.json
-        ```
+      ```
+      curl http://localhost:10002/.well-known/agent-card.json
+      ```
 
-    -   send a message to the agent:
+    - send a message to the agent:
 
-        ```
-        curl http://localhost:10002 \
-          -H 'Content-Type: application/json' \
-          -d '{
-            "jsonrpc": "2.0",
-            "id": 1,
-            "method": "message/send",
-            "params": {
-              "message": {
-                "role": "user",
-                "parts": [{"text": "What can you do?"}],
-                "messageId": "1"
-              }
+      ```
+      curl http://localhost:10002 \
+        -H 'Content-Type: application/json' \
+        -d '{
+          "jsonrpc": "2.0",
+          "id": 1,
+          "method": "message/send",
+          "params": {
+            "message": {
+              "role": "user",
+              "parts": [{"text": "What can you do?"}],
+              "messageId": "1"
             }
-          }'
-        ```
+          }
+        }'
+      ```
 
 ## Deploying to Cloud Run
 

@@ -18,7 +18,7 @@
         {
           "id": "root",
           "component": "MaterialCard",
-          "style": { "padding": "8px 8px 0px 8px" },
+          "style": {"padding": "8px 8px 0px 8px"},
           "children": ["main-column"]
         },
         {
@@ -65,7 +65,7 @@
           "action": {
             "event": {
               "name": "share_flight",
-              "context": { "prompt": "Share this flight" }
+              "context": {"prompt": "Share this flight"}
             }
           }
         },
@@ -77,7 +77,7 @@
           "action": {
             "event": {
               "name": "bookmark_flight",
-              "context": { "prompt": "Bookmark this flight" }
+              "context": {"prompt": "Bookmark this flight"}
             }
           }
         },
@@ -172,7 +172,7 @@
           "component": "MaterialText",
           "text": "On Time",
           "usageHint": "body",
-          "style": { "fontWeight": "bold" }
+          "style": {"fontWeight": "bold"}
         },
         {
           "id": "arr-col",

@@ -38,10 +38,7 @@
               ]
             }
           },
-          "required": [
-            "component",
-            "text"
-          ]
+          "required": ["component", "text"]
         }
       ]
     },
@@ -102,9 +99,7 @@
               "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicString"
             }
           },
-          "required": [
-            "component"
-          ]
+          "required": ["component"]
         }
       ]
     },
@@ -153,11 +148,7 @@
               "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicString"
             }
           },
-          "required": [
-            "component",
-            "icon",
-            "action"
-          ]
+          "required": ["component", "icon", "action"]
         }
       ]
     },
@@ -214,13 +205,7 @@
               "oneOf": [
                 {
                   "type": "string",
-                  "enum": [
-                    "text",
-                    "number",
-                    "email",
-                    "tel",
-                    "date"
-                  ]
+                  "enum": ["text", "number", "email", "tel", "date"]
                 },
                 {
                   "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DataBinding"
@@ -253,9 +238,7 @@
               }
             }
           },
-          "required": [
-            "component"
-          ]
+          "required": ["component"]
         }
       ]
     },
@@ -277,29 +260,14 @@
             },
             "justify": {
               "description": "Optional horizontal alignment (justify-content) of the child components within the row. Supported values are: 'center', 'end', 'spaceAround', 'spaceBetween', 'spaceEvenly', 'start' (default).",
-              "enum": [
-                "center",
-                "end",
-                "spaceAround",
-                "spaceBetween",
-                "spaceEvenly",
-                "start"
-              ]
+              "enum": ["center", "end", "spaceAround", "spaceBetween", "spaceEvenly", "start"]
             },
             "align": {
               "description": "Optional vertical alignment (align-items) of the child components within the row. Supported values are: 'start', 'center', 'end', 'stretch' (default).",
-              "enum": [
-                "start",
-                "center",
-                "end",
-                "stretch"
-              ]
+              "enum": ["start", "center", "end", "stretch"]
             }
           },
-          "required": [
-            "component",
-            "children"
-          ]
+          "required": ["component", "children"]
         }
       ]
     },
@@ -321,29 +289,14 @@
             },
             "justify": {
               "description": "Optional vertical alignment (justify-content) of the child components within the column. Supported values are: 'start' (default), 'center', 'end', 'spaceBetween', 'spaceAround', 'spaceEvenly'.",
-              "enum": [
-                "start",
-                "center",
-                "end",
-                "spaceBetween",
-                "spaceAround",
-                "spaceEvenly"
-              ]
+              "enum": ["start", "center", "end", "spaceBetween", "spaceAround", "spaceEvenly"]
             },
             "align": {
               "description": "Optional horizontal alignment (align-items) of the child components within the column. Supported values are: 'center', 'end', 'start', 'stretch' (default).",
-              "enum": [
-                "center",
-                "end",
-                "start",
-                "stretch"
-              ]
+              "enum": ["center", "end", "start", "stretch"]
             }
           },
-          "required": [
-            "component",
-            "children"
-          ]
+          "required": ["component", "children"]
         }
       ]
     },
@@ -361,19 +314,11 @@
             },
             "appearance": {
               "description": "The visual style appearance of the card. Supported values are 'outlined' (card with a border) and 'raised' (card with an elevation shadow, default).",
-              "enum": [
-                "outlined",
-                "raised"
-              ]
+              "enum": ["outlined", "raised"]
             },
             "align": {
               "description": "Optional alignment (align-items) of the child components within the card. Supported values are: 'start' (default), 'center', 'end', 'stretch'.",
-              "enum": [
-                "center",
-                "end",
-                "start",
-                "stretch"
-              ]
+              "enum": ["center", "end", "start", "stretch"]
             },
             "ariaLabel": {
               "description": "The ARIA label used for accessibility to describe the card to screen readers.",
@@ -388,10 +333,7 @@
               "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/ChildList"
             }
           },
-          "required": [
-            "component",
-            "children"
-          ]
+          "required": ["component", "children"]
         }
       ]
     },
@@ -416,10 +358,7 @@
               "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicString"
             }
           },
-          "required": [
-            "component",
-            "icon"
-          ]
+          "required": ["component", "icon"]
         }
       ]
     },
@@ -485,10 +424,7 @@
               }
             }
           },
-          "required": [
-            "component",
-            "options"
-          ]
+          "required": ["component", "options"]
         }
       ]
     },
@@ -522,10 +458,7 @@
             },
             "labelPosition": {
               "description": "Position of the label relative to the checkbox. Defaults to 'after'.",
-              "enum": [
-                "before",
-                "after"
-              ]
+              "enum": ["before", "after"]
             },
             "ariaLabel": {
               "description": "The ARIA label applied to the checkbox component for accessibility when no text label is visible.",
@@ -551,9 +484,7 @@
               }
             }
           },
-          "required": [
-            "component"
-          ]
+          "required": ["component"]
         }
       ]
     },
@@ -579,20 +510,11 @@
             },
             "position": {
               "description": "The position of the badge relative to the element it is attached to. Defaults to 'above after'.",
-              "enum": [
-                "above after",
-                "above before",
-                "below after",
-                "below before"
-              ]
+              "enum": ["above after", "above before", "below after", "below before"]
             },
             "size": {
               "description": "The size of the badge. Defaults to 'medium'.",
-              "enum": [
-                "small",
-                "medium",
-                "large"
-              ]
+              "enum": ["small", "medium", "large"]
             },
             "overlap": {
               "description": "Whether the badge should overlap its parent element content (true if overlapping, otherwise not). Defaults to true.",
@@ -615,10 +537,7 @@
               "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/ChildList"
             }
           },
-          "required": [
-            "component",
-            "children"
-          ]
+          "required": ["component", "children"]
         }
       ]
     },
@@ -670,20 +589,14 @@
             },
             "appearance": {
               "description": "The visual style of the buttons. Defaults to 'standard'.",
-              "enum": [
-                "legacy",
-                "standard"
-              ]
+              "enum": ["legacy", "standard"]
             },
             "vertical": {
               "description": "Whether the buttons in the group should be stacked vertically instead of horizontally (true if vertical, otherwise horizontal).",
               "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicBoolean"
             }
           },
-          "required": [
-            "component",
-            "options"
-          ]
+          "required": ["component", "options"]
         }
       ]
     },
@@ -738,10 +651,7 @@
               "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/Action"
             }
           },
-          "required": [
-            "component",
-            "options"
-          ]
+          "required": ["component", "options"]
         }
       ]
     },
@@ -793,9 +703,7 @@
               }
             }
           },
-          "required": [
-            "component"
-          ]
+          "required": ["component"]
         }
       ]
     },
@@ -848,10 +756,7 @@
               "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/ChildList"
             }
           },
-          "required": [
-            "component",
-            "children"
-          ]
+          "required": ["component", "children"]
         }
       ]
     },
@@ -876,9 +781,7 @@
               "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicBoolean"
             }
           },
-          "required": [
-            "component"
-          ]
+          "required": ["component"]
         }
       ]
     },
@@ -927,10 +830,7 @@
               "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/ChildList"
             }
           },
-          "required": [
-            "component",
-            "children"
-          ]
+          "required": ["component", "children"]
         }
       ]
     },
@@ -963,10 +863,7 @@
               "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicString"
             }
           },
-          "required": [
-            "component",
-            "children"
-          ]
+          "required": ["component", "children"]
         }
       ]
     },
@@ -1029,10 +926,7 @@
               "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicString"
             }
           },
-          "required": [
-            "component",
-            "options"
-          ]
+          "required": ["component", "options"]
         }
       ]
     },
@@ -1073,9 +967,7 @@
               "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicString"
             }
           },
-          "required": [
-            "component"
-          ]
+          "required": ["component"]
         }
       ]
     },
@@ -1120,9 +1012,7 @@
               "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicString"
             }
           },
-          "required": [
-            "component"
-          ]
+          "required": ["component"]
         }
       ]
     },
@@ -1178,16 +1068,10 @@
             },
             "labelPosition": {
               "description": "Position of the label relative to the radio button indicator. Defaults to 'after'.",
-              "enum": [
-                "before",
-                "after"
-              ]
+              "enum": ["before", "after"]
             }
           },
-          "required": [
-            "component",
-            "options"
-          ]
+          "required": ["component", "options"]
         }
       ]
     },
@@ -1221,10 +1105,7 @@
             },
             "labelPosition": {
               "description": "Position of the label relative to the slide toggle switch. Defaults to 'after'.",
-              "enum": [
-                "before",
-                "after"
-              ]
+              "enum": ["before", "after"]
             },
             "ariaLabel": {
               "description": "The accessibility label (ARIA label) for the slide toggle switch, used by screen readers.",
@@ -1247,9 +1128,7 @@
               "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicBoolean"
             }
           },
-          "required": [
-            "component"
-          ]
+          "required": ["component"]
         }
       ]
     },
@@ -1302,9 +1181,7 @@
               "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicString"
             }
           },
-          "required": [
-            "component"
-          ]
+          "required": ["component"]
         }
       ]
     },
@@ -1335,10 +1212,7 @@
                     "type": "string"
                   }
                 },
-                "required": [
-                  "header",
-                  "field"
-                ]
+                "required": ["header", "field"]
               }
             },
             "rows": {
@@ -1371,11 +1245,7 @@
               "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicString"
             }
           },
-          "required": [
-            "component",
-            "columns",
-            "rows"
-          ]
+          "required": ["component", "columns", "rows"]
         }
       ]
     },
@@ -1406,10 +1276,7 @@
                     "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/ComponentId"
                   }
                 },
-                "required": [
-                  "label",
-                  "content"
-                ]
+                "required": ["label", "content"]
               }
             },
             "activeTab": {
@@ -1425,10 +1292,7 @@
               "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicString"
             }
           },
-          "required": [
-            "component",
-            "tabs"
-          ]
+          "required": ["component", "tabs"]
         }
       ]
     },
@@ -1480,9 +1344,7 @@
               }
             }
           },
-          "required": [
-            "component"
-          ]
+          "required": ["component"]
         }
       ]
     },
@@ -1508,13 +1370,7 @@
             },
             "fit": {
               "description": "Specifies how the image should be resized to fit its container, corresponding to the CSS 'object-fit' property.",
-              "enum": [
-                "fill",
-                "contain",
-                "cover",
-                "scaleDown",
-                "none"
-              ]
+              "enum": ["fill", "contain", "cover", "scaleDown", "none"]
             },
             "width": {
               "description": "The width of the image element (e.g., '100%', '300px').",
@@ -1537,10 +1393,7 @@
               "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicString"
             }
           },
-          "required": [
-            "component",
-            "url"
-          ]
+          "required": ["component", "url"]
         }
       ]
     },
@@ -1566,22 +1419,11 @@
             "variant": {
               "type": "string",
               "description": "A hint for the base text style.",
-              "enum": [
-                "h1",
-                "h2",
-                "h3",
-                "h4",
-                "h5",
-                "caption",
-                "body"
-              ],
+              "enum": ["h1", "h2", "h3", "h4", "h5", "caption", "body"],
               "default": "body"
             }
           },
-          "required": [
-            "component",
-            "text"
-          ]
+          "required": ["component", "text"]
         }
       ],
       "unevaluatedProperties": false
@@ -1612,33 +1454,17 @@
             "fit": {
               "type": "string",
               "description": "Specifies how the image should be resized to fit its container. This corresponds to the CSS 'object-fit' property.",
-              "enum": [
-                "contain",
-                "cover",
-                "fill",
-                "none",
-                "scaleDown"
-              ],
+              "enum": ["contain", "cover", "fill", "none", "scaleDown"],
               "default": "fill"
             },
             "variant": {
               "type": "string",
               "description": "A hint for the image size and style.",
-              "enum": [
-                "icon",
-                "avatar",
-                "smallFeature",
-                "mediumFeature",
-                "largeFeature",
-                "header"
-              ],
+              "enum": ["icon", "avatar", "smallFeature", "mediumFeature", "largeFeature", "header"],
               "default": "mediumFeature"
             }
           },
-          "required": [
-            "component",
-            "url"
-          ]
+          "required": ["component", "url"]
         }
       ],
       "unevaluatedProperties": false
@@ -1732,9 +1558,7 @@
                       "type": "string"
                     }
                   },
-                  "required": [
-                    "svgPath"
-                  ],
+                  "required": ["svgPath"],
                   "additionalProperties": false
                 },
                 {
@@ -1743,10 +1567,7 @@
               ]
             }
           },
-          "required": [
-            "component",
-            "name"
-          ]
+          "required": ["component", "name"]
         }
       ],
       "unevaluatedProperties": false
@@ -1771,10 +1592,7 @@
               "description": "The URL of the video to display."
             }
           },
-          "required": [
-            "component",
-            "url"
-          ]
+          "required": ["component", "url"]
         }
       ],
       "unevaluatedProperties": false
@@ -1803,10 +1621,7 @@
               "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicString"
             }
           },
-          "required": [
-            "component",
-            "url"
-          ]
+          "required": ["component", "url"]
         }
       ],
       "unevaluatedProperties": false
@@ -1848,19 +1663,11 @@
             "align": {
               "type": "string",
               "description": "Defines the alignment of children along the cross axis (vertically). This is similar to the CSS 'align-items' property, but uses camelCase values (e.g., 'start').",
-              "enum": [
-                "start",
-                "center",
-                "end",
-                "stretch"
-              ],
+              "enum": ["start", "center", "end", "stretch"],
               "default": "stretch"
             }
           },
-          "required": [
-            "component",
-            "children"
-          ]
+          "required": ["component", "children"]
         }
       ],
       "unevaluatedProperties": false
@@ -1902,19 +1709,11 @@
             "align": {
               "type": "string",
               "description": "Defines the alignment of children along the cross axis (horizontally). This is similar to the CSS 'align-items' property.",
-              "enum": [
-                "center",
-                "end",
-                "start",
-                "stretch"
-              ],
+              "enum": ["center", "end", "start", "stretch"],
               "default": "stretch"
             }
           },
-          "required": [
-            "component",
-            "children"
-          ]
+          "required": ["component", "children"]
         }
       ],
       "unevaluatedProperties": false
@@ -1941,28 +1740,17 @@
             "direction": {
               "type": "string",
               "description": "The direction in which the list items are laid out.",
-              "enum": [
-                "vertical",
-                "horizontal"
-              ],
+              "enum": ["vertical", "horizontal"],
               "default": "vertical"
             },
             "align": {
               "type": "string",
               "description": "Defines the alignment of children along the cross axis.",
-              "enum": [
-                "start",
-                "center",
-                "end",
-                "stretch"
-              ],
+              "enum": ["start", "center", "end", "stretch"],
               "default": "stretch"
             }
           },
-          "required": [
-            "component",
-            "children"
-          ]
+          "required": ["component", "children"]
         }
       ],
       "unevaluatedProperties": false
@@ -1987,10 +1775,7 @@
               "description": "The ID of the single child component to be rendered inside the card. To display multiple elements, you MUST wrap them in a layout component (like Column or Row) and pass that container's ID here. Do NOT pass multiple IDs or a non-existent ID. Do NOT define the child component inline."
             }
           },
-          "required": [
-            "component",
-            "child"
-          ]
+          "required": ["component", "child"]
         }
       ],
       "unevaluatedProperties": false
@@ -2026,18 +1811,12 @@
                     "description": "The ID of the child component. Do NOT define the component inline."
                   }
                 },
-                "required": [
-                  "title",
-                  "child"
-                ],
+                "required": ["title", "child"],
                 "additionalProperties": false
               }
             }
           },
-          "required": [
-            "component",
-            "tabs"
-          ]
+          "required": ["component", "tabs"]
         }
       ],
       "unevaluatedProperties": false
@@ -2066,11 +1845,7 @@
               "description": "The ID of the component to be displayed inside the modal. Do NOT define the component inline."
             }
           },
-          "required": [
-            "component",
-            "trigger",
-            "content"
-          ]
+          "required": ["component", "trigger", "content"]
         }
       ],
       "unevaluatedProperties": false
@@ -2093,16 +1868,11 @@
             "axis": {
               "type": "string",
               "description": "The orientation of the divider.",
-              "enum": [
-                "horizontal",
-                "vertical"
-              ],
+              "enum": ["horizontal", "vertical"],
               "default": "horizontal"
             }
           },
-          "required": [
-            "component"
-          ]
+          "required": ["component"]
         }
       ],
       "unevaluatedProperties": false
@@ -2132,22 +1902,14 @@
             "variant": {
               "type": "string",
               "description": "A hint for the button style. If omitted, a default button style is used. 'primary' indicates this is the main call-to-action button. 'borderless' means the button has no visual border or background, making its child content appear like a clickable link.",
-              "enum": [
-                "default",
-                "primary",
-                "borderless"
-              ],
+              "enum": ["default", "primary", "borderless"],
               "default": "default"
             },
             "action": {
               "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/Action"
             }
           },
-          "required": [
-            "component",
-            "child",
-            "action"
-          ]
+          "required": ["component", "child", "action"]
         }
       ],
       "unevaluatedProperties": false
@@ -2181,12 +1943,7 @@
             "variant": {
               "type": "string",
               "description": "The type of input field to display.",
-              "enum": [
-                "longText",
-                "number",
-                "shortText",
-                "obscured"
-              ],
+              "enum": ["longText", "number", "shortText", "obscured"],
               "default": "shortText"
             },
             "validationRegexp": {
@@ -2194,10 +1951,7 @@
               "description": "A regular expression used for client-side validation of the input."
             }
           },
-          "required": [
-            "component",
-            "label"
-          ]
+          "required": ["component", "label"]
         }
       ],
       "unevaluatedProperties": false
@@ -2229,11 +1983,7 @@
               "description": "The current state of the checkbox (true for checked, false for unchecked)."
             }
           },
-          "required": [
-            "component",
-            "label",
-            "value"
-          ]
+          "required": ["component", "label", "value"]
         }
       ],
       "unevaluatedProperties": false
@@ -2264,10 +2014,7 @@
             "variant": {
               "type": "string",
               "description": "A hint for how the choice picker should be displayed and behave.",
-              "enum": [
-                "multipleSelection",
-                "mutuallyExclusive"
-              ],
+              "enum": ["multipleSelection", "mutuallyExclusive"],
               "default": "mutuallyExclusive"
             },
             "options": {
@@ -2285,10 +2032,7 @@
                     "description": "The stable value associated with this option."
                   }
                 },
-                "required": [
-                  "label",
-                  "value"
-                ],
+                "required": ["label", "value"],
                 "additionalProperties": false
               }
             },
@@ -2299,10 +2043,7 @@
             "displayStyle": {
               "type": "string",
               "description": "The display style of the component.",
-              "enum": [
-                "checkbox",
-                "chips"
-              ],
+              "enum": ["checkbox", "chips"],
               "default": "checkbox"
             },
             "filterable": {
@@ -2311,11 +2052,7 @@
               "default": false
             }
           },
-          "required": [
-            "component",
-            "options",
-            "value"
-          ]
+          "required": ["component", "options", "value"]
         }
       ],
       "unevaluatedProperties": false
@@ -2356,11 +2093,7 @@
               "description": "The current value of the slider."
             }
           },
-          "required": [
-            "component",
-            "value",
-            "max"
-          ]
+          "required": ["component", "value", "max"]
         }
       ],
       "unevaluatedProperties": false
@@ -2454,10 +2187,7 @@
               "description": "The text label for the input field."
             }
           },
-          "required": [
-            "component",
-            "value"
-          ]
+          "required": ["component", "value"]
         }
       ],
       "unevaluatedProperties": false
@@ -2495,10 +2225,7 @@
               "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicString"
             }
           },
-          "required": [
-            "component",
-            "children"
-          ]
+          "required": ["component", "children"]
         }
       ]
     },
@@ -2523,10 +2250,7 @@
               "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicNumber"
             }
           },
-          "required": [
-            "component",
-            "htmlContent"
-          ]
+          "required": ["component", "htmlContent"]
         }
       ]
     },
@@ -2551,10 +2275,7 @@
               "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicNumber"
             }
           },
-          "required": [
-            "component",
-            "url"
-          ]
+          "required": ["component", "url"]
         }
       ]
     },
@@ -2579,10 +2300,7 @@
               "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicNumber"
             }
           },
-          "required": [
-            "component",
-            "spec"
-          ]
+          "required": ["component", "spec"]
         }
       ]
     },
@@ -2617,10 +2335,7 @@
                     "description": "Optional flag indicating whether this column can be sorted."
                   }
                 },
-                "required": [
-                  "header",
-                  "field"
-                ]
+                "required": ["header", "field"]
               }
             },
             "rows": {
@@ -2653,11 +2368,7 @@
               "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicString"
             }
           },
-          "required": [
-            "component",
-            "columns",
-            "rows"
-          ]
+          "required": ["component", "columns", "rows"]
         }
       ]
     },
@@ -2678,10 +2389,7 @@
               "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicValue"
             }
           },
-          "required": [
-            "component",
-            "chartData"
-          ]
+          "required": ["component", "chartData"]
         }
       ]
     }
@@ -2705,19 +2413,14 @@
               "description": "The IDs of the components to validate."
             }
           },
-          "required": [
-            "componentIds"
-          ],
+          "required": ["componentIds"],
           "additionalProperties": false
         },
         "returnType": {
           "const": "boolean"
         }
       },
-      "required": [
-        "call",
-        "args"
-      ]
+      "required": ["call", "args"]
     },
     "dateIsBeforeOrEqual": {
       "type": "object",
@@ -2736,20 +2439,14 @@
               "$ref": "#/$defs/DynamicDate"
             }
           },
-          "required": [
-            "a",
-            "b"
-          ],
+          "required": ["a", "b"],
           "additionalProperties": false
         },
         "returnType": {
           "const": "boolean"
         }
       },
-      "required": [
-        "call",
-        "args"
-      ],
+      "required": ["call", "args"],
       "unevaluatedProperties": false
     },
     "dateIsBefore": {
@@ -2769,20 +2466,14 @@
               "$ref": "#/$defs/DynamicDate"
             }
           },
-          "required": [
-            "a",
-            "b"
-          ],
+          "required": ["a", "b"],
           "additionalProperties": false
         },
         "returnType": {
           "const": "boolean"
         }
       },
-      "required": [
-        "call",
-        "args"
-      ],
+      "required": ["call", "args"],
       "unevaluatedProperties": false
     },
     "dateEquals": {
@@ -2802,20 +2493,14 @@
               "$ref": "#/$defs/DynamicDate"
             }
           },
-          "required": [
-            "a",
-            "b"
-          ],
+          "required": ["a", "b"],
           "additionalProperties": false
         },
         "returnType": {
           "const": "boolean"
         }
       },
-      "required": [
-        "call",
-        "args"
-      ],
+      "required": ["call", "args"],
       "unevaluatedProperties": false
     },
     "required": {
@@ -2832,19 +2517,14 @@
               "description": "The value to check."
             }
           },
-          "required": [
-            "value"
-          ],
+          "required": ["value"],
           "additionalProperties": false
         },
         "returnType": {
           "const": "boolean"
         }
       },
-      "required": [
-        "call",
-        "args"
-      ],
+      "required": ["call", "args"],
       "unevaluatedProperties": false
     },
     "regex": {
@@ -2865,20 +2545,14 @@
               "description": "The regex pattern to match against."
             }
           },
-          "required": [
-            "value",
-            "pattern"
-          ],
+          "required": ["value", "pattern"],
           "unevaluatedProperties": false
         },
         "returnType": {
           "const": "boolean"
         }
       },
-      "required": [
-        "call",
-        "args"
-      ],
+      "required": ["call", "args"],
       "unevaluatedProperties": false
     },
     "length": {
@@ -2905,19 +2579,13 @@
               "description": "The maximum allowed length."
             }
           },
-          "required": [
-            "value"
-          ],
+          "required": ["value"],
           "anyOf": [
             {
-              "required": [
-                "min"
-              ]
+              "required": ["min"]
             },
             {
-              "required": [
-                "max"
-              ]
+              "required": ["max"]
             }
           ],
           "unevaluatedProperties": false
@@ -2926,10 +2594,7 @@
           "const": "boolean"
         }
       },
-      "required": [
-        "call",
-        "args"
-      ],
+      "required": ["call", "args"],
       "unevaluatedProperties": false
     },
     "numeric": {
@@ -2954,19 +2619,13 @@
               "description": "The maximum allowed value."
             }
           },
-          "required": [
-            "value"
-          ],
+          "required": ["value"],
           "anyOf": [
             {
-              "required": [
-                "min"
-              ]
+              "required": ["min"]
             },
             {
-              "required": [
-                "max"
-              ]
+              "required": ["max"]
             }
           ],
           "unevaluatedProperties": false
@@ -2975,10 +2634,7 @@
           "const": "boolean"
         }
       },
-      "required": [
-        "call",
-        "args"
-      ],
+      "required": ["call", "args"],
       "unevaluatedProperties": false
     },
     "email": {
@@ -2995,19 +2651,14 @@
               "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicString"
             }
           },
-          "required": [
-            "value"
-          ],
+          "required": ["value"],
           "unevaluatedProperties": false
         },
         "returnType": {
           "const": "boolean"
         }
       },
-      "required": [
-        "call",
-        "args"
-      ],
+      "required": ["call", "args"],
       "unevaluatedProperties": false
     },
     "formatString": {
@@ -3024,19 +2675,14 @@
               "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicString"
             }
           },
-          "required": [
-            "value"
-          ],
+          "required": ["value"],
           "unevaluatedProperties": false
         },
         "returnType": {
           "const": "string"
         }
       },
-      "required": [
-        "call",
-        "args"
-      ],
+      "required": ["call", "args"],
       "unevaluatedProperties": false
     },
     "formatNumber": {
@@ -3062,19 +2708,14 @@
               "description": "Optional. If true, uses locale-specific grouping separators (e.g. '1,000'). If false, returns raw digits (e.g. '1000'). Defaults to true."
             }
           },
-          "required": [
-            "value"
-          ],
+          "required": ["value"],
           "unevaluatedProperties": false
         },
         "returnType": {
           "const": "string"
         }
       },
-      "required": [
-        "call",
-        "args"
-      ],
+      "required": ["call", "args"],
       "unevaluatedProperties": false
     },
     "formatCurrency": {
@@ -3104,20 +2745,14 @@
               "description": "Optional. If true, uses locale-specific grouping separators (e.g. '1,000'). If false, returns raw digits (e.g. '1000'). Defaults to true."
             }
           },
-          "required": [
-            "currency",
-            "value"
-          ],
+          "required": ["currency", "value"],
           "unevaluatedProperties": false
         },
         "returnType": {
           "const": "string"
         }
       },
-      "required": [
-        "call",
-        "args"
-      ],
+      "required": ["call", "args"],
       "unevaluatedProperties": false
     },
     "formatDate": {
@@ -3139,20 +2774,14 @@
               "description": "A Unicode TR35 date pattern string.\n\nToken Reference:\n- Year: 'yy' (26), 'yyyy' (2026)\n- Month: 'M' (1), 'MM' (01), 'MMM' (Jan), 'MMMM' (January)\n- Day: 'd' (1), 'dd' (01), 'E' (Tue), 'EEEE' (Tuesday)\n- Hour (12h): 'h' (1-12), 'hh' (01-12) - requires 'a' for AM/PM\n- Hour (24h): 'H' (0-23), 'HH' (00-23) - Military Time\n- Minute: 'mm' (00-59)\n- Second: 'ss' (00-59)\n- Period: 'a' (AM/PM)\n\nExamples:\n- 'MMM dd, yyyy' -> 'Jan 16, 2026'\n- 'HH:mm' -> '14:30' (Military)\n- 'h:mm a' -> '2:30 PM'\n- 'EEEE, d MMMM' -> 'Friday, 16 January'"
             }
           },
-          "required": [
-            "format",
-            "value"
-          ],
+          "required": ["format", "value"],
           "unevaluatedProperties": false
         },
         "returnType": {
           "const": "string"
         }
       },
-      "required": [
-        "call",
-        "args"
-      ],
+      "required": ["call", "args"],
       "unevaluatedProperties": false
     },
     "pluralize": {
@@ -3194,20 +2823,14 @@
               "description": "The default/fallback string (used for general plural cases)."
             }
           },
-          "required": [
-            "value",
-            "other"
-          ],
+          "required": ["value", "other"],
           "unevaluatedProperties": false
         },
         "returnType": {
           "const": "string"
         }
       },
-      "required": [
-        "call",
-        "args"
-      ],
+      "required": ["call", "args"],
       "unevaluatedProperties": false
     },
     "openUrl": {
@@ -3226,19 +2849,14 @@
               "description": "The URL to open."
             }
           },
-          "required": [
-            "url"
-          ],
+          "required": ["url"],
           "additionalProperties": false
         },
         "returnType": {
           "const": "void"
         }
       },
-      "required": [
-        "call",
-        "args"
-      ],
+      "required": ["call", "args"],
       "unevaluatedProperties": false
     },
     "and": {
@@ -3260,19 +2878,14 @@
               "minItems": 2
             }
           },
-          "required": [
-            "values"
-          ],
+          "required": ["values"],
           "unevaluatedProperties": false
         },
         "returnType": {
           "const": "boolean"
         }
       },
-      "required": [
-        "call",
-        "args"
-      ],
+      "required": ["call", "args"],
       "unevaluatedProperties": false
     },
     "or": {
@@ -3294,19 +2907,14 @@
               "minItems": 2
             }
           },
-          "required": [
-            "values"
-          ],
+          "required": ["values"],
           "unevaluatedProperties": false
         },
         "returnType": {
           "const": "boolean"
         }
       },
-      "required": [
-        "call",
-        "args"
-      ],
+      "required": ["call", "args"],
       "unevaluatedProperties": false
     },
     "not": {
@@ -3324,19 +2932,14 @@
               "description": "The boolean value to negate."
             }
           },
-          "required": [
-            "value"
-          ],
+          "required": ["value"],
           "unevaluatedProperties": false
         },
         "returnType": {
           "const": "boolean"
         }
       },
-      "required": [
-        "call",
-        "args"
-      ],
+      "required": ["call", "args"],
       "unevaluatedProperties": false
     }
   },
@@ -3387,11 +2990,7 @@
               "maximum": 31
             }
           },
-          "required": [
-            "year",
-            "month",
-            "day"
-          ]
+          "required": ["year", "month", "day"]
         },
         {
           "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DataBinding"
@@ -3424,10 +3023,7 @@
           "type": "string"
         }
       },
-      "required": [
-        "label",
-        "value"
-      ]
+      "required": ["label", "value"]
     },
     "MaterialComponentCommon": {
       "allOf": [

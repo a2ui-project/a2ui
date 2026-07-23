@@ -28,7 +28,7 @@
           "id": "panel-column",
           "component": "MaterialColumn",
           "align": "stretch",
-          "style": { "gap": "12px" },
+          "style": {"gap": "12px"},
           "children": ["panel-title", "summary-text", "sales-table"]
         },
         {
@@ -46,11 +46,11 @@
         {
           "id": "sales-table",
           "component": "MaterialTable",
-          "rows": { "path": "/rows" },
+          "rows": {"path": "/rows"},
           "columns": [
-            { "header": "Region", "field": "region" },
-            { "header": "Revenue", "field": "revenue" },
-            { "header": "Growth", "field": "growth" }
+            {"header": "Region", "field": "region"},
+            {"header": "Revenue", "field": "revenue"},
+            {"header": "Growth", "field": "growth"}
           ]
         }
       ]
@@ -63,9 +63,9 @@
       "path": "/",
       "value": {
         "rows": [
-          { "region": "North America", "revenue": "$4.2M", "growth": "+8%" },
-          { "region": "EMEA", "revenue": "$3.1M", "growth": "+5%" },
-          { "region": "APAC", "revenue": "$2.8M", "growth": "+21%" }
+          {"region": "North America", "revenue": "$4.2M", "growth": "+8%"},
+          {"region": "EMEA", "revenue": "$3.1M", "growth": "+5%"},
+          {"region": "APAC", "revenue": "$2.8M", "growth": "+21%"}
         ]
       }
     }

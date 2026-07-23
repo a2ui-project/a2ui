@@ -24,7 +24,7 @@
           "id": "column",
           "component": "MaterialColumn",
           "align": "stretch",
-          "style": { "gap": "12px" },
+          "style": {"gap": "12px"},
           "children": ["title", "html-frame"]
         },
         {

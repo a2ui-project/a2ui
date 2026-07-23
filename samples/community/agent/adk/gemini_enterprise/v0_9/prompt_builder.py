@@ -111,8 +111,8 @@ If the demo name is `unknown` or unrecognized, render the "what can you do?" dem
 
 
 def get_text_prompt() -> str:
-  """Constructs the prompt for a text-only (no A2UI) fallback agent."""
-  return """
+    """Constructs the prompt for a text-only (no A2UI) fallback agent."""
+    return """
     You are the "A2UI v0.9 Demo" agent, but the client did not enable the A2UI
     UI extension, so your output MUST be a plain text response.
 
@@ -132,29 +132,29 @@ def get_text_prompt() -> str:
 
 
 if __name__ == "__main__":
-  # Example of how to use the A2UI Schema Manager to generate a system prompt.
-  version = VERSION_0_9
-  demo_prompt = A2uiSchemaManager(
-      version,
-      catalogs=[
-          CatalogConfig.from_path(
-              name="composite",
-              catalog_path=COMPOSITE_CATALOG_PATH,
-              examples_path=f"examples/{version}",
-          )
-      ],
-      schema_modifiers=[remove_strict_validation],
-  ).generate_system_prompt(
-      role_description=ROLE_DESCRIPTION,
-      ui_description=UI_DESCRIPTION,
-      include_schema=True,
-      include_examples=True,
-      validate_examples=True,
-  )
+    # Example of how to use the A2UI Schema Manager to generate a system prompt.
+    version = VERSION_0_9
+    demo_prompt = A2uiSchemaManager(
+        version,
+        catalogs=[
+            CatalogConfig.from_path(
+                name="composite",
+                catalog_path=COMPOSITE_CATALOG_PATH,
+                examples_path=f"examples/{version}",
+            )
+        ],
+        schema_modifiers=[remove_strict_validation],
+    ).generate_system_prompt(
+        role_description=ROLE_DESCRIPTION,
+        ui_description=UI_DESCRIPTION,
+        include_schema=True,
+        include_examples=True,
+        validate_examples=True,
+    )
 
-  print(demo_prompt)
+    print(demo_prompt)
 
-  # This demonstrates how you could save the prompt to a file for inspection.
-  with open("generated_prompt.txt", "w") as f:
-    f.write(demo_prompt)
-  print("\nGenerated prompt saved to generated_prompt.txt")
+    # This demonstrates how you could save the prompt to a file for inspection.
+    with open("generated_prompt.txt", "w") as f:
+        f.write(demo_prompt)
+    print("\nGenerated prompt saved to generated_prompt.txt")
