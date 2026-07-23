@@ -22,6 +22,7 @@ import jsonschema
 import yaml
 from inspect_ai.dataset import MemoryDataset, Sample
 from inspect_ai.model import (
+    ChatMessage,
     ChatMessageAssistant,
     ChatMessageSystem,
     ChatMessageTool,
@@ -77,11 +78,11 @@ def _parse_tool_calls(
     return parsed
 
 
-def _parse_messages(item: dict[str, Any]) -> list[Any]:
+def _parse_messages(item: dict[str, Any]) -> list[ChatMessage]:
     """Parses a sample's messages list or promptText into Inspect AI ChatMessage objects."""
     messages_raw = item.get("messages")
     if messages_raw:
-        parsed = []
+        parsed: list[ChatMessage] = []
         call_id_to_func: dict[str, str] = {}
         for m in messages_raw:
             role = m.get("role", "user")

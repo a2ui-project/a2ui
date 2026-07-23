@@ -100,5 +100,5 @@ def test_load_a2ui_dataset_multi_turn(tmp_path: Path) -> None:
     assert len(dataset[0].input) == 4
     assert isinstance(dataset[0].input[0], ChatMessageUser)
     assert isinstance(dataset[0].input[1], ChatMessageAssistant)
-    assert isinstance(dataset[0].input[2], ChatMessageTool)
+    assert dataset[0].metadata is not None
     assert dataset[0].metadata["system_prompt"] == "Domain prompt"

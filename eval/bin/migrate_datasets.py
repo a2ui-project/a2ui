@@ -17,6 +17,7 @@
 
 import json
 import os
+from typing import Any
 import jsonschema
 import yaml
 
@@ -30,9 +31,9 @@ MIGRATIONS = {
 }
 
 
-def migrate_sample(item: dict, dataset_name: str) -> dict:
+def migrate_sample(item: dict[str, Any], dataset_name: str) -> dict[str, Any]:
     """Transforms a single legacy sample dictionary into the clean messages schema."""
-    new_item = {
+    new_item: dict[str, Any] = {
         "name": item["name"],
         "dataset": dataset_name,
         "description": item["description"],
@@ -68,7 +69,7 @@ def migrate_sample(item: dict, dataset_name: str) -> dict:
     return new_item
 
 
-def main():
+def main() -> None:
     with open(SCHEMA_PATH, "r", encoding="utf-8") as f:
         schema = json.load(f)
 
