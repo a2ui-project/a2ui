@@ -25,7 +25,7 @@ Datasets in `eval/datasets/` are encrypted at rest. Unlock Transcrypt locally be
 
 ```bash
 cd eval
-bin/transcrypt -p <PASSWORD>
+bin/transcrypt -y -c aes-256-cbc -p <PASSWORD>
 ```
 
 ### 2. Author the data point
