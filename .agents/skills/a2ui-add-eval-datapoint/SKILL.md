@@ -49,9 +49,9 @@ Every data point **must conform** to the JSON Schema in `eval/datasets/dataset_s
       tool_calls:
         - id: call_001
           type: function
-          function:
-            name: query_database
-            arguments: '{"key": "value"}'
+          function: query_database
+          arguments:
+            key: value
     - role: tool
       tool_call_id: call_001
       function: query_database

@@ -12,9 +12,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+"""Unit tests for dataset loading and tool call parsing."""
+
 from pathlib import Path
 import pytest
-from inspect_ai.model import ChatMessageUser, ChatMessageAssistant, ChatMessageTool
+from inspect_ai.model import ChatMessageAssistant, ChatMessageTool, ChatMessageUser
 from a2ui_eval.dataset import load_a2ui_dataset
 
 
@@ -85,11 +87,12 @@ def test_load_a2ui_dataset_multi_turn(tmp_path: Path) -> None:
       tool_calls:
         - id: call_1
           type: function
-          function:
-            name: lookup
-            arguments: '{"id": "123"}'
+          function: lookup
+          arguments:
+            id: "123"
     - role: tool
       tool_call_id: call_1
+      function: lookup
       content: '{"balance": 500}'
     - role: user
       content: "Render my balance card"
@@ -99,6 +102,19 @@ def test_load_a2ui_dataset_multi_turn(tmp_path: Path) -> None:
     assert len(dataset) == 1
     assert len(dataset[0].input) == 4
     assert isinstance(dataset[0].input[0], ChatMessageUser)
-    assert isinstance(dataset[0].input[1], ChatMessageAssistant)
+
+    assistant = dataset[0].input[1]
+    assert isinstance(assistant, ChatMessageAssistant)
+    assert assistant.tool_calls is not None
+    assert len(assistant.tool_calls) == 1
+    assert assistant.tool_calls[0].id == "call_1"
+    assert assistant.tool_calls[0].function == "lookup"
+    assert assistant.tool_calls[0].arguments == {"id": "123"}
+
+    tool_msg = dataset[0].input[2]
+    assert isinstance(tool_msg, ChatMessageTool)
+    assert tool_msg.tool_call_id == "call_1"
+    assert tool_msg.function == "lookup"
+
     assert dataset[0].metadata is not None
     assert dataset[0].metadata["system_prompt"] == "Domain prompt"

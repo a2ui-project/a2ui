@@ -51,18 +51,17 @@ def _version_to_dir_name(version: str) -> str:
 def _parse_tool_calls(
     raw_tool_calls: list[dict[str, Any]] | None,
 ) -> list[ToolCall] | None:
-    """Converts raw tool calls into Inspect AI ToolCall objects."""
+    """Converts raw tool calls in native Inspect AI format into ToolCall objects."""
     if not raw_tool_calls:
         return None
     parsed = []
     for tc in raw_tool_calls:
-        call_id = tc.get("id", "")
-        call_type = tc.get("type", "function")
-        if "function" in tc and isinstance(tc["function"], dict):
-            func_name = tc["function"].get("name", "")
-            func_args = tc["function"].get("arguments", {})
+        func_name = tc.get("function")
+        if isinstance(func_name, dict):
+            func_args = func_name.get("arguments", {})
+            func_name = str(func_name.get("name", ""))
         else:
-            func_name = str(tc.get("function", ""))
+            func_name = str(func_name or "")
             func_args = tc.get("arguments", {})
 
         if isinstance(func_args, str):
@@ -71,9 +70,13 @@ def _parse_tool_calls(
             except (json.JSONDecodeError, TypeError):
                 # If it's not a valid JSON string, treat it as a raw string argument.
                 pass
+
         parsed.append(
             ToolCall(
-                id=call_id, function=func_name, arguments=func_args, type=call_type
+                id=str(tc.get("id", "")),
+                function=func_name,
+                arguments=func_args,
+                type=tc.get("type", "function"),
             )
         )
     return parsed

@@ -39,27 +39,39 @@
             },
             "tool_calls": {
               "type": "array",
-              "description": "List of tool calls made by the assistant in this turn.",
+              "description": "List of tool calls made by the assistant in this turn in native Inspect AI ToolCall format.",
               "items": {
                 "type": "object",
                 "properties": {
-                  "id": {"type": "string"},
-                  "type": {"type": "string", "enum": ["function"]},
+                  "id": {
+                    "type": "string",
+                    "description": "Unique identifier for the tool call."
+                  },
+                  "type": {
+                    "type": "string",
+                    "enum": ["function"],
+                    "default": "function"
+                  },
                   "function": {
+                    "type": "string",
+                    "description": "Function name directly as a string."
+                  },
+                  "arguments": {
                     "type": "object",
-                    "properties": {
-                      "name": {"type": "string"},
-                      "arguments": {"type": "string"}
-                    },
-                    "required": ["name", "arguments"]
+                    "description": "JSON dictionary of function arguments."
                   }
                 },
-                "required": ["id", "function"]
+                "required": ["id", "function", "arguments"],
+                "additionalProperties": false
               }
             },
             "tool_call_id": {
               "type": "string",
               "description": "Identifier linking a tool response turn to its preceding assistant tool call."
+            },
+            "function": {
+              "type": "string",
+              "description": "Optional function name on tool response turns."
             }
           },
           "required": ["role"]
@@ -95,12 +107,21 @@
       },
       "allowed_surface_ids": {
         "type": "array",
-        "items": {"type": "string"},
+        "items": {
+          "type": "string"
+        },
         "description": "Allowed surface IDs for the output."
       }
     },
     "required": ["name", "description", "catalog"],
-    "anyOf": [{"required": ["messages"]}, {"required": ["promptText"]}],
+    "anyOf": [
+      {
+        "required": ["messages"]
+      },
+      {
+        "required": ["promptText"]
+      }
+    ],
     "additionalProperties": false
   }
 }
