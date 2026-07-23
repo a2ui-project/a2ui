@@ -360,4 +360,99 @@ describe('DataModel', () => {
       assert.strictEqual(user['a~1b'], 'value');
     });
   });
+
+  // --- Security Tests: Prototype Pollution Protection ---
+
+  it('prevents prototype pollution via __proto__ in set, get, getSignal, subscribe', () => {
+    assert.throws(
+      () => model.set('/__proto__/polluted', 'hacked'),
+      /Forbidden path segment '__proto__'/,
+    );
+    assert.throws(() => model.get('/__proto__/polluted'), /Forbidden path segment '__proto__'/);
+    assert.throws(
+      () => model.getSignal('/__proto__/polluted'),
+      /Forbidden path segment '__proto__'/,
+    );
+    assert.throws(
+      () => model.subscribe('/__proto__/polluted', () => {}),
+      /Forbidden path segment '__proto__'/,
+    );
+    assert.strictEqual(({} as any).polluted, undefined);
+  });
+
+  it('prevents prototype pollution via constructor in set, get, getSignal, subscribe', () => {
+    assert.throws(
+      () => model.set('/constructor/prototype/polluted', 'hacked'),
+      /Forbidden path segment 'constructor'/,
+    );
+    assert.throws(
+      () => model.get('/constructor/prototype/polluted'),
+      /Forbidden path segment 'constructor'/,
+    );
+    assert.throws(
+      () => model.getSignal('/constructor/prototype/polluted'),
+      /Forbidden path segment 'constructor'/,
+    );
+    assert.throws(
+      () => model.subscribe('/constructor/prototype/polluted', () => {}),
+      /Forbidden path segment 'constructor'/,
+    );
+    assert.strictEqual(({} as any).polluted, undefined);
+  });
+
+  it('prevents prototype pollution via prototype in set, get, getSignal, subscribe', () => {
+    assert.throws(
+      () => model.set('/user/prototype/polluted', 'hacked'),
+      /Forbidden path segment 'prototype'/,
+    );
+    assert.throws(
+      () => model.get('/user/prototype/polluted'),
+      /Forbidden path segment 'prototype'/,
+    );
+    assert.throws(
+      () => model.getSignal('/user/prototype/polluted'),
+      /Forbidden path segment 'prototype'/,
+    );
+    assert.throws(
+      () => model.subscribe('/user/prototype/polluted', () => {}),
+      /Forbidden path segment 'prototype'/,
+    );
+    assert.strictEqual(({} as any).polluted, undefined);
+  });
+
+  it('does not leak Object.prototype inherited properties on get', () => {
+    assert.strictEqual(model.get('/toString'), undefined);
+    assert.strictEqual(model.get('/valueOf'), undefined);
+    assert.strictEqual(model.get('/hasOwnProperty'), undefined);
+  });
+
+  it('allows setting and reading own properties named after prototype methods', () => {
+    model.set('/toString', 'custom toString');
+    assert.strictEqual(model.get('/toString'), 'custom toString');
+
+    model.set('/valueOf/nested', 'custom valueOf');
+    assert.strictEqual(model.get('/valueOf/nested'), 'custom valueOf');
+  });
+
+  it('throws when trying to set nested property through a primitive in an array', () => {
+    assert.throws(() => {
+      model.set('/items/0/foo', 'bar');
+    }, /Cannot set path/);
+  });
+
+  it('returns undefined for out-of-bounds or non-numeric array index in get', () => {
+    assert.strictEqual(model.get('/items/99'), undefined);
+    assert.strictEqual(model.get('/items/-1'), undefined);
+    assert.strictEqual(model.get('/items/invalid'), undefined);
+  });
+
+  it('rejects leading-zero array indices (RFC 6901)', () => {
+    assert.throws(() => {
+      model.set('/items/01', 'value');
+    }, /Cannot use non-numeric segment/);
+    assert.throws(() => {
+      model.set('/items/01/nested', 'value');
+    }, /Cannot use non-numeric segment/);
+    assert.strictEqual(model.get('/items/01'), undefined);
+  });
 });
