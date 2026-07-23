@@ -98,7 +98,7 @@ export const DeferredChild: React.FC<{
     };
   }, [surface, id]);
 
-  useSyncExternalStore(store.subscribe, store.getSnapshot);
+  useSyncExternalStore(store.subscribe, store.getSnapshot, store.getSnapshot);
 
   const componentModel = surface.componentsModel.get(id);
 
