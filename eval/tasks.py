@@ -16,22 +16,16 @@
 
 # pylint: disable=duplicate-code
 
-import sys
-from pathlib import Path
 from google import genai
 from google.genai import errors
-from inspect_ai import task, Task
+from inspect_ai import Task, task
 from inspect_ai.dataset import MemoryDataset, Sample
-from inspect_ai.scorer import scorer, Score, Scorer, Target
+from inspect_ai.scorer import Score, Scorer, Target, scorer
 from inspect_ai.solver import TaskState
-from a2ui_eval.dataset import load_a2ui_dataset
-from a2ui_eval.strategies import get_solver
-from a2ui_eval.scorers import a2ui_scorer, measured_model_graded_qa
 
-# Paths relative to the eval directory where we run inspect
-CURRENT_DIR = Path(__file__).resolve().parent
-DATASET_V0_9_1_PATH = (CURRENT_DIR / "datasets/core_v0_9_1.yaml").resolve()
-DATASET_V1_0_PATH = (CURRENT_DIR / "datasets/core_v1_0.yaml").resolve()
+from a2ui_eval.dataset import load_a2ui_dataset
+from a2ui_eval.scorers import a2ui_scorer, measured_model_graded_qa
+from a2ui_eval.strategies import get_solver
 
 
 @scorer(metrics=[])
@@ -98,12 +92,7 @@ def a2ui_v0_9_1_eval(
     default_catalog_path = "specification/v0_9_1/catalogs/basic/catalog.json"
     format_name = strategy if strategy in ["express", "elemental"] else "json"
 
-    file_path = None
-    if not dataset and DATASET_V0_9_1_PATH.exists():
-        file_path = str(DATASET_V0_9_1_PATH)
-
     dataset_obj = load_a2ui_dataset(
-        file_path=file_path,
         dataset=dataset,
         default_catalog_path=default_catalog_path,
         version=active_version,
@@ -160,12 +149,7 @@ def a2ui_v1_0_eval(
     default_catalog_path = "specification/v1_0/catalogs/basic/catalog.json"
     format_name = strategy if strategy in ["express", "elemental"] else "json"
 
-    file_path = None
-    if not dataset and DATASET_V1_0_PATH.exists():
-        file_path = str(DATASET_V1_0_PATH)
-
     dataset_obj = load_a2ui_dataset(
-        file_path=file_path,
         dataset=dataset,
         default_catalog_path=default_catalog_path,
         version=active_version,
