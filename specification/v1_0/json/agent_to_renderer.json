@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://a2ui.org/specification/v1_0/server_to_client.json",
+  "$id": "https://a2ui.org/specification/v1_0/agent_to_renderer.json",
   "title": "A2UI Message Schema",
   "description": "Describes a JSON payload for an A2UI (Agent to UI) message, which is used to dynamically construct and update user interfaces.",
   "type": "object",
@@ -21,7 +21,7 @@
         },
         "createSurface": {
           "type": "object",
-          "description": "Signals the client to create a new surface and begin rendering it. It is an error to try to create a surface with the same ID twice without first deleting it; surfaceId MUST be globally unique for the renderer's lifetime. When this message is sent, the client will expect 'updateComponents' and/or 'updateDataModel' messages for the same surfaceId that define the component tree.",
+          "description": "Signals the renderer to create a new surface and begin rendering it. It is an error to try to create a surface with the same ID twice without first deleting it; surfaceId MUST be globally unique for the renderer's lifetime. When this message is sent, the renderer will expect 'updateComponents' and/or 'updateDataModel' messages for the same surfaceId that define the component tree.",
           "properties": {
             "surfaceId": {
               "type": "string",
@@ -37,7 +37,7 @@
             },
             "sendDataModel": {
               "type": "boolean",
-              "description": "If true, the client will send the full data model of this surface in the metadata of every A2A message sent to the server that created the surface. Defaults to false."
+              "description": "If true, the renderer will send the full data model of this surface in the metadata of every A2A message sent to the agent that created the surface. Defaults to false."
             },
             "components": {
               "$ref": "#/$defs/ComponentsList"
@@ -125,7 +125,7 @@
         },
         "deleteSurface": {
           "type": "object",
-          "description": "Signals the client to delete the surface identified by 'surfaceId'. The createSurface message MUST have been previously sent with the 'catalogId' that is in this message.",
+          "description": "Signals the renderer to delete the surface identified by 'surfaceId'. The createSurface message MUST have been previously sent with the 'catalogId' that is in this message.",
           "properties": {
             "surfaceId": {
               "type": "string",
@@ -141,7 +141,7 @@
     },
     "CallFunctionMessage": {
       "type": "object",
-      "description": "A function invoked from the server.",
+      "description": "A function invoked from the agent.",
       "properties": {
         "version": {
           "const": "v1.0"
@@ -169,7 +169,7 @@
     },
     "ActionResponseMessage": {
       "type": "object",
-      "description": "A response to a client-initiated action.",
+      "description": "A response to a renderer-initiated action.",
       "properties": {
         "version": {
           "const": "v1.0"

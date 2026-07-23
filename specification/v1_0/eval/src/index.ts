@@ -30,7 +30,7 @@ import {analysisFlow} from './analysis_flow';
 const schemaFiles = [
   '../../json/common_types.json',
   '../../catalogs/basic/catalog.json',
-  '../../json/server_to_client.json',
+  '../../json/agent_to_renderer.json',
 ];
 
 function loadSchemas(): ProtocolSchemas {
@@ -42,7 +42,7 @@ function loadSchemas(): ProtocolSchemas {
     schemas[key] = schema;
   }
 
-  // Alias catalogs/basic/catalog.json to catalog.json to match server_to_client.json references
+  // Alias catalogs/basic/catalog.json to catalog.json to match agent_to_renderer.json references
   // This mirrors the logic in run_tests.py
   if (schemas['catalogs/basic/catalog.json']) {
     const catalogSchema = JSON.parse(JSON.stringify(schemas['catalogs/basic/catalog.json']));
