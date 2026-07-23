@@ -67,45 +67,77 @@
     "FunctionCallValidationSchema": {
       "type": "object",
       "description": "JSON Schema structure that validates a wire-level FunctionCall object.",
-      "properties": {
-        "type": {
-          "const": "object"
-        },
-        "description": {
-          "type": "string"
-        },
-        "properties": {
+      "oneOf": [
+        {
           "type": "object",
           "properties": {
-            "call": {
+            "type": {
+              "const": "object"
+            },
+            "description": {
+              "type": "string"
+            },
+            "properties": {
               "type": "object",
               "properties": {
-                "const": {"type": "string"}
+                "call": {
+                  "type": "object",
+                  "properties": {
+                    "const": {"type": "string"}
+                  },
+                  "required": ["const"]
+                },
+                "catalogId": {
+                  "type": "object",
+                  "description": "Optional catalog ID override for this function call."
+                },
+                "args": {
+                  "type": "object",
+                  "description": "A JSON Schema describing the expected arguments (args) for this function.",
+                  "$ref": "https://json-schema.org/draft/2020-12/schema"
+                }
               },
-              "required": ["const"]
+              "required": ["call"],
+              "additionalProperties": false
             },
-            "args": {
-              "type": "object",
-              "description": "A JSON Schema describing the expected arguments (args) for this function.",
-              "$ref": "https://json-schema.org/draft/2020-12/schema"
+            "required": {
+              "type": "array",
+              "items": {"type": "string"},
+              "contains": {"const": "call"}
+            },
+            "unevaluatedProperties": {
+              "type": "boolean"
+            },
+            "additionalProperties": {
+              "type": "boolean"
             }
           },
-          "required": ["call"],
-          "additionalProperties": false
+          "required": ["type", "properties", "required"]
         },
-        "required": {
-          "type": "array",
-          "items": {"type": "string"},
-          "contains": {"const": "call"}
-        },
-        "unevaluatedProperties": {
-          "type": "boolean"
-        },
-        "additionalProperties": {
-          "type": "boolean"
+        {
+          "type": "object",
+          "properties": {
+            "type": {
+              "const": "object"
+            },
+            "description": {
+              "type": "string"
+            },
+            "allOf": {
+              "type": "array",
+              "items": {"type": "object"},
+              "minItems": 1
+            },
+            "unevaluatedProperties": {
+              "type": "boolean"
+            },
+            "additionalProperties": {
+              "type": "boolean"
+            }
+          },
+          "required": ["type", "allOf"]
         }
-      },
-      "required": ["type", "properties", "required"]
+      ]
     },
     "FunctionDefinition": {
       "type": "object",

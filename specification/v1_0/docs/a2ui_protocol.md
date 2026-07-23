@@ -439,12 +439,12 @@ Renderers can support components and functions from multiple catalogs simultaneo
 
 When resolving a component (or function call), the renderer evaluates catalog identity using the following strict resolution order:
 
-1. **Explicit Component-Level `catalogId`**: The renderer checks if the component (or function call) explicitly specifies a `catalogId`. If provided, the component or function is resolved against that catalog.
-2. **Surface Default `catalogId`**: If the component does not specify a `catalogId`, the renderer checks if a default `catalogId` was specified on the surface in the `createSurface` message. If provided, the component or function is resolved against that surface default catalog.
-3. **Resolution Error**: If neither an explicit component-level `catalogId` nor a surface default `catalogId` is present, resolution fails immediately with an error and the component is not rendered (or the function call is rejected).
+1. **Explicit Component/Function-Level `catalogId`**: The renderer checks if the component or function call explicitly specifies a `catalogId`. If provided, the component or function is resolved against that catalog.
+2. **Surface Default `catalogId`**: If the component or function call does not specify a `catalogId`, the renderer checks if a default `catalogId` was specified on the surface in the `createSurface` message. If provided, the component or function is resolved against that surface default catalog.
+3. **Resolution Error**: If neither an explicit component/function-level `catalogId` nor a surface default `catalogId` is present, resolution fails immediately with an error and the component is not rendered (or the function call is rejected).
 
 > [!IMPORTANT]
-> There is **no fallback** to the list of catalogs declared in `rendererCapabilities` / `clientCapabilities` (even if the renderer only advertises a single supported catalog). Every component must resolve through either its explicit `catalogId` or the surface default `catalogId`.
+> There is **no fallback** to the list of catalogs declared in `rendererCapabilities` (even if the renderer only advertises a single supported catalog). Every component and function call must resolve through either its explicit `catalogId` or the surface default `catalogId`.
 
 ### The component catalog
 

@@ -27,36 +27,52 @@
       "type": "object",
       "description": "Opens the specified URL in a browser or handler. This function has no return value.",
       "returnType": "void",
-      "properties": {
-        "call": {
-          "const": "openUrl"
+      "allOf": [
+        {
+          "$ref": "common_types.json#/$defs/FunctionCommon"
         },
-        "args": {
+        {
           "type": "object",
           "properties": {
-            "url": {
-              "type": "string",
-              "format": "uri",
-              "description": "The URL to open."
+            "call": {
+              "const": "openUrl"
+            },
+            "args": {
+              "type": "object",
+              "properties": {
+                "url": {
+                  "type": "string",
+                  "format": "uri",
+                  "description": "The URL to open."
+                }
+              },
+              "required": ["url"],
+              "unevaluatedProperties": false
             }
           },
-          "required": ["url"],
-          "additionalProperties": false
+          "required": ["call", "args"]
         }
-      },
-      "required": ["call", "args"],
+      ],
       "unevaluatedProperties": false
     },
     "pingAgent": {
       "type": "object",
       "description": "Pings the agent from the renderer side.",
       "returnType": "void",
-      "properties": {
-        "call": {
-          "const": "pingAgent"
+      "allOf": [
+        {
+          "$ref": "common_types.json#/$defs/FunctionCommon"
+        },
+        {
+          "type": "object",
+          "properties": {
+            "call": {
+              "const": "pingAgent"
+            }
+          },
+          "required": ["call"]
         }
-      },
-      "required": ["call"],
+      ],
       "unevaluatedProperties": false
     }
   },
