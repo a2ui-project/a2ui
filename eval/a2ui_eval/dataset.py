@@ -15,22 +15,31 @@
 """Dataset loader for A2UI evaluation."""
 
 import json
-import os
+from pathlib import Path
+from typing import Any
 
 import jsonschema
 import yaml
 from inspect_ai.dataset import MemoryDataset, Sample
+from inspect_ai.model import (
+    ChatMessageAssistant,
+    ChatMessageSystem,
+    ChatMessageTool,
+    ChatMessageUser,
+)
+from inspect_ai.tool import ToolCall
 
+from a2ui_eval.shared.utils import GIT_ROOT
 from datasets.defaults import (
     DEFAULT_CATALOG_PATH,
-    DEFAULT_WORKFLOW_DESCRIPTION,
     DEFAULT_ROLE_DESCRIPTION,
+    DEFAULT_WORKFLOW_DESCRIPTION,
     FORMAT_AGNOSTIC_ROLE_DESCRIPTION,
     FORMAT_AGNOSTIC_WORKFLOW_DESCRIPTION,
 )
-from a2ui_eval.shared.utils import GIT_ROOT
 
 SCHEMA_PATH = GIT_ROOT / "eval" / "datasets" / "dataset_schema.json"
+DATASETS_DIR = GIT_ROOT / "eval" / "datasets"
 
 
 def _version_to_dir_name(version: str) -> str:
@@ -38,74 +47,171 @@ def _version_to_dir_name(version: str) -> str:
     return "v" + version.replace(".", "_")
 
 
+def _parse_tool_calls(raw_tool_calls: list[dict[str, Any]] | None) -> list[ToolCall] | None:
+    """Converts raw tool calls into Inspect AI ToolCall objects."""
+    if not raw_tool_calls:
+        return None
+    parsed = []
+    for tc in raw_tool_calls:
+        call_id = tc.get("id", "")
+        call_type = tc.get("type", "function")
+        if "function" in tc and isinstance(tc["function"], dict):
+            func_name = tc["function"].get("name", "")
+            func_args = tc["function"].get("arguments", {})
+        else:
+            func_name = str(tc.get("function", ""))
+            func_args = tc.get("arguments", {})
+
+        if isinstance(func_args, str):
+            try:
+                func_args = json.loads(func_args)
+            except Exception:
+                pass
+        parsed.append(ToolCall(id=call_id, function=func_name, arguments=func_args, type=call_type))
+    return parsed
+
+
+def _parse_messages(item: dict[str, Any]) -> list[Any]:
+    """Parses a sample's messages list or promptText into Inspect AI ChatMessage objects."""
+    messages_raw = item.get("messages")
+    if messages_raw:
+        parsed = []
+        for m in messages_raw:
+            role = m.get("role", "user")
+            content = m.get("content", "")
+            if role == "user":
+                parsed.append(ChatMessageUser(content=content))
+            elif role == "assistant":
+                parsed.append(
+                    ChatMessageAssistant(
+                        content=content,
+                        tool_calls=_parse_tool_calls(m.get("tool_calls")),
+                    )
+                )
+            elif role == "tool":
+                parsed.append(
+                    ChatMessageTool(
+                        content=content,
+                        tool_call_id=m.get("tool_call_id", ""),
+                    )
+                )
+            elif role == "system":
+                parsed.append(ChatMessageSystem(content=content))
+            else:
+                parsed.append(ChatMessageUser(content=content))
+        return parsed
+    elif "promptText" in item:
+        return [ChatMessageUser(content=item["promptText"])]
+    else:
+        raise ValueError(f"Sample {item.get('name')} must specify 'messages' or 'promptText'.")
+
+
 def load_a2ui_dataset(
-    file_path: str,
+    file_path: str | Path | None = None,
+    dataset: str | list[str] | None = None,
     default_catalog_path: str | None = None,
     version: str | None = None,
     format_name: str | None = None,
 ) -> MemoryDataset:
-    """Loads A2UI evaluation samples from a YAML file.
+    """Loads A2UI evaluation samples from YAML dataset files.
 
     Args:
-        file_path: The path to the YAML dataset file.
-        default_catalog_path: The default catalog path to use if not specified in
-          the sample.
+        file_path: The path to a specific YAML dataset file, or None to load datasets by name.
+        dataset: Specific dataset name or list of dataset names to filter by.
+        default_catalog_path: Fallback catalog path if not specified in the sample.
         version: Optional target version string to substitute into catalog paths.
+        format_name: The output format name (e.g., 'json', 'express', 'elemental').
 
     Returns:
         A MemoryDataset containing the resolved samples.
-
-    Raises:
-        FileNotFoundError: If the dataset file does not exist.
     """
-    if not os.path.exists(file_path):
-        raise FileNotFoundError(f"Dataset file not found: {file_path}")
-
-    with open(file_path, "r", encoding="utf-8") as f:
-        data = yaml.safe_load(f)
-
     with open(SCHEMA_PATH, "r", encoding="utf-8") as f:
         schema = json.load(f)
 
-    jsonschema.validate(instance=data, schema=schema)
+    # Normalize dataset filter
+    filter_names = None
+    if dataset:
+        if isinstance(dataset, str):
+            filter_names = [d.strip() for d in dataset.split(",") if d.strip()]
+        else:
+            filter_names = list(dataset)
+
+    # Discover files to load
+    target_files: list[Path] = []
+    if file_path:
+        p = Path(file_path)
+        if not p.is_absolute():
+            p = (DATASETS_DIR / p).resolve() if not p.exists() else p.resolve()
+        if not p.exists():
+            raise FileNotFoundError(f"Dataset file not found: {p}")
+        target_files.append(p)
+    else:
+        for yaml_file in sorted(DATASETS_DIR.glob("*.yaml")):
+            target_files.append(yaml_file)
 
     is_json = format_name is None or format_name == "json"
+    samples: list[Sample] = []
 
-    samples = []
-    for item in data:
-        catalog_path = (
-            item.get("catalog") or default_catalog_path or DEFAULT_CATALOG_PATH
-        )
-        if version and catalog_path:
-            catalog_path = catalog_path.replace(
-                "{version}", _version_to_dir_name(version)
+    for target_file in target_files:
+        with open(target_file, "r", encoding="utf-8") as f:
+            data = yaml.safe_load(f) or []
+
+        jsonschema.validate(instance=data, schema=schema)
+        inferred_dataset = target_file.stem
+
+        for item in data:
+            item_dataset = item.get("dataset") or inferred_dataset
+            if filter_names and item_dataset not in filter_names:
+                continue
+
+            catalog_path = (
+                item.get("catalog") or default_catalog_path or DEFAULT_CATALOG_PATH
+            )
+            if version and catalog_path:
+                catalog_path = catalog_path.replace(
+                    "{version}", _version_to_dir_name(version)
+                )
+
+            default_role = (
+                DEFAULT_ROLE_DESCRIPTION if is_json else FORMAT_AGNOSTIC_ROLE_DESCRIPTION
+            )
+            default_workflow = (
+                DEFAULT_WORKFLOW_DESCRIPTION
+                if is_json
+                else FORMAT_AGNOSTIC_WORKFLOW_DESCRIPTION
             )
 
-        default_role = (
-            DEFAULT_ROLE_DESCRIPTION if is_json else FORMAT_AGNOSTIC_ROLE_DESCRIPTION
-        )
-        default_workflow = (
-            DEFAULT_WORKFLOW_DESCRIPTION
-            if is_json
-            else FORMAT_AGNOSTIC_WORKFLOW_DESCRIPTION
-        )
-
-        role_description = item.get("role_description") or default_role
-        workflow_description = item.get("workflow_description") or default_workflow
-
-        samples.append(
-            Sample(
-                input=item["promptText"],
-                target=item.get("target") or item["description"],
-                metadata={
-                    "name": item.get("name"),
-                    "description": item["description"],
-                    "catalog": catalog_path,
-                    "role_description": role_description,
-                    "workflow_description": workflow_description,
-                    "allowed_surface_ids": item.get("allowed_surface_ids") or ["main"],
-                },
+            protocol_role = (
+                item.get("protocol_role")
+                or item.get("role_description")
+                or default_role
             )
-        )
+            generation_rules = (
+                item.get("generation_rules")
+                or item.get("workflow_description")
+                or default_workflow
+            )
+
+            chat_messages = _parse_messages(item)
+
+            samples.append(
+                Sample(
+                    id=item.get("name"),
+                    input=chat_messages,
+                    target=item.get("target") or item["description"],
+                    metadata={
+                        "name": item.get("name"),
+                        "dataset": item_dataset,
+                        "description": item["description"],
+                        "catalog": catalog_path,
+                        "system_prompt": item.get("system_prompt", ""),
+                        "protocol_role": protocol_role,
+                        "generation_rules": generation_rules,
+                        "role_description": protocol_role,
+                        "workflow_description": generation_rules,
+                        "allowed_surface_ids": item.get("allowed_surface_ids") or ["main"],
+                    },
+                )
+            )
 
     return MemoryDataset(samples=samples)

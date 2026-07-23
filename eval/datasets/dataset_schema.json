@@ -1,45 +1,109 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "description": "Schema for A2UI evaluation datasets.",
+  "title": "A2UI Evaluation Dataset Schema",
+  "description": "Schema for A2UI evaluation datasets and data points.",
   "type": "array",
   "items": {
     "type": "object",
     "properties": {
       "name": {
         "type": "string",
-        "description": "A unique identifier for this evaluation sample."
+        "description": "Unique identifier for this evaluation sample."
+      },
+      "dataset": {
+        "type": "string",
+        "description": "Name of the dataset this data point belongs to. If omitted, inferred from the YAML file name."
       },
       "description": {
         "type": "string",
-        "description": "A human-readable description of what this sample tests."
-      },
-      "promptText": {
-        "type": "string",
-        "description": "The user input prompt that is sent to the LLM."
-      },
-      "target": {
-        "type": "string",
-        "description": "The expected outcome or grading criteria for the model's generated output. Used by the LLM-as-a-judge scorer. If omitted, defaults to the value of `description`."
+        "description": "Human-readable explanation of what this sample tests."
       },
       "catalog": {
         "type": "string",
-        "description": "Path to the catalog json file. Corresponds to the catalog file path loaded into the A2uiSchemaManager. If omitted, the default is loaded from eval/datasets/defaults.py. Supports `{version}` placeholder which dynamically resolves to the target version directory name (e.g. 'v0_9_1' or 'v1_0')."
+        "description": "Path to a custom catalog JSON file. Supports the '{version}' placeholder."
+      },
+      "messages": {
+        "type": "array",
+        "description": "Ordered chat completion messages preceding and including the final UI generation request.",
+        "items": {
+          "type": "object",
+          "properties": {
+            "role": {
+              "type": "string",
+              "enum": ["user", "assistant", "system", "tool"],
+              "description": "The role of the message sender."
+            },
+            "content": {
+              "type": "string",
+              "description": "Text content of the message."
+            },
+            "tool_calls": {
+              "type": "array",
+              "description": "List of tool calls made by the assistant in this turn.",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "id": { "type": "string" },
+                  "type": { "type": "string", "enum": ["function"] },
+                  "function": {
+                    "type": "object",
+                    "properties": {
+                      "name": { "type": "string" },
+                      "arguments": { "type": "string" }
+                    },
+                    "required": ["name", "arguments"]
+                  }
+                },
+                "required": ["id", "function"]
+              }
+            },
+            "tool_call_id": {
+              "type": "string",
+              "description": "Identifier linking a tool response turn to its preceding assistant tool call."
+            }
+          },
+          "required": ["role"]
+        }
+      },
+      "promptText": {
+        "type": "string",
+        "description": "Legacy single-turn user prompt (deprecated; automatically migrated to messages)."
+      },
+      "target": {
+        "type": "string",
+        "description": "Expected outcome and rubric criteria for LLM-as-a-judge scoring. If omitted, defaults to description."
+      },
+      "system_prompt": {
+        "type": "string",
+        "description": "Domain-specific system prompt unrelated to A2UI (e.g., application persona, business rules). Merged with the A2UI SDK system prompt during solver execution."
+      },
+      "protocol_role": {
+        "type": "string",
+        "description": "A2UI protocol role instruction passed to the SDK prompt generator."
       },
       "role_description": {
         "type": "string",
-        "description": "Corresponds to the `role_description` parameter of `A2uiSchemaManager.generate_system_prompt()`. If omitted, the default is loaded from eval/datasets/defaults.py."
+        "description": "Legacy alias for protocol_role."
+      },
+      "generation_rules": {
+        "type": "string",
+        "description": "A2UI protocol workflow rules appended to the SDK workflow prompt."
       },
       "workflow_description": {
         "type": "string",
-        "description": "Corresponds to the `workflow_description` parameter of `A2uiSchemaManager.generate_system_prompt()`. If omitted, the default is loaded from eval/datasets/defaults.py."
+        "description": "Legacy alias for generation_rules."
       },
       "allowed_surface_ids": {
         "type": "array",
-        "items": {"type": "string"},
-        "description": "An optional list of allowed surface IDs. The first item is used as the default fallback."
+        "items": { "type": "string" },
+        "description": "Allowed surface IDs for the output."
       }
     },
-    "required": ["name", "description", "promptText"],
+    "required": ["name", "description", "catalog"],
+    "anyOf": [
+      { "required": ["messages"] },
+      { "required": ["promptText"] }
+    ],
     "additionalProperties": false
   }
 }

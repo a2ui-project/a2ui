@@ -18,40 +18,29 @@
 import argparse
 import datetime
 import glob
-import json
 import os
 import shutil
 import subprocess
 import sys
 
-from report_evals import extract_accuracy, print_results_summary, load_log_data, generate_markdown_summary
+from report_evals import (
+    extract_accuracy,
+    generate_markdown_summary,
+    load_log_data,
+    print_results_summary,
+)
+
 # Automatically override Inspect AI's connection rate-limiter limit to prevent queuing delays in latency measurements
 os.environ["INSPECT_MAX_CONNECTIONS"] = "50"
 
 
 def check_threshold(percentage: float, threshold: float) -> bool:
-    """Compares percentage with threshold.
-
-    Args:
-        percentage: The calculated pass percentage.
-        threshold: The threshold to compare against.
-
-    Returns:
-        True if percentage >= threshold, False otherwise.
-    """
+    """Compares percentage with threshold."""
     return percentage >= threshold
 
 
 def build_main_command(args: argparse.Namespace, seed: str) -> list[str]:
-    """Builds the command line arguments for main.py.
-
-    Args:
-        args: Parsed command line arguments.
-        seed: The random seed to use.
-
-    Returns:
-        A list of strings representing the command.
-    """
+    """Builds the command line arguments for main.py."""
     cmd = [
         "uv",
         "run",
@@ -68,13 +57,29 @@ def build_main_command(args: argparse.Namespace, seed: str) -> list[str]:
         "--grading-model",
         args.grading_model,
     ]
-    if args.max_samples != 0:
+    if getattr(args, "dataset", None):
+        cmd.extend(["--dataset", args.dataset])
+    if getattr(args, "datasets", None):
+        cmd.extend(["--datasets", args.datasets])
+    if getattr(args, "max_samples", None) and args.max_samples != 0:
         cmd.extend(["--limit", str(args.max_samples)])
     return cmd
 
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Run A2UI evals for CI.")
+    parser.add_argument(
+        "--dataset",
+        type=str,
+        default=None,
+        help="Evaluate only a specific dataset name",
+    )
+    parser.add_argument(
+        "--datasets",
+        type=str,
+        default=None,
+        help="Comma-separated list of datasets to evaluate",
+    )
     parser.add_argument(
         "--max-samples",
         type=int,
@@ -104,7 +109,6 @@ def main() -> None:
     )
     args = parser.parse_args()
 
-    # Find eval root (directory above bin)
     script_dir = os.path.dirname(os.path.abspath(__file__))
     eval_root = os.path.dirname(script_dir)
 
@@ -143,9 +147,8 @@ def main() -> None:
 
             accuracy = extract_accuracy(log_data)
             percentage = accuracy * 100
-            print(f"Pass percentage: {percentage}%")
+            print(f"Pass percentage: {percentage:.2f}%")
 
-            # Generate and accumulate markdown summary
             try:
                 summary_md = generate_markdown_summary(
                     log_data, percentage, args.threshold
@@ -156,20 +159,16 @@ def main() -> None:
 
             if not check_threshold(percentage, args.threshold):
                 print(
-                    f"Error: Pass percentage {percentage}% is less than threshold"
-                    f" {args.threshold}%"
+                    f"Error: Pass percentage {percentage:.2f}% is less than threshold"
+                    f" {args.threshold:.2f}%"
                 )
                 all_passed = False
             else:
                 print("Pass percentage check passed.")
-        except ValueError as e:
-            print(f"Error extracting metrics: {e}")
-            all_passed = False
         except Exception as e:
             print(f"Error processing log file: {e}")
             all_passed = False
 
-    # Write consolidated summary if we have summaries
     if summaries:
         summary_path = os.path.join(eval_root, "eval_summary.md")
         try:
