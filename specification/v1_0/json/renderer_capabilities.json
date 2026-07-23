@@ -1,8 +1,8 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://a2ui.org/specification/v1_0/client_capabilities.json",
-  "title": "A2UI Client Capabilities Schema",
-  "description": "A schema for the a2uiClientCapabilities object, which is sent from the client to the server as part of the A2A metadata to describe the client's UI rendering capabilities.",
+  "$id": "https://a2ui.org/specification/v1_0/renderer_capabilities.json",
+  "title": "A2UI Renderer Capabilities Schema",
+  "description": "A schema for the a2uiRendererCapabilities object, which is sent from the renderer to the agent as part of the A2A metadata to describe the renderer's UI rendering capabilities.",
   "type": "object",
   "properties": {
     "v1.0": {
@@ -11,7 +11,7 @@
       "properties": {
         "supportedCatalogIds": {
           "type": "array",
-          "description": "An array of string identifiers for each of the component and function catalogs supported by the client.",
+          "description": "An array of string identifiers for each of the component and function catalogs supported by the renderer.",
           "items": {"type": "string"}
         },
         "inlineCatalogs": {

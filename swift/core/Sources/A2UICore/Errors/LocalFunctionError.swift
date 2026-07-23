@@ -12,12 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import A2UIJSON
-import Foundation
-import JSONSchema
-import OrderedJSON
-
-// A2UICore — Stateful runtime engine implementing the A2UI state machine,
-// validation pipeline, and bidirectional event routing.
-// This file is intentionally a placeholder; real types will be added in
-// subsequent PRs.
+/// Errors that occur during local function evaluation.
+public enum LocalFunctionError: Error, Sendable {
+  case functionNotFound(String)
+  case missingArgument(String)
+  case invalidArgumentType(expected: String, actual: String)
+}

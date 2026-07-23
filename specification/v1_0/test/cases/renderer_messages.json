@@ -1,5 +1,5 @@
 {
-  "schema": "client_to_server.json",
+  "schema": "renderer_to_agent.json",
   "tests": [
     {
       "description": "Valid action message",

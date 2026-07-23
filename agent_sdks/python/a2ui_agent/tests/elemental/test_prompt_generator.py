@@ -33,7 +33,9 @@ class TestElementalPromptGenerator(unittest.TestCase):
             name="rich_catalog",
             experiments={"version_1_0"},
             s2c_schema={
-                "$id": "https://a2ui.org/specification/v1_0/json/server_to_client.json",
+                "$id": (
+                    "https://a2ui.org/specification/v1_0/json/agent_to_renderer.json"
+                ),
                 "$schema": "https://json-schema.org/draft/2020-12/schema",
             },
             common_types_schema={},
