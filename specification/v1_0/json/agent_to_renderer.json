@@ -28,7 +28,7 @@
               "description": "The unique identifier for the UI surface to be rendered. It must be globally unique for the renderer's lifetime."
             },
             "catalogId": {
-              "description": "A string that uniquely identifies this catalog. It is recommended to prefix this with an internet domain that you own, to avoid conflicts e.g. mycompany.com:somecatalog'.",
+              "description": "A string that uniquely identifies the default catalog for this surface. It is recommended to prefix this with an internet domain that you own, to avoid conflicts e.g. 'mycompany.com:somecatalog'. Components and function calls that do not explicitly specify a catalogId will use this surface-level default catalogId.",
               "type": "string"
             },
             "surfaceProperties": {
@@ -48,7 +48,7 @@
               "additionalProperties": true
             }
           },
-          "required": ["surfaceId", "catalogId"],
+          "required": ["surfaceId"],
           "additionalProperties": false
         }
       },
@@ -71,7 +71,7 @@
         },
         "updateComponents": {
           "type": "object",
-          "description": "Updates a surface with a new set of components. This message can be sent multiple times to update the component tree of an existing surface. One of the components in one of the components lists MUST have an 'id' of 'root' to serve as the root of the component tree. The createSurface message MUST have been previously sent with the 'catalogId' that is in this message.",
+          "description": "Updates a surface with a new set of components. This message can be sent multiple times to update the component tree of an existing surface. One of the components in one of the components lists MUST have an 'id' of 'root' to serve as the root of the component tree. The createSurface message MUST have been previously sent for this surfaceId.",
           "properties": {
             "surfaceId": {
               "type": "string",
@@ -96,7 +96,7 @@
         },
         "updateDataModel": {
           "type": "object",
-          "description": "Updates the data model for an existing surface. This message can be sent multiple times to update the data model. The createSurface message MUST have been previously sent with the 'catalogId' that is in this message.",
+          "description": "Updates the data model for an existing surface. This message can be sent multiple times to update the data model. The createSurface message MUST have been previously sent for this surfaceId.",
           "properties": {
             "surfaceId": {
               "type": "string",
@@ -125,7 +125,7 @@
         },
         "deleteSurface": {
           "type": "object",
-          "description": "Signals the renderer to delete the surface identified by 'surfaceId'. The createSurface message MUST have been previously sent with the 'catalogId' that is in this message.",
+          "description": "Signals the renderer to delete the surface identified by 'surfaceId'. The createSurface message MUST have been previously sent for this surfaceId.",
           "properties": {
             "surfaceId": {
               "type": "string",

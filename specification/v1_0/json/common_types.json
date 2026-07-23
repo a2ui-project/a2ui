@@ -32,6 +32,10 @@
         "id": {
           "$ref": "#/$defs/ComponentId"
         },
+        "catalogId": {
+          "type": "string",
+          "description": "The catalog ID for this component, overriding any surface-level default catalogId."
+        },
         "accessibility": {
           "$ref": "#/$defs/AccessibilityAttributes"
         }
@@ -187,6 +191,10 @@
         "call": {
           "type": "string",
           "description": "The name of the function to call."
+        },
+        "catalogId": {
+          "type": "string",
+          "description": "The catalog ID for this function, overriding any surface-level default catalogId."
         },
         "args": {
           "type": "object",
