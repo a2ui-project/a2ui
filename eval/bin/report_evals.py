@@ -25,7 +25,17 @@ from typing import Any
 
 
 def extract_accuracy(log_data: dict[str, Any]) -> float:
-    """Extracts accuracy from parsed JSON log data."""
+    """Extracts accuracy metric from parsed JSON log data.
+
+    Args:
+        log_data: Dictionary containing parsed evaluation log data.
+
+    Returns:
+        The accuracy score as a float between 0.0 and 1.0.
+
+    Raises:
+        ValueError: If no scores or accuracy metrics are present.
+    """
     scores = log_data.get("results", {}).get("scores", [])
     if not scores:
         raise ValueError("No scores found in log file.")
@@ -41,7 +51,11 @@ def extract_accuracy(log_data: dict[str, Any]) -> float:
 
 
 def print_results_summary(log_data: dict[str, Any]) -> None:
-    """Prints a summary of the results for each sample grouped by dataset."""
+    """Prints a summary of the evaluation results for each sample grouped by dataset.
+
+    Args:
+        log_data: Dictionary containing parsed evaluation log data.
+    """
     samples = log_data.get("samples", [])
     print("\n=== Evaluation Results Summary ===")
 
@@ -131,7 +145,16 @@ def print_results_summary(log_data: dict[str, Any]) -> None:
 def generate_markdown_summary(
     log_data: dict[str, Any], accuracy_percentage: float, threshold: float
 ) -> str:
-    """Generates a markdown summary of the evaluation results."""
+    """Generates a markdown summary of the evaluation results.
+
+    Args:
+        log_data: Dictionary containing parsed evaluation log data.
+        accuracy_percentage: Pass percentage achieved in the evaluation.
+        threshold: Minimum pass percentage required by CI.
+
+    Returns:
+        A formatted markdown string summarizing evaluation performance.
+    """
     eval_spec = log_data.get("eval", {}) or {}
     task_name = eval_spec.get("task", "Unknown Task")
     model_name = eval_spec.get("model", "Unknown Model")
@@ -258,7 +281,14 @@ def generate_markdown_summary(
 
 
 def load_log_data(log_path: str) -> dict[str, Any]:
-    """Runs inspect log dump to get JSON and parses it."""
+    """Loads and parses Inspect AI evaluation log JSON data using inspect log dump.
+
+    Args:
+        log_path: Path to the .eval log file.
+
+    Returns:
+        A dictionary containing parsed evaluation log data.
+    """
     dump_cmd = ["uv", "run", "inspect", "log", "dump", log_path]
     dump_output = subprocess.check_output(dump_cmd, text=True)
     result: dict[str, Any] = json.loads(dump_output)
@@ -266,6 +296,7 @@ def load_log_data(log_path: str) -> dict[str, Any]:
 
 
 def main() -> None:
+    """Main entrypoint for reporting evaluation results."""
     parser = argparse.ArgumentParser(
         description="Report results from an Inspect AI eval log file."
     )
@@ -273,7 +304,7 @@ def main() -> None:
     args = parser.parse_args()
 
     if not os.path.exists(args.log):
-        print(f"Error: Log file not found: {args.log}")
+        print(f"Error: Log file not found: {args.log}", file=sys.stderr)
         sys.exit(1)
 
     print(f"Processing log file: {args.log}")
@@ -285,8 +316,8 @@ def main() -> None:
         percentage = accuracy * 100
         print(f"Pass percentage: {percentage:.2f}%")
         sys.exit(0)
-    except Exception as e:
-        print(f"Error processing log file: {e}")
+    except (subprocess.CalledProcessError, ValueError) as e:
+        print(f"Error processing log file: {e}", file=sys.stderr)
         sys.exit(1)
 
 

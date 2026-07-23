@@ -35,12 +35,28 @@ os.environ["INSPECT_MAX_CONNECTIONS"] = "50"
 
 
 def check_threshold(percentage: float, threshold: float) -> bool:
-    """Compares percentage with threshold."""
+    """Compares pass percentage against the required threshold.
+
+    Args:
+        percentage: The calculated pass percentage.
+        threshold: The minimum pass percentage threshold.
+
+    Returns:
+        True if percentage >= threshold, False otherwise.
+    """
     return percentage >= threshold
 
 
 def build_main_command(args: argparse.Namespace, seed: str) -> list[str]:
-    """Builds the command line arguments for main.py."""
+    """Builds the command line arguments for main.py execution.
+
+    Args:
+        args: Parsed command line arguments.
+        seed: Date-based seed for sample shuffling and logging.
+
+    Returns:
+        A list of command line arguments for subprocess execution.
+    """
     cmd = [
         "uv",
         "run",
@@ -67,6 +83,7 @@ def build_main_command(args: argparse.Namespace, seed: str) -> list[str]:
 
 
 def main() -> None:
+    """Main entrypoint for CI evaluation runner."""
     parser = argparse.ArgumentParser(description="Run A2UI evals for CI.")
     parser.add_argument(
         "--dataset",
@@ -85,8 +102,8 @@ def main() -> None:
         type=int,
         default=100,
         help=(
-            "Maximum number of samples to evaluate. Set to 0 for all samples. Default"
-            " is 100."
+            "Maximum number of samples to evaluate. Set to 0 for all samples."
+            " Default is 100."
         ),
     )
     parser.add_argument(
@@ -159,8 +176,8 @@ def main() -> None:
 
             if not check_threshold(percentage, args.threshold):
                 print(
-                    f"Error: Pass percentage {percentage:.2f}% is less than threshold"
-                    f" {args.threshold:.2f}%"
+                    f"Error: Pass percentage {percentage:.2f}% is less than"
+                    f" threshold {args.threshold:.2f}%"
                 )
                 all_passed = False
             else:
@@ -180,8 +197,8 @@ def main() -> None:
 
     if not all_passed:
         print(
-            "\nCI Failed: One or more evaluation strategies did not meet the threshold"
-            " or encountered an error."
+            "\nCI Failed: One or more evaluation strategies did not meet the"
+            " threshold or encountered an error."
         )
         sys.exit(1)
 

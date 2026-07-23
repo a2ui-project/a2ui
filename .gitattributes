@@ -1,1 +1,1 @@
-#pattern  filter=crypt diff=crypt merge=crypt
+eval/datasets/*.yaml filter=crypt diff=crypt merge=crypt

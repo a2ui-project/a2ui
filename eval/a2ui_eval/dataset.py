@@ -68,7 +68,8 @@ def _parse_tool_calls(
         if isinstance(func_args, str):
             try:
                 func_args = json.loads(func_args)
-            except Exception:
+            except (json.JSONDecodeError, TypeError):
+                # If it's not a valid JSON string, treat it as a raw string argument.
                 pass
         parsed.append(
             ToolCall(
