@@ -76,23 +76,32 @@ def _parse_messages(item: dict[str, Any]) -> list[Any]:
     messages_raw = item.get("messages")
     if messages_raw:
         parsed = []
+        call_id_to_func: dict[str, str] = {}
         for m in messages_raw:
             role = m.get("role", "user")
             content = m.get("content", "")
             if role == "user":
                 parsed.append(ChatMessageUser(content=content))
             elif role == "assistant":
+                tool_calls = _parse_tool_calls(m.get("tool_calls"))
+                if tool_calls:
+                    for tc in tool_calls:
+                        if tc.id and tc.function:
+                            call_id_to_func[tc.id] = tc.function
                 parsed.append(
                     ChatMessageAssistant(
                         content=content,
-                        tool_calls=_parse_tool_calls(m.get("tool_calls")),
+                        tool_calls=tool_calls,
                     )
                 )
             elif role == "tool":
+                call_id = m.get("tool_call_id", "")
+                func_name = m.get("function") or m.get("name") or call_id_to_func.get(call_id, "tool_response")
                 parsed.append(
                     ChatMessageTool(
                         content=content,
-                        tool_call_id=m.get("tool_call_id", ""),
+                        tool_call_id=call_id,
+                        function=func_name,
                     )
                 )
             elif role == "system":
@@ -113,22 +122,10 @@ def load_a2ui_dataset(
     version: str | None = None,
     format_name: str | None = None,
 ) -> MemoryDataset:
-    """Loads A2UI evaluation samples from YAML dataset files.
-
-    Args:
-        file_path: The path to a specific YAML dataset file, or None to load datasets by name.
-        dataset: Specific dataset name or list of dataset names to filter by.
-        default_catalog_path: Fallback catalog path if not specified in the sample.
-        version: Optional target version string to substitute into catalog paths.
-        format_name: The output format name (e.g., 'json', 'express', 'elemental').
-
-    Returns:
-        A MemoryDataset containing the resolved samples.
-    """
+    """Loads A2UI evaluation samples from YAML dataset files."""
     with open(SCHEMA_PATH, "r", encoding="utf-8") as f:
         schema = json.load(f)
 
-    # Normalize dataset filter
     filter_names = None
     if dataset:
         if isinstance(dataset, str):
@@ -136,7 +133,6 @@ def load_a2ui_dataset(
         else:
             filter_names = list(dataset)
 
-    # Discover files to load
     target_files: list[Path] = []
     if file_path:
         p = Path(file_path)
