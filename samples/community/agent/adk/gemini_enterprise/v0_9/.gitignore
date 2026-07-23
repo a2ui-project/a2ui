@@ -1,0 +1,20 @@
+# Local environment / secrets — never commit
+.env
+
+# Python build artifacts
+__pycache__/
+*.pyc
+*.pyo
+build/
+dist/
+*.egg-info/
+
+# Virtual environments
+.venv/
+venv/
+
+# ADK local state
+.adk/
+
+# Generated prompt dump (from `python prompt_builder.py`)
+generated_prompt.txt
