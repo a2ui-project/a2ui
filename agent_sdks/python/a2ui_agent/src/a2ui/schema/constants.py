@@ -77,7 +77,7 @@ SPEC_VERSION_MAP = {
         COMMON_TYPES_SCHEMA_KEY: "specification/v0_9_1/json/common_types.json",
     },
     VERSION_1_0: {
-        SERVER_TO_CLIENT_SCHEMA_KEY: "specification/v1_0/json/server_to_client.json",
+        SERVER_TO_CLIENT_SCHEMA_KEY: "specification/v1_0/json/agent_to_renderer.json",
         COMMON_TYPES_SCHEMA_KEY: "specification/v1_0/json/common_types.json",
     },
 }

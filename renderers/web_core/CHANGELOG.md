@@ -1,5 +1,8 @@
 ## Unreleased
 
+- (v0_9) Add prototype pollution protection and safe property lookup to `DataModel` (non-breaking security fix).
+- (v0_8) Export `A2uiMessageSchema` in public API.
+
 ## 0.10.5
 
 - (v0_9) Accept both `v0.9` and `v0.9.1` versions when parsing messages. Allow `A2uiClientCapabilities` to support simultaneous version capability advertising (`'v0.9'` and `'v0.9.1'`).

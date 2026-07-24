@@ -12,12 +12,15 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import A2UIJSON
-import Foundation
-import JSONSchema
-import OrderedJSON
-
-// A2UICore — Stateful runtime engine implementing the A2UI state machine,
-// validation pipeline, and bidirectional event routing.
-// This file is intentionally a placeholder; real types will be added in
-// subsequent PRs.
+/// The set of return types a local function can produce.
+///
+/// Mirrors `A2uiReturnType` in the core blueprint and `web_core`.
+public enum FunctionReturnType: String, Sendable {
+  case string
+  case number
+  case boolean
+  case array
+  case object
+  case any
+  case void
+}

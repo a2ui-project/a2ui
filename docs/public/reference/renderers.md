@@ -16,9 +16,9 @@ You have a lot of flexibility, to bring custom components to a renderer, or buil
 
 | Renderer                 | Platform           | v0.8      | v0.9.1    | v1.0       | Links                                                                                |
 | ------------------------ | ------------------ | --------- | --------- | ---------- | ------------------------------------------------------------------------------------ |
-| **React**                | Web                | ✅ Stable | ✅ Stable | 🚧 Planned | [Code](https://github.com/a2ui-project/a2ui/tree/main/renderers/react)               |
-| **Lit (Web Components)** | Web                | ✅ Stable | ✅ Stable | 🚧 Planned | [Code](https://github.com/a2ui-project/a2ui/tree/main/renderers/lit)                 |
-| **Angular**              | Web                | ✅ Stable | ✅ Stable | 🚧 Planned | [Code](https://github.com/a2ui-project/a2ui/tree/main/renderers/angular)             |
+| **React**                | Web                | ✅ Stable | ✅ Stable | 🚧 Planned | [Code](../../../renderers/react)                                                     |
+| **Lit (Web Components)** | Web                | ✅ Stable | ✅ Stable | 🚧 Planned | [Code](../../../renderers/lit)                                                       |
+| **Angular**              | Web                | ✅ Stable | ✅ Stable | 🚧 Planned | [Code](../../../renderers/angular)                                                   |
 | **Flutter (GenUI SDK)**  | Mobile/Desktop/Web | ✅ Stable | ✅ Stable | 🚧 Planned | [Docs](https://docs.flutter.dev/ai/genui) · [Code](https://github.com/flutter/genui) |
 
 ### Mobile
@@ -39,6 +39,7 @@ The community is building A2UI renderers for additional platforms:
 - **[A2UI-Android](https://github.com/lmee/A2UI-Android)** — Community Jetpack Compose renderer, 20+ components (~15 ⭐, v0.8)
 - **[a2ui-react-native](https://github.com/sivamrudram-eng/a2ui-react-native)** — React Native renderer for iOS/Android (~9 ⭐, v0.8)
 - **[Lynx A2UI](https://lynxjs.org/next/react/genui/a2ui.html)** — ReactLynx renderer for A2UI (v0.9)
+- **[AGenUI](https://github.com/AGenUI/AGenUI)** — Cross-platform native renderer covering iOS, Android, and HarmonyOS. (v0.9)
 
 See the **[full ecosystem renderers list](../ecosystem/renderers.md)** for more community projects and how to submit your own.
 

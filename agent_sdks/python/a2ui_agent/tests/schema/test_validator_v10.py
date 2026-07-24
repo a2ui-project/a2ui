@@ -28,7 +28,9 @@ class TestA2uiValidatorWrapperV10(unittest.TestCase):
             name="test_catalog",
             experiments={"version_1_0"},
             s2c_schema={
-                "$id": "https://a2ui.org/specification/v1_0/json/server_to_client.json",
+                "$id": (
+                    "https://a2ui.org/specification/v1_0/json/agent_to_renderer.json"
+                ),
                 "$schema": "https://json-schema.org/draft/2020-12/schema",
                 "type": "object",
                 "properties": {
@@ -127,7 +129,9 @@ class TestA2uiValidatorWrapperV10(unittest.TestCase):
             name="oneof_catalog",
             experiments={"version_1_0"},
             s2c_schema={
-                "$id": "https://a2ui.org/specification/v1_0/json/server_to_client.json",
+                "$id": (
+                    "https://a2ui.org/specification/v1_0/json/agent_to_renderer.json"
+                ),
                 "$schema": "https://json-schema.org/draft/2020-12/schema",
                 "type": "object",
                 "oneOf": [

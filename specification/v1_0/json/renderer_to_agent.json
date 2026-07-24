@@ -1,8 +1,8 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://a2ui.org/specification/v1_0/client_to_server.json",
-  "title": "A2UI (Agent to UI) Client-to-Server Event Schema",
-  "description": "Describes a JSON payload for a client-to-server event message.",
+  "$id": "https://a2ui.org/specification/v1_0/renderer_to_agent.json",
+  "title": "A2UI (Agent to UI) Renderer-to-Agent Event Schema",
+  "description": "Describes a JSON payload for a renderer-to-agent event message.",
   "type": "object",
   "minProperties": 2,
   "maxProperties": 2,
@@ -38,7 +38,7 @@
         },
         "wantResponse": {
           "type": "boolean",
-          "description": "If true, the client expects an actionResponse from the server.",
+          "description": "If true, the renderer expects an actionResponse from the agent.",
           "default": false
         },
         "actionId": {
@@ -67,7 +67,7 @@
       "unevaluatedProperties": false
     },
     "error": {
-      "description": "Reports a client-side error.",
+      "description": "Reports a renderer-side error.",
       "oneOf": [
         {
           "type": "object",

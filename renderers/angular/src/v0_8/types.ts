@@ -35,6 +35,8 @@ export type Surface = WebCore.Surface;
 export type A2UIClientEventMessage = WebCore.A2UIClientEventMessage;
 export type ClientToServerMessage = A2UIClientEventMessage;
 export type ServerToClientMessage = WebCore.ServerToClientMessage;
+export const A2uiMessageSchema = WebCore.A2uiMessageSchema;
+export type A2uiMessage = WebCore.A2uiMessage;
 
 // Components & Interfaces
 export interface Component<P = Record<string, unknown>> {
