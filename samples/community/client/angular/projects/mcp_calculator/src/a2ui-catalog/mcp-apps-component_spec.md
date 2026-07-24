@@ -51,6 +51,24 @@ sequenceDiagram
 
 All communications between the host, the sandbox proxy, and the embedded app use structured JSON-RPC 2.0 messages defined by the `@modelcontextprotocol/ext-apps/app-bridge` specification.
 
+### Protocol Methods Summary
+
+The following table outlines the protocol methods used in the `McpApp` lifecycle and whether they are standard MCP Apps protocol methods or A2UI-specific extensions introduced to support A2UI v0.9 capabilities.
+
+| Method                                    | Direction                | Type         | Origin             | Purpose                                 |
+| ----------------------------------------- | ------------------------ | ------------ | ------------------ | --------------------------------------- |
+| `ui/initialize`                           | App $\rightarrow$ Host   | Request      | **Standard MCP**   | Handshake & capability negotiation      |
+| `ui/notifications/initialized`            | App $\rightarrow$ Host   | Notification | **Standard MCP**   | Handshake completion                    |
+| `tools/call`                              | App $\rightarrow$ Host   | Request      | **Standard MCP**   | Remote tool execution                   |
+| `ui/notifications/size-changed`           | App $\rightarrow$ Host   | Notification | **Standard MCP**   | Dynamic frame resizing                  |
+| `notifications/message`                   | App $\rightarrow$ Host   | Notification | **Standard MCP**   | Diagnostic logging                      |
+| `ui/notifications/sandbox-proxy-ready`    | Proxy $\rightarrow$ Host | Notification | **Standard MCP**   | Proxy frame ready signal                |
+| `ui/notifications/sandbox-resource-ready` | Host $\rightarrow$ Proxy | Notification | **Standard MCP**   | Provide HTML for inner frame            |
+| `ui/notifications/data-model-change`      | App $\rightarrow$ Host   | Notification | **A2UI Extension** | Two-way local data binding              |
+| `ui/notifications/data-model-update`      | Host $\rightarrow$ App   | Notification | **A2UI Extension** | Two-way local data binding              |
+| `ui/requests/function-call`               | App $\rightarrow$ Host   | Request      | **A2UI Extension** | Local client-side function execution    |
+| `ui/notifications/host-context-changed`   | Host $\rightarrow$ App   | Notification | **Standard MCP**   | Host context (dimensions, theme) update |
+
 ## 3.1. Handshake lifecycle
 
 To establish secure communication across the sandboxed boundaries without race conditions, the handshake is divided into two distinct phases:
@@ -158,6 +176,7 @@ Dispatched when the embedded application updates its internal state and wants to
   "jsonrpc": "2.0",
   "method": "ui/notifications/data-model-change",
   "params": {
+    "key": "string",
     "subpath": "string",
     "value": "any-primitive-or-json-object"
   }
@@ -165,10 +184,10 @@ Dispatched when the embedded application updates its internal state and wants to
 ```
 
 **Host action**  
-The host writes the `value` back to the Data Model at the path specified in the component's `data.path` definition.
+The host writes the `value` back to the Data Model at the path mapped to the specified `key` in the component's `data.paths` definition.
 
-- If `subpath` (an optional JSON Pointer or key-based path) is provided, the host resolves it relative to the root bound data path (e.g., `dataPath + subpath`) and updates only that specific sub-field.
-- If `subpath` is omitted, the host replaces the entire root value at `dataPath`.
+- If `subpath` (an optional JSON Pointer or key-based path) is provided, the host resolves it relative to the root bound data path for that key (e.g., `paths[key] + subpath`) and updates only that specific sub-field.
+- If `subpath` is omitted, the host replaces the entire root value at `paths[key]`.
 
 To avoid infinite update loops and redundant echoes, both sides should implement cycle prevention:
 
@@ -246,7 +265,7 @@ The host logs the diagnostic message to the developer console.
 
 ### A. Reactive state update (`ui/notifications/data-model-update`)
 
-Sent whenever the data bound to the `data.path` updates in the parent A2UI Data Model.
+Sent whenever the data bound to any path in `data.paths` updates in the parent A2UI Data Model.
 
 **Message schema**
 
@@ -255,6 +274,7 @@ Sent whenever the data bound to the `data.path` updates in the parent A2UI Data 
   "jsonrpc": "2.0",
   "method": "ui/notifications/data-model-update",
   "params": {
+    "key": "string",
     "subpath": "string",
     "value": "any-primitive-or-json-object"
   }
@@ -379,8 +399,18 @@ The `McpApp` component is registered in the A2UI Component Catalog.
         "description": "The list of local client-side functions the embedded application is authorized to call."
       },
       "data": {
-        "$ref": "common_types.json#/$defs/DynamicValue",
-        "description": "The A2UI data model path or value bound to this component for reactive state synchronization."
+        "type": "object",
+        "properties": {
+          "paths": {
+            "type": "object",
+            "description": "A dictionary mapping custom state keys to distinct JSON Pointer paths in the data model.",
+            "additionalProperties": {
+              "type": "string"
+            }
+          }
+        },
+        "required": ["paths"],
+        "additionalProperties": false
       },
       "title": {
         "$ref": "common_types.json#/$defs/DynamicString",
