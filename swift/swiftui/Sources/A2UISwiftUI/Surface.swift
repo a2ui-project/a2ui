@@ -41,9 +41,3 @@ public struct Surface<Catalog: CatalogView>: View {
     }
   }
 }
-
-extension Surface: Equatable {
-  public nonisolated static func == (lhs: Surface, rhs: Surface) -> Bool {
-    lhs.surfaceID == rhs.surfaceID
-  }
-}

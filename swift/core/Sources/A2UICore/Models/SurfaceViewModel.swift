@@ -107,7 +107,8 @@ public final class SurfaceViewModel: @unchecked Sendable, ObservableObject {
     // "...#/$defs/DynamicString") and match exactly to avoid
     // misidentifying types like "DynamicStringList" as "DynamicString".
     if let ref = schemaJSON["$ref"]?.stringValue {
-      let typeName = ref
+      let typeName =
+        ref
         .split(separator: "/")
         .last
         .map(String.init)
