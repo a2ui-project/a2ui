@@ -277,6 +277,36 @@ class A2uiDemoAgent:
             }
             return
 
+        async def token_stream(current_message, full_content_list):
+            """Runs the model and yields its non-thought text parts.
+
+            Defined once here (rather than inside the retry loop) so it is not
+            recreated on every attempt. The per-attempt `current_message` and
+            `full_content_list` are passed in; streamed text is accumulated into
+            `full_content_list` so the caller can validate/parse the full response.
+            """
+            async for event in runner.run_async(
+                user_id=self._user_id,
+                session_id=session.id,
+                run_config=run_config.RunConfig(
+                    streaming_mode=(
+                        run_config.StreamingMode.SSE
+                        if use_streaming
+                        else run_config.StreamingMode.NONE
+                    )
+                ),
+                new_message=current_message,
+            ):
+                if event.content and event.content.parts:
+                    for p in event.content.parts:
+                        # Skip the model's "thought"/reasoning parts. Thinking
+                        # models emit parts with thought=True (and .text set);
+                        # streaming these would surface raw reasoning in the UI
+                        # and corrupt the content we later validate/parse.
+                        if p.text and not getattr(p, "thought", False):
+                            full_content_list.append(p.text)
+                            yield p.text
+
         while attempt <= max_retries:
             attempt += 1
             logger.info(
@@ -290,29 +320,6 @@ class A2uiDemoAgent:
 
             full_content_list = []
             parts_streamed = False
-
-            async def token_stream():
-                async for event in runner.run_async(
-                    user_id=self._user_id,
-                    session_id=session.id,
-                    run_config=run_config.RunConfig(
-                        streaming_mode=(
-                            run_config.StreamingMode.SSE
-                            if use_streaming
-                            else run_config.StreamingMode.NONE
-                        )
-                    ),
-                    new_message=current_message,
-                ):
-                    if event.content and event.content.parts:
-                        for p in event.content.parts:
-                            # Skip the model's "thought"/reasoning parts. Thinking
-                            # models emit parts with thought=True (and .text set);
-                            # streaming these would surface raw reasoning in the UI
-                            # and corrupt the content we later validate/parse.
-                            if p.text and not getattr(p, "thought", False):
-                                full_content_list.append(p.text)
-                                yield p.text
 
             if selected_catalog:
                 from a2ui.parser.streaming import A2uiStreamParser
@@ -328,7 +335,7 @@ class A2uiDemoAgent:
 
                 async for part in stream_response_to_parts(
                     self._parsers[session_id],
-                    token_stream(),
+                    token_stream(current_message, full_content_list),
                     version=ui_version,
                 ):
                     parts_streamed = True
@@ -337,7 +344,7 @@ class A2uiDemoAgent:
                         "parts": [part],
                     }
             else:
-                async for token in token_stream():
+                async for token in token_stream(current_message, full_content_list):
                     yield {
                         "is_task_complete": False,
                         "updates": token,

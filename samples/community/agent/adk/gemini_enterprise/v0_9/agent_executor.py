@@ -84,16 +84,12 @@ class A2uiDemoAgentExecutor(AgentExecutor):
             )
             for i, part in enumerate(context.message.parts):
                 if isinstance(part.root, DataPart):
-                    data = part.root.data or {}
-                    # The a2ui v0.9 client sends a user interaction (e.g. a button click)
-                    # as a DataPart carrying a client-to-server message shaped like
-                    # `{"version": "v0.9", "action": {...}}` (see the v0.9 spec
-                    # client_to_server.json). Only accept messages tagged with the v0.9
-                    # version, and read the interaction from the `action` key.
-                    version = data.get("version")
+                    data = part.root.data
+                    version = data.get("version") if isinstance(data, dict) else None
                     event = (
                         data.get("action")
-                        if version == A2UI_CLIENT_MESSAGE_VERSION
+                        if isinstance(data, dict)
+                        and version == A2UI_CLIENT_MESSAGE_VERSION
                         else None
                     )
                     if isinstance(event, dict) and event.get("name"):
@@ -111,7 +107,9 @@ class A2uiDemoAgentExecutor(AgentExecutor):
         if ui_event_part:
             logger.info(f"Received a2ui ClientEvent: {ui_event_part}")
             action = ui_event_part.get("name")
-            ctx = ui_event_part.get("context", {})
+            ctx = ui_event_part.get("context")
+            if not isinstance(ctx, dict):
+                ctx = {}
 
             if action and action.startswith("run_demo"):
                 # The "what can you do?" card renders a button per demo. The demo key is

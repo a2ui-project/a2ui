@@ -33,7 +33,11 @@ def get_restaurants(
     logger.info(f"  - Location: {location}")
 
     items = []
-    if "new york" in location.lower() or "ny" in location.lower():
+    if (
+        location
+        and isinstance(location, str)
+        and ("new york" in location.lower() or "ny" in location.lower())
+    ):
         try:
             script_dir = os.path.dirname(__file__)
             file_path = os.path.join(script_dir, "restaurant_data.json")
