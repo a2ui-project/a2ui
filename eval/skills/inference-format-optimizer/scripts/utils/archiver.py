@@ -173,8 +173,8 @@ def archive_run(
             with open(results_json_src, "r", encoding="utf-8") as f:
                 log_data = json.load(f)
                 metrics_extracted = extract_metrics_from_log(log_data)
-        except Exception:
-            pass
+        except Exception as e:
+            print(f"Warning: Could not parse results.json: {e}", file=sys.stderr)
 
     if not metrics_extracted and eval_logs:
         try:
@@ -182,8 +182,10 @@ def archive_run(
             metrics_extracted = extract_metrics_from_log(log_data)
             with open(target_dir / "results.json", "w", encoding="utf-8") as f:
                 json.dump(log_data, f, indent=2)
-        except Exception:
-            pass
+        except Exception as e:
+            print(
+                f"Warning: Could not load eval log {eval_logs[0]}: {e}", file=sys.stderr
+            )
 
     if not metrics_extracted and os.path.exists(
         os.path.join(temp_dir, "run_meta.json")
@@ -194,8 +196,10 @@ def archive_run(
             ) as f:
                 meta_json = json.load(f)
                 metrics_extracted = meta_json.get("metrics", {})
-        except Exception:
-            pass
+        except Exception as e:
+            print(
+                f"Warning: Could not load fallback run_meta.json: {e}", file=sys.stderr
+            )
 
     meta_payload = {
         "format": format_name,

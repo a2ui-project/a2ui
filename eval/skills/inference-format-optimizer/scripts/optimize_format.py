@@ -117,8 +117,8 @@ def regenerate_master_index(target_dir: str) -> None:
                         meta_metrics = meta_data.get("metrics")
                         if meta_data.get("format"):
                             detected_format = meta_data["format"]
-                except Exception:
-                    pass
+                except Exception as e:
+                    print(f"Warning: Failed to parse {meta_path}: {e}", file=sys.stderr)
 
             model_name = meta_data.get("model", "google/gemini-3.5-flash")
             thinking_budget = meta_data.get("thinking_budget")

@@ -43,10 +43,10 @@ Compares evaluation runs against a baseline and generates GitHub Flavored Markdo
 
 ```bash
 # Compare a target run directory against baseline
-uv run python compare_results.py --baseline baselines/atom/ history/run_015_e4394473_simplified_s_expression/
+uv run python compare_results.py --baseline eval/baselines/atom/unbounded/ eval/history/atom/run_015_e4394473_simplified_s_expression/
 
 # Save markdown report to file
-uv run python compare_results.py --baseline baselines/atom/ history/run_015_e4394473_simplified_s_expression/ --output comparison.md
+uv run python compare_results.py --baseline eval/baselines/atom/unbounded/ eval/history/atom/run_015_e4394473_simplified_s_expression/ --output comparison.md
 ```
 
 ### 3. `sync_history.py`
