@@ -120,6 +120,12 @@ def regenerate_master_index(target_dir: str) -> None:
                 except Exception:
                     pass
 
+            model_name = meta_data.get("model", "google/gemini-3.5-flash")
+            thinking_budget = meta_data.get("thinking_budget")
+            budget_str = (
+                str(thinking_budget) if thinking_budget is not None else "Unbounded"
+            )
+
             overall_acc = "-"
             algo_acc = "-"
             latency = "-"
@@ -152,6 +158,8 @@ def regenerate_master_index(target_dir: str) -> None:
                 "dir_name": entry.name,
                 "format": detected_format,
                 "id": run_id,
+                "model": model_name,
+                "budget": budget_str,
                 "hypothesis": hypothesis,
                 "pytest": pytest_status,
                 "overall": overall_acc,
@@ -174,21 +182,21 @@ def regenerate_master_index(target_dir: str) -> None:
                 f"# Optimization Run History ({fmt_name.capitalize()} Format)",
                 "",
                 (
-                    "| Run ID | Hypothesis | Pytest | Overall Acc | Algo Acc | Latency"
-                    " | Input Tok | Output Tok | Status | Notes |"
+                    "| Run ID | Model | Budget | Hypothesis | Pytest | Overall Acc |"
+                    " Algo Acc | Latency | Input Tok | Output Tok | Status | Notes |"
                 ),
                 (
-                    "| :--- | :--- | :---: | :---: | :---: | :---: | :---: | :---: |"
-                    " :---: | :--- |"
+                    "| :--- | :--- | :--- | :--- | :---: | :---: | :---: | :---: |"
+                    " :---: | :---: | :---: | :--- |"
                 ),
             ]
             for r in fmt_runs:
                 clean_hypo = str(r["hypothesis"]).replace("\n", " ").replace("|", "\\|")
                 clean_notes = str(r["notes"]).replace("\n", " ").replace("|", "\\|")
                 fmt_table.append(
-                    f"| `{r['id']}` | {clean_hypo} | {r['pytest']} | {r['overall']} |"
-                    f" {r['algo']} | {r['latency']} | {r['input']} | {r['output']} |"
-                    f" {r['status']} | {clean_notes} |"
+                    f"| `{r['id']}` | `{r['model']}` | `{r['budget']}` | {clean_hypo} |"
+                    f" {r['pytest']} | {r['overall']} | {r['algo']} | {r['latency']} |"
+                    f" {r['input']} | {r['output']} | {r['status']} | {clean_notes} |"
                 )
             with open(fmt_summary_file, "w", encoding="utf-8") as f:
                 f.write("\n".join(fmt_table))
@@ -201,21 +209,22 @@ def regenerate_master_index(target_dir: str) -> None:
         "# Master Optimization Run History",
         "",
         (
-            "| Format | Run ID | Hypothesis | Pytest | Overall Acc | Algo Acc | Latency"
-            " | Input Tok | Output Tok | Status | Notes |"
+            "| Format | Run ID | Model | Budget | Hypothesis | Pytest | Overall Acc |"
+            " Algo Acc | Latency | Input Tok | Output Tok | Status | Notes |"
         ),
         (
-            "| :--- | :--- | :--- | :---: | :---: | :---: | :---: | :---: | :---: |"
-            " :---: | :--- |"
+            "| :--- | :--- | :--- | :--- | :--- | :---: | :---: | :---: | :---: | :---:"
+            " | :---: | :---: | :--- |"
         ),
     ]
     for r in all_master_runs:
         clean_hypo = str(r["hypothesis"]).replace("\n", " ").replace("|", "\\|")
         clean_notes = str(r["notes"]).replace("\n", " ").replace("|", "\\|")
         table.append(
-            f"| `{r['format']}` | `{r['id']}` | {clean_hypo} | {r['pytest']} |"
-            f" {r['overall']} | {r['algo']} | {r['latency']} | {r['input']} |"
-            f" {r['output']} | {r['status']} | {clean_notes} |"
+            f"| `{r['format']}` | `{r['id']}` | `{r['model']}` | `{r['budget']}` |"
+            f" {clean_hypo} | {r['pytest']} | {r['overall']} | {r['algo']} |"
+            f" {r['latency']} | {r['input']} | {r['output']} | {r['status']} |"
+            f" {clean_notes} |"
         )
 
     with open(master_index_file, "w", encoding="utf-8") as f:

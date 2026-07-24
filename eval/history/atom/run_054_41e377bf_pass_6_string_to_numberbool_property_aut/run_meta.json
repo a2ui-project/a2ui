@@ -11,5 +11,7 @@
     "input_tokens_median": 5936.5,
     "latency_seconds_median": 13.455737523036078,
     "total_samples": 6
-  }
+  },
+  "model": "google/gemini-3.5-flash",
+  "thinking_budget": null
 }

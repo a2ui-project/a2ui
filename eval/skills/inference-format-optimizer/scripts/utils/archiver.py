@@ -72,6 +72,8 @@ def archive_run(
     notes: Optional[str] = None,
     log_dir: Optional[str] = None,
     custom_history_dir: Optional[str] = None,
+    model: str = "google/gemini-3.5-flash",
+    thinking_budget: Optional[int] = None,
 ) -> str:
     """Atomically archives optimization run artifacts into the history directory.
 
@@ -200,6 +202,8 @@ def archive_run(
         "hypothesis": hypothesis,
         "status": status,
         "notes": notes or ("Pytest PASS" if status == "Kept" else "Reverted"),
+        "model": model,
+        "thinking_budget": thinking_budget,
         "metrics": {
             "schema_acc": metrics_extracted.get(
                 "algo_accuracy", metrics_extracted.get("schema_acc", 0.0)

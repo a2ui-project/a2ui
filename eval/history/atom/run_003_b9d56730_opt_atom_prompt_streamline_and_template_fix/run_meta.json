@@ -14,5 +14,6 @@
     "input_tokens_median": 4344.0,
     "latency_seconds_median": 0.0,
     "total_samples": 0
-  }
+  },
+  "thinking_budget": null
 }
