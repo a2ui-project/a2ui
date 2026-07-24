@@ -167,10 +167,10 @@ def sync_worktree_history(
                 copied_runs.append(f"{fmt_sub}/{bname}")
             except FileExistsError:
                 pass
-            except BaseException:
+            except Exception as e:
                 if os.path.exists(dest_dir):
                     shutil.rmtree(dest_dir)
-                raise
+                print(f"Warning: Failed to sync {entry.path}: {e}", file=sys.stderr)
 
     # Rebuild master index if requested
     if not skip_index_regen:

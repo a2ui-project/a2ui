@@ -80,5 +80,3 @@
 | `express` | `025` | `google/gemini-3.5-flash` | `Unbounded` | Pass 27: Auto-wrap single component ID strings in list properties in compiler.py | PASS | 0.0% | 0.0% | 0.00s | 0 | 0 | Backtracked | Reverted |
 | `express` | `026` | `google/gemini-3.5-flash` | `Unbounded` | Pass 28: Auto-omit empty event context maps in compiler.py | PASS | 0.0% | 0.0% | 0.00s | 0 | 0 | Backtracked | Reverted |
 | `express` | `027` | `google/gemini-3.5-flash` | `Unbounded` | Pass 29: String to number auto-coercion in compiler.py | PASS | 0.0% | 0.0% | 0.00s | 0 | 0 | Backtracked | Reverted |
-| `express` | `053` | `google/gemini-3.5-flash` | `Unbounded` | Pass 6: String-to-number/bool property auto-coercion in compiler.py | PASS | 0.0% | 0.0% | 0.00s | 0 | 0 | Kept | Maintained quality score at 92.20% and 0% token expansion, all 60 unit tests pass. |
-| `express` | `054` | `google/gemini-3.5-flash` | `Unbounded` | Pass 6: String-to-number/bool property auto-coercion in compiler.py | PASS | 100.0% | 100.0% | 13.46s | 5936 | 264 | Kept | Maintained quality score at 92.20% and 0% token expansion, all 60 unit tests pass. |
