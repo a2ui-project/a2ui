@@ -1,0 +1,14 @@
+{
+  "hypothesis": "Dynamic S-expression keyword alias resolution for optional layout flags.",
+  "notes": "Pytest 100% pass. However, Schema Acc dropped from 100.0% to 83.3% (-16.7%) and Quality Score dropped from 100.0% to 66.7% (-33.3%) because greedy standalone keyword matching mis-parsed standard key-value pairs like :orientation 'vertical', stranding values as positional args. Reverted per Rule 1 correctness guardrail.",
+  "status": "Backtracked",
+  "metrics": {
+    "schema_acc": 0.0,
+    "quality_acc": 0.0,
+    "code_tokens_median": 333.0,
+    "reasoning_tokens_median": 5137.0,
+    "input_tokens_median": 4451.5,
+    "latency_seconds_median": 0.0,
+    "total_samples": 0
+  }
+}

@@ -22,6 +22,9 @@ dependencies = []
 [tool.uv]
 package = false
 
+[tool.uv.extra-build-dependencies]
+a2ui-agent-sdk = ["a2ui-core"]
+
 [tool.uv.workspace]
 members = [
   "agent_sdks/conformance",
@@ -82,6 +85,10 @@ addopts = "--import-mode=importlib"
 [[tool.uv.index]]
 url = "https://pypi.org/simple"
 default = true
+
+[tool.uv.sources]
+a2ui-core = { workspace = true }
+a2ui-agent-sdk = { workspace = true }
 
 [tool.pyink]
 unstable = true

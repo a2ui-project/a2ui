@@ -1,0 +1,32 @@
+diff --git a/agent_sdks/python/a2ui_agent/src/a2ui/inference_formats/experimental/atom/compiler.py b/agent_sdks/python/a2ui_agent/src/a2ui/inference_formats/experimental/atom/compiler.py
+index c8b55a78..d8960e60 100644
+--- a/agent_sdks/python/a2ui_agent/src/a2ui/inference_formats/experimental/atom/compiler.py
++++ b/agent_sdks/python/a2ui_agent/src/a2ui/inference_formats/experimental/atom/compiler.py
+@@ -688,7 +688,7 @@ class AtomCompiler:
+             if "template" in prop_keys or comp_type in ("List", "ListView", "Grid"):
+                 comp_dict["template"] = tmpl_obj
+             if "items" not in comp_dict and "items" not in prop_keys:
+-                comp_dict["items"] = {"path": norm_path}
++                comp_dict["items"] = tmpl_obj
+         elif children:
+             single_child_prop = self.schema_helper.get_single_child_property(comp_type)
+             if target_child_list_key:
+@@ -734,6 +734,8 @@ class AtomCompiler:
+     def _resolve_val(self, val: Any, components: List[Dict[str, Any]]) -> Any:
+         """Resolves primitive values, dynamic bindings, and helper expressions."""
+         if isinstance(val, dict):
++            if "path" in val and len(val) == 1:
++                return {"path": self._normalize_path_str(val["path"])}
+             if "functionCall" in val and isinstance(val["functionCall"], dict):
+                 val = val["functionCall"]
+             return {k: self._resolve_val(v, components) for k, v in val.items()}
+@@ -801,11 +803,7 @@ class AtomCompiler:
+                 path_str = None
+
+             if path_str:
+-                if "/item/" in path_str:
+-                    path_str = "item/" + path_str.split("/item/", 1)[1]
+-                elif path_str.startswith("/item/"):
+-                    path_str = path_str[1:]
+-                return {"path": path_str}
++                return {"path": self._normalize_path_str(path_str)}

@@ -9,7 +9,7 @@ For a detailed overview of the design, secrets management, and contamination pre
 
 ## Running Evaluations
 
-To run the evaluations, you need to use the Inspect AI CLI via `uv`. Make sure you are in this directory (`evals/eval`).
+To run the evaluations, use the Inspect AI CLI via `uv`. Make sure your working directory is `eval/`.
 
 ### Prerequisites
 
@@ -20,7 +20,7 @@ To run the evaluations, you need to use the Inspect AI CLI via `uv`. Make sure y
    ```
 
 2. **Decrypt Datasets (First Time Setup)**:
-   The evaluation datasets are encrypted at rest in the repository to prevent base model contamination. To decrypt them in your repo for evaluation, you need to initialize Transcrypt with the shared password. From the `evals/eval` directory, run:
+   The evaluation datasets are encrypted at rest in the repository to prevent base model contamination. To decrypt them in your repo for evaluation, initialize Transcrypt with the shared password. From the `eval/` directory, run:
 
    ```bash
    bin/transcrypt -p <PASSWORD>
@@ -100,3 +100,7 @@ To run the unit tests for the evaluation framework (dataset loader, solvers, sco
 ```bash
 uv run python -m pytest
 ```
+
+## Iterative Format Optimization Framework
+
+For benchmarking, testing, and optimizing alternative A2UI inference formats (Atom, Express, Elemental), see the [Iterative Format Optimization Guide](skills/inference-format-optimizer/SKILL.md).

@@ -119,7 +119,7 @@ def main() -> None:
             )
         task_func = (
             a2ui_v1_0_eval
-            if strat in ["express", "elemental", "atom"]
+            if strat in ["express", "elemental", "atom", "direct"]
             else a2ui_v0_9_1_eval
         )
         task_obj = task_func(strategy=strat, grading_model=args.grading_model)
@@ -146,14 +146,12 @@ def main() -> None:
         "retry_attempts": retry_attempts,
         "limit": limit,
         "sample_shuffle": sample_shuffle,
+        "working_limit": 180,
     }
-    model_args = {}
     if args.thinking_budget is not None:
-        model_args["reasoning_tokens"] = args.thinking_budget
+        eval_set_kwargs["reasoning_tokens"] = args.thinking_budget
     if args.temperature is not None:
-        model_args["temperature"] = args.temperature
-    if model_args:
-        eval_set_kwargs["model_args"] = model_args
+        eval_set_kwargs["temperature"] = args.temperature
     if args.max_tasks is not None:
         eval_set_kwargs["max_tasks"] = args.max_tasks
     if args.max_samples is not None:
