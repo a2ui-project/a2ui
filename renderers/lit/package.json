@@ -118,10 +118,12 @@
     "jsdom": "^29.1.1",
     "prettier": "^3.8.4",
     "typescript": "5.9.3",
-    "wireit": "^0.15.0-pre.2"
+    "wireit": "^0.15.0-pre.2",
+    "zod": "^3.25.76"
   },
   "peerDependencies": {
-    "@a2ui/markdown-it": "*"
+    "@a2ui/markdown-it": "*",
+    "zod": "^3.25.0 || ^4.0.0"
   },
   "peerDependenciesMeta": {
     "@a2ui/markdown-it": {
@@ -133,7 +135,6 @@
     "@lit-labs/signals": "^0.3.0",
     "@lit/context": "^1.1.6",
     "lit": "^3.3.3",
-    "signal-utils": "^0.21.1",
-    "zod": "^3.25.76"
+    "signal-utils": "^0.21.1"
   }
 }

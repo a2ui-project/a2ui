@@ -8,9 +8,17 @@
       "pinVersion": "5.9.3"
     },
     {
+      "label": "Zod Peer Dependency range",
+      "packages": ["@a2ui/*"],
+      "dependencies": ["zod"],
+      "dependencyTypes": ["peer"],
+      "pinVersion": "^3.25.0 || ^4.0.0"
+    },
+    {
       "label": "Unified Zod version",
       "packages": ["**"],
       "dependencies": ["zod"],
+      "dependencyTypes": ["dev", "prod"],
       "pinVersion": "^3.25.76"
     }
   ]

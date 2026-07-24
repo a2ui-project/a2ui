@@ -154,12 +154,15 @@
     "gts": "^7.0.0",
     "rxjs": "^7.8.2",
     "typescript": "5.9.3",
-    "wireit": "^0.15.0-pre.2"
+    "wireit": "^0.15.0-pre.2",
+    "zod": "^3.25.76"
+  },
+  "peerDependencies": {
+    "zod": "^3.25.0 || ^4.0.0"
   },
   "dependencies": {
     "@preact/signals-core": "^1.14.2",
     "date-fns": "^4.4.0",
-    "zod": "^3.25.76",
     "zod-to-json-schema": "^3.25.2"
   }
 }
