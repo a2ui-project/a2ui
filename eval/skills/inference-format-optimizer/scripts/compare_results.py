@@ -67,6 +67,21 @@ def resolve_results_file(target_path: str) -> str:
             except Exception:
                 pass
 
+        # Check budget/unbounded subdirectories if target_path is a format directory
+        for sub in ["unbounded", "budget_0", "budget_897", "budget_1795"]:
+            cand_res = os.path.join(target_path, sub, "results.json")
+            if os.path.exists(cand_res):
+                return cand_res
+            cand_meta = os.path.join(target_path, sub, "run_meta.json")
+            if os.path.exists(cand_meta):
+                try:
+                    with open(cand_meta, "r", encoding="utf-8") as f:
+                        m_data = json.load(f)
+                        if "metrics" in m_data:
+                            return cand_meta
+                except Exception:
+                    pass
+
         # Search for .eval files inside directory
         eval_files = sorted(
             glob.glob(os.path.join(target_path, "**", "*.eval"), recursive=True),

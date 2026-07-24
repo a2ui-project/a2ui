@@ -45,12 +45,12 @@ def main():
         "scripts",
         "optimize_format.py",
     )
-    baselines_thinking_root = os.path.join(eval_dir, "baselines_thinking")
+    baselines_root = os.path.join(eval_dir, "baselines")
 
     print(f"Starting Thinking Budget Baselines Evaluation Matrix...")
     print(f"Formats: {FORMATS}")
     print(f"Budget Levels: {BUDGETS}")
-    print(f"Target Root: {baselines_thinking_root}\n")
+    print(f"Target Root: {baselines_root}\n")
 
     uv_bin = get_uv_binary()
     completed_runs = 0
@@ -66,9 +66,7 @@ def main():
             )
             print(f"========================================================")
 
-            target_baseline_dir = os.path.join(
-                baselines_thinking_root, f"budget_{budget}", fmt
-            )
+            target_baseline_dir = os.path.join(baselines_root, fmt, f"budget_{budget}")
             os.makedirs(target_baseline_dir, exist_ok=True)
 
             cmd = [

@@ -383,7 +383,16 @@ def main(argv: Optional[List[str]] = None) -> None:
     # Initialize baselines directory
     baseline_dir = args.baseline_dir
     if not baseline_dir:
-        baseline_dir = os.path.join(eval_root, "baselines", args.format)
+        budget_sub = (
+            f"budget_{args.thinking_budget}"
+            if args.thinking_budget is not None
+            else "unbounded"
+        )
+        candidate_dir = os.path.join(eval_root, "baselines", args.format, budget_sub)
+        if os.path.exists(candidate_dir):
+            baseline_dir = candidate_dir
+        else:
+            baseline_dir = os.path.join(eval_root, "baselines", args.format)
     os.makedirs(baseline_dir, exist_ok=True)
 
     # 1. Run Pytest unit tests
