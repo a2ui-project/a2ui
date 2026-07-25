@@ -108,6 +108,9 @@ Writing excellent tests ensures high confidence in our SDKs and services.
   - Deterministic object encoding (e.g., keys sorted alphabetically)
   - Round-trip string serialization/deserialization
   - Order-independent equality checks for dictionaries or objects
+- **No force unwraps:** Never use force unwraps (`!`) in tests. Use
+  `try #require(...)` from Swift Testing to safely unwrap optionals, which
+  produces a clear test failure instead of a crash.
 
 - **Running Tests:** Use the `run_tests.sh` script to run tests on the root package:
   ```bash

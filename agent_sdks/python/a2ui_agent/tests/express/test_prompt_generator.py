@@ -32,7 +32,9 @@ class TestExpressPromptGenerator(unittest.TestCase):
             name="test_catalog",
             experiments={"version_1_0"},
             s2c_schema={
-                "$id": "https://a2ui.org/specification/v1_0/json/server_to_client.json",
+                "$id": (
+                    "https://a2ui.org/specification/v1_0/json/agent_to_renderer.json"
+                ),
                 "$schema": "https://json-schema.org/draft/2020-12/schema",
             },
             common_types_schema={},
@@ -155,7 +157,62 @@ class TestExpressPromptGenerator(unittest.TestCase):
         )
 
         self.assertIn("### Examples:", prompt)
-        self.assertIn("---BEGIN example_1---", prompt)
+
+    def test_express_transform_examples_edge_cases(self):
+        """Test transform_examples with JSON array blocks, non-A2UI JSON, and invalid JSON."""
+        express_format = ExpressFormat(catalog=self.catalog)
+        generator = express_format.prompt_generator
+
+        # 1. JSON array block
+        array_md = (
+            '```json\n[{"version": "1.0", "deleteSurface": {"surfaceId": "s1"}}]\n```'
+        )
+        trans_array = generator.transform_examples(array_md)
+        self.assertIn('deleteSurface("s1")', trans_array)
+
+        # 2. Non-A2UI JSON block
+        non_a2ui_md = '```json\n{"foo": "bar"}\n```'
+        self.assertEqual(generator.transform_examples(non_a2ui_md), non_a2ui_md)
+
+        # 3. Invalid JSON block
+        invalid_md = "```json\n{invalid}\n```"
+        self.assertEqual(generator.transform_examples(invalid_md), invalid_md)
+
+        # 4. catalog=None
+        generator.catalog = None
+        self.assertEqual(generator.transform_examples("raw text"), "raw text")
+
+    def test_express_signatures_with_object_properties(self):
+        """Test component signatures generation for object properties with map keys."""
+        cat_map_obj = A2uiCatalog(
+            version=VERSION_1_0,
+            name="map_catalog",
+            experiments={"version_1_0"},
+            s2c_schema={},
+            common_types_schema={},
+            catalog_schema={
+                "catalogId": "https://a2ui.org/map_catalog",
+                "components": {
+                    "MapComp": {
+                        "properties": {
+                            "config": {
+                                "type": "object",
+                                "properties": {
+                                    "key1": {
+                                        "type": "string",
+                                        "description": "Key 1 desc",
+                                    },
+                                },
+                            }
+                        }
+                    }
+                },
+            },
+        )
+        fmt = ExpressFormat(catalog=cat_map_obj)
+        sigs = fmt.prompt_generator.generate_component_signatures()
+        self.assertIn("MapComp", sigs)
+        self.assertIn("Map with keys:", sigs)
 
 
 if __name__ == "__main__":

@@ -112,22 +112,20 @@ export class McpApp extends CatalogComponent<any> implements OnDestroy, OnInit {
   private iframe = viewChild.required<ElementRef<HTMLIFrameElement>>('iframe');
   private appBridge = signal<AppBridge | null>(null);
   private messageHandler: ((event: MessageEvent) => void) | null = null;
-  private dataSubscription: any = null;
+  private dataSubscriptions: any[] = [];
   private resizeTimeout: any = null;
   private lastWidth?: number;
   private lastHeight?: number;
-  private lastBoundRootValue: string | null = null;
+  private lastBoundRootValues: Record<string, string> = {};
   private isProcessingAppWrite = false;
+  private hostResizeObserver: ResizeObserver | null = null;
 
   ngOnInit() {
     this.setupSandbox();
   }
 
   ngOnDestroy() {
-    if (this.dataSubscription) {
-      this.dataSubscription.unsubscribe();
-      this.dataSubscription = null;
-    }
+    this.clearDataSubscriptions();
     if (this.resizeTimeout) {
       clearTimeout(this.resizeTimeout);
       this.resizeTimeout = null;
@@ -135,9 +133,20 @@ export class McpApp extends CatalogComponent<any> implements OnDestroy, OnInit {
     if (this.messageHandler) {
       window.removeEventListener('message', this.messageHandler);
     }
+    if (this.hostResizeObserver) {
+      this.hostResizeObserver.disconnect();
+      this.hostResizeObserver = null;
+    }
     const bridge = this.appBridge();
     if (bridge) {
       bridge.close().catch(e => console.error('Error closing AppBridge on destroy:', e));
+    }
+  }
+
+  private clearDataSubscriptions() {
+    if (this.dataSubscriptions) {
+      this.dataSubscriptions.forEach(sub => sub.unsubscribe());
+      this.dataSubscriptions = [];
     }
   }
 
@@ -224,11 +233,15 @@ export class McpApp extends CatalogComponent<any> implements OnDestroy, OnInit {
       return;
     }
 
+    // Unsubscribe from any existing data subscriptions to prevent memory leaks on re-initialization
+    this.clearDataSubscriptions();
+
     const iframe = this.iframe().nativeElement;
 
     // The app bridge is initialized without a direct connection to MCP server.
     // Communication with MCP server is expected to be handled by the sandbox iframe.
     const emptyMcpClient = null;
+    const rect = iframe.getBoundingClientRect();
     const bridge = new AppBridge(
       emptyMcpClient,
       {name: 'MCP Calculator', version: '1.0.0'},
@@ -236,6 +249,14 @@ export class McpApp extends CatalogComponent<any> implements OnDestroy, OnInit {
         openLinks: {},
         logging: {},
         serverTools: {}, // Advertise support if we had a client
+      },
+      {
+        hostContext: {
+          containerDimensions: {
+            width: rect.width,
+            height: rect.height,
+          },
+        },
       },
     );
 
@@ -252,74 +273,80 @@ export class McpApp extends CatalogComponent<any> implements OnDestroy, OnInit {
     };
 
     const surface = this.rendererService.surfaceGroup.getSurface(this.surfaceId());
-    // Resolve the path string. If the binder interprets the configuration object `{"path": "/..."}`
+    // Resolve the paths object. If the binder interprets the configuration object `{"paths": {...}}`
     // as a DataBinding, it automatically resolves it to the underlying model value.
-    // We fall back to `raw` to inspect the unresolved literal path metadata if it was resolved.
-    const dataPath =
-      (this.props()['data']?.raw as any)?.path ?? this.props()['data']?.value()?.path;
+    // We fall back to `raw` to inspect the unresolved literal paths metadata if it was resolved.
+    const dataPaths: Record<string, string> =
+      (this.props()['data']?.raw as any)?.paths ?? this.props()['data']?.value()?.paths ?? {};
 
     // Two-way local data binding: Subscribe to host Data Model changes
-    if (surface && dataPath) {
-      this.lastBoundRootValue = JSON.stringify(surface.dataModel.get(dataPath));
+    if (surface && Object.keys(dataPaths).length > 0) {
+      for (const [key, dataPath] of Object.entries(dataPaths)) {
+        this.lastBoundRootValues[key] = JSON.stringify(surface.dataModel.get(dataPath) ?? null);
 
-      this.dataSubscription = surface.dataModel.subscribe(dataPath, value => {
-        // Suppress echoes: If the update was initiated by the app itself, do not
-        // send a data-model-update notification back to it to prevent feedback loops.
-        // This is safe because JavaScript is single-threaded and the dataModel write +
-        // signals propagation run synchronously in a single call stack, meaning no other
-        // host or sibling writes can run or be blocked during this window.
-        if (this.isProcessingAppWrite) {
-          return;
-        }
+        const sub = surface.dataModel.subscribe(dataPath, value => {
+          // Suppress echoes: If the update was initiated by the app itself, do not
+          // send a data-model-update notification back to it to prevent feedback loops.
+          // This is safe because JavaScript is single-threaded and the dataModel write +
+          // signals propagation run synchronously in a single call stack, meaning no other
+          // host or sibling writes can run or be blocked during this window.
+          if (this.isProcessingAppWrite) {
+            return;
+          }
 
-        const currentBridge = this.appBridge();
-        if (!currentBridge) return;
+          const currentBridge = this.appBridge();
+          if (!currentBridge) return;
 
-        // Compare the new state tree against the last cached value to perform change detection:
-        // - For objects: diff individual keys and send targeted subpath notifications to prevent
-        //   overwriting unrelated properties (and causing concurrent clobbering).
-        // - For primitives: do a direct comparison of the values and update accordingly.
-        const prev = this.lastBoundRootValue ? JSON.parse(this.lastBoundRootValue) : null;
-        this.lastBoundRootValue = JSON.stringify(value);
+          // Compare the new state tree against the last cached value to perform change detection:
+          // - For objects: diff individual keys and send targeted subpath notifications to prevent
+          //   overwriting unrelated properties (and causing concurrent clobbering).
+          // - For primitives: do a direct comparison of the values and update accordingly.
+          const prevStr = this.lastBoundRootValues[key];
+          const prev = prevStr ? JSON.parse(prevStr) : null;
+          this.lastBoundRootValues[key] = JSON.stringify(value ?? null);
 
-        if (value && typeof value === 'object') {
-          // Diff the current root object against the previous cached root object
-          for (const [k, v] of Object.entries(value)) {
-            const oldVal = prev ? prev[k] : undefined;
-            if (JSON.stringify(oldVal) === JSON.stringify(v)) {
-              continue;
+          if (value && typeof value === 'object') {
+            // Diff the current root object against the previous cached root object
+            for (const [k, v] of Object.entries(value)) {
+              const oldVal = prev ? prev[k] : undefined;
+              if (JSON.stringify(oldVal) === JSON.stringify(v)) {
+                continue;
+              }
+              (currentBridge as any)
+                .notification({
+                  method: 'ui/notifications/data-model-update',
+                  params: {
+                    key,
+                    subpath: `/${k}`,
+                    value: v,
+                  },
+                })
+                .catch((err: any) =>
+                  console.error(`Failed to send data-model-update for key ${key}, /${k}:`, err),
+                );
+            }
+          } else {
+            // Fallback for primitives
+            if (JSON.stringify(prev) === JSON.stringify(value)) {
+              return;
             }
             (currentBridge as any)
               .notification({
                 method: 'ui/notifications/data-model-update',
-                params: {
-                  subpath: `/${k}`,
-                  value: v,
-                },
+                params: {key, value},
               })
-              .catch((err: any) =>
-                console.error(`Failed to send data-model-update for /${k}:`, err),
-              );
+              .catch((err: any) => console.error('Failed to send data-model-update:', err));
           }
-        } else {
-          // Fallback for primitives
-          if (JSON.stringify(prev) === JSON.stringify(value)) {
-            return;
-          }
-          (currentBridge as any)
-            .notification({
-              method: 'ui/notifications/data-model-update',
-              params: {value},
-            })
-            .catch((err: any) => console.error('Failed to send data-model-update:', err));
-        }
-      });
+        });
+        this.dataSubscriptions.push(sub);
+      }
     }
 
     // Two-way local data binding: Handle data-model-change from app
     const DataModelChangeNotificationSchema = z.object({
       method: z.literal('ui/notifications/data-model-change'),
       params: z.object({
+        key: z.string(),
         subpath: z.string().optional(),
         value: z.any(),
       }),
@@ -327,7 +354,8 @@ export class McpApp extends CatalogComponent<any> implements OnDestroy, OnInit {
 
     bridge.setNotificationHandler(DataModelChangeNotificationSchema, notification => {
       const params = notification.params;
-      if (surface && dataPath) {
+      if (surface && dataPaths[params.key]) {
+        const dataPath = dataPaths[params.key];
         const subpath = params.subpath;
         const targetPath = subpath
           ? `${dataPath}${subpath.startsWith('/') ? '' : '/'}${subpath}`
@@ -399,6 +427,25 @@ export class McpApp extends CatalogComponent<any> implements OnDestroy, OnInit {
       // Return empty result immediately (calculator UI can forget about it)
       return {content: []};
     };
+
+    // The initial host context was already set in the AppBridge constructor.
+
+    // Inform the app of subsequent dimension changes
+    if (this.hostResizeObserver) {
+      this.hostResizeObserver.disconnect();
+    }
+    this.hostResizeObserver = new ResizeObserver(entries => {
+      const entry = entries[0];
+      if (entry && bridge) {
+        bridge.setHostContext({
+          containerDimensions: {
+            width: entry.contentRect.width,
+            height: entry.contentRect.height,
+          },
+        });
+      }
+    });
+    this.hostResizeObserver.observe(iframe);
 
     // Connect the bridge
     // We must pass the iframe's contentWindow as the target

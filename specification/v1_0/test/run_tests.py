@@ -31,17 +31,17 @@ TEMP_CATALOG_FILE = os.path.join(TEST_DIR, "catalog.json")
 # Map of schema filenames to their full paths
 # Note: catalog.json is dynamically created from catalogs/basic/catalog.json
 SCHEMAS = {
-    "server_to_client.json": os.path.join(SCHEMA_DIR, "server_to_client.json"),
+    "agent_to_renderer.json": os.path.join(SCHEMA_DIR, "agent_to_renderer.json"),
     "common_types.json": os.path.join(SCHEMA_DIR, "common_types.json"),
     "catalog.json": TEMP_CATALOG_FILE,
-    "client_to_server.json": os.path.join(SCHEMA_DIR, "client_to_server.json"),
+    "renderer_to_agent.json": os.path.join(SCHEMA_DIR, "renderer_to_agent.json"),
 }
 
 
 def setup_catalog_alias(catalog_file="catalogs/basic/catalog.json"):
     """
     Creates a temporary catalog.json from catalogs/basic/catalog.json (or the
-    specified file) with the $id modified to match what server_to_client.json
+    specified file) with the $id modified to match what agent_to_renderer.json
     expects.
     """
     basic_catalog_path = os.path.join(SPEC_DIR, catalog_file)
@@ -63,7 +63,7 @@ def setup_catalog_alias(catalog_file="catalogs/basic/catalog.json"):
             sys.exit(1)
 
     # Modify the $id to be the generic catalog reference
-    # This allows server_to_client.json to refer to "catalog.json"
+    # This allows agent_to_renderer.json to refer to "catalog.json"
     # and have it resolve to this schema content.
     if "$id" in catalog:
         import re
@@ -128,7 +128,7 @@ def run_suite(suite_path):
     setup_catalog_alias(catalog_file)
 
     try:
-        schema_name = suite.get("schema", "server_to_client.json")
+        schema_name = suite.get("schema", "agent_to_renderer.json")
         if schema_name not in SCHEMAS:
             print(f"Error: Unknown schema '{schema_name}' referenced in {suite_path}")
             return 0, 0
@@ -174,11 +174,11 @@ def validate_jsonl_example(jsonl_path):
         return 0, 1
 
     print(f"\nValidating JSONL example: {os.path.basename(jsonl_path)}")
-    print(f"Target Schema: server_to_client.json")
+    print(f"Target Schema: agent_to_renderer.json")
 
     passed = 0
     failed = 0
-    schema_path = SCHEMAS["server_to_client.json"]
+    schema_path = SCHEMAS["agent_to_renderer.json"]
 
     setup_catalog_alias()
     try:
@@ -379,10 +379,10 @@ def validate_sample_schema():
         json.dump(sample_data, f)
 
     ref_schemas = {
-        "server_to_client_list.json": os.path.join(
-            SCHEMA_DIR, "server_to_client_list.json"
+        "agent_to_renderer_list.json": os.path.join(
+            SCHEMA_DIR, "agent_to_renderer_list.json"
         ),
-        "server_to_client.json": os.path.join(SCHEMA_DIR, "server_to_client.json"),
+        "agent_to_renderer.json": os.path.join(SCHEMA_DIR, "agent_to_renderer.json"),
         "common_types.json": os.path.join(SCHEMA_DIR, "common_types.json"),
         "catalog.json": TEMP_CATALOG_FILE,
     }
@@ -418,8 +418,8 @@ def validate_a2a_schemas():
     # Define test payloads and their target schemas
     tests = [
         {
-            "name": "client_capabilities.json",
-            "schema_path": os.path.join(SCHEMA_DIR, "client_capabilities.json"),
+            "name": "renderer_capabilities.json",
+            "schema_path": os.path.join(SCHEMA_DIR, "renderer_capabilities.json"),
             "data": {
                 "v1.0": {
                     "supportedCatalogIds": [
@@ -435,8 +435,8 @@ def validate_a2a_schemas():
             },
         },
         {
-            "name": "server_capabilities.json",
-            "schema_path": os.path.join(SCHEMA_DIR, "server_capabilities.json"),
+            "name": "agent_capabilities.json",
+            "schema_path": os.path.join(SCHEMA_DIR, "agent_capabilities.json"),
             "data": {
                 "v1.0": {
                     "supportedCatalogIds": [
@@ -448,8 +448,8 @@ def validate_a2a_schemas():
             "refs": {},
         },
         {
-            "name": "client_data_model.json",
-            "schema_path": os.path.join(SCHEMA_DIR, "client_data_model.json"),
+            "name": "renderer_data_model.json",
+            "schema_path": os.path.join(SCHEMA_DIR, "renderer_data_model.json"),
             "data": {
                 "version": "v1.0",
                 "surfaces": {"surface_123": {"user": {"name": "Alice"}}},
@@ -457,9 +457,9 @@ def validate_a2a_schemas():
             "refs": {},
         },
         {
-            "name": "server_to_client_list_wrapper.json",
+            "name": "agent_to_renderer_list_wrapper.json",
             "schema_path": os.path.join(
-                SCHEMA_DIR, "server_to_client_list_wrapper.json"
+                SCHEMA_DIR, "agent_to_renderer_list_wrapper.json"
             ),
             "data": {
                 "messages": [{
@@ -473,20 +473,20 @@ def validate_a2a_schemas():
                 }]
             },
             "refs": {
-                "server_to_client_list.json": os.path.join(
-                    SCHEMA_DIR, "server_to_client_list.json"
+                "agent_to_renderer_list.json": os.path.join(
+                    SCHEMA_DIR, "agent_to_renderer_list.json"
                 ),
-                "server_to_client.json": os.path.join(
-                    SCHEMA_DIR, "server_to_client.json"
+                "agent_to_renderer.json": os.path.join(
+                    SCHEMA_DIR, "agent_to_renderer.json"
                 ),
                 "common_types.json": os.path.join(SCHEMA_DIR, "common_types.json"),
                 "catalog.json": TEMP_CATALOG_FILE,
             },
         },
         {
-            "name": "client_to_server_list_wrapper.json",
+            "name": "renderer_to_agent_list_wrapper.json",
             "schema_path": os.path.join(
-                SCHEMA_DIR, "client_to_server_list_wrapper.json"
+                SCHEMA_DIR, "renderer_to_agent_list_wrapper.json"
             ),
             "data": {
                 "messages": [{
@@ -501,11 +501,11 @@ def validate_a2a_schemas():
                 }]
             },
             "refs": {
-                "client_to_server_list.json": os.path.join(
-                    SCHEMA_DIR, "client_to_server_list.json"
+                "renderer_to_agent_list.json": os.path.join(
+                    SCHEMA_DIR, "renderer_to_agent_list.json"
                 ),
-                "client_to_server.json": os.path.join(
-                    SCHEMA_DIR, "client_to_server.json"
+                "renderer_to_agent.json": os.path.join(
+                    SCHEMA_DIR, "renderer_to_agent.json"
                 ),
                 "common_types.json": os.path.join(SCHEMA_DIR, "common_types.json"),
             },
