@@ -21,6 +21,7 @@ import {afterEach, beforeEach, describe, it, mock} from 'node:test';
 
 import issueTriage, {
   ASSIGNEE_REQUIRED_PRIORITIES,
+  authorHasResponded,
   FLAG_LABEL,
   flagReason,
   isBot,
@@ -56,14 +57,19 @@ const pr = (overrides = {}) =>
     ...overrides,
   });
 
-const comment = (overrides = {}) => {
-  const c = {
-    created_at: daysAgo(0),
-    author_association: 'MEMBER',
-    user: {login: 'maintainer', type: 'User'},
-    ...overrides,
-  };
-  return {...c, createdAt: c.created_at, association: c.author_association};
+// Raw comment payload, in the shape the GitHub endpoints return it.
+const comment = (overrides = {}) => ({
+  created_at: daysAgo(0),
+  author_association: 'MEMBER',
+  user: {login: 'maintainer', type: 'User'},
+  ...overrides,
+});
+
+// The normalized event `fetchContributions` produces, which `flagReason` and
+// friends consume directly. Takes the same overrides as `comment`.
+const event = (overrides = {}) => {
+  const {created_at: createdAt, author_association: association, user} = comment(overrides);
+  return {createdAt, association, user};
 };
 
 describe('isBot', () => {
@@ -72,7 +78,7 @@ describe('isBot', () => {
     assert.equal(isBot({type: 'User', login: 'github-actions[bot]'}), true);
   });
 
-  it('treats real users and missing users conservatively', () => {
+  it('treats real users and deleted accounts as human', () => {
     assert.equal(isBot({type: 'User', login: 'alice'}), false);
     assert.equal(isBot(null), false);
   });
@@ -89,8 +95,8 @@ describe('lastHumanContribution', () => {
   it('returns the newest non-bot comment', () => {
     const item = issue({created_at: daysAgo(10)});
     const comments = [
-      comment({created_at: daysAgo(8), user: {login: 'a', type: 'User'}}),
-      comment({created_at: daysAgo(2), user: {login: 'b', type: 'User'}}),
+      event({created_at: daysAgo(8), user: {login: 'a', type: 'User'}}),
+      event({created_at: daysAgo(2), user: {login: 'b', type: 'User'}}),
     ];
     assert.equal(lastHumanContribution(item, comments).createdAt, daysAgo(2));
   });
@@ -98,10 +104,36 @@ describe('lastHumanContribution', () => {
   it('ignores bot comments so they do not reset the clock', () => {
     const item = issue({created_at: daysAgo(10)});
     const comments = [
-      comment({created_at: daysAgo(7), user: {login: 'human', type: 'User'}}),
-      comment({created_at: daysAgo(1), user: {type: 'Bot', login: 'bot[bot]'}}),
+      event({created_at: daysAgo(7), user: {login: 'human', type: 'User'}}),
+      event({created_at: daysAgo(1), user: {type: 'Bot', login: 'bot[bot]'}}),
     ];
     assert.equal(lastHumanContribution(item, comments).createdAt, daysAgo(7));
+  });
+});
+
+describe('authorHasResponded', () => {
+  const item = issue({user: {login: 'reporter', type: 'User'}});
+  const authorComment = event({user: {login: 'reporter', type: 'User'}});
+
+  // Regression: `lastHumanContribution` falls back to the opening post, which is
+  // by definition the author's — an item with no replies must not read as one
+  // the author has answered.
+  it('does not count the opening post as a response', () => {
+    assert.equal(authorHasResponded(item, []), false);
+  });
+
+  it('is true when the author contributed last', () => {
+    assert.equal(authorHasResponded(item, [authorComment]), true);
+  });
+
+  it('is false when someone else contributed last', () => {
+    const later = event({created_at: daysAgo(-1), user: {login: 'maintainer', type: 'User'}});
+    assert.equal(authorHasResponded(item, [authorComment, later]), false);
+  });
+
+  it('ignores a bot reply posted after the author', () => {
+    const botReply = event({created_at: daysAgo(-1), user: {login: 'bot[bot]', type: 'Bot'}});
+    assert.equal(authorHasResponded(item, [authorComment, botReply]), true);
   });
 });
 
@@ -196,13 +228,13 @@ describe('flagReason — PRIORITY_LABELS contract', () => {
 describe('flagReason — PRs', () => {
   // An external author's comment 2 days ago, with no maintainer reply since.
   const externalComment = age =>
-    comment({
+    event({
       created_at: daysAgo(age),
       author_association: 'CONTRIBUTOR',
       user: {login: 'contributor', type: 'User'},
     });
   const memberComment = age =>
-    comment({
+    event({
       created_at: daysAgo(age),
       author_association: 'MEMBER',
       user: {login: 'maintainer', type: 'User'},
@@ -238,27 +270,23 @@ describe('flagReason — PRs', () => {
 });
 
 describe('flagReason — external comment awaiting response', () => {
+  const externalComment = age =>
+    event({
+      created_at: daysAgo(age),
+      author_association: 'NONE',
+      user: {login: 'reporter', type: 'User'},
+    });
+
   it('flags when the latest reply is an unanswered external comment', () => {
     const item = issue({labels: ['P3'], comments: 1, created_at: daysAgo(5)});
-    const comments = [
-      comment({
-        created_at: daysAgo(2),
-        author_association: 'NONE',
-        user: {login: 'reporter', type: 'User'},
-      }),
-    ];
-    assert.match(flagReason(item, comments, NOW), /external contributor/);
+    assert.match(flagReason(item, [externalComment(2)], NOW), /external contributor/);
   });
 
   it('does not flag when a maintainer replied last', () => {
     const item = issue({labels: ['P3'], comments: 2, created_at: daysAgo(5)});
     const comments = [
-      comment({
-        created_at: daysAgo(3),
-        author_association: 'NONE',
-        user: {login: 'reporter', type: 'User'},
-      }),
-      comment({
+      externalComment(3),
+      event({
         created_at: daysAgo(2),
         author_association: 'MEMBER',
         user: {login: 'maintainer', type: 'User'},
@@ -269,14 +297,7 @@ describe('flagReason — external comment awaiting response', () => {
 
   it('does not flag a fresh external comment (< 1 day)', () => {
     const item = issue({labels: ['P3'], comments: 1, created_at: daysAgo(5)});
-    const comments = [
-      comment({
-        created_at: daysAgo(0),
-        author_association: 'NONE',
-        user: {login: 'reporter', type: 'User'},
-      }),
-    ];
-    assert.equal(flagReason(item, comments, NOW), null);
+    assert.equal(flagReason(item, [externalComment(0)], NOW), null);
   });
 });
 
@@ -302,7 +323,9 @@ describe('issueTriage reconciliation', () => {
           return {data: item.__fresh ?? item};
         }),
         addLabels: mock.fn(async params => calls.addLabels.push(params.issue_number)),
-        removeLabel: mock.fn(async params => calls.removeLabel.push(params.issue_number)),
+        removeLabel: mock.fn(async params =>
+          calls.removeLabel.push({number: params.issue_number, name: params.name}),
+        ),
       },
     };
     return {
@@ -344,7 +367,7 @@ describe('issueTriage reconciliation', () => {
     github = makeGithub([item]);
     await issueTriage({github, context});
 
-    assert.deepEqual(calls.removeLabel, [8]);
+    assert.deepEqual(calls.removeLabel, [{number: 8, name: FLAG_LABEL}]);
     assert.equal(calls.addLabels.length, 0);
   });
 
@@ -388,5 +411,64 @@ describe('issueTriage reconciliation', () => {
     github = makeGithub([withComments, issue({number: 13, comments: 0})]);
     await issueTriage({github, context});
     assert.deepEqual(calls.listComments, [12]);
+  });
+
+  describe('waiting-for-author-response', () => {
+    const reporter = {login: 'reporter', type: 'User'};
+
+    // An item parked on its author, with `comments` replies from them. Unlike
+    // the `flagReason` tests, `issueTriage` measures staleness against the real
+    // clock, so the replies are stamped now rather than relative to NOW.
+    const parked = (number, {comments = 0, ...overrides} = {}) => {
+      const item = issue({number, labels: [WAITING_LABEL], user: reporter, comments, ...overrides});
+      item.__comments = Array.from({length: comments}, () =>
+        comment({
+          created_at: new Date().toISOString(),
+          author_association: 'NONE',
+          user: reporter,
+        }),
+      );
+      return item;
+    };
+
+    it('keeps the label, and the item out of triage, until the author replies', async () => {
+      // With no replies the opening post is the last human contribution, and it
+      // is the author's — it must not be mistaken for a response.
+      github = makeGithub([parked(15)]); // would otherwise match rule 1a
+      await issueTriage({github, context});
+
+      assert.equal(calls.get.length, 0); // nothing to change, so no live re-read
+      assert.equal(calls.removeLabel.length, 0);
+      assert.equal(calls.addLabels.length, 0);
+    });
+
+    it('clears the label once the author has replied', async () => {
+      // P3 and assigned, so no triage rule fires once the label is gone.
+      github = makeGithub([parked(16, {comments: 1, labels: [WAITING_LABEL, 'P3']})]);
+      await issueTriage({github, context});
+
+      assert.deepEqual(calls.removeLabel, [{number: 16, name: WAITING_LABEL}]);
+      assert.equal(calls.addLabels.length, 0);
+    });
+
+    it('flags in the same run in which it clears the label', async () => {
+      // Rule 1a matches once the label is gone; that must not wait a whole run.
+      github = makeGithub([parked(17, {comments: 1})]);
+      await issueTriage({github, context});
+
+      assert.deepEqual(calls.removeLabel, [{number: 17, name: WAITING_LABEL}]);
+      assert.deepEqual(calls.addLabels, [17]);
+    });
+
+    it('backs off when a concurrent run already reconciled both labels', async () => {
+      const item = parked(18, {comments: 1});
+      item.__fresh = issue({number: 18, labels: [FLAG_LABEL]});
+      github = makeGithub([item]);
+      await issueTriage({github, context});
+
+      assert.deepEqual(calls.get, [18]); // we re-checked before mutating
+      assert.equal(calls.removeLabel.length, 0);
+      assert.equal(calls.addLabels.length, 0);
+    });
   });
 });

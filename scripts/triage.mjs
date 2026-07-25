@@ -15,13 +15,15 @@
  */
 
 // Reconciles the 'status: needs-triage' and 'status: waiting-for-author-response'
-// labels across all open issues and PRs. 
-// The 'status: needs-triage' label
-// is fully owned by this automation: it is added to every item that matches a
-// rule below and removed from every item that does not, on each run.
+// labels across all open issues and PRs.
 //
-// The 'status: waiting-for-author-response' label
-// should be assigned manually and removed by the bot after author added a comment.
+// 'status: needs-triage' is fully owned by this automation: it is added to every
+// item that matches a rule below and removed from every item that does not, on
+// each run.
+//
+// 'status: waiting-for-author-response' is applied by hand; the automation only
+// clears it, once the author has replied. While it is set the item is never
+// flagged, so parking an item on its author also parks it out of triage.
 //
 // An item is flagged with 'status: needs-triage' when it does not have the label
 // 'status: waiting-for-author-response' and:
@@ -41,6 +43,9 @@
 // rather than `updated_at`, so the bot's own label edits never reset the clock.
 // A PR is "stale" when no internal member has responded after the external
 // author's last contribution for more than a day.
+//
+// Flagged issues and PRs:
+// https://github.com/a2ui-project/a2ui/issues?q=state%3Aopen%20label%3A%22status%3A%20needs-triage%22
 //
 // The job prints to console what items are flagged/unflagged and why. To see the
 // history of runs see:
@@ -77,38 +82,63 @@ const labelNames = item =>
 const ageInDays = (isoTimestamp, now) => (now - new Date(isoTimestamp).getTime()) / DAY_MS;
 
 /**
- * Returns the most recent human contribution to an item: either its newest
- * non-bot contribution (a comment, or — on PRs — a review or inline review
- * comment), or, if there are none, the opening post itself. Used both to measure
- * staleness and to decide whether an external author is still awaiting a
- * maintainer response.
+ * Returns the newest non-bot contribution (a comment, or — on PRs — a review or
+ * inline review comment), or null if the item has none.
  *
  * `contributions` is the merged, normalized event list from `fetchContributions`.
  * On PRs it comes from three different endpoints so it is not sorted; the scan
  * picks the latest regardless of order.
  */
-export function lastHumanContribution(item, contributions) {
-  let latest = {
-    createdAt: item.created_at,
-    association: item.author_association,
-    user: item.user,
-  };
-
+function newestHumanContribution(contributions) {
+  let newest = null;
   for (const event of contributions) {
     if (isBot(event.user)) continue;
-    if (event.createdAt >= latest.createdAt) {
-      latest = event;
+    if (!newest || event.createdAt >= newest.createdAt) {
+      newest = event;
     }
   }
+  return newest;
+}
 
-  return latest;
+/**
+ * Returns the most recent human contribution to an item, falling back to the
+ * opening post when it has none. Used both to measure staleness and to decide
+ * whether an external author is still awaiting a maintainer response.
+ */
+export function lastHumanContribution(item, contributions) {
+  return (
+    newestHumanContribution(contributions) ?? {
+      createdAt: item.created_at,
+      association: item.author_association,
+      user: item.user,
+    }
+  );
+}
+
+/**
+ * True when the author has spoken since opening the item — the newest human
+ * contribution is theirs. Used to clear WAITING_LABEL. The opening post does not
+ * count: an item with no replies is exactly the one still waiting on its author.
+ *
+ * A maintainer who replies after the author hides that response from this check;
+ * such an item is covered by the staleness rules instead, and the label can
+ * always be removed by hand.
+ */
+export function authorHasResponded(item, contributions) {
+  const author = item.user?.login;
+  const newest = newestHumanContribution(contributions);
+  return Boolean(author) && newest?.user?.login === author;
 }
 
 /**
  * Returns a human-readable reason why a single open item should carry the flag
  * label, or null if it should not. The reason is logged for visibility.
  */
-export function flagReason(item, contributions, now, labels = labelNames(item)) {
+export function flagReason(item, contributions, now) {
+  const labels = labelNames(item);
+
+  // An item parked on its author is off the triage queue entirely, whatever the
+  // rules below would say.
   if (labels.includes(WAITING_LABEL)) {
     return null;
   }
@@ -252,83 +282,59 @@ export default async function issueTriage({github, context}) {
   }));
 
   // Decide each item's desired state from the snapshot, and keep only those
-  // whose labels need to change.
-  const itemsToUpdate = itemsWithContributions.map(({item, contributions}) => {
-    const labels = labelNames(item);
-    const latest = lastHumanContribution(item, contributions);
-    const isAuthorResponse = latest.user?.login === item.user?.login;
-    const shouldRemoveWaiting = labels.includes(WAITING_LABEL) && isAuthorResponse;
-    
-    // If we are removing waiting label, it shouldn't inhibit flagging in this run
-    const simulatedLabels = shouldRemoveWaiting 
-      ? labels.filter(l => l !== WAITING_LABEL) 
-      : labels;
+  // whose labels need to change. The snapshot from `listForRepo` can be stale
+  // if another run (the daily schedule overlapping an issue event) already
+  // changed a label, so the actual mutation re-checks the live state below.
+  const itemsToUpdate = itemsWithContributions
+    .map(({item, contributions}) => {
+      const labels = labelNames(item);
+      const clearWaiting =
+        labels.includes(WAITING_LABEL) && authorHasResponded(item, contributions);
 
-    const reason = flagReason(item, contributions, now, simulatedLabels);
-    
-    return {item, reason, shouldRemoveWaiting};
-  });
+      // Score the item as it will look once the waiting label is gone: a label
+      // this run clears must not also inhibit flagging until the next run.
+      const scored = clearWaiting
+        ? {...item, labels: labels.filter(label => label !== WAITING_LABEL)}
+        : item;
 
-  const itemsNeedingUpdate = itemsToUpdate.filter(({item, reason, shouldRemoveWaiting}) => {
-    const hasFlag = labelNames(item).includes(FLAG_LABEL);
-    const wantsFlag = Boolean(reason);
-    return wantsFlag !== hasFlag || shouldRemoveWaiting;
-  });
+      return {item, clearWaiting, reason: flagReason(scored, contributions, now)};
+    })
+    .filter(
+      ({item, clearWaiting, reason}) =>
+        clearWaiting || Boolean(reason) !== labelNames(item).includes(FLAG_LABEL),
+    );
 
   let added = 0;
   let removed = 0;
   let waitingCleared = 0;
 
-  await mapInBatches(itemsNeedingUpdate, async ({item, reason, shouldRemoveWaiting}) => {
+  await mapInBatches(itemsToUpdate, async ({item, clearWaiting, reason}) => {
+    const target = {owner, repo, issue_number: item.number};
     const wantsFlag = Boolean(reason);
     try {
-      // Re-read the live labels so a concurrent run cannot make us add the
-      // label twice.
-      const {data: fresh} = await github.rest.issues.get({
-        owner,
-        repo,
-        issue_number: item.number,
-      });
-      
+      // Re-read the live labels so a concurrent run cannot make us add or remove
+      // a label twice.
+      const {data: fresh} = await github.rest.issues.get(target);
       const freshLabels = labelNames(fresh);
-      const hasFlag = freshLabels.includes(FLAG_LABEL);
-      const hasWaiting = freshLabels.includes(WAITING_LABEL);
 
-      let updated = false;
-
-      if (shouldRemoveWaiting && hasWaiting) {
-        await github.rest.issues.removeLabel({
-          owner,
-          repo,
-          issue_number: item.number,
-          name: WAITING_LABEL,
-        });
+      if (clearWaiting && freshLabels.includes(WAITING_LABEL)) {
+        await github.rest.issues.removeLabel({...target, name: WAITING_LABEL});
         waitingCleared += 1;
-        console.log(`Cleared ${WAITING_LABEL} from ${item.html_url} — author responded.`);
-        updated = true;
+        console.log(`Cleared ${WAITING_LABEL} on ${item.html_url} — the author responded.`);
       }
 
-      if (wantsFlag !== hasFlag) {
-        if (wantsFlag) {
-          await github.rest.issues.addLabels({
-            owner,
-            repo,
-            issue_number: item.number,
-            labels: [FLAG_LABEL],
-          });
-          added += 1;
-          console.log(`Flagged ${item.html_url} — ${reason}`);
-        } else {
-          await github.rest.issues.removeLabel({
-            owner,
-            repo,
-            issue_number: item.number,
-            name: FLAG_LABEL,
-          });
-          removed += 1;
-          console.log(`Unflagged ${item.html_url} — no longer matches any triage rule.`);
-        }
-        updated = true;
+      if (wantsFlag === freshLabels.includes(FLAG_LABEL)) {
+        return; // Another run already reconciled the flag.
+      }
+
+      if (wantsFlag) {
+        await github.rest.issues.addLabels({...target, labels: [FLAG_LABEL]});
+        added += 1;
+        console.log(`Flagged ${item.html_url} — ${reason}`);
+      } else {
+        await github.rest.issues.removeLabel({...target, name: FLAG_LABEL});
+        removed += 1;
+        console.log(`Unflagged ${item.html_url} — no longer matches any triage rule.`);
       }
     } catch (error) {
       console.error(`Failed to update #${item.number}:`, error);
@@ -336,7 +342,7 @@ export default async function issueTriage({github, context}) {
   });
 
   console.log(
-    `A2UI triage-flag reconciliation completed: ` +
-      `${openItems.length} items, +${added} / -${removed} label changes`,
+    `A2UI triage-flag reconciliation completed: ${openItems.length} items, ` +
+      `+${added} / -${removed} '${FLAG_LABEL}', -${waitingCleared} '${WAITING_LABEL}'`,
   );
 }

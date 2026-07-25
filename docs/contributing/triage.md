@@ -39,6 +39,8 @@ This section describes goals at a high level. See concrete steps in the section 
 
 See [all github labels](https://github.com/a2ui-project/a2ui/labels).
 
+Two of these are automated by [scripts/triage.mjs](../../scripts/triage.mjs): `status: needs-triage` is added and removed entirely by the bot, and `status: waiting-for-author-response` is applied by hand — while it is set the item stays out of the triage queue, and the bot removes it once the author replies.
+
 ## Triage responsibilities
 
 ### First line triage
