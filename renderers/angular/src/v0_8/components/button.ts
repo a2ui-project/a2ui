@@ -22,7 +22,7 @@ import {Renderer} from '../rendering/renderer';
 @Component({
   selector: 'a2ui-button',
   imports: [Renderer],
-  changeDetection: ChangeDetectionStrategy.Eager,
+  changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <button
       [class]="theme.components.Button"

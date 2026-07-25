@@ -1,7 +1,28 @@
 ## Unreleased
 
-- Add locale support to `SurfaceModel` and `DataContext` in v0.9.
-- Update `pluralize`, `formatNumber`, and `formatCurrency` to use the context locale instead of hardcoding 'en-US'.
+- (v0_9) Add prototype pollution protection and safe property lookup to `DataModel` (non-breaking security fix).
+- (v0_8) Export `A2uiMessageSchema` in public API.
+
+## 0.10.5
+
+- (v0_9) Accept both `v0.9` and `v0.9.1` versions when parsing messages. Allow `A2uiClientCapabilities` to support simultaneous version capability advertising (`'v0.9'` and `'v0.9.1'`).
+
+## 0.10.4
+
+- (v0_9) Support JSON Pointer escaping (RFC 6901) in DataModel ([#1796](https://github.com/a2ui-project/a2ui/pull/1796)).
+- (v0_8) Export `UserAction` as `ClientEventUserAction` from `types.ts` ([#1942](https://github.com/a2ui-project/a2ui/pull/1942)).
+
+## 0.10.3
+
+- Added the ability to swap out the signals implementation through the `setSignalImplementation` function.
+
+## 0.10.2
+
+- Updated `openUrl` to reject URLs with schema other than HTTP or HTTPs to fix a security issue where agents could execute arbitrary Javascript code.
+
+## 0.10.1
+
+- Add locale support to basic catalog functions (`pluralize`, `formatNumber`, `formatCurrency`) in v0.9 via catalog-level configuration.
 - Remove `.passthrough()` from `PluralizeApi` schema for stricter validation.
 - Allow overriding hard-coded recursion depth in `DataValueSchema` for v0.8 by introducing `createDataValueSchema` factory function.
 - Fix `formatString` to JSON-stringify objects/arrays per spec instead of using JS default coercion.

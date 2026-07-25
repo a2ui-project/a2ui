@@ -29,7 +29,7 @@ describe('publish_npm script integration test', () => {
         );
       },
       execSync: cmd => {
-        if (cmd.includes('npm view')) return '0.0.1\n';
+        if (cmd.includes('npm info')) return '0.0.1\n';
         return '';
       },
     };
@@ -59,47 +59,49 @@ describe('publish_npm script integration test', () => {
     assert.ok(markdownItInstallIndex < litInstallIndex, 'markdown-it must be prepared before lit');
   });
 
-  it('should default to dry-run mode (skip auth and publish)', async () => {
+  it('should default to dry-run mode (skip publish)', async () => {
     const executedCommands = [];
+    let gcloudCalled = false;
     const mocks = {
       runCommand: (cmd, args) => {
         executedCommands.push(`${cmd} ${args.join(' ')}`);
       },
       execSync: cmd => {
-        if (cmd.includes('npm view')) return '0.0.1\n';
+        if (cmd.includes('gcloud auth')) gcloudCalled = true;
+        if (cmd.includes('npm info')) return '0.0.1\n';
         return '';
       },
     };
 
     await main(['--package=web_core'], mocks);
 
-    const hasAuth = executedCommands.some(cmd => cmd.includes('google-artifactregistry-auth'));
     const hasPublish = executedCommands.some(cmd => cmd.includes('publish:package'));
-    const hasInstall = executedCommands.some(cmd => cmd.includes('npm install'));
+    const hasInstall = executedCommands.some(cmd => cmd.includes('yarn install'));
 
-    assert.strictEqual(hasAuth, false, 'Should NOT authenticate in dry-run');
+    assert.strictEqual(gcloudCalled, true, 'Should authenticate in dry-run to query yarn npm info');
     assert.strictEqual(hasPublish, false, 'Should NOT publish in dry-run');
-    assert.ok(hasInstall, 'Should still run npm install in dry-run by default');
+    assert.ok(hasInstall, 'Should still run yarn install in dry-run by default');
   });
 
   it('should authenticate and publish when --no-dry-run is passed', async () => {
     const executedCommands = [];
+    let gcloudCalled = false;
     const mocks = {
       runCommand: (cmd, args) => {
         executedCommands.push(`${cmd} ${args.join(' ')}`);
       },
       execSync: cmd => {
-        if (cmd.includes('npm view')) return '0.0.1\n';
-        return '';
+        if (cmd.includes('gcloud auth')) gcloudCalled = true;
+        if (cmd.includes('npm info')) return '0.0.1\n';
+        return 'dummy_token\n';
       },
     };
 
     await main(['--package=web_core', '--no-dry-run'], mocks);
 
-    const hasAuth = executedCommands.some(cmd => cmd.includes('google-artifactregistry-auth'));
     const hasPublish = executedCommands.some(cmd => cmd.includes('publish:package'));
 
-    assert.ok(hasAuth, 'Should authenticate when --no-dry-run is passed');
+    assert.ok(gcloudCalled, 'Should authenticate via gcloud when --no-dry-run is passed');
     assert.ok(hasPublish, 'Should publish when --no-dry-run is passed');
   });
 
@@ -110,47 +112,97 @@ describe('publish_npm script integration test', () => {
         executedCommands.push(`${cmd} ${args.join(' ')}`);
       },
       execSync: cmd => {
-        if (cmd.includes('npm view')) return '0.0.1\n';
+        if (cmd.includes('npm info')) return '0.0.1\n';
         return '';
       },
     };
 
     await main(['--package=web_core', '--skip-tests'], mocks);
 
-    const hasTest = executedCommands.some(cmd => cmd.includes('npm run test'));
+    const hasTest = executedCommands.some(cmd => cmd.includes('run test'));
     assert.strictEqual(hasTest, false, 'Should NOT run tests when --skip-tests is passed');
   });
 
-  it('should fail safety check if core dependencies are missing', async () => {
+  it('should automatically add core dependencies if missing', async () => {
+    const executedCommands = [];
     const mocks = {
-      runCommand: () => {},
-      execSync: () => '',
+      runCommand: (cmd, args, options) => {
+        executedCommands.push(
+          `${cmd} ${args.join(' ')} (in ${options?.cwd ? options.cwd.split('/').pop() : 'root'})`,
+        );
+      },
+      execSync: cmd => {
+        if (cmd.includes('npm info')) return '{"version":"0.0.1"}\n';
+        return '';
+      },
     };
 
+    await main(['--package=lit'], mocks);
+
+    const hasLitInstall = executedCommands.some(cmd => cmd.includes('yarn install (in lit)'));
+    const hasCoreInstall = executedCommands.some(cmd => cmd.includes('yarn install (in web_core)'));
+    const hasMdInstall = executedCommands.some(cmd =>
+      cmd.includes('yarn install (in markdown-it)'),
+    );
+
+    assert.ok(hasLitInstall, 'Should run yarn install in lit');
+    assert.ok(hasCoreInstall, 'Should run yarn install in web_core');
+    assert.ok(hasMdInstall, 'Should run yarn install in markdown-it');
+  });
+
+  it('should throw an error when no packages are specified', async () => {
     await assert.rejects(
-      async () => {
-        await main(['--package=lit'], mocks);
+      () => main([]),
+      err => {
+        assert.match(err.message, /Usage: publish_npm --package=pkg1/);
+        return true;
       },
-      /.*/, // The script will emit an error with some details.
-      'Should fail when web_core and markdown-it are missing',
     );
   });
 
-  it('should bypass safety check when --no-check-core-dependencies is passed', async () => {
+  it('should output help message and return early when --help is passed', async () => {
     const executedCommands = [];
     const mocks = {
       runCommand: (cmd, args) => {
         executedCommands.push(`${cmd} ${args.join(' ')}`);
       },
+      execSync: () => '',
+    };
+
+    await main(['--help'], mocks);
+    assert.strictEqual(
+      executedCommands.length,
+      0,
+      'Should not run any commands when help is passed',
+    );
+  });
+
+  it('should throw when the auth token cannot be obtained', async () => {
+    const originalNpmToken = process.env.NPM_TOKEN;
+    delete process.env.NPM_TOKEN;
+
+    const mocks = {
+      runCommand: () => {},
       execSync: cmd => {
-        if (cmd.includes('npm view')) return '0.0.1\n';
+        if (cmd.includes('gcloud auth')) {
+          throw new Error('gcloud command failed');
+        }
         return '';
       },
     };
 
-    await main(['--package=lit', '--no-check-core-dependencies'], mocks);
-
-    const hasInstall = executedCommands.some(cmd => cmd.includes('npm install'));
-    assert.ok(hasInstall, 'Should proceed to install');
+    try {
+      await assert.rejects(
+        () => main(['--package=web_core'], mocks),
+        err => {
+          assert.match(err.message, /Could not find access token/);
+          return true;
+        },
+      );
+    } finally {
+      if (originalNpmToken !== undefined) {
+        process.env.NPM_TOKEN = originalNpmToken;
+      }
+    }
   });
 });

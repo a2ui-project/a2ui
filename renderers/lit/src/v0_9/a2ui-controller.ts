@@ -14,10 +14,9 @@
  * limitations under the License.
  */
 
-import {ReactiveController, LitElement} from 'lit';
+import {ReactiveController} from 'lit';
 import {
   GenericBinder,
-  ComponentContext,
   ComponentApi,
   ResolveA2uiProps,
   InferredComponentApiSchemaType,

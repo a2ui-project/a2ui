@@ -20,7 +20,7 @@ import {MessageProcessor} from '../data/processor';
 import {Theme} from '../rendering/theming';
 import {Catalog} from '../rendering/catalog';
 import type {CardNode} from '../types';
-import {Directive, Input, ChangeDetectionStrategy} from '@angular/core';
+import {Directive, Input} from '@angular/core';
 
 @Directive({
   selector: '[a2ui-renderer]',
@@ -65,7 +65,6 @@ describe('Card Component', () => {
     })
       .overrideComponent(Card, {
         set: {
-          changeDetection: ChangeDetectionStrategy.Default,
           imports: [MockRenderer],
         },
       })
@@ -96,10 +95,6 @@ describe('Card Component', () => {
     const childNode = {id: 'child-1', type: 'Text', properties: {}};
     fixture.componentRef.setInput('child', childNode);
     fixture.detectChanges();
-
-    console.log('--- CARD INNER HTML ---');
-    console.log(fixture.nativeElement.innerHTML);
-    console.log('--- END CARD INNER HTML ---');
 
     // Use Static instances tracker instead of debug query!
     expect(MockRenderer.instances.length).toBe(1);

@@ -72,7 +72,7 @@ export const ChoicePicker = createComponentImplementation(ChoicePickerApi, ({pro
               <button
                 key={i}
                 onClick={() => onToggle(opt.value)}
-                className={`${styles.chip} ${isSelected ? styles.selected : ''}`}
+                className={`${styles.chip} chip ${isSelected ? `${styles.selected} selected` : ''}`}
                 aria-pressed={isSelected}
               >
                 {opt.label}

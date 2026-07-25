@@ -11,11 +11,11 @@ how to use this package.)
 
 ### Build
 
-Run `npm run build` to build the project. The build artifacts will be stored in the `dist/` directory.
+Run `yarn build` to build the project. The build artifacts will be stored in the `dist/` directory.
 
 ### Running unit tests
 
-Run `npm test` to execute the unit tests.
+Run `yarn test` to execute the unit tests.
 
 > [!NOTE]
 > This package uses `dompurify` which requires a Window object. For unit testing in a Node.js environment, `jsdom` must be provided globally before importing the renderer.
@@ -27,7 +27,7 @@ This project uses [Prettier](https://prettier.io/) for code formatting. The conf
 To format all files in the project:
 
 ```bash
-npm run format
+yarn format
 ```
 
 To check the format, run:

@@ -14,10 +14,10 @@
  * limitations under the License.
  */
 
-import {LitElement, html, css, nothing} from 'lit';
+import {LitElement, html, nothing} from 'lit';
 import {provide} from '@lit/context';
 import {customElement, state} from 'lit/decorators.js';
-import {MessageProcessor, A2uiMessage} from '@a2ui/web_core/v0_9';
+import {MessageProcessor, A2uiMessage, A2uiClientAction} from '@a2ui/web_core/v0_9';
 import {basicCatalog, Context} from '@a2ui/lit/v0_9';
 import {renderMarkdown} from '@a2ui/markdown-it';
 import {getDemoItems, DemoItem} from './examples';
@@ -25,18 +25,21 @@ import {appStyles} from './local-gallery.css';
 
 @customElement('local-gallery')
 export class LocalGallery extends LitElement {
-  @state() accessor mockLogs: string[] = [];
-  @state() accessor demoItems: DemoItem[] = [];
-  @state() accessor activeItemIndex = 0;
-  @state() accessor processedMessageCount = 0;
-  @state() accessor currentDataModelText = '{}';
-  @state() accessor primaryColor = '#1177ee';
+  @state() mockLogs: string[] = [];
+  @state() demoItems: DemoItem[] = [];
+  @state() activeItemIndex = 0;
+  @state() processedMessageCount = 0;
+  @state() currentDataModelText = '{}';
+  @state() primaryColor = '#1177ee';
+  // Expose the dispatched actions log for automated integration tests to inspect
+  actionLog: A2uiClientAction[] = [];
 
   @provide({context: Context.markdown})
-  private accessor markdownRenderer = renderMarkdown;
+  private markdownRenderer = renderMarkdown;
 
-  private processor = new MessageProcessor([basicCatalog], (action: any) => {
+  private processor = new MessageProcessor([basicCatalog], (action: A2uiClientAction) => {
     this.log(`Action dispatched: ${action.surfaceId}`, action);
+    this.actionLog.push(action);
   });
 
   private dataModelSubscription?: {unsubscribe: () => void};
@@ -62,11 +65,14 @@ export class LocalGallery extends LitElement {
         this.selectItem(0);
       }
     } catch (err) {
-      console.error(`Failed to initiate gallery:`, err);
+      console.error('Failed to initiate gallery:', err);
     }
   }
 
   selectItem(index: number) {
+    // Delete the surface of the previous example, if any.
+    this.deleteActiveExampleSurface();
+    // Then load the new one
     this.activeItemIndex = index;
     this.reloadExample();
   }
@@ -75,16 +81,25 @@ export class LocalGallery extends LitElement {
     this.processedMessageCount = 0;
     this.mockLogs = [];
     this.currentDataModelText = '{}';
+    this.actionLog = [];
 
     // Clear old surface and subscriptions
     if (this.dataModelSubscription) {
       this.dataModelSubscription.unsubscribe();
       this.dataModelSubscription = undefined;
     }
+    this.deleteActiveExampleSurface();
+  }
 
-    const item = this.demoItems[this.activeItemIndex];
-    if (item && this.processor.model.getSurface(item.id)) {
-      this.processor.processMessages([{version: 'v0.9', deleteSurface: {surfaceId: item.id}}]);
+  /**
+   * Removes the surface of this.activeItemIndex, if still present.
+   */
+  deleteActiveExampleSurface() {
+    const surfaceId = this.demoItems[this.activeItemIndex]?.id;
+    if (surfaceId) {
+      if (this.processor.model.getSurface(surfaceId)) {
+        this.processor.processMessages([{version: 'v0.9', deleteSurface: {surfaceId}}]);
+      }
     }
   }
 
@@ -105,7 +120,7 @@ export class LocalGallery extends LitElement {
 
     const modifiedToProcess = this.applyPrimaryColorToMessages(toProcess);
 
-    this.processor.processMessages(modifiedToProcess);
+    this.processor.processMessages(structuredClone(modifiedToProcess));
     this.processedMessageCount += toProcess.length;
 
     // Subscribe to data model on first advance if not already subscribed

@@ -109,7 +109,7 @@ function PropValues({values}: {values: string[]}) {
           key={value}
           className="px-1.5 py-0.5 text-xs rounded bg-green-50 text-green-700 border border-green-200"
         >
-          "{value}"
+          &quot;{value}&quot;
         </code>
       ))}
     </div>

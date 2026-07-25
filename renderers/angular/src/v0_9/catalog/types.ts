@@ -23,7 +23,7 @@ import {CatalogComponentInstance} from '../core/catalog_component_instance';
  *
  * To be removed once all properties implemented in Angular basic catalog components conform
  * to the basic catalog schema.
- * @see https://github.com/google/A2UI/issues/1303
+ * @see https://github.com/a2ui-project/a2ui/issues/1303
  */
 export type AnyDuringSchemaAlignment = any;
 

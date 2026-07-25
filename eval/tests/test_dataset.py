@@ -13,10 +13,12 @@
 # limitations under the License.
 
 import os
+from pathlib import Path
 import pytest
 from a2ui_eval.dataset import load_a2ui_dataset
 
-def test_load_a2ui_dataset(tmp_path):
+
+def test_load_a2ui_dataset(tmp_path: Path) -> None:
     # Create a dummy YAML file
     d = tmp_path / "sub"
     d.mkdir()
@@ -26,14 +28,34 @@ def test_load_a2ui_dataset(tmp_path):
   description: A test prompt.
   promptText: "Test input"
 """)
-    
+
     dataset = load_a2ui_dataset(str(p))
-    
+
     assert len(dataset) == 1
     assert dataset[0].input == "Test input"
     assert dataset[0].target == "A test prompt."
-    assert dataset[0].metadata['name'] == "testPrompt"
+    assert dataset[0].metadata is not None
+    assert dataset[0].metadata["name"] == "testPrompt"
 
-def test_load_a2ui_dataset_file_not_found():
+
+def test_load_a2ui_dataset_file_not_found() -> None:
     with pytest.raises(FileNotFoundError):
         load_a2ui_dataset("non_existent_file.yaml")
+
+
+def test_load_a2ui_dataset_with_version(tmp_path: Path) -> None:
+    d = tmp_path / "sub"
+    d.mkdir()
+    p = d / "dummy_prompts_with_version.yaml"
+    p.write_text("""
+- name: testPrompt
+  description: A test prompt.
+  promptText: "Test input"
+  catalog: "path/{version}/catalog.json"
+""")
+
+    dataset = load_a2ui_dataset(str(p), version="0.9.1")
+
+    assert len(dataset) == 1
+    assert dataset[0].metadata is not None
+    assert dataset[0].metadata["catalog"] == "path/v0_9_1/catalog.json"

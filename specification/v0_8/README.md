@@ -4,7 +4,7 @@ This directory contains the specification for version 0.8.2 of A2UI, a previous 
 
 **This specification is closed.**
 
-Please do not propose changes here. If you have proposed changes or new features, please open an issue or submit a pull request to the [A2UI repository](https://github.com/google/A2UI) for the specification currently in development.
+Please do not propose changes here. If you have proposed changes or new features, please open an issue or submit a pull request to the [A2UI repository](https://github.com/a2ui-project/a2ui) for the specification currently in development.
 
 ## v0.8.2 Documentation
 

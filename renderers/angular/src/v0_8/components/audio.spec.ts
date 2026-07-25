@@ -18,7 +18,6 @@ import {ComponentFixture, TestBed} from '@angular/core/testing';
 import {AudioPlayer} from './audio';
 import type {AudioPlayerNode} from '../types';
 import {Theme} from '../rendering/theming';
-import {ChangeDetectionStrategy} from '@angular/core';
 import {MessageProcessor} from '../data/processor';
 import {Catalog} from '../rendering/catalog';
 
@@ -53,11 +52,7 @@ describe('AudioPlayer Component', () => {
         {provide: Theme, useValue: mockTheme},
         {provide: Catalog, useValue: {}},
       ],
-    })
-      .overrideComponent(AudioPlayer, {
-        set: {changeDetection: ChangeDetectionStrategy.Default},
-      })
-      .compileComponents();
+    }).compileComponents();
 
     fixture = TestBed.createComponent(AudioPlayer);
     component = fixture.componentInstance;

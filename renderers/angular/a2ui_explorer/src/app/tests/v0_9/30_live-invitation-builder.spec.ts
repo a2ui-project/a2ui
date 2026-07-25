@@ -16,7 +16,7 @@
 
 import {ComponentFixture} from '@angular/core/testing';
 import {DemoComponent} from '../../demo.component';
-import {getCanvas, loadExample, wait} from '../utils';
+import {getCanvas, loadExample, wait, waitForCondition} from '../utils';
 
 describe('Example: Live Invitation Builder', () => {
   let fixture: ComponentFixture<DemoComponent>;
@@ -54,6 +54,14 @@ describe('Example: Live Invitation Builder', () => {
   it('should render date', async () => {
     expect(textContent).toContain('July 15');
     expect(textContent).toContain('2025');
+  });
+
+  it('should render date time input', async () => {
+    const dateTimeInputs = [
+      ...fixture.nativeElement.querySelectorAll('.a2ui-date-time-input'),
+    ] as HTMLInputElement[];
+    expect(dateTimeInputs.length).toBeGreaterThanOrEqual(1);
+    expect(dateTimeInputs[0].value).toContain('2025-07-15');
   });
 
   it('should render image', async () => {
@@ -125,20 +133,24 @@ describe('Example: Live Invitation Builder', () => {
 
     ballroomChip!.click();
     fixture.detectChanges();
-    await wait(100);
-    fixture.detectChanges();
 
-    const livePreview = getLivePreview();
-    expect(livePreview.textContent).toContain('Location: ballroom');
+    // Wait for the async template rendering to propagate to the DOM
+    const ballroomUpdated = await waitForCondition(() => {
+      fixture.detectChanges();
+      return getLivePreview().textContent.includes('Location: ballroom');
+    });
+    expect(ballroomUpdated).withContext('Location should update to ballroom').toBeTrue();
 
     const terraceChip = chips.find(el => el.textContent.trim() === 'Sunset Terrace');
     expect(terraceChip).toBeTruthy();
 
     terraceChip!.click();
     fixture.detectChanges();
-    await wait(100);
-    fixture.detectChanges();
 
-    expect(livePreview.textContent).toContain('Location: terrace');
+    const terraceUpdated = await waitForCondition(() => {
+      fixture.detectChanges();
+      return getLivePreview().textContent.includes('Location: terrace');
+    });
+    expect(terraceUpdated).withContext('Location should update back to terrace').toBeTrue();
   });
 });

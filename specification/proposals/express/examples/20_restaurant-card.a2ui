@@ -1,0 +1,23 @@
+$/cuisine = "Italian • Pasta • Wine Bar"
+$/deliveryTime = "25-35 min"
+$/distance = "0.8 mi"
+$/image = "https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?w=300&h=150&fit=crop"
+$/name = "The Italian Kitchen"
+$/priceRange = "$$$"
+$/rating = "4.8"
+$/reviewCount = "(2,847 reviews)"
+root = Card(main_column)
+main_column = Column([restaurant_image, content])
+restaurant_image = Image($/image, _, "cover")
+content = Column([name_row, cuisine, rating_row, details_row])
+name_row = Row([restaurant_name, price_range], "spaceBetween", "center")
+restaurant_name = Text($/name)
+price_range = Text($/priceRange, "body")
+cuisine = Text($/cuisine, "caption")
+rating_row = Row([star_icon, rating, reviews], _, "center")
+star_icon = Icon("star")
+rating = Text($/rating, "body")
+reviews = Text($/reviewCount, "caption")
+details_row = Row([distance, delivery_time])
+distance = Text($/distance, "caption")
+delivery_time = Text($/deliveryTime, "caption")

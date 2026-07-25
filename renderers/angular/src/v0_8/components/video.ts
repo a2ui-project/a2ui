@@ -20,7 +20,7 @@ import type {StringValue, VideoNode} from '../types';
 
 @Component({
   selector: 'a2ui-video',
-  changeDetection: ChangeDetectionStrategy.Eager,
+  changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     @let resolvedUrl = this.resolvedUrl();
 

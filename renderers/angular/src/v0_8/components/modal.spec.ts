@@ -20,7 +20,7 @@ import {MessageProcessor} from '../data/processor';
 import {Theme} from '../rendering/theming';
 import {Catalog} from '../rendering/catalog';
 import type {AnyComponentNode} from '../types';
-import {Directive, Input, ChangeDetectionStrategy} from '@angular/core';
+import {Directive, Input} from '@angular/core';
 import {By} from '@angular/platform-browser';
 
 @Directive({
@@ -72,7 +72,6 @@ describe('Modal Component', () => {
     })
       .overrideComponent(Modal, {
         set: {
-          changeDetection: ChangeDetectionStrategy.Default,
           imports: [MockRenderer],
         },
       })

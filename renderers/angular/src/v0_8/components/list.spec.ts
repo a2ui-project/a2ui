@@ -20,7 +20,7 @@ import {MessageProcessor} from '../data/processor';
 import {Theme} from '../rendering/theming';
 import {Catalog} from '../rendering/catalog';
 import type {ListNode} from '../types';
-import {Directive, Input, ChangeDetectionStrategy} from '@angular/core';
+import {Directive, Input} from '@angular/core';
 import {By} from '@angular/platform-browser';
 
 @Directive({
@@ -65,7 +65,6 @@ describe('List Component', () => {
     })
       .overrideComponent(List, {
         set: {
-          changeDetection: ChangeDetectionStrategy.Default,
           imports: [MockRenderer],
         },
       })
