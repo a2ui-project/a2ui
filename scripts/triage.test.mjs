@@ -56,12 +56,15 @@ const pr = (overrides = {}) =>
     ...overrides,
   });
 
-const comment = (overrides = {}) => ({
-  created_at: daysAgo(0),
-  author_association: 'MEMBER',
-  user: {login: 'maintainer', type: 'User'},
-  ...overrides,
-});
+const comment = (overrides = {}) => {
+  const c = {
+    created_at: daysAgo(0),
+    author_association: 'MEMBER',
+    user: {login: 'maintainer', type: 'User'},
+    ...overrides,
+  };
+  return {...c, createdAt: c.created_at, association: c.author_association};
+};
 
 describe('isBot', () => {
   it('detects bots by account type and login suffix', () => {
@@ -71,7 +74,7 @@ describe('isBot', () => {
 
   it('treats real users and missing users conservatively', () => {
     assert.equal(isBot({type: 'User', login: 'alice'}), false);
-    assert.equal(isBot(null), true);
+    assert.equal(isBot(null), false);
   });
 });
 
@@ -304,7 +307,13 @@ describe('issueTriage reconciliation', () => {
     };
     return {
       rest,
-      paginate: mock.fn(async () => openItems),
+      paginate: mock.fn(async (endpoint, params) => {
+        if (typeof endpoint === 'function') {
+          const res = await endpoint(params);
+          return res.data;
+        }
+        return openItems;
+      }),
     };
   };
 

@@ -108,9 +108,12 @@ export function lastHumanContribution(item, contributions) {
  * Returns a human-readable reason why a single open item should carry the flag
  * label, or null if it should not. The reason is logged for visibility.
  */
-export function flagReason(item, contributions, now) {
+export function flagReason(item, contributions, now, labels = labelNames(item)) {
+  if (labels.includes(WAITING_LABEL)) {
+    return null;
+  }
+
   const isPR = Boolean(item.pull_request);
-  const labels = labelNames(item);
   const latest = lastHumanContribution(item, contributions);
   const staleDays = ageInDays(latest.createdAt, now);
 
@@ -136,10 +139,7 @@ export function flagReason(item, contributions, now) {
     return `the latest reply is from an external contributor and has gone unanswered for more than ${EXTERNAL_RESPONSE_DAYS} day.`;
   }
 
-  // Rule 1: issues, excluding those parked on the user's response.
-  if (labels.includes(WAITING_LABEL)) {
-    return null;
-  }
+  // Rule 1: issues.
 
   const priority = PRIORITY_LABELS.find(p => labels.includes(p));
 
@@ -252,17 +252,34 @@ export default async function issueTriage({github, context}) {
   }));
 
   // Decide each item's desired state from the snapshot, and keep only those
-  // whose label needs to change. The snapshot from `listForRepo` can be stale
-  // if another run (the daily schedule overlapping an issue event) already
-  // changed the label, so the actual mutation re-checks the live state below.
-  const itemsToUpdate = itemsWithContributions
-    .map(({item, contributions}) => ({item, reason: flagReason(item, contributions, now)}))
-    .filter(({item, reason}) => Boolean(reason) !== labelNames(item).includes(FLAG_LABEL));
+  // whose labels need to change.
+  const itemsToUpdate = itemsWithContributions.map(({item, contributions}) => {
+    const labels = labelNames(item);
+    const latest = lastHumanContribution(item, contributions);
+    const isAuthorResponse = latest.user?.login === item.user?.login;
+    const shouldRemoveWaiting = labels.includes(WAITING_LABEL) && isAuthorResponse;
+    
+    // If we are removing waiting label, it shouldn't inhibit flagging in this run
+    const simulatedLabels = shouldRemoveWaiting 
+      ? labels.filter(l => l !== WAITING_LABEL) 
+      : labels;
+
+    const reason = flagReason(item, contributions, now, simulatedLabels);
+    
+    return {item, reason, shouldRemoveWaiting};
+  });
+
+  const itemsNeedingUpdate = itemsToUpdate.filter(({item, reason, shouldRemoveWaiting}) => {
+    const hasFlag = labelNames(item).includes(FLAG_LABEL);
+    const wantsFlag = Boolean(reason);
+    return wantsFlag !== hasFlag || shouldRemoveWaiting;
+  });
 
   let added = 0;
   let removed = 0;
+  let waitingCleared = 0;
 
-  await mapInBatches(itemsToUpdate, async ({item, reason}) => {
+  await mapInBatches(itemsNeedingUpdate, async ({item, reason, shouldRemoveWaiting}) => {
     const wantsFlag = Boolean(reason);
     try {
       // Re-read the live labels so a concurrent run cannot make us add the
@@ -272,29 +289,46 @@ export default async function issueTriage({github, context}) {
         repo,
         issue_number: item.number,
       });
-      const hasFlag = labelNames(fresh).includes(FLAG_LABEL);
-      if (wantsFlag === hasFlag) {
-        return; // Another run already reconciled this item.
-      }
+      
+      const freshLabels = labelNames(fresh);
+      const hasFlag = freshLabels.includes(FLAG_LABEL);
+      const hasWaiting = freshLabels.includes(WAITING_LABEL);
 
-      if (wantsFlag) {
-        await github.rest.issues.addLabels({
-          owner,
-          repo,
-          issue_number: item.number,
-          labels: [FLAG_LABEL],
-        });
-        added += 1;
-        console.log(`Flagged ${item.html_url} — ${reason}`);
-      } else {
+      let updated = false;
+
+      if (shouldRemoveWaiting && hasWaiting) {
         await github.rest.issues.removeLabel({
           owner,
           repo,
           issue_number: item.number,
-          name: FLAG_LABEL,
+          name: WAITING_LABEL,
         });
-        removed += 1;
-        console.log(`Unflagged ${item.html_url} — no longer matches any triage rule.`);
+        waitingCleared += 1;
+        console.log(`Cleared ${WAITING_LABEL} from ${item.html_url} — author responded.`);
+        updated = true;
+      }
+
+      if (wantsFlag !== hasFlag) {
+        if (wantsFlag) {
+          await github.rest.issues.addLabels({
+            owner,
+            repo,
+            issue_number: item.number,
+            labels: [FLAG_LABEL],
+          });
+          added += 1;
+          console.log(`Flagged ${item.html_url} — ${reason}`);
+        } else {
+          await github.rest.issues.removeLabel({
+            owner,
+            repo,
+            issue_number: item.number,
+            name: FLAG_LABEL,
+          });
+          removed += 1;
+          console.log(`Unflagged ${item.html_url} — no longer matches any triage rule.`);
+        }
+        updated = true;
       }
     } catch (error) {
       console.error(`Failed to update #${item.number}:`, error);
