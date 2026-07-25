@@ -30,10 +30,10 @@ describe('Example: Account Balance', () => {
   });
 
   it('should render text content', async () => {
-    expect(textContent).toContain(`Primary Checking`);
-    expect(textContent).toContain(`Updated just now`);
-    expect(textContent).toContain(`Transfer`);
-    expect(textContent).toContain(`Pay Bill`);
+    expect(textContent).toContain('Primary Checking');
+    expect(textContent).toContain('Updated just now');
+    expect(textContent).toContain('Transfer');
+    expect(textContent).toContain('Pay Bill');
 
     // Check for formatted currency (best effort)
     expect(textContent).toContain('12,458.32');
@@ -41,7 +41,7 @@ describe('Example: Account Balance', () => {
 
   it('should render icon', async () => {
     expect(fixture.nativeElement.querySelector('.a2ui-icon')).toBeTruthy();
-    expect(textContent).toContain(`payment`);
+    expect(textContent).toContain('payment');
   });
 
   it('should handle Transfer button click', async () => {

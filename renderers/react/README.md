@@ -14,7 +14,7 @@ generate rich, interactive user interfaces through declarative JSON.
 ## Installation
 
 ```bash
-npm install @a2ui/react @a2ui/web_core
+yarn add @a2ui/react @a2ui/web_core
 ```
 
 ## Protocol Versioning
@@ -327,3 +327,105 @@ In v0.9, this is handled by the **Generic Binder** before the component even ren
 All operational data received from an external agent—including its messages and UI definitions—should be handled as untrusted input. Malicious agents could attempt to spoof legitimate interfaces to deceive users (phishing), inject malicious scripts via property values (XSS), or generate excessive layout complexity to degrade client performance (DoS). If your application supports optional embedded content (such as iframes or web views), additional care must be taken to prevent exposure to malicious external sites.
 
 **Developer Responsibility**: Failure to properly validate data and strictly sandbox rendered content can introduce severe vulnerabilities. Developers are responsible for implementing appropriate security measures—such as input sanitization, Content Security Policies (CSP), and secure credential handling—to protect their systems and users.
+
+## Development
+
+### Setup
+
+```bash
+# In the A2UI monorepo root
+yarn install
+```
+
+### Build
+
+```bash
+yarn build    # Build the package
+yarn dev      # Watch mode
+```
+
+### Type Check
+
+```bash
+yarn typecheck
+```
+
+### Lint
+
+```bash
+yarn lint
+```
+
+## Testing
+
+### Unit Tests
+
+Uses [Vitest](https://vitest.dev/) +
+[React Testing Library](https://testing-library.com/docs/react-testing-library/intro/).
+
+```bash
+yarn test              # Run once
+yarn test:watch    # Watch mode
+```
+
+**Structure:** `tests/ ├── setup.ts # Initializes component catalog ├──
+helpers.tsx # TestWrapper, TestRenderer, message creators └── components/ #
+Component tests (*.test.tsx)`
+
+**Example:** ```tsx import { render, screen, fireEvent } from
+'@testing-library/react'; import { TestWrapper, TestRenderer,
+createSimpleMessages } from '../helpers';
+
+it('should dispatch action on click', () => { const onAction = vi.fn(); const
+messages = createSimpleMessages('btn-1', 'Button', { child: 'text-1', action: {
+name: 'submit' }, });
+
+render( <TestWrapper onAction={onAction}> <TestRenderer messages={messages} />
+</TestWrapper> );
+
+fireEvent.click(screen.getByRole('button'));
+expect(onAction).toHaveBeenCalled(); }); ```
+
+## Visual Parity Testing
+
+The React renderer maintains visual parity with the Lit renderer (reference
+implementation). A comprehensive test suite compares pixel-perfect screenshots
+between both renderers.
+
+### Running Visual Parity Tests
+
+```bash
+cd visual-parity
+yarn test
+```
+
+### Quick Commands
+
+```bash
+# Run all tests
+yarn test
+
+# Run specific component tests
+yarn test --grep "button"
+
+# Run with UI mode
+yarn test:ui
+
+# Start dev servers for manual inspection
+yarn dev
+# React: http://localhost:5001
+# Lit: http://localhost:5002
+```
+
+### Documentation
+
+- **[visual-parity/README.md](./visual-parity/README.md)** - Test suite usage
+  and fixture creation
+- **[visual-parity/PARITY.md](./visual-parity/PARITY.md)** - CSS
+  transformation approach and implementation status
+
+### Key Concepts
+
+1.  **Structural Mirroring**: React components mirror Lit's Shadow DOM structure
+2.  **CSS Selector Transformation**: `:host` → `.a2ui-surface .a2ui-{component}`
+3.  **Specificity Matching**: Uses `:where()` to match Lit's low specificity

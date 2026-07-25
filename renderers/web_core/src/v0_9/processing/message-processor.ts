@@ -39,6 +39,16 @@ import {A2uiStateError, A2uiValidationError} from '../errors.js';
 export interface CapabilitiesOptions {
   /** If true, the full definition of all catalogs will be included. */
   includeInlineCatalogs?: boolean;
+  /** The protocol version to generate capabilities for. Defaults to the processor's configured version. */
+  version?: 'v0.9' | 'v0.9.1';
+}
+
+/**
+ * Options for configuring a MessageProcessor instance.
+ */
+export interface MessageProcessorOptions {
+  /** The default protocol version to use for capability generation and data model reporting. Defaults to 'v0.9'. */
+  version?: 'v0.9' | 'v0.9.1';
 }
 
 /**
@@ -47,18 +57,22 @@ export interface CapabilitiesOptions {
  */
 export class MessageProcessor<T extends ComponentApi> {
   readonly model: SurfaceGroupModel<T>;
+  readonly version: 'v0.9' | 'v0.9.1';
 
   /**
    * Creates a new message processor.
    *
    * @param catalogs A list of available catalogs.
    * @param actionHandler A global handler for actions from all surfaces.
+   * @param options Configuration options for the processor.
    */
   constructor(
     private catalogs: Catalog<T>[],
     private actionHandler?: ActionListener,
+    options?: MessageProcessorOptions,
   ) {
     this.model = new SurfaceGroupModel<T>();
+    this.version = options?.version ?? 'v0.9';
     if (this.actionHandler) {
       this.model.onAction.subscribe(this.actionHandler);
     }
@@ -71,17 +85,17 @@ export class MessageProcessor<T extends ComponentApi> {
    * @returns The capabilities object.
    */
   getClientCapabilities(options?: CapabilitiesOptions): A2uiClientCapabilities {
-    const capabilities: A2uiClientCapabilities = {
-      'v0.9': {
-        supportedCatalogIds: this.catalogs.map(c => c.id),
-      },
+    // `version` can be used to fine-tune the returned capabilities.
+    const version = options?.version ?? this.version;
+    const versionCaps: any = {
+      supportedCatalogIds: this.catalogs.map(c => c.id),
     };
 
     if (options?.includeInlineCatalogs) {
-      capabilities['v0.9'].inlineCatalogs = this.catalogs.map(c => this.generateInlineCatalog(c));
+      versionCaps.inlineCatalogs = this.catalogs.map(c => this.generateInlineCatalog(c));
     }
 
-    return capabilities;
+    return {[version]: versionCaps} as A2uiClientCapabilities;
   }
 
   private generateInlineCatalog(catalog: Catalog<T>): InlineCatalog {
@@ -181,7 +195,7 @@ export class MessageProcessor<T extends ComponentApi> {
   /**
    * Returns the aggregated data model for all surfaces that have 'sendDataModel' enabled.
    */
-  getClientDataModel(): A2uiClientDataModel | undefined {
+  getClientDataModel(version: 'v0.9' | 'v0.9.1' = this.version): A2uiClientDataModel | undefined {
     const surfaces: Record<string, any> = {};
 
     for (const surface of this.model.surfacesMap.values()) {
@@ -195,7 +209,7 @@ export class MessageProcessor<T extends ComponentApi> {
     }
 
     return {
-      version: 'v0.9',
+      version,
       surfaces,
     };
   }

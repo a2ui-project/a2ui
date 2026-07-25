@@ -22,7 +22,7 @@ import {
   BasicCatalogA2uiLitElement,
   type ResolvedChildList,
 } from '../basic-catalog-a2ui-lit-element.js';
-import {A2uiController} from '@a2ui/lit/v0_9';
+import {A2uiController} from '../../../a2ui-controller.js';
 
 const JUSTIFY_MAP: Record<string, string> = {
   start: 'flex-start',
@@ -49,7 +49,7 @@ export class A2uiBasicRowElement extends BasicCatalogA2uiLitElement<typeof RowAp
    *
    * - `--a2ui-row-gap`: The gap between items in the row. Defaults to `--a2ui-spacing-m`.
    */
-  static styles = css`
+  static override styles = css`
     :host {
       display: flex;
       flex-direction: row;
@@ -61,7 +61,7 @@ export class A2uiBasicRowElement extends BasicCatalogA2uiLitElement<typeof RowAp
     return new A2uiController(this, RowApi);
   }
 
-  updated(changedProperties: PropertyValues) {
+  override updated(changedProperties: PropertyValues) {
     super.updated(changedProperties);
     const props = this.controller.props;
     if (props) {
@@ -70,7 +70,7 @@ export class A2uiBasicRowElement extends BasicCatalogA2uiLitElement<typeof RowAp
     }
   }
 
-  render() {
+  override render() {
     const props = this.controller.props;
     if (!props) return nothing;
 

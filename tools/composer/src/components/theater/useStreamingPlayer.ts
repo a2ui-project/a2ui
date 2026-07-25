@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */ // TODO: remediate legacy any types
 /**
  * Copyright 2026 Google LLC
  *

@@ -11,6 +11,8 @@
     "outDir": "dist",
     "sourceMap": true,
     "resolveJsonModule": true,
-    "isolatedModules": true
+    "isolatedModules": true,
+    "experimentalDecorators": true,
+    "types": ["jasmine"]
   }
 }

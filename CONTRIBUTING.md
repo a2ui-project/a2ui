@@ -25,6 +25,14 @@ This project follows
 
 ## Contribution process
 
+### Issues
+
+File new issues here: https://github.com/a2ui-project/a2ui/issues
+
+The issue triage process is described in the Google-internal document: go/a2ui-triage.
+
+TODO(polina-c): port process description here.
+
 ### Code reviews
 
 All submissions, including submissions by project members, require review. We
@@ -57,6 +65,7 @@ To keep our codebase consistent and maintainable, we follow specific coding stan
 - **JavaScript / TypeScript / JSON / Markdown / CSS**: [Prettier](https://prettier.io/)
 - **Python**: [Pyink](https://github.com/google/pyink) (Google style Black)
 - **Dart**: `dart format`
+- **Swift**: `swift-format`
 
 You can use the provided script to format the entire repo or check formatting:
 
@@ -79,9 +88,14 @@ Please refer to the following guidelines for detailed information on styles:
 
 - **Python**: [Google Python Style Guide](https://google.github.io/styleguide/pyguide.html).
 - **TypeScript**: [Google TypeScript Style Guide](https://google.github.io/styleguide/tsguide.html).
+- **Swift**: [Google Swift Style Guide](https://google.github.io/swift/)
 - **License Headers**: required copyright notices.
 
 We expect all contributors to adhere to these styles.
+
+## More on contributing
+
+See more about contributing in [docs/contributing](docs/contributing).
 
 ## Internal information
 

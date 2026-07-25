@@ -49,13 +49,13 @@ export default defineConfig({
   // Start both React and Lit dev servers
   webServer: [
     {
-      command: 'npm run dev:react',
+      command: 'yarn dev:react',
       url: 'http://localhost:5001',
       reuseExistingServer: !process.env.CI,
       timeout: 120 * 1000,
     },
     {
-      command: 'npm run dev:lit',
+      command: 'yarn dev:lit',
       url: 'http://localhost:5002',
       reuseExistingServer: !process.env.CI,
       timeout: 120 * 1000,

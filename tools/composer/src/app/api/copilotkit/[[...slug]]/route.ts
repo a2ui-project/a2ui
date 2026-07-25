@@ -1,3 +1,4 @@
+/* eslint-disable turbo/no-undeclared-env-vars */ // TODO: declare turbo env vars
 /**
  * Copyright 2026 Google LLC
  *

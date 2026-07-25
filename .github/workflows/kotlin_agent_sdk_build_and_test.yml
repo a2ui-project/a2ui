@@ -19,12 +19,12 @@ on:
     branches:
       - "*"
     paths:
-      - "agent_sdks/kotlin/**"
+      - "kotlin/agent_sdk_legacy/**"
       - "specification/**/json/**"
       - "agent_sdks/conformance/**"
   pull_request:
     paths:
-      - "agent_sdks/kotlin/**"
+      - "kotlin/agent_sdk_legacy/**"
       - "specification/**/json/**"
       - "agent_sdks/conformance/**"
 
@@ -37,23 +37,25 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v6
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+        with:
+          persist-credentials: false
 
       - name: Set up JDK 21
-        uses: actions/setup-java@v5
+        uses: actions/setup-java@ad2b38190b15e4d6bdf0c97fb4fca8412226d287 # v5.3.0
         with:
           java-version: "21"
           distribution: "temurin"
           cache: "gradle"
 
       - name: Make gradlew executable
-        working-directory: agent_sdks/kotlin
+        working-directory: kotlin/agent_sdk_legacy
         run: chmod +x gradlew
 
       - name: Check formatting
-        working-directory: agent_sdks/kotlin
+        working-directory: kotlin/agent_sdk_legacy
         run: ./gradlew ktfmtCheck
 
       - name: Run tests
-        working-directory: agent_sdks/kotlin
+        working-directory: kotlin/agent_sdk_legacy
         run: ./gradlew test --info

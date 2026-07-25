@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import {componentGeneratorFlow, ai} from './flows';
+import {componentGeneratorFlow} from './flows';
 import * as fs from 'fs';
 import * as path from 'path';
 import {modelsToTest} from './models';
@@ -206,7 +206,7 @@ async function main() {
     const schemaString = fs.readFileSync(path.join(__dirname, prompt.schemaPath), 'utf-8');
     const schema = JSON.parse(schemaString);
     for (const modelConfig of filteredModels) {
-      const modelDirName = modelConfig.name.replace(/[\/:]/g, '_');
+      const modelDirName = modelConfig.name.replace(/[/:]/g, '_');
       const modelOutputDir = outputDir ? path.join(outputDir, modelDirName) : null;
       if (modelOutputDir && !fs.existsSync(modelOutputDir)) {
         fs.mkdirSync(modelOutputDir, {recursive: true});
@@ -293,9 +293,9 @@ async function main() {
       const hasComponent = !!result.component;
 
       if (hasError || hasValidationFailures || (verbose && hasComponent)) {
-        console.log(`\n----------------------------------------`);
+        console.log('\n----------------------------------------');
         console.log(`Model: ${modelName}`);
-        console.log(`----------------------------------------`);
+        console.log('----------------------------------------');
         console.log(`\nQuery: ${result.prompt.name} (run ${result.runNumber})`);
 
         if (hasError) {

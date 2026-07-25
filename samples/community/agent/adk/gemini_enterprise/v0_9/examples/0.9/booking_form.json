@@ -1,0 +1,136 @@
+[
+  {
+    "version": "v0.9",
+    "createSurface": {
+      "surfaceId": "booking-form",
+      "catalogId": "https://a2ui.org/specification/v0_9/material_catalog.json",
+      "theme": {
+        "primaryColor": "#FF0000",
+        "font": "Roboto"
+      }
+    }
+  },
+  {
+    "version": "v0.9",
+    "updateComponents": {
+      "surfaceId": "booking-form",
+      "components": [
+        {
+          "id": "root",
+          "component": "MaterialColumn",
+          "children": [
+            "booking-title",
+            "restaurant-image",
+            "restaurant-address",
+            "party-size-field",
+            "date-field",
+            "time-field",
+            "dietary-field",
+            "submit-button"
+          ]
+        },
+        {
+          "id": "booking-title",
+          "component": "MaterialText",
+          "usageHint": "h2",
+          "text": {
+            "path": "/title"
+          }
+        },
+        {
+          "id": "restaurant-image",
+          "component": "MaterialImage",
+          "url": {
+            "path": "/imageUrl"
+          }
+        },
+        {
+          "id": "restaurant-address",
+          "component": "MaterialText",
+          "text": {
+            "path": "/address"
+          }
+        },
+        {
+          "id": "party-size-field",
+          "component": "MaterialInput",
+          "label": "Party Size",
+          "type": "number",
+          "value": {
+            "path": "/partySize"
+          }
+        },
+        {
+          "id": "date-field",
+          "component": "MaterialDatepicker",
+          "label": "Date",
+          "value": {
+            "path": "/reservationDate"
+          }
+        },
+        {
+          "id": "time-field",
+          "component": "MaterialTimepicker",
+          "label": "Time",
+          "value": {
+            "path": "/reservationTime"
+          }
+        },
+        {
+          "id": "dietary-field",
+          "component": "MaterialInput",
+          "label": "Dietary Requirements",
+          "value": {
+            "path": "/dietary"
+          }
+        },
+        {
+          "id": "submit-button",
+          "component": "MaterialButton",
+          "label": "Submit Reservation",
+          "variant": "primary",
+          "action": {
+            "event": {
+              "name": "submit_booking",
+              "context": {
+                "prompt": "Submit my reservation",
+                "restaurantName": {
+                  "path": "/restaurantName"
+                },
+                "partySize": {
+                  "path": "/partySize"
+                },
+                "reservationTime": {
+                  "path": "/reservationTime"
+                },
+                "dietary": {
+                  "path": "/dietary"
+                },
+                "imageUrl": {
+                  "path": "/imageUrl"
+                }
+              }
+            }
+          }
+        }
+      ]
+    }
+  },
+  {
+    "version": "v0.9",
+    "updateDataModel": {
+      "surfaceId": "booking-form",
+      "path": "/",
+      "value": {
+        "title": "Book a Table at [RestaurantName]",
+        "address": "[Restaurant Address]",
+        "restaurantName": "[RestaurantName]",
+        "partySize": "2",
+        "reservationDate": "",
+        "reservationTime": "",
+        "dietary": "",
+        "imageUrl": ""
+      }
+    }
+  }
+]

@@ -15,53 +15,96 @@
  */
 
 import {type A2uiMessage} from '@a2ui/web_core/v0_9';
+import {exampleModules, type ExampleModule, type ExampleData} from './generated/examples-list';
 
-// Dynamically import all examples from the specification folder
-const exampleModules = import.meta.glob(
-  '../../../../specification/v0_9/catalogs/basic/examples/*.json',
-  {eager: true},
-);
-
-export interface ExampleFile {
-  key: string;
-  data: any;
-  catalog: string;
+/**
+ * Represents a demo item loaded from an example JSON file.
+ * Contains metadata and the array of messages to be processed.
+ */
+export interface DemoItem {
+  /** Unique identifier for the demo item (usually the surfaceId). */
+  id: string;
+  /** Human-readable title derived from the filename. */
+  title: string;
+  /** The original filename of the example. */
+  filename: string;
+  /** Description of the example, or a fallback source string. */
+  description: string;
+  /** The list of A2UI messages to be processed for this demo. */
+  messages: A2uiMessage[];
 }
 
-export function processExampleModules(modules: Record<string, unknown>): ExampleFile[] {
-  return Object.entries(modules)
-    .map(([path, data]) => {
-      const match = path.match(
-        /catalogs\/(?<catalogFolderName>[^/]+)\/examples\/(?<filename>[^/]+)$/,
-      );
-      // The glob pattern ensures this match will succeed, so non-null assertions are safe here.
-      if (!match?.groups) {
-        throw new Error(`Failed to parse path: ${path}`);
-      }
-      const {catalogFolderName, filename} = match.groups as {
-        catalogFolderName: string;
-        filename: string;
-      };
+/**
+ * Process a modules registry map and returns the list of all available demo items.
+ *
+ * @internal @visibleForTesting
+ */
+export function processExampleModules(modules: Record<string, ExampleModule>): DemoItem[] {
+  const items: DemoItem[] = [];
 
-      const key = `${catalogFolderName}_${filename.replace('.json', '')}`;
-      const catalog = catalogFolderName.charAt(0).toUpperCase() + catalogFolderName.slice(1);
+  const sortedEntries = Object.entries(modules).sort((a, b) => a[0].localeCompare(b[0]));
 
-      return {
-        key,
-        data: (data as {default: unknown}).default ?? data,
-        catalog,
-      };
-    })
-    .sort((a, b) => {
-      // Sort by catalog first, then by key (which includes the numeric prefix)
-      if (a.catalog !== b.catalog) {
-        return a.catalog.localeCompare(b.catalog);
-      }
-      return a.key.localeCompare(b.key);
-    });
+  for (const [filename, data] of sortedEntries) {
+    try {
+      const jsonData = data.default;
+
+      const [messages, description] = extractMessagesAndDescription(jsonData, filename);
+
+      const id = filename.replace('.json', '');
+
+      items.push({
+        id,
+        title: filenameToTitle(filename),
+        filename,
+        description,
+        messages,
+      });
+    } catch (err) {
+      console.error(`Error loading ${filename}:`, err);
+    }
+  }
+
+  return items;
 }
 
-export const exampleFiles: ExampleFile[] = processExampleModules(exampleModules);
+/**
+ * Extracts the array of A2UI messages and the description from the loaded JSON data.
+ */
+function extractMessagesAndDescription(
+  jsonData: ExampleData | A2uiMessage[],
+  filename: string,
+): [A2uiMessage[], string] {
+  let messages: A2uiMessage[] = [];
+  let description = `Source: ${filename}`;
 
-export const getMessages = (ex: {messages: A2uiMessage[]} | A2uiMessage[] | undefined) =>
-  Array.isArray(ex) ? ex : ex?.messages;
+  if (Array.isArray(jsonData)) {
+    messages = jsonData;
+  } else if (jsonData && typeof jsonData === 'object') {
+    messages = jsonData.messages || [];
+    description = jsonData.description || description;
+  }
+
+  if (messages.length === 0) {
+    console.warn(`No A2UI messages found in ${filename}`, jsonData);
+  }
+
+  return [messages, description];
+}
+
+/**
+ * Converts a filename to a human-readable title.
+ */
+function filenameToTitle(filename: string): string {
+  return filename
+    .replace('.json', '')
+    .replace(/^[0-9]+_/, '')
+    .replace(/[-_]/g, ' ')
+    .replace(/\b\w/g, l => l.toUpperCase());
+}
+
+/**
+ * Loads and returns the list of all available demo items.
+ */
+export function getDemoItems(): DemoItem[] {
+  return processExampleModules(exampleModules);
+}
