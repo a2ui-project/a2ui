@@ -49,7 +49,7 @@ class TestSuggestTriage(unittest.TestCase):
         self.assertEqual(res["priority"], "P2")
         self.assertEqual(res["action"], "needs_info")
         self.assertIn("type: bug", res["labels"])
-        self.assertIn("waiting-for-user-response", res["labels"])
+        self.assertIn("waiting-for-author-response", res["labels"])
 
     def test_guess_triage_heuristics_needs_info(self):
         # Feature request

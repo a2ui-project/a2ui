@@ -35,7 +35,7 @@ This section describes goals at a high level. See concrete steps in the section 
 3. status: needs-triage
 4. status: first-line-handled
 5. size: small
-6. status: waiting-for-user-response
+6. status: waiting-for-author-response
 
 See [all github labels](https://github.com/a2ui-project/a2ui/labels).
 

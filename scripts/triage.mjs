@@ -14,12 +14,18 @@
  * limitations under the License.
  */
 
-// Reconciles the 'status: needs-triage' label across all open issues and PRs. The label
+// Reconciles the 'status: needs-triage' and 'status: waiting-for-author-response'
+// labels across all open issues and PRs. 
+// The 'status: needs-triage' label
 // is fully owned by this automation: it is added to every item that matches a
 // rule below and removed from every item that does not, on each run.
 //
-// An item is flagged when:
-//   1. It is an issue without 'status: waiting-for-user-response' that is:
+// The 'status: waiting-for-author-response' label
+// should be assigned manually and removed by the bot after author added a comment.
+//
+// An item is flagged with 'status: needs-triage' when it does not have the label
+// 'status: waiting-for-author-response' and:
+//   1. It is an issue:
 //      a. without a priority label, or
 //      b. P0/P1 without an assignee, or
 //      c. P0 and stale for more than 1 day, or
@@ -36,14 +42,11 @@
 // A PR is "stale" when no internal member has responded after the external
 // author's last contribution for more than a day.
 //
-// Flagged issues and PRs:
-// https://github.com/a2ui-project/a2ui/issues?q=state%3Aopen%20label%3A%22status%3A%20needs-triage%22
-//
 // The job prints to console what items are flagged/unflagged and why. To see the
 // history of runs see:
 // https://github.com/a2ui-project/a2ui/actions/workflows/triage.yml
 
-export const WAITING_LABEL = 'status: waiting-for-user-response';
+export const WAITING_LABEL = 'status: waiting-for-author-response';
 export const FLAG_LABEL = 'status: needs-triage';
 export const PRIORITY_LABELS = ['P0', 'P1', 'P2', 'P3', 'P4'];
 
