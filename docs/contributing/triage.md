@@ -2,8 +2,6 @@
 
 go/a2ui-triage
 
-Point of contact: @polinach
-
 See go/a2ui-triage for internal information.
 
 ## Goals
@@ -59,10 +57,6 @@ Review issues [with label `status: needs-triage`][needs-triage], temporarily add
 Use this skill to get agent's help with triage process: [.agents/skills/a2ui-issue-triage](../../.agents/skills/a2ui-issue-triage).
 
 It forks multiple subagents (one for each issue) to try and tries to reproduce the issue if it is something that can be easily reproduced. It won't attempt to repro something that takes a lot of setup.
-
-## Response templates
-
-TODO: add templates for quick responses here
 
 ## Q\&A
 
