@@ -30,8 +30,8 @@ Canonical replies the team has agreed on for recurring triage cases. Check this 
 
 **Triage**: priority `P3`, action `backlog` (keeps the issue open).
 
-> As agreed, this has been assigned a P3 priority. Once the current triage queue is cleared,
-> we will begin reviewing AI-generated issues.
+As agreed, this has been assigned a P3 priority. Once the current triage queue is cleared,
+we will begin reviewing AI-generated issues.
 
 ### Assigned issue without a priority
 
@@ -40,8 +40,8 @@ queue with nothing else to decide.
 
 **Triage**: priority `P2`, action `assign_and_fix`, keeping the existing assignee.
 
-> I assigned a P2 priority to move this out of the triage queue. Please adjust the priority
-> if needed to better reflect the issue's status.
+I assigned a P2 priority to move this out of the triage queue. Please adjust the priority
+if needed to better reflect the issue's status.
 
 ---
 
@@ -57,10 +57,10 @@ the original commit.
 
 **Triage**: close the PR, linking the superseding one.
 
-> Thank you for your contribution! We apologize that this PR has become outdated. To
-> expedite the process, I created a superseding PR based on your analysis and changes. Your
-> original commit is included to ensure your contribution is properly recorded.
-> `<link to new PR>`
+Thank you for your contribution! We apologize that this PR has become outdated. To
+expedite the process, I created a superseding PR based on your analysis and changes. Your
+original commit is included to ensure your contribution is properly recorded.
+`<link to new PR>`
 
 ### Complex PR without an associated issue
 
@@ -69,10 +69,7 @@ assignee of that issue. Straightforward and minor PRs are exempt.
 
 **Triage**: close the PR.
 
-> To optimize our team's limited resources, our policy is to prioritize the review of PRs
-> that address an issue, prioritized by the team and assigned to the PR author, unless the
-> PR is straightforward and minor. While we appreciate your intent to help and your
-> contribution, we must decline this PR at this time.
+To optimize our team's limited resources, our policy is to prioritize the review of PRs that address an issue, that is prioritized by the team and assigned to the PR author, unless the PR is straightforward and minor. While we appreciate your intent to help and your contribution, unfortunately, we must decline this PR at this time.
 
 ### PR outside the project's scope
 
@@ -80,7 +77,4 @@ assignee of that issue. Straightforward and minor PRs are exempt.
 
 **Triage**: close the PR.
 
-> Thank you for your contribution to the A2UI ecosystem! Unfortunately, we must decline this
-> PR as the scope of this repository is restricted to features the maintenance team can
-> support long-term. We encourage you to find a more suitable repository for this code or to
-> consider launching your own repository to support this segment of the A2UI ecosystem.
+Thank you for your contribution to the A2UI ecosystem! Unfortunately, we must decline this PR as the scope of this repository is restricted to features the maintenance team can support long-term. We encourage you to find a more suitable repository for this code or to consider launching your own repository to support this segment of the A2UI ecosystem.
