@@ -10,7 +10,7 @@
     },
     "CallId": {
       "type": "string",
-      "description": "The unique identifier for a server initiated function call."
+      "description": "The unique identifier for an agent initiated function call."
     },
     "AccessibilityAttributes": {
       "type": "object",
@@ -37,6 +37,10 @@
         }
       },
       "required": ["id"]
+    },
+    "Child": {
+      "$ref": "#/$defs/ComponentId",
+      "description": "A reference to a single child component ID."
     },
     "ChildList": {
       "oneOf": [
@@ -182,7 +186,7 @@
     },
     "FunctionCall": {
       "type": "object",
-      "description": "Invokes a named function on the client.",
+      "description": "Invokes a named function on the renderer.",
       "properties": {
         "call": {
           "type": "string",
@@ -226,7 +230,7 @@
       "additionalProperties": false
     },
     "Checkable": {
-      "description": "Properties for components that support client-side checks.",
+      "description": "Properties for components that support renderer-side checks.",
       "type": "object",
       "properties": {
         "checks": {
@@ -239,19 +243,19 @@
       }
     },
     "Action": {
-      "description": "Defines an interaction handler that can either trigger a server-side event or execute a local client-side function.",
+      "description": "Defines an interaction handler that can either trigger an agent-side event or execute a local renderer-side function.",
       "oneOf": [
         {
           "type": "object",
-          "description": "Triggers a server-side event.",
+          "description": "Triggers an agent-side event.",
           "properties": {
             "event": {
               "type": "object",
-              "description": "The event to dispatch to the server.",
+              "description": "The event to dispatch to the agent.",
               "properties": {
                 "name": {
                   "type": "string",
-                  "description": "The name of the action to be dispatched to the server."
+                  "description": "The name of the action to be dispatched to the agent."
                 },
                 "context": {
                   "type": "object",
@@ -262,12 +266,12 @@
                 },
                 "wantResponse": {
                   "type": "boolean",
-                  "description": "If true, the client expects an actionResponse from the server.",
+                  "description": "If true, the renderer expects an actionResponse from the agent.",
                   "default": false
                 },
                 "responsePath": {
                   "type": "string",
-                  "description": "Optional JSON Pointer path where the client should save the response value in its local data model."
+                  "description": "Optional JSON Pointer path where the renderer should save the response value in its local data model."
                 }
               },
               "required": ["name"],
@@ -279,7 +283,7 @@
         },
         {
           "type": "object",
-          "description": "Executes a local client-side function.",
+          "description": "Executes a local renderer-side function.",
           "properties": {
             "functionCall": {
               "$ref": "#/$defs/FunctionCall"

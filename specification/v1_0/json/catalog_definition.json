@@ -124,8 +124,8 @@
             },
             "callableFrom": {
               "type": "string",
-              "enum": ["clientOnly", "remoteOnly", "clientOrRemote"],
-              "default": "clientOnly",
+              "enum": ["rendererOnly", "agentOnly", "rendererOrAgent"],
+              "default": "rendererOnly",
               "description": "Specifies where this function can be invoked from."
             }
           },

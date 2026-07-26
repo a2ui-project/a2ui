@@ -36,7 +36,7 @@ def _get_strategy(
     """Resolves and instantiates the InferenceFormat strategy for the given format.
 
     Args:
-        format_name: The name of the format strategy (json, express, or elemental).
+        format_name: The name of the format strategy (json, express, elemental, or atom).
         version: The specification version (e.g. 0.9.1 or 1.0).
         catalog_config: The catalog configuration details.
         surface_id: The surface identifier target.
@@ -61,6 +61,10 @@ def _get_strategy(
         from a2ui.inference_formats.experimental.elemental.format import ElementalFormat
 
         return ElementalFormat(catalog=catalog, surface_id=surface_id)
+    elif format_name == "atom":
+        from a2ui.inference_formats.experimental.atom.format import AtomFormat
+
+        return AtomFormat(catalog=catalog, surface_id=surface_id)
     else:
         raise ValueError(f"Unknown format strategy: {format_name}")
 

@@ -96,7 +96,7 @@ def a2ui_v0_9_1_eval(
     active_version = "0.9.1"
     default_catalog_path = "specification/v0_9_1/catalogs/basic/catalog.json"
 
-    format_name = strategy if strategy in ["express", "elemental"] else "json"
+    format_name = strategy if strategy in ["express", "elemental", "atom"] else "json"
 
     dataset = load_a2ui_dataset(
         str(active_dataset_path),
@@ -153,7 +153,7 @@ def a2ui_v1_0_eval(
     active_version = "1.0"
     default_catalog_path = "specification/v1_0/catalogs/basic/catalog.json"
 
-    format_name = strategy if strategy in ["express", "elemental"] else "json"
+    format_name = strategy if strategy in ["express", "elemental", "atom"] else "json"
 
     dataset = load_a2ui_dataset(
         str(active_dataset_path),

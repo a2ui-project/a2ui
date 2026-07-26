@@ -1,5 +1,6 @@
 ## Unreleased
 
+- (v0_9) Add prototype pollution protection and safe property lookup to `DataModel` (non-breaking security fix).
 - (v0_8) Export `A2uiMessageSchema` in public API.
 
 ## 0.10.5

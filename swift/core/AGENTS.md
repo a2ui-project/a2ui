@@ -1,8 +1,8 @@
 # A2UI Swift Core Agent Guide (AGENTS.md)
 
 This document is the authoritative guide for AI agents operating within the
-`swift/` directory tree. It outlines target boundaries, coding conventions, and
-verification protocols.
+`swift/` directory tree. It outlines target boundaries, coding conventions, spec
+compliance rules, and verification protocols.
 
 ---
 
@@ -58,7 +58,40 @@ Key rules:
 
 ---
 
-## 3. Verification Protocol
+## 3. Spec Compliance \u0026 Source-of-Truth Hierarchy
+
+When implementing or modifying any wire-format types (message envelopes, action
+payloads, error types), JSON Pointer semantics, or data model behavior, agents
+**MUST** verify consistency against the authoritative sources in this order:
+
+1. **JSON Schemas** (`specification/v0_9_1/json/`) — the primary authority for
+   wire-format field names, required properties, and structural shape.
+2. **Core SDK Blueprint** (`blueprints/modules/a2ui_core.blueprint.md`) — defines
+   cross-language behavioral rules (e.g., JSON Pointer Implementation Rules,
+   auto-vivification, sparse arrays, notification strategy).
+3. **`web_core` Reference** (`renderers/web_core/src/v0_9/`) — the canonical
+   TypeScript implementation to cross-check behavioral semantics (e.g., how
+   `undefined`/`nil` is handled for arrays vs objects, auto-vivification
+   conditions, root replacement rules).
+
+Common pitfalls to avoid:
+
+- **Wire payload shape**: Do not mirror component property schemas (e.g.,
+  `Action.event`/`Action.functionCall`) in message envelopes. Message payloads
+  have their own flat schemas (e.g., `action.name`, `action.surfaceId`).
+- **Version fields**: All server-to-client and client-to-server messages require
+  a top-level `version` field. Always encode it and validate it on decode.
+- **Array deletion vs sparse**: Setting an array index to `nil`/`undefined`
+  must preserve array length (set to `.null`), not remove the element. Object
+  keys are removed entirely.
+- **Root replacement**: The root JSON value can be replaced with any valid
+  `JSONValue` type, not just `.object`.
+- **Auto-vivification**: Arrays should be vivified for any numeric path segment
+  (`Int(key) != nil`), not just index `"0"`.
+
+---
+
+## 4. Verification Protocol
 
 Before completing any task, agents **MUST** execute:
 
