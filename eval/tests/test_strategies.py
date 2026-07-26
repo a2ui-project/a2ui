@@ -217,3 +217,55 @@ async def test_a2ui_elemental_solvers() -> None:
     finally:
         if original_git_root is not None:
             setattr(format_module, "GIT_ROOT", original_git_root)
+
+
+@pytest.mark.asyncio
+async def test_a2ui_atom_solvers() -> None:
+    from a2ui_eval.shared.utils import GIT_ROOT
+
+    catalog_file = GIT_ROOT / "specification/v1_0/catalogs/basic/catalog.json"
+
+    from a2ui_eval.strategies.format import (
+        format_system_prompt,
+        compile_format_payload,
+    )
+
+    prompt_solver = format_system_prompt("atom", version="1.0")
+
+    state = TaskState(
+        model=ModelName("mock/model"),
+        sample_id=1,
+        epoch=1,
+        input="test",
+        messages=[],
+        metadata={"catalog": str(catalog_file)},
+    )
+
+    import a2ui_eval.strategies.format as format_module
+
+    original_git_root = getattr(format_module, "GIT_ROOT", None)
+    setattr(format_module, "GIT_ROOT", GIT_ROOT)
+
+    try:
+        state = await prompt_solver(state, dummy_generate)
+        assert len(state.messages) == 1
+        assert state.messages[0].role == "system"
+        assert "A2UI Atom" in state.messages[0].content
+
+        compile_solver = compile_format_payload("atom", version="1.0")
+        state.output = ModelOutput(
+            model="mock/model",
+            choices=[
+                ChatCompletionChoice(
+                    message=ChatMessageAssistant(
+                        content='<a2ui>(Card (Text "Hello"))</a2ui>'
+                    )
+                )
+            ],
+        )
+        state = await compile_solver(state, dummy_generate)
+        assert "<a2ui-json>" in state.output.completion
+        assert '"component": "Card"' in state.output.completion
+    finally:
+        if original_git_root is not None:
+            setattr(format_module, "GIT_ROOT", original_git_root)

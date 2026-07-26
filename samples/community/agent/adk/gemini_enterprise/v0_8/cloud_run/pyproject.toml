@@ -45,6 +45,3 @@ default = true
 
 [project.scripts]
 start = "main:serve"
-
-[tool.uv.sources]
-a2ui-agent-sdk = { workspace = true }
