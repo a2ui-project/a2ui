@@ -18,8 +18,8 @@ A2UI components on Gemini Enterprise UI.
 
 Before running the deployment script, ensure you have the following:
 
-- A **Google Cloud Project** with billing enabled.
-- **Google Cloud SDK** installed and up to date.
+- A [Google Cloud Project](https://cloud.google.com/resource-manager/docs/creating-managing-projects) with billing enabled.
+- [Google Cloud SDK](https://cloud.google.com/sdk/docs/install) installed and up to date.
 
 ### Authentication
 
@@ -33,12 +33,14 @@ gcloud config set project <YOUR_PROJECT_ID>
 
 ### Enable Required APIs
 
-Enable the required Google Cloud APIs for Cloud Run, Cloud Build, Vertex AI, and Discovery Engine:
+Enable the required Google Cloud APIs for Cloud Run, Cloud Build, Artifact
+Registry, Vertex AI, and Discovery Engine:
 
 ```bash
 gcloud services enable \
 run.googleapis.com \
 cloudbuild.googleapis.com \
+artifactregistry.googleapis.com \
 aiplatform.googleapis.com \
 discoveryengine.googleapis.com \
 --project <YOUR_PROJECT_ID>
