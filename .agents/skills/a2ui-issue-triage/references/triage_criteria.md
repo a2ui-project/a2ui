@@ -57,8 +57,8 @@ Priorities in A2UI represent the team's commitment and timeline for addressing a
   - Verify if the request aligns with the [A2UI roadmap](../../../../docs/public/roadmap.md) and/or design philosophy for the affected components. Be lenient if the idea can be implemented entirely as a client-side catalog extension or a custom renderer component without modifying the core protocol schemas or SDK interfaces.
   - Note if the request seems to be related to a specific issue or PR that has already been discussed.
 - **Action**:
-  - If aligned, set action to `investigate` with priority `P2` or `P3` and suggest appropriate component labels (e.g., `component: standard catalog specification`, `type: feature/enhancement`).
-  - If out of scope, set priority `P4` and action `investigate`, which keeps the issue open. Draft a polite response explaining why it doesn't align with the roadmap and inviting the author to comment if they have new arguments. Do not close it — see the P4 definition above.
+  - If aligned, set action to `backlog` with priority `P2` or `P3` and suggest appropriate component labels (e.g., `component: standard catalog specification`, `type: feature/enhancement`).
+  - If out of scope, set priority `P4` and action `backlog`, which keeps the issue open. Draft a polite response explaining why it doesn't align with the roadmap and inviting the author to comment if they have new arguments. Do not close it — see the P4 definition above.
 
 ### 3. Support Requests and Questions
 
