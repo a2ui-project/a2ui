@@ -87,6 +87,22 @@ It might be a good contribution, but we do not have enough bandwidth to review i
 
 **Triage**: close the PR.
 
-Thank you for your contribution to the A2UI ecosystem! Unfortunately, we must decline this PR at this time: the issue it addresses is assigned to someone else, and we do not have the bandwidth to review parallel work on it.
+Thank you for your contribution to the A2UI ecosystem! Unfortunately, we must decline this PR at this time: we review PRs against an issue only from the contributor the issue is assigned to, and this one is not assigned to you. Issues are assigned in priority order, so we cannot say yet when this one will be picked up.
 
-We will link this PR from the issue so the assignee can see your approach. They may reopen it and build on your work rather than start from scratch.
+We will link this PR to the issue, so whoever takes it on can see your approach. They may reopen this PR and build on it rather than start from scratch.
+
+### Meaningful stale PR with conflicts
+
+**Case**: The PR is meaningful, but has conflicts with the main branch.
+
+**Triage**: assign `status: waiting-for-user-response`.
+
+Thank you for your contribution. I am sorry it took so long for our team to review your PR. Unfortunately the branch has conflicts with the main branch.  If you believe the issue is not resolved yet, can you, please, resolve the conflicts? We will review it again after you resolve conflicts.
+
+### PR that closes already closed issue
+
+**Case**: The PR closes an issue that has already been closed.
+
+**Triage**: close the PR.
+
+Thank you for your contribution. I am closing this PR as the linked issue has already been resolved.
