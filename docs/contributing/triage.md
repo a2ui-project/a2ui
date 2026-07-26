@@ -55,7 +55,6 @@ Push each item until it no longer matches a [flagging rule](../../scripts/triage
 Use [standard replies](../../.agents/skills/a2ui-issue-triage/references/templates.md) that are provided for standard cases.
 
 [needs-triage]: https://github.com/a2ui-project/a2ui/issues?q=state%3Aopen%20label%3A%22status%3A%20needs-triage%22%20repo%3Aa2ui-project%2Fa2ui%2Cflutter%2Fgenui%20-label%3A%22status%3A%20in-discussion%22%20sort%3Aupdated-asc
-
 [in-discussion]: https://github.com/a2ui-project/a2ui/issues?q=state%3Aopen%20label%3A%22status%3A%20in-discussion%22
 
 See internal steps in: go/a2ui-oncall-notes-template.

@@ -852,7 +852,9 @@ limitations under the License.
               <option value="investigate">Keep open, mark for research</option>
               <option value="assign_and_fix">Keep open, assign to developer</option>
               <option value="backlog">Keep open, no active work planned</option>
-              <option value="needs_info">Ask for info, apply status: waiting-for-user-response</option>
+              <option value="needs_info">
+                Ask for info, apply status: waiting-for-user-response
+              </option>
               <option value="close_duplicate">Close as duplicate</option>
               <option value="close_invalid">Close as invalid/spam</option>
               <option value="close_resolved">Close as resolved/answered</option>
@@ -1145,7 +1147,7 @@ limitations under the License.
           // reconciled on every run — setting it by hand here would have no lasting effect.
           if (Array.isArray(repoData.labels) && repoData.labels.length > 0) {
             const filteredLabels = repoData.labels.filter(
-              label => !/^[Pp][0-4]$/.test(label) && label !== 'status: needs-triage'
+              label => !/^[Pp][0-4]$/.test(label) && label !== 'status: needs-triage',
             );
             standardLabels.splice(0, standardLabels.length, ...filteredLabels);
           }
