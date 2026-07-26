@@ -64,12 +64,13 @@ original commit is included to ensure your contribution is properly recorded.
 
 ### Complex PR without an associated issue
 
-**Case**: A complex PR that does not address a prioritized issue, or whose author is not the
-assignee of that issue. Straightforward and minor PRs are exempt.
+**Case**: A complex PR that does not address an issue. Straightforward and minor PRs are exempt.
 
 **Triage**: close the PR.
 
-To optimize our team's limited resources, our policy is to prioritize the review of PRs that address an issue, that is prioritized by the team and assigned to the PR author, unless the PR is straightforward and minor. While we appreciate your intent to help and your contribution, unfortunately, we must decline this PR at this time.
+Thank you for your contribution. Unfortunately, we must decline this PR at this time.  
+Our team resources are limited, and our policy is to prioritize the review of PRs that address an existing issue. Consider opening issue  
+and link to your PR in the issue description as one of the options for resolution.
 
 ### PR outside the project's scope
 
@@ -78,3 +79,14 @@ To optimize our team's limited resources, our policy is to prioritize the review
 **Triage**: close the PR.
 
 Thank you for your contribution to the A2UI ecosystem! Unfortunately, we must decline this PR as the scope of this repository is restricted to features the maintenance team can support long-term. We encourage you to find a more suitable repository for this code or to consider launching your own repository to support this segment of the A2UI ecosystem.
+
+### Complex PR towards existing issue but not assigned to the author
+
+**Case**: Complex PR that is not assigned to the author.  
+It might be a good contribution, but we do not have enough bandwidth to review it at this time.
+
+**Triage**: close the PR.
+
+Thank you for your contribution to the A2UI ecosystem! Unfortunately, we must decline this PR at this time: the issue it addresses is assigned to someone else, and we do not have the bandwidth to review parallel work on it.
+
+We will link this PR from the issue so the assignee can see your approach. They may reopen it and build on your work rather than start from scratch.
