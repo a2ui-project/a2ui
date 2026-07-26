@@ -43,7 +43,21 @@ queue with nothing else to decide.
 I assigned a P2 priority to move this out of the triage queue. Please adjust the priority
 if needed to better reflect the issue's status.
 
----
+### Stale P2 issue
+
+**Case**: The issue is P2 but stale.
+
+**Triage**: add comment.
+
+This issue should be considered for a P1 priority together with other P2 issues in the next planning cycle after we burn through the triage queue.
+
+### Stale assigned P1 issue
+
+**Case**: The issue is P1 and has an assignee, but has been stale for a while.
+
+**Triage**: add comment.
+
+Ping from triage process: is this issue still on your radar?
 
 ## Pull requests
 
@@ -69,8 +83,8 @@ original commit is included to ensure your contribution is properly recorded.
 **Triage**: close the PR.
 
 Thank you for your contribution. Unfortunately, we must decline this PR at this time.  
-Our team resources are limited, and our policy is to prioritize the review of PRs that address an existing issue. Consider opening issue  
-and link to your PR in the issue description as one of the options for resolution.
+Our team resources are limited, and our policy is to prioritize the review of PRs that address an existing issue prioritized issues. Consider opening issue  
+and link your PR in the issue description as one of the options for resolution.
 
 ### PR outside the project's scope
 
@@ -106,3 +120,4 @@ Thank you for your contribution. I am sorry it took so long for our team to revi
 **Triage**: close the PR.
 
 Thank you for your contribution. I am closing this PR as the linked issue has already been resolved.
+
