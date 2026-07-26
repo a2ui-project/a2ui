@@ -73,7 +73,10 @@ class TestFetchIssues(unittest.TestCase):
             elif len(args) >= 3 and args[1] == "label" and args[2] == "list":
                 return json.dumps([{"name": "type: bug"}, {"name": "component: core"}])
             elif len(args) >= 3 and args[1] == "issue" and args[2] == "list":
-                # Return 2 issues: one untriaged, one already triaged with P1 (should be skipped!)
+                # The queue is selected by label in the gh query, so everything
+                # returned here is expected in the output. A P1 issue is included to
+                # confirm prioritized-but-flagged items (for example a P1 with no
+                # assignee) are not dropped by a leftover client-side filter.
                 return json.dumps([
                     {
                         "number": 123,
@@ -82,29 +85,23 @@ class TestFetchIssues(unittest.TestCase):
                         "body": "Lit crashed.",
                         "createdAt": "2026-06-25T00:00:00Z",
                         "updatedAt": "2026-06-25T01:00:00Z",
-                        "labels": [{"name": "type: bug"}],
+                        "labels": [
+                            {"name": "type: bug"},
+                            {"name": "status: needs-triage"},
+                        ],
                         "assignees": [],
                     },
                     {
                         "number": 124,
-                        "title": "Already triaged crash",
+                        "title": "Urgent, nobody on it",
                         "author": {"login": "alex"},
-                        "body": "This has a priority label.",
+                        "body": "Flagged because a P1 has no assignee.",
                         "createdAt": "2026-06-25T00:00:00Z",
                         "updatedAt": "2026-06-25T01:00:00Z",
-                        "labels": [{"name": "P1"}],  # Priority P1, should be skipped!
-                        "assignees": [],
-                    },
-                    {
-                        "number": 125,
-                        "title": "Blocked on the author",
-                        "author": {"login": "alex"},
-                        "body": "No priority, but we asked for repro steps.",
-                        "createdAt": "2026-06-25T00:00:00Z",
-                        "updatedAt": "2026-06-25T01:00:00Z",
-                        # Waiting on the author, so it is out of the triage queue
-                        # even though it has no priority label. Should be skipped!
-                        "labels": [{"name": "status: waiting-for-user-response"}],
+                        "labels": [
+                            {"name": "P1"},
+                            {"name": "status: needs-triage"},
+                        ],
                         "assignees": [],
                     },
                 ])
@@ -137,13 +134,26 @@ class TestFetchIssues(unittest.TestCase):
         # Verify output structure
         self.assertEqual(parsed_output["repo"], "a2ui-project/a2ui")
         self.assertIn("type: bug", parsed_output["labels"])
-        # Only the untriaged issue 123 is included: 124 already has a priority, and
-        # 125 is waiting on its author.
-        self.assertEqual(len(parsed_output["issues"]), 1)
+        # Both flagged issues are included, including the one that already has a
+        # priority: the automation decides what is in the queue, not this script.
+        self.assertEqual(len(parsed_output["issues"]), 2)
 
         issue = parsed_output["issues"][0]
         self.assertEqual(issue["id"], 123)
         self.assertEqual(issue["title"], "Crash in lit")
+        self.assertEqual(parsed_output["issues"][1]["id"], 124)
+
+        # The queue is selected by label in the gh query itself.
+        issue_list_call = next(
+            c.args[0]
+            for c in mock_run.call_args_list
+            if len(c.args[0]) >= 3 and c.args[0][1:3] == ["issue", "list"]
+        )
+        self.assertIn("--label", issue_list_call)
+        self.assertEqual(
+            issue_list_call[issue_list_call.index("--label") + 1],
+            "status: needs-triage",
+        )
 
         # Verify assignee resolution (including the substring matched "varun" to "Varun S")
         assignees = parsed_output["assignees"]

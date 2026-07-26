@@ -21,8 +21,9 @@ import os
 import re
 import shutil
 
-# Must match WAITING_LABEL in scripts/triage.mjs.
-WAITING_LABEL = "status: waiting-for-user-response"
+# Must match FLAG_LABEL in scripts/triage.mjs, which owns this label and uses it to
+# mark the second-line triage queue described in docs/contributing/triage.md.
+FLAG_LABEL = "status: needs-triage"
 
 
 def run_cmd(args):
@@ -116,8 +117,15 @@ def main():
         except Exception as e:
             print(f"Warning: Failed to parse repository labels: {e}", file=sys.stderr)
 
-    print(f"Fetching open issues from {args.repo}...")
-    # 2. Fetch open issues with key fields
+    print(f"Fetching the {FLAG_LABEL} queue from {args.repo}...")
+    # 2. Fetch the second-line triage queue with key fields.
+    #
+    # The queue is defined by the FLAG_LABEL, which scripts/triage.mjs reconciles on
+    # every run against all of its rules: issues without a priority, P0/P1 without an
+    # assignee, prioritized issues gone stale, and unanswered external comments.
+    # Selecting on the label keeps this script in step with those rules instead of
+    # reimplementing a subset of them. `gh issue list` returns issues only, so flagged
+    # PRs are left to the oncall engineer.
     issues_json = run_cmd([
         "gh",
         "issue",
@@ -126,6 +134,8 @@ def main():
         args.repo,
         "--state",
         "open",
+        "--label",
+        FLAG_LABEL,
         "--limit",
         "100",
         "--json",
@@ -136,24 +146,10 @@ def main():
         print("Failed to fetch issues or repository is empty.", file=sys.stderr)
         sys.exit(1)
 
-    issues = json.loads(issues_json)
-    priority_labels = {"P0", "P1", "P2", "P3", "P4"}
-    untriaged_issues = []
-
-    for issue in issues:
-        label_names = {l.get("name") for l in issue.get("labels", [])}
-
-        # Issues blocked on their author are excluded, matching rule 1 of the triage
-        # automation (scripts/triage.mjs): they are out of the queue until the author
-        # replies, and the label is removed automatically when they do.
-        if WAITING_LABEL in label_names:
-            continue
-
-        if not (label_names & priority_labels):
-            untriaged_issues.append(issue)
+    untriaged_issues = json.loads(issues_json)
 
     print(
-        f"Found {len(untriaged_issues)} untriaged issues. Fetching comments for up to"
+        f"Found {len(untriaged_issues)} flagged issues. Fetching comments for up to"
         f" {args.limit}..."
     )
 
