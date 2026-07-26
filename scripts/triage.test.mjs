@@ -65,9 +65,16 @@ const comment = (overrides = {}) => ({
   ...overrides,
 });
 
+const RAW_COMMENT_KEYS = Object.keys(comment());
+
 // The normalized event `fetchContributions` produces, which `flagReason` and
-// friends consume directly. Takes the same overrides as `comment`.
+// friends consume directly. Overrides use the raw key names, as for `comment`;
+// a normalized one (`createdAt`) would otherwise be dropped on the floor and
+// leave the test silently asserting against a default.
 const event = (overrides = {}) => {
+  const unknown = Object.keys(overrides).filter(key => !RAW_COMMENT_KEYS.includes(key));
+  assert.deepEqual(unknown, [], `event() takes raw comment keys, got: ${unknown.join(', ')}`);
+
   const {created_at: createdAt, author_association: association, user} = comment(overrides);
   return {createdAt, association, user};
 };
