@@ -162,12 +162,15 @@
                 {
                   "type": "object",
                   "properties": {
-                    "path": {
-                      "type": "string"
+                    "svgPath": {
+                      "$ref": "https://a2ui.org/specification/v1_0/common_types.json#/$defs/DynamicString"
                     }
                   },
-                  "required": ["path"],
+                  "required": ["svgPath"],
                   "additionalProperties": false
+                },
+                {
+                  "$ref": "https://a2ui.org/specification/v1_0/common_types.json#/$defs/DataBinding"
                 }
               ]
             },
@@ -386,7 +389,7 @@
               "const": "Card"
             },
             "child": {
-              "$ref": "https://a2ui.org/specification/v1_0/common_types.json#/$defs/ComponentId",
+              "$ref": "https://a2ui.org/specification/v1_0/common_types.json#/$defs/Child",
               "description": "The ID of the single child component to be rendered inside the card. To display multiple elements, you MUST wrap them in a layout component (like Column or Row) and pass that container's ID here. Do NOT pass multiple IDs or a non-existent ID. Do NOT define the child component inline."
             },
             "weight": {
@@ -423,7 +426,7 @@
                     "$ref": "https://a2ui.org/specification/v1_0/common_types.json#/$defs/DynamicString"
                   },
                   "child": {
-                    "$ref": "https://a2ui.org/specification/v1_0/common_types.json#/$defs/ComponentId",
+                    "$ref": "https://a2ui.org/specification/v1_0/common_types.json#/$defs/Child",
                     "description": "The ID of the child component. Do NOT define the component inline."
                   }
                 },
@@ -454,11 +457,11 @@
               "const": "Modal"
             },
             "trigger": {
-              "$ref": "https://a2ui.org/specification/v1_0/common_types.json#/$defs/ComponentId",
+              "$ref": "https://a2ui.org/specification/v1_0/common_types.json#/$defs/Child",
               "description": "The ID of the component that opens the modal when interacted with (e.g., a button). Do NOT define the component inline."
             },
             "content": {
-              "$ref": "https://a2ui.org/specification/v1_0/common_types.json#/$defs/ComponentId",
+              "$ref": "https://a2ui.org/specification/v1_0/common_types.json#/$defs/Child",
               "description": "The ID of the component to be displayed inside the modal. Do NOT define the component inline."
             },
             "weight": {
@@ -515,7 +518,7 @@
               "const": "Button"
             },
             "child": {
-              "$ref": "https://a2ui.org/specification/v1_0/common_types.json#/$defs/ComponentId",
+              "$ref": "https://a2ui.org/specification/v1_0/common_types.json#/$defs/Child",
               "description": "The ID of the child component. Use a 'Text' component for a labeled button. Only use an 'Icon' if the requirements explicitly ask for an icon-only button. Do NOT define the child component inline."
             },
             "variant": {
@@ -977,7 +980,7 @@
     },
     "formatString": {
       "type": "object",
-      "description": "Performs string interpolation of data model values and other functions in the catalog functions list and returns the resulting string. The value string can contain interpolated expressions in the `${expression}` format. Supported expression types include: JSON Pointer paths to the data model (e.g., `${/absolute/path}` or `${relative/path}`), and client-side function calls (e.g., `${now()}`). Function arguments must be named (e.g., `${formatDate(value:${/currentDate}, format:'MM-dd')}`). To include a literal `${` sequence, escape it as `\\${`.",
+      "description": "Performs string interpolation of data model values and other functions in the catalog functions list and returns the resulting string. The value string can contain interpolated expressions in the `${expression}` format. Supported expression types include: JSON Pointer paths to the data model (e.g., `${/absolute/path}` or `${relative/path}`), and renderer-side function calls (e.g., `${now()}`). Function arguments must be named (e.g., `${formatDate(value:${/currentDate}, format:'MM-dd')}`). To include a literal `${` sequence, escape it as `\\${`.",
       "returnType": "string",
       "properties": {
         "call": {

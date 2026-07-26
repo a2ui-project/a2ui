@@ -260,3 +260,31 @@ class CatalogSchemaHelper:
             ):
                 return sub["properties"][property_name]
         return None
+
+    def get_property_type(
+        self, component_name: str, property_name: str
+    ) -> Optional[str]:
+        """Resolves the semantic type (ChildList, Child, Action) of a component property from schema $ref."""
+        p_schema = self.get_property_schema(component_name, property_name)
+        if not p_schema:
+            return None
+
+        def _crawl_ref(s: Any) -> Optional[str]:
+            if isinstance(s, dict):
+                if "$ref" in s:
+                    ref = s["$ref"]
+                    if "ChildList" in ref:
+                        return "ChildList"
+                    if "Child" in ref or "ComponentId" in ref:
+                        return "Child"
+                    if "Action" in ref:
+                        return "Action"
+                for k in ("oneOf", "anyOf", "allOf"):
+                    if k in s and isinstance(s[k], list):
+                        for sub_s in s[k]:
+                            res = _crawl_ref(sub_s)
+                            if res:
+                                return res
+            return None
+
+        return _crawl_ref(p_schema)

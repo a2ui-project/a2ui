@@ -1,0 +1,62 @@
+{
+  "format": "atom",
+  "metrics": {
+    "schema_acc": 1.0,
+    "quality_acc": 1.0,
+    "code_tokens_median": 255.5,
+    "reasoning_tokens_median": 5141.0,
+    "input_tokens_median": 4439.5,
+    "latency_seconds_median": 24.6012099981308,
+    "total_samples": 6
+  },
+  "samples": {
+    "dogBreedGenerator": {
+      "schema_acc": 1.0,
+      "quality_acc": 1.0,
+      "code_tokens": 758,
+      "reasoning_tokens": 7078,
+      "input_tokens": 4516,
+      "latency_seconds": 33.87928748130798
+    },
+    "loginForm": {
+      "schema_acc": 1.0,
+      "quality_acc": 1.0,
+      "code_tokens": 177,
+      "reasoning_tokens": 4616,
+      "input_tokens": 4434,
+      "latency_seconds": 23.7957124710083
+    },
+    "productGallery": {
+      "schema_acc": 1.0,
+      "quality_acc": 1.0,
+      "code_tokens": 264,
+      "reasoning_tokens": 5666,
+      "input_tokens": 4484,
+      "latency_seconds": 25.406707525253296
+    },
+    "productGalleryData": {
+      "schema_acc": 1.0,
+      "quality_acc": 1.0,
+      "code_tokens": 281,
+      "reasoning_tokens": 6689,
+      "input_tokens": 4436,
+      "latency_seconds": 29.76441264152527
+    },
+    "settingsPage": {
+      "schema_acc": 1.0,
+      "quality_acc": 1.0,
+      "code_tokens": 247,
+      "reasoning_tokens": 3507,
+      "input_tokens": 4443,
+      "latency_seconds": 19.491649866104126
+    },
+    "updateDataModel": {
+      "schema_acc": 1.0,
+      "quality_acc": 1.0,
+      "code_tokens": 174,
+      "reasoning_tokens": 3358,
+      "input_tokens": 4411,
+      "latency_seconds": 18.838496685028076
+    }
+  }
+}

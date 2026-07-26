@@ -1,6 +1,6 @@
 # A2UI Basic Catalog Implementation Guide
 
-This guide is designed for renderer and client developers implementing the A2UI Basic Catalog (v1.0). It details how to visually present and functionally implement each component and client-side function defined in the catalog.
+This guide is designed for renderer developers implementing the A2UI Basic Catalog (v1.0). It details how to visually present and functionally implement each component and renderer-side function defined in the catalog.
 
 When building your framework-specific adapters (Layer 3) over the generic A2UI bindings, refer to this document for the expected visual behaviors, suggested layouts, and interaction patterns. This guide uses generic terminology applicable to Web, Mobile (iOS/Android), and Desktop platforms.
 
@@ -132,7 +132,7 @@ A dialog window.
 An interactive button that dispatches a protocol action.
 
 **Rendering Guidelines:** Render as a native interactive button component. It must render its `child` component inside the button (usually a `Text` or `Icon`).
-**Behavior & State:** When tapped, it dispatches the `action` back to the server, dynamically resolving the context variables at the moment of the interaction.
+**Behavior & State:** When tapped, it dispatches the `action` back to the agent, dynamically resolving the context variables at the moment of the interaction.
 **Property Mapping:**
 
 - `variant="default"`: Standard button with a subtle background and border.
@@ -192,9 +192,9 @@ An input for date and/or time.
 
 ---
 
-## 2. Client-Side Functions
+## 2. Renderer-Side Functions
 
-Functions provide client-side logic for validation, interpolation, and operations. As defined in the Architecture Guide, the reactivity of function arguments is generally handled by the Core Data Layer (specifically the Binder/Context layer).
+Functions provide renderer-side logic for validation, interpolation, and operations. As defined in the Architecture Guide, the reactivity of function arguments is generally handled by the Core Data Layer (specifically the Binder/Context layer).
 
 Core libraries for each language (such as `@a2ui/web_core` for TypeScript) typically provide a complete, framework-agnostic implementation of all the functions in the basic catalog. Developers are encouraged to utilize these shared implementations rather than writing their own.
 When a function is called, the system resolves its arguments. If an argument is a static value, it is passed directly. If it is a dynamic binding, the Context layer handles the subscription. For most standard functions, the `execute` implementation simply receives a dictionary of static `args` and returns a static value. The Context layer wraps this execution in a reactive stream (e.g., a `computed` signal) so that the function re-runs whenever any of its dynamic arguments change.
@@ -212,7 +212,7 @@ Universal system function available across all catalogs. MUST ONLY be evaluated 
 
 ### `formatString`
 
-**Description:** The core interpolation engine. Parses the `args.value` string for `${expression}` blocks, combining literal strings, data paths, and other client-side function results.
+**Description:** The core interpolation engine. Parses the `args.value` string for `${expression}` blocks, combining literal strings, data paths, and other renderer-side function results.
 
 **Architecture & Logic:**
 Because `formatString` contains dynamic expressions embedded _within_ a string literal, the Context layer cannot pre-resolve them. The implementation must parse the string and manually create a reactive output.

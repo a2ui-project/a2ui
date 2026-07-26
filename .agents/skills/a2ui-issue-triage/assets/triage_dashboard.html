@@ -1170,7 +1170,7 @@ limitations under the License.
               approved: false,
               priority: issue.suggestions.priority || 'None',
               assignee: initialAssignees,
-              action: VALID_ACTIONS.includes(issue.suggestions.action)
+              action: VALID_ACTIONS.includes(issue.suggestions?.action)
                 ? issue.suggestions.action
                 : 'investigate',
               labels: issue.suggestions.labels || [],
