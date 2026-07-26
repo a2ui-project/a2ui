@@ -2,6 +2,19 @@
 
 This document defines the rules and guidelines for classifying issues, assigning priorities, recommending owners, and formulating professional responses for the A2UI repository.
 
+The team process this skill assists is described in [docs/contributing/triage.md](../../../../docs/contributing/triage.md), which is the source of truth for policy. Keep this document aligned with it.
+
+---
+
+## Status labels
+
+Use the exact label names below — the `status:` prefix is part of the name:
+
+- **`status: needs-triage`**: Marks the second-line triage queue. Fully owned by [scripts/triage.mjs](../../../../scripts/triage.mjs), which adds and removes it on every run. Never set or clear it in a triage decision; it disappears once the issue no longer matches a flagging rule.
+- **`status: waiting-for-user-response`**: The issue is blocked on the author. Apply it with the `needs_info` action. It suppresses triage flagging until the author replies.
+- **`status: first-line-handled`**: Set during first-line triage. Not managed by this skill.
+- **`status: in-discussion`**: Temporarily set by the oncall engineer for items the team is actively discussing. Not managed by this skill.
+
 ---
 
 ## Priority Definitions
@@ -20,8 +33,9 @@ Priorities in A2UI represent the team's commitment and timeline for addressing a
 - **P3 (Low)**: Good request. This is not currently planned, but contributions are welcome.
   - _Scope_: Minor UI adjustments, aesthetic improvements, or edge-case bugs affecting very few developers.
   - _Action_: Open for community contributions. Core developers will not actively work on these.
-
-_Note: There is no P4 priority tier. Issues that are out of scope, highly custom, or conflict with the core design goals are closed on triage with an explanation._
+- **P4 (Not a priority)**: The team does not plan to invest in this, and PRs against it will not be reviewed.
+  - _Scope_: Requests that are out of scope, highly custom, or conflict with the core design goals.
+  - _Action_: Label `P4` and leave the issue open. Do not close it — an open P4 is the searchable record that the request is understood, still unimplemented, and deliberately not prioritized. See [Why do we need P4?](../../../../docs/contributing/triage.md#why-do-we-need-p4-why-not-just-close-the-issue).
 
 ---
 
@@ -33,7 +47,7 @@ _Note: There is no P4 priority tier. Issues that are out of scope, highly custom
   - **Reproduction**: Do not attempt local reproduction unless the steps are simple, clear, and the environment can be set up immediately (e.g., inspecting a file, executing a standard unit test). If you need to check out the branch or clone the PR repo to reproduce the issue, do it in a temporary clone or git worktree (e.g. in `<appDataDir>/brain/<conversation-id>/scratch/issue_12345_repro/`). This keeps the main working repository clean of temporary test files or build side effects.
   - **Static Analysis**: For complex bugs, analyze the logs, stack traces, and relevant specification files (e.g., JSON schemas in `specification/`) to diagnose the issue, but don't spend a bunch of resources setting up a complex reproduction.
 - **Action**:
-  - If reproduction steps or logs are missing and prevent diagnosis, set action to `needs_info`, draft a response asking for the missing details, and apply the `waiting-for-user-response` label.
+  - If reproduction steps or logs are missing and prevent diagnosis, set action to `needs_info`, draft a response asking for the missing details, and apply the `status: waiting-for-user-response` label.
   - If the bug is verified, suggest the appropriate priority (`P0` to `P3`) and recommend the owner of the affected component based on path mapping (e.g. paths with `renderers/lit` belong to the Lit renderer maintainer, `specification/` to the specification maintainer) and file commit history (`git log -n 5 --format="%ae" <file>`). Do not rely only on raw `git blame`, as formatting or linter changes can skew authorship.
   - Clean up any temporary files, worktrees, clones, and/or temporary branches when finished.
 
@@ -43,8 +57,8 @@ _Note: There is no P4 priority tier. Issues that are out of scope, highly custom
   - Verify if the request aligns with the [A2UI roadmap](../../../../docs/public/roadmap.md) and/or design philosophy for the affected components. Be lenient if the idea can be implemented entirely as a client-side catalog extension or a custom renderer component without modifying the core protocol schemas or SDK interfaces.
   - Note if the request seems to be related to a specific issue or PR that has already been discussed.
 - **Action**:
-  - If aligned, set action to `backlog` with priority `P2` or `P3` and suggest appropriate component labels (e.g., `component: standard catalog specification`, `type: feature/enhancement`).
-  - If out of scope, set action to `close_invalid`. Draft a polite response explaining why it doesn't align with the roadmap, reassure the author that they can reopen the issue if they have new arguments or want to discuss further, and close the issue. Do not assign a priority label.
+  - If aligned, set action to `investigate` with priority `P2` or `P3` and suggest appropriate component labels (e.g., `component: standard catalog specification`, `type: feature/enhancement`).
+  - If out of scope, set priority `P4` and action `investigate`, which keeps the issue open. Draft a polite response explaining why it doesn't align with the roadmap and inviting the author to comment if they have new arguments. Do not close it — see the P4 definition above.
 
 ### 3. Support Requests and Questions
 
@@ -76,7 +90,7 @@ Examples:
 > 1. [Specific missing detail, e.g., browser console logs / the exact protocol payload]
 > 2. [Simplified reproduction steps or a minimal schema sample]
 >
-> Marked as `waiting-for-user-response` for now.
+> Marked as `status: waiting-for-user-response` for now.
 
 ### Duplicate Issues
 

@@ -28,7 +28,7 @@ Canonical replies the team has agreed on for recurring triage cases. Check this 
 **Case**: AI-generated compliance report issues, such as
 [Weekly A2UI Compliance Report](https://github.com/a2ui-project/a2ui/issues/2025).
 
-**Triage**: priority `P3`, action `backlog`.
+**Triage**: priority `P3`, action `investigate` (keeps the issue open).
 
 > As agreed, this has been assigned a P3 priority. Once the current triage queue is cleared,
 > we will begin reviewing AI-generated issues.
@@ -38,7 +38,7 @@ Canonical replies the team has agreed on for recurring triage cases. Check this 
 **Case**: The issue already has an assignee but no priority label, so it sits in the triage
 queue with nothing else to decide.
 
-**Triage**: priority `P2`, action `backlog`, keep the existing assignee.
+**Triage**: priority `P2`, action `assign_and_fix`, keeping the existing assignee.
 
 > I assigned a P2 priority to move this out of the triage queue. Please adjust the priority
 > if needed to better reflect the issue's status.
@@ -47,12 +47,15 @@ queue with nothing else to decide.
 
 ## Pull requests
 
+These cases are handled by the oncall engineer directly. The dashboard and apply script
+cover issues only, so the actions below are performed by hand.
+
 ### Superseded PR
 
 **Case**: A valid contribution that has gone stale and was replaced by a newer PR carrying
 the original commit.
 
-**Triage**: action `close_duplicate`, linking the superseding PR.
+**Triage**: close the PR, linking the superseding one.
 
 > Thank you for your contribution! We apologize that this PR has become outdated. To
 > expedite the process, I created a superseding PR based on your analysis and changes. Your
@@ -64,7 +67,7 @@ the original commit.
 **Case**: A complex PR that does not address a prioritized issue, or whose author is not the
 assignee of that issue. Straightforward and minor PRs are exempt.
 
-**Triage**: action `close_invalid`.
+**Triage**: close the PR.
 
 > To optimize our team's limited resources, our policy is to prioritize the review of PRs
 > that address an issue, prioritized by the team and assigned to the PR author, unless the
@@ -75,7 +78,7 @@ assignee of that issue. Straightforward and minor PRs are exempt.
 
 **Case**: The change targets functionality the maintenance team cannot support long-term.
 
-**Triage**: action `close_invalid`.
+**Triage**: close the PR.
 
 > Thank you for your contribution to the A2UI ecosystem! Unfortunately, we must decline this
 > PR as the scope of this repository is restricted to features the maintenance team can

@@ -7,6 +7,8 @@ description: Automates the triage of GitHub issues in the A2UI repository. Helps
 
 This skill guides the process of fetching, analyzing, reviewing, and applying triage decisions to GitHub issues in the A2UI repository using a local interactive dashboard.
 
+It automates part of the second-line triage described in [docs/contributing/triage.md](../../../docs/contributing/triage.md), which is the source of truth for the team's triage policy.
+
 > [!IMPORTANT]
 > **STANDARD REPLIES**
 > Before drafting any reply, check [templates.md](references/templates.md) for a matching case. Use the standard reply verbatim when the case matches, or with minimal modification (filling in placeholders and issue-specific context) when it nearly matches. Only write a reply from scratch when no case applies.
@@ -36,7 +38,7 @@ Process the raw issues and generate recommended triage fields based on the proje
 
 1. Read the triage criteria reference document: [triage_criteria.md](references/triage_criteria.md), and the standard replies: [templates.md](references/templates.md).
 2. For each issue in `raw_issues.json`, evaluate its description and comments to determine:
-   - **Priority**: `P0` (Urgent), `P1` (High), `P2` (Medium), `P3` (Low), or `None`.
+   - **Priority**: `P0` (Urgent), `P1` (High), `P2` (Medium), `P3` (Low), `P4` (not a priority, stays open), or `None`.
    - **Assignee**: Recommended owner based on the affected component or area.
    - **Action**: `investigate`, `assign_and_fix`, `needs_info`, `close_duplicate`, `close_invalid`, or `close_resolved`.
    - **Labels**: Applicable repository labels (e.g. `type: bug`, `component: lit renderer`).
