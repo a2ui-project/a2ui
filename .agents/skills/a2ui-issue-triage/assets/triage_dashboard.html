@@ -1140,9 +1140,13 @@ limitations under the License.
           repoData = await res.json();
 
           // Dynamically override standard labels list with real repo labels if available,
-          // filtering out priority labels (P0-P4) since they are managed via the priority dropdown.
+          // filtering out priority labels (P0-P4) since they are managed via the priority
+          // dropdown, and 'status: needs-triage', which is owned by scripts/triage.mjs and
+          // reconciled on every run — setting it by hand here would have no lasting effect.
           if (Array.isArray(repoData.labels) && repoData.labels.length > 0) {
-            const filteredLabels = repoData.labels.filter(label => !/^[Pp][0-4]$/.test(label));
+            const filteredLabels = repoData.labels.filter(
+              label => !/^[Pp][0-4]$/.test(label) && label !== 'status: needs-triage'
+            );
             standardLabels.splice(0, standardLabels.length, ...filteredLabels);
           }
 
