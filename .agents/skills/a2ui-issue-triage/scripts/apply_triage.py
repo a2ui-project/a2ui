@@ -19,6 +19,10 @@ import sys
 import argparse
 import os
 
+# Must match WAITING_LABEL in scripts/triage.mjs, which uses it to keep issues
+# blocked on their author out of the triage queue.
+WAITING_LABEL = "status: waiting-for-user-response"
+
 
 def run_cmd(args):
     res = subprocess.run(args, capture_output=True, text=True, check=True)
@@ -103,6 +107,15 @@ def main():
             for l in labels:
                 if l and l not in current_labels:
                     add_labels.append(l)
+
+            # The 'needs_info' action means the issue is blocked on the author, so it
+            # always carries the waiting label. Applying it here rather than relying on
+            # the suggested labels keeps the decision correct when the oncall engineer
+            # switches the action in the dashboard. The triage automation
+            # (scripts/triage.mjs) uses this label to drop the issue from the queue.
+            if action == "needs_info":
+                if WAITING_LABEL not in current_labels and WAITING_LABEL not in add_labels:
+                    add_labels.append(WAITING_LABEL)
 
             # Apply label changes via gh CLI
             if remove_labels:

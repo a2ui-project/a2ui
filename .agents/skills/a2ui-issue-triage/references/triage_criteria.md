@@ -10,7 +10,7 @@ The team process this skill assists is described in [docs/contributing/triage.md
 
 Use the exact label names below — the `status:` prefix is part of the name:
 
-- **`status: needs-triage`**: Marks the second-line triage queue. Fully owned by [scripts/triage.mjs](../../../../scripts/triage.mjs), which adds and removes it on every run. Never set or clear it in a triage decision; it disappears once the issue no longer matches a flagging rule.
+- **`status: needs-triage`**: Marks the second-line triage queue. Fully owned by [scripts/triage.mjs](../../../../scripts/triage.mjs), which adds and removes it on every run. Never set or clear it in a triage decision; it disappears once the issue no longer matches a flagging rule. A `P0` or `P1` left without an assignee keeps matching, so it returns to the queue — always pair those priorities with an assignee.
 - **`status: waiting-for-user-response`**: The issue is blocked on the author. Apply it with the `needs_info` action. It suppresses triage flagging until the author replies.
 - **`status: first-line-handled`**: Set during first-line triage. Not managed by this skill.
 - **`status: in-discussion`**: Temporarily set by the oncall engineer for items the team is actively discussing. Not managed by this skill.
@@ -24,7 +24,7 @@ Priorities in A2UI represent the team's commitment and timeline for addressing a
 - **P0 (Urgent)**: Urgent issue. Should always have an assignee.
   - _Scope_: Severe security vulnerabilities, or broken protocol behavior that affects many clients, or major regressions that block an active release.
   - _Action_: Assign immediately.
-- **P1 (High)**: This is a priority. Team is actively working on it, or will be soon.
+- **P1 (High)**: This is a priority. Team is actively working on it, or will be soon. Should always have an assignee.
   - _Scope_: Core features broken, severe performance jank (such as browser rendering freezes), or bugs that affect many users with no clear workaround.
   - _Action_: Targeted for resolution in the active release or upcoming milestone.
 - **P2 (Medium)**: The team intends to work on this in the near future, or at a lower priority.
@@ -102,4 +102,4 @@ Examples:
 
 > Thanks for the suggestion. This falls outside the current scope of the A2UI protocol roadmap.
 >
-> Closing for now, but feel free to reopen if you want to discuss further or have new arguments to share.
+> Marked as `P4`: we do not plan to invest in it, and PRs against it will not be reviewed. Leaving it open as a record of the request — comment here if you have new arguments to share.

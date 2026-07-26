@@ -21,6 +21,9 @@ import os
 import re
 import shutil
 
+# Must match WAITING_LABEL in scripts/triage.mjs.
+WAITING_LABEL = "status: waiting-for-user-response"
+
 
 def run_cmd(args):
     try:
@@ -138,15 +141,15 @@ def main():
     untriaged_issues = []
 
     for issue in issues:
-        # Check if the issue has a priority label
-        has_priority = False
-        labels = issue.get("labels", [])
-        for l in labels:
-            if l.get("name") in priority_labels:
-                has_priority = True
-                break
+        label_names = {l.get("name") for l in issue.get("labels", [])}
 
-        if not has_priority:
+        # Issues blocked on their author are excluded, matching rule 1 of the triage
+        # automation (scripts/triage.mjs): they are out of the queue until the author
+        # replies, and the label is removed automatically when they do.
+        if WAITING_LABEL in label_names:
+            continue
+
+        if not (label_names & priority_labels):
             untriaged_issues.append(issue)
 
     print(
