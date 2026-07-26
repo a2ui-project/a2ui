@@ -59,6 +59,8 @@ _Note: There is no P4 priority tier. Issues that are out of scope, highly custom
 
 ## Response Guidelines & Templates
 
+[templates.md](templates.md) holds the standard replies the team has agreed on for recurring cases. Check it first — when a case matches, that reply wins over the guidance below, used verbatim or with placeholders filled in. The rest of this section applies to replies you write yourself.
+
 Always keep responses extremely succinct, direct, and professional. Avoid long-winded greetings, excessive preambles, and conversational filler.
 
 - **Be direct**: State the action being taken or what is needed immediately.

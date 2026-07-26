@@ -8,8 +8,12 @@ description: Automates the triage of GitHub issues in the A2UI repository. Helps
 This skill guides the process of fetching, analyzing, reviewing, and applying triage decisions to GitHub issues in the A2UI repository using a local interactive dashboard.
 
 > [!IMPORTANT]
+> **STANDARD REPLIES**
+> Before drafting any reply, check [templates.md](references/templates.md) for a matching case. Use the standard reply verbatim when the case matches, or with minimal modification (filling in placeholders and issue-specific context) when it nearly matches. Only write a reply from scratch when no case applies.
+
+> [!IMPORTANT]
 > **WRITING GUIDELINES**
-> When drafting replies, explanations, or any prose, refer to the [natural-writing](../natural-writing/SKILL.md) skill to ensure clarity, accuracy, and tone.
+> When drafting replies, explanations, or any prose, refer to the [natural-writing](../natural-writing/SKILL.md) skill to ensure clarity, accuracy, and tone. This does not apply to the standard replies in [templates.md](references/templates.md) — those are agreed team wording and are not rewritten for style.
 
 ---
 
@@ -30,17 +34,17 @@ Use the fetch script to retrieve all open issues lacking a priority label (`P0`,
 
 Process the raw issues and generate recommended triage fields based on the project's triage criteria.
 
-1. Read the triage criteria reference document: [triage_criteria.md](references/triage_criteria.md).
+1. Read the triage criteria reference document: [triage_criteria.md](references/triage_criteria.md), and the standard replies: [templates.md](references/templates.md).
 2. For each issue in `raw_issues.json`, evaluate its description and comments to determine:
    - **Priority**: `P0` (Urgent), `P1` (High), `P2` (Medium), `P3` (Low), or `None`.
    - **Assignee**: Recommended owner based on the affected component or area.
    - **Action**: `investigate`, `assign_and_fix`, `needs_info`, `close_duplicate`, `close_invalid`, or `close_resolved`.
    - **Labels**: Applicable repository labels (e.g. `type: bug`, `component: lit renderer`).
-   - **Reply**: A polite, structured draft response addressing the author.
+   - **Reply**: The matching standard reply from [templates.md](references/templates.md), used as written or with placeholders filled in. Only when no case matches, draft a polite, structured response addressing the author. When a standard reply is used, apply the priority and action it is paired with.
 3. If an issue is a potential duplicate, perform at most three targeted GitHub searches to find matching canonical issues before suggesting `close_duplicate`.
 4. **Natively Orchestrate Subagents**: Instead of running a Python script to spawn subagents (which can fail due to local workstation gRPC credential policies), the parent agent should natively orchestrate the parallel evaluations:
    - Load the first N issues (defaulting to 10, or as requested) from `raw_issues.json`.
-   - Call the `invoke_subagent` tool in parallel for those issues. Prompt each subagent to analyze its assigned issue against the guidelines in [triage_criteria.md](references/triage_criteria.md) and return a structured JSON block containing `priority`, `action`, `labels`, and `reply`.
+   - Call the `invoke_subagent` tool in parallel for those issues. Prompt each subagent to analyze its assigned issue against the guidelines in [triage_criteria.md](references/triage_criteria.md), to check its issue against the standard replies in [templates.md](references/templates.md) first, and to return a structured JSON block containing `priority`, `action`, `labels`, and `reply`. Tell each subagent to report which standard reply it used, or that none matched.
    - Once all subagents report back, compile their recommendations into the standard schema:
      - Map component labels to suggested assignees using git log history if necessary, and include a short sentence in `assignee_reason` explaining why they were chosen (e.g., "Suggesting gspencer because they recently modified related code").
      - Inject `total_issues_count` (preserving the total count from the raw issues JSON).
@@ -73,6 +77,7 @@ Once the dashboard task exits successfully, **Execute Approved Decisions**: Run 
 ## Bundled Resources
 
 - **[triage_criteria.md](references/triage_criteria.md)**: Authoritative guide for classifying issues, assigning priorities, and drafting response messages.
+- **[templates.md](references/templates.md)**: Standard replies agreed by the team for recurring issue and PR cases, with the priority and action paired with each.
 - **`scripts/fetch_issues.py`**: Script to query open, untriaged issues via the GitHub CLI.
 - **`scripts/suggest_triage.py`**: Helper script to generate initial triage suggestions.
 - **`scripts/launch_dashboard.py`**: Local HTTP server that opens the interactive web dashboard in the user's browser.

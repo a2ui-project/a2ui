@@ -48,7 +48,9 @@ For each issue that is [not first-line-handled](https://github.com/a2ui-project/
 
 ### Second line triage
 
-Review issues [with label `status: needs-triage`][needs-triage], temporarily adding `status: in-discussion` for items that are [actively discussed by the team][to-discuss].
+Push items [with label `status: needs-triage`][needs-triage] forward, , temporarily adding `status: in-discussion` for items that are [actively discussed by the team][to-discuss].
+
+For each issue use [standard replies](../../.agents/skills/a2ui-issue-triage/references/templates.md) that are provided for each case.
 
 [needs-triage]: https://github.com/a2ui-project/a2ui/issues?q=state%3Aopen%20label%3A%22status%3A%20needs-triage%22%20repo%3Aa2ui-project%2Fa2ui%2Cflutter%2Fgenui%20-label%3A%22status%3A%20in-discussion%22
 
