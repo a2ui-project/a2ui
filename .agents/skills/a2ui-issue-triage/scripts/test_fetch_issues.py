@@ -95,6 +95,18 @@ class TestFetchIssues(unittest.TestCase):
                         "labels": [{"name": "P1"}],  # Priority P1, should be skipped!
                         "assignees": [],
                     },
+                    {
+                        "number": 125,
+                        "title": "Blocked on the author",
+                        "author": {"login": "alex"},
+                        "body": "No priority, but we asked for repro steps.",
+                        "createdAt": "2026-06-25T00:00:00Z",
+                        "updatedAt": "2026-06-25T01:00:00Z",
+                        # Waiting on the author, so it is out of the triage queue
+                        # even though it has no priority label. Should be skipped!
+                        "labels": [{"name": "status: waiting-for-user-response"}],
+                        "assignees": [],
+                    },
                 ])
             elif (
                 len(args) >= 3
@@ -125,7 +137,8 @@ class TestFetchIssues(unittest.TestCase):
         # Verify output structure
         self.assertEqual(parsed_output["repo"], "a2ui-project/a2ui")
         self.assertIn("type: bug", parsed_output["labels"])
-        # Verify that only the untriaged issue 123 is included, and issue 124 is skipped!
+        # Only the untriaged issue 123 is included: 124 already has a priority, and
+        # 125 is waiting on its author.
         self.assertEqual(len(parsed_output["issues"]), 1)
 
         issue = parsed_output["issues"][0]
