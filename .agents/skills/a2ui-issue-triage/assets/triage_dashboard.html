@@ -851,7 +851,8 @@ limitations under the License.
             <select id="triageAction" onchange="updateActiveDecision('action', this.value)">
               <option value="investigate">Keep open, mark for research</option>
               <option value="assign_and_fix">Keep open, assign to developer</option>
-              <option value="needs_info">Ask for info, apply waiting-for-user-response</option>
+              <option value="backlog">Keep open, no active work planned</option>
+              <option value="needs_info">Ask for info, apply status: waiting-for-user-response</option>
               <option value="close_duplicate">Close as duplicate</option>
               <option value="close_invalid">Close as invalid/spam</option>
               <option value="close_resolved">Close as resolved/answered</option>
@@ -891,6 +892,20 @@ limitations under the License.
       let repoData = {repo: '', issues: []};
       let decisions = {}; // keyed by issue ID
       let activeIssueId = null;
+
+      // Must stay in sync with the options of the #triageAction select. An
+      // unknown suggested action would leave the select showing its first
+      // option while the decision still carried the unknown value, so
+      // suggestions are coerced to a known action on load.
+      const VALID_ACTIONS = [
+        'investigate',
+        'assign_and_fix',
+        'backlog',
+        'needs_info',
+        'close_duplicate',
+        'close_invalid',
+        'close_resolved',
+      ];
 
       const formatDate = dateStr => {
         if (!dateStr) return 'N/A';
@@ -1149,7 +1164,9 @@ limitations under the License.
               approved: false,
               priority: issue.suggestions.priority || 'None',
               assignee: initialAssignees,
-              action: issue.suggestions.action || 'investigate',
+              action: VALID_ACTIONS.includes(issue.suggestions.action)
+                ? issue.suggestions.action
+                : 'investigate',
               labels: issue.suggestions.labels || [],
               reply: issue.suggestions.reply || '',
             };
@@ -1444,7 +1461,8 @@ limitations under the License.
               const actionLabels = {
                 investigate: 'Keep open, mark for research',
                 assign_and_fix: 'Keep open, assign to developer',
-                needs_info: 'Ask for info, waiting-for-user-response',
+                backlog: 'Keep open, no active work planned',
+                needs_info: 'Ask for info, status: waiting-for-user-response',
                 close_duplicate: 'Close as duplicate',
                 close_invalid: 'Close as invalid/spam',
                 close_resolved: 'Close as resolved/answered',
