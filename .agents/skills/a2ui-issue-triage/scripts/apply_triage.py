@@ -114,7 +114,10 @@ def main():
             # switches the action in the dashboard. The triage automation
             # (scripts/triage.mjs) uses this label to drop the issue from the queue.
             if action == "needs_info":
-                if WAITING_LABEL not in current_labels and WAITING_LABEL not in add_labels:
+                if (
+                    WAITING_LABEL not in current_labels
+                    and WAITING_LABEL not in add_labels
+                ):
                     add_labels.append(WAITING_LABEL)
 
             # Apply label changes via gh CLI
