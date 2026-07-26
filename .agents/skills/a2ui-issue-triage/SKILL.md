@@ -54,25 +54,36 @@ Process the raw issues and generate recommended triage fields based on the proje
 
 ---
 
-### Step 3: Launch Review Dashboard
+### Step 3: Review and Apply in the Dashboard
 
-Launch the interactive web dashboard to allow the oncall engineer to review and refine the suggested triages.
+Launch the interactive web dashboard. The oncall engineer reviews one issue at a time and applies each to GitHub from the dashboard itself, so there is no separate bulk-apply step.
 
 1. Start the local server as a background task, pointing it to your scratch directory:
    `python3 .agents/skills/a2ui-issue-triage/scripts/launch_dashboard.py --data-file "<appDataDir>/brain/<conversation-id>/scratch/issues_to_triage.json" --output-file "<appDataDir>/brain/<conversation-id>/scratch/triage_decisions.json"`
    Set `WaitMsBeforeAsync` to `1000` so the server runs in the background.
-2. **Wait for Completion**: Stop calling tools and go idle. The launcher will automatically open the browser for the user and block until they click "Apply Triages" or "Abort". Once the user acts, the background task will complete, and you will receive a notification with the exit status.
-3. **Verify Exit Status**:
-   - If the task exited with status `0` (approved), proceed to apply the decisions.
-   - If the task exited with a non-zero status (abort), don't modify any issues. You MUST STOP and ask the user for further instructions.
+2. **Wait for Completion**: Stop calling tools and go idle. The launcher opens the browser and blocks until the user clicks "Finish" or "Abort". Once the user acts, the background task completes and you receive a notification with the exit status.
+
+In the dashboard, the right-hand pane shows the suggestion for the selected issue. The reviewer can change the **priority** and edit the **comment**; the assignee, action, and labels are shown read-only, because those are the agent's call and are not meant to be re-decided in the browser. Each issue then gets one of two dispositions, both written to GitHub immediately, after which the pane advances to the next unhandled issue:
+
+- **Apply to GitHub** — writes the decision: labels, assignee, comment, closure if the action calls for it, and removal of `status: needs-triage` so the issue leaves the queue without waiting for the next automation run.
+- **Add label 'status: in-discussion'** — parks the issue for the team instead of triaging it. Nothing else changes, and `status: needs-triage` stays: the oncall queue filters out in-discussion issues, so the triage decision simply stays open until the team settles it.
+
+An issue that fails to write reports the error in the pane and stays unhandled, so the rest of the session continues.
 
 ---
 
-### Step 4: Apply Decisions to GitHub
+### Step 4: Report the Outcome
 
-Once the dashboard task exits successfully, **Execute Approved Decisions**: Run the apply script to update the approved labels, assignees, and comments on GitHub:
+1. **Verify Exit Status**:
+   - Status `0` means the session finished. Read `triage_decisions.json` from the scratch directory: each decision carries `applied` and `in_discussion` flags set by the server, with `applied_count` and `in_discussion_count` holding the totals.
+   - A non-zero status means the user aborted. Issues written before the abort stay written; report which ones and STOP, asking the user for further instructions.
+2. Summarize what landed. Call out any issue where both flags are `false` — an edited-but-never-applied decision is not on GitHub — and list the in-discussion ones separately, since they still need a triage decision later.
 
-`python3 .agents/skills/a2ui-issue-triage/scripts/apply_triage.py --decisions-file "<appDataDir>/brain/<conversation-id>/scratch/triage_decisions.json"`
+The bulk script `apply_triage.py` remains available for applying a decisions file outside the dashboard:
+
+`python3 .agents/skills/a2ui-issue-triage/scripts/apply_triage.py --decisions-file "<path to a decisions file>"`
+
+It applies every decision whose `approved` field is `true`. Decisions written by the dashboard do not carry that field, so re-running it over a finished session is a no-op rather than a double-apply.
 
 ---
 

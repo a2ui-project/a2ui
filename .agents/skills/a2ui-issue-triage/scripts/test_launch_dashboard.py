@@ -56,8 +56,10 @@ class TestLaunchDashboard(unittest.TestCase):
         )
         self.port = self.server.server_port
 
-        # Reset global event
+        # Reset global event and the record of issues pushed to GitHub
         launch_dashboard.shutdown_event.clear()
+        launch_dashboard.applied_decisions.clear()
+        launch_dashboard.in_discussion_ids.clear()
 
         # Start server in background thread
         self.server_thread = threading.Thread(target=self.server.serve_forever)
@@ -135,6 +137,102 @@ class TestLaunchDashboard(unittest.TestCase):
             saved_data = json.load(f)
             self.assertEqual(saved_data["decisions"][0]["priority"], "P1")
         self.assertTrue(launch_dashboard.shutdown_event.is_set())
+
+    def test_post_apply_api(self):
+        # A successful per-issue apply reaches apply_decision and is recorded so
+        # the session summary can tell applied issues from merely edited ones.
+        url = f"http://127.0.0.1:{self.port}/api/apply"
+        decision = {
+            "id": 42,
+            "priority": "P2",
+            "assignee": "gspencer",
+            "action": "investigate",
+            "labels": ["type: bug"],
+            "reply": "On it.",
+        }
+        req = urllib.request.Request(
+            url, data=json.dumps(decision).encode("utf-8"), method="POST"
+        )
+
+        with patch("apply_triage.apply_decision") as mock_apply:
+            with urllib.request.urlopen(req) as response:
+                self.assertEqual(response.status, 200)
+                res_data = json.loads(response.read().decode("utf-8"))
+                self.assertEqual(res_data["status"], "applied")
+
+        mock_apply.assert_called_once()
+        self.assertEqual(mock_apply.call_args.args[0]["id"], 42)
+        self.assertIn("42", launch_dashboard.applied_decisions)
+        # Applying one issue must not end the session.
+        self.assertFalse(launch_dashboard.shutdown_event.is_set())
+
+    def test_post_apply_reports_failure_without_ending_session(self):
+        # A GitHub failure on one issue is reported to the browser; the reviewer
+        # keeps the session and the issue is not recorded as applied.
+        url = f"http://127.0.0.1:{self.port}/api/apply"
+        decision = {
+            "id": 43,
+            "priority": "P2",
+            "assignee": "",
+            "action": "investigate",
+            "labels": [],
+            "reply": "",
+        }
+        req = urllib.request.Request(
+            url, data=json.dumps(decision).encode("utf-8"), method="POST"
+        )
+
+        with patch("apply_triage.apply_decision", side_effect=Exception("gh exploded")):
+            with self.assertRaises(urllib.error.HTTPError) as cm:
+                urllib.request.urlopen(req)
+
+        self.assertEqual(cm.exception.code, 500)
+        self.assertIn("gh exploded", cm.exception.read().decode("utf-8"))
+        self.assertNotIn("43", launch_dashboard.applied_decisions)
+        self.assertFalse(launch_dashboard.shutdown_event.is_set())
+
+    def test_post_discuss_api(self):
+        # Parking an issue adds only the in-discussion label and is tracked
+        # separately from applied decisions, since nothing was triaged.
+        url = f"http://127.0.0.1:{self.port}/api/discuss"
+        req = urllib.request.Request(
+            url, data=json.dumps({"id": 55}).encode("utf-8"), method="POST"
+        )
+
+        with patch("apply_triage.mark_in_discussion") as mock_mark:
+            with urllib.request.urlopen(req) as response:
+                self.assertEqual(response.status, 200)
+                res_data = json.loads(response.read().decode("utf-8"))
+                self.assertEqual(res_data["status"], "in_discussion")
+
+        mock_mark.assert_called_once_with(55)
+        self.assertIn("55", launch_dashboard.in_discussion_ids)
+        self.assertNotIn("55", launch_dashboard.applied_decisions)
+        self.assertFalse(launch_dashboard.shutdown_event.is_set())
+
+    def test_post_save_records_applied_flag(self):
+        # The server, not the browser, decides what counts as applied.
+        launch_dashboard.applied_decisions["7"] = {"id": 7}
+        url = f"http://127.0.0.1:{self.port}/api/save"
+        payload = {
+            "decisions": [
+                {"id": 7, "priority": "P1", "applied": False},
+                {"id": 8, "priority": "P2", "applied": True},
+            ]
+        }
+        req = urllib.request.Request(
+            url, data=json.dumps(payload).encode("utf-8"), method="POST"
+        )
+
+        with urllib.request.urlopen(req) as response:
+            self.assertEqual(response.status, 200)
+
+        with open(self.output_file, "r", encoding="utf-8") as f:
+            saved = json.load(f)
+        by_id = {d["id"]: d for d in saved["decisions"]}
+        self.assertTrue(by_id[7]["applied"])
+        self.assertFalse(by_id[8]["applied"])
+        self.assertEqual(saved["applied_count"], 1)
 
     def test_post_save_invalid_json(self):
         url = f"http://127.0.0.1:{self.port}/api/save"

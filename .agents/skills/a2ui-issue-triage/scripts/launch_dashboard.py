@@ -22,9 +22,21 @@ import urllib.parse
 import threading
 import time
 
+import apply_triage
+
 # Global event for shutdown synchronization, and exit status
 shutdown_event = threading.Event()
 exit_status = 0
+
+# Decisions already pushed to GitHub via /api/apply, keyed by issue id. Recorded
+# so the session summary written on exit reflects what actually landed.
+applied_decisions = {}
+
+# Issue ids parked via /api/discuss. Kept apart from applied_decisions because
+# these issues were deliberately not triaged.
+in_discussion_ids = set()
+
+applied_lock = threading.Lock()
 
 
 class TriageDashboardHandler(http.server.BaseHTTPRequestHandler):
@@ -79,6 +91,18 @@ class TriageDashboardHandler(http.server.BaseHTTPRequestHandler):
             try:
                 data = json.loads(post_data.decode("utf-8"))
 
+                # Record which issues actually reached GitHub. The server, not
+                # the browser, is the authority here: a decision the reviewer
+                # edited but never applied must not read as applied.
+                with applied_lock:
+                    applied_ids = set(applied_decisions.keys())
+                    discussed_ids = set(in_discussion_ids)
+                for dec in data.get("decisions", []):
+                    dec["applied"] = str(dec.get("id")) in applied_ids
+                    dec["in_discussion"] = str(dec.get("id")) in discussed_ids
+                data["applied_count"] = len(applied_ids)
+                data["in_discussion_count"] = len(discussed_ids)
+
                 # Write to output_file
                 with open(self.output_file, "w", encoding="utf-8") as f:
                     json.dump(data, f, indent=2)
@@ -93,6 +117,75 @@ class TriageDashboardHandler(http.server.BaseHTTPRequestHandler):
 
             except Exception as e:
                 self.send_error_json(500, f"Failed to save triage decisions: {str(e)}")
+
+        elif parsed_url.path == "/api/apply":
+            # Applies a single decision to GitHub straight away, so the oncall
+            # engineer sees each issue land instead of batching every change to
+            # the end of the session.
+            content_length = int(self.headers.get("Content-Length", 0))
+            post_data = self.rfile.read(content_length)
+
+            try:
+                dec = json.loads(post_data.decode("utf-8"))
+            except Exception as e:
+                self.send_error_json(400, f"Malformed decision payload: {str(e)}")
+                return
+
+            try:
+                apply_triage.apply_decision(dec)
+            except Exception as e:
+                # Report back to the browser rather than aborting the session:
+                # one failed issue should not cost the reviewer the others.
+                detail = getattr(e, "stderr", "") or str(e)
+                print(
+                    f"Failed to apply issue #{dec.get('id')}: {detail}".strip(),
+                    file=sys.stderr,
+                    flush=True,
+                )
+                self.send_error_json(500, str(detail).strip())
+                return
+
+            with applied_lock:
+                applied_decisions[str(dec.get("id"))] = dec
+
+            print(f"Applied issue #{dec.get('id')} to GitHub.", flush=True)
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.end_headers()
+            self.wfile.write(json.dumps({"status": "applied"}).encode("utf-8"))
+
+        elif parsed_url.path == "/api/discuss":
+            # Parks the issue for team discussion instead of triaging it.
+            content_length = int(self.headers.get("Content-Length", 0))
+            post_data = self.rfile.read(content_length)
+
+            try:
+                payload = json.loads(post_data.decode("utf-8"))
+                issue_id = payload["id"]
+            except Exception as e:
+                self.send_error_json(400, f"Malformed payload: {str(e)}")
+                return
+
+            try:
+                apply_triage.mark_in_discussion(issue_id)
+            except Exception as e:
+                detail = getattr(e, "stderr", "") or str(e)
+                print(
+                    f"Failed to mark issue #{issue_id} in-discussion: {detail}".strip(),
+                    file=sys.stderr,
+                    flush=True,
+                )
+                self.send_error_json(500, str(detail).strip())
+                return
+
+            with applied_lock:
+                in_discussion_ids.add(str(issue_id))
+
+            print(f"Marked issue #{issue_id} as in-discussion.", flush=True)
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.end_headers()
+            self.wfile.write(json.dumps({"status": "in_discussion"}).encode("utf-8"))
 
         elif parsed_url.path == "/api/abort":
             self.send_response(200)
@@ -180,7 +273,11 @@ def main():
     httpd.shutdown()
 
     if exit_status == 0:
-        print("Triage plan saved successfully.", flush=True)
+        print(
+            f"Session finished. {len(applied_decisions)} issue(s) applied to GitHub,"
+            f" {len(in_discussion_ids)} marked in-discussion.",
+            flush=True,
+        )
         sys.exit(0)
     else:
         print("Triage review aborted by user.", flush=True)

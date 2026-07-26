@@ -148,103 +148,6 @@ limitations under the License.
         box-shadow: 0 0 12px rgba(99, 102, 241, 0.4);
       }
 
-      /* Custom Select Component for Multi-assignees */
-      .custom-select-container {
-        position: relative;
-        width: 100%;
-      }
-
-      .custom-select-trigger {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        background-color: var(--bg-base);
-        border: 1px solid var(--border-color);
-        color: var(--text-primary);
-        padding: 0.6rem;
-        border-radius: 6px;
-        font-size: 0.875rem;
-        cursor: pointer;
-        user-select: none;
-        transition: border-color 0.2s ease;
-      }
-
-      .custom-select-container.active .custom-select-trigger {
-        border-color: var(--accent-primary);
-      }
-
-      .custom-select-arrow {
-        font-size: 0.75rem;
-        color: var(--text-muted);
-        transition: transform 0.2s ease;
-      }
-
-      .custom-select-container.active .custom-select-arrow {
-        transform: rotate(180deg);
-      }
-
-      .custom-select-options {
-        display: none;
-        position: absolute;
-        top: calc(100% + 4px);
-        left: 0;
-        right: 0;
-        background-color: var(--bg-surface-elevated);
-        border: 1px solid var(--border-color);
-        border-radius: 6px;
-        max-height: 250px;
-        overflow-y: auto;
-        z-index: 100;
-        box-shadow: 0 10px 25px rgba(0, 0, 0, 0.3);
-        padding: 4px 0;
-      }
-
-      .custom-select-container.active .custom-select-options {
-        display: block;
-      }
-
-      .custom-select-option {
-        display: flex;
-        align-items: center;
-        gap: 10px;
-        padding: 0.6rem 0.8rem;
-        font-size: 0.875rem;
-        color: var(--text-primary);
-        cursor: pointer;
-        transition: background-color 0.15s ease;
-      }
-
-      .custom-select-option:hover {
-        background-color: var(--bg-base);
-      }
-
-      .custom-select-option.disabled-header {
-        font-size: 0.75rem;
-        font-weight: 600;
-        text-transform: uppercase;
-        letter-spacing: 0.05em;
-        color: var(--text-muted);
-        cursor: default;
-        background-color: transparent !important;
-        padding-top: 0.8rem;
-        padding-bottom: 0.3rem;
-      }
-
-      .custom-select-option.separator {
-        height: 1px;
-        background-color: var(--border-color);
-        padding: 0;
-        margin: 4px 0;
-        cursor: default;
-      }
-
-      .custom-select-option input[type='checkbox'] {
-        cursor: pointer;
-        width: 14px;
-        height: 14px;
-        margin: 0;
-      }
-
       .assignee-reason {
         margin-top: 0.4rem;
         font-size: 0.75rem;
@@ -253,45 +156,62 @@ limitations under the License.
         line-height: 1.35;
       }
 
-      /* Custom Assignee Input */
-      .custom-select-search-container {
-        padding: 8px 12px;
-        border-bottom: 1px solid var(--border-color);
+      /* Read-only summary of the parts of a suggestion that are not editable
+         here: assignee, action and labels. Priority and the comment have their
+         own controls. */
+      .suggestion-summary {
         display: flex;
-        gap: 8px;
-        background-color: var(--bg-surface);
-      }
-
-      .custom-select-search-container input {
-        flex: 1;
-        background-color: var(--bg-base);
+        flex-direction: column;
+        gap: 0.5rem;
+        padding: 0.75rem;
         border: 1px solid var(--border-color);
+        border-radius: 8px;
+        background-color: rgba(148, 163, 184, 0.06);
+      }
+
+      .suggestion-row {
+        display: grid;
+        grid-template-columns: 5.5rem 1fr;
+        gap: 0.5rem;
+        font-size: 0.8rem;
+        line-height: 1.4;
+      }
+
+      .suggestion-key {
+        color: var(--text-muted);
+        text-transform: uppercase;
+        font-size: 0.7rem;
+        letter-spacing: 0.04em;
+        padding-top: 0.1rem;
+      }
+
+      .suggestion-value {
         color: var(--text-primary);
-        padding: 0.4rem 0.6rem;
-        border-radius: 4px;
-        font-size: 0.8rem;
-        outline: none;
-        transition: border-color 0.2s ease;
+        word-break: break-word;
       }
 
-      .custom-select-search-container input:focus {
-        border-color: var(--accent-primary);
+      .suggestion-value.is-empty {
+        color: var(--text-muted);
+        font-style: italic;
       }
 
-      .custom-select-search-container button {
-        background-color: var(--accent-primary);
-        color: white;
-        border: none;
-        padding: 0.4rem 0.8rem;
-        border-radius: 4px;
-        font-size: 0.8rem;
-        font-weight: 500;
-        cursor: pointer;
-        transition: background-color 0.2s ease;
+      .apply-status {
+        margin-bottom: 0.6rem;
+        font-size: 0.78rem;
+        line-height: 1.4;
+        padding: 0.5rem 0.65rem;
+        border-radius: 6px;
+        word-break: break-word;
       }
 
-      .custom-select-search-container button:hover {
-        background-color: var(--accent-hover);
+      .apply-status.is-ok {
+        color: #86efac;
+        background-color: rgba(34, 197, 94, 0.12);
+      }
+
+      .apply-status.is-error {
+        color: #fca5a5;
+        background-color: rgba(239, 68, 68, 0.12);
       }
 
       /* Main Workspace Layout */
@@ -683,34 +603,6 @@ limitations under the License.
       }
 
       /* Label Checklist Multi-select */
-      .label-checklist {
-        border: 1px solid var(--border-color);
-        background-color: var(--bg-base);
-        border-radius: 6px;
-        max-height: 150px;
-        overflow-y: auto;
-        padding: 0.5rem;
-      }
-
-      .label-check-item {
-        display: flex;
-        align-items: center;
-        gap: 0.5rem;
-        padding: 0.3rem 0.4rem;
-        font-size: 0.8rem;
-        cursor: pointer;
-        border-radius: 4px;
-        transition: background-color 0.15s ease;
-      }
-
-      .label-check-item:hover {
-        background-color: rgba(255, 255, 255, 0.03);
-      }
-
-      .label-check-item input[type='checkbox'] {
-        cursor: pointer;
-      }
-
       .triage-actions {
         padding: 1.5rem;
         border-top: 1px solid var(--border-color);
@@ -757,7 +649,7 @@ limitations under the License.
       </div>
       <div class="global-actions">
         <button class="btn-secondary" onclick="abortTriage()">Abort</button>
-        <button class="btn-primary" onclick="saveAndApply()">Apply Triages</button>
+        <button class="btn-primary" onclick="finishSession()">Finish</button>
       </div>
     </header>
 
@@ -797,94 +689,58 @@ limitations under the License.
         </div>
         <div class="triage-form">
           <div class="form-group">
-            <label for="triagePriority">Suggested Priority</label>
+            <label for="triagePriority">Priority</label>
             <select id="triagePriority" onchange="updateActiveDecision('priority', this.value)">
               <option value="None">None</option>
               <option value="P0">P0 - Urgent (Assignee Required)</option>
               <option value="P1">P1 - High Priority (Active/Soon)</option>
               <option value="P2">P2 - Medium Priority (Upcoming)</option>
               <option value="P3">P3 - Low Priority (Community Help)</option>
+              <option value="P4">P4 - Not a priority (stays open)</option>
             </select>
           </div>
 
           <div class="form-group">
-            <label>Assignees</label>
-            <div class="custom-select-container" id="assigneeDropdownContainer">
-              <div
-                class="custom-select-trigger"
-                id="assigneeDropdownTrigger"
-                onclick="toggleAssigneeDropdown(event)"
-              >
-                <span
-                  id="assigneeDropdownValue"
-                  style="font-style: italic; color: var(--text-muted)"
-                  >Unassigned</span
-                >
-                <span class="custom-select-arrow">▼</span>
+            <label>Suggestion</label>
+            <div class="suggestion-summary">
+              <div class="suggestion-row">
+                <span class="suggestion-key">Assignee</span>
+                <span class="suggestion-value" id="suggestionAssignee"></span>
               </div>
-              <div class="custom-select-options" id="assigneeDropdownOptions">
-                <div class="custom-select-search-container" onclick="event.stopPropagation()">
-                  <input
-                    type="text"
-                    id="assigneeCustomInput"
-                    placeholder="Add custom GitHub login..."
-                    onkeydown="handleCustomAssigneeKeyDown(event, activeIssueId)"
-                  />
-                  <button
-                    type="button"
-                    class="btn-add-custom"
-                    onclick="addCustomAssignee(activeIssueId)"
-                  >
-                    Add
-                  </button>
-                </div>
-                <div id="assigneeOptionsList">
-                  <!-- Dynamically populated options with checkboxes -->
-                </div>
+              <div class="suggestion-row">
+                <span class="suggestion-key">Action</span>
+                <span class="suggestion-value" id="suggestionAction"></span>
+              </div>
+              <div class="suggestion-row">
+                <span class="suggestion-key">Labels</span>
+                <span class="suggestion-value" id="suggestionLabels"></span>
               </div>
             </div>
             <div id="assigneeReason" class="assignee-reason" style="display: none"></div>
           </div>
 
           <div class="form-group">
-            <label for="triageAction">Course of Action</label>
-            <select id="triageAction" onchange="updateActiveDecision('action', this.value)">
-              <option value="investigate">Keep open, mark for research</option>
-              <option value="assign_and_fix">Keep open, assign to developer</option>
-              <option value="backlog">Keep open, no active work planned</option>
-              <option value="needs_info">
-                Ask for info, apply status: waiting-for-user-response
-              </option>
-              <option value="close_duplicate">Close as duplicate</option>
-              <option value="close_invalid">Close as invalid/spam</option>
-              <option value="close_resolved">Close as resolved/answered</option>
-            </select>
-          </div>
-
-          <div class="form-group">
-            <label>Repository Labels</label>
-            <div class="label-checklist" id="labelChecklistContainer">
-              <!-- Dynamic checkboxes -->
-            </div>
-          </div>
-
-          <div class="form-group">
-            <label for="triageReply">Response Draft</label>
+            <label for="triageReply">Comment</label>
             <textarea
               id="triageReply"
-              placeholder="Draft a polite triage response..."
+              placeholder="Leave empty to apply without commenting..."
               oninput="updateActiveDecision('reply', this.value)"
             ></textarea>
           </div>
         </div>
 
         <div class="triage-actions">
+          <div id="applyStatus" class="apply-status" style="display: none"></div>
+          <button id="applyBtn" class="btn-primary btn-block" onclick="applyActiveIssue()">
+            Apply to GitHub
+          </button>
           <button
-            id="approveBtn"
-            class="btn-primary btn-block"
-            onclick="toggleActiveIssueApproval()"
+            id="discussBtn"
+            class="btn-secondary btn-block"
+            style="margin-top: 0.5rem"
+            onclick="markActiveIssueInDiscussion()"
           >
-            Mark as Reviewed
+            Add label 'status: in-discussion'
           </button>
         </div>
       </aside>
@@ -895,19 +751,20 @@ limitations under the License.
       let decisions = {}; // keyed by issue ID
       let activeIssueId = null;
 
-      // Must stay in sync with the options of the #triageAction select. An
-      // unknown suggested action would leave the select showing its first
-      // option while the decision still carried the unknown value, so
-      // suggestions are coerced to a known action on load.
-      const VALID_ACTIONS = [
-        'investigate',
-        'assign_and_fix',
-        'backlog',
-        'needs_info',
-        'close_duplicate',
-        'close_invalid',
-        'close_resolved',
-      ];
+      // The action is decided by the agent and shown read-only, so an unknown
+      // value would otherwise be displayed verbatim and applied unchecked.
+      // Suggestions are coerced to a known action on load.
+      const ACTION_LABELS = {
+        investigate: 'Keep open, mark for research',
+        assign_and_fix: 'Keep open, assign to developer',
+        backlog: 'Keep open, no active work planned',
+        needs_info: 'Ask for info, apply status: waiting-for-user-response',
+        close_duplicate: 'Close as duplicate',
+        close_invalid: 'Close as invalid/spam',
+        close_resolved: 'Close as resolved/answered',
+      };
+
+      const VALID_ACTIONS = Object.keys(ACTION_LABELS);
 
       const formatDate = dateStr => {
         if (!dateStr) return 'N/A';
@@ -923,217 +780,6 @@ limitations under the License.
 
       // Labels in the repository, populated dynamically from data on load
       const standardLabels = [];
-
-      // Fetch comments and issue data on load
-      // Render the assignee select dropdown dynamically for the active issue
-      function toggleAssigneeDropdown(event) {
-        event.stopPropagation();
-        const container = document.getElementById('assigneeDropdownContainer');
-        container.classList.toggle('active');
-      }
-
-      function renderAssigneeSelect(issue, currentSelectedValues) {
-        const selectOptions = document.getElementById('assigneeOptionsList');
-        const dropdownValueSpan = document.getElementById('assigneeDropdownValue');
-
-        selectOptions.innerHTML = '';
-
-        const selectedList = Array.isArray(currentSelectedValues) ? currentSelectedValues : [];
-        const allAssignees = [...(repoData.assignees || [])]; // clone to avoid mutation
-        const suggestedLogins = issue.suggestions.suggested_assignees || []; // Array of strings (logins)
-
-        // Ensure all currently selected assignees are in allAssignees list
-        selectedList.forEach(login => {
-          if (!allAssignees.some(a => a.login === login)) {
-            allAssignees.push({login: login, name: ''});
-          }
-        });
-
-        // Ensure all original assignees of the issue are in allAssignees list (so they don't disappear when unchecked)
-        const originalAssignees = Array.isArray(issue.assignees) ? issue.assignees : [];
-        originalAssignees.forEach(login => {
-          if (!allAssignees.some(a => a.login === login)) {
-            allAssignees.push({login: login, name: ''});
-          }
-        });
-
-        // Ensure all manually added custom assignees of the issue are in allAssignees list
-        const customAssignees = Array.isArray(issue.custom_assignees) ? issue.custom_assignees : [];
-        customAssignees.forEach(login => {
-          if (!allAssignees.some(a => a.login === login)) {
-            allAssignees.push({login: login, name: ''});
-          }
-        });
-
-        // Update Trigger Value text display using real names where available
-        if (selectedList.length === 0) {
-          dropdownValueSpan.textContent = 'Unassigned';
-          dropdownValueSpan.style.fontStyle = 'italic';
-          dropdownValueSpan.style.color = 'var(--text-muted)';
-        } else {
-          const displayNames = selectedList.map(login => {
-            const found = allAssignees.find(a => a.login === login);
-            return found && found.name ? `${found.name} (${login})` : login;
-          });
-          dropdownValueSpan.textContent = displayNames.join(', ');
-          dropdownValueSpan.style.fontStyle = 'normal';
-          dropdownValueSpan.style.color = 'var(--text-primary)';
-        }
-
-        const formatOptionText = assigneeObj => {
-          return assigneeObj.name
-            ? `${assigneeObj.name} (${assigneeObj.login})`
-            : assigneeObj.login;
-        };
-
-        const handleToggle = (login, isChecked) => {
-          let newList = [...selectedList];
-          if (isChecked) {
-            if (!newList.includes(login)) newList.push(login);
-          } else {
-            newList = newList.filter(l => l !== login);
-          }
-          decisions[issue.id].assignee = newList;
-          renderAssigneeSelect(issue, newList);
-        };
-
-        // 1. Unassigned Option
-        const unassignedOpt = document.createElement('div');
-        unassignedOpt.className = 'custom-select-option';
-        unassignedOpt.style.fontStyle = 'italic';
-        unassignedOpt.style.color = 'var(--text-muted)';
-        unassignedOpt.textContent = 'Unassigned (Clear all)';
-        unassignedOpt.onclick = e => {
-          e.stopPropagation();
-          decisions[issue.id].assignee = [];
-          renderAssigneeSelect(issue, []);
-        };
-        selectOptions.appendChild(unassignedOpt);
-
-        // 2. Suggested Section
-        const suggestedObjects = [];
-        suggestedLogins.forEach(login => {
-          const found = allAssignees.find(a => a.login === login);
-          if (found) {
-            suggestedObjects.push(found);
-          }
-        });
-
-        if (suggestedObjects.length > 0) {
-          const headerOpt = document.createElement('div');
-          headerOpt.className = 'custom-select-option disabled-header';
-          headerOpt.textContent = '── Suggested Assignees ──';
-          selectOptions.appendChild(headerOpt);
-
-          suggestedObjects.forEach(obj => {
-            const opt = document.createElement('div');
-            opt.className = 'custom-select-option';
-
-            const chk = document.createElement('input');
-            chk.type = 'checkbox';
-            chk.checked = selectedList.includes(obj.login);
-            chk.onclick = e => e.stopPropagation();
-            chk.onchange = e => {
-              handleToggle(obj.login, e.target.checked);
-            };
-
-            const label = document.createElement('span');
-            label.textContent = formatOptionText(obj);
-
-            opt.appendChild(chk);
-            opt.appendChild(label);
-            opt.onclick = () => {
-              chk.checked = !chk.checked;
-              handleToggle(obj.login, chk.checked);
-            };
-
-            selectOptions.appendChild(opt);
-          });
-        }
-
-        // Separator
-        if (suggestedObjects.length > 0) {
-          const sep = document.createElement('div');
-          sep.className = 'custom-select-option separator';
-          selectOptions.appendChild(sep);
-        }
-
-        // 3. Other Section
-        const otherObjects = allAssignees.filter(a => !suggestedLogins.includes(a.login));
-        otherObjects.sort((a, b) => {
-          const labelA = (a.name || a.login).toLowerCase();
-          const labelB = (b.name || b.login).toLowerCase();
-          return labelA.localeCompare(labelB);
-        });
-
-        if (suggestedObjects.length > 0 && otherObjects.length > 0) {
-          const otherHeader = document.createElement('div');
-          otherHeader.className = 'custom-select-option disabled-header';
-          otherHeader.textContent = '── Other Contributors ──';
-          selectOptions.appendChild(otherHeader);
-        }
-
-        otherObjects.forEach(obj => {
-          const opt = document.createElement('div');
-          opt.className = 'custom-select-option';
-
-          const chk = document.createElement('input');
-          chk.type = 'checkbox';
-          chk.checked = selectedList.includes(obj.login);
-          chk.onclick = e => e.stopPropagation();
-          chk.onchange = e => {
-            handleToggle(obj.login, e.target.checked);
-          };
-
-          const label = document.createElement('span');
-          label.textContent = formatOptionText(obj);
-
-          opt.appendChild(chk);
-          opt.appendChild(label);
-          opt.onclick = () => {
-            chk.checked = !chk.checked;
-            handleToggle(obj.login, chk.checked);
-          };
-
-          selectOptions.appendChild(opt);
-        });
-      }
-
-      function handleCustomAssigneeKeyDown(event, issueId) {
-        if (event.key === 'Enter') {
-          event.preventDefault();
-          addCustomAssignee(issueId);
-        }
-      }
-
-      function addCustomAssignee(issueId) {
-        const input = document.getElementById('assigneeCustomInput');
-        if (!input) return;
-        const login = input.value.trim();
-        if (!login) return;
-
-        const issue = repoData.issues.find(i => i.id === issueId);
-        if (!issue) return;
-
-        // Initialize custom_assignees list on the issue if not present
-        issue.custom_assignees = issue.custom_assignees || [];
-        if (!issue.custom_assignees.includes(login)) {
-          issue.custom_assignees.push(login);
-        }
-
-        // Also add it to the active decision's assignee list if not already there
-        let currentAssignees = decisions[issueId].assignee || [];
-        if (!currentAssignees.includes(login)) {
-          currentAssignees = [...currentAssignees, login];
-          decisions[issueId].assignee = currentAssignees;
-        }
-
-        // Reset input
-        input.value = '';
-
-        // Re-render the select dropdown
-        renderAssigneeSelect(issue, currentAssignees);
-      }
 
       async function loadIssues() {
         try {
@@ -1167,7 +813,10 @@ limitations under the License.
 
             decisions[issue.id] = {
               id: issue.id,
-              approved: false,
+              applied: false,
+              inDiscussion: false,
+              pending: false,
+              error: '',
               priority: issue.suggestions.priority || 'None',
               assignee: initialAssignees,
               action: VALID_ACTIONS.includes(issue.suggestions?.action)
@@ -1200,7 +849,7 @@ limitations under the License.
             dec.priority !== 'None' ? `badge-${dec.priority.toLowerCase()}` : 'badge-none';
 
           const li = document.createElement('li');
-          li.className = `issue-item ${dec.approved ? 'reviewed' : ''} ${issue.id === activeIssueId ? 'active' : ''}`;
+          li.className = `issue-item ${dec.applied || dec.inDiscussion ? 'reviewed' : ''} ${issue.id === activeIssueId ? 'active' : ''}`;
           li.id = `issue-item-${issue.id}`;
           li.onclick = () => selectIssue(issue.id);
 
@@ -1300,14 +949,9 @@ limitations under the License.
         document.getElementById('paneResizer').style.visibility = 'visible';
         document.getElementById('triagePriority').value = dec.priority;
 
-        // Dynamically populate assignee dropdown with sorted suggested contributors
-        renderAssigneeSelect(issue, dec.assignee);
-
-        // Clear custom assignee input when selecting a different issue
-        const customInput = document.getElementById('assigneeCustomInput');
-        if (customInput) {
-          customInput.value = '';
-        }
+        // The parts of the suggestion that are not editable here are shown as
+        // read-only text; only priority and the comment can be changed.
+        renderSuggestionSummary(dec);
 
         // Populate suggested assignee reason if present
         const reasonEl = document.getElementById('assigneeReason');
@@ -1322,41 +966,22 @@ limitations under the License.
           }
         }
 
-        document.getElementById('triageAction').value = dec.action;
         document.getElementById('triageReply').value = dec.reply;
 
-        // Load labels checkboxes
-        renderLabelChecklist(dec.labels);
-
-        // Update the approval toggle button state
-        updateApproveButton(dec.approved);
+        updateApplyButton(dec);
       }
 
-      function renderLabelChecklist(selectedLabels) {
-        const container = document.getElementById('labelChecklistContainer');
-        container.innerHTML = '';
+      function renderSuggestionSummary(dec) {
+        const set = (id, value) => {
+          const el = document.getElementById(id);
+          el.textContent = value || 'None';
+          el.classList.toggle('is-empty', !value);
+        };
 
-        standardLabels.forEach(labelName => {
-          const isChecked = selectedLabels.includes(labelName);
-          const div = document.createElement('div');
-          div.className = 'label-check-item';
-          div.innerHTML = `
-          <input type="checkbox" id="label-chk-${labelName}" ${isChecked ? 'checked' : ''} onchange="toggleLabelSelection('${labelName}')">
-          <label style="text-transform: none; font-weight: normal; cursor: pointer; color: var(--text-primary)" for="label-chk-${labelName}">${labelName}</label>
-        `;
-          container.appendChild(div);
-        });
-      }
-
-      function toggleLabelSelection(labelName) {
-        if (!activeIssueId) return;
-        const dec = decisions[activeIssueId];
-        const index = dec.labels.indexOf(labelName);
-        if (index === -1) {
-          dec.labels.push(labelName);
-        } else {
-          dec.labels.splice(index, 1);
-        }
+        const assignees = Array.isArray(dec.assignee) ? dec.assignee : [];
+        set('suggestionAssignee', assignees.map(a => '@' + a).join(', '));
+        set('suggestionAction', ACTION_LABELS[dec.action] || dec.action);
+        set('suggestionLabels', (dec.labels || []).join(', '));
       }
 
       function updateActiveDecision(field, value) {
@@ -1373,63 +998,127 @@ limitations under the License.
         }
       }
 
-      function updateApproveButton(approved) {
-        const btn = document.getElementById('approveBtn');
-        if (approved) {
-          btn.textContent = 'Mark as Unreviewed';
-          btn.className = 'btn-secondary btn-block';
+      function setApplyStatus(message, kind) {
+        const el = document.getElementById('applyStatus');
+        if (!message) {
+          el.style.display = 'none';
+          el.textContent = '';
+          return;
+        }
+        el.textContent = message;
+        el.className = `apply-status is-${kind}`;
+        el.style.display = 'block';
+      }
+
+      // Both dispositions are final: the writes already reached GitHub, so the
+      // buttons lock rather than offering an undo the dashboard cannot perform.
+      function updateApplyButton(dec) {
+        const applyBtn = document.getElementById('applyBtn');
+        const discussBtn = document.getElementById('discussBtn');
+        const settled = Boolean(dec.applied) || Boolean(dec.inDiscussion);
+
+        applyBtn.disabled = settled || Boolean(dec.pending);
+        discussBtn.disabled = settled || Boolean(dec.pending);
+
+        applyBtn.textContent = dec.applied
+          ? 'Applied'
+          : dec.pending === 'apply'
+            ? 'Applying…'
+            : 'Apply to GitHub';
+        applyBtn.className = dec.applied ? 'btn-secondary btn-block' : 'btn-primary btn-block';
+
+        discussBtn.textContent = dec.inDiscussion
+          ? "Marked 'status: in-discussion'"
+          : dec.pending === 'discuss'
+            ? 'Adding label…'
+            : "Add label 'status: in-discussion'";
+
+        if (dec.applied) {
+          setApplyStatus(`#${dec.id} applied to GitHub.`, 'ok');
+        } else if (dec.inDiscussion) {
+          setApplyStatus(`#${dec.id} parked for team discussion.`, 'ok');
+        } else if (dec.pending) {
+          setApplyStatus('', null);
         } else {
-          btn.textContent = 'Mark as Reviewed';
-          btn.className = 'btn-primary btn-block';
+          setApplyStatus(dec.error || '', dec.error ? 'error' : null);
         }
       }
 
-      function toggleActiveIssueApproval() {
+      // Shared by both buttons: POST one issue, record the outcome on the
+      // decision, and move on only when GitHub confirmed the write.
+      async function postIssueDisposition(endpoint, mode, body, onSuccess) {
         if (!activeIssueId) return;
         const dec = decisions[activeIssueId];
-        const isApproving = !dec.approved;
+        if (dec.applied || dec.inDiscussion || dec.pending) return;
 
-        dec.approved = isApproving;
+        dec.pending = mode;
+        dec.error = '';
+        updateApplyButton(dec);
 
-        const item = document.getElementById(`issue-item-${activeIssueId}`);
-        if (item) {
-          if (isApproving) {
-            item.classList.add('reviewed');
-          } else {
-            item.classList.remove('reviewed');
+        try {
+          const res = await fetch(endpoint, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify(body(dec)),
+          });
+
+          if (!res.ok) {
+            const payload = await res.json().catch(() => ({}));
+            throw new Error(payload.error || `Request failed with status ${res.status}`);
           }
+
+          onSuccess(dec);
+          const item = document.getElementById(`issue-item-${activeIssueId}`);
+          if (item) item.classList.add('reviewed');
+        } catch (err) {
+          dec.error = `Not applied: ${err.message}`;
+        } finally {
+          dec.pending = false;
+          updateApplyButton(dec);
         }
 
-        updateApproveButton(isApproving);
+        if (dec.applied || dec.inDiscussion) advanceToNextUnsettled();
+      }
 
-        // Sequential navigation: Only auto-select next issue when transitioning to APPROVED
-        if (isApproving) {
-          const currentIndex = repoData.issues.findIndex(issue => issue.id === activeIssueId);
-          let nextIssue = null;
-          for (let i = currentIndex + 1; i < repoData.issues.length; i++) {
-            const issue = repoData.issues[i];
-            if (!decisions[issue.id].approved) {
-              nextIssue = issue;
-              break;
-            }
-          }
-          if (!nextIssue) {
-            for (let i = 0; i < currentIndex; i++) {
-              const issue = repoData.issues[i];
-              if (!decisions[issue.id].approved) {
-                nextIssue = issue;
-                break;
-              }
-            }
-          }
+      async function applyActiveIssue() {
+        await postIssueDisposition(
+          '/api/apply',
+          'apply',
+          // The server applies one decision at a time; assignees go over as the
+          // comma-separated string the gh CLI expects.
+          dec => ({
+            ...dec,
+            assignee: Array.isArray(dec.assignee) ? dec.assignee.join(',') : dec.assignee || '',
+          }),
+          dec => {
+            dec.applied = true;
+          },
+        );
+      }
 
-          if (nextIssue) {
-            selectIssue(nextIssue.id);
-          } else {
-            alert(
-              "All issues have been triaged! Click 'Apply Triages' to save and push to GitHub.",
-            );
-          }
+      async function markActiveIssueInDiscussion() {
+        await postIssueDisposition(
+          '/api/discuss',
+          'discuss',
+          dec => ({id: dec.id}),
+          dec => {
+            dec.inDiscussion = true;
+          },
+        );
+      }
+
+      function advanceToNextUnsettled() {
+        const order = repoData.issues;
+        const currentIndex = order.findIndex(issue => issue.id === activeIssueId);
+        const rotated = order.slice(currentIndex + 1).concat(order.slice(0, currentIndex));
+        const nextIssue = rotated.find(
+          issue => !decisions[issue.id].applied && !decisions[issue.id].inDiscussion,
+        );
+
+        if (nextIssue) {
+          selectIssue(nextIssue.id);
+        } else {
+          alert("Every issue has been handled. Click 'Finish' to close the session.");
         }
       }
 
@@ -1446,8 +1135,8 @@ limitations under the License.
       }
 
       function renderSummaryPage(decisionList) {
-        const triaged = decisionList.filter(d => d.approved);
-        const unchanged = decisionList.filter(d => !d.approved);
+        const triaged = decisionList.filter(d => d.applied);
+        const unchanged = decisionList.filter(d => !d.applied);
 
         const getIssueDetails = id => {
           const issue = repoData.issues.find(i => i.id === id);
@@ -1464,16 +1153,7 @@ limitations under the License.
               const pClass =
                 d.priority !== 'None' ? `badge-${d.priority.toLowerCase()}` : 'badge-none';
 
-              const actionLabels = {
-                investigate: 'Keep open, mark for research',
-                assign_and_fix: 'Keep open, assign to developer',
-                backlog: 'Keep open, no active work planned',
-                needs_info: 'Ask for info, status: waiting-for-user-response',
-                close_duplicate: 'Close as duplicate',
-                close_invalid: 'Close as invalid/spam',
-                close_resolved: 'Close as resolved/answered',
-              };
-              const actionText = actionLabels[d.action] || d.action;
+              const actionText = ACTION_LABELS[d.action] || d.action;
 
               return `
             <div style="
@@ -1542,7 +1222,7 @@ limitations under the License.
             })
             .join('');
         } else {
-          triagedCardsHtml = `<p style="font-size: 0.875rem; color: #6b7280; font-style: italic; text-align: left;">No issues were triaged in this session.</p>`;
+          triagedCardsHtml = `<p style="font-size: 0.875rem; color: #6b7280; font-style: italic; text-align: left;">No issues were applied in this session.</p>`;
         }
 
         let unchangedCardsHtml = '';
@@ -1583,7 +1263,7 @@ limitations under the License.
             })
             .join('');
         } else {
-          unchangedCardsHtml = `<p style="font-size: 0.875rem; color: #6b7280; font-style: italic; text-align: left;">All issues were successfully triaged.</p>`;
+          unchangedCardsHtml = `<p style="font-size: 0.875rem; color: #6b7280; font-style: italic; text-align: left;">Every issue was applied.</p>`;
         }
 
         document.body.innerHTML = `
@@ -1610,7 +1290,7 @@ limitations under the License.
             <!-- Section 1: Applied Changes -->
             <div>
               <h3 style="font-family: 'Outfit', sans-serif; font-size: 1.1rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; color: #818cf8; border-bottom: 1px solid #2b2f3d; padding-bottom: 0.5rem; margin-bottom: 1rem; display: flex; justify-content: space-between; align-items: center;">
-                <span>Applied / Triaged Issues</span>
+                <span>Applied to GitHub</span>
                 <span style="font-size: 0.8rem; background-color: rgba(99, 102, 241, 0.15); padding: 0.1rem 0.5rem; border-radius: 12px; color: #a5b4fc;">${triaged.length}</span>
               </h3>
               <div style="display: flex; flex-direction: column; gap: 0.75rem;">
@@ -1634,7 +1314,7 @@ limitations under the License.
       `;
       }
 
-      async function saveAndApply() {
+      async function finishSession() {
         // Map assignee array back to comma-separated string
         const decisionList = Object.values(decisions).map(d => ({
           ...d,
@@ -1656,7 +1336,12 @@ limitations under the License.
       }
 
       async function abortTriage() {
-        if (confirm('Are you sure you want to abort issue triage? Your changes will be lost.')) {
+        if (
+          confirm(
+            'Abort the triage session? Issues you already applied stay applied on GitHub; ' +
+              'any edits not yet applied are lost.',
+          )
+        ) {
           try {
             // Render the aborted page immediately
             document.body.innerHTML = `
@@ -1732,14 +1417,6 @@ limitations under the License.
       window.onload = () => {
         loadIssues();
         initResizer();
-
-        // Close custom select dropdown on click outside
-        document.addEventListener('click', () => {
-          const container = document.getElementById('assigneeDropdownContainer');
-          if (container) {
-            container.classList.remove('active');
-          }
-        });
       };
     </script>
   </body>
