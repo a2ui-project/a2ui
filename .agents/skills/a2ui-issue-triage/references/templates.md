@@ -28,7 +28,7 @@ Canonical replies the team has agreed on for recurring triage cases. Check this 
 **Case**: AI-generated compliance report issues, such as
 [Weekly A2UI Compliance Report](https://github.com/a2ui-project/a2ui/issues/2025).
 
-**Triage**: priority `P3`, action `investigate` (keeps the issue open).
+**Triage**: priority `P3`, action `backlog` (keeps the issue open).
 
 > As agreed, this has been assigned a P3 priority. Once the current triage queue is cleared,
 > we will begin reviewing AI-generated issues.

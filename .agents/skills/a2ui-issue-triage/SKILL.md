@@ -40,7 +40,7 @@ Process the raw issues and generate recommended triage fields based on the proje
 2. For each issue in `raw_issues.json`, evaluate its description and comments to determine:
    - **Priority**: `P0` (Urgent), `P1` (High), `P2` (Medium), `P3` (Low), `P4` (not a priority, stays open), or `None`.
    - **Assignee**: Recommended owner based on the affected component or area.
-   - **Action**: `investigate`, `assign_and_fix`, `needs_info`, `close_duplicate`, `close_invalid`, or `close_resolved`.
+   - **Action**: `investigate`, `assign_and_fix`, `backlog`, `needs_info`, `close_duplicate`, `close_invalid`, or `close_resolved`. These are the only accepted values; the dashboard falls back to `investigate` for anything else.
    - **Labels**: Applicable repository labels (e.g. `type: bug`, `component: lit renderer`).
    - **Reply**: The matching standard reply from [templates.md](references/templates.md), used as written or with placeholders filled in. Only when no case matches, draft a polite, structured response addressing the author. When a standard reply is used, apply the priority and action it is paired with.
 3. If an issue is a potential duplicate, perform at most three targeted GitHub searches to find matching canonical issues before suggesting `close_duplicate`.
