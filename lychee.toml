@@ -43,8 +43,9 @@ exclude = [
   "a2ui\\.org/a2a-extension",
   # Internal Google "go/" short links — only reachable by Googlers, by design.
   "^https?://go/",
-  # Valid Google vanity domain (Opal) that rejects/blocks automated checkers.
+  # Valid Google vanity domains / services that reject or block automated checkers.
   "opal\\.google",
+  "gemini\\.google\\.com",
   # Known-dead external references (verified 404, no published replacement).
   # Excluded to keep CI green; drop the referencing content if gone for good.
   "github\\.com/orgs/community/discussions/187776",

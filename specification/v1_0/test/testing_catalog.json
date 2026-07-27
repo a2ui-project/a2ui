@@ -47,13 +47,13 @@
       "required": ["call", "args"],
       "unevaluatedProperties": false
     },
-    "pingServer": {
+    "pingAgent": {
       "type": "object",
-      "description": "Pings the server from the client side.",
+      "description": "Pings the agent from the renderer side.",
       "returnType": "void",
       "properties": {
         "call": {
-          "const": "pingServer"
+          "const": "pingAgent"
         }
       },
       "required": ["call"],
@@ -83,7 +83,7 @@
       }
     },
     "anyFunction": {
-      "oneOf": [{"$ref": "#/functions/openUrl"}, {"$ref": "#/functions/pingServer"}]
+      "oneOf": [{"$ref": "#/functions/openUrl"}, {"$ref": "#/functions/pingAgent"}]
     }
   }
 }

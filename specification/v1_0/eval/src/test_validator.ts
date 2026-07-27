@@ -22,7 +22,7 @@ import {GeneratedResult, ProtocolSchemas} from './types';
 const schemaFiles = [
   '../../json/common_types.json',
   '../../catalogs/basic/catalog.json',
-  '../../json/server_to_client.json',
+  '../../json/agent_to_renderer.json',
 ];
 
 function loadSchemas(): ProtocolSchemas {

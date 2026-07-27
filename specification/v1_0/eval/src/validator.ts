@@ -41,7 +41,7 @@ export class Validator {
       }
     }
     this.validateFn = this.ajv.getSchema(
-      'https://a2ui.org/specification/v1_0/server_to_client.json',
+      'https://a2ui.org/specification/v1_0/agent_to_renderer.json',
     );
 
     // Populate basic functions from the catalog schema
@@ -87,7 +87,7 @@ export class Validator {
           // Smart validation: check which key is present and validate against that specific definition
           // to avoid noisy "oneOf" errors.
           let validated = false;
-          const schemaUri = 'https://a2ui.org/specification/v1_0/server_to_client.json';
+          const schemaUri = 'https://a2ui.org/specification/v1_0/agent_to_renderer.json';
 
           if (message.createSurface) {
             validated = this.ajv.validate(`${schemaUri}#/$defs/CreateSurfaceMessage`, message);

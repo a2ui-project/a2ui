@@ -1,0 +1,26 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://a2ui.org/specification/v1_0/agent_capabilities.json",
+  "title": "A2UI Agent Capabilities Schema",
+  "description": "A schema for the agent capabilities object, which is used by an A2UI Agent to advertise its supported UI features to renderers. This can be embedded in an Agent Card for A2A or used in other transport protocols like MCP.",
+  "type": "object",
+  "properties": {
+    "v1.0": {
+      "type": "object",
+      "description": "The agent capabilities structure for version 1.0 of the A2UI protocol.",
+      "properties": {
+        "supportedCatalogIds": {
+          "type": "array",
+          "description": "An array of strings, where each string is an ID identifying a Catalog Definition Schema that the agent can generate. This is not necessarily a resolvable URI.",
+          "items": {"type": "string"}
+        },
+        "acceptsInlineCatalogs": {
+          "type": "boolean",
+          "description": "A boolean indicating if the agent can accept an 'inlineCatalogs' array in the renderer's a2uiRendererCapabilities. If omitted, this defaults to false.",
+          "default": false
+        }
+      }
+    }
+  },
+  "required": ["v1.0"]
+}
