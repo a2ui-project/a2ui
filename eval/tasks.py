@@ -16,22 +16,16 @@
 
 # pylint: disable=duplicate-code
 
-import sys
-from pathlib import Path
 from google import genai
 from google.genai import errors
-from inspect_ai import task, Task
+from inspect_ai import Task, task
 from inspect_ai.dataset import MemoryDataset, Sample
-from inspect_ai.scorer import scorer, Score, Scorer, Target
+from inspect_ai.scorer import Score, Scorer, Target, scorer
 from inspect_ai.solver import TaskState
-from a2ui_eval.dataset import load_a2ui_dataset
-from a2ui_eval.strategies import get_solver
-from a2ui_eval.scorers import a2ui_scorer, measured_model_graded_qa
 
-# Paths relative to the eval directory where we run inspect
-CURRENT_DIR = Path(__file__).resolve().parent
-DATASET_V0_9_1_PATH = (CURRENT_DIR / "datasets/prompts_v0_9_1.yaml").resolve()
-DATASET_V1_0_PATH = (CURRENT_DIR / "datasets/prompts_v1_0.yaml").resolve()
+from a2ui_eval.dataset import load_a2ui_dataset
+from a2ui_eval.scorers import a2ui_scorer, measured_model_graded_qa
+from a2ui_eval.strategies import get_solver
 
 
 @scorer(metrics=[])
@@ -65,6 +59,7 @@ def a2ui_v0_9_1_eval(
     list_models: bool = False,
     grading_model: str = "google/gemini-3.5-flash",
     strategy: str = "direct",
+    dataset: str | list[str] | None = None,
 ) -> Task:
     """Evaluation task for A2UI v0.9.1 protocol generation.
 
@@ -72,6 +67,7 @@ def a2ui_v0_9_1_eval(
         list_models: Whether to list available Gemini models and exit.
         grading_model: The model to use for LLM-as-a-judge grading.
         strategy: The evaluation strategy to use (e.g., 'direct').
+        dataset: Specific dataset name or list of dataset names.
 
     Returns:
         An Inspect Task object configured for A2UI v0.9.1 evaluation.
@@ -92,21 +88,19 @@ def a2ui_v0_9_1_eval(
             scorer=[dummy_scorer()],
         )
 
-    active_dataset_path = DATASET_V0_9_1_PATH
     active_version = "0.9.1"
     default_catalog_path = "specification/v0_9_1/catalogs/basic/catalog.json"
-
     format_name = strategy if strategy in ["express", "elemental", "atom"] else "json"
 
-    dataset = load_a2ui_dataset(
-        str(active_dataset_path),
+    dataset_obj = load_a2ui_dataset(
+        dataset=dataset,
         default_catalog_path=default_catalog_path,
         version=active_version,
         format_name=format_name,
     )
 
     return Task(
-        dataset=dataset,
+        dataset=dataset_obj,
         solver=get_solver(strategy, version=active_version),
         scorer=[
             a2ui_scorer(version=active_version),
@@ -122,6 +116,7 @@ def a2ui_v1_0_eval(
     list_models: bool = False,
     grading_model: str = "google/gemini-3.5-flash",
     strategy: str = "express",
+    dataset: str | list[str] | None = None,
 ) -> Task:
     """Evaluation task for A2UI v1.0 protocol generation.
 
@@ -129,6 +124,7 @@ def a2ui_v1_0_eval(
         list_models: Whether to list available Gemini models and exit.
         grading_model: The model to use for LLM-as-a-judge grading.
         strategy: The evaluation strategy to use (e.g., 'express').
+        dataset: Specific dataset name or list of dataset names.
 
     Returns:
         An Inspect Task object configured for A2UI v1.0 evaluation.
@@ -149,21 +145,19 @@ def a2ui_v1_0_eval(
             scorer=[dummy_scorer()],
         )
 
-    active_dataset_path = DATASET_V1_0_PATH
     active_version = "1.0"
     default_catalog_path = "specification/v1_0/catalogs/basic/catalog.json"
-
     format_name = strategy if strategy in ["express", "elemental", "atom"] else "json"
 
-    dataset = load_a2ui_dataset(
-        str(active_dataset_path),
+    dataset_obj = load_a2ui_dataset(
+        dataset=dataset,
         default_catalog_path=default_catalog_path,
         version=active_version,
         format_name=format_name,
     )
 
     return Task(
-        dataset=dataset,
+        dataset=dataset_obj,
         solver=get_solver(strategy, version=active_version),
         scorer=[
             a2ui_scorer(version=active_version),
