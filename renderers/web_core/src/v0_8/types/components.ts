@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import type { z } from "zod";
+import type {z} from 'zod';
 import type {
   ActionSchema,
   AudioPlayerSchema,
@@ -35,7 +35,7 @@ import type {
   TextFieldSchema,
   TextSchema,
   VideoSchema,
-} from "../schema/common-types.js";
+} from '../schema/common-types.js';
 
 export declare interface Action extends z.infer<typeof ActionSchema> {}
 export declare interface Text extends z.infer<typeof TextSchema> {}

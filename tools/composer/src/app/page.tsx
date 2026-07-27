@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-import { Metadata } from 'next';
-import { CreateWidget } from '@/components/main/create-widget';
+import {Metadata} from 'next';
+import {CreateWidget} from '@/components/main/create-widget';
 
 export const metadata: Metadata = {
   title: 'Create | A2UI Composer',

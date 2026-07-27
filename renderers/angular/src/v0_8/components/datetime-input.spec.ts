@@ -14,13 +14,12 @@
  * limitations under the License.
  */
 
-import { ComponentFixture, TestBed } from '@angular/core/testing';
-import { DateTimeInput } from './datetime-input';
-import { Types } from '../types';
-import { Theme } from '../rendering/theming';
-import { ChangeDetectionStrategy } from '@angular/core';
-import { MessageProcessor } from '../data/processor';
-import { Catalog } from '../rendering/catalog';
+import {ComponentFixture, TestBed} from '@angular/core/testing';
+import {DateTimeInput} from './datetime-input';
+import type {A2UIClientEventMessage, DateTimeInputNode} from '../types';
+import {Theme} from '../rendering/theming';
+import {MessageProcessor} from '../data/processor';
+import {Catalog} from '../rendering/catalog';
 
 describe('DateTimeInput Component', () => {
   let component: DateTimeInput;
@@ -28,12 +27,12 @@ describe('DateTimeInput Component', () => {
   let mockTheme: Theme;
   let mockProcessor: jasmine.SpyObj<MessageProcessor>;
 
-  const mockDatetimeNode: Types.DateTimeInputNode = {
+  const mockDatetimeNode: DateTimeInputNode = {
     id: 'dt-1',
     type: 'DateTimeInput',
     weight: 1,
     properties: {
-      value: { literalString: '2023-10-27' },
+      value: {literalString: '2023-10-27'},
     },
   };
 
@@ -44,24 +43,20 @@ describe('DateTimeInput Component', () => {
     mockTheme = new Theme();
     mockTheme.components = {
       DateTimeInput: {
-        container: { 'dt-container': true },
-        label: { 'dt-label': true },
-        element: { 'dt-element': true },
+        container: {'dt-container': true},
+        label: {'dt-label': true},
+        element: {'dt-element': true},
       },
     } as any;
 
     await TestBed.configureTestingModule({
       imports: [DateTimeInput],
       providers: [
-        { provide: MessageProcessor, useValue: mockProcessor },
-        { provide: Theme, useValue: mockTheme },
-        { provide: Catalog, useValue: {} },
+        {provide: MessageProcessor, useValue: mockProcessor},
+        {provide: Theme, useValue: mockTheme},
+        {provide: Catalog, useValue: {}},
       ],
-    })
-      .overrideComponent(DateTimeInput, {
-        set: { changeDetection: ChangeDetectionStrategy.Default },
-      })
-      .compileComponents();
+    }).compileComponents();
 
     fixture = TestBed.createComponent(DateTimeInput);
     component = fixture.componentInstance;
@@ -70,7 +65,7 @@ describe('DateTimeInput Component', () => {
     fixture.componentRef.setInput('component', mockDatetimeNode);
     fixture.componentRef.setInput('weight', 1);
     fixture.componentRef.setInput('value', mockDatetimeNode.properties.value);
-    fixture.componentRef.setInput('label', { literalString: 'Select Date' });
+    fixture.componentRef.setInput('label', {literalString: 'Select Date'});
 
     fixture.detectChanges();
   });
@@ -114,12 +109,11 @@ describe('DateTimeInput Component', () => {
     inputEl.dispatchEvent(new Event('change'));
 
     expect(mockProcessor.dispatch).toHaveBeenCalled();
-    const message = mockProcessor.dispatch.calls.mostRecent()
-      .args[0] as Types.A2UIClientEventMessage;
+    const message = mockProcessor.dispatch.calls.mostRecent().args[0] as A2UIClientEventMessage;
     expect(message.userAction!.name).toBe('change');
 
     // Verify context
-    expect(message.userAction!.context).toEqual({ value: '2023-10-28' });
+    expect(message.userAction!.context).toEqual({value: '2023-10-28'});
   });
 
   it('should apply theme classes', () => {

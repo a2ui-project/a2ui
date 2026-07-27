@@ -16,10 +16,7 @@
           "component": {
             "Row": {
               "children": {
-                "explicitList": [
-                  "content",
-                  "priority"
-                ]
+                "explicitList": ["content", "priority"]
               },
               "alignment": "start"
             }
@@ -30,11 +27,7 @@
           "component": {
             "Column": {
               "children": {
-                "explicitList": [
-                  "title",
-                  "description",
-                  "meta-row"
-                ]
+                "explicitList": ["title", "description", "meta-row"]
               }
             }
           }
@@ -66,10 +59,7 @@
           "component": {
             "Row": {
               "children": {
-                "explicitList": [
-                  "due-date",
-                  "project"
-                ]
+                "explicitList": ["due-date", "project"]
               }
             }
           }

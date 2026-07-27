@@ -1,0 +1,495 @@
+<!doctype html>
+<!--
+ Copyright 2026 Google LLC
+
+ Licensed under the Apache License, Version 2.0 (the "License");
+ you may not use this file except in compliance with the License.
+ You may obtain a copy of the License at
+
+     http://www.apache.org/licenses/LICENSE-2.0
+
+ Unless required by applicable law or agreed to in writing, software
+ distributed under the License is distributed on an "AS IS" BASIS,
+ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ See the License for the specific language governing permissions and
+ limitations under the License.
+-->
+
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Learner Profile: Maria Thompson</title>
+    <link
+      href="https://fonts.googleapis.com/css2?family=Google+Sans:wght@400;500;700&family=Roboto+Mono:wght@400;500&display=swap"
+      rel="stylesheet"
+    />
+    <link
+      href="https://fonts.googleapis.com/icon?family=Material+Symbols+Outlined"
+      rel="stylesheet"
+    />
+    <style>
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+
+      body {
+        font-family: 'Google Sans', 'Roboto', sans-serif;
+        background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+        min-height: 100vh;
+        color: #e2e8f0;
+        padding: 40px;
+      }
+
+      .container {
+        max-width: 900px;
+        margin: 0 auto;
+      }
+
+      .header {
+        display: flex;
+        align-items: center;
+        gap: 16px;
+        margin-bottom: 32px;
+        padding-bottom: 24px;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+      }
+
+      .header-icon {
+        width: 48px;
+        height: 48px;
+        background: linear-gradient(135deg, #8b5cf6 0%, #6366f1 100%);
+        border-radius: 12px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+
+      .header-icon .material-symbols-outlined {
+        font-size: 28px;
+        color: white;
+      }
+
+      .header-text h1 {
+        font-size: 24px;
+        font-weight: 500;
+        color: #f8fafc;
+        margin-bottom: 4px;
+      }
+
+      .header-text p {
+        font-size: 14px;
+        color: #94a3b8;
+        font-family: 'Roboto Mono', monospace;
+      }
+
+      .profile-card {
+        background: rgba(255, 255, 255, 0.05);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        border-radius: 16px;
+        padding: 32px;
+        margin-bottom: 24px;
+      }
+
+      .profile-header {
+        display: flex;
+        align-items: center;
+        gap: 20px;
+        margin-bottom: 24px;
+      }
+
+      .avatar {
+        width: 72px;
+        height: 72px;
+        background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%);
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 28px;
+        font-weight: 600;
+        color: white;
+      }
+
+      .profile-info h2 {
+        font-size: 28px;
+        font-weight: 600;
+        color: #f8fafc;
+        margin-bottom: 4px;
+      }
+
+      .profile-info p {
+        font-size: 16px;
+        color: #94a3b8;
+      }
+
+      .tags {
+        display: flex;
+        gap: 8px;
+        margin-top: 12px;
+        flex-wrap: wrap;
+      }
+
+      .tag {
+        padding: 6px 12px;
+        background: rgba(59, 130, 246, 0.2);
+        border: 1px solid rgba(59, 130, 246, 0.3);
+        border-radius: 20px;
+        font-size: 13px;
+        color: #93c5fd;
+      }
+
+      .tag.green {
+        background: rgba(34, 197, 94, 0.2);
+        border-color: rgba(34, 197, 94, 0.3);
+        color: #86efac;
+      }
+
+      .tag.amber {
+        background: rgba(245, 158, 11, 0.2);
+        border-color: rgba(245, 158, 11, 0.3);
+        color: #fcd34d;
+      }
+
+      .section {
+        margin-bottom: 24px;
+      }
+
+      .section-title {
+        font-size: 12px;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 1px;
+        color: #64748b;
+        margin-bottom: 12px;
+      }
+
+      .misconception-card {
+        background: rgba(239, 68, 68, 0.1);
+        border: 1px solid rgba(239, 68, 68, 0.3);
+        border-radius: 12px;
+        padding: 20px;
+        margin-bottom: 16px;
+      }
+
+      .misconception-header {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        margin-bottom: 12px;
+      }
+
+      .misconception-icon {
+        width: 36px;
+        height: 36px;
+        background: rgba(239, 68, 68, 0.2);
+        border-radius: 8px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+
+      .misconception-icon .material-symbols-outlined {
+        font-size: 20px;
+        color: #fca5a5;
+      }
+
+      .misconception-title {
+        font-size: 16px;
+        font-weight: 600;
+        color: #fca5a5;
+      }
+
+      .misconception-content {
+        padding-left: 48px;
+      }
+
+      .misconception-belief {
+        background: rgba(0, 0, 0, 0.2);
+        border-radius: 8px;
+        padding: 12px 16px;
+        margin-bottom: 12px;
+        font-style: italic;
+        color: #f87171;
+      }
+
+      .misconception-belief::before {
+        content: '"';
+        font-size: 24px;
+        opacity: 0.5;
+      }
+
+      .misconception-belief::after {
+        content: '"';
+        font-size: 24px;
+        opacity: 0.5;
+      }
+
+      .correction {
+        display: flex;
+        align-items: flex-start;
+        gap: 8px;
+        color: #86efac;
+        font-size: 14px;
+      }
+
+      .correction .material-symbols-outlined {
+        font-size: 18px;
+        margin-top: 2px;
+      }
+
+      .learning-style {
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+        gap: 16px;
+      }
+
+      .style-item {
+        background: rgba(255, 255, 255, 0.05);
+        border-radius: 12px;
+        padding: 16px;
+      }
+
+      .style-item h4 {
+        font-size: 14px;
+        font-weight: 500;
+        color: #94a3b8;
+        margin-bottom: 8px;
+      }
+
+      .style-item p {
+        font-size: 16px;
+        color: #f8fafc;
+      }
+
+      .proficiency-bar {
+        margin-top: 24px;
+      }
+
+      .proficiency-item {
+        display: flex;
+        align-items: center;
+        gap: 16px;
+        margin-bottom: 12px;
+      }
+
+      .proficiency-label {
+        width: 120px;
+        font-size: 14px;
+        color: #94a3b8;
+      }
+
+      .proficiency-track {
+        flex: 1;
+        height: 8px;
+        background: rgba(255, 255, 255, 0.1);
+        border-radius: 4px;
+        overflow: hidden;
+      }
+
+      .proficiency-fill {
+        height: 100%;
+        border-radius: 4px;
+        transition: width 1s ease;
+      }
+
+      .proficiency-fill.high {
+        background: linear-gradient(90deg, #22c55e, #4ade80);
+      }
+
+      .proficiency-fill.medium {
+        background: linear-gradient(90deg, #f59e0b, #fbbf24);
+      }
+
+      .proficiency-fill.low {
+        background: linear-gradient(90deg, #ef4444, #f87171);
+      }
+
+      .proficiency-value {
+        width: 48px;
+        text-align: right;
+        font-size: 14px;
+        font-weight: 600;
+        color: #f8fafc;
+      }
+
+      .footer {
+        margin-top: 32px;
+        padding-top: 24px;
+        border-top: 1px solid rgba(255, 255, 255, 0.1);
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+      }
+
+      .footer-left {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+      }
+
+      .footer-logo {
+        width: 32px;
+        height: 32px;
+        background: rgba(139, 92, 246, 0.2);
+        border-radius: 8px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+
+      .footer-logo .material-symbols-outlined {
+        font-size: 20px;
+        color: #a78bfa;
+      }
+
+      .footer-text {
+        font-size: 13px;
+        color: #64748b;
+      }
+
+      .footer-text strong {
+        color: #a78bfa;
+      }
+
+      .data-source {
+        font-size: 12px;
+        font-family: 'Roboto Mono', monospace;
+        color: #475569;
+        background: rgba(0, 0, 0, 0.2);
+        padding: 6px 12px;
+        border-radius: 6px;
+      }
+
+      /* Subtle animation for the misconception card */
+      @keyframes pulse-border {
+        0%,
+        100% {
+          border-color: rgba(239, 68, 68, 0.3);
+        }
+        50% {
+          border-color: rgba(239, 68, 68, 0.5);
+        }
+      }
+
+      .misconception-card {
+        animation: pulse-border 3s ease-in-out infinite;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <div class="header">
+        <div class="header-icon">
+          <span class="material-symbols-outlined">psychology</span>
+        </div>
+        <div class="header-text">
+          <h1>Learner Context Profile</h1>
+          <p>session_id: mcat-prep-2025-maria</p>
+        </div>
+      </div>
+
+      <div class="profile-card">
+        <div class="profile-header">
+          <div class="avatar">MT</div>
+          <div class="profile-info">
+            <h2>Maria Thompson</h2>
+            <p>Pre-Med Student, Cymbal University</p>
+            <div class="tags">
+              <span class="tag">MCAT Prep</span>
+              <span class="tag green">AP Biology: 92%</span>
+              <span class="tag amber">AP Chemistry: Struggling</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="section">
+          <div class="section-title">Identified Misconception</div>
+          <div class="misconception-card">
+            <div class="misconception-header">
+              <div class="misconception-icon">
+                <span class="material-symbols-outlined">warning</span>
+              </div>
+              <div class="misconception-title">ATP & Bond Energy</div>
+            </div>
+            <div class="misconception-content">
+              <div class="misconception-belief">
+                Energy is stored in ATP bonds like a battery. When we break the phosphate bonds,
+                that stored energy is released.
+              </div>
+              <div class="correction">
+                <span class="material-symbols-outlined">check_circle</span>
+                <span
+                  ><strong>Correct understanding:</strong> ATP releases energy because the products
+                  (ADP + Pi) are more thermodynamically stable, not because energy was "stored" in
+                  the bonds.</span
+                >
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="section">
+          <div class="section-title">Learning Preferences</div>
+          <div class="learning-style">
+            <div class="style-item">
+              <h4>Learning Style</h4>
+              <p>Visual-Kinesthetic</p>
+            </div>
+            <div class="style-item">
+              <h4>Preferred Analogies</h4>
+              <p>Sports & Gym</p>
+            </div>
+            <div class="style-item">
+              <h4>Study Mode</h4>
+              <p>Active recall, spaced repetition</p>
+            </div>
+            <div class="style-item">
+              <h4>Best Time</h4>
+              <p>Morning sessions</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="section">
+          <div class="section-title">Subject Proficiency</div>
+          <div class="proficiency-bar">
+            <div class="proficiency-item">
+              <span class="proficiency-label">AP Biology</span>
+              <div class="proficiency-track">
+                <div class="proficiency-fill high" style="width: 92%"></div>
+              </div>
+              <span class="proficiency-value">92%</span>
+            </div>
+            <div class="proficiency-item">
+              <span class="proficiency-label">AP Chemistry</span>
+              <div class="proficiency-track">
+                <div class="proficiency-fill medium" style="width: 68%"></div>
+              </div>
+              <span class="proficiency-value">68%</span>
+            </div>
+            <div class="proficiency-item">
+              <span class="proficiency-label">AP Physics</span>
+              <div class="proficiency-track">
+                <div class="proficiency-fill high" style="width: 85%"></div>
+              </div>
+              <span class="proficiency-value">85%</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="footer">
+        <div class="footer-left">
+          <div class="footer-logo">
+            <span class="material-symbols-outlined">hub</span>
+          </div>
+          <div class="footer-text">Generated by <strong>Personalization Pipeline</strong></div>
+        </div>
+        <div class="data-source">source: wikidata + curriculum_graph</div>
+      </div>
+    </div>
+  </body>
+</html>

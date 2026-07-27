@@ -16,57 +16,176 @@
 
 'use client';
 
-import { useState } from 'react';
-import { cn } from '@/lib/utils';
-import { ExternalLink, Copy, Check } from 'lucide-react';
-import { A2UIViewer } from '@copilotkit/a2ui-renderer';
+import {useState} from 'react';
+import {cn} from '@/lib/utils';
+import {ExternalLink, Copy, Check} from 'lucide-react';
+import {A2UIViewer} from '@/lib/a2ui';
+import {useSpecVersion} from '@/contexts/spec-version-context';
+import type {A2UIComponent, SpecVersion} from '@/types/widget';
 
 // 100 most important Material Icons for common UI patterns
 const MATERIAL_ICONS = [
   // Navigation & Actions
-  'home', 'menu', 'close', 'arrow_back', 'arrow_forward', 'chevron_left', 'chevron_right',
-  'expand_more', 'expand_less', 'more_vert', 'more_horiz', 'refresh', 'search', 'settings',
+  'home',
+  'menu',
+  'close',
+  'arrow_back',
+  'arrow_forward',
+  'chevron_left',
+  'chevron_right',
+  'expand_more',
+  'expand_less',
+  'more_vert',
+  'more_horiz',
+  'refresh',
+  'search',
+  'settings',
 
   // Common Actions
-  'add', 'remove', 'edit', 'delete', 'save', 'done', 'check', 'check_circle', 'cancel',
-  'send', 'share', 'download', 'upload', 'print', 'copy', 'content_paste',
+  'add',
+  'remove',
+  'edit',
+  'delete',
+  'save',
+  'done',
+  'check',
+  'check_circle',
+  'cancel',
+  'send',
+  'share',
+  'download',
+  'upload',
+  'print',
+  'copy',
+  'content_paste',
 
   // Communication
-  'mail', 'email', 'message', 'chat', 'phone', 'call', 'notifications', 'notification_important',
+  'mail',
+  'email',
+  'message',
+  'chat',
+  'phone',
+  'call',
+  'notifications',
+  'notification_important',
 
   // Media
-  'play_arrow', 'pause', 'stop', 'skip_next', 'skip_previous', 'volume_up', 'volume_off',
-  'mic', 'videocam', 'photo_camera', 'image', 'music_note',
+  'play_arrow',
+  'pause',
+  'stop',
+  'skip_next',
+  'skip_previous',
+  'volume_up',
+  'volume_off',
+  'mic',
+  'videocam',
+  'photo_camera',
+  'image',
+  'music_note',
 
   // People & Account
-  'person', 'people', 'group', 'account_circle', 'face', 'sentiment_satisfied',
+  'person',
+  'people',
+  'group',
+  'account_circle',
+  'face',
+  'sentiment_satisfied',
 
   // Status & Info
-  'info', 'help', 'warning', 'error', 'error_outline', 'report', 'verified',
-  'star', 'star_border', 'favorite', 'favorite_border', 'thumb_up', 'thumb_down',
+  'info',
+  'help',
+  'warning',
+  'error',
+  'error_outline',
+  'report',
+  'verified',
+  'star',
+  'star_border',
+  'favorite',
+  'favorite_border',
+  'thumb_up',
+  'thumb_down',
 
   // Content & Files
-  'folder', 'folder_open', 'file_copy', 'description', 'article', 'note', 'attachment',
-  'link', 'insert_link', 'cloud', 'cloud_upload', 'cloud_download',
+  'folder',
+  'folder_open',
+  'file_copy',
+  'description',
+  'article',
+  'note',
+  'attachment',
+  'link',
+  'insert_link',
+  'cloud',
+  'cloud_upload',
+  'cloud_download',
 
   // Time & Date
-  'schedule', 'access_time', 'today', 'event', 'calendar_today', 'alarm',
+  'schedule',
+  'access_time',
+  'today',
+  'event',
+  'calendar_today',
+  'alarm',
 
   // Location
-  'place', 'location_on', 'map', 'directions', 'navigation', 'near_me',
+  'place',
+  'location_on',
+  'map',
+  'directions',
+  'navigation',
+  'near_me',
 
   // Shopping & Commerce
-  'shopping_cart', 'add_shopping_cart', 'store', 'payment', 'credit_card', 'receipt',
+  'shopping_cart',
+  'add_shopping_cart',
+  'store',
+  'payment',
+  'credit_card',
+  'receipt',
 
   // Device & Hardware
-  'smartphone', 'laptop', 'desktop_windows', 'keyboard', 'mouse', 'bluetooth', 'wifi',
+  'smartphone',
+  'laptop',
+  'desktop_windows',
+  'keyboard',
+  'mouse',
+  'bluetooth',
+  'wifi',
 
   // Misc UI
-  'visibility', 'visibility_off', 'lock', 'lock_open', 'key', 'security',
-  'dashboard', 'list', 'view_list', 'grid_view', 'table_chart', 'bar_chart',
+  'visibility',
+  'visibility_off',
+  'lock',
+  'lock_open',
+  'key',
+  'security',
+  'dashboard',
+  'list',
+  'view_list',
+  'grid_view',
+  'table_chart',
+  'bar_chart',
 ];
 
-function IconCard({ name, isSelected, onClick }: { name: string; isSelected: boolean; onClick: () => void }) {
+function iconComponent(name: string, specVersion: SpecVersion): A2UIComponent[] {
+  if (specVersion === '0.9') {
+    return [{id: 'icon', component: 'Icon', name}];
+  }
+  return [{id: 'icon', component: {Icon: {name: {literalString: name}}}}];
+}
+
+function IconCard({
+  name,
+  isSelected,
+  onClick,
+  specVersion,
+}: {
+  name: string;
+  isSelected: boolean;
+  onClick: () => void;
+  specVersion: SpecVersion;
+}) {
   return (
     <button
       onClick={onClick}
@@ -74,32 +193,23 @@ function IconCard({ name, isSelected, onClick }: { name: string; isSelected: boo
         'flex flex-col items-center gap-2 p-4 rounded-xl border transition-colors',
         isSelected
           ? 'border-foreground bg-muted'
-          : 'border-border bg-white hover:border-muted-foreground/30'
+          : 'border-border bg-white hover:border-muted-foreground/30',
       )}
     >
       <div className="flex h-12 w-12 items-center justify-center scale-[2]">
         <A2UIViewer
           root="icon"
-          components={[
-            {
-              id: 'icon',
-              component: {
-                Icon: {
-                  name: { literalString: name },
-                },
-              },
-            },
-          ]}
+          components={iconComponent(name, specVersion)}
+          specVersion={specVersion}
         />
       </div>
-      <span className="text-xs text-muted-foreground truncate w-full text-center">
-        {name}
-      </span>
+      <span className="text-xs text-muted-foreground truncate w-full text-center">{name}</span>
     </button>
   );
 }
 
 export default function IconsPage() {
+  const {specVersion} = useSpecVersion();
   const [selectedIcon, setSelectedIcon] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
 
@@ -133,7 +243,7 @@ export default function IconsPage() {
               ) : (
                 <>
                   <Copy className="h-4 w-4" />
-                  Copy "{selectedIcon}"
+                  Copy &quot;{selectedIcon}&quot;
                 </>
               )}
             </button>
@@ -150,12 +260,13 @@ export default function IconsPage() {
         </div>
       </div>
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8 xl:grid-cols-10 2xl:grid-cols-12">
-        {MATERIAL_ICONS.map((name) => (
+        {MATERIAL_ICONS.map(name => (
           <IconCard
             key={name}
             name={name}
             isSelected={selectedIcon === name}
             onClick={() => setSelectedIcon(name)}
+            specVersion={specVersion}
           />
         ))}
       </div>

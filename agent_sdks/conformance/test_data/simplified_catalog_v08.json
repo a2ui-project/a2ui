@@ -1,0 +1,106 @@
+{
+  "catalogId": "test_catalog",
+  "components": {
+    "Container": {
+      "type": "object",
+      "properties": {
+        "children": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "title": "ComponentId"
+          }
+        }
+      },
+      "additionalProperties": true
+    },
+    "Card": {
+      "type": "object",
+      "properties": {
+        "child": {
+          "type": "string",
+          "title": "ComponentId"
+        },
+        "children": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "title": "ComponentId"
+          }
+        }
+      },
+      "additionalProperties": true
+    },
+    "Text": {
+      "type": "object",
+      "additionalProperties": true
+    },
+    "Loading": {
+      "type": "object",
+      "additionalProperties": true
+    },
+    "List": {
+      "type": "object",
+      "additionalProperties": true
+    },
+    "Row": {
+      "type": "object",
+      "properties": {
+        "children": {
+          "type": "object",
+          "properties": {
+            "explicitList": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          },
+          "required": [
+            "componentId",
+            "dataBinding"
+          ]
+        }
+      },
+      "required": [
+        "children"
+      ]
+    },
+    "Column": {
+      "type": "object",
+      "properties": {
+        "children": {
+          "type": "object",
+          "properties": {
+            "explicitList": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "title": "ComponentId"
+              }
+            }
+          }
+        }
+      }
+    },
+    "AudioPlayer": {
+      "type": "object",
+      "properties": {
+        "url": {
+          "type": "object",
+          "properties": {
+            "literalString": {
+              "type": "string"
+            },
+            "path": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "required": [
+        "url"
+      ]
+    }
+  }
+}

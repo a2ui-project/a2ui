@@ -14,13 +14,17 @@
  * limitations under the License.
  */
 
-import { Component, input, computed, ChangeDetectionStrategy } from '@angular/core';
-import { BoundProperty } from '../../core/types';
+import {Component, computed, ChangeDetectionStrategy} from '@angular/core';
+import {BasicCatalogComponent} from './basic-catalog-component';
+import {VideoApi} from '@a2ui/web_core/v0_9/basic_catalog';
 
 /**
  * Angular implementation of the A2UI Video component (v0.9).
  *
- * Renders a video player with standard controls and an optional poster image.
+ * Renders a video player with standard controls.
+ *
+ * Supported CSS variables:
+ * - `--a2ui-video-border-radius`: Controls the border radius of the video element.
  */
 @Component({
   selector: 'a2ui-v09-video',
@@ -28,12 +32,7 @@ import { BoundProperty } from '../../core/types';
   imports: [],
   template: `
     <div class="a2ui-video-container">
-      <video
-        [attr.src]="url() || null"
-        controls
-        [attr.poster]="posterUrl() || null"
-        class="a2ui-video"
-      >
+      <video [attr.src]="url() || null" controls class="a2ui-video">
         Your browser does not support the video tag.
       </video>
     </div>
@@ -48,24 +47,12 @@ import { BoundProperty } from '../../core/types';
         width: 100%;
         height: auto;
         display: block;
+        border-radius: var(--a2ui-video-border-radius, 0);
       }
     `,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
-export class VideoComponent {
-  /**
-   * Reactive properties resolved from the A2UI {@link ComponentModel}.
-   *
-   * Expected properties:
-   * - `url`: The absolute URL of the video file.
-   * - `posterUrl`: The URL of an image to show before the video starts.
-   */
-  props = input<Record<string, BoundProperty>>({});
-  surfaceId = input.required<string>();
-  componentId = input<string>();
-  dataContextPath = input<string>('/');
-
-  url = computed(() => this.props()['url']?.value());
-  posterUrl = computed(() => this.props()['posterUrl']?.value());
+export class VideoComponent extends BasicCatalogComponent<typeof VideoApi> {
+  readonly url = computed(() => this.props()['url']?.value());
 }

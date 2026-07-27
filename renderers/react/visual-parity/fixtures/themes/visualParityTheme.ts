@@ -19,7 +19,7 @@
  * This is an alternate theme designed for testing theme switching.
  */
 
-import type { Types } from '@a2ui/lit/0.8';
+import type {Types} from '@a2ui/lit/0.8';
 
 export const visualParityTheme: Types.Theme = {
   components: {
@@ -68,8 +68,8 @@ export const visualParityTheme: Types.Theme = {
       'filled-heavy': true,
     },
     Image: {
-      all: { 'layout-w-100': true },
-      avatar: { 'border-br-50': true },
+      all: {'layout-w-100': true},
+      avatar: {'border-br-50': true},
       header: {},
       icon: {},
       largeFeature: {},
@@ -228,8 +228,8 @@ export const visualParityTheme: Types.Theme = {
         'layout-g-2': true,
       },
       controls: {
-        all: { 'layout-p-2': true },
-        selected: { 'color-bgc-p90': true, 'border-br-8': true },
+        all: {'layout-p-2': true},
+        selected: {'color-bgc-p90': true, 'border-br-8': true},
       },
       container: {
         'layout-dis-flx': true,

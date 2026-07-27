@@ -14,19 +14,17 @@
  * limitations under the License.
  */
 
-import { ChangeDetectionStrategy, Component, computed, inject, input } from '@angular/core';
-import { MessageProcessor } from '../data';
-import { Renderer } from '../rendering/renderer';
-import { Types } from '../types';
+import {ChangeDetectionStrategy, Component, computed, inject, input} from '@angular/core';
+import {MessageProcessor} from '../data';
+import {Renderer} from '../rendering/renderer';
+import type {Surface as SurfaceType, SurfaceID} from '../types';
 
 @Component({
   selector: 'a2ui-surface',
   imports: [Renderer],
   template: `
-    @if (surface(); as s) {
-      @if (s.componentTree; as root) {
-        <ng-container a2ui-renderer [surfaceId]="surfaceId()" [component]="root" />
-      }
+    @if (rootComponent()) {
+      <ng-container a2ui-renderer [surfaceId]="surfaceId()" [component]="rootComponent()!" />
     }
   `,
   styles: `
@@ -40,10 +38,16 @@ import { Types } from '../types';
 })
 export class Surface {
   private readonly processor = inject(MessageProcessor);
-  readonly surfaceId = input.required<Types.SurfaceID>();
-  readonly surfaceInput = input<Types.Surface | null>(null, { alias: 'surface' });
+  readonly surfaceId = input.required<SurfaceID>();
+  readonly surfaceInput = input<SurfaceType | null>(null, {alias: 'surface'});
 
   protected readonly surface = computed(() => {
+    this.processor.version(); // Track dependency on in-place mutations
     return this.surfaceInput() ?? this.processor.getSurfaces().get(this.surfaceId()) ?? null;
+  });
+
+  protected readonly rootComponent = computed(() => {
+    this.processor.version(); // Track dependency on in-place mutations
+    return this.surface()?.componentTree ?? null;
   });
 }

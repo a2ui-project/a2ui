@@ -21,7 +21,7 @@
  * The value is read from the data model and two-way bound.
  */
 
-import type { ComponentFixture } from '../types';
+import type {ComponentFixture} from '../types';
 
 export const checkboxUnchecked: ComponentFixture = {
   root: 'cb-1',
@@ -33,8 +33,8 @@ export const checkboxUnchecked: ComponentFixture = {
       id: 'cb-1',
       component: {
         CheckBox: {
-          label: { literalString: 'Unchecked option' },
-          value: { path: '/checkbox/unchecked' },
+          label: {literalString: 'Unchecked option'},
+          value: {path: '/checkbox/unchecked'},
         },
       },
     },
@@ -51,8 +51,8 @@ export const checkboxChecked: ComponentFixture = {
       id: 'cb-2',
       component: {
         CheckBox: {
-          label: { literalString: 'Checked option' },
-          value: { path: '/checkbox/checked' },
+          label: {literalString: 'Checked option'},
+          value: {path: '/checkbox/checked'},
         },
       },
     },
@@ -69,8 +69,10 @@ export const checkboxLongLabel: ComponentFixture = {
       id: 'cb-long',
       component: {
         CheckBox: {
-          label: { literalString: 'I agree to the terms and conditions of service and privacy policy' },
-          value: { path: '/checkbox/longLabel' },
+          label: {
+            literalString: 'I agree to the terms and conditions of service and privacy policy',
+          },
+          value: {path: '/checkbox/longLabel'},
         },
       },
     },

@@ -14,9 +14,9 @@
  * limitations under the License.
  */
 
-/** 
- * Represents a JSON Schema definition. 
- * Typed as Record<string, any> to allow standard JSON schema properties 
+/**
+ * Represents a JSON Schema definition.
+ * Typed as Record<string, any> to allow standard JSON schema properties
  * without importing heavy schema types.
  */
 export type JsonSchema = Record<string, any>;
@@ -42,11 +42,22 @@ export interface InlineCatalog {
 }
 
 /**
+ * The supported capabilities for a specific protocol version.
+ */
+export interface A2uiVersionCapabilities {
+  supportedCatalogIds: string[];
+  inlineCatalogs?: InlineCatalog[];
+}
+
+/**
  * The capabilities structure sent from the client to the server as part of transport metadata.
  */
-export interface A2uiClientCapabilities {
-  "v0.9": {
-    supportedCatalogIds: string[];
-    inlineCatalogs?: InlineCatalog[];
-  };
-}
+export type A2uiClientCapabilities =
+  | {
+      'v0.9': A2uiVersionCapabilities;
+      'v0.9.1'?: A2uiVersionCapabilities;
+    }
+  | {
+      'v0.9'?: A2uiVersionCapabilities;
+      'v0.9.1': A2uiVersionCapabilities;
+    };

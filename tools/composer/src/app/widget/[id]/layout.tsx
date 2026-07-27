@@ -14,10 +14,6 @@
  * limitations under the License.
  */
 
-export default function WidgetEditorLayout({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
+export default function WidgetEditorLayout({children}: {children: React.ReactNode}) {
   return children;
 }

@@ -14,16 +14,16 @@
  * limitations under the License.
  */
 
-import { html, css, nothing } from "lit";
-import { customElement, property } from "lit/decorators.js";
-import { Root } from "./root.js";
-import { A2uiMessageProcessor } from "@a2ui/web_core/data/model-processor";
-import * as Primitives from "@a2ui/web_core/types/primitives";
-import { classMap } from "lit/directives/class-map.js";
-import { styleMap } from "lit/directives/style-map.js";
-import { structuralStyles } from "./styles.js";
+import {html, css, nothing} from 'lit';
+import {customElement, property} from 'lit/decorators.js';
+import {Root} from './root.js';
+import {A2uiMessageProcessor} from '@a2ui/web_core/data/model-processor';
+import * as Primitives from '@a2ui/web_core/types/primitives';
+import {classMap} from 'lit/directives/class-map.js';
+import {styleMap} from 'lit/directives/style-map.js';
+import {structuralStyles} from './styles.js';
 
-@customElement("a2ui-datetimeinput")
+@customElement('a2ui-datetimeinput')
 export class DateTimeInput extends Root {
   @property()
   accessor value: Primitives.StringValue | null = null;
@@ -31,10 +31,10 @@ export class DateTimeInput extends Root {
   @property()
   accessor label: Primitives.StringValue | null = null;
 
-  @property({ reflect: false, type: Boolean })
+  @property({reflect: false, type: Boolean})
   accessor enableDate = true;
 
-  @property({ reflect: false, type: Boolean })
+  @property({reflect: false, type: Boolean})
   accessor enableTime = true;
 
   static styles = [
@@ -57,6 +57,12 @@ export class DateTimeInput extends Root {
         padding: 8px;
         border: 1px solid #ccc;
         width: 100%;
+        color: #333;
+      }
+
+      input::-webkit-datetime-edit,
+      input::-webkit-datetime-edit-fields-wrapper {
+        color: #333;
       }
     `,
   ];
@@ -66,7 +72,7 @@ export class DateTimeInput extends Root {
       return;
     }
 
-    if (!("path" in this.value)) {
+    if (!('path' in this.value)) {
       return;
     }
 
@@ -78,17 +84,13 @@ export class DateTimeInput extends Root {
       this.component,
       this.value.path,
       value,
-      this.surfaceId ?? A2uiMessageProcessor.DEFAULT_SURFACE_ID
+      this.surfaceId ?? A2uiMessageProcessor.DEFAULT_SURFACE_ID,
     );
   }
 
   #renderField(value: string) {
-    return html`<section
-      class=${classMap(this.theme.components.DateTimeInput.container)}
-    >
-      <label
-        for="data"
-        class=${classMap(this.theme.components.DateTimeInput.label)}
+    return html`<section class=${classMap(this.theme.components.DateTimeInput.container)}>
+      <label for="data" class=${classMap(this.theme.components.DateTimeInput.label)}
         >${this.#getPlaceholderText()}</label
       >
       <input
@@ -115,14 +117,14 @@ export class DateTimeInput extends Root {
 
   #getInputType() {
     if (this.enableDate && this.enableTime) {
-      return "datetime-local";
+      return 'datetime-local';
     } else if (this.enableDate) {
-      return "date";
+      return 'date';
     } else if (this.enableTime) {
-      return "time";
+      return 'time';
     }
 
-    return "datetime-local";
+    return 'datetime-local';
   }
 
   #formatInputValue(value: string) {
@@ -130,7 +132,7 @@ export class DateTimeInput extends Root {
     const date = value ? new Date(value) : null;
 
     if (!date || isNaN(date.getTime())) {
-      return "";
+      return '';
     }
 
     const year = this.#padNumber(date.getFullYear());
@@ -142,9 +144,9 @@ export class DateTimeInput extends Root {
     // Browsers are picky with what format they allow for the `value` attribute of date/time inputs.
     // We need to parse it out of the provided value. Note that we don't use `toISOString`,
     // because the resulting value is relative to UTC.
-    if (inputType === "date") {
+    if (inputType === 'date') {
       return `${year}-${month}-${day}`;
-    } else if (inputType === "time") {
+    } else if (inputType === 'time') {
       return `${hours}:${minutes}`;
     }
 
@@ -152,29 +154,29 @@ export class DateTimeInput extends Root {
   }
 
   #padNumber(value: number) {
-    return value.toString().padStart(2, "0");
+    return value.toString().padStart(2, '0');
   }
 
   #getPlaceholderText() {
     // TODO: this should likely be passed from the model.
     const inputType = this.#getInputType();
 
-    if (inputType === "date") {
-      return "Date";
-    } else if (inputType === "time") {
-      return "Time";
+    if (inputType === 'date') {
+      return 'Date';
+    } else if (inputType === 'time') {
+      return 'Time';
     }
 
-    return "Date & Time";
+    return 'Date & Time';
   }
 
   render() {
-    if (this.value && typeof this.value === "object") {
-      if ("literalString" in this.value && this.value.literalString) {
+    if (this.value && typeof this.value === 'object') {
+      if ('literalString' in this.value && this.value.literalString) {
         return this.#renderField(this.value.literalString);
-      } else if ("literal" in this.value && this.value.literal !== undefined) {
+      } else if ('literal' in this.value && this.value.literal !== undefined) {
         return this.#renderField(this.value.literal);
-      } else if (this.value && "path" in this.value && this.value.path) {
+      } else if (this.value && 'path' in this.value && this.value.path) {
         if (!this.processor || !this.component) {
           return html`(no model)`;
         }
@@ -182,9 +184,9 @@ export class DateTimeInput extends Root {
         const textValue = this.processor.getData(
           this.component,
           this.value.path,
-          this.surfaceId ?? A2uiMessageProcessor.DEFAULT_SURFACE_ID
+          this.surfaceId ?? A2uiMessageProcessor.DEFAULT_SURFACE_ID,
         );
-        if (typeof textValue !== "string") {
+        if (typeof textValue !== 'string') {
           return html`(invalid)`;
         }
 

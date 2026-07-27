@@ -15,11 +15,12 @@
  */
 
 import React from 'react';
-import {createReactComponent} from '../../../adapter';
+import {createComponentImplementation} from '../../../adapter';
 import {CheckBoxApi} from '@a2ui/web_core/v0_9/basic_catalog';
-import {LEAF_MARGIN} from '../utils';
+import {useBasicCatalogStyles} from '../utils';
 
-export const CheckBox = createReactComponent(CheckBoxApi, ({props}) => {
+export const CheckBox = createComponentImplementation(CheckBoxApi, ({props}) => {
+  useBasicCatalogStyles();
   const onChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     props.setValue(e.target.checked);
   };
@@ -28,30 +29,76 @@ export const CheckBox = createReactComponent(CheckBoxApi, ({props}) => {
 
   const hasError = props.validationErrors && props.validationErrors.length > 0;
 
+  const containerStyle: React.CSSProperties = {
+    display: 'flex',
+    flexDirection: 'column',
+    margin: 'var(--a2ui-checkbox-margin, var(--a2ui-spacing-m))',
+  };
+
+  const rowStyle: React.CSSProperties = {
+    display: 'flex',
+    alignItems: 'center',
+    gap: 'var(--a2ui-checkbox-gap, var(--a2ui-spacing-s, 0.5rem))',
+  };
+
+  const inputBaseStyle: React.CSSProperties = {
+    cursor: 'pointer',
+    width: 'var(--a2ui-checkbox-size, 1rem)',
+    height: 'var(--a2ui-checkbox-size, 1rem)',
+    background: 'var(--a2ui-checkbox-background, inherit)',
+    border: 'var(--a2ui-checkbox-border, var(--a2ui-border))',
+    borderRadius: 'var(--a2ui-checkbox-border-radius, 4px)',
+    outline: 'none',
+  };
+
+  const inputErrorStyle: React.CSSProperties = {
+    outline: '1px solid var(--a2ui-checkbox-color-error, red)',
+  };
+
+  const labelBaseStyle: React.CSSProperties = {
+    cursor: 'pointer',
+    color: 'var(--a2ui-color-on-surface, inherit)',
+    fontSize:
+      'var(--a2ui-checkbox-label-font-size, var(--a2ui-label-font-size, var(--a2ui-font-size-s)))',
+    fontWeight: 'var(--a2ui-checkbox-label-font-weight, var(--a2ui-label-font-weight, bold))',
+  };
+
+  const labelErrorStyle: React.CSSProperties = {
+    color: 'var(--a2ui-checkbox-color-error, red)',
+  };
+
+  const errorStyle: React.CSSProperties = {
+    fontSize: 'var(--a2ui-font-size-xs, 0.75rem)',
+    color: 'var(--a2ui-checkbox-color-error, red)',
+    marginTop: '4px',
+  };
+
   return (
-    <div style={{display: 'flex', flexDirection: 'column', margin: LEAF_MARGIN}}>
-      <div style={{display: 'flex', alignItems: 'center', gap: '8px'}}>
+    <div style={containerStyle}>
+      <div style={rowStyle}>
         <input
           id={uniqueId}
           type="checkbox"
           checked={!!props.value}
           onChange={onChange}
-          style={{cursor: 'pointer', outline: hasError ? '1px solid red' : 'none'}}
+          style={{
+            ...inputBaseStyle,
+            ...(hasError ? inputErrorStyle : {}),
+          }}
         />
         {props.label && (
           <label
             htmlFor={uniqueId}
-            style={{cursor: 'pointer', color: hasError ? 'red' : 'inherit'}}
+            style={{
+              ...labelBaseStyle,
+              ...(hasError ? labelErrorStyle : {}),
+            }}
           >
             {props.label}
           </label>
         )}
       </div>
-      {hasError && (
-        <span style={{fontSize: '12px', color: 'red', marginTop: '4px'}}>
-          {props.validationErrors[0]}
-        </span>
-      )}
+      {hasError && <span style={errorStyle}>{props.validationErrors?.[0]}</span>}
     </div>
   );
 });

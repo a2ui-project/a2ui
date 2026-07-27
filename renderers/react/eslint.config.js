@@ -43,7 +43,7 @@ export default tseslint.config(
     },
     settings: {
       react: {
-        version: 'detect',
+        version: '19.0.0',
       },
     },
     rules: {
@@ -75,7 +75,7 @@ export default tseslint.config(
       ],
 
       // General rules
-      'no-console': ['warn', { allow: ['warn', 'error'] }],
+      'no-console': ['warn', {allow: ['warn', 'error']}],
       'prefer-arrow-callback': 'off',
     },
   },
@@ -95,5 +95,5 @@ export default tseslint.config(
   // Ignored paths
   {
     ignores: ['dist/**', 'node_modules/**', 'visual-parity/**', '**/*.d.ts'],
-  }
+  },
 );

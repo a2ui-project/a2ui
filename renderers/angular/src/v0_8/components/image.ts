@@ -14,15 +14,15 @@
  * limitations under the License.
  */
 
-import { ChangeDetectionStrategy, Component, computed, input } from '@angular/core';
+import {ChangeDetectionStrategy, Component, computed, input} from '@angular/core';
 import * as Primitives from '@a2ui/web_core/types/primitives';
 import * as Styles from '@a2ui/web_core/styles/index';
-import { Types } from '../types';
-import { DynamicComponent } from '../rendering/dynamic-component';
+import type {ImageNode, ResolvedImage} from '../types';
+import {DynamicComponent} from '../rendering/dynamic-component';
 
 @Component({
   selector: 'a2ui-image',
-  changeDetection: ChangeDetectionStrategy.Eager,
+  changeDetection: ChangeDetectionStrategy.OnPush,
   styles: `
     :host {
       display: block;
@@ -40,20 +40,23 @@ import { DynamicComponent } from '../rendering/dynamic-component';
   `,
   template: `
     @let resolvedUrl = this.resolvedUrl();
+    @let resolvedAltText = this.resolvedAltText();
 
     @if (resolvedUrl) {
       <section [class]="classes()" [style]="theme.additionalStyles?.Image">
-        <img [src]="resolvedUrl" alt="" />
+        <img [src]="resolvedUrl" [alt]="resolvedAltText" />
       </section>
     }
   `,
 })
-export class Image extends DynamicComponent<Types.ImageNode> {
+export class Image extends DynamicComponent<ImageNode> {
   readonly url = input<Primitives.StringValue | null>(null);
-  readonly usageHint = input<Types.ResolvedImage['usageHint'] | null>(null);
-  readonly fit = input<Types.ResolvedImage['fit'] | null>(null);
+  readonly usageHint = input<ResolvedImage['usageHint'] | null>(null);
+  readonly fit = input<ResolvedImage['fit'] | null>(null);
+  readonly altText = input<Primitives.StringValue | null>(null);
 
   protected readonly resolvedUrl = computed(() => this.resolvePrimitive(this.url()));
+  protected readonly resolvedAltText = computed(() => this.resolvePrimitive(this.altText()) || '');
 
   protected classes = computed(() => {
     const usageHint = this.usageHint();

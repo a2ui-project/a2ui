@@ -19,10 +19,10 @@
  * Maps theme names to theme objects for URL-based theme selection.
  */
 
-import { litTheme } from '@a2ui/react';
-import { visualParityTheme } from './visualParityTheme';
-import { minimalTheme } from './minimalTheme';
-import type { Types } from '@a2ui/lit/0.8';
+import {litTheme} from '@a2ui/react';
+import {visualParityTheme} from './visualParityTheme';
+import {minimalTheme} from './minimalTheme';
+import type {Types} from '@a2ui/lit/0.8';
 
 /**
  * Registry of themes available for visual parity testing.
@@ -54,6 +54,6 @@ export function getTheme(name: string | null): Types.Theme | undefined {
 }
 
 // Re-export individual themes
-export { litTheme } from '@a2ui/react';
-export { visualParityTheme } from './visualParityTheme';
-export { minimalTheme } from './minimalTheme';
+export {litTheme} from '@a2ui/react';
+export {visualParityTheme} from './visualParityTheme';
+export {minimalTheme} from './minimalTheme';

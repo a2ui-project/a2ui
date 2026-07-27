@@ -1,0 +1,61 @@
+# Copyright 2026 Google LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#      https://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+name: A2UI-agent Kotlin SDK
+
+on:
+  push:
+    branches:
+      - "*"
+    paths:
+      - "kotlin/agent_sdk_legacy/**"
+      - "specification/**/json/**"
+      - "agent_sdks/conformance/**"
+  pull_request:
+    paths:
+      - "kotlin/agent_sdk_legacy/**"
+      - "specification/**/json/**"
+      - "agent_sdks/conformance/**"
+
+permissions:
+  contents: read
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+        with:
+          persist-credentials: false
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@ad2b38190b15e4d6bdf0c97fb4fca8412226d287 # v5.3.0
+        with:
+          java-version: "21"
+          distribution: "temurin"
+          cache: "gradle"
+
+      - name: Make gradlew executable
+        working-directory: kotlin/agent_sdk_legacy
+        run: chmod +x gradlew
+
+      - name: Check formatting
+        working-directory: kotlin/agent_sdk_legacy
+        run: ./gradlew ktfmtCheck
+
+      - name: Run tests
+        working-directory: kotlin/agent_sdk_legacy
+        run: ./gradlew test --info

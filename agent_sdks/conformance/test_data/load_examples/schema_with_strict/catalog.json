@@ -1,0 +1,14 @@
+{
+  "catalogId": "test_strict",
+  "components": {
+    "Text": {
+      "type": "object",
+      "properties": {
+        "text": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false
+    }
+  }
+}

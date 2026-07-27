@@ -67,7 +67,7 @@ export class EventEmitter<T> implements EventSource<T> {
       try {
         await listener(data);
       } catch (e) {
-        console.error("EventEmitter error:", e);
+        console.error('EventEmitter error:', e);
       }
     }
   }

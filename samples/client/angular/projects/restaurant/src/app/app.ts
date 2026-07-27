@@ -14,21 +14,22 @@
  * limitations under the License.
  */
 
-import { MessageProcessor, Surface } from '@a2ui/angular';
+import {SurfaceComponent, A2uiRendererService} from '@a2ui/angular/v0_9';
 import * as Types from '@a2ui/web_core/types/types';
-import { ChangeDetectionStrategy, Component, DOCUMENT, inject, signal } from '@angular/core';
-import { Client } from './client';
+import {ChangeDetectionStrategy, Component, DOCUMENT, inject, signal} from '@angular/core';
+import {Client} from './client';
 
 @Component({
   selector: 'app-root',
   templateUrl: './app.html',
   styleUrl: 'app.css',
-  imports: [Surface],
-  changeDetection: ChangeDetectionStrategy.Eager,
+  imports: [SurfaceComponent],
+  changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class App {
   protected client = inject(Client);
-  protected processor = inject(MessageProcessor);
+  protected renderer = inject(A2uiRendererService);
+
   private document = inject(DOCUMENT);
   private loadingInterval: number | undefined;
 
@@ -54,14 +55,14 @@ export class App {
     if (body) {
       this.startLoadingAnimation();
       const message = body as Types.A2UIClientEventMessage;
-      await this.client.makeRequest(message);
       this.hasData.set(true);
+      await this.client.makeRequest(message);
       this.stopLoadingAnimation();
     }
   }
 
   protected toggleTheme(button: HTMLButtonElement) {
-    const { colorScheme } = window.getComputedStyle(button);
+    const {colorScheme} = window.getComputedStyle(button);
     const classList = this.document.body.classList;
 
     if (colorScheme === 'dark') {
@@ -77,7 +78,7 @@ export class App {
     this.loadingTextIndex.set(0);
 
     this.loadingInterval = window.setInterval(() => {
-      this.loadingTextIndex.update((prev) => (prev + 1) % this.loadingTextLines.length);
+      this.loadingTextIndex.update(prev => (prev + 1) % this.loadingTextLines.length);
     }, 2000);
   }
 

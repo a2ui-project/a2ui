@@ -14,21 +14,16 @@
  * limitations under the License.
  */
 
-import { z } from "zod";
-import { ComponentContext } from "./component-context.js";
-import { 
-  Action, 
-  ChildList, 
-  DataBinding, 
-  FunctionCall 
-} from "../schema/common-types.js";
+import {z} from 'zod';
+import {ComponentContext} from './component-context.js';
+import {Action, ChildList, DataBinding, FunctionCall} from '../schema/common-types.js';
 
 // --- Schema Scraping ---
 
 /**
  * Represents the intended runtime behavior of a property parsed from its Zod schema.
- * 
- * - `DYNAMIC`: The property can be bound to the `DataModel` (e.g. `DynamicString`). 
+ *
+ * - `DYNAMIC`: The property can be bound to the `DataModel` (e.g. `DynamicString`).
  *    The Binder will automatically subscribe to data changes and emit primitive values.
  * - `ACTION`: The property represents a user interaction (e.g. `Action`).
  *    The Binder will resolve deep payload bindings and output a ready-to-call `() => void` closure.
@@ -40,20 +35,20 @@ import {
  * - `OBJECT` / `ARRAY`: Recursive traversal nodes for complex nested schemas.
  */
 export type BehaviorNode =
-  | { type: 'DYNAMIC' }
-  | { type: 'ACTION' }
-  | { type: 'STRUCTURAL' }
-  | { type: 'CHECKABLE' }
-  | { type: 'STATIC' }
-  | { type: 'OBJECT'; shape: Record<string, BehaviorNode> }
-  | { type: 'ARRAY'; element: BehaviorNode };
+  | {type: 'DYNAMIC'}
+  | {type: 'ACTION'}
+  | {type: 'STRUCTURAL'}
+  | {type: 'CHECKABLE'}
+  | {type: 'STATIC'}
+  | {type: 'OBJECT'; shape: Record<string, BehaviorNode>}
+  | {type: 'ARRAY'; element: BehaviorNode};
 
 /**
  * Traverses a Zod schema tree to build a `BehaviorNode` map.
- * 
- * This allows the Generic Binder to know *how* to handle a piece of raw JSON 
+ *
+ * This allows the Generic Binder to know *how* to handle a piece of raw JSON
  * data without needing hardcoded logic for every specific component type.
- * It identifies core A2UI primitives (Dynamic values, Actions, ChildLists) by 
+ * It identifies core A2UI primitives (Dynamic values, Actions, ChildLists) by
  * inspecting the shape of ZodUnion objects defined in `common-types.ts`.
  */
 export function scrapeSchemaBehavior(schema: z.ZodTypeAny): BehaviorNode {
@@ -62,59 +57,63 @@ export function scrapeSchemaBehavior(schema: z.ZodTypeAny): BehaviorNode {
 
 function getFieldBehavior(type: z.ZodTypeAny, propertyName?: string): BehaviorNode {
   let current = type;
-  
+
   // Unwrap optionals/nullables/defaults
   while (
-    current._def.typeName === "ZodOptional" ||
-    current._def.typeName === "ZodNullable" ||
-    current._def.typeName === "ZodDefault"
+    current._def.typeName === 'ZodOptional' ||
+    current._def.typeName === 'ZodNullable' ||
+    current._def.typeName === 'ZodDefault'
   ) {
     current = current._def.innerType;
   }
 
   if (propertyName === 'checks') {
-    return { type: 'CHECKABLE' };
+    return {type: 'CHECKABLE'};
   }
 
   // Structural matching for A2UI primitives using typeName to avoid dual-module instanceof issues
-  if (current._def.typeName === "ZodUnion") {
+  if (current._def.typeName === 'ZodUnion') {
     const options = current._def.options as z.ZodTypeAny[];
-    
+
     // ActionSchema is a union containing { event: ... }
-    const isAction = options.some(o => o._def.typeName === "ZodObject" && o._def.shape().event);
-    if (isAction) return { type: 'ACTION' };
+    const isAction = options.some(o => o._def.typeName === 'ZodObject' && o._def.shape().event);
+    if (isAction) return {type: 'ACTION'};
 
     // Dynamic strings/values are unions containing DataBindingSchema { path: ... } but NOT { componentId: ... }
-    const isDynamic = options.some(o => o._def.typeName === "ZodObject" && o._def.shape().path && !o._def.shape().componentId);
-    if (isDynamic) return { type: 'DYNAMIC' };
-    
+    const isDynamic = options.some(
+      o => o._def.typeName === 'ZodObject' && o._def.shape().path && !o._def.shape().componentId,
+    );
+    if (isDynamic) return {type: 'DYNAMIC'};
+
     // ChildList is a union containing an array and an object with { componentId, path }
-    const isChildList = options.some(o => o._def.typeName === "ZodObject" && o._def.shape().componentId && o._def.shape().path);
-    if (isChildList) return { type: 'STRUCTURAL' };
-  } else if (current._def.typeName === "ZodString") {
+    const isChildList = options.some(
+      o => o._def.typeName === 'ZodObject' && o._def.shape().componentId && o._def.shape().path,
+    );
+    if (isChildList) return {type: 'STRUCTURAL'};
+  } else if (current._def.typeName === 'ZodString') {
     // ComponentId falls back to STATIC since we can't perfectly identify it, which is fine because STATIC returns strings as-is.
   }
 
   // Recursive array scraping
-  if (current._def.typeName === "ZodArray") {
+  if (current._def.typeName === 'ZodArray') {
     return {
       type: 'ARRAY',
-      element: getFieldBehavior(current._def.type)
+      element: getFieldBehavior(current._def.type),
     };
   }
 
   // Recursive object scraping
-  if (current._def.typeName === "ZodObject") {
+  if (current._def.typeName === 'ZodObject') {
     const shape: Record<string, BehaviorNode> = {};
     const objShape = current._def.shape();
     for (const [key, value] of Object.entries(objShape)) {
       shape[key] = getFieldBehavior(value as z.ZodTypeAny, key);
     }
-    return { type: 'OBJECT', shape };
+    return {type: 'OBJECT', shape};
   }
 
   // Fallback
-  return { type: 'STATIC' };
+  return {type: 'STATIC'};
 }
 
 // --- Generic Binder ---
@@ -122,43 +121,50 @@ function getFieldBehavior(type: z.ZodTypeAny, propertyName?: string): BehaviorNo
 type DynamicTypes = DataBinding | FunctionCall;
 type IsDynamic<T> = DataBinding extends NonNullable<T> ? true : false;
 
-/** 
+/**
  * Maps raw Zod inferred types to their resolved runtime equivalents.
  * For example, an `Action` object becomes a callable `() => void` function.
  */
-export type ResolveA2uiProp<T> =
-  [NonNullable<T>] extends [Action] ? (() => void) | Extract<T, undefined> :
-  [NonNullable<T>] extends [ChildList] ? any | Extract<T, undefined> :
-  Exclude<T, DynamicTypes> extends never ? any : Exclude<T, DynamicTypes>;
+export type ResolveA2uiProp<T> = [NonNullable<T>] extends [Action]
+  ? (() => void) | Extract<T, undefined>
+  : [NonNullable<T>] extends [ChildList]
+    ? any | Extract<T, undefined>
+    : Exclude<T, DynamicTypes> extends never
+      ? any
+      : Exclude<T, DynamicTypes>;
 
-/** 
+/**
  * Automatically generates two-way binding setters for dynamic properties.
  * If a schema has a `value: DynamicString`, this type generates a `setValue(val: string)` method.
  */
 export type GenerateSetters<T> = {
-  [K in keyof T as IsDynamic<T[K]> extends true ? `set${Capitalize<string & K>}` : never]-?: 
-    (value: Exclude<NonNullable<T[K]>, DynamicTypes>) => void; 
+  [K in keyof T as IsDynamic<T[K]> extends true ? `set${Capitalize<string & K>}` : never]-?: (
+    value: Exclude<NonNullable<T[K]>, DynamicTypes>,
+  ) => void;
 };
 
-/** 
+/**
  * The final output type of the Generic Binder, providing fully resolved, ready-to-use props.
  * This is what framework-specific adapters (like `createReactComponent`) pass to the developer's view logic.
  */
-export type ResolveA2uiProps<T> = (T extends object ? {
-  [K in keyof T]: ResolveA2uiProp<T[K]>
-} : T) & GenerateSetters<T> & {
-  isValid?: boolean;
-  validationErrors?: string[];
-};
+export type ResolveA2uiProps<T> = (T extends object
+  ? {
+      [K in keyof T]: ResolveA2uiProp<T[K]>;
+    }
+  : T) &
+  GenerateSetters<T> & {
+    isValid?: boolean;
+    validationErrors?: string[];
+  };
 
 /**
  * The Generic Binder is a framework-agnostic engine that transforms raw A2UI JSON payload
  * configurations into a single, cohesive reactive stream of strongly-typed `ResolvedProps`.
- * 
- * It solves the problem of manual state management: developers do not need to write 
- * boilerplate code to subscribe to data paths, evaluate logic expressions, or tear down 
+ *
+ * It solves the problem of manual state management: developers do not need to write
+ * boilerplate code to subscribe to data paths, evaluate logic expressions, or tear down
  * listeners when components unmount.
- * 
+ *
  * Usage Flow:
  * 1. Takes a `ComponentContext` (the raw JSON config) and a `Zod Schema` (the API definition).
  * 2. Uses `scrapeSchemaBehavior` to analyze the schema.
@@ -182,7 +188,7 @@ export class GenericBinder<T> {
     this.behaviorTree = scrapeSchemaBehavior(schema);
 
     if (this.behaviorTree.type !== 'OBJECT') {
-      this.behaviorTree = { type: 'OBJECT', shape: {} };
+      this.behaviorTree = {type: 'OBJECT', shape: {}};
     }
 
     this.resolveInitialProps();
@@ -191,7 +197,7 @@ export class GenericBinder<T> {
   private resolveInitialProps() {
     const props = this.context.componentModel.properties;
     const resolved = this.resolveAndBind(props, this.behaviorTree, [], true);
-    this.currentProps = { ...this.currentProps, ...resolved } as Partial<T>;
+    this.currentProps = {...this.currentProps, ...resolved} as Partial<T>;
   }
 
   private connect() {
@@ -209,9 +215,9 @@ export class GenericBinder<T> {
     this.dataListeners = [];
 
     const props = this.context.componentModel.properties;
-    
+
     const resolved = this.resolveAndBind(props, this.behaviorTree, [], false);
-    this.currentProps = { ...this.currentProps, ...resolved } as Partial<T>;
+    this.currentProps = {...this.currentProps, ...resolved} as Partial<T>;
 
     this.notify();
   }
@@ -221,7 +227,7 @@ export class GenericBinder<T> {
 
     switch (behavior.type) {
       case 'DYNAMIC': {
-        const bound = this.context.dataContext.subscribeDynamicValue(value, (newVal) => {
+        const bound = this.context.dataContext.subscribeDynamicValue(value, newVal => {
           this.updateDeepValue(path, newVal);
           this.notify();
         });
@@ -238,7 +244,8 @@ export class GenericBinder<T> {
         return () => {
           const resolveDeepSync = (val: any): any => {
             if (typeof val !== 'object' || val === null) return val;
-            if ('path' in val || 'call' in val) return this.context.dataContext.resolveDynamicValue(val);
+            if ('path' in val || 'call' in val)
+              return this.context.dataContext.resolveDynamicValue(val);
             if (Array.isArray(val)) return val.map(resolveDeepSync);
             const res: any = {};
             for (const [k, v] of Object.entries(val)) res[k] = resolveDeepSync(v);
@@ -250,16 +257,19 @@ export class GenericBinder<T> {
 
       case 'STRUCTURAL': {
         if (value && typeof value === 'object' && value.path && value.componentId) {
-          const bound = this.context.dataContext.subscribeDynamicValue({ path: value.path }, (newVal) => {
-            const arr = Array.isArray(newVal) ? newVal : [];
-            const listContext = this.context.dataContext.nested(value.path);
-            const resolvedChildren = arr.map((_, i) => ({
-              id: value.componentId,
-              basePath: listContext.nested(String(i)).path
-            }));
-            this.updateDeepValue(path, resolvedChildren);
-            this.notify();
-          });
+          const bound = this.context.dataContext.subscribeDynamicValue(
+            {path: value.path},
+            newVal => {
+              const arr = Array.isArray(newVal) ? newVal : [];
+              const listContext = this.context.dataContext.nested(value.path);
+              const resolvedChildren = arr.map((_, i) => ({
+                id: value.componentId,
+                basePath: listContext.nested(String(i)).path,
+              }));
+              this.updateDeepValue(path, resolvedChildren);
+              this.notify();
+            },
+          );
 
           if (!isSync) {
             this.dataListeners.push(() => bound.unsubscribe());
@@ -271,7 +281,7 @@ export class GenericBinder<T> {
           const listContext = this.context.dataContext.nested(value.path);
           return currentArr.map((_, i) => ({
             id: value.componentId,
-            basePath: listContext.nested(String(i)).path
+            basePath: listContext.nested(String(i)).path,
           }));
         }
         return value;
@@ -279,8 +289,11 @@ export class GenericBinder<T> {
 
       case 'CHECKABLE': {
         const rules = Array.isArray(value) ? value : [];
-        const ruleResults: { valid: boolean; message: string }[] = rules.map(() => ({ valid: true, message: '' }));
-        
+        const ruleResults: {valid: boolean; message: string}[] = rules.map(() => ({
+          valid: true,
+          message: '',
+        }));
+
         const parentPath = path.slice(0, -1);
         const updateValidationState = () => {
           const errors = ruleResults.filter(r => !r.valid).map(r => r.message);
@@ -294,7 +307,7 @@ export class GenericBinder<T> {
           const message = rule.message || 'Validation failed';
           ruleResults[index].message = message;
 
-          const bound = this.context.dataContext.subscribeDynamicValue(condition, (newVal) => {
+          const bound = this.context.dataContext.subscribeDynamicValue(condition, newVal => {
             ruleResults[index].valid = !!newVal;
             updateValidationState();
           });
@@ -311,7 +324,7 @@ export class GenericBinder<T> {
         const initialErrors = ruleResults.filter(r => !r.valid).map(r => r.message);
         this.updateDeepValue([...parentPath, 'isValid' as any], initialErrors.length === 0);
         this.updateDeepValue([...parentPath, 'validationErrors' as any], initialErrors);
-        
+
         return value; // The 'checks' property itself remains as the original rules array
       }
 
@@ -321,17 +334,17 @@ export class GenericBinder<T> {
       case 'ARRAY': {
         if (!Array.isArray(value)) return value;
         return value.map((item, index) =>
-          this.resolveAndBind(item, behavior.element, [...path, index.toString()], isSync)
+          this.resolveAndBind(item, behavior.element, [...path, index.toString()], isSync),
         );
       }
 
       case 'OBJECT': {
         if (typeof value !== 'object') return value;
         const result: any = {};
-        
+
         // 1. Resolve all provided properties
         for (const [k, v] of Object.entries(value)) {
-          const childBehavior = behavior.shape[k] || { type: 'STATIC' };
+          const childBehavior = behavior.shape[k] || {type: 'STATIC'};
           result[k] = this.resolveAndBind(v, childBehavior, [...path, k], isSync);
         }
 
@@ -341,13 +354,13 @@ export class GenericBinder<T> {
             const setterName = `set${k.charAt(0).toUpperCase() + k.slice(1)}`;
             const rawPropValue = value[k];
             result[setterName] = (newValue: any) => {
-               if (rawPropValue && typeof rawPropValue === 'object' && 'path' in rawPropValue) {
-                 this.context.dataContext.set((rawPropValue as any).path, newValue);
-               }
+              if (rawPropValue && typeof rawPropValue === 'object' && 'path' in rawPropValue) {
+                this.context.dataContext.set((rawPropValue as any).path, newValue);
+              }
             };
           }
         }
-        
+
         return result;
       }
     }
@@ -368,7 +381,7 @@ export class GenericBinder<T> {
     } else {
       return {
         ...(obj || {}),
-        [key]: this.cloneAndUpdate((obj || {})[key], rest, newValue)
+        [key]: this.cloneAndUpdate((obj || {})[key], rest, newValue),
       };
     }
   }
@@ -400,7 +413,7 @@ export class GenericBinder<T> {
         if (this.propsListeners.length === 0) {
           this.dispose();
         }
-      }
+      },
     };
   }
 

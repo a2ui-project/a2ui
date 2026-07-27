@@ -71,7 +71,7 @@ export class ComponentRegistry {
    */
   register<T extends Types.AnyComponentNode>(
     type: string,
-    registration: ComponentRegistration<T>
+    registration: ComponentRegistration<T>,
   ): void {
     this.registry.set(type, registration as unknown as ComponentRegistration);
   }

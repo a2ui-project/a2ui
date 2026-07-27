@@ -16,13 +16,7 @@
           "component": {
             "Column": {
               "children": {
-                "explicitList": [
-                  "header",
-                  "info",
-                  "bio",
-                  "stats-row",
-                  "follow-btn"
-                ]
+                "explicitList": ["header", "info", "bio", "stats-row", "follow-btn"]
               },
               "alignment": "center"
             }
@@ -45,10 +39,7 @@
           "component": {
             "Column": {
               "children": {
-                "explicitList": [
-                  "name",
-                  "username"
-                ]
+                "explicitList": ["name", "username"]
               },
               "alignment": "center"
             }
@@ -92,11 +83,7 @@
           "component": {
             "Row": {
               "children": {
-                "explicitList": [
-                  "followers-col",
-                  "following-col",
-                  "posts-col"
-                ]
+                "explicitList": ["followers-col", "following-col", "posts-col"]
               },
               "distribution": "spaceAround"
             }
@@ -107,10 +94,7 @@
           "component": {
             "Column": {
               "children": {
-                "explicitList": [
-                  "followers-count",
-                  "followers-label"
-                ]
+                "explicitList": ["followers-count", "followers-label"]
               },
               "alignment": "center"
             }
@@ -143,10 +127,7 @@
           "component": {
             "Column": {
               "children": {
-                "explicitList": [
-                  "following-count",
-                  "following-label"
-                ]
+                "explicitList": ["following-count", "following-label"]
               },
               "alignment": "center"
             }
@@ -179,10 +160,7 @@
           "component": {
             "Column": {
               "children": {
-                "explicitList": [
-                  "posts-count",
-                  "posts-label"
-                ]
+                "explicitList": ["posts-count", "posts-label"]
               },
               "alignment": "center"
             }

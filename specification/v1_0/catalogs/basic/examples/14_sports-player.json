@@ -1,0 +1,172 @@
+{
+  "name": "Sports Player",
+  "description": "Example of sports player",
+  "messages": [
+    {
+      "version": "v1.0",
+      "createSurface": {
+        "surfaceId": "gallery-sports-player",
+        "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
+        "sendDataModel": true
+      }
+    },
+    {
+      "version": "v1.0",
+      "updateComponents": {
+        "surfaceId": "gallery-sports-player",
+        "components": [
+          {
+            "id": "root",
+            "component": "Card",
+            "child": "main_column"
+          },
+          {
+            "id": "main_column",
+            "component": "Column",
+            "children": ["player_image", "player_info", "divider", "stats_row"],
+            "align": "center"
+          },
+          {
+            "id": "player_image",
+            "component": "Image",
+            "url": {
+              "path": "/playerImage"
+            },
+            "fit": "cover"
+          },
+          {
+            "id": "player_info",
+            "component": "Column",
+            "children": ["player_name", "player_details"],
+            "align": "center"
+          },
+          {
+            "id": "player_name",
+            "component": "Text",
+            "text": {
+              "path": "/playerName"
+            }
+          },
+          {
+            "id": "player_details",
+            "component": "Row",
+            "children": ["player_number", "player_team"],
+            "align": "center"
+          },
+          {
+            "id": "player_number",
+            "component": "Text",
+            "text": {
+              "path": "/number"
+            }
+          },
+          {
+            "id": "player_team",
+            "component": "Text",
+            "text": {
+              "path": "/team"
+            },
+            "variant": "caption"
+          },
+          {
+            "id": "divider",
+            "component": "Divider"
+          },
+          {
+            "id": "stats_row",
+            "component": "Row",
+            "children": ["stat1", "stat2", "stat3"],
+            "justify": "spaceAround"
+          },
+          {
+            "id": "stat1",
+            "component": "Column",
+            "children": ["stat1_value", "stat1_label"],
+            "align": "center"
+          },
+          {
+            "id": "stat1_value",
+            "component": "Text",
+            "text": {
+              "path": "/stat1/value"
+            }
+          },
+          {
+            "id": "stat1_label",
+            "component": "Text",
+            "text": {
+              "path": "/stat1/label"
+            },
+            "variant": "caption"
+          },
+          {
+            "id": "stat2",
+            "component": "Column",
+            "children": ["stat2_value", "stat2_label"],
+            "align": "center"
+          },
+          {
+            "id": "stat2_value",
+            "component": "Text",
+            "text": {
+              "path": "/stat2/value"
+            }
+          },
+          {
+            "id": "stat2_label",
+            "component": "Text",
+            "text": {
+              "path": "/stat2/label"
+            },
+            "variant": "caption"
+          },
+          {
+            "id": "stat3",
+            "component": "Column",
+            "children": ["stat3_value", "stat3_label"],
+            "align": "center"
+          },
+          {
+            "id": "stat3_value",
+            "component": "Text",
+            "text": {
+              "path": "/stat3/value"
+            }
+          },
+          {
+            "id": "stat3_label",
+            "component": "Text",
+            "text": {
+              "path": "/stat3/label"
+            },
+            "variant": "caption"
+          }
+        ]
+      }
+    },
+    {
+      "version": "v1.0",
+      "updateDataModel": {
+        "surfaceId": "gallery-sports-player",
+        "value": {
+          "playerImage": "https://images.unsplash.com/photo-1546519638-68e109498ffc?w=200&h=200&fit=crop",
+          "playerName": "Marcus Johnson",
+          "number": "#23",
+          "team": "LA Lakers",
+          "stat1": {
+            "value": "28.4",
+            "label": "PPG"
+          },
+          "stat2": {
+            "value": "7.2",
+            "label": "RPG"
+          },
+          "stat3": {
+            "value": "6.8",
+            "label": "APG"
+          }
+        }
+      }
+    }
+  ]
+}

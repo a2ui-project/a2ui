@@ -152,5 +152,5 @@ export const type = `
       const weight = (idx + 1) * 100;
       return `.typography-w-${weight} { font-weight: ${weight}; }`;
     })
-    .join("\n")}
+    .join('\n')}
 `;

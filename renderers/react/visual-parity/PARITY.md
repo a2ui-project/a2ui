@@ -25,9 +25,13 @@ Each React component renders a wrapper div (representing `:host`) plus a section
 
 ```tsx
 // React component structure
-<div className="a2ui-card">           {/* ← :host equivalent */}
-  <section className="theme-classes"> {/* ← internal element */}
-    {children}                        {/* ← ::slotted(*) equivalent */}
+<div className="a2ui-card">
+  {' '}
+  {/* ← :host equivalent */}
+  <section className="theme-classes">
+    {' '}
+    {/* ← internal element */}
+    {children} {/* ← ::slotted(*) equivalent */}
   </section>
 </div>
 ```
@@ -40,16 +44,17 @@ This mirroring allows CSS selectors to target the same conceptual elements in bo
 
 Lit's Shadow DOM selectors need transformation for React's global CSS:
 
-| Lit (Shadow DOM)      | React (Light DOM)                        |
-|-----------------------|------------------------------------------|
-| `:host`               | `.a2ui-surface .a2ui-{component}`        |
-| `section`             | `.a2ui-surface .a2ui-{component} section`|
-| `::slotted(*)`        | `.a2ui-surface .a2ui-{component} section > *` |
-| `element` (e.g., `h2`)| `:where(.a2ui-surface .a2ui-{component}) element` |
+| Lit (Shadow DOM)       | React (Light DOM)                                 |
+| ---------------------- | ------------------------------------------------- |
+| `:host`                | `.a2ui-surface .a2ui-{component}`                 |
+| `section`              | `.a2ui-surface .a2ui-{component} section`         |
+| `::slotted(*)`         | `.a2ui-surface .a2ui-{component} section > *`     |
+| `element` (e.g., `h2`) | `:where(.a2ui-surface .a2ui-{component}) element` |
 
 ### Example: Card Component
 
 Lit's card.ts static styles:
+
 ```css
 :host {
   display: block;
@@ -72,6 +77,7 @@ section ::slotted(*) {
 ```
 
 React's componentSpecificStyles equivalent:
+
 ```css
 .a2ui-surface .a2ui-card {
   display: block;
@@ -100,6 +106,7 @@ React's componentSpecificStyles equivalent:
 Shadow DOM provides natural style encapsulation with low specificity. A selector like `h2` inside Shadow DOM has specificity `(0,0,0,1)`.
 
 In React's global CSS, we need contextual selectors to scope styles:
+
 ```css
 .a2ui-surface .a2ui-text h2 { ... }
 ```
@@ -109,10 +116,12 @@ This has specificity `(0,0,2,1)` — much higher than Lit's `(0,0,0,1)`.
 ### Why It Matters
 
 Utility classes like `.typography-w-500` have specificity `(0,0,1,0)`. In Lit:
+
 - `h2 { font: inherit; }` = `(0,0,0,1)` — loses to utility class
 - `.typography-w-500` = `(0,0,1,0)` — **wins**, font-weight: 500 applied
 
 In React (without fix):
+
 - `.a2ui-surface .a2ui-text h2 { font: inherit; }` = `(0,0,2,1)` — **wins**
 - `.typography-w-500` = `(0,0,1,0)` — loses, font-weight reset to 400
 
@@ -152,21 +161,24 @@ Use `:where()` when the Lit component has element selectors that should be overr
 ### Vite Cache Issues (504 Outdated Optimize Dep)
 
 If you see errors like:
+
 ```
 Failed to load resource: the server responded with a status of 504 (Outdated Optimize Dep)
 Uncaught TypeError: Failed to fetch dynamically imported module
 ```
 
 This happens when Vite's dependency optimization cache becomes stale, typically after:
+
 - Switching git branches
 - Updating dependencies
 - Rebuilding the React renderer
 
 **Fix:** Clear the Vite cache and restart:
+
 ```bash
 # From renderers/react/visual-parity/
 rm -rf node_modules/.vite react/node_modules/.vite lit/node_modules/.vite ../node_modules/.vite
-npm run dev:react  # or dev:lit
+yarn dev:react  # or dev:lit
 ```
 
 ### React Renderer Changes Not Picked Up
@@ -174,26 +186,28 @@ npm run dev:react  # or dev:lit
 If you edit files in `renderers/react/src/` but the visual parity app doesn't reflect the changes, this is because the visual parity app imports from the **built** `@a2ui/react` package, not directly from source.
 
 **Why this happens:**
+
 1. Source changes are in `renderers/react/src/`
 2. Visual parity app imports from `@a2ui/react/styles` (workspace package)
 3. Vite pre-bundles workspace dependencies into `node_modules/.vite`
 4. The pre-bundled cache still has the old built version
 
 **Fix:** Rebuild the package and clear Vite's cache:
+
 ```bash
 # From renderers/react/visual-parity/
 
 # 1. Rebuild the React renderer
 cd ../
-npm run build
+yarn build
 
 # 2. Clear Vite cache and restart
 cd visual-parity
 rm -rf react/node_modules/.vite node_modules/.vite
-npm run dev:react
+yarn dev:react
 ```
 
-**Note:** Vite's HMR works for changes *within* the visual parity app, but changes to workspace dependencies require rebuilding + cache clearing.
+**Note:** Vite's HMR works for changes _within_ the visual parity app, but changes to workspace dependencies require rebuilding + cache clearing.
 
 ## Testing Parity
 
@@ -201,16 +215,17 @@ This directory contains the visual parity test suite:
 
 ```bash
 # Run all tests
-npm test
+yarn test
 
 # Run specific component tests
-npm test -- --grep "button"
+yarn test -g "button"
 
 # Run dev servers for manual inspection
-npm run dev
+yarn dev
 ```
 
 The tests:
+
 1. Load the same fixture in both Lit (localhost:5002) and React (localhost:5001)
 2. Take screenshots of both renderers
 3. Compare pixel differences using pixelmatch
@@ -224,43 +239,43 @@ Each Lit component with `static styles` needs a corresponding entry in `componen
 
 ### ✅ Implemented (0% pixel diff in visual parity tests)
 
-| Component | Lit File | Styles | Notes |
-|-----------|----------|--------|-------|
-| **Card** | `card.ts` | `:host`, `section`, `::slotted(*)` | Uses `> section` child combinator |
-| **Text** | `text.ts` | `:host`, `h1-h5` (uses `:where()`) | Paragraph margin reset added |
-| **Divider** | `divider.ts` | `:host`, `hr` | Added margin to match browser default |
-| **TextField** | `text-field.ts` | `:host`, `input`, `label`, `textarea` | Uses `:where()` for element selectors. Multiline support added |
-| **Button** | `button.ts` | `:host` | Simple display/flex |
-| **Icon** | `icon.ts` | `:host` | Simple display/flex |
-| **Column** | `column.ts` | `:host`, `section`, attribute selectors | Uses `data-alignment` and `data-distribution` |
-| **Row** | `row.ts` | `:host`, `section`, attribute selectors | Uses `data-alignment` and `data-distribution` |
-| **List** | `list.ts` | `:host`, `section`, `::slotted(*)` | All fixtures pass 0% including cards inside lists |
-| **Image** | `image.ts` | `:host`, `img` | Uses `:where()` for `img`. All usage hints pass 0% |
-| **Slider** | `slider.ts` | `:host`, `input[type="range"]` | Uses `:where()` for `input`. Basic slider passes 0% |
-| **Tabs** | `tabs.ts` | `:host`, `section`, `button` | All fixtures pass 0% |
-| **CheckBox** | `checkbox.ts` | `:host`, `input` | Uses `:where()` for `input`. Works via path binding |
-| **DateTimeInput** | `datetime-input.ts` | `:host`, `input` | Uses `:where()` for `input`. React uses HTML5 inputs directly |
-| **Modal** | `modal.ts` | `:host`, `dialog`, `#controls`, `button` | Renders dialog in place (no portal) to stay inside `.a2ui-surface`. Matches Lit: closed shows section with entry, open shows dialog |
-| **Video** | `video.ts` | `:host`, `video` | Uses `:where()` for `video`. Minor pixel variance (~0.5%) due to native video element rendering |
-| **AudioPlayer** | `audio.ts` | `:host`, `audio` | Uses `:where()` for `audio`. Note: Lit does NOT implement `description` property |
-| **MultipleChoice** | `multiple-choice.ts` | `:host`, `select` | Uses `:where()` for `select`. Both renderers use `<select>` dropdown |
+| Component          | Lit File             | Styles                                   | Notes                                                                                                                               |
+| ------------------ | -------------------- | ---------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
+| **Card**           | `card.ts`            | `:host`, `section`, `::slotted(*)`       | Uses `> section` child combinator                                                                                                   |
+| **Text**           | `text.ts`            | `:host`, `h1-h5` (uses `:where()`)       | Paragraph margin reset added                                                                                                        |
+| **Divider**        | `divider.ts`         | `:host`, `hr`                            | Added margin to match browser default                                                                                               |
+| **TextField**      | `text-field.ts`      | `:host`, `input`, `label`, `textarea`    | Uses `:where()` for element selectors. Multiline support added                                                                      |
+| **Button**         | `button.ts`          | `:host`                                  | Simple display/flex                                                                                                                 |
+| **Icon**           | `icon.ts`            | `:host`                                  | Simple display/flex                                                                                                                 |
+| **Column**         | `column.ts`          | `:host`, `section`, attribute selectors  | Uses `data-alignment` and `data-distribution`                                                                                       |
+| **Row**            | `row.ts`             | `:host`, `section`, attribute selectors  | Uses `data-alignment` and `data-distribution`                                                                                       |
+| **List**           | `list.ts`            | `:host`, `section`, `::slotted(*)`       | All fixtures pass 0% including cards inside lists                                                                                   |
+| **Image**          | `image.ts`           | `:host`, `img`                           | Uses `:where()` for `img`. All usage hints pass 0%                                                                                  |
+| **Slider**         | `slider.ts`          | `:host`, `input[type="range"]`           | Uses `:where()` for `input`. Basic slider passes 0%                                                                                 |
+| **Tabs**           | `tabs.ts`            | `:host`, `section`, `button`             | All fixtures pass 0%                                                                                                                |
+| **CheckBox**       | `checkbox.ts`        | `:host`, `input`                         | Uses `:where()` for `input`. Works via path binding                                                                                 |
+| **DateTimeInput**  | `datetime-input.ts`  | `:host`, `input`                         | Uses `:where()` for `input`. React uses HTML5 inputs directly                                                                       |
+| **Modal**          | `modal.ts`           | `:host`, `dialog`, `#controls`, `button` | Renders dialog in place (no portal) to stay inside `.a2ui-surface`. Matches Lit: closed shows section with entry, open shows dialog |
+| **Video**          | `video.ts`           | `:host`, `video`                         | Uses `:where()` for `video`. Minor pixel variance (~0.5%) due to native video element rendering                                     |
+| **AudioPlayer**    | `audio.ts`           | `:host`, `audio`                         | Uses `:where()` for `audio`. Note: Lit does NOT implement `description` property                                                    |
+| **MultipleChoice** | `multiple-choice.ts` | `:host`, `select`                        | Uses `:where()` for `select`. Both renderers use `<select>` dropdown                                                                |
 
 ### ⚠️ Lit Renderer Issues
 
-| Component | Lit File | Issue |
-|-----------|----------|-------|
-| **Slider** | `slider.ts` | Value does not update when slider moves |
-| **Divider** | `divider.ts` | Ignores `axis` property - always renders same orientation |
-| **CheckBox** | `checkbox.ts` | Uses `.value` instead of `.checked` (line 100), so checked state only displays correctly when using path binding. Using `literalBoolean` with `false` causes component to not render. Visual parity tests pass using path binding. |
-| **DateTimeInput** | `datetime-input.ts` | Uses `getMonth()` which is 0-indexed (0-11) without adding 1, causing issues in January and one month off otherwise. Also parses all values through `new Date()` constructor which does not accept time-only strings. React uses HTML5 inputs directly as they match A2UI format. |
+| Component          | Lit File             | Issue                                                                                                                                                                                                                                                                                                               |
+| ------------------ | -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Slider**         | `slider.ts`          | Value does not update when slider moves                                                                                                                                                                                                                                                                             |
+| **Divider**        | `divider.ts`         | Ignores `axis` property - always renders same orientation                                                                                                                                                                                                                                                           |
+| **CheckBox**       | `checkbox.ts`        | Uses `.value` instead of `.checked` (line 100), so checked state only displays correctly when using path binding. Using `literalBoolean` with `false` causes component to not render. Visual parity tests pass using path binding.                                                                                  |
+| **DateTimeInput**  | `datetime-input.ts`  | Uses `getMonth()` which is 0-indexed (0-11) without adding 1, causing issues in January and one month off otherwise. Also parses all values through `new Date()` constructor which does not accept time-only strings. React uses HTML5 inputs directly as they match A2UI format.                                   |
 | **MultipleChoice** | `multiple-choice.ts` | `<option>` tag has a bug: renders value as attribute name (`<option ${value}>`) instead of `value` attribute (`<option value=${value}>`). Also unconditionally accesses `selections.path` without checking if it exists, so `literalArray` selections don't work. Has a leftover `console.log` in `#setBoundValue`. |
 
 ### Special Cases
 
-| Component | Notes |
-|-----------|-------|
+| Component   | Notes                                                                   |
+| ----------- | ----------------------------------------------------------------------- |
 | **Surface** | Root component with different structure; doesn't use `structuralStyles` |
-| **Root** | Internal component, styles handled differently |
+| **Root**    | Internal component, styles handled differently                          |
 
 ## Implementation Hints
 
@@ -275,7 +290,7 @@ Lit uses `:host([attribute="value"])` for attribute-based styling. In React, use
 
 ```css
 /* componentSpecificStyles */
-.a2ui-surface .a2ui-column[data-alignment="center"] section {
+.a2ui-surface .a2ui-column[data-alignment='center'] section {
   align-items: center;
 }
 ```

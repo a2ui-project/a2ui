@@ -134,13 +134,13 @@ form {
     pointer-events: none;
 
     &::before {
-      content: "dark_mode";
+      content: 'dark_mode';
     }
   }
 }
 
 .g-icon {
-  font-family: "Material Symbols Outlined", "Google Symbols";
+  font-family: 'Material Symbols Outlined', 'Google Symbols';
   font-weight: normal;
   font-style: normal;
   font-display: optional;
@@ -155,27 +155,39 @@ form {
   white-space: nowrap;
   word-wrap: normal;
   direction: ltr;
-  -webkit-font-feature-settings: "liga";
+  -webkit-font-feature-settings: 'liga';
   -webkit-font-smoothing: antialiased;
   overflow: hidden;
 
-  font-variation-settings: "FILL" 0, "wght" 300, "GRAD" 0, "opsz" 48,
-    "ROND" 100;
+  font-variation-settings:
+    'FILL' 0,
+    'wght' 300,
+    'GRAD' 0,
+    'opsz' 48,
+    'ROND' 100;
 
   &.filled {
-    font-variation-settings: "FILL" 1, "wght" 300, "GRAD" 0, "opsz" 48,
-      "ROND" 100;
+    font-variation-settings:
+      'FILL' 1,
+      'wght' 300,
+      'GRAD' 0,
+      'opsz' 48,
+      'ROND' 100;
   }
 
   &.filled-heavy {
-    font-variation-settings: "FILL" 1, "wght" 700, "GRAD" 0, "opsz" 48,
-      "ROND" 100;
+    font-variation-settings:
+      'FILL' 1,
+      'wght' 700,
+      'GRAD' 0,
+      'opsz' 48,
+      'ROND' 100;
   }
 }
 
 @container style(--color-scheme: dark) {
   .theme-toggle .g-icon::before {
-    content: "light_mode";
+    content: 'light_mode';
     color: var(--n-90);
   }
 }
@@ -223,5 +235,53 @@ form {
 
   to {
     rotate: 360deg;
+  }
+}
+
+.streaming-indicator {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 16px;
+  background: light-dark(var(--n-95), var(--n-20));
+  border-radius: 8px;
+  margin-bottom: 16px;
+  animation: fadeIn 0.5s ease-out;
+
+  & span {
+    font-size: 14px;
+    color: light-dark(var(--n-40), var(--n-70));
+    font-weight: 500;
+  }
+}
+
+.progress-bar {
+  width: 100%;
+  height: 4px;
+  background-color: light-dark(var(--n-90), var(--n-30));
+  border-radius: 2px;
+  overflow: hidden;
+  position: relative;
+
+  &::after {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 0;
+    height: 100%;
+    width: 30%;
+    background-color: var(--p-60);
+    border-radius: 2px;
+    animation: loading-bar 2s infinite ease-in-out;
+  }
+}
+
+@keyframes loading-bar {
+  0% {
+    left: -30%;
+  }
+
+  100% {
+    left: 100%;
   }
 }

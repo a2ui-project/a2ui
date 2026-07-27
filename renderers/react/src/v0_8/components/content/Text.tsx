@@ -36,7 +36,7 @@ interface HintedStyles {
 function isHintedStyles(styles: unknown): styles is HintedStyles {
   if (typeof styles !== 'object' || !styles || Array.isArray(styles)) return false;
   const expected = ['h1', 'h2', 'h3', 'h4', 'h5', 'caption', 'body'];
-  return expected.some((v) => v in styles);
+  return expected.some(v => v in styles);
 }
 
 /**
@@ -154,7 +154,7 @@ export const Text = memo(function Text({node, surfaceId}: A2UIComponentProps<Typ
   // Get merged classes (matches Lit's Styles.merge)
   const classes = mergeClassMaps(
     theme.components.Text.all,
-    usageHint ? theme.components.Text[usageHint] : {}
+    usageHint ? theme.components.Text[usageHint] : {},
   );
 
   // Get additional styles based on usage hint

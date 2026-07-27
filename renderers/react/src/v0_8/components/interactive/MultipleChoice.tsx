@@ -49,7 +49,7 @@ export const MultipleChoice = memo(function MultipleChoice({
         setValue(selectionsPath, [e.target.value]);
       }
     },
-    [selectionsPath, setValue]
+    [selectionsPath, setValue],
   );
 
   // Apply --weight CSS variable on root div (:host equivalent) for flex layouts
@@ -76,7 +76,7 @@ export const MultipleChoice = memo(function MultipleChoice({
           style={stylesToObject(theme.additionalStyles?.MultipleChoice)}
           onChange={handleChange}
         >
-          {options.map((option) => {
+          {options.map(option => {
             const label = resolveString(option.label);
             return (
               <option key={option.value} value={option.value}>

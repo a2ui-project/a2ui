@@ -21,20 +21,10 @@
         "usageHint": {
           "type": "string",
           "description": "A hint for the base text style. One of:\n- `h1`: Largest heading.\n- `h2`: Second largest heading.\n- `h3`: Third largest heading.\n- `h4`: Fourth largest heading.\n- `h5`: Fifth largest heading.\n- `caption`: Small text for captions.\n- `body`: Standard body text.",
-          "enum": [
-            "h1",
-            "h2",
-            "h3",
-            "h4",
-            "h5",
-            "caption",
-            "body"
-          ]
+          "enum": ["h1", "h2", "h3", "h4", "h5", "caption", "body"]
         }
       },
-      "required": [
-        "text"
-      ]
+      "required": ["text"]
     },
     "Row": {
       "type": "object",
@@ -63,39 +53,22 @@
                   "type": "string"
                 }
               },
-              "required": [
-                "componentId",
-                "dataBinding"
-              ]
+              "required": ["componentId", "dataBinding"]
             }
           }
         },
         "distribution": {
           "type": "string",
           "description": "Defines the arrangement of children along the main axis (horizontally). This corresponds to the CSS 'justify-content' property.",
-          "enum": [
-            "center",
-            "end",
-            "spaceAround",
-            "spaceBetween",
-            "spaceEvenly",
-            "start"
-          ]
+          "enum": ["center", "end", "spaceAround", "spaceBetween", "spaceEvenly", "start"]
         },
         "alignment": {
           "type": "string",
           "description": "Defines the alignment of children along the cross axis (vertically). This corresponds to the CSS 'align-items' property.",
-          "enum": [
-            "start",
-            "center",
-            "end",
-            "stretch"
-          ]
+          "enum": ["start", "center", "end", "stretch"]
         }
       },
-      "required": [
-        "children"
-      ]
+      "required": ["children"]
     },
     "Column": {
       "type": "object",
@@ -124,39 +97,22 @@
                   "type": "string"
                 }
               },
-              "required": [
-                "componentId",
-                "dataBinding"
-              ]
+              "required": ["componentId", "dataBinding"]
             }
           }
         },
         "distribution": {
           "type": "string",
           "description": "Defines the arrangement of children along the main axis (vertically). This corresponds to the CSS 'justify-content' property.",
-          "enum": [
-            "start",
-            "center",
-            "end",
-            "spaceBetween",
-            "spaceAround",
-            "spaceEvenly"
-          ]
+          "enum": ["start", "center", "end", "spaceBetween", "spaceAround", "spaceEvenly"]
         },
         "alignment": {
           "type": "string",
           "description": "Defines the alignment of children along the cross axis (horizontally). This corresponds to the CSS 'align-items' property.",
-          "enum": [
-            "center",
-            "end",
-            "start",
-            "stretch"
-          ]
+          "enum": ["center", "end", "start", "stretch"]
         }
       },
-      "required": [
-        "children"
-      ]
+      "required": ["children"]
     },
     "Button": {
       "type": "object",
@@ -207,22 +163,14 @@
                     }
                   }
                 },
-                "required": [
-                  "key",
-                  "value"
-                ]
+                "required": ["key", "value"]
               }
             }
           },
-          "required": [
-            "name"
-          ]
+          "required": ["name"]
         }
       },
-      "required": [
-        "child",
-        "action"
-      ]
+      "required": ["child", "action"]
     },
     "TextField": {
       "type": "object",
@@ -257,22 +205,14 @@
         "textFieldType": {
           "type": "string",
           "description": "The type of input field to display.",
-          "enum": [
-            "date",
-            "longText",
-            "number",
-            "shortText",
-            "obscured"
-          ]
+          "enum": ["date", "longText", "number", "shortText", "obscured"]
         },
         "validationRegexp": {
           "type": "string",
           "description": "A regular expression used for client-side validation of the input."
         }
       },
-      "required": [
-        "label"
-      ]
+      "required": ["label"]
     }
   },
   "styles": {

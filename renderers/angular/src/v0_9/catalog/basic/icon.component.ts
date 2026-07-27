@@ -14,25 +14,39 @@
  * limitations under the License.
  */
 
-import { Component, input, computed, ChangeDetectionStrategy } from '@angular/core';
-import { BoundProperty } from '../../core/types';
+import {Component, computed, ChangeDetectionStrategy} from '@angular/core';
+import {BasicCatalogComponent} from './basic-catalog-component';
+import {IconApi} from '@a2ui/web_core/v0_9/basic_catalog';
+
+const ICON_NAME_OVERRIDES: Record<string, string> = {
+  play: 'play_arrow',
+  rewind: 'fast_rewind',
+  favoriteOff: 'favorite_border',
+  starOff: 'star_border',
+};
 
 /**
  * Angular implementation of the A2UI Icon component (v0.9).
  *
  * Supports both Material Icons (by name) and custom SVG icons (by path).
+ *
+ * Supported CSS variables:
+ * - `--a2ui-icon-size`: Controls the width, height, and font size of the icon.
+ * - `--a2ui-icon-font-family`: Controls the font family for icon fonts.
+ * - `--a2ui-icon-color`: Controls the color of the icon.
+ * - `--a2ui-icon-font-variation-settings`: Controls font variation settings (e.g. FILL).
  */
 @Component({
   selector: 'a2ui-v09-icon',
   standalone: true,
   imports: [],
   template: `
-    @if (isPath()) {
-      <svg class="a2ui-icon svg" viewBox="0 0 24 24" [style.fill]="color() || 'currentColor'">
-        <path [attr.d]="path()"></path>
+    @if (isSvgPath()) {
+      <svg class="a2ui-icon svg" viewBox="0 0 24 24">
+        <path [attr.d]="svgPath()"></path>
       </svg>
     } @else {
-      <i class="material-icons a2ui-icon" [style.color]="color()">
+      <i class="material-icons a2ui-icon">
         {{ iconName() }}
       </i>
     }
@@ -41,10 +55,15 @@ import { BoundProperty } from '../../core/types';
     `
       .a2ui-icon {
         display: inline-block;
-        width: 24px;
-        height: 24px;
-        font-size: 24px;
-        font-family: 'Material Icons';
+        width: var(--a2ui-icon-size, 24px);
+        height: var(--a2ui-icon-size, 24px);
+        font-size: var(--a2ui-icon-size, 24px);
+        font-family: var(--a2ui-icon-font-family, 'Material Icons');
+        color: var(
+          --a2ui-icon-color,
+          var(--a2ui-text-color-text, var(--a2ui-color-on-background, #333))
+        );
+        font-variation-settings: var(--a2ui-icon-font-variation-settings, 'FILL' 1);
         line-height: 1;
         text-transform: none;
         letter-spacing: normal;
@@ -64,37 +83,27 @@ import { BoundProperty } from '../../core/types';
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
-export class IconComponent {
-  /**
-   * Reactive properties resolved from the A2UI {@link ComponentModel}.
-   *
-   * Expected properties:
-   * - `name`: The name of the icon (e.g., 'home', 'settings') OR an object
-   *           with a `path` property for SVG icons.
-   * - `color`: The CSS color to apply to the icon.
-   */
-  props = input<Record<string, BoundProperty>>({});
-  surfaceId = input.required<string>();
-  componentId = input<string>();
-  dataContextPath = input<string>('/');
+export class IconComponent extends BasicCatalogComponent<typeof IconApi> {
+  readonly iconNameRaw = computed(() => this.props()['name']?.value());
 
-  color = computed(() => this.props()['color']?.value());
-  iconNameRaw = computed(() => this.props()['name']?.value());
-
-  isPath = computed(() => {
+  readonly isSvgPath = computed(() => {
     const name = this.iconNameRaw();
-    return typeof name === 'object' && name !== null && 'path' in name;
+    return typeof name === 'object' && name !== null && 'svgPath' in name;
   });
 
-  path = computed(() => {
+  readonly svgPath = computed(() => {
     const name = this.iconNameRaw();
-    return (name as any)?.path || '';
+    if (typeof name === 'object' && name !== null && 'svgPath' in name) {
+      return name.svgPath;
+    }
+    return '';
   });
 
-  iconName = computed(() => {
+  readonly iconName = computed(() => {
     const name = this.iconNameRaw();
     if (typeof name !== 'string') return '';
+    if (ICON_NAME_OVERRIDES[name]) return ICON_NAME_OVERRIDES[name];
     // Convert camelCase to snake_case for Material Icons
-    return name.replace(/[A-Z]/g, (letter) => `_${letter.toLowerCase()}`);
+    return name.replace(/[A-Z]/g, letter => `_${letter.toLowerCase()}`);
   });
 }

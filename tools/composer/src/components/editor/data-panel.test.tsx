@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */ // TODO: remediate legacy any types
 /**
  * Copyright 2026 Google LLC
  *
@@ -14,19 +15,15 @@
  * limitations under the License.
  */
 
-import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, fireEvent } from '@testing-library/react';
-import { DataPanel } from './data-panel';
+import {describe, it, expect, vi, beforeEach} from 'vitest';
+import {render, screen, fireEvent} from '@testing-library/react';
+import {DataPanel} from './data-panel';
 import React from 'react';
 
 // Mock Monaco Editor
 vi.mock('@monaco-editor/react', () => ({
-  default: ({ value, onChange }: any) => (
-    <textarea 
-      data-testid="monaco-mock" 
-      value={value} 
-      onChange={(e) => onChange(e.target.value)} 
-    />
+  default: ({value, onChange}: any) => (
+    <textarea data-testid="monaco-mock" value={value} onChange={e => onChange(e.target.value)} />
   ),
 }));
 
@@ -38,10 +35,10 @@ vi.mock('lucide-react', () => ({
 
 describe('DataPanel', () => {
   const mockStates = [
-    { name: 'State 1', data: { a: 1 } },
-    { name: 'State 2', data: { b: 2 } },
+    {name: 'State 1', data: {a: 1}},
+    {name: 'State 2', data: {b: 2}},
   ];
-  
+
   const mockProps = {
     dataStates: mockStates,
     activeIndex: 0,
@@ -79,8 +76,8 @@ describe('DataPanel', () => {
   it('should update state when JSON is edited', () => {
     render(<DataPanel {...mockProps} />);
     const editor = screen.getByTestId('monaco-mock');
-    fireEvent.change(editor, { target: { value: '{"new": "data"}' } });
-    expect(mockProps.onUpdateState).toHaveBeenCalledWith(0, { new: 'data' });
+    fireEvent.change(editor, {target: {value: '{"new": "data"}'}});
+    expect(mockProps.onUpdateState).toHaveBeenCalledWith(0, {new: 'data'});
   });
 
   it('should call onRenameState when a tab is double clicked', () => {
@@ -96,8 +93,13 @@ describe('DataPanel', () => {
     const xIcons = screen.getAllByTestId('x-icon');
     // State 1 doesn't have X, State 2 does. So there should be only 1 X icon.
     expect(xIcons.length).toBe(1);
-    const deleteButton = xIcons[0].closest('button')!;
-    fireEvent.click(deleteButton);
+    const firstXIcon = xIcons[0];
+    if (firstXIcon) {
+      const deleteButton = firstXIcon.closest('button');
+      if (deleteButton) {
+        fireEvent.click(deleteButton);
+      }
+    }
     expect(mockProps.onDeleteState).toHaveBeenCalledWith(1);
   });
 });

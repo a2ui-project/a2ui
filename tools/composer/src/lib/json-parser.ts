@@ -45,7 +45,7 @@
  */
 export function parseRobustJSON(input: string | unknown): unknown {
   // If already an object (shouldn't happen but be defensive)
-  if (typeof input !== "string") {
+  if (typeof input !== 'string') {
     return input;
   }
 
@@ -57,8 +57,8 @@ export function parseRobustJSON(input: string | unknown): unknown {
     const result = JSON.parse(trimmed);
     // If the result is a string that looks like JSON, try parsing it again
     if (
-      typeof result === "string" &&
-      (result.trim().startsWith("{") || result.trim().startsWith("["))
+      typeof result === 'string' &&
+      (result.trim().startsWith('{') || result.trim().startsWith('['))
     ) {
       try {
         return parseRobustJSON(result);
@@ -85,7 +85,7 @@ export function parseRobustJSON(input: string | unknown): unknown {
         try {
           const unescaped = trimmed
             .slice(1, -1)
-            .replace(/\\\\/g, "\\")
+            .replace(/\\\\/g, '\\')
             .replace(/\\"/g, '"')
             .replace(/\\'/g, "'");
           return JSON.parse(unescaped);
@@ -96,7 +96,7 @@ export function parseRobustJSON(input: string | unknown): unknown {
     }
 
     // Strategy 4: Try parsing if it looks like JSON but without outer quotes
-    if (trimmed.startsWith("{") || trimmed.startsWith("[")) {
+    if (trimmed.startsWith('{') || trimmed.startsWith('[')) {
       try {
         return JSON.parse(trimmed);
       } catch {

@@ -48,3 +48,10 @@ yarn-error.log*
 __pycache__
 
 .playwright-mcp
+
+# Auto-generated gallery data (from scripts/sync-gallery.mjs)
+src/data/gallery/v08/generated.ts
+src/data/gallery/v09/generated.ts
+
+# OpenNext
+.open-next

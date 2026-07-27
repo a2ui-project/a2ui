@@ -11,19 +11,19 @@ Version 0.9 represents a fundamental philosophical shift from "Structured Output
 
 ### Summary Table
 
-| Feature                  | v0.8.1                                   | v0.9                                                     |
-| :----------------------- | :--------------------------------------- | :------------------------------------------------------- |
-| **Philosophy**           | Structured Output / Function Calling     | Prompt-First / In-Context Schema                         |
-| **Message Types**        | `beginRendering`, `surfaceUpdate`, ...   | `createSurface`, `updateComponents`, ...                 |
-| **Surface Creation**     | Explicit `beginRendering`                | Explicit `createSurface`                                 |
-| **Component Type**       | Key-based wrapper (`{"Text": ...}`)      | Property-based discriminator (`"component": "Text"`)     |
-| **Data Model Update**    | Array of Key-Value Pairs                 | Standard JSON Object                                     |
-| **Data Binding**         | `dataBinding` / `literalString`          | `path` / Native JSON types                               |
-| **Button Context**       | Array of Key-Value pairs                 | Standard JSON Object                                     |
-| **Button Variant**       | Boolean (`primary: true`)                | Enum (`variant: "primary"`)                              |
-| **Catalog**              | Separate component and function catalogs | Unified Catalog (`basic_catalog.json`)                |
-| **Auxiliary Rules**      | N/A                                      | `basic_catalog_rules.txt`                             |
-| **Validation**           | Basic Schema                             | Strict `ValidationFailed` feedback loop                  |
+| Feature                  | v0.8.1                                   | v0.9                                                   |
+| :----------------------- | :--------------------------------------- | :----------------------------------------------------- |
+| **Philosophy**           | Structured Output / Function Calling     | Prompt-First / In-Context Schema                       |
+| **Message Types**        | `beginRendering`, `surfaceUpdate`, ...   | `createSurface`, `updateComponents`, ...               |
+| **Surface Creation**     | Explicit `beginRendering`                | Explicit `createSurface`                               |
+| **Component Type**       | Key-based wrapper (`{"Text": ...}`)      | Property-based discriminator (`"component": "Text"`)   |
+| **Data Model Update**    | Array of Key-Value Pairs                 | Standard JSON Object                                   |
+| **Data Binding**         | `dataBinding` / `literalString`          | `path` / Native JSON types                             |
+| **Button Context**       | Array of Key-Value pairs                 | Standard JSON Object                                   |
+| **Button Variant**       | Boolean (`primary: true`)                | Enum (`variant: "primary"`)                            |
+| **Catalog**              | Separate component and function catalogs | Unified Catalog (`catalogs/basic/catalog.json`)        |
+| **Auxiliary Rules**      | N/A                                      | `basic_catalog_rules.txt`                              |
+| **Validation**           | Basic Schema                             | Strict `ValidationFailed` feedback loop                |
 | **Data Synchronization** | Implicit                                 | Explicit Client->Server data syncing (`sendDataModel`) |
 
 ## 2. Architectural & Schema Changes
@@ -40,8 +40,8 @@ Version 0.9 represents a fundamental philosophical shift from "Structured Output
 - **Modularization**: The schema is strictly split into:
   - `common_types.json`: Reusable primitives (IDs, paths) and logic/expression types.
   - `server_to_client.json`: The "envelope" defining the message types.
-  - `basic_catalog.json`: The unified catalog of UI components and functions.
-- **Swappable Catalogs**: `server_to_client.json` now uses a relative reference to `catalog.json` as a placeholder. This allows developers to alias `catalog.json` to `basic_catalog.json` (or any custom catalog) during validation, enabling the use of custom component sets without modifying the core envelope schema.
+  - `catalogs/basic/catalog.json`: The unified catalog of UI components and functions.
+- **Swappable Catalogs**: `server_to_client.json` now uses a relative reference to `catalog.json` as a placeholder. This allows developers to alias `catalog.json` to `catalogs/basic/catalog.json` (or any custom catalog) during validation, enabling the use of custom component sets without modifying the core envelope schema.
 - **Unification**: Components and functions are now part of the same catalog object, simplifying capability negotiation and inline definitions.
 
 ### 2.2. Strict Message Typing
@@ -81,7 +81,7 @@ Version 0.9 represents a fundamental philosophical shift from "Structured Output
 - **Purpose**: `createSurface` signals the client to create a new surface and prepare for rendering.
 - **Theme Information**: `createSurface` includes a `theme` property to specify theme parameters (like `primaryColor`). This replaces the `styles` property in v0.8.
 - **Root Rule**: The rule is: "There must be exactly one component with the `ComponentId` 'root'." The "root" attribute that `beginRendering` had has been removed. The client is expected to render as soon as it has a valid tree with a root component.
-- **New Requirement**: `createSurface` now requires a **`catalogId`** (URI) to explicitly state which unified catalog (components and functions) is being used.
+- **New Requirement**: `createSurface` now requires a **`catalogId`** (string identifier) to explicitly state which unified catalog (components and functions) is being used.
 
 **Example:**
 
@@ -106,7 +106,7 @@ Version 0.9 represents a fundamental philosophical shift from "Structured Output
   "version": "v0.9",
   "createSurface": {
     "surfaceId": "user_profile_card",
-    "catalogId": "https://a2ui.org/specification/v0_9/basic_catalog.json",
+    "catalogId": "https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json",
     "theme": {
       "primaryColor": "#007bff"
     }
@@ -144,7 +144,7 @@ Specifying an unknown surfaceId will cause an error. It is recommended that clie
       {
         "id": "title",
         "component": {
-          "Text": { "text": { "literalString": "Hello" } }
+          "Text": {"text": {"literalString": "Hello"}}
         }
       }
     ]

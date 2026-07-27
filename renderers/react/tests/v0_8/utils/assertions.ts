@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import type { Mock } from 'vitest';
+import type {Mock} from 'vitest';
 
 /**
  * Safely get a mock call argument with proper typing.
@@ -36,7 +36,9 @@ export function getMockCallArg<T>(mock: Mock, callIndex: number, argIndex = 0): 
 export function getElement<T>(array: T[], index: number): T {
   const element = array[index];
   if (element === undefined) {
-    throw new Error(`Array element at index ${index} does not exist. Array length: ${array.length}`);
+    throw new Error(
+      `Array element at index ${index} does not exist. Array length: ${array.length}`,
+    );
   }
   return element;
 }

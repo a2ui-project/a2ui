@@ -14,17 +14,17 @@
  * limitations under the License.
  */
 
-import { html, css, nothing } from "lit";
-import { customElement, property } from "lit/decorators.js";
-import { Root } from "./root.js";
-import { classMap } from "lit/directives/class-map.js";
-import { styleMap } from "lit/directives/style-map.js";
-import { structuralStyles } from "./styles.js";
+import {html, css, nothing} from 'lit';
+import {customElement, property} from 'lit/decorators.js';
+import {Root} from './root.js';
+import {classMap} from 'lit/directives/class-map.js';
+import {styleMap} from 'lit/directives/style-map.js';
+import {structuralStyles} from './styles.js';
 
-@customElement("a2ui-list")
+@customElement('a2ui-list')
 export class List extends Root {
-  @property({ reflect: true, type: String })
-  accessor direction: "vertical" | "horizontal" = "vertical";
+  @property({reflect: true, type: String})
+  accessor direction: 'vertical' | 'horizontal' = 'vertical';
 
   static styles = [
     structuralStyles,
@@ -40,11 +40,11 @@ export class List extends Root {
         overflow: auto;
       }
 
-      :host([direction="vertical"]) section {
+      :host([direction='vertical']) section {
         display: grid;
       }
 
-      :host([direction="horizontal"]) section {
+      :host([direction='horizontal']) section {
         display: flex;
         max-width: 100%;
         overflow-x: scroll;

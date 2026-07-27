@@ -1,0 +1,310 @@
+[
+  {
+    "createSurface": {
+      "surfaceId": "chat-1",
+      "catalogId": "core-v0.9"
+    }
+  },
+  {
+    "updateComponents": {
+      "surfaceId": "chat-1",
+      "components": [
+        {
+          "id": "root",
+          "type": "Column",
+          "props": {
+            "children": ["msg-1"]
+          }
+        },
+        {
+          "id": "msg-1",
+          "type": "Text",
+          "props": {
+            "text": "How can I help you today?",
+            "variant": "body1"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "clientEvent": {
+      "name": "chatMessage",
+      "text": "I need to book a flight to New York and find a good restaurant."
+    }
+  },
+  {
+    "updateComponents": {
+      "surfaceId": "chat-1",
+      "components": [
+        {
+          "id": "root",
+          "type": "Column",
+          "props": {
+            "children": ["msg-1", "msg-2"]
+          }
+        },
+        {
+          "id": "msg-2",
+          "type": "Text",
+          "props": {
+            "text": "Sure! I can help with that. Searching for flights to JFK...",
+            "variant": "body1"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "createSurface": {
+      "surfaceId": "flight-selector",
+      "catalogId": "core-v0.9"
+    }
+  },
+  {
+    "updateComponents": {
+      "surfaceId": "flight-selector",
+      "components": [
+        {
+          "id": "root",
+          "type": "Card",
+          "props": {
+            "title": "Available Flights to JFK",
+            "children": ["flight-list"]
+          }
+        },
+        {
+          "id": "flight-list",
+          "type": "Column",
+          "props": {
+            "spacing": "small",
+            "children": ["flight-1", "flight-2"]
+          }
+        },
+        {
+          "id": "flight-1",
+          "type": "Row",
+          "props": {
+            "align": "spaceBetween",
+            "children": ["f1-info", "f1-select"]
+          }
+        },
+        {
+          "id": "f1-info",
+          "type": "Text",
+          "props": {"text": "UA 123 - 10:45 AM - $450"}
+        },
+        {
+          "id": "f1-select",
+          "type": "Button",
+          "props": {
+            "label": "Select",
+            "onClick": {"actionId": "select_flight", "parameters": {"id": "UA123"}}
+          }
+        },
+        {
+          "id": "flight-2",
+          "type": "Row",
+          "props": {
+            "align": "spaceBetween",
+            "children": ["f2-info", "f2-select"]
+          }
+        },
+        {
+          "id": "f2-info",
+          "type": "Text",
+          "props": {"text": "DL 456 - 01:20 PM - $520"}
+        },
+        {
+          "id": "f2-select",
+          "type": "Button",
+          "props": {
+            "label": "Select",
+            "onClick": {"actionId": "select_flight", "parameters": {"id": "DL456"}}
+          }
+        }
+      ]
+    }
+  },
+  {
+    "action": {
+      "name": "select_flight",
+      "surfaceId": "flight-selector",
+      "sourceComponentId": "f1-select",
+      "timestamp": "2026-03-15T15:00:00Z",
+      "context": {"id": "UA123"}
+    }
+  },
+  {
+    "updateComponents": {
+      "surfaceId": "flight-selector",
+      "components": [
+        {
+          "id": "root",
+          "type": "Card",
+          "props": {
+            "title": "Flight Selected: UA 123",
+            "children": ["selected-info"]
+          }
+        },
+        {
+          "id": "selected-info",
+          "type": "Text",
+          "props": {"text": "Confirmed for 10:45 AM departure. Now searching for restaurants..."}
+        }
+      ]
+    }
+  },
+  {
+    "createSurface": {
+      "surfaceId": "restaurant-list",
+      "catalogId": "core-v0.9"
+    }
+  },
+  {
+    "updateComponents": {
+      "surfaceId": "restaurant-list",
+      "components": [
+        {
+          "id": "root",
+          "type": "Card",
+          "props": {
+            "title": "Top Restaurants near JFK",
+            "children": ["r-list"]
+          }
+        },
+        {
+          "id": "r-list",
+          "type": "Column",
+          "props": {
+            "children": ["r1", "r2"]
+          }
+        },
+        {
+          "id": "r1",
+          "type": "Row",
+          "props": {
+            "align": "spaceBetween",
+            "children": ["r1-text", "r1-book"]
+          }
+        },
+        {
+          "id": "r1-text",
+          "type": "Text",
+          "props": {"text": "Carbone - Italian - ★★★★★"}
+        },
+        {
+          "id": "r1-book",
+          "type": "Button",
+          "props": {
+            "label": "Book",
+            "onClick": {"actionId": "book_restaurant", "parameters": {"name": "Carbone"}}
+          }
+        },
+        {
+          "id": "r2",
+          "type": "Row",
+          "props": {
+            "align": "spaceBetween",
+            "children": ["r2-text", "r2-book"]
+          }
+        },
+        {
+          "id": "r2-text",
+          "type": "Text",
+          "props": {"text": "TWA Constellation - American - ★★★★☆"}
+        },
+        {
+          "id": "r2-book",
+          "type": "Button",
+          "props": {
+            "label": "Book",
+            "onClick": {
+              "actionId": "book_restaurant",
+              "parameters": {"name": "TWA Constellation"}
+            }
+          }
+        }
+      ]
+    }
+  },
+  {
+    "action": {
+      "name": "book_restaurant",
+      "surfaceId": "restaurant-list",
+      "sourceComponentId": "r1-book",
+      "timestamp": "2026-03-15T15:05:00Z",
+      "context": {"name": "Carbone"}
+    }
+  },
+  {
+    "createSurface": {
+      "surfaceId": "booking-form",
+      "catalogId": "core-v0.9"
+    }
+  },
+  {
+    "updateComponents": {
+      "surfaceId": "booking-form",
+      "components": [
+        {
+          "id": "root",
+          "type": "Column",
+          "props": {
+            "children": ["b-title", "b-party", "b-submit"]
+          }
+        },
+        {
+          "id": "b-title",
+          "type": "Text",
+          "props": {"text": "Book at Carbone", "variant": "h3"}
+        },
+        {
+          "id": "b-party",
+          "type": "TextField",
+          "props": {"label": "Party Size", "value": "2"}
+        },
+        {
+          "id": "b-submit",
+          "type": "Button",
+          "props": {
+            "label": "Confirm Booking",
+            "onClick": {"actionId": "submit_booking"}
+          }
+        }
+      ]
+    }
+  },
+  {
+    "clientEvent": {
+      "name": "updateDataModel",
+      "surfaceId": "booking-form",
+      "path": "/b-party",
+      "valueString": "4"
+    }
+  },
+  {
+    "action": {
+      "name": "submit_booking",
+      "surfaceId": "booking-form",
+      "sourceComponentId": "b-submit",
+      "timestamp": "2026-03-15T15:10:00Z",
+      "context": {"partySize": "4"}
+    }
+  },
+  {
+    "updateComponents": {
+      "surfaceId": "booking-form",
+      "components": [
+        {
+          "id": "root",
+          "type": "Text",
+          "props": {
+            "text": "✅ All set! UA 123 booked and Carbone reserved for 4.",
+            "color": "success"
+          }
+        }
+      ]
+    }
+  }
+]

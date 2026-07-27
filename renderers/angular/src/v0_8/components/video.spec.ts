@@ -14,13 +14,12 @@
  * limitations under the License.
  */
 
-import { ComponentFixture, TestBed } from '@angular/core/testing';
-import { Video } from './video';
-import { Types } from '../types';
-import { Theme } from '../rendering/theming';
-import { ChangeDetectionStrategy } from '@angular/core';
-import { MessageProcessor } from '../data/processor';
-import { Catalog } from '../rendering/catalog';
+import {ComponentFixture, TestBed} from '@angular/core/testing';
+import {Video} from './video';
+import type {VideoNode} from '../types';
+import {Theme} from '../rendering/theming';
+import {MessageProcessor} from '../data/processor';
+import {Catalog} from '../rendering/catalog';
 
 describe('Video Component', () => {
   let component: Video;
@@ -28,12 +27,12 @@ describe('Video Component', () => {
   let mockTheme: Theme;
   let mockProcessor: jasmine.SpyObj<MessageProcessor>;
 
-  const mockVideoNode: Types.VideoNode = {
+  const mockVideoNode: VideoNode = {
     id: 'video-1',
     type: 'Video',
     weight: 1,
     properties: {
-      url: { literalString: 'https://example.com/video.mp4' },
+      url: {literalString: 'https://example.com/video.mp4'},
     },
   };
 
@@ -44,21 +43,17 @@ describe('Video Component', () => {
       'getData',
     ]);
     mockTheme = new Theme();
-    mockTheme.components = { Video: { 'vid-class': true } } as any;
-    mockTheme.additionalStyles = { Video: { borderColor: 'blue' } } as any;
+    mockTheme.components = {Video: {'vid-class': true}} as any;
+    mockTheme.additionalStyles = {Video: {borderColor: 'blue'}} as any;
 
     await TestBed.configureTestingModule({
       imports: [Video],
       providers: [
-        { provide: MessageProcessor, useValue: mockProcessor },
-        { provide: Theme, useValue: mockTheme },
-        { provide: Catalog, useValue: {} },
+        {provide: MessageProcessor, useValue: mockProcessor},
+        {provide: Theme, useValue: mockTheme},
+        {provide: Catalog, useValue: {}},
       ],
-    })
-      .overrideComponent(Video, {
-        set: { changeDetection: ChangeDetectionStrategy.Default },
-      })
-      .compileComponents();
+    }).compileComponents();
 
     fixture = TestBed.createComponent(Video);
     component = fixture.componentInstance;

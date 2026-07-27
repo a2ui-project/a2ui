@@ -14,166 +14,174 @@
  * limitations under the License.
  */
 
-import assert from "node:assert";
-import { describe, it } from "node:test";
-import { z } from "zod";
-import { GenericBinder } from "./generic-binder.js";
-import { ComponentContext } from "./component-context.js";
-import { SurfaceModel } from "../state/surface-model.js";
-import { Catalog } from "../catalog/types.js";
-import { ComponentModel } from "../state/component-model.js";
-import { CommonSchemas } from "../schema/common-types.js";
+import assert from 'node:assert';
+import {describe, it} from 'node:test';
+import {z} from 'zod';
+import {GenericBinder} from './generic-binder.js';
+import {ComponentContext} from './component-context.js';
+import {SurfaceModel} from '../state/surface-model.js';
+import {Catalog} from '../catalog/types.js';
+import {ComponentModel} from '../state/component-model.js';
+import {CommonSchemas} from '../schema/common-types.js';
 
-describe("GenericBinder Checkable Trait", () => {
-  const mockCatalog = new Catalog("test", [], []);
-  
+describe('GenericBinder Checkable Trait', () => {
+  const mockCatalog = new Catalog('test', [], []);
+
   function setupSurfaceAndMocks() {
-    const surface = new SurfaceModel("s1", mockCatalog);
-    
+    const surface = new SurfaceModel('s1', mockCatalog);
+
     // Mock required and min_length functions
     (surface.catalog as any).functions = new Map([
-      ["required", {
-        execute: (args: any) => !!args.value,
-        schema: z.object({ value: z.any() })
-      }],
-      ["min_length", {
-        execute: (args: any) => typeof args.value === 'string' && args.value.length >= args.min,
-        schema: z.object({ value: z.any(), min: z.number() })
-      }]
+      [
+        'required',
+        {
+          execute: (args: any) => !!args.value,
+          schema: z.object({value: z.any()}),
+        },
+      ],
+      [
+        'min_length',
+        {
+          execute: (args: any) => typeof args.value === 'string' && args.value.length >= args.min,
+          schema: z.object({value: z.any(), min: z.number()}),
+        },
+      ],
     ]);
     (surface.catalog as any).invoker = (name: string, args: any) => {
-        const fn = (surface.catalog as any).functions.get(name);
-        return fn.execute(args);
+      const fn = (surface.catalog as any).functions.get(name);
+      return fn.execute(args);
     };
 
     const schema = z.object({
       value: CommonSchemas.DynamicString,
-      checks: CommonSchemas.Checkable.shape.checks
+      checks: CommonSchemas.Checkable.shape.checks,
     });
 
-    return { surface, schema };
+    return {surface, schema};
   }
 
-  it("should resolve checkable validation state reactively", async () => {
-    const { surface, schema } = setupSurfaceAndMocks();
-    surface.dataModel.set("/val", "");
+  it('should resolve checkable validation state reactively', async () => {
+    const {surface, schema} = setupSurfaceAndMocks();
+    surface.dataModel.set('/val', '');
 
-    const compModel = new ComponentModel("c1", "Test", {
-      value: { path: "/val" },
+    const compModel = new ComponentModel('c1', 'Test', {
+      value: {path: '/val'},
       checks: [
         {
           condition: {
-            call: "required",
-            args: { value: { path: "/val" } }
+            call: 'required',
+            args: {value: {path: '/val'}},
           },
-          message: "Value is required"
-        }
-      ]
+          message: 'Value is required',
+        },
+      ],
     });
     surface.componentsModel.addComponent(compModel);
 
-    const context = new ComponentContext(surface, "c1");
+    const context = new ComponentContext(surface, 'c1');
     const binder = new GenericBinder<any>(context, schema);
     binder.subscribe(() => {});
 
     // Initial state: should be invalid
     assert.strictEqual(binder.snapshot.isValid, false);
-    assert.deepStrictEqual(binder.snapshot.validationErrors, ["Value is required"]);
+    assert.deepStrictEqual(binder.snapshot.validationErrors, ['Value is required']);
 
     // Update data: should become valid
-    surface.dataModel.set("/val", "hello");
+    surface.dataModel.set('/val', 'hello');
     await new Promise(resolve => setTimeout(resolve, 0));
 
     assert.strictEqual(binder.snapshot.isValid, true);
     assert.deepStrictEqual(binder.snapshot.validationErrors, []);
   });
 
-  it("should aggregate multiple validation rules correctly", async () => {
-    const { surface, schema } = setupSurfaceAndMocks();
-    surface.dataModel.set("/val", "");
+  it('should aggregate multiple validation rules correctly', async () => {
+    const {surface, schema} = setupSurfaceAndMocks();
+    surface.dataModel.set('/val', '');
 
-    const compModel = new ComponentModel("c2", "Test", {
-      value: { path: "/val" },
+    const compModel = new ComponentModel('c2', 'Test', {
+      value: {path: '/val'},
       checks: [
         {
           condition: {
-            call: "required",
-            args: { value: { path: "/val" } }
+            call: 'required',
+            args: {value: {path: '/val'}},
           },
-          message: "Cannot be empty"
+          message: 'Cannot be empty',
         },
         {
           condition: {
-            call: "min_length",
-            args: { value: { path: "/val" }, min: 3 }
+            call: 'min_length',
+            args: {value: {path: '/val'}, min: 3},
           },
-          message: "Must be at least 3 characters"
-        }
-      ]
+          message: 'Must be at least 3 characters',
+        },
+      ],
     });
     surface.componentsModel.addComponent(compModel);
 
-    const context = new ComponentContext(surface, "c2");
+    const context = new ComponentContext(surface, 'c2');
     const binder = new GenericBinder<any>(context, schema);
     binder.subscribe(() => {});
 
     // Both rules fail initially
     assert.strictEqual(binder.snapshot.isValid, false);
-    assert.deepStrictEqual(binder.snapshot.validationErrors, ["Cannot be empty", "Must be at least 3 characters"]);
+    assert.deepStrictEqual(binder.snapshot.validationErrors, [
+      'Cannot be empty',
+      'Must be at least 3 characters',
+    ]);
 
     // Update data to satisfy first rule but fail second
-    surface.dataModel.set("/val", "hi");
+    surface.dataModel.set('/val', 'hi');
     await new Promise(resolve => setTimeout(resolve, 0));
 
     assert.strictEqual(binder.snapshot.isValid, false);
-    assert.deepStrictEqual(binder.snapshot.validationErrors, ["Must be at least 3 characters"]);
+    assert.deepStrictEqual(binder.snapshot.validationErrors, ['Must be at least 3 characters']);
 
     // Update data to satisfy all rules
-    surface.dataModel.set("/val", "hello");
+    surface.dataModel.set('/val', 'hello');
     await new Promise(resolve => setTimeout(resolve, 0));
 
     assert.strictEqual(binder.snapshot.isValid, true);
     assert.deepStrictEqual(binder.snapshot.validationErrors, []);
   });
 
-  it("should provide a default message if rule.message is missing", async () => {
-    const { surface, schema } = setupSurfaceAndMocks();
-    surface.dataModel.set("/val", "");
+  it('should provide a default message if rule.message is missing', async () => {
+    const {surface, schema} = setupSurfaceAndMocks();
+    surface.dataModel.set('/val', '');
 
-    const compModel = new ComponentModel("c3", "Test", {
-      value: { path: "/val" },
+    const compModel = new ComponentModel('c3', 'Test', {
+      value: {path: '/val'},
       checks: [
         {
           condition: {
-            call: "required",
-            args: { value: { path: "/val" } }
-          }
-        }
-      ] as any
+            call: 'required',
+            args: {value: {path: '/val'}},
+          },
+        },
+      ] as any,
     });
     surface.componentsModel.addComponent(compModel);
 
-    const context = new ComponentContext(surface, "c3");
+    const context = new ComponentContext(surface, 'c3');
     const binder = new GenericBinder<any>(context, schema);
 
     assert.strictEqual(binder.snapshot.isValid, false);
-    assert.deepStrictEqual(binder.snapshot.validationErrors, ["Validation failed"]);
+    assert.deepStrictEqual(binder.snapshot.validationErrors, ['Validation failed']);
   });
 
-  it("should default to valid if checks array is empty or undefined", async () => {
-    const { surface, schema } = setupSurfaceAndMocks();
-    
-    const compModel = new ComponentModel("c4", "Test", {
-      value: "static",
-      checks: [] // Empty checks
+  it('should default to valid if checks array is empty or undefined', async () => {
+    const {surface, schema} = setupSurfaceAndMocks();
+
+    const compModel = new ComponentModel('c4', 'Test', {
+      value: 'static',
+      checks: [], // Empty checks
     });
     surface.componentsModel.addComponent(compModel);
 
-    const context = new ComponentContext(surface, "c4");
+    const context = new ComponentContext(surface, 'c4');
     const binder = new GenericBinder<any>(context, schema);
 
     assert.strictEqual(binder.snapshot.isValid, true);
     assert.deepStrictEqual(binder.snapshot.validationErrors, []);
   });
 });
-

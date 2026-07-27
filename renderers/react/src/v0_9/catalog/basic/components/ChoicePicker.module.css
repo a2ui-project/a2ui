@@ -1,0 +1,100 @@
+/* Copyright 2026 Google LLC
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+.host {
+  display: flex;
+  flex-direction: column;
+  gap: var(--a2ui-spacing-s, 0.5rem);
+  width: 100%;
+}
+
+.label {
+  font-size: var(
+    --a2ui-choicepicker-label-font-size,
+    var(--a2ui-label-font-size, var(--a2ui-font-size-s))
+  );
+  font-weight: var(--a2ui-choicepicker-label-font-weight, var(--a2ui-label-font-weight, bold));
+  color: var(--a2ui-choicepicker-label-color, inherit);
+}
+
+.filterInput {
+  background-color: var(--a2ui-color-input, #fff);
+  color: var(--a2ui-color-on-input, #333);
+  border: var(
+    --a2ui-textfield-border,
+    var(--a2ui-border-width, 1px) solid var(--a2ui-color-border, #ccc)
+  );
+  border-radius: var(--a2ui-textfield-border-radius, var(--a2ui-spacing-m, 8px));
+  padding: var(
+    --a2ui-choicepicker-filter-padding,
+    var(--a2ui-spacing-xs, 4px) var(--a2ui-spacing-s, 8px)
+  );
+  font-family: inherit;
+  transition: border-color 0.2s;
+}
+
+.filterInput:hover {
+  border-color: var(--a2ui-textfield-color-border-hover, var(--a2ui-color-border-hover, #999));
+}
+
+.filterInput:focus {
+  outline: none;
+  border-color: var(--a2ui-textfield-color-border-focus, var(--a2ui-color-primary, #17e));
+}
+
+.options {
+  display: flex;
+  flex-direction: column;
+  gap: var(--a2ui-choicepicker-gap, var(--a2ui-spacing-xs, 0.25rem));
+}
+
+.chips {
+  flex-direction: row;
+  flex-wrap: wrap;
+}
+
+.chip {
+  padding: var(
+    --a2ui-choicepicker-chip-padding,
+    var(--a2ui-spacing-s, 4px) var(--a2ui-spacing-m, 8px)
+  );
+  border-radius: var(--a2ui-choicepicker-chip-border-radius, 999px);
+  border: 1px solid var(--a2ui-color-border, #ccc);
+  background-color: var(--a2ui-color-surface, #fff);
+  color: var(--a2ui-color-on-surface, inherit);
+  cursor: pointer;
+  font-size: var(--a2ui-font-size-xs, 0.75rem);
+  font-family: inherit;
+  transition:
+    background-color 0.2s,
+    border-color 0.2s;
+}
+
+.chip.selected {
+  background-color: var(--a2ui-color-primary, #007bff);
+  color: var(--a2ui-color-on-primary, #fff);
+  border-color: var(--a2ui-color-primary, #007bff);
+}
+
+.optionLabel {
+  display: flex;
+  align-items: center;
+  gap: var(--a2ui-choicepicker-gap, var(--a2ui-spacing-xs, 0.25rem));
+  cursor: pointer;
+}
+
+.optionText {
+  font-size: var(--a2ui-font-size-m, 1rem);
+}

@@ -14,15 +14,15 @@
  * limitations under the License.
  */
 
-import assert from "node:assert";
-import { describe, it } from "node:test";
-import { EventEmitter } from "./events.js";
+import assert from 'node:assert';
+import {describe, it} from 'node:test';
+import {EventEmitter} from './events.js';
 
-describe("Events", () => {
-  it("handles subscriptions and unsubscriptions correctly", async () => {
+describe('Events', () => {
+  it('handles subscriptions and unsubscriptions correctly', async () => {
     const emitter = new EventEmitter<string>();
     let callCount = 0;
-    let lastValue = "";
+    let lastValue = '';
 
     const listener = (val: string) => {
       callCount++;
@@ -31,32 +31,32 @@ describe("Events", () => {
 
     const sub = emitter.subscribe(listener);
 
-    await emitter.emit("hello");
+    await emitter.emit('hello');
     assert.strictEqual(callCount, 1);
-    assert.strictEqual(lastValue, "hello");
+    assert.strictEqual(lastValue, 'hello');
 
     sub.unsubscribe();
 
-    await emitter.emit("world");
+    await emitter.emit('world');
     assert.strictEqual(callCount, 1); // Should not increase
-    assert.strictEqual(lastValue, "hello"); // Should not change
+    assert.strictEqual(lastValue, 'hello'); // Should not change
   });
-  it("handles errors thrown by listeners", async () => {
+  it('handles errors thrown by listeners', async () => {
     const emitter = new EventEmitter<string>();
     const originalConsoleError = console.error;
     let errorLogged = false;
 
     console.error = (msg: string, e: any) => {
-      if (msg === "EventEmitter error:" && e.message === "Test Error") {
+      if (msg === 'EventEmitter error:' && e.message === 'Test Error') {
         errorLogged = true;
       }
     };
 
     try {
       emitter.subscribe(() => {
-        throw new Error("Test Error");
+        throw new Error('Test Error');
       });
-      await emitter.emit("trigger");
+      await emitter.emit('trigger');
       assert.strictEqual(errorLogged, true);
     } finally {
       console.error = originalConsoleError;

@@ -14,13 +14,13 @@
  * limitations under the License.
  */
 
-import { v0_8 } from "@a2ui/lit";
+import {v0_8} from '@a2ui/lit';
 
 const catalog: v0_8.Types.ClientCapabilitiesDynamic = {
   components:
-    v0_8.Schemas.A2UIClientEventMessage["properties"]["surfaceUpdate"][
-    "properties"
-    ]["components"]["items"]["properties"]["component"]["properties"],
+    v0_8.Schemas.A2UIClientEventMessage['properties']['surfaceUpdate']['properties']['components'][
+      'items'
+    ]['properties']['component']['properties'],
   styles: {},
 };
 
@@ -39,7 +39,7 @@ export class A2UIClient {
               dynamicCatalog: catalog,
             },
           });
-          console.log("A2UI Client Handshake");
+          console.log('A2UI Client Handshake');
           resolve();
         })();
       } catch (err) {
@@ -53,11 +53,8 @@ export class A2UIClient {
   }
 
   async sendMultipart(imageData?: string, instructions?: string) {
-    if (
-      typeof instructions === "undefined" &&
-      typeof imageData === "undefined"
-    ) {
-      throw new Error("No data provided");
+    if (typeof instructions === 'undefined' && typeof imageData === 'undefined') {
+      throw new Error('No data provided');
     }
 
     return this.#send({
@@ -68,15 +65,15 @@ export class A2UIClient {
     });
   }
 
-  async #send<T extends { role: "model"; parts: Array<{ text: string }> }>(
-    message: v0_8.Types.A2UIClientEventMessage
+  async #send<T extends {role: 'model'; parts: Array<{text: string}>}>(
+    message: v0_8.Types.A2UIClientEventMessage,
   ) {
-    const response = await fetch("/a2ui", {
+    const response = await fetch('/a2ui', {
       body: JSON.stringify(message),
-      method: "POST",
+      method: 'POST',
     });
     if (response.ok) return response.json() as unknown as T;
-    const error = (await response.json()) as { error: string };
+    const error = (await response.json()) as {error: string};
     throw new Error(error.error);
   }
 }

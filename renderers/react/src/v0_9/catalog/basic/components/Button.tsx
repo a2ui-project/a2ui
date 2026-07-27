@@ -14,33 +14,23 @@
  * limitations under the License.
  */
 
-import React from 'react';
-import {createReactComponent} from '../../../adapter';
+import {createComponentImplementation} from '../../../adapter';
 import {ButtonApi} from '@a2ui/web_core/v0_9/basic_catalog';
-import {LEAF_MARGIN} from '../utils';
+import {useBasicCatalogStyles} from '../utils';
+import styles from './Button.module.css';
 
-export const Button = createReactComponent(ButtonApi, ({props, buildChild}) => {
-  const style: React.CSSProperties = {
-    margin: LEAF_MARGIN,
-    padding: '8px 16px',
-    cursor: 'pointer',
-    border: props.variant === 'borderless' ? 'none' : '1px solid #ccc',
-    backgroundColor:
-      props.variant === 'primary'
-        ? 'var(--a2ui-primary-color, #007bff)'
-        : props.variant === 'borderless'
-          ? 'transparent'
-          : '#fff',
-    color: props.variant === 'primary' ? '#fff' : 'inherit',
-    borderRadius: '4px',
-    display: 'inline-flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    boxSizing: 'border-box',
-  };
+export const Button = createComponentImplementation(ButtonApi, ({props, buildChild}) => {
+  useBasicCatalogStyles();
+
+  const classes = [styles.button];
+  if (props.variant === 'primary') {
+    classes.push(styles.primary);
+  } else if (props.variant === 'borderless') {
+    classes.push(styles.borderless);
+  }
 
   return (
-    <button style={style} onClick={props.action} disabled={props.isValid === false}>
+    <button className={classes.join(' ')} onClick={props.action} disabled={props.isValid === false}>
       {props.child ? buildChild(props.child) : null}
     </button>
   );

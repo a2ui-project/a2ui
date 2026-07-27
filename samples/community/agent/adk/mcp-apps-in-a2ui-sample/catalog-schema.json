@@ -1,0 +1,23 @@
+{
+  "components": {
+    "McpApp": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "resourceUri": {
+          "type": "string"
+        },
+        "htmlContent": {
+          "type": "string"
+        },
+        "allowedTools": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "required": ["resourceUri", "htmlContent"]
+    }
+  }
+}

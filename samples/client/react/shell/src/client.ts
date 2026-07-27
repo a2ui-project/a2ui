@@ -14,106 +14,104 @@
  * limitations under the License.
  */
 
-import { Part, SendMessageSuccessResponse, Task } from '@a2a-js/sdk';
-import { A2AClient } from '@a2a-js/sdk/client';
-import type { Types } from '@a2ui/react';
+import type {A2uiMessage, A2uiClientMessage} from '@a2ui/web_core/v0_9';
 
-const A2UI_MIME_TYPE = 'application/json+a2ui';
+interface Part {
+  kind: 'data' | 'text' | 'error';
+  data?: Record<string, unknown>;
+  text?: string;
+  mimeType?: string;
+}
 
 export class A2UIClient {
-  #serverUrl: string;
-  #client: A2AClient | null = null;
-
-  constructor(serverUrl: string = '') {
-    this.#serverUrl = serverUrl;
-  }
-
-  #ready: Promise<void> = Promise.resolve();
   get ready() {
-    return this.#ready;
-  }
-
-  async #getClient() {
-    if (!this.#client) {
-      // Default to localhost:10002 if no URL provided (fallback for restaurant app default)
-      const baseUrl = this.#serverUrl || 'http://localhost:10002';
-
-      this.#client = await A2AClient.fromCardUrl(
-        `${baseUrl}/.well-known/agent-card.json`,
-        {
-          fetchImpl: async (url, init) => {
-            const headers = new Headers(init?.headers);
-            headers.set(
-              'X-A2A-Extensions',
-              'https://a2ui.org/a2a-extension/a2ui/v0.8'
-            );
-            return fetch(url, { ...init, headers });
-          },
-        }
-      );
-    }
-    return this.#client;
+    return Promise.resolve();
   }
 
   async send(
-    message: Types.A2UIClientEventMessage | string
-  ): Promise<Types.ServerToClientMessage[]> {
-    const client = await this.#getClient();
+    message: A2uiClientMessage | string,
+    onChunk?: (messages: A2uiMessage[]) => void,
+  ): Promise<A2uiMessage[]> {
+    const body = typeof message === 'string' ? message : JSON.stringify(message);
 
-    let parts: Part[] = [];
-
-    if (typeof message === 'string') {
-      // Try to parse as JSON first, just in case
-      try {
-        const parsed = JSON.parse(message);
-        if (typeof parsed === 'object' && parsed !== null) {
-          parts = [
-            {
-              kind: 'data',
-              data: parsed as unknown as Record<string, unknown>,
-              mimeType: A2UI_MIME_TYPE,
-            } as Part,
-          ];
-        } else {
-          parts = [{ kind: 'text', text: message }];
-        }
-      } catch {
-        parts = [{ kind: 'text', text: message }];
-      }
-    } else {
-      parts = [
-        {
-          kind: 'data',
-          data: message as unknown as Record<string, unknown>,
-          mimeType: A2UI_MIME_TYPE,
-        } as Part,
-      ];
-    }
-
-    const response = await client.sendMessage({
-      message: {
-        messageId: crypto.randomUUID(),
-        role: 'user',
-        parts: parts,
-        kind: 'message',
-      },
+    const response = await fetch('/a2a', {
+      method: 'POST',
+      body: body,
     });
 
-    if ('error' in response) {
-      throw new Error(response.error.message);
+    // Surface non-JSON error pages (e.g. from a proxy) clearly instead of
+    // letting the JSON/SSE parsers below fail with a confusing SyntaxError.
+    if (!response.ok && !response.headers.get('Content-Type')?.includes('application/json')) {
+      throw new Error(`Server error: ${response.status} ${response.statusText}`);
     }
 
-    const result = (response as SendMessageSuccessResponse).result as Task;
-    if (result.kind === 'task' && result.status.message?.parts) {
-      const messages: Types.ServerToClientMessage[] = [];
-      for (const part of result.status.message.parts) {
-        if (part.kind === 'data') {
-          messages.push(part.data as Types.ServerToClientMessage);
+    const contentType = response.headers.get('Content-Type');
+    const allMessages: A2uiMessage[] = [];
+    // A2A status-update events carry cumulative parts, so createSurface is
+    // redelivered on every chunk. Track surfaces we've already forwarded so
+    // processMessages doesn't throw "Surface already exists" mid-stream.
+    const seenSurfaceIds = new Set<string>();
+    if (contentType?.includes('text/event-stream')) {
+      const reader = response.body?.getReader();
+      const decoder = new TextDecoder();
+      let buffer = '';
+
+      if (reader) {
+        while (true) {
+          const {done, value} = await reader.read();
+          if (done) break;
+          buffer += decoder.decode(value, {stream: true});
+
+          const lines = buffer.split(/\r?\n\r?\n/);
+          // Keep the last incomplete line in the buffer
+          buffer = lines.pop() || '';
+
+          for (const line of lines) {
+            if (line.startsWith('data: ')) {
+              const dataStr = line.slice(6);
+              try {
+                const parts = JSON.parse(dataStr) as Part[];
+                const chunkMessages: A2uiMessage[] = [];
+                for (const part of parts) {
+                  if (part.kind === 'error') {
+                    throw new Error(part.text);
+                  }
+                  if (part.kind === 'data' && part.data) {
+                    const uiMessage = part.data as unknown as A2uiMessage;
+                    const createSurface = (uiMessage as {createSurface?: {surfaceId: string}})
+                      .createSurface;
+                    if (createSurface) {
+                      if (seenSurfaceIds.has(createSurface.surfaceId)) continue;
+                      seenSurfaceIds.add(createSurface.surfaceId);
+                    }
+                    chunkMessages.push(uiMessage);
+                  }
+                }
+                if (chunkMessages.length > 0) {
+                  allMessages.push(...chunkMessages);
+                  onChunk?.(chunkMessages);
+                }
+              } catch (e) {
+                console.error('Error processing SSE chunk:', e);
+              }
+            }
+          }
         }
       }
-      return messages;
+    } else {
+      // Non-streaming fallback
+      const data = await response.json();
+      if (data.error) {
+        throw new Error(data.error);
+      }
+      const parts = data as Part[];
+      for (const part of parts) {
+        if (part.kind === 'data' && part.data) {
+          allMessages.push(part.data as unknown as A2uiMessage);
+        }
+      }
     }
 
-    return [];
+    return allMessages;
   }
 }

@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import { defineConfig } from 'tsup';
+import {defineConfig} from 'tsup';
 
 export default defineConfig([
   // Main entry with DTS
@@ -37,9 +37,9 @@ export default defineConfig([
   },
   // Styles entry without DTS (avoids symlink resolution issues)
   {
-    entry: { 
+    entry: {
       'styles/index': 'src/styles/index.ts',
-      'v0_8/styles/index': 'src/v0_8/styles/index.ts'
+      'v0_8/styles/index': 'src/v0_8/styles/index.ts',
     },
     format: ['esm', 'cjs'],
     dts: false,

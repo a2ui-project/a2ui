@@ -14,29 +14,29 @@
  * limitations under the License.
  */
 
-import { LitElement, html, css, nothing, unsafeCSS } from "lit";
-import { customElement, property } from "lit/decorators.js";
-import { classMap } from "lit/directives/class-map.js";
-import { createRef, ref, Ref } from "lit/directives/ref.js";
-import { repeat } from "lit/directives/repeat.js";
-import { EnumValue } from "../types/types";
-import { v0_8 } from "@a2ui/lit";
+import {LitElement, html, css, nothing, unsafeCSS} from 'lit';
+import {customElement, property} from 'lit/decorators.js';
+import {classMap} from 'lit/directives/class-map.js';
+import {createRef, ref, Ref} from 'lit/directives/ref.js';
+import {repeat} from 'lit/directives/repeat.js';
+import {EnumValue} from '../types/types';
+import {v0_8} from '@a2ui/lit';
 
-@customElement("item-select")
+@customElement('item-select')
 export class ItemSelect extends LitElement {
-  @property({ reflect: true, type: Boolean })
+  @property({reflect: true, type: Boolean})
   accessor transparent = false;
 
   @property()
   accessor heading: string | null = null;
 
-  @property({ reflect: true, type: String })
-  accessor alignment: "top" | "bottom" = "bottom";
+  @property({reflect: true, type: String})
+  accessor alignment: 'top' | 'bottom' = 'bottom';
 
   @property()
   accessor freezeValue = -1;
 
-  @property({ reflect: true, type: Boolean })
+  @property({reflect: true, type: Boolean})
   accessor showDownArrow = true;
 
   @property()
@@ -46,7 +46,7 @@ export class ItemSelect extends LitElement {
   set values(values: EnumValue[]) {
     this.#values = values;
     if (this.#value) {
-      this.#selected = this.#values.findIndex((v) => v.id === this.#value);
+      this.#selected = this.#values.findIndex(v => v.id === this.#value);
       if (this.#selected === -1) {
         this.#selected = 0;
       }
@@ -63,22 +63,19 @@ export class ItemSelect extends LitElement {
   @property()
   set value(value: string) {
     this.#value = value;
-    this.#selected = this.#values.findIndex((v) => v.id === value);
+    this.#selected = this.#values.findIndex(v => v.id === value);
     if (this.#selected === -1) {
       // If none selected, find first non-hidden value.
-      this.#selected = this.#values.findIndex((v) => !v.hidden);
+      this.#selected = this.#values.findIndex(v => !v.hidden);
       if (this.#selected === -1) {
-        console.warn(
-          `Couldn't find any non-hidden values in item selector`,
-          this.#values
-        );
+        console.warn("Couldn't find any non-hidden values in item selector", this.#values);
         this.#selected = 0;
       }
     }
     this.#highlighted = this.#selected;
   }
   get value() {
-    return this.#values[this.#selected]?.id ?? "";
+    return this.#values[this.#selected]?.id ?? '';
   }
 
   static styles = [
@@ -94,8 +91,8 @@ export class ItemSelect extends LitElement {
         --selected-item-height: var(--bb-grid-size-7);
         --selected-item-hover-color: transparent;
         --selected-item-border-radius: var(--bb-grid-size);
-        --selected-item-font: normal var(--bb-label-medium) /
-          var(--bb-label-line-height-medium) var(--bb-font-family);
+        --selected-item-font: normal var(--bb-label-medium) / var(--bb-label-line-height-medium)
+          var(--bb-font-family);
         --selected-item-title-padding: 0;
         --selected-item-padding-left: var(--bb-grid-size-3);
         --selected-item-padding-right: var(--bb-grid-size-3);
@@ -225,7 +222,8 @@ export class ItemSelect extends LitElement {
         overflow: auto;
         color: var(--n-10);
         border-radius: var(--bb-grid-size-3);
-        box-shadow: 0px 4px 8px 3px rgba(0, 0, 0, 0.05),
+        box-shadow:
+          0px 4px 8px 3px rgba(0, 0, 0, 0.05),
           0px 1px 3px 0 rgba(0, 0, 0, 0.1);
 
         & .heading {
@@ -259,12 +257,12 @@ export class ItemSelect extends LitElement {
         }
       }
 
-      :host([alignment="top"]) #item-selector {
+      :host([alignment='top']) #item-selector {
         top: auto;
         bottom: var(--bottom);
       }
 
-      :host([alignment="bottom"]) #item-selector {
+      :host([alignment='bottom']) #item-selector {
         top: var(--top);
         bottom: auto;
       }
@@ -273,7 +271,7 @@ export class ItemSelect extends LitElement {
 
   #selected = 0;
   #highlighted = 0;
-  #value = "";
+  #value = '';
   #values: EnumValue[] = [];
   #toggleRef: Ref<HTMLButtonElement> = createRef();
   #selectorRef: Ref<HTMLDialogElement> = createRef();
@@ -284,9 +282,7 @@ export class ItemSelect extends LitElement {
       this.#selectorRef.value.close();
     }
 
-    this.dispatchEvent(
-      new Event("change", { bubbles: true, composed: true, cancelable: true })
-    );
+    this.dispatchEvent(new Event('change', {bubbles: true, composed: true, cancelable: true}));
     this.requestUpdate();
   }
 
@@ -307,40 +303,40 @@ export class ItemSelect extends LitElement {
   render() {
     const idx = this.freezeValue !== -1 ? this.freezeValue : this.#selected;
     const renderedValue = this.#values[idx] ?? {
-      title: "No items available",
-      value: "none",
-      icon: "",
+      title: 'No items available',
+      value: 'none',
+      icon: '',
     };
     const classes: Record<string, boolean> = {
       selected: true,
       icon: renderedValue.icon !== undefined,
       round: true,
-      "w-500": true,
-      "sans-flex": true,
+      'w-500': true,
+      'sans-flex': true,
     };
 
     return html`${this.autoActivate
-      ? nothing
-      : html`<button
+        ? nothing
+        : html`<button
             class=${classMap(classes)}
             @click=${() => {
-          if (!this.#selectorRef.value) {
-            return;
-          }
+              if (!this.#selectorRef.value) {
+                return;
+              }
 
-          this.#selectorRef.value.showModal();
-        }}
+              this.#selectorRef.value.showModal();
+            }}
             ${ref(this.#toggleRef)}
           >
             ${renderedValue.icon
-          ? html`<span class="g-icon filled">${renderedValue.icon}</span>`
-          : nothing}
+              ? html`<span class="g-icon filled">${renderedValue.icon}</span>`
+              : nothing}
             ${renderedValue.title
-          ? html`<span class="title">${renderedValue.title}</span>`
-          : nothing}
+              ? html`<span class="title">${renderedValue.title}</span>`
+              : nothing}
             ${this.showDownArrow
-          ? html`<span class="g-icon filled">arrow_drop_down</span>`
-          : nothing}
+              ? html`<span class="g-icon filled">arrow_drop_down</span>`
+              : nothing}
           </button>`}
 
       <dialog
@@ -349,130 +345,120 @@ export class ItemSelect extends LitElement {
         popover
         ${ref(this.#selectorRef)}
         @keydown=${(evt: KeyboardEvent) => {
-        const forwards =
-          evt.key === "ArrowDown" || (evt.key === "Tab" && !evt.shiftKey);
-        const backwards =
-          evt.key === "ArrowUp" || (evt.key === "Tab" && evt.shiftKey);
-        if (backwards && this.#highlighted > 0) {
-          this.#highlighted--;
-          this.requestUpdate();
-        }
+          const forwards = evt.key === 'ArrowDown' || (evt.key === 'Tab' && !evt.shiftKey);
+          const backwards = evt.key === 'ArrowUp' || (evt.key === 'Tab' && evt.shiftKey);
+          if (backwards && this.#highlighted > 0) {
+            this.#highlighted--;
+            this.requestUpdate();
+          }
 
-        if (forwards && this.#highlighted < this.values.length - 1) {
-          this.#highlighted++;
-          this.requestUpdate();
-        }
+          if (forwards && this.#highlighted < this.values.length - 1) {
+            this.#highlighted++;
+            this.requestUpdate();
+          }
 
-        if (evt.key === "Enter") {
-          evt.preventDefault();
-          this.#handleChange();
-        }
-      }}
+          if (evt.key === 'Enter') {
+            evt.preventDefault();
+            this.#handleChange();
+          }
+        }}
         @click=${(evt: PointerEvent) => {
-        const [top] = evt.composedPath();
-        if (top !== this.#selectorRef.value || !this.#selectorRef.value) {
-          return;
-        }
+          const [top] = evt.composedPath();
+          if (top !== this.#selectorRef.value || !this.#selectorRef.value) {
+            return;
+          }
 
-        this.#selectorRef.value.close();
-        this.dispatchEvent(
-          new Event("close", {
-            cancelable: true,
-            bubbles: true,
-            composed: true,
-          })
-        );
-      }}
+          this.#selectorRef.value.close();
+          this.dispatchEvent(
+            new Event('close', {
+              cancelable: true,
+              bubbles: true,
+              composed: true,
+            }),
+          );
+        }}
         @beforetoggle=${(evt: ToggleEvent) => {
-        this.#highlighted = this.#selected;
-        this.requestUpdate();
+          this.#highlighted = this.#selected;
+          this.requestUpdate();
 
-        if (evt.newState === "closed") {
-          return;
-        }
+          if (evt.newState === 'closed') {
+            return;
+          }
 
-        // Position this directly because the relevant CSS properties aren't
-        // available everywhere yet.
-        if (!this.#toggleRef.value) {
-          return;
-        }
+          // Position this directly because the relevant CSS properties aren't
+          // available everywhere yet.
+          if (!this.#toggleRef.value) {
+            return;
+          }
 
-        const bounds = this.#toggleRef.value.getBoundingClientRect();
-        let { left, top, bottom } = bounds;
-        if (left + 296 > window.innerWidth) {
-          left = window.innerWidth - 296;
-        }
+          const bounds = this.#toggleRef.value.getBoundingClientRect();
+          let {left, top, bottom} = bounds;
+          if (left + 296 > window.innerWidth) {
+            left = window.innerWidth - 296;
+          }
 
-        if (top + 420 > window.innerHeight) {
-          top = window.innerHeight - 420;
-        }
+          if (top + 420 > window.innerHeight) {
+            top = window.innerHeight - 420;
+          }
 
-        const adjustment = bounds.height + 8;
-        if (this.alignment === "bottom") {
-          // Adjust to below the button.
-          top += adjustment;
-          this.style.setProperty("--top", `${top}px`);
-        } else {
-          // Adjust so that it's the distance from the viewport bottom.
-          bottom = window.innerHeight - bottom + adjustment;
-          this.style.setProperty("--bottom", `${bottom}px`);
-        }
-        this.style.setProperty("--left", `${left}px`);
-      }}
+          const adjustment = bounds.height + 8;
+          if (this.alignment === 'bottom') {
+            // Adjust to below the button.
+            top += adjustment;
+            this.style.setProperty('--top', `${top}px`);
+          } else {
+            // Adjust so that it's the distance from the viewport bottom.
+            bottom = window.innerHeight - bottom + adjustment;
+            this.style.setProperty('--bottom', `${bottom}px`);
+          }
+          this.style.setProperty('--left', `${left}px`);
+        }}
       >
-        ${this.heading
-        ? html`<h1 class="heading">${this.heading}</h1>`
-        : nothing}
+        ${this.heading ? html`<h1 class="heading">${this.heading}</h1>` : nothing}
         <menu>
           ${repeat(
-          this.#values,
-          (v) => v.id,
-          (value, idx) => {
-            if (value.hidden) {
-              return nothing;
-            }
+            this.#values,
+            v => v.id,
+            (value, idx) => {
+              if (value.hidden) {
+                return nothing;
+              }
 
-            const classes: Record<string, boolean> = {
-              double: value.description !== undefined,
-              icon: value.icon !== undefined,
-              tag: value.tag !== undefined,
-              active: idx === this.#highlighted,
-              round: true,
-              "w-500": true,
-              "sans-flex": true,
-            };
+              const classes: Record<string, boolean> = {
+                double: value.description !== undefined,
+                icon: value.icon !== undefined,
+                tag: value.tag !== undefined,
+                active: idx === this.#highlighted,
+                round: true,
+                'w-500': true,
+                'sans-flex': true,
+              };
 
-            return html`<li>
+              return html`<li>
                 <button
                   ?autofocus=${idx === this.#highlighted}
                   @pointerover=${() => {
-                this.#highlighted = idx;
-                this.requestUpdate();
-              }}
+                    this.#highlighted = idx;
+                    this.requestUpdate();
+                  }}
                   @pointerdown=${() => {
-                this.#handleChange();
-              }}
+                    this.#handleChange();
+                  }}
                   class=${classMap(classes)}
                 >
-                  ${value.icon
-                ? html`<span class="g-icon filled">${value.icon}</span>`
-                : nothing}
+                  ${value.icon ? html`<span class="g-icon filled">${value.icon}</span>` : nothing}
                   <span>
                     <span class="title">${value.title}</span>
 
                     ${value.description
-                ? html`<span class="description"
-                          >${value.description}</span
-                        >`
-                : nothing}
+                      ? html`<span class="description">${value.description}</span>`
+                      : nothing}
                   </span>
-                  ${value.tag
-                ? html`<span class="i-tag">${value.tag}</span>`
-                : nothing}
+                  ${value.tag ? html`<span class="i-tag">${value.tag}</span>` : nothing}
                 </button>
               </li>`;
-          }
-        )}
+            },
+          )}
         </menu>
       </dialog>`;
   }

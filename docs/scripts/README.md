@@ -4,13 +4,15 @@ This directory contains utility scripts to prepare our documentation for the **M
 
 ## Purpose
 
-To ensure a great reading experience both on GitHub and the hosted site, we use **GitHub-flavored Markdown** as our primary source of truth. This script transforms GitHub's native syntax into **MkDocs-compatible syntax** (specifically for the `pymdown-extensions`) during the build pipeline.
+To ensure a great reading experience both on GitHub and the hosted site, the project uses **GitHub-flavored Markdown** as the primary source of truth. This script transforms GitHub's native syntax into **MkDocs-compatible syntax** (specifically for the `pymdown-extensions`) during the build pipeline.
 
 ## Supported Conversions (Uni-directional)
 
 The script performs a uni-directional transformation: **GitHub Markdown → MkDocs Syntax**.
 
 ### Alert/Admonition Conversion
+
+The script handles the following conversions:
 
 - GitHub uses a blockquote-based syntax for alerts.
 - MkDocs requires the `!!!` or `???` syntax to render colored callout boxes.
@@ -26,14 +28,16 @@ python docs/scripts/convert_docs.py
 ### Example
 
 - **Source (GitHub-flavored Markdown):**
-  ```markdown
-  > ⚠️ **Attention**
-  >
-  > This is an alert.
-  ```
+
+    ```markdown
+    > ⚠️ **Attention**
+    >
+    > This is an alert.
+    ```
 
 - **Target (MkDocs Syntax):**
-  ```markdown
-  !!! warning "Attention"
-      This is an alert.
-  ```
+
+    ```markdown
+    !!! warning "Attention"
+    This is an alert.
+    ```

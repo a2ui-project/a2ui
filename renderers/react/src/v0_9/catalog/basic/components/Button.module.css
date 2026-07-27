@@ -1,0 +1,62 @@
+/* Copyright 2026 Google LLC
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+.button {
+  --_a2ui-text-margin: 0;
+  --_a2ui-text-color: var(--a2ui-color-on-secondary, #333);
+  padding: var(--a2ui-button-padding, var(--a2ui-spacing-m, 0.5rem) var(--a2ui-spacing-l, 1rem));
+  margin: var(--a2ui-button-margin, var(--a2ui-spacing-m));
+  background: var(--a2ui-button-background, var(--a2ui-color-surface, #fff));
+  box-shadow: var(--a2ui-button-box-shadow, none);
+  font-weight: var(--a2ui-button-font-weight, normal);
+  color: var(--a2ui-color-on-secondary, #333);
+  border: var(
+    --a2ui-button-border,
+    var(--a2ui-border-width, 1px) solid var(--a2ui-color-border, #ccc)
+  );
+  border-radius: var(--a2ui-button-border-radius, var(--a2ui-border-radius, 8px));
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: background-color 0.2s;
+}
+
+.button:hover {
+  background-color: var(--a2ui-color-secondary-hover, #ddd);
+}
+
+.primary {
+  --_a2ui-text-color: var(--a2ui-color-on-primary, #fff);
+  background-color: var(--a2ui-color-primary, #17e);
+  border: none;
+  color: var(--_a2ui-text-color);
+}
+
+.primary:hover {
+  background-color: var(--a2ui-color-primary-hover, #fbd);
+}
+
+.borderless {
+  background: none;
+  padding: 0;
+  color: var(--a2ui-color-primary, #17e);
+  border: none;
+}
+
+.button:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}

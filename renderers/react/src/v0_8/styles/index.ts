@@ -24,7 +24,7 @@ import {resetStyles} from './reset';
  */
 export const structuralStyles: string = Styles.structuralStyles.replace(
   /:host\s*\{/g,
-  '.a2ui-surface {'
+  '.a2ui-surface {',
 );
 
 /**
@@ -292,6 +292,11 @@ export const componentSpecificStyles: string = `
   padding: 8px;
   border: 1px solid #ccc;
   width: 100%;
+  color: #333;
+}
+:where(.a2ui-surface .a2ui-datetime-input) input::-webkit-datetime-edit,
+:where(.a2ui-surface .a2ui-datetime-input) input::-webkit-datetime-edit-fields-wrapper {
+  color: #333;
 }
 
 .a2ui-surface *,

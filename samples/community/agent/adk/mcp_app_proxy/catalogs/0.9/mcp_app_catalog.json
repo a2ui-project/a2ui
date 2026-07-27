@@ -1,0 +1,163 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://a2ui.org/samples/community/agent/adk/mcp_app_proxy/catalogs/0.9/mcp_app_catalog.json",
+  "catalogId": "https://a2ui.org/samples/community/agent/adk/mcp_app_proxy/catalogs/0.9/mcp_app_catalog.json",
+  "components": {
+    "Column": {
+      "type": "object",
+      "allOf": [
+        {
+          "$ref": "common_types.json#/$defs/ComponentCommon"
+        },
+        {
+          "type": "object",
+          "properties": {
+            "component": {
+              "const": "Column"
+            },
+            "alignment": {
+              "type": "string"
+            },
+            "distribution": {
+              "type": "string"
+            },
+            "children": {
+              "type": "array",
+              "items": {
+                "$ref": "common_types.json#/$defs/ComponentId"
+              }
+            }
+          },
+          "required": ["component"]
+        }
+      ],
+      "unevaluatedProperties": false
+    },
+    "McpApp": {
+      "type": "object",
+      "allOf": [
+        {
+          "$ref": "common_types.json#/$defs/ComponentCommon"
+        },
+        {
+          "type": "object",
+          "properties": {
+            "component": {
+              "const": "McpApp"
+            },
+            "htmlContent": {
+              "$ref": "common_types.json#/$defs/DynamicString",
+              "description": "The HTML content of the app."
+            },
+            "title": {
+              "$ref": "common_types.json#/$defs/DynamicString",
+              "description": "The title of the app."
+            },
+            "allowedTools": {
+              "type": "array",
+              "description": "List of tool names the app is allowed to call.",
+              "items": {
+                "type": "string"
+              }
+            },
+            "allowedFunctions": {
+              "type": "array",
+              "description": "List of local function names the app is allowed to call.",
+              "items": {
+                "type": "string"
+              }
+            },
+            "data": {
+              "type": "object",
+              "properties": {
+                "paths": {
+                  "type": "object",
+                  "description": "A dictionary mapping custom state keys to distinct JSON Pointer paths in the data model.",
+                  "additionalProperties": {
+                    "type": "string"
+                  }
+                }
+              },
+              "required": ["paths"],
+              "additionalProperties": false
+            }
+          },
+          "required": ["component", "htmlContent"]
+        }
+      ],
+      "unevaluatedProperties": false
+    },
+    "PongScoreBoard": {
+      "type": "object",
+      "allOf": [
+        {
+          "$ref": "common_types.json#/$defs/ComponentCommon"
+        },
+        {
+          "type": "object",
+          "properties": {
+            "component": {
+              "const": "PongScoreBoard"
+            },
+            "playerScore": {
+              "$ref": "common_types.json#/$defs/DynamicNumber",
+              "description": "Player score value or path."
+            },
+            "cpuScore": {
+              "$ref": "common_types.json#/$defs/DynamicNumber",
+              "description": "CPU score value or path."
+            },
+            "commentary": {
+              "$ref": "common_types.json#/$defs/DynamicString",
+              "description": "AI Live commentary value or path."
+            }
+          },
+          "required": ["component"]
+        }
+      ],
+      "unevaluatedProperties": false
+    },
+    "PongLayout": {
+      "type": "object",
+      "allOf": [
+        {
+          "$ref": "common_types.json#/$defs/ComponentCommon"
+        },
+        {
+          "type": "object",
+          "properties": {
+            "component": {
+              "const": "PongLayout"
+            },
+            "mcpComponent": {
+              "$ref": "common_types.json#/$defs/ComponentId"
+            },
+            "scoreboardComponent": {
+              "$ref": "common_types.json#/$defs/ComponentId"
+            }
+          },
+          "required": ["component"]
+        }
+      ],
+      "unevaluatedProperties": false
+    }
+  },
+  "$defs": {
+    "anyComponent": {
+      "oneOf": [
+        {
+          "$ref": "#/components/McpApp"
+        },
+        {
+          "$ref": "#/components/PongScoreBoard"
+        },
+        {
+          "$ref": "#/components/PongLayout"
+        },
+        {
+          "$ref": "#/components/Column"
+        }
+      ]
+    }
+  }
+}

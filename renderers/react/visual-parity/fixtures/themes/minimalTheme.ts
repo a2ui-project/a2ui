@@ -20,7 +20,7 @@
  * Tests structural correctness without style interference.
  */
 
-import type { Types } from '@a2ui/lit/0.8';
+import type {Types} from '@a2ui/lit/0.8';
 
 export const minimalTheme: Types.Theme = {
   components: {
@@ -65,7 +65,7 @@ export const minimalTheme: Types.Theme = {
 
     Image: {
       all: {},
-      avatar: { 'border-br-50': true },
+      avatar: {'border-br-50': true},
       header: {},
       icon: {},
       largeFeature: {},

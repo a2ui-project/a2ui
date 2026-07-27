@@ -14,7 +14,7 @@
  limitations under the License.
 -->
 
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
@@ -26,7 +26,10 @@
       href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200&icon_names=account_circle,add,arrow_back,arrow_drop_down,arrow_forward,attach_file,calendar_today,call,camera,check,check_circle,close,communication,content_copy,dark_mode,delete,download,draw,edit,error,event,favorite,favorite_off,folder,help,home,info,light_mode,location_on,lock,lock_open,mail,menu,mobile_layout,more_horiz,more_vert,notifications,notifications_off,payment,pen_size_1,person,phone,photo,print,progress_activity,rectangle,refresh,search,send,settings,share,shopping_cart,star,star_half,star_off,upload,visibility,visibility_off,warning"
     />
     <!-- Outfit font -->
-    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@100..900&display=swap" rel="stylesheet" />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Outfit:wght@100..900&display=swap"
+      rel="stylesheet"
+    />
     <style>
       :root {
         --n-100: #ffffff;
@@ -145,12 +148,8 @@
 
         --primary: #137fec;
         --text-color: #fff;
-        --border-color: oklch(
-          from var(--background-light) l c h / calc(alpha * 0.15)
-        );
-        --elevated-background-light: oklch(
-          from var(--background-light) l c h / calc(alpha * 0.05)
-        );
+        --border-color: oklch(from var(--background-light) l c h / calc(alpha * 0.15));
+        --elevated-background-light: oklch(from var(--background-light) l c h / calc(alpha * 0.05));
         --bb-grid-size: 4px;
         --bb-grid-size-2: calc(var(--bb-grid-size) * 2);
         --bb-grid-size-3: calc(var(--bb-grid-size) * 3);
@@ -168,7 +167,8 @@
         --bb-grid-size-15: calc(var(--bb-grid-size) * 15);
         --bb-grid-size-16: calc(var(--bb-grid-size) * 16);
 
-        --background: radial-gradient(
+        --background:
+          radial-gradient(
             at 0% 0%,
             light-dark(rgba(161, 196, 253, 0.3), rgba(6, 182, 212, 0.15)) 0px,
             transparent 50%
@@ -201,9 +201,8 @@
 
       html,
       body {
-        --font-family: "Outfit", "Helvetica Neue", Helvetica, Arial, sans-serif;
-        --font-family-flex: "Outfit", "Helvetica Neue", Helvetica, Arial,
-          sans-serif;
+        --font-family: 'Outfit', 'Helvetica Neue', Helvetica, Arial, sans-serif;
+        --font-family-flex: 'Outfit', 'Helvetica Neue', Helvetica, Arial, sans-serif;
         --font-family-mono: monospace;
 
         background: var(--background);

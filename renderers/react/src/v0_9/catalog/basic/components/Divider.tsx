@@ -15,24 +15,26 @@
  */
 
 import React from 'react';
-import {createReactComponent} from '../../../adapter';
+import {createComponentImplementation} from '../../../adapter';
 import {DividerApi} from '@a2ui/web_core/v0_9/basic_catalog';
-import {LEAF_MARGIN} from '../utils';
+import {useBasicCatalogStyles} from '../utils';
 
-export const Divider = createReactComponent(DividerApi, ({props}) => {
+export const Divider = createComponentImplementation(DividerApi, ({props}) => {
+  useBasicCatalogStyles();
   const isVertical = props.axis === 'vertical';
   const style: React.CSSProperties = {
-    margin: LEAF_MARGIN,
     border: 'none',
-    backgroundColor: '#ccc',
+    backgroundColor: 'var(--a2ui-color-border, #ccc)',
   };
 
   if (isVertical) {
-    style.width = '1px';
+    style.width = 'var(--a2ui-border-width, 1px)';
     style.height = '100%';
+    style.margin = '0 var(--a2ui-divider-spacing, var(--a2ui-spacing-m, 0.5rem))';
   } else {
     style.width = '100%';
-    style.height = '1px';
+    style.height = 'var(--a2ui-border-width, 1px)';
+    style.margin = 'var(--a2ui-divider-spacing, var(--a2ui-spacing-m, 0.5rem)) 0';
   }
 
   return <div style={style} />;

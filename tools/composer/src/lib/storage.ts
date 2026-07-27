@@ -15,7 +15,7 @@
  */
 
 import localforage from 'localforage';
-import { Widget } from '@/types/widget';
+import {Widget} from '@/types/widget';
 
 const WIDGETS_KEY = 'widgets';
 
@@ -42,5 +42,8 @@ export async function saveWidget(widget: Widget): Promise<void> {
 
 export async function deleteWidget(id: string): Promise<void> {
   const widgets = await getWidgets();
-  await localforage.setItem(WIDGETS_KEY, widgets.filter(w => w.id !== id));
+  await localforage.setItem(
+    WIDGETS_KEY,
+    widgets.filter(w => w.id !== id),
+  );
 }

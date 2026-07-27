@@ -24,8 +24,9 @@
     "noUncheckedSideEffectImports": true,
     "paths": {
       "@a2ui/react": ["../src/index.ts"],
-      "@a2ui/react/*": ["../src/*"]
+      "@a2ui/react/*": ["../src/*"],
+      "@a2ui/markdown-it": ["../../markdown/markdown-it/src/markdown.ts"]
     }
   },
-  "include": ["src"]
+  "include": ["src/**/*"]
 }

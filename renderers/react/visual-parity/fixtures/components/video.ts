@@ -18,7 +18,7 @@
  * Video component fixtures for visual parity testing.
  */
 
-import type { ComponentFixture } from '../types';
+import type {ComponentFixture} from '../types';
 
 export const videoBasic: ComponentFixture = {
   root: 'video-1',
@@ -27,7 +27,7 @@ export const videoBasic: ComponentFixture = {
       id: 'video-1',
       component: {
         Video: {
-          url: { literalString: 'https://www.w3schools.com/html/mov_bbb.mp4' },
+          url: {literalString: 'https://www.w3schools.com/html/mov_bbb.mp4'},
         },
       },
     },
@@ -44,7 +44,7 @@ export const videoWithPathBinding: ComponentFixture = {
       id: 'video-2',
       component: {
         Video: {
-          url: { path: '/media/videoUrl' },
+          url: {path: '/media/videoUrl'},
         },
       },
     },

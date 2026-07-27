@@ -14,22 +14,22 @@
  * limitations under the License.
  */
 
-import {createReactComponent} from '../../../adapter';
+import {createComponentImplementation} from '../../../adapter';
 import {RowApi} from '@a2ui/web_core/v0_9/basic_catalog';
 import {ChildList} from './ChildList';
-import {mapJustify, mapAlign} from '../utils';
+import {mapJustify, mapAlign, getWeightStyle, useBasicCatalogStyles} from '../utils';
 
-export const Row = createReactComponent(RowApi, ({props, buildChild, context}) => {
+export const Row = createComponentImplementation(RowApi, ({props, buildChild, context}) => {
+  useBasicCatalogStyles();
   return (
     <div
       style={{
+        ...getWeightStyle(props.weight),
         display: 'flex',
         flexDirection: 'row',
         justifyContent: mapJustify(props.justify),
         alignItems: mapAlign(props.align),
-        width: '100%',
-        margin: 0,
-        padding: 0,
+        gap: 'var(--a2ui-row-gap, var(--a2ui-spacing-m))',
       }}
     >
       <ChildList childList={props.children} buildChild={buildChild} context={context} />

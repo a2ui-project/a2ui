@@ -14,7 +14,9 @@ element in the document head via `injectStyles()`.
 
 ```css
 @layer a2ui-reset {
-  :where(.a2ui-surface) :where(*) { all: revert; }
+  :where(.a2ui-surface) :where(*) {
+    all: revert;
+  }
 }
 ```
 
@@ -39,14 +41,14 @@ Transform:     :host { ... }  →  .a2ui-surface { ... }
 
 Utility classes shared between all renderers, generated from `web_core`:
 
-| Prefix          | Source file       | Examples                          |
-|-----------------|-------------------|-----------------------------------|
-| `layout-*`      | `styles/layout.ts`    | `layout-p-2`, `layout-m-0`, `layout-w-100` |
-| `typography-*`  | `styles/type.ts`      | `typography-f-sf`, `typography-sz-tl`       |
-| `color-*`       | `styles/colors.ts`    | `color-c-n100`, `color-bgc-p30`            |
-| `border-*`      | `styles/border.ts`    | `border-br-12`, `border-bw-1`              |
-| `behavior-*`    | `styles/behavior.ts`  | `behavior-ho-70`                           |
-| `opacity-*`     | `styles/opacity.ts`   | `opacity-50`                               |
+| Prefix         | Source file          | Examples                                   |
+| -------------- | -------------------- | ------------------------------------------ |
+| `layout-*`     | `styles/layout.ts`   | `layout-p-2`, `layout-m-0`, `layout-w-100` |
+| `typography-*` | `styles/type.ts`     | `typography-f-sf`, `typography-sz-tl`      |
+| `color-*`      | `styles/colors.ts`   | `color-c-n100`, `color-bgc-p30`            |
+| `border-*`     | `styles/border.ts`   | `border-br-12`, `border-bw-1`              |
+| `behavior-*`   | `styles/behavior.ts` | `behavior-ho-70`                           |
+| `opacity-*`    | `styles/opacity.ts`  | `opacity-50`                               |
 
 **Specificity:** Single class selector — `(0,1,0)`.
 
@@ -62,13 +64,21 @@ Covers host-level layout (`display`, `flex`) and element-level defaults.
 **Two specificity tiers:**
 
 - **Host styles** — `.a2ui-surface .a2ui-{component}` — specificity `(0,2,0)`
+
   ```css
-  .a2ui-surface .a2ui-card { display: block; flex: var(--weight); }
+  .a2ui-surface .a2ui-card {
+    display: block;
+    flex: var(--weight);
+  }
   ```
 
 - **Element styles** — `:where(.a2ui-surface .a2ui-{component}) element` — specificity `(0,0,1)`
+
   ```css
-  :where(.a2ui-surface .a2ui-image) img { display: block; width: 100%; }
+  :where(.a2ui-surface .a2ui-image) img {
+    display: block;
+    width: 100%;
+  }
   ```
 
   `:where()` zeroes the wrapper specificity so that theme utility classes
@@ -85,6 +95,7 @@ Button: { 'color-bgc-p30': true, 'color-c-n100': true, ... }
 ```
 
 Components merge these with `classMapToString()` and apply as `className`:
+
 ```tsx
 <button className={classMapToString(theme.components.Button)}>
 ```
@@ -164,7 +175,7 @@ is no conflict in practice.
 
 ## File Overview
 
-| File        | Purpose                                              |
-|-------------|------------------------------------------------------|
-| `reset.ts`  | `all: revert` in `@layer` — restores browser defaults |
-| `index.ts`  | Structural utilities, component CSS, injection logic |
+| File       | Purpose                                               |
+| ---------- | ----------------------------------------------------- |
+| `reset.ts` | `all: revert` in `@layer` — restores browser defaults |
+| `index.ts` | Structural utilities, component CSS, injection logic  |

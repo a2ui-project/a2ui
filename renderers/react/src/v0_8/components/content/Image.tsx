@@ -35,7 +35,7 @@ export const Image = memo(function Image({node, surfaceId}: A2UIComponentProps<T
 
   const url = resolveString(props.url);
   const altText = resolveString(
-    (props as Record<string, unknown>).altText as Types.StringValue | undefined
+    (props as Record<string, unknown>).altText as Types.StringValue | undefined,
   );
   const usageHint = props.usageHint as UsageHint | undefined;
   const fit = (props.fit as FitMode) ?? 'fill';
@@ -43,7 +43,7 @@ export const Image = memo(function Image({node, surfaceId}: A2UIComponentProps<T
   // Get merged classes for section (matches Lit's Styles.merge)
   const classes = mergeClassMaps(
     theme.components.Image.all,
-    usageHint ? theme.components.Image[usageHint] : {}
+    usageHint ? theme.components.Image[usageHint] : {},
   );
 
   // Build style object with object-fit as CSS variable (matches Lit)

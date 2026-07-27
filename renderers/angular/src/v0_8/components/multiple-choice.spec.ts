@@ -14,14 +14,12 @@
  * limitations under the License.
  */
 
-import { ComponentFixture, TestBed } from '@angular/core/testing';
-import { MultipleChoice } from './multiple-choice';
-import { MessageProcessor } from '../data/processor';
-import { Theme } from '../rendering/theming';
-import { Catalog } from '../rendering/catalog';
-import { Types } from '../types';
-import { By } from '@angular/platform-browser';
-import { ChangeDetectionStrategy } from '@angular/core';
+import {ComponentFixture, TestBed} from '@angular/core/testing';
+import {MultipleChoice} from './multiple-choice';
+import {MessageProcessor} from '../data/processor';
+import {Theme} from '../rendering/theming';
+import {Catalog} from '../rendering/catalog';
+import {By} from '@angular/platform-browser';
 
 describe('MultipleChoice Component', () => {
   let component: MultipleChoice;
@@ -30,8 +28,8 @@ describe('MultipleChoice Component', () => {
   let mockProcessor: jasmine.SpyObj<MessageProcessor>;
 
   const mockOptions = [
-    { label: { literalString: 'Option 1' } as any, value: 'opt1' },
-    { label: { literalString: 'Option 2' } as any, value: 'opt2' },
+    {label: {literalString: 'Option 1'} as any, value: 'opt1'},
+    {label: {literalString: 'Option 2'} as any, value: 'opt2'},
   ];
 
   beforeEach(async () => {
@@ -54,27 +52,21 @@ describe('MultipleChoice Component', () => {
     await TestBed.configureTestingModule({
       imports: [MultipleChoice],
       providers: [
-        { provide: MessageProcessor, useValue: mockProcessor },
-        { provide: Theme, useValue: mockTheme },
-        { provide: Catalog, useValue: {} },
+        {provide: MessageProcessor, useValue: mockProcessor},
+        {provide: Theme, useValue: mockTheme},
+        {provide: Catalog, useValue: {}},
       ],
-    })
-      .overrideComponent(MultipleChoice, {
-        set: {
-          changeDetection: ChangeDetectionStrategy.Default,
-        },
-      })
-      .compileComponents();
+    }).compileComponents();
 
     fixture = TestBed.createComponent(MultipleChoice);
     component = fixture.componentInstance;
 
     fixture.componentRef.setInput('surfaceId', 'surface-1');
-    fixture.componentRef.setInput('component', { id: 'mc-1', type: 'MultipleChoice', weight: 1 });
+    fixture.componentRef.setInput('component', {id: 'mc-1', type: 'MultipleChoice', weight: 1});
     fixture.componentRef.setInput('weight', 1);
-    fixture.componentRef.setInput('label', { literalString: 'Select an option' });
+    fixture.componentRef.setInput('label', {literalString: 'Select an option'});
     fixture.componentRef.setInput('options', mockOptions);
-    fixture.componentRef.setInput('selections', { literalArray: ['opt1'] });
+    fixture.componentRef.setInput('selections', {literalArray: ['opt1']});
 
     fixture.detectChanges();
   });
@@ -108,6 +100,6 @@ describe('MultipleChoice Component', () => {
     const message = mockProcessor.dispatch.calls.mostRecent().args[0];
     expect(message.userAction).toBeTruthy();
     expect(message.userAction!.name).toBe('change');
-    expect(message.userAction!.context).toEqual({ value: 'opt2' });
+    expect(message.userAction!.context).toEqual({value: 'opt2'});
   });
 });

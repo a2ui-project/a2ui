@@ -14,17 +14,17 @@
  * limitations under the License.
  */
 
-import { JSDOM } from 'jsdom';
+import {JSDOM} from 'jsdom';
 
 // Provide a jsdom window for DOMPurify in the Node test environment.
 const jsdom = new JSDOM('');
 (globalThis as any).window = jsdom.window;
 (globalThis as any).document = jsdom.window.document;
 
-import { describe, it } from 'node:test';
+import {describe, it} from 'node:test';
 import assert from 'node:assert';
-import { MarkdownItRenderer } from './raw-markdown.js';
-import { renderMarkdown } from './markdown.js';
+import {MarkdownItRenderer} from './raw-markdown.js';
+import {renderMarkdown} from './markdown.js';
 
 describe('MarkdownItRenderer', () => {
   it('renders basic markdown', () => {
@@ -35,13 +35,13 @@ describe('MarkdownItRenderer', () => {
 
   it('applies tag classes via tagClassMap', () => {
     const renderer = new MarkdownItRenderer();
-    const result = renderer.render('# Hello', { h1: ['custom-class'] });
+    const result = renderer.render('# Hello', {h1: ['custom-class']});
     assert.match(result, /<h1 class="custom-class">Hello<\/h1>/);
   });
 
   it('applies multiple classes', () => {
     const renderer = new MarkdownItRenderer();
-    const result = renderer.render('para', { p: ['class1', 'class2'] });
+    const result = renderer.render('para', {p: ['class1', 'class2']});
     assert.match(result, /<p class="class1 class2">para<\/p>/);
   });
 
@@ -49,7 +49,7 @@ describe('MarkdownItRenderer', () => {
     const renderer = new MarkdownItRenderer();
 
     // First render with class
-    const result1 = renderer.render('# Hello', { h1: ['persistent?'] });
+    const result1 = renderer.render('# Hello', {h1: ['persistent?']});
     assert.match(result1, /class="persistent\?"/);
 
     // Second render without class

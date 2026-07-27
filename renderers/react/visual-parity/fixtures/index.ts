@@ -20,7 +20,7 @@
  */
 
 // Re-export types
-export type { ComponentFixture } from './types';
+export type {ComponentFixture} from './types';
 
 // Import all component fixtures
 import {
@@ -44,7 +44,7 @@ import {
   modalFixtures,
 } from './components';
 
-import { nestedFixtures } from './nested';
+import {nestedFixtures} from './nested';
 
 // Re-export individual fixtures for direct import
 export * from './components';

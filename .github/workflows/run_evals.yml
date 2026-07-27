@@ -1,0 +1,82 @@
+# Copyright 2026 Google LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#      https://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+name: Run A2UI Evals
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "eval/**"
+      - "specification/v0_9/**"
+      - ".github/workflows/run_evals.yml"
+      - "agent_sdks/python/**"
+  pull_request:
+    paths:
+      - "eval/**"
+      - "specification/v0_9/**"
+      - ".github/workflows/run_evals.yml"
+      - "agent_sdks/python/**"
+  # Run evals on schedule, in order to:
+  # - catch regressions introduced by changes in environment
+  # - have more data for observing dynamics of performance degradation
+  schedule:
+    - cron: "0 0 * * *" # daily
+jobs:
+  run-evals:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: write
+    env:
+      TRANSCRYPT_PASSWORD: ${{ secrets.TRANSCRYPT_PASSWORD }}
+      REPO_GEMINI_API_KEY: ${{ secrets.REPO_GEMINI_API_KEY }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+        with:
+          persist-credentials: false
+
+      - name: Set up Python
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: "3.12"
+
+      - name: Decrypt dataset
+        working-directory: eval
+        if: ${{ env.TRANSCRYPT_PASSWORD != '' }}
+        run: ./bin/transcrypt -p "$TRANSCRYPT_PASSWORD" -y
+
+      - name: Install `uv` globally
+        run: |
+          python -m pip install --upgrade pip
+          pip install uv
+
+      - name: Run Unit Tests
+        working-directory: eval
+        run: uv run python -m pytest
+
+      - name: Run Evals
+        working-directory: eval
+        if: ${{ env.TRANSCRYPT_PASSWORD != '' && env.REPO_GEMINI_API_KEY != '' }}
+        env:
+          GEMINI_API_KEY: ${{ env.REPO_GEMINI_API_KEY }}
+        run: ./bin/run_ci_evals.py --threshold 90
+
+      - name: Create Issue if evals fail on main branch
+        if: failure() && (github.event_name == 'push' || github.event_name == 'schedule') && github.ref == 'refs/heads/main'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: ./scripts/create_issue.sh "Evals" "eval_failure" "eval/eval_summary.md"

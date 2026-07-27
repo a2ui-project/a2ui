@@ -1,0 +1,13 @@
+{
+  "dart.projectSearchDepth": 10,
+  "editor.formatOnSave": true,
+  "editor.defaultFormatter": "esbenp.prettier-vscode",
+  "[python]": {
+    "editor.defaultFormatter": "ms-python.black-formatter"
+  },
+  "black-formatter.path": ["pyink"],
+  "[dart]": {
+    "editor.defaultFormatter": "Dart-Code.dart-code"
+  },
+  "markdown.validate.enabled": true
+}

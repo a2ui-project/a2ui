@@ -15,17 +15,29 @@
  */
 
 import React from 'react';
-import {createReactComponent} from '../../../adapter';
+import {createComponentImplementation} from '../../../adapter';
 import {CardApi} from '@a2ui/web_core/v0_9/basic_catalog';
-import {getBaseContainerStyle} from '../utils';
+import {getBaseContainerStyle, getWeightStyle, useBasicCatalogStyles} from '../utils';
 
-export const Card = createReactComponent(CardApi, ({props, buildChild}) => {
+export const Card = createComponentImplementation(CardApi, ({props, buildChild}) => {
+  useBasicCatalogStyles();
+
   const style: React.CSSProperties = {
     ...getBaseContainerStyle(),
-    backgroundColor: '#fff',
-    boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
-    width: '100%',
+    ...getWeightStyle(props.weight),
+    display: 'block',
+    border: 'var(--a2ui-card-border, var(--a2ui-border))',
+    borderRadius: 'var(--a2ui-card-border-radius, var(--a2ui-border-radius, 8px))',
+    padding: 'var(--a2ui-card-padding, var(--a2ui-spacing-m, 16px))',
+    background: 'var(--a2ui-card-background, var(--a2ui-color-surface, #fff))',
+    color: 'var(--a2ui-color-on-surface, #333)',
+    boxShadow: 'var(--a2ui-card-box-shadow, 0 2px 4px rgba(0,0,0,0.1))',
+    margin: 'var(--a2ui-card-margin, var(--a2ui-spacing-m))',
   };
 
-  return <div style={style}>{props.child ? buildChild(props.child) : null}</div>;
+  return (
+    <div className="a2ui-card" style={style}>
+      {props.child ? buildChild(props.child) : null}
+    </div>
+  );
 });

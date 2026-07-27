@@ -18,18 +18,18 @@
  * Row component fixtures for visual parity testing.
  */
 
-import type { ComponentFixture } from '../types';
+import type {ComponentFixture} from '../types';
 
 export const row: ComponentFixture = {
   root: 'row-1',
   components: [
-    { id: 'row-icon-1', component: { Icon: { name: { literalString: 'home' } } } },
-    { id: 'row-icon-2', component: { Icon: { name: { literalString: 'search' } } } },
-    { id: 'row-icon-3', component: { Icon: { name: { literalString: 'settings' } } } },
+    {id: 'row-icon-1', component: {Icon: {name: {literalString: 'home'}}}},
+    {id: 'row-icon-2', component: {Icon: {name: {literalString: 'search'}}}},
+    {id: 'row-icon-3', component: {Icon: {name: {literalString: 'settings'}}}},
     {
       id: 'row-1',
       component: {
-        Row: { children: { explicitList: ['row-icon-1', 'row-icon-2', 'row-icon-3'] } },
+        Row: {children: {explicitList: ['row-icon-1', 'row-icon-2', 'row-icon-3']}},
       },
     },
   ],
@@ -38,13 +38,13 @@ export const row: ComponentFixture = {
 export const rowWithText: ComponentFixture = {
   root: 'row-text',
   components: [
-    { id: 'row-text-1', component: { Text: { text: { literalString: 'First' } } } },
-    { id: 'row-text-2', component: { Text: { text: { literalString: 'Second' } } } },
-    { id: 'row-text-3', component: { Text: { text: { literalString: 'Third' } } } },
+    {id: 'row-text-1', component: {Text: {text: {literalString: 'First'}}}},
+    {id: 'row-text-2', component: {Text: {text: {literalString: 'Second'}}}},
+    {id: 'row-text-3', component: {Text: {text: {literalString: 'Third'}}}},
     {
       id: 'row-text',
       component: {
-        Row: { children: { explicitList: ['row-text-1', 'row-text-2', 'row-text-3'] } },
+        Row: {children: {explicitList: ['row-text-1', 'row-text-2', 'row-text-3']}},
       },
     },
   ],
@@ -53,13 +53,16 @@ export const rowWithText: ComponentFixture = {
 export const rowStart: ComponentFixture = {
   root: 'row-start',
   components: [
-    { id: 'row-start-1', component: { Text: { text: { literalString: 'A' } } } },
-    { id: 'row-start-2', component: { Text: { text: { literalString: 'B' } } } },
-    { id: 'row-start-3', component: { Text: { text: { literalString: 'C' } } } },
+    {id: 'row-start-1', component: {Text: {text: {literalString: 'A'}}}},
+    {id: 'row-start-2', component: {Text: {text: {literalString: 'B'}}}},
+    {id: 'row-start-3', component: {Text: {text: {literalString: 'C'}}}},
     {
       id: 'row-start',
       component: {
-        Row: { children: { explicitList: ['row-start-1', 'row-start-2', 'row-start-3'] }, distribution: 'start' },
+        Row: {
+          children: {explicitList: ['row-start-1', 'row-start-2', 'row-start-3']},
+          distribution: 'start',
+        },
       },
     },
   ],
@@ -68,13 +71,16 @@ export const rowStart: ComponentFixture = {
 export const rowCenter: ComponentFixture = {
   root: 'row-center',
   components: [
-    { id: 'row-center-1', component: { Text: { text: { literalString: 'A' } } } },
-    { id: 'row-center-2', component: { Text: { text: { literalString: 'B' } } } },
-    { id: 'row-center-3', component: { Text: { text: { literalString: 'C' } } } },
+    {id: 'row-center-1', component: {Text: {text: {literalString: 'A'}}}},
+    {id: 'row-center-2', component: {Text: {text: {literalString: 'B'}}}},
+    {id: 'row-center-3', component: {Text: {text: {literalString: 'C'}}}},
     {
       id: 'row-center',
       component: {
-        Row: { children: { explicitList: ['row-center-1', 'row-center-2', 'row-center-3'] }, distribution: 'center' },
+        Row: {
+          children: {explicitList: ['row-center-1', 'row-center-2', 'row-center-3']},
+          distribution: 'center',
+        },
       },
     },
   ],
@@ -83,13 +89,16 @@ export const rowCenter: ComponentFixture = {
 export const rowEnd: ComponentFixture = {
   root: 'row-end',
   components: [
-    { id: 'row-end-1', component: { Text: { text: { literalString: 'A' } } } },
-    { id: 'row-end-2', component: { Text: { text: { literalString: 'B' } } } },
-    { id: 'row-end-3', component: { Text: { text: { literalString: 'C' } } } },
+    {id: 'row-end-1', component: {Text: {text: {literalString: 'A'}}}},
+    {id: 'row-end-2', component: {Text: {text: {literalString: 'B'}}}},
+    {id: 'row-end-3', component: {Text: {text: {literalString: 'C'}}}},
     {
       id: 'row-end',
       component: {
-        Row: { children: { explicitList: ['row-end-1', 'row-end-2', 'row-end-3'] }, distribution: 'end' },
+        Row: {
+          children: {explicitList: ['row-end-1', 'row-end-2', 'row-end-3']},
+          distribution: 'end',
+        },
       },
     },
   ],
@@ -98,13 +107,16 @@ export const rowEnd: ComponentFixture = {
 export const rowSpaceBetween: ComponentFixture = {
   root: 'row-space',
   components: [
-    { id: 'row-space-1', component: { Text: { text: { literalString: 'Left' } } } },
-    { id: 'row-space-2', component: { Text: { text: { literalString: 'Center' } } } },
-    { id: 'row-space-3', component: { Text: { text: { literalString: 'Right' } } } },
+    {id: 'row-space-1', component: {Text: {text: {literalString: 'Left'}}}},
+    {id: 'row-space-2', component: {Text: {text: {literalString: 'Center'}}}},
+    {id: 'row-space-3', component: {Text: {text: {literalString: 'Right'}}}},
     {
       id: 'row-space',
       component: {
-        Row: { children: { explicitList: ['row-space-1', 'row-space-2', 'row-space-3'] }, distribution: 'spaceBetween' },
+        Row: {
+          children: {explicitList: ['row-space-1', 'row-space-2', 'row-space-3']},
+          distribution: 'spaceBetween',
+        },
       },
     },
   ],

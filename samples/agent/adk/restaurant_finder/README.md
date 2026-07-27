@@ -4,7 +4,7 @@ This sample uses the Agent Development Kit (ADK) along with the A2A protocol to 
 
 ## Prerequisites
 
-- Python 3.9 or higher
+- Python — see `requires-python` in `pyproject.toml`
 - [UV](https://docs.astral.sh/uv/)
 - Access to an LLM and API Key
 
@@ -12,9 +12,9 @@ This sample uses the Agent Development Kit (ADK) along with the A2A protocol to 
 
 1. Navigate to the samples directory:
 
-    ```bash
-    cd samples/agent/adk/restaurant_finder
-    ```
+   ```bash
+   cd samples/agent/adk/restaurant_finder
+   ```
 
 2. Create an environment file with your API key:
 
@@ -25,10 +25,35 @@ This sample uses the Agent Development Kit (ADK) along with the A2A protocol to 
 
 3. Run the agent server:
 
-    ```bash
-    uv run .
-    ```
+   ```bash
+   uv run .
+   ```
 
+4. In another terminal window:
+   - verify that the agent is available via A2A:
+
+     ```bash
+     curl http://localhost:10002/.well-known/agent-card.json
+     ```
+
+   - send a message to the agent:
+
+     ```bash
+     curl http://localhost:10002 \
+       -H 'Content-Type: application/json' \
+       -d '{
+         "jsonrpc": "2.0",
+         "id": 1,
+         "method": "message/send",
+         "params": {
+           "message": {
+             "role": "user",
+             "parts": [{"text": "Find me an Italian restaurant"}],
+             "messageId": "1"
+           }
+         }
+       }'
+     ```
 
 ## Disclaimer
 

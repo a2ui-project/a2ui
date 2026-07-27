@@ -13,6 +13,6 @@
 # limitations under the License.
 
 onlyBuiltDependencies:
-  - '@firebase/util'
+  - "@firebase/util"
   - esbuild
   - protobufjs

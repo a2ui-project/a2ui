@@ -14,10 +14,10 @@
  * limitations under the License.
  */
 
-import { createContext } from "@lit/context";
-import * as Types from "@a2ui/web_core/types/types";
+import {createContext} from '@lit/context';
+import * as Types from '@a2ui/web_core/types/types';
 
 /**
  * The markdown renderer context.
  */
-export const markdown = createContext<Types.MarkdownRenderer | undefined>(Symbol("A2UIMarkdown"));
+export const markdown = createContext<Types.MarkdownRenderer | undefined>(Symbol('A2UIMarkdown'));

@@ -16,12 +16,7 @@
           "component": {
             "Column": {
               "children": {
-                "explicitList": [
-                  "icon",
-                  "title",
-                  "description",
-                  "actions"
-                ]
+                "explicitList": ["icon", "title", "description", "actions"]
               },
               "alignment": "center"
             }
@@ -64,10 +59,7 @@
           "component": {
             "Row": {
               "children": {
-                "explicitList": [
-                  "yes-btn",
-                  "no-btn"
-                ]
+                "explicitList": ["yes-btn", "no-btn"]
               },
               "distribution": "center"
             }

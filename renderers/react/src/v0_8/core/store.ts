@@ -30,7 +30,7 @@ export interface A2UIActions {
     node: Types.AnyComponentNode | null,
     path: string,
     value: Types.DataValue,
-    surfaceId: string
+    surfaceId: string,
   ) => void;
 
   /** Dispatch a user action to the server */
@@ -49,7 +49,7 @@ export interface A2UIActions {
   getData: (
     node: Types.AnyComponentNode,
     path: string,
-    surfaceId: string
+    surfaceId: string,
   ) => Types.DataValue | null;
 
   /** Resolve a relative path to an absolute path */

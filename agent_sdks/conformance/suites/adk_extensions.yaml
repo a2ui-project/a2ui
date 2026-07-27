@@ -1,0 +1,56 @@
+# Copyright 2026 Google LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+- name: test_converter_emits_failed_event
+  action: convert_event
+  args:
+    error_code: "some_error"
+    error_message: "Server crash"
+    has_catalog: true
+  expect:
+    type: TaskStatusUpdateEvent
+    state: FAILED
+    message: "Server crash"
+
+- name: test_converter_emits_working_event
+  action: convert_event
+  args:
+    content_text: "Regular text response"
+    has_catalog: true
+  expect:
+    type: TaskStatusUpdateEvent
+    state: WORKING
+    message: "Regular text response"
+
+- name: test_converter_returns_empty_when_no_catalog
+  action: convert_event
+  args:
+    has_catalog: false
+  expect_empty: true
+
+- name: test_toolset_execute_valid_payload
+  action: execute_tool
+  args:
+    a2ui_json: '{"beginRendering": {"surfaceId": "dummy-surface", "root": {"component": "TestComp", "id": "1"}}}'
+  expect:
+    success: true
+    contains_validated_json: true
+
+- name: test_toolset_execute_invalid_payload
+  action: execute_tool
+  args:
+    wrong_arg: "b"
+  expect:
+    success: false
+    error_contains: "missing required arg a2ui_json"

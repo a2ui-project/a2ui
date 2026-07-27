@@ -14,10 +14,16 @@
  * limitations under the License.
  */
 
-import { describe, it, expect } from 'vitest';
-import { render } from '@testing-library/react';
+import {describe, it, expect} from 'vitest';
+import {render} from '@testing-library/react';
 import React from 'react';
-import { TestWrapper, TestRenderer, createSimpleMessages, createSurfaceUpdate, createBeginRendering } from '../../utils';
+import {
+  TestWrapper,
+  TestRenderer,
+  createSimpleMessages,
+  createSurfaceUpdate,
+  createBeginRendering,
+} from '../../utils';
 import type * as Types from '@a2ui/web_core/types/types';
 
 /**
@@ -30,10 +36,10 @@ describe('Divider Component', () => {
     it('should render an hr element', () => {
       const messages = createSimpleMessages('div-1', 'Divider', {});
 
-      const { container } = render(
+      const {container} = render(
         <TestWrapper>
           <TestRenderer messages={messages} />
-        </TestWrapper>
+        </TestWrapper>,
       );
 
       const hr = container.querySelector('hr');
@@ -43,10 +49,10 @@ describe('Divider Component', () => {
     it('should render with wrapper div', () => {
       const messages = createSimpleMessages('div-1', 'Divider', {});
 
-      const { container } = render(
+      const {container} = render(
         <TestWrapper>
           <TestRenderer messages={messages} />
-        </TestWrapper>
+        </TestWrapper>,
       );
 
       const wrapper = container.querySelector('.a2ui-divider');
@@ -56,10 +62,10 @@ describe('Divider Component', () => {
     it('should render as self-closing element', () => {
       const messages = createSimpleMessages('div-1', 'Divider', {});
 
-      const { container } = render(
+      const {container} = render(
         <TestWrapper>
           <TestRenderer messages={messages} />
-        </TestWrapper>
+        </TestWrapper>,
       );
 
       const hr = container.querySelector('hr');
@@ -73,10 +79,10 @@ describe('Divider Component', () => {
         axis: 'horizontal',
       });
 
-      const { container } = render(
+      const {container} = render(
         <TestWrapper>
           <TestRenderer messages={messages} />
-        </TestWrapper>
+        </TestWrapper>,
       );
 
       const hr = container.querySelector('hr');
@@ -88,10 +94,10 @@ describe('Divider Component', () => {
         axis: 'vertical',
       });
 
-      const { container } = render(
+      const {container} = render(
         <TestWrapper>
           <TestRenderer messages={messages} />
-        </TestWrapper>
+        </TestWrapper>,
       );
 
       const hr = container.querySelector('hr');
@@ -103,10 +109,10 @@ describe('Divider Component', () => {
     it('should render hr element with theme classes applied', () => {
       const messages = createSimpleMessages('div-1', 'Divider', {});
 
-      const { container } = render(
+      const {container} = render(
         <TestWrapper>
           <TestRenderer messages={messages} />
-        </TestWrapper>
+        </TestWrapper>,
       );
 
       const hr = container.querySelector('hr');
@@ -119,10 +125,10 @@ describe('Divider Component', () => {
     it('should have correct DOM structure', () => {
       const messages = createSimpleMessages('div-1', 'Divider', {});
 
-      const { container } = render(
+      const {container} = render(
         <TestWrapper>
           <TestRenderer messages={messages} />
-        </TestWrapper>
+        </TestWrapper>,
       );
 
       const wrapper = container.querySelector('.a2ui-divider');
@@ -135,18 +141,21 @@ describe('Divider Component', () => {
     it('should render multiple dividers in a column', () => {
       const messages: Types.ServerToClientMessage[] = [
         createSurfaceUpdate([
-          { id: 'div-1', component: { Divider: {} } },
-          { id: 'div-2', component: { Divider: {} } },
-          { id: 'div-3', component: { Divider: {} } },
-          { id: 'col-1', component: { Column: { children: { explicitList: ['div-1', 'div-2', 'div-3'] } } } },
+          {id: 'div-1', component: {Divider: {}}},
+          {id: 'div-2', component: {Divider: {}}},
+          {id: 'div-3', component: {Divider: {}}},
+          {
+            id: 'col-1',
+            component: {Column: {children: {explicitList: ['div-1', 'div-2', 'div-3']}}},
+          },
         ]),
         createBeginRendering('col-1'),
       ];
 
-      const { container } = render(
+      const {container} = render(
         <TestWrapper>
           <TestRenderer messages={messages} />
-        </TestWrapper>
+        </TestWrapper>,
       );
 
       const dividers = container.querySelectorAll('.a2ui-divider');

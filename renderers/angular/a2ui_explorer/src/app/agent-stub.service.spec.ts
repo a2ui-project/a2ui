@@ -14,13 +14,14 @@
  * limitations under the License.
  */
 
-import { TestBed } from '@angular/core/testing';
-import { AgentStubService } from './agent-stub.service';
-import { A2uiRendererService } from '@a2ui/angular/v0_9';
-import { ActionDispatcher } from './action-dispatcher.service';
-import { Subject } from 'rxjs';
-import { A2uiMessage } from '@a2ui/web_core/v0_9';
-import { vi, describe, it, expect, beforeEach } from 'vitest';
+import {TestBed} from '@angular/core/testing';
+import {AgentStubService} from './agent-stub.service';
+import {AgentStubV09Service} from './agent-stub-v09.service';
+import {A2uiRendererService} from '@a2ui/angular/v0_9';
+import {ActionDispatcher} from './action-dispatcher.service';
+import {Subject} from 'rxjs';
+import {A2uiMessage} from '@a2ui/web_core/v0_9';
+import {A2UI_VERSION, Version} from './types';
 
 describe('AgentStubService', () => {
   let service: AgentStubService;
@@ -30,10 +31,10 @@ describe('AgentStubService', () => {
 
   beforeEach(() => {
     mockSurfaceGroup = {
-      getSurface: vi.fn(),
+      getSurface: jasmine.createSpy('getSurface'),
     };
     mockRendererService = {
-      processMessages: vi.fn(),
+      processMessages: jasmine.createSpy('processMessages'),
       get surfaceGroup() {
         return mockSurfaceGroup;
       },
@@ -44,9 +45,10 @@ describe('AgentStubService', () => {
 
     TestBed.configureTestingModule({
       providers: [
-        AgentStubService,
-        { provide: A2uiRendererService, useValue: mockRendererService },
-        { provide: ActionDispatcher, useValue: mockActionDispatcher },
+        {provide: AgentStubService, useClass: AgentStubV09Service},
+        {provide: A2uiRendererService, useValue: mockRendererService},
+        {provide: ActionDispatcher, useValue: mockActionDispatcher},
+        {provide: A2UI_VERSION, useValue: Version.V0_9},
       ],
     });
     service = TestBed.inject(AgentStubService);
@@ -69,28 +71,30 @@ describe('AgentStubService', () => {
       const messages = [createMsg];
 
       // 1. First call: Surface does not exist
-      mockSurfaceGroup.getSurface.mockReturnValue(undefined);
+      mockSurfaceGroup.getSurface.and.returnValue(undefined);
       service.initializeDemo(messages);
 
       // Should have called processMessages with initial messages only
       expect(mockRendererService.processMessages).toHaveBeenCalledWith(messages);
       expect(mockRendererService.processMessages).toHaveBeenCalledTimes(1);
-      mockRendererService.processMessages.mockClear();
+      mockRendererService.processMessages.calls.reset();
 
       // 2. Second call: Surface now exists
-      mockSurfaceGroup.getSurface.mockReturnValue({ id: surfaceId });
+      mockSurfaceGroup.getSurface.and.returnValue({id: surfaceId});
       service.initializeDemo(messages);
 
       // Should have called processMessages twice:
       // First with deleteSurface, then with initial messages
-      expect(mockRendererService.processMessages).toHaveBeenCalledTimes(2);
-      expect(mockRendererService.processMessages).toHaveBeenNthCalledWith(1, [
+      const deleteMessages = [
         {
-          version: 'v0.9',
-          deleteSurface: { surfaceId },
+          version: 'v0.9' as const,
+          deleteSurface: {surfaceId},
         },
+      ];
+      expect(mockRendererService.processMessages.calls.allArgs()).toEqual([
+        [deleteMessages],
+        [messages],
       ]);
-      expect(mockRendererService.processMessages).toHaveBeenNthCalledWith(2, messages);
     });
 
     it('should NOT send deleteSurface if surface does not exist', () => {
@@ -104,7 +108,7 @@ describe('AgentStubService', () => {
       };
       const messages = [createMsg];
 
-      mockSurfaceGroup.getSurface.mockReturnValue(undefined);
+      mockSurfaceGroup.getSurface.and.returnValue(undefined);
       service.initializeDemo(messages);
 
       expect(mockRendererService.processMessages).toHaveBeenCalledTimes(1);

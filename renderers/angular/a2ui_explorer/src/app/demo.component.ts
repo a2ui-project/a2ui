@@ -14,17 +14,28 @@
  * limitations under the License.
  */
 
-import { ChangeDetectorRef, Component, OnInit, inject, OnDestroy } from '@angular/core';
-import { CommonModule } from '@angular/common';
-import { A2uiRendererService, A2UI_RENDERER_CONFIG } from '@a2ui/angular/v0_9';
-import { AgentStubService } from './agent-stub.service';
-import { SurfaceComponent } from '@a2ui/angular/v0_9';
-import { AngularCatalog } from '@a2ui/angular/v0_9';
-import { DemoCatalog } from './demo-catalog';
-import { A2uiClientAction, CreateSurfaceMessage } from '@a2ui/web_core/v0_9';
-import { EXAMPLES } from './generated/examples-bundle';
-import { Example } from './types';
-import { ActionDispatcher } from './action-dispatcher.service';
+import {
+  ChangeDetectorRef,
+  Component,
+  OnInit,
+  inject,
+  OnDestroy,
+  effect,
+  signal,
+} from '@angular/core';
+import {CommonModule} from '@angular/common';
+import {A2uiRendererService, A2UI_RENDERER_CONFIG} from '@a2ui/angular/v0_9';
+import {AgentStubService} from './agent-stub.service';
+import {AgentStubV08Service} from './agent-stub-v08.service';
+import {AgentStubV09Service} from './agent-stub-v09.service';
+import {SurfaceComponent as SurfaceComponentV09} from '@a2ui/angular/v0_9';
+import {provideMarkdownRenderer, Surface as SurfaceV08} from '@a2ui/angular/v0_8';
+import {AngularCatalog} from '@a2ui/angular/v0_9';
+import {DemoCatalog} from './demo-catalog';
+import {A2uiClientAction} from '@a2ui/web_core/v0_9';
+import {A2uiExample, A2UI_VERSION, A2UI_EXAMPLES, Version} from './types';
+import {ActionDispatcher} from './action-dispatcher.service';
+import {Catalog as CatalogV08, DEFAULT_CATALOG as DEFAULT_CATALOG_V08} from '@a2ui/angular/v0_8';
 
 /**
  * Main dashboard component for A2UI v0.9 Angular Renderer.
@@ -34,13 +45,20 @@ import { ActionDispatcher } from './action-dispatcher.service';
 @Component({
   selector: 'a2ui-v0-9-demo',
   standalone: true,
-  imports: [CommonModule, SurfaceComponent],
+  imports: [CommonModule, SurfaceComponentV09, SurfaceV08],
   template: `
     <div class="dashboard">
       <!-- Sidebar Navigation -->
       <div class="sidebar">
         <div class="sidebar-header">
           <h3>A2UI Examples</h3>
+          <div class="version-selector">
+            <label for="version">Version:</label>
+            <select id="version" (change)="onVersionChange($event)">
+              <option [value]="Version.V0_9" [selected]="version === Version.V0_9">0.9</option>
+              <option [value]="Version.V0_8" [selected]="version === Version.V0_8">0.8</option>
+            </select>
+          </div>
         </div>
         <ul class="example-list">
           <li
@@ -61,10 +79,18 @@ import { ActionDispatcher } from './action-dispatcher.service';
           <p class="subtitle">{{ selectedExample.description }}</p>
         </div>
         <div class="canvas-frame">
-          <div *ngIf="surfaceId" class="rendered-content">
-            <a2ui-v09-surface [surfaceId]="surfaceId"> </a2ui-v09-surface>
+          <div
+            *ngIf="surfaceId()"
+            class="rendered-content"
+            [class.protocol-version-08]="version === Version.V0_8"
+          >
+            <a2ui-v09-surface
+              *ngIf="version === Version.V0_9"
+              [surfaceId]="surfaceId()"
+            ></a2ui-v09-surface>
+            <a2ui-surface *ngIf="version === Version.V0_8" [surfaceId]="surfaceId()"></a2ui-surface>
           </div>
-          <div *ngIf="!surfaceId" class="empty-canvas">
+          <div *ngIf="!surfaceId()" class="empty-canvas">
             Select an example from the sidebar to view.
           </div>
         </div>
@@ -72,23 +98,135 @@ import { ActionDispatcher } from './action-dispatcher.service';
 
       <!-- Inspect Panel -->
       <div class="inspect-area">
-        <div class="inspect-section data-section">
-          <div class="section-header">
-            <h4>Data Model</h4>
-            <span class="badge">Live</span>
+        <div class="inspect-section surface-section" [class.folded]="isSurfaceMessageFolded">
+          <div
+            class="section-header"
+            (click)="toggleSurfaceMessage()"
+            (keydown.enter)="toggleSurfaceMessage()"
+            (keydown.space)="toggleSurfaceMessage(); $event.preventDefault()"
+            style="cursor: pointer;"
+            role="button"
+            tabindex="0"
+            [attr.aria-expanded]="!isSurfaceMessageFolded"
+          >
+            <div class="header-left">
+              <span class="toggle-icon" [class.expanded]="!isSurfaceMessageFolded">
+                <svg
+                  width="12"
+                  height="12"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="3"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                >
+                  <polyline points="9 18 15 12 9 6"></polyline>
+                </svg>
+              </span>
+              <h4>Create Surface Message</h4>
+            </div>
+            <div>
+              <span class="badge" *ngIf="!messageError">Live</span>
+              <span class="badge error-badge" *ngIf="messageError">Invalid</span>
+            </div>
           </div>
-          <div class="section-content">
-            <pre>{{ currentDataModel | json }}</pre>
-            <div *ngIf="!currentDataModel" class="empty-state">No data model loaded.</div>
+          <div class="section-content" *ngIf="!isSurfaceMessageFolded">
+            <div *ngIf="messageError" class="error-message">
+              <span class="error-icon">⚠️</span>
+              <span>{{ messageError }}</span>
+            </div>
+            <textarea
+              [value]="currentCreateSurfaceMessageJson"
+              (input)="onSurfaceMessageChange($event)"
+              (blur)="onSurfaceMessageBlur()"
+              (focus)="onSurfaceMessageFocus()"
+            ></textarea>
           </div>
         </div>
 
-        <div class="inspect-section events-section">
-          <div class="section-header">
-            <h4>Events Log</h4>
-            <button class="clear-btn" (click)="eventsLog = []">Clear</button>
+        <div class="inspect-section data-section" [class.folded]="isDataModelFolded">
+          <div
+            class="section-header"
+            (click)="toggleDataModel()"
+            (keydown.enter)="toggleDataModel()"
+            (keydown.space)="toggleDataModel(); $event.preventDefault()"
+            style="cursor: pointer;"
+            role="button"
+            tabindex="0"
+            [attr.aria-expanded]="!isDataModelFolded"
+          >
+            <div class="header-left">
+              <span class="toggle-icon" [class.expanded]="!isDataModelFolded">
+                <svg
+                  width="12"
+                  height="12"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="3"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                >
+                  <polyline points="9 18 15 12 9 6"></polyline>
+                </svg>
+              </span>
+              <h4>Data Model</h4>
+            </div>
+            <div>
+              <span class="badge" *ngIf="!dataModelError">Live</span>
+              <span class="badge error-badge" *ngIf="dataModelError">Invalid</span>
+            </div>
           </div>
-          <div class="section-content">
+          <div class="section-content" *ngIf="!isDataModelFolded">
+            <div *ngIf="dataModelError" class="error-message">
+              <span class="error-icon">⚠️</span>
+              <span>{{ dataModelError }}</span>
+            </div>
+            <textarea
+              [value]="currentDataModelJson"
+              (input)="onDataModelChange($event)"
+              (blur)="onDataModelBlur()"
+              (focus)="onDataModelFocus()"
+            ></textarea>
+          </div>
+        </div>
+
+        <div class="inspect-section events-section" [class.folded]="isEventsLogFolded">
+          <div
+            class="section-header"
+            (click)="toggleEventsLog()"
+            (keydown.enter)="toggleEventsLog()"
+            (keydown.space)="toggleEventsLog(); $event.preventDefault()"
+            style="cursor: pointer;"
+            role="button"
+            tabindex="0"
+            [attr.aria-expanded]="!isEventsLogFolded"
+          >
+            <div class="header-left">
+              <span class="toggle-icon" [class.expanded]="!isEventsLogFolded">
+                <svg
+                  width="12"
+                  height="12"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="3"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                >
+                  <polyline points="9 18 15 12 9 6"></polyline>
+                </svg>
+              </span>
+              <h4>Events Log</h4>
+            </div>
+            <div>
+              <button class="clear-btn" (click)="clearEventsLog(); $event.stopPropagation()">
+                Clear
+              </button>
+            </div>
+          </div>
+          <div class="section-content" *ngIf="!isEventsLogFolded">
             <div *ngFor="let ev of eventsLog" class="log-item">
               <div class="log-header">
                 <span class="log-time">{{ ev.timestamp | date: 'HH:mm:ss.SSS' }}</span>
@@ -122,14 +260,41 @@ import { ActionDispatcher } from './action-dispatcher.service';
         flex-direction: column;
       }
       .sidebar-header {
-        padding: 16px;
-        border-bottom: 1px solid #333;
-        background-color: #1a1a1a;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 0 16px;
+        height: 56px;
+        border-bottom: 1px solid #334155;
+        background-color: #1e293b;
       }
       .sidebar-header h3 {
         margin: 0;
         color: #4dabf7;
-        font-size: 1.1rem;
+        font-size: 1rem;
+      }
+      .version-selector {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+      .version-selector label {
+        font-size: 0.75rem;
+        color: #94a3b8;
+      }
+      .version-selector select {
+        background-color: #0f172a;
+        color: #f8fafc;
+        border: 1px solid #334155;
+        border-radius: 4px;
+        padding: 2px 6px;
+        font-size: 0.75rem;
+        cursor: pointer;
+        outline: none;
+        transition: border-color 0.2s;
+      }
+      .version-selector select:focus {
+        border-color: #3b82f6;
       }
       .example-list {
         list-style: none;
@@ -172,18 +337,22 @@ import { ActionDispatcher } from './action-dispatcher.service';
         overflow: hidden;
       }
       .canvas-header {
-        padding: 16px;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        padding: 0 16px;
+        height: 56px;
         background-color: #1e293b;
         border-bottom: 1px solid #334155;
       }
       .canvas-header h2 {
         margin: 0;
-        font-size: 1.25rem;
+        font-size: 1.1rem;
         color: #f8fafc;
       }
       .subtitle {
-        margin: 4px 0 0;
-        font-size: 0.85rem;
+        margin: 2px 0 0;
+        font-size: 0.75rem;
         color: #94a3b8;
       }
       .canvas-frame {
@@ -197,11 +366,15 @@ import { ActionDispatcher } from './action-dispatcher.service';
       .rendered-content {
         width: 100%;
         max-width: 800px;
-        background-color: #ffffff;
-        color: #333;
+        background-color: var(--a2ui-color-surface, #ffffff);
         border-radius: 8px;
         box-shadow: 0 4px 24px rgba(0, 0, 0, 0.4);
         padding: 24px;
+      }
+      .rendered-content.protocol-version-08 {
+        --a2ui-color-surface: #1e1e1e;
+        background-color: var(--a2ui-color-surface);
+        color: #e0e0e0;
       }
       .empty-canvas {
         align-self: center;
@@ -221,27 +394,61 @@ import { ActionDispatcher } from './action-dispatcher.service';
         overflow: hidden;
       }
       .inspect-section {
-        flex: 1;
+        flex: 0 1 auto;
         display: flex;
         flex-direction: column;
         overflow: hidden;
         min-height: 0;
       }
-      .data-section {
-        border-bottom: 1px solid #1e293b;
-        height: 50%;
+      .inspect-section.folded {
+        flex: 0 0 auto;
       }
-      .events-section {
-        height: 50%;
+      .data-section,
+      .surface-section {
+        border-bottom: 1px solid #1e293b;
+        flex: 0 0 auto;
+        max-height: 800px;
+        display: flex;
+        flex-direction: column;
+      }
+      textarea {
+        width: 100%;
+        height: 150px;
+        min-height: 100px;
+        box-sizing: border-box;
+        background-color: #0c111b;
+        color: #a7f3d0;
+        border: 1px solid #1e293b;
+        border-radius: 4px;
+        font-family: inherit;
+        font-size: inherit;
+        padding: 8px;
+        resize: vertical;
       }
 
       .section-header {
         display: flex;
         justify-content: space-between;
         align-items: center;
-        padding: 10px 16px;
+        padding: 0 16px;
+        height: 56px;
         background-color: #1e293b;
         border-bottom: 1px solid #334155;
+      }
+      .header-left {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+      .toggle-icon {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        color: #94a3b8;
+        transition: transform 0.2s ease;
+      }
+      .toggle-icon.expanded {
+        transform: rotate(90deg);
       }
       .section-header h4 {
         margin: 0;
@@ -266,6 +473,28 @@ import { ActionDispatcher } from './action-dispatcher.service';
         border-radius: 4px;
         font-weight: 600;
         text-transform: uppercase;
+      }
+      .error-badge {
+        background-color: #7f1d1d;
+        color: #fca5a5;
+      }
+      .error-message {
+        color: #fca5a5;
+        font-size: 0.75rem;
+        margin: 0 0 8px 0;
+        font-family: inherit;
+        background-color: #7f1d1d;
+        border: 1px solid #b91c1c;
+        border-radius: 6px;
+        padding: 10px 14px;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+        box-sizing: border-box;
+      }
+      .error-icon {
+        font-size: 0.9rem;
       }
       .clear-btn {
         background: none;
@@ -331,9 +560,19 @@ import { ActionDispatcher } from './action-dispatcher.service';
   ],
   providers: [
     A2uiRendererService,
-    { provide: AngularCatalog, useClass: DemoCatalog },
+    {provide: AngularCatalog, useClass: DemoCatalog},
+    {provide: CatalogV08, useValue: DEFAULT_CATALOG_V08},
+    provideMarkdownRenderer(),
     ActionDispatcher,
-    AgentStubService,
+    {
+      provide: AgentStubService,
+      useFactory: (v09: AgentStubV09Service, v08: AgentStubV08Service, version: Version) => {
+        return version === Version.V0_8 ? v08 : v09;
+      },
+      deps: [AgentStubV09Service, AgentStubV08Service, A2UI_VERSION],
+    },
+    AgentStubV08Service,
+    AgentStubV09Service,
     {
       provide: A2UI_RENDERER_CONFIG,
       useFactory: (catalog: AngularCatalog, dispatcher: ActionDispatcher) => ({
@@ -345,75 +584,96 @@ import { ActionDispatcher } from './action-dispatcher.service';
   ],
 })
 export class DemoComponent implements OnInit, OnDestroy {
+  readonly Version = Version;
   private rendererService = inject(A2uiRendererService);
   private agentStub = inject(AgentStubService);
   private cdr = inject(ChangeDetectorRef);
 
-  examples = EXAMPLES;
-  selectedExample: Example | undefined = undefined;
-  surfaceId: string | null = null;
+  readonly version: Version = inject(A2UI_VERSION);
+  readonly examples: Array<A2uiExample> = inject(A2UI_EXAMPLES);
+  selectedExample: A2uiExample | undefined = undefined;
+  readonly surfaceId = this.agentStub.surfaceId;
   inspectTab: 'data' | 'events' = 'data';
 
-  currentDataModel: Record<string, unknown> = {};
-  eventsLog: Array<{ timestamp: Date; action: A2uiClientAction }> = [];
+  get eventsLog() {
+    return this.agentStub.eventsLog();
+  }
+  clearEventsLog() {
+    this.agentStub.eventsLog.set([]);
+  }
+  currentCreateSurfaceMessageJson: string = '';
+  messageError: string | null = null;
+  currentDataModelJson: string = '';
+  dataModelError: string | null = null;
+  jsonInputFocused = signal(false);
 
-  private actionSub?: { unsubscribe: () => void };
-  private dataModelSub?: { unsubscribe: () => void };
+  constructor() {
+    effect(() => {
+      if (this.jsonInputFocused()) {
+        return;
+      }
+      const data = this.agentStub.dataModel();
+      this.currentDataModelJson = JSON.stringify(data, null, 2);
+      this.cdr.detectChanges();
+    });
+
+    effect(() => {
+      if (this.jsonInputFocused()) {
+        return;
+      }
+      const msg = this.agentStub.currentCreateSurfaceMessage();
+      this.currentCreateSurfaceMessageJson = msg ? JSON.stringify(msg, null, 2) : '';
+      this.cdr.detectChanges();
+    });
+  }
+
+  isDataModelFolded = false;
+  isSurfaceMessageFolded = false;
+  isEventsLogFolded = false;
+
+  toggleDataModel() {
+    this.isDataModelFolded = !this.isDataModelFolded;
+    localStorage.setItem('isDataModelFolded', String(this.isDataModelFolded));
+  }
+
+  toggleSurfaceMessage() {
+    this.isSurfaceMessageFolded = !this.isSurfaceMessageFolded;
+    localStorage.setItem('isSurfaceMessageFolded', String(this.isSurfaceMessageFolded));
+  }
+
+  toggleEventsLog() {
+    this.isEventsLogFolded = !this.isEventsLogFolded;
+    localStorage.setItem('isEventsLogFolded', String(this.isEventsLogFolded));
+  }
 
   ngOnInit(): void {
-    if (this.examples.length > 0) {
-      this.selectExample(this.examples[0]);
+    if (typeof window !== 'undefined') {
+      this.isDataModelFolded = localStorage.getItem('isDataModelFolded') === 'true';
+      this.isSurfaceMessageFolded = localStorage.getItem('isSurfaceMessageFolded') === 'true';
+      this.isEventsLogFolded = localStorage.getItem('isEventsLogFolded') === 'true';
     }
+    this.selectExampleFromUrl();
   }
 
   /**
-   * Loads a selected example configuration into the dashboard canvas dashboard workspace.
-   * - Resets surface identifiers and data payloads triggers.
-   * - Re-initializes incremental playback state sequence into `AgentStubService`.
-   * - Subscribes to path `/` enabling live model inspection updates.
+   * Reloads the page with the selected version.
    */
-  selectExample(example: Example) {
-    this.selectedExample = example;
-    this.surfaceId = null;
-    this.currentDataModel = {};
-    this.eventsLog = [];
-    this.cdr.detectChanges();
-
-    // Clean up previous subscriptions
-    if (this.dataModelSub) {
-      this.dataModelSub.unsubscribe();
+  onVersionChange(event: Event) {
+    const select = event.target as HTMLSelectElement;
+    const newVersion = select.value;
+    if (typeof window !== 'undefined') {
+      const url = new URL(window.location.href);
+      url.searchParams.set('version', newVersion);
+      window.location.href = url.toString();
     }
+  }
+
+  selectExample(example: A2uiExample) {
+    this.selectedExample = example;
+    window.location.hash = this.slugify(example.name);
 
     this.agentStub.initializeDemo(example.messages);
-
-    // Look for the surfaceId in the first message or use default
-    const createMsg = example.messages.find((m): m is CreateSurfaceMessage => 'createSurface' in m);
-    this.surfaceId = createMsg ? createMsg.createSurface.surfaceId : 'demo-surface';
-
     this.cdr.detectChanges();
-
-    // Subscribe to DataModel updates
-    const surface = this.rendererService.surfaceGroup?.getSurface(this.surfaceId!);
-    if (surface) {
-      // Subscribe to root changes
-      this.dataModelSub = surface.dataModel.subscribe('/', (data) => {
-        this.currentDataModel = data as Record<string, unknown>;
-        this.cdr.detectChanges();
-      });
-      // Set initial data model
-      this.currentDataModel = surface.dataModel.get('/');
-    }
-
-    // Subscribe to Actions for Events log
-    if (this.rendererService.surfaceGroup) {
-      if (this.actionSub) {
-        this.actionSub.unsubscribe();
-      }
-      this.actionSub = this.rendererService.surfaceGroup.onAction.subscribe((action) => {
-        this.eventsLog.unshift({ timestamp: new Date(), action });
-        this.cdr.detectChanges();
-      });
-    }
   }
 
   /** Gets a display string for the action type. */
@@ -421,12 +681,95 @@ export class DemoComponent implements OnInit, OnDestroy {
     return action.name || 'Action';
   }
 
-  ngOnDestroy(): void {
-    if (this.dataModelSub) {
-      this.dataModelSub.unsubscribe();
+  /**
+   * Handles user input in the message editor.
+   * Reloads the UI live on every valid input.
+   */
+  onSurfaceMessageChange(event: Event) {
+    const textarea = event.target as HTMLTextAreaElement;
+    const newValue = textarea.value;
+    this.currentCreateSurfaceMessageJson = newValue;
+
+    try {
+      const parsed = JSON.parse(newValue);
+      this.messageError = null;
+
+      if (!('createSurface' in parsed) || !this.selectedExample) return;
+
+      const updatedMessages = this.selectedExample.messages.map(m =>
+        'createSurface' in m ? parsed : m,
+      );
+
+      // Re-initialize the demo with the updated messages
+      this.agentStub.initializeDemo(updatedMessages);
+      this.cdr.detectChanges();
+    } catch (e) {
+      this.messageError = e instanceof Error ? e.message : 'Invalid JSON';
+      console.error(e);
     }
-    if (this.actionSub) {
-      this.actionSub.unsubscribe();
+  }
+
+  onSurfaceMessageFocus() {
+    this.jsonInputFocused.set(true);
+  }
+
+  onSurfaceMessageBlur() {
+    this.jsonInputFocused.set(false);
+    try {
+      const parsed = JSON.parse(this.currentCreateSurfaceMessageJson);
+      this.currentCreateSurfaceMessageJson = JSON.stringify(parsed, null, 2);
+    } catch {
+      // Ignore if invalid, don't format
     }
+  }
+
+  /**
+   * Handles user input in the data model editor.
+   * Updates the surface data model live.
+   */
+  onDataModelChange(event: Event) {
+    const textarea = event.target as HTMLTextAreaElement;
+    const newValue = textarea.value;
+    this.currentDataModelJson = newValue;
+
+    try {
+      const parsed = JSON.parse(newValue);
+      this.dataModelError = null;
+      const surface = this.rendererService.surfaceGroup?.getSurface(this.surfaceId());
+      surface?.dataModel.set('/', parsed);
+    } catch (e) {
+      this.dataModelError = e instanceof Error ? e.message : 'Invalid JSON';
+      console.error(e);
+    }
+  }
+  onDataModelFocus() {
+    this.jsonInputFocused.set(true);
+  }
+
+  onDataModelBlur() {
+    this.jsonInputFocused.set(false);
+    try {
+      const parsed = JSON.parse(this.currentDataModelJson);
+      this.currentDataModelJson = JSON.stringify(parsed, null, 2);
+    } catch {
+      // Ignore if invalid, don't format
+    }
+  }
+
+  ngOnDestroy(): void {}
+
+  private slugify(text: string): string {
+    return text
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-|-$/g, '');
+  }
+
+  private selectExampleFromUrl(): void {
+    const hash = window.location.hash.substring(1) || '';
+    const example: A2uiExample | undefined =
+      this.examples.find(ex => this.slugify(ex.name) === hash) || this.examples[0];
+    if (!example) return;
+    this.selectExample(example);
   }
 }

@@ -1,0 +1,1128 @@
+[
+  {
+    "beginRendering": {
+      "surfaceId": "confirmation",
+      "root": "confirmation-card",
+      "styles": {
+        "primaryColor": "#FF0000",
+        "font": "Roboto"
+      }
+    }
+  },
+  {
+    "surfaceUpdate": {
+      "surfaceId": "confirmation",
+      "components": [
+        {
+          "id": "confirmation-card",
+          "component": {
+            "Card": {
+              "child": "loading_confirmation-column"
+            }
+          }
+        },
+        {
+          "id": "loading_confirmation-column",
+          "component": {
+            "Row": {
+              "children": {
+                "explicitList": []
+              }
+            }
+          }
+        }
+      ]
+    }
+  },
+  {
+    "surfaceUpdate": {
+      "surfaceId": "confirmation",
+      "components": [
+        {
+          "id": "confirmation-card",
+          "component": {
+            "Card": {
+              "child": "confirmation-column"
+            }
+          }
+        },
+        {
+          "id": "confirmation-column",
+          "component": {
+            "Column": {
+              "children": {
+                "explicitList": ["loading_"]
+              }
+            }
+          }
+        },
+        {
+          "id": "loading_",
+          "component": {
+            "Row": {
+              "children": {
+                "explicitList": []
+              }
+            }
+          }
+        }
+      ]
+    }
+  },
+  {
+    "surfaceUpdate": {
+      "surfaceId": "confirmation",
+      "components": [
+        {
+          "id": "confirmation-card",
+          "component": {
+            "Card": {
+              "child": "confirmation-column"
+            }
+          }
+        },
+        {
+          "id": "confirmation-column",
+          "component": {
+            "Column": {
+              "children": {
+                "explicitList": [
+                  "loading_confirm-title",
+                  "loading_confirm-image",
+                  "loading_divider1",
+                  "loading_confirm-details",
+                  "loading_divider2",
+                  "loading_confirm-dietary",
+                  "loading_divider3",
+                  "loading_confirm"
+                ]
+              }
+            }
+          }
+        },
+        {
+          "id": "loading_confirm-title",
+          "component": {
+            "Row": {
+              "children": {
+                "explicitList": []
+              }
+            }
+          }
+        },
+        {
+          "id": "loading_confirm-image",
+          "component": {
+            "Row": {
+              "children": {
+                "explicitList": []
+              }
+            }
+          }
+        },
+        {
+          "id": "loading_divider1",
+          "component": {
+            "Row": {
+              "children": {
+                "explicitList": []
+              }
+            }
+          }
+        },
+        {
+          "id": "loading_confirm-details",
+          "component": {
+            "Row": {
+              "children": {
+                "explicitList": []
+              }
+            }
+          }
+        },
+        {
+          "id": "loading_divider2",
+          "component": {
+            "Row": {
+              "children": {
+                "explicitList": []
+              }
+            }
+          }
+        },
+        {
+          "id": "loading_confirm-dietary",
+          "component": {
+            "Row": {
+              "children": {
+                "explicitList": []
+              }
+            }
+          }
+        },
+        {
+          "id": "loading_divider3",
+          "component": {
+            "Row": {
+              "children": {
+                "explicitList": []
+              }
+            }
+          }
+        },
+        {
+          "id": "loading_confirm",
+          "component": {
+            "Row": {
+              "children": {
+                "explicitList": []
+              }
+            }
+          }
+        }
+      ]
+    }
+  },
+  {
+    "surfaceUpdate": {
+      "surfaceId": "confirmation",
+      "components": [
+        {
+          "id": "confirmation-card",
+          "component": {
+            "Card": {
+              "child": "confirmation-column"
+            }
+          }
+        },
+        {
+          "id": "confirmation-column",
+          "component": {
+            "Column": {
+              "children": {
+                "explicitList": [
+                  "loading_confirm-title",
+                  "loading_confirm-image",
+                  "loading_divider1",
+                  "loading_confirm-details",
+                  "loading_divider2",
+                  "loading_confirm-dietary",
+                  "loading_divider3",
+                  "loading_confirm-text"
+                ]
+              }
+            }
+          }
+        },
+        {
+          "id": "loading_confirm-title",
+          "component": {
+            "Row": {
+              "children": {
+                "explicitList": []
+              }
+            }
+          }
+        },
+        {
+          "id": "loading_confirm-image",
+          "component": {
+            "Row": {
+              "children": {
+                "explicitList": []
+              }
+            }
+          }
+        },
+        {
+          "id": "loading_divider1",
+          "component": {
+            "Row": {
+              "children": {
+                "explicitList": []
+              }
+            }
+          }
+        },
+        {
+          "id": "loading_confirm-details",
+          "component": {
+            "Row": {
+              "children": {
+                "explicitList": []
+              }
+            }
+          }
+        },
+        {
+          "id": "loading_divider2",
+          "component": {
+            "Row": {
+              "children": {
+                "explicitList": []
+              }
+            }
+          }
+        },
+        {
+          "id": "loading_confirm-dietary",
+          "component": {
+            "Row": {
+              "children": {
+                "explicitList": []
+              }
+            }
+          }
+        },
+        {
+          "id": "loading_divider3",
+          "component": {
+            "Row": {
+              "children": {
+                "explicitList": []
+              }
+            }
+          }
+        },
+        {
+          "id": "loading_confirm-text",
+          "component": {
+            "Row": {
+              "children": {
+                "explicitList": []
+              }
+            }
+          }
+        }
+      ]
+    }
+  },
+  {
+    "surfaceUpdate": {
+      "surfaceId": "confirmation",
+      "components": [
+        {
+          "id": "confirm-title",
+          "component": {
+            "Text": {
+              "usageHint": "h2",
+              "text": {
+                "path": "/title"
+              }
+            }
+          }
+        },
+        {
+          "id": "confirmation-card",
+          "component": {
+            "Card": {
+              "child": "confirmation-column"
+            }
+          }
+        },
+        {
+          "id": "confirmation-column",
+          "component": {
+            "Column": {
+              "children": {
+                "explicitList": [
+                  "confirm-title",
+                  "loading_confirm-image",
+                  "loading_divider1",
+                  "loading_confirm-details",
+                  "loading_divider2",
+                  "loading_confirm-dietary",
+                  "loading_divider3",
+                  "loading_confirm-text"
+                ]
+              }
+            }
+          }
+        },
+        {
+          "id": "loading_confirm-image",
+          "component": {
+            "Row": {
+              "children": {
+                "explicitList": []
+              }
+            }
+          }
+        },
+        {
+          "id": "loading_divider1",
+          "component": {
+            "Row": {
+              "children": {
+                "explicitList": []
+              }
+            }
+          }
+        },
+        {
+          "id": "loading_confirm-details",
+          "component": {
+            "Row": {
+              "children": {
+                "explicitList": []
+              }
+            }
+          }
+        },
+        {
+          "id": "loading_divider2",
+          "component": {
+            "Row": {
+              "children": {
+                "explicitList": []
+              }
+            }
+          }
+        },
+        {
+          "id": "loading_confirm-dietary",
+          "component": {
+            "Row": {
+              "children": {
+                "explicitList": []
+              }
+            }
+          }
+        },
+        {
+          "id": "loading_divider3",
+          "component": {
+            "Row": {
+              "children": {
+                "explicitList": []
+              }
+            }
+          }
+        },
+        {
+          "id": "loading_confirm-text",
+          "component": {
+            "Row": {
+              "children": {
+                "explicitList": []
+              }
+            }
+          }
+        }
+      ]
+    }
+  },
+  {
+    "surfaceUpdate": {
+      "surfaceId": "confirmation",
+      "components": [
+        {
+          "id": "confirm-image",
+          "component": {
+            "Image": {
+              "url": {
+                "path": "/imageUrl"
+              }
+            }
+          }
+        },
+        {
+          "id": "confirm-title",
+          "component": {
+            "Text": {
+              "usageHint": "h2",
+              "text": {
+                "path": "/title"
+              }
+            }
+          }
+        },
+        {
+          "id": "confirmation-card",
+          "component": {
+            "Card": {
+              "child": "confirmation-column"
+            }
+          }
+        },
+        {
+          "id": "confirmation-column",
+          "component": {
+            "Column": {
+              "children": {
+                "explicitList": [
+                  "confirm-title",
+                  "confirm-image",
+                  "loading_divider1",
+                  "loading_confirm-details",
+                  "loading_divider2",
+                  "loading_confirm-dietary",
+                  "loading_divider3",
+                  "loading_confirm-text"
+                ]
+              }
+            }
+          }
+        },
+        {
+          "id": "loading_divider1",
+          "component": {
+            "Row": {
+              "children": {
+                "explicitList": []
+              }
+            }
+          }
+        },
+        {
+          "id": "loading_confirm-details",
+          "component": {
+            "Row": {
+              "children": {
+                "explicitList": []
+              }
+            }
+          }
+        },
+        {
+          "id": "loading_divider2",
+          "component": {
+            "Row": {
+              "children": {
+                "explicitList": []
+              }
+            }
+          }
+        },
+        {
+          "id": "loading_confirm-dietary",
+          "component": {
+            "Row": {
+              "children": {
+                "explicitList": []
+              }
+            }
+          }
+        },
+        {
+          "id": "loading_divider3",
+          "component": {
+            "Row": {
+              "children": {
+                "explicitList": []
+              }
+            }
+          }
+        },
+        {
+          "id": "loading_confirm-text",
+          "component": {
+            "Row": {
+              "children": {
+                "explicitList": []
+              }
+            }
+          }
+        }
+      ]
+    }
+  },
+  {
+    "surfaceUpdate": {
+      "surfaceId": "confirmation",
+      "components": [
+        {
+          "id": "confirm-details",
+          "component": {
+            "Text": {
+              "text": {
+                "path": "/bookingDetails"
+              }
+            }
+          }
+        },
+        {
+          "id": "confirm-image",
+          "component": {
+            "Image": {
+              "url": {
+                "path": "/imageUrl"
+              }
+            }
+          }
+        },
+        {
+          "id": "confirm-title",
+          "component": {
+            "Text": {
+              "usageHint": "h2",
+              "text": {
+                "path": "/title"
+              }
+            }
+          }
+        },
+        {
+          "id": "confirmation-card",
+          "component": {
+            "Card": {
+              "child": "confirmation-column"
+            }
+          }
+        },
+        {
+          "id": "confirmation-column",
+          "component": {
+            "Column": {
+              "children": {
+                "explicitList": [
+                  "confirm-title",
+                  "confirm-image",
+                  "loading_divider1",
+                  "confirm-details",
+                  "loading_divider2",
+                  "loading_confirm-dietary",
+                  "loading_divider3",
+                  "loading_confirm-text"
+                ]
+              }
+            }
+          }
+        },
+        {
+          "id": "loading_divider1",
+          "component": {
+            "Row": {
+              "children": {
+                "explicitList": []
+              }
+            }
+          }
+        },
+        {
+          "id": "loading_divider2",
+          "component": {
+            "Row": {
+              "children": {
+                "explicitList": []
+              }
+            }
+          }
+        },
+        {
+          "id": "loading_confirm-dietary",
+          "component": {
+            "Row": {
+              "children": {
+                "explicitList": []
+              }
+            }
+          }
+        },
+        {
+          "id": "loading_divider3",
+          "component": {
+            "Row": {
+              "children": {
+                "explicitList": []
+              }
+            }
+          }
+        },
+        {
+          "id": "loading_confirm-text",
+          "component": {
+            "Row": {
+              "children": {
+                "explicitList": []
+              }
+            }
+          }
+        }
+      ]
+    }
+  },
+  {
+    "surfaceUpdate": {
+      "surfaceId": "confirmation",
+      "components": [
+        {
+          "id": "confirm-details",
+          "component": {
+            "Text": {
+              "text": {
+                "path": "/bookingDetails"
+              }
+            }
+          }
+        },
+        {
+          "id": "confirm-dietary",
+          "component": {
+            "Text": {
+              "text": {
+                "path": "/dietaryRequirements"
+              }
+            }
+          }
+        },
+        {
+          "id": "confirm-image",
+          "component": {
+            "Image": {
+              "url": {
+                "path": "/imageUrl"
+              }
+            }
+          }
+        },
+        {
+          "id": "confirm-title",
+          "component": {
+            "Text": {
+              "usageHint": "h2",
+              "text": {
+                "path": "/title"
+              }
+            }
+          }
+        },
+        {
+          "id": "confirmation-card",
+          "component": {
+            "Card": {
+              "child": "confirmation-column"
+            }
+          }
+        },
+        {
+          "id": "confirmation-column",
+          "component": {
+            "Column": {
+              "children": {
+                "explicitList": [
+                  "confirm-title",
+                  "confirm-image",
+                  "loading_divider1",
+                  "confirm-details",
+                  "loading_divider2",
+                  "confirm-dietary",
+                  "loading_divider3",
+                  "loading_confirm-text"
+                ]
+              }
+            }
+          }
+        },
+        {
+          "id": "loading_divider1",
+          "component": {
+            "Row": {
+              "children": {
+                "explicitList": []
+              }
+            }
+          }
+        },
+        {
+          "id": "loading_divider2",
+          "component": {
+            "Row": {
+              "children": {
+                "explicitList": []
+              }
+            }
+          }
+        },
+        {
+          "id": "loading_divider3",
+          "component": {
+            "Row": {
+              "children": {
+                "explicitList": []
+              }
+            }
+          }
+        },
+        {
+          "id": "loading_confirm-text",
+          "component": {
+            "Row": {
+              "children": {
+                "explicitList": []
+              }
+            }
+          }
+        }
+      ]
+    }
+  },
+  {
+    "surfaceUpdate": {
+      "surfaceId": "confirmation",
+      "components": [
+        {
+          "id": "confirm-details",
+          "component": {
+            "Text": {
+              "text": {
+                "path": "/bookingDetails"
+              }
+            }
+          }
+        },
+        {
+          "id": "confirm-dietary",
+          "component": {
+            "Text": {
+              "text": {
+                "path": "/dietaryRequirements"
+              }
+            }
+          }
+        },
+        {
+          "id": "confirm-image",
+          "component": {
+            "Image": {
+              "url": {
+                "path": "/imageUrl"
+              }
+            }
+          }
+        },
+        {
+          "id": "confirm-text",
+          "component": {
+            "Text": {
+              "usageHint": "h5",
+              "text": {
+                "literalString": "We look forward to seeing"
+              }
+            }
+          }
+        },
+        {
+          "id": "confirm-title",
+          "component": {
+            "Text": {
+              "usageHint": "h2",
+              "text": {
+                "path": "/title"
+              }
+            }
+          }
+        },
+        {
+          "id": "confirmation-card",
+          "component": {
+            "Card": {
+              "child": "confirmation-column"
+            }
+          }
+        },
+        {
+          "id": "confirmation-column",
+          "component": {
+            "Column": {
+              "children": {
+                "explicitList": [
+                  "confirm-title",
+                  "confirm-image",
+                  "loading_divider1",
+                  "confirm-details",
+                  "loading_divider2",
+                  "confirm-dietary",
+                  "loading_divider3",
+                  "confirm-text"
+                ]
+              }
+            }
+          }
+        },
+        {
+          "id": "loading_divider1",
+          "component": {
+            "Row": {
+              "children": {
+                "explicitList": []
+              }
+            }
+          }
+        },
+        {
+          "id": "loading_divider2",
+          "component": {
+            "Row": {
+              "children": {
+                "explicitList": []
+              }
+            }
+          }
+        },
+        {
+          "id": "loading_divider3",
+          "component": {
+            "Row": {
+              "children": {
+                "explicitList": []
+              }
+            }
+          }
+        }
+      ]
+    }
+  },
+  {
+    "surfaceUpdate": {
+      "surfaceId": "confirmation",
+      "components": [
+        {
+          "id": "confirm-details",
+          "component": {
+            "Text": {
+              "text": {
+                "path": "/bookingDetails"
+              }
+            }
+          }
+        },
+        {
+          "id": "confirm-dietary",
+          "component": {
+            "Text": {
+              "text": {
+                "path": "/dietaryRequirements"
+              }
+            }
+          }
+        },
+        {
+          "id": "confirm-image",
+          "component": {
+            "Image": {
+              "url": {
+                "path": "/imageUrl"
+              }
+            }
+          }
+        },
+        {
+          "id": "confirm-text",
+          "component": {
+            "Text": {
+              "usageHint": "h5",
+              "text": {
+                "literalString": "We look forward to seeing you!"
+              }
+            }
+          }
+        },
+        {
+          "id": "confirm-title",
+          "component": {
+            "Text": {
+              "usageHint": "h2",
+              "text": {
+                "path": "/title"
+              }
+            }
+          }
+        },
+        {
+          "id": "confirmation-card",
+          "component": {
+            "Card": {
+              "child": "confirmation-column"
+            }
+          }
+        },
+        {
+          "id": "confirmation-column",
+          "component": {
+            "Column": {
+              "children": {
+                "explicitList": [
+                  "confirm-title",
+                  "confirm-image",
+                  "loading_divider1",
+                  "confirm-details",
+                  "loading_divider2",
+                  "confirm-dietary",
+                  "loading_divider3",
+                  "confirm-text"
+                ]
+              }
+            }
+          }
+        },
+        {
+          "id": "loading_divider1",
+          "component": {
+            "Row": {
+              "children": {
+                "explicitList": []
+              }
+            }
+          }
+        },
+        {
+          "id": "loading_divider2",
+          "component": {
+            "Row": {
+              "children": {
+                "explicitList": []
+              }
+            }
+          }
+        },
+        {
+          "id": "loading_divider3",
+          "component": {
+            "Row": {
+              "children": {
+                "explicitList": []
+              }
+            }
+          }
+        }
+      ]
+    }
+  },
+  {
+    "surfaceUpdate": {
+      "surfaceId": "confirmation",
+      "components": [
+        {
+          "id": "confirm-details",
+          "component": {
+            "Text": {
+              "text": {
+                "path": "/bookingDetails"
+              }
+            }
+          }
+        },
+        {
+          "id": "confirm-dietary",
+          "component": {
+            "Text": {
+              "text": {
+                "path": "/dietaryRequirements"
+              }
+            }
+          }
+        },
+        {
+          "id": "confirm-image",
+          "component": {
+            "Image": {
+              "url": {
+                "path": "/imageUrl"
+              }
+            }
+          }
+        },
+        {
+          "id": "confirm-text",
+          "component": {
+            "Text": {
+              "usageHint": "h5",
+              "text": {
+                "literalString": "We look forward to seeing you!"
+              }
+            }
+          }
+        },
+        {
+          "id": "confirm-title",
+          "component": {
+            "Text": {
+              "usageHint": "h2",
+              "text": {
+                "path": "/title"
+              }
+            }
+          }
+        },
+        {
+          "id": "confirmation-card",
+          "component": {
+            "Card": {
+              "child": "confirmation-column"
+            }
+          }
+        },
+        {
+          "id": "confirmation-column",
+          "component": {
+            "Column": {
+              "children": {
+                "explicitList": [
+                  "confirm-title",
+                  "confirm-image",
+                  "divider1",
+                  "confirm-details",
+                  "divider2",
+                  "confirm-dietary",
+                  "divider3",
+                  "confirm-text"
+                ]
+              }
+            }
+          }
+        },
+        {
+          "id": "divider1",
+          "component": {
+            "Divider": {}
+          }
+        },
+        {
+          "id": "divider2",
+          "component": {
+            "Divider": {}
+          }
+        },
+        {
+          "id": "divider3",
+          "component": {
+            "Divider": {}
+          }
+        }
+      ]
+    }
+  },
+  {
+    "dataModelUpdate": {
+      "surfaceId": "confirmation",
+      "contents": [
+        {
+          "key": "title",
+          "valueString": "Booking at Xi'an Famous Foods"
+        }
+      ],
+      "path": "/"
+    }
+  },
+  {
+    "dataModelUpdate": {
+      "surfaceId": "confirmation",
+      "contents": [
+        {
+          "key": "title",
+          "valueString": "Booking at Xi'an Famous Foods"
+        },
+        {
+          "key": "bookingDetails",
+          "valueString": "4 people at 7:00 PM"
+        },
+        {
+          "key": "dietaryRequirements",
+          "valueString": "Dietary Requirements: none"
+        }
+      ],
+      "path": "/"
+    }
+  }
+]

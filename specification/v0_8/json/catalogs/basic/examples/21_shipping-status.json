@@ -16,13 +16,7 @@
           "component": {
             "Column": {
               "children": {
-                "explicitList": [
-                  "header",
-                  "tracking-number",
-                  "divider",
-                  "steps",
-                  "eta"
-                ]
+                "explicitList": ["header", "tracking-number", "divider", "steps", "eta"]
               }
             }
           }
@@ -32,10 +26,7 @@
           "component": {
             "Row": {
               "children": {
-                "explicitList": [
-                  "package-icon",
-                  "title"
-                ]
+                "explicitList": ["package-icon", "title"]
               },
               "alignment": "center"
             }
@@ -84,12 +75,7 @@
           "component": {
             "Column": {
               "children": {
-                "explicitList": [
-                  "step1",
-                  "step2",
-                  "step3",
-                  "step4"
-                ]
+                "explicitList": ["step1", "step2", "step3", "step4"]
               }
             }
           }
@@ -99,10 +85,7 @@
           "component": {
             "Row": {
               "children": {
-                "explicitList": [
-                  "step1-icon",
-                  "step1-text"
-                ]
+                "explicitList": ["step1-icon", "step1-text"]
               },
               "alignment": "center"
             }
@@ -134,10 +117,7 @@
           "component": {
             "Row": {
               "children": {
-                "explicitList": [
-                  "step2-icon",
-                  "step2-text"
-                ]
+                "explicitList": ["step2-icon", "step2-text"]
               },
               "alignment": "center"
             }
@@ -169,10 +149,7 @@
           "component": {
             "Row": {
               "children": {
-                "explicitList": [
-                  "step3-icon",
-                  "step3-text"
-                ]
+                "explicitList": ["step3-icon", "step3-text"]
               },
               "alignment": "center"
             }
@@ -204,10 +181,7 @@
           "component": {
             "Row": {
               "children": {
-                "explicitList": [
-                  "step4-icon",
-                  "step4-text"
-                ]
+                "explicitList": ["step4-icon", "step4-text"]
               },
               "alignment": "center"
             }
@@ -239,10 +213,7 @@
           "component": {
             "Row": {
               "children": {
-                "explicitList": [
-                  "eta-icon",
-                  "eta-text"
-                ]
+                "explicitList": ["eta-icon", "eta-text"]
               },
               "alignment": "center"
             }

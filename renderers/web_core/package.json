@@ -1,7 +1,24 @@
 {
   "name": "@a2ui/web_core",
-  "version": "0.8.7",
+  "version": "0.10.5",
   "description": "A2UI Core Library",
+  "homepage": "https://a2ui.org/",
+  "repository": {
+    "directory": "renderers/web_core",
+    "type": "git",
+    "url": "git+https://github.com/a2ui-project/a2ui.git"
+  },
+  "bugs": {
+    "url": "https://github.com/a2ui-project/a2ui/issues"
+  },
+  "keywords": [
+    "a2ui",
+    "web",
+    "ai",
+    "agent",
+    "ui",
+    "renderer"
+  ],
   "main": "./dist/src/v0_8/index.js",
   "types": "./dist/src/v0_8/index.d.ts",
   "exports": {
@@ -36,13 +53,25 @@
   },
   "type": "module",
   "sideEffects": false,
+  "files": [
+    "dist",
+    "src"
+  ],
   "scripts": {
-    "prepack": "npm run build",
+    "prepublishOnly": "node -e \"if(!process.cwd().endsWith('dist')) { console.error('Error: This package must be published from the dist/ directory. Run `yarn build` then `cd dist && yarn npm publish`'); process.exit(1); }\"",
+    "publish:package": "yarn build && node ../scripts/prepare-publish.mjs && cd dist && touch yarn.lock && yarn install && yarn npm publish --access public",
+    "prepack": "yarn build",
     "build": "wireit",
     "build:tsc": "wireit",
     "test": "wireit",
-    "test:coverage": "c8 node --test \"dist/**/*.test.js\""
-
+    "test:coverage": "c8 node --test \"dist/**/*.test.js\"",
+    "compile": "tsc",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "fix": "gts fix",
+    "format": "wireit",
+    "format:check": "wireit",
+    "clean": "wireit"
   },
   "wireit": {
     "copy-spec": {
@@ -50,11 +79,17 @@
       "files": [
         "../../specification/v0_8/json/*.json",
         "../../specification/v0_9/json/*.json",
+        "../../specification/v0_9/catalogs/**/*.json",
+        "../../specification/v1_0/json/*.json",
+        "../../specification/v1_0/catalogs/**/*.json",
         "scripts/copy-spec.js"
       ],
       "output": [
         "src/v0_8/schemas/*.json",
-        "src/v0_9/schemas/*.json"
+        "src/v0_9/schemas/*.json",
+        "src/v0_9/schemas/catalogs/**/*.json",
+        "src/v1_0/schemas/*.json",
+        "src/v1_0/schemas/catalogs/**/*.json"
       ]
     },
     "build": {
@@ -83,20 +118,48 @@
       "dependencies": [
         "build"
       ]
+    },
+    "clean": {
+      "command": "rm -rf dist .tsbuildinfo .wireit"
+    },
+    "format": {
+      "command": "prettier --write .",
+      "files": [
+        "src/**/*.ts",
+        "src/**/*.json",
+        "scripts/**/*.js",
+        "package.json",
+        "tsconfig.json"
+      ]
+    },
+    "format:check": {
+      "command": "prettier --check .",
+      "files": [
+        "src/**/*.ts",
+        "src/**/*.json",
+        "scripts/**/*.js",
+        "package.json",
+        "tsconfig.json"
+      ]
     }
   },
   "author": "Google",
   "license": "Apache-2.0",
   "devDependencies": {
-    "@types/node": "^24.11.0",
+    "@angular/core": "^21.2.5",
+    "@types/node": "^25.9.3",
     "c8": "^11.0.0",
-    "typescript": "^5.8.3",
+    "eslint": "^10.4.1",
+    "google-artifactregistry-auth": "^3.5.0",
+    "gts": "^7.0.0",
+    "rxjs": "^7.8.2",
+    "typescript": "5.9.3",
     "wireit": "^0.15.0-pre.2"
   },
   "dependencies": {
-    "@preact/signals-core": "^1.13.0",
-    "date-fns": "^4.1.0",
+    "@preact/signals-core": "^1.14.2",
+    "date-fns": "^4.4.0",
     "zod": "^3.25.76",
-    "zod-to-json-schema": "^3.25.1"
+    "zod-to-json-schema": "^3.25.2"
   }
 }

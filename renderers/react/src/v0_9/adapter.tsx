@@ -15,9 +15,12 @@
  */
 
 import React, {useRef, useSyncExternalStore, useCallback, memo, useEffect} from 'react';
-import {type z} from 'zod';
 import {type ComponentContext, GenericBinder} from '@a2ui/web_core/v0_9';
-import type {ComponentApi, ResolveA2uiProps} from '@a2ui/web_core/v0_9';
+import type {
+  ComponentApi,
+  InferredComponentApiSchemaType,
+  ResolveA2uiProps,
+} from '@a2ui/web_core/v0_9';
 
 export interface ReactComponentImplementation extends ComponentApi {
   /** The framework-specific rendering wrapper. */
@@ -38,11 +41,13 @@ export type ReactA2uiComponentProps<T> = {
 /**
  * Creates a React component implementation using the deep generic binder.
  */
-export function createReactComponent<Schema extends z.ZodTypeAny>(
-  api: {name: string; schema: Schema},
-  RenderComponent: React.FC<ReactA2uiComponentProps<ResolveA2uiProps<z.infer<Schema>>>>
+export function createComponentImplementation<Api extends ComponentApi>(
+  api: Api,
+  RenderComponent: React.FC<
+    ReactA2uiComponentProps<ResolveA2uiProps<InferredComponentApiSchemaType<Api>>>
+  >,
 ): ReactComponentImplementation {
-  type Props = ResolveA2uiProps<z.infer<Schema>>;
+  type Props = ResolveA2uiProps<InferredComponentApiSchemaType<Api>>;
 
   const MemoizedRender = memo(RenderComponent, (prev, next) => {
     if (prev.props !== next.props) return false;
@@ -73,7 +78,7 @@ export function createReactComponent<Schema extends z.ZodTypeAny>(
         const sub = binding.subscribe(callback);
         return () => sub.unsubscribe();
       },
-      [binding]
+      [binding],
     );
 
     const getSnapshot = useCallback(() => binding.snapshot, [binding]);
@@ -99,12 +104,12 @@ export function createReactComponent<Schema extends z.ZodTypeAny>(
 /**
  * Creates a React component implementation that manages its own context bindings (no generic binder).
  */
-export function createBinderlessComponent(
+export function createBinderlessComponentImplementation(
   api: ComponentApi,
   RenderComponent: React.FC<{
     context: ComponentContext;
     buildChild: (id: string, basePath?: string) => React.ReactNode;
-  }>
+  }>,
 ): ReactComponentImplementation {
   return {
     name: api.name,

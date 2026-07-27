@@ -15,22 +15,34 @@
  */
 
 import React from 'react';
-import {createReactComponent} from '../../../adapter';
+import {createComponentImplementation} from '../../../adapter';
 import {AudioPlayerApi} from '@a2ui/web_core/v0_9/basic_catalog';
-import {getBaseLeafStyle} from '../utils';
+import {useBasicCatalogStyles} from '../utils';
 
-export const AudioPlayer = createReactComponent(AudioPlayerApi, ({props}) => {
-  const style: React.CSSProperties = {
-    ...getBaseLeafStyle(),
-    width: '100%',
+export const AudioPlayer = createComponentImplementation(AudioPlayerApi, ({props}) => {
+  useBasicCatalogStyles();
+  const containerStyle: React.CSSProperties = {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: 'var(--a2ui-spacing-xs, 0.25rem)',
+    background: 'var(--a2ui-audioplayer-background, transparent)',
+    borderRadius: 'var(--a2ui-audioplayer-border-radius, 0)',
+    padding: 'var(--a2ui-audioplayer-padding, 0)',
   };
 
   return (
-    <div style={{display: 'flex', flexDirection: 'column', gap: '4px', width: '100%'}}>
+    <div style={containerStyle}>
       {props.description && (
-        <span style={{fontSize: '12px', color: '#666'}}>{props.description}</span>
+        <span
+          style={{
+            fontSize: 'var(--a2ui-font-size-xs, 0.75rem)',
+            color: 'var(--a2ui-text-caption-color, light-dark(#666, #aaa))',
+          }}
+        >
+          {props.description}
+        </span>
       )}
-      <audio src={props.url} controls style={style} />
+      <audio src={props.url} controls />
     </div>
   );
 });

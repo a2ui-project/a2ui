@@ -18,7 +18,7 @@
  * Divider component fixtures for visual parity testing.
  */
 
-import type { ComponentFixture } from '../types';
+import type {ComponentFixture} from '../types';
 
 export const dividerHorizontal: ComponentFixture = {
   root: 'div-h',
@@ -38,7 +38,7 @@ export const dividerVertical: ComponentFixture = {
     {
       id: 'div-v',
       component: {
-        Divider: { axis: 'vertical' },
+        Divider: {axis: 'vertical'},
       },
     },
   ],

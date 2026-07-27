@@ -16,11 +16,7 @@
           "component": {
             "Column": {
               "children": {
-                "explicitList": [
-                  "header",
-                  "divider",
-                  "tracks"
-                ]
+                "explicitList": ["header", "divider", "tracks"]
               }
             }
           }
@@ -30,10 +26,7 @@
           "component": {
             "Row": {
               "children": {
-                "explicitList": [
-                  "playlist-icon",
-                  "playlist-name"
-                ]
+                "explicitList": ["playlist-icon", "playlist-name"]
               },
               "alignment": "center"
             }
@@ -71,11 +64,7 @@
           "component": {
             "Column": {
               "children": {
-                "explicitList": [
-                  "track1",
-                  "track2",
-                  "track3"
-                ]
+                "explicitList": ["track1", "track2", "track3"]
               }
             }
           }
@@ -85,12 +74,7 @@
           "component": {
             "Row": {
               "children": {
-                "explicitList": [
-                  "track1-num",
-                  "track1-art",
-                  "track1-info",
-                  "track1-duration"
-                ]
+                "explicitList": ["track1-num", "track1-art", "track1-info", "track1-duration"]
               },
               "alignment": "center"
             }
@@ -123,10 +107,7 @@
           "component": {
             "Column": {
               "children": {
-                "explicitList": [
-                  "track1-title",
-                  "track1-artist"
-                ]
+                "explicitList": ["track1-title", "track1-artist"]
               }
             }
           }
@@ -169,12 +150,7 @@
           "component": {
             "Row": {
               "children": {
-                "explicitList": [
-                  "track2-num",
-                  "track2-art",
-                  "track2-info",
-                  "track2-duration"
-                ]
+                "explicitList": ["track2-num", "track2-art", "track2-info", "track2-duration"]
               },
               "alignment": "center"
             }
@@ -207,10 +183,7 @@
           "component": {
             "Column": {
               "children": {
-                "explicitList": [
-                  "track2-title",
-                  "track2-artist"
-                ]
+                "explicitList": ["track2-title", "track2-artist"]
               }
             }
           }
@@ -253,12 +226,7 @@
           "component": {
             "Row": {
               "children": {
-                "explicitList": [
-                  "track3-num",
-                  "track3-art",
-                  "track3-info",
-                  "track3-duration"
-                ]
+                "explicitList": ["track3-num", "track3-art", "track3-info", "track3-duration"]
               },
               "alignment": "center"
             }
@@ -291,10 +259,7 @@
           "component": {
             "Column": {
               "children": {
-                "explicitList": [
-                  "track3-title",
-                  "track3-artist"
-                ]
+                "explicitList": ["track3-title", "track3-artist"]
               }
             }
           }

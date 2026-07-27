@@ -14,9 +14,12 @@
  * limitations under the License.
  */
 
-import { defineConfig } from 'vite';
+import {defineConfig} from 'vite';
 import react from '@vitejs/plugin-react';
 import path from 'path';
+import {createRequire} from 'module';
+
+const require = createRequire(import.meta.url);
 
 export default defineConfig({
   plugins: [react()],
@@ -30,10 +33,7 @@ export default defineConfig({
     force: true,
     // Pre-bundle web_core subpath imports so Vite doesn't discover them lazily
     // (which causes "optimized dependencies changed. reloading" mid-page-load)
-    include: [
-      '@a2ui/web_core/styles/index',
-      '@a2ui/web_core/data/model-processor',
-    ],
+    include: ['@a2ui/web_core/styles/index', '@a2ui/web_core/data/model-processor'],
     exclude: [
       '@a2ui/react',
       '@a2ui/lit',
@@ -48,8 +48,8 @@ export default defineConfig({
   resolve: {
     alias: {
       // Dedupe React to avoid "Invalid hook call" errors with linked packages
-      react: path.resolve(__dirname, '../node_modules/react'),
-      'react-dom': path.resolve(__dirname, '../node_modules/react-dom'),
+      react: path.dirname(require.resolve('react/package.json')),
+      'react-dom': path.dirname(require.resolve('react-dom/package.json')),
     },
   },
 });

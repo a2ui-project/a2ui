@@ -15,11 +15,12 @@
  */
 
 import React from 'react';
-import {createReactComponent} from '../../../adapter';
+import {createComponentImplementation} from '../../../adapter';
 import {ImageApi} from '@a2ui/web_core/v0_9/basic_catalog';
-import {getBaseLeafStyle} from '../utils';
+import {getBaseLeafStyle, getWeightStyle, useBasicCatalogStyles} from '../utils';
 
-export const Image = createReactComponent(ImageApi, ({props}) => {
+export const Image = createComponentImplementation(ImageApi, ({props}) => {
+  useBasicCatalogStyles();
   const mapFit = (fit?: string): React.CSSProperties['objectFit'] => {
     if (fit === 'scaleDown') return 'scale-down';
     return (fit as React.CSSProperties['objectFit']) || 'fill';
@@ -27,27 +28,27 @@ export const Image = createReactComponent(ImageApi, ({props}) => {
 
   const style: React.CSSProperties = {
     ...getBaseLeafStyle(),
+    ...getWeightStyle(props.weight),
     objectFit: mapFit(props.fit),
-    width: '100%',
-    height: 'auto',
     display: 'block',
+    borderRadius: 'var(--a2ui-image-border-radius, 0)',
   };
 
   if (props.variant === 'icon') {
-    style.width = '24px';
-    style.height = '24px';
+    style.width = 'var(--a2ui-image-icon-size, 24px)';
+    style.height = 'var(--a2ui-image-icon-size, 24px)';
   } else if (props.variant === 'avatar') {
-    style.width = '40px';
-    style.height = '40px';
+    style.width = 'var(--a2ui-image-avatar-size, 40px)';
+    style.height = 'var(--a2ui-image-avatar-size, 40px)';
     style.borderRadius = '50%';
   } else if (props.variant === 'smallFeature') {
-    style.maxWidth = '100px';
+    style.maxWidth = 'var(--a2ui-image-small-feature-size, 100px)';
   } else if (props.variant === 'largeFeature') {
-    style.maxHeight = '400px';
+    style.maxHeight = 'var(--a2ui-image-large-feature-size, 400px)';
   } else if (props.variant === 'header') {
-    style.height = '200px';
+    style.height = 'var(--a2ui-image-header-size, 200px)';
     style.objectFit = 'cover';
   }
 
-  return <img src={props.url} alt="" style={style} />;
+  return <img src={props.url} alt={props.description || ''} style={style} />;
 });

@@ -14,15 +14,13 @@
  * limitations under the License.
  */
 
-import { ComponentFixture, TestBed } from '@angular/core/testing';
-import { Tabs } from './tabs';
-import { MessageProcessor } from '../data/processor';
-import { Theme } from '../rendering/theming';
-import { Catalog } from '../rendering/catalog';
-import { Renderer } from '../rendering/renderer';
-import { Types } from '../types';
-import { Component, Directive, Input, ChangeDetectionStrategy } from '@angular/core';
-import { By } from '@angular/platform-browser';
+import {ComponentFixture, TestBed} from '@angular/core/testing';
+import {Tabs} from './tabs';
+import {MessageProcessor} from '../data/processor';
+import {Theme} from '../rendering/theming';
+import {Catalog} from '../rendering/catalog';
+import {Directive, Input} from '@angular/core';
+import {By} from '@angular/platform-browser';
 
 @Directive({
   selector: '[a2ui-renderer]',
@@ -45,12 +43,12 @@ describe('Tabs Component', () => {
 
   const mockTabItems = [
     {
-      title: { literalString: 'Tab 1' } as any,
-      child: { id: 'child-1', type: 'Text', properties: { text: 'Content 1' } },
+      title: {literalString: 'Tab 1'} as any,
+      child: {id: 'child-1', type: 'Text', properties: {text: 'Content 1'}},
     },
     {
-      title: { literalString: 'Tab 2' } as any,
-      child: { id: 'child-2', type: 'Text', properties: { text: 'Content 2' } },
+      title: {literalString: 'Tab 2'} as any,
+      child: {id: 'child-2', type: 'Text', properties: {text: 'Content 2'}},
     },
   ];
 
@@ -61,7 +59,7 @@ describe('Tabs Component', () => {
         container: 'tabs-container',
         controls: {
           all: 'tabs-controls-all',
-          selected: { 'tabs-controls-selected': true },
+          selected: {'tabs-controls-selected': true},
         },
       },
     } as any;
@@ -71,15 +69,14 @@ describe('Tabs Component', () => {
       providers: [
         {
           provide: MessageProcessor,
-          useValue: { resolvePrimitive: (p: any) => p?.literalString || p },
+          useValue: {resolvePrimitive: (p: any) => p?.literalString || p},
         },
-        { provide: Theme, useValue: mockTheme },
-        { provide: Catalog, useValue: {} },
+        {provide: Theme, useValue: mockTheme},
+        {provide: Catalog, useValue: {}},
       ],
     })
       .overrideComponent(Tabs, {
         set: {
-          changeDetection: ChangeDetectionStrategy.Default,
           imports: [MockRenderer],
         },
       })
@@ -91,7 +88,7 @@ describe('Tabs Component', () => {
     component = fixture.componentInstance;
 
     fixture.componentRef.setInput('surfaceId', 'surface-1');
-    fixture.componentRef.setInput('component', { id: 'tabs-1', type: 'Tabs', weight: 1 });
+    fixture.componentRef.setInput('component', {id: 'tabs-1', type: 'Tabs', weight: 1});
     fixture.componentRef.setInput('weight', 1);
     fixture.componentRef.setInput('tabItems', mockTabItems);
 

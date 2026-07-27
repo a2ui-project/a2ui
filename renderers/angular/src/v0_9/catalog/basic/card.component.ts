@@ -14,14 +14,23 @@
  * limitations under the License.
  */
 
-import { Component, input, computed, ChangeDetectionStrategy } from '@angular/core';
-import { ComponentHostComponent } from '../../core/component-host.component';
-import { BoundProperty } from '../../core/types';
+import {Component, computed, ChangeDetectionStrategy} from '@angular/core';
+import {ComponentHostComponent} from '../../core/component-host.component';
+import {BasicCatalogComponent} from './basic-catalog-component';
+import {CardApi} from '@a2ui/web_core/v0_9/basic_catalog';
 
 /**
  * Angular implementation of the A2UI Card component (v0.9).
  *
  * Renders a container with a shadow and rounded corners for grouping related content.
+ *
+ * Supported CSS variables:
+ * - `--a2ui-card-padding`: Controls the padding.
+ * - `--a2ui-card-border-radius`: Controls the border radius.
+ * - `--a2ui-card-box-shadow`: Controls the box shadow.
+ * - `--a2ui-card-background`: Controls the background color.
+ * - `--a2ui-card-border`: Controls the border.
+ * - `--a2ui-card-margin`: Controls the margin.
  */
 @Component({
   selector: 'a2ui-v09-card',
@@ -30,11 +39,7 @@ import { BoundProperty } from '../../core/types';
   template: `
     <div class="a2ui-card">
       @if (child()) {
-        <a2ui-v09-component-host
-          [componentId]="child()!"
-          [surfaceId]="surfaceId()"
-          [dataContextPath]="dataContextPath()"
-        >
+        <a2ui-v09-component-host [componentKey]="child()!" [surfaceId]="surfaceId()">
         </a2ui-v09-component-host>
       }
     </div>
@@ -42,27 +47,20 @@ import { BoundProperty } from '../../core/types';
   styles: [
     `
       .a2ui-card {
-        padding: 16px;
-        border-radius: 8px;
-        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-        background-color: white;
-        border: 1px solid #eee;
+        padding: var(--a2ui-card-padding, var(--a2ui-spacing-m, 16px));
+        border-radius: var(--a2ui-card-border-radius, var(--a2ui-border-radius, 8px));
+        box-shadow: var(--a2ui-card-box-shadow, 0 2px 4px rgba(0, 0, 0, 0.1));
+        background: var(--a2ui-card-background, var(--a2ui-color-surface, #fff));
+        border: var(
+          --a2ui-card-border,
+          var(--a2ui-border-width, 1px) solid var(--a2ui-color-border, #ccc)
+        );
+        margin: var(--a2ui-card-margin, var(--a2ui-spacing-m, 16px));
       }
     `,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
-export class CardComponent {
-  /**
-   * Reactive properties resolved from the A2UI {@link ComponentModel}.
-   *
-   * Expected properties:
-   * - `child`: The component ID to render inside the card.
-   */
-  props = input<Record<string, BoundProperty>>({});
-  surfaceId = input.required<string>();
-  componentId = input<string>();
-  dataContextPath = input<string>('/');
-
-  child = computed(() => this.props()['child']?.value());
+export class CardComponent extends BasicCatalogComponent<typeof CardApi> {
+  readonly child = computed(() => this.props()['child']?.value());
 }

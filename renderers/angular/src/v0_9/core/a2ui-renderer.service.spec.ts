@@ -14,9 +14,8 @@
  * limitations under the License.
  */
 
-import { TestBed } from '@angular/core/testing';
-import { A2uiRendererService, A2UI_RENDERER_CONFIG } from './a2ui-renderer.service';
-import { AngularCatalog } from '../catalog/types';
+import {TestBed} from '@angular/core/testing';
+import {A2uiRendererService, A2UI_RENDERER_CONFIG} from './a2ui-renderer.service';
 
 describe('A2uiRendererService', () => {
   let service: A2uiRendererService;
@@ -41,7 +40,7 @@ describe('A2uiRendererService', () => {
         A2uiRendererService,
         {
           provide: A2UI_RENDERER_CONFIG,
-          useValue: { catalogs: [mockCatalog] },
+          useValue: {catalogs: [mockCatalog]},
         },
       ],
     });

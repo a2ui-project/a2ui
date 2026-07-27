@@ -1,0 +1,131 @@
+[
+  {
+    "version": "v0.9",
+    "createSurface": {
+      "surfaceId": "contact-list",
+      "catalogId": "https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json",
+      "theme": {
+        "primaryColor": "#007BFF",
+        "font": "Roboto"
+      }
+    }
+  },
+  {
+    "version": "v0.9",
+    "updateComponents": {
+      "surfaceId": "contact-list",
+      "components": [
+        {
+          "id": "root",
+          "component": "Column",
+          "children": ["title-heading", "item-list"]
+        },
+        {
+          "id": "title-heading",
+          "component": "Text",
+          "variant": "h1",
+          "text": "Found Contacts"
+        },
+        {
+          "id": "item-list",
+          "component": "List",
+          "direction": "vertical",
+          "children": {
+            "componentId": "item-card-template",
+            "path": "/contacts"
+          }
+        },
+        {
+          "id": "item-card-template",
+          "component": "Card",
+          "child": "card-layout"
+        },
+        {
+          "id": "card-layout",
+          "component": "Row",
+          "children": ["template-image", "card-details", "view-button"],
+          "align": "center"
+        },
+        {
+          "id": "template-image",
+          "component": "Image",
+          "url": {
+            "path": "/imageUrl"
+          },
+          "fit": "cover"
+        },
+        {
+          "id": "card-details",
+          "component": "Column",
+          "children": ["template-name", "template-title"]
+        },
+        {
+          "id": "template-name",
+          "component": "Text",
+          "variant": "h3",
+          "text": {
+            "path": "/name"
+          }
+        },
+        {
+          "id": "template-title",
+          "component": "Text",
+          "text": {
+            "path": "/title"
+          }
+        },
+        {
+          "id": "view-button-text",
+          "component": "Text",
+          "text": "View"
+        },
+        {
+          "id": "view-button",
+          "component": "Button",
+          "child": "view-button-text",
+          "variant": "primary",
+          "action": {
+            "event": {
+              "name": "view_profile",
+              "context": {
+                "contactName": {
+                  "path": "/name"
+                },
+                "department": {
+                  "path": "/department"
+                }
+              }
+            }
+          }
+        }
+      ]
+    }
+  },
+  {
+    "version": "v0.9",
+    "updateDataModel": {
+      "surfaceId": "contact-list",
+      "path": "/",
+      "value": {
+        "contacts": {
+          "contact1": {
+            "name": "Alice Wonderland",
+            "phone": "+1-555-123-4567",
+            "email": "alice@example.com",
+            "imageUrl": "https://example.com/alice.jpg",
+            "title": "Mad Hatter",
+            "department": "Wonderland"
+          },
+          "contact2": {
+            "name": "Bob The Builder",
+            "phone": "+1-555-765-4321",
+            "email": "bob@example.com",
+            "imageUrl": "https://example.com/bob.jpg",
+            "title": "Construction",
+            "department": "Building"
+          }
+        }
+      }
+    }
+  }
+]

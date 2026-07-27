@@ -3,7 +3,7 @@
     "Text": {
       "type": "object",
       "properties": {
-        "text": { "type": "string" }
+        "text": {"type": "string"}
       }
     }
   },

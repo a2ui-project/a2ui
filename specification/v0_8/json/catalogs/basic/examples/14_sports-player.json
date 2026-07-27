@@ -16,12 +16,7 @@
           "component": {
             "Column": {
               "children": {
-                "explicitList": [
-                  "player-image",
-                  "player-info",
-                  "divider",
-                  "stats-row"
-                ]
+                "explicitList": ["player-image", "player-info", "divider", "stats-row"]
               },
               "alignment": "center"
             }
@@ -43,10 +38,7 @@
           "component": {
             "Column": {
               "children": {
-                "explicitList": [
-                  "player-name",
-                  "player-details"
-                ]
+                "explicitList": ["player-name", "player-details"]
               },
               "alignment": "center"
             }
@@ -68,10 +60,7 @@
           "component": {
             "Row": {
               "children": {
-                "explicitList": [
-                  "player-number",
-                  "player-team"
-                ]
+                "explicitList": ["player-number", "player-team"]
               },
               "alignment": "center"
             }
@@ -110,11 +99,7 @@
           "component": {
             "Row": {
               "children": {
-                "explicitList": [
-                  "stat1",
-                  "stat2",
-                  "stat3"
-                ]
+                "explicitList": ["stat1", "stat2", "stat3"]
               },
               "distribution": "spaceAround"
             }
@@ -125,10 +110,7 @@
           "component": {
             "Column": {
               "children": {
-                "explicitList": [
-                  "stat1-value",
-                  "stat1-label"
-                ]
+                "explicitList": ["stat1-value", "stat1-label"]
               },
               "alignment": "center"
             }
@@ -161,10 +143,7 @@
           "component": {
             "Column": {
               "children": {
-                "explicitList": [
-                  "stat2-value",
-                  "stat2-label"
-                ]
+                "explicitList": ["stat2-value", "stat2-label"]
               },
               "alignment": "center"
             }
@@ -197,10 +176,7 @@
           "component": {
             "Column": {
               "children": {
-                "explicitList": [
-                  "stat3-value",
-                  "stat3-label"
-                ]
+                "explicitList": ["stat3-value", "stat3-label"]
               },
               "alignment": "center"
             }

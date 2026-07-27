@@ -1,3 +1,55 @@
+## Unreleased
+
+- (v0_9) Add prototype pollution protection and safe property lookup to `DataModel` (non-breaking security fix).
+- (v0_8) Export `A2uiMessageSchema` in public API.
+
+## 0.10.5
+
+- (v0_9) Accept both `v0.9` and `v0.9.1` versions when parsing messages. Allow `A2uiClientCapabilities` to support simultaneous version capability advertising (`'v0.9'` and `'v0.9.1'`).
+
+## 0.10.4
+
+- (v0_9) Support JSON Pointer escaping (RFC 6901) in DataModel ([#1796](https://github.com/a2ui-project/a2ui/pull/1796)).
+- (v0_8) Export `UserAction` as `ClientEventUserAction` from `types.ts` ([#1942](https://github.com/a2ui-project/a2ui/pull/1942)).
+
+## 0.10.3
+
+- Added the ability to swap out the signals implementation through the `setSignalImplementation` function.
+
+## 0.10.2
+
+- Updated `openUrl` to reject URLs with schema other than HTTP or HTTPs to fix a security issue where agents could execute arbitrary Javascript code.
+
+## 0.10.1
+
+- Add locale support to basic catalog functions (`pluralize`, `formatNumber`, `formatCurrency`) in v0.9 via catalog-level configuration.
+- Remove `.passthrough()` from `PluralizeApi` schema for stricter validation.
+- Allow overriding hard-coded recursion depth in `DataValueSchema` for v0.8 by introducing `createDataValueSchema` factory function.
+- Fix `formatString` to JSON-stringify objects/arrays per spec instead of using JS default coercion.
+
+## 0.10.0
+
+- **BREAKING CHANGE**: Rename Icon `path` property to `svgPath` to fix type collision with `DataBindingType`.
+- (v0_9) Add `computeColorVariant` helper function for basic catalog components to generate CSS formulas for color variants (light, dark, hover), allowing reuse across renderers.
+
+## 0.9.1
+
+- Add new `FrameworkSignal` concept, which represents a generic signal from a
+  given framework like Preact or Angular.
+  - Unused in this version; future versions will introduce this throughout web
+    core and will likely be breaking changes.
+- Export `injectDefaultA2uiTheme` with default CSS variable values used
+  by the A2UI basic catalogs.
+
+## 0.8.8
+
+- Add the ability to access the `schema` of a component in a type-safe way.
+  - Update `ComponentApi` object to be generic over its `schema` type.
+  - Modify the basic component definitions to `satisfies ComponentApi` instead
+    of `: ComponentApi` so their schema type can be inferred later.
+  - Add an `InferredComponentApiSchemaType` type to extract the schema type
+    from a `ComponentApi` object.
+
 ## 0.8.7
 
 - Adds `catalogId` to v0.8 schemas (was removed by mistake earlier)

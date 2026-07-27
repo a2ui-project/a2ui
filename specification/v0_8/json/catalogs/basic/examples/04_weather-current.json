@@ -16,12 +16,7 @@
           "component": {
             "Column": {
               "children": {
-                "explicitList": [
-                  "temp-row",
-                  "location",
-                  "description",
-                  "forecast-row"
-                ]
+                "explicitList": ["temp-row", "location", "description", "forecast-row"]
               },
               "alignment": "center"
             }
@@ -32,10 +27,7 @@
           "component": {
             "Row": {
               "children": {
-                "explicitList": [
-                  "temp-high",
-                  "temp-low"
-                ]
+                "explicitList": ["temp-high", "temp-low"]
               },
               "alignment": "start"
             }
@@ -90,13 +82,7 @@
           "component": {
             "Row": {
               "children": {
-                "explicitList": [
-                  "day1",
-                  "day2",
-                  "day3",
-                  "day4",
-                  "day5"
-                ]
+                "explicitList": ["day1", "day2", "day3", "day4", "day5"]
               },
               "distribution": "spaceAround"
             }
@@ -107,10 +93,7 @@
           "component": {
             "Column": {
               "children": {
-                "explicitList": [
-                  "day1-icon",
-                  "day1-temp"
-                ]
+                "explicitList": ["day1-icon", "day1-temp"]
               },
               "alignment": "center"
             }
@@ -143,10 +126,7 @@
           "component": {
             "Column": {
               "children": {
-                "explicitList": [
-                  "day2-icon",
-                  "day2-temp"
-                ]
+                "explicitList": ["day2-icon", "day2-temp"]
               },
               "alignment": "center"
             }
@@ -179,10 +159,7 @@
           "component": {
             "Column": {
               "children": {
-                "explicitList": [
-                  "day3-icon",
-                  "day3-temp"
-                ]
+                "explicitList": ["day3-icon", "day3-temp"]
               },
               "alignment": "center"
             }
@@ -215,10 +192,7 @@
           "component": {
             "Column": {
               "children": {
-                "explicitList": [
-                  "day4-icon",
-                  "day4-temp"
-                ]
+                "explicitList": ["day4-icon", "day4-temp"]
               },
               "alignment": "center"
             }
@@ -251,10 +225,7 @@
           "component": {
             "Column": {
               "children": {
-                "explicitList": [
-                  "day5-icon",
-                  "day5-temp"
-                ]
+                "explicitList": ["day5-icon", "day5-temp"]
               },
               "alignment": "center"
             }

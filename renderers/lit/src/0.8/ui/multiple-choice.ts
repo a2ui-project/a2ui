@@ -14,39 +14,36 @@
  * limitations under the License.
  */
 
+import {html, css, nothing} from 'lit';
+import {customElement, property, state} from 'lit/decorators.js';
+import {Root} from './root.js';
+import {A2uiMessageProcessor} from '@a2ui/web_core/data/model-processor';
+import * as Primitives from '@a2ui/web_core/types/primitives';
+import {structuralStyles} from './styles.js';
+import {extractStringValue} from './utils/utils.js';
 
-import { html, css, PropertyValues, nothing } from "lit";
-import { customElement, property, state } from "lit/decorators.js";
-import { Root } from "./root.js";
-import { A2uiMessageProcessor } from "@a2ui/web_core/data/model-processor";
-import * as Primitives from "@a2ui/web_core/types/primitives";
-import { classMap } from "lit/directives/class-map.js";
-import { styleMap } from "lit/directives/style-map.js";
-import { structuralStyles } from "./styles.js";
-import { extractStringValue } from "./utils/utils.js";
-
-@customElement("a2ui-multiplechoice")
+@customElement('a2ui-multiplechoice')
 export class MultipleChoice extends Root {
   @property()
   accessor description: string | null = null;
 
   @property()
-  accessor options: { label: Primitives.StringValue; value: string }[] = [];
+  accessor options: {label: Primitives.StringValue; value: string}[] = [];
 
   @property()
   accessor selections: Primitives.StringValue | string[] = [];
 
   @property()
-  accessor variant: "checkbox" | "chips" = "checkbox";
+  accessor variant: 'checkbox' | 'chips' = 'checkbox';
 
-  @property({ type: Boolean })
+  @property({type: Boolean})
   accessor filterable = false;
 
   @state()
   accessor isOpen = false;
 
   @state()
-  accessor filterText = "";
+  accessor filterText = '';
 
   static styles = [
     structuralStyles,
@@ -240,7 +237,7 @@ export class MultipleChoice extends Root {
       }
 
       .chip.selected:hover {
-         background: var(--md-sys-color-secondary-container-high);
+        background: var(--md-sys-color-secondary-container-high);
       }
 
       .chip-icon {
@@ -255,8 +252,14 @@ export class MultipleChoice extends Root {
       }
 
       @keyframes fadeIn {
-        from { opacity: 0; transform: translateY(-8px); }
-        to { opacity: 1; transform: translateY(0); }
+        from {
+          opacity: 0;
+          transform: translateY(-8px);
+        }
+        to {
+          opacity: 1;
+          transform: translateY(0);
+        }
       }
     `,
   ];
@@ -265,7 +268,7 @@ export class MultipleChoice extends Root {
     if (!this.selections || !this.processor) {
       return;
     }
-    if (!("path" in this.selections)) {
+    if (!('path' in this.selections)) {
       return;
     }
     if (!this.selections.path) {
@@ -276,7 +279,7 @@ export class MultipleChoice extends Root {
       this.component,
       this.selections.path,
       value,
-      this.surfaceId ?? A2uiMessageProcessor.DEFAULT_SURFACE_ID
+      this.surfaceId ?? A2uiMessageProcessor.DEFAULT_SURFACE_ID,
     );
   }
 
@@ -292,7 +295,7 @@ export class MultipleChoice extends Root {
     const selectionValue = this.processor.getData(
       this.component,
       this.selections.path!,
-      this.surfaceId ?? A2uiMessageProcessor.DEFAULT_SURFACE_ID
+      this.surfaceId ?? A2uiMessageProcessor.DEFAULT_SURFACE_ID,
     );
 
     return Array.isArray(selectionValue) ? (selectionValue as string[]) : [];
@@ -301,7 +304,7 @@ export class MultipleChoice extends Root {
   toggleSelection(value: string) {
     const current = this.getCurrentSelections();
     if (current.includes(value)) {
-      this.#setBoundValue(current.filter((v) => v !== value));
+      this.#setBoundValue(current.filter(v => v !== value));
     } else {
       this.#setBoundValue([...current, value]);
     }
@@ -311,7 +314,7 @@ export class MultipleChoice extends Root {
   #renderCheckIcon() {
     return html`
       <svg class="chip-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 -960 960 960">
-        <path d="M382-240 154-468l57-57 171 171 367-367 57 57-424 424Z"/>
+        <path d="M382-240 154-468l57-57 171 171 367-367 57 57-424 424Z" />
       </svg>
     `;
   }
@@ -325,9 +328,9 @@ export class MultipleChoice extends Root {
           placeholder="Filter options..."
           .value=${this.filterText}
           @input=${(e: Event) => {
-        const target = e.target as HTMLInputElement;
-        this.filterText = target.value;
-      }}
+            const target = e.target as HTMLInputElement;
+            this.filterText = target.value;
+          }}
           @click=${(e: Event) => e.stopPropagation()}
         />
       </div>
@@ -344,82 +347,93 @@ export class MultipleChoice extends Root {
         option.label,
         this.component,
         this.processor,
-        this.surfaceId
+        this.surfaceId,
       );
       return label.toLowerCase().includes(this.filterText.toLowerCase());
     });
 
     // Chips Layout
-    if (this.variant === "chips") {
+    if (this.variant === 'chips') {
       return html`
-          <div class="container">
-            ${this.description ? html`<div class="header-text" style="margin-bottom: 8px;">${this.description}</div>` : nothing}
-            ${this.filterable ? this.#renderFilter() : nothing}
-            <div class="chips-container">
-              ${filteredOptions.map((option) => {
-        const label = extractStringValue(
-          option.label,
-          this.component,
-          this.processor,
-          this.surfaceId
-        );
-        const isSelected = currentSelections.includes(option.value);
-        return html`
-                  <div
-                    class="chip ${isSelected ? "selected" : ""}"
-                    @click=${(e: Event) => {
-            e.stopPropagation();
-            this.toggleSelection(option.value);
-          }}
-                  >
-                    ${isSelected ? this.#renderCheckIcon() : nothing}
-                    <span>${label}</span>
-                  </div>
-                `;
-      })}
-            </div>
-             ${filteredOptions.length === 0 ? html`<div style="padding: 8px; font-style: italic; color: var(--md-sys-color-outline);">No options found</div>` : nothing}
-          </div>
-        `;
-    }
-
-    // Default Checkbox Dropdown Layout
-    const count = currentSelections.length;
-    const headerText = count > 0 ? `${count} Selected` : (this.description ?? "Select items");
-
-    return html`
-      <div class="container">
-        <div
-          class="dropdown-header"
-          @click=${() => this.isOpen = !this.isOpen}
-        >
-          <span class="header-text">${headerText}</span>
-          <span class="chevron ${this.isOpen ? "open" : ""}">
-            <svg xmlns="http://www.w3.org/2000/svg" height="24" viewBox="0 -960 960 960" width="24" fill="currentColor">
-              <path d="M480-345 240-585l56-56 184 184 184-184 56 56-240 240Z"/>
-            </svg>
-          </span>
-        </div>
-
-        <div class="dropdown-wrapper ${this.isOpen ? "open" : ""}">
+        <div class="container">
+          ${this.description
+            ? html`<div class="header-text" style="margin-bottom: 8px;">${this.description}</div>`
+            : nothing}
           ${this.filterable ? this.#renderFilter() : nothing}
-          <div class="options-scroll-container">
-            ${filteredOptions.map((option) => {
+          <div class="chips-container">
+            ${filteredOptions.map(option => {
               const label = extractStringValue(
                 option.label,
                 this.component,
                 this.processor,
-                this.surfaceId
+                this.surfaceId,
+              );
+              const isSelected = currentSelections.includes(option.value);
+              return html`
+                <div
+                  class="chip ${isSelected ? 'selected' : ''}"
+                  @click=${(e: Event) => {
+                    e.stopPropagation();
+                    this.toggleSelection(option.value);
+                  }}
+                >
+                  ${isSelected ? this.#renderCheckIcon() : nothing}
+                  <span>${label}</span>
+                </div>
+              `;
+            })}
+          </div>
+          ${filteredOptions.length === 0
+            ? html`<div
+                style="padding: 8px; font-style: italic; color: var(--md-sys-color-outline);"
+              >
+                No options found
+              </div>`
+            : nothing}
+        </div>
+      `;
+    }
+
+    // Default Checkbox Dropdown Layout
+    const count = currentSelections.length;
+    const headerText = count > 0 ? `${count} Selected` : (this.description ?? 'Select items');
+
+    return html`
+      <div class="container">
+        <div class="dropdown-header" @click=${() => (this.isOpen = !this.isOpen)}>
+          <span class="header-text">${headerText}</span>
+          <span class="chevron ${this.isOpen ? 'open' : ''}">
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              height="24"
+              viewBox="0 -960 960 960"
+              width="24"
+              fill="currentColor"
+            >
+              <path d="M480-345 240-585l56-56 184 184 184-184 56 56-240 240Z" />
+            </svg>
+          </span>
+        </div>
+
+        <div class="dropdown-wrapper ${this.isOpen ? 'open' : ''}">
+          ${this.filterable ? this.#renderFilter() : nothing}
+          <div class="options-scroll-container">
+            ${filteredOptions.map(option => {
+              const label = extractStringValue(
+                option.label,
+                this.component,
+                this.processor,
+                this.surfaceId,
               );
               const isSelected = currentSelections.includes(option.value);
 
               return html`
                 <div
-                  class="option-item ${isSelected ? "selected" : ""}"
+                  class="option-item ${isSelected ? 'selected' : ''}"
                   @click=${(e: Event) => {
-                  e.stopPropagation();
-                  this.toggleSelection(option.value);
-                }}
+                    e.stopPropagation();
+                    this.toggleSelection(option.value);
+                  }}
                 >
                   <div class="checkbox">
                     <span class="checkbox-icon">✓</span>
@@ -428,7 +442,13 @@ export class MultipleChoice extends Root {
                 </div>
               `;
             })}
-             ${filteredOptions.length === 0 ? html`<div style="padding: 16px; text-align: center; color: var(--md-sys-color-outline);">No options found</div>` : nothing}
+            ${filteredOptions.length === 0
+              ? html`<div
+                  style="padding: 16px; text-align: center; color: var(--md-sys-color-outline);"
+                >
+                  No options found
+                </div>`
+              : nothing}
           </div>
         </div>
       </div>

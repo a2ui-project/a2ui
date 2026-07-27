@@ -14,8 +14,7 @@
  * limitations under the License.
  */
 
-import { SurfaceUpdateSchemaMatcher } from "./surface_update_schema_matcher";
-import { SchemaMatcher } from "./schema_matcher";
+import {SchemaMatcher} from './schema_matcher';
 
 export function validateSchema(
   data: any,
@@ -33,7 +32,7 @@ export function validateSchema(
     validateDeleteSurface(data.deleteSurface, errors);
   } else {
     errors.push(
-      "A2UI Protocol message must have one of: surfaceUpdate, dataModelUpdate, beginRendering, deleteSurface.",
+      'A2UI Protocol message must have one of: surfaceUpdate, dataModelUpdate, beginRendering, deleteSurface.',
     );
   }
 
@@ -53,7 +52,7 @@ function validateDeleteSurface(data: any, errors: string[]) {
   if (data.surfaceId === undefined) {
     errors.push("DeleteSurface must have a 'surfaceId' property.");
   }
-  const allowed = ["surfaceId"];
+  const allowed = ['surfaceId'];
   for (const key in data) {
     if (!allowed.includes(key)) {
       errors.push(`DeleteSurface has unexpected property: ${key}`);
@@ -90,7 +89,7 @@ function validateDataModelUpdate(data: any, errors: string[]) {
     errors.push("DataModelUpdate must have a 'surfaceId' property.");
   }
 
-  const allowedTopLevel = ["surfaceId", "path", "contents"];
+  const allowedTopLevel = ['surfaceId', 'path', 'contents'];
   for (const key in data) {
     if (!allowedTopLevel.includes(key)) {
       errors.push(`DataModelUpdate has unexpected property: ${key}`);
@@ -102,19 +101,10 @@ function validateDataModelUpdate(data: any, errors: string[]) {
     return;
   }
 
-  const validateValueProperty = (
-    item: any,
-    itemErrors: string[],
-    prefix: string,
-  ) => {
-    const valueProps = [
-      "valueString",
-      "valueNumber",
-      "valueBoolean",
-      "valueMap",
-    ];
+  const validateValueProperty = (item: any, itemErrors: string[], prefix: string) => {
+    const valueProps = ['valueString', 'valueNumber', 'valueBoolean', 'valueMap'];
     let valueCount = 0;
-    let foundValueProp = "";
+    let foundValueProp = '';
     for (const prop of valueProps) {
       if (item[prop] !== undefined) {
         valueCount++;
@@ -123,23 +113,21 @@ function validateDataModelUpdate(data: any, errors: string[]) {
     }
     if (valueCount !== 1) {
       itemErrors.push(
-        `${prefix} must have exactly one value property (${valueProps.join(", ")}), found ${valueCount}.`,
+        `${prefix} must have exactly one value property (${valueProps.join(', ')}), found ${valueCount}.`,
       );
       return;
     }
 
-    if (foundValueProp === "valueMap") {
+    if (foundValueProp === 'valueMap') {
       if (!Array.isArray(item.valueMap)) {
         itemErrors.push(`${prefix} 'valueMap' must be an array.`);
         return;
       }
       item.valueMap.forEach((mapItem: any, index: number) => {
         if (!mapItem.key) {
-          itemErrors.push(
-            `${prefix} 'valueMap' item at index ${index} is missing a 'key'.`,
-          );
+          itemErrors.push(`${prefix} 'valueMap' item at index ${index} is missing a 'key'.`);
         }
-        const mapValueProps = ["valueString", "valueNumber", "valueBoolean"];
+        const mapValueProps = ['valueString', 'valueNumber', 'valueBoolean'];
         let mapValueCount = 0;
         for (const prop of mapValueProps) {
           if (mapItem[prop] !== undefined) {
@@ -148,10 +136,10 @@ function validateDataModelUpdate(data: any, errors: string[]) {
         }
         if (mapValueCount !== 1) {
           itemErrors.push(
-            `${prefix} 'valueMap' item at index ${index} must have exactly one value property (${mapValueProps.join(", ")}), found ${mapValueCount}.`,
+            `${prefix} 'valueMap' item at index ${index} must have exactly one value property (${mapValueProps.join(', ')}), found ${mapValueCount}.`,
           );
         }
-        const allowedMapKeys = ["key", ...mapValueProps];
+        const allowedMapKeys = ['key', ...mapValueProps];
         for (const key in mapItem) {
           if (!allowedMapKeys.includes(key)) {
             itemErrors.push(
@@ -165,22 +153,10 @@ function validateDataModelUpdate(data: any, errors: string[]) {
 
   data.contents.forEach((item: any, index: number) => {
     if (!item.key) {
-      errors.push(
-        `DataModelUpdate 'contents' item at index ${index} is missing a 'key'.`,
-      );
+      errors.push(`DataModelUpdate 'contents' item at index ${index} is missing a 'key'.`);
     }
-    validateValueProperty(
-      item,
-      errors,
-      `DataModelUpdate 'contents' item at index ${index}`,
-    );
-    const allowedKeys = [
-      "key",
-      "valueString",
-      "valueNumber",
-      "valueBoolean",
-      "valueMap",
-    ];
+    validateValueProperty(item, errors, `DataModelUpdate 'contents' item at index ${index}`);
+    const allowedKeys = ['key', 'valueString', 'valueNumber', 'valueBoolean', 'valueMap'];
     for (const key in item) {
       if (!allowedKeys.includes(key)) {
         errors.push(
@@ -207,19 +183,14 @@ function validateBoundValue(
   componentType: string,
   errors: string[],
 ) {
-  if (typeof prop !== "object" || prop === null || Array.isArray(prop)) {
+  if (typeof prop !== 'object' || prop === null || Array.isArray(prop)) {
     errors.push(
       `Component '${componentId}' of type '${componentType}' property '${propName}' must be an object.`,
     );
     return;
   }
   const keys = Object.keys(prop);
-  const allowedKeys = [
-    "literalString",
-    "literalNumber",
-    "literalBoolean",
-    "path",
-  ];
+  const allowedKeys = ['literalString', 'literalNumber', 'literalBoolean', 'path'];
   let validKeyCount = 0;
   for (const key of keys) {
     if (allowedKeys.includes(key)) {
@@ -228,18 +199,14 @@ function validateBoundValue(
   }
   if (validKeyCount !== 1 || keys.length !== 1) {
     errors.push(
-      `Component '${componentId}' of type '${componentType}' property '${propName}' must have exactly one key from [${allowedKeys.join(", ")}]. Found: ${keys.join(", ")}`,
+      `Component '${componentId}' of type '${componentType}' property '${propName}' must have exactly one key from [${allowedKeys.join(', ')}]. Found: ${keys.join(', ')}`,
     );
   }
 }
 
-function validateComponent(
-  component: any,
-  allIds: Set<string>,
-  errors: string[],
-) {
+function validateComponent(component: any, allIds: Set<string>, errors: string[]) {
   if (!component.id) {
-    errors.push(`Component is missing an 'id'.`);
+    errors.push("Component is missing an 'id'.");
     return;
   }
   if (!component.component) {
@@ -271,112 +238,62 @@ function validateComponent(
   const checkRefs = (ids: (string | undefined)[]) => {
     for (const id of ids) {
       if (id && !allIds.has(id)) {
-        errors.push(
-          `Component '${component.id}' references non-existent component ID '${id}'.`,
-        );
+        errors.push(`Component '${component.id}' references non-existent component ID '${id}'.`);
       }
     }
   };
 
   switch (componentType) {
-    case "Heading":
-      checkRequired(["text"]);
+    case 'Heading':
+      checkRequired(['text']);
       if (properties.text)
-        validateBoundValue(
-          properties.text,
-          "text",
-          component.id,
-          componentType,
-          errors,
-        );
+        validateBoundValue(properties.text, 'text', component.id, componentType, errors);
       break;
-    case "Text":
-      checkRequired(["text"]);
+    case 'Text':
+      checkRequired(['text']);
       if (properties.text)
-        validateBoundValue(
-          properties.text,
-          "text",
-          component.id,
-          componentType,
-          errors,
-        );
+        validateBoundValue(properties.text, 'text', component.id, componentType, errors);
       break;
-    case "Image":
-      checkRequired(["url"]);
+    case 'Image':
+      checkRequired(['url']);
       if (properties.url)
-        validateBoundValue(
-          properties.url,
-          "url",
-          component.id,
-          componentType,
-          errors,
-        );
+        validateBoundValue(properties.url, 'url', component.id, componentType, errors);
       break;
-    case "Video":
-      checkRequired(["url"]);
+    case 'Video':
+      checkRequired(['url']);
       if (properties.url)
-        validateBoundValue(
-          properties.url,
-          "url",
-          component.id,
-          componentType,
-          errors,
-        );
+        validateBoundValue(properties.url, 'url', component.id, componentType, errors);
       break;
-    case "AudioPlayer":
-      checkRequired(["url"]);
+    case 'AudioPlayer':
+      checkRequired(['url']);
       if (properties.url)
-        validateBoundValue(
-          properties.url,
-          "url",
-          component.id,
-          componentType,
-          errors,
-        );
+        validateBoundValue(properties.url, 'url', component.id, componentType, errors);
       if (properties.description)
         validateBoundValue(
           properties.description,
-          "description",
+          'description',
           component.id,
           componentType,
           errors,
         );
       break;
-    case "TextField":
-      checkRequired(["label"]);
+    case 'TextField':
+      checkRequired(['label']);
       if (properties.label)
-        validateBoundValue(
-          properties.label,
-          "label",
-          component.id,
-          componentType,
-          errors,
-        );
+        validateBoundValue(properties.label, 'label', component.id, componentType, errors);
       if (properties.text)
-        validateBoundValue(
-          properties.text,
-          "text",
-          component.id,
-          componentType,
-          errors,
-        );
+        validateBoundValue(properties.text, 'text', component.id, componentType, errors);
       break;
-    case "DateTimeInput":
-      checkRequired(["value"]);
+    case 'DateTimeInput':
+      checkRequired(['value']);
       if (properties.value)
-        validateBoundValue(
-          properties.value,
-          "value",
-          component.id,
-          componentType,
-          errors,
-        );
+        validateBoundValue(properties.value, 'value', component.id, componentType, errors);
       break;
-    case "MultipleChoice":
-      checkRequired(["selections", "options"]);
+    case 'MultipleChoice':
+      checkRequired(['selections', 'options']);
       if (properties.selections) {
         if (
-          typeof properties.selections !== "object" ||
+          typeof properties.selections !== 'object' ||
           properties.selections === null ||
           (!properties.selections.literalArray && !properties.selections.path)
         ) {
@@ -388,58 +305,30 @@ function validateComponent(
       if (Array.isArray(properties.options)) {
         properties.options.forEach((option: any, index: number) => {
           if (!option.label)
-            errors.push(
-              `Component '${component.id}' option at index ${index} missing 'label'.`,
-            );
+            errors.push(`Component '${component.id}' option at index ${index} missing 'label'.`);
           if (option.label)
-            validateBoundValue(
-              option.label,
-              "label",
-              component.id,
-              componentType,
-              errors,
-            );
+            validateBoundValue(option.label, 'label', component.id, componentType, errors);
           if (!option.value)
-            errors.push(
-              `Component '${component.id}' option at index ${index} missing 'value'.`,
-            );
+            errors.push(`Component '${component.id}' option at index ${index} missing 'value'.`);
         });
       }
       break;
-    case "Slider":
-      checkRequired(["value"]);
+    case 'Slider':
+      checkRequired(['value']);
       if (properties.value)
-        validateBoundValue(
-          properties.value,
-          "value",
-          component.id,
-          componentType,
-          errors,
-        );
+        validateBoundValue(properties.value, 'value', component.id, componentType, errors);
       break;
-    case "CheckBox":
-      checkRequired(["value", "label"]);
+    case 'CheckBox':
+      checkRequired(['value', 'label']);
       if (properties.value)
-        validateBoundValue(
-          properties.value,
-          "value",
-          component.id,
-          componentType,
-          errors,
-        );
+        validateBoundValue(properties.value, 'value', component.id, componentType, errors);
       if (properties.label)
-        validateBoundValue(
-          properties.label,
-          "label",
-          component.id,
-          componentType,
-          errors,
-        );
+        validateBoundValue(properties.label, 'label', component.id, componentType, errors);
       break;
-    case "Row":
-    case "Column":
-    case "List":
-      checkRequired(["children"]);
+    case 'Row':
+    case 'Column':
+    case 'List':
+      checkRequired(['children']);
       if (properties.children && Array.isArray(properties.children)) {
         const hasExplicit = !!properties.children.explicitList;
         const hasTemplate = !!properties.children.template;
@@ -456,66 +345,46 @@ function validateComponent(
         }
       }
       break;
-    case "Card":
-      checkRequired(["child"]);
+    case 'Card':
+      checkRequired(['child']);
       checkRefs([properties.child]);
       break;
-    case "Tabs":
-      checkRequired(["tabItems"]);
+    case 'Tabs':
+      checkRequired(['tabItems']);
       if (properties.tabItems && Array.isArray(properties.tabItems)) {
         properties.tabItems.forEach((tab: any) => {
           if (!tab.title) {
-            errors.push(
-              `Tab item in component '${component.id}' is missing a 'title'.`,
-            );
+            errors.push(`Tab item in component '${component.id}' is missing a 'title'.`);
           }
           if (!tab.child) {
-            errors.push(
-              `Tab item in component '${component.id}' is missing a 'child'.`,
-            );
+            errors.push(`Tab item in component '${component.id}' is missing a 'child'.`);
           }
           checkRefs([tab.child]);
           if (tab.title)
-            validateBoundValue(
-              tab.title,
-              "title",
-              component.id,
-              componentType,
-              errors,
-            );
+            validateBoundValue(tab.title, 'title', component.id, componentType, errors);
         });
       }
       break;
-    case "Modal":
-      checkRequired(["entryPointChild", "contentChild"]);
+    case 'Modal':
+      checkRequired(['entryPointChild', 'contentChild']);
       checkRefs([properties.entryPointChild, properties.contentChild]);
       break;
-    case "Button":
-      checkRequired(["child", "action"]);
+    case 'Button':
+      checkRequired(['child', 'action']);
       checkRefs([properties.child]);
       if (!properties.action || !properties.action.name) {
-        errors.push(
-          `Component '${component.id}' Button action is missing a 'name'.`,
-        );
+        errors.push(`Component '${component.id}' Button action is missing a 'name'.`);
       }
       break;
-    case "Divider":
+    case 'Divider':
       // No required properties
       break;
-    case "Icon":
-      checkRequired(["name"]);
+    case 'Icon':
+      checkRequired(['name']);
       if (properties.name)
-        validateBoundValue(
-          properties.name,
-          "name",
-          component.id,
-          componentType,
-          errors,
-        );
+        validateBoundValue(properties.name, 'name', component.id, componentType, errors);
       break;
     default:
-      errors.push(
-        `Unknown component type '${componentType}' in component '${component.id}'.`,
-      );
+      errors.push(`Unknown component type '${componentType}' in component '${component.id}'.`);
   }
 }

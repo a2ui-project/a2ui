@@ -18,7 +18,7 @@
  * Text component fixtures for visual parity testing.
  */
 
-import type { ComponentFixture } from '../types';
+import type {ComponentFixture} from '../types';
 
 export const textBasic: ComponentFixture = {
   root: 'text-1',
@@ -26,7 +26,7 @@ export const textBasic: ComponentFixture = {
     {
       id: 'text-1',
       component: {
-        Text: { text: { literalString: 'Hello, this is basic text.' } },
+        Text: {text: {literalString: 'Hello, this is basic text.'}},
       },
     },
   ],
@@ -38,7 +38,7 @@ export const textH1: ComponentFixture = {
     {
       id: 'text-h1',
       component: {
-        Text: { text: { literalString: 'Heading 1' }, usageHint: 'h1' },
+        Text: {text: {literalString: 'Heading 1'}, usageHint: 'h1'},
       },
     },
   ],
@@ -50,7 +50,7 @@ export const textH2: ComponentFixture = {
     {
       id: 'text-h2',
       component: {
-        Text: { text: { literalString: 'Heading 2' }, usageHint: 'h2' },
+        Text: {text: {literalString: 'Heading 2'}, usageHint: 'h2'},
       },
     },
   ],
@@ -62,7 +62,7 @@ export const textH3: ComponentFixture = {
     {
       id: 'text-h3',
       component: {
-        Text: { text: { literalString: 'Heading 3' }, usageHint: 'h3' },
+        Text: {text: {literalString: 'Heading 3'}, usageHint: 'h3'},
       },
     },
   ],
@@ -74,7 +74,7 @@ export const textH4: ComponentFixture = {
     {
       id: 'text-h4',
       component: {
-        Text: { text: { literalString: 'Heading 4' }, usageHint: 'h4' },
+        Text: {text: {literalString: 'Heading 4'}, usageHint: 'h4'},
       },
     },
   ],
@@ -86,7 +86,7 @@ export const textH5: ComponentFixture = {
     {
       id: 'text-h5',
       component: {
-        Text: { text: { literalString: 'Heading 5' }, usageHint: 'h5' },
+        Text: {text: {literalString: 'Heading 5'}, usageHint: 'h5'},
       },
     },
   ],
@@ -98,7 +98,7 @@ export const textBody: ComponentFixture = {
     {
       id: 'text-body',
       component: {
-        Text: { text: { literalString: 'Body text content goes here.' }, usageHint: 'body' },
+        Text: {text: {literalString: 'Body text content goes here.'}, usageHint: 'body'},
       },
     },
   ],
@@ -110,7 +110,7 @@ export const textCaption: ComponentFixture = {
     {
       id: 'text-caption',
       component: {
-        Text: { text: { literalString: 'Caption text' }, usageHint: 'caption' },
+        Text: {text: {literalString: 'Caption text'}, usageHint: 'caption'},
       },
     },
   ],

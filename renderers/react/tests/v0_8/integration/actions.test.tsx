@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-import { describe, it, expect, vi } from 'vitest';
-import { render, screen, fireEvent } from '@testing-library/react';
+import {describe, it, expect, vi} from 'vitest';
+import {render, screen, fireEvent} from '@testing-library/react';
 import React from 'react';
 import type * as Types from '@a2ui/web_core/types/types';
 import {
@@ -37,8 +37,11 @@ describe('Action Dispatch', () => {
     const mockOnAction = vi.fn();
     const messages: Types.ServerToClientMessage[] = [
       createSurfaceUpdate([
-        { id: 'btn-text', component: { Text: { text: { literalString: 'Submit' } , usageHint: 'body' } } },
-        { id: 'btn-1', component: { Button: { child: 'btn-text', action: { name: 'submit' } } } },
+        {
+          id: 'btn-text',
+          component: {Text: {text: {literalString: 'Submit'}, usageHint: 'body'}},
+        },
+        {id: 'btn-1', component: {Button: {child: 'btn-text', action: {name: 'submit'}}}},
       ]),
       createBeginRendering('btn-1'),
     ];
@@ -46,7 +49,7 @@ describe('Action Dispatch', () => {
     render(
       <TestWrapper onAction={mockOnAction}>
         <TestRenderer messages={messages} />
-      </TestWrapper>
+      </TestWrapper>,
     );
 
     fireEvent.click(screen.getByRole('button'));
@@ -61,7 +64,10 @@ describe('Action Dispatch', () => {
     const mockOnAction = vi.fn();
     const messages: Types.ServerToClientMessage[] = [
       createSurfaceUpdate([
-        { id: 'btn-text', component: { Text: { text: { literalString: 'Delete' } , usageHint: 'body' } } },
+        {
+          id: 'btn-text',
+          component: {Text: {text: {literalString: 'Delete'}, usageHint: 'body'}},
+        },
         {
           id: 'btn-1',
           component: {
@@ -70,8 +76,8 @@ describe('Action Dispatch', () => {
               action: {
                 name: 'delete',
                 context: [
-                  { key: 'itemId', value: { literalString: 'item-123' } },
-                  { key: 'confirmed', value: { literalBoolean: true } },
+                  {key: 'itemId', value: {literalString: 'item-123'}},
+                  {key: 'confirmed', value: {literalBoolean: true}},
                 ],
               },
             },
@@ -84,7 +90,7 @@ describe('Action Dispatch', () => {
     render(
       <TestWrapper onAction={mockOnAction}>
         <TestRenderer messages={messages} />
-      </TestWrapper>
+      </TestWrapper>,
     );
 
     fireEvent.click(screen.getByRole('button'));
@@ -99,8 +105,11 @@ describe('Action Dispatch', () => {
   it('should not call onAction if not provided', () => {
     const messages: Types.ServerToClientMessage[] = [
       createSurfaceUpdate([
-        { id: 'btn-text', component: { Text: { text: { literalString: 'Click' } , usageHint: 'body' } } },
-        { id: 'btn-1', component: { Button: { child: 'btn-text', action: { name: 'test' } } } },
+        {
+          id: 'btn-text',
+          component: {Text: {text: {literalString: 'Click'}, usageHint: 'body'}},
+        },
+        {id: 'btn-1', component: {Button: {child: 'btn-text', action: {name: 'test'}}}},
       ]),
       createBeginRendering('btn-1'),
     ];
@@ -108,7 +117,7 @@ describe('Action Dispatch', () => {
     render(
       <TestWrapper>
         <TestRenderer messages={messages} />
-      </TestWrapper>
+      </TestWrapper>,
     );
 
     expect(() => {
@@ -120,11 +129,17 @@ describe('Action Dispatch', () => {
     const mockOnAction = vi.fn();
     const messages: Types.ServerToClientMessage[] = [
       createSurfaceUpdate([
-        { id: 'btn1-text', component: { Text: { text: { literalString: 'Action 1' } , usageHint: 'body' } } },
-        { id: 'btn1', component: { Button: { child: 'btn1-text', action: { name: 'action-1' } } } },
-        { id: 'btn2-text', component: { Text: { text: { literalString: 'Action 2' } , usageHint: 'body' } } },
-        { id: 'btn2', component: { Button: { child: 'btn2-text', action: { name: 'action-2' } } } },
-        { id: 'col', component: { Column: { children: { explicitList: ['btn1', 'btn2'] } } } },
+        {
+          id: 'btn1-text',
+          component: {Text: {text: {literalString: 'Action 1'}, usageHint: 'body'}},
+        },
+        {id: 'btn1', component: {Button: {child: 'btn1-text', action: {name: 'action-1'}}}},
+        {
+          id: 'btn2-text',
+          component: {Text: {text: {literalString: 'Action 2'}, usageHint: 'body'}},
+        },
+        {id: 'btn2', component: {Button: {child: 'btn2-text', action: {name: 'action-2'}}}},
+        {id: 'col', component: {Column: {children: {explicitList: ['btn1', 'btn2']}}}},
       ]),
       createBeginRendering('col'),
     ];
@@ -132,16 +147,16 @@ describe('Action Dispatch', () => {
     render(
       <TestWrapper onAction={mockOnAction}>
         <TestRenderer messages={messages} />
-      </TestWrapper>
+      </TestWrapper>,
     );
 
-    fireEvent.click(screen.getByRole('button', { name: 'Action 1' }));
+    fireEvent.click(screen.getByRole('button', {name: 'Action 1'}));
     expect(mockOnAction).toHaveBeenCalledTimes(1);
     const event1 = getMockCallArg<Types.A2UIClientEventMessage>(mockOnAction, 0);
     expect(event1.userAction).toBeDefined();
     expect(event1.userAction?.name).toBe('action-1');
 
-    fireEvent.click(screen.getByRole('button', { name: 'Action 2' }));
+    fireEvent.click(screen.getByRole('button', {name: 'Action 2'}));
     expect(mockOnAction).toHaveBeenCalledTimes(2);
     const event2 = getMockCallArg<Types.A2UIClientEventMessage>(mockOnAction, 1);
     expect(event2.userAction).toBeDefined();
@@ -156,12 +171,15 @@ describe('Action Dispatch', () => {
           id: 'tf-1',
           component: {
             TextField: {
-              text: { path: 'form.username' },
-              label: { literalString: 'Username' },
+              text: {path: 'form.username'},
+              label: {literalString: 'Username'},
             },
           },
         },
-        { id: 'btn-text', component: { Text: { text: { literalString: 'Submit' } , usageHint: 'body' } } },
+        {
+          id: 'btn-text',
+          component: {Text: {text: {literalString: 'Submit'}, usageHint: 'body'}},
+        },
         {
           id: 'btn-1',
           component: {
@@ -169,37 +187,35 @@ describe('Action Dispatch', () => {
               child: 'btn-text',
               action: {
                 name: 'submit-form',
-                context: [
-                  { key: 'username', value: { path: 'form.username' } },
-                ],
+                context: [{key: 'username', value: {path: 'form.username'}}],
               },
             },
           },
         },
-        { id: 'col', component: { Column: { children: { explicitList: ['tf-1', 'btn-1'] } } } },
+        {id: 'col', component: {Column: {children: {explicitList: ['tf-1', 'btn-1']}}}},
       ]),
       createBeginRendering('col'),
     ];
 
-    const { container } = render(
+    const {container} = render(
       <TestWrapper onAction={mockOnAction}>
         <TestRenderer messages={messages} />
-      </TestWrapper>
+      </TestWrapper>,
     );
 
     // User types in the TextField, updating the data model via path binding
     const input = container.querySelector('input') as HTMLInputElement;
-    fireEvent.change(input, { target: { value: 'alice123' } });
+    fireEvent.change(input, {target: {value: 'alice123'}});
 
     // User clicks the Submit button
-    fireEvent.click(screen.getByRole('button', { name: 'Submit' }));
+    fireEvent.click(screen.getByRole('button', {name: 'Submit'}));
 
     // Verify the action context contains the resolved value from the data model
     expect(mockOnAction).toHaveBeenCalledTimes(1);
     const event = getMockCallArg<Types.A2UIClientEventMessage>(mockOnAction, 0);
     expect(event.userAction).toBeDefined();
     expect(event.userAction?.name).toBe('submit-form');
-    expect(event.userAction?.context).toEqual({ username: 'alice123' });
+    expect(event.userAction?.context).toEqual({username: 'alice123'});
   });
 
   it('should resolve mixed literal and path context parameters', () => {
@@ -210,8 +226,8 @@ describe('Action Dispatch', () => {
           id: 'tf-name',
           component: {
             TextField: {
-              text: { path: 'form.name' },
-              label: { literalString: 'Name' },
+              text: {path: 'form.name'},
+              label: {literalString: 'Name'},
             },
           },
         },
@@ -219,12 +235,15 @@ describe('Action Dispatch', () => {
           id: 'cb-agree',
           component: {
             CheckBox: {
-              value: { path: 'form.agreed' },
-              label: { literalString: 'I agree' },
+              value: {path: 'form.agreed'},
+              label: {literalString: 'I agree'},
             },
           },
         },
-        { id: 'btn-text', component: { Text: { text: { literalString: 'Submit' } , usageHint: 'body' } } },
+        {
+          id: 'btn-text',
+          component: {Text: {text: {literalString: 'Submit'}, usageHint: 'body'}},
+        },
         {
           id: 'btn-1',
           component: {
@@ -233,35 +252,38 @@ describe('Action Dispatch', () => {
               action: {
                 name: 'submit-form',
                 context: [
-                  { key: 'formId', value: { literalString: 'registration-form' } },
-                  { key: 'version', value: { literalNumber: 2 } },
-                  { key: 'name', value: { path: 'form.name' } },
-                  { key: 'agreed', value: { path: 'form.agreed' } },
+                  {key: 'formId', value: {literalString: 'registration-form'}},
+                  {key: 'version', value: {literalNumber: 2}},
+                  {key: 'name', value: {path: 'form.name'}},
+                  {key: 'agreed', value: {path: 'form.agreed'}},
                 ],
               },
             },
           },
         },
-        { id: 'col', component: { Column: { children: { explicitList: ['tf-name', 'cb-agree', 'btn-1'] } } } },
+        {
+          id: 'col',
+          component: {Column: {children: {explicitList: ['tf-name', 'cb-agree', 'btn-1']}}},
+        },
       ]),
       createBeginRendering('col'),
     ];
 
-    const { container } = render(
+    const {container} = render(
       <TestWrapper onAction={mockOnAction}>
         <TestRenderer messages={messages} />
-      </TestWrapper>
+      </TestWrapper>,
     );
 
     // User fills the form
     const input = container.querySelector('input[type="text"]') as HTMLInputElement;
-    fireEvent.change(input, { target: { value: 'John Doe' } });
+    fireEvent.change(input, {target: {value: 'John Doe'}});
 
     const checkbox = container.querySelector('input[type="checkbox"]') as HTMLInputElement;
     fireEvent.click(checkbox);
 
     // User clicks Submit
-    fireEvent.click(screen.getByRole('button', { name: 'Submit' }));
+    fireEvent.click(screen.getByRole('button', {name: 'Submit'}));
 
     // Verify mixed context: literals + resolved paths
     expect(mockOnAction).toHaveBeenCalledTimes(1);

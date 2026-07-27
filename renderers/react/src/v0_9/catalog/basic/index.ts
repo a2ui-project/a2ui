@@ -37,6 +37,8 @@ import {ChoicePicker} from './components/ChoicePicker';
 import {Slider} from './components/Slider';
 import {DateTimeInput} from './components/DateTimeInput';
 
+export * from './context/MarkdownContext';
+
 const basicComponents: ReactComponentImplementation[] = [
   Text,
   Image,
@@ -59,9 +61,9 @@ const basicComponents: ReactComponentImplementation[] = [
 ];
 
 export const basicCatalog = new Catalog<ReactComponentImplementation>(
-  'https://a2ui.org/specification/v0_9/basic_catalog.json',
+  'https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json',
   basicComponents,
-  BASIC_FUNCTIONS
+  BASIC_FUNCTIONS,
 );
 
 export {

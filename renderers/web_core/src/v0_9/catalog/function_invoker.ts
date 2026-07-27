@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import { DataContext } from "../rendering/data-context.js";
+import {DataContext} from '../rendering/data-context.js';
 
 /**
  * A function that invokes a catalog function by name and returns its result synchronously or as a Signal.

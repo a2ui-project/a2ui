@@ -19,4 +19,4 @@
  */
 
 export * from './layouts';
-export { nestedFixtures } from './layouts';
+export {nestedFixtures} from './layouts';

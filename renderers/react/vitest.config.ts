@@ -14,7 +14,8 @@
  * limitations under the License.
  */
 
-import { defineConfig } from 'vitest/config';
+import {defineConfig} from 'vitest/config';
+import path from 'path';
 
 export default defineConfig({
   test: {
@@ -31,7 +32,11 @@ export default defineConfig({
   },
   resolve: {
     alias: {
-      '@': './src/v0_8',
+      '@': path.resolve(process.cwd(), 'src/v0_8'),
+      '@a2ui/react/v0_9': path.resolve(process.cwd(), 'src/v0_9/index.ts'),
+      '@a2ui/react/v0_8': path.resolve(process.cwd(), 'src/v0_8/index.ts'),
+      '@a2ui/react/styles': path.resolve(process.cwd(), 'src/styles/index.ts'),
+      '@a2ui/react': path.resolve(process.cwd(), 'src/index.ts'),
     },
   },
 });

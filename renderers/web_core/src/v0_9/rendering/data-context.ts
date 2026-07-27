@@ -1,3 +1,4 @@
+// Force rebuild by wireit
 /*
  * Copyright 2025 Google LLC
  *
@@ -14,20 +15,23 @@
  * limitations under the License.
  */
 
-import { signal, computed, Signal, effect } from "@preact/signals-core";
-import { z } from "zod";
-import { DataModel, DataSubscription } from "../state/data-model.js";
-import type {
-  DynamicValue,
-  DataBinding,
-  FunctionCall,
-  Action,
-} from "../schema/common-types.js";
-import { A2uiExpressionError } from "../errors.js";
-import { isSignal } from "../catalog/types.js";
+import {
+  signal,
+  computed,
+  Signal,
+  effect,
+  isSignal,
+  getValue,
+  setValue,
+  peekValue,
+} from '../reactivity/signals.js';
+import {z} from 'zod';
+import {DataModel, DataSubscription} from '../state/data-model.js';
+import type {DynamicValue, DataBinding, FunctionCall, Action} from '../schema/common-types.js';
+import {A2uiExpressionError} from '../errors.js';
 
-import { FunctionInvoker } from "../catalog/function_invoker.js";
-import { SurfaceModel } from "../state/surface-model.js";
+import {FunctionInvoker} from '../catalog/function_invoker.js';
+import {SurfaceModel} from '../state/surface-model.js';
 
 /**
  * A contextual view of the main DataModel, serving as the unified interface for resolving
@@ -84,18 +88,18 @@ export class DataContext {
    */
   resolveDynamicValue<V>(value: DynamicValue): V {
     // 1. Literal check (excluding arrays and objects)
-    if (value === null || typeof value !== "object" || Array.isArray(value)) {
+    if (value === null || typeof value !== 'object' || Array.isArray(value)) {
       return value as V;
     }
 
     // 2. Path Check: { path: "..." }
-    if ("path" in value) {
+    if ('path' in value) {
       const absolutePath = this.resolvePath((value as DataBinding).path);
       return this.dataModel.get(absolutePath);
     }
 
     // 3. Function Call: { call: "...", args: ... }
-    if ("call" in value) {
+    if ('call' in value) {
       const call = value as FunctionCall;
       const args: Record<string, any> = {};
 
@@ -105,17 +109,13 @@ export class DataContext {
 
       const abortController = new AbortController();
 
-      const result = this.evaluateFunctionReactive<V>(
-        call.call,
-        args,
-        abortController.signal,
-      );
+      const result = this.evaluateFunctionReactive<V>(call.call, args, abortController.signal);
 
       if (result === undefined) {
         return undefined as any;
       }
 
-      return (isSignal(result) ? result.peek() : result) as V;
+      return (isSignal(result) ? peekValue(result) : result) as V;
     }
 
     return value as V;
@@ -140,10 +140,10 @@ export class DataContext {
     const sig = this.resolveSignal<V>(value);
 
     let isSync = true;
-    let currentValue = sig.peek();
+    let currentValue = peekValue(sig);
 
     const dispose = effect(() => {
-      const val = sig.value;
+      const val = getValue(sig);
       currentValue = val;
       if (!isSync) {
         onChange(val);
@@ -157,9 +157,7 @@ export class DataContext {
       },
       unsubscribe: () => {
         dispose();
-        if ((sig as any).unsubscribe) {
-          (sig as any).unsubscribe();
-        }
+        sig.unsubscribe?.();
       },
     };
   }
@@ -176,18 +174,18 @@ export class DataContext {
    */
   resolveSignal<V>(value: DynamicValue): Signal<V> {
     // 1. Literal
-    if (typeof value !== "object" || value === null || Array.isArray(value)) {
+    if (typeof value !== 'object' || value === null || Array.isArray(value)) {
       return signal(value as V);
     }
 
     // 2. Path Check
-    if ("path" in value) {
+    if ('path' in value) {
       const absolutePath = this.resolvePath((value as DataBinding).path);
       return this.dataModel.getSignal<V>(absolutePath) as Signal<V>;
     }
 
     // 3. Function Call
-    if ("call" in value) {
+    if ('call' in value) {
       const call = value as FunctionCall;
       const argSignals: Record<string, Signal<any>> = {};
 
@@ -197,13 +195,9 @@ export class DataContext {
 
       if (Object.keys(argSignals).length === 0) {
         const abortController = new AbortController();
-        const result = this.evaluateFunctionReactive<V>(
-          call.call,
-          {},
-          abortController.signal,
-        );
-        const sig = result instanceof Signal ? result : signal(result);
-        (sig as any).unsubscribe = () => abortController.abort();
+        const result = this.evaluateFunctionReactive<V>(call.call, {}, abortController.signal);
+        const sig = isSignal(result) ? result : signal(result as V);
+        sig.unsubscribe = () => abortController.abort();
         return sig;
       }
 
@@ -215,14 +209,15 @@ export class DataContext {
       const argsSig = computed(() => {
         const argsRecord: Record<string, any> = {};
         for (let i = 0; i < keys.length; i++) {
-          argsRecord[keys[i]] = argSignals[keys[i]].value;
+          argsRecord[keys[i]] = getValue(argSignals[keys[i]]);
         }
         return argsRecord;
       });
 
       const stopper = effect(() => {
         try {
-          const args = argsSig.value;
+          const args = getValue(argsSig);
+
           if (abortController) abortController.abort();
           if (innerUnsubscribe) {
             innerUnsubscribe();
@@ -230,35 +225,28 @@ export class DataContext {
           }
           abortController = new AbortController();
 
-          const res = this.evaluateFunctionReactive<V>(
-            call.call,
-            args,
-            abortController.signal,
-          );
+          const res = this.evaluateFunctionReactive<V>(call.call, args, abortController.signal);
 
           if (isSignal(res)) {
             innerUnsubscribe = effect(() => {
-              resultSig.value = res.value;
+              setValue(resultSig, getValue(res));
             });
           } else {
-            resultSig.value = res;
+            setValue(resultSig, res);
           }
         } catch (e: any) {
           this.dispatchExpressionError(e, call.call);
           // In reactive mode, we should not throw. Instead, reset the signal value.
-          resultSig.value = undefined;
+          setValue(resultSig, undefined);
         }
       });
 
-      (resultSig as any).unsubscribe = () => {
+      resultSig.unsubscribe = () => {
         stopper();
         if (innerUnsubscribe) innerUnsubscribe();
         if (abortController) abortController.abort();
         for (let i = 0; i < keys.length; i++) {
-          const argSig = argSignals[keys[i]];
-          if ((argSig as any).unsubscribe) {
-            (argSig as any).unsubscribe();
-          }
+          argSignals[keys[i]].unsubscribe?.();
         }
       };
 
@@ -279,7 +267,7 @@ export class DataContext {
    * DynamicValue types and prevents arbitrary nesting.
    */
   resolveAction(action: Action): any {
-    if ("event" in action) {
+    if ('event' in action) {
       const resolvedContext: Record<string, any> = {};
       if (action.event.context) {
         for (const [key, value] of Object.entries(action.event.context)) {
@@ -293,7 +281,7 @@ export class DataContext {
         },
       };
     }
-    if ("functionCall" in action) {
+    if ('functionCall' in action) {
       return this.resolveDynamicValue(action.functionCall);
     }
     return action;
@@ -313,31 +301,31 @@ export class DataContext {
   }
 
   private dispatchExpressionError(e: any, name: string): void {
-    if (e?.name === "ZodError" || e instanceof z.ZodError) {
+    if (e?.name === 'ZodError' || e instanceof z.ZodError) {
       const err = new A2uiExpressionError(
         `Validation failed for function '${name}': ${e.message}`,
         name,
         e.errors ?? e.issues,
       );
       this.surface.dispatchError({
-        code: "EXPRESSION_ERROR",
+        code: 'EXPRESSION_ERROR',
         message: err.message,
         expression: name,
         details: err.details,
       });
     } else if (e instanceof A2uiExpressionError) {
       this.surface.dispatchError({
-        code: "EXPRESSION_ERROR",
+        code: 'EXPRESSION_ERROR',
         message: e.message,
         expression: e.expression,
         details: e.details,
       });
     } else {
       this.surface.dispatchError({
-        code: "EXPRESSION_ERROR",
+        code: 'EXPRESSION_ERROR',
         message: e.message ?? `An unexpected error occurred in function ${name}.`,
         expression: name,
-        details: { stack: e.stack },
+        details: {stack: e.stack},
       });
     }
   }
@@ -357,18 +345,18 @@ export class DataContext {
   }
 
   private resolvePath(path: string): string {
-    if (path.startsWith("/")) {
+    if (path.startsWith('/')) {
       return path;
     }
-    if (path === "" || path === ".") {
+    if (path === '' || path === '.') {
       return this.path;
     }
 
     let base = this.path;
-    if (base.endsWith("/") && base.length > 1) {
+    if (base.endsWith('/') && base.length > 1) {
       base = base.slice(0, -1);
     }
-    if (base === "/") base = "";
+    if (base === '/') base = '';
 
     return `${base}/${path}`;
   }

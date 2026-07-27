@@ -31,7 +31,7 @@ export const Slider = memo(function Slider({
 }: A2UIComponentProps<Types.SliderNode>) {
   const {theme, resolveNumber, resolveString, setValue, getValue} = useA2UIComponent(
     node,
-    surfaceId
+    surfaceId,
   );
   const props = node.properties;
   const id = useId();
@@ -71,7 +71,7 @@ export const Slider = memo(function Slider({
         setValue(valuePath, newValue);
       }
     },
-    [valuePath, setValue]
+    [valuePath, setValue],
   );
 
   // Access label from props if it exists (Lit component supports it but type doesn't define it)
@@ -95,9 +95,11 @@ export const Slider = memo(function Slider({
   return (
     <div className="a2ui-slider" style={hostStyle}>
       <section className={classMapToString(theme.components.Slider.container)}>
-        <label htmlFor={id} className={classMapToString(theme.components.Slider.label)}>
-          {label}
-        </label>
+        {label && (
+          <label htmlFor={id} className={classMapToString(theme.components.Slider.label)}>
+            {label}
+          </label>
+        )}
         <input
           type="range"
           id={id}

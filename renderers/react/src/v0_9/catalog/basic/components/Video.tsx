@@ -15,15 +15,17 @@
  */
 
 import React from 'react';
-import {createReactComponent} from '../../../adapter';
+import {createComponentImplementation} from '../../../adapter';
 import {VideoApi} from '@a2ui/web_core/v0_9/basic_catalog';
-import {getBaseLeafStyle} from '../utils';
+import {getBaseLeafStyle, useBasicCatalogStyles} from '../utils';
 
-export const Video = createReactComponent(VideoApi, ({props}) => {
+export const Video = createComponentImplementation(VideoApi, ({props}) => {
+  useBasicCatalogStyles();
   const style: React.CSSProperties = {
     ...getBaseLeafStyle(),
     width: '100%',
-    aspectRatio: '16/9',
+    height: 'auto',
+    borderRadius: 'var(--a2ui-video-border-radius, 0)',
   };
 
   return <video src={props.url} controls style={style} />;

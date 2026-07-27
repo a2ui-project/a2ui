@@ -1,0 +1,170 @@
+[
+  {
+    "createSurface": {
+      "surfaceId": "flight-1",
+      "catalogId": "core-v0.9"
+    }
+  },
+  {
+    "updateComponents": {
+      "surfaceId": "flight-1",
+      "components": [
+        {
+          "id": "root",
+          "type": "Card",
+          "props": {
+            "title": "Flight UA 123",
+            "children": ["layout-col"]
+          }
+        },
+        {
+          "id": "layout-col",
+          "type": "Column",
+          "props": {
+            "spacing": "medium",
+            "children": ["status-row", "divider-1", "details-row", "action-btn"]
+          }
+        },
+        {
+          "id": "status-row",
+          "type": "Row",
+          "props": {
+            "align": "spaceBetween",
+            "children": ["dep-info", "arr-info"]
+          }
+        },
+        {
+          "id": "dep-info",
+          "type": "Column",
+          "props": {
+            "children": ["dep-city", "dep-time"]
+          }
+        },
+        {
+          "id": "dep-city",
+          "type": "Text",
+          "props": {
+            "text": "SFO",
+            "variant": "heading",
+            "size": "large",
+            "weight": "bold"
+          }
+        },
+        {
+          "id": "dep-time",
+          "type": "Text",
+          "props": {
+            "text": "10:45 AM"
+          }
+        },
+        {
+          "id": "arr-info",
+          "type": "Column",
+          "props": {
+            "align": "end",
+            "children": ["arr-city", "arr-time"]
+          }
+        },
+        {
+          "id": "arr-city",
+          "type": "Text",
+          "props": {
+            "text": "JFK",
+            "variant": "heading",
+            "size": "large",
+            "weight": "bold"
+          }
+        },
+        {
+          "id": "arr-time",
+          "type": "Text",
+          "props": {
+            "text": "07:15 PM"
+          }
+        },
+        {
+          "id": "divider-1",
+          "type": "Divider",
+          "props": {}
+        },
+        {
+          "id": "details-row",
+          "type": "Row",
+          "props": {
+            "spacing": "large",
+            "children": ["gate-text", "status-text"]
+          }
+        },
+        {
+          "id": "gate-text",
+          "type": "Text",
+          "props": {
+            "text": "Gate: G4"
+          }
+        },
+        {
+          "id": "status-text",
+          "type": "Text",
+          "props": {
+            "text": "On Time",
+            "color": "success",
+            "weight": "bold"
+          }
+        },
+        {
+          "id": "action-btn",
+          "type": "Button",
+          "props": {
+            "label": "Refresh Status",
+            "onClick": {
+              "actionId": "refresh_flight",
+              "parameters": {"flightNumber": "UA123"}
+            }
+          }
+        }
+      ]
+    }
+  },
+  {
+    "action": {
+      "name": "refresh_flight",
+      "surfaceId": "flight-1",
+      "sourceComponentId": "action-btn",
+      "timestamp": "2026-03-15T12:05:00Z",
+      "context": {
+        "flightNumber": "UA123"
+      }
+    }
+  },
+  {
+    "updateComponents": {
+      "surfaceId": "flight-1",
+      "components": [
+        {
+          "id": "status-text",
+          "type": "Text",
+          "props": {
+            "text": "Delayed (Weather)",
+            "color": "warning",
+            "weight": "bold"
+          }
+        },
+        {
+          "id": "arr-time",
+          "type": "Text",
+          "props": {
+            "text": "08:30 PM",
+            "color": "warning"
+          }
+        },
+        {
+          "id": "gate-text",
+          "type": "Text",
+          "props": {
+            "text": "Gate: G8"
+          }
+        }
+      ]
+    }
+  }
+]

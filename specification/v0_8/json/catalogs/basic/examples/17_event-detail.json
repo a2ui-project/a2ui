@@ -44,10 +44,7 @@
           "component": {
             "Row": {
               "children": {
-                "explicitList": [
-                  "time-icon",
-                  "time-text"
-                ]
+                "explicitList": ["time-icon", "time-text"]
               },
               "alignment": "center"
             }
@@ -79,10 +76,7 @@
           "component": {
             "Row": {
               "children": {
-                "explicitList": [
-                  "location-icon",
-                  "location-text"
-                ]
+                "explicitList": ["location-icon", "location-text"]
               },
               "alignment": "center"
             }
@@ -131,10 +125,7 @@
           "component": {
             "Row": {
               "children": {
-                "explicitList": [
-                  "accept-btn",
-                  "decline-btn"
-                ]
+                "explicitList": ["accept-btn", "decline-btn"]
               }
             }
           }

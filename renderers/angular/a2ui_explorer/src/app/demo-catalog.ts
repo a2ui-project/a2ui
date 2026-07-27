@@ -14,13 +14,9 @@
  * limitations under the License.
  */
 
-import { Injectable } from '@angular/core';
-import { z } from 'zod';
-import { BasicCatalogBase, BASIC_FUNCTIONS } from '@a2ui/angular/v0_9';
-import { CustomSliderComponent } from './custom-slider.component';
-import { CardComponent } from './card.component';
-import { AngularComponentImplementation } from '@a2ui/angular/v0_9';
-import { createFunctionImplementation, FunctionImplementation } from '@a2ui/web_core/v0_9';
+import {Injectable} from '@angular/core';
+import {BasicCatalogBase, BASIC_FUNCTIONS} from '@a2ui/angular/v0_9';
+import {customSliderComponentDeclaration} from './custom-slider.component';
 
 /**
  * A catalog specific to the demo, extending the basic catalog with custom components.
@@ -30,47 +26,11 @@ import { createFunctionImplementation, FunctionImplementation } from '@a2ui/web_
 })
 export class DemoCatalog extends BasicCatalogBase {
   constructor() {
-    const customSliderApi: AngularComponentImplementation = {
-      name: 'CustomSlider',
-      schema: z.object({
-        label: z.string().optional(),
-        value: z.number().optional(),
-        min: z.number().optional(),
-        max: z.number().optional(),
-      }) as any,
-      component: CustomSliderComponent,
-    };
-
-    const cardApi: AngularComponentImplementation = {
-      name: 'Card',
-      schema: z.object({
-        child: z.string().optional(),
-      }) as any,
-      component: CardComponent,
-    };
-
-    const capitalizeImplementation: FunctionImplementation = createFunctionImplementation(
-      {
-        name: 'capitalize',
-        returnType: 'string',
-        schema: z.object({ value: z.string().optional() }),
-      },
-      (args) => {
-        const value = String(args.value || '');
-        return value.charAt(0).toUpperCase() + value.slice(1);
-      },
-    );
-
-    // Unify functions from both core and angular libraries, plus local demo functions
-    const functions = [...BASIC_FUNCTIONS, capitalizeImplementation];
-
     super({
-      id: 'https://a2ui.org/specification/v0_9/basic_catalog.json',
-      components: {
-        card: cardApi,
-      },
-      extraComponents: [customSliderApi],
-      functions,
+      id: 'https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json',
+      components: {},
+      extraComponents: [customSliderComponentDeclaration],
+      functions: BASIC_FUNCTIONS,
     });
   }
 }

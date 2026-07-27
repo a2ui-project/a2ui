@@ -14,16 +14,12 @@
  * limitations under the License.
  */
 
-import { Metadata } from 'next';
+import {Metadata} from 'next';
 
 export const metadata: Metadata = {
   title: 'Icons | A2UI Composer',
 };
 
-export default function IconsLayout({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
+export default function IconsLayout({children}: {children: React.ReactNode}) {
   return children;
 }

@@ -16,14 +16,14 @@
 
 'use client';
 
-import Editor, { type Monaco } from '@monaco-editor/react';
+import Editor, {type Monaco} from '@monaco-editor/react';
 
 interface CodeEditorProps {
   value: string;
   onChange?: (code: string) => void;
 }
 
-export function CodeEditor({ value, onChange }: CodeEditorProps) {
+export function CodeEditor({value, onChange}: CodeEditorProps) {
   const handleBeforeMount = (monaco: Monaco) => {
     // Disable all TypeScript/JavaScript diagnostics
     monaco.languages.typescript.typescriptDefaults.setDiagnosticsOptions({
@@ -53,17 +53,17 @@ export function CodeEditor({ value, onChange }: CodeEditorProps) {
         value={value}
         defaultLanguage="json"
         theme="custom-light"
-        onChange={(value) => onChange?.(value ?? '')}
+        onChange={value => onChange?.(value ?? '')}
         beforeMount={handleBeforeMount}
         options={{
-          minimap: { enabled: false },
+          minimap: {enabled: false},
           fontSize: 13,
           lineNumbers: 'on',
           scrollBeyondLastLine: false,
           automaticLayout: true,
           tabSize: 2,
           wordWrap: 'on',
-          padding: { top: 16, bottom: 16 },
+          padding: {top: 16, bottom: 16},
           cursorStyle: 'line',
           renderLineHighlight: 'all',
           renderLineHighlightOnlyWhenFocus: false,

@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import { HTMLTemplateResult } from "lit";
+import {HTMLTemplateResult} from 'lit';
 
 const eventInit = {
   bubbles: true,
@@ -23,13 +23,13 @@ const eventInit = {
 };
 
 export class SnackbarActionEvent extends Event {
-  static eventName = "snackbaraction";
+  static eventName = 'snackbaraction';
 
   constructor(
     public readonly action: string,
     public readonly value?: HTMLTemplateResult | string,
-    public readonly callback?: () => void
+    public readonly callback?: () => void,
   ) {
-    super(SnackbarActionEvent.eventName, { ...eventInit });
+    super(SnackbarActionEvent.eventName, {...eventInit});
   }
 }

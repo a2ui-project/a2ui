@@ -14,10 +14,10 @@
  * limitations under the License.
  */
 
-import { ChangeDetectionStrategy, Component, input } from '@angular/core';
-import { DynamicComponent } from '../rendering/dynamic-component';
-import { Renderer } from '../rendering/renderer';
-import { Types } from '../types';
+import {ChangeDetectionStrategy, Component, input} from '@angular/core';
+import {DynamicComponent} from '../rendering/dynamic-component';
+import {Renderer} from '../rendering/renderer';
+import type {AnyComponentNode, CardNode} from '../types';
 
 @Component({
   selector: 'a2ui-card',
@@ -40,7 +40,7 @@ import { Types } from '../types';
   `,
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
-export class Card extends DynamicComponent<Types.CardNode> {
-  readonly child = input<Types.AnyComponentNode | null>(null);
-  readonly children = input<Types.AnyComponentNode[]>([]);
+export class Card extends DynamicComponent<CardNode> {
+  readonly child = input<AnyComponentNode | null>(null);
+  readonly children = input<AnyComponentNode[]>([]);
 }

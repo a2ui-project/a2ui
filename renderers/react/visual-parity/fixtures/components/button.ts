@@ -18,7 +18,7 @@
  * Button component fixtures for visual parity testing.
  */
 
-import type { ComponentFixture } from '../types';
+import type {ComponentFixture} from '../types';
 
 export const buttonPrimary: ComponentFixture = {
   root: 'btn-1',
@@ -26,13 +26,13 @@ export const buttonPrimary: ComponentFixture = {
     {
       id: 'btn-text',
       component: {
-        Text: { text: { literalString: 'Primary Button' } },
+        Text: {text: {literalString: 'Primary Button'}},
       },
     },
     {
       id: 'btn-1',
       component: {
-        Button: { child: 'btn-text', action: { name: 'click' }, primary: true },
+        Button: {child: 'btn-text', action: {name: 'click'}, primary: true},
       },
     },
   ],
@@ -44,13 +44,13 @@ export const buttonSecondary: ComponentFixture = {
     {
       id: 'btn-text-2',
       component: {
-        Text: { text: { literalString: 'Secondary Button' } },
+        Text: {text: {literalString: 'Secondary Button'}},
       },
     },
     {
       id: 'btn-2',
       component: {
-        Button: { child: 'btn-text-2', action: { name: 'click' }, primary: false },
+        Button: {child: 'btn-text-2', action: {name: 'click'}, primary: false},
       },
     },
   ],
@@ -62,25 +62,25 @@ export const buttonWithIcon: ComponentFixture = {
     {
       id: 'btn-icon-icon',
       component: {
-        Icon: { name: { literalString: 'add' } },
+        Icon: {name: {literalString: 'add'}},
       },
     },
     {
       id: 'btn-icon-text',
       component: {
-        Text: { text: { literalString: 'Add Item' } },
+        Text: {text: {literalString: 'Add Item'}},
       },
     },
     {
       id: 'btn-icon-row',
       component: {
-        Row: { children: { explicitList: ['btn-icon-icon', 'btn-icon-text'] } },
+        Row: {children: {explicitList: ['btn-icon-icon', 'btn-icon-text']}},
       },
     },
     {
       id: 'btn-icon',
       component: {
-        Button: { child: 'btn-icon-row', action: { name: 'add' }, primary: true },
+        Button: {child: 'btn-icon-row', action: {name: 'add'}, primary: true},
       },
     },
   ],

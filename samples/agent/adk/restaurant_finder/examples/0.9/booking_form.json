@@ -1,0 +1,131 @@
+[
+  {
+    "version": "v0.9",
+    "createSurface": {
+      "surfaceId": "booking-form",
+      "catalogId": "https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json",
+      "theme": {
+        "primaryColor": "#FF0000",
+        "font": "Roboto"
+      }
+    }
+  },
+  {
+    "version": "v0.9",
+    "updateComponents": {
+      "surfaceId": "booking-form",
+      "components": [
+        {
+          "id": "root",
+          "component": "Column",
+          "children": [
+            "booking-title",
+            "restaurant-image",
+            "restaurant-address",
+            "party-size-field",
+            "datetime-field",
+            "dietary-field",
+            "submit-button"
+          ]
+        },
+        {
+          "id": "booking-title",
+          "component": "Text",
+          "variant": "h2",
+          "text": {
+            "path": "/title"
+          }
+        },
+        {
+          "id": "restaurant-image",
+          "component": "Image",
+          "url": {
+            "path": "/imageUrl"
+          }
+        },
+        {
+          "id": "restaurant-address",
+          "component": "Text",
+          "text": {
+            "path": "/address"
+          }
+        },
+        {
+          "id": "party-size-field",
+          "component": "TextField",
+          "label": "Party Size",
+          "value": {
+            "path": "/partySize"
+          },
+          "variant": "number"
+        },
+        {
+          "id": "datetime-field",
+          "component": "DateTimeInput",
+          "label": "Date & Time",
+          "value": {
+            "path": "/reservationTime"
+          },
+          "enableDate": true,
+          "enableTime": true
+        },
+        {
+          "id": "dietary-field",
+          "component": "TextField",
+          "label": "Dietary Requirements",
+          "value": {
+            "path": "/dietary"
+          }
+        },
+        {
+          "id": "submit-button",
+          "component": "Button",
+          "child": "submit-reservation-text",
+          "action": {
+            "event": {
+              "name": "submit_booking",
+              "context": {
+                "restaurantName": {
+                  "path": "/restaurantName"
+                },
+                "partySize": {
+                  "path": "/partySize"
+                },
+                "reservationTime": {
+                  "path": "/reservationTime"
+                },
+                "dietary": {
+                  "path": "/dietary"
+                },
+                "imageUrl": {
+                  "path": "/imageUrl"
+                }
+              }
+            }
+          }
+        },
+        {
+          "id": "submit-reservation-text",
+          "component": "Text",
+          "text": "Submit Reservation"
+        }
+      ]
+    }
+  },
+  {
+    "version": "v0.9",
+    "updateDataModel": {
+      "surfaceId": "booking-form",
+      "path": "/",
+      "value": {
+        "title": "Book a Table at [RestaurantName]",
+        "address": "[Restaurant Address]",
+        "restaurantName": "[RestaurantName]",
+        "partySize": "2",
+        "reservationTime": "",
+        "dietary": "",
+        "imageUrl": ""
+      }
+    }
+  }
+]

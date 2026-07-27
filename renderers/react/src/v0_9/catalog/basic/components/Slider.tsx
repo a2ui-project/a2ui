@@ -15,34 +15,58 @@
  */
 
 import React from 'react';
-import {createReactComponent} from '../../../adapter';
+import {createComponentImplementation} from '../../../adapter';
 import {SliderApi} from '@a2ui/web_core/v0_9/basic_catalog';
-import {LEAF_MARGIN} from '../utils';
+import {useBasicCatalogStyles} from '../utils';
 
-export const Slider = createReactComponent(SliderApi, ({props}) => {
+export const Slider = createComponentImplementation(SliderApi, ({props}) => {
+  useBasicCatalogStyles();
   const onChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     props.setValue(Number(e.target.value));
   };
 
   const uniqueId = React.useId();
 
+  const containerStyle: React.CSSProperties = {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: 'var(--a2ui-spacing-xs, 0.25rem)',
+    margin: 'var(--a2ui-slider-margin, var(--a2ui-spacing-m))',
+  };
+
+  const headerStyle: React.CSSProperties = {
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  };
+
+  const labelStyle: React.CSSProperties = {
+    fontSize:
+      'var(--a2ui-slider-label-font-size, var(--a2ui-label-font-size, var(--a2ui-font-size-s)))',
+    fontWeight: 'var(--a2ui-slider-label-font-weight, var(--a2ui-label-font-weight, bold))',
+  };
+
+  const valueStyle: React.CSSProperties = {
+    fontSize: 'var(--a2ui-font-size-xs, 0.75rem)',
+    color: 'var(--a2ui-text-caption-color, light-dark(#666, #aaa))',
+  };
+
+  const inputStyle: React.CSSProperties = {
+    width: '100%',
+    cursor: 'pointer',
+    accentColor: 'var(--a2ui-slider-thumb-color, var(--a2ui-color-primary, #007bff))',
+    background: 'var(--a2ui-slider-track-color, var(--a2ui-color-secondary, #e9ecef))',
+  };
+
   return (
-    <div
-      style={{
-        display: 'flex',
-        flexDirection: 'column',
-        gap: '4px',
-        margin: LEAF_MARGIN,
-        width: '100%',
-      }}
-    >
-      <div style={{display: 'flex', justifyContent: 'space-between'}}>
+    <div style={containerStyle}>
+      <div style={headerStyle}>
         {props.label && (
-          <label htmlFor={uniqueId} style={{fontSize: '14px', fontWeight: 'bold'}}>
+          <label htmlFor={uniqueId} style={labelStyle}>
             {props.label}
           </label>
         )}
-        <span style={{fontSize: '12px', color: '#666'}}>{props.value}</span>
+        <span style={valueStyle}>{props.value}</span>
       </div>
       <input
         id={uniqueId}
@@ -51,7 +75,7 @@ export const Slider = createReactComponent(SliderApi, ({props}) => {
         max={props.max}
         value={props.value ?? 0}
         onChange={onChange}
-        style={{width: '100%', cursor: 'pointer'}}
+        style={inputStyle}
       />
     </div>
   );

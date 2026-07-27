@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import { EventEmitter, EventSource } from "../common/events.js";
+import {EventEmitter, EventSource} from '../common/events.js';
 
 /**
  * Represents the state model for an individual UI component.

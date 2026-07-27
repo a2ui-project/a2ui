@@ -15,35 +15,39 @@
  */
 
 import React from 'react';
-import {type ComponentContext} from '@a2ui/web_core/v0_9';
+import {type ComponentContext, type ComponentId} from '@a2ui/web_core/v0_9';
+
+type ResolvedChildRef =
+  | ComponentId
+  | {
+      id: ComponentId;
+      basePath: string;
+    };
+
+type ResolvedChildList = ResolvedChildRef[];
 
 export const ChildList: React.FC<{
-  childList: unknown;
+  childList: ResolvedChildList;
   context: ComponentContext;
-  buildChild: (id: string, basePath?: string) => React.ReactNode;
+  buildChild: (id: ComponentId, basePath?: string) => React.ReactNode;
 }> = ({childList, buildChild}) => {
-  if (Array.isArray(childList)) {
-    return (
-      <>
-        {childList.map((item: unknown, i: number) => {
-          // The new binder outputs objects like { id: string, basePath: string } for arrays of structural nodes
-          if (item && typeof item === 'object' && 'id' in item) {
-            const node = item as {id: string; basePath?: string};
-            return (
-              <React.Fragment key={`${node.id}-${i}`}>
-                {buildChild(node.id, node.basePath)}
-              </React.Fragment>
-            );
-          }
-          // Fallback for static string lists
-          if (typeof item === 'string') {
-            return <React.Fragment key={`${item}-${i}`}>{buildChild(item)}</React.Fragment>;
-          }
-          return null;
-        })}
-      </>
-    );
-  }
+  if (!Array.isArray(childList)) return null;
 
-  return null;
+  return (
+    <>
+      {childList.map((childRef, index) => {
+        if (typeof childRef === 'string') {
+          return (
+            <React.Fragment key={`${childRef}-${index}`}>{buildChild(childRef)}</React.Fragment>
+          );
+        }
+
+        return (
+          <React.Fragment key={`${childRef.id}-${childRef.basePath}`}>
+            {buildChild(childRef.id, childRef.basePath)}
+          </React.Fragment>
+        );
+      })}
+    </>
+  );
 };
