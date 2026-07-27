@@ -87,6 +87,50 @@
       ],
       "unevaluatedProperties": false
     },
+    "WebAppFrameUrl": {
+      "type": "object",
+      "allOf": [
+        {
+          "$ref": "common_types.json#/$defs/ComponentCommon"
+        },
+        {
+          "type": "object",
+          "properties": {
+            "component": {
+              "const": "WebAppFrameUrl"
+            },
+            "url": {
+              "$ref": "common_types.json#/$defs/DynamicString",
+              "description": "The external URL to load inside the iframe."
+            },
+            "height": {
+              "$ref": "common_types.json#/$defs/DynamicNumber"
+            },
+            "allowedEvents": {
+              "type": "array",
+              "items": {"type": "string"}
+            },
+            "allowedFunctions": {
+              "type": "array",
+              "items": {"type": "string"}
+            },
+            "data": {
+              "type": "object",
+              "properties": {
+                "paths": {
+                  "type": "object",
+                  "additionalProperties": {"type": "string"}
+                }
+              },
+              "required": ["paths"],
+              "additionalProperties": false
+            }
+          },
+          "required": ["component", "url"]
+        }
+      ],
+      "unevaluatedProperties": false
+    },
     "PongScoreBoard": {
       "type": "object",
       "allOf": [
@@ -156,6 +200,9 @@
         },
         {
           "$ref": "#/components/Column"
+        },
+        {
+          "$ref": "#/components/WebAppFrameUrl"
         }
       ]
     }
