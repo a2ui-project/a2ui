@@ -33,6 +33,13 @@ export function createComponentAdapter<T extends ComponentApi>(
   };
 }
 
+function toKebabCase(str: string): string {
+  return str
+    .replace(/([a-z0-9])([A-Z])/g, '$1-$2')
+    .replace(/([A-Z]+)([A-Z][a-z0-9])/g, '$1-$2')
+    .toLowerCase();
+}
+
 /**
  * Helper to register Angular catalog adapters for A2UI Portable Web Components.
  */
@@ -42,7 +49,7 @@ export function createAngularAdapter<T extends ComponentApi>(
 ): Catalog<T & PortableComponentAdapterOptions> {
   const adaptedComponents: (T & PortableComponentAdapterOptions)[] = [];
   for (const [name, comp] of catalog.components.entries()) {
-    const tagName = tagMap[name] || `a2ui-${name.toLowerCase()}`;
+    const tagName = tagMap[name] || `a2ui-${toKebabCase(name)}`;
     adaptedComponents.push(createComponentAdapter(comp, tagName));
   }
   return new Catalog<T & PortableComponentAdapterOptions>(
@@ -62,7 +69,7 @@ export function createReactAdapter<T extends ComponentApi>(
 ): Catalog<T & PortableComponentAdapterOptions> {
   const adaptedComponents: (T & PortableComponentAdapterOptions)[] = [];
   for (const [name, comp] of catalog.components.entries()) {
-    const tagName = tagMap[name] || `a2ui-${name.toLowerCase()}`;
+    const tagName = tagMap[name] || `a2ui-${toKebabCase(name)}`;
     adaptedComponents.push(createComponentAdapter(comp, tagName));
   }
   return new Catalog<T & PortableComponentAdapterOptions>(

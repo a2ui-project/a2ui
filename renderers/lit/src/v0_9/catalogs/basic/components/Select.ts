@@ -58,16 +58,18 @@ export class A2uiSelectElement extends BasicCatalogA2uiLitElement<typeof SelectA
 
   private onChange(e: Event) {
     const target = e.target as HTMLSelectElement;
-    if (this.controller.props?.value) {
-      // Dispatch custom event for binding update
-      this.dispatchEvent(
-        new CustomEvent('a2uichange', {
-          detail: {value: target.value},
-          bubbles: true,
-          composed: true,
-        }),
-      );
+    const props = this.controller.props;
+    if (props) {
+      props.setValue?.(target.value);
     }
+    // Dispatch custom event for binding update
+    this.dispatchEvent(
+      new CustomEvent('a2uichange', {
+        detail: {value: target.value},
+        bubbles: true,
+        composed: true,
+      }),
+    );
   }
 
   override render() {

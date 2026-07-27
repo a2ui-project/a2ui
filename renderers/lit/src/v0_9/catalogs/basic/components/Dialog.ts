@@ -14,14 +14,15 @@
  * limitations under the License.
  */
 
-import {html, nothing, css} from 'lit';
-import {customElement} from 'lit/decorators.js';
+import {html, nothing, css, PropertyValues} from 'lit';
+import {customElement, query} from 'lit/decorators.js';
 import {DialogApi} from '@a2ui/web_core/v0_9/basic_catalog';
 import {BasicCatalogA2uiLitElement} from '../basic-catalog-a2ui-lit-element.js';
 import {A2uiController} from '../../../a2ui-controller.js';
 
 @customElement('a2ui-dialog')
 export class A2uiDialogElement extends BasicCatalogA2uiLitElement<typeof DialogApi> {
+  @query('dialog') accessor dialogElement!: HTMLDialogElement;
   static override styles = css`
     :host {
       display: block;
@@ -64,6 +65,22 @@ export class A2uiDialogElement extends BasicCatalogA2uiLitElement<typeof DialogA
     return new A2uiController(this, DialogApi);
   }
 
+  override updated(changedProperties: PropertyValues) {
+    super.updated(changedProperties);
+    const isOpen = Boolean(this.controller.props?.open);
+    if (this.dialogElement) {
+      if (isOpen && !this.dialogElement.open) {
+        this.dialogElement.showModal();
+      } else if (!isOpen && this.dialogElement.open) {
+        this.dialogElement.close();
+      }
+    }
+  }
+
+  private handleNativeClose() {
+    this.closeDialog();
+  }
+
   private closeDialog() {
     this.dispatchEvent(
       new CustomEvent('a2uiclose', {
@@ -77,22 +94,16 @@ export class A2uiDialogElement extends BasicCatalogA2uiLitElement<typeof DialogA
     const props = this.controller.props;
     if (!props) return nothing;
 
-    const isOpen = props.open !== false;
-
     return html`
-      ${isOpen
-        ? html`
-            <dialog open>
-              <div class="dialog-header">
-                ${props.title ? html`<h3 class="dialog-title">${props.title}</h3>` : nothing}
-                <button class="close-btn" @click=${this.closeDialog}>&times;</button>
-              </div>
-              <div class="dialog-body">
-                ${props.child ? html`${this.renderNode(props.child)}` : nothing}
-              </div>
-            </dialog>
-          `
-        : nothing}
+      <dialog @close=${this.handleNativeClose}>
+        <div class="dialog-header">
+          ${props.title ? html`<h3 class="dialog-title">${props.title}</h3>` : nothing}
+          <button class="close-btn" @click=${this.closeDialog}>&times;</button>
+        </div>
+        <div class="dialog-body">
+          ${props.child ? html`${this.renderNode(props.child)}` : nothing}
+        </div>
+      </dialog>
     `;
   }
 }

@@ -85,6 +85,10 @@ export class A2uiSwitchElement extends BasicCatalogA2uiLitElement<typeof SwitchA
 
   private onChange(e: Event) {
     const target = e.target as HTMLInputElement;
+    const props = this.controller.props;
+    if (props) {
+      props.setValue?.(target.checked);
+    }
     this.dispatchEvent(
       new CustomEvent('a2uichange', {
         detail: {value: target.checked},

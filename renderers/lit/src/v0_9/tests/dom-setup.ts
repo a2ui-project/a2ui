@@ -22,9 +22,21 @@ const originalGlobals: Record<string, any> = {};
 function applyGlobals(obj: Record<string, any>) {
   for (const [key, value] of Object.entries(obj)) {
     if (value === undefined) {
-      delete (global as any)[key];
+      try {
+        delete (global as any)[key];
+      } catch (e) {
+        Object.defineProperty(global, key, {value: undefined, configurable: true, writable: true});
+      }
     } else {
-      (global as any)[key] = value;
+      try {
+        Object.defineProperty(global, key, {
+          value: value,
+          configurable: true,
+          writable: true,
+        });
+      } catch (e) {
+        (global as any)[key] = value;
+      }
     }
   }
 }
@@ -49,6 +61,7 @@ export function setupTestDom() {
       'Element',
       'Node',
       'Event',
+      'CustomEvent',
       'MutationObserver',
       'requestAnimationFrame',
       'cancelAnimationFrame',
@@ -80,7 +93,18 @@ export function setupTestDom() {
       styleEl.textContent = text;
     };
   }
-
+  const HTMLDialogElementClass = (dom.window as any).HTMLDialogElement;
+  if (HTMLDialogElementClass && !HTMLDialogElementClass.prototype.showModal) {
+    HTMLDialogElementClass.prototype.showModal = function (this: any) {
+      this.setAttribute('open', '');
+      this.open = true;
+    };
+    HTMLDialogElementClass.prototype.close = function (this: any) {
+      this.removeAttribute('open');
+      this.open = false;
+      this.dispatchEvent(new dom!.window.Event('close'));
+    };
+  }
   // Set globals
   applyGlobals({
     window: dom.window,
@@ -90,6 +114,7 @@ export function setupTestDom() {
     Element: dom.window.Element,
     Node: dom.window.Node,
     Event: dom.window.Event,
+    CustomEvent: dom.window.CustomEvent,
     MutationObserver: dom.window.MutationObserver,
     CSSStyleSheet: dom.window.CSSStyleSheet,
     requestAnimationFrame: (cb: FrameRequestCallback) => setTimeout(cb, 16),
