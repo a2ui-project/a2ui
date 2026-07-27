@@ -544,6 +544,207 @@ class TestElementalCompiler(unittest.TestCase):
         expected = '<script type="application/json">{"html": "<\\/script>"}</script>'
         self.assertEqual(_escape_nested_script_tags(html_with_nested), expected)
 
+    def test_compiler_extended_coverage(self):
+        """Test event dict kwargs, positional function args, and on-handler mappings."""
+        # 1. Event with dict kwargs in expression parser
+        html_dict_event = (
+            '<body><ui-button id="b1" onclick="{Event(\'click_evt\', {id:'
+            ' 123})}">Click</ui-button></body>'
+        )
+        result_dict = self.compiler.compile(html_dict_event)
+        comps = result_dict["createSurface"]["components"]
+        btn = next(c for c in comps if c["id"] == "b1")
+        self.assertEqual(
+            btn["action"], {"event": {"name": "click_evt", "context": {"id": 123}}}
+        )
+
+        # 2. Function calls with positional args and action functions
+        html_fn = (
+            '<body><ui-text id="t1" text="{formatDate(user.created, \'YYYY-MM-DD\')}"'
+            " /></body>"
+        )
+        result_fn = self.compiler.compile(html_fn)
+        comps_fn = result_fn["createSurface"]["components"]
+        txt = next(c for c in comps_fn if c["id"] == "t1")
+        self.assertIn("text", txt)
+
+        # 3. Action function call
+        html_act_fn = (
+            '<body><ui-button id="b2"'
+            " onclick=\"{openUrl('https://a2ui.org')}\">Link</ui-button></body>"
+        )
+        result_act_fn = self.compiler.compile(html_act_fn)
+        comps_act = result_act_fn["createSurface"]["components"]
+        btn2 = next(c for c in comps_act if c["id"] == "b2")
+        self.assertEqual(btn2["action"]["functionCall"]["call"], "openUrl")
+
+        # 4. On-handler mapping to action
+        html_on = (
+            '<body><ui-button id="b3"'
+            " on-click=\"event('submit')\">Submit</ui-button></body>"
+        )
+        result_on = self.compiler.compile(html_on)
+        comps_on = result_on["createSurface"]["components"]
+        btn3 = next(c for c in comps_on if c["id"] == "b3")
+
+    def test_expression_parser_object_literals(self):
+        """Test expression parser object literals with string keys, commas, and syntax errors."""
+        from a2ui.inference_formats.experimental.elemental.expression_parser import ElementalExpressionParser, Scanner
+
+        ep = ElementalExpressionParser()
+
+        # 1. String keys and trailing commas
+        scanner1 = Scanner("{'k1': 'v1', \"k2\": 2,}")
+        res1 = ep.parse_object_literal(scanner1, 0)
+        self.assertEqual(res1, {"k1": "v1", "k2": 2})
+
+        # 2. Syntax errors
+        with self.assertRaises(ValueError):
+            ep.parse_object_literal(Scanner("{'key'}"), 0)
+
+        with self.assertRaises(ValueError):
+            ep.parse_object_literal(Scanner("{key 123}"), 0)
+
+        with self.assertRaises(ValueError):
+            ep.parse_object_literal(Scanner("{key: 123"), 0)
+
+    def test_compiler_slots_and_errors(self):
+        """Test script slots with invalid JSON and explicit child slots matching array properties."""
+        # 1. Script slot invalid JSON
+        html_bad_json = (
+            '<body><ui-button id="b1"><script type="application/json"'
+            ' slot="action">{bad_json}</script></ui-button></body>'
+        )
+        with self.assertRaises(ValueError):
+            self.compiler.compile(html_bad_json)
+
+        # 2. Child slot matching array property
+        html_array_slot = (
+            '<body><ui-card id="c1"><ui-button id="b1"'
+            ' slot="child">B1</ui-button></ui-card></body>'
+        )
+        res = self.compiler.compile(html_array_slot)
+        comps = res["createSurface"]["components"]
+        card = next(c for c in comps if c["id"] == "c1")
+        self.assertEqual(card.get("child"), "b1")
+
+    def test_compiler_schema_helpers_recursive(self):
+        """Test recursive branches of _property_schema_accepts_components and option helpers."""
+        from a2ui.inference_formats.experimental.elemental.compiler import (
+            _property_schema_accepts_components,
+            _schema_expects_option_objects,
+            _has_label_value,
+        )
+
+        s_items = {"items": {"$ref": "#/definitions/ComponentId"}}
+        self.assertTrue(_property_schema_accepts_components(s_items))
+
+        s_oneof = {"oneOf": [{"$ref": "#/definitions/ComponentId"}]}
+        self.assertTrue(_property_schema_accepts_components(s_oneof))
+
+        s_opt_all = {"allOf": [{"items": {"properties": {"label": {}, "value": {}}}}]}
+        self.assertTrue(_schema_expects_option_objects(s_opt_all))
+
+        s_lbl_all = {"allOf": [{"properties": {"label": {}, "value": {}}}]}
+        self.assertTrue(_has_label_value(s_lbl_all))
+
+    def test_compiler_and_decompiler_edge_branches(self):
+        """Test streaming compile, dataModel script tags, and component ref schema helpers."""
+        from a2ui.inference_formats.experimental.elemental.decompiler import _is_component_reference_property
+
+        # 1. _is_component_reference_property with oneOf
+        s_oneof = {"oneOf": [{"$ref": "#/definitions/ComponentId"}]}
+        self.assertTrue(_is_component_reference_property(s_oneof))
+
+        # 2. is_final=False streaming compilation
+        html_stream = '<body><ui-button id="b1" text="Click" /></body>'
+        res_stream = self.compiler.compile(html_stream, is_final=False)
+        self.assertIn("createSurface", res_stream)
+
+        # 3. dataModel script in body
+        html_dm = (
+            '<body><script type="application/json">{"user": "Alice"}</script><ui-text'
+            ' id="t1" text="Hi" /></body>'
+        )
+        res_dm = self.compiler.compile(html_dm)
+        self.assertEqual(res_dm["createSurface"]["dataModel"], {"user": "Alice"})
+
+    def test_compiler_checks_transformation(self):
+        """Test transformation of validation checks in elemental compiler."""
+        html_checks = (
+            '<body><ui-text-field id="tf1" value="hello" checks="{[required(\'Field'
+            " required'), {condition: min(5), message: 'Too short'}]}\" /></body>"
+        )
+        res = self.compiler.compile(html_checks)
+        comps = res["createSurface"]["components"]
+        tf = next(c for c in comps if c["id"] == "tf1")
+        self.assertEqual(len(tf["checks"]), 2)
+        self.assertIn("condition", tf["checks"][0])
+
+    def test_compiler_template_errors(self):
+        """Test error cases for <template> tags in elemental compiler."""
+        # 1. Missing path attribute
+        html_no_path = (
+            '<body><ui-card id="c1"><template><ui-text id="t1" text="Item"'
+            " /></template></ui-card></body>"
+        )
+        with self.assertRaises(ValueError):
+            self.compiler.compile(html_no_path)
+
+        # 2. Path attribute not a dynamic binding
+        html_bad_path = (
+            '<body><ui-card id="c1" path="static_string"><template><ui-text id="t1"'
+            ' text="Item" /></template></ui-card></body>'
+        )
+        with self.assertRaises(ValueError):
+            self.compiler.compile(html_bad_path)
+
+    def test_compiler_template_script_slots(self):
+        """Test script slots inside template nodes and raw action string expressions."""
+        # 1. Script slot inside template node
+        html_tmpl_script = (
+            "<body>"
+            '<ui-card id="c1" path="{items}">'
+            '<template><ui-text id="t1" text="item" /></template>'
+            '<script type="application/json" slot="action">{"event": "click"}</script>'
+            "</ui-card>"
+            "</body>"
+        )
+        res1 = self.compiler.compile(html_tmpl_script)
+        comps1 = res1["createSurface"]["components"]
+        card = next(c for c in comps1 if c["id"] == "c1")
+        self.assertEqual(card["action"], {"event": "click"})
+
+        # 2. Raw action string without outer braces
+        html_raw_act = '<body><ui-button id="b2" action="Event(\'press\')" /></body>'
+        res2 = self.compiler.compile(html_raw_act)
+        comps2 = res2["createSurface"]["components"]
+        btn = next(c for c in comps2 if c["id"] == "b2")
+        self.assertEqual(btn["action"], "Event('press')")
+
+    def test_resolve_action_property_name_direct(self):
+        """Test _resolve_action_property_name with various on-handler casing variations."""
+        props = ["action", "click", "on_press"]
+        self.assertEqual(
+            self.compiler._resolve_action_property_name("on-click", "Button", props),
+            "on-click",
+        )
+        self.assertEqual(
+            self.compiler._resolve_action_property_name("onclick", "Button", props),
+            "action",
+        )
+
+    def test_compiler_event_dict_args(self):
+        """Test event function call with dict args."""
+        html_evt_dict = (
+            '<body><ui-button id="b4" onclick="event({name: \'ev1\', context: {x:'
+            ' 99}})" /></body>'
+        )
+        res_evt = self.compiler.compile(html_evt_dict)
+        comps_evt = res_evt["createSurface"]["components"]
+        btn4 = next(c for c in comps_evt if c["id"] == "b4")
+        self.assertEqual(btn4["action"], "event({name: 'ev1', context: {x: 99}})")
+
 
 if __name__ == "__main__":
     unittest.main()

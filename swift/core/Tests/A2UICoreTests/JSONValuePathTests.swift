@@ -117,36 +117,6 @@ struct JSONValuePathTests {
     #expect(value["a/b/c/d"]?.stringValue == "deep")
   }
 
-  // MARK: - JSON Pointer Escape Sequences
-
-  @Test func subscriptGetUnescapesTildeOneAsSlash() {
-    let value: JSONValue = [
-      "a/b": "found"
-    ]
-    #expect(value["a~1b"]?.stringValue == "found")
-  }
-
-  @Test func subscriptGetUnescapesTildeZeroAsTilde() {
-    let value: JSONValue = [
-      "a~b": "found"
-    ]
-    #expect(value["a~0b"]?.stringValue == "found")
-  }
-
-  @Test func subscriptGetUnescapesTildeZeroOneAsTildeOne() {
-    let value: JSONValue = [
-      "~1": "found"
-    ]
-    #expect(value["~01"]?.stringValue == "found")
-  }
-
-  @Test func subscriptGetUnescapesMultipleSequences() {
-    let value: JSONValue = [
-      "~/b": "found"
-    ]
-    #expect(value["~0~1b"]?.stringValue == "found")
-  }
-
   // MARK: - Path Subscript: Set
 
   @Test func subscriptSetSetsNestedValue() {
@@ -181,41 +151,6 @@ struct JSONValuePathTests {
     value["items/3"] = 4
     #expect(value["items"]?.arrayValue?.count == 4)
     #expect(value["items/3"]?.intValue == 4)
-  }
-
-  @Test func subscriptSetPadsArrayForOutOfBoundsIndex() {
-    var value: JSONValue = [
-      "items": [1, 2, 3]
-    ]
-    value["items/5"] = 99
-    #expect(value["items"]?.arrayValue?.count == 6)
-    #expect(value["items/0"]?.intValue == 1)
-    #expect(value["items/1"]?.intValue == 2)
-    #expect(value["items/2"]?.intValue == 3)
-    #expect(value["items/3"] == .null)
-    #expect(value["items/4"] == .null)
-    #expect(value["items/5"]?.intValue == 99)
-  }
-
-  @Test func subscriptSetAutoVivifiesNestedPathAtOutOfBoundsIndex() {
-    var value: JSONValue = [
-      "items": [1, 2, 3]
-    ]
-    value["items/5/name"] = "Alice"
-    #expect(value["items"]?.arrayValue?.count == 6)
-    #expect(value["items/3"] == .null)
-    #expect(value["items/4"] == .null)
-    #expect(value["items/5/name"]?.stringValue == "Alice")
-  }
-
-  @Test func subscriptSetNilAtOutOfBoundsIndexIsNoOp() {
-    var value: JSONValue = [
-      "items": [1, 2, 3]
-    ]
-    value["items/5"] = nil
-    // Setting nil beyond bounds should not pad the array
-    #expect(value["items"]?.arrayValue?.count == 3)
-    #expect(value["items/0"]?.intValue == 1)
   }
 
   @Test func subscriptSetReplacesArrayElement() {
@@ -254,32 +189,11 @@ struct JSONValuePathTests {
     #expect(value["items/0/name"]?.stringValue == "Alice")
   }
 
-  @Test func subscriptSetNonIntegerKeyOnArrayPreservesArray() {
-    var value: JSONValue = [
-      "items": [1, 2, 3]
-    ]
-    value["items/invalidKey"] = 99
-    #expect(value["items"]?.arrayValue?.count == 3)
-    #expect(value["items/0"]?.intValue == 1)
-    #expect(value["items/1"]?.intValue == 2)
-    #expect(value["items/2"]?.intValue == 3)
-  }
-
   @Test func subscriptSetAutoVivifiesArrayFromPrimitive() {
     var value: JSONValue = "primitive"
     value["0/name"] = "Alice"
     #expect(value.arrayValue?.count == 1)
     #expect(value["0/name"]?.stringValue == "Alice")
-  }
-
-  @Test func subscriptSetAutoVivifiesArrayFromPrimitiveWithNonZeroIndex() {
-    var value: JSONValue = "primitive"
-    value["3/name"] = "Alice"
-    #expect(value.arrayValue?.count == 4)
-    #expect(value["0"] == .null)
-    #expect(value["1"] == .null)
-    #expect(value["2"] == .null)
-    #expect(value["3/name"]?.stringValue == "Alice")
   }
 
   // MARK: - absolutePath

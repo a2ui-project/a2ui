@@ -32,22 +32,68 @@ struct NodeTests {
     #expect(node.properties["label"] as? String == "Click Me")
   }
 
-  @Test func nodeChildrenReturnsEmptyArrayWhenNoChildren() {
-    let node = Node(id: "btn1", type: "button", properties: [:])
-    #expect(node.children.isEmpty)
-  }
+  // MARK: - allChildNodes
 
-  @Test func nodeChildrenReturnsNodesWhenPresent() {
+  @Test func allChildNodesCollectsFromStandardChildrenProperty() {
     let child1 = Node(id: "c1", type: "text", properties: [:])
     let child2 = Node(id: "c2", type: "text", properties: [:])
     let parent = Node(
       id: "parent",
-      type: "container",
+      type: "column",
       properties: ["children": [child1, child2]]
     )
-    #expect(parent.children.count == 2)
-    #expect(parent.children[0].id == "c1")
-    #expect(parent.children[1].id == "c2")
+    #expect(parent.allChildNodes.count == 2)
+  }
+
+  @Test func allChildNodesCollectsFromSingularChildProperty() {
+    let label = Node(id: "label1", type: "text", properties: [:])
+    let button = Node(
+      id: "btn1",
+      type: "button",
+      properties: ["child": label]
+    )
+    #expect(button.allChildNodes.count == 1)
+    #expect(button.allChildNodes[0].id == "label1")
+  }
+
+  @Test func allChildNodesCollectsFromCustomNamedChildProperties() {
+    // Simulates a custom catalog component like "FoodAndDrinkCard" that
+    // uses non-standard property names typed as ChildList.
+    let food1 = Node(id: "f1", type: "text", properties: [:])
+    let food2 = Node(id: "f2", type: "text", properties: [:])
+    let drink1 = Node(id: "d1", type: "text", properties: [:])
+    let card = Node(
+      id: "card1",
+      type: "FoodAndDrinkCard",
+      properties: [
+        "foodChildren": [food1, food2],
+        "drinkChildren": [drink1],
+      ]
+    )
+    #expect(card.allChildNodes.count == 3)
+    let ids = Set(card.allChildNodes.map(\.id))
+    #expect(ids == ["f1", "f2", "d1"])
+  }
+
+  @Test func allChildNodesIgnoresNonNodeProperties() {
+    let child = Node(id: "c1", type: "text", properties: [:])
+    let parent = Node(
+      id: "parent",
+      type: "container",
+      properties: [
+        "children": [child],
+        "label": "Container Title",
+        "weight": 1.0,
+        "visible": true,
+      ]
+    )
+    #expect(parent.allChildNodes.count == 1)
+    #expect(parent.allChildNodes[0].id == "c1")
+  }
+
+  @Test func allChildNodesReturnsEmptyWhenNoChildren() {
+    let node = Node(id: "btn1", type: "button", properties: ["label": "OK"])
+    #expect(node.allChildNodes.isEmpty)
   }
 
   // MARK: - Equality

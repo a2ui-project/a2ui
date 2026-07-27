@@ -45,9 +45,28 @@ public struct Node: Identifiable, Equatable, Sendable {
 }
 
 extension Node {
-  /// Convenience helper to access resolved child nodes.
-  public var children: [Node] {
-    properties["children"] as? [Node] ?? []
+  /// All resolved child nodes found by scanning the node's properties.
+  ///
+  /// The A2UI specification identifies structural links by **type**
+  /// (`ComponentId` for single references, `ChildList` for arrays or
+  /// templates), not by property name.  After resolution, single
+  /// `ComponentId` references become `Node` values and `ChildList`
+  /// arrays become `[Node]` values inside `properties`.
+  ///
+  /// This property traverses every resolved value, collecting `Node`s
+  /// from both singular and array properties, so that the engine can
+  /// proactively find and resolve all descendant nodes regardless of
+  /// what the catalog author named the property.
+  public var allChildNodes: [Node] {
+    var result: [Node] = []
+    for value in properties.values {
+      if let node = value as? Node {
+        result.append(node)
+      } else if let nodes = value as? [Node] {
+        result.append(contentsOf: nodes)
+      }
+    }
+    return result
   }
 }
 

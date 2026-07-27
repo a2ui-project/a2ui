@@ -40,10 +40,7 @@ extension JSONValue {
     switch self {
     case .integer(let value): return value
     case .number(let value):
-      if value >= Double(Int.min) && value <= Double(Int.max) && value == value.rounded() {
-        return Int(value)
-      }
-      return nil
+      return Int(exactly: value)
     default: return nil
     }
   }
@@ -136,28 +133,10 @@ extension JSONValue {
   static func parsePath(_ path: String) -> [String] {
     guard !path.isEmpty else { return [] }
     let adjustedPath = path.hasPrefix("/") ? String(path.dropFirst()) : path
-    return adjustedPath.split(separator: "/", omittingEmptySubsequences: false).map { component in
-      var result = ""
-      var iterator = component.makeIterator()
-      while let char = iterator.next() {
-        if char == "~" {
-          if let nextChar = iterator.next() {
-            if nextChar == "1" {
-              result.append("/")
-            } else if nextChar == "0" {
-              result.append("~")
-            } else {
-              result.append("~")
-              result.append(nextChar)
-            }
-          } else {
-            result.append("~")
-          }
-        } else {
-          result.append(char)
-        }
-      }
-      return result
+    return adjustedPath.split(separator: "/", omittingEmptySubsequences: false).map {
+      String($0)
+        .replacingOccurrences(of: "~1", with: "/")
+        .replacingOccurrences(of: "~0", with: "~")
     }
   }
 
@@ -191,48 +170,53 @@ extension JSONValue {
 
     case .some(.array(var array)):
       if let index = Int(key), index >= 0 {
-        if index > array.count {
-          if newValue != nil || !isLastComponent {
-            array.append(contentsOf: Array(repeating: .null, count: index - array.count))
+        if index <= array.count {
+          if isLastComponent {
+            if let newValue {
+              if index == array.count {
+                array.append(newValue)
+              } else {
+                array[index] = newValue
+              }
+            } else if index < array.count {
+              // Setting an array index to nil preserves the array
+              // length (sparse array), matching the blueprint's
+              // JSON Pointer Implementation Rules.
+              array[index] = .null
+            }
           } else {
-            return .array(array)
-          }
-        }
-
-        if isLastComponent {
-          if let newValue {
-            if index == array.count {
-              array.append(newValue)
-            } else {
-              array[index] = newValue
+            let nextNode = index < array.count ? array[index] : nil
+            let updated = update(
+              node: nextNode,
+              components: remainingComponents,
+              newValue: newValue
+            )
+            if let updated {
+              if index == array.count {
+                array.append(updated)
+              } else {
+                array[index] = updated
+              }
+            } else if index < array.count {
+              // Sparse array: preserve length, set to null.
+              array[index] = .null
             }
-          } else if index < array.count {
-            // Setting an array index to nil preserves the array
-            // length (sparse array), matching the blueprint's
-            // JSON Pointer Implementation Rules.
-            array[index] = .null
-          }
-        } else {
-          let nextNode = index < array.count ? array[index] : nil
-          let updated = update(
-            node: nextNode,
-            components: remainingComponents,
-            newValue: newValue
-          )
-          if let updated {
-            if index == array.count {
-              array.append(updated)
-            } else {
-              array[index] = updated
-            }
-          } else if index < array.count {
-            // Sparse array: preserve length, set to null.
-            array[index] = .null
           }
         }
         return .array(array)
       } else {
-        return node
+        if newValue == nil && isLastComponent { return node }
+        var dict: OrderedDictionary<String, JSONValue> = [:]
+        if isLastComponent {
+          if let newValue { dict[key] = newValue }
+        } else {
+          dict[key] = update(
+            node: nil,
+            components: remainingComponents,
+            newValue: newValue
+          )
+        }
+        return .object(dict)
       }
 
     default:
@@ -240,7 +224,7 @@ extension JSONValue {
       if let index = Int(key), index >= 0 {
         // Auto-vivify an array for any numeric key, matching
         // web_core's isNumeric() auto-vivification rule.
-        var array: [JSONValue] = Array(repeating: .null, count: index)
+        var array: [JSONValue] = []
         if isLastComponent {
           if let newValue { array.append(newValue) }
         } else if let updated = update(

@@ -22,14 +22,42 @@ public final class MessageParser: Sendable {
     self.decoder = decoder
   }
 
-  /// Parses an `EnvelopeMessage` from a JSON-encoded string.
-  public func parse(jsonString: String) throws -> EnvelopeMessage {
+  /// Parses a `ServerToClientMessage` from a JSON-encoded string.
+  public func parse(jsonString: String) throws -> ServerToClientMessage {
     let data = Data(jsonString.utf8)
     return try decode(jsonData: data)
   }
 
-  /// Decodes an `EnvelopeMessage` from raw JSON data.
-  public func decode(jsonData: Data) throws -> EnvelopeMessage {
-    try decoder.decode(EnvelopeMessage.self, from: jsonData)
+  /// Decodes a `ServerToClientMessage` from raw JSON data.
+  public func decode(jsonData: Data) throws -> ServerToClientMessage {
+    try decoder.decode(ServerToClientMessage.self, from: jsonData)
+  }
+
+  /// Best-effort extraction of a `surfaceId` from a raw JSON line.
+  ///
+  /// This is used as a fallback when `parse(jsonString:)` fails, so
+  /// the caller can still attribute the error to the correct
+  /// surface. Returns `nil` if the JSON is malformed or contains no
+  /// `surfaceId` field.
+  public func extractSurfaceID(fromLine line: String) -> String? {
+    guard let data = line.data(using: .utf8),
+      let dict = try? JSONSerialization.jsonObject(with: data)
+        as? [String: Any]
+    else {
+      return nil
+    }
+
+    for value in dict.values {
+      guard let subDict = value as? [String: Any],
+        let rawID = subDict["surfaceId"]
+      else { continue }
+
+      if let strID = rawID as? String {
+        return strID
+      } else if let numID = rawID as? NSNumber {
+        return numID.stringValue
+      }
+    }
+    return nil
   }
 }

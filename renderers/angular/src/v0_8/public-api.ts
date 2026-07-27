@@ -14,27 +14,7 @@
  * limitations under the License.
  */
 
-export * from './catalog/index';
-export * from './components/audio';
-export * from './components/button';
-export * from './components/card';
-export * from './components/checkbox';
-export * from './components/column';
-export * from './components/datetime-input';
-export * from './components/divider';
-export * from './components/icon';
-export * from './components/image';
-export * from './components/list';
-export * from './components/modal';
-export * from './components/multiple-choice';
-export * from './components/row';
-export * from './components/slider';
-export * from './components/surface';
-export * from './components/tabs';
-export * from './components/text-field';
-export * from './components/text';
-export * from './components/video';
-export * from './config';
-export * from './data/index';
-export * from './rendering/index';
-export * as Types from './types';
+/**
+ * @deprecated Please import from `./index` instead. Will be removed in v1.0.
+ */
+export * from './index';

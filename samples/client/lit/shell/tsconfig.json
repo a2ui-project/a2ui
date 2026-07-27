@@ -15,6 +15,7 @@
     "lib": ["ESNext", "DOM", "DOM.Iterable"],
     "skipLibCheck": true,
     "useDefineForClassFields": false,
+    "types": [],
 
     "rootDir": "..",
     "outDir": "dist",

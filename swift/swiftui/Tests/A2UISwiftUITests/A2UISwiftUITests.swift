@@ -45,30 +45,31 @@ struct TestRenderTheme: SurfaceTheme {
 
 // MARK: - Surface Tests
 
+@MainActor
 struct SurfaceTests {
 
   @Test func surfaceInitializesWithViewModel() throws {
-    let catalog = try TestSurfaceCatalogForRendering()
+    let catalog = try makeTestSurfaceCatalogForRendering()
     let vm = SurfaceViewModel(surfaceID: "s1", catalog: catalog)
     let surface = Surface<TestCatalogView>(viewModel: vm, catalogType: TestCatalogView.self)
     #expect(surface.surfaceID == "s1")
   }
 
-  @Test func surfaceEqualityBySurfaceID() throws {
-    let catalog = try TestSurfaceCatalogForRendering()
+  @Test func surfaceIDMatchesViewModel() throws {
+    let catalog = try makeTestSurfaceCatalogForRendering()
     let vm = SurfaceViewModel(surfaceID: "s1", catalog: catalog)
     let a = Surface<TestCatalogView>(viewModel: vm, catalogType: TestCatalogView.self)
     let b = Surface<TestCatalogView>(viewModel: vm, catalogType: TestCatalogView.self)
-    #expect(a == b)
+    #expect(a.surfaceID == b.surfaceID)
   }
 
-  @Test func surfaceInequalityByDifferentSurfaceID() throws {
-    let catalog = try TestSurfaceCatalogForRendering()
+  @Test func surfaceDifferentSurfaceIDs() throws {
+    let catalog = try makeTestSurfaceCatalogForRendering()
     let vm1 = SurfaceViewModel(surfaceID: "s1", catalog: catalog)
     let vm2 = SurfaceViewModel(surfaceID: "s2", catalog: catalog)
     let a = Surface<TestCatalogView>(viewModel: vm1, catalogType: TestCatalogView.self)
     let b = Surface<TestCatalogView>(viewModel: vm2, catalogType: TestCatalogView.self)
-    #expect(a != b)
+    #expect(a.surfaceID != b.surfaceID)
   }
 }
 
@@ -130,7 +131,7 @@ struct ThemeEnvironmentTests {
   }
 
   @Test func themeEnvironmentDefaultsToNil() {
-    var env = EnvironmentValues()
+    let env = EnvironmentValues()
     #expect(env.a2uiTheme == nil)
   }
 }
@@ -139,7 +140,7 @@ struct ThemeEnvironmentTests {
 
 struct CatalogViewTests {
 
-  @Test func catalogViewInitializesWithNode() {
+  @MainActor @Test func catalogViewInitializesWithNode() {
     let node = Node(id: "test", type: "text", properties: ["label": "Hello"])
     let view = TestCatalogView(node: node)
     #expect(view.node.id == "test")
@@ -155,39 +156,24 @@ final class TestBox<T>: @unchecked Sendable {
   init(_ value: T) { self.value = value }
 }
 
-/// A catalog with a simple text schema for rendering tests.
-struct TestSurfaceCatalogForRendering: ComponentCatalog {
-  let textSchema: Schema
-
-  init() throws {
-    textSchema = try Schema(
-      instance: """
-        {
-          "type": "object",
-          "properties": {
-            "id": { "type": "string" },
-            "component": { "type": "string" },
-            "text": { "$ref": "https://a2ui.org/schemas/v0_9_1/common.json#/$defs/DynamicString" }
-          },
-          "required": ["id", "component"]
-        }
-        """,
-      remoteSchemas: A2UICommonSchema.allSchemas
-    )
-  }
-
-  func schema(forType type: String) -> Schema? {
-    switch type {
-    case "text": return textSchema
-    default: return nil
-    }
-  }
-
-  func makeTheme(jsonObject: JSONValue) -> (any SurfaceTheme)? {
-    nil
-  }
-
-  func localFunction(for name: String) -> (any LocalFunction)? {
-    nil
-  }
+/// Helper function returning a catalog with a simple text schema for rendering tests.
+func makeTestSurfaceCatalogForRendering() throws -> Catalog {
+  let textSchema = try Schema(
+    instance: """
+      {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string" },
+          "component": { "type": "string" },
+          "text": { "$ref": "https://a2ui.org/schemas/v0_9_1/common.json#/$defs/DynamicString" }
+        },
+        "required": ["id", "component"]
+      }
+      """,
+    remoteSchemas: A2UICommonSchema.allSchemas
+  )
+  return Catalog(
+    id: "default",
+    components: [ComponentAPI(name: "text", schema: textSchema)]
+  )
 }

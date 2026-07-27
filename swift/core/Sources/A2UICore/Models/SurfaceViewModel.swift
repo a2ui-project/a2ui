@@ -14,20 +14,80 @@
 
 import Combine
 import Foundation
-import JSONSchema
-import OrderedCollections
 import OrderedJSON
 
-/// Manages the active component buffer, two-way data model state, and
-/// active theme.
+/// The state model for a single UI surface.
 ///
-/// `SurfaceViewModel` is the central runtime engine that receives
-/// server-to-client messages, validates component definitions, resolves
-/// dynamic values (data bindings and function calls), and builds a
-/// tree of ``Node`` objects ready for rendering.
+/// Mirrors `SurfaceViewModel` in the core blueprint and `web_core`.
+/// Composes a ``DataModel``, ``SurfaceComponentsModel``, ``Catalog``,
+/// and an optional theme. This is a pure state container — the
+/// ``MessageProcessor`` handles message parsing, validation, and
+/// mutation of these models.
+///
+/// `SurfaceViewModel` also hosts the tree resolution logic (dynamic value
+/// evaluation, action resolution, child list expansion) that will
+/// eventually move to a dedicated Binder/Context layer (Phase 4).
 public final class SurfaceViewModel: @unchecked Sendable, ObservableObject {
 
-  // MARK: - Types
+  // MARK: - Properties
+
+  public let surfaceID: String
+  public let catalog: Catalog
+
+  public let dataModel: DataModel
+  public let componentsModel: SurfaceComponentsModel
+
+  public weak var actionHandler: (any ActionHandling)?
+
+  private let lock = NSRecursiveLock()
+  private var activeTheme: (any SurfaceTheme)?
+
+  /// The root node of the resolved component tree, published to the UI
+  /// on the Main Thread.
+  @Published public private(set) var rootNode: Node?
+
+  // MARK: - Initialization
+
+  public init(
+    surfaceID: String,
+    catalog: Catalog,
+    actionHandler: (any ActionHandling)? = nil
+  ) {
+    self.surfaceID = surfaceID
+    self.catalog = catalog
+    self.actionHandler = actionHandler
+    self.dataModel = DataModel()
+    self.componentsModel = SurfaceComponentsModel()
+  }
+
+  // MARK: - Theme
+
+  /// Updates the active surface theme and triggers a tree rebuild.
+  public func updateTheme(_ theme: any SurfaceTheme) {
+    lock.withLock {
+      activeTheme = theme
+    }
+    rebuildTree()
+  }
+
+  /// Retrieves a thread-safe copy of the active theme.
+  public func getActiveTheme() -> (any SurfaceTheme)? {
+    lock.withLock { activeTheme }
+  }
+
+  // MARK: - Tree Rebuilding
+
+  /// Rebuilds the node tree and publishes the new root.
+  func rebuildTree() {
+    let newRoot = resolveNode(id: "root")
+
+    // Hopping to Main Thread to update the @Published property safely
+    DispatchQueue.main.async { [weak self] in
+      self?.rootNode = newRoot
+    }
+  }
+
+  // MARK: - Property Classification
 
   private enum PropertyType {
     case dynamicBoolean
@@ -39,173 +99,28 @@ public final class SurfaceViewModel: @unchecked Sendable, ObservableObject {
     case standard
   }
 
-  // MARK: - Properties
-
-  private let lock = NSRecursiveLock()
-
-  public let surfaceID: String
-  public let catalog: any ComponentCatalog
-  public weak var actionHandler: (any ActionHandling)?
-
-  // Protected State
-  private var componentBuffer: [String: JSONValue] = [:]
-  private var dataModel: JSONValue = .object([:])
-  private var activeTheme: (any SurfaceTheme)?
-
-  /// The root node of the resolved component tree, published to the UI
-  /// on the Main Thread.
-  @Published public private(set) var rootNode: Node?
-
-  // MARK: - Initialization
-
-  public init(
-    surfaceID: String,
-    catalog: any ComponentCatalog,
-    actionHandler: (any ActionHandling)? = nil
-  ) {
-    self.surfaceID = surfaceID
-    self.catalog = catalog
-    self.actionHandler = actionHandler
-  }
-
-  // MARK: - Public API
-
-  /// Updates the component buffer with new component declarations after
-  /// validating them.
-  public func updateComponents(_ components: [[String: JSONValue]]) {
-    var validUpdates: [String: JSONValue] = [:]
-
-    for componentDict in components {
-      guard let type = componentDict["component"]?.stringValue else {
-        let error = ClientServerError.validationFailed(
-          ValidationFailedError(
-            surfaceID: surfaceID,
-            path: "/component",
-            message: "Missing required key 'component'"
-          )
-        )
-        actionHandler?.handle(error: error, from: surfaceID)
-        continue
-      }
-
-      guard let id = componentDict["id"]?.stringValue else {
-        let error = ClientServerError.validationFailed(
-          ValidationFailedError(
-            surfaceID: surfaceID,
-            path: "/id",
-            message: "Missing required key 'id'"
-          )
-        )
-        actionHandler?.handle(error: error, from: surfaceID)
-        continue
-      }
-
-      guard let schema = catalog.schema(forType: type) else {
-        let error = ClientServerError.validationFailed(
-          ValidationFailedError(
-            surfaceID: surfaceID,
-            path: "/component",
-            message: "Unknown component type '\(type)' not registered in catalog"
-          )
-        )
-        actionHandler?.handle(error: error, from: surfaceID)
-        continue
-      }
-
-      let instance: JSONValue = .object(
-        OrderedDictionary(
-          uniqueKeysWithValues: componentDict.map { ($0.key, $0.value) }
-        )
-      )
-      let result = schema.validate(instance)
-
-      if result.isValid {
-        validUpdates[id] = instance
-      } else {
-        let errorMessage = result.errors?.first?.message ?? "Validation failed"
-        let errorPath = result.errors?.first?.instanceLocation.jsonPointerString ?? "/"
-        let error = ClientServerError.validationFailed(
-          ValidationFailedError(
-            surfaceID: surfaceID,
-            path: errorPath,
-            message: errorMessage
-          )
-        )
-        actionHandler?.handle(error: error, from: surfaceID)
-      }
-    }
-
-    if !validUpdates.isEmpty {
-      lock.withLock {
-        for (id, val) in validUpdates {
-          componentBuffer[id] = val
-        }
-        rebuildTree()
-      }
-    }
-  }
-
-  /// Updates a specific path in the two-way data model.
-  public func updateDataModel(path: String, value: JSONValue?) {
-    lock.withLock {
-      dataModel[path] = value
-      rebuildTree()
-    }
-  }
-
-  /// Updates the active surface theme.
-  public func updateTheme(_ theme: any SurfaceTheme) {
-    lock.withLock {
-      activeTheme = theme
-      rebuildTree()
-    }
-  }
-
-  /// Retrieves a thread-safe copy of the component buffer.
-  public func getComponents() -> [String: JSONValue] {
-    lock.withLock { componentBuffer }
-  }
-
-  /// Retrieves a thread-safe copy of the data model.
-  public func getDataModel() -> JSONValue {
-    lock.withLock { dataModel }
-  }
-
-  /// Retrieves a thread-safe copy of the active theme.
-  public func getActiveTheme() -> (any SurfaceTheme)? {
-    lock.withLock { activeTheme }
-  }
-
-  // MARK: - Tree Rebuilding
-
-  /// Rebuilds the node tree and publishes the new root.
-  private func rebuildTree() {
-    let newRoot = resolveNode(id: "root")
-
-    // Hopping to Main Thread to update the @Published property safely
-    DispatchQueue.main.async { [weak self] in
-      self?.rootNode = newRoot
-    }
-  }
-
-  // MARK: - Property Classification
-
   /// Classifies a schema property into an A2UI property type by
   /// inspecting its raw JSON representation.
-  ///
-  /// Since `swift-json-schema`'s `ObjectSchema`, `Keywords.*` types are `package`
-  /// access, we inspect `Schema.jsonValue` (which returns the schema
-  /// as raw `JSONValue`) to find `$ref` URIs and match them against
-  /// A2UI common type names.
   private func classifySchema(_ schemaJSON: JSONValue) -> PropertyType {
-    // Check for $ref to A2UI common types
+    // Check for $ref to A2UI common types.
+    // Extract the last path segment (e.g., "DynamicString" from
+    // "...#/$defs/DynamicString") and match exactly to avoid
+    // misidentifying types like "DynamicStringList" as "DynamicString".
     if let ref = schemaJSON["$ref"]?.stringValue {
-      if ref.contains("DynamicBoolean") { return .dynamicBoolean }
-      if ref.contains("DynamicString") { return .dynamicString }
-      if ref.contains("DynamicNumber") { return .dynamicNumber }
-      if ref.contains("DynamicValue") { return .dynamicValue }
-      if ref.contains("Action") { return .action }
-      if ref.contains("ChildList") { return .childList }
+      let typeName =
+        ref
+        .split(separator: "/")
+        .last
+        .map(String.init)
+      switch typeName {
+      case "DynamicBoolean": return .dynamicBoolean
+      case "DynamicString": return .dynamicString
+      case "DynamicNumber": return .dynamicNumber
+      case "DynamicValue": return .dynamicValue
+      case "Action": return .action
+      case "ChildList": return .childList
+      default: break
+      }
     }
 
     // Check oneOf subschemas (Dynamic* types use oneOf)
@@ -239,35 +154,45 @@ public final class SurfaceViewModel: @unchecked Sendable, ObservableObject {
 
   /// Resolves a component by ID, using the component ID as both
   /// definition and instance ID.
-  private func resolveNode(id: String, basePath: String? = nil) -> Node? {
-    resolveNode(definitionID: id, instanceID: id, basePath: basePath)
+  func resolveNode(id: String, basePath: String? = nil) -> Node? {
+    resolveNode(definitionID: id, instanceID: id, basePath: basePath, visited: [])
   }
 
   /// Resolves a component definition into a specific instance Node.
-  private func resolveNode(
+  ///
+  /// - Parameter visited: The set of instance IDs already being
+  ///   resolved in the current traversal. Prevents infinite recursion
+  ///   on cyclic component references while allowing legitimate
+  ///   data-driven recursion (e.g. a "card" component that renders
+  ///   nested "card" children from array data).
+  func resolveNode(
     definitionID: String,
     instanceID: String,
-    basePath: String?
+    basePath: String?,
+    visited: Set<String>
   ) -> Node? {
-    guard let componentJSON = componentBuffer[definitionID],
-      let componentDict = componentJSON.dictionaryValue,
-      let type = componentDict["component"]?.stringValue
-    else {
+    guard !visited.contains(instanceID) else {
+      // Cycle detected: this instance is already being resolved
+      // higher up the call stack.
       return nil
     }
 
+    guard let component = componentsModel.get(definitionID) else {
+      return nil
+    }
+
+    let type = component.type
+    var visited = visited
+    visited.insert(instanceID)
+
     // Get the schema for this component type to classify properties
-    let schema = catalog.schema(forType: type)
+    let schema = catalog.components[type]?.schema
     let schemaJSON = schema?.jsonValue ?? .object([:])
     let propertiesSchema = schemaJSON["properties"]?.objectValue
 
     var resolvedProperties: [String: any Resolved] = [:]
 
-    for (key, val) in componentDict {
-      if key == "component" || key == "id" {
-        continue
-      }
-
+    for (key, val) in component.properties {
       let propSchema = propertiesSchema?[key] ?? .boolean(true)
       let propType = classifySchema(propSchema)
 
@@ -276,7 +201,8 @@ public final class SurfaceViewModel: @unchecked Sendable, ObservableObject {
         type: propType,
         basePath: basePath,
         componentID: instanceID,
-        propertyKey: key
+        propertyKey: key,
+        visited: visited
       ) {
         resolvedProperties[key] = resolvedVal
       }
@@ -290,7 +216,8 @@ public final class SurfaceViewModel: @unchecked Sendable, ObservableObject {
     type: PropertyType,
     basePath: String?,
     componentID: String,
-    propertyKey: String
+    propertyKey: String,
+    visited: Set<String>
   ) -> (any Resolved)? {
     switch type {
     case .dynamicBoolean:
@@ -308,7 +235,8 @@ public final class SurfaceViewModel: @unchecked Sendable, ObservableObject {
         value,
         basePath: basePath,
         componentID: componentID,
-        propertyKey: propertyKey
+        propertyKey: propertyKey,
+        visited: visited
       )
     case .standard:
       return value
@@ -318,7 +246,7 @@ public final class SurfaceViewModel: @unchecked Sendable, ObservableObject {
   // MARK: - Dynamic Value Evaluation
 
   /// Resolves a dynamic value to its current literal `JSONValue`.
-  private func evaluateDynamicValue(
+  func evaluateDynamicValue(
     _ value: JSONValue,
     basePath: String?
   ) -> JSONValue {
@@ -326,9 +254,9 @@ public final class SurfaceViewModel: @unchecked Sendable, ObservableObject {
     case .object(let dict):
       if let pathStr = dict["path"]?.stringValue {
         let absPath = JSONValue.absolutePath(for: pathStr, in: basePath)
-        return dataModel[absPath] ?? .null
+        return dataModel.get(absPath) ?? .null
       } else if let callName = dict["call"]?.stringValue {
-        guard let function = catalog.localFunction(for: callName) else {
+        guard let function = catalog.functions[callName] else {
           return .null
         }
         var resolvedArgs: [String: JSONValue] = [:]
@@ -362,15 +290,15 @@ public final class SurfaceViewModel: @unchecked Sendable, ObservableObject {
         get: { [weak self] in
           guard let self else { return false }
           return self.lock.withLock {
-            self.dataModel[absPath]?.boolValue ?? false
+            self.dataModel.get(absPath)?.boolValue ?? false
           }
         },
         set: { [weak self] newValue in
           guard let self else { return }
           self.lock.withLock {
-            self.dataModel[absPath] = .boolean(newValue)
-            self.rebuildTree()
+            self.dataModel.set(absPath, value: .boolean(newValue))
           }
+          self.rebuildTree()
         }
       )
     }
@@ -397,15 +325,15 @@ public final class SurfaceViewModel: @unchecked Sendable, ObservableObject {
         get: { [weak self] in
           guard let self else { return "" }
           return self.lock.withLock {
-            self.dataModel[absPath]?.stringValue ?? ""
+            self.dataModel.get(absPath)?.stringValue ?? ""
           }
         },
         set: { [weak self] newValue in
           guard let self else { return }
           self.lock.withLock {
-            self.dataModel[absPath] = .string(newValue)
-            self.rebuildTree()
+            self.dataModel.set(absPath, value: .string(newValue))
           }
+          self.rebuildTree()
         }
       )
     }
@@ -432,15 +360,15 @@ public final class SurfaceViewModel: @unchecked Sendable, ObservableObject {
         get: { [weak self] in
           guard let self else { return 0.0 }
           return self.lock.withLock {
-            self.dataModel[absPath]?.doubleValue ?? 0.0
+            self.dataModel.get(absPath)?.doubleValue ?? 0.0
           }
         },
         set: { [weak self] newValue in
           guard let self else { return }
           self.lock.withLock {
-            self.dataModel[absPath] = .number(newValue)
-            self.rebuildTree()
+            self.dataModel.set(absPath, value: .number(newValue))
           }
+          self.rebuildTree()
         }
       )
     }
@@ -467,15 +395,15 @@ public final class SurfaceViewModel: @unchecked Sendable, ObservableObject {
         get: { [weak self] in
           guard let self else { return .null }
           return self.lock.withLock {
-            self.dataModel[absPath] ?? .null
+            self.dataModel.get(absPath) ?? .null
           }
         },
         set: { [weak self] newValue in
           guard let self else { return }
           self.lock.withLock {
-            self.dataModel[absPath] = newValue
-            self.rebuildTree()
+            self.dataModel.set(absPath, value: newValue)
           }
+          self.rebuildTree()
         }
       )
     }
@@ -577,14 +505,20 @@ public final class SurfaceViewModel: @unchecked Sendable, ObservableObject {
     _ value: JSONValue,
     basePath: String?,
     componentID: String,
-    propertyKey: String
+    propertyKey: String,
+    visited: Set<String>
   ) -> [Node]? {
     switch value {
     case .array(let arr):
       var resolvedNodes: [Node] = []
       for item in arr {
         guard let childID = item.stringValue else { continue }
-        if let childNode = resolveNode(id: childID, basePath: basePath) {
+        if let childNode = resolveNode(
+          definitionID: childID,
+          instanceID: childID,
+          basePath: basePath,
+          visited: visited
+        ) {
           resolvedNodes.append(childNode)
         }
       }
@@ -602,7 +536,7 @@ public final class SurfaceViewModel: @unchecked Sendable, ObservableObject {
 
       let absPath = JSONValue.absolutePath(for: pathStr, in: basePath)
 
-      guard let dataListVal = dataModel[absPath],
+      guard let dataListVal = dataModel.get(absPath),
         let dataItems = dataListVal.arrayValue
       else {
         return []
@@ -617,7 +551,8 @@ public final class SurfaceViewModel: @unchecked Sendable, ObservableObject {
         if let childNode = resolveNode(
           definitionID: templateID,
           instanceID: itemID,
-          basePath: itemBasePath
+          basePath: itemBasePath,
+          visited: visited
         ) {
           expandedNodes.append(childNode)
         }

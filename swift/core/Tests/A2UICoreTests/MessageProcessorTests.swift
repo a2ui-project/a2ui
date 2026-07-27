@@ -19,63 +19,18 @@ import JSONSchema
 import OrderedJSON
 import Testing
 
-/// A catalog with a simple text component schema for testing.
-struct TestProcessorCatalog: ComponentCatalog {
-  let textSchema: Schema
-
-  init() throws {
-    textSchema = try Schema(
-      instance: """
-        {
-          "type": "object",
-          "properties": {
-            "id": { "type": "string" },
-            "component": { "type": "string" },
-            "text": { "$ref": "https://a2ui.org/schemas/v0_9_1/common.json#/$defs/DynamicString" }
-          },
-          "required": ["id", "component"]
-        }
-        """,
-      remoteSchemas: A2UICommonSchema.allSchemas
-    )
-  }
-
-  func schema(forType type: String) -> Schema? {
-    switch type {
-    case "text": return textSchema
-    default: return nil
-    }
-  }
-
-  func makeTheme(jsonObject: JSONValue) -> (any SurfaceTheme)? {
-    nil
-  }
-
-  func localFunction(for name: String) -> (any LocalFunction)? {
-    nil
-  }
-}
-
-/// A test action handler that captures actions and errors.
-final class TestProcessorActionHandler: ActionHandling, @unchecked Sendable {
-  var capturedActions: [ResolvedAction] = []
-  var capturedErrors: [ClientServerError] = []
-
-  func handle(action: ResolvedAction, from surfaceID: String) {
-    capturedActions.append(action)
-  }
-
-  func handle(error: ClientServerError, from surfaceID: String) {
-    capturedErrors.append(error)
-  }
-}
-
 struct MessageParserTests {
 
   @Test func parseValidCreateSurface() throws {
     let parser = MessageParser()
     let json = """
-      {"createSurface": {"surfaceId": "s1", "catalogId": "default"}}
+      {
+        "version": "v0.9.1",
+        "createSurface": {
+          "surfaceId": "s1",
+          "catalogId": "default"
+        }
+      }
       """
     let msg = try parser.parse(jsonString: json)
     if case .createSurface(let create) = msg {
@@ -89,7 +44,13 @@ struct MessageParserTests {
   @Test func parseValidUpdateComponents() throws {
     let parser = MessageParser()
     let json = """
-      {"updateComponents": {"surfaceId": "s1", "components": []}}
+      {
+        "version": "v0.9.1",
+        "updateComponents": {
+          "surfaceId": "s1",
+          "components": []
+        }
+      }
       """
     let msg = try parser.parse(jsonString: json)
     if case .updateComponents(let update) = msg {
@@ -115,9 +76,16 @@ struct MessageParserTests {
 
   @Test func decodeFromData() throws {
     let parser = MessageParser()
-    let json = """
-      {"deleteSurface": {"surfaceId": "s1"}}
-      """.data(using: .utf8)!
+    let json = try #require(
+      """
+      {
+        "version": "v0.9.1",
+        "deleteSurface": {
+          "surfaceId": "s1"
+        }
+      }
+      """.data(using: .utf8)
+    )
     let msg = try parser.decode(jsonData: json)
     if case .deleteSurface(let delete) = msg {
       #expect(delete.surfaceID == "s1")
@@ -127,13 +95,14 @@ struct MessageParserTests {
   }
 }
 
+@MainActor
 struct MessageProcessorTests {
 
   // MARK: - Setup
 
   private func makeProcessor() throws -> (MessageProcessor, TestProcessorActionHandler) {
     let handler = TestProcessorActionHandler()
-    let catalog = try TestProcessorCatalog()
+    let catalog = try makeMessageProcessorTestCatalog()
     let processor = MessageProcessor(
       catalogs: ["default": catalog],
       actionHandler: handler
@@ -145,53 +114,102 @@ struct MessageProcessorTests {
 
   @Test func processCreateSurfaceCreatesSurface() throws {
     let (processor, _) = try makeProcessor()
-    try processor.process(line: """
-      {"createSurface": {"surfaceId": "s1", "catalogId": "default"}}
-      """)
-    #expect(processor.getSurface(id: "s1") != nil)
+    try processor.process(
+      line: """
+        {
+          "version": "v0.9.1",
+          "createSurface": {
+            "surfaceId": "s1",
+            "catalogId": "default"
+          }
+        }
+        """)
+    #expect(processor.getSurface("s1") != nil)
   }
 
   @Test func processCreateSurfaceWithUnknownCatalogThrows() throws {
     let (processor, handler) = try makeProcessor()
     #expect(throws: GenericError.self) {
-      try processor.process(line: """
-        {"createSurface": {"surfaceId": "s1", "catalogId": "unknown"}}
-        """)
+      try processor.process(
+        line: """
+          {
+            "version": "v0.9.1",
+            "createSurface": {
+              "surfaceId": "s1",
+              "catalogId": "unknown"
+            }
+          }
+          """)
     }
     #expect(handler.capturedErrors.count == 1)
   }
 
   @Test func processCreateSurfaceWithTheme() throws {
     let (processor, _) = try makeProcessor()
-    try processor.process(line: """
-      {"createSurface": {"surfaceId": "s1", "catalogId": "default", "theme": {"color": "blue"}}}
-      """)
-    #expect(processor.getSurface(id: "s1") != nil)
+    try processor.process(
+      line: """
+        {
+          "version": "v0.9.1",
+          "createSurface": {
+            "surfaceId": "s1",
+            "catalogId": "default",
+            "theme": {
+              "color": "blue"
+            }
+          }
+        }
+        """)
+    #expect(processor.getSurface("s1") != nil)
   }
 
   // MARK: - Update Components
 
   @Test func processUpdateComponents() throws {
     let (processor, _) = try makeProcessor()
-    try processor.process(line: """
-      {"createSurface": {"surfaceId": "s1", "catalogId": "default"}}
-      """)
-    try processor.process(line: """
-      {"updateComponents": {"surfaceId": "s1", "components": [
-        {"id": "root", "component": "text", "text": "Hello"}
-      ]}}
-      """)
-    let vm = processor.getSurface(id: "s1")
-    let components = vm?.getComponents()
+    try processor.process(
+      line: """
+        {
+          "version": "v0.9.1",
+          "createSurface": {
+            "surfaceId": "s1",
+            "catalogId": "default"
+          }
+        }
+        """)
+    try processor.process(
+      line: """
+        {
+          "version": "v0.9.1",
+          "updateComponents": {
+            "surfaceId": "s1",
+            "components": [
+              {
+                "id": "root",
+                "component": "text",
+                "text": "Hello"
+              }
+            ]
+          }
+        }
+        """)
+    let vm = processor.getSurface("s1")
+    let components = vm?.componentsModel.snapshot()
     #expect(components?["root"] != nil)
   }
 
   @Test func processUpdateComponentsForMissingSurfaceThrows() throws {
     let (processor, handler) = try makeProcessor()
     #expect(throws: GenericError.self) {
-      try processor.process(line: """
-        {"updateComponents": {"surfaceId": "missing", "components": []}}
-        """)
+      try processor.process(
+        line: """
+          {
+            "version": "v0.9.1",
+            "updateComponents": {
+              "surfaceId": "missing",
+              "components": []
+            }
+          }
+          """)
     }
     #expect(handler.capturedErrors.count == 1)
   }
@@ -200,14 +218,29 @@ struct MessageProcessorTests {
 
   @Test func processUpdateDataModel() throws {
     let (processor, _) = try makeProcessor()
-    try processor.process(line: """
-      {"createSurface": {"surfaceId": "s1", "catalogId": "default"}}
-      """)
-    try processor.process(line: """
-      {"updateDataModel": {"surfaceId": "s1", "path": "/user/name", "value": "Alice"}}
-      """)
-    let vm = processor.getSurface(id: "s1")
-    let data = vm?.getDataModel()
+    try processor.process(
+      line: """
+        {
+          "version": "v0.9.1",
+          "createSurface": {
+            "surfaceId": "s1",
+            "catalogId": "default"
+          }
+        }
+        """)
+    try processor.process(
+      line: """
+        {
+          "version": "v0.9.1",
+          "updateDataModel": {
+            "surfaceId": "s1",
+            "path": "/user/name",
+            "value": "Alice"
+          }
+        }
+        """)
+    let vm = processor.getSurface("s1")
+    let data = vm?.dataModel.snapshot()
     #expect(data?["user/name"]?.stringValue == "Alice")
   }
 
@@ -215,21 +248,40 @@ struct MessageProcessorTests {
 
   @Test func processDeleteSurface() throws {
     let (processor, _) = try makeProcessor()
-    try processor.process(line: """
-      {"createSurface": {"surfaceId": "s1", "catalogId": "default"}}
-      """)
-    try processor.process(line: """
-      {"deleteSurface": {"surfaceId": "s1"}}
-      """)
-    #expect(processor.getSurface(id: "s1") == nil)
+    try processor.process(
+      line: """
+        {
+          "version": "v0.9.1",
+          "createSurface": {
+            "surfaceId": "s1",
+            "catalogId": "default"
+          }
+        }
+        """)
+    try processor.process(
+      line: """
+        {
+          "version": "v0.9.1",
+          "deleteSurface": {
+            "surfaceId": "s1"
+          }
+        }
+        """)
+    #expect(processor.getSurface("s1") == nil)
   }
 
   @Test func processDeleteSurfaceForMissingSurfaceThrows() throws {
     let (processor, handler) = try makeProcessor()
     #expect(throws: GenericError.self) {
-      try processor.process(line: """
-        {"deleteSurface": {"surfaceId": "missing"}}
-        """)
+      try processor.process(
+        line: """
+          {
+            "version": "v0.9.1",
+            "deleteSurface": {
+              "surfaceId": "missing"
+            }
+          }
+          """)
     }
     #expect(handler.capturedErrors.count == 1)
   }
@@ -246,43 +298,188 @@ struct MessageProcessorTests {
 
   // MARK: - Surface Management
 
-  @Test func getSurfacesReturnsAllActiveSurfaces() throws {
+  @Test func groupAllSurfacesReturnsAllActiveSurfaces() throws {
     let (processor, _) = try makeProcessor()
-    try processor.process(line: """
-      {"createSurface": {"surfaceId": "s1", "catalogId": "default"}}
-      """)
-    try processor.process(line: """
-      {"createSurface": {"surfaceId": "s2", "catalogId": "default"}}
-      """)
-    let surfaces = processor.getSurfaces()
+    try processor.process(
+      line: """
+        {
+          "version": "v0.9.1",
+          "createSurface": {
+            "surfaceId": "s1",
+            "catalogId": "default"
+          }
+        }
+        """)
+    try processor.process(
+      line: """
+        {
+          "version": "v0.9.1",
+          "createSurface": {
+            "surfaceId": "s2",
+            "catalogId": "default"
+          }
+        }
+        """)
+    let surfaces = processor.surfaceGroupModel.allSurfaces()
     #expect(surfaces.count == 2)
     #expect(surfaces["s1"] != nil)
     #expect(surfaces["s2"] != nil)
   }
 
-  @Test func getSurfaceReturnsNilForUnknownID() throws {
+  @Test func groupSurfaceReturnsNilForUnknownID() throws {
     let (processor, _) = try makeProcessor()
-    #expect(processor.getSurface(id: "unknown") == nil)
+    #expect(processor.getSurface("unknown") == nil)
   }
 
-  // MARK: - shouldSendDataModel
+  // MARK: - sendDataModel
 
-  @Test func processCreateSurfaceWithSendDataModelSendsAction() throws {
-    let (processor, handler) = try makeProcessor()
-    try processor.process(line: """
-      {"createSurface": {"surfaceId": "s1", "catalogId": "default", "sendDataModel": true}}
-      """)
-    #expect(handler.capturedActions.count == 1)
-    if case .event(let name, _) = handler.capturedActions[0].identity {
-      #expect(name == "sendDataModel")
-    }
+  @Test func processCreateSurfaceWithSendDataModelSetsFlag() throws {
+    let (processor, _) = try makeProcessor()
+    try processor.process(
+      line: """
+        {
+          "version": "v0.9.1",
+          "createSurface": {
+            "surfaceId": "s1",
+            "catalogId": "default",
+            "sendDataModel": true
+          }
+        }
+        """)
+    let dataModel = processor.getClientDataModel()
+    #expect(dataModel != nil)
   }
 
-  @Test func processCreateSurfaceWithoutSendDataModelDoesNotSendAction() throws {
-    let (processor, handler) = try makeProcessor()
-    try processor.process(line: """
-      {"createSurface": {"surfaceId": "s1", "catalogId": "default"}}
-      """)
-    #expect(handler.capturedActions.isEmpty)
+  @Test func processCreateSurfaceWithoutSendDataModelDoesNotSetFlag() throws {
+    let (processor, _) = try makeProcessor()
+    try processor.process(
+      line: """
+        {
+          "version": "v0.9.1",
+          "createSurface": {
+            "surfaceId": "s1",
+            "catalogId": "default"
+          }
+        }
+        """)
+    #expect(processor.getClientDataModel() == nil)
+  }
+
+  // MARK: - getClientCapabilities
+
+  @Test func getClientCapabilitiesReturnsSupportedCatalogIds() throws {
+    let (processor, _) = try makeProcessor()
+    let caps = processor.getClientCapabilities()
+    #expect(caps["v0.9.1"]?["supportedCatalogIds"]?.arrayValue?.first?.stringValue == "default")
+  }
+
+  @Test func getClientCapabilitiesIncludesInlineCatalogs() throws {
+    let (processor, _) = try makeProcessor()
+    let caps = processor.getClientCapabilities(
+      options: MessageProcessor.CapabilitiesOptions(includeInlineCatalogs: true)
+    )
+    let inlineCatalogs = caps["v0.9.1"]?["inlineCatalogs"]?.arrayValue
+    #expect(inlineCatalogs?.count == 1)
+    let firstCatalog = inlineCatalogs?.first
+    #expect(firstCatalog?["catalogId"]?.stringValue == "default")
+    #expect(firstCatalog?["components"]?["text"] != nil)
+  }
+
+  @Test func getClientCapabilitiesTransformsRefDescriptions() throws {
+    let customSchema = try Schema(
+      instance: """
+        {
+          "type": "object",
+          "properties": {
+            "title": {
+              "type": "string",
+              "description": "REF:common_types.json#/$defs/DynamicString|The title"
+            }
+          }
+        }
+        """
+    )
+    let catalog = Catalog(
+      id: "cat-ref",
+      components: [ComponentAPI(name: "Custom", schema: customSchema)]
+    )
+    let processor = MessageProcessor(catalogs: [catalog])
+    let caps = processor.getClientCapabilities(
+      options: MessageProcessor.CapabilitiesOptions(includeInlineCatalogs: true)
+    )
+
+    let inlineCatalog = caps["v0.9.1"]?["inlineCatalogs"]?.arrayValue?.first
+    let customComponent = inlineCatalog?["components"]?["Custom"]
+    let titleProp = customComponent?["allOf/1/properties/title"]
+
+    #expect(titleProp?["$ref"]?.stringValue == "common_types.json#/$defs/DynamicString")
+    #expect(titleProp?["description"]?.stringValue == "The title")
+    #expect(titleProp?["type"] == nil)
+  }
+
+  @Test func getClientCapabilitiesGeneratesFunctionsAndThemeSchema() throws {
+    let funcSchema = try Schema(
+      instance: """
+        {
+          "type": "object",
+          "description": "Adds two numbers",
+          "properties": {
+            "a": { "type": "number" },
+            "b": { "type": "number" }
+          }
+        }
+        """
+    )
+
+    let addFunc = TestAddFunction(schema: funcSchema)
+
+    let themeSchema = try Schema(
+      instance: """
+        {
+          "type": "object",
+          "properties": {
+            "primaryColor": {
+              "type": "string",
+              "description": "REF:common_types.json#/$defs/Color|The main color"
+            }
+          }
+        }
+        """
+    )
+
+    let textSchema = try Schema(instance: "{\"type\": \"object\"}")
+    let catalog = Catalog(
+      id: "cat-full",
+      components: [ComponentAPI(name: "Button", schema: textSchema)],
+      functions: [addFunc],
+      themeSchema: themeSchema
+    )
+    let processor = MessageProcessor(catalogs: [catalog])
+    let caps = processor.getClientCapabilities(
+      options: MessageProcessor.CapabilitiesOptions(includeInlineCatalogs: true)
+    )
+
+    let inlineCatalog = caps["v0.9.1"]?["inlineCatalogs"]?.arrayValue?.first
+    #expect(inlineCatalog?["catalogId"]?.stringValue == "cat-full")
+
+    let functions = inlineCatalog?["functions"]?.arrayValue
+    #expect(functions?.count == 1)
+    #expect(functions?.first?["name"]?.stringValue == "add")
+    #expect(functions?.first?["returnType"]?.stringValue == "number")
+    #expect(functions?.first?["description"]?.stringValue == "Adds two numbers")
+
+    let theme = inlineCatalog?["theme"]
+    #expect(theme?["primaryColor"]?["$ref"]?.stringValue == "common_types.json#/$defs/Color")
+    #expect(theme?["primaryColor"]?["description"]?.stringValue == "The main color")
+  }
+}
+
+private struct TestAddFunction: FunctionImplementation {
+  let api: FunctionAPI
+  init(schema: Schema) {
+    self.api = FunctionAPI(name: "add", returnType: .number, schema: schema)
+  }
+  func evaluate(arguments: [String: JSONValue]) throws -> JSONValue {
+    .null
   }
 }

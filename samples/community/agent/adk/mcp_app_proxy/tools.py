@@ -177,7 +177,7 @@ async def get_pong_app_a2ui_json(tool_context: ToolContext):
                         "title": "Neon Pong",
                         "allowedTools": ["commentate_pong"],
                         "allowedFunctions": ["showWinnerModal"],
-                        "data": {"path": "/pong_state"},
+                        "data": {"paths": {"state": "/pong_state"}},
                     },
                     {
                         "id": "scoreboard_root",

@@ -343,6 +343,37 @@ class TestExpressParser(unittest.TestCase):
             'myCustomFunc("hello", "middle", "world")',
         )
 
+    def test_decompile_unknown_function_call(self):
+        """Test decompilation of unknown function calls with list or dict arguments."""
+        decompiler = ExpressParser(self.catalog)
+        envelope_list = {
+            "version": "1.0",
+            "createSurface": {
+                "surfaceId": "test-surf",
+                "components": [{
+                    "id": "t1",
+                    "component": "Text",
+                    "text": {"call": "unknownFunc", "args": ["val1", "val2"]},
+                }],
+            },
+        }
+        dsl_list = decompiler.decompile(envelope_list)
+        self.assertIn("unknownFunc", dsl_list)
+
+        envelope_dict = {
+            "version": "1.0",
+            "createSurface": {
+                "surfaceId": "test-surf",
+                "components": [{
+                    "id": "t2",
+                    "component": "Text",
+                    "text": {"call": "unknownFunc", "args": {"param1": "val1"}},
+                }],
+            },
+        }
+        dsl_dict = decompiler.decompile(envelope_dict)
+        self.assertIn("unknownFunc", dsl_dict)
+
 
 if __name__ == "__main__":
     unittest.main()
