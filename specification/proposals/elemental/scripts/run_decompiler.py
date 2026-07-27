@@ -43,7 +43,6 @@ sys.path.insert(
         )
     ),
 )
-import json
 from a2ui.core.catalog import Catalog
 from a2ui.inference_formats.experimental.elemental.parser import ElementalParser
 
@@ -80,26 +79,32 @@ def decompile_example(example_path: str, catalog_path: str) -> str:
     components_list = None
     data_model = None
 
-    # Collect messages from either the gallery wrapper or a raw single envelope.
-    messages = ex_data.get("messages")
-    if messages is None:
-        messages = [ex_data]
+    # Collect messages from either the gallery wrapper, a raw single envelope,
+    # or a raw list of envelopes.
+    if isinstance(ex_data, list):
+        messages = ex_data
+    else:
+        messages = ex_data.get("messages")
+        if messages is None:
+            messages = [ex_data]
 
     for msg in messages:
-        if "createSurface" in msg:
-            create = msg["createSurface"]
+        if not isinstance(msg, dict):
+            continue
+        create = msg.get("createSurface")
+        if isinstance(create, dict):
             surface_id = create.get("surfaceId", surface_id)
             catalog_id = create.get("catalogId", catalog_id)
             if create.get("components"):
                 components_list = create["components"]
             if create.get("dataModel"):
                 data_model = create["dataModel"]
-        if "updateComponents" in msg:
-            update = msg["updateComponents"]
+        update = msg.get("updateComponents")
+        if isinstance(update, dict):
             components_list = update.get("components", components_list)
             surface_id = update.get("surfaceId", surface_id)
-        if "updateDataModel" in msg:
-            update_dm = msg["updateDataModel"]
+        update_dm = msg.get("updateDataModel")
+        if isinstance(update_dm, dict):
             data_model = update_dm.get("value", update_dm.get("contents", data_model))
 
     if not components_list:

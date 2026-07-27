@@ -43,7 +43,8 @@ sys.path.insert(
         )
     ),
 )
-import json
+from typing import List, Union
+
 from a2ui.core.catalog import Catalog
 from a2ui.inference_formats.experimental.elemental.parser import ElementalParser
 
@@ -63,7 +64,7 @@ def _force_surface_id(envelope: dict, surface_id: str) -> None:
 
 def compile_elemental_file(
     elemental_path: str, catalog_path: str, surface_id=None
-) -> dict:
+) -> Union[dict, List[dict]]:
     """Compiles an A2UI Elemental markup file into standard JSON.
 
     Args:
@@ -94,7 +95,7 @@ def compile_elemental_file(
 
     # The parser locates UI blocks by the <a2ui> sentinel. If the input is a
     # bare <body> block (no sentinel), wrap it so it can still be compiled.
-    if "<a2ui>" not in elemental_text:
+    if "<a2ui>" not in elemental_text.lower():
         elemental_text = f"<a2ui>\n{elemental_text}\n</a2ui>"
 
     parser = ElementalParser(catalog, surface_id or "main")
