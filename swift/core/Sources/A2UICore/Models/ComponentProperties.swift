@@ -12,9 +12,19 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-/// Errors that occur during local function evaluation.
-public enum LocalFunctionError: Error, Sendable {
-  case functionNotFound(String)
-  case missingArgument(String)
-  case invalidArgumentType(expected: String, actual: String)
+import JSONSchema
+import OrderedJSON
+
+/// Encapsulates the validated, unresolved properties of a component
+/// before resolution.
+public struct ComponentProperties: Sendable, Equatable {
+  public let type: String
+  public let schema: Schema
+  public let json: JSONValue
+
+  public init(type: String, schema: Schema, json: JSONValue) {
+    self.type = type
+    self.schema = schema
+    self.json = json
+  }
 }
