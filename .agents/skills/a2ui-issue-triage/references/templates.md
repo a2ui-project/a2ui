@@ -69,7 +69,6 @@ Thanks for the suggestion. This falls outside the current scope of the A2UI prot
 
 Marked as `P4`: we do not plan to invest in it, and PRs against it will not be reviewed. Leaving it open as a record of the request — comment here if you have new arguments to share.
 
-
 ## Pull requests
 
 These cases are handled by the oncall engineer directly. The dashboard and apply script
@@ -122,7 +121,7 @@ We will link this PR to the issue, so whoever takes it on can see your approach.
 
 **Triage**: assign `status: waiting-for-user-response`.
 
-Thank you for your contribution. I am sorry it took so long for our team to review your PR. Unfortunately the branch has conflicts with the main branch.  If you believe the issue is not resolved yet, can you, please, resolve the conflicts? We will review it again after you resolve conflicts.
+Thank you for your contribution. I am sorry it took so long for our team to review your PR. Unfortunately the branch has conflicts with the main branch. If you believe the issue is not resolved yet, can you, please, resolve the conflicts? We will review it again after you resolve conflicts.
 
 ### PR that closes already closed issue
 
@@ -131,4 +130,3 @@ Thank you for your contribution. I am sorry it took so long for our team to revi
 **Triage**: close the PR.
 
 Thank you for your contribution. I am closing this PR as the linked issue has already been resolved.
-
