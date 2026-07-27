@@ -16,7 +16,8 @@
 
 import {rawMarkdownRenderer} from './raw-markdown.js';
 import {sanitize} from './sanitizer.js';
-import * as Types from '@a2ui/web_core';
+import type {MarkdownRenderer as MarkdownRendererV08} from '@a2ui/web_core';
+import type {MarkdownRenderer as MarkdownRendererV09} from '@a2ui/web_core/v0_9';
 
 /**
  * A Markdown to HTML renderer using markdown-it and dompurify.
@@ -24,10 +25,7 @@ import * as Types from '@a2ui/web_core';
  * @param options Options for the markdown renderer.
  * @returns A promise that resolves to the rendered HTML as a string.
  */
-export async function renderMarkdown(
-  value: string,
-  options?: Types.MarkdownRendererOptions,
-): Promise<string> {
+export const renderMarkdown: MarkdownRendererV08 & MarkdownRendererV09 = async (value, options) => {
   const htmlString = rawMarkdownRenderer.render(value, options?.tagClassMap);
   return sanitize(htmlString);
-}
+};

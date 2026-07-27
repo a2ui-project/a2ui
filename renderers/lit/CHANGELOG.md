@@ -1,5 +1,7 @@
 ## Unreleased
 
+- (v0_9) Use the version-specific markdown renderer types from `web_core`.
+
 ## 0.10.3
 
 - Enable `inlineSources` in `tsconfig.json` to populate `sourcesContent` in sourcemaps.

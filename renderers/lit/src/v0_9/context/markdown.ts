@@ -15,11 +15,11 @@
  */
 
 import {createContext} from '@lit/context';
-import * as Types from '@a2ui/web_core/types/types';
+import type {MarkdownRenderer} from '@a2ui/web_core/v0_9';
 
 /**
  * The markdown renderer context.
  *
  * This is used by the Text widget to render markdown content.
  */
-export const markdown = createContext<Types.MarkdownRenderer | undefined>(Symbol('A2UIMarkdown'));
+export const markdown = createContext<MarkdownRenderer | undefined>(Symbol('A2UIMarkdown'));

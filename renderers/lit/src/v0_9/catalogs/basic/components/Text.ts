@@ -18,10 +18,10 @@ import {html, nothing, css} from 'lit';
 import {customElement} from 'lit/decorators.js';
 import {consume} from '@lit/context';
 import {TextApi} from '@a2ui/web_core/v0_9/basic_catalog';
+import type {MarkdownRenderer} from '@a2ui/web_core/v0_9';
 import {BasicCatalogA2uiLitElement} from '../basic-catalog-a2ui-lit-element.js';
 import {A2uiController} from '../../../a2ui-controller.js';
 import {Context} from '../../../context/context.js';
-import * as Types from '@a2ui/web_core/types/types';
 
 import {markdown} from '../../../directives/directives.js';
 
@@ -101,7 +101,7 @@ export class A2uiBasicTextElement extends BasicCatalogA2uiLitElement<typeof Text
 
   // Retrieve a MarkdownRenderer provided by the application.
   @consume({context: Context.markdown, subscribe: true})
-  accessor markdownRenderer: Types.MarkdownRenderer | undefined;
+  accessor markdownRenderer: MarkdownRenderer | undefined;
 
   protected createController() {
     return new A2uiController(this, TextApi);

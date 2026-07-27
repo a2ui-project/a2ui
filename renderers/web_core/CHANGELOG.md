@@ -1,5 +1,7 @@
 ## Unreleased
 
+- (v0_9) Export version-specific markdown renderer types.
+
 ## 0.10.6
 
 - (v0_9) Validate component properties against catalog schema in `MessageProcessor` to prevent malformed component actions.
