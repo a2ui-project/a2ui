@@ -50,6 +50,16 @@ export interface AngularComponentImplementation extends ComponentApi {
  */
 export class AngularCatalog extends Catalog<AngularComponentImplementation> {}
 
+/**
+ * Helper function to create an {@link AngularComponentImplementation}.
+ *
+ * It extracts the name and schema from a generic {@link ComponentApi} and
+ * associates it with the given Angular component type.
+ *
+ * @param api The generic component API definition.
+ * @param component The Angular component class implementing the API.
+ * @returns The structured Angular component implementation.
+ */
 export function createAngularComponentImplementation(
   api: ComponentApi,
   component: Type<CatalogComponentInstance>,
