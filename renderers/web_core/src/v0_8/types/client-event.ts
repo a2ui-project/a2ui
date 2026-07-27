@@ -21,20 +21,26 @@
  */
 
 export type ClientCapabilitiesUri = string;
-export type ClientCapabilitiesDynamic = {
-  components: { [key: string]: unknown };
-  styles: { [key: string]: unknown };
-};
+export declare interface ClientCapabilitiesDynamic {
+  components: {[key: string]: unknown};
+  styles: {[key: string]: unknown};
+}
 
-export type ClientCapabilities =
-  | { catalogUri: ClientCapabilitiesUri }
-  | { dynamicCatalog: ClientCapabilitiesDynamic };
+export declare interface ClientCapabilitiesCatalogUri {
+  catalogUri: ClientCapabilitiesUri;
+}
+
+export declare interface ClientCapabilitiesDynamicCatalog {
+  dynamicCatalog: ClientCapabilitiesDynamic;
+}
+
+export type ClientCapabilities = ClientCapabilitiesCatalogUri | ClientCapabilitiesDynamicCatalog;
 
 /**
  * A message sent from the client to the server. Exactly ONE of the properties
  * in this object must be set.
  */
-export interface ClientToServerMessage {
+export declare interface ClientToServerMessage {
   userAction?: UserAction;
   clientUiCapabilities?: ClientCapabilities;
   error?: ClientError;
@@ -45,7 +51,7 @@ export interface ClientToServerMessage {
 /**
  * Represents a user-initiated action, sent from the client to the server.
  */
-export interface UserAction {
+export declare interface UserAction {
   /**
    * The name of the action.
    */
@@ -75,6 +81,6 @@ export interface UserAction {
  * A message from the client indicating an error occurred, for example,
  * during UI rendering.
  */
-export interface ClientError {
+export declare interface ClientError {
   [k: string]: unknown;
 }

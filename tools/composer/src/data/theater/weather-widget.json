@@ -1,0 +1,155 @@
+[
+  {
+    "createSurface": {
+      "surfaceId": "weather-1",
+      "catalogId": "core-v0.9"
+    }
+  },
+  {
+    "updateComponents": {
+      "surfaceId": "weather-1",
+      "components": [
+        {
+          "id": "root",
+          "type": "Card",
+          "props": {
+            "title": "Current Weather",
+            "children": ["main-col"]
+          }
+        },
+        {
+          "id": "main-col",
+          "type": "Column",
+          "props": {
+            "spacing": "medium",
+            "align": "center",
+            "children": ["temp-row", "desc-text", "forecast-list"]
+          }
+        },
+        {
+          "id": "temp-row",
+          "type": "Row",
+          "props": {
+            "spacing": "small",
+            "align": "center",
+            "children": ["icon", "temp"]
+          }
+        },
+        {
+          "id": "icon",
+          "type": "Icon",
+          "props": {
+            "name": "sunny"
+          }
+        },
+        {
+          "id": "temp",
+          "type": "Text",
+          "props": {
+            "text": "72°F",
+            "size": "xlarge",
+            "weight": "bold"
+          }
+        },
+        {
+          "id": "desc-text",
+          "type": "Text",
+          "props": {
+            "text": "Sunny and clear in San Francisco.",
+            "color": "secondary"
+          }
+        },
+        {
+          "id": "forecast-list",
+          "type": "List",
+          "props": {
+            "items": ["Mon: 70°F", "Tue: 68°F", "Wed: 65°F"]
+          }
+        },
+        {
+          "id": "action-row",
+          "type": "Row",
+          "props": {
+            "spacing": "small",
+            "children": ["location-input", "refresh-btn"]
+          }
+        },
+        {
+          "id": "location-input",
+          "type": "TextField",
+          "props": {
+            "placeholder": "Enter City"
+          }
+        },
+        {
+          "id": "refresh-btn",
+          "type": "Button",
+          "props": {
+            "label": "Change Location",
+            "onClick": {
+              "actionId": "change_location",
+              "parameters": {"city": "{location-input.value}"}
+            }
+          }
+        }
+      ]
+    }
+  },
+  {
+    "clientEvent": {
+      "name": "updateDataModel",
+      "surfaceId": "weather-1",
+      "path": "/location-input",
+      "valueString": "Seattle"
+    }
+  },
+  {
+    "action": {
+      "name": "change_location",
+      "surfaceId": "weather-1",
+      "sourceComponentId": "refresh-btn",
+      "timestamp": "2026-03-15T12:10:00Z",
+      "context": {
+        "city": "Seattle"
+      }
+    }
+  },
+  {
+    "updateComponents": {
+      "surfaceId": "weather-1",
+      "components": [
+        {
+          "id": "icon",
+          "type": "Icon",
+          "props": {
+            "name": "rainy"
+          }
+        },
+        {
+          "id": "temp",
+          "type": "Text",
+          "props": {
+            "text": "55°F",
+            "size": "xlarge",
+            "weight": "bold"
+          }
+        },
+        {
+          "id": "desc-text",
+          "type": "Text",
+          "props": {
+            "text": "Rainy and overcast in Seattle.",
+            "color": "secondary"
+          }
+        },
+        {
+          "id": "forecast-list",
+          "type": "List",
+          "props": {
+            "items": ["Mon: 52°F", "Tue: 54°F", "Wed: 50°F"]
+          }
+        }
+      ]
+    }
+  }
+]

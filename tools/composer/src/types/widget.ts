@@ -14,12 +14,21 @@
  * limitations under the License.
  */
 
-import type { ComponentInstance } from "@copilotkit/a2ui-renderer";
+/**
+ * Version-agnostic component type.
+ *
+ * Components are stored as opaque objects — the editor displays them as JSON
+ * and the adapter interprets them based on specVersion. Only two places need
+ * to understand the internal structure: the renderer adapter and the AI prompt.
+ */
+export type A2UIComponent = Record<string, unknown> & {id: string};
 
 export interface DataState {
   name: string;
   data: Record<string, unknown>;
 }
+
+export type SpecVersion = '0.8' | '0.9';
 
 export interface Widget {
   id: string;
@@ -27,7 +36,8 @@ export interface Widget {
   description?: string;
   createdAt: Date;
   updatedAt: Date;
+  specVersion: SpecVersion;
   root: string;
-  components: ComponentInstance[];
+  components: A2UIComponent[];
   dataStates: DataState[];
 }

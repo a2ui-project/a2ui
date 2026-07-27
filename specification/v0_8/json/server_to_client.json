@@ -57,7 +57,7 @@
               },
               "component": {
                 "type": "object",
-                "description": "A wrapper object that MUST contain exactly one key, which is the name of the component type. The value is an object containing the properties for that specific component.",
+                "description": "A wrapper object that MUST contain exactly one key, which is the name of the component type (e.g., 'Heading'). The value is an object containing the properties for that specific component.",
                 "additionalProperties": true
               }
             },

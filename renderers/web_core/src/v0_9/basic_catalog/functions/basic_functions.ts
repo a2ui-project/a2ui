@@ -14,150 +14,256 @@
  * limitations under the License.
  */
 
-import { ExpressionParser } from "../expressions/expression_parser.js";
-import { computed, Signal } from "@preact/signals-core";
-import { FunctionImplementation } from "../../catalog/types.js";
+import {ExpressionParser} from '../expressions/expression_parser.js';
+import {computed, isSignal, getValue} from '../../reactivity/signals.js';
+import {createFunctionImplementation, FunctionImplementation} from '../../catalog/types.js';
+import {format} from 'date-fns';
+import {
+  AddApi,
+  SubtractApi,
+  MultiplyApi,
+  DivideApi,
+  EqualsApi,
+  NotEqualsApi,
+  GreaterThanApi,
+  LessThanApi,
+  AndApi,
+  OrApi,
+  NotApi,
+  ContainsApi,
+  StartsWithApi,
+  EndsWithApi,
+  RequiredApi,
+  RegexApi,
+  LengthApi,
+  NumericApi,
+  EmailApi,
+  FormatStringApi,
+  FormatNumberApi,
+  FormatCurrencyApi,
+  FormatDateApi,
+  PluralizeApi,
+  OpenUrlApi,
+} from './basic_functions_api.js';
+import {A2uiExpressionError} from '../../errors.js';
+
+// Arithmetic
+/**
+ * Implementation of the addition function.
+ * Adds two numbers 'a' and 'b'.
+ */
+export const AddImplementation = createFunctionImplementation(AddApi, args => args.a + args.b);
+/**
+ * Implementation of the subtraction function.
+ * Subtracts 'b' from 'a'.
+ */
+export const SubtractImplementation = createFunctionImplementation(
+  SubtractApi,
+  args => args.a - args.b,
+);
+/**
+ * Implementation of the multiplication function.
+ * Multiplies 'a' and 'b'.
+ */
+export const MultiplyImplementation = createFunctionImplementation(
+  MultiplyApi,
+  args => args.a * args.b,
+);
+/**
+ * Implementation of the division function.
+ * Divides 'a' by 'b'. Returns NaN if inputs are invalid, and Infinity if dividing by zero.
+ */
+export const DivideImplementation = createFunctionImplementation(DivideApi, args => {
+  const a = args.a;
+  const b = args.b;
+  if (a === undefined || a === null || b === undefined || b === null) {
+    return NaN;
+  }
+  const numA = Number(a);
+  const numB = Number(b);
+  if (Number.isNaN(numA) || Number.isNaN(numB)) {
+    return NaN;
+  }
+  if (numB === 0) {
+    return Infinity;
+  }
+  return numA / numB;
+});
+
+// Comparison
+/**
+ * Implementation of the equality comparison.
+ * Checks if 'a' is strictly equal to 'b'.
+ */
+export const EqualsImplementation = createFunctionImplementation(
+  EqualsApi,
+  args => args.a === args.b,
+);
+/**
+ * Implementation of the inequality comparison.
+ * Checks if 'a' is not strictly equal to 'b'.
+ */
+export const NotEqualsImplementation = createFunctionImplementation(
+  NotEqualsApi,
+  args => args.a !== args.b,
+);
+/**
+ * Implementation of the greater-than comparison.
+ * Checks if 'a' is greater than 'b'.
+ */
+export const GreaterThanImplementation = createFunctionImplementation(
+  GreaterThanApi,
+  args => args.a > args.b,
+);
+/**
+ * Implementation of the less-than comparison.
+ * Checks if 'a' is less than 'b'.
+ */
+export const LessThanImplementation = createFunctionImplementation(
+  LessThanApi,
+  args => args.a < args.b,
+);
+
+// Logical
+/**
+ * Implementation of the logical AND function.
+ * Returns true if all values in the array are truthy.
+ */
+export const AndImplementation = createFunctionImplementation(AndApi, args => {
+  return args.values.every((v: unknown) => !!v);
+});
+/**
+ * Implementation of the logical OR function.
+ * Returns true if at least one value in the array is truthy.
+ */
+export const OrImplementation = createFunctionImplementation(OrApi, args => {
+  return args.values.some((v: unknown) => !!v);
+});
+/**
+ * Implementation of the logical NOT function.
+ * Returns the negation of the value.
+ */
+export const NotImplementation = createFunctionImplementation(NotApi, args => !args.value);
+
+// String
+/**
+ * Implementation of the string contains function.
+ * Checks if 'string' contains 'substring'.
+ */
+export const ContainsImplementation = createFunctionImplementation(ContainsApi, args =>
+  args.string.includes(args.substring),
+);
+/**
+ * Implementation of the string starts-with function.
+ * Checks if 'string' starts with 'prefix'.
+ */
+export const StartsWithImplementation = createFunctionImplementation(StartsWithApi, args =>
+  args.string.startsWith(args.prefix),
+);
+/**
+ * Implementation of the string ends-with function.
+ * Checks if 'string' ends with 'suffix'.
+ */
+export const EndsWithImplementation = createFunctionImplementation(EndsWithApi, args =>
+  args.string.endsWith(args.suffix),
+);
+
+// Validation
+/**
+ * Implementation of the required validation function.
+ * Checks if the value is not null, undefined, empty string, or empty array.
+ */
+export const RequiredImplementation = createFunctionImplementation(RequiredApi, args => {
+  const val = args.value;
+  if (val === null || val === undefined) return false;
+  if (typeof val === 'string' && val === '') return false;
+  if (Array.isArray(val) && val.length === 0) return false;
+  return true;
+});
+/**
+ * Implementation of the regex validation function.
+ * Checks if the value matches the regular expression pattern.
+ * Throws A2uiExpressionError if the pattern is invalid.
+ */
+export const RegexImplementation = createFunctionImplementation(RegexApi, args => {
+  try {
+    return new RegExp(args.pattern).test(args.value);
+  } catch (e) {
+    throw new A2uiExpressionError(`Invalid regex pattern: ${args.pattern}`, 'regex', e);
+  }
+});
+/**
+ * Implementation of the length validation function.
+ * Checks if the length of the string or array is within [min, max] range.
+ */
+export const LengthImplementation = createFunctionImplementation(LengthApi, args => {
+  const val = args.value;
+  let len = 0;
+  if (typeof val === 'string' || Array.isArray(val)) {
+    len = val.length;
+  }
+  if (args.min !== undefined && !isNaN(args.min) && len < args.min) return false;
+  if (args.max !== undefined && !isNaN(args.max) && len > args.max) return false;
+  return true;
+});
+/**
+ * Implementation of the numeric validation function.
+ * Checks if the value is a number and within [min, max] range.
+ */
+export const NumericImplementation = createFunctionImplementation(NumericApi, args => {
+  if (isNaN(args.value)) return false;
+  if (args.min !== undefined && !isNaN(args.min) && args.value < args.min) return false;
+  if (args.max !== undefined && !isNaN(args.max) && args.value > args.max) return false;
+  return true;
+});
+/**
+ * Implementation of the email validation function.
+ * Uses a simple regex to check if the value looks like an email address.
+ * Note: This is a basic check and not fully compliant with all email standards.
+ */
+export const EmailImplementation = createFunctionImplementation(EmailApi, args => {
+  // TODO(gspencergoog): Use a "real" email validation function, preferably
+  // from an existing package. This is woefully insufficient, real email
+  // validation can't be done with a regex.
+  return /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/.test(args.value);
+});
+
+// Formatting
+/**
+ * Coerces a value to a string following the a2ui_protocol.md §"Type conversion" rules:
+ * - Numbers/Booleans: Standard string representation.
+ * - null/undefined: An empty string "".
+ * - Objects/Arrays: Stringified as JSON.
+ */
+function coerceToString(value: unknown): string {
+  if (value === null || value === undefined) return '';
+  if (typeof value === 'object') {
+    try {
+      return JSON.stringify(value) ?? String(value);
+    } catch {
+      return String(value);
+    }
+  }
+  return String(value);
+}
 
 /**
- * Standard function implementations for the Basic Catalog.
- * These functions cover arithmetic, comparison, logic, string manipulation, validation, and formatting.
+ * Implementation of the string formatting function.
+ * Parses a template string and resolves any embedded expressions using the provided context.
+ * Returns a computed signal that updates when referenced signals change.
  */
-export const BASIC_FUNCTIONS: Record<string, FunctionImplementation> = {
-  // Arithmetic
-  add: (args) => (Number(args["a"]) || 0) + (Number(args["b"]) || 0),
-  subtract: (args) => (Number(args["a"]) || 0) - (Number(args["b"]) || 0),
-  multiply: (args) => (Number(args["a"]) || 0) * (Number(args["b"]) || 0),
-  /**
-   * Divides a by b.
-   * Converts string values to numbers automatically.
-   * Returns Infinity if division by zero occurs.
-   * Returns NaN if either a or b is undefined, null, or cannot be converted to a number.
-   */
-  divide: (args) => {
-    const a = args["a"];
-    const b = args["b"];
-    if (a === undefined || a === null || b === undefined || b === null) {
-      return NaN;
-    }
-    const numA = Number(a);
-    const numB = Number(b);
-    if (Number.isNaN(numA) || Number.isNaN(numB)) {
-      return NaN;
-    }
-    if (numB === 0) {
-      return Infinity;
-    }
-    return numA / numB;
-  },
-
-  // Comparison
-  equals: (args) => args["a"] === args["b"],
-  not_equals: (args) => args["a"] !== args["b"],
-  greater_than: (args) => (Number(args["a"]) || 0) > (Number(args["b"]) || 0),
-  less_than: (args) => (Number(args["a"]) || 0) < (Number(args["b"]) || 0),
-
-  // Logical
-  and: (args) => {
-    if (Array.isArray(args["values"])) {
-      return args["values"].every((v: unknown) => !!v);
-    }
-    return !!(args["a"] && args["b"]); // Fallback
-  },
-  or: (args) => {
-    if (Array.isArray(args["values"])) {
-      return args["values"].some((v: unknown) => !!v);
-    }
-    return !!(args["a"] || args["b"]); // Fallback
-  },
-  not: (args) => !args["value"],
-
-  // String
-  contains: (args) =>
-    String(args["string"] || "").includes(String(args["substring"] || "")),
-  starts_with: (args) =>
-    String(args["string"] || "").startsWith(String(args["prefix"] || "")),
-  ends_with: (args) =>
-    String(args["string"] || "").endsWith(String(args["suffix"] || "")),
-
-  // Validation
-  /**
-   * Checks if a value is present and not empty.
-   */
-  required: (args) => {
-    const val = args["value"];
-    if (val === null || val === undefined) return false;
-    if (typeof val === "string" && val === "") return false;
-    if (Array.isArray(val) && val.length === 0) return false;
-    return true;
-  },
-
-  /**
-   * Checks if a value matches a regular expression.
-   */
-  regex: (args) => {
-    const val = String(args["value"] || "");
-    const pattern = String(args["pattern"] || "");
-    try {
-      return new RegExp(pattern).test(val);
-    } catch (e) {
-      console.warn("Invalid regex pattern:", pattern);
-      return false;
-    }
-  },
-
-  /**
-   * Checks if a value's length is within a specified range.
-   */
-  length: (args) => {
-    const val = args["value"];
-    let len = 0;
-    if (typeof val === "string" || Array.isArray(val)) {
-      len = val.length;
-    }
-    const min = Number(args["min"]);
-    const max = Number(args["max"]);
-    if (!isNaN(min) && len < min) return false;
-    if (!isNaN(max) && len > max) return false;
-    return true;
-  },
-
-  /**
-   * Checks if a value is numeric and optionally within a range.
-   */
-  numeric: (args) => {
-    const val = Number(args["value"]);
-    if (isNaN(val)) return false;
-    const min = Number(args["min"]);
-    const max = Number(args["max"]);
-    if (!isNaN(min) && val < min) return false;
-    if (!isNaN(max) && val > max) return false;
-    return true;
-  },
-
-  /**
-   * Checks if a value is a valid email address.
-   */
-  email: (args) => {
-    const val = String(args["value"] || "");
-    // Simple email regex
-    // TODO: Use "real" email validation.
-    return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(val);
-  },
-
-  // Formatting
-  /**
-   * Formats a string using a template and the current context.
-   */
-  formatString: (args, context) => {
-    const template = String(args["value"] || "");
+export const FormatStringImplementation = createFunctionImplementation(
+  FormatStringApi,
+  (args, context) => {
+    const template = args.value;
     const parser = new ExpressionParser();
     const parts = parser.parse(template);
 
-    if (parts.length === 0) return "";
+    if (parts.length === 0) return '';
 
-    const dynamicParts = parts.map((part) => {
+    const dynamicParts = parts.map(part => {
       // If it's a literal string (or number/boolean/etc), keep it as is
-      if (typeof part !== "object" || part === null || Array.isArray(part)) {
+      if (typeof part !== 'object' || part === null || Array.isArray(part)) {
         return part;
       }
       return context.resolveSignal(part);
@@ -165,102 +271,219 @@ export const BASIC_FUNCTIONS: Record<string, FunctionImplementation> = {
 
     return computed(() => {
       return dynamicParts
-        .map((p) => {
-          if (p instanceof Signal) {
-             return p.value;
-          }
-          return p;
+        .map(p => {
+          const resolved = isSignal(p) ? getValue(p) : p;
+          return coerceToString(resolved);
         })
-        .join("");
+        .join('');
     });
   },
+);
+const numberFormatCache = new Map<string, Intl.NumberFormat>();
 
-  /**
-   * Formats a number with locale support.
-   */
-  formatNumber: (args) => {
-    const val = Number(args["value"]);
-    if (isNaN(val)) return "";
-    const decimals =
-      args["decimals"] !== undefined ? Number(args["decimals"]) : undefined;
-    const grouping = args["grouping"] !== false; // Default true
-    return new Intl.NumberFormat("en-US", {
+function getNumberFormat(
+  locale: string | undefined,
+  decimals?: number,
+  grouping?: boolean,
+): Intl.NumberFormat {
+  const key = `${locale ?? 'default'}:${decimals ?? 'undef'}:${grouping ?? 'true'}`;
+  let formatter = numberFormatCache.get(key);
+  if (!formatter) {
+    formatter = new Intl.NumberFormat(locale, {
       minimumFractionDigits: decimals,
       maximumFractionDigits: decimals,
       useGrouping: grouping,
-    }).format(val);
-  },
+    });
+    numberFormatCache.set(key, formatter);
+  }
+  return formatter;
+}
 
-  /**
-   * Formats a number as currency.
-   */
-  formatCurrency: (args) => {
-    const val = Number(args["value"]);
-    if (isNaN(val)) return "";
-    const currency = String(args["currency"] || "USD");
-    const decimals =
-      args["decimals"] !== undefined ? Number(args["decimals"]) : undefined;
-    const grouping = args["grouping"] !== false;
+/**
+ * Creates the number formatting function implementation.
+ */
+export function createFormatNumberImplementation(locale?: string): FunctionImplementation {
+  return createFunctionImplementation(FormatNumberApi, args => {
+    if (isNaN(args.value)) return '';
     try {
-      return new Intl.NumberFormat("en-US", {
-        style: "currency",
-        currency,
-        minimumFractionDigits: decimals,
-        maximumFractionDigits: decimals,
-        useGrouping: grouping,
-      }).format(val);
+      return getNumberFormat(locale, args.decimals, args.grouping).format(args.value);
     } catch (e) {
-      return val.toFixed(decimals || 2);
+      console.warn('Error formatting number:', e);
+      return args.decimals !== undefined ? args.value.toFixed(args.decimals) : String(args.value);
     }
-  },
+  });
+}
 
-  /**
-   * Formats a date.
-   */
-  formatDate: (args) => {
-    const val = args["value"];
-    if (!val) return "";
-    const date = new Date(val as string | number | Date);
-    if (isNaN(date.getTime())) return "";
+/**
+ * Implementation of the number formatting function.
+ * Formats a number using Intl.NumberFormat with specified decimals and grouping.
+ */
+export const FormatNumberImplementation = createFormatNumberImplementation();
 
-    const locale = String(args["locale"] || "en-US");
-    const options = args["options"] as Intl.DateTimeFormatOptions;
+const currencyFormatCache = new Map<string, Intl.NumberFormat>();
 
+function getCurrencyFormat(
+  locale: string | undefined,
+  currency: string,
+  decimals?: number,
+  grouping?: boolean,
+): Intl.NumberFormat {
+  const key = `${locale ?? 'default'}:${currency}:${decimals ?? 'undef'}:${grouping ?? 'true'}`;
+  let formatter = currencyFormatCache.get(key);
+  if (!formatter) {
+    formatter = new Intl.NumberFormat(locale, {
+      style: 'currency',
+      currency: currency,
+      minimumFractionDigits: decimals,
+      maximumFractionDigits: decimals,
+      useGrouping: grouping,
+    });
+    currencyFormatCache.set(key, formatter);
+  }
+  return formatter;
+}
+
+/**
+ * Creates the currency formatting function implementation.
+ */
+export function createFormatCurrencyImplementation(locale?: string): FunctionImplementation {
+  return createFunctionImplementation(FormatCurrencyApi, args => {
+    if (isNaN(args.value)) return '';
     try {
-      if (options) {
-        return new Intl.DateTimeFormat(locale, options).format(date);
-      }
-
-      // Fallback for simple format strings if we want to support them (optional)
-      // For now, we'll default to standard date string or ISO if requested
-      const format = String(args["format"] || "");
-      if (format === "ISO") return date.toISOString();
-
-      return new Intl.DateTimeFormat(locale).format(date);
+      return getCurrencyFormat(locale, args.currency, args.decimals, args.grouping).format(
+        args.value,
+      );
     } catch (e) {
-      console.warn("Error formatting date:", e);
-      return date.toISOString();
+      console.warn('Error formatting currency:', e);
+      return args.value.toFixed(args.decimals ?? 2);
     }
-  },
+  });
+}
 
-  /**
-   * Selects a string based on pluralization rules.
-   */
-  pluralize: (args) => {
-    const val = Number(args["value"]) || 0;
-    const rule = new Intl.PluralRules("en-US").select(val);
-    // args: zero, one, two, few, many, other
-    return String(args[rule] || args["other"] || "");
-  },
+/**
+ * Implementation of the currency formatting function.
+ * Formats a number as currency using Intl.NumberFormat.
+ * Falls back to toFixed if formatting fails.
+ */
+export const FormatCurrencyImplementation = createFormatCurrencyImplementation();
+/**
+ * Implementation of the date formatting function.
+ * Formats a date using date-fns or returns ISO string.
+ */
+export const FormatDateImplementation = createFunctionImplementation(FormatDateApi, args => {
+  if (!args.value) return '';
+  const date = new Date(args.value as string | number | Date);
+  if (isNaN(date.getTime())) return '';
 
-  // Actions
-  /**
-   * Opens a URL in a new browser tab/window if available.
-   */
-  openUrl: (args) => {
-    const url = String(args["url"] || "");
-    if (url && typeof window !== "undefined" && window.open) {
-      window.open(url, "_blank");
+  try {
+    if (args.format === 'ISO') return date.toISOString();
+    return format(date, args.format);
+  } catch (e) {
+    console.warn('Error formatting date:', e);
+    return date.toISOString();
+  }
+});
+const pluralRulesCache = new Map<string, Intl.PluralRules>();
+
+function getPluralRules(locale: string | undefined): Intl.PluralRules {
+  const key = locale ?? 'default';
+  let rules = pluralRulesCache.get(key);
+  if (!rules) {
+    rules = new Intl.PluralRules(locale);
+    pluralRulesCache.set(key, rules);
+  }
+  return rules;
+}
+
+/**
+ * Creates the pluralization function implementation.
+ */
+export function createPluralizeImplementation(locale?: string): FunctionImplementation {
+  return createFunctionImplementation(PluralizeApi, args => {
+    try {
+      const rule = getPluralRules(locale).select(args.value);
+      return String((args as Record<string, unknown>)[rule] ?? args.other ?? '');
+    } catch (e) {
+      console.warn('Error in pluralize:', e);
+      return String(args.other ?? '');
     }
-  },
-};
+  });
+}
+
+/**
+ * Implementation of the pluralization function.
+ * Selects the appropriate plural form based on the value using Intl.PluralRules.
+ */
+export const PluralizeImplementation = createPluralizeImplementation();
+
+// Actions
+/**
+ * Implementation of the open URL action.
+ * Opens the specified URL in a new window/tab.
+ */
+export const OpenUrlImplementation = createFunctionImplementation(OpenUrlApi, args => {
+  if (args.url && typeof window !== 'undefined' && window.open) {
+    const baseHref =
+      typeof window.location !== 'undefined' && window.location.href
+        ? window.location.href
+        : undefined;
+
+    let url: URL;
+    try {
+      url = baseHref ? new URL(args.url, baseHref) : new URL(args.url);
+    } catch (e: any) {
+      throw new A2uiExpressionError(`Invalid URL specified: ${args.url}`, 'openUrl', e);
+    }
+
+    // Strict protocol allowlist: Only HTTP and HTTPS are permitted.
+    if (url.protocol !== 'https:' && url.protocol !== 'http:') {
+      throw new A2uiExpressionError(`Unsupported URL scheme: ${url.protocol}`, 'openUrl');
+    }
+
+    // Always use noopener and noreferrer to prevent reverse tab-nabbing
+    window.open(url.href, '_blank', 'noopener,noreferrer');
+  }
+});
+
+/**
+ * Creates standard function implementations for the Basic Catalog.
+ *
+ * @param options Configuration options.
+ * @param options.locale Optional locale to close-over.
+ */
+export function createBasicCatalogFunctions(options?: {locale?: string}): FunctionImplementation[] {
+  const locale = options?.locale;
+  return [
+    AddImplementation,
+    SubtractImplementation,
+    MultiplyImplementation,
+    DivideImplementation,
+    EqualsImplementation,
+    NotEqualsImplementation,
+    GreaterThanImplementation,
+    LessThanImplementation,
+    AndImplementation,
+    OrImplementation,
+    NotImplementation,
+    ContainsImplementation,
+    StartsWithImplementation,
+    EndsWithImplementation,
+    RequiredImplementation,
+    RegexImplementation,
+    LengthImplementation,
+    NumericImplementation,
+    EmailImplementation,
+    FormatStringImplementation,
+    createFormatNumberImplementation(locale),
+    createFormatCurrencyImplementation(locale),
+    FormatDateImplementation,
+    createPluralizeImplementation(locale),
+    OpenUrlImplementation,
+  ];
+}
+
+/**
+ * Standard function implementations for the Basic Catalog.
+ * These functions cover arithmetic, comparison, logic, string manipulation, validation, and formatting.
+ */
+export const BASIC_FUNCTIONS: FunctionImplementation[] = createBasicCatalogFunctions();

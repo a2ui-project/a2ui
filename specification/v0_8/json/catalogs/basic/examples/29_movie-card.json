@@ -16,10 +16,7 @@
           "component": {
             "Column": {
               "children": {
-                "explicitList": [
-                  "poster",
-                  "content"
-                ]
+                "explicitList": ["poster", "content"]
               }
             }
           }
@@ -40,12 +37,7 @@
           "component": {
             "Column": {
               "children": {
-                "explicitList": [
-                  "title-row",
-                  "genre",
-                  "rating-row",
-                  "runtime"
-                ]
+                "explicitList": ["title-row", "genre", "rating-row", "runtime"]
               }
             }
           }
@@ -55,10 +47,7 @@
           "component": {
             "Row": {
               "children": {
-                "explicitList": [
-                  "movie-title",
-                  "year"
-                ]
+                "explicitList": ["movie-title", "year"]
               },
               "alignment": "start"
             }
@@ -102,10 +91,7 @@
           "component": {
             "Row": {
               "children": {
-                "explicitList": [
-                  "star-icon",
-                  "rating-value"
-                ]
+                "explicitList": ["star-icon", "rating-value"]
               },
               "alignment": "center"
             }
@@ -137,10 +123,7 @@
           "component": {
             "Row": {
               "children": {
-                "explicitList": [
-                  "time-icon",
-                  "runtime-text"
-                ]
+                "explicitList": ["time-icon", "runtime-text"]
               },
               "alignment": "center"
             }

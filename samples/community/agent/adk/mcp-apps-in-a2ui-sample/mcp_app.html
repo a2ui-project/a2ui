@@ -1,0 +1,95 @@
+<!doctype html>
+<!--
+ Copyright 2026 Google LLC
+
+ Licensed under the Apache License, Version 2.0 (the "License");
+ you may not use this file except in compliance with the License.
+ You may obtain a copy of the License at
+
+      https://www.apache.org/licenses/LICENSE-2.0
+
+ Unless required by applicable law or agreed to in writing, software
+ distributed under the License is distributed on an "AS IS" BASIS,
+ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ See the License for the specific language governing permissions and
+ limitations under the License.
+-->
+
+<html>
+  <head>
+    <title>MCP Sample App</title>
+    <style>
+      body {
+        font-family: sans-serif;
+        padding: 10px;
+      }
+      button {
+        padding: 8px 16px;
+        background: #137fec;
+        color: white;
+        border: none;
+        border-radius: 4px;
+        cursor: pointer;
+      }
+      #status {
+        margin-top: 10px;
+        color: green;
+      }
+    </style>
+  </head>
+  <body>
+    <h3>MCP Sandboxed App</h3>
+    <div id="data">Initial Data: <span id="val">None</span></div>
+    <br />
+    <button id="actionBtn">Call Agent Tool</button>
+    <div id="status"></div>
+
+    <script type="importmap">
+      {
+        "imports": {
+          "@modelcontextprotocol/sdk/types.js": "../../lit/node_modules/@modelcontextprotocol/sdk/dist/esm/types.js",
+          "@modelcontextprotocol/sdk/shared/protocol.js": "../../lit/node_modules/@modelcontextprotocol/sdk/dist/esm/shared/protocol.js"
+        }
+      }
+    </script>
+    <script type="module">
+      import {App as AppBridge} from '../../lit/node_modules/@modelcontextprotocol/ext-apps/dist/src/app-with-deps.js';
+
+      const bridge = new AppBridge({name: 'mcp-apps-in-a2ui-sample', version: '1.0.0'});
+
+      async function init() {
+        const statusEl = document.getElementById('status');
+        console.log('[MCP App Iframe] init() started');
+        statusEl.innerText = 'Initializing bridge...';
+        try {
+          console.log('[MCP App Iframe] Calling bridge.connect()...');
+          await bridge.connect();
+          console.log('[MCP App Iframe] bridge.connect() resolved!');
+          statusEl.innerText = 'Connected to host!';
+
+          document.getElementById('actionBtn').addEventListener('click', async () => {
+            console.log('[MCP App Iframe] Button clicked!');
+            statusEl.innerText = 'Calling tool...';
+            try {
+              console.log('[MCP App Iframe] Calling bridge.callServerTool...');
+              const res = await bridge.callServerTool({
+                name: 'trigger_agent_action',
+                arguments: {foo: 'bar'},
+              });
+              console.log('[MCP App Iframe] Tool response:', res);
+              statusEl.innerText = 'Tool response received!';
+            } catch (err) {
+              console.error('[MCP App Iframe] Tool error:', err);
+              statusEl.innerText = 'Error: ' + err.message;
+            }
+          });
+        } catch (err) {
+          console.error('[MCP App Iframe] Connection failed:', err);
+          statusEl.innerText = 'Connection failed: ' + err.message;
+        }
+      }
+
+      init();
+    </script>
+  </body>
+</html>

@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-export { DrawableCanvas } from "./drawable-canvas";
-export { Splitter } from "./splitter";
-export { Snackbar } from "./snackbar";
-export { ItemSelect } from "./item-select";
+export {DrawableCanvas} from './drawable-canvas';
+export {Splitter} from './splitter';
+export {Snackbar} from './snackbar';
+export {ItemSelect} from './item-select';

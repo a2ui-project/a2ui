@@ -25,6 +25,14 @@ This project follows
 
 ## Contribution process
 
+### Issues
+
+File new issues here: https://github.com/a2ui-project/a2ui/issues
+
+The issue triage process is described in the Google-internal document: go/a2ui-triage.
+
+TODO(polina-c): port process description here.
+
 ### Code reviews
 
 All submissions, including submissions by project members, require review. We
@@ -41,7 +49,7 @@ You may follow these steps to contribute:
 3. **Work on your forked repository's feature branch.** This is where you will make your changes to the code.
 4. **Commit your updates on your forked repository's feature branch.** This will save your changes to your copy of the repository.
 5. **Submit a pull request to the official repository's main branch.** This will request that your changes be merged into the official repository.
-6. **Resolve any linting errors.** This will ensure that your changes are formatted correctly.
+6. **Resolve any linting and formatting errors.** Run `./scripts/fix_format.sh` to fix formatting issues.
 
 Here are some additional things to keep in mind during the process:
 
@@ -50,12 +58,45 @@ Here are some additional things to keep in mind during the process:
 
 ## Coding Style
 
-To keep our codebase consistent and maintainable, we follow specific coding standards for Python and TypeScript.
+To keep our codebase consistent and maintainable, we follow specific coding standards and use automated formatters.
 
-Please refer to [STYLE_GUIDE.md](STYLE_GUIDE.md) for detailed guidelines on:
-*   **Python**: specific formatting, linting, and naming conventions (Google Python Style).
-*   **TypeScript**: usage of `gts`, naming conventions, and code organization (Google TypeScript Style).
-*   **License Headers**: required copyright notices.
+### Formatters
+
+- **JavaScript / TypeScript / JSON / Markdown / CSS**: [Prettier](https://prettier.io/)
+- **Python**: [Pyink](https://github.com/google/pyink) (Google style Black)
+- **Dart**: `dart format`
+- **Swift**: `swift-format`
+
+You can use the provided script to format the entire repo or check formatting:
+
+```bash
+./scripts/fix_format.sh
+./scripts/fix_format.sh --check
+```
+
+### IDE Recommendations (VS Code)
+
+We recommend using [VS Code](https://code.visualstudio.com/) for development. To help enforce formatting, please install the following extensions:
+
+- **Prettier - Code formatter** (`esbenp.prettier-vscode`)
+- **Black Formatter** (`ms-python.black-formatter`) - configured to use `pyink` in workspace settings.
+- **Dart** (`Dart-Code.dart-code`)
+
+Workspace settings are provided in `.vscode/settings.json` to use these formatters by default on save.
+
+Please refer to the following guidelines for detailed information on styles:
+
+- **Python**: [Google Python Style Guide](https://google.github.io/styleguide/pyguide.html).
+- **TypeScript**: [Google TypeScript Style Guide](https://google.github.io/styleguide/tsguide.html).
+- **Swift**: [Google Swift Style Guide](https://google.github.io/swift/)
+- **License Headers**: required copyright notices.
 
 We expect all contributors to adhere to these styles.
 
+## More on contributing
+
+See more about contributing in [docs/contributing](docs/contributing).
+
+## Internal information
+
+For Google-internal information see go/a2ui-internal.

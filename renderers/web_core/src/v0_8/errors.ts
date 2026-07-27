@@ -28,7 +28,7 @@ interface V8ErrorConstructor extends ErrorConstructor {
 export class A2uiError extends Error {
   public readonly code: string;
 
-  constructor(message: string, code: string = "UNKNOWN_ERROR") {
+  constructor(message: string, code: string = 'UNKNOWN_ERROR') {
     super(message);
     this.name = this.constructor.name;
     this.code = code;
@@ -48,7 +48,7 @@ export class A2uiValidationError extends A2uiError {
     message: string,
     public readonly details?: any,
   ) {
-    super(message, "VALIDATION_ERROR");
+    super(message, 'VALIDATION_ERROR');
   }
 }
 
@@ -60,7 +60,7 @@ export class A2uiDataError extends A2uiError {
     message: string,
     public readonly path?: string,
   ) {
-    super(message, "DATA_ERROR");
+    super(message, 'DATA_ERROR');
   }
 }
 
@@ -72,7 +72,7 @@ export class A2uiExpressionError extends A2uiError {
     message: string,
     public readonly expression?: string,
   ) {
-    super(message, "EXPRESSION_ERROR");
+    super(message, 'EXPRESSION_ERROR');
   }
 }
 
@@ -81,6 +81,6 @@ export class A2uiExpressionError extends A2uiError {
  */
 export class A2uiStateError extends A2uiError {
   constructor(message: string) {
-    super(message, "STATE_ERROR");
+    super(message, 'STATE_ERROR');
   }
 }

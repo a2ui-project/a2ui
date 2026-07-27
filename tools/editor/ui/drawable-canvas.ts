@@ -14,23 +14,23 @@
  * limitations under the License.
  */
 
-import { LitElement, css, html, nothing, svg, unsafeCSS } from "lit";
-import { customElement, query, state } from "lit/decorators.js";
-import { EnumValue } from "../types/types";
-import { ItemSelect } from "./item-select";
-import { v0_8 } from "@a2ui/lit";
+import {LitElement, css, html, nothing, svg, unsafeCSS} from 'lit';
+import {customElement, query, state} from 'lit/decorators.js';
+import {EnumValue} from '../types/types';
+import {ItemSelect} from './item-select';
+import {v0_8} from '@a2ui/lit';
 
-type RenderMode = "free" | "line" | "rect";
+type RenderMode = 'free' | 'line' | 'rect';
 interface Path {
-  type: "free";
+  type: 'free';
   value: string;
 }
 interface Line {
-  type: "line";
-  value: { sx: number; sy: number; dx: number; dy: number };
+  type: 'line';
+  value: {sx: number; sy: number; dx: number; dy: number};
 }
 interface Rect {
-  type: "rect";
+  type: 'rect';
   value: {
     bx: number;
     by: number;
@@ -43,36 +43,36 @@ interface Rect {
 type Shape = Path | Line | Rect;
 
 function isPath(shape: Shape | null): shape is Path {
-  return shape !== null && shape.type === "free";
+  return shape !== null && shape.type === 'free';
 }
 
 function isLine(shape: Shape | null): shape is Line {
-  return shape !== null && shape.type === "line";
+  return shape !== null && shape.type === 'line';
 }
 
 function isRect(shape: Shape | null): shape is Rect {
-  return shape !== null && shape.type === "rect";
+  return shape !== null && shape.type === 'rect';
 }
 
 const values: EnumValue[] = [
   {
-    id: "free",
-    title: "Freehand",
-    icon: "draw",
+    id: 'free',
+    title: 'Freehand',
+    icon: 'draw',
   },
   {
-    id: "line",
-    title: "Line",
-    icon: "pen_size_1",
+    id: 'line',
+    title: 'Line',
+    icon: 'pen_size_1',
   },
   {
-    id: "rect",
-    title: "Rectangle",
-    icon: "rectangle",
+    id: 'rect',
+    title: 'Rectangle',
+    icon: 'rectangle',
   },
 ];
 
-@customElement("drawable-canvas")
+@customElement('drawable-canvas')
 export class DrawableCanvas extends LitElement {
   static styles = [
     unsafeCSS(v0_8.Styles.structuralStyles),
@@ -138,8 +138,8 @@ export class DrawableCanvas extends LitElement {
         --selected-item-height: var(--bb-grid-size-9);
         --selected-item-hover-color: var(--bb-neutral-50);
         --selected-item-border-radius: var(--bb-grid-size-2);
-        --selected-item-font: 400 var(--bb-label-large) /
-          var(--bb-label-line-height-large) var(--bb-font-family);
+        --selected-item-font: 400 var(--bb-label-large) / var(--bb-label-line-height-large)
+          var(--bb-font-family);
         --selected-item-title-padding: 0 var(--bb-grid-size-2) 0 0;
       }
     `,
@@ -151,7 +151,7 @@ export class DrawableCanvas extends LitElement {
   @state()
   accessor #currentShape: Shape | null = null;
 
-  @query("svg")
+  @query('svg')
   accessor #svg: SVGElement | null = null;
 
   #bounds: DOMRect = new DOMRect();
@@ -160,13 +160,13 @@ export class DrawableCanvas extends LitElement {
   @state()
   set mode(mode: RenderMode) {
     this.#mode = mode;
-    localStorage.setItem("drawable-mode", mode);
+    localStorage.setItem('drawable-mode', mode);
   }
   get mode() {
     return this.#mode;
   }
 
-  #mode: RenderMode = "free";
+  #mode: RenderMode = 'free';
 
   #isDrawing = false;
   #resizeObserver = new ResizeObserver(() => {
@@ -196,8 +196,7 @@ export class DrawableCanvas extends LitElement {
   constructor() {
     super();
 
-    this.#mode =
-      (localStorage.getItem("drawable-mode") as RenderMode) ?? "free";
+    this.#mode = (localStorage.getItem('drawable-mode') as RenderMode) ?? 'free';
   }
 
   connectedCallback(): void {
@@ -220,17 +219,17 @@ export class DrawableCanvas extends LitElement {
     const y = e.offsetY + this.#adjustment.y;
 
     switch (this.#mode) {
-      case "free": {
+      case 'free': {
         this.#currentShape = {
-          type: "free",
+          type: 'free',
           value: `M ${x} ${y}`,
         };
         break;
       }
 
-      case "rect": {
+      case 'rect': {
         this.#currentShape = {
-          type: "rect",
+          type: 'rect',
           value: {
             bx: x,
             by: y,
@@ -243,10 +242,10 @@ export class DrawableCanvas extends LitElement {
         break;
       }
 
-      case "line": {
+      case 'line': {
         this.#currentShape = {
-          type: "line",
-          value: { sx: x, sy: y, dx: 0, dy: 0 },
+          type: 'line',
+          value: {sx: x, sy: y, dx: 0, dy: 0},
         };
         break;
       }
@@ -259,7 +258,7 @@ export class DrawableCanvas extends LitElement {
 
     if (!this.#isDrawing) return;
     switch (this.#mode) {
-      case "free": {
+      case 'free': {
         if (!isPath(this.#currentShape)) {
           break;
         }
@@ -268,7 +267,7 @@ export class DrawableCanvas extends LitElement {
         break;
       }
 
-      case "rect": {
+      case 'rect': {
         if (!isRect(this.#currentShape)) {
           break;
         }
@@ -284,7 +283,7 @@ export class DrawableCanvas extends LitElement {
         break;
       }
 
-      case "line": {
+      case 'line': {
         if (!isLine(this.#currentShape)) {
           break;
         }
@@ -304,7 +303,7 @@ export class DrawableCanvas extends LitElement {
 
     if (isPath(this.#currentShape)) {
       // Adjust paths that were clicks to have a least one pixel.
-      if (!this.#currentShape.value.includes("L")) {
+      if (!this.#currentShape.value.includes('L')) {
         const x = e.offsetX + this.#adjustment.x;
         const y = e.offsetY + this.#adjustment.y;
 
@@ -350,34 +349,33 @@ export class DrawableCanvas extends LitElement {
   render() {
     return html`${svg`
       <svg
-        viewBox="${this.#adjustment.x} ${this.#adjustment.y} ${this.#bounds.width
-      } ${this.#bounds.height}"
+        viewBox="${this.#adjustment.x} ${this.#adjustment.y} ${this.#bounds.width} ${this.#bounds.height}"
         @pointerdown=${this.#startDrawing}
         @pointermove=${this.#draw}
         @pointerup=${this.#stopDrawing}
         @pointerleave=${this.#stopDrawing}
       >
-        ${this.#shapes.map((shape) => this.#renderShape(shape))}
+        ${this.#shapes.map(shape => this.#renderShape(shape))}
         ${this.#renderCurrentPath()}
       </svg>
     `}
       <div id="controls">
         <item-select
           @change=${(e: Event) => {
-        if (!(e.target instanceof ItemSelect)) {
-          return;
-        }
+            if (!(e.target instanceof ItemSelect)) {
+              return;
+            }
 
-        this.mode = e.target.value as RenderMode;
-      }}
+            this.mode = e.target.value as RenderMode;
+          }}
           .values=${values}
           .value=${this.mode}
         ></item-select>
 
         <button
           @click=${() => {
-        this.clear();
-      }}
+            this.clear();
+          }}
         >
           <span class="g-icon filled round">delete</span> Clear
         </button>
@@ -392,12 +390,12 @@ export class DrawableCanvas extends LitElement {
   public async getValue(): Promise<HTMLImageElement> {
     const svgEl = this.#svg;
     if (!svgEl) {
-      throw new Error("SVG element not found.");
+      throw new Error('SVG element not found.');
     }
 
-    const { width, height } = this.getBoundingClientRect();
+    const {width, height} = this.getBoundingClientRect();
     if (width === 0 || height === 0) {
-      throw new Error("Canvas has zero dimensions, cannot generate image.");
+      throw new Error('Canvas has zero dimensions, cannot generate image.');
     }
 
     const adjustedWidth = width * 1.5;
@@ -405,21 +403,21 @@ export class DrawableCanvas extends LitElement {
 
     // Clone the SVG to avoid modifying the original
     const svgClone = svgEl.cloneNode(true) as SVGElement;
-    svgClone.setAttribute("width", `${adjustedWidth}px`);
-    svgClone.setAttribute("height", `${adjustedHeight}px`);
+    svgClone.setAttribute('width', `${adjustedWidth}px`);
+    svgClone.setAttribute('height', `${adjustedHeight}px`);
 
     const svgString = new XMLSerializer().serializeToString(svgClone);
-    const canvas = document.createElement("canvas");
-    const ctx = canvas.getContext("2d");
+    const canvas = document.createElement('canvas');
+    const ctx = canvas.getContext('2d');
 
     if (!ctx) {
-      throw new Error("Could not get 2D canvas context.");
+      throw new Error('Could not get 2D canvas context.');
     }
 
     canvas.width = adjustedWidth;
     canvas.height = adjustedHeight;
 
-    ctx.fillStyle = "#f2f2f2";
+    ctx.fillStyle = '#f2f2f2';
     ctx.fillRect(0, 0, adjustedWidth, adjustedHeight);
 
     return new Promise<HTMLImageElement>((resolve, reject) => {
@@ -429,17 +427,17 @@ export class DrawableCanvas extends LitElement {
         URL.revokeObjectURL(svgImage.src);
 
         const img = new Image();
-        img.src = canvas.toDataURL("image/jpeg", 85);
+        img.src = canvas.toDataURL('image/jpeg', 85);
 
         resolve(img);
       };
-      svgImage.onerror = (err) => {
+      svgImage.onerror = err => {
         URL.revokeObjectURL(svgImage.src);
         reject(new Error(`Failed to load SVG into image: ${err}`));
       };
 
       const svgBlob = new Blob([svgString], {
-        type: "image/svg+xml;charset=utf-8",
+        type: 'image/svg+xml;charset=utf-8',
       });
       svgImage.src = URL.createObjectURL(svgBlob);
     });

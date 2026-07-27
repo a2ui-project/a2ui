@@ -14,25 +14,76 @@
  * limitations under the License.
  */
 
-import { z } from "zod";
-import { DataContext } from "../rendering/data-context.js";
-import { Signal } from "@preact/signals-core";
+import {z} from 'zod';
+import {DataContext} from '../rendering/data-context.js';
+import {Signal} from '../reactivity/signals.js';
+import {A2uiExpressionError} from '../errors.js';
+
+export type A2uiReturnType = 'string' | 'number' | 'boolean' | 'array' | 'object' | 'any' | 'void';
+
+export type InferA2uiReturnType<T extends A2uiReturnType> = T extends 'string'
+  ? string
+  : T extends 'number'
+    ? number
+    : T extends 'boolean'
+      ? boolean
+      : T extends 'array'
+        ? any[]
+        : T extends 'object'
+          ? Record<string, any>
+          : T extends 'void'
+            ? void
+            : any;
+
+/**
+ * A definition of a UI function's API.
+ */
+export interface FunctionApi {
+  readonly name: string;
+  readonly returnType: A2uiReturnType;
+  readonly schema: z.ZodTypeAny;
+}
 
 /**
  * A function implementation that can be registered with the evaluator or basic catalog.
  */
-export type FunctionImplementation = (
-  args: Record<string, unknown>,
-  context: DataContext,
-  abortSignal?: AbortSignal,
-) => unknown | Signal<unknown>;
+export interface FunctionImplementation extends FunctionApi {
+  execute(
+    args: Record<string, any>,
+    context: DataContext,
+    abortSignal?: AbortSignal,
+  ): unknown | Signal<unknown>;
+}
+
+export function createFunctionImplementation<
+  Schema extends z.ZodTypeAny,
+  TReturn extends A2uiReturnType,
+>(
+  api: {name: string; returnType: TReturn; schema: Schema},
+  execute: (
+    args: z.infer<Schema>,
+    context: DataContext,
+    abortSignal?: AbortSignal,
+  ) => InferA2uiReturnType<TReturn> | Signal<InferA2uiReturnType<TReturn>>,
+): FunctionImplementation {
+  return {
+    name: api.name,
+    returnType: api.returnType,
+    schema: api.schema,
+    execute: execute as (args: Record<string, any>, ctx: DataContext, ab?: AbortSignal) => unknown,
+  };
+}
+
+import {FunctionInvoker} from './function_invoker.js';
 
 /**
  * A definition of a UI component's API.
  * This interface defines the contract for a component's capabilities and properties,
  * independent of any specific rendering implementation.
+ *
+ * @template Schema the Zod schema type for the component's properties.
  */
-export interface ComponentApi {
+export interface ComponentApi<Schema extends z.ZodTypeAny = z.ZodTypeAny> {
   /** The name of the component as it appears in the A2UI JSON (e.g., 'Button'). */
   name: string;
 
@@ -42,13 +93,34 @@ export interface ComponentApi {
    * - MUST include catalog-specific common properties (e.g. 'weight', 'accessibility').
    * - MUST NOT include 'component' or 'id' as those are handled by the framework/envelope.
    */
-  readonly schema: z.ZodType<any>;
+  readonly schema: Schema;
+}
+
+/**
+ * Infers the schema type from a ComponentApi.
+ *
+ * This type uses `z.infer` on the `schema` property of a `ComponentApi` object.
+ * It is used to access the schema props of a component with type safety.
+ */
+export type InferredComponentApiSchemaType<Api extends ComponentApi> = z.infer<Api['schema']>;
+
+/**
+ * Interface for Catalog to prevent property renaming in 1P (Closure Compiler).
+ *
+ * This must declare all publicly accessed properties of Catalog.
+ */
+export declare interface CatalogInterface<T extends ComponentApi> {
+  readonly id: string;
+  readonly components: ReadonlyMap<string, T>;
+  readonly functions: ReadonlyMap<string, FunctionImplementation>;
+  readonly themeSchema?: z.ZodObject<any>;
+  readonly invoker: FunctionInvoker;
 }
 
 /**
  * A collection of available components and functions.
  */
-export class Catalog<T extends ComponentApi> {
+export class Catalog<T extends ComponentApi> implements CatalogInterface<T> {
   readonly id: string;
 
   /**
@@ -58,24 +130,63 @@ export class Catalog<T extends ComponentApi> {
   readonly components: ReadonlyMap<string, T>;
 
   /**
-   * Optional map of functions provided by this catalog.
+   * Map of functions provided by this catalog.
    */
-  readonly functions?: ReadonlyMap<string, FunctionImplementation>;
+  readonly functions: ReadonlyMap<string, FunctionImplementation>;
 
-  constructor(id: string, components: T[], functions?: Record<string, any>) {
+  /**
+   * The schema for theme parameters used by this catalog.
+   */
+  readonly themeSchema?: z.ZodObject<any>;
+
+  /**
+   * A ready-to-use FunctionInvoker callback that delegates to this catalog's functions.
+   * Can be passed directly to a DataContext.
+   */
+  readonly invoker: FunctionInvoker;
+
+  constructor(
+    id: string,
+    components: T[],
+    functions: FunctionImplementation[] = [],
+    themeSchema?: z.ZodObject<any>,
+  ) {
     this.id = id;
-    const map = new Map<string, T>();
-    for (const comp of components) {
-      map.set(comp.name, comp);
-    }
-    this.components = map;
 
-    if (functions) {
-      const funcMap = new Map<string, any>();
-      for (const [name, fn] of Object.entries(functions)) {
-        funcMap.set(name, fn);
-      }
-      this.functions = funcMap;
+    const compMap = new Map<string, T>();
+    for (const comp of components) {
+      compMap.set(comp.name, comp);
     }
+    this.components = compMap;
+
+    const funcMap = new Map<string, FunctionImplementation>();
+    for (const fn of functions) {
+      funcMap.set(fn.name, fn);
+    }
+    this.functions = funcMap;
+
+    this.themeSchema = themeSchema;
+
+    this.invoker = (name, rawArgs, ctx, abortSignal) => {
+      const fn = this.functions.get(name);
+      if (!fn) {
+        throw new A2uiExpressionError(`Function not found in catalog '${this.id}': ${name}`, name);
+      }
+
+      // Provides runtime safety: Coerces and strips invalid arguments before execute()
+      try {
+        const safeArgs = fn.schema.parse(rawArgs);
+        return fn.execute(safeArgs, ctx, abortSignal);
+      } catch (e: any) {
+        if (e?.name === 'ZodError' || e instanceof z.ZodError) {
+          throw new A2uiExpressionError(
+            `Validation failed for function '${name}': ${e.message}`,
+            name,
+            e.errors ?? e.issues,
+          );
+        }
+        throw e;
+      }
+    };
   }
 }

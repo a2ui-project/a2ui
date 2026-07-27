@@ -22,7 +22,7 @@
  * affect the visual rendering (always a dropdown).
  */
 
-import type { ComponentFixture } from '../types';
+import type {ComponentFixture} from '../types';
 
 export const multipleChoice: ComponentFixture = {
   root: 'mc-1',
@@ -31,11 +31,11 @@ export const multipleChoice: ComponentFixture = {
       id: 'mc-1',
       component: {
         MultipleChoice: {
-          selections: { path: '/mcSelections' },
+          selections: {path: '/mcSelections'},
           options: [
-            { value: 'option1', label: { literalString: 'Option 1' } },
-            { value: 'option2', label: { literalString: 'Option 2' } },
-            { value: 'option3', label: { literalString: 'Option 3' } },
+            {value: 'option1', label: {literalString: 'Option 1'}},
+            {value: 'option2', label: {literalString: 'Option 2'}},
+            {value: 'option3', label: {literalString: 'Option 3'}},
           ],
         },
       },

@@ -1,0 +1,19 @@
+{
+  "title": "Mock Basic Catalog",
+  "components": {
+    "Text": {
+      "type": "object",
+      "properties": {
+        "text": {"type": "string"}
+      }
+    }
+  },
+  "$defs": {
+    "theme": {
+      "type": "object",
+      "properties": {
+        "primaryColor": {"type": "string"}
+      }
+    }
+  }
+}

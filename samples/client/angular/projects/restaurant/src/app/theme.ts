@@ -222,7 +222,7 @@ export const theme: Types.Theme = {
       'behavior-ho-70': true,
       'typography-w-400': true,
     },
-    Card: { 'border-br-9': true, 'layout-p-4': true, 'color-bgc-n100': true },
+    Card: {'border-br-9': true, 'layout-p-4': true, 'color-bgc-n100': true},
     CheckBox: {
       element: {
         'layout-m-0': true,
@@ -287,7 +287,7 @@ export const theme: Types.Theme = {
         'layout-w-100': true,
         'layout-h-100': true,
       },
-      avatar: { 'is-avatar': true },
+      avatar: {'is-avatar': true},
       header: {},
       icon: {},
       largeFeature: {},
@@ -300,7 +300,7 @@ export const theme: Types.Theme = {
       'layout-p-2': true,
     },
     Modal: {
-      backdrop: { 'color-bbgc-p60_20': true },
+      backdrop: {'color-bbgc-p60_20': true},
       element: {
         'border-br-2': true,
         'color-bgc-p100': true,
@@ -325,7 +325,7 @@ export const theme: Types.Theme = {
     },
     Tabs: {
       container: {},
-      controls: { all: {}, selected: {} },
+      controls: {all: {}, selected: {}},
       element: {},
     },
     Text: {

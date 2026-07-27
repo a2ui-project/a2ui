@@ -14,115 +14,137 @@
  * limitations under the License.
  */
 
-import { describe, it } from "node:test";
-import assert from "node:assert";
-import { DataModel } from "../state/data-model.js";
-import { DataContext } from "../rendering/data-context.js";
+import {describe, it} from 'node:test';
+import assert from 'node:assert';
+import {DataModel} from '../state/data-model.js';
+import {DataContext} from '../rendering/data-context.js';
 
-import { signal } from "@preact/signals-core";
+import {signal, setValue} from '../reactivity/signals.js';
 
-describe("Function Execution in DataContext", () => {
-  it("resolves and subscribes to metronome function", (_t, done) => {
+const createTestDataContext = (
+  model: DataModel,
+  path: string,
+  functionInvoker: any = () => null,
+) => {
+  const mockSurface = {
+    dataModel: model,
+    catalog: {invoker: functionInvoker},
+    dispatchError: () => {},
+  } as any;
+  return new DataContext(mockSurface, path);
+};
+
+describe('Function Execution in DataContext', () => {
+  it('resolves and subscribes to metronome function', () => {
     const dataModel = new DataModel();
 
     const functions = new Map<string, Function>();
     // mimic metronome: returns a stream of ticks
-    functions.set("metronome", (args: Record<string, any>, abortSignal?: AbortSignal) => {
-      const interval = Number(args["interval"]) || 100;
-      const subj = signal<string>("tick 0");
+    functions.set('metronome', (args: Record<string, any>, abortSignal?: AbortSignal) => {
+      const interval = Number(args['interval']) || 100;
+      const subj = signal<string>('tick 0');
       let i = 1;
       const timerId = setInterval(() => {
-        subj.value = `tick ${i++}`;
+        setValue(subj, `tick ${i++}`);
       }, interval);
-      
-      abortSignal?.addEventListener("abort", () => {
+
+      abortSignal?.addEventListener('abort', () => {
         clearInterval(timerId);
       });
-      
+
       return subj;
     });
 
-    const context = new DataContext(dataModel, "/", (name, args, _ctx, abortSignal) => {
-      const fn = functions.get(name);
-      return fn ? fn(args, abortSignal) : undefined;
-    });
+    const context = createTestDataContext(
+      dataModel,
+      '/',
+      (name: string, args: any, _ctx: any, abortSignal?: AbortSignal) => {
+        const fn = functions.get(name);
+        return fn ? fn(args, abortSignal) : undefined;
+      },
+    );
 
     // DynamicValue representing: metronome(interval: 50)
     const dynamicValue = {
-      call: "metronome",
+      call: 'metronome',
       args: {
         interval: 50,
       },
-      returnType: "string" as const,
+      returnType: 'string' as const,
     };
 
     const values: string[] = [];
-    const subscription = context.subscribeDynamicValue<string>(
-      dynamicValue,
-      (val) => {
+    return new Promise<void>((resolve, reject) => {
+      const subscription = context.subscribeDynamicValue<string>(dynamicValue, val => {
         if (val) values.push(val);
         if (values.length >= 3) {
           subscription.unsubscribe();
           try {
-            assert.strictEqual(values[0], "tick 0");
-            assert.strictEqual(values[1], "tick 1");
-            assert.strictEqual(values[2], "tick 2");
-            done();
+            assert.strictEqual(values[0], 'tick 0');
+            assert.strictEqual(values[1], 'tick 1');
+            assert.strictEqual(values[2], 'tick 2');
+            resolve();
           } catch (e) {
-            done(e);
+            reject(e);
           }
         }
-      },
-    );
+      });
+      if (subscription.value) {
+        values.push(subscription.value);
+      }
+    });
   });
 
-  it("updates function output when arguments change", (_t, done) => {
+  it('updates function output when arguments change', () => {
     const dataModel = new DataModel();
     const functions = new Map<string, Function>();
 
-    functions.set("echo", (args: Record<string, any>) => {
-      return `echo: ${args["val"]}`;
+    functions.set('echo', (args: Record<string, any>) => {
+      return `echo: ${args['val']}`;
     });
 
-    const context = new DataContext(dataModel, "/", (name, args, _ctx, abortSignal) => {
-      const fn = functions.get(name);
-      return fn ? fn(args, abortSignal) : undefined;
-    });
-    dataModel.set("/msg", "hello");
+    const context = createTestDataContext(
+      dataModel,
+      '/',
+      (name: string, args: any, _ctx: any, abortSignal?: AbortSignal) => {
+        const fn = functions.get(name);
+        return fn ? fn(args, abortSignal) : undefined;
+      },
+    );
+    dataModel.set('/msg', 'hello');
 
     // echo(val: {path: '/msg'})
     const dynamicValue = {
-      call: "echo",
+      call: 'echo',
       args: {
-        val: { path: "/msg" },
+        val: {path: '/msg'},
       },
-      returnType: "string" as const,
+      returnType: 'string' as const,
     };
 
     const values: string[] = [];
-    const subscription = context.subscribeDynamicValue<string>(
-      dynamicValue,
-      (val) => {
+    return new Promise<void>((resolve, reject) => {
+      const subscription = context.subscribeDynamicValue<string>(dynamicValue, val => {
         if (val) values.push(val);
         if (values.length === 2) {
           subscription.unsubscribe();
           try {
-            assert.strictEqual(values[0], "echo: hello");
-            assert.strictEqual(values[1], "echo: world");
-            done();
+            assert.strictEqual(values[0], 'echo: hello');
+            assert.strictEqual(values[1], 'echo: world');
+            resolve();
           } catch (e) {
-            done(e);
+            reject(e);
           }
         }
-      },
-    );
-    if (subscription.value) {
-      values.push(subscription.value);
-    }
+      });
+      if (subscription.value) {
+        values.push(subscription.value);
+      }
 
-    // Change data after a short delay to ensure first emit happens
-    setTimeout(() => {
-      dataModel.set("/msg", "world");
-    }, 50);
+      // Change data after a short delay to ensure first emit happens
+      setTimeout(() => {
+        dataModel.set('/msg', 'world');
+      }, 50);
+    });
   });
 });

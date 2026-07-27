@@ -35,7 +35,7 @@ export const behavior = `
           ${opacityBehavior}
         }`;
     })
-    .join("\n")}
+    .join('\n')}
 
   .behavior-o-s {
     overflow: scroll;

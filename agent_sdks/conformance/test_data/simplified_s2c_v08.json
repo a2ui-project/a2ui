@@ -1,0 +1,75 @@
+{
+  "title": "A2UI Message Schema",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "beginRendering": {
+      "type": "object",
+      "properties": {
+        "surfaceId": { "type": "string" },
+        "root": { "type": "string" },
+        "styles": { "type": "object", "additionalProperties": true }
+      },
+      "required": ["surfaceId", "root"]
+    },
+    "surfaceUpdate": {
+      "type": "object",
+      "properties": {
+        "surfaceId": { "type": "string" },
+        "components": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": { "type": "string" },
+              "component": {
+                "type": "object",
+                "additionalProperties": true
+              }
+            },
+            "required": ["id", "component"]
+          }
+        }
+      },
+      "required": ["surfaceId", "components"]
+    },
+    "dataModelUpdate": {
+      "type": "object",
+      "properties": {
+        "surfaceId": { "type": "string" },
+        "contents": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "key": { "type": "string" },
+              "valueString": { "type": "string" },
+              "valueNumber": { "type": "number" },
+              "valueBoolean": { "type": "boolean" },
+              "valueMap": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "key": { "type": "string" },
+                    "valueString": { "type": "string" },
+                    "valueNumber": { "type": "number" },
+                    "valueBoolean": { "type": "boolean" }
+                  },
+                  "required": ["key"]
+                }
+              }
+            },
+            "required": ["key"]
+          }
+        }
+      },
+      "required": ["surfaceId", "contents"]
+    },
+    "deleteSurface": {
+      "type": "object",
+      "properties": { "surfaceId": { "type": "string" } },
+      "required": ["surfaceId"]
+    }
+  }
+}

@@ -8,8 +8,8 @@ the Lit renderer (the reference implementation).
 These tests compare screenshots of the same A2UI components rendered by both
 implementations:
 
--   **Lit renderer** (Shadow DOM) - Reference implementation at `localhost:5002`
--   **React renderer** (Light DOM) - Test subject at `localhost:5001`
+- **Lit renderer** (Shadow DOM) - Reference implementation at `localhost:5002`
+- **React renderer** (Light DOM) - Test subject at `localhost:5001`
 
 Tests pass when the pixel difference is ≤1%.
 
@@ -44,28 +44,29 @@ Tests pass when the pixel difference is ≤1%.
 
 ### Prerequisites
 
-1.  Build the React renderer first: `bash cd renderers/react npm install npm run
-    build`
-
-2.  Install visual-parity dependencies: `bash cd visual-parity npm install`
+1.  Before running tests, install dependencies and build all packages from the repository root:
+    ```bash
+    yarn install
+    yarn build:all
+    ```
 
 ### Running Tests
 
 ```bash
 # Run all visual parity tests
-npm test
+yarn test
 
 # Run tests for a specific component
-npm test -- --grep "button"
+yarn test --grep "button"
 
 # Run tests for a specific theme
-npm test -- --grep "Theme: lit"
+yarn test --grep "Theme: lit"
 
 # Run with UI mode (interactive)
-npm run test:ui
+yarn test:ui
 
 # View test report
-npm run test:report
+yarn test:report
 ```
 
 ### Development Mode
@@ -74,11 +75,11 @@ Run both dev servers to manually inspect components:
 
 ```bash
 # Start both servers
-npm run dev
+yarn dev
 
 # Or start individually
-npm run dev:react  # localhost:5001
-npm run dev:lit    # localhost:5002
+yarn dev:react  # localhost:5001
+yarn dev:lit    # localhost:5002
 ```
 
 Then open: - http://localhost:5001?fixture=buttonPrimary&theme=lit (React) -
@@ -124,21 +125,21 @@ visual-parity/
 Add to `fixtures/components/<component>.ts`:
 
 ```typescript
-import type { ComponentFixture } from '../types';
+import type {ComponentFixture} from '../types';
 
 export const myNewFixture: ComponentFixture = {
-  root: 'component-1',  // ID of root component
+  root: 'component-1', // ID of root component
   components: [
     {
       id: 'text-1',
       component: {
-        Text: { text: { literalString: 'Hello World' } },
+        Text: {text: {literalString: 'Hello World'}},
       },
     },
     {
       id: 'component-1',
       component: {
-        Button: { child: 'text-1', primary: true },
+        Button: {child: 'text-1', primary: true},
       },
     },
   ],
@@ -159,14 +160,14 @@ Add to `fixtures/components/index.ts`:
 
 ```typescript
 export * from './myComponent';
-import { myComponentFixtures } from './myComponent';
+import {myComponentFixtures} from './myComponent';
 // Add to allFixtures aggregation
 ```
 
 Add to `fixtures/index.ts`:
 
 ```typescript
-import { myComponentFixtures } from './components';
+import {myComponentFixtures} from './components';
 
 export const allFixtures = {
   ...existingFixtures,
@@ -177,19 +178,19 @@ export const allFixtures = {
 ### 3. Run the Test
 
 ```bash
-npm test -- --grep "myNewFixture"
+yarn test --grep "myNewFixture"
 ```
 
 ## Fixture Format
 
 ```typescript
 interface ComponentFixture {
-  root: string;                    // ID of the root component to render
+  root: string; // ID of the root component to render
   components: Array<{
-    id: string;                    // Unique component ID
-    component: Record<string, unknown>;  // A2UI component definition
+    id: string; // Unique component ID
+    component: Record<string, unknown>; // A2UI component definition
   }>;
-  data?: Record<string, unknown>;  // Initial data model values (JSON Pointer paths)
+  data?: Record<string, unknown>; // Initial data model values (JSON Pointer paths)
 }
 ```
 
@@ -197,13 +198,17 @@ interface ComponentFixture {
 
 Tests run across multiple themes to ensure theme switching works:
 
-Theme          | Description
--------------- | ---------------------------------
-`lit`          | Default litTheme from @a2ui/react
-`visualParity` | Alternate theme for testing
-`minimal`      | Stripped-down theme
+| Theme          | Description                       |
+| -------------- | --------------------------------- |
+| `lit`          | Default litTheme from @a2ui/react |
+| `visualParity` | Alternate theme for testing       |
+| `minimal`      | Stripped-down theme               |
 
-To test a specific theme: `bash npm test -- --grep "Theme: minimal"`
+To test a specific theme:
+
+```bash
+yarn test --grep "Theme: minimal"
+```
 
 ## Skipped Fixtures
 
@@ -212,7 +217,8 @@ Some fixtures are skipped due to known implementation differences:
 | Fixture           | Reason                                                   |
 | ----------------- | -------------------------------------------------------- |
 | `multipleChoice*` | Implementation differs: React uses radio/checkboxes, Lit |
-:                   : uses `<select>`                                          :
+
+: : uses `<select>` :
 
 ## Troubleshooting
 
@@ -222,7 +228,7 @@ If you see `504 Outdated Optimize Dep` errors:
 
 ```bash
 rm -rf node_modules/.vite react/node_modules/.vite lit/node_modules/.vite
-npm run dev:react  # or dev:lit
+yarn dev:react  # or dev:lit
 ```
 
 ### React Changes Not Reflected
@@ -231,14 +237,14 @@ The visual parity apps import from the **built** `@a2ui/react` package. After
 making changes:
 
 ```bash
-# 1. Rebuild React renderer
-cd renderers/react
-npm run build
+# 1. Rebuild all packages (or just the React renderer)
+cd ../../..
+yarn build:all
 
 # 2. Clear Vite cache and restart
-cd visual-parity
+cd renderers/react/visual-parity
 rm -rf node_modules/.vite react/node_modules/.vite
-npm run dev:react
+yarn dev:react
 ```
 
 ### Test Failures
@@ -246,32 +252,32 @@ npm run dev:react
 When a test fails, Playwright saves screenshots to `test-results/`. Compare them
 to identify the visual difference.
 
-To debug a specific fixture: ```bash
+To debug a specific fixture:
 
+```bash
 # Run with headed browser
-
-npm test -- --grep "buttonPrimary" --headed
+yarn test --grep "buttonPrimary" --headed
 
 # Or use UI mode
-
-npm run test:ui ```
+yarn test:ui
+```
 
 ## Key Modules
 
-Module             | Purpose
------------------- | -------------------------------------
-`@playwright/test` | Browser automation and test framework
-`pixelmatch`       | Pixel-by-pixel image comparison
-`pngjs`            | PNG image parsing
-`vite`             | Dev server for React and Lit apps
+| Module             | Purpose                               |
+| ------------------ | ------------------------------------- |
+| `@playwright/test` | Browser automation and test framework |
+| `pixelmatch`       | Pixel-by-pixel image comparison       |
+| `pngjs`            | PNG image parsing                     |
+| `vite`             | Dev server for React and Lit apps     |
 
 ## Thresholds
 
-Parameter              | Value     | Purpose
----------------------- | --------- | -----------------------------------
-`PIXEL_DIFF_THRESHOLD` | 0.01 (1%) | Per-pixel color tolerance
-`MAX_DIFF_PERCENT`     | 1%        | Maximum % of pixels that can differ
+| Parameter              | Value     | Purpose                             |
+| ---------------------- | --------- | ----------------------------------- |
+| `PIXEL_DIFF_THRESHOLD` | 0.01 (1%) | Per-pixel color tolerance           |
+| `MAX_DIFF_PERCENT`     | 1%        | Maximum % of pixels that can differ |
 
 ## Related Documentation
 
--   [PARITY.md](./PARITY.md) - CSS transformation approach for React/Lit parity
+- [PARITY.md](./PARITY.md) - CSS transformation approach for React/Lit parity

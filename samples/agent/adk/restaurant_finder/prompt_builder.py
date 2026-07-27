@@ -12,10 +12,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from a2ui.core.schema.constants import VERSION_0_8
-from a2ui.core.schema.manager import A2uiSchemaManager
+from a2ui.schema.constants import VERSION_0_9
+from a2ui.inference_formats.transport import TransportFormat
 from a2ui.basic_catalog.provider import BasicCatalog
-from a2ui.core.schema.common_modifiers import remove_strict_validation
+from a2ui.schema.common_modifiers import remove_strict_validation
 
 ROLE_DESCRIPTION = (
     "You are a helpful restaurant finding assistant. Your final output MUST be a a2ui"
@@ -23,7 +23,9 @@ ROLE_DESCRIPTION = (
 )
 
 UI_DESCRIPTION = """
--   If the query is for a list of restaurants, use the restaurant data you have already received from the `get_restaurants` tool to populate the `dataModelUpdate.contents` array (e.g., as a `valueMap` for the "items" key).
+-   If the query is for a list of restaurants, use the restaurant data you have already received from the `get_restaurants` tool to populate the `updateDataModel` message.
+-   IMPORTANT: When using updateDataModel to update items, you MUST specify `path: "/items"` in `updateDataModel`, and the `value` MUST be an array of restaurants.
+-   IMPORTANT: Always specify the path when using updateDataModel. The part message is ignored when the path is missing.
 -   If the number of restaurants is 5 or fewer, you MUST use the `SINGLE_COLUMN_LIST_EXAMPLE` template.
 -   If the number of restaurants is more than 5, you MUST use the `TWO_COLUMN_LIST_EXAMPLE` template.
 -   If the query is to book a restaurant (e.g., "USER_WANTS_TO_BOOK..."), you MUST use the `BOOKING_FORM_EXAMPLE` template.
@@ -32,10 +34,10 @@ UI_DESCRIPTION = """
 
 
 def get_text_prompt() -> str:
-  """
-  Constructs the prompt for a text-only agent.
-  """
-  return """
+    """
+    Constructs the prompt for a text-only agent.
+    """
+    return """
     You are a helpful restaurant finding assistant. Your final output MUST be a text response.
 
     To generate the response, you MUST follow these rules:
@@ -52,27 +54,33 @@ def get_text_prompt() -> str:
 
 
 if __name__ == "__main__":
-  # Example of how to use the A2UI Schema Manager to generate a system prompt
-  # In your actual application, you would call this from your main agent logic.
+    # Example of how to use the A2UI Schema Manager to generate a system prompt
+    # In your actual application, you would call this from your main agent logic.
 
-  # You can now easily construct a prompt with the relevant examples.
-  # For a different agent (e.g., a flight booker), you would pass in
-  # different examples but use the same `get_ui_prompt` function.
-  restaurant_prompt = A2uiSchemaManager(
-      VERSION_0_8,
-      catalogs=[BasicCatalog.get_config(version=VERSION_0_8, examples_path="examples")],
-      schema_modifiers=[remove_strict_validation],
-  ).generate_system_prompt(
-      role_description=ROLE_DESCRIPTION,
-      ui_description=UI_DESCRIPTION,
-      include_schema=True,
-      include_examples=True,
-      validate_examples=True,
-  )
+    # You can now easily construct a prompt with the relevant examples.
+    # For a different agent (e.g., a flight booker), you would pass in
+    # different examples but use the same `get_ui_prompt` function.
+    version = VERSION_0_9
+    restaurant_prompt = TransportFormat(
+        version,
+        catalogs=[
+            BasicCatalog.get_config(
+                version=version,
+                examples_path=f"examples/{version}",
+            )
+        ],
+        schema_modifiers=[remove_strict_validation],
+    ).generate_system_prompt(
+        role_description=ROLE_DESCRIPTION,
+        ui_description=UI_DESCRIPTION,
+        include_schema=True,
+        include_examples=True,
+        validate_examples=True,
+    )
 
-  print(restaurant_prompt)
+    print(restaurant_prompt)
 
-  # This demonstrates how you could save the prompt to a file for inspection
-  with open("generated_prompt.txt", "w") as f:
-    f.write(restaurant_prompt)
-  print("\nGenerated prompt saved to generated_prompt.txt")
+    # This demonstrates how you could save the prompt to a file for inspection
+    with open("generated_prompt.txt", "w") as f:
+        f.write(restaurant_prompt)
+    print("\nGenerated prompt saved to generated_prompt.txt")

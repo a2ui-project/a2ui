@@ -14,9 +14,10 @@
  * limitations under the License.
  */
 
-import { SurfaceModel } from "./surface-model.js";
-import { ComponentApi } from "../catalog/types.js";
-import { EventEmitter, EventSource, Subscription } from "../common/events.js";
+import {SurfaceModel} from './surface-model.js';
+import {ComponentApi} from '../catalog/types.js';
+import {EventEmitter, EventSource, Subscription} from '../common/events.js';
+import {A2uiClientAction} from '../schema/client-to-server.js';
 
 /**
  * The root state model for the A2UI system.
@@ -28,15 +29,14 @@ export class SurfaceGroupModel<T extends ComponentApi> {
 
   private readonly _onSurfaceCreated = new EventEmitter<SurfaceModel<T>>();
   private readonly _onSurfaceDeleted = new EventEmitter<string>();
-  private readonly _onAction = new EventEmitter<any>();
+  private readonly _onAction = new EventEmitter<A2uiClientAction>();
 
   /** Fires when a new surface is added. */
-  readonly onSurfaceCreated: EventSource<SurfaceModel<T>> =
-    this._onSurfaceCreated;
+  readonly onSurfaceCreated: EventSource<SurfaceModel<T>> = this._onSurfaceCreated;
   /** Fires when a surface is removed. */
   readonly onSurfaceDeleted: EventSource<string> = this._onSurfaceDeleted;
   /** Fires when an action is dispatched from ANY surface in the group. */
-  readonly onAction: EventSource<any> = this._onAction;
+  readonly onAction: EventSource<A2uiClientAction> = this._onAction;
 
   /**
    * Adds a surface to the group.
@@ -53,9 +53,7 @@ export class SurfaceGroupModel<T extends ComponentApi> {
     this.surfaces.set(surface.id, surface);
 
     // Subscribe to surface actions and propagate
-    const sub = surface.onAction.subscribe((action) =>
-      this._onAction.emit(action),
-    );
+    const sub = surface.onAction.subscribe(action => this._onAction.emit(action));
     this.surfaceUnsubscribers.set(surface.id, sub);
 
     this._onSurfaceCreated.emit(surface);

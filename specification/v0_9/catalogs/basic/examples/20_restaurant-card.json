@@ -1,0 +1,140 @@
+{
+  "name": "Restaurant Card",
+  "description": "Example of restaurant card",
+  "messages": [
+    {
+      "version": "v0.9",
+      "createSurface": {
+        "surfaceId": "gallery-restaurant-card",
+        "catalogId": "https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json",
+        "sendDataModel": true
+      }
+    },
+    {
+      "version": "v0.9",
+      "updateComponents": {
+        "surfaceId": "gallery-restaurant-card",
+        "components": [
+          {
+            "id": "root",
+            "component": "Card",
+            "child": "main-column"
+          },
+          {
+            "id": "main-column",
+            "component": "Column",
+            "children": ["restaurant-image", "content"]
+          },
+          {
+            "id": "restaurant-image",
+            "component": "Image",
+            "url": {
+              "path": "/image"
+            },
+            "fit": "cover"
+          },
+          {
+            "id": "content",
+            "component": "Column",
+            "children": ["name-row", "cuisine", "rating-row", "details-row"]
+          },
+          {
+            "id": "name-row",
+            "component": "Row",
+            "children": ["restaurant-name", "price-range"],
+            "justify": "spaceBetween",
+            "align": "center"
+          },
+          {
+            "id": "restaurant-name",
+            "component": "Text",
+            "text": {
+              "path": "/name"
+            },
+            "variant": "h3"
+          },
+          {
+            "id": "price-range",
+            "component": "Text",
+            "text": {
+              "path": "/priceRange"
+            },
+            "variant": "body"
+          },
+          {
+            "id": "cuisine",
+            "component": "Text",
+            "text": {
+              "path": "/cuisine"
+            },
+            "variant": "caption"
+          },
+          {
+            "id": "rating-row",
+            "component": "Row",
+            "children": ["star-icon", "rating", "reviews"],
+            "align": "center"
+          },
+          {
+            "id": "star-icon",
+            "component": "Icon",
+            "name": "star"
+          },
+          {
+            "id": "rating",
+            "component": "Text",
+            "text": {
+              "path": "/rating"
+            },
+            "variant": "body"
+          },
+          {
+            "id": "reviews",
+            "component": "Text",
+            "text": {
+              "path": "/reviewCount"
+            },
+            "variant": "caption"
+          },
+          {
+            "id": "details-row",
+            "component": "Row",
+            "children": ["distance", "delivery-time"]
+          },
+          {
+            "id": "distance",
+            "component": "Text",
+            "text": {
+              "path": "/distance"
+            },
+            "variant": "caption"
+          },
+          {
+            "id": "delivery-time",
+            "component": "Text",
+            "text": {
+              "path": "/deliveryTime"
+            },
+            "variant": "caption"
+          }
+        ]
+      }
+    },
+    {
+      "version": "v0.9",
+      "updateDataModel": {
+        "surfaceId": "gallery-restaurant-card",
+        "value": {
+          "image": "https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?w=300&h=150&fit=crop",
+          "name": "The Italian Kitchen",
+          "priceRange": "$$$",
+          "cuisine": "Italian \u2022 Pasta \u2022 Wine Bar",
+          "rating": "4.8",
+          "reviewCount": "(2,847 reviews)",
+          "distance": "0.8 mi",
+          "deliveryTime": "25-35 min"
+        }
+      }
+    }
+  ]
+}

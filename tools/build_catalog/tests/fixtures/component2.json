@@ -1,0 +1,13 @@
+{
+  "title": "Component 2 Catalog",
+  "components": {
+    "Page": {
+      "type": "object",
+      "properties": {
+        "header": {
+          "$ref": "component1.json#/components/CustomHeader"
+        }
+      }
+    }
+  }
+}

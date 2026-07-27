@@ -16,12 +16,7 @@
           "component": {
             "Column": {
               "children": {
-                "explicitList": [
-                  "header-row",
-                  "route-row",
-                  "divider",
-                  "times-row"
-                ]
+                "explicitList": ["header-row", "route-row", "divider", "times-row"]
               },
               "alignment": "stretch"
             }
@@ -32,10 +27,7 @@
           "component": {
             "Row": {
               "children": {
-                "explicitList": [
-                  "header-left",
-                  "date"
-                ]
+                "explicitList": ["header-left", "date"]
               },
               "distribution": "spaceBetween",
               "alignment": "center"
@@ -47,10 +39,7 @@
           "component": {
             "Row": {
               "children": {
-                "explicitList": [
-                  "flight-indicator",
-                  "flight-number"
-                ]
+                "explicitList": ["flight-indicator", "flight-number"]
               },
               "alignment": "center"
             }
@@ -93,11 +82,7 @@
           "component": {
             "Row": {
               "children": {
-                "explicitList": [
-                  "origin",
-                  "arrow",
-                  "destination"
-                ]
+                "explicitList": ["origin", "arrow", "destination"]
               },
               "alignment": "center"
             }
@@ -147,11 +132,7 @@
           "component": {
             "Row": {
               "children": {
-                "explicitList": [
-                  "departure-col",
-                  "status-col",
-                  "arrival-col"
-                ]
+                "explicitList": ["departure-col", "status-col", "arrival-col"]
               },
               "distribution": "spaceBetween"
             }
@@ -162,10 +143,7 @@
           "component": {
             "Column": {
               "children": {
-                "explicitList": [
-                  "departure-label",
-                  "departure-time"
-                ]
+                "explicitList": ["departure-label", "departure-time"]
               },
               "alignment": "start"
             }
@@ -198,10 +176,7 @@
           "component": {
             "Column": {
               "children": {
-                "explicitList": [
-                  "status-label",
-                  "status-value"
-                ]
+                "explicitList": ["status-label", "status-value"]
               },
               "alignment": "center"
             }
@@ -234,10 +209,7 @@
           "component": {
             "Column": {
               "children": {
-                "explicitList": [
-                  "arrival-label",
-                  "arrival-time"
-                ]
+                "explicitList": ["arrival-label", "arrival-time"]
               },
               "alignment": "end"
             }

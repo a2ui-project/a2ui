@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import { AppConfig } from './types';
+import {AppConfig} from './types';
 
 export const config: AppConfig = {
   key: 'restaurant',

@@ -16,13 +16,7 @@
           "component": {
             "Column": {
               "children": {
-                "explicitList": [
-                  "header",
-                  "balance",
-                  "updated",
-                  "divider",
-                  "actions"
-                ]
+                "explicitList": ["header", "balance", "updated", "divider", "actions"]
               }
             }
           }
@@ -32,10 +26,7 @@
           "component": {
             "Row": {
               "children": {
-                "explicitList": [
-                  "account-icon",
-                  "account-name"
-                ]
+                "explicitList": ["account-icon", "account-name"]
               },
               "alignment": "center"
             }
@@ -95,10 +86,7 @@
           "component": {
             "Row": {
               "children": {
-                "explicitList": [
-                  "transfer-btn",
-                  "pay-btn"
-                ]
+                "explicitList": ["transfer-btn", "pay-btn"]
               }
             }
           }

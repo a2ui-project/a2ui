@@ -1,0 +1,198 @@
+[
+  {
+    "version": "v0.9",
+    "createSurface": {
+      "surfaceId": "flight-status",
+      "catalogId": "https://a2ui.org/specification/v0_9/material_catalog.json",
+      "theme": {
+        "primaryColor": "#1a73e8",
+        "font": "Roboto"
+      }
+    }
+  },
+  {
+    "version": "v0.9",
+    "updateComponents": {
+      "surfaceId": "flight-status",
+      "components": [
+        {
+          "id": "root",
+          "component": "MaterialCard",
+          "style": {"padding": "8px 8px 0px 8px"},
+          "children": ["main-column"]
+        },
+        {
+          "id": "main-column",
+          "component": "MaterialColumn",
+          "align": "stretch",
+          "children": ["header-row", "route-row", "divider", "times-row"]
+        },
+        {
+          "id": "header-row",
+          "component": "MaterialRow",
+          "justify": "spaceBetween",
+          "align": "center",
+          "children": ["flight-info", "actions"]
+        },
+        {
+          "id": "flight-info",
+          "component": "MaterialRow",
+          "align": "center",
+          "children": ["flight-icon", "flight-number"]
+        },
+        {
+          "id": "flight-icon",
+          "component": "MaterialIcon",
+          "icon": "flight",
+          "color": "primary"
+        },
+        {
+          "id": "flight-number",
+          "component": "MaterialText",
+          "text": "OS 87 \u2022 Vienna to NY",
+          "usageHint": "h3"
+        },
+        {
+          "id": "actions",
+          "component": "MaterialRow",
+          "children": ["share-btn", "bookmark-btn"]
+        },
+        {
+          "id": "share-btn",
+          "component": "MaterialIconButton",
+          "icon": "share",
+          "ariaLabel": "Share flight",
+          "action": {
+            "event": {
+              "name": "share_flight",
+              "context": {"prompt": "Share this flight"}
+            }
+          }
+        },
+        {
+          "id": "bookmark-btn",
+          "component": "MaterialIconButton",
+          "icon": "bookmark_border",
+          "ariaLabel": "Bookmark flight",
+          "action": {
+            "event": {
+              "name": "bookmark_flight",
+              "context": {"prompt": "Bookmark this flight"}
+            }
+          }
+        },
+        {
+          "id": "route-row",
+          "component": "MaterialRow",
+          "justify": "spaceBetween",
+          "align": "center",
+          "children": ["origin-col", "arrow-icon", "dest-col"]
+        },
+        {
+          "id": "origin-col",
+          "component": "MaterialColumn",
+          "children": ["origin-code", "origin-name"]
+        },
+        {
+          "id": "origin-code",
+          "component": "MaterialText",
+          "text": "VIE",
+          "usageHint": "h1"
+        },
+        {
+          "id": "origin-name",
+          "component": "MaterialText",
+          "text": "Vienna",
+          "usageHint": "caption"
+        },
+        {
+          "id": "arrow-icon",
+          "component": "MaterialIcon",
+          "icon": "trending_flat"
+        },
+        {
+          "id": "dest-col",
+          "component": "MaterialColumn",
+          "align": "end",
+          "children": ["dest-code", "dest-name"]
+        },
+        {
+          "id": "dest-code",
+          "component": "MaterialText",
+          "text": "JFK",
+          "usageHint": "h1"
+        },
+        {
+          "id": "dest-name",
+          "component": "MaterialText",
+          "text": "New York",
+          "usageHint": "caption"
+        },
+        {
+          "id": "divider",
+          "component": "MaterialDivider"
+        },
+        {
+          "id": "times-row",
+          "component": "MaterialRow",
+          "justify": "spaceBetween",
+          "children": ["dep-col", "status-col", "arr-col"]
+        },
+        {
+          "id": "dep-col",
+          "component": "MaterialColumn",
+          "children": ["dep-label", "dep-time"]
+        },
+        {
+          "id": "dep-label",
+          "component": "MaterialText",
+          "text": "Departs",
+          "usageHint": "caption"
+        },
+        {
+          "id": "dep-time",
+          "component": "MaterialText",
+          "text": "10:15 AM",
+          "usageHint": "h4"
+        },
+        {
+          "id": "status-col",
+          "component": "MaterialColumn",
+          "align": "center",
+          "children": ["status-label", "status-value"]
+        },
+        {
+          "id": "status-label",
+          "component": "MaterialText",
+          "text": "Status",
+          "usageHint": "caption"
+        },
+        {
+          "id": "status-value",
+          "component": "MaterialText",
+          "text": "On Time",
+          "usageHint": "body",
+          "style": {"fontWeight": "bold"}
+        },
+        {
+          "id": "arr-col",
+          "component": "MaterialColumn",
+          "align": "end",
+          "children": ["arr-label", "arr-time"]
+        },
+        {
+          "id": "arr-label",
+          "component": "MaterialText",
+          "text": "Arrives",
+          "usageHint": "caption"
+        },
+        {
+          "id": "arr-time",
+          "component": "MaterialText",
+          "text": "2:30 PM",
+          "usageHint": "h4"
+        }
+      ]
+    }
+  }
+]

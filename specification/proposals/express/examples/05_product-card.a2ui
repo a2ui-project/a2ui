@@ -1,0 +1,20 @@
+$/imageUrl = "https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=300&h=200&fit=crop"
+$/name = "Wireless Headphones Pro"
+$/originalPrice = 249.99
+$/price = 199.99
+$/reviewCount = 2847
+$/stars = "★★★★★"
+root = Card(main_column)
+main_column = Column([image, details])
+image = Image($/imageUrl, _, "cover")
+details = Column([name, rating_row, price_row, actions])
+name = Text($/name)
+rating_row = Row([stars, reviews], _, "center")
+stars = Text($/stars, "body")
+reviews = Text(formatString("(${formatNumber(value: ${/reviewCount})} ${pluralize(value: ${/reviewCount}, one: 'review', other: 'reviews')})"), "caption")
+price_row = Row([price, original_price], _, "start")
+price = Text(formatCurrency($/price, "USD"))
+original_price = Text(formatCurrency($/originalPrice, "USD"), "caption")
+actions = Row([add_cart_btn])
+add_cart_btn_text = Text("Add to Cart")
+add_cart_btn = Button(add_cart_btn_text, "primary", Event("addToCart"))

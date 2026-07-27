@@ -14,14 +14,14 @@
  * limitations under the License.
  */
 
-import { HTMLTemplateResult } from "lit";
+import {HTMLTemplateResult} from 'lit';
 
 export enum SnackType {
-  NONE = "none",
-  INFORMATION = "information",
-  WARNING = "warning",
-  ERROR = "error",
-  PENDING = "pending",
+  NONE = 'none',
+  INFORMATION = 'information',
+  WARNING = 'warning',
+  ERROR = 'error',
+  PENDING = 'pending',
 }
 
 export type SnackbarUUID = ReturnType<typeof globalThis.crypto.randomUUID>;

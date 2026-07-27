@@ -1,0 +1,3808 @@
+[
+  {
+    "beginRendering": {
+      "surfaceId": "default",
+      "root": "root-column",
+      "styles": {
+        "primaryColor": "#FF0000",
+        "font": "Roboto"
+      }
+    }
+  },
+  {
+    "surfaceUpdate": {
+      "surfaceId": "default",
+      "components": [
+        {
+          "id": "root-column",
+          "component": {
+            "Column": {
+              "children": {
+                "explicitList": ["loading_title-heading", "loading_item-list"]
+              }
+            }
+          }
+        },
+        {
+          "id": "loading_title-heading",
+          "component": {
+            "Row": {
+              "children": {
+                "explicitList": []
+              }
+            }
+          }
+        },
+        {
+          "id": "loading_item-list",
+          "component": {
+            "Row": {
+              "children": {
+                "explicitList": []
+              }
+            }
+          }
+        }
+      ]
+    }
+  },
+  {
+    "surfaceUpdate": {
+      "surfaceId": "default",
+      "components": [
+        {
+          "id": "root-column",
+          "component": {
+            "Column": {
+              "children": {
+                "explicitList": ["title-heading", "loading_item-list"]
+              }
+            }
+          }
+        },
+        {
+          "id": "title-heading",
+          "component": {
+            "Text": {
+              "usageHint": "h1",
+              "text": {
+                "path": "/title"
+              }
+            }
+          }
+        },
+        {
+          "id": "loading_item-list",
+          "component": {
+            "Row": {
+              "children": {
+                "explicitList": []
+              }
+            }
+          }
+        }
+      ]
+    }
+  },
+  {
+    "surfaceUpdate": {
+      "surfaceId": "default",
+      "components": [
+        {
+          "id": "item-list",
+          "component": {
+            "List": {
+              "direction": "vertical",
+              "children": {
+                "template": {
+                  "componentId": "loading_item-card-template",
+                  "dataBinding": "/items"
+                }
+              }
+            }
+          }
+        },
+        {
+          "id": "root-column",
+          "component": {
+            "Column": {
+              "children": {
+                "explicitList": ["title-heading", "item-list"]
+              }
+            }
+          }
+        },
+        {
+          "id": "title-heading",
+          "component": {
+            "Text": {
+              "usageHint": "h1",
+              "text": {
+                "path": "/title"
+              }
+            }
+          }
+        },
+        {
+          "id": "loading_item-card-template",
+          "component": {
+            "Row": {
+              "children": {
+                "explicitList": []
+              }
+            }
+          }
+        }
+      ]
+    }
+  },
+  {
+    "surfaceUpdate": {
+      "surfaceId": "default",
+      "components": [
+        {
+          "id": "item-card-template",
+          "component": {
+            "Card": {
+              "child": "loading_card-layout"
+            }
+          }
+        },
+        {
+          "id": "item-list",
+          "component": {
+            "List": {
+              "direction": "vertical",
+              "children": {
+                "template": {
+                  "componentId": "item-card-template",
+                  "dataBinding": "/items"
+                }
+              }
+            }
+          }
+        },
+        {
+          "id": "root-column",
+          "component": {
+            "Column": {
+              "children": {
+                "explicitList": ["title-heading", "item-list"]
+              }
+            }
+          }
+        },
+        {
+          "id": "title-heading",
+          "component": {
+            "Text": {
+              "usageHint": "h1",
+              "text": {
+                "path": "/title"
+              }
+            }
+          }
+        },
+        {
+          "id": "loading_card-layout",
+          "component": {
+            "Row": {
+              "children": {
+                "explicitList": []
+              }
+            }
+          }
+        }
+      ]
+    }
+  },
+  {
+    "surfaceUpdate": {
+      "surfaceId": "default",
+      "components": [
+        {
+          "id": "card-layout",
+          "component": {
+            "Row": {
+              "children": {
+                "explicitList": ["loading_template-image", "loading_card-details"]
+              }
+            }
+          }
+        },
+        {
+          "id": "item-card-template",
+          "component": {
+            "Card": {
+              "child": "card-layout"
+            }
+          }
+        },
+        {
+          "id": "item-list",
+          "component": {
+            "List": {
+              "direction": "vertical",
+              "children": {
+                "template": {
+                  "componentId": "item-card-template",
+                  "dataBinding": "/items"
+                }
+              }
+            }
+          }
+        },
+        {
+          "id": "root-column",
+          "component": {
+            "Column": {
+              "children": {
+                "explicitList": ["title-heading", "item-list"]
+              }
+            }
+          }
+        },
+        {
+          "id": "title-heading",
+          "component": {
+            "Text": {
+              "usageHint": "h1",
+              "text": {
+                "path": "/title"
+              }
+            }
+          }
+        },
+        {
+          "id": "loading_template-image",
+          "component": {
+            "Row": {
+              "children": {
+                "explicitList": []
+              }
+            }
+          }
+        },
+        {
+          "id": "loading_card-details",
+          "component": {
+            "Row": {
+              "children": {
+                "explicitList": []
+              }
+            }
+          }
+        }
+      ]
+    }
+  },
+  {
+    "surfaceUpdate": {
+      "surfaceId": "default",
+      "components": [
+        {
+          "id": "card-layout",
+          "component": {
+            "Row": {
+              "children": {
+                "explicitList": ["template-image", "loading_card-details"]
+              }
+            }
+          }
+        },
+        {
+          "id": "item-card-template",
+          "component": {
+            "Card": {
+              "child": "card-layout"
+            }
+          }
+        },
+        {
+          "id": "item-list",
+          "component": {
+            "List": {
+              "direction": "vertical",
+              "children": {
+                "template": {
+                  "componentId": "item-card-template",
+                  "dataBinding": "/items"
+                }
+              }
+            }
+          }
+        },
+        {
+          "id": "root-column",
+          "component": {
+            "Column": {
+              "children": {
+                "explicitList": ["title-heading", "item-list"]
+              }
+            }
+          }
+        },
+        {
+          "id": "template-image",
+          "weight": 1,
+          "component": {
+            "Image": {
+              "url": {
+                "path": "/imageUrl"
+              }
+            }
+          }
+        },
+        {
+          "id": "title-heading",
+          "component": {
+            "Text": {
+              "usageHint": "h1",
+              "text": {
+                "path": "/title"
+              }
+            }
+          }
+        },
+        {
+          "id": "loading_card-details",
+          "component": {
+            "Row": {
+              "children": {
+                "explicitList": []
+              }
+            }
+          }
+        }
+      ]
+    }
+  },
+  {
+    "surfaceUpdate": {
+      "surfaceId": "default",
+      "components": [
+        {
+          "id": "card-details",
+          "weight": 2,
+          "component": {
+            "Column": {
+              "children": {
+                "explicitList": [
+                  "loading_template-name",
+                  "loading_template-rating",
+                  "loading_template-detail",
+                  "loading_template-link",
+                  "loading_template-book"
+                ]
+              }
+            }
+          }
+        },
+        {
+          "id": "card-layout",
+          "component": {
+            "Row": {
+              "children": {
+                "explicitList": ["template-image", "card-details"]
+              }
+            }
+          }
+        },
+        {
+          "id": "item-card-template",
+          "component": {
+            "Card": {
+              "child": "card-layout"
+            }
+          }
+        },
+        {
+          "id": "item-list",
+          "component": {
+            "List": {
+              "direction": "vertical",
+              "children": {
+                "template": {
+                  "componentId": "item-card-template",
+                  "dataBinding": "/items"
+                }
+              }
+            }
+          }
+        },
+        {
+          "id": "root-column",
+          "component": {
+            "Column": {
+              "children": {
+                "explicitList": ["title-heading", "item-list"]
+              }
+            }
+          }
+        },
+        {
+          "id": "template-image",
+          "weight": 1,
+          "component": {
+            "Image": {
+              "url": {
+                "path": "/imageUrl"
+              }
+            }
+          }
+        },
+        {
+          "id": "title-heading",
+          "component": {
+            "Text": {
+              "usageHint": "h1",
+              "text": {
+                "path": "/title"
+              }
+            }
+          }
+        },
+        {
+          "id": "loading_template-name",
+          "component": {
+            "Row": {
+              "children": {
+                "explicitList": []
+              }
+            }
+          }
+        },
+        {
+          "id": "loading_template-rating",
+          "component": {
+            "Row": {
+              "children": {
+                "explicitList": []
+              }
+            }
+          }
+        },
+        {
+          "id": "loading_template-detail",
+          "component": {
+            "Row": {
+              "children": {
+                "explicitList": []
+              }
+            }
+          }
+        },
+        {
+          "id": "loading_template-link",
+          "component": {
+            "Row": {
+              "children": {
+                "explicitList": []
+              }
+            }
+          }
+        },
+        {
+          "id": "loading_template-book",
+          "component": {
+            "Row": {
+              "children": {
+                "explicitList": []
+              }
+            }
+          }
+        }
+      ]
+    }
+  },
+  {
+    "surfaceUpdate": {
+      "surfaceId": "default",
+      "components": [
+        {
+          "id": "card-details",
+          "weight": 2,
+          "component": {
+            "Column": {
+              "children": {
+                "explicitList": [
+                  "loading_template-name",
+                  "loading_template-rating",
+                  "loading_template-detail",
+                  "loading_template-link",
+                  "loading_template-book-button"
+                ]
+              }
+            }
+          }
+        },
+        {
+          "id": "card-layout",
+          "component": {
+            "Row": {
+              "children": {
+                "explicitList": ["template-image", "card-details"]
+              }
+            }
+          }
+        },
+        {
+          "id": "item-card-template",
+          "component": {
+            "Card": {
+              "child": "card-layout"
+            }
+          }
+        },
+        {
+          "id": "item-list",
+          "component": {
+            "List": {
+              "direction": "vertical",
+              "children": {
+                "template": {
+                  "componentId": "item-card-template",
+                  "dataBinding": "/items"
+                }
+              }
+            }
+          }
+        },
+        {
+          "id": "root-column",
+          "component": {
+            "Column": {
+              "children": {
+                "explicitList": ["title-heading", "item-list"]
+              }
+            }
+          }
+        },
+        {
+          "id": "template-image",
+          "weight": 1,
+          "component": {
+            "Image": {
+              "url": {
+                "path": "/imageUrl"
+              }
+            }
+          }
+        },
+        {
+          "id": "title-heading",
+          "component": {
+            "Text": {
+              "usageHint": "h1",
+              "text": {
+                "path": "/title"
+              }
+            }
+          }
+        },
+        {
+          "id": "loading_template-name",
+          "component": {
+            "Row": {
+              "children": {
+                "explicitList": []
+              }
+            }
+          }
+        },
+        {
+          "id": "loading_template-rating",
+          "component": {
+            "Row": {
+              "children": {
+                "explicitList": []
+              }
+            }
+          }
+        },
+        {
+          "id": "loading_template-detail",
+          "component": {
+            "Row": {
+              "children": {
+                "explicitList": []
+              }
+            }
+          }
+        },
+        {
+          "id": "loading_template-link",
+          "component": {
+            "Row": {
+              "children": {
+                "explicitList": []
+              }
+            }
+          }
+        },
+        {
+          "id": "loading_template-book-button",
+          "component": {
+            "Row": {
+              "children": {
+                "explicitList": []
+              }
+            }
+          }
+        }
+      ]
+    }
+  },
+  {
+    "surfaceUpdate": {
+      "surfaceId": "default",
+      "components": [
+        {
+          "id": "card-details",
+          "weight": 2,
+          "component": {
+            "Column": {
+              "children": {
+                "explicitList": [
+                  "template-name",
+                  "loading_template-rating",
+                  "loading_template-detail",
+                  "loading_template-link",
+                  "loading_template-book-button"
+                ]
+              }
+            }
+          }
+        },
+        {
+          "id": "card-layout",
+          "component": {
+            "Row": {
+              "children": {
+                "explicitList": ["template-image", "card-details"]
+              }
+            }
+          }
+        },
+        {
+          "id": "item-card-template",
+          "component": {
+            "Card": {
+              "child": "card-layout"
+            }
+          }
+        },
+        {
+          "id": "item-list",
+          "component": {
+            "List": {
+              "direction": "vertical",
+              "children": {
+                "template": {
+                  "componentId": "item-card-template",
+                  "dataBinding": "/items"
+                }
+              }
+            }
+          }
+        },
+        {
+          "id": "root-column",
+          "component": {
+            "Column": {
+              "children": {
+                "explicitList": ["title-heading", "item-list"]
+              }
+            }
+          }
+        },
+        {
+          "id": "template-image",
+          "weight": 1,
+          "component": {
+            "Image": {
+              "url": {
+                "path": "/imageUrl"
+              }
+            }
+          }
+        },
+        {
+          "id": "template-name",
+          "component": {
+            "Text": {
+              "usageHint": "h3",
+              "text": {
+                "path": "/name"
+              }
+            }
+          }
+        },
+        {
+          "id": "title-heading",
+          "component": {
+            "Text": {
+              "usageHint": "h1",
+              "text": {
+                "path": "/title"
+              }
+            }
+          }
+        },
+        {
+          "id": "loading_template-rating",
+          "component": {
+            "Row": {
+              "children": {
+                "explicitList": []
+              }
+            }
+          }
+        },
+        {
+          "id": "loading_template-detail",
+          "component": {
+            "Row": {
+              "children": {
+                "explicitList": []
+              }
+            }
+          }
+        },
+        {
+          "id": "loading_template-link",
+          "component": {
+            "Row": {
+              "children": {
+                "explicitList": []
+              }
+            }
+          }
+        },
+        {
+          "id": "loading_template-book-button",
+          "component": {
+            "Row": {
+              "children": {
+                "explicitList": []
+              }
+            }
+          }
+        }
+      ]
+    }
+  },
+  {
+    "surfaceUpdate": {
+      "surfaceId": "default",
+      "components": [
+        {
+          "id": "card-details",
+          "weight": 2,
+          "component": {
+            "Column": {
+              "children": {
+                "explicitList": [
+                  "template-name",
+                  "template-rating",
+                  "loading_template-detail",
+                  "loading_template-link",
+                  "loading_template-book-button"
+                ]
+              }
+            }
+          }
+        },
+        {
+          "id": "card-layout",
+          "component": {
+            "Row": {
+              "children": {
+                "explicitList": ["template-image", "card-details"]
+              }
+            }
+          }
+        },
+        {
+          "id": "item-card-template",
+          "component": {
+            "Card": {
+              "child": "card-layout"
+            }
+          }
+        },
+        {
+          "id": "item-list",
+          "component": {
+            "List": {
+              "direction": "vertical",
+              "children": {
+                "template": {
+                  "componentId": "item-card-template",
+                  "dataBinding": "/items"
+                }
+              }
+            }
+          }
+        },
+        {
+          "id": "root-column",
+          "component": {
+            "Column": {
+              "children": {
+                "explicitList": ["title-heading", "item-list"]
+              }
+            }
+          }
+        },
+        {
+          "id": "template-image",
+          "weight": 1,
+          "component": {
+            "Image": {
+              "url": {
+                "path": "/imageUrl"
+              }
+            }
+          }
+        },
+        {
+          "id": "template-name",
+          "component": {
+            "Text": {
+              "usageHint": "h3",
+              "text": {
+                "path": "/name"
+              }
+            }
+          }
+        },
+        {
+          "id": "template-rating",
+          "component": {
+            "Text": {
+              "text": {
+                "path": "/rating"
+              }
+            }
+          }
+        },
+        {
+          "id": "title-heading",
+          "component": {
+            "Text": {
+              "usageHint": "h1",
+              "text": {
+                "path": "/title"
+              }
+            }
+          }
+        },
+        {
+          "id": "loading_template-detail",
+          "component": {
+            "Row": {
+              "children": {
+                "explicitList": []
+              }
+            }
+          }
+        },
+        {
+          "id": "loading_template-link",
+          "component": {
+            "Row": {
+              "children": {
+                "explicitList": []
+              }
+            }
+          }
+        },
+        {
+          "id": "loading_template-book-button",
+          "component": {
+            "Row": {
+              "children": {
+                "explicitList": []
+              }
+            }
+          }
+        }
+      ]
+    }
+  },
+  {
+    "surfaceUpdate": {
+      "surfaceId": "default",
+      "components": [
+        {
+          "id": "card-details",
+          "weight": 2,
+          "component": {
+            "Column": {
+              "children": {
+                "explicitList": [
+                  "template-name",
+                  "template-rating",
+                  "template-detail",
+                  "loading_template-link",
+                  "loading_template-book-button"
+                ]
+              }
+            }
+          }
+        },
+        {
+          "id": "card-layout",
+          "component": {
+            "Row": {
+              "children": {
+                "explicitList": ["template-image", "card-details"]
+              }
+            }
+          }
+        },
+        {
+          "id": "item-card-template",
+          "component": {
+            "Card": {
+              "child": "card-layout"
+            }
+          }
+        },
+        {
+          "id": "item-list",
+          "component": {
+            "List": {
+              "direction": "vertical",
+              "children": {
+                "template": {
+                  "componentId": "item-card-template",
+                  "dataBinding": "/items"
+                }
+              }
+            }
+          }
+        },
+        {
+          "id": "root-column",
+          "component": {
+            "Column": {
+              "children": {
+                "explicitList": ["title-heading", "item-list"]
+              }
+            }
+          }
+        },
+        {
+          "id": "template-detail",
+          "component": {
+            "Text": {
+              "text": {
+                "path": "/detail"
+              }
+            }
+          }
+        },
+        {
+          "id": "template-image",
+          "weight": 1,
+          "component": {
+            "Image": {
+              "url": {
+                "path": "/imageUrl"
+              }
+            }
+          }
+        },
+        {
+          "id": "template-name",
+          "component": {
+            "Text": {
+              "usageHint": "h3",
+              "text": {
+                "path": "/name"
+              }
+            }
+          }
+        },
+        {
+          "id": "template-rating",
+          "component": {
+            "Text": {
+              "text": {
+                "path": "/rating"
+              }
+            }
+          }
+        },
+        {
+          "id": "title-heading",
+          "component": {
+            "Text": {
+              "usageHint": "h1",
+              "text": {
+                "path": "/title"
+              }
+            }
+          }
+        },
+        {
+          "id": "loading_template-link",
+          "component": {
+            "Row": {
+              "children": {
+                "explicitList": []
+              }
+            }
+          }
+        },
+        {
+          "id": "loading_template-book-button",
+          "component": {
+            "Row": {
+              "children": {
+                "explicitList": []
+              }
+            }
+          }
+        }
+      ]
+    }
+  },
+  {
+    "surfaceUpdate": {
+      "surfaceId": "default",
+      "components": [
+        {
+          "id": "card-details",
+          "weight": 2,
+          "component": {
+            "Column": {
+              "children": {
+                "explicitList": [
+                  "template-name",
+                  "template-rating",
+                  "template-detail",
+                  "template-link",
+                  "loading_template-book-button"
+                ]
+              }
+            }
+          }
+        },
+        {
+          "id": "card-layout",
+          "component": {
+            "Row": {
+              "children": {
+                "explicitList": ["template-image", "card-details"]
+              }
+            }
+          }
+        },
+        {
+          "id": "item-card-template",
+          "component": {
+            "Card": {
+              "child": "card-layout"
+            }
+          }
+        },
+        {
+          "id": "item-list",
+          "component": {
+            "List": {
+              "direction": "vertical",
+              "children": {
+                "template": {
+                  "componentId": "item-card-template",
+                  "dataBinding": "/items"
+                }
+              }
+            }
+          }
+        },
+        {
+          "id": "root-column",
+          "component": {
+            "Column": {
+              "children": {
+                "explicitList": ["title-heading", "item-list"]
+              }
+            }
+          }
+        },
+        {
+          "id": "template-detail",
+          "component": {
+            "Text": {
+              "text": {
+                "path": "/detail"
+              }
+            }
+          }
+        },
+        {
+          "id": "template-image",
+          "weight": 1,
+          "component": {
+            "Image": {
+              "url": {
+                "path": "/imageUrl"
+              }
+            }
+          }
+        },
+        {
+          "id": "template-link",
+          "component": {
+            "Text": {
+              "text": {
+                "path": "/infoLink"
+              }
+            }
+          }
+        },
+        {
+          "id": "template-name",
+          "component": {
+            "Text": {
+              "usageHint": "h3",
+              "text": {
+                "path": "/name"
+              }
+            }
+          }
+        },
+        {
+          "id": "template-rating",
+          "component": {
+            "Text": {
+              "text": {
+                "path": "/rating"
+              }
+            }
+          }
+        },
+        {
+          "id": "title-heading",
+          "component": {
+            "Text": {
+              "usageHint": "h1",
+              "text": {
+                "path": "/title"
+              }
+            }
+          }
+        },
+        {
+          "id": "loading_template-book-button",
+          "component": {
+            "Row": {
+              "children": {
+                "explicitList": []
+              }
+            }
+          }
+        }
+      ]
+    }
+  },
+  {
+    "surfaceUpdate": {
+      "surfaceId": "default",
+      "components": [
+        {
+          "id": "card-details",
+          "weight": 2,
+          "component": {
+            "Column": {
+              "children": {
+                "explicitList": [
+                  "template-name",
+                  "template-rating",
+                  "template-detail",
+                  "template-link",
+                  "template-book-button"
+                ]
+              }
+            }
+          }
+        },
+        {
+          "id": "card-layout",
+          "component": {
+            "Row": {
+              "children": {
+                "explicitList": ["template-image", "card-details"]
+              }
+            }
+          }
+        },
+        {
+          "id": "item-card-template",
+          "component": {
+            "Card": {
+              "child": "card-layout"
+            }
+          }
+        },
+        {
+          "id": "item-list",
+          "component": {
+            "List": {
+              "direction": "vertical",
+              "children": {
+                "template": {
+                  "componentId": "item-card-template",
+                  "dataBinding": "/items"
+                }
+              }
+            }
+          }
+        },
+        {
+          "id": "root-column",
+          "component": {
+            "Column": {
+              "children": {
+                "explicitList": ["title-heading", "item-list"]
+              }
+            }
+          }
+        },
+        {
+          "id": "template-book-button",
+          "component": {
+            "Button": {
+              "child": "loading_book-now-text",
+              "primary": true,
+              "action": {
+                "name": "book_restaurant",
+                "context": [
+                  {
+                    "key": "restaurantName",
+                    "value": {
+                      "path": "/name"
+                    }
+                  },
+                  {
+                    "key": "imageUrl",
+                    "value": {
+                      "path": "/imageUrl"
+                    }
+                  },
+                  {
+                    "key": "address",
+                    "value": {
+                      "path": "/address"
+                    }
+                  }
+                ]
+              }
+            }
+          }
+        },
+        {
+          "id": "template-detail",
+          "component": {
+            "Text": {
+              "text": {
+                "path": "/detail"
+              }
+            }
+          }
+        },
+        {
+          "id": "template-image",
+          "weight": 1,
+          "component": {
+            "Image": {
+              "url": {
+                "path": "/imageUrl"
+              }
+            }
+          }
+        },
+        {
+          "id": "template-link",
+          "component": {
+            "Text": {
+              "text": {
+                "path": "/infoLink"
+              }
+            }
+          }
+        },
+        {
+          "id": "template-name",
+          "component": {
+            "Text": {
+              "usageHint": "h3",
+              "text": {
+                "path": "/name"
+              }
+            }
+          }
+        },
+        {
+          "id": "template-rating",
+          "component": {
+            "Text": {
+              "text": {
+                "path": "/rating"
+              }
+            }
+          }
+        },
+        {
+          "id": "title-heading",
+          "component": {
+            "Text": {
+              "usageHint": "h1",
+              "text": {
+                "path": "/title"
+              }
+            }
+          }
+        },
+        {
+          "id": "loading_book-now-text",
+          "component": {
+            "Row": {
+              "children": {
+                "explicitList": []
+              }
+            }
+          }
+        }
+      ]
+    }
+  },
+  {
+    "surfaceUpdate": {
+      "surfaceId": "default",
+      "components": [
+        {
+          "id": "book-now-text",
+          "component": {
+            "Text": {
+              "text": {
+                "literalString": "Book Now"
+              }
+            }
+          }
+        },
+        {
+          "id": "card-details",
+          "weight": 2,
+          "component": {
+            "Column": {
+              "children": {
+                "explicitList": [
+                  "template-name",
+                  "template-rating",
+                  "template-detail",
+                  "template-link",
+                  "template-book-button"
+                ]
+              }
+            }
+          }
+        },
+        {
+          "id": "card-layout",
+          "component": {
+            "Row": {
+              "children": {
+                "explicitList": ["template-image", "card-details"]
+              }
+            }
+          }
+        },
+        {
+          "id": "item-card-template",
+          "component": {
+            "Card": {
+              "child": "card-layout"
+            }
+          }
+        },
+        {
+          "id": "item-list",
+          "component": {
+            "List": {
+              "direction": "vertical",
+              "children": {
+                "template": {
+                  "componentId": "item-card-template",
+                  "dataBinding": "/items"
+                }
+              }
+            }
+          }
+        },
+        {
+          "id": "root-column",
+          "component": {
+            "Column": {
+              "children": {
+                "explicitList": ["title-heading", "item-list"]
+              }
+            }
+          }
+        },
+        {
+          "id": "template-book-button",
+          "component": {
+            "Button": {
+              "child": "book-now-text",
+              "primary": true,
+              "action": {
+                "name": "book_restaurant",
+                "context": [
+                  {
+                    "key": "restaurantName",
+                    "value": {
+                      "path": "/name"
+                    }
+                  },
+                  {
+                    "key": "imageUrl",
+                    "value": {
+                      "path": "/imageUrl"
+                    }
+                  },
+                  {
+                    "key": "address",
+                    "value": {
+                      "path": "/address"
+                    }
+                  }
+                ]
+              }
+            }
+          }
+        },
+        {
+          "id": "template-detail",
+          "component": {
+            "Text": {
+              "text": {
+                "path": "/detail"
+              }
+            }
+          }
+        },
+        {
+          "id": "template-image",
+          "weight": 1,
+          "component": {
+            "Image": {
+              "url": {
+                "path": "/imageUrl"
+              }
+            }
+          }
+        },
+        {
+          "id": "template-link",
+          "component": {
+            "Text": {
+              "text": {
+                "path": "/infoLink"
+              }
+            }
+          }
+        },
+        {
+          "id": "template-name",
+          "component": {
+            "Text": {
+              "usageHint": "h3",
+              "text": {
+                "path": "/name"
+              }
+            }
+          }
+        },
+        {
+          "id": "template-rating",
+          "component": {
+            "Text": {
+              "text": {
+                "path": "/rating"
+              }
+            }
+          }
+        },
+        {
+          "id": "title-heading",
+          "component": {
+            "Text": {
+              "usageHint": "h1",
+              "text": {
+                "path": "/title"
+              }
+            }
+          }
+        }
+      ]
+    }
+  },
+  {
+    "dataModelUpdate": {
+      "surfaceId": "default",
+      "contents": [
+        {
+          "key": "title",
+          "valueString": "Szechuan Restaurants"
+        }
+      ],
+      "path": "/"
+    }
+  },
+  {
+    "dataModelUpdate": {
+      "surfaceId": "default",
+      "contents": [
+        {
+          "key": "title",
+          "valueString": "Szechuan Restaurants in New York"
+        }
+      ],
+      "path": "/"
+    }
+  },
+  {
+    "dataModelUpdate": {
+      "surfaceId": "default",
+      "contents": [
+        {
+          "key": "title",
+          "valueString": "Szechuan Restaurants in New York"
+        },
+        {
+          "key": "items",
+          "valueMap": [
+            {
+              "key": "item1",
+              "valueMap": [
+                {
+                  "key": "name",
+                  "valueString": "Xi'an Famous Foods"
+                },
+                {
+                  "key": "rating",
+                  "valueString": "\u2605\u2605\u2605\u2605\u2606"
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "path": "/"
+    }
+  },
+  {
+    "dataModelUpdate": {
+      "surfaceId": "default",
+      "contents": [
+        {
+          "key": "title",
+          "valueString": "Szechuan Restaurants in New York"
+        },
+        {
+          "key": "items",
+          "valueMap": [
+            {
+              "key": "item1",
+              "valueMap": [
+                {
+                  "key": "name",
+                  "valueString": "Xi'an Famous Foods"
+                },
+                {
+                  "key": "rating",
+                  "valueString": "\u2605\u2605\u2605\u2605\u2606"
+                },
+                {
+                  "key": "detail",
+                  "valueString": "Spicy and savory hand-pulled noodles."
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "path": "/"
+    }
+  },
+  {
+    "dataModelUpdate": {
+      "surfaceId": "default",
+      "contents": [
+        {
+          "key": "title",
+          "valueString": "Szechuan Restaurants in New York"
+        },
+        {
+          "key": "items",
+          "valueMap": [
+            {
+              "key": "item1",
+              "valueMap": [
+                {
+                  "key": "name",
+                  "valueString": "Xi'an Famous Foods"
+                },
+                {
+                  "key": "rating",
+                  "valueString": "\u2605\u2605\u2605\u2605\u2606"
+                },
+                {
+                  "key": "detail",
+                  "valueString": "Spicy and savory hand-pulled noodles."
+                },
+                {
+                  "key": "infoLink",
+                  "valueString": "[More Info](https://www.xianfoods.com/)"
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "path": "/"
+    }
+  },
+  {
+    "dataModelUpdate": {
+      "surfaceId": "default",
+      "contents": [
+        {
+          "key": "title",
+          "valueString": "Szechuan Restaurants in New York"
+        },
+        {
+          "key": "items",
+          "valueMap": [
+            {
+              "key": "item1",
+              "valueMap": [
+                {
+                  "key": "name",
+                  "valueString": "Xi'an Famous Foods"
+                },
+                {
+                  "key": "rating",
+                  "valueString": "\u2605\u2605\u2605\u2605\u2606"
+                },
+                {
+                  "key": "detail",
+                  "valueString": "Spicy and savory hand-pulled noodles."
+                },
+                {
+                  "key": "infoLink",
+                  "valueString": "[More Info](https://www.xianfoods.com/)"
+                },
+                {
+                  "key": "imageUrl",
+                  "valueString": "/images/restaurant_finder/shrimpchowmein.jpeg"
+                },
+                {
+                  "key": "address",
+                  "valueString": "81 St Marks Pl, New York, NY 10003"
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "path": "/"
+    }
+  },
+  {
+    "dataModelUpdate": {
+      "surfaceId": "default",
+      "contents": [
+        {
+          "key": "title",
+          "valueString": "Szechuan Restaurants in New York"
+        },
+        {
+          "key": "items",
+          "valueMap": [
+            {
+              "key": "item1",
+              "valueMap": [
+                {
+                  "key": "name",
+                  "valueString": "Xi'an Famous Foods"
+                },
+                {
+                  "key": "rating",
+                  "valueString": "\u2605\u2605\u2605\u2605\u2606"
+                },
+                {
+                  "key": "detail",
+                  "valueString": "Spicy and savory hand-pulled noodles."
+                },
+                {
+                  "key": "infoLink",
+                  "valueString": "[More Info](https://www.xianfoods.com/)"
+                },
+                {
+                  "key": "imageUrl",
+                  "valueString": "/images/restaurant_finder/shrimpchowmein.jpeg"
+                },
+                {
+                  "key": "address",
+                  "valueString": "81 St Marks Pl, New York, NY 10003"
+                }
+              ]
+            },
+            {
+              "key": "item2",
+              "valueMap": [
+                {
+                  "key": "name",
+                  "valueString": "Han Dynasty"
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "path": "/"
+    }
+  },
+  {
+    "dataModelUpdate": {
+      "surfaceId": "default",
+      "contents": [
+        {
+          "key": "title",
+          "valueString": "Szechuan Restaurants in New York"
+        },
+        {
+          "key": "items",
+          "valueMap": [
+            {
+              "key": "item1",
+              "valueMap": [
+                {
+                  "key": "name",
+                  "valueString": "Xi'an Famous Foods"
+                },
+                {
+                  "key": "rating",
+                  "valueString": "\u2605\u2605\u2605\u2605\u2606"
+                },
+                {
+                  "key": "detail",
+                  "valueString": "Spicy and savory hand-pulled noodles."
+                },
+                {
+                  "key": "infoLink",
+                  "valueString": "[More Info](https://www.xianfoods.com/)"
+                },
+                {
+                  "key": "imageUrl",
+                  "valueString": "/images/restaurant_finder/shrimpchowmein.jpeg"
+                },
+                {
+                  "key": "address",
+                  "valueString": "81 St Marks Pl, New York, NY 10003"
+                }
+              ]
+            },
+            {
+              "key": "item2",
+              "valueMap": [
+                {
+                  "key": "name",
+                  "valueString": "Han Dynasty"
+                },
+                {
+                  "key": "rating",
+                  "valueString": "\u2605\u2605\u2605\u2605\u2606"
+                },
+                {
+                  "key": "detail",
+                  "valueString": "Authentic S"
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "path": "/"
+    }
+  },
+  {
+    "dataModelUpdate": {
+      "surfaceId": "default",
+      "contents": [
+        {
+          "key": "title",
+          "valueString": "Szechuan Restaurants in New York"
+        },
+        {
+          "key": "items",
+          "valueMap": [
+            {
+              "key": "item1",
+              "valueMap": [
+                {
+                  "key": "name",
+                  "valueString": "Xi'an Famous Foods"
+                },
+                {
+                  "key": "rating",
+                  "valueString": "\u2605\u2605\u2605\u2605\u2606"
+                },
+                {
+                  "key": "detail",
+                  "valueString": "Spicy and savory hand-pulled noodles."
+                },
+                {
+                  "key": "infoLink",
+                  "valueString": "[More Info](https://www.xianfoods.com/)"
+                },
+                {
+                  "key": "imageUrl",
+                  "valueString": "/images/restaurant_finder/shrimpchowmein.jpeg"
+                },
+                {
+                  "key": "address",
+                  "valueString": "81 St Marks Pl, New York, NY 10003"
+                }
+              ]
+            },
+            {
+              "key": "item2",
+              "valueMap": [
+                {
+                  "key": "name",
+                  "valueString": "Han Dynasty"
+                },
+                {
+                  "key": "rating",
+                  "valueString": "\u2605\u2605\u2605\u2605\u2606"
+                },
+                {
+                  "key": "detail",
+                  "valueString": "Authentic Szechuan cuisine."
+                },
+                {
+                  "key": "infoLink",
+                  "valueString": "[More Info](https://www.handynasty.net/)"
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "path": "/"
+    }
+  },
+  {
+    "dataModelUpdate": {
+      "surfaceId": "default",
+      "contents": [
+        {
+          "key": "title",
+          "valueString": "Szechuan Restaurants in New York"
+        },
+        {
+          "key": "items",
+          "valueMap": [
+            {
+              "key": "item1",
+              "valueMap": [
+                {
+                  "key": "name",
+                  "valueString": "Xi'an Famous Foods"
+                },
+                {
+                  "key": "rating",
+                  "valueString": "\u2605\u2605\u2605\u2605\u2606"
+                },
+                {
+                  "key": "detail",
+                  "valueString": "Spicy and savory hand-pulled noodles."
+                },
+                {
+                  "key": "infoLink",
+                  "valueString": "[More Info](https://www.xianfoods.com/)"
+                },
+                {
+                  "key": "imageUrl",
+                  "valueString": "/images/restaurant_finder/shrimpchowmein.jpeg"
+                },
+                {
+                  "key": "address",
+                  "valueString": "81 St Marks Pl, New York, NY 10003"
+                }
+              ]
+            },
+            {
+              "key": "item2",
+              "valueMap": [
+                {
+                  "key": "name",
+                  "valueString": "Han Dynasty"
+                },
+                {
+                  "key": "rating",
+                  "valueString": "\u2605\u2605\u2605\u2605\u2606"
+                },
+                {
+                  "key": "detail",
+                  "valueString": "Authentic Szechuan cuisine."
+                },
+                {
+                  "key": "infoLink",
+                  "valueString": "[More Info](https://www.handynasty.net/)"
+                },
+                {
+                  "key": "imageUrl",
+                  "valueString": "/images/restaurant_finder/mapotofu.jpeg"
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "path": "/"
+    }
+  },
+  {
+    "dataModelUpdate": {
+      "surfaceId": "default",
+      "contents": [
+        {
+          "key": "title",
+          "valueString": "Szechuan Restaurants in New York"
+        },
+        {
+          "key": "items",
+          "valueMap": [
+            {
+              "key": "item1",
+              "valueMap": [
+                {
+                  "key": "name",
+                  "valueString": "Xi'an Famous Foods"
+                },
+                {
+                  "key": "rating",
+                  "valueString": "\u2605\u2605\u2605\u2605\u2606"
+                },
+                {
+                  "key": "detail",
+                  "valueString": "Spicy and savory hand-pulled noodles."
+                },
+                {
+                  "key": "infoLink",
+                  "valueString": "[More Info](https://www.xianfoods.com/)"
+                },
+                {
+                  "key": "imageUrl",
+                  "valueString": "/images/restaurant_finder/shrimpchowmein.jpeg"
+                },
+                {
+                  "key": "address",
+                  "valueString": "81 St Marks Pl, New York, NY 10003"
+                }
+              ]
+            },
+            {
+              "key": "item2",
+              "valueMap": [
+                {
+                  "key": "name",
+                  "valueString": "Han Dynasty"
+                },
+                {
+                  "key": "rating",
+                  "valueString": "\u2605\u2605\u2605\u2605\u2606"
+                },
+                {
+                  "key": "detail",
+                  "valueString": "Authentic Szechuan cuisine."
+                },
+                {
+                  "key": "infoLink",
+                  "valueString": "[More Info](https://www.handynasty.net/)"
+                },
+                {
+                  "key": "imageUrl",
+                  "valueString": "/images/restaurant_finder/mapotofu.jpeg"
+                },
+                {
+                  "key": "address",
+                  "valueString": "90 3rd Ave, New York, NY 10003"
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "path": "/"
+    }
+  },
+  {
+    "dataModelUpdate": {
+      "surfaceId": "default",
+      "contents": [
+        {
+          "key": "title",
+          "valueString": "Szechuan Restaurants in New York"
+        },
+        {
+          "key": "items",
+          "valueMap": [
+            {
+              "key": "item1",
+              "valueMap": [
+                {
+                  "key": "name",
+                  "valueString": "Xi'an Famous Foods"
+                },
+                {
+                  "key": "rating",
+                  "valueString": "\u2605\u2605\u2605\u2605\u2606"
+                },
+                {
+                  "key": "detail",
+                  "valueString": "Spicy and savory hand-pulled noodles."
+                },
+                {
+                  "key": "infoLink",
+                  "valueString": "[More Info](https://www.xianfoods.com/)"
+                },
+                {
+                  "key": "imageUrl",
+                  "valueString": "/images/restaurant_finder/shrimpchowmein.jpeg"
+                },
+                {
+                  "key": "address",
+                  "valueString": "81 St Marks Pl, New York, NY 10003"
+                }
+              ]
+            },
+            {
+              "key": "item2",
+              "valueMap": [
+                {
+                  "key": "name",
+                  "valueString": "Han Dynasty"
+                },
+                {
+                  "key": "rating",
+                  "valueString": "\u2605\u2605\u2605\u2605\u2606"
+                },
+                {
+                  "key": "detail",
+                  "valueString": "Authentic Szechuan cuisine."
+                },
+                {
+                  "key": "infoLink",
+                  "valueString": "[More Info](https://www.handynasty.net/)"
+                },
+                {
+                  "key": "imageUrl",
+                  "valueString": "/images/restaurant_finder/mapotofu.jpeg"
+                },
+                {
+                  "key": "address",
+                  "valueString": "90 3rd Ave, New York, NY 10003"
+                }
+              ]
+            },
+            {
+              "key": "item3",
+              "valueMap": [
+                {
+                  "key": "name",
+                  "valueString": "RedFarm"
+                },
+                {
+                  "key": "rating",
+                  "valueString": "\u2605\u2605\u2605\u2605\u2606"
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "path": "/"
+    }
+  },
+  {
+    "dataModelUpdate": {
+      "surfaceId": "default",
+      "contents": [
+        {
+          "key": "title",
+          "valueString": "Szechuan Restaurants in New York"
+        },
+        {
+          "key": "items",
+          "valueMap": [
+            {
+              "key": "item1",
+              "valueMap": [
+                {
+                  "key": "name",
+                  "valueString": "Xi'an Famous Foods"
+                },
+                {
+                  "key": "rating",
+                  "valueString": "\u2605\u2605\u2605\u2605\u2606"
+                },
+                {
+                  "key": "detail",
+                  "valueString": "Spicy and savory hand-pulled noodles."
+                },
+                {
+                  "key": "infoLink",
+                  "valueString": "[More Info](https://www.xianfoods.com/)"
+                },
+                {
+                  "key": "imageUrl",
+                  "valueString": "/images/restaurant_finder/shrimpchowmein.jpeg"
+                },
+                {
+                  "key": "address",
+                  "valueString": "81 St Marks Pl, New York, NY 10003"
+                }
+              ]
+            },
+            {
+              "key": "item2",
+              "valueMap": [
+                {
+                  "key": "name",
+                  "valueString": "Han Dynasty"
+                },
+                {
+                  "key": "rating",
+                  "valueString": "\u2605\u2605\u2605\u2605\u2606"
+                },
+                {
+                  "key": "detail",
+                  "valueString": "Authentic Szechuan cuisine."
+                },
+                {
+                  "key": "infoLink",
+                  "valueString": "[More Info](https://www.handynasty.net/)"
+                },
+                {
+                  "key": "imageUrl",
+                  "valueString": "/images/restaurant_finder/mapotofu.jpeg"
+                },
+                {
+                  "key": "address",
+                  "valueString": "90 3rd Ave, New York, NY 10003"
+                }
+              ]
+            },
+            {
+              "key": "item3",
+              "valueMap": [
+                {
+                  "key": "name",
+                  "valueString": "RedFarm"
+                },
+                {
+                  "key": "rating",
+                  "valueString": "\u2605\u2605\u2605\u2605\u2606"
+                },
+                {
+                  "key": "detail",
+                  "valueString": "Modern Chinese with a farm-to-table approach."
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "path": "/"
+    }
+  },
+  {
+    "dataModelUpdate": {
+      "surfaceId": "default",
+      "contents": [
+        {
+          "key": "title",
+          "valueString": "Szechuan Restaurants in New York"
+        },
+        {
+          "key": "items",
+          "valueMap": [
+            {
+              "key": "item1",
+              "valueMap": [
+                {
+                  "key": "name",
+                  "valueString": "Xi'an Famous Foods"
+                },
+                {
+                  "key": "rating",
+                  "valueString": "\u2605\u2605\u2605\u2605\u2606"
+                },
+                {
+                  "key": "detail",
+                  "valueString": "Spicy and savory hand-pulled noodles."
+                },
+                {
+                  "key": "infoLink",
+                  "valueString": "[More Info](https://www.xianfoods.com/)"
+                },
+                {
+                  "key": "imageUrl",
+                  "valueString": "/images/restaurant_finder/shrimpchowmein.jpeg"
+                },
+                {
+                  "key": "address",
+                  "valueString": "81 St Marks Pl, New York, NY 10003"
+                }
+              ]
+            },
+            {
+              "key": "item2",
+              "valueMap": [
+                {
+                  "key": "name",
+                  "valueString": "Han Dynasty"
+                },
+                {
+                  "key": "rating",
+                  "valueString": "\u2605\u2605\u2605\u2605\u2606"
+                },
+                {
+                  "key": "detail",
+                  "valueString": "Authentic Szechuan cuisine."
+                },
+                {
+                  "key": "infoLink",
+                  "valueString": "[More Info](https://www.handynasty.net/)"
+                },
+                {
+                  "key": "imageUrl",
+                  "valueString": "/images/restaurant_finder/mapotofu.jpeg"
+                },
+                {
+                  "key": "address",
+                  "valueString": "90 3rd Ave, New York, NY 10003"
+                }
+              ]
+            },
+            {
+              "key": "item3",
+              "valueMap": [
+                {
+                  "key": "name",
+                  "valueString": "RedFarm"
+                },
+                {
+                  "key": "rating",
+                  "valueString": "\u2605\u2605\u2605\u2605\u2606"
+                },
+                {
+                  "key": "detail",
+                  "valueString": "Modern Chinese with a farm-to-table approach."
+                },
+                {
+                  "key": "infoLink",
+                  "valueString": "[More Info](https://www.redfarmnyc.com/)"
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "path": "/"
+    }
+  },
+  {
+    "dataModelUpdate": {
+      "surfaceId": "default",
+      "contents": [
+        {
+          "key": "title",
+          "valueString": "Szechuan Restaurants in New York"
+        },
+        {
+          "key": "items",
+          "valueMap": [
+            {
+              "key": "item1",
+              "valueMap": [
+                {
+                  "key": "name",
+                  "valueString": "Xi'an Famous Foods"
+                },
+                {
+                  "key": "rating",
+                  "valueString": "\u2605\u2605\u2605\u2605\u2606"
+                },
+                {
+                  "key": "detail",
+                  "valueString": "Spicy and savory hand-pulled noodles."
+                },
+                {
+                  "key": "infoLink",
+                  "valueString": "[More Info](https://www.xianfoods.com/)"
+                },
+                {
+                  "key": "imageUrl",
+                  "valueString": "/images/restaurant_finder/shrimpchowmein.jpeg"
+                },
+                {
+                  "key": "address",
+                  "valueString": "81 St Marks Pl, New York, NY 10003"
+                }
+              ]
+            },
+            {
+              "key": "item2",
+              "valueMap": [
+                {
+                  "key": "name",
+                  "valueString": "Han Dynasty"
+                },
+                {
+                  "key": "rating",
+                  "valueString": "\u2605\u2605\u2605\u2605\u2606"
+                },
+                {
+                  "key": "detail",
+                  "valueString": "Authentic Szechuan cuisine."
+                },
+                {
+                  "key": "infoLink",
+                  "valueString": "[More Info](https://www.handynasty.net/)"
+                },
+                {
+                  "key": "imageUrl",
+                  "valueString": "/images/restaurant_finder/mapotofu.jpeg"
+                },
+                {
+                  "key": "address",
+                  "valueString": "90 3rd Ave, New York, NY 10003"
+                }
+              ]
+            },
+            {
+              "key": "item3",
+              "valueMap": [
+                {
+                  "key": "name",
+                  "valueString": "RedFarm"
+                },
+                {
+                  "key": "rating",
+                  "valueString": "\u2605\u2605\u2605\u2605\u2606"
+                },
+                {
+                  "key": "detail",
+                  "valueString": "Modern Chinese with a farm-to-table approach."
+                },
+                {
+                  "key": "infoLink",
+                  "valueString": "[More Info](https://www.redfarmnyc.com/)"
+                },
+                {
+                  "key": "imageUrl",
+                  "valueString": "/images/restaurant_finder/beefbroccoli.jpeg"
+                },
+                {
+                  "key": "address",
+                  "valueString": "529 Hudson St, New York, NY 10014"
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "path": "/"
+    }
+  },
+  {
+    "dataModelUpdate": {
+      "surfaceId": "default",
+      "contents": [
+        {
+          "key": "title",
+          "valueString": "Szechuan Restaurants in New York"
+        },
+        {
+          "key": "items",
+          "valueMap": [
+            {
+              "key": "item1",
+              "valueMap": [
+                {
+                  "key": "name",
+                  "valueString": "Xi'an Famous Foods"
+                },
+                {
+                  "key": "rating",
+                  "valueString": "\u2605\u2605\u2605\u2605\u2606"
+                },
+                {
+                  "key": "detail",
+                  "valueString": "Spicy and savory hand-pulled noodles."
+                },
+                {
+                  "key": "infoLink",
+                  "valueString": "[More Info](https://www.xianfoods.com/)"
+                },
+                {
+                  "key": "imageUrl",
+                  "valueString": "/images/restaurant_finder/shrimpchowmein.jpeg"
+                },
+                {
+                  "key": "address",
+                  "valueString": "81 St Marks Pl, New York, NY 10003"
+                }
+              ]
+            },
+            {
+              "key": "item2",
+              "valueMap": [
+                {
+                  "key": "name",
+                  "valueString": "Han Dynasty"
+                },
+                {
+                  "key": "rating",
+                  "valueString": "\u2605\u2605\u2605\u2605\u2606"
+                },
+                {
+                  "key": "detail",
+                  "valueString": "Authentic Szechuan cuisine."
+                },
+                {
+                  "key": "infoLink",
+                  "valueString": "[More Info](https://www.handynasty.net/)"
+                },
+                {
+                  "key": "imageUrl",
+                  "valueString": "/images/restaurant_finder/mapotofu.jpeg"
+                },
+                {
+                  "key": "address",
+                  "valueString": "90 3rd Ave, New York, NY 10003"
+                }
+              ]
+            },
+            {
+              "key": "item3",
+              "valueMap": [
+                {
+                  "key": "name",
+                  "valueString": "RedFarm"
+                },
+                {
+                  "key": "rating",
+                  "valueString": "\u2605\u2605\u2605\u2605\u2606"
+                },
+                {
+                  "key": "detail",
+                  "valueString": "Modern Chinese with a farm-to-table approach."
+                },
+                {
+                  "key": "infoLink",
+                  "valueString": "[More Info](https://www.redfarmnyc.com/)"
+                },
+                {
+                  "key": "imageUrl",
+                  "valueString": "/images/restaurant_finder/beefbroccoli.jpeg"
+                },
+                {
+                  "key": "address",
+                  "valueString": "529 Hudson St, New York, NY 10014"
+                }
+              ]
+            },
+            {
+              "key": "item4",
+              "valueMap": [
+                {
+                  "key": "name",
+                  "valueString": "Mott"
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "path": "/"
+    }
+  },
+  {
+    "dataModelUpdate": {
+      "surfaceId": "default",
+      "contents": [
+        {
+          "key": "title",
+          "valueString": "Szechuan Restaurants in New York"
+        },
+        {
+          "key": "items",
+          "valueMap": [
+            {
+              "key": "item1",
+              "valueMap": [
+                {
+                  "key": "name",
+                  "valueString": "Xi'an Famous Foods"
+                },
+                {
+                  "key": "rating",
+                  "valueString": "\u2605\u2605\u2605\u2605\u2606"
+                },
+                {
+                  "key": "detail",
+                  "valueString": "Spicy and savory hand-pulled noodles."
+                },
+                {
+                  "key": "infoLink",
+                  "valueString": "[More Info](https://www.xianfoods.com/)"
+                },
+                {
+                  "key": "imageUrl",
+                  "valueString": "/images/restaurant_finder/shrimpchowmein.jpeg"
+                },
+                {
+                  "key": "address",
+                  "valueString": "81 St Marks Pl, New York, NY 10003"
+                }
+              ]
+            },
+            {
+              "key": "item2",
+              "valueMap": [
+                {
+                  "key": "name",
+                  "valueString": "Han Dynasty"
+                },
+                {
+                  "key": "rating",
+                  "valueString": "\u2605\u2605\u2605\u2605\u2606"
+                },
+                {
+                  "key": "detail",
+                  "valueString": "Authentic Szechuan cuisine."
+                },
+                {
+                  "key": "infoLink",
+                  "valueString": "[More Info](https://www.handynasty.net/)"
+                },
+                {
+                  "key": "imageUrl",
+                  "valueString": "/images/restaurant_finder/mapotofu.jpeg"
+                },
+                {
+                  "key": "address",
+                  "valueString": "90 3rd Ave, New York, NY 10003"
+                }
+              ]
+            },
+            {
+              "key": "item3",
+              "valueMap": [
+                {
+                  "key": "name",
+                  "valueString": "RedFarm"
+                },
+                {
+                  "key": "rating",
+                  "valueString": "\u2605\u2605\u2605\u2605\u2606"
+                },
+                {
+                  "key": "detail",
+                  "valueString": "Modern Chinese with a farm-to-table approach."
+                },
+                {
+                  "key": "infoLink",
+                  "valueString": "[More Info](https://www.redfarmnyc.com/)"
+                },
+                {
+                  "key": "imageUrl",
+                  "valueString": "/images/restaurant_finder/beefbroccoli.jpeg"
+                },
+                {
+                  "key": "address",
+                  "valueString": "529 Hudson St, New York, NY 10014"
+                }
+              ]
+            },
+            {
+              "key": "item4",
+              "valueMap": [
+                {
+                  "key": "name",
+                  "valueString": "Mott 32"
+                },
+                {
+                  "key": "rating",
+                  "valueString": "\u2605\u2605\u2605\u2605\u2605"
+                },
+                {
+                  "key": "detail",
+                  "valueString": "Upscale"
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "path": "/"
+    }
+  },
+  {
+    "dataModelUpdate": {
+      "surfaceId": "default",
+      "contents": [
+        {
+          "key": "title",
+          "valueString": "Szechuan Restaurants in New York"
+        },
+        {
+          "key": "items",
+          "valueMap": [
+            {
+              "key": "item1",
+              "valueMap": [
+                {
+                  "key": "name",
+                  "valueString": "Xi'an Famous Foods"
+                },
+                {
+                  "key": "rating",
+                  "valueString": "\u2605\u2605\u2605\u2605\u2606"
+                },
+                {
+                  "key": "detail",
+                  "valueString": "Spicy and savory hand-pulled noodles."
+                },
+                {
+                  "key": "infoLink",
+                  "valueString": "[More Info](https://www.xianfoods.com/)"
+                },
+                {
+                  "key": "imageUrl",
+                  "valueString": "/images/restaurant_finder/shrimpchowmein.jpeg"
+                },
+                {
+                  "key": "address",
+                  "valueString": "81 St Marks Pl, New York, NY 10003"
+                }
+              ]
+            },
+            {
+              "key": "item2",
+              "valueMap": [
+                {
+                  "key": "name",
+                  "valueString": "Han Dynasty"
+                },
+                {
+                  "key": "rating",
+                  "valueString": "\u2605\u2605\u2605\u2605\u2606"
+                },
+                {
+                  "key": "detail",
+                  "valueString": "Authentic Szechuan cuisine."
+                },
+                {
+                  "key": "infoLink",
+                  "valueString": "[More Info](https://www.handynasty.net/)"
+                },
+                {
+                  "key": "imageUrl",
+                  "valueString": "/images/restaurant_finder/mapotofu.jpeg"
+                },
+                {
+                  "key": "address",
+                  "valueString": "90 3rd Ave, New York, NY 10003"
+                }
+              ]
+            },
+            {
+              "key": "item3",
+              "valueMap": [
+                {
+                  "key": "name",
+                  "valueString": "RedFarm"
+                },
+                {
+                  "key": "rating",
+                  "valueString": "\u2605\u2605\u2605\u2605\u2606"
+                },
+                {
+                  "key": "detail",
+                  "valueString": "Modern Chinese with a farm-to-table approach."
+                },
+                {
+                  "key": "infoLink",
+                  "valueString": "[More Info](https://www.redfarmnyc.com/)"
+                },
+                {
+                  "key": "imageUrl",
+                  "valueString": "/images/restaurant_finder/beefbroccoli.jpeg"
+                },
+                {
+                  "key": "address",
+                  "valueString": "529 Hudson St, New York, NY 10014"
+                }
+              ]
+            },
+            {
+              "key": "item4",
+              "valueMap": [
+                {
+                  "key": "name",
+                  "valueString": "Mott 32"
+                },
+                {
+                  "key": "rating",
+                  "valueString": "\u2605\u2605\u2605\u2605\u2605"
+                },
+                {
+                  "key": "detail",
+                  "valueString": "Upscale Cantonese dining."
+                },
+                {
+                  "key": "infoLink",
+                  "valueString": "[More Info](https://mott32.com/newyork/)"
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "path": "/"
+    }
+  },
+  {
+    "dataModelUpdate": {
+      "surfaceId": "default",
+      "contents": [
+        {
+          "key": "title",
+          "valueString": "Szechuan Restaurants in New York"
+        },
+        {
+          "key": "items",
+          "valueMap": [
+            {
+              "key": "item1",
+              "valueMap": [
+                {
+                  "key": "name",
+                  "valueString": "Xi'an Famous Foods"
+                },
+                {
+                  "key": "rating",
+                  "valueString": "\u2605\u2605\u2605\u2605\u2606"
+                },
+                {
+                  "key": "detail",
+                  "valueString": "Spicy and savory hand-pulled noodles."
+                },
+                {
+                  "key": "infoLink",
+                  "valueString": "[More Info](https://www.xianfoods.com/)"
+                },
+                {
+                  "key": "imageUrl",
+                  "valueString": "/images/restaurant_finder/shrimpchowmein.jpeg"
+                },
+                {
+                  "key": "address",
+                  "valueString": "81 St Marks Pl, New York, NY 10003"
+                }
+              ]
+            },
+            {
+              "key": "item2",
+              "valueMap": [
+                {
+                  "key": "name",
+                  "valueString": "Han Dynasty"
+                },
+                {
+                  "key": "rating",
+                  "valueString": "\u2605\u2605\u2605\u2605\u2606"
+                },
+                {
+                  "key": "detail",
+                  "valueString": "Authentic Szechuan cuisine."
+                },
+                {
+                  "key": "infoLink",
+                  "valueString": "[More Info](https://www.handynasty.net/)"
+                },
+                {
+                  "key": "imageUrl",
+                  "valueString": "/images/restaurant_finder/mapotofu.jpeg"
+                },
+                {
+                  "key": "address",
+                  "valueString": "90 3rd Ave, New York, NY 10003"
+                }
+              ]
+            },
+            {
+              "key": "item3",
+              "valueMap": [
+                {
+                  "key": "name",
+                  "valueString": "RedFarm"
+                },
+                {
+                  "key": "rating",
+                  "valueString": "\u2605\u2605\u2605\u2605\u2606"
+                },
+                {
+                  "key": "detail",
+                  "valueString": "Modern Chinese with a farm-to-table approach."
+                },
+                {
+                  "key": "infoLink",
+                  "valueString": "[More Info](https://www.redfarmnyc.com/)"
+                },
+                {
+                  "key": "imageUrl",
+                  "valueString": "/images/restaurant_finder/beefbroccoli.jpeg"
+                },
+                {
+                  "key": "address",
+                  "valueString": "529 Hudson St, New York, NY 10014"
+                }
+              ]
+            },
+            {
+              "key": "item4",
+              "valueMap": [
+                {
+                  "key": "name",
+                  "valueString": "Mott 32"
+                },
+                {
+                  "key": "rating",
+                  "valueString": "\u2605\u2605\u2605\u2605\u2605"
+                },
+                {
+                  "key": "detail",
+                  "valueString": "Upscale Cantonese dining."
+                },
+                {
+                  "key": "infoLink",
+                  "valueString": "[More Info](https://mott32.com/newyork/)"
+                },
+                {
+                  "key": "imageUrl",
+                  "valueString": "/images/restaurant_finder/springrolls.jpeg"
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "path": "/"
+    }
+  },
+  {
+    "dataModelUpdate": {
+      "surfaceId": "default",
+      "contents": [
+        {
+          "key": "title",
+          "valueString": "Szechuan Restaurants in New York"
+        },
+        {
+          "key": "items",
+          "valueMap": [
+            {
+              "key": "item1",
+              "valueMap": [
+                {
+                  "key": "name",
+                  "valueString": "Xi'an Famous Foods"
+                },
+                {
+                  "key": "rating",
+                  "valueString": "\u2605\u2605\u2605\u2605\u2606"
+                },
+                {
+                  "key": "detail",
+                  "valueString": "Spicy and savory hand-pulled noodles."
+                },
+                {
+                  "key": "infoLink",
+                  "valueString": "[More Info](https://www.xianfoods.com/)"
+                },
+                {
+                  "key": "imageUrl",
+                  "valueString": "/images/restaurant_finder/shrimpchowmein.jpeg"
+                },
+                {
+                  "key": "address",
+                  "valueString": "81 St Marks Pl, New York, NY 10003"
+                }
+              ]
+            },
+            {
+              "key": "item2",
+              "valueMap": [
+                {
+                  "key": "name",
+                  "valueString": "Han Dynasty"
+                },
+                {
+                  "key": "rating",
+                  "valueString": "\u2605\u2605\u2605\u2605\u2606"
+                },
+                {
+                  "key": "detail",
+                  "valueString": "Authentic Szechuan cuisine."
+                },
+                {
+                  "key": "infoLink",
+                  "valueString": "[More Info](https://www.handynasty.net/)"
+                },
+                {
+                  "key": "imageUrl",
+                  "valueString": "/images/restaurant_finder/mapotofu.jpeg"
+                },
+                {
+                  "key": "address",
+                  "valueString": "90 3rd Ave, New York, NY 10003"
+                }
+              ]
+            },
+            {
+              "key": "item3",
+              "valueMap": [
+                {
+                  "key": "name",
+                  "valueString": "RedFarm"
+                },
+                {
+                  "key": "rating",
+                  "valueString": "\u2605\u2605\u2605\u2605\u2606"
+                },
+                {
+                  "key": "detail",
+                  "valueString": "Modern Chinese with a farm-to-table approach."
+                },
+                {
+                  "key": "infoLink",
+                  "valueString": "[More Info](https://www.redfarmnyc.com/)"
+                },
+                {
+                  "key": "imageUrl",
+                  "valueString": "/images/restaurant_finder/beefbroccoli.jpeg"
+                },
+                {
+                  "key": "address",
+                  "valueString": "529 Hudson St, New York, NY 10014"
+                }
+              ]
+            },
+            {
+              "key": "item4",
+              "valueMap": [
+                {
+                  "key": "name",
+                  "valueString": "Mott 32"
+                },
+                {
+                  "key": "rating",
+                  "valueString": "\u2605\u2605\u2605\u2605\u2605"
+                },
+                {
+                  "key": "detail",
+                  "valueString": "Upscale Cantonese dining."
+                },
+                {
+                  "key": "infoLink",
+                  "valueString": "[More Info](https://mott32.com/newyork/)"
+                },
+                {
+                  "key": "imageUrl",
+                  "valueString": "/images/restaurant_finder/springrolls.jpeg"
+                },
+                {
+                  "key": "address",
+                  "valueString": "111 W 57th St, New York, NY 10019"
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "path": "/"
+    }
+  },
+  {
+    "dataModelUpdate": {
+      "surfaceId": "default",
+      "contents": [
+        {
+          "key": "title",
+          "valueString": "Szechuan Restaurants in New York"
+        },
+        {
+          "key": "items",
+          "valueMap": [
+            {
+              "key": "item1",
+              "valueMap": [
+                {
+                  "key": "name",
+                  "valueString": "Xi'an Famous Foods"
+                },
+                {
+                  "key": "rating",
+                  "valueString": "\u2605\u2605\u2605\u2605\u2606"
+                },
+                {
+                  "key": "detail",
+                  "valueString": "Spicy and savory hand-pulled noodles."
+                },
+                {
+                  "key": "infoLink",
+                  "valueString": "[More Info](https://www.xianfoods.com/)"
+                },
+                {
+                  "key": "imageUrl",
+                  "valueString": "/images/restaurant_finder/shrimpchowmein.jpeg"
+                },
+                {
+                  "key": "address",
+                  "valueString": "81 St Marks Pl, New York, NY 10003"
+                }
+              ]
+            },
+            {
+              "key": "item2",
+              "valueMap": [
+                {
+                  "key": "name",
+                  "valueString": "Han Dynasty"
+                },
+                {
+                  "key": "rating",
+                  "valueString": "\u2605\u2605\u2605\u2605\u2606"
+                },
+                {
+                  "key": "detail",
+                  "valueString": "Authentic Szechuan cuisine."
+                },
+                {
+                  "key": "infoLink",
+                  "valueString": "[More Info](https://www.handynasty.net/)"
+                },
+                {
+                  "key": "imageUrl",
+                  "valueString": "/images/restaurant_finder/mapotofu.jpeg"
+                },
+                {
+                  "key": "address",
+                  "valueString": "90 3rd Ave, New York, NY 10003"
+                }
+              ]
+            },
+            {
+              "key": "item3",
+              "valueMap": [
+                {
+                  "key": "name",
+                  "valueString": "RedFarm"
+                },
+                {
+                  "key": "rating",
+                  "valueString": "\u2605\u2605\u2605\u2605\u2606"
+                },
+                {
+                  "key": "detail",
+                  "valueString": "Modern Chinese with a farm-to-table approach."
+                },
+                {
+                  "key": "infoLink",
+                  "valueString": "[More Info](https://www.redfarmnyc.com/)"
+                },
+                {
+                  "key": "imageUrl",
+                  "valueString": "/images/restaurant_finder/beefbroccoli.jpeg"
+                },
+                {
+                  "key": "address",
+                  "valueString": "529 Hudson St, New York, NY 10014"
+                }
+              ]
+            },
+            {
+              "key": "item4",
+              "valueMap": [
+                {
+                  "key": "name",
+                  "valueString": "Mott 32"
+                },
+                {
+                  "key": "rating",
+                  "valueString": "\u2605\u2605\u2605\u2605\u2605"
+                },
+                {
+                  "key": "detail",
+                  "valueString": "Upscale Cantonese dining."
+                },
+                {
+                  "key": "infoLink",
+                  "valueString": "[More Info](https://mott32.com/newyork/)"
+                },
+                {
+                  "key": "imageUrl",
+                  "valueString": "/images/restaurant_finder/springrolls.jpeg"
+                },
+                {
+                  "key": "address",
+                  "valueString": "111 W 57th St, New York, NY 10019"
+                }
+              ]
+            },
+            {
+              "key": "item5",
+              "valueMap": [
+                {
+                  "key": "name",
+                  "valueString": "Hwa Yuan Szechuan"
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "path": "/"
+    }
+  },
+  {
+    "dataModelUpdate": {
+      "surfaceId": "default",
+      "contents": [
+        {
+          "key": "title",
+          "valueString": "Szechuan Restaurants in New York"
+        },
+        {
+          "key": "items",
+          "valueMap": [
+            {
+              "key": "item1",
+              "valueMap": [
+                {
+                  "key": "name",
+                  "valueString": "Xi'an Famous Foods"
+                },
+                {
+                  "key": "rating",
+                  "valueString": "\u2605\u2605\u2605\u2605\u2606"
+                },
+                {
+                  "key": "detail",
+                  "valueString": "Spicy and savory hand-pulled noodles."
+                },
+                {
+                  "key": "infoLink",
+                  "valueString": "[More Info](https://www.xianfoods.com/)"
+                },
+                {
+                  "key": "imageUrl",
+                  "valueString": "/images/restaurant_finder/shrimpchowmein.jpeg"
+                },
+                {
+                  "key": "address",
+                  "valueString": "81 St Marks Pl, New York, NY 10003"
+                }
+              ]
+            },
+            {
+              "key": "item2",
+              "valueMap": [
+                {
+                  "key": "name",
+                  "valueString": "Han Dynasty"
+                },
+                {
+                  "key": "rating",
+                  "valueString": "\u2605\u2605\u2605\u2605\u2606"
+                },
+                {
+                  "key": "detail",
+                  "valueString": "Authentic Szechuan cuisine."
+                },
+                {
+                  "key": "infoLink",
+                  "valueString": "[More Info](https://www.handynasty.net/)"
+                },
+                {
+                  "key": "imageUrl",
+                  "valueString": "/images/restaurant_finder/mapotofu.jpeg"
+                },
+                {
+                  "key": "address",
+                  "valueString": "90 3rd Ave, New York, NY 10003"
+                }
+              ]
+            },
+            {
+              "key": "item3",
+              "valueMap": [
+                {
+                  "key": "name",
+                  "valueString": "RedFarm"
+                },
+                {
+                  "key": "rating",
+                  "valueString": "\u2605\u2605\u2605\u2605\u2606"
+                },
+                {
+                  "key": "detail",
+                  "valueString": "Modern Chinese with a farm-to-table approach."
+                },
+                {
+                  "key": "infoLink",
+                  "valueString": "[More Info](https://www.redfarmnyc.com/)"
+                },
+                {
+                  "key": "imageUrl",
+                  "valueString": "/images/restaurant_finder/beefbroccoli.jpeg"
+                },
+                {
+                  "key": "address",
+                  "valueString": "529 Hudson St, New York, NY 10014"
+                }
+              ]
+            },
+            {
+              "key": "item4",
+              "valueMap": [
+                {
+                  "key": "name",
+                  "valueString": "Mott 32"
+                },
+                {
+                  "key": "rating",
+                  "valueString": "\u2605\u2605\u2605\u2605\u2605"
+                },
+                {
+                  "key": "detail",
+                  "valueString": "Upscale Cantonese dining."
+                },
+                {
+                  "key": "infoLink",
+                  "valueString": "[More Info](https://mott32.com/newyork/)"
+                },
+                {
+                  "key": "imageUrl",
+                  "valueString": "/images/restaurant_finder/springrolls.jpeg"
+                },
+                {
+                  "key": "address",
+                  "valueString": "111 W 57th St, New York, NY 10019"
+                }
+              ]
+            },
+            {
+              "key": "item5",
+              "valueMap": [
+                {
+                  "key": "name",
+                  "valueString": "Hwa Yuan Szechuan"
+                },
+                {
+                  "key": "rating",
+                  "valueString": "\u2605\u2605\u2605\u2605\u2606"
+                },
+                {
+                  "key": "detail",
+                  "valueString": "Famous for its cold noodles with sesame sauce."
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "path": "/"
+    }
+  },
+  {
+    "dataModelUpdate": {
+      "surfaceId": "default",
+      "contents": [
+        {
+          "key": "title",
+          "valueString": "Szechuan Restaurants in New York"
+        },
+        {
+          "key": "items",
+          "valueMap": [
+            {
+              "key": "item1",
+              "valueMap": [
+                {
+                  "key": "name",
+                  "valueString": "Xi'an Famous Foods"
+                },
+                {
+                  "key": "rating",
+                  "valueString": "\u2605\u2605\u2605\u2605\u2606"
+                },
+                {
+                  "key": "detail",
+                  "valueString": "Spicy and savory hand-pulled noodles."
+                },
+                {
+                  "key": "infoLink",
+                  "valueString": "[More Info](https://www.xianfoods.com/)"
+                },
+                {
+                  "key": "imageUrl",
+                  "valueString": "/images/restaurant_finder/shrimpchowmein.jpeg"
+                },
+                {
+                  "key": "address",
+                  "valueString": "81 St Marks Pl, New York, NY 10003"
+                }
+              ]
+            },
+            {
+              "key": "item2",
+              "valueMap": [
+                {
+                  "key": "name",
+                  "valueString": "Han Dynasty"
+                },
+                {
+                  "key": "rating",
+                  "valueString": "\u2605\u2605\u2605\u2605\u2606"
+                },
+                {
+                  "key": "detail",
+                  "valueString": "Authentic Szechuan cuisine."
+                },
+                {
+                  "key": "infoLink",
+                  "valueString": "[More Info](https://www.handynasty.net/)"
+                },
+                {
+                  "key": "imageUrl",
+                  "valueString": "/images/restaurant_finder/mapotofu.jpeg"
+                },
+                {
+                  "key": "address",
+                  "valueString": "90 3rd Ave, New York, NY 10003"
+                }
+              ]
+            },
+            {
+              "key": "item3",
+              "valueMap": [
+                {
+                  "key": "name",
+                  "valueString": "RedFarm"
+                },
+                {
+                  "key": "rating",
+                  "valueString": "\u2605\u2605\u2605\u2605\u2606"
+                },
+                {
+                  "key": "detail",
+                  "valueString": "Modern Chinese with a farm-to-table approach."
+                },
+                {
+                  "key": "infoLink",
+                  "valueString": "[More Info](https://www.redfarmnyc.com/)"
+                },
+                {
+                  "key": "imageUrl",
+                  "valueString": "/images/restaurant_finder/beefbroccoli.jpeg"
+                },
+                {
+                  "key": "address",
+                  "valueString": "529 Hudson St, New York, NY 10014"
+                }
+              ]
+            },
+            {
+              "key": "item4",
+              "valueMap": [
+                {
+                  "key": "name",
+                  "valueString": "Mott 32"
+                },
+                {
+                  "key": "rating",
+                  "valueString": "\u2605\u2605\u2605\u2605\u2605"
+                },
+                {
+                  "key": "detail",
+                  "valueString": "Upscale Cantonese dining."
+                },
+                {
+                  "key": "infoLink",
+                  "valueString": "[More Info](https://mott32.com/newyork/)"
+                },
+                {
+                  "key": "imageUrl",
+                  "valueString": "/images/restaurant_finder/springrolls.jpeg"
+                },
+                {
+                  "key": "address",
+                  "valueString": "111 W 57th St, New York, NY 10019"
+                }
+              ]
+            },
+            {
+              "key": "item5",
+              "valueMap": [
+                {
+                  "key": "name",
+                  "valueString": "Hwa Yuan Szechuan"
+                },
+                {
+                  "key": "rating",
+                  "valueString": "\u2605\u2605\u2605\u2605\u2606"
+                },
+                {
+                  "key": "detail",
+                  "valueString": "Famous for its cold noodles with sesame sauce."
+                },
+                {
+                  "key": "infoLink",
+                  "valueString": "[More Info](https://hwayuannyc.com/)"
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "path": "/"
+    }
+  },
+  {
+    "dataModelUpdate": {
+      "surfaceId": "default",
+      "contents": [
+        {
+          "key": "title",
+          "valueString": "Szechuan Restaurants in New York"
+        },
+        {
+          "key": "items",
+          "valueMap": [
+            {
+              "key": "item1",
+              "valueMap": [
+                {
+                  "key": "name",
+                  "valueString": "Xi'an Famous Foods"
+                },
+                {
+                  "key": "rating",
+                  "valueString": "\u2605\u2605\u2605\u2605\u2606"
+                },
+                {
+                  "key": "detail",
+                  "valueString": "Spicy and savory hand-pulled noodles."
+                },
+                {
+                  "key": "infoLink",
+                  "valueString": "[More Info](https://www.xianfoods.com/)"
+                },
+                {
+                  "key": "imageUrl",
+                  "valueString": "/images/restaurant_finder/shrimpchowmein.jpeg"
+                },
+                {
+                  "key": "address",
+                  "valueString": "81 St Marks Pl, New York, NY 10003"
+                }
+              ]
+            },
+            {
+              "key": "item2",
+              "valueMap": [
+                {
+                  "key": "name",
+                  "valueString": "Han Dynasty"
+                },
+                {
+                  "key": "rating",
+                  "valueString": "\u2605\u2605\u2605\u2605\u2606"
+                },
+                {
+                  "key": "detail",
+                  "valueString": "Authentic Szechuan cuisine."
+                },
+                {
+                  "key": "infoLink",
+                  "valueString": "[More Info](https://www.handynasty.net/)"
+                },
+                {
+                  "key": "imageUrl",
+                  "valueString": "/images/restaurant_finder/mapotofu.jpeg"
+                },
+                {
+                  "key": "address",
+                  "valueString": "90 3rd Ave, New York, NY 10003"
+                }
+              ]
+            },
+            {
+              "key": "item3",
+              "valueMap": [
+                {
+                  "key": "name",
+                  "valueString": "RedFarm"
+                },
+                {
+                  "key": "rating",
+                  "valueString": "\u2605\u2605\u2605\u2605\u2606"
+                },
+                {
+                  "key": "detail",
+                  "valueString": "Modern Chinese with a farm-to-table approach."
+                },
+                {
+                  "key": "infoLink",
+                  "valueString": "[More Info](https://www.redfarmnyc.com/)"
+                },
+                {
+                  "key": "imageUrl",
+                  "valueString": "/images/restaurant_finder/beefbroccoli.jpeg"
+                },
+                {
+                  "key": "address",
+                  "valueString": "529 Hudson St, New York, NY 10014"
+                }
+              ]
+            },
+            {
+              "key": "item4",
+              "valueMap": [
+                {
+                  "key": "name",
+                  "valueString": "Mott 32"
+                },
+                {
+                  "key": "rating",
+                  "valueString": "\u2605\u2605\u2605\u2605\u2605"
+                },
+                {
+                  "key": "detail",
+                  "valueString": "Upscale Cantonese dining."
+                },
+                {
+                  "key": "infoLink",
+                  "valueString": "[More Info](https://mott32.com/newyork/)"
+                },
+                {
+                  "key": "imageUrl",
+                  "valueString": "/images/restaurant_finder/springrolls.jpeg"
+                },
+                {
+                  "key": "address",
+                  "valueString": "111 W 57th St, New York, NY 10019"
+                }
+              ]
+            },
+            {
+              "key": "item5",
+              "valueMap": [
+                {
+                  "key": "name",
+                  "valueString": "Hwa Yuan Szechuan"
+                },
+                {
+                  "key": "rating",
+                  "valueString": "\u2605\u2605\u2605\u2605\u2606"
+                },
+                {
+                  "key": "detail",
+                  "valueString": "Famous for its cold noodles with sesame sauce."
+                },
+                {
+                  "key": "infoLink",
+                  "valueString": "[More Info](https://hwayuannyc.com/)"
+                },
+                {
+                  "key": "imageUrl",
+                  "valueString": "/images/restaurant_finder/kungpao.jpeg"
+                },
+                {
+                  "key": "address",
+                  "valueString": "40 E Broadway, New York, NY 1"
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "path": "/"
+    }
+  },
+  {
+    "dataModelUpdate": {
+      "surfaceId": "default",
+      "path": "/",
+      "contents": [
+        {
+          "key": "title",
+          "valueString": "Szechuan Restaurants in New York"
+        },
+        {
+          "key": "items",
+          "valueMap": [
+            {
+              "key": "item1",
+              "valueMap": [
+                {
+                  "key": "name",
+                  "valueString": "Xi'an Famous Foods"
+                },
+                {
+                  "key": "rating",
+                  "valueString": "\u2605\u2605\u2605\u2605\u2606"
+                },
+                {
+                  "key": "detail",
+                  "valueString": "Spicy and savory hand-pulled noodles."
+                },
+                {
+                  "key": "infoLink",
+                  "valueString": "[More Info](https://www.xianfoods.com/)"
+                },
+                {
+                  "key": "imageUrl",
+                  "valueString": "/images/restaurant_finder/shrimpchowmein.jpeg"
+                },
+                {
+                  "key": "address",
+                  "valueString": "81 St Marks Pl, New York, NY 10003"
+                }
+              ]
+            },
+            {
+              "key": "item2",
+              "valueMap": [
+                {
+                  "key": "name",
+                  "valueString": "Han Dynasty"
+                },
+                {
+                  "key": "rating",
+                  "valueString": "\u2605\u2605\u2605\u2605\u2606"
+                },
+                {
+                  "key": "detail",
+                  "valueString": "Authentic Szechuan cuisine."
+                },
+                {
+                  "key": "infoLink",
+                  "valueString": "[More Info](https://www.handynasty.net/)"
+                },
+                {
+                  "key": "imageUrl",
+                  "valueString": "/images/restaurant_finder/mapotofu.jpeg"
+                },
+                {
+                  "key": "address",
+                  "valueString": "90 3rd Ave, New York, NY 10003"
+                }
+              ]
+            },
+            {
+              "key": "item3",
+              "valueMap": [
+                {
+                  "key": "name",
+                  "valueString": "RedFarm"
+                },
+                {
+                  "key": "rating",
+                  "valueString": "\u2605\u2605\u2605\u2605\u2606"
+                },
+                {
+                  "key": "detail",
+                  "valueString": "Modern Chinese with a farm-to-table approach."
+                },
+                {
+                  "key": "infoLink",
+                  "valueString": "[More Info](https://www.redfarmnyc.com/)"
+                },
+                {
+                  "key": "imageUrl",
+                  "valueString": "/images/restaurant_finder/beefbroccoli.jpeg"
+                },
+                {
+                  "key": "address",
+                  "valueString": "529 Hudson St, New York, NY 10014"
+                }
+              ]
+            },
+            {
+              "key": "item4",
+              "valueMap": [
+                {
+                  "key": "name",
+                  "valueString": "Mott 32"
+                },
+                {
+                  "key": "rating",
+                  "valueString": "\u2605\u2605\u2605\u2605\u2605"
+                },
+                {
+                  "key": "detail",
+                  "valueString": "Upscale Cantonese dining."
+                },
+                {
+                  "key": "infoLink",
+                  "valueString": "[More Info](https://mott32.com/newyork/)"
+                },
+                {
+                  "key": "imageUrl",
+                  "valueString": "/images/restaurant_finder/springrolls.jpeg"
+                },
+                {
+                  "key": "address",
+                  "valueString": "111 W 57th St, New York, NY 10019"
+                }
+              ]
+            },
+            {
+              "key": "item5",
+              "valueMap": [
+                {
+                  "key": "name",
+                  "valueString": "Hwa Yuan Szechuan"
+                },
+                {
+                  "key": "rating",
+                  "valueString": "\u2605\u2605\u2605\u2605\u2606"
+                },
+                {
+                  "key": "detail",
+                  "valueString": "Famous for its cold noodles with sesame sauce."
+                },
+                {
+                  "key": "infoLink",
+                  "valueString": "[More Info](https://hwayuannyc.com/)"
+                },
+                {
+                  "key": "imageUrl",
+                  "valueString": "/images/restaurant_finder/kungpao.jpeg"
+                },
+                {
+                  "key": "address",
+                  "valueString": "40 E Broadway, New York, NY 10002"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  }
+]

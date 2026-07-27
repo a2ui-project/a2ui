@@ -1,0 +1,53 @@
+/*
+ * Copyright 2025 Google LLC
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      https://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+import {ChangeDetectionStrategy, Component, computed, inject, input} from '@angular/core';
+import {MessageProcessor} from '../data';
+import {Renderer} from '../rendering/renderer';
+import type {Surface as SurfaceType, SurfaceID} from '../types';
+
+@Component({
+  selector: 'a2ui-surface',
+  imports: [Renderer],
+  template: `
+    @if (rootComponent()) {
+      <ng-container a2ui-renderer [surfaceId]="surfaceId()" [component]="rootComponent()!" />
+    }
+  `,
+  styles: `
+    :host {
+      display: block;
+      width: 100%;
+      height: 100%;
+    }
+  `,
+  changeDetection: ChangeDetectionStrategy.OnPush,
+})
+export class Surface {
+  private readonly processor = inject(MessageProcessor);
+  readonly surfaceId = input.required<SurfaceID>();
+  readonly surfaceInput = input<SurfaceType | null>(null, {alias: 'surface'});
+
+  protected readonly surface = computed(() => {
+    this.processor.version(); // Track dependency on in-place mutations
+    return this.surfaceInput() ?? this.processor.getSurfaces().get(this.surfaceId()) ?? null;
+  });
+
+  protected readonly rootComponent = computed(() => {
+    this.processor.version(); // Track dependency on in-place mutations
+    return this.surface()?.componentTree ?? null;
+  });
+}

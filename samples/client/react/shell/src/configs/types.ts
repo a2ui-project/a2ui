@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import type { Theme } from '@a2ui/react';
+import type {Theme} from '@a2ui/react';
 
 /**
  * Configuration interface for the Universal App Shell.

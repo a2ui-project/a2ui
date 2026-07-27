@@ -1,0 +1,335 @@
+[
+  {
+    "version": "v0.9",
+    "createSurface": {
+      "surfaceId": "contact-card",
+      "catalogId": "https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json"
+    }
+  },
+  {
+    "version": "v0.9",
+    "createSurface": {
+      "surfaceId": "org-chart-view",
+      "catalogId": "inline_catalog"
+    }
+  },
+  {
+    "version": "v0.9",
+    "updateComponents": {
+      "surfaceId": "contact-card",
+      "components": [
+        {
+          "id": "root",
+          "component": "Card",
+          "child": "main_column"
+        },
+        {
+          "id": "main_column",
+          "component": "Column",
+          "children": [
+            "profile_image",
+            "description_column",
+            "div",
+            "info_rows_column",
+            "action_buttons_row"
+          ],
+          "align": "stretch"
+        },
+        {
+          "id": "profile_image",
+          "component": "Image",
+          "url": {
+            "path": "/imageUrl"
+          },
+          "variant": "avatar",
+          "fit": "cover"
+        },
+        {
+          "id": "description_column",
+          "component": "Column",
+          "children": ["user_heading", "description_text_1", "description_text_2"],
+          "align": "center"
+        },
+        {
+          "id": "user_heading",
+          "component": "Text",
+          "weight": 1,
+          "text": {
+            "path": "/name"
+          },
+          "variant": "h2"
+        },
+        {
+          "id": "description_text_1",
+          "component": "Text",
+          "text": {
+            "path": "/title"
+          }
+        },
+        {
+          "id": "description_text_2",
+          "component": "Text",
+          "text": {
+            "path": "/team"
+          }
+        },
+        {
+          "id": "div",
+          "component": "Divider"
+        },
+        {
+          "id": "info_rows_column",
+          "component": "Column",
+          "weight": 1,
+          "children": ["info_row_1", "info_row_2", "info_row_3", "info_row_4"],
+          "align": "stretch"
+        },
+        {
+          "id": "info_row_1",
+          "component": "Row",
+          "children": ["calendar_icon", "calendar_text_column"],
+          "justify": "start",
+          "align": "start"
+        },
+        {
+          "id": "calendar_icon",
+          "component": "Icon",
+          "name": "calendarToday"
+        },
+        {
+          "id": "calendar_text_column",
+          "component": "Column",
+          "children": ["calendar_primary_text", "calendar_secondary_text"],
+          "justify": "start",
+          "align": "start"
+        },
+        {
+          "id": "calendar_primary_text",
+          "component": "Text",
+          "variant": "h5",
+          "text": {
+            "path": "/calendar"
+          }
+        },
+        {
+          "id": "calendar_secondary_text",
+          "component": "Text",
+          "text": "Calendar"
+        },
+        {
+          "id": "info_row_2",
+          "component": "Row",
+          "children": ["location_icon", "location_text_column"],
+          "justify": "start",
+          "align": "start"
+        },
+        {
+          "id": "location_icon",
+          "component": "Icon",
+          "name": "locationOn"
+        },
+        {
+          "id": "location_text_column",
+          "component": "Column",
+          "children": ["location_primary_text", "location_secondary_text"],
+          "justify": "start",
+          "align": "start"
+        },
+        {
+          "id": "location_primary_text",
+          "component": "Text",
+          "variant": "h5",
+          "text": {
+            "path": "/location"
+          }
+        },
+        {
+          "id": "location_secondary_text",
+          "component": "Text",
+          "text": "Location"
+        },
+        {
+          "id": "info_row_3",
+          "component": "Row",
+          "children": ["mail_icon", "mail_text_column"],
+          "justify": "start",
+          "align": "start"
+        },
+        {
+          "id": "mail_icon",
+          "component": "Icon",
+          "name": "mail"
+        },
+        {
+          "id": "mail_text_column",
+          "component": "Column",
+          "children": ["mail_primary_text", "mail_secondary_text"],
+          "justify": "start",
+          "align": "start"
+        },
+        {
+          "id": "mail_primary_text",
+          "component": "Text",
+          "variant": "h5",
+          "text": {
+            "path": "/email"
+          }
+        },
+        {
+          "id": "mail_secondary_text",
+          "component": "Text",
+          "text": "Email"
+        },
+        {
+          "id": "info_row_4",
+          "component": "Row",
+          "children": ["call_icon", "call_text_column"],
+          "justify": "start",
+          "align": "start"
+        },
+        {
+          "id": "call_icon",
+          "component": "Icon",
+          "name": "call"
+        },
+        {
+          "id": "call_text_column",
+          "component": "Column",
+          "children": ["call_primary_text", "call_secondary_text"],
+          "justify": "start",
+          "align": "start"
+        },
+        {
+          "id": "call_primary_text",
+          "component": "Text",
+          "variant": "h5",
+          "text": {
+            "path": "/mobile"
+          }
+        },
+        {
+          "id": "call_secondary_text",
+          "component": "Text",
+          "text": "Mobile"
+        },
+        {
+          "id": "action_buttons_row",
+          "component": "Row",
+          "children": ["message-button", "location-button"],
+          "justify": "center",
+          "align": "center"
+        },
+        {
+          "id": "message-button",
+          "component": "Button",
+          "child": "message-button-text",
+          "action": {
+            "event": {
+              "name": "send_message",
+              "context": {
+                "contactName": {
+                  "path": "/name"
+                }
+              }
+            }
+          }
+        },
+        {
+          "id": "message-button-text",
+          "component": "Text",
+          "text": "Message"
+        },
+        {
+          "id": "location-button",
+          "component": "Button",
+          "child": "location-button-text",
+          "action": {
+            "event": {
+              "name": "view_location",
+              "context": {
+                "contactId": {
+                  "path": "/id"
+                }
+              }
+            }
+          }
+        },
+        {
+          "id": "location-button-text",
+          "component": "Text",
+          "text": "Location"
+        }
+      ]
+    }
+  },
+  {
+    "version": "v0.9",
+    "updateComponents": {
+      "surfaceId": "org-chart-view",
+      "components": [
+        {
+          "id": "root",
+          "component": "Column",
+          "children": ["org-chart"]
+        },
+        {
+          "id": "org-chart",
+          "component": "OrgChart",
+          "chain": {
+            "path": "/hierarchy"
+          },
+          "action": {
+            "event": {
+              "name": "chart_node_click",
+              "context": {}
+            }
+          }
+        }
+      ]
+    }
+  },
+  {
+    "version": "v0.9",
+    "updateDataModel": {
+      "surfaceId": "contact-card",
+      "path": "/",
+      "value": {
+        "name": "Casey Smith",
+        "title": "Digital Marketing Specialist",
+        "team": "Marketing",
+        "location": "New York",
+        "email": "casey@example.com",
+        "mobile": "+1 (212) 555-0123",
+        "calendar": "In a meeting",
+        "imageUrl": "http://localhost:10004/static/profile2.png"
+      }
+    }
+  },
+  {
+    "version": "v0.9",
+    "updateDataModel": {
+      "surfaceId": "org-chart-view",
+      "path": "/",
+      "value": {
+        "hierarchy": {
+          "0": {
+            "title": "CEO",
+            "name": "Jane Doe"
+          },
+          "1": {
+            "title": "VP Marketing",
+            "name": "John Smith"
+          },
+          "2": {
+            "title": "Director",
+            "name": "Alice Johnson"
+          },
+          "3": {
+            "title": "Specialist",
+            "name": "Casey Smith"
+          }
+        }
+      }
+    }
+  }
+]

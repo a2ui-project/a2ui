@@ -14,21 +14,21 @@
  * limitations under the License.
  */
 
-import { html, css, nothing } from "lit";
-import { customElement, property } from "lit/decorators.js";
-import { Root } from "./root.js";
-import { classMap } from "lit/directives/class-map.js";
-import * as Types from "@a2ui/web_core/types/types";
-import { styleMap } from "lit/directives/style-map.js";
-import { structuralStyles } from "./styles.js";
+import {html, css, nothing} from 'lit';
+import {customElement, property} from 'lit/decorators.js';
+import {Root} from './root.js';
+import {classMap} from 'lit/directives/class-map.js';
+import * as Types from '@a2ui/web_core/types/types';
+import {styleMap} from 'lit/directives/style-map.js';
+import {structuralStyles} from './styles.js';
 
-@customElement("a2ui-column")
+@customElement('a2ui-column')
 export class Column extends Root {
-  @property({ reflect: true, type: String })
-  accessor alignment: Types.ResolvedColumn["alignment"] = "stretch";
+  @property({reflect: true, type: String})
+  accessor alignment: Types.ResolvedColumn['alignment'] = 'stretch';
 
-  @property({ reflect: true, type: String })
-  accessor distribution: Types.ResolvedColumn["distribution"] = "start";
+  @property({reflect: true, type: String})
+  accessor distribution: Types.ResolvedColumn['distribution'] = 'start';
 
   static styles = [
     structuralStyles,
@@ -49,43 +49,43 @@ export class Column extends Root {
         height: 100%;
       }
 
-      :host([alignment="start"]) section {
+      :host([alignment='start']) section {
         align-items: start;
       }
 
-      :host([alignment="center"]) section {
+      :host([alignment='center']) section {
         align-items: center;
       }
 
-      :host([alignment="end"]) section {
+      :host([alignment='end']) section {
         align-items: end;
       }
 
-      :host([alignment="stretch"]) section {
+      :host([alignment='stretch']) section {
         align-items: stretch;
       }
 
-      :host([distribution="start"]) section {
+      :host([distribution='start']) section {
         justify-content: start;
       }
 
-      :host([distribution="center"]) section {
+      :host([distribution='center']) section {
         justify-content: center;
       }
 
-      :host([distribution="end"]) section {
+      :host([distribution='end']) section {
         justify-content: end;
       }
 
-      :host([distribution="spaceBetween"]) section {
+      :host([distribution='spaceBetween']) section {
         justify-content: space-between;
       }
 
-      :host([distribution="spaceAround"]) section {
+      :host([distribution='spaceAround']) section {
         justify-content: space-around;
       }
 
-      :host([distribution="spaceEvenly"]) section {
+      :host([distribution='spaceEvenly']) section {
         justify-content: space-evenly;
       }
     `,

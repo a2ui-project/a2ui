@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+<!doctype html>
 <!--
  Copyright 2025 Google LLC
 
@@ -146,12 +146,8 @@
         --text-color: #fff;
         --background-light: #f6f7f8;
         --background-dark: #101922;
-        --border-color: oklch(
-          from var(--background-light) l c h / calc(alpha * 0.15)
-        );
-        --elevated-background-light: oklch(
-          from var(--background-light) l c h / calc(alpha * 0.05)
-        );
+        --border-color: oklch(from var(--background-light) l c h / calc(alpha * 0.15));
+        --elevated-background-light: oklch(from var(--background-light) l c h / calc(alpha * 0.05));
         --bb-grid-size: 4px;
         --bb-grid-size-2: calc(var(--bb-grid-size) * 2);
         --bb-grid-size-3: calc(var(--bb-grid-size) * 3);
@@ -176,8 +172,8 @@
 
       html,
       body {
-        --font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
-        --font-family-flex: "Helvetica Neue", Helvetica, Arial, sans-serif;
+        --font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+        --font-family-flex: 'Helvetica Neue', Helvetica, Arial, sans-serif;
         --font-family-mono: monospace;
 
         background: var(--background-dark);

@@ -8,11 +8,7 @@
           "component": {
             "Column": {
               "children": {
-                "explicitList": [
-                  "header",
-                  "form_row",
-                  "footer"
-                ]
+                "explicitList": ["header", "form_row", "footer"]
               },
               "distribution": "spaceBetween",
               "alignment": "stretch"
@@ -35,10 +31,7 @@
           "component": {
             "Row": {
               "children": {
-                "explicitList": [
-                  "first_name",
-                  "last_name"
-                ]
+                "explicitList": ["first_name", "last_name"]
               },
               "distribution": "start",
               "alignment": "start"

@@ -16,11 +16,7 @@
           "component": {
             "Column": {
               "children": {
-                "explicitList": [
-                  "header",
-                  "value",
-                  "trend-row"
-                ]
+                "explicitList": ["header", "value", "trend-row"]
               }
             }
           }
@@ -30,10 +26,7 @@
           "component": {
             "Row": {
               "children": {
-                "explicitList": [
-                  "metric-icon",
-                  "metric-name"
-                ]
+                "explicitList": ["metric-icon", "metric-name"]
               },
               "alignment": "center"
             }
@@ -76,10 +69,7 @@
           "component": {
             "Row": {
               "children": {
-                "explicitList": [
-                  "trend-icon",
-                  "trend-text"
-                ]
+                "explicitList": ["trend-icon", "trend-text"]
               },
               "alignment": "center"
             }

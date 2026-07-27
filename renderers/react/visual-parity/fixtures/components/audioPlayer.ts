@@ -22,7 +22,7 @@
  * React implements description, but these fixtures only test url for parity.
  */
 
-import type { ComponentFixture } from '../types';
+import type {ComponentFixture} from '../types';
 
 export const audioPlayerBasic: ComponentFixture = {
   root: 'audio-1',
@@ -31,7 +31,7 @@ export const audioPlayerBasic: ComponentFixture = {
       id: 'audio-1',
       component: {
         AudioPlayer: {
-          url: { literalString: 'https://www.w3schools.com/html/horse.mp3' },
+          url: {literalString: 'https://www.w3schools.com/html/horse.mp3'},
         },
       },
     },
@@ -48,7 +48,7 @@ export const audioPlayerWithPathBinding: ComponentFixture = {
       id: 'audio-2',
       component: {
         AudioPlayer: {
-          url: { path: '/media/audioUrl' },
+          url: {path: '/media/audioUrl'},
         },
       },
     },

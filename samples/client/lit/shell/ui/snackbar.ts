@@ -13,26 +13,26 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-import { LitElement, html, css, nothing, unsafeCSS } from "lit";
-import { customElement, property } from "lit/decorators.js";
-import { SnackbarMessage, SnackbarUUID, SnackType } from "../types/types";
-import { repeat } from "lit/directives/repeat.js";
-import { SnackbarActionEvent } from "../events/events";
-import { classMap } from "lit/directives/class-map.js";
-import { v0_8 } from "@a2ui/lit";
+import {LitElement, html, css, nothing, unsafeCSS} from 'lit';
+import {customElement, property} from 'lit/decorators.js';
+import {SnackbarMessage, SnackbarUUID, SnackType} from '../types/types';
+import {repeat} from 'lit/directives/repeat.js';
+import {SnackbarActionEvent} from '../events/events';
+import {classMap} from 'lit/directives/class-map.js';
+import {v0_8} from '@a2ui/lit';
 
 const DEFAULT_TIMEOUT = 8000;
 
-@customElement("ui-snackbar")
+@customElement('ui-snackbar')
 export class Snackbar extends LitElement {
-  @property({ reflect: true, type: Boolean })
-  accessor active = false;
+  @property({reflect: true, type: Boolean})
+  active = false;
 
-  @property({ reflect: true, type: Boolean })
-  accessor error = false;
+  @property({reflect: true, type: Boolean})
+  error = false;
 
   @property()
-  accessor timeout = DEFAULT_TIMEOUT;
+  timeout = DEFAULT_TIMEOUT;
 
   #messages: SnackbarMessage[] = [];
   #timeout = 0;
@@ -61,8 +61,7 @@ export class Snackbar extends LitElement {
         z-index: 1800;
         scrollbar-width: none;
         overflow-x: scroll;
-        font: 400 var(--bb-body-medium) / var(--bb-body-line-height-medium)
-          var(--bb-font-family);
+        font: 400 var(--bb-body-medium) / var(--bb-body-line-height-medium) var(--bb-font-family);
       }
 
       :host([active]) {
@@ -109,8 +108,7 @@ export class Snackbar extends LitElement {
         margin-right: var(--bb-grid-size-3);
 
         & button {
-          font: 500 var(--bb-body-medium) / var(--bb-body-line-height-medium)
-            var(--bb-font-family);
+          font: 500 var(--bb-body-medium) / var(--bb-body-line-height-medium) var(--bb-font-family);
           padding: 0;
           background: transparent;
           border: none;
@@ -168,9 +166,7 @@ export class Snackbar extends LitElement {
   ];
 
   show(message: SnackbarMessage, replaceAll = false) {
-    const existingMessage = this.#messages.findIndex(
-      (msg) => msg.id === message.id
-    );
+    const existingMessage = this.#messages.findIndex(msg => msg.id === message.id);
     if (existingMessage === -1) {
       if (replaceAll) {
         this.#messages.length = 0;
@@ -182,13 +178,13 @@ export class Snackbar extends LitElement {
     }
 
     window.clearTimeout(this.#timeout);
-    if (!this.#messages.every((msg) => msg.persistent)) {
+    if (!this.#messages.every(msg => msg.persistent)) {
       this.#timeout = window.setTimeout(() => {
         this.hide();
       }, this.timeout);
     }
 
-    this.error = this.#messages.some((msg) => msg.type === SnackType.ERROR);
+    this.error = this.#messages.some(msg => msg.type === SnackType.ERROR);
     this.active = true;
     this.requestUpdate();
 
@@ -197,7 +193,7 @@ export class Snackbar extends LitElement {
 
   hide(id?: SnackbarUUID) {
     if (id) {
-      const idx = this.#messages.findIndex((msg) => msg.id === id);
+      const idx = this.#messages.findIndex(msg => msg.id === id);
       if (idx !== -1) {
         this.#messages.splice(idx, 1);
       }
@@ -206,7 +202,7 @@ export class Snackbar extends LitElement {
     }
 
     this.active = this.#messages.length !== 0;
-    this.updateComplete.then((avoidedUpdate) => {
+    this.updateComplete.then(avoidedUpdate => {
       if (!avoidedUpdate) {
         return;
       }
@@ -217,81 +213,74 @@ export class Snackbar extends LitElement {
 
   render() {
     let rotate = false;
-    let icon = "";
+    let icon = '';
     for (let i = this.#messages.length - 1; i >= 0; i--) {
-      if (
-        !this.#messages[i].type ||
-        this.#messages[i].type === SnackType.NONE
-      ) {
+      if (!this.#messages[i].type || this.#messages[i].type === SnackType.NONE) {
         continue;
       }
 
       icon = this.#messages[i].type;
       if (this.#messages[i].type === SnackType.PENDING) {
-        icon = "progress_activity";
+        icon = 'progress_activity';
         rotate = true;
       }
       break;
     }
 
     return html` ${icon
-      ? html`<span
+        ? html`<span
             class=${classMap({
-        "g-icon": true,
-        round: true,
-        filled: true,
-        rotate,
-      })}
+              'g-icon': true,
+              round: true,
+              filled: true,
+              rotate,
+            })}
             >${icon}</span
           >`
-      : nothing}
+        : nothing}
       <div id="messages">
         ${repeat(
-        this.#messages,
-        (message) => message.id,
-        (message) => {
-          return html`<div>${message.message}</div>`;
-        }
-      )}
+          this.#messages,
+          message => message.id,
+          message => {
+            return html`<div>${message.message}</div>`;
+          },
+        )}
       </div>
       <div id="actions">
         ${repeat(
-        this.#messages,
-        (message) => message.id,
-        (message) => {
-          if (!message.actions) {
-            return nothing;
-          }
+          this.#messages,
+          message => message.id,
+          message => {
+            if (!message.actions) {
+              return nothing;
+            }
 
-          return html`${repeat(
-            message.actions,
-            (action) => action.value,
-            (action) => {
-              return html`<button
+            return html`${repeat(
+              message.actions,
+              action => action.value,
+              action => {
+                return html`<button
                   @click=${() => {
-                  this.hide();
-                  this.dispatchEvent(
-                    new SnackbarActionEvent(
-                      action.action,
-                      action.value,
-                      action.callback
-                    )
-                  );
-                }}
+                    this.hide();
+                    this.dispatchEvent(
+                      new SnackbarActionEvent(action.action, action.value, action.callback),
+                    );
+                  }}
                 >
                   ${action.title}
                 </button>`;
-            }
-          )}`;
-        }
-      )}
+              },
+            )}`;
+          },
+        )}
       </div>
       <button
         id="close"
         @click=${() => {
-        this.hide();
-        this.dispatchEvent(new SnackbarActionEvent("dismiss"));
-      }}
+          this.hide();
+          this.dispatchEvent(new SnackbarActionEvent('dismiss'));
+        }}
       >
         <span class="g-icon">close</span>
       </button>`;

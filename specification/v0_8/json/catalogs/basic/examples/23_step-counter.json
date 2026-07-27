@@ -16,13 +16,7 @@
           "component": {
             "Column": {
               "children": {
-                "explicitList": [
-                  "header",
-                  "steps-display",
-                  "goal-text",
-                  "divider",
-                  "stats-row"
-                ]
+                "explicitList": ["header", "steps-display", "goal-text", "divider", "stats-row"]
               },
               "alignment": "center"
             }
@@ -33,10 +27,7 @@
           "component": {
             "Row": {
               "children": {
-                "explicitList": [
-                  "steps-icon",
-                  "title"
-                ]
+                "explicitList": ["steps-icon", "title"]
               },
               "alignment": "center"
             }
@@ -96,10 +87,7 @@
           "component": {
             "Row": {
               "children": {
-                "explicitList": [
-                  "distance-col",
-                  "calories-col"
-                ]
+                "explicitList": ["distance-col", "calories-col"]
               },
               "distribution": "spaceAround"
             }
@@ -110,10 +98,7 @@
           "component": {
             "Column": {
               "children": {
-                "explicitList": [
-                  "distance-value",
-                  "distance-label"
-                ]
+                "explicitList": ["distance-value", "distance-label"]
               },
               "alignment": "center"
             }
@@ -146,10 +131,7 @@
           "component": {
             "Column": {
               "children": {
-                "explicitList": [
-                  "calories-value",
-                  "calories-label"
-                ]
+                "explicitList": ["calories-value", "calories-label"]
               },
               "alignment": "center"
             }

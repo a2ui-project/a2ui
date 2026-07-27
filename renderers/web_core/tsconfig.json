@@ -13,6 +13,7 @@
     "target": "es2022",
     "module": "esnext",
     "lib": ["es2023", "DOM", "DOM.Iterable"],
+    "types": ["node"],
     "skipLibCheck": true,
     "useDefineForClassFields": false,
     "rootDir": ".",
@@ -28,7 +29,16 @@
     "strict": true,
     "noUnusedLocals": false,
     "noUnusedParameters": true,
-    "noFallthroughCasesInSwitch": true
+    "noFallthroughCasesInSwitch": true,
+
+    "paths": {
+      "rxjs/operators": ["./node_modules/rxjs/operators/index.js"]
+    }
+  },
+  "angularCompilerOptions": {
+    "strictInjectionParameters": true,
+    "strictTemplates": true,
+    "strictPropertyInitialization": false
   },
   "include": ["src/**/*.ts", "src/**/*.json"]
 }

@@ -16,9 +16,9 @@
 
 'use client';
 
-import { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react';
-import { Widget } from '@/types/widget';
-import { getWidgets, saveWidget, deleteWidget } from '@/lib/storage';
+import {createContext, useContext, useState, useEffect, useCallback, ReactNode} from 'react';
+import {Widget} from '@/types/widget';
+import {getWidgets, saveWidget, deleteWidget} from '@/lib/storage';
 
 // Module-level cache - persists outside React tree
 let cachedWidgets: Widget[] | null = null;
@@ -26,7 +26,7 @@ let initPromise: Promise<void> | null = null;
 
 async function initializeStore(
   setWidgets: (w: Widget[]) => void,
-  setLoading: (l: boolean) => void
+  setLoading: (l: boolean) => void,
 ) {
   // If already cached, use immediately
   if (cachedWidgets !== null) {
@@ -65,7 +65,7 @@ interface WidgetsContextType {
 
 const WidgetsContext = createContext<WidgetsContextType | null>(null);
 
-export function WidgetsProvider({ children }: { children: ReactNode }) {
+export function WidgetsProvider({children}: {children: ReactNode}) {
   // Initialize from cache if available
   const [widgets, setWidgets] = useState<Widget[]>(cachedWidgets ?? []);
   const [loading, setLoading] = useState(cachedWidgets === null);
@@ -87,9 +87,9 @@ export function WidgetsProvider({ children }: { children: ReactNode }) {
     setWidgets(prev => {
       const widget = prev.find(w => w.id === id);
       if (widget) {
-        const updated = { ...widget, ...updates, updatedAt: new Date() };
+        const updated = {...widget, ...updates, updatedAt: new Date()};
         saveWidget(updated);
-        const newWidgets = prev.map(w => w.id === id ? updated : w);
+        const newWidgets = prev.map(w => (w.id === id ? updated : w));
         cachedWidgets = newWidgets;
         return newWidgets;
       }
@@ -106,12 +106,17 @@ export function WidgetsProvider({ children }: { children: ReactNode }) {
     });
   }, []);
 
-  const getWidget = useCallback((id: string) => {
-    return widgets.find(w => w.id === id);
-  }, [widgets]);
+  const getWidget = useCallback(
+    (id: string) => {
+      return widgets.find(w => w.id === id);
+    },
+    [widgets],
+  );
 
   return (
-    <WidgetsContext.Provider value={{ widgets, loading, addWidget, updateWidget, removeWidget, getWidget }}>
+    <WidgetsContext.Provider
+      value={{widgets, loading, addWidget, updateWidget, removeWidget, getWidget}}
+    >
       {children}
     </WidgetsContext.Provider>
   );

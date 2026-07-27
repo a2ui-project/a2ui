@@ -1,0 +1,13 @@
+{
+  "title": "Component 1 Catalog",
+  "components": {
+    "CustomHeader": {
+      "type": "object",
+      "properties": {
+        "titleText": {
+          "$ref": "basic_catalog.json#/components/Text"
+        }
+      }
+    }
+  }
+}

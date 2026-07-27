@@ -14,10 +14,10 @@
  * limitations under the License.
  */
 
-import React, { useEffect, useState } from 'react';
-import { useA2UI, A2UIRenderer } from '@a2ui/react';
-import type { Types } from '@a2ui/lit/0.8';
-import { allFixtures, type FixtureName, type ComponentFixture } from '../../fixtures';
+import React, {useEffect, useState} from 'react';
+import {useA2UI, A2UIRenderer} from '@a2ui/react';
+import type {Types} from '@a2ui/lit/0.8';
+import {allFixtures, type FixtureName, type ComponentFixture} from '../../fixtures';
 
 /**
  * Convert a value to a ValueMap entry.
@@ -25,18 +25,18 @@ import { allFixtures, type FixtureName, type ComponentFixture } from '../../fixt
  */
 function toValueMap(key: string, value: unknown): Types.ValueMap {
   if (typeof value === 'boolean') {
-    return { key, valueBoolean: value };
+    return {key, valueBoolean: value};
   } else if (typeof value === 'string') {
-    return { key, valueString: value };
+    return {key, valueString: value};
   } else if (typeof value === 'number') {
-    return { key, valueNumber: value };
+    return {key, valueNumber: value};
   } else if (typeof value === 'object' && value !== null) {
     return {
       key,
       valueMap: Object.entries(value).map(([k, v]) => toValueMap(k, v)),
     };
   }
-  return { key, valueString: String(value) };
+  return {key, valueString: String(value)};
 }
 
 /**
@@ -47,7 +47,7 @@ function toValueMap(key: string, value: unknown): Types.ValueMap {
  */
 function dataToMessages(
   data: Record<string, unknown>,
-  surfaceId: string
+  surfaceId: string,
 ): Types.ServerToClientMessage[] {
   // Group values by parent path to avoid overwriting
   const byParentPath = new Map<string, Types.ValueMap[]>();
@@ -84,7 +84,7 @@ function dataToMessages(
  */
 function fixtureToMessages(
   fixture: ComponentFixture,
-  surfaceId: string
+  surfaceId: string,
 ): Types.ServerToClientMessage[] {
   const messages: Types.ServerToClientMessage[] = [];
 
@@ -97,7 +97,7 @@ function fixtureToMessages(
   messages.push({
     surfaceUpdate: {
       surfaceId,
-      components: fixture.components.map((c) => ({
+      components: fixture.components.map(c => ({
         id: c.id,
         component: c.component,
       })),
@@ -116,7 +116,7 @@ function fixtureToMessages(
 }
 
 export function FixturePage() {
-  const { processMessages } = useA2UI();
+  const {processMessages} = useA2UI();
   const [fixtureName, setFixtureName] = useState<FixtureName | null>(null);
   const [ready, setReady] = useState(false);
 
@@ -150,7 +150,7 @@ export function FixturePage() {
         <h1>Visual Parity - React</h1>
         <p>Available fixtures:</p>
         <ul>
-          {Object.keys(allFixtures).map((name) => (
+          {Object.keys(allFixtures).map(name => (
             <li key={name}>
               <a href={`?fixture=${name}&theme=${currentTheme}`}>{name}</a>
             </li>
@@ -158,13 +158,15 @@ export function FixturePage() {
         </ul>
         <h2>Available themes:</h2>
         <ul>
-          {themes.map((theme) => (
+          {themes.map(theme => (
             <li key={theme}>
               <a href={`?theme=${theme}`}>{theme}</a> {theme === currentTheme ? '(current)' : ''}
             </li>
           ))}
         </ul>
-        <p>Current theme: <strong>{currentTheme}</strong></p>
+        <p>
+          Current theme: <strong>{currentTheme}</strong>
+        </p>
       </div>
     );
   }

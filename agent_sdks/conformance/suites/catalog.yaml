@@ -1,0 +1,477 @@
+# Copyright 2026 Google LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+- name: test_with_pruning_components
+  description: Tests pruning components from the catalog schema.
+  catalog:
+    version: "0.8"
+    catalog_schema:
+      catalogId: basic
+      components:
+        Text: {type: object}
+        Button: {type: object}
+        Image: {type: object}
+  action: prune
+  args:
+    allowed_components: [Text, Button]
+  expect:
+    catalog_schema:
+      catalogId: basic
+      components:
+        Text: {type: object}
+        Button: {type: object}
+
+- name: test_with_pruning_components_v09
+  description: Tests pruning components and anyComponent oneOf in v0.9.
+  catalog:
+    version: "0.9"
+    catalog_schema:
+      catalogId: basic
+      $defs:
+        anyComponent:
+          oneOf:
+            - $ref: "#/components/Text"
+            - $ref: "#/components/Button"
+            - $ref: "#/components/Image"
+      components:
+        Text: {}
+        Button: {}
+        Image: {}
+  action: prune
+  args:
+    allowed_components: [Text]
+  expect:
+    catalog_schema:
+      catalogId: basic
+      $defs:
+        anyComponent:
+          oneOf:
+            - $ref: "#/components/Text"
+      components:
+        Text: {}
+
+- name: test_with_pruning_messages
+  description: Tests pruning messages from the S2C schema in v0.9.
+  catalog:
+    version: "0.9"
+    s2c_schema:
+      oneOf:
+        - $ref: "#/$defs/MessageA"
+        - $ref: "#/$defs/MessageB"
+        - $ref: "#/$defs/MessageC"
+      $defs:
+        MessageA: {type: object, properties: {a: {type: string}}}
+        MessageB: {type: object, properties: {b: {type: string}}}
+        MessageC: {type: object, properties: {c: {type: string}}}
+    catalog_schema: {catalogId: basic}
+  action: prune
+  args:
+    allowed_messages: [MessageA, MessageC]
+  expect:
+    s2c_schema:
+      oneOf:
+        - $ref: "#/$defs/MessageA"
+        - $ref: "#/$defs/MessageC"
+      $defs:
+        MessageA: {type: object, properties: {a: {type: string}}}
+        MessageC: {type: object, properties: {c: {type: string}}}
+
+- name: test_with_pruning_messages_internal_reachability
+  description: Tests that pruning preserves reachable types in S2C schema.
+  catalog:
+    version: "0.9"
+    s2c_schema:
+      oneOf:
+        - $ref: "#/$defs/MessageA"
+      $defs:
+        MessageA:
+          type: object
+          properties:
+            shared: {$ref: "#/$defs/SharedType"}
+        SharedType: {type: string}
+        UnusedType: {type: number}
+    catalog_schema: {catalogId: basic}
+  action: prune
+  args:
+    allowed_messages: [MessageA]
+  expect:
+    s2c_schema:
+      oneOf:
+        - $ref: "#/$defs/MessageA"
+      $defs:
+        MessageA:
+          type: object
+          properties:
+            shared: {$ref: "#/$defs/SharedType"}
+        SharedType: {type: string}
+
+- name: test_with_pruning_common_types
+  description: Tests that pruning components also prunes common types.
+  catalog:
+    version: "0.8"
+    common_types_schema:
+      $defs:
+        TypeForCompA: {type: string}
+        TypeForCompB: {type: number}
+    catalog_schema:
+      catalogId: basic
+      components:
+        CompA: {$ref: "common_types.json#/$defs/TypeForCompA"}
+        CompB: {$ref: "common_types.json#/$defs/TypeForCompB"}
+  action: prune
+  args:
+    allowed_components: [CompA]
+  expect:
+    common_types_schema:
+      $defs:
+        TypeForCompA: {type: string}
+
+- name: test_with_pruning_s2c_also_prunes_common_types
+  description: Tests that pruning messages also prunes common types.
+  catalog:
+    version: "0.9"
+    common_types_schema:
+      $defs:
+        TypeForA: {type: string}
+        TypeForB: {type: number}
+    s2c_schema:
+      oneOf:
+        - $ref: "#/$defs/MessageA"
+        - $ref: "#/$defs/MessageB"
+      $defs:
+        MessageA: {$ref: "common_types.json#/$defs/TypeForA"}
+        MessageB: {$ref: "common_types.json#/$defs/TypeForB"}
+    catalog_schema: {catalogId: basic}
+  action: prune
+  args:
+    allowed_messages: [MessageA]
+  expect:
+    common_types_schema:
+      $defs:
+        TypeForA: {type: string}
+
+- name: test_with_pruning_messages_v08
+  description: Tests pruning messages in v0.8 (properties instead of oneOf).
+  catalog:
+    version: "0.8"
+    s2c_schema:
+      properties:
+        beginRendering: {type: object}
+        surfaceUpdate: {type: object}
+        deleteSurface: {type: object}
+      required: [surfaceId]
+    catalog_schema: {catalogId: basic}
+  action: prune
+  args:
+    allowed_messages: [beginRendering, deleteSurface]
+  expect:
+    s2c_schema:
+      properties:
+        beginRendering: {type: object}
+        deleteSurface: {type: object}
+      required: [surfaceId]
+
+- name: test_render_as_llm_instructions
+  description: Tests rendering schemas as LLM instructions.
+  catalog:
+    version: "0.9"
+    s2c_schema: {s2c: schema}
+    common_types_schema: {$defs: {common: types}}
+    catalog_schema:
+      $schema: "https://json-schema.org/draft/2020-12/schema"
+      catalog: schema
+      catalogId: id_basic
+  action: render
+  expect_output: |
+    ---BEGIN A2UI JSON SCHEMA---
+
+    ### Server To Client Schema:
+    {"s2c":"schema"}
+
+    ### Common Types Schema:
+    {"$defs":{"common":"types"}}
+
+    ### Catalog Schema:
+    {"$schema":"https://json-schema.org/draft/2020-12/schema","catalog":"schema","catalogId":"id_basic"}
+
+    ---END A2UI JSON SCHEMA---
+
+- name: test_render_as_llm_instructions_drops_empty_common_types
+  description: Tests that empty common types are omitted in rendering.
+  catalog:
+    version: "0.9"
+    s2c_schema: {s2c: schema}
+    common_types_schema: {}
+    catalog_schema:
+      $schema: "https://json-schema.org/draft/2020-12/schema"
+      catalog: schema
+      catalogId: id_basic
+  action: render
+  expect_output: |
+    ---BEGIN A2UI JSON SCHEMA---
+
+    ### Server To Client Schema:
+    {"s2c":"schema"}
+
+    ### Catalog Schema:
+    {"$schema":"https://json-schema.org/draft/2020-12/schema","catalog":"schema","catalogId":"id_basic"}
+
+    ---END A2UI JSON SCHEMA---
+
+- name: test_load_examples
+  description: Tests loading examples from a directory.
+  catalog:
+    version: "0.8"
+    catalog_schema: {catalogId: basic}
+  action: load
+  args:
+    path: "test_data/load_examples/basic"
+  expect_output: |
+    ---BEGIN example1---
+    [{"beginRendering": {"surfaceId": "id"}}]
+    ---END example1---
+
+    ---BEGIN example2---
+    [{"beginRendering": {"surfaceId": "id"}}]
+    ---END example2---
+
+- name: test_load_examples_validation_fails_on_bad_json
+  description: Tests that loading fails on bad JSON when validate is true.
+  catalog:
+    version: "0.8"
+    catalog_schema: {catalogId: basic}
+  action: load
+  args:
+    path: "test_data/load_examples/bad_json"
+    validate: true
+  expect_error:
+    category: "CatalogError"
+    message: "Failed to validate example"
+
+- name: test_load_examples_validation_fails_on_schema_error
+  description: Tests that loading fails on schema error when validate is true.
+  catalog:
+    version: "0.8"
+    s2c_schema:
+      type: object
+      properties: {myKey: {type: integer}}
+      required: [myKey]
+    catalog_schema: {catalogId: basic}
+  action: load
+  args:
+    path: "test_data/load_examples/schema_error"
+    validate: true
+  expect_error:
+    category: "CatalogError"
+    message: "Failed to validate example"
+
+- name: test_load_examples_with_glob
+  description: Tests loading examples with glob patterns.
+  catalog:
+    version: "0.8"
+    catalog_schema: {catalogId: basic}
+  action: load
+  args:
+    path: "test_data/load_examples/glob_recursive/**/*.json"
+  expect_output: |
+    ---BEGIN deep---
+    [{"beginRendering": {"surfaceId": "deep"}}]
+    ---END deep---
+
+    ---BEGIN top---
+    [{"beginRendering": {"surfaceId": "top"}}]
+    ---END top---
+
+- name: test_load_examples_with_glob_filter
+  description: Tests filtering examples with glob prefix.
+  catalog:
+    version: "0.8"
+    catalog_schema: {catalogId: basic}
+  action: load
+  args:
+    path: "test_data/load_examples/glob_filter/user_*.json"
+  expect_output: |
+    ---BEGIN user_profile---
+    [{"beginRendering": {"surfaceId": "user"}}]
+    ---END user_profile---
+
+    ---BEGIN user_settings---
+    [{"beginRendering": {"surfaceId": "settings"}}]
+    ---END user_settings---
+
+- name: test_load_examples_with_glob_range
+  description: Tests character range in glob.
+  catalog:
+    version: "0.8"
+    catalog_schema: {catalogId: basic}
+  action: load
+  args:
+    path: "test_data/load_examples/glob_range/step[1-2].json"
+  expect_output: |
+    ---BEGIN step1---
+    [{"beginRendering": {"surfaceId": "1"}}]
+    ---END step1---
+
+    ---BEGIN step2---
+    [{"beginRendering": {"surfaceId": "2"}}]
+    ---END step2---
+
+- name: test_load_examples_with_glob_negation
+  description: Tests negation in glob.
+  catalog:
+    version: "0.8"
+    catalog_schema: {catalogId: basic}
+  action: load
+  args:
+    path: "test_data/load_examples/glob_negation/[!i]*.json"
+  expect_output: |
+    ---BEGIN visible---
+    [{"beginRendering": {"surfaceId": "visible"}}]
+    ---END visible---
+
+- name: test_load_examples_none
+  description: Tests that loading with None path returns empty string.
+  catalog:
+    version: "0.8"
+    catalog_schema: {catalogId: basic}
+  action: load
+  args:
+    path: null
+  expect_output: ""
+
+- name: test_load_examples_non_existent_path
+  description: Tests that loading with non-existent path returns empty string.
+  catalog:
+    version: "0.8"
+    catalog_schema: {catalogId: basic}
+  action: load
+  args:
+    path: "/non/existent/path"
+  expect_output: ""
+
+- name: test_remove_strict_validation
+  description: Tests the remove_strict_validation modifier.
+  catalog:
+    version: "0.8"
+    catalog_schema: {catalogId: basic}
+  action: remove_strict_validation
+  args:
+    schema:
+      type: object
+      properties:
+        a: {type: string, additionalProperties: false}
+        b:
+          type: array
+          items: {type: object, additionalProperties: false}
+      additionalProperties: false
+  expect:
+    schema:
+      type: object
+      properties:
+        a: {type: string}
+        b:
+          type: array
+          items: {type: object}
+
+- name: test_remove_strict_validation_keeps_true
+  description: Tests that remove_strict_validation keeps additionalProperties true.
+  catalog:
+    version: "0.8"
+    catalog_schema: {catalogId: basic}
+  action: remove_strict_validation
+  args:
+    schema: {type: object, additionalProperties: true}
+  expect:
+    schema: {type: object, additionalProperties: true}
+
+- name: test_with_pruning_common_types_transitive
+  description: Tests that pruning components preserves transitively reachable common types.
+  catalog:
+    version: "0.9"
+    common_types_schema:
+      $defs:
+        TypeForCompA:
+          type: string
+          $ref: "#/$defs/SubtypeForA"
+        TypeForCompB: {type: number}
+        SubtypeForA: {type: boolean}
+    catalog_schema:
+      catalogId: basic
+      components:
+        CompA: {$ref: "common_types.json#/$defs/TypeForCompA"}
+        CompB: {$ref: "common_types.json#/$defs/TypeForCompB"}
+  action: prune
+  args:
+    allowed_components: [CompA]
+  expect:
+    common_types_schema:
+      $defs:
+        TypeForCompA:
+          type: string
+          $ref: "#/$defs/SubtypeForA"
+        SubtypeForA: {type: boolean}
+
+- name: test_render_as_llm_instructions_drops_common_types_no_defs
+  description: Tests that common types without $defs are omitted in rendering.
+  catalog:
+    version: "0.9"
+    s2c_schema: {s2c: schema}
+    common_types_schema: {something: else}
+    catalog_schema:
+      $schema: "https://json-schema.org/draft/2020-12/schema"
+      catalog: schema
+      catalogId: id_basic
+  action: render
+  expect_output: |
+    ---BEGIN A2UI JSON SCHEMA---
+
+    ### Server To Client Schema:
+    {"s2c":"schema"}
+
+    ### Catalog Schema:
+    {"$schema":"https://json-schema.org/draft/2020-12/schema","catalog":"schema","catalogId":"id_basic"}
+
+    ---END A2UI JSON SCHEMA---
+
+- name: test_render_as_llm_instructions_drops_common_types_empty_defs
+  description: Tests that common types with empty $defs are omitted in rendering.
+  catalog:
+    version: "0.9"
+    s2c_schema: {s2c: schema}
+    common_types_schema: {$defs: {}}
+    catalog_schema:
+      $schema: "https://json-schema.org/draft/2020-12/schema"
+      catalog: schema
+      catalogId: id_basic
+  action: render
+  expect_output: |
+    ---BEGIN A2UI JSON SCHEMA---
+
+    ### Server To Client Schema:
+    {"s2c":"schema"}
+
+    ### Catalog Schema:
+    {"$schema":"https://json-schema.org/draft/2020-12/schema","catalog":"schema","catalogId":"id_basic"}
+
+    ---END A2UI JSON SCHEMA---
+
+- name: test_custom_cuttable_keys
+  description: Tests that custom cuttable_keys are preserved in A2uiCatalog.
+  catalog:
+    version: "0.9"
+    custom_cuttable_keys: ["customKey1", "customKey2"]
+    catalog_schema: {catalogId: basic}
+  action: verify_cuttable_keys
+  expect:
+    custom_cuttable_keys: ["customKey1", "customKey2"]

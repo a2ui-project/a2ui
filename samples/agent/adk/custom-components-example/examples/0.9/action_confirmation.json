@@ -1,0 +1,80 @@
+[
+  {
+    "version": "v0.9",
+    "createSurface": {
+      "surfaceId": "action-modal",
+      "catalogId": "https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json",
+      "theme": {
+        "primaryColor": "#007BFF",
+        "font": "Roboto"
+      }
+    }
+  },
+  {
+    "version": "v0.9",
+    "updateComponents": {
+      "surfaceId": "action-modal",
+      "components": [
+        {
+          "id": "root",
+          "component": "Modal",
+          "trigger": "hidden-entry-point",
+          "content": "modal-content-column"
+        },
+        {
+          "id": "hidden-entry-point",
+          "component": "Text",
+          "text": ""
+        },
+        {
+          "id": "modal-content-column",
+          "component": "Column",
+          "children": ["modal-title", "modal-message", "dismiss-button"],
+          "align": "center"
+        },
+        {
+          "id": "modal-title",
+          "component": "Text",
+          "variant": "h2",
+          "text": {
+            "path": "/actionTitle"
+          }
+        },
+        {
+          "id": "modal-message",
+          "component": "Text",
+          "text": {
+            "path": "/actionMessage"
+          }
+        },
+        {
+          "id": "dismiss-button-text",
+          "component": "Text",
+          "text": "Dismiss"
+        },
+        {
+          "id": "dismiss-button",
+          "component": "Button",
+          "child": "dismiss-button-text",
+          "variant": "primary",
+          "action": {
+            "event": {
+              "name": "dismiss_modal"
+            }
+          }
+        }
+      ]
+    }
+  },
+  {
+    "version": "v0.9",
+    "updateDataModel": {
+      "surfaceId": "action-modal",
+      "path": "/",
+      "value": {
+        "actionTitle": "Action Confirmation",
+        "actionMessage": "Your action has been processed."
+      }
+    }
+  }
+]

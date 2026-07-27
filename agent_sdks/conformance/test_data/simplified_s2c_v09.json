@@ -1,0 +1,142 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://a2ui.org/specification/v0_9/server_to_client.json",
+  "title": "A2UI Message Schema",
+  "type": "object",
+  "oneOf": [
+    {
+      "$ref": "#/$defs/CreateSurfaceMessage"
+    },
+    {
+      "$ref": "#/$defs/UpdateComponentsMessage"
+    },
+    {
+      "$ref": "#/$defs/UpdateDataModelMessage"
+    },
+    {
+      "$ref": "#/$defs/DeleteSurfaceMessage"
+    }
+  ],
+  "$defs": {
+    "CreateSurfaceMessage": {
+      "type": "object",
+      "properties": {
+        "version": {
+          "const": "v0.9"
+        },
+        "createSurface": {
+          "type": "object",
+          "properties": {
+            "surfaceId": {
+              "type": "string"
+            },
+            "catalogId": {
+              "type": "string"
+            },
+            "theme": {
+              "type": "object",
+              "additionalProperties": true
+            }
+          },
+          "required": [
+            "surfaceId",
+            "catalogId"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "version",
+        "createSurface"
+      ],
+      "additionalProperties": false
+    },
+    "UpdateComponentsMessage": {
+      "type": "object",
+      "properties": {
+        "version": {
+          "const": "v0.9"
+        },
+        "updateComponents": {
+          "type": "object",
+          "properties": {
+            "surfaceId": {
+              "type": "string"
+            },
+            "root": {
+              "type": "string"
+            },
+            "components": {
+              "type": "array",
+              "minItems": 1,
+              "items": {
+                "$ref": "catalog.json#/$defs/anyComponent"
+              }
+            }
+          },
+          "required": [
+            "surfaceId",
+            "components"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "version",
+        "updateComponents"
+      ],
+      "additionalProperties": false
+    },
+    "UpdateDataModelMessage": {
+      "type": "object",
+      "properties": {
+        "version": {
+          "const": "v0.9"
+        },
+        "updateDataModel": {
+          "type": "object",
+          "properties": {
+            "surfaceId": {
+              "type": "string"
+            },
+            "value": {
+              "additionalProperties": true
+            }
+          },
+          "required": [
+            "surfaceId"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "version",
+        "updateDataModel"
+      ],
+      "additionalProperties": false
+    },
+    "DeleteSurfaceMessage": {
+      "type": "object",
+      "properties": {
+        "version": {
+          "const": "v0.9"
+        },
+        "deleteSurface": {
+          "type": "object",
+          "properties": {
+            "surfaceId": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "surfaceId"
+          ]
+        }
+      },
+      "required": [
+        "version",
+        "deleteSurface"
+      ]
+    }
+  }
+}

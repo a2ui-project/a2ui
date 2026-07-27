@@ -14,11 +14,11 @@
  * limitations under the License.
  */
 
-import type { CSSResultGroup } from "lit";
-import * as Styles from "@a2ui/web_core/styles/index";
+import type {CSSResultGroup} from 'lit';
+import * as Styles from '@a2ui/web_core/styles/index';
 
 const buildStructuralStyles = (): CSSResultGroup => {
-  if (typeof window === "undefined") {
+  if (typeof window === 'undefined') {
     return [];
   }
 
@@ -27,7 +27,7 @@ const buildStructuralStyles = (): CSSResultGroup => {
     styleSheet.replaceSync(Styles.structuralStyles);
     return styleSheet;
   } catch (e) {
-    throw new Error("Failed to construct structural styles.", { cause: e });
+    throw new Error('Failed to construct structural styles.', {cause: e});
   }
 };
 

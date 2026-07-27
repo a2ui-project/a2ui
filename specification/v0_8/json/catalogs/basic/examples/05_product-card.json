@@ -16,10 +16,7 @@
           "component": {
             "Column": {
               "children": {
-                "explicitList": [
-                  "image",
-                  "details"
-                ]
+                "explicitList": ["image", "details"]
               }
             }
           }
@@ -40,12 +37,7 @@
           "component": {
             "Column": {
               "children": {
-                "explicitList": [
-                  "name",
-                  "rating-row",
-                  "price-row",
-                  "actions"
-                ]
+                "explicitList": ["name", "rating-row", "price-row", "actions"]
               }
             }
           }
@@ -66,10 +58,7 @@
           "component": {
             "Row": {
               "children": {
-                "explicitList": [
-                  "stars",
-                  "reviews"
-                ]
+                "explicitList": ["stars", "reviews"]
               },
               "alignment": "center"
             }
@@ -102,10 +91,7 @@
           "component": {
             "Row": {
               "children": {
-                "explicitList": [
-                  "price",
-                  "original-price"
-                ]
+                "explicitList": ["price", "original-price"]
               },
               "alignment": "start"
             }
@@ -138,9 +124,7 @@
           "component": {
             "Row": {
               "children": {
-                "explicitList": [
-                  "add-cart-btn"
-                ]
+                "explicitList": ["add-cart-btn"]
               }
             }
           }

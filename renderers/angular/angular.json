@@ -23,7 +23,8 @@
         "test": {
           "builder": "@angular/build:karma",
           "options": {
-            "tsConfig": "./tsconfig.spec.json"
+            "tsConfig": "./tsconfig.spec.json",
+            "karmaConfig": "karma.conf.js"
           }
         }
       }

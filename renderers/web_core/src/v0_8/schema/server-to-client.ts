@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import { z } from "zod";
+import {z} from 'zod';
 import {
   AudioPlayerSchema,
   ButtonSchema,
@@ -35,10 +35,9 @@ import {
   TextSchema,
   VideoSchema,
   DataValueSchema,
-} from "./common-types.js";
+} from './common-types.js';
 
-
-const validateValueProperty = (val: any, ctx: z.RefinementCtx) => {
+const _validateValueProperty = (val: any, ctx: z.RefinementCtx) => {
   let count = 0;
   if (val.valueString !== undefined) count++;
   if (val.valueNumber !== undefined) count++;
@@ -83,7 +82,7 @@ export const ComponentPropertiesSchema = AnyComponentSchema;
 
 export const ComponentInstanceSchema = z
   .object({
-    id: z.string().describe("The unique identifier for this component."),
+    id: z.string().describe('The unique identifier for this component.'),
     weight: z
       .number()
       .optional()
@@ -96,33 +95,35 @@ export const ComponentInstanceSchema = z
   })
   .strict()
   .describe(
-    "Represents a *single* component in a UI widget tree. This component could be one of many supported types.",
+    'Represents a *single* component in a UI widget tree. This component could be one of many supported types.',
   );
 
 export const BeginRenderingMessageSchema = z
   .object({
-    surfaceId: z
+    surfaceId: z.string().describe('The unique identifier for the UI surface to be rendered.'),
+    catalogId: z
       .string()
-      .describe("The unique identifier for the UI surface to be rendered."),
-    root: z.string().describe("The ID of the root component to render."),
+      .optional()
+      .describe(
+        'The identifier of the component catalog to use for this surface. If omitted, the client MUST default to the standard catalog for this A2UI version (https://a2ui.org/specification/v0_8/standard_catalog_definition.json).',
+      ),
+    root: z.string().describe('The ID of the root component to render.'),
     styles: z
       .object({
-        font: z.string().optional().describe("The primary font for the UI."),
+        font: z.string().optional().describe('The primary font for the UI.'),
         primaryColor: z
           .string()
           .regex(/^#[0-9a-fA-F]{6}$/)
           .optional()
-          .describe(
-            "The primary UI color as a hexadecimal code (e.g., '#00BFFF').",
-          ),
+          .describe("The primary UI color as a hexadecimal code (e.g., '#00BFFF')."),
       })
       .strict()
       .optional()
-      .describe("Styling information for the UI."),
+      .describe('Styling information for the UI.'),
   })
   .strict()
   .describe(
-    "Signals the client to begin rendering a surface with a root component and specific styles.",
+    'Signals the client to begin rendering a surface with a root component and specific styles.',
   );
 
 export const SurfaceUpdateMessageSchema = z
@@ -130,12 +131,12 @@ export const SurfaceUpdateMessageSchema = z
     surfaceId: z
       .string()
       .describe(
-        "The unique identifier for the UI surface to be updated. If you are adding a new surface this *must* be a new, unique identified that has never been used for any existing surfaces shown.",
+        'The unique identifier for the UI surface to be updated. If you are adding a new surface this *must* be a new, unique identified that has never been used for any existing surfaces shown.',
       ),
     components: z
       .array(ComponentInstanceSchema)
       .min(1)
-      .describe("A list containing all UI components for the surface."),
+      .describe('A list containing all UI components for the surface.'),
   })
   .strict()
   .superRefine((data, ctx) => {
@@ -146,7 +147,7 @@ export const SurfaceUpdateMessageSchema = z
           ctx.addIssue({
             code: z.ZodIssueCode.custom,
             message: `Duplicate component ID found: ${c.id}`,
-            path: ["components"],
+            path: ['components'],
           });
         }
         componentIds.add(c.id);
@@ -159,7 +160,7 @@ export const SurfaceUpdateMessageSchema = z
           ctx.addIssue({
             code: z.ZodIssueCode.custom,
             message: `Component '${componentId}' references non-existent component ID '${id}'.`,
-            path: ["components"],
+            path: ['components'],
           });
         }
       }
@@ -174,9 +175,9 @@ export const SurfaceUpdateMessageSchema = z
       const properties: any = (component.component as any)[componentType];
 
       switch (componentType) {
-        case "Row":
-        case "Column":
-        case "List":
+        case 'Row':
+        case 'Column':
+        case 'List':
           if (properties.children && !Array.isArray(properties.children)) {
             const hasExplicit = !!properties.children.explicitList;
             const hasTemplate = !!properties.children.template;
@@ -190,34 +191,32 @@ export const SurfaceUpdateMessageSchema = z
             if (hasTemplate) checkRefs([properties.children.template?.componentId], component.id);
           }
           break;
-        case "Card":
+        case 'Card':
           if (properties.child) checkRefs([properties.child], component.id);
           break;
-        case "Tabs":
+        case 'Tabs':
           if (properties.tabItems && Array.isArray(properties.tabItems)) {
             properties.tabItems.forEach((tab: any) => {
               if (tab.child) checkRefs([tab.child], component.id);
             });
           }
           break;
-        case "Modal":
+        case 'Modal':
           checkRefs([properties.entryPointChild, properties.contentChild], component.id);
           break;
-        case "Button":
+        case 'Button':
           if (properties.child) checkRefs([properties.child], component.id);
           break;
       }
     }
   })
-  .describe("Updates a surface with a new set of components.");
+  .describe('Updates a surface with a new set of components.');
 
 export const DataModelUpdateMessageSchema = z
   .object({
     surfaceId: z
       .string()
-      .describe(
-        "The unique identifier for the UI surface this data model update applies to.",
-      ),
+      .describe('The unique identifier for the UI surface this data model update applies to.'),
     path: z
       .string()
       .optional()
@@ -231,18 +230,14 @@ export const DataModelUpdateMessageSchema = z
       ),
   })
   .strict()
-  .describe("Updates the data model for a surface.");
+  .describe('Updates the data model for a surface.');
 
 export const DeleteSurfaceMessageSchema = z
   .object({
-    surfaceId: z
-      .string()
-      .describe("The unique identifier for the UI surface to be deleted."),
+    surfaceId: z.string().describe('The unique identifier for the UI surface to be deleted.'),
   })
   .strict()
-  .describe(
-    "Signals the client to delete the surface identified by 'surfaceId'.",
-  );
+  .describe("Signals the client to delete the surface identified by 'surfaceId'.");
 
 export const A2uiMessageSchema = z
   .object({
@@ -253,11 +248,14 @@ export const A2uiMessageSchema = z
   })
   .strict()
   .superRefine((data, ctx) => {
-    const keys = Object.keys(data).filter(k => ["beginRendering", "surfaceUpdate", "dataModelUpdate", "deleteSurface"].includes(k));
+    const keys = Object.keys(data).filter(k =>
+      ['beginRendering', 'surfaceUpdate', 'dataModelUpdate', 'deleteSurface'].includes(k),
+    );
     if (keys.length !== 1) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
-        message: "A2UI Protocol message must have exactly one of: surfaceUpdate, dataModelUpdate, beginRendering, deleteSurface.",
+        message:
+          'A2UI Protocol message must have exactly one of: surfaceUpdate, dataModelUpdate, beginRendering, deleteSurface.',
       });
     }
   })

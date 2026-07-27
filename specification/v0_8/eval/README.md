@@ -22,15 +22,15 @@ cp .env.example .env
 You also need to install dependencies before running:
 
 ```bash
-pnpm install
+yarn install
 ```
 
-## Running all evals (warning: can use *lots* of model quota)
+## Running all evals (warning: can use _lots_ of model quota)
 
 To run the flow, use the following command:
 
 ```bash
-pnpm run evalAll
+yarn evalAll
 ```
 
 ## Running a Single Test
@@ -40,7 +40,7 @@ You can run the script for a single model and data point by using the `--model` 
 ### Syntax
 
 ```bash
-pnpm run eval -- --model='<model_name>' --prompt=<prompt_name>
+yarn eval -- --model='<model_name>' --prompt=<prompt_name>
 ```
 
 ### Example
@@ -48,7 +48,7 @@ pnpm run eval -- --model='<model_name>' --prompt=<prompt_name>
 To run the test with the `gpt-5-mini (reasoning: minimal)` model and the `generateDogUIs` prompt, use the following command:
 
 ```bash
-pnpm run eval -- --model='gpt-5-mini (reasoning: minimal)' --prompt=generateDogUIs
+yarn eval -- --model='gpt-5-mini (reasoning: minimal)' --prompt=generateDogUIs
 ```
 
 ## Controlling Output
@@ -60,9 +60,9 @@ To keep the input and output for each run in separate files, specify the `--keep
 ### Example
 
 ```bash
-pnpm run evalAll -- --verbose
+yarn evalAll -- --verbose
 ```
 
 ```bash
-pnpm run evalAll -- --keep=output
+yarn evalAll -- --keep=output
 ```

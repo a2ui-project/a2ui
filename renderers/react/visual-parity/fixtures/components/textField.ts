@@ -18,7 +18,7 @@
  * TextField component fixtures for visual parity testing.
  */
 
-import type { ComponentFixture } from '../types';
+import type {ComponentFixture} from '../types';
 
 export const textField: ComponentFixture = {
   root: 'tf-1',
@@ -26,7 +26,7 @@ export const textField: ComponentFixture = {
     {
       id: 'tf-1',
       component: {
-        TextField: { label: { literalString: 'Your Name' } },
+        TextField: {label: {literalString: 'Your Name'}},
       },
     },
   ],
@@ -39,8 +39,8 @@ export const textFieldWithValue: ComponentFixture = {
       id: 'tf-value',
       component: {
         TextField: {
-          label: { literalString: 'Email' },
-          text: { literalString: 'user@example.com' },
+          label: {literalString: 'Email'},
+          text: {literalString: 'user@example.com'},
         },
       },
     },

@@ -1,0 +1,45 @@
+[
+  {
+    "version": "v0.9",
+    "createSurface": {
+      "surfaceId": "iframe-srcdoc-demo",
+      "catalogId": "https://a2ui.org/specification/v0_9/material_catalog.json",
+      "theme": {
+        "primaryColor": "#1a73e8",
+        "font": "Roboto"
+      }
+    }
+  },
+  {
+    "version": "v0.9",
+    "updateComponents": {
+      "surfaceId": "iframe-srcdoc-demo",
+      "components": [
+        {
+          "id": "root",
+          "component": "MaterialCard",
+          "children": ["column"]
+        },
+        {
+          "id": "column",
+          "component": "MaterialColumn",
+          "align": "stretch",
+          "style": {"gap": "12px"},
+          "children": ["title", "html-frame"]
+        },
+        {
+          "id": "title",
+          "component": "MaterialText",
+          "text": "Custom HTML (IFrameSrcdoc)",
+          "usageHint": "h2"
+        },
+        {
+          "id": "html-frame",
+          "component": "IFrameSrcdoc",
+          "height": 260,
+          "htmlContent": "<!DOCTYPE html><html><body style=\"margin:0;font-family:'Google Sans',sans-serif;display:flex;align-items:center;justify-content:center;height:100%;background:linear-gradient(135deg,#8a2be2,#4a00e0);color:#fff\"><div style=\"text-align:center\"><h1 style=\"margin:0;font-size:40px\">Hello from an iframe</h1><p>This HTML was supplied by the agent and rendered in a sandboxed frame.</p><button onclick=\"parent.postMessage({type:'a2ui_action',action:'iframe_clicked',data:{source:'srcdoc'}},'*')\" style=\"padding:8px 16px;border:none;border-radius:20px;background:#fff;color:#4a00e0;font-weight:bold;cursor:pointer\">Click me</button></div></body></html>"
+        }
+      ]
+    }
+  }
+]

@@ -1,9 +1,28 @@
 {
   "name": "@a2ui/lit",
-  "version": "0.8.2",
+  "version": "0.10.2",
   "description": "A2UI Lit Library",
-  "main": "./dist/index.js",
-  "types": "./dist/index.d.ts",
+  "author": "Google",
+  "license": "Apache-2.0",
+  "homepage": "https://a2ui.org/",
+  "repository": {
+    "directory": "renderers/lit",
+    "type": "git",
+    "url": "git+https://github.com/a2ui-project/a2ui.git"
+  },
+  "bugs": {
+    "url": "https://github.com/a2ui-project/a2ui/issues"
+  },
+  "keywords": [
+    "a2ui",
+    "lit",
+    "ai",
+    "agent",
+    "ui",
+    "renderer"
+  ],
+  "main": "./dist/src/index.js",
+  "types": "./dist/src/index.d.ts",
   "exports": {
     ".": {
       "types": "./dist/src/index.d.ts",
@@ -13,6 +32,14 @@
       "types": "./dist/src/0.8/core.d.ts",
       "default": "./dist/src/0.8/core.js"
     },
+    "./v0_8": {
+      "types": "./dist/src/0.8/core.d.ts",
+      "default": "./dist/src/0.8/core.js"
+    },
+    "./v0_9": {
+      "types": "./dist/src/v0_9/index.d.ts",
+      "default": "./dist/src/v0_9/index.js"
+    },
     "./ui": {
       "types": "./dist/src/0.8/ui/ui.d.ts",
       "default": "./dist/src/0.8/ui/ui.js"
@@ -20,26 +47,36 @@
   },
   "type": "module",
   "scripts": {
-    "prepack": "npm run build",
+    "prepublishOnly": "node -e \"if(!process.cwd().endsWith('dist')) { console.error('Error: This package must be published from the dist/ directory. Run `yarn build` then `cd dist && yarn npm publish`'); process.exit(1); }\"",
+    "publish:package": "yarn build && node ../scripts/prepare-publish.mjs && cd dist && touch yarn.lock && yarn install && yarn npm publish --access public",
     "build": "wireit",
     "build:tsc": "wireit",
-    "dev": "npm run serve --watch",
+    "dev": "yarn serve --watch",
     "test": "wireit",
-    "serve": "wireit"
+    "test:unit": "wireit",
+    "test:integration": "wireit",
+    "demo": "yarn workspace @a2ui/lit-explorer dev",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "clean": "wireit",
+    "format": "prettier --ignore-path ../../.prettierignore --write .",
+    "format:check": "prettier --ignore-path ../../.prettierignore --check ."
   },
   "wireit": {
-    "serve": {
-      "command": "vite dev",
-      "dependencies": [
-        "build"
-      ],
-      "service": true
-    },
     "test": {
-      "command": "node --test --enable-source-maps --test-reporter spec dist/src/0.8/*.test.js",
+      "dependencies": [
+        "test:unit",
+        "test:integration"
+      ]
+    },
+    "test:unit": {
+      "command": "node --test --enable-source-maps --test-reporter spec dist/src/0.8/*.test.js dist/src/v0_9/tests/*.test.js dist/src/v0_9/tests/**/*.test.js",
       "dependencies": [
         "build"
       ]
+    },
+    "test:integration": {
+      "command": "yarn workspace @a2ui/lit-explorer test:ci"
     },
     "build": {
       "dependencies": [
@@ -48,6 +85,9 @@
     },
     "build:tsc": {
       "command": "tsc -b --pretty",
+      "dependencies": [
+        "../../renderers/web_core:build"
+      ],
       "env": {
         "FORCE_COLOR": "1"
       },
@@ -61,34 +101,39 @@
         "!dist/**/*.min.js{,.map}"
       ],
       "clean": "if-file-deleted"
+    },
+    "clean": {
+      "command": "rm -rf dist .tsbuildinfo .wireit"
     }
-  },
-  "repository": {
-    "directory": "renderers/lit",
-    "type": "git",
-    "url": "git+https://github.com/google/A2UI.git"
   },
   "files": [
     "dist/src"
   ],
-  "keywords": [],
-  "author": "Google",
-  "license": "Apache-2.0",
-  "bugs": {
-    "url": "https://github.com/google/A2UI/issues"
-  },
-  "homepage": "https://github.com/google/A2UI/tree/main/web#readme",
   "devDependencies": {
-    "@types/node": "^24.10.1",
+    "@types/jsdom": "^28.0.3",
+    "@types/node": "^25.9.3",
+    "eslint": "^10.4.1",
     "google-artifactregistry-auth": "^3.5.0",
-    "typescript": "^5.8.3",
+    "gts": "^7.0.0",
+    "jsdom": "^29.1.1",
+    "prettier": "^3.8.4",
+    "typescript": "5.9.3",
     "wireit": "^0.15.0-pre.2"
   },
+  "peerDependencies": {
+    "@a2ui/markdown-it": "*"
+  },
+  "peerDependenciesMeta": {
+    "@a2ui/markdown-it": {
+      "optional": true
+    }
+  },
   "dependencies": {
-    "@lit-labs/signals": "^0.1.3",
-    "@lit/context": "^1.1.4",
-    "lit": "^3.3.1",
+    "@a2ui/web_core": "workspace:*",
+    "@lit-labs/signals": "^0.3.0",
+    "@lit/context": "^1.1.6",
+    "lit": "^3.3.3",
     "signal-utils": "^0.21.1",
-    "@a2ui/web_core": "file:../web_core"
+    "zod": "^3.25.76"
   }
 }

@@ -1,0 +1,95 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://a2ui.org/specification/v0_9/common_types.json",
+  "title": "A2UI Common Types",
+  "$defs": {
+    "ComponentId": {
+      "type": "string"
+    },
+    "AccessibilityAttributes": {
+      "type": "object",
+      "properties": {
+        "label": {
+          "$ref": "#/$defs/DynamicString"
+        }
+      }
+    },
+    "Action": {
+      "type": "object",
+      "additionalProperties": true
+    },
+    "ComponentCommon": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/ComponentId"
+        }
+      },
+      "required": [
+        "id"
+      ]
+    },
+    "DataBinding": {
+      "type": "object"
+    },
+    "DynamicString": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "$ref": "#/$defs/DataBinding"
+        }
+      ]
+    },
+    "DynamicValue": {
+      "anyOf": [
+        {
+          "type": "object"
+        },
+        {
+          "type": "array"
+        },
+        {
+          "$ref": "#/$defs/DataBinding"
+        }
+      ]
+    },
+    "DynamicNumber": {
+      "anyOf": [
+        {
+          "type": "number"
+        },
+        {
+          "$ref": "#/$defs/DataBinding"
+        }
+      ]
+    },
+    "ChildList": {
+      "oneOf": [
+        {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ComponentId"
+          }
+        },
+        {
+          "type": "object",
+          "properties": {
+            "componentId": {
+              "$ref": "#/$defs/ComponentId"
+            },
+            "path": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "componentId",
+            "path"
+          ],
+          "additionalProperties": false
+        }
+      ]
+    }
+  }
+}

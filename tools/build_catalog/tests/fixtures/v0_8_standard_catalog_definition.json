@@ -1,0 +1,16 @@
+{
+  "components": {
+    "Text": {
+      "type": "object",
+      "properties": {
+        "text": {"type": "string"}
+      }
+    }
+  },
+  "styles": {
+    "primaryColor": {
+      "type": "string",
+      "pattern": "^#[0-9a-fA-F]{6}$"
+    }
+  }
+}

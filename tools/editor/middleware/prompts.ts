@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import { v0_8 } from "@a2ui/lit";
+import {v0_8} from '@a2ui/lit';
 
 export function createImageParsePrompt(
   catalog: v0_8.Types.ClientCapabilitiesDynamic,
@@ -23,15 +23,15 @@ export function createImageParsePrompt(
       mimeType: string;
       data: string;
     };
-  }
+  },
 ) {
   if (!catalog) {
-    throw new Error("No catalog specified");
+    throw new Error('No catalog specified');
   }
 
   const componentTypes = Object.keys(catalog.components);
   const prompt = {
-    role: "user",
+    role: 'user',
     parts: [
       `You are creating a text description for a User Interface. Ultimately this
       description will given to an agent which will use the A2UI Protocol to
@@ -47,15 +47,15 @@ export function createImageParsePrompt(
 
     Here's everything you need:`,
 
-      `The user's layout image is: `,
+      "The user's layout image is: ",
       content,
-      `The Component Catalog you can refer to is: ${componentTypes.join(", ")}`,
-    ].map((item) => {
-      if (typeof item === "object") {
+      `The Component Catalog you can refer to is: ${componentTypes.join(', ')}`,
+    ].map(item => {
+      if (typeof item === 'object') {
         return item;
       }
 
-      return { text: item };
+      return {text: item};
     }),
   };
 
@@ -65,26 +65,26 @@ export function createImageParsePrompt(
 export function createA2UIPrompt(
   catalog: v0_8.Types.ClientCapabilitiesDynamic,
   imageDescription: string,
-  instructions: string
+  instructions: string,
 ) {
   if (!catalog) {
-    throw new Error("No catalog specified");
+    throw new Error('No catalog specified');
   }
 
   const combinedInstructions: string[] = [];
-  if (imageDescription !== "") {
+  if (imageDescription !== '') {
     combinedInstructions.push(imageDescription);
   }
-  if (instructions !== "") {
+  if (instructions !== '') {
     combinedInstructions.push(instructions);
   }
 
   if (combinedInstructions.length === 0) {
-    throw new Error("No instructions provided");
+    throw new Error('No instructions provided');
   }
 
   const prompt = {
-    role: "user",
+    role: 'user',
     parts: [
       `You are creating a layout for a User Interface. It will be using a
     format called A2UI which has several distinct schemas, each of which I will
@@ -97,9 +97,7 @@ export function createA2UIPrompt(
 
       `The user's layout request is: "${combinedInstructions.join('" and "')}"`,
       `The Component Catalog you can use is: ${JSON.stringify(catalog)}`,
-      `The A2UI Protocol Message Schema: "${JSON.stringify(
-        v0_8.Schemas.A2UIClientEventMessage
-      )}"`,
+      `The A2UI Protocol Message Schema: "${JSON.stringify(v0_8.Schemas.A2UIClientEventMessage)}"`,
 
       `Please return a valid A2UI Protocol Message object necessary to build the
       user interface from scratch. If you choose to return multiple object you
@@ -108,8 +106,8 @@ export function createA2UIPrompt(
       `If no data is provided create some. If there are any URLs you must
     make them absolute and begin with a /. Nothing should ever be loaded from
     a remote source`,
-    ].map((text) => {
-      return { text };
+    ].map(text => {
+      return {text};
     }),
   };
 

@@ -18,7 +18,7 @@
  * Modal component fixtures for visual parity testing.
  */
 
-import type { ComponentFixture } from '../types';
+import type {ComponentFixture} from '../types';
 
 export const modalBasic: ComponentFixture = {
   root: 'modal-1',
@@ -26,19 +26,19 @@ export const modalBasic: ComponentFixture = {
     {
       id: 'trigger-text',
       component: {
-        Text: { text: { literalString: 'Open Modal' } },
+        Text: {text: {literalString: 'Open Modal'}},
       },
     },
     {
       id: 'trigger-btn',
       component: {
-        Button: { child: 'trigger-text', action: { name: 'open' } },
+        Button: {child: 'trigger-text', action: {name: 'open'}},
       },
     },
     {
       id: 'modal-content-text',
       component: {
-        Text: { text: { literalString: 'This is the modal content.' } },
+        Text: {text: {literalString: 'This is the modal content.'}},
       },
     },
     {
@@ -59,37 +59,42 @@ export const modalWithCard: ComponentFixture = {
     {
       id: 'trigger-text-2',
       component: {
-        Text: { text: { literalString: 'Show Details' } },
+        Text: {text: {literalString: 'Show Details'}},
       },
     },
     {
       id: 'trigger-btn-2',
       component: {
-        Button: { child: 'trigger-text-2', action: { name: 'open' }, primary: true },
+        Button: {child: 'trigger-text-2', action: {name: 'open'}, primary: true},
       },
     },
     {
       id: 'modal-title',
       component: {
-        Text: { text: { literalString: 'Details' }, usageHint: 'h2' },
+        Text: {text: {literalString: 'Details'}, usageHint: 'h2'},
       },
     },
     {
       id: 'modal-body',
       component: {
-        Text: { text: { literalString: 'Here are the details you requested. This modal contains a card with multiple text elements.' } },
+        Text: {
+          text: {
+            literalString:
+              'Here are the details you requested. This modal contains a card with multiple text elements.',
+          },
+        },
       },
     },
     {
       id: 'modal-content-col',
       component: {
-        Column: { children: { explicitList: ['modal-title', 'modal-body'] } },
+        Column: {children: {explicitList: ['modal-title', 'modal-body']}},
       },
     },
     {
       id: 'modal-card',
       component: {
-        Card: { child: 'modal-content-col' },
+        Card: {child: 'modal-content-col'},
       },
     },
     {

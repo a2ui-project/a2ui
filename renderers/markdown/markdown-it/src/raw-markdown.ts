@@ -79,7 +79,7 @@ export class MarkdownItRenderer {
    * This method does not perform any sanitization of the outgoing HTML.
    */
   render(value: string, tagClassMap?: Types.MarkdownRendererTagClassMap) {
-    return this.markdownIt.render(value, { tagClassMap });
+    return this.markdownIt.render(value, {tagClassMap});
   }
 }
 

@@ -18,23 +18,31 @@
  * Cross-platform script to copy JSON schemas.
  * Uses Node.js fs/path modules for Windows/Unix compatibility.
  */
-import { mkdirSync, cpSync, readdirSync } from "node:fs";
-import { join, dirname } from "node:path";
-import { fileURLToPath } from "node:url";
+import {mkdirSync, cpSync, readdirSync, existsSync} from 'node:fs';
+import {join, dirname} from 'node:path';
+import {fileURLToPath} from 'node:url';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const rootDir = join(__dirname, "..");
+const rootDir = join(__dirname, '..');
 
 function copySchemas(version) {
-  const srcDir = join(rootDir, "..", "..", "specification", version, "json");
-  const destDir = join(rootDir, "src", version, "schemas");
+  const srcJsonDir = join(rootDir, '..', '..', 'specification', version, 'json');
+  const srcCatalogsDir = join(rootDir, '..', '..', 'specification', version, 'catalogs');
+  const destDir = join(rootDir, 'src', version, 'schemas');
 
-  mkdirSync(destDir, { recursive: true });
+  mkdirSync(destDir, {recursive: true});
 
-  readdirSync(srcDir)
-    .filter((file) => file.endsWith(".json"))
-    .forEach((file) => cpSync(join(srcDir, file), join(destDir, file)));
+  if (existsSync(srcJsonDir)) {
+    readdirSync(srcJsonDir)
+      .filter(file => file.endsWith('.json'))
+      .forEach(file => cpSync(join(srcJsonDir, file), join(destDir, file)));
+  }
+
+  if (version !== 'v0_8') {
+    cpSync(srcCatalogsDir, join(destDir, 'catalogs'), {recursive: true});
+  }
 }
 
-copySchemas("v0_8");
-copySchemas("v0_9");
+copySchemas('v0_8');
+copySchemas('v0_9');
+copySchemas('v1_0');

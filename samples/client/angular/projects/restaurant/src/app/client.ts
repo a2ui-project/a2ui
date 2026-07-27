@@ -14,71 +14,154 @@
  * limitations under the License.
  */
 
-import { A2AServerPayload, MessageProcessor } from '@a2ui/angular';
+import {A2uiRendererService} from '@a2ui/angular/v0_9';
 import * as Types from '@a2ui/web_core/types/types';
-import { inject, Injectable, signal } from '@angular/core';
+import {inject, Injectable, signal} from '@angular/core';
+import {A2uiClientAction, A2uiMessage} from '@a2ui/web_core/v0_9';
 
-@Injectable({ providedIn: 'root' })
+@Injectable({providedIn: 'root'})
 export class Client {
-  private processor = inject(MessageProcessor);
+  private readonly renderer = inject(A2uiRendererService);
+  private contextId?: string;
 
   readonly isLoading = signal(false);
 
-  constructor() {
-    this.processor.events.subscribe(async (event) => {
-      try {
-        const messages = await this.makeRequest(event.message);
-        event.completion.next(messages);
-        event.completion.complete();
-      } catch (err) {
-        event.completion.error(err);
-      }
-    });
+  async handleAction(userAction: A2uiClientAction) {
+    try {
+      const messages = await this.makeRequest({userAction});
+      this.renderer.processMessages(messages as unknown as A2uiMessage[]);
+    } catch (err) {
+      console.error(err);
+    }
   }
 
-  async makeRequest(request: Types.A2UIClientEventMessage | string) {
-    let messages: Types.ServerToClientMessage[];
-
+  async makeRequest(
+    request: Types.A2UIClientEventMessage | string,
+  ): Promise<Types.ServerToClientMessage[]> {
+    const messages: Types.ServerToClientMessage[] = [];
     try {
       this.isLoading.set(true);
-      const response = await this.send(request as Types.A2UIClientEventMessage);
-      messages = response;
+
+      // Clear existing surfaces on interaction
+      const surfaceGroup = this.renderer.surfaceGroup;
+      for (const surfaceId of Array.from(surfaceGroup.surfacesMap.keys())) {
+        surfaceGroup.deleteSurface(surfaceId);
+      }
+
+      const isString = typeof request === 'string';
+      const bodyData = isString
+        ? {query: request, contextId: this.contextId}
+        : {event: request, contextId: this.contextId};
+
+      const response = await fetch('/a2a', {
+        body: JSON.stringify(bodyData),
+        method: 'POST',
+      });
+
+      if (!response.ok) {
+        const error = (await response.json()) as {error: string};
+        throw new Error(error.error);
+      }
+
+      const contentType = response.headers.get('content-type');
+      console.log(`[client] Received response with content-type: ${contentType}`);
+      if (contentType?.includes('text/event-stream')) {
+        await this.handleStreamingResponse(response, messages);
+      } else {
+        await this.handleNonStreamingResponse(response, messages);
+      }
     } catch (err) {
       console.error(err);
       throw err;
     } finally {
       this.isLoading.set(false);
     }
-
-    this.processor.clearSurfaces();
-    this.processor.processMessages(messages);
     return messages;
   }
 
-  private async send(
-    message: Types.A2UIClientEventMessage,
-  ): Promise<Types.ServerToClientMessage[]> {
-    const response = await fetch('/a2a', {
-      body: JSON.stringify(message),
-      method: 'POST',
-    });
+  private async handleStreamingResponse(
+    response: Response,
+    messages: Types.ServerToClientMessage[],
+  ): Promise<void> {
+    const reader = response.body?.getReader();
+    if (!reader) {
+      throw new Error('No response body');
+    }
 
-    if (response.ok) {
-      const data = (await response.json()) as A2AServerPayload;
-      const messages: Types.ServerToClientMessage[] = [];
+    const decoder = new TextDecoder();
+    let buffer = '';
 
-      if ('error' in data) {
-        throw new Error(data.error);
-      } else {
-        for (const item of data) {
-          if (item.kind === 'text') continue;
+    while (true) {
+      const {done, value} = await reader.read();
+      if (done) break;
+
+      const now = performance.now();
+      buffer += decoder.decode(value, {stream: true});
+
+      // Parse SSE events. The server sends "data: <json>\n\n"
+      const lines = buffer.split('\n\n');
+      buffer = lines.pop() || '';
+
+      for (const line of lines) {
+        if (line.startsWith('data: ')) {
+          const jsonStr = line.slice(6);
+          try {
+            const responseData = JSON.parse(jsonStr);
+            console.log(`[client] [${now.toFixed(2)}ms] Received SSE data:`, responseData);
+
+            if (responseData.error) {
+              throw new Error(responseData.error);
+            } else {
+              if (responseData.contextId) {
+                this.contextId = responseData.contextId;
+              }
+              const parts = responseData.parts || (Array.isArray(responseData) ? responseData : []);
+              console.log(
+                `[client] [${performance.now().toFixed(2)}ms] Scheduling processing for ${parts.length} parts`,
+              );
+              // Use a microtask to ensure we don't block the stream reader
+              await Promise.resolve();
+              const newMessages = this.processParts(parts);
+              messages.push(...newMessages);
+            }
+          } catch (e) {
+            console.error('Error parsing SSE data:', e, jsonStr);
+          }
+        }
+      }
+    }
+  }
+
+  private async handleNonStreamingResponse(
+    response: Response,
+    messages: Types.ServerToClientMessage[],
+  ): Promise<void> {
+    const responseData = await response.json();
+    console.log('[client] Received JSON response:', responseData);
+
+    if (responseData.contextId) {
+      this.contextId = responseData.contextId;
+    }
+    const parts = responseData.parts || (Array.isArray(responseData) ? responseData : []);
+    const newMessages = this.processParts(parts);
+    messages.push(...newMessages);
+  }
+
+  private processParts(parts: any[]): Types.ServerToClientMessage[] {
+    const messages: Types.ServerToClientMessage[] = [];
+    for (const item of parts) {
+      if (item.kind === 'text') continue;
+      if (item.data) {
+        if (Array.isArray(item.data)) {
+          messages.push(...item.data);
+        } else {
           messages.push(item.data);
         }
       }
-      return messages;
     }
-
-    const error = (await response.json()) as { error: string };
-    throw new Error(error.error);
+    if (messages.length > 0) {
+      this.renderer.processMessages(messages as unknown as A2uiMessage[]);
+    }
+    return messages;
   }
 }

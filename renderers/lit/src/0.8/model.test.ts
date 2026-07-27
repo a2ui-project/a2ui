@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/ban-ts-comment */
 // @ts-nocheck
 /*
  * Copyright 2025 Google LLC
@@ -15,26 +16,21 @@
  * limitations under the License.
  */
 
-import assert from "node:assert";
-import { describe, it, beforeEach } from "node:test";
-import { v0_8 } from "@a2ui/lit";
-import * as Types from "@a2ui/web_core/types/types";
-import { A2uiStateError } from "@a2ui/web_core/v0_9";
+import assert from 'node:assert';
+import {describe, it, beforeEach} from 'node:test';
+import * as v0_8 from '@a2ui/lit/v0_8';
+import * as Types from '@a2ui/web_core/types/types';
+import {A2uiStateError} from '@a2ui/web_core/v0_8';
 
 // Helper function to strip reactivity for clean comparisons.
 const toPlainObject = (value: unknown): ReturnType<typeof JSON.parse> => {
   if (value instanceof Map) {
-    return Object.fromEntries(
-      Array.from(value.entries(), ([k, v]) => [k, toPlainObject(v)])
-    );
+    return Object.fromEntries(Array.from(value.entries(), ([k, v]) => [k, toPlainObject(v)]));
   }
   if (Array.isArray(value)) {
     return value.map(toPlainObject);
   }
-  if (
-    v0_8.Data.Guards.isObject(value) &&
-    value.constructor.name === "SignalObject"
-  ) {
+  if (v0_8.Data.Guards.isObject(value) && value.constructor.name === 'SignalObject') {
     const obj: Record<string, unknown> = {};
     for (const key in value) {
       if (Object.prototype.hasOwnProperty.call(value, key)) {
@@ -47,24 +43,24 @@ const toPlainObject = (value: unknown): ReturnType<typeof JSON.parse> => {
   return value;
 };
 
-describe("A2uiMessageProcessor", () => {
+describe('A2uiMessageProcessor', () => {
   let processor = new v0_8.Data.A2uiMessageProcessor();
 
   beforeEach(() => {
     processor = new v0_8.Data.A2uiMessageProcessor();
   });
 
-  describe("Basic Initialization and State", () => {
-    it("should start with no surfaces", () => {
+  describe('Basic Initialization and State', () => {
+    it('should start with no surfaces', () => {
       assert.strictEqual(processor.getSurfaces().size, 0);
     });
 
-    it("should clear surfaces when clearSurfaces is called", () => {
+    it('should clear surfaces when clearSurfaces is called', () => {
       processor.processMessages([
         {
           beginRendering: {
-            root: "root",
-            surfaceId: "@default",
+            root: 'root',
+            surfaceId: '@default',
           },
         },
       ]);
@@ -74,36 +70,44 @@ describe("A2uiMessageProcessor", () => {
     });
   });
 
-  describe("Message Processing", () => {
-    it("should handle `beginRendering` by creating a default surface", () => {
+  describe('Message Processing', () => {
+    it('should handle `beginRendering` by creating a default surface', () => {
       processor.processMessages([
         {
           beginRendering: {
-            root: "comp-a",
-            styles: { primaryColor: "#0000ff" },
-            surfaceId: "@default",
+            root: 'comp-a',
+            styles: {primaryColor: '#0000ff'},
+            surfaceId: '@default',
           },
         },
       ]);
       const surfaces = processor.getSurfaces();
       assert.strictEqual(surfaces.size, 1);
 
-      const defaultSurface = surfaces.get("@default");
-      assert.ok(defaultSurface, "Default surface should exist");
-      assert.strictEqual(defaultSurface!.rootComponentId, "comp-a");
-      assert.deepStrictEqual(defaultSurface!.styles, { primaryColor: "#0000ff" });
+      const defaultSurface = surfaces.get('@default');
+      assert.ok(defaultSurface, 'Default surface should exist');
+      assert.strictEqual(defaultSurface!.rootComponentId, 'comp-a');
+      assert.deepStrictEqual(defaultSurface!.styles, {primaryColor: '#0000ff'});
     });
 
-    it("should handle `surfaceUpdate` by adding components", () => {
+    it('should handle `surfaceUpdate` by adding components', () => {
+      const surfaceId = '@default';
+      const rootComponentId = 'comp-a';
       const messages = [
         {
+          beginRendering: {
+            surfaceId,
+            root: rootComponentId,
+          },
+        },
+        {
           surfaceUpdate: {
-            surfaceId: "@default",
+            surfaceId,
             components: [
               {
-                id: "comp-a",
+                id: rootComponentId,
                 component: {
-                  Text: { usageHint: "body",  text: { literalString: "Hi" } },
+                  Text: {usageHint: 'body', text: {literalString: 'Hi'}},
                 },
               },
             ],
@@ -111,113 +115,111 @@ describe("A2uiMessageProcessor", () => {
         },
       ];
       processor.processMessages(messages);
-      const surface = processor.getSurfaces().get("@default");
+      const surface = processor.getSurfaces().get(surfaceId);
       if (!surface) {
-        assert.fail("No default surface");
+        assert.fail('No default surface');
       }
       assert.strictEqual(surface!.components.size, 1);
-      assert.ok(surface!.components.has("comp-a"));
+      assert.ok(surface!.components.has(rootComponentId));
     });
 
-    it("should handle `deleteSurface`", () => {
+    it('should handle `deleteSurface`', () => {
       processor.processMessages([
         {
-          beginRendering: { root: "root", surfaceId: "to-delete" },
+          beginRendering: {root: 'root', surfaceId: 'to-delete'},
         },
-        { deleteSurface: { surfaceId: "to-delete" } },
+        {deleteSurface: {surfaceId: 'to-delete'}},
       ]);
-      assert.strictEqual(processor.getSurfaces().has("to-delete"), false);
+      assert.strictEqual(processor.getSurfaces().has('to-delete'), false);
     });
   });
 
-  describe("Data Model Updates", () => {
-    it("should update data at a specified path", () => {
+  describe('Data Model Updates', () => {
+    it('should update data at a specified path', () => {
       processor.processMessages([
         {
           dataModelUpdate: {
-            surfaceId: "@default",
-            path: "/user",
-            contents: [{ key: "name", valueString: "Alice" }],
+            surfaceId: '@default',
+            path: '/user',
+            contents: [{key: 'name', valueString: 'Alice'}],
           },
         },
       ]);
       const name = processor.getData(
-        { dataContextPath: "/" } as v0_8.Types.AnyComponentNode,
-        "/user/name"
+        {dataContextPath: '/'} as v0_8.Types.AnyComponentNode,
+        '/user/name',
       );
-      assert.strictEqual(name, "Alice");
+      assert.strictEqual(name, 'Alice');
     });
 
-    it("should replace the entire data model when path is not provided", () => {
+    it('should replace the entire data model when path is not provided', () => {
       processor.processMessages([
         {
           dataModelUpdate: {
-            surfaceId: "@default",
-            path: "/",
-            contents: [
-              { key: "user", valueString: JSON.stringify({ name: "Bob" }) },
-            ],
+            surfaceId: '@default',
+            path: '/',
+            contents: [{key: 'user', valueString: JSON.stringify({name: 'Bob'})}],
           },
         },
       ]);
       const user = processor.getData(
-        { dataContextPath: "/" } as v0_8.Types.AnyComponentNode,
-        "/user"
+        {dataContextPath: '/'} as v0_8.Types.AnyComponentNode,
+        '/user',
       );
-      assert.deepStrictEqual(toPlainObject(user), { name: "Bob" });
+      assert.deepStrictEqual(toPlainObject(user), {name: 'Bob'});
     });
 
-    it("should create nested structures when setting data", () => {
-      const component = { dataContextPath: "/" } as v0_8.Types.AnyComponentNode;
+    it('should create nested structures when setting data', () => {
+      const component = {dataContextPath: '/'} as v0_8.Types.AnyComponentNode;
       // Note: setData is a public method that does not use the key-value format
-      processor.setData(component, "/a/b/c", "value");
-      const data = processor.getData(component, "/a/b/c");
-      assert.strictEqual(data, "value");
+      processor.setData(component, '/a/b/c', 'value');
+      const data = processor.getData(component, '/a/b/c');
+      assert.strictEqual(data, 'value');
     });
 
-    it("should handle paths correctly", () => {
-      const path1 = processor.resolvePath("/a/b/c", "/value");
-      const path2 = processor.resolvePath("a/b/c", "/value/");
-      const path3 = processor.resolvePath("a/b/c", "/value");
+    it('should handle paths correctly', () => {
+      const path1 = processor.resolvePath('/a/b/c', '/value');
+      const path2 = processor.resolvePath('a/b/c', '/value/');
+      const path3 = processor.resolvePath('a/b/c', '/value');
 
-      assert.strictEqual(path1, "/a/b/c");
-      assert.strictEqual(path2, "/value/a/b/c");
-      assert.strictEqual(path3, "/value/a/b/c");
+      assert.strictEqual(path1, '/a/b/c');
+      assert.strictEqual(path2, '/value/a/b/c');
+      assert.strictEqual(path3, '/value/a/b/c');
     });
 
-    it.skip("should correctly parse nested valueMap structures", () => {
+    it.skip('should correctly parse nested valueMap structures', () => {
       processor.processMessages([
         {
           dataModelUpdate: {
-            surfaceId: "@default",
-            path: "/data",
+            surfaceId: '@default',
+            path: '/data',
             contents: [
               {
-                key: "users", // /data/users
+                key: 'users', // /data/users
                 valueMap: [
                   {
-                    key: "user1", // /data/users/user1
+                    key: 'user1', // /data/users/user1
                     valueMap: [
                       {
-                        key: "firstName",
-                        valueString: "Alice",
+                        key: 'firstName',
+                        valueString: 'Alice',
                       },
                       {
-                        key: "lastName",
-                        valueString: "Doe",
+                        key: 'lastName',
+                        valueString: 'Doe',
                       },
                     ],
                   },
                   {
-                    key: "user2", // /data/users/user2
+                    key: 'user2', // /data/users/user2
                     valueMap: [
                       {
-                        key: "firstName",
-                        valueString: "John",
+                        key: 'firstName',
+                        valueString: 'John',
                       },
                       {
-                        key: "lastName",
-                        valueString: "Doe",
+                        key: 'lastName',
+                        valueString: 'Doe',
                       },
                     ],
                   },
@@ -229,24 +231,24 @@ describe("A2uiMessageProcessor", () => {
       ]);
 
       const info = processor.getData(
-        { dataContextPath: "/" } as v0_8.Types.AnyComponentNode,
-        "/data/users"
+        {dataContextPath: '/'} as v0_8.Types.AnyComponentNode,
+        '/data/users',
       );
 
       // The expected result is a Map of Maps.
       const expected = new Map([
         [
-          "user1",
+          'user1',
           new Map([
-            ["firstName", "Alice"],
-            ["lastName", "Doe"],
+            ['firstName', 'Alice'],
+            ['lastName', 'Doe'],
           ]),
         ],
         [
-          "user2",
+          'user2',
           new Map([
-            ["firstName", "John"],
-            ["lastName", "Doe"],
+            ['firstName', 'John'],
+            ['lastName', 'Doe'],
           ]),
         ],
       ]);
@@ -254,13 +256,13 @@ describe("A2uiMessageProcessor", () => {
       assert.deepEqual(info, expected);
     });
 
-    it.skip("should additively update a Map using numeric-string keys (like timestamps)", () => {
+    it.skip('should additively update a Map using numeric-string keys (like timestamps)', () => {
       // 1. First, establish the /messages path as a Map.
       processor.processMessages([
         {
           dataModelUpdate: {
-            surfaceId: "@default",
-            path: "/messages",
+            surfaceId: '@default',
+            path: '/messages',
             contents: [
               // Sending an empty key-value array creates an empty Map at the path.
             ],
@@ -268,18 +270,18 @@ describe("A2uiMessageProcessor", () => {
         },
       ]);
 
-      const key1 = "1700000000001";
-      const message1 = "Hello";
+      const key1 = '1700000000001';
+      const message1 = 'Hello';
 
       // 2. Add the first message.
       processor.processMessages([
         {
           dataModelUpdate: {
-            surfaceId: "@default",
+            surfaceId: '@default',
             path: `/messages/${key1}`,
             contents: [
               {
-                key: ".",
+                key: '.',
                 valueString: message1,
               },
             ],
@@ -288,8 +290,8 @@ describe("A2uiMessageProcessor", () => {
       ]);
 
       let messagesData = processor.getData(
-        { dataContextPath: "/" } as v0_8.Types.AnyComponentNode,
-        "/messages"
+        {dataContextPath: '/'} as v0_8.Types.AnyComponentNode,
+        '/messages',
       );
 
       // Check that it's a Map and has the first item.
@@ -297,18 +299,18 @@ describe("A2uiMessageProcessor", () => {
       assert.strictEqual((messagesData as Types.DataMap).size, 1);
       assert.strictEqual((messagesData as Types.DataMap).get(key1), message1);
 
-      const key2 = "1700000000002";
-      const message2 = "World";
+      const key2 = '1700000000002';
+      const message2 = 'World';
 
       // 3. Add the second message. This is where the old logic would fail.
       processor.processMessages([
         {
           dataModelUpdate: {
-            surfaceId: "@default",
+            surfaceId: '@default',
             path: `/messages/${key2}`,
             contents: [
               {
-                key: ".",
+                key: '.',
                 valueString: message2,
               },
             ],
@@ -317,43 +319,39 @@ describe("A2uiMessageProcessor", () => {
       ]);
 
       messagesData = processor.getData(
-        { dataContextPath: "/" } as v0_8.Types.AnyComponentNode,
-        "/messages"
+        {dataContextPath: '/'} as v0_8.Types.AnyComponentNode,
+        '/messages',
       );
 
       // 4. Check that the Map was additively updated and now has both items.
       assertIsDataMap(messagesData);
-      assert.strictEqual((messagesData as Types.DataMap).size, 2, "Map should have 2 items total");
-      assert.strictEqual(
-        (messagesData as Types.DataMap).get(key1),
-        message1,
-        "First item correct"
-      );
+      assert.strictEqual((messagesData as Types.DataMap).size, 2, 'Map should have 2 items total');
+      assert.strictEqual((messagesData as Types.DataMap).get(key1), message1, 'First item correct');
       assert.strictEqual(
         (messagesData as Types.DataMap).get(key2),
         message2,
-        "Second item correct"
+        'Second item correct',
       );
     });
   });
 
-  describe("Component Tree Building", () => {
-    it("should build a simple parent-child tree", () => {
+  describe('Component Tree Building', () => {
+    it('should build a simple parent-child tree', () => {
       processor.processMessages([
         {
           surfaceUpdate: {
-            surfaceId: "@default",
+            surfaceId: '@default',
             components: [
               {
-                id: "root",
+                id: 'root',
                 component: {
-                  Column: { children: { explicitList: ["child"] } },
+                  Column: {children: {explicitList: ['child']}},
                 },
               },
               {
-                id: "child",
+                id: 'child',
                 component: {
-                  Text: { usageHint: "body",  text: { literalString: "Hello" } },
+                  Text: {usageHint: 'body', text: {literalString: 'Hello'}},
                 },
               },
             ],
@@ -361,31 +359,31 @@ describe("A2uiMessageProcessor", () => {
         },
         {
           beginRendering: {
-            root: "root",
-            surfaceId: "@default",
+            root: 'root',
+            surfaceId: '@default',
           },
         },
       ]);
 
-      const tree = processor.getSurfaces().get("@default")?.componentTree;
+      const tree = processor.getSurfaces().get('@default')?.componentTree;
       const plainTree = toPlainObject(tree);
 
-      assert.strictEqual(plainTree.id, "root");
-      assert.strictEqual(plainTree.type, "Column");
+      assert.strictEqual(plainTree.id, 'root');
+      assert.strictEqual(plainTree.type, 'Column');
       assert.strictEqual(plainTree.properties.children.length, 1);
-      assert.strictEqual(plainTree.properties.children[0].id, "child");
-      assert.strictEqual(plainTree.properties.children[0].type, "Text");
+      assert.strictEqual(plainTree.properties.children[0].id, 'child');
+      assert.strictEqual(plainTree.properties.children[0].type, 'Text');
     });
 
-    it("should throw an error on circular dependencies", () => {
+    it('should throw an error on circular dependencies', () => {
       // First, load the components
       processor.processMessages([
         {
           surfaceUpdate: {
-            surfaceId: "@default",
+            surfaceId: '@default',
             components: [
-              { id: "a", component: { Card: { child: "b" } } },
-              { id: "b", component: { Card: { child: "a" } } },
+              {id: 'a', component: {Card: {child: 'b'}}},
+              {id: 'b', component: {Card: {child: 'a'}}},
             ],
           },
         },
@@ -396,178 +394,174 @@ describe("A2uiMessageProcessor", () => {
         processor.processMessages([
           {
             beginRendering: {
-              root: "a",
-              surfaceId: "@default",
+              root: 'a',
+              surfaceId: '@default',
             },
           },
         ]);
-      }, new A2uiStateError(`Circular dependency for component "a".`));
+      }, new A2uiStateError('Circular dependency for component "a".'));
 
-      const tree = processor.getSurfaces().get("@default")?.componentTree;
-      assert.strictEqual(
-        tree,
-        null,
-        "Tree should be null due to circular dependency"
-      );
+      const tree = processor.getSurfaces().get('@default')?.componentTree;
+      assert.strictEqual(tree, null, 'Tree should be null due to circular dependency');
     });
 
-    it("should correctly expand a template with `dataBinding`", () => {
+    it('should correctly expand a template with `dataBinding`', () => {
       processor.processMessages([
         {
           dataModelUpdate: {
-            surfaceId: "@default",
-            path: "/",
+            surfaceId: '@default',
+            path: '/',
             contents: [
               {
-                key: "items",
-                valueString: JSON.stringify([{ name: "A" }, { name: "B" }]),
+                key: 'items',
+                valueString: JSON.stringify([{name: 'A'}, {name: 'B'}]),
               },
             ],
           },
         },
         {
           surfaceUpdate: {
-            surfaceId: "@default",
+            surfaceId: '@default',
             components: [
               {
-                id: "root",
+                id: 'root',
                 component: {
                   List: {
                     children: {
                       template: {
-                        componentId: "item-template",
-                        dataBinding: "/items",
+                        componentId: 'item-template',
+                        dataBinding: '/items',
                       },
                     },
                   },
                 },
               },
               {
-                id: "item-template",
-                component: { Text: { usageHint: "body",  text: { path: "/name" } } },
+                id: 'item-template',
+                component: {Text: {usageHint: 'body', text: {path: '/name'}}},
               },
             ],
           },
         },
         {
           beginRendering: {
-            root: "root",
-            surfaceId: "@default",
+            root: 'root',
+            surfaceId: '@default',
           },
         },
       ]);
 
-      const tree = processor.getSurfaces().get("@default")?.componentTree;
+      const tree = processor.getSurfaces().get('@default')?.componentTree;
       const plainTree = toPlainObject(tree);
 
       assert.strictEqual(plainTree.properties.children.length, 2);
 
       // Check first generated child.
       const child1 = plainTree.properties.children[0];
-      assert.strictEqual(child1.id, "item-template:0");
-      assert.strictEqual(child1.type, "Text");
-      assert.strictEqual(child1.dataContextPath, "/items/0");
-      assert.deepStrictEqual(child1.properties.text, { path: "name" });
+      assert.strictEqual(child1.id, 'item-template:0');
+      assert.strictEqual(child1.type, 'Text');
+      assert.strictEqual(child1.dataContextPath, '/items/0');
+      assert.deepStrictEqual(child1.properties.text, {path: 'name'});
 
       // Check second generated child.
       const child2 = plainTree.properties.children[1];
-      assert.strictEqual(child2.id, "item-template:1");
-      assert.strictEqual(child2.type, "Text");
-      assert.strictEqual(child2.dataContextPath, "/items/1");
-      assert.deepStrictEqual(child2.properties.text, { path: "name" });
+      assert.strictEqual(child2.id, 'item-template:1');
+      assert.strictEqual(child2.type, 'Text');
+      assert.strictEqual(child2.dataContextPath, '/items/1');
+      assert.deepStrictEqual(child2.properties.text, {path: 'name'});
     });
 
-    it("should rebuild the tree when data for a template arrives later", () => {
+    it('should rebuild the tree when data for a template arrives later', () => {
       processor.processMessages([
         {
           surfaceUpdate: {
-            surfaceId: "@default",
+            surfaceId: '@default',
             components: [
               {
-                id: "root",
+                id: 'root',
                 component: {
                   List: {
                     children: {
                       template: {
-                        componentId: "item-template",
-                        dataBinding: "/items",
+                        componentId: 'item-template',
+                        dataBinding: '/items',
                       },
                     },
                   },
                 },
               },
               {
-                id: "item-template",
-                component: { Text: { usageHint: "body",  text: { path: "/name" } } },
+                id: 'item-template',
+                component: {Text: {usageHint: 'body', text: {path: '/name'}}},
               },
             ],
           },
         },
         {
           beginRendering: {
-            root: "root",
-            surfaceId: "@default",
+            root: 'root',
+            surfaceId: '@default',
           },
         },
       ]);
 
-      let tree = processor.getSurfaces().get("@default")?.componentTree;
+      let tree = processor.getSurfaces().get('@default')?.componentTree;
       assert.strictEqual(
         toPlainObject(tree).properties.children.length,
         0,
-        "Children should be empty before data arrives"
+        'Children should be empty before data arrives',
       );
 
       // Now, the data arrives.
       processor.processMessages([
         {
           dataModelUpdate: {
-            surfaceId: "@default",
-            path: "/",
+            surfaceId: '@default',
+            path: '/',
             contents: [
               {
-                key: "items",
-                valueString: JSON.stringify([{ name: "A" }, { name: "B" }]),
+                key: 'items',
+                valueString: JSON.stringify([{name: 'A'}, {name: 'B'}]),
               },
             ],
           },
         },
       ]);
 
-      tree = processor.getSurfaces().get("@default")?.componentTree;
+      tree = processor.getSurfaces().get('@default')?.componentTree;
       assert.strictEqual(
         toPlainObject(tree).properties.children.length,
         2,
-        "Children should be populated after data arrives"
+        'Children should be populated after data arrives',
       );
     });
 
-    it("should trim relative paths within a data context (./item)", () => {
+    it('should trim relative paths within a data context (./item)', () => {
       processor.processMessages([
         {
           dataModelUpdate: {
-            surfaceId: "@default",
-            path: "/",
+            surfaceId: '@default',
+            path: '/',
             contents: [
               {
-                key: "items",
-                valueString: JSON.stringify([{ name: "A" }, { name: "B" }]),
+                key: 'items',
+                valueString: JSON.stringify([{name: 'A'}, {name: 'B'}]),
               },
             ],
           },
         },
         {
           surfaceUpdate: {
-            surfaceId: "@default",
+            surfaceId: '@default',
             components: [
               {
-                id: "root",
+                id: 'root',
                 component: {
                   List: {
                     children: {
                       template: {
-                        componentId: "item-template",
-                        dataBinding: "/items",
+                        componentId: 'item-template',
+                        dataBinding: '/items',
                       },
                     },
                   },
@@ -575,57 +569,57 @@ describe("A2uiMessageProcessor", () => {
               },
               // These paths would are typical when a databinding is used.
               {
-                id: "item-template",
-                component: { Text: { usageHint: "body",  text: { path: "./item/name" } } },
+                id: 'item-template',
+                component: {Text: {usageHint: 'body', text: {path: './item/name'}}},
               },
             ],
           },
         },
         {
           beginRendering: {
-            root: "root",
-            surfaceId: "@default",
+            root: 'root',
+            surfaceId: '@default',
           },
         },
       ]);
 
-      const tree = processor.getSurfaces().get("@default")?.componentTree;
+      const tree = processor.getSurfaces().get('@default')?.componentTree;
       const plainTree = toPlainObject(tree);
       const child1 = plainTree.properties.children[0];
       const child2 = plainTree.properties.children[1];
 
       // The processor should have trimmed `/item` and `./` from the path
       // because we are inside a data context.
-      assert.deepEqual(child1.properties.text, { path: "name" });
-      assert.deepEqual(child2.properties.text, { path: "name" });
+      assert.deepEqual(child1.properties.text, {path: 'name'});
+      assert.deepEqual(child2.properties.text, {path: 'name'});
     });
 
-    it("should trim relative paths within a data context (./name)", () => {
+    it('should trim relative paths within a data context (./name)', () => {
       processor.processMessages([
         {
           dataModelUpdate: {
-            surfaceId: "@default",
-            path: "/",
+            surfaceId: '@default',
+            path: '/',
             contents: [
               {
-                key: "items",
-                valueString: JSON.stringify([{ name: "A" }, { name: "B" }]),
+                key: 'items',
+                valueString: JSON.stringify([{name: 'A'}, {name: 'B'}]),
               },
             ],
           },
         },
         {
           surfaceUpdate: {
-            surfaceId: "@default",
+            surfaceId: '@default',
             components: [
               {
-                id: "root",
+                id: 'root',
                 component: {
                   List: {
                     children: {
                       template: {
-                        componentId: "item-template",
-                        dataBinding: "/items",
+                        componentId: 'item-template',
+                        dataBinding: '/items',
                       },
                     },
                   },
@@ -633,43 +627,43 @@ describe("A2uiMessageProcessor", () => {
               },
               // These paths would are typical when a databinding is used.
               {
-                id: "item-template",
-                component: { Text: { usageHint: "body",  text: { path: "./name" } } },
+                id: 'item-template',
+                component: {Text: {usageHint: 'body', text: {path: './name'}}},
               },
             ],
           },
         },
         {
           beginRendering: {
-            root: "root",
-            surfaceId: "@default",
+            root: 'root',
+            surfaceId: '@default',
           },
         },
       ]);
 
-      const tree = processor.getSurfaces().get("@default")?.componentTree;
+      const tree = processor.getSurfaces().get('@default')?.componentTree;
       const plainTree = toPlainObject(tree);
       const child1 = plainTree.properties.children[0];
       const child2 = plainTree.properties.children[1];
 
       // The processor should have trimmed `./` from the path
       // because we are inside a data context.
-      assert.deepEqual(child1.properties.text, { path: "name" });
-      assert.deepEqual(child2.properties.text, { path: "name" });
+      assert.deepEqual(child1.properties.text, {path: 'name'});
+      assert.deepEqual(child2.properties.text, {path: 'name'});
     });
   });
 
-  describe("Data Normalization and Parsing", () => {
-    it("should correctly handle and parse the key-value array data format at the root", () => {
+  describe('Data Normalization and Parsing', () => {
+    it('should correctly handle and parse the key-value array data format at the root', () => {
       const messages = [
         {
           dataModelUpdate: {
-            surfaceId: "test-surface",
-            path: "/",
+            surfaceId: 'test-surface',
+            path: '/',
             contents: [
-              { key: "title", valueString: "My Title" },
+              {key: 'title', valueString: 'My Title'},
               {
-                key: "items",
+                key: 'items',
                 valueString: '[{"id": 1}, {"id": 2}]',
               },
             ],
@@ -679,189 +673,195 @@ describe("A2uiMessageProcessor", () => {
 
       processor.processMessages(messages);
 
-      const component = { dataContextPath: "/" } as v0_8.Types.AnyComponentNode;
-      const title = processor.getData(component, "/title", "test-surface");
-      const items = processor.getData(component, "/items", "test-surface");
+      const component = {dataContextPath: '/'} as v0_8.Types.AnyComponentNode;
+      const title = processor.getData(component, '/title', 'test-surface');
+      const items = processor.getData(component, '/items', 'test-surface');
 
-      assert.strictEqual(title, "My Title");
-      assert.deepStrictEqual(toPlainObject(items), [{ id: 1 }, { id: 2 }]);
+      assert.strictEqual(title, 'My Title');
+      assert.deepStrictEqual(toPlainObject(items), [{id: 1}, {id: 2}]);
     });
 
-    it("should fallback to a string if stringified JSON is invalid", () => {
+    it('should fallback to a string if stringified JSON is invalid', () => {
       const invalidJSON = '[{"id": 1}, {"id": 2}'; // Missing closing bracket
       processor.processMessages([
         {
           dataModelUpdate: {
-            surfaceId: "@default",
-            path: "/",
-            contents: [{ key: "badData", valueString: invalidJSON }],
+            surfaceId: '@default',
+            path: '/',
+            contents: [{key: 'badData', valueString: invalidJSON}],
           },
         },
       ]);
 
-      const component = { dataContextPath: "/" } as v0_8.Types.AnyComponentNode;
-      const badData = processor.getData(component, "/badData");
+      const component = {dataContextPath: '/'} as v0_8.Types.AnyComponentNode;
+      const badData = processor.getData(component, '/badData');
       assert.strictEqual(badData, invalidJSON);
     });
   });
 
-  describe("Complex Template Scenarios", () => {
-    it.skip("should correctly expand a template with dataBinding to a Map (from valueMap)", () => {
+  describe('Complex Template Scenarios', () => {
+    it.skip('should correctly expand a template with dataBinding to a Map (from valueMap)', () => {
       const messages = [
         {
           beginRendering: {
-            surfaceId: "default",
-            root: "root-column",
+            surfaceId: 'default',
+            root: 'root-column',
           },
         },
         {
           surfaceUpdate: {
-            surfaceId: "default",
+            surfaceId: 'default',
             components: [
               {
-                id: "root-column",
+                id: 'root-column',
                 component: {
                   Column: {
                     children: {
-                      explicitList: ["title-heading", "item-list"],
+                      explicitList: ['title-heading', 'item-list'],
                     },
                   },
                 },
               },
               {
-                id: "title-heading",
+                id: 'title-heading',
                 component: {
-                  Text: { usageHint: "body",
+                  Text: {
+                    usageHint: 'body',
                     text: {
-                      literalString: "Top Restaurants",
+                      literalString: 'Top Restaurants',
                     },
                   },
                 },
               },
               {
-                id: "item-list",
+                id: 'item-list',
                 component: {
                   List: {
-                    direction: "vertical",
+                    direction: 'vertical',
                     children: {
                       template: {
-                        componentId: "item-card-template",
-                        dataBinding: "/items",
+                        componentId: 'item-card-template',
+                        dataBinding: '/items',
                       },
                     },
                   },
                 },
               },
               {
-                id: "item-card-template",
+                id: 'item-card-template',
                 component: {
                   Card: {
-                    child: "card-layout",
+                    child: 'card-layout',
                   },
                 },
               },
               {
-                id: "card-layout",
+                id: 'card-layout',
                 component: {
                   Row: {
                     children: {
-                      explicitList: ["template-image", "card-details"],
+                      explicitList: ['template-image', 'card-details'],
                     },
                   },
                 },
               },
               {
-                id: "template-image",
+                id: 'template-image',
                 weight: 1,
                 component: {
-                  Image: { usageHint: "largeFeature",
+                  Image: {
+                    usageHint: 'largeFeature',
                     url: {
-                      path: "imageUrl",
+                      path: 'imageUrl',
                     },
                   },
                 },
               },
               {
-                id: "card-details",
+                id: 'card-details',
                 weight: 2,
                 component: {
                   Column: {
                     children: {
                       explicitList: [
-                        "template-name",
-                        "template-rating",
-                        "template-detail",
-                        "template-link",
-                        "template-book-button",
+                        'template-name',
+                        'template-rating',
+                        'template-detail',
+                        'template-link',
+                        'template-book-button',
                       ],
                     },
                   },
                 },
               },
               {
-                id: "template-name",
+                id: 'template-name',
                 component: {
-                  Text: { usageHint: "body",
+                  Text: {
+                    usageHint: 'body',
                     text: {
-                      path: "name",
+                      path: 'name',
                     },
                   },
                 },
               },
               {
-                id: "template-rating",
+                id: 'template-rating',
                 component: {
-                  Text: { usageHint: "body",
+                  Text: {
+                    usageHint: 'body',
                     text: {
-                      path: "rating",
+                      path: 'rating',
                     },
                   },
                 },
               },
               {
-                id: "template-detail",
+                id: 'template-detail',
                 component: {
-                  Text: { usageHint: "body",
+                  Text: {
+                    usageHint: 'body',
                     text: {
-                      path: "detail",
+                      path: 'detail',
                     },
                   },
                 },
               },
               {
-                id: "template-link",
+                id: 'template-link',
                 component: {
-                  Text: { usageHint: "body",
+                  Text: {
+                    usageHint: 'body',
                     text: {
-                      path: "infoLink",
+                      path: 'infoLink',
                     },
                   },
                 },
               },
               {
-                id: "template-book-button",
+                id: 'template-book-button',
                 component: {
                   Button: {
-                    child: "book-now-text",
+                    child: 'book-now-text',
                     action: {
-                      name: "book_restaurant",
+                      name: 'book_restaurant',
                       context: [
                         {
-                          key: "restaurantName",
+                          key: 'restaurantName',
                           value: {
-                            path: "name",
+                            path: 'name',
                           },
                         },
                         {
-                          key: "imageUrl",
+                          key: 'imageUrl',
                           value: {
-                            path: "imageUrl",
+                            path: 'imageUrl',
                           },
                         },
                         {
-                          key: "address",
+                          key: 'address',
                           value: {
-                            path: "address",
+                            path: 'address',
                           },
                         },
                       ],
@@ -870,11 +870,12 @@ describe("A2uiMessageProcessor", () => {
                 },
               },
               {
-                id: "book-now-text",
+                id: 'book-now-text',
                 component: {
-                  Text: { usageHint: "body",
+                  Text: {
+                    usageHint: 'body',
                     text: {
-                      literalString: "Book Now",
+                      literalString: 'Book Now',
                     },
                   },
                 },
@@ -884,160 +885,154 @@ describe("A2uiMessageProcessor", () => {
         },
         {
           dataModelUpdate: {
-            surfaceId: "default",
-            path: "/",
+            surfaceId: 'default',
+            path: '/',
             contents: [
               {
-                key: "items",
+                key: 'items',
                 valueMap: [
                   {
-                    key: "item1",
+                    key: 'item1',
                     valueMap: [
                       {
-                        key: "name",
-                        valueString: "Business 1",
+                        key: 'name',
+                        valueString: 'Business 1',
                       },
                       {
-                        key: "rating",
-                        valueString: "★★★★☆",
+                        key: 'rating',
+                        valueString: '★★★★☆',
                       },
                       {
-                        key: "detail",
-                        valueString: "Spicy and savory hand-pulled noodles.",
+                        key: 'detail',
+                        valueString: 'Spicy and savory hand-pulled noodles.',
                       },
                       {
-                        key: "infoLink",
-                        valueString: "[More Info](https://www.example.com/)",
+                        key: 'infoLink',
+                        valueString: '[More Info](https://www.example.com/)',
                       },
                       {
-                        key: "imageUrl",
-                        valueString:
-                          "http://www.example.com/static/shrimpchowmein.jpeg",
+                        key: 'imageUrl',
+                        valueString: 'http://www.example.com/static/shrimpchowmein.jpeg',
                       },
                       {
-                        key: "address",
-                        valueString: "Address 1",
+                        key: 'address',
+                        valueString: 'Address 1',
                       },
                     ],
                   },
                   {
-                    key: "item2",
+                    key: 'item2',
                     valueMap: [
                       {
-                        key: "name",
-                        valueString: "Business 2",
+                        key: 'name',
+                        valueString: 'Business 2',
                       },
                       {
-                        key: "rating",
-                        valueString: "★★★★☆",
+                        key: 'rating',
+                        valueString: '★★★★☆',
                       },
                       {
-                        key: "detail",
-                        valueString: "Authentic and real.",
+                        key: 'detail',
+                        valueString: 'Authentic and real.',
                       },
                       {
-                        key: "infoLink",
-                        valueString: "[More Info](https://www.example.com/)",
+                        key: 'infoLink',
+                        valueString: '[More Info](https://www.example.com/)',
                       },
                       {
-                        key: "imageUrl",
-                        valueString:
-                          "http://www.example.com/static/mapotofu.jpeg",
+                        key: 'imageUrl',
+                        valueString: 'http://www.example.com/static/mapotofu.jpeg',
                       },
                       {
-                        key: "address",
-                        valueString: "Address 2",
+                        key: 'address',
+                        valueString: 'Address 2',
                       },
                     ],
                   },
                   {
-                    key: "item3",
+                    key: 'item3',
                     valueMap: [
                       {
-                        key: "name",
-                        valueString: "Business 3",
+                        key: 'name',
+                        valueString: 'Business 3',
                       },
                       {
-                        key: "rating",
-                        valueString: "★★★★☆",
+                        key: 'rating',
+                        valueString: '★★★★☆',
                       },
                       {
-                        key: "detail",
-                        valueString:
-                          "Modern food with a farm-to-table approach.",
+                        key: 'detail',
+                        valueString: 'Modern food with a farm-to-table approach.',
                       },
                       {
-                        key: "infoLink",
-                        valueString: "[More Info](https://www.example.com/)",
+                        key: 'infoLink',
+                        valueString: '[More Info](https://www.example.com/)',
                       },
                       {
-                        key: "imageUrl",
-                        valueString:
-                          "http://www.example.com/static/beefbroccoli.jpeg",
+                        key: 'imageUrl',
+                        valueString: 'http://www.example.com/static/beefbroccoli.jpeg',
                       },
                       {
-                        key: "address",
-                        valueString: "Address 3",
+                        key: 'address',
+                        valueString: 'Address 3',
                       },
                     ],
                   },
                   {
-                    key: "item4",
+                    key: 'item4',
                     valueMap: [
                       {
-                        key: "name",
-                        valueString: "Business 4",
+                        key: 'name',
+                        valueString: 'Business 4',
                       },
                       {
-                        key: "rating",
-                        valueString: "★★★★★",
+                        key: 'rating',
+                        valueString: '★★★★★',
                       },
                       {
-                        key: "detail",
-                        valueString: "Upscale dining.",
+                        key: 'detail',
+                        valueString: 'Upscale dining.',
                       },
                       {
-                        key: "infoLink",
-                        valueString: "[More Info](https://www.example.com/)",
+                        key: 'infoLink',
+                        valueString: '[More Info](https://www.example.com/)',
                       },
                       {
-                        key: "imageUrl",
-                        valueString:
-                          "http://www.example.com/static/springrolls.jpeg",
+                        key: 'imageUrl',
+                        valueString: 'http://www.example.com/static/springrolls.jpeg',
                       },
                       {
-                        key: "address",
-                        valueString: "Address 4",
+                        key: 'address',
+                        valueString: 'Address 4',
                       },
                     ],
                   },
                   {
-                    key: "item5",
+                    key: 'item5',
                     valueMap: [
                       {
-                        key: "name",
-                        valueString: "Business 5",
+                        key: 'name',
+                        valueString: 'Business 5',
                       },
                       {
-                        key: "rating",
-                        valueString: "★★★★☆",
+                        key: 'rating',
+                        valueString: '★★★★☆',
                       },
                       {
-                        key: "detail",
-                        valueString: "Famous for its noodles.",
+                        key: 'detail',
+                        valueString: 'Famous for its noodles.',
                       },
                       {
-                        key: "infoLink",
-                        valueString: "[More Info](https://www.example.com/)",
+                        key: 'infoLink',
+                        valueString: '[More Info](https://www.example.com/)',
                       },
                       {
-                        key: "imageUrl",
-                        valueString:
-                          "http://www.example.com/static/kungpao.jpeg",
+                        key: 'imageUrl',
+                        valueString: 'http://www.example.com/static/kungpao.jpeg',
                       },
                       {
-                        key: "address",
-                        valueString: "Address 5",
+                        key: 'address',
+                        valueString: 'Address 5',
                       },
                     ],
                   },
@@ -1049,12 +1044,12 @@ describe("A2uiMessageProcessor", () => {
       ];
 
       processor.processMessages(messages);
-      const tree = processor.getSurfaces().get("default")?.componentTree;
+      const tree = processor.getSurfaces().get('default')?.componentTree;
       const plainTree = toPlainObject(tree);
 
       // 1. Find the "item-list" component (the List)
       const itemList = plainTree.properties.children[1];
-      assert.strictEqual(itemList.id, "item-list");
+      assert.strictEqual(itemList.id, 'item-list');
 
       // 2. Check that it expanded 5 children from the Map
       const templateChildren = itemList.properties.children;
@@ -1062,43 +1057,43 @@ describe("A2uiMessageProcessor", () => {
 
       // 3. Check the first generated child for correct key-based ID and data context
       const child1 = templateChildren[0];
-      assert.strictEqual(child1.id, "item-card-template:item1");
-      assert.strictEqual(child1.dataContextPath, "/items/item1");
+      assert.strictEqual(child1.id, 'item-card-template:item1');
+      assert.strictEqual(child1.dataContextPath, '/items/item1');
 
       // 4. Go deeper to check the data binding on a nested component
       // Path: Card -> Row -> Column -> Heading
       const child1NameHeading =
         child1.properties.child.properties.children[1].properties.children[0];
-      assert.strictEqual(child1NameHeading.id, "template-name:item1");
-      assert.strictEqual(child1NameHeading.dataContextPath, "/items/item1");
+      assert.strictEqual(child1NameHeading.id, 'template-name:item1');
+      assert.strictEqual(child1NameHeading.dataContextPath, '/items/item1');
       assert.deepStrictEqual(child1NameHeading.properties.text, {
-        path: "name",
+        path: 'name',
       });
 
       // 5. Check the second generated child
       const child2 = templateChildren[1];
-      assert.strictEqual(child2.id, "item-card-template:item2");
-      assert.strictEqual(child2.dataContextPath, "/items/item2");
+      assert.strictEqual(child2.id, 'item-card-template:item2');
+      assert.strictEqual(child2.dataContextPath, '/items/item2');
     });
 
-    it("should correctly expand nested templates with layered data contexts", () => {
+    it('should correctly expand nested templates with layered data contexts', () => {
       const messages = [
         {
           dataModelUpdate: {
-            surfaceId: "@default",
-            path: "/",
+            surfaceId: '@default',
+            path: '/',
             contents: [
               {
-                key: "days",
+                key: 'days',
                 // The correct way to send an array of objects is as a stringified JSON.
                 valueString: JSON.stringify([
                   {
-                    title: "Day 1",
-                    activities: ["Morning Walk", "Museum Visit"],
+                    title: 'Day 1',
+                    activities: ['Morning Walk', 'Museum Visit'],
                   },
                   {
-                    title: "Day 2",
-                    activities: ["Market Trip"],
+                    title: 'Day 2',
+                    activities: ['Market Trip'],
                   },
                 ]),
               },
@@ -1107,231 +1102,223 @@ describe("A2uiMessageProcessor", () => {
         },
         {
           surfaceUpdate: {
-            surfaceId: "@default",
+            surfaceId: '@default',
             components: [
               {
-                id: "root",
+                id: 'root',
                 component: {
                   List: {
                     children: {
                       template: {
-                        componentId: "day-list",
-                        dataBinding: "/days",
+                        componentId: 'day-list',
+                        dataBinding: '/days',
                       },
                     },
                   },
                 },
               },
               {
-                id: "day-list",
+                id: 'day-list',
                 component: {
                   Column: {
-                    children: { explicitList: ["day-title", "activity-list"] },
+                    children: {explicitList: ['day-title', 'activity-list']},
                   },
                 },
               },
               {
-                id: "day-title",
+                id: 'day-title',
                 component: {
-                  Text: { usageHint: "body",  text: { path: "title" } },
+                  Text: {usageHint: 'body', text: {path: 'title'}},
                 },
               },
               {
-                id: "activity-list",
+                id: 'activity-list',
                 component: {
                   List: {
                     children: {
                       template: {
-                        componentId: "activity-text",
-                        dataBinding: "activities",
+                        componentId: 'activity-text',
+                        dataBinding: 'activities',
                       },
                     },
                   },
                 },
               },
               {
-                id: "activity-text",
-                component: { Text: { usageHint: "body",  text: { path: "." } } },
+                id: 'activity-text',
+                component: {Text: {usageHint: 'body', text: {path: '.'}}},
               },
             ],
           },
         },
         {
           beginRendering: {
-            root: "root",
-            surfaceId: "@default",
+            root: 'root',
+            surfaceId: '@default',
           },
         },
       ];
 
       processor.processMessages(messages);
-      const tree = processor.getSurfaces().get("@default")?.componentTree;
+      const tree = processor.getSurfaces().get('@default')?.componentTree;
       const plainTree = toPlainObject(tree);
 
       // Assert Day 1 structure
       const day1 = plainTree.properties.children[0];
-      assert.strictEqual(day1.dataContextPath, "/days/0");
+      assert.strictEqual(day1.dataContextPath, '/days/0');
       const day1Activities = day1.properties.children[1].properties.children;
 
       assert.strictEqual(day1Activities.length, 2);
-      assert.strictEqual(day1Activities[0].id, "activity-text:0:0");
-      assert.strictEqual(
-        day1Activities[0].dataContextPath,
-        "/days/0/activities/0"
-      );
+      assert.strictEqual(day1Activities[0].id, 'activity-text:0:0');
+      assert.strictEqual(day1Activities[0].dataContextPath, '/days/0/activities/0');
       assert.deepStrictEqual(day1.properties.children[0].properties.text, {
-        path: "title",
+        path: 'title',
       });
-      assert.deepStrictEqual(day1Activities[0].properties.text, { path: "." });
+      assert.deepStrictEqual(day1Activities[0].properties.text, {path: '.'});
 
       // Assert Day 2 structure
       const day2 = plainTree.properties.children[1];
-      assert.strictEqual(day2.dataContextPath, "/days/1");
+      assert.strictEqual(day2.dataContextPath, '/days/1');
       const day2Activities = day2.properties.children[1].properties.children;
       assert.strictEqual(day2Activities.length, 1);
-      assert.strictEqual(day2Activities[0].id, "activity-text:1:0");
-      assert.strictEqual(
-        day2Activities[0].dataContextPath,
-        "/days/1/activities/0"
-      );
+      assert.strictEqual(day2Activities[0].id, 'activity-text:1:0');
+      assert.strictEqual(day2Activities[0].dataContextPath, '/days/1/activities/0');
       assert.deepStrictEqual(day2.properties.children[0].properties.text, {
-        path: "title",
+        path: 'title',
       });
-      assert.deepStrictEqual(day2Activities[0].properties.text, { path: "." });
+      assert.deepStrictEqual(day2Activities[0].properties.text, {path: '.'});
     });
 
     it("should correctly bind to primitive values in an array using path: '.'", () => {
       processor.processMessages([
         {
           dataModelUpdate: {
-            surfaceId: "@default",
-            path: "/",
+            surfaceId: '@default',
+            path: '/',
             contents: [
               {
-                key: "tags",
-                valueString: JSON.stringify(["travel", "paris", "guide"]),
+                key: 'tags',
+                valueString: JSON.stringify(['travel', 'paris', 'guide']),
               },
             ],
           },
         },
         {
           surfaceUpdate: {
-            surfaceId: "@default",
+            surfaceId: '@default',
             components: [
               {
-                id: "root",
+                id: 'root',
                 component: {
                   Row: {
                     children: {
-                      template: { componentId: "tag", dataBinding: "/tags" },
+                      template: {componentId: 'tag', dataBinding: '/tags'},
                     },
                   },
                 },
               },
-              { id: "tag", component: { Text: { usageHint: "body",  text: { path: "." } } } },
+              {id: 'tag', component: {Text: {usageHint: 'body', text: {path: '.'}}}},
             ],
           },
         },
         {
           beginRendering: {
-            root: "root",
-            surfaceId: "@default",
+            root: 'root',
+            surfaceId: '@default',
           },
         },
       ]);
 
-      const tree = processor.getSurfaces().get("@default")?.componentTree;
+      const tree = processor.getSurfaces().get('@default')?.componentTree;
       const plainTree = toPlainObject(tree);
       const children = plainTree.properties.children;
 
       assert.strictEqual(children.length, 3);
-      assert.strictEqual(children[0].dataContextPath, "/tags/0");
-      assert.deepEqual(children[0].properties.text, { path: "." });
-      assert.strictEqual(children[1].dataContextPath, "/tags/1");
-      assert.deepEqual(children[1].properties.text, { path: "." });
+      assert.strictEqual(children[0].dataContextPath, '/tags/0');
+      assert.deepEqual(children[0].properties.text, {path: '.'});
+      assert.strictEqual(children[1].dataContextPath, '/tags/1');
+      assert.deepEqual(children[1].properties.text, {path: '.'});
     });
   });
 
-  describe("Multi-Surface Interaction", () => {
-    it("should keep data and components for different surfaces separate", () => {
+  describe('Multi-Surface Interaction', () => {
+    it('should keep data and components for different surfaces separate', () => {
       processor.processMessages([
         // Surface A
         {
           dataModelUpdate: {
-            surfaceId: "A",
-            path: "/",
-            contents: [{ key: "name", valueString: "Surface A Data" }],
+            surfaceId: 'A',
+            path: '/',
+            contents: [{key: 'name', valueString: 'Surface A Data'}],
           },
         },
         {
           surfaceUpdate: {
-            surfaceId: "A",
+            surfaceId: 'A',
             components: [
               {
-                id: "comp-a",
-                component: { Text: { usageHint: "body",  text: { path: "/name" } } },
+                id: 'comp-a',
+                component: {Text: {usageHint: 'body', text: {path: '/name'}}},
               },
             ],
           },
         },
-        { beginRendering: { root: "comp-a", surfaceId: "A" } },
+        {beginRendering: {root: 'comp-a', surfaceId: 'A'}},
         // Surface B
         {
           dataModelUpdate: {
-            surfaceId: "B",
-            path: "/",
-            contents: [{ key: "name", valueString: "Surface B Data" }],
+            surfaceId: 'B',
+            path: '/',
+            contents: [{key: 'name', valueString: 'Surface B Data'}],
           },
         },
         {
           surfaceUpdate: {
-            surfaceId: "B",
+            surfaceId: 'B',
             components: [
               {
-                id: "comp-b",
-                component: { Text: { usageHint: "body",  text: { path: "/name" } } },
+                id: 'comp-b',
+                component: {Text: {usageHint: 'body', text: {path: '/name'}}},
               },
             ],
           },
         },
-        { beginRendering: { root: "comp-b", surfaceId: "B" } },
+        {beginRendering: {root: 'comp-b', surfaceId: 'B'}},
       ]);
 
       const surfaces = processor.getSurfaces();
       assert.strictEqual(surfaces.size, 2);
 
-      const surfaceA = surfaces.get("A");
-      const surfaceB = surfaces.get("B");
+      const surfaceA = surfaces.get('A');
+      const surfaceB = surfaces.get('B');
 
-      assert.ok(surfaceA && surfaceB, "Both surfaces should exist");
+      assert.ok(surfaceA && surfaceB, 'Both surfaces should exist');
 
       // Check Surface A
-      assert.ok(surfaceA, "Surface A exists.");
+      assert.ok(surfaceA, 'Surface A exists.');
       assert.strictEqual(surfaceA!.components.size, 1);
-      assert.ok(surfaceA!.components.has("comp-a"));
+      assert.ok(surfaceA!.components.has('comp-a'));
       assert.deepStrictEqual(toPlainObject(surfaceA!.dataModel), {
-        name: "Surface A Data",
+        name: 'Surface A Data',
       });
-      assert.deepStrictEqual(
-        toPlainObject(surfaceA!.componentTree).properties.text,
-        { path: "/name" }
-      );
+      assert.deepStrictEqual(toPlainObject(surfaceA!.componentTree).properties.text, {
+        path: '/name',
+      });
 
       // Check Surface B
-      assert.ok(surfaceB, "Surface B exists.");
+      assert.ok(surfaceB, 'Surface B exists.');
       assert.strictEqual(surfaceB!.components.size, 1);
-      assert.ok(surfaceB!.components.has("comp-b"));
+      assert.ok(surfaceB!.components.has('comp-b'));
       assert.deepStrictEqual(toPlainObject(surfaceB!.dataModel), {
-        name: "Surface B Data",
+        name: 'Surface B Data',
       });
-      assert.deepStrictEqual(
-        toPlainObject(surfaceB!.componentTree).properties.text,
-        { path: "/name" }
-      );
+      assert.deepStrictEqual(toPlainObject(surfaceB!.componentTree).properties.text, {
+        path: '/name',
+      });
     });
   });
 });
 
 function assertIsDataMap(obj: Types.DataValue): asserts obj is Types.DataMap {
-  assert.ok(obj instanceof Map, `Data should be a DataMap`);
+  assert.ok(obj instanceof Map, 'Data should be a DataMap');
 }

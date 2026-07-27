@@ -1,0 +1,117 @@
+/**
+ * Copyright 2026 Google LLC
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+import React from 'react';
+import {createComponentImplementation} from '../../../adapter';
+import {DateTimeInputApi} from '@a2ui/web_core/v0_9/basic_catalog';
+import {useBasicCatalogStyles} from '../utils';
+
+if (typeof document !== 'undefined') {
+  const styleId = 'a2ui-date-time-input-webkit-styles';
+  if (!document.getElementById(styleId)) {
+    const style = document.createElement('style');
+    style.id = styleId;
+    style.textContent = `
+      .a2ui-date-time-input::-webkit-datetime-edit,
+      .a2ui-date-time-input::-webkit-datetime-edit-fields-wrapper {
+        color: var(--a2ui-datetimeinput-color, var(--a2ui-color-on-input, #333));
+      }
+    `;
+    document.head.appendChild(style);
+  }
+}
+
+function normalizeDateTimeValue(value: string | null | undefined, type: string): string {
+  if (!value) return '';
+
+  const hasT = value.includes('T');
+  const split = value.split('T');
+
+  const datePart = (hasT ? split[0] : value)?.substring(0, 10) ?? '';
+  const timePart = (hasT ? split[1] : value)?.substring(0, 5) ?? '';
+
+  switch (type) {
+    case 'date':
+      return datePart;
+    case 'time':
+      return timePart;
+    case 'datetime-local':
+      return `${datePart}T${timePart}`;
+  }
+  return '';
+}
+
+export const DateTimeInput = createComponentImplementation(DateTimeInputApi, ({props}) => {
+  useBasicCatalogStyles();
+  const onChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    props.setValue(e.target.value);
+  };
+
+  const uniqueId = React.useId();
+
+  // If neither date or time are enabled, render nothing.
+  if (!(props.enableDate || props.enableTime)) return null;
+
+  // Map enableDate/enableTime to input type
+  let type = 'datetime-local';
+  if (props.enableDate && !props.enableTime) type = 'date';
+  if (!props.enableDate && props.enableTime) type = 'time';
+
+  const normalizedValue = normalizeDateTimeValue(props.value, type);
+
+  const style: React.CSSProperties = {
+    backgroundColor: 'var(--a2ui-datetimeinput-background, var(--a2ui-color-input, #fff))',
+    color: 'var(--a2ui-datetimeinput-color, var(--a2ui-color-on-input, #333))',
+    border: 'var(--a2ui-datetimeinput-border, var(--a2ui-border))',
+    borderRadius: 'var(--a2ui-datetimeinput-border-radius, var(--a2ui-border-radius))',
+    padding: 'var(--a2ui-datetimeinput-padding, var(--a2ui-spacing-s))',
+    boxSizing: 'border-box',
+  };
+
+  return (
+    <div
+      style={{
+        display: 'flex',
+        flexDirection: 'column',
+        gap: 'var(--a2ui-spacing-xs, 0.25rem)',
+      }}
+    >
+      {props.label && (
+        <label
+          htmlFor={uniqueId}
+          style={{
+            fontSize:
+              'var(--a2ui-datetimeinput-label-font-size, var(--a2ui-label-font-size, var(--a2ui-font-size-s)))',
+            fontWeight:
+              'var(--a2ui-datetimeinput-label-font-weight, var(--a2ui-label-font-weight, bold))',
+          }}
+        >
+          {props.label}
+        </label>
+      )}
+      <input
+        id={uniqueId}
+        className="a2ui-date-time-input"
+        type={type}
+        style={style}
+        value={normalizedValue}
+        onChange={onChange}
+        min={typeof props.min === 'string' ? props.min : undefined}
+        max={typeof props.max === 'string' ? props.max : undefined}
+      />
+    </div>
+  );
+});

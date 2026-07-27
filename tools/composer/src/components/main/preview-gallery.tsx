@@ -15,20 +15,20 @@
  */
 
 const suggestions = [
-  { icon: 'person', label: 'Profile card' },
-  { icon: 'thermostat', label: 'Weather widget' },
-  { icon: 'task_alt', label: 'Todo list' },
-  { icon: 'music_note', label: 'Music player' },
+  {icon: 'person', label: 'Profile card'},
+  {icon: 'thermostat', label: 'Weather widget'},
+  {icon: 'task_alt', label: 'Todo list'},
+  {icon: 'music_note', label: 'Music player'},
 ];
 
 interface PreviewGalleryProps {
   onSelect?: (label: string) => void;
 }
 
-export function PreviewGallery({ onSelect }: PreviewGalleryProps) {
+export function PreviewGallery({onSelect}: PreviewGalleryProps) {
   return (
     <div className="flex flex-wrap justify-center gap-3">
-      {suggestions.map((s) => (
+      {suggestions.map(s => (
         <button
           key={s.label}
           onClick={() => onSelect?.(s.label)}

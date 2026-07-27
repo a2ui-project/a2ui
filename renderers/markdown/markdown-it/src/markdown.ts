@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-import { rawMarkdownRenderer } from './raw-markdown.js';
-import { sanitize } from './sanitizer.js';
+import {rawMarkdownRenderer} from './raw-markdown.js';
+import {sanitize} from './sanitizer.js';
 import * as Types from '@a2ui/web_core';
 
 /**

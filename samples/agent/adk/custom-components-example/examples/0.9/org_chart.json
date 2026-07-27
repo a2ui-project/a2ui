@@ -1,0 +1,68 @@
+[
+  {
+    "version": "v0.9",
+    "createSurface": {
+      "surfaceId": "org-chart-view",
+      "catalogId": "inline_catalog"
+    }
+  },
+  {
+    "version": "v0.9",
+    "updateComponents": {
+      "surfaceId": "org-chart-view",
+      "components": [
+        {
+          "id": "root",
+          "component": "Column",
+          "children": ["title", "org-chart"]
+        },
+        {
+          "id": "title",
+          "component": "Text",
+          "variant": "h2",
+          "text": "Organizational Chart"
+        },
+        {
+          "id": "org-chart",
+          "component": "OrgChart",
+          "chain": {
+            "path": "/hierarchy"
+          },
+          "action": {
+            "event": {
+              "name": "chart_node_click",
+              "context": {}
+            }
+          }
+        }
+      ]
+    }
+  },
+  {
+    "version": "v0.9",
+    "updateDataModel": {
+      "surfaceId": "org-chart-view",
+      "path": "/",
+      "value": {
+        "hierarchy": {
+          "0": {
+            "title": "CEO",
+            "name": "Jane Doe"
+          },
+          "1": {
+            "title": "VP Marketing",
+            "name": "John Smith"
+          },
+          "2": {
+            "title": "Director",
+            "name": "Alice Johnson"
+          },
+          "3": {
+            "title": "Digital Marketing Specialist",
+            "name": "Casey Smith"
+          }
+        }
+      }
+    }
+  }
+]

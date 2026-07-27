@@ -1,0 +1,165 @@
+[
+  {
+    "version": "v0.9",
+    "createSurface": {
+      "surfaceId": "workspace-settings",
+      "catalogId": "https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json"
+    }
+  },
+  {
+    "version": "v0.9",
+    "updateComponents": {
+      "surfaceId": "workspace-settings",
+      "components": [
+        {
+          "id": "root",
+          "component": "Card",
+          "child": "main_column"
+        },
+        {
+          "id": "main_column",
+          "component": "Column",
+          "children": [
+            "form_title",
+            "divider_1",
+            "field_username",
+            "field_theme",
+            "field_font_size",
+            "field_notifications",
+            "field_sync_date",
+            "divider_2",
+            "actions_row"
+          ],
+          "align": "stretch"
+        },
+        {
+          "id": "form_title",
+          "component": "Text",
+          "variant": "h2",
+          "weight": 1,
+          "text": "Workspace Setup"
+        },
+        {
+          "id": "divider_1",
+          "component": "Divider"
+        },
+        {
+          "id": "field_username",
+          "component": "TextField",
+          "label": "Developer Handle",
+          "value": {
+            "path": "/username"
+          }
+        },
+        {
+          "id": "field_theme",
+          "component": "ChoicePicker",
+          "label": "Preferred IDE Theme",
+          "variant": "singleSelection",
+          "displayStyle": "chips",
+          "options": [
+            {
+              "label": "Sleek Dark",
+              "value": "dark"
+            },
+            {
+              "label": "Harmonious Light",
+              "value": "light"
+            },
+            {
+              "label": "Glassmorphic",
+              "value": "glass"
+            }
+          ],
+          "value": {
+            "path": "/theme"
+          }
+        },
+        {
+          "id": "field_font_size",
+          "component": "Slider",
+          "label": "Editor Font Size (px)",
+          "min": 10,
+          "max": 24,
+          "value": {
+            "path": "/fontSize"
+          }
+        },
+        {
+          "id": "field_notifications",
+          "component": "CheckBox",
+          "label": "Enable Real-Time Build Alerts",
+          "value": {
+            "path": "/alertsEnabled"
+          }
+        },
+        {
+          "id": "field_sync_date",
+          "component": "DateTimeInput",
+          "label": "Weekly Pair Programming Sync",
+          "enableDate": true,
+          "enableTime": true,
+          "value": {
+            "path": "/syncTime"
+          }
+        },
+        {
+          "id": "divider_2",
+          "component": "Divider"
+        },
+        {
+          "id": "actions_row",
+          "component": "Row",
+          "children": ["save_button"],
+          "justify": "end"
+        },
+        {
+          "id": "save_button",
+          "component": "Button",
+          "child": "save_button_text",
+          "action": {
+            "event": {
+              "name": "save_settings",
+              "context": {
+                "username": {
+                  "path": "/username"
+                },
+                "theme": {
+                  "path": "/theme"
+                },
+                "fontSize": {
+                  "path": "/fontSize"
+                },
+                "alertsEnabled": {
+                  "path": "/alertsEnabled"
+                },
+                "syncTime": {
+                  "path": "/syncTime"
+                }
+              }
+            }
+          }
+        },
+        {
+          "id": "save_button_text",
+          "component": "Text",
+          "text": "Save Workspace Preferences"
+        }
+      ]
+    }
+  },
+  {
+    "version": "v0.9",
+    "updateDataModel": {
+      "surfaceId": "workspace-settings",
+      "path": "/",
+      "value": {
+        "username": "antigravity_dev",
+        "theme": ["dark"],
+        "fontSize": 14,
+        "alertsEnabled": true,
+        "syncTime": "2026-05-08T14:00"
+      }
+    }
+  }
+]

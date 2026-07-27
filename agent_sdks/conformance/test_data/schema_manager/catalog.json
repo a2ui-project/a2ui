@@ -1,0 +1,9 @@
+{
+  "catalogId": "basic",
+  "components": {
+    "Text": {
+      "$ref": "common_types.json#/$defs/Common"
+    },
+    "Button": {}
+  }
+}

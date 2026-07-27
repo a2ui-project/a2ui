@@ -1,0 +1,140 @@
+[
+  {
+    "beginRendering": {
+      "surfaceId": "confirmation",
+      "root": "confirmation-card",
+      "styles": {
+        "primaryColor": "#FF0000",
+        "font": "Roboto"
+      }
+    }
+  },
+  {
+    "surfaceUpdate": {
+      "surfaceId": "confirmation",
+      "components": [
+        {
+          "id": "confirmation-card",
+          "component": {
+            "Card": {
+              "child": "confirmation-column"
+            }
+          }
+        },
+        {
+          "id": "confirmation-column",
+          "component": {
+            "Column": {
+              "children": {
+                "explicitList": [
+                  "confirm-title",
+                  "confirm-image",
+                  "divider1",
+                  "confirm-details",
+                  "divider2",
+                  "confirm-dietary",
+                  "divider3",
+                  "confirm-text"
+                ]
+              }
+            }
+          }
+        },
+        {
+          "id": "confirm-title",
+          "component": {
+            "Text": {
+              "usageHint": "h2",
+              "text": {
+                "path": "/title"
+              }
+            }
+          }
+        },
+        {
+          "id": "confirm-image",
+          "component": {
+            "Image": {
+              "url": {
+                "path": "/imageUrl"
+              }
+            }
+          }
+        },
+        {
+          "id": "confirm-details",
+          "component": {
+            "Text": {
+              "text": {
+                "path": "/bookingDetails"
+              }
+            }
+          }
+        },
+        {
+          "id": "confirm-dietary",
+          "component": {
+            "Text": {
+              "text": {
+                "path": "/dietaryRequirements"
+              }
+            }
+          }
+        },
+        {
+          "id": "confirm-text",
+          "component": {
+            "Text": {
+              "usageHint": "h5",
+              "text": {
+                "literalString": "We look forward to seeing you!"
+              }
+            }
+          }
+        },
+        {
+          "id": "divider1",
+          "component": {
+            "Divider": {}
+          }
+        },
+        {
+          "id": "divider2",
+          "component": {
+            "Divider": {}
+          }
+        },
+        {
+          "id": "divider3",
+          "component": {
+            "Divider": {}
+          }
+        }
+      ]
+    }
+  },
+  {
+    "dataModelUpdate": {
+      "surfaceId": "confirmation",
+      "path": "/",
+      "contents": [
+        {
+          "key": "title",
+          "valueString": "Booking at [RestaurantName]"
+        },
+        {
+          "key": "bookingDetails",
+          "valueString": "[PartySize] people at [Time]"
+        },
+        {
+          "key": "dietaryRequirements",
+          "valueString": "Dietary Requirements: [Requirements]"
+        },
+        {
+          "key": "imageUrl",
+          "valueString": "[ImageUrl]"
+        }
+      ]
+    }
+  }
+]

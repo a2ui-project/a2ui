@@ -14,18 +14,18 @@
  * limitations under the License.
  */
 
-import { html, css, PropertyValues, nothing } from "lit";
-import { customElement, property } from "lit/decorators.js";
-import { Root } from "./root.js";
-import { repeat } from "lit/directives/repeat.js";
-import { A2uiMessageProcessor } from "@a2ui/web_core/data/model-processor";
-import * as Primitives from "@a2ui/web_core/types/primitives";
-import { classMap } from "lit/directives/class-map.js";
-import { styleMap } from "lit/directives/style-map.js";
-import { structuralStyles } from "./styles.js";
-import { Styles } from "../index.js";
+import {html, css, PropertyValues, nothing} from 'lit';
+import {customElement, property} from 'lit/decorators.js';
+import {Root} from './root.js';
+import {repeat} from 'lit/directives/repeat.js';
+import {A2uiMessageProcessor} from '@a2ui/web_core/data/model-processor';
+import * as Primitives from '@a2ui/web_core/types/primitives';
+import {classMap} from 'lit/directives/class-map.js';
+import {styleMap} from 'lit/directives/style-map.js';
+import {structuralStyles} from './styles.js';
+import {Styles} from '../index.js';
 
-@customElement("a2ui-tabs")
+@customElement('a2ui-tabs')
 export class Tabs extends Root {
   @property()
   accessor titles: Primitives.StringValue[] | null = null;
@@ -46,16 +46,16 @@ export class Tabs extends Root {
   protected willUpdate(changedProperties: PropertyValues<this>): void {
     super.willUpdate(changedProperties);
 
-    if (changedProperties.has("selected")) {
+    if (changedProperties.has('selected')) {
       for (const child of this.children) {
-        child.removeAttribute("slot");
+        child.removeAttribute('slot');
       }
       const selectedChild = this.children[this.selected];
       if (!selectedChild) {
         return;
       }
 
-      selectedChild.slot = "current";
+      selectedChild.slot = 'current';
     }
   }
 
@@ -64,17 +64,14 @@ export class Tabs extends Root {
       return nothing;
     }
 
-    return html`<div
-      id="buttons"
-      class=${classMap(this.theme.components.Tabs.element)}
-    >
+    return html`<div id="buttons" class=${classMap(this.theme.components.Tabs.element)}>
       ${repeat(this.titles, (title, idx) => {
-        let titleString = "";
-        if ("literalString" in title && title.literalString) {
+        let titleString = '';
+        if ('literalString' in title && title.literalString) {
           titleString = title.literalString;
-        } else if ("literal" in title && title.literal !== undefined) {
+        } else if ('literal' in title && title.literal !== undefined) {
           titleString = title.literal;
-        } else if (title && "path" in title && title.path) {
+        } else if (title && 'path' in title && title.path) {
           if (!this.processor || !this.component) {
             return html`(no model)`;
           }
@@ -82,10 +79,10 @@ export class Tabs extends Root {
           const textValue = this.processor.getData(
             this.component,
             title.path,
-            this.surfaceId ?? A2uiMessageProcessor.DEFAULT_SURFACE_ID
+            this.surfaceId ?? A2uiMessageProcessor.DEFAULT_SURFACE_ID,
           );
 
-          if (typeof textValue !== "string") {
+          if (typeof textValue !== 'string') {
             return html`(invalid)`;
           }
 
@@ -96,10 +93,10 @@ export class Tabs extends Root {
         if (this.selected === idx) {
           classes = Styles.merge(
             this.theme.components.Tabs.controls.all,
-            this.theme.components.Tabs.controls.selected
+            this.theme.components.Tabs.controls.selected,
           );
         } else {
-          classes = { ...this.theme.components.Tabs.controls.all };
+          classes = {...this.theme.components.Tabs.controls.all};
         }
 
         return html`<button

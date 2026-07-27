@@ -15,10 +15,10 @@
  */
 
 /* CopilotKit CSS must load BEFORE Tailwind so our @layer base overrides theirs */
-@import "@copilotkit/react-core/v2/styles.css";
+@import '@copilotkit/react-core/v2/styles.css';
 
-@import "tailwindcss";
-@import "tw-animate-css";
+@import 'tailwindcss';
+@import 'tw-animate-css';
 
 @custom-variant dark (&:is(.dark *));
 
@@ -28,8 +28,10 @@
   --color-palette-surface-main: var(--palette-surface-main);
   --color-palette-border-default: var(--palette-border-default);
   --color-palette-grey-200: var(--palette-grey-200);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --font-sans:
+    ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto,
+    'Helvetica Neue', Arial, sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
   --color-sidebar-ring: var(--sidebar-ring);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
@@ -66,6 +68,7 @@
 }
 
 :root {
+  --a2ui-card-bg: #ffffff;
   --radius: 0.625rem;
   --background: oklch(1 0 0);
   --foreground: oklch(0.145 0 0);
@@ -146,6 +149,99 @@
   body {
     @apply bg-background text-foreground;
   }
+}
+
+/*
+ * A2UI color palettes.
+ *
+ * The litTheme's utility classes (color-bgc-p30, color-c-n10, etc.) reference
+ * CSS variables from these palettes. In the Lit renderer, a <themed-a2ui-surface>
+ * wrapper injected them via Shadow DOM. In the React renderer (Light DOM), we
+ * define them here on .a2ui-surface.
+ *
+ * --p-*: primary (indigo) — button backgrounds, accents
+ * --n-*: neutral (grey ramp) — text, borders, backgrounds
+ * --s-*: secondary — element styling classes that reference s-* vars
+ */
+.a2ui-surface {
+  /* Neutral palette */
+  --n-100: #ffffff;
+  --n-99: #fcfcfc;
+  --n-98: #f9f9f9;
+  --n-95: #f1f1f1;
+  --n-90: #e2e2e2;
+  --n-80: #c6c6c6;
+  --n-70: #ababab;
+  --n-60: #919191;
+  --n-50: #777777;
+  --n-40: #5e5e5e;
+  --n-35: #525252;
+  --n-30: #474747;
+  --n-25: #3b3b3b;
+  --n-20: #303030;
+  --n-15: #262626;
+  --n-10: #1b1b1b;
+  --n-5: #111111;
+  --n-0: #000000;
+
+  /* Primary palette (indigo) */
+  --p-100: var(--a2ui-card-bg);
+  --p-99: #fffbff;
+  --p-98: #fcf8ff;
+  --p-95: #f2efff;
+  --p-90: #e1e0ff;
+  --p-80: #c0c1ff;
+  --p-70: #a0a3ff;
+  --p-60: #8487ea;
+  --p-50: #6a6dcd;
+  --p-40: #5154b3;
+  --p-35: #4447a6;
+  --p-30: #383b99;
+  --p-25: #2c2e8d;
+  --p-20: #202182;
+  --p-15: #131178;
+  --p-10: #06006c;
+  --p-5: #03004d;
+  --p-0: #000000;
+
+  /* Secondary palette */
+  --s-100: #ffffff;
+  --s-99: #fffbff;
+  --s-98: #fcf8ff;
+  --s-95: #f2efff;
+  --s-90: #e2e0f9;
+  --s-80: #c6c4dd;
+  --s-70: #aaa9c1;
+  --s-60: #8f8fa5;
+  --s-50: #75758b;
+  --s-40: #5d5c72;
+  --s-35: #515165;
+  --s-30: #454559;
+  --s-25: #393a4d;
+  --s-20: #2e2f42;
+  --s-15: #242437;
+  --s-10: #191a2c;
+  --s-5: #0f0f21;
+  --s-0: #000000;
+}
+
+/* Material Symbols class for v0.9 renderer.
+ * The v0.9 Icon component uses className="material-symbols-outlined"
+ * but Google Fonts only defines @font-face rules, not the CSS class. */
+.material-symbols-outlined {
+  font-family: 'Material Symbols Outlined';
+  font-weight: normal;
+  font-style: normal;
+  font-size: 24px;
+  line-height: 1;
+  letter-spacing: normal;
+  text-transform: none;
+  display: inline-block;
+  white-space: nowrap;
+  word-wrap: normal;
+  direction: ltr;
+  -webkit-font-smoothing: antialiased;
+  overflow: hidden;
 }
 
 /* Monaco editor - use background highlight instead of border */

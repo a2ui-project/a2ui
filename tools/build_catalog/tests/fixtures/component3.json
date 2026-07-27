@@ -1,0 +1,13 @@
+{
+  "title": "Component 3 Catalog",
+  "components": {
+    "Widget": {
+      "type": "object",
+      "properties": {
+        "text": {
+          "$ref": "common_types.json#/$defs/DynamicString"
+        }
+      }
+    }
+  }
+}

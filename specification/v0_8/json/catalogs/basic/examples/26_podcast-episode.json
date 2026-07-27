@@ -16,10 +16,7 @@
           "component": {
             "Row": {
               "children": {
-                "explicitList": [
-                  "artwork",
-                  "content"
-                ]
+                "explicitList": ["artwork", "content"]
               },
               "alignment": "start"
             }
@@ -79,10 +76,7 @@
           "component": {
             "Row": {
               "children": {
-                "explicitList": [
-                  "duration",
-                  "date"
-                ]
+                "explicitList": ["duration", "date"]
               }
             }
           }

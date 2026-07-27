@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import { grid } from "./shared.js";
+import {grid} from './shared.js';
 
 export const border = `
   ${new Array(25)
@@ -30,7 +30,7 @@ export const border = `
         .border-ow-${idx} { outline-width: ${idx}px; }
         .border-br-${idx} { border-radius: ${idx * grid}px; overflow: hidden;}`;
     })
-    .join("\n")}
+    .join('\n')}
 
   .border-br-50pc {
     border-radius: 50%;

@@ -16,11 +16,7 @@
           "component": {
             "Column": {
               "children": {
-                "explicitList": [
-                  "event-name",
-                  "countdown-row",
-                  "target-date"
-                ]
+                "explicitList": ["event-name", "countdown-row", "target-date"]
               },
               "alignment": "center"
             }
@@ -42,11 +38,7 @@
           "component": {
             "Row": {
               "children": {
-                "explicitList": [
-                  "days-col",
-                  "hours-col",
-                  "minutes-col"
-                ]
+                "explicitList": ["days-col", "hours-col", "minutes-col"]
               },
               "distribution": "spaceAround"
             }
@@ -57,10 +49,7 @@
           "component": {
             "Column": {
               "children": {
-                "explicitList": [
-                  "days-value",
-                  "days-label"
-                ]
+                "explicitList": ["days-value", "days-label"]
               },
               "alignment": "center"
             }
@@ -93,10 +82,7 @@
           "component": {
             "Column": {
               "children": {
-                "explicitList": [
-                  "hours-value",
-                  "hours-label"
-                ]
+                "explicitList": ["hours-value", "hours-label"]
               },
               "alignment": "center"
             }
@@ -129,10 +115,7 @@
           "component": {
             "Column": {
               "children": {
-                "explicitList": [
-                  "minutes-value",
-                  "minutes-label"
-                ]
+                "explicitList": ["minutes-value", "minutes-label"]
               },
               "alignment": "center"
             }

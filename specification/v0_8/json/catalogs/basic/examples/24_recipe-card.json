@@ -16,10 +16,7 @@
           "component": {
             "Column": {
               "children": {
-                "explicitList": [
-                  "recipe-image",
-                  "content"
-                ]
+                "explicitList": ["recipe-image", "content"]
               }
             }
           }
@@ -40,12 +37,7 @@
           "component": {
             "Column": {
               "children": {
-                "explicitList": [
-                  "title",
-                  "rating-row",
-                  "times-row",
-                  "servings"
-                ]
+                "explicitList": ["title", "rating-row", "times-row", "servings"]
               }
             }
           }
@@ -66,11 +58,7 @@
           "component": {
             "Row": {
               "children": {
-                "explicitList": [
-                  "star-icon",
-                  "rating",
-                  "review-count"
-                ]
+                "explicitList": ["star-icon", "rating", "review-count"]
               },
               "alignment": "center"
             }
@@ -113,10 +101,7 @@
           "component": {
             "Row": {
               "children": {
-                "explicitList": [
-                  "prep-time",
-                  "cook-time"
-                ]
+                "explicitList": ["prep-time", "cook-time"]
               }
             }
           }
@@ -126,10 +111,7 @@
           "component": {
             "Row": {
               "children": {
-                "explicitList": [
-                  "prep-icon",
-                  "prep-text"
-                ]
+                "explicitList": ["prep-icon", "prep-text"]
               },
               "alignment": "center"
             }
@@ -161,10 +143,7 @@
           "component": {
             "Row": {
               "children": {
-                "explicitList": [
-                  "cook-icon",
-                  "cook-text"
-                ]
+                "explicitList": ["cook-icon", "cook-text"]
               },
               "alignment": "center"
             }

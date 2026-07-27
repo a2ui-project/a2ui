@@ -55,10 +55,7 @@
           "component": {
             "Row": {
               "children": {
-                "explicitList": [
-                  "product-image",
-                  "product-info"
-                ]
+                "explicitList": ["product-image", "product-info"]
               },
               "alignment": "center"
             }
@@ -80,10 +77,7 @@
           "component": {
             "Column": {
               "children": {
-                "explicitList": [
-                  "product-name",
-                  "product-price"
-                ]
+                "explicitList": ["product-name", "product-price"]
               }
             }
           }
@@ -121,10 +115,7 @@
           "component": {
             "Column": {
               "children": {
-                "explicitList": [
-                  "delivery-row",
-                  "seller-row"
-                ]
+                "explicitList": ["delivery-row", "seller-row"]
               }
             }
           }
@@ -134,10 +125,7 @@
           "component": {
             "Row": {
               "children": {
-                "explicitList": [
-                  "delivery-icon",
-                  "delivery-text"
-                ]
+                "explicitList": ["delivery-icon", "delivery-text"]
               },
               "alignment": "center"
             }
@@ -169,10 +157,7 @@
           "component": {
             "Row": {
               "children": {
-                "explicitList": [
-                  "seller-label",
-                  "seller-name"
-                ]
+                "explicitList": ["seller-label", "seller-name"]
               }
             }
           }

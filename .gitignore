@@ -4,20 +4,136 @@ node_modules
 dist
 .env
 .idx
-.vscode
-.idea
-__pycache__
+.idea/
 *.pyc
-.angular
+.angular/
 
 # MkDocs build output
 site/
 
 # Python virtual environment
 .venv/
+coverage/
 
 # Generated spec assets in the agent SDK
 ## old agent SDK path
 a2a_agents/python/a2ui_agent/src/a2ui/assets/**/*.json
-## new agent SDK path
 agent_sdks/python/src/a2ui/assets/**/*.json
+## new agent SDK path
+agent_sdks/python/a2ui_agent/src/a2ui/assets/**/*.json
+## Generated files for sandbox frame.
+samples/client/angular/projects/mcp_calculator/public/mcp_apps_inner_iframe/
+
+# Yarn Modern
+.yarn/*
+!.yarn/patches
+!.yarn/plugins
+!.yarn/sdks
+.yarn/cache
+
+## Generated files for a2ui-in-mcpapps
+samples/community/mcp/a2ui-in-mcpapps/server/apps/dist
+samples/community/mcp/a2ui-in-mcpapps/server/apps/public
+
+# Vite cache
+.vite/
+
+# Git worktrees
+worktrees/
+
+# TypeScript incremental build info
+*.tsbuildinfo
+
+# Playwright test artifacts
+.playwright/
+
+# Local-only scratch files.
+.local/
+
+# Locally symlinked SDD blueprint skills
+/.agents/skills/a2ui-blueprint-compliance
+/.agents/skills/a2ui-blueprint-maintenance
+/.agents/skills/a2ui-blueprint-navigator
+/.agents/skills/a2ui-create-feature-blueprint
+/.agents/skills/a2ui-implement-feature-from-blueprint
+
+# Diagrams, produced by https://pub.dev/packages/layerlens.
+DEPS.md
+
+# Firebase
+google-services.json
+**/lib/firebase_options.dart
+firebase.json
+GoogleService-Info.plist
+.firebase
+.firebaserc
+
+# This package's specific logs.
+*.log.*
+*.log
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+venv/
+ENV/
+build/
+*.egg-info/
+.pytest_cache/
+.coverage
+htmlcov/
+
+# ==============================================================================
+#
+# STANDARD FLUTTER GITIGNORE
+#
+# ==============================================================================
+
+# Miscellaneous
+*.class
+*.swp
+.atom/
+.build/
+.buildlog/
+.history
+.svn/
+.swiftpm/
+migrate_working_dir/
+
+# IntelliJ related
+*.iml
+*.ipr
+*.iws
+
+# Flutter/Dart/Pub related
+**/doc/api/
+**/ios/Flutter/.last_build_id
+.dart_tool/
+.flutter-plugins-dependencies
+.pub-cache/
+.pub/
+/build/
+
+# iOS/macOS generated files
+**/ios/Runner/GeneratedPluginRegistrant.h
+**/ios/Runner/GeneratedPluginRegistrant.m
+**/ios/Runner/GeneratedPluginRegistrant.swift
+**/macos/Flutter/GeneratedPluginRegistrant.swift
+
+/coverage/
+pubspec.lock
+
+# Symbolication related
+app.*.symbols
+
+# Obfuscation related
+app.*.map.json
+
+# Android Studio will place build artifacts here
+/android/app/debug
+/android/app/profile
+/android/app/release
+
+# SwiftPM
+Package.resolved

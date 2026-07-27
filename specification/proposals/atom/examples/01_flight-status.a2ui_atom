@@ -1,0 +1,33 @@
+<a2ui>
+(data
+  $/arrivalTime "2025-12-15T14:30:00Z"
+  $/date "2025-12-15"
+  $/departureTime "2025-12-15T10:15:00Z"
+  $/destination "New York"
+  $/flightNumber "OS 87"
+  $/origin "Vienna"
+  $/status "On Time")
+
+(Card
+  (Column :align "stretch"
+    (Row :justify "spaceBetween" :align "center"
+      (Row :align "center"
+        (Icon "send")
+        (Text $/flightNumber))
+      (Text :text (formatDate $/date "E, MMM d") :variant "caption"))
+    (Row :align "center"
+      (Text :text (formatString "## ${/origin}"))
+      (Text "## →")
+      (Text :text (formatString "## ${/destination}")))
+    (Divider)
+    (Row :justify "spaceBetween"
+      (Column :align "start"
+        (Text "Departs" "caption")
+        (Text :text (formatDate $/departureTime "h:mm a")))
+      (Column :align "center"
+        (Text "Status" "caption")
+        (Text $/status "body"))
+      (Column :align "end"
+        (Text "Arrives" "caption")
+        (Text :text (formatDate $/arrivalTime "h:mm a"))))))
+</a2ui>

@@ -14,38 +14,32 @@
  * limitations under the License.
  */
 
-import { describe, it } from "node:test";
-import * as assert from "node:assert";
-import { zodToJsonSchema } from "zod-to-json-schema";
-import { readFileSync } from "fs";
-import { resolve, join, dirname } from "path";
-import { fileURLToPath } from "url";
-import { A2uiMessageSchema as V08A2uiMessageSchema } from "./server-to-client.js";
+import {describe, it} from 'node:test';
+import * as assert from 'node:assert';
+import {zodToJsonSchema} from 'zod-to-json-schema';
+import {readFileSync} from 'fs';
+import {resolve, join, dirname} from 'path';
+import {fileURLToPath} from 'url';
+import {A2uiMessageSchema as V08A2uiMessageSchema} from './server-to-client.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
 // `__dirname` will be `dist/src/v0_9/schema` when run via `node --test dist/**/*.test.js`
 
-const SPEC_DIR_V0_8 = resolve(
-  __dirname,
-  "../../../../../../specification/v0_8/json",
-);
+const SPEC_DIR_V0_8 = resolve(__dirname, '../../../../../../specification/v0_8/json');
 
 // Parse both so we can do structural comparison rather than formatting
 // Compare definitions specifically, ignoring descriptions
 function compareDefinitions(zodDefs: any, jsonDefs: any): Record<string, any> {
   const diff: Record<string, any> = {};
-  const keys = new Set([
-    ...Object.keys(zodDefs || {}),
-    ...Object.keys(jsonDefs || {}),
-  ]);
+  const keys = new Set([...Object.keys(zodDefs || {}), ...Object.keys(jsonDefs || {})]);
 
   for (const key of keys) {
-    if (key === "A2uiMessage") continue; // Zod wrapper artifact
+    if (key === 'A2uiMessage') continue; // Zod wrapper artifact
 
-    if (!zodDefs[key]) diff[key] = { error: "Missing in Zod schema" };
-    else if (!jsonDefs[key]) diff[key] = { error: "Missing in JSON schema" };
+    if (!zodDefs[key]) diff[key] = {error: 'Missing in Zod schema'};
+    else if (!jsonDefs[key]) diff[key] = {error: 'Missing in JSON schema'};
     else {
       const defDiff = getObjectDiff(zodDefs[key], jsonDefs[key]);
       if (Object.keys(defDiff).length > 0) {
@@ -56,39 +50,29 @@ function compareDefinitions(zodDefs: any, jsonDefs: any): Record<string, any> {
   return diff;
 }
 
-function getObjectDiff(obj1: any, obj2: any, path = ""): Record<string, any> {
+function getObjectDiff(obj1: any, obj2: any, path = ''): Record<string, any> {
   const diff: Record<string, any> = {};
 
   // Ignore descriptions in strict structural comparison
-  const ignoreKeys = new Set(["description", "title", "$id", "$schema"]);
+  const ignoreKeys = new Set(['description', 'title', '$id', '$schema']);
 
-  const keys = new Set([
-    ...Object.keys(obj1 || {}),
-    ...Object.keys(obj2 || {}),
-  ]);
+  const keys = new Set([...Object.keys(obj1 || {}), ...Object.keys(obj2 || {})]);
 
   for (const key of keys) {
     if (ignoreKeys.has(key)) continue;
 
     const currentPath = path ? `${path}.${key}` : key;
-    let val1 = obj1 ? obj1[key] : undefined;
-    let val2 = obj2 ? obj2[key] : undefined;
+    const val1 = obj1 ? obj1[key] : undefined;
+    const val2 = obj2 ? obj2[key] : undefined;
 
     // Zod emits `type: "string"` for consts, whereas JSON Schema infers it.
-    if (
-      path.endsWith("version") &&
-      key === "type" &&
-      val1 === "string" &&
-      val2 === undefined
-    ) {
+    if (path.endsWith('version') && key === 'type' && val1 === 'string' && val2 === undefined) {
       continue;
     }
 
     // Zod doesn't emit additionalProperties: true by default, but it's the default
     if (
-      currentPath.endsWith(
-        "updateDataModel.properties.value.additionalProperties",
-      ) &&
+      currentPath.endsWith('updateDataModel.properties.value.additionalProperties') &&
       val1 === undefined &&
       val2 === true
     ) {
@@ -97,37 +81,40 @@ function getObjectDiff(obj1: any, obj2: any, path = ""): Record<string, any> {
 
     // Zod resolves the AnyComponentSchema instead of preserving the $ref because we imported it.
     // The JSON spec uses a `$ref` to `catalog.json`
-    if (currentPath.includes("components.items")) {
+    if (currentPath.includes('components.items')) {
       continue;
     }
 
     // Zod defines theme as any (no validation), while JSON spec references catalog.json theme schema
     if (
-      currentPath.includes("theme.$ref") &&
+      currentPath.includes('theme.$ref') &&
       val1 === undefined &&
-      val2 === "catalog.json#/$defs/theme"
+      val2 === 'catalog.json#/$defs/theme'
     ) {
       continue;
     }
 
     // The A2UI v0.8 JSON spec inadvertently omitted recursion for valueMap,
     // but the runtime and agent examples rely on it. Skip this difference.
-    if (currentPath.includes("valueMap.items.properties.valueMap")) {
+    if (currentPath.includes('valueMap.items.properties.valueMap')) {
       continue;
     }
 
+    // Zod generates a $ref for recursive structures (DataValueMapItemSchema),
+    // which differs from the inline definition in the JSON spec.
     if (
-      typeof val1 === "object" &&
-      val1 !== null &&
-      typeof val2 === "object" &&
-      val2 !== null
+      currentPath.includes('dataModelUpdate.properties.contents.items.properties.valueMap.items')
     ) {
+      continue;
+    }
+
+    if (typeof val1 === 'object' && val1 !== null && typeof val2 === 'object' && val2 !== null) {
       if (Array.isArray(val1) && Array.isArray(val2)) {
         // Sort arrays to ignore order differences (like `required`)
         const sortedVal1 = [...val1].sort();
         const sortedVal2 = [...val2].sort();
         if (JSON.stringify(sortedVal1) !== JSON.stringify(sortedVal2)) {
-          diff[currentPath] = { zod: val1, json: val2 };
+          diff[currentPath] = {zod: val1, json: val2};
         }
       } else {
         const nestedDiff = getObjectDiff(val1, val2, currentPath);
@@ -136,7 +123,7 @@ function getObjectDiff(obj1: any, obj2: any, path = ""): Record<string, any> {
         }
       }
     } else if (val1 !== val2) {
-      diff[currentPath] = { zod: val1, json: val2 };
+      diff[currentPath] = {zod: val1, json: val2};
     }
   }
 
@@ -153,16 +140,16 @@ function verifySchema(
   // Generate JSON Schema from Zod
   const jsonSchemaString = JSON.stringify(
     zodToJsonSchema(zodSchemaSpec, {
-      target: "jsonSchema2019-09", // Better matches draft 2020-12
+      target: 'jsonSchema2019-09', // Better matches draft 2020-12
       definitions: definitionsMap || {},
-      name: "A2uiMessage",
+      name: 'A2uiMessage',
     }),
     null,
     2,
   );
 
   // Load the official schema
-  const officialSchemaString = readFileSync(jsonSpecPath, "utf-8");
+  const officialSchemaString = readFileSync(jsonSpecPath, 'utf-8');
 
   // Extract the definitions
   const generatedSchema = JSON.parse(jsonSchemaString);
@@ -184,15 +171,13 @@ function verifySchema(
   }
 
   const rootZodSchema =
-    (generatedSchema.definitions || generatedSchema.$defs || {})[
-      "A2uiMessage"
-    ] || {};
+    (generatedSchema.definitions || generatedSchema.$defs || {})['A2uiMessage'] || {};
 
   if (officialSchema.oneOf || officialSchema.anyOf) {
     const zodOneOf = rootZodSchema.anyOf || rootZodSchema.oneOf || [];
     const normalizedGeneratedOneOf = zodOneOf.map((schema: any) => {
-      if (schema.$ref && schema.$ref.startsWith("#/definitions/")) {
-        return { $ref: schema.$ref.replace("#/definitions/", "#/$defs/") };
+      if (schema.$ref && schema.$ref.startsWith('#/definitions/')) {
+        return {$ref: schema.$ref.replace('#/definitions/', '#/$defs/')};
       }
       return schema;
     });
@@ -209,10 +194,7 @@ function verifySchema(
       );
     }
   } else if (officialSchema.properties) {
-    const topLevelDiff = getObjectDiff(
-      rootZodSchema.properties,
-      officialSchema.properties,
-    );
+    const topLevelDiff = getObjectDiff(rootZodSchema.properties, officialSchema.properties);
     if (Object.keys(topLevelDiff).length > 0) {
       assert.deepStrictEqual(
         topLevelDiff,
@@ -225,12 +207,12 @@ function verifySchema(
   console.log(`Zod schema structurally matches the ${version} JSON spec!`);
 }
 
-describe("A2UI Schema Verification v0.8", () => {
-  it("verifies v0.8 schema", () => {
+describe('A2UI Schema Verification v0.8', () => {
+  it('verifies v0.8 schema', () => {
     verifySchema(
-      "v0.8",
+      'v0.8',
       V08A2uiMessageSchema,
-      join(SPEC_DIR_V0_8, "server_to_client_with_standard_catalog.json"),
+      join(SPEC_DIR_V0_8, 'server_to_client_with_standard_catalog.json'),
     );
   });
 });

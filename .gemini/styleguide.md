@@ -8,7 +8,7 @@ This style guide outlines the coding conventions for contributions to this repos
 
 Code should follow the relevant style guides, and use the correct
 auto-formatter, for each language, as described in
-[the repository contributing guide's Style section](../STYLE_GUIDE.md).
+[the repository contributing guide's Style section](../CONTRIBUTING.md#coding-style).
 
 ## Best Practices
 

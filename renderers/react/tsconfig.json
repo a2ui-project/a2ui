@@ -1,6 +1,6 @@
 {
   "compilerOptions": {
-    "types": ["vitest/globals", "@testing-library/jest-dom"],
+    "types": ["vitest/globals", "@testing-library/jest-dom", "vite/client"],
     "target": "ES2022",
     "lib": ["ES2022", "DOM", "DOM.Iterable"],
     "module": "ESNext",
@@ -14,9 +14,12 @@
     "forceConsistentCasingInFileNames": true,
     "resolveJsonModule": true,
     "isolatedModules": true,
-    "baseUrl": ".",
     "paths": {
-      "@/*": ["./src/*"]
+      "@/*": ["./src/*"],
+      "@a2ui/react": ["./src/index.ts"],
+      "@a2ui/react/v0_8": ["./src/v0_8/index.ts"],
+      "@a2ui/react/v0_9": ["./src/v0_9/index.ts"],
+      "@a2ui/react/styles": ["./src/styles/index.ts"]
     }
   },
   "include": ["src/**/*", "tests/**/*"],

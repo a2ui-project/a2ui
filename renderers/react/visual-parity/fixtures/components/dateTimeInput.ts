@@ -18,7 +18,7 @@
  * DateTimeInput component fixtures for visual parity testing.
  */
 
-import type { ComponentFixture } from '../types';
+import type {ComponentFixture} from '../types';
 
 export const dateTimeInputDate: ComponentFixture = {
   root: 'dt-date',
@@ -27,7 +27,7 @@ export const dateTimeInputDate: ComponentFixture = {
       id: 'dt-date',
       component: {
         DateTimeInput: {
-          value: { literalString: '2025-02-15' },
+          value: {literalString: '2025-02-15'},
           enableDate: true,
           enableTime: false,
         },
@@ -43,7 +43,7 @@ export const dateTimeInputTime: ComponentFixture = {
       id: 'dt-time',
       component: {
         DateTimeInput: {
-          value: { literalString: '14:30' },
+          value: {literalString: '14:30'},
           enableDate: false,
           enableTime: true,
         },
@@ -59,7 +59,7 @@ export const dateTimeInputBoth: ComponentFixture = {
       id: 'dt-both',
       component: {
         DateTimeInput: {
-          value: { literalString: '2025-02-15T14:30' },
+          value: {literalString: '2025-02-15T14:30'},
           enableDate: true,
           enableTime: true,
         },

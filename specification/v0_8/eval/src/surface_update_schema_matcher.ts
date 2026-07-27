@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import { SchemaMatcher, ValidationResult } from "./schema_matcher";
+import {SchemaMatcher, ValidationResult} from './schema_matcher';
 
 /**
  * A schema matcher that validates the presence of a component type within a
@@ -26,7 +26,7 @@ export class SurfaceUpdateSchemaMatcher extends SchemaMatcher {
     public componentType: string,
     public propertyName?: string,
     public propertyValue?: any,
-    public caseInsensitive: boolean = false
+    public caseInsensitive: boolean = false,
   ) {
     super();
   }
@@ -39,13 +39,13 @@ export class SurfaceUpdateSchemaMatcher extends SchemaMatcher {
     if (!schema.surfaceUpdate) {
       return {
         success: false,
-        error: `Expected a 'surfaceUpdate' message but found none.`,
+        error: "Expected a 'surfaceUpdate' message but found none.",
       };
     }
     if (!Array.isArray(schema.surfaceUpdate.components)) {
       return {
         success: false,
-        error: `'surfaceUpdate' message does not contain a 'components' array.`,
+        error: "'surfaceUpdate' message does not contain a 'components' array.",
       };
     }
 
@@ -55,13 +55,13 @@ export class SurfaceUpdateSchemaMatcher extends SchemaMatcher {
       if (c.component && Object.keys(c.component).length > 1) {
         return {
           success: false,
-          error: `Component ID '${c.id}' has multiple component types defined: ${Object.keys(c.component).join(", ")}`,
+          error: `Component ID '${c.id}' has multiple component types defined: ${Object.keys(c.component).join(', ')}`,
         };
       }
     }
 
     const matchingComponents = components.filter(
-      (c: any) => c.component && c.component[this.componentType]
+      (c: any) => c.component && c.component[this.componentType],
     );
 
     if (matchingComponents.length === 0) {
@@ -72,7 +72,7 @@ export class SurfaceUpdateSchemaMatcher extends SchemaMatcher {
     }
 
     if (!this.propertyName) {
-      return { success: true };
+      return {success: true};
     }
 
     for (const component of matchingComponents) {
@@ -81,32 +81,21 @@ export class SurfaceUpdateSchemaMatcher extends SchemaMatcher {
         // Check for property directly on the component
         if (properties[this.propertyName] !== undefined) {
           if (this.propertyValue === undefined) {
-            return { success: true };
+            return {success: true};
           }
           const actualValue = properties[this.propertyName];
           if (this.valueMatches(actualValue, this.propertyValue)) {
-            return { success: true };
+            return {success: true};
           }
         }
 
         // Specifically for Buttons, check for label in a child Text component
-        if (
-          this.componentType === "Button" &&
-          this.propertyName === "label" &&
-          properties.child
-        ) {
-          const childComponent = this.getComponentById(
-            components,
-            properties.child
-          );
-          if (
-            childComponent &&
-            childComponent.component &&
-            childComponent.component.Text
-          ) {
+        if (this.componentType === 'Button' && this.propertyName === 'label' && properties.child) {
+          const childComponent = this.getComponentById(components, properties.child);
+          if (childComponent && childComponent.component && childComponent.component.Text) {
             const textValue = childComponent.component.Text.text;
             if (this.valueMatches(textValue, this.propertyValue)) {
-              return { success: true };
+              return {success: true};
             }
           }
         }
@@ -132,16 +121,14 @@ export class SurfaceUpdateSchemaMatcher extends SchemaMatcher {
     }
 
     const compareStrings = (s1: string, s2: string) => {
-      return this.caseInsensitive
-        ? s1.toLowerCase() === s2.toLowerCase()
-        : s1 === s2;
+      return this.caseInsensitive ? s1.toLowerCase() === s2.toLowerCase() : s1 === s2;
     };
 
     // Handle new literal/path object structure
-    if (typeof actualValue === "object" && !Array.isArray(actualValue)) {
+    if (typeof actualValue === 'object' && !Array.isArray(actualValue)) {
       if (actualValue.literalString !== undefined) {
         return (
-          typeof expectedValue === "string" &&
+          typeof expectedValue === 'string' &&
           compareStrings(actualValue.literalString, expectedValue)
         );
       }
@@ -157,31 +144,24 @@ export class SurfaceUpdateSchemaMatcher extends SchemaMatcher {
     // Handle array cases (e.g., for MultipleChoice options)
     if (Array.isArray(actualValue)) {
       for (const item of actualValue) {
-        if (typeof item === "object" && item !== null) {
+        if (typeof item === 'object' && item !== null) {
           // Check if the item itself is a bound value object
           if (
             item.literalString !== undefined &&
-            typeof expectedValue === "string" &&
+            typeof expectedValue === 'string' &&
             compareStrings(item.literalString, expectedValue)
           )
             return true;
-          if (
-            item.literalNumber !== undefined &&
-            item.literalNumber === expectedValue
-          )
-            return true;
-          if (
-            item.literalBoolean !== undefined &&
-            item.literalBoolean === expectedValue
-          )
+          if (item.literalNumber !== undefined && item.literalNumber === expectedValue) return true;
+          if (item.literalBoolean !== undefined && item.literalBoolean === expectedValue)
             return true;
 
           // Check for structures like MultipleChoice options {label: {literalString: ...}, value: ...}
           if (
             item.label &&
-            typeof item.label === "object" &&
+            typeof item.label === 'object' &&
             item.label.literalString !== undefined &&
-            typeof expectedValue === "string" &&
+            typeof expectedValue === 'string' &&
             compareStrings(item.label.literalString, expectedValue)
           ) {
             return true;
@@ -190,8 +170,8 @@ export class SurfaceUpdateSchemaMatcher extends SchemaMatcher {
             return true;
           }
         } else if (
-          typeof item === "string" &&
-          typeof expectedValue === "string" &&
+          typeof item === 'string' &&
+          typeof expectedValue === 'string' &&
           compareStrings(item, expectedValue)
         ) {
           return true;

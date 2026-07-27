@@ -14,31 +14,25 @@
  * limitations under the License.
  */
 
-import { LitElement, html, css, HTMLTemplateResult, unsafeCSS } from "lit";
-import { customElement, state } from "lit/decorators.js";
-import { repeat } from "lit/directives/repeat.js";
-import { SignalWatcher } from "@lit-labs/signals";
-import { provide } from "@lit/context";
-import { theme as uiTheme } from "./theme/theme.js";
-import "./ui/ui.js";
-import { classMap } from "lit/directives/class-map.js";
-import { Snackbar } from "./ui/snackbar.js";
-import { ref } from "lit/directives/ref.js";
-import {
-  SnackbarAction,
-  SnackbarMessage,
-  SnackbarUUID,
-  SnackType,
-} from "./types/types.js";
-import { v0_8 } from "@a2ui/lit";
-import * as UI from "@a2ui/lit/ui";
-import { map } from "lit/directives/map.js";
+import {LitElement, html, css, HTMLTemplateResult, unsafeCSS} from 'lit';
+import {customElement, state} from 'lit/decorators.js';
+import {SignalWatcher} from '@lit-labs/signals';
+import {provide} from '@lit/context';
+import {theme as uiTheme} from './theme/theme.js';
+import './ui/ui.js';
+import {classMap} from 'lit/directives/class-map.js';
+import {Snackbar} from './ui/snackbar.js';
+import {ref} from 'lit/directives/ref.js';
+import {SnackbarAction, SnackbarMessage, SnackbarUUID, SnackType} from './types/types.js';
+import {v0_8} from '@a2ui/lit';
+import * as UI from '@a2ui/lit/ui';
+import {map} from 'lit/directives/map.js';
 
-const LAST_ITEM_KEY = "last-item-value";
+const LAST_ITEM_KEY = 'last-item-value';
 
-@customElement("a2ui-layout-inspector")
+@customElement('a2ui-layout-inspector')
 export class A2UILayoutInspector extends SignalWatcher(LitElement) {
-  @provide({ context: UI.Context.themeContext })
+  @provide({context: UI.Context.themeContext})
   accessor theme: v0_8.Types.Theme = uiTheme;
 
   @state()
@@ -129,7 +123,8 @@ export class A2UILayoutInspector extends SignalWatcher(LitElement) {
               color: var(--text-color);
               opacity: 0.5;
               border-bottom: 2px solid var(--border-color);
-              transition: opacity 0.3s cubic-bezier(0, 0, 0.3, 1),
+              transition:
+                opacity 0.3s cubic-bezier(0, 0, 0.3, 1),
                 border-color 0.3s cubic-bezier(0, 0, 0.3, 1);
 
               &:not([disabled]):not(.active) {
@@ -246,7 +241,7 @@ export class A2UILayoutInspector extends SignalWatcher(LitElement) {
             font-family: var(--font-family-mono);
           }
 
-          & button[type="submit"] {
+          & button[type='submit'] {
             border-radius: var(--bb-grid-size-2);
             color: var(--text-color);
             background: var(--primary);
@@ -351,8 +346,8 @@ export class A2UILayoutInspector extends SignalWatcher(LitElement) {
               opacity: 0.4;
               border: none;
               transition: opacity 0.3s cubic-bezier(0, 0, 0.3, 1);
-              padding: var(--bb-grid-size-2) var(--bb-grid-size-5)
-                var(--bb-grid-size-2) var(--bb-grid-size-2);
+              padding: var(--bb-grid-size-2) var(--bb-grid-size-5) var(--bb-grid-size-2)
+                var(--bb-grid-size-2);
               color: var(--primary);
 
               & .g-icon {
@@ -412,7 +407,7 @@ export class A2UILayoutInspector extends SignalWatcher(LitElement) {
   constructor() {
     super();
 
-    this.#lastItem = globalThis.localStorage.getItem(LAST_ITEM_KEY) ?? "";
+    this.#lastItem = globalThis.localStorage.getItem(LAST_ITEM_KEY) ?? '';
   }
 
   #processor = v0_8.Data.createSignalA2uiMessageProcessor();
@@ -422,8 +417,7 @@ export class A2UILayoutInspector extends SignalWatcher(LitElement) {
       return html`<section id="surfaces">
         <div id="generating-surfaces">
           <h2 class="typography-w-400 typography-f-s typography-sz-tl">
-            <span class="g-icon filled round rotate">progress_activity</span
-            >Generating your UI
+            <span class="g-icon filled round rotate">progress_activity</span>Generating your UI
           </h2>
           <p class="typography-f-s typography-sz-bl">Working on it...</p>
         </div>
@@ -433,12 +427,10 @@ export class A2UILayoutInspector extends SignalWatcher(LitElement) {
     const renderNoData = () =>
       html`<section id="surfaces">
         <div id="no-surfaces">
-          <h2 class="typography-w-400 typography-f-s typography-sz-tl">
-            No UI Generated Yet
-          </h2>
+          <h2 class="typography-w-400 typography-f-s typography-sz-tl">No UI Generated Yet</h2>
           <p class="typography-f-s typography-sz-bl">
-            Describe your desired UI in the left panel and click 'Generate UI'
-            to see the result here.
+            Describe your desired UI in the left panel and click 'Generate UI' to see the result
+            here.
           </p>
         </div>
       </section>`;
@@ -451,12 +443,12 @@ export class A2UILayoutInspector extends SignalWatcher(LitElement) {
 
     return html`<section id="surfaces">
       ${map(this.#processor.getSurfaces(), ([surfaceId, surface]) => {
-      return html`<a2ui-surface
+        return html`<a2ui-surface
               .surfaceId=${surfaceId}
               .surface=${surface}
               .processor=${this.#processor}
             ></a2-uisurface>`;
-    })}
+      })}
     </section>`;
   }
 
@@ -464,33 +456,33 @@ export class A2UILayoutInspector extends SignalWatcher(LitElement) {
     return html`<textarea
         name="instructions"
         class=${classMap({
-      "typography-w-400": true,
-      "typography-f-s": true,
-      "typography-sz-bl": true,
-    })}
+          'typography-w-400': true,
+          'typography-f-s': true,
+          'typography-sz-bl': true,
+        })}
         @keydown=${(evt: KeyboardEvent) => {
-        if (evt.key !== "Enter" || evt.shiftKey) {
-          return;
-        }
+          if (evt.key !== 'Enter' || evt.shiftKey) {
+            return;
+          }
 
-        if (!(evt.target instanceof HTMLTextAreaElement)) {
-          return;
-        }
+          if (!(evt.target instanceof HTMLTextAreaElement)) {
+            return;
+          }
 
-        evt.preventDefault();
-        const form = evt.target.closest("form")!;
-        form.dispatchEvent(new SubmitEvent("submit", { bubbles: true }));
-      }}
+          evt.preventDefault();
+          const form = evt.target.closest('form')!;
+          form.dispatchEvent(new SubmitEvent('submit', {bubbles: true}));
+        }}
         placeholder="Provide the A2UI payload."
         .value=${this.#lastItem}
       ></textarea>
       <button
         ?disabled=${this.#requesting}
         class=${classMap({
-        "typography-w-500": true,
-        "typography-f-s": true,
-        "typography-sz-bl": true,
-      })}
+          'typography-w-500': true,
+          'typography-f-s': true,
+          'typography-sz-bl': true,
+        })}
         type="submit"
       >
         Generate UI
@@ -498,9 +490,7 @@ export class A2UILayoutInspector extends SignalWatcher(LitElement) {
   }
 
   #renderHeader() {
-    return html`<header
-      class="typography-w-400 typography-f-sf typography-sz-tm"
-    >
+    return html`<header class="typography-w-400 typography-f-sf typography-sz-tm">
       A2UI Inspector
     </header>`;
   }
@@ -508,7 +498,7 @@ export class A2UILayoutInspector extends SignalWatcher(LitElement) {
   #renderMain() {
     return html`<section id="main">
       <ui-splitter
-        direction=${"horizontal"}
+        direction=${'horizontal'}
         name="layout-main"
         split="[0.20, 0.80]"
         .minSegmentSizeHorizontal=${325}
@@ -517,40 +507,36 @@ export class A2UILayoutInspector extends SignalWatcher(LitElement) {
           id="controls-container"
           slot="slot-0"
           @submit=${async (evt: SubmitEvent) => {
-        evt.preventDefault();
-        const formData = new FormData(evt.target as HTMLFormElement);
-        const instructions = formData.get("instructions");
-        if (instructions === null) {
-          return;
-        }
+            evt.preventDefault();
+            const formData = new FormData(evt.target as HTMLFormElement);
+            const instructions = formData.get('instructions');
+            if (instructions === null) {
+              return;
+            }
 
-        try {
-          const instructionsStr = instructions as string;
+            try {
+              const instructionsStr = instructions as string;
 
-          globalThis.localStorage.setItem(LAST_ITEM_KEY, instructionsStr);
-          const messages = JSON.parse(instructionsStr);
+              globalThis.localStorage.setItem(LAST_ITEM_KEY, instructionsStr);
+              const messages = JSON.parse(instructionsStr);
 
-          console.log(messages);
+              console.log(messages);
 
-          this.#processor.clearSurfaces();
-          console.log(this.#processor.getSurfaces().size);
-          this.#processor.processMessages(messages);
-          this.requestUpdate();
-        } catch (err) {
-          console.warn(err);
-          this.snackbar(html`Unable to render UI`, SnackType.ERROR);
-        }
-      }}
+              this.#processor.clearSurfaces();
+              console.log(this.#processor.getSurfaces().size);
+              this.#processor.processMessages(messages);
+              this.requestUpdate();
+            } catch (err) {
+              console.warn(err);
+              this.snackbar(html`Unable to render UI`, SnackType.ERROR);
+            }
+          }}
         >
-          <h2 class="typography-w-400 typography-f-s typography-sz-tl">
-            Enter your A2UI
-          </h2>
+          <h2 class="typography-w-400 typography-f-s typography-sz-tl">Enter your A2UI</h2>
           ${this.#renderInput()}
         </form>
         <div id="surface-container" slot="slot-1">
-          <h2
-            class="typography-w-400 typography-f-s typography-sz-tl layout-sp-bt"
-          >
+          <h2 class="typography-w-400 typography-f-s typography-sz-tl layout-sp-bt">
             Generated UI
           </h2>
           ${this.#renderSurfacesOrMessages()}
@@ -562,19 +548,18 @@ export class A2UILayoutInspector extends SignalWatcher(LitElement) {
   #renderSnackbar() {
     return html`<ui-snackbar
       ${ref((el: Element | undefined) => {
-      if (!el) {
-        this.#snackbar = undefined;
-      }
+        if (!el) {
+          this.#snackbar = undefined;
+        }
 
-      this.#snackbar = el as Snackbar;
-      for (const pendingMessage of this.#pendingSnackbarMessages) {
-        const { message, id, persistent, type, actions } =
-          pendingMessage.message;
-        this.snackbar(message, type, actions, persistent, id);
-      }
+        this.#snackbar = el as Snackbar;
+        for (const pendingMessage of this.#pendingSnackbarMessages) {
+          const {message, id, persistent, type, actions} = pendingMessage.message;
+          this.snackbar(message, type, actions, persistent, id);
+        }
 
-      this.#pendingSnackbarMessages.length = 0;
-    })}
+        this.#pendingSnackbarMessages.length = 0;
+      })}
     ></ui-snackbar>`;
   }
 
@@ -588,7 +573,7 @@ export class A2UILayoutInspector extends SignalWatcher(LitElement) {
     actions: SnackbarAction[] = [],
     persistent = false,
     id = globalThis.crypto.randomUUID(),
-    replaceAll = false
+    replaceAll = false,
   ) {
     if (!this.#snackbar) {
       this.#pendingSnackbarMessages.push({
@@ -612,7 +597,7 @@ export class A2UILayoutInspector extends SignalWatcher(LitElement) {
         persistent,
         actions,
       },
-      replaceAll
+      replaceAll,
     );
   }
 

@@ -14,11 +14,11 @@
  * limitations under the License.
  */
 
-import { config } from "dotenv";
-import { UserConfig } from "vite";
-import * as Middleware from "./middleware";
-import { dirname, resolve } from "node:path";
-import { fileURLToPath } from "node:url";
+import {config} from 'dotenv';
+import {UserConfig} from 'vite';
+import * as Middleware from './middleware';
+import {dirname, resolve} from 'node:path';
+import {fileURLToPath} from 'node:url';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -26,20 +26,21 @@ export default async () => {
   config();
 
   const entry: Record<string, string> = {
-    shell: resolve(__dirname, "index.html"),
+    shell: resolve(__dirname, 'index.html'),
   };
 
   return {
+    // Do we need this for this sample?
     plugins: [Middleware.A2AMiddleware.plugin()],
     build: {
       rollupOptions: {
         input: entry,
       },
-      target: "esnext",
+      target: 'esnext',
     },
     define: {},
     resolve: {
-      dedupe: ["lit"],
+      dedupe: ['lit'],
     },
   } satisfies UserConfig;
 };

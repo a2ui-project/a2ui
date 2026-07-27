@@ -1,14 +1,21 @@
 {
-  "name": "@a2ui/angular",
+  "name": "@a2ui/angular-sample-lib",
   "version": "0.8.3",
   "dependencies": {
-    "markdown-it": "^14.1.0",
-    "tslib": "^2.3.0",
-    "@a2ui/web_core": "file:../../../../../renderers/web_core"
+    "@a2ui/web_core": "workspace:*",
+    "markdown-it": "^14.2.0",
+    "tslib": "^2.8.1"
   },
   "peerDependencies": {
-    "@angular/common": "^21.2.0",
-    "@angular/core": "^21.2.0"
+    "@angular/common": "^21.2.5",
+    "@angular/core": "^21.2.5"
   },
-  "sideEffects": false
+  "sideEffects": false,
+  "scripts": {
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "lint": "yarn --cwd ../.. lint",
+    "test": "yarn --cwd ../.. test",
+    "lint:fix": "yarn --cwd ../.. lint:fix"
+  }
 }

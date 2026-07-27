@@ -14,23 +14,28 @@
  * limitations under the License.
  */
 
-import { DataContext } from "./data-context.js";
-import { ComponentModel } from "../state/component-model.js";
-import type { SurfaceModel } from "../state/surface-model.js";
-import type { SurfaceComponentsModel } from "../state/surface-components-model.js";
-import { A2uiStateError } from "../errors.js";
+import {DataContext} from './data-context.js';
+import {ComponentModel} from '../state/component-model.js';
+import type {SurfaceModel} from '../state/surface-model.js';
+import type {SurfaceComponentsModel} from '../state/surface-components-model.js';
+import {A2uiStateError} from '../errors.js';
 
 /**
  * Context provided to components during rendering.
  * It provides access to the component's model, the data context, and a way to dispatch actions.
  */
 export class ComponentContext {
-  /** The state model for this specific component. */
+  /** The state model for this specific component, providing access to its properties and state. */
   readonly componentModel: ComponentModel;
-  /** The data context scoped to this component's position in the visual hierarchy. */
+  /**
+   * The data context scoped to this component's position in the visual hierarchy.
+   * Uses the `dataModelBasePath` to resolve relative data paths.
+   */
   readonly dataContext: DataContext;
-  /** The collection of all component models for the current surface. */
+  /** The collection of all component models for the current surface, allowing lookups by ID. */
   readonly surfaceComponents: SurfaceComponentsModel;
+  /** The theme configuration for the surface this component belongs to. */
+  readonly theme: any;
 
   /**
    * Creates a new component context.
@@ -39,19 +44,17 @@ export class ComponentContext {
    * @param componentId The ID of the component.
    * @param dataModelBasePath The base path for data model access (default: '/').
    */
-  constructor(
-    surface: SurfaceModel<any>,
-    componentId: string,
-    dataModelBasePath: string = "/",
-  ) {
+  constructor(surface: SurfaceModel<any>, componentId: string, dataModelBasePath: string = '/') {
     const model = surface.componentsModel.get(componentId);
     if (!model) {
       throw new A2uiStateError(`Component not found: ${componentId}`);
     }
     this.componentModel = model;
     this.surfaceComponents = surface.componentsModel;
-    this.dataContext = new DataContext(surface.dataModel, dataModelBasePath);
-    this._actionDispatcher = (action) => surface.dispatchAction(action);
+    this.theme = surface.theme;
+
+    this.dataContext = new DataContext(surface, dataModelBasePath);
+    this._actionDispatcher = action => surface.dispatchAction(action, this.componentModel.id);
   }
 
   private _actionDispatcher: (action: any) => Promise<void>;

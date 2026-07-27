@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import { SchemaMatcher, ValidationResult } from "./schema_matcher";
+import {SchemaMatcher, ValidationResult} from './schema_matcher';
 
 /**
  * A concrete matcher that verifies the top-level message type.
@@ -25,21 +25,21 @@ export class MessageTypeMatcher extends SchemaMatcher {
   }
 
   validate(response: object): ValidationResult {
-    if (!response || typeof response !== "object") {
+    if (!response || typeof response !== 'object') {
       return {
         success: false,
-        error: "Response is not a valid object.",
+        error: 'Response is not a valid object.',
       };
     }
     const keys = Object.keys(response);
     if (keys.length === 1 && keys[0] === this.messageType) {
-      return { success: true };
+      return {success: true};
     } else {
       return {
         success: false,
         error: `Expected top-level message type to be '${
           this.messageType
-        }', but found '${keys.join(", ")}'`,
+        }', but found '${keys.join(', ')}'`,
       };
     }
   }

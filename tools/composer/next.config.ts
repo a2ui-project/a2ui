@@ -14,10 +14,12 @@
  * limitations under the License.
  */
 
-import type { NextConfig } from "next";
+import type {NextConfig} from 'next';
 
 const nextConfig: NextConfig = {
-  /* config options here */
+  images: {
+    unoptimized: true,
+  },
 };
 
 export default nextConfig;

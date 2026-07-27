@@ -16,13 +16,7 @@
           "component": {
             "Column": {
               "children": {
-                "explicitList": [
-                  "album-art",
-                  "track-info",
-                  "progress",
-                  "time-row",
-                  "controls"
-                ]
+                "explicitList": ["album-art", "track-info", "progress", "time-row", "controls"]
               },
               "alignment": "center"
             }
@@ -44,10 +38,7 @@
           "component": {
             "Column": {
               "children": {
-                "explicitList": [
-                  "song-title",
-                  "artist"
-                ]
+                "explicitList": ["song-title", "artist"]
               },
               "alignment": "center"
             }
@@ -91,10 +82,7 @@
           "component": {
             "Row": {
               "children": {
-                "explicitList": [
-                  "current-time",
-                  "total-time"
-                ]
+                "explicitList": ["current-time", "total-time"]
               },
               "distribution": "spaceBetween"
             }
@@ -127,11 +115,7 @@
           "component": {
             "Row": {
               "children": {
-                "explicitList": [
-                  "prev-btn",
-                  "play-btn",
-                  "next-btn"
-                ]
+                "explicitList": ["prev-btn", "play-btn", "next-btn"]
               },
               "distribution": "center"
             }

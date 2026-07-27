@@ -4,85 +4,100 @@
   "scripts": {
     "ng": "ng",
     "start": "ng serve",
-    "build": "ng build",
     "watch": "ng build --watch --configuration development",
-    "test": "ng test",
+    "build": "wireit",
+    "test": "wireit",
     "serve:ssr:angular": "node dist/angular/server/server.mjs",
     "serve:ssr:restaurant": "node dist/restaurant/server/server.mjs",
-    "serve:ssr:rizzcharts": "node dist/rizzcharts/server/server.mjs",
-    "serve:ssr:contact": "node dist/contact/server/server.mjs",
-    "build:renderer": "cd ../../../renderers && for dir in 'web_core' 'markdown/markdown-it'; do (cd \"$dir\" && npm install && npm run build); done",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "clean": "wireit",
+    "build:renderer": "yarn workspace @a2ui/web_core build && yarn workspace @a2ui/markdown-it build && yarn workspace @a2ui/angular build",
     "serve:agent:restaurant": "cd ../../agent/adk/restaurant_finder && uv run .",
-    "demo:restaurant": "npm run build:renderer && concurrently -k -n \"AGENT,WEB\" -c \"magenta,blue\" \"npm run serve:agent:restaurant\" \"npm start -- restaurant\""
-  },
-  "prettier": {
-    "printWidth": 100,
-    "singleQuote": true,
-    "overrides": [
-      {
-        "files": "*.html",
-        "options": {
-          "parser": "angular"
-        }
-      }
-    ]
+    "demo:restaurant": "yarn build:renderer && concurrently -k -n \"AGENT,WEB\" -c \"magenta,blue\" \"yarn serve:agent:restaurant\" \"yarn start restaurant\"",
+    "format": "prettier --write .",
+    "format:check": "prettier --check ."
   },
   "private": true,
   "dependencies": {
-    "@a2a-js/sdk": "^0.3.4",
-    "@a2ui/web_core": "file:../../../renderers/web_core",
-    "@a2ui/markdown-it": "file:../../../renderers/markdown/markdown-it",
-    "@angular/cdk": "^20.2.10",
-    "@angular/common": "^21.2.0",
-    "@angular/compiler": "^21.2.0",
-    "@angular/core": "^21.2.0",
-    "@angular/forms": "^21.2.0",
-    "@angular/google-maps": "^20.2.11",
-    "@angular/material": "^20.2.11",
-    "@angular/platform-browser": "^21.2.0",
-    "@angular/platform-server": "^21.2.0",
-    "@angular/ssr": "^21.2.0",
-    "@google/genai": "^1.22.0",
+    "@a2a-js/sdk": "^0.3.13",
+    "@a2ui/markdown-it": "*",
+    "@a2ui/web_core": "workspace:*",
+    "@angular/cdk": "^21.2.5",
+    "@angular/common": "^21.2.5",
+    "@angular/compiler": "^21.2.5",
+    "@angular/core": "^21.2.5",
+    "@angular/forms": "^21.2.5",
+    "@angular/google-maps": "^21.2.5",
+    "@angular/material": "^21.2.5",
+    "@angular/platform-browser": "^21.2.5",
+    "@angular/platform-server": "^21.2.5",
+    "@angular/router": "^21.2.5",
+    "@angular/ssr": "^21.2.5",
+    "@google/genai": "^2.8.0",
+    "@modelcontextprotocol/ext-apps": "^1.7.4",
     "chart.js": "^4.5.1",
     "chartjs-plugin-datalabels": "^2.2.0",
-    "excalibur": "0.31.0",
-    "express": "^5.1.0",
-    "markdown-it": "^14.1.0",
-    "ng2-charts": "^8.0.0",
-    "tslib": "^2.3.0",
-    "uuid": "^13.0.0",
-    "zone.js": "~0.15.0"
+    "excalibur": "0.32.0",
+    "express": "^5.2.1",
+    "markdown-it": "^14.2.0",
+    "ng2-charts": "^10.0.0",
+    "tslib": "^2.8.1",
+    "uuid": "^14.0.0",
+    "zod": "^3.25.76",
+    "zone.js": "~0.16.2"
   },
   "devDependencies": {
-    "@angular/build": "^21.2.0",
-    "@angular/cli": "^21.2.0",
-    "@angular/compiler-cli": "^21.2.0",
-    "@types/express": "^5.0.1",
-    "@types/jasmine": "~5.1.0",
+    "@angular/build": "^21.2.5",
+    "@angular/cli": "^21.2.5",
+    "@angular/compiler-cli": "^21.2.5",
+    "@types/express": "^5.0.6",
+    "@types/jasmine": "^6.0.0",
     "@types/markdown-it": "^14.1.2",
-    "@types/node": "^20.17.19",
-    "@types/uuid": "^10.0.0",
-    "@vitest/browser": "^4.0.15",
-    "concurrently": "^9.2.1",
-    "cypress": "^15.6.0",
-    "jasmine-core": "~5.9.0",
-    "jsdom": "^27.2.0",
+    "@types/node": "^25.9.3",
+    "@types/uuid": "^11.0.0",
+    "@vitest/browser": "^4.1.8",
+    "concurrently": "^10.0.3",
+    "cypress": "^15.17.0",
+    "eslint": "^10.4.1",
+    "gts": "^7.0.0",
+    "jasmine-core": "^6.3.0",
+    "jsdom": "^29.1.1",
     "karma": "^6.4.4",
     "karma-chrome-launcher": "^3.2.0",
     "karma-coverage": "^2.2.1",
     "karma-jasmine": "^5.1.0",
-    "karma-jasmine-html-reporter": "^2.1.0",
-    "ng-packagr": "^21.0.0",
-    "playwright": "^1.56.1",
-    "prettier": "^3.6.2",
-    "sass": "^1.93.2",
+    "karma-jasmine-html-reporter": "^2.2.0",
+    "ng-packagr": "^22.0.0",
+    "playwright": "^1.60.0",
+    "prettier": "^3.8.4",
+    "sass": "^1.100.0",
     "tslib": "^2.8.1",
     "typescript": "5.9.3",
-    "vite": "7.2.7",
-    "vitest": "^4.0.15"
+    "vite": "^8.0.16",
+    "vitest": "^4.1.8",
+    "wireit": "^0.15.0-pre.2"
   },
-  "workspaces": [
-    "projects/*",
-    "../../../renderers/web_core"
-  ]
+  "wireit": {
+    "build": {
+      "command": "ng build restaurant",
+      "dependencies": [
+        "../../../renderers/angular:build"
+      ]
+    },
+    "test": {
+      "command": "ng test --watch=false --browsers=ChromeHeadless",
+      "dependencies": [
+        "../../../renderers/angular:build"
+      ],
+      "files": [
+        "src/**/*",
+        "projects/**/*",
+        "tsconfig.json"
+      ]
+    },
+    "clean": {
+      "command": "rm -rf dist .tsbuildinfo .wireit"
+    }
+  }
 }
