@@ -74,7 +74,7 @@ COMPOSITE_CATALOG_PATH = os.path.join(
 class A2uiDemoAgent:
     """A generic agent that demos A2UI v0.9 Material and custom components."""
 
-    SUPPORTED_CONTENT_TYPES = ["text", "text/plain"]
+    SUPPORTED_CONTENT_TYPES = ["text/plain"]
 
     def __init__(self, base_url: str):
         self.base_url = base_url
