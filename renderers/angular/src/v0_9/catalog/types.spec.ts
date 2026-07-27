@@ -14,10 +14,10 @@
  * limitations under the License.
  */
 
-import {Component, signal} from '@angular/core';
+import {Component} from '@angular/core';
 import {ComponentApi} from '@a2ui/web_core/v0_9';
 import {createAngularComponentImplementation} from './types';
-import {CatalogComponentInstance} from '../core/catalog_component_instance';
+import {CatalogComponent} from '../core/catalog_component';
 import {z} from 'zod';
 
 @Component({
@@ -25,12 +25,7 @@ import {z} from 'zod';
   template: '',
   standalone: true,
 })
-class TestComponent implements CatalogComponentInstance {
-  readonly props = signal<Record<string, unknown>>({});
-  readonly surfaceId = signal('');
-  readonly componentId = signal('');
-  readonly dataContextPath = signal('');
-}
+class TestComponent extends CatalogComponent<ComponentApi> {}
 
 describe('createAngularComponentImplementation', () => {
   it('should map ComponentApi and Angular Component Type correctly', () => {

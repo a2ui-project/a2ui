@@ -1,6 +1,20 @@
 ## Unreleased
 
 - (v0_9) Implement `createAngularComponentImplementation` helper and deprecate `extraComponents` and `functions` in `BasicCatalogOptions` to align with the core API. [#2060](https://github.com/a2ui-project/a2ui/pull/2060)
+  * Recommended migration: Instead of extending `BasicCatalogBase` or passing `extraComponents`/`functions` to `BasicCatalogOptions`, extend `AngularCatalog` directly and pass the combined lists of components and functions to `super()`.
+    ```typescript
+    import { AngularCatalog, BASIC_COMPONENTS, BASIC_FUNCTIONS } from '@a2ui/angular/v0_9';
+
+    export class CustomCatalog extends AngularCatalog {
+      constructor() {
+        super(
+          'https://example.com/custom-catalog.json',
+          [...BASIC_COMPONENTS, myCustomComponent],
+          [...BASIC_FUNCTIONS, myCustomFunction],
+        );
+      }
+    }
+    ```
 - Standardize package entry points to `index.ts` while maintaining `public-api.ts` wrappers for backward compatibility.
 - (v0_8) Export `A2uiMessageSchema` in public API.
 
