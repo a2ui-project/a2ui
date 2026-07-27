@@ -1,0 +1,73 @@
+[
+  {
+    "version": "v0.9",
+    "createSurface": {
+      "surfaceId": "canvas-demo",
+      "catalogId": "https://a2ui.org/specification/v0_9/material_catalog.json",
+      "theme": {
+        "primaryColor": "#1a73e8",
+        "font": "Roboto"
+      }
+    }
+  },
+  {
+    "version": "v0.9",
+    "updateComponents": {
+      "surfaceId": "canvas-demo",
+      "components": [
+        {
+          "id": "root",
+          "component": "Canvas",
+          "cardTitle": "Quarterly Report",
+          "cardDescription": "Open to view the Q3 sales breakdown",
+          "cardIcon": "table_chart",
+          "autoOpen": true,
+          "children": ["panel-column"]
+        },
+        {
+          "id": "panel-column",
+          "component": "MaterialColumn",
+          "align": "stretch",
+          "style": {"gap": "12px"},
+          "children": ["panel-title", "summary-text", "sales-table"]
+        },
+        {
+          "id": "panel-title",
+          "component": "MaterialText",
+          "text": "Q3 Sales by Region",
+          "usageHint": "h2"
+        },
+        {
+          "id": "summary-text",
+          "component": "MaterialText",
+          "text": "Total revenue grew 12% quarter-over-quarter, led by the APAC region.",
+          "usageHint": "body"
+        },
+        {
+          "id": "sales-table",
+          "component": "MaterialTable",
+          "rows": {"path": "/rows"},
+          "columns": [
+            {"header": "Region", "field": "region"},
+            {"header": "Revenue", "field": "revenue"},
+            {"header": "Growth", "field": "growth"}
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "version": "v0.9",
+    "updateDataModel": {
+      "surfaceId": "canvas-demo",
+      "path": "/",
+      "value": {
+        "rows": [
+          {"region": "North America", "revenue": "$4.2M", "growth": "+8%"},
+          {"region": "EMEA", "revenue": "$3.1M", "growth": "+5%"},
+          {"region": "APAC", "revenue": "$2.8M", "growth": "+21%"}
+        ]
+      }
+    }
+  }
+]

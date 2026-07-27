@@ -1,0 +1,168 @@
+[
+  {
+    "version": "v0.9",
+    "createSurface": {
+      "surfaceId": "dashboard",
+      "catalogId": "https://a2ui.org/specification/v0_9/material_catalog.json",
+      "theme": {
+        "primaryColor": "#1a73e8",
+        "font": "Roboto"
+      }
+    }
+  },
+  {
+    "version": "v0.9",
+    "updateComponents": {
+      "surfaceId": "dashboard",
+      "components": [
+        {
+          "id": "root",
+          "component": "MaterialCard",
+          "children": ["main-column"]
+        },
+        {
+          "id": "main-column",
+          "component": "MaterialColumn",
+          "align": "stretch",
+          "children": ["header", "grid", "storage-header", "storage-bar"]
+        },
+        {
+          "id": "header",
+          "component": "MaterialRow",
+          "justify": "spaceBetween",
+          "align": "center",
+          "children": ["title", "status-badge", "menu"]
+        },
+        {
+          "id": "title",
+          "component": "MaterialText",
+          "text": "System Status",
+          "usageHint": "h2"
+        },
+        {
+          "id": "status-badge",
+          "component": "MaterialBadge",
+          "text": "Live",
+          "color": "primary",
+          "children": ["status-icon"]
+        },
+        {
+          "id": "status-icon",
+          "component": "MaterialIcon",
+          "icon": "cloud_done"
+        },
+        {
+          "id": "menu",
+          "component": "MaterialMenu",
+          "icon": "more_vert",
+          "ariaLabel": "Options",
+          "action": {
+            "event": {
+              "name": "menu_action",
+              "context": {"prompt": "Open the dashboard options menu"}
+            }
+          },
+          "options": [
+            {"label": "Refresh", "value": "refresh"},
+            {"label": "Settings", "value": "settings"}
+          ]
+        },
+        {
+          "id": "grid",
+          "component": "MaterialGridList",
+          "cols": 2,
+          "rowHeight": "120px",
+          "children": ["cpu-card", "mem-card"]
+        },
+        {
+          "id": "cpu-card",
+          "component": "MaterialCard",
+          "appearance": "outlined",
+          "children": ["cpu-col"]
+        },
+        {
+          "id": "cpu-col",
+          "component": "MaterialColumn",
+          "align": "center",
+          "children": ["cpu-label", "cpu-spinner"]
+        },
+        {
+          "id": "cpu-label",
+          "component": "MaterialText",
+          "text": "CPU Load",
+          "usageHint": "caption"
+        },
+        {
+          "id": "cpu-spinner",
+          "component": "MaterialProgressSpinner",
+          "value": {"path": "/cpuUsage"},
+          "mode": "determinate",
+          "diameter": 50,
+          "color": "warn",
+          "ariaLabel": "CPU usage"
+        },
+        {
+          "id": "mem-card",
+          "component": "MaterialCard",
+          "appearance": "outlined",
+          "children": ["mem-col"]
+        },
+        {
+          "id": "mem-col",
+          "component": "MaterialColumn",
+          "align": "center",
+          "children": ["mem-label", "mem-spinner"]
+        },
+        {
+          "id": "mem-label",
+          "component": "MaterialText",
+          "text": "Memory",
+          "usageHint": "caption"
+        },
+        {
+          "id": "mem-spinner",
+          "component": "MaterialProgressSpinner",
+          "value": {"path": "/memUsage"},
+          "mode": "determinate",
+          "diameter": 50,
+          "color": "primary",
+          "ariaLabel": "Memory usage"
+        },
+        {
+          "id": "storage-header",
+          "component": "MaterialRow",
+          "justify": "spaceBetween",
+          "children": ["storage-label", "storage-pct"]
+        },
+        {
+          "id": "storage-label",
+          "component": "MaterialText",
+          "text": "Storage Used",
+          "usageHint": "body"
+        },
+        {
+          "id": "storage-pct",
+          "component": "MaterialText",
+          "text": "78%",
+          "usageHint": "body"
+        },
+        {
+          "id": "storage-bar",
+          "component": "MaterialProgressBar",
+          "value": 78,
+          "mode": "determinate",
+          "color": "accent",
+          "ariaLabel": "Storage usage"
+        }
+      ]
+    }
+  },
+  {
+    "version": "v0.9",
+    "updateDataModel": {
+      "surfaceId": "dashboard",
+      "path": "/",
+      "value": {"cpuUsage": 65, "memUsage": 42}
+    }
+  }
+]

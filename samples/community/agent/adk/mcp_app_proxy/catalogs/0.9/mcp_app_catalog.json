@@ -68,8 +68,18 @@
               }
             },
             "data": {
-              "$ref": "common_types.json#/$defs/DynamicValue",
-              "description": "The A2UI data model path or value bound to this component for reactive state synchronization."
+              "type": "object",
+              "properties": {
+                "paths": {
+                  "type": "object",
+                  "description": "A dictionary mapping custom state keys to distinct JSON Pointer paths in the data model.",
+                  "additionalProperties": {
+                    "type": "string"
+                  }
+                }
+              },
+              "required": ["paths"],
+              "additionalProperties": false
             }
           },
           "required": ["component", "htmlContent"]
