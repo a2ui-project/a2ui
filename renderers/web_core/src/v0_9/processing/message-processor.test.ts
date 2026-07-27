@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import assert from 'node:assert';
+import * as assert from 'node:assert';
 import {describe, it, beforeEach} from 'node:test';
 import {MessageProcessor} from './message-processor.js';
 import {Catalog, ComponentApi} from '../catalog/types.js';

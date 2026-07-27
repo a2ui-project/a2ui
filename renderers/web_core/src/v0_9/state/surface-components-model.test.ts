@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import assert from 'node:assert';
+import * as assert from 'node:assert';
 import {describe, it, beforeEach} from 'node:test';
 import {SurfaceComponentsModel} from './surface-components-model.js';
 import {ComponentModel} from './component-model.js';
