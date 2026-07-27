@@ -16,7 +16,7 @@
 
 import {Component} from '@angular/core';
 import {ComponentApi} from '@a2ui/web_core/v0_9';
-import {createAngularComponentImplementation} from './types';
+import {createComponentImplementation} from './types';
 import {CatalogComponent} from '../core/catalog_component';
 import {z} from 'zod';
 
@@ -27,14 +27,14 @@ import {z} from 'zod';
 })
 class TestComponent extends CatalogComponent<ComponentApi> {}
 
-describe('createAngularComponentImplementation', () => {
+describe('createComponentImplementation', () => {
   it('should map ComponentApi and Angular Component Type correctly', () => {
     const api: ComponentApi = {
       name: 'TestComp',
       schema: z.object({}),
     };
 
-    const impl = createAngularComponentImplementation(api, TestComponent);
+    const impl = createComponentImplementation(api, TestComponent);
 
     expect(impl.name).toBe('TestComp');
     expect(impl.schema).toEqual(api.schema);

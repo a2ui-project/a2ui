@@ -60,7 +60,7 @@ export class AngularCatalog extends Catalog<AngularComponentImplementation> {}
  * @param component The Angular component class implementing the API.
  * @returns The structured Angular component implementation.
  */
-export function createAngularComponentImplementation(
+export function createComponentImplementation(
   api: ComponentApi,
   component: Type<CatalogComponentInstance>,
 ): AngularComponentImplementation {

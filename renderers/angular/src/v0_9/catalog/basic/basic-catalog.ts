@@ -15,7 +15,7 @@
  */
 
 import {Inject, Injectable, InjectionToken, Optional} from '@angular/core';
-import {AngularCatalog, AngularComponentImplementation, createAngularComponentImplementation} from '../types';
+import {AngularCatalog, AngularComponentImplementation, createComponentImplementation} from '../types';
 import {TextComponent} from './text.component';
 import {RowComponent} from './row.component';
 import {ColumnComponent} from './column.component';
@@ -66,24 +66,24 @@ import {FunctionImplementation} from '@a2ui/web_core/v0_9';
 // Ignore Prettier to preserve quoted keys, needed to survive property renaming.
 // prettier-ignore
 const DEFAULT_COMPONENT_IMPLEMENTATIONS: Record<string, AngularComponentImplementation> = {
-  'text': createAngularComponentImplementation(TextApi, TextComponent),
-  'row': createAngularComponentImplementation(RowApi, RowComponent),
-  'column': createAngularComponentImplementation(ColumnApi, ColumnComponent),
-  'button': createAngularComponentImplementation(ButtonApi, ButtonComponent),
-  'textField': createAngularComponentImplementation(TextFieldApi, TextFieldComponent),
-  'image': createAngularComponentImplementation(ImageApi, ImageComponent),
-  'icon': createAngularComponentImplementation(IconApi, IconComponent),
-  'video': createAngularComponentImplementation(VideoApi, VideoComponent),
-  'audioPlayer': createAngularComponentImplementation(AudioPlayerApi, AudioPlayerComponent),
-  'list': createAngularComponentImplementation(ListApi, ListComponent),
-  'card': createAngularComponentImplementation(CardApi, CardComponent),
-  'tabs': createAngularComponentImplementation(TabsApi, TabsComponent),
-  'modal': createAngularComponentImplementation(ModalApi, ModalComponent),
-  'divider': createAngularComponentImplementation(DividerApi, DividerComponent),
-  'checkBox': createAngularComponentImplementation(CheckBoxApi, CheckBoxComponent),
-  'choicePicker': createAngularComponentImplementation(ChoicePickerApi, ChoicePickerComponent),
-  'slider': createAngularComponentImplementation(SliderApi, SliderComponent),
-  'dateTimeInput': createAngularComponentImplementation(DateTimeInputApi, DateTimeInputComponent),
+  'text': createComponentImplementation(TextApi, TextComponent),
+  'row': createComponentImplementation(RowApi, RowComponent),
+  'column': createComponentImplementation(ColumnApi, ColumnComponent),
+  'button': createComponentImplementation(ButtonApi, ButtonComponent),
+  'textField': createComponentImplementation(TextFieldApi, TextFieldComponent),
+  'image': createComponentImplementation(ImageApi, ImageComponent),
+  'icon': createComponentImplementation(IconApi, IconComponent),
+  'video': createComponentImplementation(VideoApi, VideoComponent),
+  'audioPlayer': createComponentImplementation(AudioPlayerApi, AudioPlayerComponent),
+  'list': createComponentImplementation(ListApi, ListComponent),
+  'card': createComponentImplementation(CardApi, CardComponent),
+  'tabs': createComponentImplementation(TabsApi, TabsComponent),
+  'modal': createComponentImplementation(ModalApi, ModalComponent),
+  'divider': createComponentImplementation(DividerApi, DividerComponent),
+  'checkBox': createComponentImplementation(CheckBoxApi, CheckBoxComponent),
+  'choicePicker': createComponentImplementation(ChoicePickerApi, ChoicePickerComponent),
+  'slider': createComponentImplementation(SliderApi, SliderComponent),
+  'dateTimeInput': createComponentImplementation(DateTimeInputApi, DateTimeInputComponent),
 } as const;
 
 /**
