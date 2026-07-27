@@ -48,7 +48,7 @@ def _is_component_reference_property(prop_schema: Any) -> bool:
         return False
     if "$ref" in prop_schema:
         ref = prop_schema["$ref"]
-        if "ComponentId" in ref or "ChildList" in ref:
+        if "ComponentId" in ref or "Child" in ref or "ChildList" in ref:
             return True
     if "oneOf" in prop_schema or "anyOf" in prop_schema or "allOf" in prop_schema:
         subs = (

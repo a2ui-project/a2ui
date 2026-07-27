@@ -625,7 +625,46 @@ valueField = TextField("Deal Value", $/form/value, "0.00", "number", ?required)"
             CatalogSchemaHelper(self.catalog_path)
         self.assertIn("Unsupported catalog type", str(context.exception))
 
-        # Verify CatalogSchemaHelper does not have catalog_path property anymore
+    def test_express_extended_coverage(self):
+        """Test _set_nested_path, set!/data statements, deleteSurface, callFunction, and schema helper get_property_type."""
+        from a2ui.inference_formats.experimental.express.compiler import _set_nested_path
+
+        # 1. _set_nested_path with $ and relative paths
+        d = {}
+        _set_nested_path(d, "$user/name", "Alice")
+        _set_nested_path(d, "config/theme", "dark")
+        _set_nested_path(d, "$", "ignored")
+        self.assertEqual(d["user"]["name"], "Alice")
+        self.assertEqual(d["config"]["theme"], "dark")
+        self.assertNotIn("", d)
+        self.assertNotIn("$", d)
+
+        # 2. set! and data statements compilation
+        compiler = ExpressCompiler(self.catalog)
+        dsl_data = """set $/user/age = 30
+data $/items = ["a", "b"]
+root = Text("Hello")"""
+        envelope = compiler.compile(dsl_data)
+        dm = envelope["createSurface"]["dataModel"]
+        self.assertEqual(dm["user"]["age"], 30)
+        self.assertEqual(dm["items"], ["a", "b"])
+
+        # 3. deleteSurface compilation
+        dsl_del = 'deleteSurface("s1")'
+        env_del = compiler.compile(dsl_del)
+        self.assertEqual(env_del["deleteSurface"]["surfaceId"], "s1")
+
+        # 4. standalone function call compilation
+        dsl_call = 'openUrl("https://example.com")'
+        env_call = compiler.compile(dsl_call)
+        self.assertEqual(env_call["callFunction"]["call"], "openUrl")
+
+        # 5. Schema helper get_property_type
+        self.assertEqual(
+            self.helper.get_property_type("Column", "children"), "ChildList"
+        )
+        self.assertEqual(self.helper.get_property_type("Button", "action"), "Action")
+        self.assertIsNone(self.helper.get_property_type("Unknown", "prop"))
 
 
 if __name__ == "__main__":
