@@ -14,7 +14,6 @@
 
 import os
 import sys
-import traceback
 import argparse
 from inspect_ai import eval_set
 from tasks import a2ui_v0_9_1_eval, a2ui_v1_0_eval
@@ -34,6 +33,20 @@ def main() -> None:
         "--sanity",
         action="store_true",
         help="Run a quick sanity check (2 samples, gemini-3.1-flash-lite, 0 retry)",
+    )
+    parser.add_argument(
+        "--dataset",
+        type=str,
+        default=None,
+        help=(
+            "Evaluate only a specific dataset (e.g. 'customer_a_data' or 'core_v0_9_1')"
+        ),
+    )
+    parser.add_argument(
+        "--datasets",
+        type=str,
+        default=None,
+        help="Comma-separated list of datasets to evaluate",
     )
     parser.add_argument(
         "--model",
@@ -109,6 +122,11 @@ def main() -> None:
     sample_shuffle = None if args.sanity else args.sample_shuffle
     epochs = None if args.sanity else args.epochs
 
+    # Resolve dataset filters
+    selected_dataset = args.dataset
+    if args.datasets:
+        selected_dataset = args.datasets
+
     # Parse and validate strategies
     selected_strategies = []
     raw_strategies = args.strategies if args.strategies else ["direct", "subagent_tool"]
@@ -130,7 +148,11 @@ def main() -> None:
             if strat in ["express", "elemental", "atom", "direct"]
             else a2ui_v0_9_1_eval
         )
-        task_obj = task_func(strategy=strat, grading_model=args.grading_model)
+        task_obj = task_func(
+            strategy=strat,
+            grading_model=args.grading_model,
+            dataset=selected_dataset,
+        )
         if args.prompt:
             prompt_list = [p.lower() for p in args.prompt]
             filtered = [
@@ -155,6 +177,7 @@ def main() -> None:
         "limit": limit,
         "sample_shuffle": sample_shuffle,
         "working_limit": 350,
+        "log_dir_allow_dirty": True,
     }
     if epochs is not None:
         eval_set_kwargs["epochs"] = epochs

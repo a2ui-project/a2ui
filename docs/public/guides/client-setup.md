@@ -60,24 +60,42 @@ Once installed, you can use the renderer in your app. The Angular renderer provi
 
 ### Setup Example (v0.9)
 
-A2UI uses versioned imports for its protocol-specific implementations. For v0.9, configure your application providers as follows:
+A2UI uses versioned imports for its protocol-specific implementations. For v0.9, configure your application providers using `provideA2Ui` as follows:
 
 ```typescript
 import {ApplicationConfig} from '@angular/core';
-import {A2UI_RENDERER_CONFIG, A2uiRendererService, BasicCatalog} from '@a2ui/angular/v0_9';
+import {provideA2Ui, BasicCatalog} from '@a2ui/angular/v0_9';
 
 export const appConfig: ApplicationConfig = {
   providers: [
-    {
-      provide: A2UI_RENDERER_CONFIG,
-      useValue: {
-        catalogs: [new BasicCatalog()],
-        actionHandler: action => {
-          console.log('Action dispatched:', action);
-        },
+    provideA2Ui({
+      catalogs: [new BasicCatalog()],
+      actionHandler: action => {
+        console.log('Action dispatched:', action);
       },
-    },
-    A2uiRendererService,
+    }),
+  ],
+};
+```
+
+#### Dependency Injection in Action Handler
+
+If your `actionHandler` needs to inject dependencies (for example, to call a service when an action is dispatched), you can pass a factory function to `provideA2Ui`. Within this factory function, you can use Angular's `inject()` function:
+
+```typescript
+import {ApplicationConfig, inject} from '@angular/core';
+import {provideA2Ui, BasicCatalog} from '@a2ui/angular/v0_9';
+import {MyActionDispatcherService} from './my-action-dispatcher.service';
+
+export const appConfig: ApplicationConfig = {
+  providers: [
+    provideA2Ui(() => {
+      const dispatcher = inject(MyActionDispatcherService);
+      return {
+        catalogs: [new BasicCatalog()],
+        actionHandler: action => dispatcher.dispatch(action),
+      };
+    }),
   ],
 };
 ```
