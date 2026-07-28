@@ -143,10 +143,12 @@ Now implement the Angular component:
 ```typescript
 import {CatalogComponent} from '@a2ui/angular/v0_9';
 import {Component, computed} from '@angular/core';
+import {BaseChartDirective} from 'ng2-charts';
 import {ChartApi} from './api';
 
 @Component({
   selector: 'a2ui-chart',
+  imports: [BaseChartDirective],
   template: `
     <div>
       <h2>{{ title() }}</h2>
@@ -157,7 +159,17 @@ import {ChartApi} from './api';
 export class Chart extends CatalogComponent<typeof ChartApi> {
   protected readonly chartType = computed(() => this.props()['type']?.value() || 'pie');
   protected readonly title = computed(() => this.props()['title']?.value() || '');
-  protected readonly chartData = computed(() => this.props()['chartData']?.value() || []);
+  protected readonly chartData = computed(() => {
+    const rawData = this.props()['chartData']?.value() || [];
+    return {
+      labels: rawData.map(item => item.label),
+      datasets: [
+        {
+          data: rawData.map(item => item.value),
+        },
+      ],
+    };
+  });
 }
 ```
 
@@ -172,7 +184,7 @@ Keep these key points in mind when implementing components:
 
 Once the component is implemented, register it in your client catalog. This maps the component name (used by agents) to the implementation class.
 
-In v0.9, you use the `AngularCatalog` class to define your catalog.
+You use the `AngularCatalog` class to define your catalog.
 
 ```typescript
 import {AngularCatalog, BASIC_COMPONENTS, BASIC_FUNCTIONS} from '@a2ui/angular/v0_9';
@@ -194,7 +206,6 @@ export const RIZZ_CHARTS_CATALOG = new AngularCatalog(
 Key points for registration:
 
 -   **Eager Registration**: Component classes are registered directly in the catalog definition.
--   **No Manual Bindings**: Unlike previous versions, you do not need to define manual `inputBinding`s. The `ComponentBinder` automatically maps schema properties to the component's `props` input.
 
 ---
 

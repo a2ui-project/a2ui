@@ -279,6 +279,11 @@ export const MY_CATALOG = new AngularCatalog(
 
 You can see a working example of a client renderer in the [Orchestrator demo](../../../samples/community/client/angular/projects/orchestrator/src/a2ui-catalog/catalog.ts).
 
+> [!NOTE]
+> The Orchestrator demo currently uses v0.8 APIs. For a v0.9 example of catalog registration, see the [DemoCatalog](../../../renderers/angular/a2ui_explorer/src/app/demo-catalog.ts) in the Angular explorer.
+>
+> Additionally, for client-side functions, the client determines the function's execution boundary (such as `clientOnly` status) at runtime by reading its configuration from the active catalog definition.
+
 ## A2UI Catalog Negotiation
 
 Because clients and agents can support multiple catalogs, they must agree on which catalog to use through a catalog negotiation handshake.
