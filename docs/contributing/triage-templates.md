@@ -1,26 +1,6 @@
 # A2UI Standard Triage Replies
 
-Canonical replies the team has agreed on for recurring triage cases. Check this list
-**before** drafting a new response.
-
-## How to use these replies
-
-1. **Match first.** If the issue or PR fits one of the cases below, use that reply.
-2. **Verbatim by default.** Post the reply as written when the case matches cleanly. These
-   texts encode team policy and agreed tone, so do not rewrite them for style — the
-   [natural-writing](../../.agents/skills/natural-writing/SKILL.md) guidance applies to
-   replies you draft yourself, not to these.
-3. **Modify only when the case needs it.** Fill in every placeholder (`<link to new PR>`,
-   canonical issue number, the specific missing detail), and add at most one or two
-   sentences of issue-specific context. Keep the policy sentences intact.
-4. **Apply the paired triage fields.** Each case lists the priority and action that go with
-   it, so the reply and the labels stay consistent.
-5. **Fall back deliberately.** If no case matches, draft a reply following the response
-   guidelines in
-   [triage_criteria.md](../../.agents/skills/a2ui-issue-triage/references/triage_criteria.md),
-   and say in your summary that no standard reply applied.
-
----
+Canonical replies for recurring triage cases. 
 
 ## Issues
 
