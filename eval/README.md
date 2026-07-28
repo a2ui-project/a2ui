@@ -103,4 +103,4 @@ uv run python -m pytest
 
 ## Iterative Format Optimization Framework
 
-For benchmarking, testing, and optimizing alternative A2UI inference formats (Atom, Express, Elemental), see the [Iterative Format Optimization Guide](skills/inference-format-optimizer/SKILL.md).
+For benchmarking, testing, and optimizing alternative A2UI inference formats (Atom, Express, Elemental), see the [Iterative Format Optimization Guide](iterative_format_optimizer/skills/inference-format-optimizer/SKILL.md).
