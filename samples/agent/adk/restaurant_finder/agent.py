@@ -61,7 +61,7 @@ logger = logging.getLogger(__name__)
 class RestaurantAgent:
     """An agent that finds restaurants based on user criteria."""
 
-    SUPPORTED_CONTENT_TYPES = ["text", "text/plain"]
+    SUPPORTED_CONTENT_TYPES = ["text/plain"]
 
     def __init__(self, base_url: str):
         self.base_url = base_url

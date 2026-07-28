@@ -14,12 +14,12 @@ The framework adopts the three-pillar architecture of Inspect AI—Tasks, Solver
 
 | Inspect Component | A2UI Implementation Detail                                                 | Primary Responsibility                                            |
 | :---------------- | :------------------------------------------------------------------------- | :---------------------------------------------------------------- |
-| Dataset           | Encrypted archives resolved into EvalSet JSON.                             | Providing structured prompts and ground-truth UI targets.         |
-| Solver            | Uses `A2uiSchemaManager` to inject system prompt, then generates response. | Orchestrating the model's attempt to generate a valid UI payload. |
-| Scorer            | A hybrid of SDK-based validation and LLM-as-a-judge.                       | Determining the accuracy and usability of the generated JSON.     |
+| Dataset           | Encrypted YAML files conforming to `datasets/dataset_schema.json`.         | Providing structured `messages` turns, catalogs, and UI targets.  |
+| Solver            | Uses `A2uiSchemaManager` to inject system prompt and protocol rules.       | Orchestrating the model's attempt to generate a valid UI payload. |
+| Scorer            | Algorithmic `a2ui_scorer` validation and `measured_model_graded_qa` judge. | Determining technical validity and semantic intent quality.       |
 | Model Provider    | Support for Gemini, OpenAI, Anthropic, and local vLLM.                     | Standardizing API interactions across diverse model families.     |
 
-The interaction flow begins with the resolution of a dataset sample. A solver then prepares the environment, using `A2uiSchemaManager` to provide the model with the correct protocol schemas and a "catalog" of available A2UI components—a critical constraint of the A2UI security model. The model generates a response, which is then parsed and corrected using the SDK's parser tools, and finally passed through a series of Scorers to assess its technical validity and semantic alignment with the user's intent.
+The interaction flow begins with loading a dataset sample. Each sample specifies a `catalog` path, optional domain `system_prompt`, and a list of `messages` representing the conversation history (including user requests, assistant responses, and tool calls). The solver merges the domain system prompt with A2UI protocol instructions and passes the conversational context to the model. The generated UI payload is parsed and evaluated by `a2ui_scorer` for schema validity and `measured_model_graded_qa` for semantic quality.
 
 ### **Integration with A2UI Python SDK**
 
