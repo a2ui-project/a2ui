@@ -55,19 +55,19 @@ struct TestSurfaceTheme: SurfaceTheme {
 func makeTestCatalog() throws -> Catalog {
   let buttonSchema = try Schema(
     instance: """
-    {
-      "type": "object",
-      "properties": {
-        "id": { "type": "string" },
-        "component": { "type": "string" },
-        "label": { "$ref": "https://a2ui.org/schemas/v0_9_1/common.json#/$defs/DynamicString" },
-        "enabled": { "$ref": "https://a2ui.org/schemas/v0_9_1/common.json#/$defs/DynamicBoolean" },
-        "onClick": { "$ref": "https://a2ui.org/schemas/v0_9_1/common.json#/$defs/Action" },
-        "children": { "$ref": "https://a2ui.org/schemas/v0_9_1/common.json#/$defs/ChildList" }
-      },
-      "required": ["id", "component"]
-    }
-    """,
+      {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string" },
+          "component": { "type": "string" },
+          "label": { "$ref": "https://a2ui.org/schemas/v0_9_1/common.json#/$defs/DynamicString" },
+          "enabled": { "$ref": "https://a2ui.org/schemas/v0_9_1/common.json#/$defs/DynamicBoolean" },
+          "onClick": { "$ref": "https://a2ui.org/schemas/v0_9_1/common.json#/$defs/Action" },
+          "children": { "$ref": "https://a2ui.org/schemas/v0_9_1/common.json#/$defs/ChildList" }
+        },
+        "required": ["id", "component"]
+      }
+      """,
     remoteSchemas: A2UICommonSchema.allSchemas
   )
 
@@ -105,7 +105,12 @@ struct SurfaceViewModelTests {
       catalogs: [catalog],
       actionHandler: handler
     )
-    let surface = processor.createSurface(surfaceID: "test-surface", catalog: catalog)
+    let surface = SurfaceViewModel(
+      surfaceID: "test-surface",
+      catalog: catalog,
+      actionHandler: handler
+    )
+    processor.surfaceGroupModel.addSurface(surface)
     return (processor, surface, handler)
   }
 
@@ -116,7 +121,7 @@ struct SurfaceViewModelTests {
     processor.updateComponents(
       surfaceID: surface.surfaceID,
       components: [
-        ["id": "root", "component": "button", "label": "Click Me"],
+        ["id": "root", "component": "button", "label": "Click Me"]
       ]
     )
     #expect(surface.componentsModel.get("root") != nil)
@@ -128,7 +133,7 @@ struct SurfaceViewModelTests {
     processor.updateComponents(
       surfaceID: "test-surface",
       components: [
-        ["id": "root"],
+        ["id": "root"]
       ]
     )
     #expect(handler.capturedErrors.count == 1)
@@ -142,7 +147,7 @@ struct SurfaceViewModelTests {
     processor.updateComponents(
       surfaceID: "test-surface",
       components: [
-        ["component": "button"],
+        ["component": "button"]
       ]
     )
     #expect(handler.capturedErrors.count == 1)
@@ -156,7 +161,7 @@ struct SurfaceViewModelTests {
     processor.updateComponents(
       surfaceID: "test-surface",
       components: [
-        ["id": "root", "component": "unknown_type"],
+        ["id": "root", "component": "unknown_type"]
       ]
     )
     #expect(handler.capturedErrors.count == 1)
@@ -167,7 +172,7 @@ struct SurfaceViewModelTests {
     processor.updateComponents(
       surfaceID: "test-surface",
       components: [
-        ["id": "root", "component": "button", "label": "Old"],
+        ["id": "root", "component": "button", "label": "Old"]
       ]
     )
     #expect(surface.componentsModel.get("root")?.type == "button")
@@ -176,7 +181,7 @@ struct SurfaceViewModelTests {
     processor.updateComponents(
       surfaceID: "test-surface",
       components: [
-        ["id": "root", "component": "text"],
+        ["id": "root", "component": "text"]
       ]
     )
     // The component should not be stored since "text" isn't in the catalog
@@ -215,7 +220,7 @@ struct SurfaceViewModelTests {
     processor.updateComponents(
       surfaceID: surface.surfaceID,
       components: [
-        ["id": "root", "component": "button", "label": "Hello"],
+        ["id": "root", "component": "button", "label": "Hello"]
       ]
     )
     let root = surface.componentsModel.get("root")
@@ -228,7 +233,7 @@ struct SurfaceViewModelTests {
     processor.updateComponents(
       surfaceID: surface.surfaceID,
       components: [
-        ["id": "root", "component": "button", "label": ["path": "/user/name"]],
+        ["id": "root", "component": "button", "label": ["path": "/user/name"]]
       ]
     )
     let data = surface.dataModel.snapshot()
@@ -242,7 +247,7 @@ struct SurfaceViewModelTests {
     processor.updateComponents(
       surfaceID: surface.surfaceID,
       components: [
-        ["id": "root", "component": "button", "enabled": true],
+        ["id": "root", "component": "button", "enabled": true]
       ]
     )
     let root = surface.componentsModel.get("root")
@@ -263,9 +268,9 @@ struct SurfaceViewModelTests {
             "event": [
               "name": "click",
               "context": ["userId": "123"],
-            ],
+            ]
           ],
-        ],
+        ]
       ]
     )
     let root = surface.componentsModel.get("root")
@@ -286,9 +291,9 @@ struct SurfaceViewModelTests {
             "functionCall": [
               "call": "submit",
               "args": ["formId": "contact"],
-            ],
+            ]
           ],
-        ],
+        ]
       ]
     )
     let root = surface.componentsModel.get("root")
@@ -359,16 +364,16 @@ struct SurfaceViewModelTests {
     // property (no DataBinding wrapping).
     let schema = try Schema(
       instance: """
-      {
-        "type": "object",
-        "properties": {
-          "id": { "type": "string" },
-          "component": { "type": "string" },
-          "items": { "$ref": "https://a2ui.org/schemas/v0_9_1/common.json#/$defs/DynamicStringList" }
-        },
-        "required": ["id", "component"]
-      }
-      """,
+        {
+          "type": "object",
+          "properties": {
+            "id": { "type": "string" },
+            "component": { "type": "string" },
+            "items": { "$ref": "https://a2ui.org/schemas/v0_9_1/common.json#/$defs/DynamicStringList" }
+          },
+          "required": ["id", "component"]
+        }
+        """,
       remoteSchemas: A2UICommonSchema.allSchemas
     )
 
@@ -380,7 +385,8 @@ struct SurfaceViewModelTests {
 
     let handler = TestActionHandler()
     let processor = MessageProcessor(catalogs: [catalog], actionHandler: handler)
-    let surface = processor.createSurface(surfaceID: "s1", catalog: catalog)
+    let surface = SurfaceViewModel(surfaceID: "s1", catalog: catalog, actionHandler: handler)
+    processor.surfaceGroupModel.addSurface(surface)
 
     // Provide a value for "items" that is a plain string array.
     // If classifySchema misidentified "DynamicStringList" as "DynamicString",
@@ -389,7 +395,7 @@ struct SurfaceViewModelTests {
     processor.updateComponents(
       surfaceID: surface.surfaceID,
       components: [
-        ["id": "root", "component": "custom", "items": ["a", "b", "c"]],
+        ["id": "root", "component": "custom", "items": ["a", "b", "c"]]
       ]
     )
 
@@ -450,7 +456,7 @@ struct SurfaceViewModelTests {
             "componentId": "card",
             "path": "/items",
           ],
-        ],
+        ]
       ]
     )
 
@@ -573,3 +579,27 @@ struct DataModelTests {
   }
 }
 
+extension MessageProcessor {
+  fileprivate func updateComponents(
+    surfaceID: String,
+    components: [[String: JSONValue]]
+  ) {
+    processMessage(
+      .updateComponents(
+        UpdateComponentsMessage(surfaceID: surfaceID, components: components)
+      )
+    )
+  }
+
+  fileprivate func updateDataModel(
+    surfaceID: String,
+    path: String,
+    value: JSONValue?
+  ) {
+    processMessage(
+      .updateDataModel(
+        UpdateDataModelMessage(surfaceID: surfaceID, path: path, value: value)
+      )
+    )
+  }
+}

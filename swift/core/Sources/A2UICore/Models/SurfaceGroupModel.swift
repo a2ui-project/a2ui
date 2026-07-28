@@ -25,12 +25,16 @@ import OrderedJSON
 /// in the `web_core` reference implementation.
 public final class SurfaceGroupModel: @unchecked Sendable, ObservableObject {
   private let lock = NSRecursiveLock()
-  private var surfaces: [String: SurfaceViewModel] = [:]
-  private var sendDataModelSurfaces: Set<String> = []
+  private var _surfaces: [String: SurfaceViewModel] = [:]
 
   /// The dictionary of active surfaces, published to the UI on the
   /// Main Thread.
   @Published public private(set) var surfacesMap: [String: SurfaceViewModel] = [:]
+
+  /// A thread-safe snapshot of all active surfaces.
+  public var surfaces: [String: SurfaceViewModel] {
+    lock.withLock { _surfaces }
+  }
 
   public init() {}
 
@@ -42,8 +46,8 @@ public final class SurfaceGroupModel: @unchecked Sendable, ObservableObject {
   /// silently ignored (matching `web_core`'s behavior).
   public func addSurface(_ vm: SurfaceViewModel) {
     lock.withLock {
-      guard surfaces[vm.surfaceID] == nil else { return }
-      surfaces[vm.surfaceID] = vm
+      guard _surfaces[vm.surfaceID] == nil else { return }
+      _surfaces[vm.surfaceID] = vm
       publishSnapshot()
     }
   }
@@ -51,51 +55,9 @@ public final class SurfaceGroupModel: @unchecked Sendable, ObservableObject {
   /// Removes a surface from the group by its ID.
   public func removeSurface(id: String) {
     lock.withLock {
-      guard surfaces[id] != nil else { return }
-      surfaces.removeValue(forKey: id)
-      sendDataModelSurfaces.remove(id)
+      guard _surfaces[id] != nil else { return }
+      _surfaces.removeValue(forKey: id)
       publishSnapshot()
-    }
-  }
-
-  // MARK: - Surface Lookup
-
-  /// Retrieves a surface by its ID.
-  public func surface(id: String) -> SurfaceViewModel? {
-    lock.withLock { surfaces[id] }
-  }
-
-  /// Returns a snapshot of all active surfaces.
-  public func allSurfaces() -> [String: SurfaceViewModel] {
-    lock.withLock { surfaces }
-  }
-
-  // MARK: - send Data Model
-
-  /// Marks a surface as requesting data-model reporting.
-  public func setSendDataModel(surfaceID: String, enabled: Bool) {
-    lock.withLock {
-      if enabled {
-        sendDataModelSurfaces.insert(surfaceID)
-      } else {
-        sendDataModelSurfaces.remove(surfaceID)
-      }
-    }
-  }
-
-  /// Aggregates the data models of all surfaces that have
-  /// `sendDataModel` enabled.
-  ///
-  /// Returns `nil` if no surfaces have the flag set.
-  public func getClientDataModel() -> JSONValue? {
-    lock.withLock {
-      var result: OrderedDictionary<String, JSONValue> = [:]
-      for surfaceID in sendDataModelSurfaces {
-        guard let vm = surfaces[surfaceID] else { continue }
-        result[surfaceID] = vm.dataModel.snapshot()
-      }
-      guard !result.isEmpty else { return nil }
-      return .object(result)
     }
   }
 

@@ -23,9 +23,18 @@ public final class MessageParser: Sendable {
   }
 
   /// Parses a `ServerToClientMessage` from a JSON-encoded string.
+  ///
+  /// If decoding fails, extracts the `surfaceId` from the raw string if present
+  /// and throws a ``MessageParseError`` containing the extracted surface ID
+  /// and underlying decoding error.
   public func parse(jsonString: String) throws -> ServerToClientMessage {
     let data = Data(jsonString.utf8)
-    return try decode(jsonData: data)
+    do {
+      return try decode(jsonData: data)
+    } catch {
+      let surfaceID = extractSurfaceID(fromLine: jsonString)
+      throw MessageParseError(surfaceID: surfaceID, underlyingError: error)
+    }
   }
 
   /// Decodes a `ServerToClientMessage` from raw JSON data.
@@ -34,12 +43,7 @@ public final class MessageParser: Sendable {
   }
 
   /// Best-effort extraction of a `surfaceId` from a raw JSON line.
-  ///
-  /// This is used as a fallback when `parse(jsonString:)` fails, so
-  /// the caller can still attribute the error to the correct
-  /// surface. Returns `nil` if the JSON is malformed or contains no
-  /// `surfaceId` field.
-  public func extractSurfaceID(fromLine line: String) -> String? {
+  private func extractSurfaceID(fromLine line: String) -> String? {
     guard let data = line.data(using: .utf8),
       let dict = try? JSONSerialization.jsonObject(with: data)
         as? [String: Any]

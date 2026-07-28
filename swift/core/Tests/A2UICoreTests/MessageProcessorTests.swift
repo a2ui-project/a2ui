@@ -62,14 +62,14 @@ struct MessageParserTests {
 
   @Test func parseInvalidJsonThrows() throws {
     let parser = MessageParser()
-    #expect(throws: DecodingError.self) {
+    #expect(throws: MessageParseError.self) {
       try parser.parse(jsonString: "not valid json")
     }
   }
 
   @Test func parseEmptyObjectThrows() throws {
     let parser = MessageParser()
-    #expect(throws: DecodingError.self) {
+    #expect(throws: MessageParseError.self) {
       try parser.parse(jsonString: "{}")
     }
   }
@@ -123,7 +123,7 @@ struct MessageProcessorTests {
           }
         }
         """)
-    #expect(processor.getSurface("s1") != nil)
+    #expect(processor.surfaceGroupModel.surfaces["s1"] != nil)
   }
 
   @Test func processCreateSurfaceWithUnknownCatalogThrows() throws {
@@ -158,7 +158,7 @@ struct MessageProcessorTests {
           }
         }
         """)
-    #expect(processor.getSurface("s1") != nil)
+    #expect(processor.surfaceGroupModel.surfaces["s1"] != nil)
   }
 
   // MARK: - Update Components
@@ -191,7 +191,7 @@ struct MessageProcessorTests {
           }
         }
         """)
-    let vm = processor.getSurface("s1")
+    let vm = processor.surfaceGroupModel.surfaces["s1"]
     let components = vm?.componentsModel.snapshot()
     #expect(components?["root"] != nil)
   }
@@ -238,7 +238,7 @@ struct MessageProcessorTests {
           }
         }
         """)
-    let vm = processor.getSurface("s1")
+    let vm = processor.surfaceGroupModel.surfaces["s1"]
     let data = vm?.dataModel.snapshot()
     #expect(data?["user/name"]?.stringValue == "Alice")
   }
@@ -266,7 +266,7 @@ struct MessageProcessorTests {
           }
         }
         """)
-    #expect(processor.getSurface("s1") == nil)
+    #expect(processor.surfaceGroupModel.surfaces["s1"] == nil)
   }
 
   @Test func processDeleteSurfaceForMissingSurfaceThrows() throws {
@@ -289,7 +289,7 @@ struct MessageProcessorTests {
 
   @Test func processInvalidJsonRoutesError() throws {
     let (processor, handler) = try makeProcessor()
-    #expect(throws: DecodingError.self) {
+    #expect(throws: MessageParseError.self) {
       try processor.process(line: "not valid json")
     }
     #expect(handler.capturedErrors.count == 1)
@@ -319,7 +319,7 @@ struct MessageProcessorTests {
           }
         }
         """)
-    let surfaces = processor.surfaceGroupModel.allSurfaces()
+    let surfaces = processor.surfaceGroupModel.surfaces
     #expect(surfaces.count == 2)
     #expect(surfaces["s1"] != nil)
     #expect(surfaces["s2"] != nil)
@@ -327,7 +327,7 @@ struct MessageProcessorTests {
 
   @Test func groupSurfaceReturnsNilForUnknownID() throws {
     let (processor, _) = try makeProcessor()
-    #expect(processor.getSurface("unknown") == nil)
+    #expect(processor.surfaceGroupModel.surfaces["unknown"] == nil)
   }
 
   // MARK: - sendDataModel

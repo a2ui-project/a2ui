@@ -14,4 +14,3 @@
 
 /// A marker protocol representing catalog-defined visual theme parameters.
 public protocol SurfaceTheme: Sendable {}
-

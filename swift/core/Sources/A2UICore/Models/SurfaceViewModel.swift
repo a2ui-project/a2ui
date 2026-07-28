@@ -33,6 +33,7 @@ public final class SurfaceViewModel: @unchecked Sendable, ObservableObject {
 
   public let surfaceID: String
   public let catalog: Catalog
+  public let sendDataModel: Bool
 
   public let dataModel: DataModel
   public let componentsModel: SurfaceComponentsModel
@@ -51,10 +52,12 @@ public final class SurfaceViewModel: @unchecked Sendable, ObservableObject {
   public init(
     surfaceID: String,
     catalog: Catalog,
-    actionHandler: (any ActionHandling)? = nil
+    actionHandler: (any ActionHandling)? = nil,
+    sendDataModel: Bool = false
   ) {
     self.surfaceID = surfaceID
     self.catalog = catalog
+    self.sendDataModel = sendDataModel
     self.actionHandler = actionHandler
     self.dataModel = DataModel()
     self.componentsModel = SurfaceComponentsModel()
@@ -107,7 +110,8 @@ public final class SurfaceViewModel: @unchecked Sendable, ObservableObject {
     // "...#/$defs/DynamicString") and match exactly to avoid
     // misidentifying types like "DynamicStringList" as "DynamicString".
     if let ref = schemaJSON["$ref"]?.stringValue {
-      let typeName = ref
+      let typeName =
+        ref
         .split(separator: "/")
         .last
         .map(String.init)
