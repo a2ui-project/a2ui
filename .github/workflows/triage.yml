@@ -32,12 +32,14 @@ on:
     types: [opened, edited, labeled, unlabeled, assigned, unassigned, reopened]
   issue_comment:
     types: [created]
-  pull_request_target:
-    types: [opened, edited, reopened, ready_for_review, synchronize]
   pull_request_review:
     types: [submitted]
   pull_request_review_comment:
     types: [created]
+  # PR lifecycle events (opened/synchronize/...) are deliberately absent: the
+  # only PR rule needs a day of maintainer silence, and pushes and edits are
+  # not contributions, so none of those events can change a flag when they
+  # fire. Comments, reviews and the daily cron cover every transition.
   # Allow manual runs from the Actions tab.
   workflow_dispatch:
 
