@@ -7,6 +7,11 @@
   "properties": {
     "$schema": {"type": "string"},
     "$id": {"type": "string"},
+    "version": {
+      "type": "string",
+      "default": "v0.9",
+      "description": "The A2UI specification version of this catalog definition (e.g. 'v1.0'). Defaults to 'v0.9' if omitted."
+    },
     "$defs": {
       "type": "object",
       "description": "Standardized schema definitions referenced from outside the catalog file.",

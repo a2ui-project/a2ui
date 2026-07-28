@@ -25,6 +25,7 @@ Version 1.0 differs from 0.9 in the following ways:
 - Added `callableFrom` (enum: `rendererOnly`, `agentOnly`, `rendererOrAgent`) to `FunctionDefinition` to restrict where a function can be invoked.
 - Added an optional `instructions` field to the `Catalog` schema to embed design guidelines and component usage rules directly in the catalog, replacing the external `rules.txt` file.
 - Supported standard JSON Schema metadata fields (`$schema`, `$id`, `title`, and `description`) in the Catalog object definition. Since the Catalog schema restricts properties with `additionalProperties: false`, this ensures inline catalogs containing standard schema metadata do not fail schema validation.
+- Added a `version` field (e.g., `"version": "v1.0"`) to catalog definition metadata (`catalog_definition.json`). If omitted, `version` defaults to `"v0.9"` for backward compatibility; catalog definitions targeting `v1.0` and beyond MUST specify `"version"`.
 - Enforced Unicode Standard Annex #31 (UAX #31) identifier naming constraints (`XID_Start`, `XID_Continue`) across component names, function names, and argument keys.
 
 ### 2.2. Standard catalogs (basic)

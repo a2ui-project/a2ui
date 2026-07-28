@@ -61,6 +61,7 @@ export interface ComponentDefinition {
 export interface CatalogSchema {
   $schema?: string;
   $id?: string;
+  version?: string;
   title?: string;
   description?: string;
   catalogId?: string;
