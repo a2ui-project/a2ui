@@ -185,11 +185,10 @@ def guess_triage_heuristics(title, body):
                 " diagnose this."
             )
 
-    # Guess status: waiting-for-user-response if repro steps are obviously missing
-    # in bug reports
+    # Guess waiting-for-author-response if repro steps are obviously missing in bug reports
     if "type: bug" in labels:
         if not any(w in text for w in ["reproduce", "repro", "steps", "run", "how to"]):
-            labels.append("status: waiting-for-user-response")
+            labels.append("waiting-for-author-response")
             action = "needs_info"
             reply = (
                 "Please provide a minimal reproduction schema or code snippet to help"

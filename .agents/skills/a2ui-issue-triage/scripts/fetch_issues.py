@@ -21,10 +21,6 @@ import os
 import re
 import shutil
 
-# Must match FLAG_LABEL in scripts/triage.mjs, which owns this label and uses it to
-# mark the second-line triage queue described in docs/contributing/triage.md.
-FLAG_LABEL = "status: needs-triage"
-
 
 def run_cmd(args):
     try:
@@ -117,15 +113,8 @@ def main():
         except Exception as e:
             print(f"Warning: Failed to parse repository labels: {e}", file=sys.stderr)
 
-    print(f"Fetching the {FLAG_LABEL} queue from {args.repo}...")
-    # 2. Fetch the second-line triage queue with key fields.
-    #
-    # The queue is defined by the FLAG_LABEL, which scripts/triage.mjs reconciles on
-    # every run against all of its rules: issues without a priority, P0/P1 without an
-    # assignee, prioritized issues gone stale, and unanswered external comments.
-    # Selecting on the label keeps this script in step with those rules instead of
-    # reimplementing a subset of them. `gh issue list` returns issues only, so flagged
-    # PRs are left to the oncall engineer.
+    print(f"Fetching open issues from {args.repo}...")
+    # 2. Fetch open issues with key fields
     issues_json = run_cmd([
         "gh",
         "issue",
@@ -134,8 +123,6 @@ def main():
         args.repo,
         "--state",
         "open",
-        "--label",
-        FLAG_LABEL,
         "--limit",
         "100",
         "--json",
@@ -146,10 +133,24 @@ def main():
         print("Failed to fetch issues or repository is empty.", file=sys.stderr)
         sys.exit(1)
 
-    untriaged_issues = json.loads(issues_json)
+    issues = json.loads(issues_json)
+    priority_labels = {"P0", "P1", "P2", "P3", "P4"}
+    untriaged_issues = []
+
+    for issue in issues:
+        # Check if the issue has a priority label
+        has_priority = False
+        labels = issue.get("labels", [])
+        for l in labels:
+            if l.get("name") in priority_labels:
+                has_priority = True
+                break
+
+        if not has_priority:
+            untriaged_issues.append(issue)
 
     print(
-        f"Found {len(untriaged_issues)} flagged issues. Fetching comments for up to"
+        f"Found {len(untriaged_issues)} untriaged issues. Fetching comments for up to"
         f" {args.limit}..."
     )
 

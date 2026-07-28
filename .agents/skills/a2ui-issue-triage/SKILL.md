@@ -7,15 +7,9 @@ description: Automates the triage of GitHub issues in the A2UI repository. Helps
 
 This skill guides the process of fetching, analyzing, reviewing, and applying triage decisions to GitHub issues in the A2UI repository using a local interactive dashboard.
 
-It automates part of the second-line triage described in [docs/contributing/triage.md](../../../docs/contributing/triage.md), which is the source of truth for the team's triage policy.
-
-> [!IMPORTANT]
-> **STANDARD REPLIES**
-> Before drafting any reply, check [templates.md](references/templates.md) for a matching case. Use the standard reply verbatim when the case matches, or with minimal modification (filling in placeholders and issue-specific context) when it nearly matches. Only write a reply from scratch when no case applies.
-
 > [!IMPORTANT]
 > **WRITING GUIDELINES**
-> When drafting replies, explanations, or any prose, refer to the [natural-writing](../natural-writing/SKILL.md) skill to ensure clarity, accuracy, and tone. This does not apply to the standard replies in [templates.md](references/templates.md) — those are agreed team wording and are not rewritten for style.
+> When drafting replies, explanations, or any prose, refer to the [natural-writing](../natural-writing/SKILL.md) skill to ensure clarity, accuracy, and tone.
 
 ---
 
@@ -36,17 +30,17 @@ Use the fetch script to retrieve all open issues lacking a priority label (`P0`,
 
 Process the raw issues and generate recommended triage fields based on the project's triage criteria.
 
-1. Read the triage criteria reference document: [triage_criteria.md](references/triage_criteria.md), and the standard replies: [templates.md](references/templates.md).
+1. Read the triage criteria reference document: [triage_criteria.md](references/triage_criteria.md).
 2. For each issue in `raw_issues.json`, evaluate its description and comments to determine:
-   - **Priority**: `P0` (Urgent), `P1` (High), `P2` (Medium), `P3` (Low), `P4` (not a priority, stays open), or `None`.
+   - **Priority**: `P0` (Urgent), `P1` (High), `P2` (Medium), `P3` (Low), or `None`.
    - **Assignee**: Recommended owner based on the affected component or area.
-   - **Action**: `investigate`, `assign_and_fix`, `backlog`, `needs_info`, `close_duplicate`, `close_invalid`, or `close_resolved`. These are the only accepted values; the dashboard falls back to `investigate` for anything else.
+   - **Action**: `investigate`, `assign_and_fix`, `needs_info`, `close_duplicate`, `close_invalid`, or `close_resolved`.
    - **Labels**: Applicable repository labels (e.g. `type: bug`, `component: lit renderer`).
-   - **Reply**: The matching standard reply from [templates.md](references/templates.md), used as written or with placeholders filled in. Only when no case matches, draft a polite, structured response addressing the author. When a standard reply is used, apply the priority and action it is paired with.
+   - **Reply**: A polite, structured draft response addressing the author.
 3. If an issue is a potential duplicate, perform at most three targeted GitHub searches to find matching canonical issues before suggesting `close_duplicate`.
 4. **Natively Orchestrate Subagents**: Instead of running a Python script to spawn subagents (which can fail due to local workstation gRPC credential policies), the parent agent should natively orchestrate the parallel evaluations:
    - Load the first N issues (defaulting to 10, or as requested) from `raw_issues.json`.
-   - Call the `invoke_subagent` tool in parallel for those issues. Prompt each subagent to analyze its assigned issue against the guidelines in [triage_criteria.md](references/triage_criteria.md), to check its issue against the standard replies in [templates.md](references/templates.md) first, and to return a structured JSON block containing `priority`, `action`, `labels`, and `reply`. Tell each subagent to report which standard reply it used, or that none matched.
+   - Call the `invoke_subagent` tool in parallel for those issues. Prompt each subagent to analyze its assigned issue against the guidelines in [triage_criteria.md](references/triage_criteria.md) and return a structured JSON block containing `priority`, `action`, `labels`, and `reply`.
    - Once all subagents report back, compile their recommendations into the standard schema:
      - Map component labels to suggested assignees using git log history if necessary, and include a short sentence in `assignee_reason` explaining why they were chosen (e.g., "Suggesting gspencer because they recently modified related code").
      - Inject `total_issues_count` (preserving the total count from the raw issues JSON).
@@ -54,43 +48,31 @@ Process the raw issues and generate recommended triage fields based on the proje
 
 ---
 
-### Step 3: Review and Apply in the Dashboard
+### Step 3: Launch Review Dashboard
 
-Launch the interactive web dashboard. The oncall engineer reviews one issue at a time and applies each to GitHub from the dashboard itself, so there is no separate bulk-apply step.
+Launch the interactive web dashboard to allow the oncall engineer to review and refine the suggested triages.
 
 1. Start the local server as a background task, pointing it to your scratch directory:
    `python3 .agents/skills/a2ui-issue-triage/scripts/launch_dashboard.py --data-file "<appDataDir>/brain/<conversation-id>/scratch/issues_to_triage.json" --output-file "<appDataDir>/brain/<conversation-id>/scratch/triage_decisions.json"`
    Set `WaitMsBeforeAsync` to `1000` so the server runs in the background.
-2. **Wait for Completion**: Stop calling tools and go idle. The launcher opens the browser and blocks until the user clicks "Finish" or "Abort". Once the user acts, the background task completes and you receive a notification with the exit status.
-
-In the dashboard, the right-hand pane shows the suggestion for the selected issue. The reviewer can change the **priority** and edit the **comment**; the assignee, action, and labels are shown read-only, because those are the agent's call and are not meant to be re-decided in the browser. Each issue then gets one of two dispositions, both written to GitHub immediately, after which the pane advances to the next unhandled issue:
-
-- **Apply to GitHub** — writes the decision: labels, assignee, comment, closure if the action calls for it, and removal of `status: needs-triage` so the issue leaves the queue without waiting for the next automation run.
-- **Add label 'status: in-discussion'** — parks the issue for the team instead of triaging it. Nothing else changes, and `status: needs-triage` stays: the oncall queue filters out in-discussion issues, so the triage decision simply stays open until the team settles it.
-
-An issue that fails to write reports the error in the pane and stays unhandled, so the rest of the session continues.
+2. **Wait for Completion**: Stop calling tools and go idle. The launcher will automatically open the browser for the user and block until they click "Apply Triages" or "Abort". Once the user acts, the background task will complete, and you will receive a notification with the exit status.
+3. **Verify Exit Status**:
+   - If the task exited with status `0` (approved), proceed to apply the decisions.
+   - If the task exited with a non-zero status (abort), don't modify any issues. You MUST STOP and ask the user for further instructions.
 
 ---
 
-### Step 4: Report the Outcome
+### Step 4: Apply Decisions to GitHub
 
-1. **Verify Exit Status**:
-   - Status `0` means the session finished. Read `triage_decisions.json` from the scratch directory: each decision carries `applied` and `in_discussion` flags set by the server, with `applied_count` and `in_discussion_count` holding the totals.
-   - A non-zero status means the user aborted. Issues written before the abort stay written; report which ones and STOP, asking the user for further instructions.
-2. Summarize what landed. Call out any issue where both flags are `false` — an edited-but-never-applied decision is not on GitHub — and list the in-discussion ones separately, since they still need a triage decision later.
+Once the dashboard task exits successfully, **Execute Approved Decisions**: Run the apply script to update the approved labels, assignees, and comments on GitHub:
 
-The bulk script `apply_triage.py` remains available for applying a decisions file outside the dashboard:
-
-`python3 .agents/skills/a2ui-issue-triage/scripts/apply_triage.py --decisions-file "<path to a decisions file>"`
-
-It applies every decision whose `approved` field is `true`. Decisions written by the dashboard do not carry that field, so re-running it over a finished session is a no-op rather than a double-apply.
+`python3 .agents/skills/a2ui-issue-triage/scripts/apply_triage.py --decisions-file "<appDataDir>/brain/<conversation-id>/scratch/triage_decisions.json"`
 
 ---
 
 ## Bundled Resources
 
 - **[triage_criteria.md](references/triage_criteria.md)**: Authoritative guide for classifying issues, assigning priorities, and drafting response messages.
-- **[templates.md](references/templates.md)**: Standard replies agreed by the team for recurring issue and PR cases, with the priority and action paired with each.
 - **`scripts/fetch_issues.py`**: Script to query open, untriaged issues via the GitHub CLI.
 - **`scripts/suggest_triage.py`**: Helper script to generate initial triage suggestions.
 - **`scripts/launch_dashboard.py`**: Local HTTP server that opens the interactive web dashboard in the user's browser.
