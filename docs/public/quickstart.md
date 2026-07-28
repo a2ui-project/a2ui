@@ -217,18 +217,16 @@ The repository includes several other demos:
 
 See all available A2UI components:
 
-If you're running the gallery from a fresh checkout and encounter missing workspace package errors, build the local workspace packages from the repository root before starting the gallery:
+If you're running the gallery from a fresh checkout, build the gallery and its workspace dependencies first:
 
 ```bash
-yarn workspace @a2ui/web_core build:tsc
-yarn workspace @a2ui/markdown-it build
-yarn workspace @a2ui/lit build:tsc
+cd renderers/lit/a2ui_explorer
+yarn build
 ```
 
 Start the gallery:
 
 ```bash
-cd renderers/lit/a2ui_explorer
 yarn dev
 ```
 
