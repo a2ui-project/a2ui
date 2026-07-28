@@ -94,6 +94,8 @@ def run_evaluation(
     sanity: bool,
     log_dir: str,
     thinking_budget: Optional[int] = None,
+    epochs: Optional[int] = None,
+    temperature: Optional[float] = None,
 ) -> bool:
     """Runs the evaluation framework for a target format strategy.
 
@@ -104,6 +106,8 @@ def run_evaluation(
         sanity: Whether to execute a quick two-sample sanity run.
         log_dir: The target output directory path for evaluation logs.
         thinking_budget: Optional thinking budget constraint for reasoning models.
+        epochs: Optional number of evaluation epochs.
+        temperature: Optional generation temperature.
 
     Returns:
         Whether the evaluation command completed successfully.
@@ -133,6 +137,12 @@ def run_evaluation(
 
     if thinking_budget is not None:
         cmd.extend(["--thinking-budget", str(thinking_budget)])
+
+    if epochs is not None:
+        cmd.extend(["--epochs", str(epochs)])
+
+    if temperature is not None:
+        cmd.extend(["--temperature", str(temperature)])
 
     if sanity:
         cmd.append("--sanity")
