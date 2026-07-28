@@ -67,8 +67,17 @@ def resolve_results_file(target_path: str) -> str:
             except Exception:
                 pass
 
-        # Check budget/unbounded subdirectories if target_path is a format directory
+        # Check flat budget/unbounded baseline files if target_path is a format directory
         for sub in ["unbounded", "budget_0", "budget_897", "budget_1795"]:
+            cand_flat = os.path.join(target_path, f"{sub}_run_meta.json")
+            if os.path.exists(cand_flat):
+                try:
+                    with open(cand_flat, "r", encoding="utf-8") as f:
+                        m_data = json.load(f)
+                        if "metrics" in m_data:
+                            return cand_flat
+                except Exception:
+                    pass
             cand_res = os.path.join(target_path, sub, "results.json")
             if os.path.exists(cand_res):
                 return cand_res

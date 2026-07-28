@@ -888,5 +888,17 @@
     }
   },
   "model": "google/gemini-3.5-flash",
-  "thinking_budget": null
+  "thinking_budget": null,
+  "temperature": 0.0,
+  "dataset": "core_v1_0",
+  "epochs": 5,
+  "run_config": {
+    "format": "elemental",
+    "thinking_budget": null,
+    "temperature": 0.0,
+    "model": "google/gemini-3.5-flash",
+    "dataset": "core_v1_0",
+    "epochs": 5,
+    "run_name": "unbounded"
+  }
 }

@@ -420,5 +420,17 @@
     }
   },
   "model": "google/gemini-3.5-flash",
-  "thinking_budget": 0
+  "thinking_budget": 0,
+  "temperature": 0.0,
+  "dataset": "core_v1_0",
+  "epochs": 1,
+  "run_config": {
+    "format": "elemental",
+    "thinking_budget": 0,
+    "temperature": 0.0,
+    "model": "google/gemini-3.5-flash",
+    "dataset": "core_v1_0",
+    "epochs": 1,
+    "run_name": "budget_0"
+  }
 }
