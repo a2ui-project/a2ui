@@ -49,7 +49,7 @@ from tools import get_contact_info
 
 logger = logging.getLogger(__name__)
 
-SUPPORTED_CONTENT_TYPES = ["text", "text/plain"]
+SUPPORTED_CONTENT_TYPES = ["text/plain"]
 
 dotenv.load_dotenv()
 

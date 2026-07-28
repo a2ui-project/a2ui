@@ -2,6 +2,8 @@
 
 ## How to release packages
 
+Release cadance: every 1-2 weeks.
+
 ### Pub.dev
 
 See https://github.com/flutter/genui/blob/main/docs/contributing/release.md.

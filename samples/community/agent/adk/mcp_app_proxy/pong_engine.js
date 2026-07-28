@@ -1,0 +1,333 @@
+// Copyright 2026 Google LLC
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+/**
+ * Game Engine & Rendering Logic
+ * Manages game state (ball, paddles), user inputs, physics (collision, movement velocity),
+ * and the canvas rendering loop. This script encapsulates the core Pong mechanics and interfaces
+ * with the MCP layer to synchronize critical game state like scores with the backend agent.
+ */
+const canvas = document.getElementById('pong');
+const context = canvas.getContext('2d');
+const container = document.getElementById('container');
+
+function displayOverlay(text = '', buttonText = null) {
+  const overlayEl = document.getElementById('game-overlay');
+  const overlayText = document.getElementById('overlay-text');
+  const startBtn = document.getElementById('start-btn');
+
+  overlayEl.classList.remove('hidden');
+  if (text) overlayText.textContent = text;
+
+  if (buttonText) {
+    startBtn.textContent = buttonText;
+    startBtn.classList.remove('hidden');
+  } else {
+    startBtn.classList.add('hidden');
+  }
+}
+
+function hideOverlay() {
+  const overlayEl = document.getElementById('game-overlay');
+  overlayEl.classList.add('hidden');
+}
+
+// Reference dimensions for scaling
+const REF_WIDTH = 600;
+const REF_HEIGHT = 400;
+let scale = 1;
+
+const ball = {
+  x: 0,
+  y: 0,
+  radius: 8,
+  speed: 5,
+  velocityX: 5,
+  velocityY: 5,
+  color: '#00f2ff',
+};
+
+const user = {
+  x: 0,
+  y: 0,
+  width: 10,
+  height: 100,
+  color: '#00f2ff',
+};
+
+const cpu = {
+  x: 0,
+  y: 0,
+  width: 10,
+  height: 100,
+  color: '#ff00ff',
+};
+
+const net = {
+  x: 0,
+  y: 0,
+  width: 2,
+  height: 10,
+  color: 'rgba(255, 255, 255, 0.1)',
+};
+
+let isRunning = false;
+let isPaused = false;
+
+function resize() {
+  // Update canvas resolution to match display size
+  const rect = canvas.getBoundingClientRect();
+  canvas.width = rect.width;
+  canvas.height = rect.height;
+
+  // Calculate scale factor relative to reference 600x400
+  scale = canvas.width / REF_WIDTH;
+
+  // Update object dimensions
+  ball.radius = 8 * scale;
+  user.width = 10 * scale;
+  user.height = 100 * scale;
+  cpu.width = 10 * scale;
+  cpu.height = 100 * scale;
+  cpu.x = canvas.width - cpu.width;
+
+  net.width = 2 * scale;
+  net.height = 10 * scale;
+  net.x = canvas.width / 2 - net.width / 2;
+
+  // Reset positions if game hasn't started
+  if (!isRunning) {
+    user.y = canvas.height / 2 - user.height / 2;
+    cpu.y = canvas.height / 2 - cpu.height / 2;
+    ball.x = canvas.width / 2;
+    ball.y = canvas.height / 2;
+  }
+}
+
+const resizeObserver = new ResizeObserver(() => resize());
+resizeObserver.observe(canvas);
+
+function drawRect(x, y, w, h, color, glow = false) {
+  context.fillStyle = color;
+  if (glow) {
+    context.shadowBlur = 15 * scale;
+    context.shadowColor = color;
+  } else {
+    context.shadowBlur = 0;
+  }
+  context.fillRect(x, y, w, h);
+  context.shadowBlur = 0;
+}
+
+function drawCircle(x, y, r, color) {
+  context.fillStyle = color;
+  context.beginPath();
+  context.arc(x, y, r, 0, Math.PI * 2, false);
+  context.closePath();
+  context.shadowBlur = 15 * scale;
+  context.shadowColor = color;
+  context.fill();
+  context.shadowBlur = 0;
+}
+
+function drawNet() {
+  for (let i = 0; i <= canvas.height; i += 15 * scale) {
+    drawRect(net.x, net.y + i, net.width, net.height, net.color);
+  }
+}
+
+function resetBall() {
+  ball.x = canvas.width / 2;
+  ball.y = canvas.height / 2;
+  ball.speed = 5 * scale;
+  // Maintain direction but scale magnitude
+  const dirX = ball.velocityX > 0 ? 1 : -1;
+  const dirY = ball.velocityY > 0 ? 1 : -1;
+  ball.velocityX = -dirX * ball.speed;
+  ball.velocityY = dirY * ball.speed * (Math.random() * 2 - 1);
+}
+
+function collision(b, p) {
+  return (
+    b.x + b.radius > p.x &&
+    b.x - b.radius < p.x + p.width &&
+    b.y + b.radius > p.y &&
+    b.y - b.radius < p.y + p.height
+  );
+}
+
+function update() {
+  if (!isRunning || isPaused) return;
+
+  // CPU AI
+  let targetY = ball.y - cpu.height / 2;
+  cpu.y += (targetY - cpu.y) * 0.1;
+
+  // Ball movement
+  ball.x += ball.velocityX;
+  ball.y += ball.velocityY;
+
+  // Wall collision
+  if (ball.y + ball.radius > canvas.height || ball.y - ball.radius < 0) {
+    ball.velocityY = -ball.velocityY;
+  }
+
+  // Paddle collision
+  let player = ball.x < canvas.width / 2 ? user : cpu;
+
+  if (collision(ball, player)) {
+    let collidePoint = ball.y - (player.y + player.height / 2);
+    collidePoint = collidePoint / (player.height / 2);
+
+    let angleRad = collidePoint * (Math.PI / 4);
+    let direction = ball.x < canvas.width / 2 ? 1 : -1;
+
+    ball.velocityX = direction * ball.speed * Math.cos(angleRad);
+    ball.velocityY = ball.speed * Math.sin(angleRad);
+
+    ball.speed += 0.2 * scale;
+  }
+
+  // Check if there is a winner, and update the score via MCP tool call.
+  let winner = null;
+  if (ball.x - ball.radius < 0) {
+    winner = 'cpu';
+  } else if (ball.x + ball.radius > canvas.width) {
+    winner = 'player';
+  }
+
+  if (winner) {
+    syncScore(winner);
+    resetBall();
+  }
+}
+
+function syncScore(player) {
+  if (player === 'player') {
+    localPlayerScore++;
+  } else if (player === 'cpu') {
+    localCpuScore++;
+  }
+
+  console.log('Updating score: ', localPlayerScore, localCpuScore);
+
+  if (player === 'player') {
+    sendNotification('ui/notifications/data-model-change', {
+      key: 'state',
+      subpath: '/player_score',
+      value: localPlayerScore,
+    });
+  } else if (player === 'cpu') {
+    sendNotification('ui/notifications/data-model-change', {
+      key: 'state',
+      subpath: '/cpu_score',
+      value: localCpuScore,
+    });
+  }
+
+  let eventDescription = 'player scored';
+  if (localPlayerScore >= 3) {
+    eventDescription = 'player won the match';
+  } else if (localCpuScore >= 3) {
+    eventDescription = 'cpu won the match';
+  } else if (player === 'cpu') {
+    eventDescription = 'cpu scored';
+  }
+
+  sendRequest('tools/call', {
+    name: 'commentate_pong',
+    arguments: {
+      game_event: `Score: Player ${localPlayerScore} - CPU ${localCpuScore} (${eventDescription}).`,
+      silent: true,
+    },
+  }).catch(e => console.error('Failed to request commentary:', e));
+
+  if (localPlayerScore >= 3 || localCpuScore >= 3) {
+    isPaused = true;
+    displayOverlay(localPlayerScore >= 3 ? 'YOU WIN!' : 'CPU WINS!');
+    sendRequest('ui/requests/function-call', {
+      call: 'showWinnerModal',
+      args: {winner: localPlayerScore >= 3 ? 'player' : 'cpu'},
+    }).catch(e => console.error('Failed to trigger showWinnerModal:', e));
+  }
+}
+
+function render() {
+  drawRect(0, 0, canvas.width, canvas.height, '#000');
+  drawNet();
+  drawRect(user.x, user.y, user.width, user.height, user.color, true);
+  drawRect(cpu.x, cpu.y, cpu.width, cpu.height, cpu.color, true);
+  drawCircle(ball.x, ball.y, ball.radius, ball.color);
+}
+
+function game() {
+  update();
+  render();
+}
+
+canvas.addEventListener('mousemove', evt => {
+  let rect = canvas.getBoundingClientRect();
+  let mouseY = evt.clientY - rect.top - user.height / 2;
+  if (mouseY >= 0 && mouseY <= canvas.height - user.height) {
+    user.y = mouseY;
+  }
+});
+
+window.addEventListener('keydown', evt => {
+  if (evt.key === 'w' || evt.key === 'W') {
+    user.y -= 20 * scale;
+  } else if (evt.key === 's' || evt.key === 'S') {
+    user.y += 20 * scale;
+  } else if (evt.key === 'p' || evt.key === 'P' || evt.key === 'Escape') {
+    togglePause();
+  } else if (evt.key === ' ' && !isRunning) {
+    startGame();
+  } else if (evt.key === ' ' && isRunning) {
+    togglePause();
+  }
+  if (user.y < 0) user.y = 0;
+  if (user.y > canvas.height - user.height) user.y = canvas.height - user.height;
+});
+
+function togglePause() {
+  if (!isRunning) return;
+  isPaused = !isPaused;
+  const pauseBtn = document.getElementById('pause-btn');
+
+  if (isPaused) {
+    displayOverlay('PAUSED', 'Resume');
+    pauseBtn.textContent = 'Resume';
+  } else {
+    hideOverlay();
+    pauseBtn.textContent = 'Pause';
+  }
+}
+
+function startGame() {
+  if (isPaused) {
+    togglePause();
+    return;
+  }
+  hideOverlay();
+  document.getElementById('pause-btn').classList.remove('hidden');
+  isRunning = true;
+  isPaused = false;
+  resetBall();
+}
+
+// Initialize
+resize();
+const framePerSecond = 50;
+setInterval(game, 1000 / framePerSecond);
+render();
