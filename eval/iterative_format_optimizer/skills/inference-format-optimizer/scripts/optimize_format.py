@@ -46,14 +46,11 @@ from utils.reporter import (  # type: ignore[import-not-found]
 
 
 def regenerate_master_index(target_dir: str) -> None:
-    """Scans history directory and rebuilds format-specific and master `history_summary.md` index tables.
+    """Scans history directory and rebuilds master `history_summary.md` index table.
 
     Args:
         target_dir: The filesystem path to the history directory or base eval directory.
     """
-    if target_dir not in sys.path:
-        sys.path.insert(0, target_dir)
-
     if os.path.basename(target_dir.rstrip("/")) == "history":
         history_dir = target_dir
         master_index_file = os.path.join(
@@ -172,8 +169,6 @@ def regenerate_master_index(target_dir: str) -> None:
             }
             fmt_runs.append(run_dict)
             all_master_runs.append(run_dict)
-
-            pass
 
     all_master_runs.sort(
         key=lambda r: (r["format"], int(r["id"]) if r["id"].isdigit() else 0)

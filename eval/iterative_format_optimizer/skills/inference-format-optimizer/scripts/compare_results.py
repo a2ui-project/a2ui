@@ -44,9 +44,15 @@ def resolve_results_file(target_path: str) -> str:
         elif target_path.endswith(".eval"):
             uv_bin = shutil.which("uv") or "uv"
             dump_cmd = [uv_bin, "run", "inspect", "log", "dump", target_path]
-            data = json.loads(
-                subprocess.check_output(dump_cmd, text=True, encoding="utf-8")
-            )
+            try:
+                dump_output = subprocess.check_output(
+                    dump_cmd, text=True, encoding="utf-8"
+                )
+                data = json.loads(dump_output)
+            except (subprocess.CalledProcessError, json.JSONDecodeError) as e:
+                raise ValueError(
+                    f"Failed to dump inspect log file '{target_path}': {e}"
+                ) from e
             temp_json = target_path + ".json"
             with open(temp_json, "w", encoding="utf-8") as f:
                 json.dump(data, f)
