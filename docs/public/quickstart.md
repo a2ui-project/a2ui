@@ -217,8 +217,19 @@ The repository includes several other demos:
 
 See all available A2UI components:
 
+If you're running the gallery from a fresh checkout and encounter missing workspace package errors, build the local workspace packages from the repository root before starting the gallery:
+
 ```bash
-yarn start gallery
+yarn workspace @a2ui/web_core build:tsc
+yarn workspace @a2ui/markdown-it build
+yarn workspace @a2ui/lit build:tsc
+```
+
+Start the gallery:
+
+```bash
+cd renderers/lit/a2ui_explorer
+yarn dev
 ```
 
 This runs a client-only demo showcasing every standard component (Card, Button, TextField, Timeline, etc.) with live examples and code samples.
