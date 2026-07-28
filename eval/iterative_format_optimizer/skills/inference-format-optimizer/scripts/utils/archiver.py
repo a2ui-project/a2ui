@@ -146,7 +146,12 @@ def archive_run(
     # 4. Extract metrics & write run_meta.json
     temp_dir = log_dir
     if not temp_dir or not os.path.exists(temp_dir):
-        logs_parent = script_dir.parent / "logs"
+        base_opt_dir = (
+            detected_root / "eval" / "iterative_format_optimizer"
+            if detected_root
+            else (skill_dir.parents[1] if len(skill_dir.parents) > 1 else skill_dir)
+        )
+        logs_parent = base_opt_dir / "logs"
         matching_dirs = sorted(
             glob.glob(str(logs_parent / f"temp_optimization_{format_name}*")),
             key=lambda d: os.path.getmtime(d) if os.path.exists(d) else 0.0,
