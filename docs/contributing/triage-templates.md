@@ -1,6 +1,6 @@
 # A2UI Standard Triage Replies
 
-Canonical replies for recurring triage cases. 
+Canonical replies for recurring triage cases.
 
 ## Issues
 
