@@ -455,3 +455,235 @@ def test_main_cli_archive_flag(mock_archive: MagicMock) -> None:
         ])
     assert e.value.code == 0
     assert mock_archive.called
+
+
+@patch("optimize_format.run_evaluation", return_value=True)
+@patch("optimize_format.run_unit_tests")
+def test_main_pytest_failed(mock_pytest: MagicMock, mock_eval: MagicMock) -> None:
+    mock_pytest.return_value = {"success": False, "stdout": "", "stderr": "Error"}
+    with pytest.raises(SystemExit) as e:
+        main(["--format", "atom"])
+    assert e.value.code == 1
+
+
+@patch("optimize_format.run_unit_tests")
+@patch("optimize_format.run_evaluation")
+@patch("optimize_format.load_log_data")
+@patch("optimize_format.glob.glob")
+@patch("optimize_format.get_git_diff")
+@patch("optimize_format.regenerate_master_index")
+@patch("shutil.rmtree")
+def test_main_cli_sanity_and_budget(
+    mock_rmtree: MagicMock,
+    mock_regen: MagicMock,
+    mock_diff: MagicMock,
+    mock_glob: MagicMock,
+    mock_load: MagicMock,
+    mock_eval: MagicMock,
+    mock_pytest: MagicMock,
+) -> None:
+    mock_pytest.return_value = {"success": True, "stdout": "", "stderr": ""}
+    mock_eval.return_value = True
+    mock_glob.return_value = ["temp_optimization/log.eval"]
+    mock_load.return_value = {"results": {"scores": []}, "samples": []}
+    mock_diff.return_value = ""
+
+    with patch("builtins.open", mock_open(read_data="{}")):
+        main([
+            "--format",
+            "atom",
+            "--sanity",
+            "--thinking-budget",
+            "897",
+            "--epochs",
+            "2",
+            "--temperature",
+            "0.2",
+            "--prompt",
+            "loginForm",
+        ])
+
+    assert mock_pytest.called
+    assert mock_eval.called
+    assert mock_eval.call_args[1]["thinking_budget"] == 897
+    assert mock_eval.call_args[1]["epochs"] == 2
+    assert mock_eval.call_args[1]["temperature"] == 0.2
+
+
+def test_regenerate_master_index_with_flat_runs(tmp_path: Any) -> None:
+    history_dir = tmp_path / "history"
+    history_dir.mkdir()
+    run_dir = history_dir / "run_001_test"
+    run_dir.mkdir()
+    (run_dir / "run_meta.json").write_text(
+        json.dumps({
+            "hypothesis": "hypo flat",
+            "notes": "notes flat",
+            "status": "KEEP",
+            "format": "atom",
+            "metrics": {
+                "quality_acc": 1.0,
+                "schema_acc": 1.0,
+                "latency_seconds_median": 1.2,
+                "input_tokens_median": 100,
+                "code_tokens_median": 50,
+            },
+        }),
+        encoding="utf-8",
+    )
+
+    regenerate_master_index(str(history_dir))
+    master_md = tmp_path / "history_summary.md"
+    assert master_md.exists()
+    assert "hypo flat" in master_md.read_text(encoding="utf-8")
+
+
+def test_regenerate_master_index_results_json_fallback(tmp_path: Any) -> None:
+    history_dir = tmp_path / "history"
+    history_dir.mkdir()
+    run_dir = history_dir / "run_002_fallback"
+    run_dir.mkdir()
+    (run_dir / "run_meta.json").write_text(
+        json.dumps({
+            "hypothesis": "fallback hypo",
+            "notes": "Pytest FAIL notes",
+            "status": "BACKTRACK",
+            "format": "express",
+        }),
+        encoding="utf-8",
+    )
+    (run_dir / "results.json").write_text(
+        json.dumps({
+            "results": {"scores": []},
+            "samples": [{
+                "id": "s1",
+                "metadata": {"name": "sample_1", "inference_duration_seconds": 1.5},
+            }],
+        }),
+        encoding="utf-8",
+    )
+
+    regenerate_master_index(str(history_dir))
+    master_md = tmp_path / "history_summary.md"
+    assert master_md.exists()
+    text = master_md.read_text(encoding="utf-8")
+    assert "fallback hypo" in text
+
+
+    regenerate_master_index(str(history_dir))
+    master_md = tmp_path / "history_summary.md"
+    assert master_md.exists()
+
+
+def test_main_cli_decompile() -> None:
+    with pytest.raises(SystemExit) as e:
+        main(["--format", "transport", "--decompile", "{}"])
+    assert e.value.code == 0
+
+
+def test_main_cli_parse() -> None:
+    with pytest.raises(SystemExit) as e:
+        main(["--format", "atom", "--parse", "(Text 'hi')"])
+    assert e.value.code == 0
+
+
+@patch("utils.archiver.archive_run")
+def test_main_cli_archive(mock_archive: MagicMock) -> None:
+    with pytest.raises(SystemExit) as e:
+        main(["--format", "atom", "--archive", "--hypothesis", "test archive hypo", "--status", "KEEP"])
+    assert e.value.code == 0
+    assert mock_archive.called
+
+
+@patch("optimize_format.run_evaluation", return_value=True)
+@patch("optimize_format.load_log_data")
+@patch("glob.glob")
+def test_main_cli_save_baseline(
+    mock_glob: MagicMock, mock_load: MagicMock, mock_run_eval: MagicMock, tmp_path: Any
+) -> None:
+    mock_glob.return_value = [str(tmp_path / "test.eval")]
+    mock_load.return_value = {
+        "results": {
+            "scores": [
+                {"name": "a2ui_scorer", "metrics": {"accuracy": {"value": 1.0}}},
+                {"name": "measured_model_graded_qa", "metrics": {"accuracy": {"value": 1.0}}},
+            ]
+        },
+        "samples": [
+            {
+                "id": "s1",
+                "metadata": {
+                    "name": "sample_1",
+                    "inference_duration_seconds": 1.0,
+                    "inference_input_tokens": 100,
+                    "inference_output_tokens": 50,
+                    "inference_reasoning_tokens": 20,
+                },
+                "scores": {
+                    "a2ui_scorer": {"value": 1.0},
+                    "measured_model_graded_qa": {"value": "C"},
+                },
+                "events": [
+                    {
+                        "event": "model",
+                        "working_time": 1.0,
+                        "call": {"response": {"usageMetadata": {"thoughtsTokenCount": 20}}},
+                    }
+                ],
+            }
+        ],
+    }
+
+    base_dir = tmp_path / "baselines"
+    with pytest.raises(SystemExit) as e:
+        main([
+            "--format", "atom",
+            "--save-baseline",
+            "--thinking-budget", "1000",
+            "--epochs", "2",
+            "--temperature", "0.5",
+            "--baseline-dir", str(base_dir),
+            "--sanity",
+        ])
+    assert e.value.code == 0
+    assert (base_dir / "budget_1000_run_meta.json").exists()
+
+
+@patch("optimize_format.run_evaluation", return_value=True)
+@patch("optimize_format.load_log_data")
+@patch("glob.glob")
+@patch("optimize_format.regenerate_master_index")
+def test_main_cli_normal_report_generation(
+    mock_regen: MagicMock, mock_glob: MagicMock, mock_load: MagicMock, mock_run_eval: MagicMock, tmp_path: Any
+) -> None:
+    mock_glob.return_value = [str(tmp_path / "test.eval")]
+    mock_load.return_value = {
+        "results": {
+            "scores": [
+                {"name": "a2ui_scorer", "metrics": {"accuracy": {"value": 1.0}}},
+            ]
+        },
+        "samples": [
+            {
+                "id": "s1",
+                "metadata": {"name": "sample_1"},
+            }
+        ],
+    }
+
+    base_dir = tmp_path / "baselines"
+    base_dir.mkdir()
+    (base_dir / "results.json").write_text(json.dumps({"results": {"scores": []}}), encoding="utf-8")
+
+    hist_dir = tmp_path / "history"
+    hist_dir.mkdir()
+
+    with patch("sys.stdout"):
+        main([
+            "--format", "atom",
+            "--baseline-dir", str(base_dir),
+            "--history-dir", str(hist_dir),
+            "--sanity",
+        ])
+    assert mock_regen.called
+

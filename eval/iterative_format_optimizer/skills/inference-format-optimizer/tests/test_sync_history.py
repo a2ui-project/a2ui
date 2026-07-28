@@ -89,6 +89,31 @@ class TestSyncHistory(unittest.TestCase):
         finally:
             shutil.rmtree(temp_dir)
 
+    @patch("subprocess.check_output")
+    def test_sync_worktree_history_with_git_worktree_command(self, mock_sub):
+        temp_dir = tempfile.mkdtemp()
+        try:
+            wt1 = os.path.join(temp_dir, "worktree_1")
+            wt1_hist = os.path.join(
+                wt1, "eval", "iterative_format_optimizer", "history", "atom"
+            )
+            run1 = os.path.join(wt1_hist, "run_010_wt1_run")
+            os.makedirs(run1, exist_ok=True)
+            with open(os.path.join(run1, "run_meta.json"), "w") as f:
+                json.dump({"hypothesis": "wt1 hypo", "status": "KEEP"}, f)
+
+            mock_sub.return_value = (
+                f"worktree {temp_dir}\nworktree {wt1}\n".encode("utf-8")
+            )
+            with patch("sync_history.regenerate_master_index"):
+                copied = sync_worktree_history(
+                    target_worktrees=[wt1],
+                    custom_history_dir=os.path.join(temp_dir, "history"),
+                )
+                self.assertTrue(len(copied) == 1)
+        finally:
+            shutil.rmtree(temp_dir)
+
     def test_main_cli(self):
         temp_dir = tempfile.mkdtemp()
         try:
@@ -97,6 +122,28 @@ class TestSyncHistory(unittest.TestCase):
                 with patch("sys.stdout"):
                     main(["-w", "/tmp/wt1"])
                 self.assertTrue(mock_sync.called)
+        finally:
+            shutil.rmtree(temp_dir)
+
+    def test_sync_worktree_history_default_discovery(self):
+        temp_dir = tempfile.mkdtemp()
+        try:
+            worktrees_dir = os.path.join(temp_dir, "worktrees")
+            wt1 = os.path.join(worktrees_dir, "wt1")
+            wt1_hist = os.path.join(
+                wt1, "eval", "iterative_format_optimizer", "history"
+            )
+            run1 = os.path.join(wt1_hist, "run_099_discover")
+            os.makedirs(run1, exist_ok=True)
+            with open(os.path.join(run1, "run_meta.json"), "w") as f:
+                json.dump({"hypothesis": "discover hypo", "status": "KEEP"}, f)
+
+            with patch("sync_history.regenerate_master_index"):
+                copied = sync_worktree_history(
+                    target_worktrees=[wt1],
+                    custom_history_dir=os.path.join(temp_dir, "history"),
+                )
+                self.assertEqual(len(copied), 1)
         finally:
             shutil.rmtree(temp_dir)
 

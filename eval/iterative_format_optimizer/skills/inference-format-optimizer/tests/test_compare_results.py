@@ -17,6 +17,7 @@
 import json
 import os
 import shutil
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -282,6 +283,318 @@ class TestCompareResults(unittest.TestCase):
                     curr_dir,
                 ])
             self.assertTrue(os.path.exists(out_file))
+        finally:
+            shutil.rmtree(temp_dir)
+
+    def test_main_cli_median_and_multiple_dirs(self):
+        temp_dir = tempfile.mkdtemp()
+        base_dir = os.path.join(temp_dir, "base")
+        curr_dir1 = os.path.join(temp_dir, "curr1")
+        curr_dir2 = os.path.join(temp_dir, "curr2")
+        out_file = os.path.join(temp_dir, "report.md")
+        os.makedirs(base_dir, exist_ok=True)
+        os.makedirs(curr_dir1, exist_ok=True)
+        os.makedirs(curr_dir2, exist_ok=True)
+
+        meta_data = {
+            "metrics": {
+                "schema_acc": 0.9,
+                "quality_acc": 0.8,
+                "code_tokens_median": 300,
+                "reasoning_tokens_median": 1000,
+                "input_tokens_median": 2000,
+                "latency_seconds_median": 2.0,
+                "total_samples": 5,
+            }
+        }
+        with open(os.path.join(base_dir, "run_meta.json"), "w") as f:
+            json.dump(meta_data, f)
+        with open(os.path.join(curr_dir1, "run_meta.json"), "w") as f:
+            json.dump(meta_data, f)
+        with open(os.path.join(curr_dir2, "run_meta.json"), "w") as f:
+            json.dump(meta_data, f)
+
+        try:
+            with patch("sys.stdout"):
+                main([
+                    "--baseline",
+                    base_dir,
+                    "--output",
+                    out_file,
+                    curr_dir1,
+                    curr_dir2,
+                ])
+            self.assertTrue(os.path.exists(out_file))
+        finally:
+            shutil.rmtree(temp_dir)
+
+    def test_generate_markdown_table_mean(self):
+        b = {
+            "name": "base",
+            "sample_count": 10,
+            "schema_accuracy": 0.9,
+            "quality_accuracy": 0.8,
+            "avg_duration": 2.5,
+            "avg_input_tokens": 1000,
+            "avg_reasoning_tokens": 500,
+            "avg_output_tokens": 200,
+            "est_code_time": 1.2,
+            "wall_clock_per_sample": 0.5,
+        }
+        c = {
+            "name": "curr",
+            "sample_count": 10,
+            "schema_acc": 0.95,
+            "quality_acc": 0.85,
+            "avg_duration": 2.0,
+            "avg_input_tokens": 800,
+            "avg_reasoning_tokens": 400,
+            "avg_output_tokens": 180,
+            "est_code_time": 1.0,
+            "wall_clock_per_sample": 0.4,
+        }
+        md = generate_markdown_table(b, [c], use_median=False)
+        self.assertIn("Average Metrics", md)
+        self.assertIn("Score (S_opt)", md)
+        self.assertIn("curr", md)
+
+
+
+    @patch("subprocess.check_output")
+    def test_resolve_results_file_eval_success(self, mock_check):
+        mock_check.return_value = json.dumps({"samples": []})
+        temp_dir = tempfile.mkdtemp()
+        try:
+            eval_file = os.path.join(temp_dir, "test.eval")
+            with open(eval_file, "w") as f:
+                f.write("raw eval")
+            res = resolve_results_file(temp_dir)
+            self.assertTrue(res.endswith("results.json"))
+            self.assertTrue(os.path.exists(res))
+        finally:
+            shutil.rmtree(temp_dir)
+
+    def test_resolve_results_file_flat_and_subdirs(self):
+        temp_dir = tempfile.mkdtemp()
+        try:
+            # Flat budget file
+            flat_file = os.path.join(temp_dir, "budget_0_run_meta.json")
+            with open(flat_file, "w") as f:
+                json.dump({"metrics": {"schema_acc": 1.0}}, f)
+            res = resolve_results_file(temp_dir)
+            self.assertEqual(res, flat_file)
+
+            # Subdir results file
+            os.remove(flat_file)
+            sub_dir = os.path.join(temp_dir, "unbounded")
+            os.makedirs(sub_dir, exist_ok=True)
+            sub_res = os.path.join(sub_dir, "results.json")
+            with open(sub_res, "w") as f:
+                json.dump({"samples": []}, f)
+            res2 = resolve_results_file(temp_dir)
+            self.assertEqual(res2, sub_res)
+        finally:
+            shutil.rmtree(temp_dir)
+
+    def test_resolve_results_file_not_found(self):
+        temp_dir = tempfile.mkdtemp()
+        try:
+            with self.assertRaises(FileNotFoundError):
+                resolve_results_file(temp_dir)
+        finally:
+            shutil.rmtree(temp_dir)
+
+    def test_extract_metrics_use_average(self):
+        temp_dir = tempfile.mkdtemp()
+        res_json = os.path.join(temp_dir, "results.json")
+        sample_log = {
+            "samples": [
+                {
+                    "id": "s1",
+                    "metadata": {
+                        "inference_input_tokens": 1000,
+                        "inference_output_tokens": 200,
+                        "inference_reasoning_tokens": 500,
+                        "inference_duration_seconds": 2.0,
+                    },
+                    "scores": {
+                        "a2ui_scorer": {"value": 1.0},
+                        "measured_model_graded_qa": {"value": "C"},
+                    },
+                    "events": [
+                        {
+                            "event": "model",
+                            "working_time": 2.0,
+                            "usage": {
+                                "input_tokens": 1000,
+                                "output_tokens": 200,
+                                "reasoning_tokens": 500,
+                            },
+                        }
+                    ],
+                },
+                {
+                    "id": "s2",
+                    "metadata": {
+                        "inference_input_tokens": 2000,
+                        "inference_output_tokens": 400,
+                        "inference_reasoning_tokens": 1000,
+                        "inference_duration_seconds": 4.0,
+                    },
+                    "scores": {
+                        "a2ui_scorer": {"value": "INCORRECT"},
+                        "measured_model_graded_qa": {"value": 0.0},
+                    },
+                    "events": [
+                        {
+                            "event": "model",
+                            "working_time": 4.0,
+                            "usage": {
+                                "input_tokens": 2000,
+                                "output_tokens": 400,
+                                "reasoning_tokens": 1000,
+                            },
+                        }
+                    ],
+                },
+            ],
+            "stats": {"started_at": 100, "completed_at": 110},
+        }
+        with open(res_json, "w") as f:
+            json.dump(sample_log, f)
+        try:
+            m = extract_metrics(res_json, use_median=False)
+            self.assertEqual(m["schema_acc"], 0.5)
+            self.assertEqual(m["avg_duration"], 3.0)
+            self.assertEqual(m["avg_input_tokens"], 1500.0)
+            self.assertEqual(m["avg_reasoning_tokens"], 750.0)
+            self.assertEqual(m["avg_output_tokens"], 300.0)
+        finally:
+            shutil.rmtree(temp_dir)
+
+    def test_format_delta_pct(self):
+        from compare_results import format_delta_pct
+        self.assertEqual(format_delta_pct(None, 10.0), "-")
+        self.assertEqual(format_delta_pct(10.0, None), "-")
+        self.assertEqual(format_delta_pct(10.0, 0.0), "-")
+        self.assertEqual(format_delta_pct(12.0, 10.0), "+20.0%")
+        self.assertEqual(format_delta_pct(8.0, 10.0), "-20.0%")
+        self.assertEqual(format_delta_pct(0.9, 0.8, is_percentage_points=True), "+10.0%")
+        self.assertEqual(format_delta_pct(0.7, 0.8, is_percentage_points=True), "-10.0%")
+
+    def test_compute_s_opt(self):
+        from compare_results import compute_s_opt
+        m = {
+            "schema_acc": 0.9,
+            "quality_acc": 0.8,
+            "avg_output_tokens": 100.0,
+            "avg_reasoning_tokens": 50.0,
+            "avg_input_tokens": 500.0,
+        }
+        b = {
+            "schema_acc": 0.9,
+            "quality_acc": 0.8,
+            "avg_output_tokens": 100.0,
+            "avg_reasoning_tokens": 50.0,
+            "avg_input_tokens": 500.0,
+        }
+        s_opt = compute_s_opt(m, b)
+        self.assertTrue(isinstance(s_opt, float))
+
+    def test_generate_markdown_table(self):
+        from compare_results import generate_markdown_table
+        b = {
+            "name": "base_run",
+            "sample_count": 51,
+            "schema_acc": 0.9,
+            "quality_acc": 0.8,
+            "avg_duration": 2.5,
+            "est_code_time": 1.5,
+            "avg_input_tokens": 1000,
+            "avg_reasoning_tokens": 200,
+            "avg_output_tokens": 300,
+            "wall_clock_per_sample": 0.5,
+        }
+        c = {
+            "name": "comp_run",
+            "sample_count": 51,
+            "schema_acc": 0.95,
+            "quality_acc": 0.85,
+            "avg_duration": 2.0,
+            "est_code_time": 1.2,
+            "avg_input_tokens": 800,
+            "avg_reasoning_tokens": 150,
+            "avg_output_tokens": 250,
+            "wall_clock_per_sample": 0.4,
+        }
+        tbl = generate_markdown_table(b, [c], use_median=True)
+        self.assertIn("A2UI Evaluation Comparison", tbl)
+        self.assertIn("base_run", tbl)
+        self.assertIn("comp_run", tbl)
+
+    @patch("compare_results.extract_metrics")
+    def test_compare_results_main_cli(self, mock_extract):
+        from compare_results import main
+        mock_extract.return_value = {
+            "name": "test_run",
+            "sample_count": 51,
+            "schema_acc": 0.9,
+            "quality_acc": 0.8,
+            "avg_duration": 2.5,
+            "est_code_time": 1.5,
+            "avg_input_tokens": 1000,
+            "avg_reasoning_tokens": 200,
+            "avg_output_tokens": 300,
+            "wall_clock_per_sample": 0.5,
+        }
+        temp_dir = tempfile.mkdtemp()
+        r1 = os.path.join(temp_dir, "run1.json")
+        b1 = os.path.join(temp_dir, "base.json")
+        with open(r1, "w") as f:
+            f.write("{}")
+        with open(b1, "w") as f:
+            f.write("{}")
+        try:
+            with patch("sys.argv", ["compare_results.py", "--baseline", b1, r1]):
+                main()
+        finally:
+            shutil.rmtree(temp_dir)
+
+    def test_extract_metrics_dict_samples_structure(self):
+        from compare_results import extract_metrics
+        temp_dir = tempfile.mkdtemp()
+        res_json = os.path.join(temp_dir, "results.json")
+        dict_data = {
+            "eval": {"task": "dict_task"},
+            "samples": {
+                "s1": {
+                    "schema_passed": True,
+                    "quality_passed": True,
+                    "code_tokens": 100,
+                    "reasoning_tokens": 500,
+                    "input_tokens": 1000,
+                    "latency_seconds": 2.0,
+                },
+                "s2": {
+                    "schema_passed": False,
+                    "quality_passed": False,
+                    "code_tokens": 150,
+                    "reasoning_tokens": 600,
+                    "input_tokens": 1200,
+                    "latency_seconds": 2.5,
+                },
+            },
+        }
+        with open(res_json, "w") as f:
+            json.dump(dict_data, f)
+
+        try:
+            res = extract_metrics(res_json, label_name="dict_samples")
+            self.assertEqual(res["sample_count"], 2)
+            self.assertEqual(res["schema_acc"], 0.5)
+            self.assertEqual(res["quality_acc"], 0.5)
+            self.assertEqual(res["avg_output_tokens"], 125.0)
+            self.assertEqual(res["avg_input_tokens"], 1100.0)
         finally:
             shutil.rmtree(temp_dir)
 
