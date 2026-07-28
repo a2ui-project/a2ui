@@ -14,10 +14,13 @@
 
 """Unit tests for dataset loading and tool call parsing."""
 
+import json
 from pathlib import Path
+import jsonschema
 import pytest
 from inspect_ai.model import ChatMessageAssistant, ChatMessageTool, ChatMessageUser
 from a2ui_eval.dataset import load_a2ui_dataset
+from a2ui_eval.shared.utils import GIT_ROOT
 
 
 def test_load_a2ui_dataset(tmp_path: Path) -> None:
@@ -118,3 +121,19 @@ def test_load_a2ui_dataset_multi_turn(tmp_path: Path) -> None:
 
     assert dataset[0].metadata is not None
     assert dataset[0].metadata["system_prompt"] == "Domain prompt"
+
+
+def test_example_eval_case_schema_conformance() -> None:
+    example_path = GIT_ROOT / "eval" / "examples" / "example_eval_case.json"
+    schema_path = GIT_ROOT / "eval" / "datasets" / "dataset_schema.json"
+    with open(example_path, "r", encoding="utf-8") as f:
+        data = json.load(f)
+    with open(schema_path, "r", encoding="utf-8") as f:
+        schema = json.load(f)
+    jsonschema.validate(instance=data, schema=schema)
+
+    dataset = load_a2ui_dataset(file_path=str(example_path))
+    assert len(dataset) == 1
+    assert len(dataset[0].input) == 5
+    assert dataset[0].metadata is not None
+    assert dataset[0].metadata["name"] == "flight_booking_multiturn_selection"

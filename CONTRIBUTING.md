@@ -95,7 +95,8 @@ We expect all contributors to adhere to these styles.
 
 ## More on contributing
 
-See more about contributing in [docs/contributing](docs/contributing).
+- See more about general contributing in [docs/contributing](docs/contributing).
+- To contribute evaluation use cases and data points to the evaluation suite, see [eval/CONTRIBUTING_USE_CASES.md](eval/CONTRIBUTING_USE_CASES.md).
 
 ## Internal information
 
