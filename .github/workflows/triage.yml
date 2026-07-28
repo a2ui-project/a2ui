@@ -36,8 +36,25 @@ on:
     types: [submitted]
   pull_request_review_comment:
     types: [created]
+  # PR lifecycle events (opened/synchronize/...) are deliberately absent: the
+  # only PR rule needs a day of maintainer silence, and pushes and edits are
+  # not contributions, so none of those events can change a flag when they
+  # fire. Comments, reviews and the daily cron cover every transition.
   # Allow manual runs from the Actions tab.
   workflow_dispatch:
+
+# Every run reconciles the whole repository, so runs are interchangeable and
+# only the last one matters. A bulk triage session — relabelling or commenting
+# on dozens of issues — otherwise fires one run per event, and each walks every
+# open item, which exhausts the installation's API rate limit and fails the
+# whole burst. Collapsing them to a single trailing run keeps that cheap.
+#
+# Cancelling mid-reconciliation is safe: the script reads live state and never
+# depends on what a previous run did, so the surviving run reaches the same
+# result on its own, and the daily cron is a backstop either way.
+concurrency:
+  group: triage
+  cancel-in-progress: true
 
 permissions:
   contents: read
