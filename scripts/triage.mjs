@@ -22,8 +22,9 @@
 // each run.
 //
 // 'status: waiting-for-author-response' is applied by hand; the automation only
-// clears it, once the author has replied. While it is set the item is never
-// flagged, so parking an item on its author also parks it out of triage.
+// clears it, once the author has contributed at least once after the label went
+// on. While it is set the item is never flagged, so parking an item on its
+// author also parks it out of triage.
 //
 // An item is flagged with 'status: needs-triage' when it does not have the label
 // 'status: waiting-for-author-response' and:
@@ -82,52 +83,54 @@ const labelNames = item =>
 const ageInDays = (isoTimestamp, now) => (now - new Date(isoTimestamp).getTime()) / DAY_MS;
 
 /**
- * Returns the newest non-bot contribution (a comment, or — on PRs — a review or
- * inline review comment), or null if the item has none.
+ * Returns the most recent human contribution to an item: either its newest
+ * non-bot contribution (a comment, or — on PRs — a review or inline review
+ * comment), or, if there are none, the opening post itself. Used both to measure
+ * staleness and to decide whether an external author is still awaiting a
+ * maintainer response.
  *
  * `contributions` is the merged, normalized event list from `fetchContributions`.
  * On PRs it comes from three different endpoints so it is not sorted; the scan
  * picks the latest regardless of order.
  */
-function newestHumanContribution(contributions) {
-  let newest = null;
+export function lastHumanContribution(item, contributions) {
+  let latest = {
+    createdAt: item.created_at,
+    association: item.author_association,
+    user: item.user,
+  };
+
   for (const event of contributions) {
     if (isBot(event.user)) continue;
-    if (!newest || event.createdAt >= newest.createdAt) {
-      newest = event;
+    if (event.createdAt >= latest.createdAt) {
+      latest = event;
     }
   }
-  return newest;
+
+  return latest;
 }
 
 /**
- * Returns the most recent human contribution to an item, falling back to the
- * opening post when it has none. Used both to measure staleness and to decide
- * whether an external author is still awaiting a maintainer response.
- */
-export function lastHumanContribution(item, contributions) {
-  return (
-    newestHumanContribution(contributions) ?? {
-      createdAt: item.created_at,
-      association: item.author_association,
-      user: item.user,
-    }
-  );
-}
-
-/**
- * True when the author has spoken since opening the item — the newest human
- * contribution is theirs. Used to clear WAITING_LABEL. The opening post does not
- * count: an item with no replies is exactly the one still waiting on its author.
+ * True when the author has answered the request WAITING_LABEL is tracking: they
+ * contributed at least once at or after `waitingSince`, the moment the label was
+ * added. Used to clear the label.
  *
- * A maintainer who replies after the author hides that response from this check;
- * such an item is covered by the staleness rules instead, and the label can
- * always be removed by hand.
+ * Only the author's own contributions count, and only those from after the label
+ * went on. The opening post predates it, so an item with no replies is exactly
+ * the one still waiting on its author. Contributions from anyone else are
+ * irrelevant in both directions: they do not answer on the author's behalf, and
+ * one landing after the author's reply does not hide it.
+ *
+ * `waitingSince` is null when the labeling could not be read — see
+ * `waitingLabelAddedAt`. The label is then left for a human to clear rather than
+ * guessed at.
  */
-export function authorHasResponded(item, contributions) {
+export function authorHasResponded(item, contributions, waitingSince) {
   const author = item.user?.login;
-  const newest = newestHumanContribution(contributions);
-  return Boolean(author) && newest?.user?.login === author;
+  if (!author || !waitingSince) return false;
+  return contributions.some(
+    event => event.user?.login === author && event.createdAt >= waitingSince,
+  );
 }
 
 /**
@@ -260,6 +263,43 @@ async function fetchContributions({github, owner, repo}, item) {
   return [...issueComments, ...reviews, ...reviewComments].map(toEvent);
 }
 
+/**
+ * Returns when WAITING_LABEL was most recently added to an item, or null when
+ * that cannot be established — the event fetch failed, or the item's history has
+ * no record of the label going on. Callers must read null as "leave the label
+ * alone": with no start of the waiting period there is nothing to measure a
+ * response against.
+ *
+ * Only the newest labeling counts. An item can be parked, answered, and parked
+ * again, and each round has to be answered on its own; the reply that cleared the
+ * first round must not clear the second.
+ */
+async function waitingLabelAddedAt({github, owner, repo}, item) {
+  let addedAt = null;
+  try {
+    const events = await github.paginate(github.rest.issues.listEvents, {
+      owner,
+      repo,
+      issue_number: item.number,
+      per_page: 100,
+    });
+    for (const event of events) {
+      if (event.event !== 'labeled' || event.label?.name !== WAITING_LABEL) continue;
+      if (!addedAt || event.created_at > addedAt) {
+        addedAt = event.created_at;
+      }
+    }
+  } catch (error) {
+    console.error(`Failed to fetch label events for #${item.number}:`, error);
+    return null;
+  }
+
+  if (!addedAt) {
+    console.log(`No '${WAITING_LABEL}' labeling recorded on ${item.html_url}; keeping the label.`);
+  }
+  return addedAt;
+}
+
 export default async function issueTriage({github, context}) {
   console.log('A2UI triage-flag reconciliation started');
 
@@ -275,21 +315,27 @@ export default async function issueTriage({github, context}) {
   });
 
   // Fetch each item's contributions in bounded concurrent batches to avoid a
-  // slow serial loop without flooding the API.
-  const itemsWithContributions = await mapInBatches(openItems, async item => ({
-    item,
-    contributions: await fetchContributions({github, owner, repo}, item),
-  }));
+  // slow serial loop without flooding the API. The label's event history is only
+  // needed for the items actually parked on their author, so it costs an extra
+  // call on those alone.
+  const itemsWithContributions = await mapInBatches(openItems, async item => {
+    const client = {github, owner, repo};
+    const [contributions, waitingSince] = await Promise.all([
+      fetchContributions(client, item),
+      labelNames(item).includes(WAITING_LABEL) ? waitingLabelAddedAt(client, item) : null,
+    ]);
+    return {item, contributions, waitingSince};
+  });
 
   // Decide each item's desired state from the snapshot, and keep only those
   // whose labels need to change. The snapshot from `listForRepo` can be stale
   // if another run (the daily schedule overlapping an issue event) already
   // changed a label, so the actual mutation re-checks the live state below.
   const itemsToUpdate = itemsWithContributions
-    .map(({item, contributions}) => {
+    .map(({item, contributions, waitingSince}) => {
       const labels = labelNames(item);
       const clearWaiting =
-        labels.includes(WAITING_LABEL) && authorHasResponded(item, contributions);
+        labels.includes(WAITING_LABEL) && authorHasResponded(item, contributions, waitingSince);
 
       // Score the item as it will look once the waiting label is gone: a label
       // this run clears must not also inhibit flagging until the next run.
