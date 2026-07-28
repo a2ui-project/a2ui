@@ -311,6 +311,18 @@ def main(argv: Optional[List[str]] = None) -> None:
         default=None,
         help="Thinking budget constraint for reasoning models",
     )
+    parser.add_argument(
+        "--epochs",
+        type=int,
+        default=None,
+        help="Number of evaluation epochs per prompt sample",
+    )
+    parser.add_argument(
+        "--temperature",
+        type=float,
+        default=0.0,
+        help="Generation temperature for evaluation model",
+    )
     args = parser.parse_args(argv)
 
     if args.compile:
@@ -394,6 +406,8 @@ def main(argv: Optional[List[str]] = None) -> None:
         sanity=args.sanity,
         log_dir=temp_log_dir,
         thinking_budget=args.thinking_budget,
+        epochs=args.epochs,
+        temperature=args.temperature,
     )
 
     if not eval_success:
@@ -484,22 +498,27 @@ def main(argv: Optional[List[str]] = None) -> None:
             if args.thinking_budget is not None
             else "unbounded"
         )
+        epochs_val = (
+            args.epochs
+            if args.epochs is not None
+            else (5 if args.thinking_budget is None else 1)
+        )
         run_config = {
             "format": args.format,
             "thinking_budget": args.thinking_budget,
-            "temperature": 0.0,
+            "temperature": args.temperature,
             "model": args.model,
             "dataset": "core_v1_0",
-            "epochs": 5 if args.thinking_budget is None else 1,
+            "epochs": epochs_val,
             "run_name": budget_name,
         }
         meta_base = {
             "format": args.format,
             "model": args.model,
             "thinking_budget": args.thinking_budget,
-            "temperature": 0.0,
+            "temperature": args.temperature,
             "dataset": "core_v1_0",
-            "epochs": 5 if args.thinking_budget is None else 1,
+            "epochs": epochs_val,
             "run_config": run_config,
             "metrics": {
                 "schema_acc": metrics_ext.get("algo_accuracy", 0.0),
