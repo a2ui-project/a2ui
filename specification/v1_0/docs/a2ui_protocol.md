@@ -523,7 +523,7 @@ To ensure catalog schemas can be translated reliably into alternative, LLM-frien
    - To keep catalog schemas predictable and prevent custom extensions from polluting the global file space, a `catalog.json` file is restricted to the following root-level keys:
      - `$schema`
      - `$id`
-     - `version` (optional for backward compatibility; defaults to `"0.9"` if omitted, required for catalogs targeting `1.0` and beyond)
+     - `protocolVersion` (optional for backward compatibility; defaults to `"0.9"` if omitted, required for catalogs targeting `1.0` and beyond)
      - `title`
      - `description`
      - `catalogId`
@@ -542,7 +542,7 @@ Below is an annotated, fully compliant `catalog.json` schema template (written i
   // Rule 7: Strict Top-Level Schema Keys
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
-  "version": "1.0",
+  "protocolVersion": "1.0",
   "title": "A2UI Basic Catalog Template",
   "description": "An annotated example showcasing structural rules and conventions.",
   "catalogId": "https://example.com/catalogs/custom-v1",
