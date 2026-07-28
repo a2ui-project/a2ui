@@ -45,7 +45,7 @@ Use these unified CLI commands to avoid writing custom Python scripts or manual 
 | **Test Decompilation**       | `uv run python eval/iterative_format_optimizer/skills/inference-format-optimizer/scripts/optimize_format.py --format atom --decompile '{"version":"v1.0",...}'`          |
 | **Run Fast Subset Eval**     | `uv run python eval/iterative_format_optimizer/skills/inference-format-optimizer/scripts/optimize_format.py --format atom`                                               |
 | **Run Targeted Prompt Eval** | `uv run python eval/iterative_format_optimizer/skills/inference-format-optimizer/scripts/optimize_format.py --format atom --prompt loginForm`                            |
-| **Compare vs Baseline**      | `uv run python eval/iterative_format_optimizer/skills/inference-format-optimizer/scripts/compare_results.py --baseline eval/baselines/atom eval/logs/temp_optimization/` |
+| **Compare vs Baseline**      | `uv run python eval/iterative_format_optimizer/skills/inference-format-optimizer/scripts/compare_results.py --baseline eval/iterative_format_optimizer/baselines/atom/unbounded_run_meta.json eval/iterative_format_optimizer/logs/temp_optimization/` |
 | **Archive Run (Atomic)**     | `uv run python eval/iterative_format_optimizer/skills/inference-format-optimizer/scripts/optimize_format.py --format atom --archive --hypothesis "..." --status KEEP`    |
 | **Full Milestone Check**     | `uv run python eval/iterative_format_optimizer/skills/inference-format-optimizer/scripts/optimize_format.py --format atom --full`                                        |
 
@@ -154,7 +154,7 @@ To save the historical run context for future analysis and allow the orchestrato
    ```
 3. Archive logs and files:
    - Copy report: `cp eval/iterative/current_report.md eval/iterative/history/run_003_a8f9c1b_fix_brackets/report.md`
-   - Copy results log: `cp eval/logs/temp_optimization/results.json eval/iterative/history/run_003_a8f9c1b_fix_brackets/results.json`
+   - Copy results log: `cp eval/iterative_format_optimizer/logs/temp_optimization/results.json eval/iterative_format_optimizer/history/atom/run_003_a8f9c1b_fix_brackets/results.json`
    - Generate diff patch: `git diff > eval/iterative/history/run_003_a8f9c1b_fix_brackets/patch.diff`
 4. Write `run_meta.json` folder metadata detailing your hypothesis and annotations:
    ```json
