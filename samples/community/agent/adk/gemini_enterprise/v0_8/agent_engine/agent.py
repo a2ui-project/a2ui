@@ -45,7 +45,7 @@ import jsonschema
 from prompt_builder import ROLE_DESCRIPTION, UI_DESCRIPTION, WORKFLOW_DESCRIPTION, get_text_prompt
 from tools import get_contact_info
 
-SUPPORTED_CONTENT_TYPES = ["text", "text/plain"]
+SUPPORTED_CONTENT_TYPES = ["text/plain"]
 
 dotenv.load_dotenv()
 
