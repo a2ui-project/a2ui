@@ -173,33 +173,7 @@ def regenerate_master_index(target_dir: str) -> None:
             fmt_runs.append(run_dict)
             all_master_runs.append(run_dict)
 
-        fmt_runs.sort(key=lambda r: int(r["id"]) if r["id"].isdigit() else 0)
-
-        # Write per-format summary table if fmt_name != "default"
-        if fmt_name != "default":
-            fmt_summary_file = os.path.join(history_dir, fmt_name, "history_summary.md")
-            fmt_table = [
-                f"# Optimization Run History ({fmt_name.capitalize()} Format)",
-                "",
-                (
-                    "| Run ID | Model | Budget | Hypothesis | Pytest | Overall Acc |"
-                    " Algo Acc | Latency | Input Tok | Output Tok | Status | Notes |"
-                ),
-                (
-                    "| :--- | :--- | :--- | :--- | :---: | :---: | :---: | :---: |"
-                    " :---: | :---: | :---: | :--- |"
-                ),
-            ]
-            for r in fmt_runs:
-                clean_hypo = str(r["hypothesis"]).replace("\n", " ").replace("|", "\\|")
-                clean_notes = str(r["notes"]).replace("\n", " ").replace("|", "\\|")
-                fmt_table.append(
-                    f"| `{r['id']}` | `{r['model']}` | `{r['budget']}` | {clean_hypo} |"
-                    f" {r['pytest']} | {r['overall']} | {r['algo']} | {r['latency']} |"
-                    f" {r['input']} | {r['output']} | {r['status']} | {clean_notes} |"
-                )
-            with open(fmt_summary_file, "w", encoding="utf-8") as f:
-                f.write("\n".join(fmt_table))
+            pass
 
     all_master_runs.sort(
         key=lambda r: (r["format"], int(r["id"]) if r["id"].isdigit() else 0)
