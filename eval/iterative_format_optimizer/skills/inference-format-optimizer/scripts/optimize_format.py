@@ -383,16 +383,9 @@ def main(argv: Optional[List[str]] = None) -> None:
     # Initialize baselines directory
     baseline_dir = args.baseline_dir
     if not baseline_dir:
-        budget_sub = (
-            f"budget_{args.thinking_budget}"
-            if args.thinking_budget is not None
-            else "unbounded"
+        baseline_dir = os.path.join(
+            eval_root, "iterative_format_optimizer", "baselines", args.format
         )
-        candidate_dir = os.path.join(eval_root, "baselines", args.format, budget_sub)
-        if os.path.exists(candidate_dir):
-            baseline_dir = candidate_dir
-        else:
-            baseline_dir = os.path.join(eval_root, "baselines", args.format)
     os.makedirs(baseline_dir, exist_ok=True)
 
     # 1. Run Pytest unit tests
@@ -512,8 +505,28 @@ def main(argv: Optional[List[str]] = None) -> None:
                 "latency_seconds": s_dur,
             }
 
+        budget_name = (
+            f"budget_{args.thinking_budget}"
+            if args.thinking_budget is not None
+            else "unbounded"
+        )
+        run_config = {
+            "format": args.format,
+            "thinking_budget": args.thinking_budget,
+            "temperature": 0.0,
+            "model": args.model,
+            "dataset": "core_v1_0",
+            "epochs": 5 if args.thinking_budget is None else 1,
+            "run_name": budget_name,
+        }
         meta_base = {
             "format": args.format,
+            "model": args.model,
+            "thinking_budget": args.thinking_budget,
+            "temperature": 0.0,
+            "dataset": "core_v1_0",
+            "epochs": 5 if args.thinking_budget is None else 1,
+            "run_config": run_config,
             "metrics": {
                 "schema_acc": metrics_ext.get("algo_accuracy", 0.0),
                 "quality_acc": metrics_ext.get("overall_accuracy", 0.0),
@@ -535,7 +548,7 @@ def main(argv: Optional[List[str]] = None) -> None:
             },
             "samples": samples_dict,
         }
-        baseline_meta_dest = os.path.join(baseline_dir, "run_meta.json")
+        baseline_meta_dest = os.path.join(baseline_dir, f"{budget_name}_run_meta.json")
         with open(baseline_meta_dest, "w", encoding="utf-8") as f:
             json.dump(meta_base, f, indent=2)
         print(f"Saved baseline run_meta.json to: {baseline_meta_dest}")

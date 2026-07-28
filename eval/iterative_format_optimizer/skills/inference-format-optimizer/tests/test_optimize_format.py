@@ -364,7 +364,7 @@ def test_main_save_baseline(
         ])
 
     assert e.value.code == 0
-    assert (baseline_dir / "run_meta.json").exists()
+    assert (baseline_dir / "unbounded_run_meta.json").exists()
 
 
 @patch("optimize_format.run_unit_tests")

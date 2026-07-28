@@ -116,6 +116,17 @@ class TestCompareResults(unittest.TestCase):
         finally:
             shutil.rmtree(temp_dir)
 
+    def test_resolve_results_file_dir_with_flat_budget_run_meta_json(self):
+        temp_dir = tempfile.mkdtemp()
+        flat_meta_json = os.path.join(temp_dir, "unbounded_run_meta.json")
+        with open(flat_meta_json, "w") as f:
+            json.dump({"metrics": {"schema_acc": 1.0}}, f)
+        try:
+            resolved = resolve_results_file(temp_dir)
+            self.assertEqual(resolved, flat_meta_json)
+        finally:
+            shutil.rmtree(temp_dir)
+
     @patch("subprocess.check_output")
     def test_resolve_results_file_dir_with_eval_files(self, mock_check):
         mock_check.return_value = '{"results": {}}'
