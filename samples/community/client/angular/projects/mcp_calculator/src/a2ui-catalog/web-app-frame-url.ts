@@ -72,7 +72,10 @@ export interface WebAppFrameUrlApi extends ComponentApi<typeof WebAppFrameUrlPro
   `,
   template: ` <iframe #iframe [src]="iframeSrc()" [title]="'WebAppFrame'"></iframe> `,
 })
-export class WebAppFrameUrl extends CatalogComponent<WebAppFrameUrlApi> implements OnDestroy, OnInit {
+export class WebAppFrameUrl
+  extends CatalogComponent<WebAppFrameUrlApi>
+  implements OnDestroy, OnInit
+{
   private readonly sanitizer = inject(DomSanitizer);
   private readonly rendererService = inject(A2uiRendererService);
 
@@ -91,10 +94,10 @@ export class WebAppFrameUrl extends CatalogComponent<WebAppFrameUrlApi> implemen
   protected readonly dataPaths = computed<Record<string, string>>(() => {
     const dataProp = this.props()['data'];
     if (!dataProp) return {};
-    
+
     const rawPaths = (dataProp.raw as {paths?: Record<string, string>})?.paths;
     const valuePaths = dataProp.value()?.paths;
-    
+
     return rawPaths ?? valuePaths ?? {};
   });
 
@@ -105,7 +108,7 @@ export class WebAppFrameUrl extends CatalogComponent<WebAppFrameUrlApi> implemen
   private ajv = new Ajv();
   private iframe = viewChild.required<ElementRef<HTMLIFrameElement>>('iframe');
   private messageHandler: ((event: MessageEvent) => void) | null = null;
-  private dataSubscriptions: { unsubscribe: () => void }[] = [];
+  private dataSubscriptions: {unsubscribe: () => void}[] = [];
   private resizeTimeout: ReturnType<typeof setTimeout> | null = null;
   private lastWidth?: number;
   private lastHeight?: number;
@@ -341,7 +344,8 @@ export class WebAppFrameUrl extends CatalogComponent<WebAppFrameUrlApi> implemen
               }
             } catch (err: unknown) {
               if (iframeEl.contentWindow) {
-                const errorMessage = err instanceof Error ? err.message : String(err) || 'Error executing function';
+                const errorMessage =
+                  err instanceof Error ? err.message : String(err) || 'Error executing function';
                 iframeEl.contentWindow.postMessage(
                   {
                     type: 'a2ui_function_result',
