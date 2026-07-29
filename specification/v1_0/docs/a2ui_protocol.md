@@ -172,7 +172,7 @@ The envelope defines several message types, and every message streamed by the ag
 
 ### `createSurface`
 
-This message signals the renderer to create a new surface and begin rendering it. A surface must be created before any `updateComponents` or `updateDataModel` messages can be sent to it. While typically achieved by the agent sending a `createSurface` message, an agent may skip this if it knows the surface has already been created (e.g., by another agent). Once a surface is created, its `surfaceId` and `catalogId` are fixed; to reconfigure them, the surface must be deleted and recreated.
+This message signals the renderer to create a new surface and begin rendering it. A surface must be created before any `updateComponents` or `updateDataModel` messages can be sent to it. While typically achieved by the agent sending a `createSurface` message, an agent may skip this if it knows of a preexisting surface that it has permission to modify. Once a surface is created, its `surfaceId` and default `catalogId` (if provided) are fixed; to reconfigure them, the surface must be deleted and recreated.
 
 It is an error to try to create a surface with a `surfaceId` that already exists without first deleting it; `surfaceId` must be globally unique for the renderer's lifetime. Orchestrators with subagents are empowered to manage surface IDs as needed to prevent conflicts (e.g., prefixing the subagent's name to the `surfaceId` or requiring subagents to use UUIDs).
 
@@ -181,7 +181,8 @@ One of the components in one of the component lists MUST have an `id` of `root` 
 **Properties:**
 
 - `surfaceId` (string, required): The unique identifier for the UI surface to be rendered. This must be globally unique for the renderer's lifetime.
-- `catalogId` (string, required): A string that uniquely identifies the catalog (components and functions) used for this surface. Note that `catalogId` is a string identifier, not a resolvable URI; while it is conventionally formatted as a URI (e.g., `https://mycompany.com/1.0/somecatalog`) to avoid naming collisions across organizations, it does not need to point to any deployed resource or downloadable file. Renderer and agent developers must agree on shared catalogs with well-known IDs in order to build systems that are compatible with each other.
+- `catalogId` (string, optional): A string that uniquely identifies the default catalog (components and functions) used for this surface. Note that `catalogId` is a string identifier, not a resolvable URI; while it is conventionally formatted as a URI (e.g., `https://mycompany.com/1.0/somecatalog`) to avoid naming collisions across organizations, it does not need to point to any deployed resource or downloadable file. Components and function calls on this surface that do not explicitly specify their own `catalogId` will use this surface-level default `catalogId`.
+
 - `surfaceProperties` (object, optional): A JSON object containing surface properties (e.g., `agentDisplayName`) defined in the catalog's surfaceProperties schema.
 - `sendDataModel` (boolean, optional): If true, the renderer will send the full data model of this surface in the metadata of every message sent to the agent (via the Transport's metadata mechanism). This ensures the surface owner receives the full current state of the UI alongside the user's action or query. Defaults to false.
 - `components` (array, optional): A list containing UI components for the surface, allowing the renderer to build and populate the UI tree immediately on surface creation. Conforms to the `ComponentsList` schema.
@@ -428,9 +429,23 @@ Each object in the `components` array of an `updateComponents` message defines a
 
 - `id` (`ComponentId`, required): A unique string that identifies this specific component instance. This is used for parent-child references.
 - `component` (string, required): Specifies the component's type (e.g., `"Text"`).
+- `catalogId` (string, optional): A string that uniquely identifies the catalog for this component, overriding the surface's default `catalogId`. Useful when combining components from multiple catalogs in a single surface.
 - **Component Properties**: Other properties relevant to the specific component type (e.g., `text`, `url`, `children`) are included directly in the component object.
 
 This structure is designed to be both flexible and strictly validated.
+
+#### Mixable catalogs and component resolution logic
+
+Renderers can support components and functions from multiple catalogs simultaneously within a single surface (mixable catalogs). When a renderer advertises `supportedCatalogIds` in its capabilities, components from any of those catalogs can be combined in the same UI tree. The set of available catalogs for a surface includes both `supportedCatalogIds` and the `catalogId` of any inline catalog declared in `inlineCatalogs` (when supported by the agent). All catalog IDs specified at the component and function-call levels and at the surface-level must refer to catalogs which use the same A2UI specification version.
+
+When resolving a component (or function call), the renderer evaluates catalog identity using the following strict resolution order:
+
+1. **Explicit Component/Function-Level `catalogId`**: The renderer checks if the component or function call explicitly specifies a `catalogId`. If provided, the component or function is resolved against that catalog.
+2. **Surface Default `catalogId`**: If the component or function call does not specify a `catalogId`, the renderer checks if a default `catalogId` was specified on the surface in the `createSurface` message. If provided, the component or function is resolved against that surface default catalog.
+3. **Resolution Error**: If neither an explicit component/function-level `catalogId` nor a surface default `catalogId` is present, resolution fails immediately with an error and the component is not rendered (or the function call is rejected).
+
+> [!IMPORTANT]
+> There is **no fallback** to the list of catalogs declared in `rendererCapabilities` (even if the renderer only advertises a single supported catalog). Every component and function call must resolve through either its explicit `catalogId` or the surface default `catalogId`.
 
 ### The component catalog
 
