@@ -32,6 +32,7 @@ import {
 import {DomSanitizer, SafeResourceUrl} from '@angular/platform-browser';
 import Ajv from 'ajv';
 import {IncomingWebFrameMessageSchema, IncomingWebFrameMessage, A2uiMessageType} from './web-frame-messages';
+import stringify from 'fast-json-stable-stringify';
 
 const WebAppFrameUrlPropsSchema = z.object({
   url: z.string().optional(),
@@ -273,7 +274,7 @@ export class WebAppFrameUrl
           : dataPath;
 
         const currentValue = surface.dataModel.get(targetPath);
-        if (JSON.stringify(currentValue) !== JSON.stringify(data.value)) {
+        if (stringify(currentValue) !== stringify(data.value)) {
           this.isProcessingAppWrite = true;
           try {
             surface.dataModel.set(targetPath, data.value);
@@ -410,7 +411,7 @@ export class WebAppFrameUrl
     if (surface && Object.keys(dataPaths).length > 0) {
       for (const [key, dataPath] of Object.entries(dataPaths)) {
         initialData[key] = surface.dataModel.get(dataPath);
-        this.lastBoundRootValues[key] = JSON.stringify(initialData[key] ?? null);
+        this.lastBoundRootValues[key] = stringify(initialData[key] ?? null);
 
         const sub = surface.dataModel.subscribe(dataPath, value => {
           if (this.isProcessingAppWrite) return;
@@ -420,12 +421,12 @@ export class WebAppFrameUrl
 
           const prevStr = this.lastBoundRootValues[key];
           const prev = prevStr ? JSON.parse(prevStr) : null;
-          this.lastBoundRootValues[key] = JSON.stringify(value ?? null);
+          this.lastBoundRootValues[key] = stringify(value ?? null);
 
           if (value && typeof value === 'object') {
             for (const [k, v] of Object.entries(value)) {
               const oldVal = prev ? prev[k] : undefined;
-              if (JSON.stringify(oldVal) !== JSON.stringify(v)) {
+              if (stringify(oldVal) !== stringify(v)) {
                 iframeEl.contentWindow.postMessage(
                   {
                     type: A2uiMessageType.DataModelUpdate,
@@ -438,7 +439,7 @@ export class WebAppFrameUrl
               }
             }
           } else {
-            if (JSON.stringify(prev) !== JSON.stringify(value)) {
+            if (stringify(prev) !== stringify(value)) {
               iframeEl.contentWindow.postMessage(
                 {
                   type: A2uiMessageType.DataModelUpdate,
