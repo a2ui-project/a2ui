@@ -18,9 +18,11 @@ import {SurfaceModel} from '../state/surface-model.js';
 import {ComponentModel} from '../state/component-model.js';
 import {Catalog, ComponentApi, FunctionImplementation} from '../catalog/types.js';
 import {ComponentContext} from '../rendering/component-context.js';
-import {GenericBinder} from '../rendering/generic-binder.js';
+import {DataContext} from '../rendering/data-context.js';
+import {BehaviorNode, GenericBinder, scrapeSchemaBehavior} from '../rendering/generic-binder.js';
 import {ComponentNode, NodeProps, PLACEHOLDER_TYPE} from './component-node.js';
 import {extractRefFields, RefFields} from './ref-fields.js';
+import {ResolvedBinding, sameBinding} from './resolved-binding.js';
 import {Signal, signal, setValue, peekValue} from '../reactivity/signals.js';
 import {Subscription} from '../common/events.js';
 import {A2uiStateError} from '../errors.js';
@@ -37,6 +39,13 @@ interface NodeRecord {
   /** The node whose props reference this one; undefined for the root. */
   readonly parent?: ComponentNode;
   readonly refFields: RefFields;
+  /** The scraped behavior tree for the component's schema; positions it
+   *  classifies as DYNAMIC resolve to {@link ResolvedBinding}s in node
+   *  props. Absent on placeholders. */
+  readonly behavior?: BehaviorNode;
+  /** The context the binder resolves against; writes constructed for
+   *  path-bound values go through its scoped data context. */
+  readonly context?: ComponentContext;
   readonly componentModel?: ComponentModel;
   readonly binder?: GenericBinder<NodeProps>;
   binderSub?: {unsubscribe(): void};
@@ -254,7 +263,15 @@ export class NodeResolver<
         dataPath,
         {},
       ),
-      {edgeKey, parent, refFields: extractRefFields(api.schema), componentModel: model, binder},
+      {
+        edgeKey,
+        parent,
+        refFields: extractRefFields(api.schema),
+        behavior: scrapeSchemaBehavior(api.schema),
+        context,
+        componentModel: model,
+        binder,
+      },
     );
     record.binderSub = binder.subscribe(raw => {
       record.lastBinderProps = raw;
@@ -274,6 +291,8 @@ export class NodeResolver<
       edgeKey: string;
       parent?: ComponentNode;
       refFields: RefFields;
+      behavior?: BehaviorNode;
+      context?: ComponentContext;
       componentModel?: ComponentModel;
       binder?: GenericBinder<NodeProps>;
     },
@@ -283,6 +302,8 @@ export class NodeResolver<
       edgeKey: partial.edgeKey,
       parent: partial.parent,
       refFields: partial.refFields,
+      behavior: partial.behavior,
+      context: partial.context,
       componentModel: partial.componentModel,
       binder: partial.binder,
       childEdges: new Map(),
@@ -478,12 +499,22 @@ export class NodeResolver<
     }
     record.childEdges = newEdges;
 
+    const wrapped =
+      record.behavior && record.context
+        ? (wrapDynamicValues(
+            next,
+            record.behavior,
+            modelProps ?? {},
+            record.context.dataContext,
+          ) as NodeProps)
+        : next;
+
     // peekValue avoids creating a reactive dependency inside materialize.
     const previous = peekValue(record.node.props);
-    for (const key of Object.keys(next)) {
-      next[key] = stabilize(previous[key], next[key]);
+    for (const key of Object.keys(wrapped)) {
+      wrapped[key] = stabilize(previous[key], wrapped[key]);
     }
-    record.node.setProps(next);
+    record.node.setProps(wrapped);
   }
 
   /** Disposes a node and, through parent-scoped ownership, its subtree. */
@@ -527,13 +558,88 @@ function instanceIdFor(componentId: string, dataPath: string): string {
 }
 
 /**
+ * Converts every position the schema classifies as DYNAMIC into a
+ * `ResolvedBinding`: the binder's resolved value as the snapshot, plus a
+ * write capability iff the payload spelled the value as a `{"path": ...}`
+ * binding, writing through the component's scoped data context. The binder's
+ * synthesized `set<Prop>` siblings are dropped: they belong to the legacy
+ * prop-pair shape and silently swallow writes to literal-valued properties,
+ * which the binding contract forbids.
+ */
+function wrapDynamicValues(
+  value: unknown,
+  behavior: BehaviorNode,
+  raw: unknown,
+  dataContext: DataContext,
+): unknown {
+  switch (behavior.type) {
+    case 'DYNAMIC': {
+      const path =
+        raw &&
+        typeof raw === 'object' &&
+        !Array.isArray(raw) &&
+        typeof (raw as {path?: unknown}).path === 'string'
+          ? (raw as {path: string}).path
+          : undefined;
+      return new ResolvedBinding(
+        value,
+        path === undefined ? undefined : newValue => dataContext.set(path, newValue),
+      );
+    }
+    case 'ARRAY': {
+      if (!Array.isArray(value)) {
+        return value;
+      }
+      const rawItems = Array.isArray(raw) ? raw : [];
+      return value.map((item, index) =>
+        wrapDynamicValues(item, behavior.element, rawItems[index], dataContext),
+      );
+    }
+    case 'OBJECT': {
+      if (!value || typeof value !== 'object' || Array.isArray(value)) {
+        return value;
+      }
+      const setterNames = new Set<string>();
+      for (const [key, childBehavior] of Object.entries(behavior.shape)) {
+        if (childBehavior.type === 'DYNAMIC') {
+          setterNames.add(`set${key.charAt(0).toUpperCase()}${key.slice(1)}`);
+        }
+      }
+      const rawRecord =
+        raw && typeof raw === 'object' && !Array.isArray(raw)
+          ? (raw as Record<string, unknown>)
+          : {};
+      const out: Record<string, unknown> = {};
+      for (const [key, item] of Object.entries(value)) {
+        if (setterNames.has(key)) {
+          continue;
+        }
+        out[key] = wrapDynamicValues(
+          item,
+          behavior.shape[key] ?? {type: 'STATIC'},
+          rawRecord[key],
+          dataContext,
+        );
+      }
+      return out;
+    }
+    default:
+      return value;
+  }
+}
+
+/**
  * Returns `prev` whenever `next` is structurally identical to it, so
  * unchanged props keep reference identity across rebuilds. Child
- * `ComponentNode`s and action closures compare by identity.
+ * `ComponentNode`s and action closures compare by identity, and
+ * `ResolvedBinding`s by snapshot value and writability.
  */
 function stabilize(prev: unknown, next: unknown): unknown {
   if (Object.is(prev, next)) {
     return next;
+  }
+  if (prev instanceof ResolvedBinding && next instanceof ResolvedBinding) {
+    return sameBinding(prev, next) ? prev : next;
   }
   if (prev instanceof ComponentNode || next instanceof ComponentNode) {
     return next;

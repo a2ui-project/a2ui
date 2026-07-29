@@ -245,7 +245,7 @@ describe('A2uiNodeSurface', () => {
     expect(container.textContent).toContain('inside the card');
   });
 
-  it('input components write scoped values using only synthesized setters', () => {
+  it('input components write scoped values through unwrapped bindings', () => {
     const surface = setup();
     surface.dataModel.set('/items', [{value: 'a'}, {value: 'b'}]);
     add(surface, 'root', 'Column', {children: {componentId: 'field', path: '/items'}});

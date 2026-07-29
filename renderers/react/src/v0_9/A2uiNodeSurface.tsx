@@ -25,8 +25,9 @@
  *
  * Views are reused unchanged: node props are converted back to the shapes the
  * existing view contract expects (child ids as strings, template children as
- * `{id, basePath}` pairs) and `buildChild` maps those refs back to their live
- * nodes. A ref the node layer did not resolve (a single-child id whose schema
+ * `{id, basePath}` pairs, `ResolvedBinding`s as value + `set<Prop>` pairs)
+ * and `buildChild` maps those refs back to their live nodes. A ref the node
+ * layer did not resolve (a single-child id whose schema
  * is not declared with `componentReference()`) falls back to `DeferredChild`
  * recursion over the raw definitions, so catalogs can migrate incrementally.
  */
@@ -36,6 +37,7 @@ import {
   ComponentContext,
   ComponentNode,
   NodeResolver,
+  ResolvedBinding,
   effect,
   getValue,
   peekValue,
@@ -84,17 +86,39 @@ function toViewValue(parent: ComponentNode, value: unknown, index: ChildIndex): 
     }
     return value.componentId;
   }
+  if (value instanceof ResolvedBinding) {
+    return toViewValue(parent, value.value, index);
+  }
   if (Array.isArray(value)) {
     return value.map(item => toViewValue(parent, item, index));
   }
   if (value && typeof value === 'object') {
-    const result: Record<string, unknown> = {};
-    for (const [key, inner] of Object.entries(value)) {
-      result[key] = toViewValue(parent, inner, index);
-    }
-    return result;
+    return toViewProps(parent, value as Record<string, unknown>, index);
   }
   return value;
+}
+
+/**
+ * Converts one object level of node props, unwrapping each `ResolvedBinding`
+ * into the value + `set<Prop>` pair the views were written against. A
+ * read-only binding gets a no-op setter, matching what the legacy binder
+ * synthesizes for literal-valued properties.
+ */
+function toViewProps(
+  parent: ComponentNode,
+  props: Record<string, unknown>,
+  index: ChildIndex,
+): Record<string, unknown> {
+  const result: Record<string, unknown> = {};
+  for (const [key, inner] of Object.entries(props)) {
+    if (inner instanceof ResolvedBinding) {
+      result[key] = toViewValue(parent, inner.value, index);
+      result[`set${key.charAt(0).toUpperCase()}${key.slice(1)}`] = inner.set ?? (() => {});
+    } else {
+      result[key] = toViewValue(parent, inner, index);
+    }
+  }
+  return result;
 }
 
 const NodeView = memo(
@@ -103,10 +127,7 @@ const NodeView = memo(
 
     const {viewProps, childIndex} = useMemo(() => {
       const index: ChildIndex = new Map();
-      const converted: NodeProps = {};
-      for (const [key, value] of Object.entries(resolved)) {
-        converted[key] = toViewValue(node, value, index);
-      }
+      const converted: NodeProps = toViewProps(node, resolved, index);
       return {viewProps: converted, childIndex: index};
     }, [node, resolved]);
 

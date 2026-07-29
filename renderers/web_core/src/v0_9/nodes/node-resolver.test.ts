@@ -38,6 +38,7 @@ import {effect, getValue, peekValue, Signal} from '../reactivity/signals.js';
 import {ComponentNode, NodeProps, PLACEHOLDER_TYPE} from './component-node.js';
 import {NodeResolver} from './node-resolver.js';
 import {componentReference, componentReferenceList} from './ref-fields.js';
+import {ResolvedBinding} from './resolved-binding.js';
 
 const TextApi = {
   name: 'Text',
@@ -91,6 +92,13 @@ function props(node: ComponentNode): NodeProps {
   return peekValue(node.props);
 }
 
+/** Unwraps a dynamic prop's `ResolvedBinding` snapshot, asserting it is one. */
+function bound(node: ComponentNode, key: string): unknown {
+  const binding = props(node)[key];
+  assert.ok(binding instanceof ResolvedBinding, `expected ${key} to resolve to a ResolvedBinding`);
+  return binding.value;
+}
+
 function child(node: ComponentNode, key: string, index?: number): ComponentNode {
   const value = index === undefined ? props(node)[key] : (props(node)[key] as unknown[])[index];
   assert.ok(
@@ -129,7 +137,7 @@ describe('NodeResolver conformance (port of test_node_graph.py)', () => {
     add(surface, 'child_1', 'Text', {text: 'Hello Node'});
     const upgraded = child(root, 'children', 0);
     assert.strictEqual(upgraded.type, 'Text');
-    assert.strictEqual(props(upgraded).text, 'Hello Node');
+    assert.strictEqual(bound(upgraded, 'text'), 'Hello Node');
 
     surface.componentsModel.removeComponent('child_1');
     assert.strictEqual(child(root, 'children', 0).type, PLACEHOLDER_TYPE);
@@ -176,10 +184,10 @@ describe('NodeResolver conformance (port of test_node_graph.py)', () => {
     add(surface, 'root', 'Text', {text: {path: '/username'}});
     const root = getValue(resolver.rootNode);
     assert.ok(root);
-    assert.strictEqual(props(root).text, 'Alice');
+    assert.strictEqual(bound(root, 'text'), 'Alice');
 
     surface.dataModel.set('/username', 'Bob');
-    assert.strictEqual(props(root).text, 'Bob');
+    assert.strictEqual(bound(root, 'text'), 'Bob');
     resolver.dispose();
   });
 
@@ -191,7 +199,7 @@ describe('NodeResolver conformance (port of test_node_graph.py)', () => {
     assert.ok(root);
     const textNode = child(root, 'child');
     assert.strictEqual(textNode.type, 'Text');
-    assert.strictEqual(props(textNode).text, 'Hello');
+    assert.strictEqual(bound(textNode, 'text'), 'Hello');
     resolver.dispose();
   });
 
@@ -204,8 +212,8 @@ describe('NodeResolver conformance (port of test_node_graph.py)', () => {
     assert.ok(root);
     const children = props(root).children as ComponentNode[];
     assert.strictEqual(children.length, 2);
-    assert.strictEqual(props(children[0]).text, 'C1');
-    assert.strictEqual(props(children[1]).text, 'C2');
+    assert.strictEqual(bound(children[0], 'text'), 'C1');
+    assert.strictEqual(bound(children[1], 'text'), 'C2');
     resolver.dispose();
   });
 
@@ -220,8 +228,8 @@ describe('NodeResolver conformance (port of test_node_graph.py)', () => {
     assert.strictEqual(children.length, 2);
     assert.strictEqual(children[0].instanceId, 'item_tpl-[/items/0]');
     assert.strictEqual(children[0].dataPath, '/items/0');
-    assert.strictEqual(props(children[0]).text, 'A');
-    assert.strictEqual(props(children[1]).text, 'B');
+    assert.strictEqual(bound(children[0], 'text'), 'A');
+    assert.strictEqual(bound(children[1], 'text'), 'B');
     resolver.dispose();
   });
 
@@ -245,7 +253,7 @@ describe('NodeResolver conformance (port of test_node_graph.py)', () => {
     const upgraded = child(root, 'children', 0);
     assert.notStrictEqual(upgraded, placeholder);
     assert.strictEqual(upgraded.type, 'Text');
-    assert.strictEqual(props(upgraded).text, 'Arrived');
+    assert.strictEqual(bound(upgraded, 'text'), 'Arrived');
     assert.strictEqual(placeholder.disposed, true);
     assert.strictEqual(destroyed, 1);
     emissions.dispose();
@@ -283,7 +291,7 @@ describe('NodeResolver conformance (port of test_node_graph.py)', () => {
     add(surface, 'root', 'Text', {text: {path: '/missing'}});
     const root = getValue(resolver.rootNode);
     assert.ok(root);
-    assert.strictEqual(props(root).text, undefined);
+    assert.strictEqual(bound(root, 'text'), undefined);
     resolver.dispose();
   });
 
@@ -304,7 +312,7 @@ describe('NodeResolver conformance (port of test_node_graph.py)', () => {
     const after = props(root).children as ComponentNode[];
     assert.strictEqual(after.length, 2);
     assert.strictEqual(after[0], before[0]);
-    assert.strictEqual(props(after[1]).text, 'C3');
+    assert.strictEqual(bound(after[1], 'text'), 'C3');
     assert.strictEqual(before[1].disposed, true);
     resolver.dispose();
   });
@@ -325,7 +333,7 @@ describe('NodeResolver conformance (port of test_node_graph.py)', () => {
 
     const children = props(root).children as ComponentNode[];
     assert.strictEqual(children.length, 1);
-    assert.strictEqual(props(children[0]).text, 'T0');
+    assert.strictEqual(bound(children[0], 'text'), 'T0');
     assert.strictEqual(explicitChild.disposed, true);
     resolver.dispose();
   });
@@ -336,10 +344,10 @@ describe('NodeResolver conformance (port of test_node_graph.py)', () => {
     add(surface, 'root', 'Text', {text: {call: 'shout', args: {value: {path: '/username'}}}});
     const root = getValue(resolver.rootNode);
     assert.ok(root);
-    assert.strictEqual(props(root).text, 'ALICE');
+    assert.strictEqual(bound(root, 'text'), 'ALICE');
 
     surface.dataModel.set('/username', 'bob');
-    assert.strictEqual(props(root).text, 'BOB');
+    assert.strictEqual(bound(root, 'text'), 'BOB');
     resolver.dispose();
   });
 
@@ -360,10 +368,10 @@ describe('NodeResolver conformance (port of test_node_graph.py)', () => {
     assert.strictEqual(items[0].title, 'One');
     const first = items[0].child;
     assert.ok(first instanceof ComponentNode);
-    assert.strictEqual(props(first).text, 'First');
+    assert.strictEqual(bound(first, 'text'), 'First');
     const second = items[1].child;
     assert.ok(second instanceof ComponentNode);
-    assert.strictEqual(props(second).text, 'Second');
+    assert.strictEqual(bound(second, 'text'), 'Second');
     resolver.dispose();
   });
 
@@ -397,7 +405,7 @@ describe('NodeResolver conformance (port of test_node_graph.py)', () => {
     surface.dataModel.set('/items', [{name: 'A'}, {name: 'B'}, {name: 'C'}]);
     const grown = props(root).children as ComponentNode[];
     assert.strictEqual(grown.length, 3);
-    assert.strictEqual(props(grown[2]).text, 'C');
+    assert.strictEqual(bound(grown[2], 'text'), 'C');
 
     surface.dataModel.set('/items', [{name: 'A'}]);
     const shrunk = props(root).children as ComponentNode[];
@@ -416,8 +424,8 @@ describe('NodeResolver conformance (port of test_node_graph.py)', () => {
     const root = getValue(resolver.rootNode);
     assert.ok(root);
     const json = root.toJSON();
-    // setText/setLabel are the binder's synthesized two-way setters; like
-    // action closures they serialize as '<Action>'.
+    // Dynamic props serialize as their binding's snapshot value; the binder's
+    // synthesized set<Prop> siblings do not appear in node props at all.
     assert.deepStrictEqual(json, {
       id: 'root',
       type: 'Column',
@@ -425,9 +433,9 @@ describe('NodeResolver conformance (port of test_node_graph.py)', () => {
         {
           id: 'card',
           type: 'Card',
-          child: {id: 'txt', type: 'Text', text: 'Hello', setText: '<Action>'},
+          child: {id: 'txt', type: 'Text', text: 'Hello'},
         },
-        {id: 'btn', type: 'Button', label: 'Go', setLabel: '<Action>', action: '<Action>'},
+        {id: 'btn', type: 'Button', label: 'Go', action: '<Action>'},
         {id: 'late', type: PLACEHOLDER_TYPE},
       ],
     });
@@ -480,7 +488,7 @@ describe('NodeResolver defect coverage (fixes over the Python reference)', () =>
     assert.strictEqual(sharedViaA.disposed, true);
     assert.strictEqual(sharedViaB.disposed, false);
     surface.dataModel.set('/label', 'still updating');
-    assert.strictEqual(props(sharedViaB).text, 'still updating');
+    assert.strictEqual(bound(sharedViaB, 'text'), 'still updating');
     resolver.dispose();
   });
 
@@ -528,14 +536,14 @@ describe('NodeResolver defect coverage (fixes over the Python reference)', () =>
 
     surface.dataModel.set('/username', 'Bob');
     assert.strictEqual(boundEmissions.count, 1);
-    assert.strictEqual(props(boundText).text, 'Bob');
+    assert.strictEqual(bound(boundText, 'text'), 'Bob');
     assert.strictEqual(rootEmissions.count, 0);
 
     // Editing one item's field re-fires the template's array subscription
     // (ancestor-path propagation); the item node must update while the
     // template parent's props stay identity-stable and silent.
     surface.dataModel.set('/items/0/name', 'A2');
-    assert.strictEqual(props(item0).text, 'A2');
+    assert.strictEqual(bound(item0, 'text'), 'A2');
     assert.ok(item0Emissions.count >= 1);
     assert.strictEqual(templateColumnEmissions.count, 0);
     assert.strictEqual(rootEmissions.count, 0);
@@ -590,10 +598,10 @@ describe('NodeResolver malformed and unusual payloads', () => {
     add(surface, 'root', 'Text', {text: {path: '/blob'}});
     const root = getValue(resolver.rootNode);
     assert.ok(root);
-    assert.strictEqual((props(root).text as {wrapper: unknown}).wrapper, first);
+    assert.strictEqual((bound(root, 'text') as {wrapper: unknown}).wrapper, first);
 
     surface.dataModel.set('/blob', {wrapper: second});
-    assert.strictEqual((props(root).text as {wrapper: unknown}).wrapper, second);
+    assert.strictEqual((bound(root, 'text') as {wrapper: unknown}).wrapper, second);
     resolver.dispose();
   });
 
@@ -622,6 +630,66 @@ describe('NodeResolver malformed and unusual payloads', () => {
       errors.filter(e => e.code === 'UNKNOWN_COMPONENT_TYPE').length,
       reportsBefore,
     );
+    resolver.dispose();
+  });
+});
+
+describe('NodeResolver resolved bindings (write-path contract)', () => {
+  it('makes bindings writable iff the payload bound a data path', () => {
+    const {surface, resolver} = setup();
+    surface.dataModel.set('/username', 'alice');
+    add(surface, 'root', 'Column', {children: ['lit', 'bnd', 'call']});
+    add(surface, 'lit', 'Text', {text: 'Literal'});
+    add(surface, 'bnd', 'Text', {text: {path: '/username'}});
+    add(surface, 'call', 'Text', {text: {call: 'shout', args: {value: {path: '/username'}}}});
+    const root = getValue(resolver.rootNode);
+    assert.ok(root);
+    const [literalNode, boundNode, callNode] = props(root).children as ComponentNode[];
+
+    const literal = props(literalNode).text as ResolvedBinding<unknown>;
+    assert.strictEqual(literal.value, 'Literal');
+    assert.strictEqual(literal.writable, false);
+    assert.strictEqual(literal.set, undefined);
+
+    const call = props(callNode).text as ResolvedBinding<unknown>;
+    assert.strictEqual(call.value, 'ALICE');
+    assert.strictEqual(call.writable, false);
+    assert.strictEqual(call.set, undefined);
+
+    const pathBound = props(boundNode).text as ResolvedBinding<unknown>;
+    assert.strictEqual(pathBound.value, 'alice');
+    assert.strictEqual(pathBound.writable, true);
+    pathBound.set!('bob');
+    assert.strictEqual(surface.dataModel.get('/username'), 'bob');
+    assert.strictEqual(bound(boundNode, 'text'), 'bob');
+    resolver.dispose();
+  });
+
+  it("writes through a template item binding to that item's scoped path", () => {
+    const {surface, resolver} = setup();
+    surface.dataModel.set('/items', [{name: 'A'}, {name: 'B'}]);
+    add(surface, 'root', 'Column', {children: {componentId: 'item_tpl', path: '/items'}});
+    add(surface, 'item_tpl', 'Text', {text: {path: 'name'}});
+    const root = getValue(resolver.rootNode);
+    assert.ok(root);
+    const children = props(root).children as ComponentNode[];
+    const item1 = props(children[1]).text as ResolvedBinding<unknown>;
+    assert.strictEqual(item1.writable, true);
+    item1.set!('B2');
+
+    assert.strictEqual(surface.dataModel.get('/items/1/name'), 'B2');
+    assert.strictEqual(bound(children[1], 'text'), 'B2');
+    assert.strictEqual(bound(children[0], 'text'), 'A');
+    resolver.dispose();
+  });
+
+  it('serializes path-bound properties as plain snapshot values', () => {
+    const {surface, resolver} = setup();
+    surface.dataModel.set('/username', 'alice');
+    add(surface, 'root', 'Text', {text: {path: '/username'}});
+    const root = getValue(resolver.rootNode);
+    assert.ok(root);
+    assert.deepStrictEqual(root.toJSON(), {id: 'root', type: 'Text', text: 'alice'});
     resolver.dispose();
   });
 });
