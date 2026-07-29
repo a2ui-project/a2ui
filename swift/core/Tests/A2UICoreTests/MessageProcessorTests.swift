@@ -158,7 +158,9 @@ struct MessageProcessorTests {
           }
         }
         """)
-    #expect(processor.surfaceGroupModel.surfaces["s1"] != nil)
+    let surface = processor.surfaceGroupModel.surfaces["s1"]
+    #expect(surface != nil)
+    #expect(surface?.theme != nil)
   }
 
   // MARK: - Update Components
@@ -192,7 +194,7 @@ struct MessageProcessorTests {
         }
         """)
     let vm = processor.surfaceGroupModel.surfaces["s1"]
-    let components = vm?.componentsModel.snapshot()
+    let components = vm?.componentsModel.components
     #expect(components?["root"] != nil)
   }
 
@@ -239,8 +241,7 @@ struct MessageProcessorTests {
         }
         """)
     let vm = processor.surfaceGroupModel.surfaces["s1"]
-    let data = vm?.dataModel.snapshot()
-    #expect(data?["user/name"]?.stringValue == "Alice")
+    #expect(vm?.dataModel.get("/user/name")?.stringValue == "Alice")
   }
 
   // MARK: - Delete Surface

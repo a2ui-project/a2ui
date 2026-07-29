@@ -45,11 +45,6 @@ struct TestConcatFunction: FunctionImplementation {
   }
 }
 
-/// A simple `SurfaceTheme` for testing.
-struct TestSurfaceTheme: SurfaceTheme {
-  let color: String
-}
-
 /// Builds a `Catalog` with a button component schema that has dynamic
 /// properties, and a `concat` local function for testing.
 func makeTestCatalog() throws -> Catalog {
@@ -194,16 +189,14 @@ struct SurfaceViewModelTests {
   @Test func updateDataModelSetsValueAtPath() throws {
     let (processor, surface, _) = try makeProcessor()
     processor.updateDataModel(surfaceID: surface.surfaceID, path: "/user/name", value: "Alice")
-    let data = surface.dataModel.snapshot()
-    #expect(data["user/name"]?.stringValue == "Alice")
+    #expect(surface.dataModel.get("/user/name")?.stringValue == "Alice")
   }
 
   @Test func updateDataModelSetsNilRemovesValue() throws {
     let (processor, surface, _) = try makeProcessor()
     processor.updateDataModel(surfaceID: surface.surfaceID, path: "/user/name", value: "Alice")
     processor.updateDataModel(surfaceID: surface.surfaceID, path: "/user/name", value: nil)
-    let data = surface.dataModel.snapshot()
-    #expect(data["user/name"] == nil)
+    #expect(surface.dataModel.get("/user/name") == nil)
   }
 
   // MARK: - Root Node Resolution
@@ -236,8 +229,7 @@ struct SurfaceViewModelTests {
         ["id": "root", "component": "button", "label": ["path": "/user/name"]]
       ]
     )
-    let data = surface.dataModel.snapshot()
-    #expect(data["user/name"]?.stringValue == "Alice")
+    #expect(surface.dataModel.get("/user/name")?.stringValue == "Alice")
   }
 
   // MARK: - Dynamic Boolean Resolution
@@ -318,27 +310,30 @@ struct SurfaceViewModelTests {
         ["id": "child2", "component": "button", "label": "Second"],
       ]
     )
-    #expect(surface.componentsModel.count == 3)
+    #expect(surface.componentsModel.components.count == 3)
     #expect(surface.componentsModel.get("child1") != nil)
     #expect(surface.componentsModel.get("child2") != nil)
   }
 
-  // MARK: - Theme Updates
+  // MARK: - Theme
 
-  @Test func updateThemeSetsActiveTheme() throws {
-    let (_, surface, _) = try makeProcessor()
-    let theme = TestSurfaceTheme(color: "blue")
-    surface.updateTheme(theme)
-    let active = surface.getActiveTheme()
-    #expect(active != nil)
-    #expect((active as? TestSurfaceTheme)?.color == "blue")
+  @Test func surfaceViewModelInitializesWithTheme() throws {
+    let catalog = try makeTestCatalog()
+    let theme: [String: JSONValue] = ["color": .string("blue")]
+    let surface = SurfaceViewModel(
+      surfaceID: "s1",
+      catalog: catalog,
+      theme: theme
+    )
+    #expect(surface.theme != nil)
+    #expect(surface.theme?["color"]?.stringValue == "blue")
   }
 
   // MARK: - Component Buffer
 
   @Test func getComponentsReturnsEmptyDictInitially() throws {
     let (_, surface, _) = try makeProcessor()
-    #expect(surface.componentsModel.isEmpty)
+    #expect(surface.componentsModel.components.isEmpty)
   }
 
   @Test func getComponentsReturnsAllStoredComponents() throws {
@@ -350,7 +345,7 @@ struct SurfaceViewModelTests {
         ["id": "b", "component": "button"],
       ]
     )
-    #expect(surface.componentsModel.count == 2)
+    #expect(surface.componentsModel.components.count == 2)
     #expect(surface.componentsModel.get("a") != nil)
     #expect(surface.componentsModel.get("b") != nil)
   }
@@ -513,15 +508,15 @@ struct SurfaceComponentsModelTests {
 
   @Test func startsEmpty() {
     let model = SurfaceComponentsModel()
-    #expect(model.isEmpty)
-    #expect(model.count == 0)
+    #expect(model.components.isEmpty)
+    #expect(model.components.count == 0)
   }
 
   @Test func addAndGetComponent() {
     let model = SurfaceComponentsModel()
     let component = ComponentModel(id: "btn1", type: "button", properties: ["label": "OK"])
     model.addComponent(component)
-    #expect(model.count == 1)
+    #expect(model.components.count == 1)
     #expect(model.get("btn1")?.type == "button")
   }
 
@@ -530,7 +525,7 @@ struct SurfaceComponentsModelTests {
     model.addComponent(ComponentModel(id: "btn1", type: "button", properties: [:]))
     model.removeComponent("btn1")
     #expect(model.get("btn1") == nil)
-    #expect(model.isEmpty)
+    #expect(model.components.isEmpty)
   }
 
   @Test func replaceComponentWithSameId() {
@@ -538,13 +533,13 @@ struct SurfaceComponentsModelTests {
     model.addComponent(ComponentModel(id: "btn1", type: "button", properties: ["label": "Old"]))
     model.addComponent(ComponentModel(id: "btn1", type: "button", properties: ["label": "New"]))
     #expect(model.get("btn1")?.properties["label"]?.stringValue == "New")
-    #expect(model.count == 1)
+    #expect(model.components.count == 1)
   }
 
-  @Test func snapshotReturnsCopy() {
+  @Test func componentsPropertyReturnsDictionary() {
     let model = SurfaceComponentsModel()
     model.addComponent(ComponentModel(id: "a", type: "button", properties: [:]))
-    let snap = model.snapshot()
+    let snap = model.components
     #expect(snap.count == 1)
     #expect(snap["a"] != nil)
   }
@@ -556,8 +551,7 @@ struct DataModelTests {
 
   @Test func startsEmpty() {
     let model = DataModel()
-    let snapshot = model.snapshot()
-    #expect(snapshot == .object([:]))
+    #expect(model.data == .object([:]))
   }
 
   @Test func setsAndGetsValueAtPath() {

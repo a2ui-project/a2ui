@@ -61,7 +61,7 @@ public final class MessageProcessor: @unchecked Sendable, ObservableObject {
     var result: OrderedDictionary<String, JSONValue> = [:]
     for (surfaceID, vm) in surfaceGroupModel.surfaces {
       if vm.sendDataModel {
-        result[surfaceID] = vm.dataModel.snapshot()
+        result[surfaceID] = vm.dataModel.data
       }
     }
     guard !result.isEmpty else { return nil }
@@ -113,12 +113,14 @@ public final class MessageProcessor: @unchecked Sendable, ObservableObject {
   private func createSurface(
     surfaceID: String,
     catalogID: String,
+    theme: [String: JSONValue]? = nil,
     sendDataModel: Bool = false
   ) -> SurfaceViewModel? {
     guard let catalog = catalogs[catalogID] else { return nil }
     return createSurface(
       surfaceID: surfaceID,
       catalog: catalog,
+      theme: theme,
       sendDataModel: sendDataModel
     )
   }
@@ -127,11 +129,13 @@ public final class MessageProcessor: @unchecked Sendable, ObservableObject {
   private func createSurface(
     surfaceID: String,
     catalog: Catalog,
+    theme: [String: JSONValue]? = nil,
     sendDataModel: Bool = false
   ) -> SurfaceViewModel {
     let vm = SurfaceViewModel(
       surfaceID: surfaceID,
       catalog: catalog,
+      theme: theme,
       actionHandler: actionHandler,
       sendDataModel: sendDataModel
     )
@@ -210,17 +214,12 @@ public final class MessageProcessor: @unchecked Sendable, ObservableObject {
         }
 
         let existing = surface.componentsModel.get(id)
-        if existing != nil && existing?.type != type {
-          // Component type changed: recreate component to reset state
+        if let existing, existing.type != type {
           surface.componentsModel.removeComponent(id)
-          surface.componentsModel.addComponent(
-            ComponentModel(id: id, type: type, properties: props)
-          )
-        } else {
-          surface.componentsModel.addComponent(
-            ComponentModel(id: id, type: type, properties: props)
-          )
         }
+        surface.componentsModel.addComponent(
+          ComponentModel(id: id, type: type, properties: props)
+        )
       } else {
         let errorMessage = result.errors?.first?.message ?? "Validation failed"
         let errorPath = result.errors?.first?.instanceLocation.jsonPointerString ?? "/"
@@ -234,8 +233,6 @@ public final class MessageProcessor: @unchecked Sendable, ObservableObject {
         actionHandler?.handle(error: error, from: surfaceID)
       }
     }
-
-    surface.rebuildTree()
   }
 
   private func updateDataModel(
@@ -255,7 +252,6 @@ public final class MessageProcessor: @unchecked Sendable, ObservableObject {
       return
     }
     surface.dataModel.set(path, value: value)
-    surface.rebuildTree()
   }
 
   // MARK: - Private Validation & Processing
@@ -282,6 +278,7 @@ public final class MessageProcessor: @unchecked Sendable, ObservableObject {
       let vm = SurfaceViewModel(
         surfaceID: msg.surfaceID,
         catalog: catalog,
+        theme: msg.theme,
         actionHandler: actionHandler,
         sendDataModel: msg.shouldSendDataModel
       )
