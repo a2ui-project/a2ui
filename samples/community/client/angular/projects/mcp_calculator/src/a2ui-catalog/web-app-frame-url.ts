@@ -31,6 +31,7 @@ import {
 } from '@angular/core';
 import {DomSanitizer, SafeResourceUrl} from '@angular/platform-browser';
 import Ajv from 'ajv';
+import {IncomingWebFrameMessageSchema, IncomingWebFrameMessage, A2uiMessageType} from './web-frame-messages';
 
 const WebAppFrameUrlPropsSchema = z.object({
   url: z.string().optional(),
@@ -207,6 +208,153 @@ export class WebAppFrameUrl
     }, 100);
   }
 
+  private handleSandboxProxyReady(iframeEl: HTMLIFrameElement) {
+    if (this.targetUrl && iframeEl.contentWindow) {
+      iframeEl.contentWindow.postMessage(
+        {
+          type: A2uiMessageType.SandboxResourceReady,
+          url: this.targetUrl,
+        },
+        window.location.origin,
+      );
+    }
+  }
+
+  private handleAction(data: Extract<IncomingWebFrameMessage, {type: typeof A2uiMessageType.Action}>) {
+    if (data.action in this.allowedEvents()) {
+      const schema = this.allowedEvents()[data.action];
+      if (!this.disableSchemaValidation() && schema) {
+        const validate = this.ajv.compile(schema);
+        if (!validate(data.data || {})) {
+          console.warn(`Action ${data.action} failed schema validation:`, validate.errors);
+          return;
+        }
+      }
+      const surface = this.rendererService.surfaceGroup.getSurface(this.surfaceId());
+      if (surface) {
+        surface.dispatchAction(
+          {
+            event: {
+              name: data.action,
+              context: data.data || {},
+            },
+          },
+          this.componentId(),
+        );
+      }
+    } else {
+      console.warn(`Action ${data.action} not in allowedEvents`);
+    }
+  }
+
+  private handleDataModelChange(
+    data: Extract<IncomingWebFrameMessage, {type: typeof A2uiMessageType.DataModelChange}>,
+  ) {
+    if (!(data.key in this.mutableData())) {
+      console.warn(`Data key ${data.key} not authorized for mutation`);
+      return;
+    }
+    const schema = this.mutableData()[data.key];
+    if (!this.disableSchemaValidation() && schema) {
+      const validate = this.ajv.compile(schema);
+      if (!validate(data.value)) {
+        console.warn(`Data change for ${data.key} failed schema validation:`, validate.errors);
+        return;
+      }
+    }
+    const surface = this.rendererService.surfaceGroup.getSurface(this.surfaceId());
+    if (surface) {
+      const dataPaths = this.dataPaths();
+
+      if (dataPaths[data.key]) {
+        const dataPath = dataPaths[data.key];
+        const targetPath = data.subpath
+          ? `${dataPath}${data.subpath.startsWith('/') ? '' : '/'}${data.subpath}`
+          : dataPath;
+
+        const currentValue = surface.dataModel.get(targetPath);
+        if (JSON.stringify(currentValue) !== JSON.stringify(data.value)) {
+          this.isProcessingAppWrite = true;
+          try {
+            surface.dataModel.set(targetPath, data.value);
+          } finally {
+            this.isProcessingAppWrite = false;
+          }
+        }
+      }
+    }
+  }
+
+  private async handleFunctionCall(
+    data: Extract<IncomingWebFrameMessage, {type: typeof A2uiMessageType.FunctionCall}>,
+    iframeEl: HTMLIFrameElement,
+  ) {
+    if (data.call in this.allowedFunctions()) {
+      const schema = this.allowedFunctions()[data.call];
+      if (!this.disableSchemaValidation() && schema) {
+        const validate = this.ajv.compile(schema);
+        if (!validate(data.args || {})) {
+          console.warn(`Function ${data.call} failed schema validation:`, validate.errors);
+          if (iframeEl.contentWindow) {
+            iframeEl.contentWindow.postMessage(
+              {
+                type: A2uiMessageType.FunctionResult,
+                call: data.call,
+                callId: data.callId,
+                status: 'error',
+                error: {
+                  code: 'VALIDATION_ERROR',
+                  message: 'Arguments failed schema validation',
+                },
+              },
+              window.location.origin,
+            );
+          }
+          return;
+        }
+      }
+      const surface = this.rendererService.surfaceGroup.getSurface(this.surfaceId());
+      if (surface) {
+        const dataContext = new DataContext(surface, '/');
+        try {
+          const result = await surface.catalog.invoker(data.call, data.args || {}, dataContext);
+          if (iframeEl.contentWindow) {
+            iframeEl.contentWindow.postMessage(
+              {
+                type: A2uiMessageType.FunctionResult,
+                call: data.call,
+                callId: data.callId,
+                status: 'success',
+                result: result,
+              },
+              window.location.origin,
+            );
+          }
+        } catch (err: unknown) {
+          if (iframeEl.contentWindow) {
+            const errorMessage =
+              err instanceof Error ? err.message : String(err) || 'Error executing function';
+            iframeEl.contentWindow.postMessage(
+              {
+                type: A2uiMessageType.FunctionResult,
+                call: data.call,
+                callId: data.callId,
+                status: 'error',
+                error: {
+                  code: 'EXECUTION_ERROR',
+                  message: errorMessage,
+                },
+              },
+              window.location.origin,
+            );
+          }
+        }
+      }
+    } else {
+      console.warn(`Function ${data.call} not in allowedFunctions`);
+    }
+  }
+
   private setupSandbox() {
     if (this.messageHandler) {
       window.removeEventListener('message', this.messageHandler);
@@ -223,149 +371,27 @@ export class WebAppFrameUrl
         return;
       }
 
-      const data = event.data;
-      if (!data) return;
+      const parsedData = IncomingWebFrameMessageSchema.safeParse(event.data);
+      if (!parsedData.success) {
+        return; // Ignore invalid or unrecognized messages
+      }
 
-      if (data.type === 'a2ui_sandbox_proxy_ready') {
-        if (this.targetUrl && iframeEl.contentWindow) {
-          iframeEl.contentWindow.postMessage(
-            {
-              type: 'a2ui_sandbox_resource_ready',
-              url: this.targetUrl,
-            },
-            '*',
-          );
-        }
+      const data = parsedData.data;
+
+      if (data.type === A2uiMessageType.SandboxProxyReady) {
+        this.handleSandboxProxyReady(iframeEl);
         return;
       }
 
-      if (data.type === 'a2ui_app_frame_ready') {
+      if (data.type === A2uiMessageType.AppFrameReady) {
         this.initializeBridge();
-      } else if (data.type === 'a2ui_action') {
-        if (data.action in this.allowedEvents()) {
-          const schema = this.allowedEvents()[data.action];
-          if (!this.disableSchemaValidation() && schema) {
-            const validate = this.ajv.compile(schema);
-            if (!validate(data.data || {})) {
-              console.warn(`Action ${data.action} failed schema validation:`, validate.errors);
-              return;
-            }
-          }
-          const surface = this.rendererService.surfaceGroup.getSurface(this.surfaceId());
-          if (surface) {
-            surface.dispatchAction(
-              {
-                event: {
-                  name: data.action,
-                  context: data.data || {},
-                },
-              },
-              this.componentId(),
-            );
-          }
-        } else {
-          console.warn(`Action ${data.action} not in allowedEvents`);
-        }
-      } else if (data.type === 'a2ui_data_model_change') {
-        if (!(data.key in this.mutableData())) {
-          console.warn(`Data key ${data.key} not authorized for mutation`);
-          return;
-        }
-        const schema = this.mutableData()[data.key];
-        if (!this.disableSchemaValidation() && schema) {
-          const validate = this.ajv.compile(schema);
-          if (!validate(data.value)) {
-            console.warn(`Data change for ${data.key} failed schema validation:`, validate.errors);
-            return;
-          }
-        }
-        const surface = this.rendererService.surfaceGroup.getSurface(this.surfaceId());
-        if (surface) {
-          const dataPaths = this.dataPaths();
-
-          if (dataPaths[data.key]) {
-            const dataPath = dataPaths[data.key];
-            const targetPath = data.subpath
-              ? `${dataPath}${data.subpath.startsWith('/') ? '' : '/'}${data.subpath}`
-              : dataPath;
-
-            const currentValue = surface.dataModel.get(targetPath);
-            if (JSON.stringify(currentValue) !== JSON.stringify(data.value)) {
-              this.isProcessingAppWrite = true;
-              try {
-                surface.dataModel.set(targetPath, data.value);
-              } finally {
-                this.isProcessingAppWrite = false;
-              }
-            }
-          }
-        }
-      } else if (data.type === 'a2ui_function_call') {
-        if (data.call in this.allowedFunctions()) {
-          const schema = this.allowedFunctions()[data.call];
-          if (!this.disableSchemaValidation() && schema) {
-            const validate = this.ajv.compile(schema);
-            if (!validate(data.args || {})) {
-              console.warn(`Function ${data.call} failed schema validation:`, validate.errors);
-              if (iframeEl.contentWindow) {
-                iframeEl.contentWindow.postMessage(
-                  {
-                    type: 'a2ui_function_result',
-                    call: data.call,
-                    callId: data.callId,
-                    status: 'error',
-                    error: {
-                      code: 'VALIDATION_ERROR',
-                      message: 'Arguments failed schema validation',
-                    },
-                  },
-                  '*',
-                );
-              }
-              return;
-            }
-          }
-          const surface = this.rendererService.surfaceGroup.getSurface(this.surfaceId());
-          if (surface) {
-            const dataContext = new DataContext(surface, '/');
-            try {
-              const result = await surface.catalog.invoker(data.call, data.args || {}, dataContext);
-              if (iframeEl.contentWindow) {
-                iframeEl.contentWindow.postMessage(
-                  {
-                    type: 'a2ui_function_result',
-                    call: data.call,
-                    callId: data.callId,
-                    status: 'success',
-                    result: result,
-                  },
-                  '*',
-                );
-              }
-            } catch (err: unknown) {
-              if (iframeEl.contentWindow) {
-                const errorMessage =
-                  err instanceof Error ? err.message : String(err) || 'Error executing function';
-                iframeEl.contentWindow.postMessage(
-                  {
-                    type: 'a2ui_function_result',
-                    call: data.call,
-                    callId: data.callId,
-                    status: 'error',
-                    error: {
-                      code: 'EXECUTION_ERROR',
-                      message: errorMessage,
-                    },
-                  },
-                  '*',
-                );
-              }
-            }
-          }
-        } else {
-          console.warn(`Function ${data.call} not in allowedFunctions`);
-        }
-      } else if (data.type === 'a2ui_size_changed') {
+      } else if (data.type === A2uiMessageType.Action) {
+        this.handleAction(data);
+      } else if (data.type === A2uiMessageType.DataModelChange) {
+        this.handleDataModelChange(data);
+      } else if (data.type === A2uiMessageType.FunctionCall) {
+        await this.handleFunctionCall(data, iframeEl);
+      } else if (data.type === A2uiMessageType.SizeChanged) {
         this.handleSizeChange(data.width, data.height);
       }
     };
@@ -402,12 +428,12 @@ export class WebAppFrameUrl
               if (JSON.stringify(oldVal) !== JSON.stringify(v)) {
                 iframeEl.contentWindow.postMessage(
                   {
-                    type: 'a2ui_data_model_update',
+                    type: A2uiMessageType.DataModelUpdate,
                     key,
                     subpath: `/${k}`,
                     value: v,
                   },
-                  '*',
+                  window.location.origin,
                 );
               }
             }
@@ -415,11 +441,11 @@ export class WebAppFrameUrl
             if (JSON.stringify(prev) !== JSON.stringify(value)) {
               iframeEl.contentWindow.postMessage(
                 {
-                  type: 'a2ui_data_model_update',
+                  type: A2uiMessageType.DataModelUpdate,
                   key,
                   value,
                 },
-                '*',
+                window.location.origin,
               );
             }
           }
@@ -443,7 +469,7 @@ export class WebAppFrameUrl
 
       iframeEl.contentWindow.postMessage(
         {
-          type: 'a2ui_app_frame_init',
+          type: A2uiMessageType.AppFrameInit,
           value: {
             initialData: initialData,
             allowedEvents: this.allowedEvents(),
@@ -452,7 +478,7 @@ export class WebAppFrameUrl
             hostContext: hostContext,
           },
         },
-        '*',
+        window.location.origin,
         [channel.port2],
       );
 
@@ -464,7 +490,7 @@ export class WebAppFrameUrl
         if (entry && iframeEl.contentWindow) {
           iframeEl.contentWindow.postMessage(
             {
-              type: 'a2ui_host_context_update',
+              type: A2uiMessageType.HostContextUpdate,
               value: {
                 containerDimensions: {
                   width: entry.contentRect.width,
@@ -472,7 +498,7 @@ export class WebAppFrameUrl
                 },
               },
             },
-            '*',
+            window.location.origin,
           );
         }
       });
