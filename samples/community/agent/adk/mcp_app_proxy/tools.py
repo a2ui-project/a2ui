@@ -252,8 +252,26 @@ async def get_pong_app_web_frame_json(tool_context: ToolContext):
                         "id": "web_frame_app_root",
                         "component": "WebAppFrameUrl",
                         "url": "http://localhost:8081/pong_app_web_frame.html",
-                        "allowedEvents": ["commentate_pong"],
-                        "allowedFunctions": ["showWinnerModal"],
+                        "allowedEvents": {
+                            "commentate_pong": {
+                                "type": "object",
+                                "properties": {
+                                    "game_event": {"type": "string"},
+                                    "silent": {"type": "boolean"},
+                                },
+                            }
+                        },
+                        "allowedFunctions": {
+                            "showWinnerModal": {
+                                "type": "object",
+                                "properties": {
+                                    "winner": {"type": "string"}
+                                },
+                            }
+                        },
+                        "mutableData": {
+                            "state": {}
+                        },
                         "data": {"paths": {"state": "/pong_state"}},
                     },
                     {

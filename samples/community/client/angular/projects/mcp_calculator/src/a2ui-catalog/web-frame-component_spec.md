@@ -312,12 +312,33 @@ Used to load an external web application hosted on a remote domain.
         "$ref": "common_types.json#/$defs/DynamicNumber"
       },
       "allowedEvents": {
-        "type": "array",
-        "items": {"type": "string"}
+        "type": "object",
+        "description": "A map of allowed action names to their expected JSON Schema.",
+        "additionalProperties": {
+          "type": "object",
+          "description": "A valid JSON Schema definition."
+        }
+      },
+      "mutableData": {
+        "type": "object",
+        "description": "A map of authorized Data Model keys to their expected JSON Schema.",
+        "additionalProperties": {
+          "type": "object",
+          "description": "A valid JSON Schema definition."
+        }
       },
       "allowedFunctions": {
-        "type": "array",
-        "items": {"type": "string"}
+        "type": "object",
+        "description": "A map of authorized host client functions to the JSON Schema of their arguments.",
+        "additionalProperties": {
+          "type": "object",
+          "description": "A valid JSON Schema definition."
+        }
+      },
+      "disableSchemaValidation": {
+        "type": "boolean",
+        "description": "If true, bypasses the security firewall. Must be strictly gated by the backend.",
+        "default": false
       }
     },
     "required": ["id", "component", "url"],
@@ -361,12 +382,33 @@ Used to load standalone, sandboxed, model-generated HTML/JS layouts.
         "additionalProperties": false
       },
       "allowedEvents": {
-        "type": "array",
-        "items": {"type": "string"}
+        "type": "object",
+        "description": "A map of allowed action names to their expected JSON Schema.",
+        "additionalProperties": {
+          "type": "object",
+          "description": "A valid JSON Schema definition."
+        }
+      },
+      "mutableData": {
+        "type": "object",
+        "description": "A map of authorized Data Model keys to their expected JSON Schema.",
+        "additionalProperties": {
+          "type": "object",
+          "description": "A valid JSON Schema definition."
+        }
       },
       "allowedFunctions": {
-        "type": "array",
-        "items": {"type": "string"}
+        "type": "object",
+        "description": "A map of authorized host client functions to the JSON Schema of their arguments.",
+        "additionalProperties": {
+          "type": "object",
+          "description": "A valid JSON Schema definition."
+        }
+      },
+      "disableSchemaValidation": {
+        "type": "boolean",
+        "description": "If true, bypasses the security firewall. Must be strictly gated by the backend.",
+        "default": false
       }
     },
     "required": ["id", "component", "htmlContent"],
@@ -420,6 +462,52 @@ To prevent poorly written or malicious embedded applications from thrashing the 
 - **Clamping:** The host must clamp the requested dimensions using configuration rules (e.g., `minHeight: 100px`, `maxHeight: 2000px`, `minWidth: 200px`, `maxWidth: 3000px`).
 - **Throttling:** Consecutive resize events from the same component ID must be queued or rate-limited to a maximum of one redraw execution per 100 milliseconds.
 - **Threshold Gate:** Dynamic changes of less than 5 pixels in both height and width should be ignored to prevent subtle layout shaking.
+
+## 5.5 JSON Schema Validation Firewall
+
+To add a layer of security to support complex JSON payloads being sent from the embedded app to the host when triggering events, two-way data binding, and local function execution, the WebAppFrameXXX component acts as a strict, centralized firewall to block JSON payloads that do not adhere to the expected JSON schema. The host application must never process or forward messages from the embedded app without first validating them against a server-dictated schema.
+
+### 5.5.1. Server-Dictated Validation Rules
+
+During the initialization handshake, the `a2ui_app_frame_init` message sent from the Host to the Embedded App is expanded to include strict JSON Schema definitions provided by the A2UI backend.
+
+The initialization payload must define:
+
+- **`allowedEvents`**: A map of authorized `action` names to strict JSON Schemas defining the exact shape of the expected `data` payload.
+- **`mutableDataKeys`**: An array of specific data model keys the iframe is explicitly authorized to mutate.
+- **`allowedFunctions`**: A map of authorized host client functions to JSON Schemas defining their expected arguments.
+
+### 5.5.2. The Interception & Validation Flow
+
+When the embedded app dispatches a window.postMessage event, the WebAppFrame component executes the following pipeline before interacting with the host's surface or the backend:
+
+- **Origin Check:** The component verifies that `event.origin` matches the expected allowlisted origin of the iframe.
+- **Schema Enforcement:**
+  - *For `a2ui_action`:* The component looks up the `action` string in `allowedEvents`. It runs the `data` payload against the associated schema (e.g., using a JSON Schema validator).
+  - *For `a2ui_data_model_change`:* The component verifies that `key` exists in `mutableDataKeys` and validates the `value`.
+  - *For `a2ui_client_function_call`:* The component verifies the function is in `allowedFunctions` and validates the arguments against the function's schema.
+- **Automatic Rejection:** If the payload fails schema validation, references an unauthorized key, or if the action does not exist in the allowed list, the component **silently drops the message** and logs a security violation warning to the host console. It must not forward malformed data to the backend.
+
+### 5.5.3. Protection Against Denial of Service (DoS)
+
+To prevent a compromised iframe from exhausting the host's resources or launching a DoS attack against the A2UI server via rapid event spamming:
+
+- The WebAppFrame component must implement a configurable **Rate Limiter / Debouncer** on the message event listener.
+- The component must drop messages that exceed a safe threshold (e.g., > 10 events per second) and log a rate-limit warning.
+
+### 5.5.4. Trusted Source Bypass
+
+In scenarios where the embedded application is a trusted first-party tool, the strict schema validation overhead can be bypassed to improve performance and allow arbitrary data payloads.
+
+The A2UI server can emit a `disableSchemaValidation: true` flag inside the `a2ui_app_frame_init` handshake.
+
+When this flag is set to true:
+
+- The WebAppFrame component will skip the JSON Schema validation step entirely.
+- `a2ui_action` payloads, `a2ui_data_model_change` mutations, and `a2ui_client_function_call` arguments will be parsed and forwarded blindly.
+- The component will still enforce standard origin validation (ensuring event.origin matches the allowlisted source).
+
+**Security Constraint:** The A2UI backend must enforce strict origin checks before allowing the `disableSchemaValidation` flag to be set. It should only be permitted for verified, internal domains. If an LLM Agent is dynamically generating the UI tree, the backend must prevent the Agent from applying this bypass to external or untrusted iframe URLs.
 
 # 6. Implementation guidelines
 

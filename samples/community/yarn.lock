@@ -102,6 +102,7 @@ __metadata:
   dependencies:
     "@a2ui/angular": "npm:^0.10.0"
     "@a2ui/web_core": "npm:^0.10.0"
+    ajv: "npm:^8.20.0"
     wireit: "npm:^0.15.0-pre.2"
   languageName: unknown
   linkType: soft
@@ -5119,7 +5120,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"ajv@npm:^8.0.0, ajv@npm:^8.17.1":
+"ajv@npm:^8.0.0, ajv@npm:^8.17.1, ajv@npm:^8.20.0":
   version: 8.20.0
   resolution: "ajv@npm:8.20.0"
   dependencies:

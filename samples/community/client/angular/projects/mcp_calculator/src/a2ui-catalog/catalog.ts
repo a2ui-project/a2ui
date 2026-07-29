@@ -58,8 +58,10 @@ const WebAppFrameUrlSchema = z.object({
   url: DynamicStringSchema,
   data: DynamicValueSchema.optional(),
   height: DynamicNumberSchema.optional(),
-  allowedEvents: z.array(z.string()).optional(),
-  allowedFunctions: z.array(z.string()).optional(),
+  allowedEvents: z.record(z.any()).optional(),
+  allowedFunctions: z.record(z.any()).optional(),
+  mutableData: z.record(z.any()).optional(),
+  disableSchemaValidation: z.boolean().optional(),
 });
 
 export const SHOW_WINNER_MODAL_FN = createFunctionImplementation(

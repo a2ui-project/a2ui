@@ -30,6 +30,7 @@ import {
   viewChild,
 } from '@angular/core';
 import {DomSanitizer, SafeResourceUrl} from '@angular/platform-browser';
+import Ajv from 'ajv';
 
 @Component({
   selector: 'a2ui-web-app-frame-url',
@@ -62,17 +63,24 @@ export class WebAppFrameUrl extends CatalogComponent<any> implements OnDestroy, 
   private readonly sanitizer = inject(DomSanitizer);
   private readonly rendererService = inject(A2uiRendererService);
 
-  protected readonly allowedEvents = computed<string[]>(
-    () => this.props()['allowedEvents']?.value() || [],
+  protected readonly allowedEvents = computed<Record<string, any>>(
+    () => this.props()['allowedEvents']?.value() || {},
   );
-  protected readonly allowedFunctions = computed<string[]>(
-    () => this.props()['allowedFunctions']?.value() || [],
+  protected readonly allowedFunctions = computed<Record<string, any>>(
+    () => this.props()['allowedFunctions']?.value() || {},
+  );
+  protected readonly mutableData = computed<Record<string, any>>(
+    () => this.props()['mutableData']?.value() || {},
+  );
+  protected readonly disableSchemaValidation = computed<boolean>(
+    () => this.props()['disableSchemaValidation']?.value() || false,
   );
 
   protected readonly iframeSrc = signal<SafeResourceUrl | null>(
     this.sanitizer.bypassSecurityTrustResourceUrl('about:blank'),
   );
 
+  private ajv = new Ajv();
   private iframe = viewChild.required<ElementRef<HTMLIFrameElement>>('iframe');
   private messageHandler: ((event: MessageEvent) => void) | null = null;
   private dataSubscriptions: any[] = [];
@@ -209,7 +217,15 @@ export class WebAppFrameUrl extends CatalogComponent<any> implements OnDestroy, 
       if (data.type === 'a2ui_app_frame_ready') {
         this.initializeBridge();
       } else if (data.type === 'a2ui_action') {
-        if (this.allowedEvents().includes(data.action)) {
+        if (data.action in this.allowedEvents()) {
+          const schema = this.allowedEvents()[data.action];
+          if (!this.disableSchemaValidation() && schema) {
+            const validate = this.ajv.compile(schema);
+            if (!validate(data.data || {})) {
+              console.warn(`Action ${data.action} failed schema validation:`, validate.errors);
+              return;
+            }
+          }
           const surface = this.rendererService.surfaceGroup.getSurface(this.surfaceId());
           if (surface) {
             surface.dispatchAction(
@@ -226,6 +242,18 @@ export class WebAppFrameUrl extends CatalogComponent<any> implements OnDestroy, 
           console.warn(`Action ${data.action} not in allowedEvents`);
         }
       } else if (data.type === 'a2ui_data_model_change') {
+        if (!(data.key in this.mutableData())) {
+          console.warn(`Data key ${data.key} not authorized for mutation`);
+          return;
+        }
+        const schema = this.mutableData()[data.key];
+        if (!this.disableSchemaValidation() && schema) {
+          const validate = this.ajv.compile(schema);
+          if (!validate(data.value)) {
+            console.warn(`Data change for ${data.key} failed schema validation:`, validate.errors);
+            return;
+          }
+        }
         const surface = this.rendererService.surfaceGroup.getSurface(this.surfaceId());
         if (surface) {
           const dataPaths: Record<string, string> =
@@ -249,7 +277,30 @@ export class WebAppFrameUrl extends CatalogComponent<any> implements OnDestroy, 
           }
         }
       } else if (data.type === 'a2ui_function_call') {
-        if (this.allowedFunctions().includes(data.call)) {
+        if (data.call in this.allowedFunctions()) {
+          const schema = this.allowedFunctions()[data.call];
+          if (!this.disableSchemaValidation() && schema) {
+            const validate = this.ajv.compile(schema);
+            if (!validate(data.args || {})) {
+              console.warn(`Function ${data.call} failed schema validation:`, validate.errors);
+              if (iframeEl.contentWindow) {
+                iframeEl.contentWindow.postMessage(
+                  {
+                    type: 'a2ui_function_result',
+                    call: data.call,
+                    callId: data.callId,
+                    status: 'error',
+                    error: {
+                      code: 'VALIDATION_ERROR',
+                      message: 'Arguments failed schema validation',
+                    },
+                  },
+                  '*',
+                );
+              }
+              return;
+            }
+          }
           const surface = this.rendererService.surfaceGroup.getSurface(this.surfaceId());
           if (surface) {
             const dataContext = new DataContext(surface, '/');
@@ -372,6 +423,7 @@ export class WebAppFrameUrl extends CatalogComponent<any> implements OnDestroy, 
             initialData: initialData,
             allowedEvents: this.allowedEvents(),
             allowedFunctions: this.allowedFunctions(),
+            mutableDataKeys: Object.keys(this.mutableData()),
             hostContext: hostContext,
           },
         },
