@@ -172,7 +172,7 @@ The envelope defines several message types, and every message streamed by the ag
 
 ### `createSurface`
 
-This message signals the renderer to create a new surface and begin rendering it. A surface must be created before any `updateComponents` or `updateDataModel` messages can be sent to it. While typically achieved by the agent sending a `createSurface` message, an agent may skip this if it knows the surface has already been created (e.g., by another agent). Once a surface is created, its `surfaceId` and default `catalogId` (if provided) are fixed; to reconfigure them, the surface must be deleted and recreated.
+This message signals the renderer to create a new surface and begin rendering it. A surface must be created before any `updateComponents` or `updateDataModel` messages can be sent to it. While typically achieved by the agent sending a `createSurface` message, an agent may skip this if it knows of a preexisting surface that it has permission to modify. Once a surface is created, its `surfaceId` and default `catalogId` (if provided) are fixed; to reconfigure them, the surface must be deleted and recreated.
 
 It is an error to try to create a surface with a `surfaceId` that already exists without first deleting it; `surfaceId` must be globally unique for the renderer's lifetime. Orchestrators with subagents are empowered to manage surface IDs as needed to prevent conflicts (e.g., prefixing the subagent's name to the `surfaceId` or requiring subagents to use UUIDs).
 
