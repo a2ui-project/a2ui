@@ -483,9 +483,9 @@ When the embedded app dispatches a window.postMessage event, the WebAppFrame com
 
 - **Origin Check:** The component verifies that `event.origin` matches the expected allowlisted origin of the iframe.
 - **Schema Enforcement:**
-  - *For `a2ui_action`:* The component looks up the `action` string in `allowedEvents`. It runs the `data` payload against the associated schema (e.g., using a JSON Schema validator).
-  - *For `a2ui_data_model_change`:* The component verifies that `key` exists in `mutableDataKeys` and validates the `value`.
-  - *For `a2ui_client_function_call`:* The component verifies the function is in `allowedFunctions` and validates the arguments against the function's schema.
+  - _For `a2ui_action`:_ The component looks up the `action` string in `allowedEvents`. It runs the `data` payload against the associated schema (e.g., using a JSON Schema validator).
+  - _For `a2ui_data_model_change`:_ The component verifies that `key` exists in `mutableDataKeys` and validates the `value`.
+  - _For `a2ui_client_function_call`:_ The component verifies the function is in `allowedFunctions` and validates the arguments against the function's schema.
 - **Automatic Rejection:** If the payload fails schema validation, references an unauthorized key, or if the action does not exist in the allowed list, the component **silently drops the message** and logs a security violation warning to the host console. It must not forward malformed data to the backend.
 
 ### 5.5.3. Protection Against Denial of Service (DoS)

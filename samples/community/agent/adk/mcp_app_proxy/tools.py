@@ -264,14 +264,10 @@ async def get_pong_app_web_frame_json(tool_context: ToolContext):
                         "allowedFunctions": {
                             "showWinnerModal": {
                                 "type": "object",
-                                "properties": {
-                                    "winner": {"type": "string"}
-                                },
+                                "properties": {"winner": {"type": "string"}},
                             }
                         },
-                        "mutableData": {
-                            "state": {}
-                        },
+                        "mutableData": {"state": {}},
                         "data": {"paths": {"state": "/pong_state"}},
                     },
                     {
