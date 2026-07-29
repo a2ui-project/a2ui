@@ -93,6 +93,10 @@ Please refer to the following guidelines for detailed information on styles:
 
 We expect all contributors to adhere to these styles.
 
+## Skills vs docs
+
+When information in [docs](docs/) and [skills](.agents/skills/) contradicts, docs should be considered as the source of truth and skills should be updated.
+
 ## More on contributing
 
 See more about contributing in [docs/contributing](docs/contributing).

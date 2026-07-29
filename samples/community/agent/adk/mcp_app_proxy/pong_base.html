@@ -1,0 +1,252 @@
+<!doctype html>
+<!--
+ Copyright 2026 Google LLC
+
+ Licensed under the Apache License, Version 2.0 (the "License");
+ you may not use this file except in compliance with the License.
+ You may obtain a copy of the License at
+
+     http://www.apache.org/licenses/LICENSE-2.0
+
+ Unless required by applicable law or agreed to in writing, software
+ distributed under the License is distributed on an "AS IS" BASIS,
+ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ See the License for the specific language governing permissions and
+ limitations under the License.
+-->
+
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Neon Pong - A2UI Demo</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;700&family=Space+Grotesk:wght@300;500;700&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      :root {
+        --primary: #00f2ff;
+        --secondary: #ff00ff;
+        --bg: #0a0b1e;
+        --card-bg: rgba(255, 255, 255, 0.05);
+        --text: #ffffff;
+        --glow: 0 0 15px rgba(0, 242, 255, 0.5);
+      }
+
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+
+      body {
+        font-family: 'Outfit', sans-serif;
+        background: var(--bg);
+        color: var(--text);
+        height: 100vh;
+        width: 100vw;
+        margin: 0;
+        display: flex;
+        flex-direction: column;
+        align-items: stretch;
+        justify-content: stretch;
+        overflow: hidden;
+        background: radial-gradient(circle at center, #1a1b3a 0%, #0a0b1e 100%);
+      }
+
+      .container {
+        position: relative;
+        background: transparent;
+        display: flex;
+        flex-direction: column;
+        gap: 1rem;
+        align-items: stretch;
+        flex: 1;
+        min-height: 0;
+        padding: 1.5rem;
+        box-sizing: border-box;
+      }
+
+      .header {
+        text-align: center;
+        position: relative;
+      }
+
+      .mcp-badge {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 4px;
+        background: rgba(255, 0, 255, 0.15);
+        color: #ff88ff;
+        border: 1px solid rgba(255, 0, 255, 0.4);
+        font-size: 0.65rem;
+        padding: 0.25rem 0.75rem;
+        border-radius: 12px;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        font-weight: 600;
+        white-space: nowrap;
+        margin-bottom: 0.5rem;
+      }
+
+      canvas {
+        position: absolute;
+        top: 0;
+        left: 0;
+        background: #000;
+        border-radius: 12px;
+        border: 2px solid rgba(255, 255, 255, 0.1);
+        box-shadow: 0 0 30px rgba(0, 0, 0, 0.3);
+        cursor: none;
+        width: 100%;
+        height: 100%;
+        display: block;
+        box-sizing: border-box;
+      }
+
+      .controls {
+        font-size: 0.9rem;
+        opacity: 0.7;
+        display: flex;
+        gap: 1rem;
+      }
+
+      .key {
+        padding: 0.2rem 0.5rem;
+        background: rgba(255, 255, 255, 0.12);
+        border-radius: 4px;
+        border: 1px solid rgba(255, 255, 255, 0.2);
+        font-family: monospace;
+      }
+
+      /* Overlay for start/pause */
+      #game-overlay {
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: rgba(10, 11, 30, 0.85);
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        border-radius: 12px;
+        z-index: 10;
+        transition: opacity 0.3s ease;
+      }
+
+      .btn {
+        padding: 0.8rem 1.5rem;
+        background: linear-gradient(135deg, var(--primary), #00d2ff);
+        color: #000;
+        text-decoration: none;
+        border-radius: 8px;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 1px;
+        border: none;
+        cursor: pointer;
+        transition: all 0.2s ease;
+        box-shadow: 0 4px 15px rgba(0, 242, 255, 0.4);
+      }
+
+      .btn:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 6px 20px rgba(0, 242, 255, 0.6);
+        filter: brightness(1.1);
+      }
+
+      .hidden {
+        display: none !important;
+      }
+
+      .pause-btn {
+        position: absolute;
+        top: 1rem;
+        right: 1rem;
+        padding: 0.5rem 1rem;
+        background: rgba(255, 255, 255, 0.1);
+        border: 1px solid rgba(255, 255, 255, 0.2);
+        border-radius: 8px;
+        color: white;
+        cursor: pointer;
+        z-index: 20;
+        font-size: 0.8rem;
+        text-transform: uppercase;
+        letter-spacing: 1px;
+        transition: all 0.2s;
+      }
+
+      .pause-btn:hover {
+        background: rgba(255, 255, 255, 0.2);
+      }
+
+      /* Decorative blobs */
+      .blob {
+        position: absolute;
+        width: 300px;
+        height: 300px;
+        border-radius: 50%;
+        filter: blur(80px);
+        z-index: -1;
+        opacity: 0.15;
+      }
+
+      .blob-1 {
+        top: -100px;
+        left: -100px;
+        background: var(--primary);
+      }
+      .blob-2 {
+        bottom: -100px;
+        right: -100px;
+        background: var(--secondary);
+      }
+    </style>
+    <script>
+      // {{BRIDGE_SCRIPT}}
+    </script>
+  </head>
+  <body>
+    <div class="blob blob-1"></div>
+    <div class="blob blob-2"></div>
+
+    <div class="container" id="container">
+      <div class="header">
+        <div class="mcp-badge">🔌 Embedded MCP App</div>
+      </div>
+
+      <div
+        style="position: relative; display: flex; justify-content: center; flex: 1; min-height: 0"
+      >
+        <canvas id="pong"></canvas>
+        <div id="game-overlay">
+          <h2
+            id="overlay-text"
+            style="font-family: 'Space Grotesk', sans-serif; font-size: 2rem; margin-bottom: 2rem"
+          >
+            NEON PONG
+          </h2>
+          <button id="start-btn" class="btn" onclick="startGame()">Start Game</button>
+        </div>
+        <button id="pause-btn" class="pause-btn hidden" onclick="togglePause()">Pause</button>
+      </div>
+
+      <div class="controls">
+        <span
+          >Move: <span class="key">W</span> / <span class="key">S</span> or
+          <span class="key">Mouse</span></span
+        >
+      </div>
+    </div>
+
+    <script>
+      // {{ENGINE_SCRIPT}}
+    </script>
+  </body>
+</html>
