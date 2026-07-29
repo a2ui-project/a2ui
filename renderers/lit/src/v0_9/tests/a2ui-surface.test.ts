@@ -68,7 +68,7 @@ describe('A2uiSurface', () => {
     document.body.removeChild(el);
   });
 
-  it('should render loading state when surface has no root component', async () => {
+  it('should render no default text but preserve the loading slot when the root is missing', async () => {
     const el = document.createElement('a2ui-surface') as unknown as A2uiSurface;
     document.body.appendChild(el);
 
@@ -77,7 +77,8 @@ describe('A2uiSurface', () => {
     });
 
     const html = el.shadowRoot?.innerHTML;
-    assert.ok(html?.includes('Loading surface'), 'Should contain loading text');
+    assert.ok(!html?.includes('Loading surface'), 'Should not render default loading text');
+    assert.ok(html?.includes('<slot name="loading">'), 'The loading slot should be preserved');
 
     document.body.removeChild(el);
   });
@@ -90,7 +91,10 @@ describe('A2uiSurface', () => {
       e.surface = surfaceModel;
     });
 
-    assert.ok(el.shadowRoot?.innerHTML?.includes('Loading surface'));
+    assert.ok(
+      !el.shadowRoot?.innerHTML?.includes('Loading surface'),
+      'The pre-root state should render no default text',
+    );
 
     // Add root component
     await asyncUpdate(el, () => {
@@ -119,10 +123,12 @@ describe('A2uiSurface', () => {
       await childEl.updateComplete;
     }
 
-    const html = el.shadowRoot?.innerHTML;
     const childHtml = childEl?.shadowRoot?.innerHTML;
 
-    assert.ok(!html?.includes('Loading surface'), 'Loading text should be gone');
+    assert.ok(
+      el.shadowRoot?.querySelector('a2ui-basic-text'),
+      'The root component should be rendered',
+    );
     assert.ok(childHtml?.includes('Hello JSDOM'), 'Actual child HTML: ' + childHtml);
 
     document.body.removeChild(el);

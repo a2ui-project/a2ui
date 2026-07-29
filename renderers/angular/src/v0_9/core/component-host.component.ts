@@ -19,18 +19,26 @@ import {
   Component,
   DestroyRef,
   Type,
+  computed,
   inject,
   input,
   effect,
   signal,
   NgZone,
 } from '@angular/core';
-import {NgComponentOutlet} from '@angular/common';
-import {ComponentContext, ComponentModel, SurfaceModel, Subscription} from '@a2ui/web_core/v0_9';
-import {A2uiRendererService} from './a2ui-renderer.service';
-import {AngularCatalog} from '../catalog/types';
-import {ComponentBinder} from './component-binder.service';
-import {BoundProperty} from './types';
+import { NgComponentOutlet, NgTemplateOutlet } from '@angular/common';
+import {
+  A2uiFallbackInfo,
+  ComponentContext,
+  ComponentModel,
+  SurfaceModel,
+  Subscription,
+} from '@a2ui/web_core/v0_9';
+import { A2uiRendererService } from './a2ui-renderer.service';
+import { AngularCatalog } from '../catalog/types';
+import { ComponentBinder } from './component-binder.service';
+import { A2UI_FALLBACK_TEMPLATES, A2uiFallbackTemplateContext } from './fallback-templates';
+import { BoundProperty } from './types';
 
 /**
  * Dynamically renders an A2UI component as defined in the current surface model.
@@ -44,7 +52,7 @@ import {BoundProperty} from './types';
  */
 @Component({
   selector: 'a2ui-v09-component-host',
-  imports: [NgComponentOutlet],
+  imports: [NgComponentOutlet, NgTemplateOutlet],
   host: {
     style: 'display: contents;',
   },
@@ -54,20 +62,22 @@ import {BoundProperty} from './types';
         *ngComponentOutlet="
           componentType()!;
           inputs: {
-            'props': props(),
-            'surfaceId': surfaceId(),
-            'componentId': resolvedComponentId,
-            'dataContextPath': resolvedDataContextPath,
+            props: props(),
+            surfaceId: surfaceId(),
+            componentId: resolvedComponentId,
+            dataContextPath: resolvedDataContextPath,
           }
         "
       ></ng-container>
+    } @else if (fallbackTemplate(); as tpl) {
+      <ng-container *ngTemplateOutlet="tpl; context: fallbackContext()!"></ng-container>
     }
   `,
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class ComponentHostComponent {
   /** The key of the component to render, either an ID string or an object with ID and basePath. Defaults to 'root'. */
-  componentKey = input<string | {id: string; basePath: string}>('root');
+  componentKey = input<string | { id: string; basePath: string }>('root');
 
   /** The unique identifier of the surface this component belongs to. */
   surfaceId = input.required<string>();
@@ -76,13 +86,42 @@ export class ComponentHostComponent {
   private readonly binder = inject(ComponentBinder);
   private readonly destroyRef = inject(DestroyRef);
   private readonly ngZone = inject(NgZone);
+  private readonly fallbackTemplates = inject(A2UI_FALLBACK_TEMPLATES, { optional: true });
+  private readonly parentHost = inject(ComponentHostComponent, { optional: true, skipSelf: true });
 
   protected readonly componentType = signal<Type<unknown> | null>(null);
   protected readonly props = signal<Record<string, BoundProperty>>({});
+  protected readonly fallbackInfo = signal<A2uiFallbackInfo | null>(null);
   private context?: ComponentContext;
 
   protected resolvedComponentId: string = '';
   protected resolvedDataContextPath: string = '/';
+
+  /** The resolved A2UI type of this host's component; read by child hosts as their parent hint. */
+  resolvedModelType?: string;
+
+  /** Unknown types already dispatched to the agent — once per type per host instance. */
+  private readonly dispatchedErrorTypes = new Set<string>();
+
+  protected readonly fallbackTemplate = computed(() => {
+    const info = this.fallbackInfo();
+    if (!info || !this.fallbackTemplates) return null;
+    if (info.state === 'loading') return this.fallbackTemplates.loadingTemplate() ?? null;
+    if (info.state === 'unknownComponent') {
+      return this.fallbackTemplates.unknownComponentTemplate() ?? null;
+    }
+    return null;
+  });
+
+  protected readonly fallbackContext = computed<A2uiFallbackTemplateContext | null>(() => {
+    const info = this.fallbackInfo();
+    if (!info) return null;
+    return {
+      $implicit: info,
+      componentId: info.componentId,
+      ...(info.state === 'unknownComponent' ? { componentType: info.componentType } : {}),
+    };
+  });
 
   private propsSub?: Subscription;
   private createSub?: Subscription;
@@ -105,7 +144,7 @@ export class ComponentHostComponent {
     });
   }
 
-  private setupComponent(key: string | {id: string; basePath: string}, surfaceId: string) {
+  private setupComponent(key: string | { id: string; basePath: string }, surfaceId: string) {
     this.resetState();
 
     const surface = this.rendererService.surfaceGroup?.getSurface(surfaceId);
@@ -114,7 +153,7 @@ export class ComponentHostComponent {
       console.warn(`Surface ${surfaceId} not found. Waiting for it...`);
       this.surfaceSub?.unsubscribe();
       let unsubscribed = false;
-      const sub = this.rendererService.surfaceGroup?.onSurfaceCreated?.subscribe(s => {
+      const sub = this.rendererService.surfaceGroup?.onSurfaceCreated?.subscribe((s) => {
         if (s.id === surfaceId) {
           unsubscribed = true;
           if (this.surfaceSub) {
@@ -153,10 +192,21 @@ export class ComponentHostComponent {
 
     if (!componentModel) {
       console.warn(`Component ${id} not found in surface ${surfaceId}. Waiting for it...`);
+      this.fallbackInfo.set({
+        state: 'loading',
+        componentId: id,
+        ...this.parentTypeHint(),
+      });
 
-      const sub = surface.componentsModel.onCreated.subscribe(comp => {
+      const sub = surface.componentsModel.onCreated.subscribe((comp) => {
         if (comp.id === id) {
-          this.initializeComponent(surface, comp, id, basePath);
+          // onCreated originates from transport callbacks that can run outside
+          // the Angular zone; clearing the loading fallback rides this path, so
+          // wrap it like the sibling surfaceSub/propsSub handlers to stay
+          // reactive under provideZoneChangeDetection({ignoreChangesOutsideZone}).
+          this.ngZone.run(() => {
+            this.initializeComponent(surface, comp, id, basePath);
+          });
           sub.unsubscribe();
         }
       });
@@ -179,9 +229,31 @@ export class ComponentHostComponent {
 
     if (!api) {
       console.error(`Component type "${componentModel.type}" not found in catalog "${catalog.id}"`);
+      if (!this.dispatchedErrorTypes.has(componentModel.type)) {
+        this.dispatchedErrorTypes.add(componentModel.type);
+        // Deferred: initializeComponent can run inside change detection
+        // (constructor effect); onError listeners must not run synchronously
+        // from it.
+        queueMicrotask(() => {
+          void surface.dispatchError({
+            code: 'COMPONENT_NOT_FOUND',
+            message: `Component implementation not found for type: ${componentModel.type}`,
+            componentId: id,
+            componentType: componentModel.type,
+          });
+        });
+      }
+      this.fallbackInfo.set({
+        state: 'unknownComponent',
+        componentId: id,
+        componentType: componentModel.type,
+        ...this.parentTypeHint(),
+      });
       return;
     }
+    this.resolvedModelType = componentModel.type;
     this.componentType.set(api.component);
+    this.fallbackInfo.set(null);
 
     // Create context
     this.context = new ComponentContext(surface, id, basePath);
@@ -198,6 +270,21 @@ export class ComponentHostComponent {
   }
 
   /**
+   * The parent host's resolved type, but only when the parent belongs to the
+   * same surface. The `skipSelf` injection walks past a nested
+   * `SurfaceComponent` boundary, so without this guard an embedded surface's
+   * root host would report the OUTER surface's type — violating the shared
+   * contract (parentComponentType absent at a surface root) and diverging
+   * from React, where the hint is threaded explicitly per surface.
+   */
+  private parentTypeHint(): { parentComponentType?: string } {
+    const parent = this.parentHost;
+    const type =
+      parent && parent.surfaceId() === this.surfaceId() ? parent.resolvedModelType : undefined;
+    return type !== undefined ? { parentComponentType: type } : {};
+  }
+
+  /**
    * Resets the component host state, unsubscribing from active subscriptions
    * and clearing component properties to avoid rendering stale data while
    * a new component is being loaded.
@@ -209,6 +296,8 @@ export class ComponentHostComponent {
 
     this.componentType.set(null);
     this.props.set({});
+    this.fallbackInfo.set(null);
     this.resolvedDataContextPath = '/';
+    this.resolvedModelType = undefined;
   }
 }

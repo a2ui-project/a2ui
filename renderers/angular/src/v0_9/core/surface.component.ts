@@ -14,8 +14,13 @@
  * limitations under the License.
  */
 
-import {ChangeDetectionStrategy, Component, input} from '@angular/core';
-import {ComponentHostComponent} from './component-host.component';
+import { ChangeDetectionStrategy, Component, forwardRef, input, TemplateRef } from '@angular/core';
+import { ComponentHostComponent } from './component-host.component';
+import {
+  A2UI_FALLBACK_TEMPLATES,
+  A2uiFallbackTemplateContext,
+  A2uiFallbackTemplates,
+} from './fallback-templates';
 
 /**
  * High-level component for rendering an entire A2UI surface.
@@ -33,14 +38,17 @@ import {ComponentHostComponent} from './component-host.component';
   },
   template: `
     <a2ui-v09-component-host
-      [componentKey]="{id: 'root', basePath: dataContextPath()}"
+      [componentKey]="{ id: 'root', basePath: dataContextPath() }"
       [surfaceId]="surfaceId()"
     >
     </a2ui-v09-component-host>
   `,
   changeDetection: ChangeDetectionStrategy.OnPush,
+  providers: [
+    { provide: A2UI_FALLBACK_TEMPLATES, useExisting: forwardRef(() => SurfaceComponent) },
+  ],
 })
-export class SurfaceComponent {
+export class SurfaceComponent implements A2uiFallbackTemplates {
   /** The unique identifier of the surface to render. */
   surfaceId = input.required<string>();
 
@@ -49,4 +57,10 @@ export class SurfaceComponent {
    * Defaults to the root ('/').
    */
   dataContextPath = input<string>('/');
+
+  /** Optional template rendered while a referenced component has not yet streamed in. */
+  loadingTemplate = input<TemplateRef<A2uiFallbackTemplateContext>>();
+
+  /** Optional template rendered when a component's type has no catalog implementation. */
+  unknownComponentTemplate = input<TemplateRef<A2uiFallbackTemplateContext>>();
 }

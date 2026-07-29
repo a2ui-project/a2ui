@@ -1,5 +1,7 @@
 ## Unreleased
 
+- (v0_9) Render nothing by default for pending and unknown components instead of showing debug placeholders (`[Loading {id}...]`, `Unknown component: {type}`); unknown component types now log a `console.warn` and report a structured `COMPONENT_NOT_FOUND` error via `surface.dispatchError`. Add an optional `fallbacks` prop to `A2uiSurface` for consumer-provided loading/unknown-component fallbacks, delivered via context to nested children ([#2013](https://github.com/a2ui-project/a2ui/issues/2013)).
+
 ## 0.10.2
 
 - (v0_9) Normalize Safari placeholder text color for `DateTimeInput` by injecting WebKit-specific styles via a global stylesheet and adding the `.a2ui-date-time-input` class.

@@ -77,6 +77,38 @@ export class MyApp extends LitElement {
 }
 ```
 
+## Custom Fallbacks
+
+By default `<a2ui-surface>` renders nothing while a component streams in or when a type is unknown. There are two ways to supply your own UI. For the root loading state, project content into the preserved `loading` slot:
+
+```html
+<a2ui-surface .surface="${this.surface}">
+  <span slot="loading" class="a2ui-skeleton">Loading...</span>
+</a2ui-surface>
+```
+
+For nested children, which the slot cannot reach, set the `fallbacks` property. It is provided over `@lit/context` so descendant elements receive it:
+
+```typescript
+import {LitElement, html} from 'lit';
+import type {A2uiLitFallbacks} from '@a2ui/lit/v0_9';
+
+class ChatView extends LitElement {
+  // Keep a stable reference; a new object identity re-renders pending children.
+  private fallbacks: A2uiLitFallbacks = {
+    loading: info => html`<span class="a2ui-skeleton">Loading...</span>`,
+    unknownComponent: info => html`<span>Unsupported: ${info.componentType}</span>`,
+  };
+
+  render() {
+    return html`<a2ui-surface
+      .surface=${this.surface}
+      .fallbacks=${this.fallbacks}
+    ></a2ui-surface>`;
+  }
+}
+```
+
 ## Defining Custom Components
 
 A2UI v0.9 separates a component's API (Schema) from its implementation.

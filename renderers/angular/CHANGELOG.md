@@ -3,6 +3,7 @@
 - Add standalone helper `provideA2Ui` configuration function. [#2061](https://github.com/a2ui-project/a2ui/pull/2061)
 - Standardize package entry points to `index.ts` while maintaining `public-api.ts` wrappers for backward compatibility.
 - (v0_8) Export `A2uiMessageSchema` in public API.
+- (v0_9) Add optional `loadingTemplate` / `unknownComponentTemplate` `TemplateRef` inputs to `SurfaceComponent`, propagated to nested component hosts via the new `A2UI_FALLBACK_TEMPLATES` injection token; unknown component types now dispatch a structured `COMPONENT_NOT_FOUND` error to the agent. Default behavior (render nothing, existing console output) is unchanged. [#2013](https://github.com/a2ui-project/a2ui/issues/2013)
 
 ## 0.10.4
 
