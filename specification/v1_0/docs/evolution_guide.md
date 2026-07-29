@@ -8,6 +8,10 @@ Version 1.0 differs from 0.9 in the following ways:
 
 - A new renderer-to-agent RPC mechanism allows synchronous responses to renderer actions (`actionResponse`) using a unique `actionId`.
 - Agent-to-renderer RPC function calls are supported via the `callFunction` message. Renderers return execution results via the `functionResponse` message. Runtime execution boundaries and return types are defined in catalogs and verified at runtime, rather than being validated on the wire.
+- Catalogs can now be mixed within a single UI surface. Advertised `supportedCatalogIds` are mixable, allowing UI trees to combine components and functions from multiple catalogs simultaneously.
+- Added an optional `catalogId` property to `ComponentCommon` and `FunctionCall` to allow individual components and function calls to explicitly declare their source catalog.
+- Retained `catalogId` on `createSurface` as an optional parameter that defines the default catalog for that surface.
+- Defined explicit component and function call resolution logic: the renderer checks the component-level (or function call-level) `catalogId` first, then falls back to the surface default `catalogId`. If neither is defined, the renderer errors out and does not render the component (or rejects the function call). There is no fallback to catalogs declared in capabilities. Available catalogs for a surface include both `supportedCatalogIds` and any negotiated `inlineCatalogs`, and all mixed catalogs must use the same A2UI specification version.
 - The `theme` property in the catalog and surface creation message is replaced by `surfaceProperties`, and `primaryColor` is removed to separate layout from branding.
 - Components and initial data model states can be defined directly within the `createSurface` parameters. This allows for the creation of entire UIs in a single message, rather than a create followed by separate updates.
 - The `functions` field in a Catalog is now defined as a map of function name to its definition, instead of a list.
@@ -25,6 +29,7 @@ Version 1.0 differs from 0.9 in the following ways:
 - Added `callableFrom` (enum: `rendererOnly`, `agentOnly`, `rendererOrAgent`) to `FunctionDefinition` to restrict where a function can be invoked.
 - Added an optional `instructions` field to the `Catalog` schema to embed design guidelines and component usage rules directly in the catalog, replacing the external `rules.txt` file.
 - Supported standard JSON Schema metadata fields (`$schema`, `$id`, `title`, and `description`) in the Catalog object definition. Since the Catalog schema restricts properties with `additionalProperties: false`, this ensures inline catalogs containing standard schema metadata do not fail schema validation.
+- Added a `protocolVersion` field (e.g., `"protocolVersion": "1.0"`) to catalog definition metadata (`catalog_definition.json`). If omitted, `protocolVersion` defaults to `"0.9"` for backward compatibility; catalog definitions targeting `1.0` and beyond MUST specify `"protocolVersion"`.
 - Enforced Unicode Standard Annex #31 (UAX #31) identifier naming constraints (`XID_Start`, `XID_Continue`) across component names, function names, and argument keys.
 
 ### 2.2. Standard catalogs (basic)
@@ -39,7 +44,8 @@ Version 1.0 differs from 0.9 in the following ways:
 
 - Added `actionResponse` message structure (`ActionResponseMessage`) to allow the agent to respond to a specific action call using a unique `actionId` with a `value` or `error`.
 - Added `callFunction` message structure (`CallFunctionMessage`) to support agent-initiated function execution. Removed `callableFrom` and `returnType` properties from the wire payload, relying on runtime catalog verification.
-- Updated the `createSurface` message (`CreateSurfaceMessage`) to rename the `theme` field to `surfaceProperties`, and allowed passing initial `components` and `dataModel` directly inside the payload.
+- Updated the `createSurface` message (`CreateSurfaceMessage`) to rename the `theme` field to `surfaceProperties`, allowed passing initial `components` and `dataModel` directly inside the payload, and made `catalogId` an optional parameter that acts as the surface's default catalog.
+- Added an optional `catalogId` property to `ComponentCommon` and `FunctionCall` in `common_types.json` to enable mixing catalogs and explicitly designating the catalog on individual components or function calls.
 - Updated all protocol version references and envelopes from `v0.9` or `v0.9.1` to `v1.0`.
 
 ### 2.4. Renderer-to-agent events
@@ -59,6 +65,7 @@ Version 1.0 differs from 0.9 in the following ways:
 
 - Standardized the official MIME type to `application/a2ui+json` to conform to IANA media type guidelines.
 - Updated capabilities namespace in transport metadata and A2A metadata parameters from `v0.9`/`v0.9.1` to `v1.0`.
+- Clarified that `supportedCatalogIds` in `rendererCapabilities` and `agentCapabilities` are mixable within a single UI surface.
 
 ### 2.7. Data encoding
 
@@ -68,6 +75,10 @@ Version 1.0 differs from 0.9 in the following ways:
 
 ### 2.8. Processing rules
 
+- Defined strict component and function catalog resolution logic:
+  1. Check the component's (or function call's) explicit `catalogId`.
+  2. If not present, check the surface's default `catalogId` provided in `createSurface`.
+  3. If neither exists, report an error and do not render the component (or fail the function call). There is no fallback to catalogs advertised in capabilities. Available catalogs include `supportedCatalogIds` and negotiated `inlineCatalogs`, and all mixed catalogs must use the same A2UI specification version.
 - Explicitly specified that `surfaceId` must be globally unique per renderer session. Creating a surface with an ID that already exists (without first deleting it) is an error.
 - Enforced runtime lookup of function execution boundaries and return types. If a renderer receives a remote call to a function configured as `rendererOnly` or if the function is unregistered, it rejects the call and returns an error with the code `INVALID_FUNCTION_CALL`.
 - Enforced catalog entity naming compliance with Unicode Standard Annex #31 (UAX #31).
@@ -91,7 +102,8 @@ This section outlines the steps required to migrate existing applications and co
 
 - Set the `version` field in all streamed JSON envelopes to `"v1.0"`.
 - Change the MIME type of A2UI payloads in transport layers from `application/json+a2ui` to `application/a2ui+json`.
-- Rename the `theme` field in `createSurface` messages to `surfaceProperties` and remove `primaryColor`. You can also pass initial `components` and `dataModel` directly in the `createSurface` payload.
+- Rename the `theme` field in `createSurface` messages to `surfaceProperties` and remove `primaryColor`. You can pass initial `components` and `dataModel` directly in the `createSurface` payload, and `catalogId` is now optional (acting as the default catalog for that surface).
+- When mixing components from multiple catalogs, specify the optional `catalogId` on individual components or function calls.
 - Convert the `functions` property in catalog definitions from an array to a JSON object map keyed by function name.
 - Rename the `$defs/theme` catalog definition to `$defs/surfaceProperties` and remove the `primaryColor` field.
 - Ensure all generated catalog entity names conform to UAX #31 identifier rules.
@@ -102,6 +114,8 @@ This section outlines the steps required to migrate existing applications and co
 
 ### For renderers
 
+- Implement multi-catalog mixing by supporting components and function calls from any catalog in `supportedCatalogIds` or negotiated `inlineCatalogs`. All catalogs mixed within a surface must use the same A2UI specification version.
+- Implement component and function resolution order: (1) explicit component/call `catalogId`, (2) surface default `catalogId`, (3) error if neither exists (no fallback to capabilities).
 - Implement function execution by adding support for parsing `callFunction` messages, checking boundary definitions in the catalog (`callableFrom`), rejecting invalid calls with `INVALID_FUNCTION_CALL`, and returning `functionResponse` messages.
 - Support synchronous action responses by generating `actionId` for actions with `wantResponse: true` and writing returned values from `actionResponse` messages into the data model.
 - Support simultaneous version handling during session initialization by inspecting the `version` property (e.g., `"v1.0"`) to route payloads to version-specific controllers.
