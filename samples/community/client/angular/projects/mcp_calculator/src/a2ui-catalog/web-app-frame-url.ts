@@ -15,7 +15,7 @@
  */
 
 import {CatalogComponent, A2uiRendererService} from '@a2ui/angular/v0_9';
-import {DataContext} from '@a2ui/web_core/v0_9';
+import {ComponentApi, DataContext} from '@a2ui/web_core/v0_9';
 import {z} from 'zod';
 import {
   ChangeDetectionStrategy,
@@ -31,6 +31,19 @@ import {
 } from '@angular/core';
 import {DomSanitizer, SafeResourceUrl} from '@angular/platform-browser';
 import Ajv from 'ajv';
+
+const WebAppFrameUrlPropsSchema = z.object({
+  url: z.string().optional(),
+  data: z.any().optional(),
+  allowedEvents: z.record(z.unknown()).optional(),
+  allowedFunctions: z.record(z.unknown()).optional(),
+  mutableData: z.record(z.unknown()).optional(),
+  disableSchemaValidation: z.boolean().optional(),
+});
+
+export interface WebAppFrameUrlApi extends ComponentApi<typeof WebAppFrameUrlPropsSchema> {
+  name: 'WebAppFrameUrl';
+}
 
 @Component({
   selector: 'a2ui-web-app-frame-url',
@@ -59,22 +72,31 @@ import Ajv from 'ajv';
   `,
   template: ` <iframe #iframe [src]="iframeSrc()" [title]="'WebAppFrame'"></iframe> `,
 })
-export class WebAppFrameUrl extends CatalogComponent<any> implements OnDestroy, OnInit {
+export class WebAppFrameUrl extends CatalogComponent<WebAppFrameUrlApi> implements OnDestroy, OnInit {
   private readonly sanitizer = inject(DomSanitizer);
   private readonly rendererService = inject(A2uiRendererService);
 
-  protected readonly allowedEvents = computed<Record<string, any>>(
+  protected readonly allowedEvents = computed<Record<string, unknown>>(
     () => this.props()['allowedEvents']?.value() || {},
   );
-  protected readonly allowedFunctions = computed<Record<string, any>>(
+  protected readonly allowedFunctions = computed<Record<string, unknown>>(
     () => this.props()['allowedFunctions']?.value() || {},
   );
-  protected readonly mutableData = computed<Record<string, any>>(
+  protected readonly mutableData = computed<Record<string, unknown>>(
     () => this.props()['mutableData']?.value() || {},
   );
   protected readonly disableSchemaValidation = computed<boolean>(
     () => this.props()['disableSchemaValidation']?.value() || false,
   );
+  protected readonly dataPaths = computed<Record<string, string>>(() => {
+    const dataProp = this.props()['data'];
+    if (!dataProp) return {};
+    
+    const rawPaths = (dataProp.raw as {paths?: Record<string, string>})?.paths;
+    const valuePaths = dataProp.value()?.paths;
+    
+    return rawPaths ?? valuePaths ?? {};
+  });
 
   protected readonly iframeSrc = signal<SafeResourceUrl | null>(
     this.sanitizer.bypassSecurityTrustResourceUrl('about:blank'),
@@ -83,8 +105,8 @@ export class WebAppFrameUrl extends CatalogComponent<any> implements OnDestroy, 
   private ajv = new Ajv();
   private iframe = viewChild.required<ElementRef<HTMLIFrameElement>>('iframe');
   private messageHandler: ((event: MessageEvent) => void) | null = null;
-  private dataSubscriptions: any[] = [];
-  private resizeTimeout: any = null;
+  private dataSubscriptions: { unsubscribe: () => void }[] = [];
+  private resizeTimeout: ReturnType<typeof setTimeout> | null = null;
   private lastWidth?: number;
   private lastHeight?: number;
   private lastBoundRootValues: Record<string, string> = {};
@@ -256,8 +278,7 @@ export class WebAppFrameUrl extends CatalogComponent<any> implements OnDestroy, 
         }
         const surface = this.rendererService.surfaceGroup.getSurface(this.surfaceId());
         if (surface) {
-          const dataPaths: Record<string, string> =
-            (this.props()['data']?.raw as any)?.paths ?? this.props()['data']?.value()?.paths ?? {};
+          const dataPaths = this.dataPaths();
 
           if (dataPaths[data.key]) {
             const dataPath = dataPaths[data.key];
@@ -318,8 +339,9 @@ export class WebAppFrameUrl extends CatalogComponent<any> implements OnDestroy, 
                   '*',
                 );
               }
-            } catch (err: any) {
+            } catch (err: unknown) {
               if (iframeEl.contentWindow) {
+                const errorMessage = err instanceof Error ? err.message : String(err) || 'Error executing function';
                 iframeEl.contentWindow.postMessage(
                   {
                     type: 'a2ui_function_result',
@@ -328,7 +350,7 @@ export class WebAppFrameUrl extends CatalogComponent<any> implements OnDestroy, 
                     status: 'error',
                     error: {
                       code: 'EXECUTION_ERROR',
-                      message: err.message || 'Error executing function',
+                      message: errorMessage,
                     },
                   },
                   '*',
@@ -351,10 +373,9 @@ export class WebAppFrameUrl extends CatalogComponent<any> implements OnDestroy, 
     this.clearDataSubscriptions();
 
     const surface = this.rendererService.surfaceGroup.getSurface(this.surfaceId());
-    const dataPaths: Record<string, string> =
-      (this.props()['data']?.raw as any)?.paths ?? this.props()['data']?.value()?.paths ?? {};
+    const dataPaths = this.dataPaths();
 
-    const initialData: Record<string, any> = {};
+    const initialData: Record<string, unknown> = {};
 
     if (surface && Object.keys(dataPaths).length > 0) {
       for (const [key, dataPath] of Object.entries(dataPaths)) {
