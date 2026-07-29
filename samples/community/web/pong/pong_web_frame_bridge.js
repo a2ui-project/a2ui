@@ -31,26 +31,35 @@ if (!PARENT_ORIGIN) {
   );
 }
 
+const MSG_TYPE_ACTION = 'a2ui_action';
+const MSG_TYPE_DATA_MODEL_CHANGE = 'a2ui_data_model_change';
+const MSG_TYPE_FUNCTION_CALL = 'a2ui_function_call';
+const MSG_TYPE_FUNCTION_RESULT = 'a2ui_function_result';
+const MSG_TYPE_APP_FRAME_INIT = 'a2ui_app_frame_init';
+const MSG_TYPE_HOST_CONTEXT_UPDATE = 'a2ui_host_context_update';
+const MSG_TYPE_DATA_MODEL_UPDATE = 'a2ui_data_model_update';
+const MSG_TYPE_APP_FRAME_READY = 'a2ui_app_frame_ready';
+
 let localPlayerScore = 0;
 let localCpuScore = 0;
 
 let functionCallId = 0;
 
 function dispatchAction(action, data = {}) {
-  window.parent.postMessage({type: 'a2ui_action', action, data}, PARENT_ORIGIN);
+  window.parent.postMessage({type: MSG_TYPE_ACTION, action, data}, PARENT_ORIGIN);
 }
 
 function dispatchDataModelChange(key, subpath, value) {
-  window.parent.postMessage({type: 'a2ui_data_model_change', key, subpath, value}, PARENT_ORIGIN);
+  window.parent.postMessage({type: MSG_TYPE_DATA_MODEL_CHANGE, key, subpath, value}, PARENT_ORIGIN);
 }
 
 function dispatchFunctionCall(call, args = {}) {
   const callId = String(++functionCallId);
-  window.parent.postMessage({type: 'a2ui_function_call', call, callId, args}, PARENT_ORIGIN);
+  window.parent.postMessage({type: MSG_TYPE_FUNCTION_CALL, call, callId, args}, PARENT_ORIGIN);
 
   return new Promise((resolve, reject) => {
     const listener = event => {
-      if (event.data?.type === 'a2ui_function_result' && event.data?.callId === callId) {
+      if (event.data?.type === MSG_TYPE_FUNCTION_RESULT && event.data?.callId === callId) {
         window.removeEventListener('message', listener);
         if (event.data.status === 'success') {
           resolve(event.data.result);
@@ -92,63 +101,75 @@ function applyContainerDimensions(containerDimensions) {
   if (typeof resize === 'function') resize();
 }
 
+function handleAppFrameInit(data) {
+  const initialData = data.value.initialData;
+  if (initialData?.state) {
+    if (typeof initialData.state.player_score === 'number')
+      localPlayerScore = initialData.state.player_score;
+    if (typeof initialData.state.cpu_score === 'number')
+      localCpuScore = initialData.state.cpu_score;
+  }
+  if (data.value.hostContext && data.value.hostContext.containerDimensions) {
+    applyContainerDimensions(data.value.hostContext.containerDimensions);
+  }
+}
+
+function handleHostContextUpdate(data) {
+  if (data.value.containerDimensions) {
+    applyContainerDimensions(data.value.containerDimensions);
+  }
+}
+
+function handleDataModelUpdate(data) {
+  const key = data.key;
+  const subpath = data.subpath;
+  const value = data.value;
+
+  if (key === 'state') {
+    if (subpath) {
+      if (subpath === '/player_score' && typeof value === 'number') {
+        localPlayerScore = value;
+      } else if (subpath === '/cpu_score' && typeof value === 'number') {
+        localCpuScore = value;
+      }
+    } else if (value && typeof value === 'object') {
+      if (typeof value.player_score === 'number') {
+        localPlayerScore = value.player_score;
+      }
+      if (typeof value.cpu_score === 'number') {
+        localCpuScore = value.cpu_score;
+      }
+    }
+
+    // Automatically restart if scores reset to 0
+    if (localPlayerScore === 0 && localCpuScore === 0) {
+      if (typeof isPaused !== 'undefined') {
+        isPaused = false;
+      }
+      if (typeof hideOverlay === 'function') {
+        hideOverlay();
+      }
+      if (typeof resetBall === 'function') {
+        resetBall();
+      }
+      dispatchAction('commentate_pong', {
+        game_event: 'Match started! Current Score: Player 0 - CPU 0.',
+        silent: true,
+      });
+    }
+  }
+}
+
 window.addEventListener('message', event => {
   const data = event.data;
-  if (data?.type === 'a2ui_app_frame_init') {
-    const initialData = data.value.initialData;
-    if (initialData?.state) {
-      if (typeof initialData.state.player_score === 'number')
-        localPlayerScore = initialData.state.player_score;
-      if (typeof initialData.state.cpu_score === 'number')
-        localCpuScore = initialData.state.cpu_score;
-    }
-    if (data.value.hostContext && data.value.hostContext.containerDimensions) {
-      applyContainerDimensions(data.value.hostContext.containerDimensions);
-    }
-  } else if (data?.type === 'a2ui_host_context_update') {
-    if (data.value.containerDimensions) {
-      applyContainerDimensions(data.value.containerDimensions);
-    }
-  } else if (data?.type === 'a2ui_data_model_update') {
-    const key = data.key;
-    const subpath = data.subpath;
-    const value = data.value;
-
-    if (key === 'state') {
-      if (subpath) {
-        if (subpath === '/player_score' && typeof value === 'number') {
-          localPlayerScore = value;
-        } else if (subpath === '/cpu_score' && typeof value === 'number') {
-          localCpuScore = value;
-        }
-      } else if (value && typeof value === 'object') {
-        if (typeof value.player_score === 'number') {
-          localPlayerScore = value.player_score;
-        }
-        if (typeof value.cpu_score === 'number') {
-          localCpuScore = value.cpu_score;
-        }
-      }
-
-      // Automatically restart if scores reset to 0
-      if (localPlayerScore === 0 && localCpuScore === 0) {
-        if (typeof isPaused !== 'undefined') {
-          isPaused = false;
-        }
-        if (typeof hideOverlay === 'function') {
-          hideOverlay();
-        }
-        if (typeof resetBall === 'function') {
-          resetBall();
-        }
-        dispatchAction('commentate_pong', {
-          game_event: 'Match started! Current Score: Player 0 - CPU 0.',
-          silent: true,
-        });
-      }
-    }
+  if (data?.type === MSG_TYPE_APP_FRAME_INIT) {
+    handleAppFrameInit(data);
+  } else if (data?.type === MSG_TYPE_HOST_CONTEXT_UPDATE) {
+    handleHostContextUpdate(data);
+  } else if (data?.type === MSG_TYPE_DATA_MODEL_UPDATE) {
+    handleDataModelUpdate(data);
   }
 });
 
 // Initialize
-window.parent.postMessage({type: 'a2ui_app_frame_ready'}, PARENT_ORIGIN);
+window.parent.postMessage({type: MSG_TYPE_APP_FRAME_READY}, PARENT_ORIGIN);
