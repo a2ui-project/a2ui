@@ -31,6 +31,11 @@ jobs:
     timeout-minutes: 60
 
     steps:
+      - name: Checkout code
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+        with:
+          persist-credentials: false
+
       - name: Set up Python
         uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
         with:
@@ -45,55 +50,4 @@ jobs:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          python -c "
-          import os
-          import time
-          from google import genai
-
-          api_key = os.environ['GEMINI_API_KEY']
-          gh_token = os.environ['GH_TOKEN']
-
-          client = genai.Client(api_key=api_key)
-
-          prompt = (
-              '1. Clone the target repository: https://github.com/a2ui-project/a2ui (branch: main).\n'
-              '2. Locate and read the compliance skill file at `.agents/skills/a2ui-audit/SKILL.md`.\n'
-              '3. Follow all instructions in the skill file to perform an Antigravity compliance audit on the repository.\n'
-              '4. If any compliance violations or formatting issues are found, create a detailed GitHub Issue on a2ui-project/a2ui summarizing the findings.'
-          )
-
-          print('🚀 Launching Antigravity Agent interaction...')
-          interaction = client.interactions.create(
-              agent='antigravity-preview-05-2026',
-              input=prompt,
-              background=True,
-              environment={
-                  'type': 'remote',
-                  'network': {
-                      'allowlist': [
-                          {
-                              'domain': 'api.github.com',
-                              'transform': {
-                                  'Authorization': f'Bearer {gh_token}'
-                              }
-                          },
-                          {'domain': 'github.com'}
-                      ]
-                  }
-              }
-          )
-
-          print(f'Interaction created! ID: {interaction.id}')
-
-          # Poll for completion
-          while interaction.status in ['in_progress', 'queued']:
-              time.sleep(10)
-              interaction = client.interactions.get(id=interaction.id)
-              print(f'Current status: {interaction.status}...')
-
-          print('--- Audit Completed ---')
-          print(interaction.output_text)
-
-          if interaction.status != 'completed':
-              raise RuntimeError(f'Audit interaction ended with status: {interaction.status}')
-          "
+          python .github/scripts/run_weekly_audit.py
