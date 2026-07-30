@@ -116,7 +116,7 @@ exclude = [
     "^agent_sdks/python/a2ui_core/tests/",
     "^agent_sdks/python/a2ui_agent/tests/",
     "^agent_sdks/conformance/tests/",
-    "^eval/iterative_format_optimizer/skills/inference-format-optimizer/tests/",
+    "^eval/",
     # TODO(#1614): Typecheck all packages here.
     "^agent_sdks/python/a2ui_agent/src/a2ui/inference_formats/experimental/",
     "^agent_sdks/python/a2ui_agent/pack_specs_hook\\.py$",
