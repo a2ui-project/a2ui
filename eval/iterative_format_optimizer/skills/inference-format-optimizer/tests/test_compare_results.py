@@ -42,7 +42,7 @@ from compare_results import (
 
 class TestCompareResults(unittest.TestCase):
 
-    def test_format_delta_pct(self):
+    def test_format_delta_pct(self) -> None:
         self.assertEqual(format_delta_pct(100, 100), "0.0%")
         self.assertEqual(format_delta_pct(150, 100), "+50.0%")
         self.assertEqual(format_delta_pct(50, 100), "-50.0%")
@@ -51,7 +51,7 @@ class TestCompareResults(unittest.TestCase):
         )
         self.assertEqual(format_delta_pct(None, 100), "-")
 
-    def test_compute_s_opt(self):
+    def test_compute_s_opt(self) -> None:
         b = {
             "schema_acc": 1.0,
             "quality_acc": 1.0,
@@ -71,7 +71,7 @@ class TestCompareResults(unittest.TestCase):
         score = compute_s_opt(c, b)
         self.assertTrue(score > 0)
 
-    def test_resolve_results_file_direct_json(self):
+    def test_resolve_results_file_direct_json(self) -> None:
         with tempfile.NamedTemporaryFile(suffix=".json", mode="w", delete=False) as f:
             f.write("{}")
             temp_path = f.name
@@ -82,7 +82,7 @@ class TestCompareResults(unittest.TestCase):
             os.remove(temp_path)
 
     @patch("subprocess.check_output")
-    def test_resolve_results_file_eval_file(self, mock_check):
+    def test_resolve_results_file_eval_file(self, mock_check) -> None:
         mock_check.return_value = '{"results": {}}'
         with tempfile.NamedTemporaryFile(suffix=".eval", mode="w", delete=False) as f:
             f.write("{}")
@@ -95,7 +95,7 @@ class TestCompareResults(unittest.TestCase):
             if os.path.exists(temp_path + ".json"):
                 os.remove(temp_path + ".json")
 
-    def test_resolve_results_file_dir_with_results_json(self):
+    def test_resolve_results_file_dir_with_results_json(self) -> None:
         temp_dir = tempfile.mkdtemp()
         res_json = os.path.join(temp_dir, "results.json")
         with open(res_json, "w") as f:
@@ -106,7 +106,7 @@ class TestCompareResults(unittest.TestCase):
         finally:
             shutil.rmtree(temp_dir)
 
-    def test_resolve_results_file_dir_with_run_meta_json(self):
+    def test_resolve_results_file_dir_with_run_meta_json(self) -> None:
         temp_dir = tempfile.mkdtemp()
         meta_json = os.path.join(temp_dir, "run_meta.json")
         with open(meta_json, "w") as f:
@@ -117,7 +117,7 @@ class TestCompareResults(unittest.TestCase):
         finally:
             shutil.rmtree(temp_dir)
 
-    def test_resolve_results_file_dir_with_flat_budget_run_meta_json(self):
+    def test_resolve_results_file_dir_with_flat_budget_run_meta_json(self) -> None:
         temp_dir = tempfile.mkdtemp()
         flat_meta_json = os.path.join(temp_dir, "unbounded_run_meta.json")
         with open(flat_meta_json, "w") as f:
@@ -129,7 +129,7 @@ class TestCompareResults(unittest.TestCase):
             shutil.rmtree(temp_dir)
 
     @patch("subprocess.check_output")
-    def test_resolve_results_file_dir_with_eval_files(self, mock_check):
+    def test_resolve_results_file_dir_with_eval_files(self, mock_check) -> None:
         mock_check.return_value = '{"results": {}}'
         temp_dir = tempfile.mkdtemp()
         eval_file = os.path.join(temp_dir, "sample.eval")
@@ -141,7 +141,7 @@ class TestCompareResults(unittest.TestCase):
         finally:
             shutil.rmtree(temp_dir)
 
-    def test_resolve_results_file_not_found(self):
+    def test_resolve_results_file_not_found(self) -> None:
         temp_dir = tempfile.mkdtemp()
         try:
             with self.assertRaises(FileNotFoundError):
@@ -149,7 +149,7 @@ class TestCompareResults(unittest.TestCase):
         finally:
             shutil.rmtree(temp_dir)
 
-    def test_extract_metrics_from_full_samples(self):
+    def test_extract_metrics_from_full_samples(self) -> None:
         temp_dir = tempfile.mkdtemp()
         res_json = os.path.join(temp_dir, "results.json")
         data = {
@@ -207,7 +207,7 @@ class TestCompareResults(unittest.TestCase):
         finally:
             shutil.rmtree(temp_dir)
 
-    def test_generate_markdown_table(self):
+    def test_generate_markdown_table(self) -> None:
         base_metrics = {
             "name": "base",
             "sample_count": 5,
@@ -246,7 +246,7 @@ class TestCompareResults(unittest.TestCase):
         self.assertIn("A2UI Evaluation Comparison & Baseline Delta", table)
         self.assertIn("run_001", table)
 
-    def test_main_cli_execution(self):
+    def test_main_cli_execution(self) -> None:
         temp_dir = tempfile.mkdtemp()
         base_dir = os.path.join(temp_dir, "base")
         curr_dir = os.path.join(temp_dir, "curr")
@@ -286,7 +286,7 @@ class TestCompareResults(unittest.TestCase):
         finally:
             shutil.rmtree(temp_dir)
 
-    def test_main_cli_median_and_multiple_dirs(self):
+    def test_main_cli_median_and_multiple_dirs(self) -> None:
         temp_dir = tempfile.mkdtemp()
         base_dir = os.path.join(temp_dir, "base")
         curr_dir1 = os.path.join(temp_dir, "curr1")
@@ -328,7 +328,7 @@ class TestCompareResults(unittest.TestCase):
         finally:
             shutil.rmtree(temp_dir)
 
-    def test_generate_markdown_table_mean(self):
+    def test_generate_markdown_table_mean(self) -> None:
         b = {
             "name": "base",
             "sample_count": 10,
@@ -359,7 +359,7 @@ class TestCompareResults(unittest.TestCase):
         self.assertIn("curr", md)
 
     @patch("subprocess.check_output")
-    def test_resolve_results_file_eval_success(self, mock_check):
+    def test_resolve_results_file_eval_success(self, mock_check) -> None:
         mock_check.return_value = json.dumps({"samples": []})
         temp_dir = tempfile.mkdtemp()
         try:
@@ -372,7 +372,7 @@ class TestCompareResults(unittest.TestCase):
         finally:
             shutil.rmtree(temp_dir)
 
-    def test_resolve_results_file_flat_and_subdirs(self):
+    def test_resolve_results_file_flat_and_subdirs(self) -> None:
         temp_dir = tempfile.mkdtemp()
         try:
             # Flat budget file
@@ -394,7 +394,7 @@ class TestCompareResults(unittest.TestCase):
         finally:
             shutil.rmtree(temp_dir)
 
-    def test_resolve_results_file_not_found(self):
+    def test_resolve_results_file_not_found_dir(self) -> None:
         temp_dir = tempfile.mkdtemp()
         try:
             with self.assertRaises(FileNotFoundError):
@@ -402,7 +402,7 @@ class TestCompareResults(unittest.TestCase):
         finally:
             shutil.rmtree(temp_dir)
 
-    def test_extract_metrics_use_average(self):
+    def test_extract_metrics_use_average(self) -> None:
         temp_dir = tempfile.mkdtemp()
         res_json = os.path.join(temp_dir, "results.json")
         sample_log = {
@@ -466,7 +466,7 @@ class TestCompareResults(unittest.TestCase):
         finally:
             shutil.rmtree(temp_dir)
 
-    def test_format_delta_pct(self):
+    def test_format_delta_pct_utility(self) -> None:
         from compare_results import format_delta_pct
 
         self.assertEqual(format_delta_pct(None, 10.0), "-")
@@ -481,7 +481,7 @@ class TestCompareResults(unittest.TestCase):
             format_delta_pct(0.7, 0.8, is_percentage_points=True), "-10.0%"
         )
 
-    def test_compute_s_opt(self):
+    def test_compute_s_opt_utility(self) -> None:
         from compare_results import compute_s_opt
 
         m = {
@@ -501,7 +501,7 @@ class TestCompareResults(unittest.TestCase):
         s_opt = compute_s_opt(m, b)
         self.assertTrue(isinstance(s_opt, float))
 
-    def test_generate_markdown_table(self):
+    def test_generate_markdown_table_utility(self) -> None:
         from compare_results import generate_markdown_table
 
         b = {
@@ -534,7 +534,7 @@ class TestCompareResults(unittest.TestCase):
         self.assertIn("comp_run", tbl)
 
     @patch("compare_results.extract_metrics")
-    def test_compare_results_main_cli(self, mock_extract):
+    def test_compare_results_main_cli(self, mock_extract) -> None:
         from compare_results import main
 
         mock_extract.return_value = {
@@ -562,7 +562,7 @@ class TestCompareResults(unittest.TestCase):
         finally:
             shutil.rmtree(temp_dir)
 
-    def test_extract_metrics_dict_samples_structure(self):
+    def test_extract_metrics_dict_samples_structure(self) -> None:
         from compare_results import extract_metrics
 
         temp_dir = tempfile.mkdtemp()

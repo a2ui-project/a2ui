@@ -34,7 +34,7 @@ from sync_history import _get_max_run_id, main, sync_worktree_history
 
 class TestSyncHistory(unittest.TestCase):
 
-    def test_get_max_run_id(self):
+    def test_get_max_run_id(self) -> None:
         temp_dir = tempfile.mkdtemp()
         try:
             os.makedirs(os.path.join(temp_dir, "run_001_foo"))
@@ -46,7 +46,7 @@ class TestSyncHistory(unittest.TestCase):
         finally:
             shutil.rmtree(temp_dir)
 
-    def test_sync_worktree_history_basic(self):
+    def test_sync_worktree_history_basic(self) -> None:
         temp_dir = tempfile.mkdtemp()
         try:
             wt_dir = os.path.join(temp_dir, "worktree_1")
@@ -63,7 +63,7 @@ class TestSyncHistory(unittest.TestCase):
         finally:
             shutil.rmtree(temp_dir)
 
-    def test_sync_worktree_history_collision_reindex(self):
+    def test_sync_worktree_history_collision_reindex(self) -> None:
         temp_dir = tempfile.mkdtemp()
         try:
             main_history = os.path.join(temp_dir, "history", "atom")
@@ -90,7 +90,7 @@ class TestSyncHistory(unittest.TestCase):
             shutil.rmtree(temp_dir)
 
     @patch("subprocess.check_output")
-    def test_sync_worktree_history_with_git_worktree_command(self, mock_sub):
+    def test_sync_worktree_history_with_git_worktree_command(self, mock_sub) -> None:
         temp_dir = tempfile.mkdtemp()
         try:
             wt1 = os.path.join(temp_dir, "worktree_1")
@@ -114,7 +114,7 @@ class TestSyncHistory(unittest.TestCase):
         finally:
             shutil.rmtree(temp_dir)
 
-    def test_main_cli(self):
+    def test_main_cli(self) -> None:
         temp_dir = tempfile.mkdtemp()
         try:
             with patch("sync_history.sync_worktree_history") as mock_sync:
@@ -125,7 +125,7 @@ class TestSyncHistory(unittest.TestCase):
         finally:
             shutil.rmtree(temp_dir)
 
-    def test_sync_worktree_history_default_discovery(self):
+    def test_sync_worktree_history_default_discovery(self) -> None:
         temp_dir = tempfile.mkdtemp()
         try:
             worktrees_dir = os.path.join(temp_dir, "worktrees")

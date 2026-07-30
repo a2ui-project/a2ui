@@ -48,30 +48,30 @@ from utils.runner import (
 
 class TestFormatTools(unittest.TestCase):
 
-    def test_compile_snippet_atom(self):
+    def test_compile_snippet_atom(self) -> None:
         compiled = format_tools.test_compile_snippet("atom", '(Card (Text "Hello"))')
         payload = json.loads(compiled)
         self.assertEqual(payload["version"], "v1.0")
 
-    def test_compile_snippet_express(self):
+    def test_compile_snippet_express(self) -> None:
         compiled = format_tools.test_compile_snippet(
             "express", 'root = Text("Hello", _)\n'
         )
         payload = json.loads(compiled)
         self.assertTrue(len(payload) > 0)
 
-    def test_compile_snippet_elemental(self):
+    def test_compile_snippet_elemental(self) -> None:
         compiled = format_tools.test_compile_snippet(
             "elemental", '<body><ui-text text="Hello"></ui-text></body>\n'
         )
         payload = json.loads(compiled)
         self.assertTrue(len(payload) > 0)
 
-    def test_compile_snippet_unsupported_raises(self):
+    def test_compile_snippet_unsupported_raises(self) -> None:
         with self.assertRaises(ValueError):
             format_tools.test_compile_snippet("invalid_fmt", "foo")
 
-    def test_decompile_payload_atom(self):
+    def test_decompile_payload_atom(self) -> None:
         payload = {
             "version": "v1.0",
             "createSurface": {
@@ -85,7 +85,7 @@ class TestFormatTools(unittest.TestCase):
         decompiled = format_tools.test_decompile_payload("atom", json.dumps(payload))
         self.assertIn("Card", decompiled)
 
-    def test_decompile_payload_express(self):
+    def test_decompile_payload_express(self) -> None:
         payload = {
             "version": "v1.0",
             "createSurface": {
@@ -99,7 +99,7 @@ class TestFormatTools(unittest.TestCase):
         decompiled = format_tools.test_decompile_payload("express", payload)
         self.assertTrue(len(decompiled) > 0)
 
-    def test_decompile_payload_elemental(self):
+    def test_decompile_payload_elemental(self) -> None:
         payload = {
             "version": "v1.0",
             "createSurface": {
@@ -113,50 +113,50 @@ class TestFormatTools(unittest.TestCase):
         decompiled = format_tools.test_decompile_payload("elemental", payload)
         self.assertTrue(len(decompiled) > 0)
 
-    def test_decompile_payload_unsupported_raises(self):
+    def test_decompile_payload_unsupported_raises(self) -> None:
         with self.assertRaises(ValueError):
             format_tools.test_decompile_payload("invalid_fmt", {})
 
-    def test_parse_ast_atom(self):
+    def test_parse_ast_atom(self) -> None:
         parsed = format_tools.test_parse_ast("atom", '(Card (Text "Hello"))')
         ast = json.loads(parsed)
         self.assertEqual(ast[0][0], "Card")
 
-    def test_parse_ast_express(self):
+    def test_parse_ast_express(self) -> None:
         parsed = format_tools.test_parse_ast("express", 'root = Text("Hello", _)\n')
         self.assertTrue(len(parsed) > 0)
 
-    def test_parse_ast_elemental(self):
+    def test_parse_ast_elemental(self) -> None:
         parsed = format_tools.test_parse_ast(
             "elemental", '<body><ui-text text="Hello"></ui-text></body>\n'
         )
         self.assertTrue(len(parsed) > 0)
 
-    def test_parse_ast_unsupported_raises(self):
+    def test_parse_ast_unsupported_raises(self) -> None:
         with self.assertRaises(ValueError):
             format_tools.test_parse_ast("invalid_fmt", "foo")
 
 
 class TestArchiver(unittest.TestCase):
 
-    def test_slugify(self):
+    def test_slugify(self) -> None:
         self.assertEqual(
             _slugify("Compiler-side dynamic event handler normalization!"),
             "compiler_side_dynamic_event_handler_norm",
         )
         self.assertEqual(_slugify(""), "run")
 
-    def test_get_git_commit_sha(self):
+    def test_get_git_commit_sha(self) -> None:
         sha = _get_git_commit_sha(str(REPO_ROOT))
         self.assertTrue(len(sha) >= 7)
 
     @patch("subprocess.run")
-    def test_get_git_commit_sha_failure(self, mock_run):
+    def test_get_git_commit_sha_failure(self, mock_run) -> None:
         mock_run.side_effect = Exception("git error")
         sha = _get_git_commit_sha(str(REPO_ROOT))
         self.assertEqual(sha, "0000000")
 
-    def test_archive_run(self):
+    def test_archive_run(self) -> None:
         temp_dir = tempfile.mkdtemp()
         try:
             temp_history = Path(temp_dir) / "eval" / "iterative" / "history"
@@ -189,7 +189,7 @@ class TestArchiver(unittest.TestCase):
             shutil.rmtree(temp_dir)
 
     @patch("subprocess.run")
-    def test_archive_run_git_patch_failure(self, mock_run):
+    def test_archive_run_git_patch_failure(self, mock_run) -> None:
         mock_run.side_effect = Exception("git patch error")
         temp_dir = tempfile.mkdtemp()
         try:
@@ -217,13 +217,13 @@ class TestArchiver(unittest.TestCase):
 class TestRunnerAndReporter(unittest.TestCase):
 
     @patch("subprocess.run")
-    def test_run_unit_tests(self, mock_run):
+    def test_run_unit_tests(self, mock_run) -> None:
         mock_run.return_value = MagicMock(returncode=0, stdout="PASS", stderr="")
         res = run_unit_tests()
         self.assertTrue(res["success"])
 
     @patch("subprocess.run")
-    def test_run_evaluation(self, mock_run):
+    def test_run_evaluation(self, mock_run) -> None:
         mock_run.return_value = MagicMock(returncode=0)
         res = run_evaluation(
             "atom", "google/gemini-3.5-flash", ["loginForm"], True, "/tmp/logs"
@@ -231,18 +231,18 @@ class TestRunnerAndReporter(unittest.TestCase):
         self.assertTrue(res)
 
     @patch("subprocess.check_output")
-    def test_load_log_data(self, mock_check_output):
+    def test_load_log_data(self, mock_check_output) -> None:
         mock_check_output.return_value = '{"results": {}}'
         res = load_log_data("/tmp/test.eval")
         self.assertEqual(res, {"results": {}})
 
     @patch("subprocess.run")
-    def test_get_git_diff(self, mock_run):
+    def test_get_git_diff(self, mock_run) -> None:
         mock_run.return_value = MagicMock(stdout="diff content")
         diff = get_git_diff(str(REPO_ROOT))
         self.assertEqual(diff, "diff content")
 
-    def test_extract_metrics_from_log_complete(self):
+    def test_extract_metrics_from_log_complete(self) -> None:
         log_data = {
             "results": {
                 "scores": [
@@ -272,7 +272,7 @@ class TestRunnerAndReporter(unittest.TestCase):
         self.assertEqual(metrics["overall_accuracy"], 1.0)
         self.assertEqual(metrics["algo_accuracy"], 1.0)
 
-    def test_generate_optimization_report_with_failures(self):
+    def test_generate_optimization_report_with_failures(self) -> None:
         log_data = {
             "results": {
                 "scores": [
@@ -313,7 +313,7 @@ class TestRunnerAndReporter(unittest.TestCase):
         self.assertIn("# Inference Format Optimization Report", report)
         self.assertIn("Pytest Unit Test Failures", report)
 
-    def test_generate_optimization_report_with_baseline(self):
+    def test_generate_optimization_report_with_baseline(self) -> None:
         log_data = {
             "results": {
                 "scores": [
@@ -351,7 +351,7 @@ class TestRunnerAndReporter(unittest.TestCase):
         self.assertIn("Overall Pass Rate", report)
         self.assertIn("All tests passed successfully", report)
 
-    def test_generate_optimization_report_with_failures(self):
+    def test_generate_optimization_report_with_failures(self) -> None:
         from utils.reporter import generate_optimization_report
 
         log_data = {
@@ -395,7 +395,7 @@ class TestRunnerAndReporter(unittest.TestCase):
         self.assertIn("Syntax error in payload", report)
         self.assertIn("Incorrect layout structure", report)
 
-    def test_generate_optimization_report_list_scores(self):
+    def test_generate_optimization_report_list_scores(self) -> None:
         from utils.reporter import generate_optimization_report
 
         log_data = {
@@ -435,7 +435,7 @@ class TestRunnerAndReporter(unittest.TestCase):
         self.assertIn("List format failure", report)
         self.assertIn("List format QA failure", report)
 
-    def test_get_uv_binary_resolution(self):
+    def test_get_uv_binary_resolution(self) -> None:
         from utils.runner import _get_uv_binary
 
         bin_path = _get_uv_binary()
@@ -443,7 +443,7 @@ class TestRunnerAndReporter(unittest.TestCase):
         self.assertTrue(len(bin_path) > 0)
 
     @patch("subprocess.run")
-    def test_run_evaluation_full_args(self, mock_run):
+    def test_run_evaluation_full_args(self, mock_run) -> None:
         from utils.runner import run_evaluation
 
         mock_run.return_value = MagicMock(returncode=0)
@@ -463,7 +463,7 @@ class TestRunnerAndReporter(unittest.TestCase):
         self.assertIn("1795", cmd_args)
 
     @patch("subprocess.run")
-    def test_run_evaluation_transport_and_defaults(self, mock_run):
+    def test_run_evaluation_transport_and_defaults(self, mock_run) -> None:
         from utils.runner import run_evaluation
 
         mock_run.return_value = MagicMock(returncode=0)
@@ -480,7 +480,7 @@ class TestRunnerAndReporter(unittest.TestCase):
         self.assertNotIn("--sanity", cmd_args)
 
     @patch("subprocess.run")
-    def test_get_git_diff_exception(self, mock_run):
+    def test_get_git_diff_exception(self, mock_run) -> None:
         from utils.runner import get_git_diff
 
         mock_run.side_effect = Exception("git failed")
@@ -488,14 +488,14 @@ class TestRunnerAndReporter(unittest.TestCase):
         self.assertEqual(diff, "")
 
     @patch("subprocess.check_output")
-    def test_load_log_data_success(self, mock_sub):
+    def test_load_log_data_success(self, mock_sub) -> None:
         from utils.runner import load_log_data
 
         mock_sub.return_value = json.dumps({"test": "data"})
         res = load_log_data("/tmp/test.eval")
         self.assertEqual(res, {"test": "data"})
 
-    def test_archiver_archive_run_full(self):
+    def test_archiver_archive_run_full(self) -> None:
         import utils.archiver
 
         temp_dir = tempfile.mkdtemp()
@@ -537,7 +537,7 @@ class TestRunnerAndReporter(unittest.TestCase):
         finally:
             shutil.rmtree(temp_dir)
 
-    def test_format_tools_invalid_inputs(self):
+    def test_format_tools_invalid_inputs(self) -> None:
         from utils.format_tools import (
             test_compile_snippet,
             test_decompile_payload,
@@ -554,7 +554,7 @@ class TestRunnerAndReporter(unittest.TestCase):
             test_parse_ast("unknown_format", "snippet")
 
     @patch("subprocess.check_output")
-    def test_get_git_commit_sha_error(self, mock_sub):
+    def test_get_git_commit_sha_error(self, mock_sub) -> None:
         from utils.archiver import _get_git_commit_sha
 
         mock_sub.side_effect = subprocess.CalledProcessError(1, "git")
@@ -562,7 +562,7 @@ class TestRunnerAndReporter(unittest.TestCase):
         self.assertEqual(sha, "0000000")
 
     @patch("subprocess.run")
-    def test_run_unit_tests_failed(self, mock_run):
+    def test_run_unit_tests_failed(self, mock_run) -> None:
         from utils.runner import run_unit_tests
 
         mock_run.return_value = MagicMock(returncode=1, stdout="Fail", stderr="Err")
@@ -570,7 +570,7 @@ class TestRunnerAndReporter(unittest.TestCase):
         self.assertFalse(res["success"])
         self.assertEqual(res["stdout"], "Fail")
 
-    def test_extract_metrics_from_log_dict_samples(self):
+    def test_extract_metrics_from_log_dict_samples(self) -> None:
         log_data = {
             "results": {
                 "scores": [
@@ -601,7 +601,7 @@ class TestRunnerAndReporter(unittest.TestCase):
         self.assertEqual(res["overall_accuracy"], 0.9)
         self.assertEqual(res["total_samples"], 1)
 
-    def test_extract_metrics_from_log_event_time_fallback(self):
+    def test_extract_metrics_from_log_event_time_fallback(self) -> None:
         log_data = {
             "results": {
                 "scores": [
@@ -623,7 +623,7 @@ class TestRunnerAndReporter(unittest.TestCase):
         self.assertEqual(res["algo_accuracy"], 0.7)
         self.assertEqual(res["avg_latency_seconds"], 2.5)
 
-    def test_archiver_archive_run_default_dir(self):
+    def test_archiver_archive_run_default_dir(self) -> None:
         import utils.archiver
 
         with patch("sync_history.regenerate_master_index"):
@@ -638,7 +638,7 @@ class TestRunnerAndReporter(unittest.TestCase):
                     shutil.rmtree(dest)
 
     @patch("utils.archiver.load_log_data")
-    def test_archiver_eval_log_fallback(self, mock_load):
+    def test_archiver_eval_log_fallback(self, mock_load) -> None:
         import utils.archiver
 
         mock_load.return_value = {
