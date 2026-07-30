@@ -216,7 +216,7 @@ class TestCliTools(unittest.TestCase):
     def test_prompt_generator(self):
         """Verifies direct prompt text generation."""
         prompt = run_prompt_generator.generate_prompt_text(CATALOG_PATH)
-        self.assertIn("A2UI Express Output Contract", prompt)
+        self.assertIn("A2UI Express DSL Output Contract", prompt)
         self.assertIn("Button(", prompt)
 
         with self.assertRaises(FileNotFoundError):
@@ -236,7 +236,7 @@ class TestCliTools(unittest.TestCase):
             self.assertEqual(cm.exception.code, 0)
 
         printed = "".join(call.args[0] for call in mock_stdout.write.call_args_list)
-        self.assertIn("A2UI Express Output Contract", printed)
+        self.assertIn("A2UI Express DSL Output Contract", printed)
 
     @patch("sys.stderr")
     def test_prompt_generator_main_cli_error(self, mock_stderr):
