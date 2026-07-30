@@ -25,7 +25,14 @@ class TestVersionCompliance(unittest.TestCase):
     def setUpClass(cls):
         spec_dir = os.path.abspath(
             os.path.join(
-                os.path.dirname(__file__), "..", "..", "..", "..", "..", "specification", "v0_9"
+                os.path.dirname(__file__),
+                "..",
+                "..",
+                "..",
+                "..",
+                "..",
+                "specification",
+                "v0_9",
             )
         )
         catalog_path = os.path.join(spec_dir, "catalogs", "basic", "catalog.json")
@@ -87,7 +94,10 @@ class TestVersionCompliance(unittest.TestCase):
         dsl = 'openUrl("https://example.com")'
         with self.assertRaises(ValueError) as cm:
             compiler.compile(dsl)
-        self.assertIn("Standalone function calls are not supported in A2UI v0.9", str(cm.exception))
+        self.assertIn(
+            "Standalone function calls are not supported in A2UI v0.9",
+            str(cm.exception),
+        )
 
 
 if __name__ == "__main__":

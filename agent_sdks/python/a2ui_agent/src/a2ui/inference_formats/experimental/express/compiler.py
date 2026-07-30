@@ -271,7 +271,8 @@ class ExpressCompiler:
         if standalone_function_calls:
             if target_version in ("v0.9", "v0.9.1"):
                 raise ValueError(
-                    f"Standalone function calls are not supported in A2UI {target_version}"
+                    "Standalone function calls are not supported in A2UI"
+                    f" {target_version}"
                 )
             first_call = standalone_function_calls[0]
             ctx.inline_counter += 1
@@ -336,16 +337,14 @@ class ExpressCompiler:
                 },
             ]
             if data_model:
-                messages.append(
-                    {
-                        "version": target_version,
-                        SurfaceOperation.UPDATE_DATA: {
-                            "surfaceId": surface_id,
-                            "path": "/",
-                            "value": data_model,
-                        },
-                    }
-                )
+                messages.append({
+                    "version": target_version,
+                    SurfaceOperation.UPDATE_DATA: {
+                        "surfaceId": surface_id,
+                        "path": "/",
+                        "value": data_model,
+                    },
+                })
             return messages
 
         envelope = {
@@ -454,9 +453,7 @@ class ExpressCompiler:
                     prop_schema
                 ):
                     mapped_val = [
-                        {"label": opt, "value": opt}
-                        if isinstance(opt, str)
-                        else opt
+                        {"label": opt, "value": opt} if isinstance(opt, str) else opt
                         for opt in mapped_val
                     ]
             enum_vals = self.helper.get_property_enum(comp_name, prop_name)

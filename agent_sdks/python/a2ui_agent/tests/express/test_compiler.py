@@ -657,6 +657,7 @@ root = Text("Hello")"""
         # 4. standalone function call compilation
         dsl_call = 'openUrl("https://example.com")'
         env_call = compiler.compile(dsl_call)
+
     def test_keyword_arguments_compilation(self):
         """Verifies compilation of Express DSL statements using keyword arguments."""
         compiler = ExpressCompiler(self.catalog)

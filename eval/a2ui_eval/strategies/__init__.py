@@ -1,0 +1,34 @@
+# Copyright 2026 Google LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+from typing import Callable, List
+from inspect_ai.solver import Solver
+from .subagent_tool import subagent_tool_solver
+from .format import format_solver
+
+STRATEGIES: dict[str, Callable[[str], List[Solver]]] = {
+    "direct": lambda version: format_solver("json", version),
+    "subagent_tool": subagent_tool_solver,
+    "express": lambda version: format_solver("express", version),
+    "elemental": lambda version: format_solver("elemental", version),
+    "atom": lambda version: format_solver("atom", version),
+}
+
+
+def get_solver(strategy: str, version: str) -> list[Solver]:
+    """Returns the solver chain for the specified evaluation strategy."""
+    if strategy not in STRATEGIES:
+        raise ValueError(f"Unknown evaluation strategy: {strategy}")
+
+    return STRATEGIES[strategy](version)
