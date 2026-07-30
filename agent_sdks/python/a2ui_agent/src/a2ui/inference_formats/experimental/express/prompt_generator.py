@@ -31,12 +31,13 @@ from .schema_helper import CatalogSchemaHelper
 if TYPE_CHECKING:
     from .format import ExpressFormat
 
-EXPRESS_RULES = r'''# A2UI Express Output Contract
+EXPRESS_RULES = r'''# A2UI Express DSL Output Contract
 
 You must output the user interface using A2UI Express.
-You MUST surround the entire A2UI Express DSL block with the sentinel tags `<a2ui>` and `</a2ui>`.
 
-IMPORTANT: You must ALWAYS output A2UI wrapped inside `<a2ui>` and `</a2ui>` sentinel tags. The host compiler will compile your A2UI output into the correct JSON envelopes automatically.
+IMPORTANT: You MUST always surround the entire A2UI Express block with the sentinel tags `<a2ui>` and `</a2ui>`.
+
+The host compiler will compile your A2UI Express output into the correct JSON envelopes automatically.
 
 ## Grammar Rules
 
