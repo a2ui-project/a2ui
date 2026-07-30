@@ -23,6 +23,8 @@ import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 
+private val JSON_BLOCK_PATTERN = Regex("```json\\s*\\n(.*?)\\n```", RegexOption.DOT_MATCHES_ALL)
+
 val EXPRESS_RULES =
   """# A2UI Express DSL Output Contract
 
@@ -199,9 +201,8 @@ $funcSigs"""
 
   fun transformExamples(rawExamplesMarkdown: String): String {
     val cat = catalog ?: return rawExamplesMarkdown
-    val pattern = Regex("```json\\s*\\n(.*?)\\n```", RegexOption.DOT_MATCHES_ALL)
 
-    return pattern.replace(rawExamplesMarkdown) { match ->
+    return JSON_BLOCK_PATTERN.replace(rawExamplesMarkdown) { match ->
       val jsonContent = match.groupValues[1].trim()
       try {
         val parsed = Json.parseToJsonElement(jsonContent)

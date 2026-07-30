@@ -23,9 +23,10 @@ import org.antlr.v4.runtime.Lexer
 import org.antlr.v4.runtime.RecognitionException
 import org.antlr.v4.runtime.Recognizer
 
+private val UNESCAPE_REGEX = Regex("""\\([\s\S])""")
+
 internal fun unescapeString(valStr: String): String {
-  val regex = Regex("""\\([\s\S])""")
-  return regex.replace(valStr) { match ->
+  return UNESCAPE_REGEX.replace(valStr) { match ->
     val char = match.groupValues[1]
     when (char) {
       "n" -> "\n"

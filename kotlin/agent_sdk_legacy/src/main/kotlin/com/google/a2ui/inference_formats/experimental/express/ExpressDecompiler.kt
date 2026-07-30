@@ -26,6 +26,8 @@ import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.booleanOrNull
 
+private val IDENTIFIER_REGEX = Regex("^[a-zA-Z_][a-zA-Z0-9_]*$")
+
 internal fun flattenDataModel(dataMap: JsonObject): List<Pair<String, JsonElement>> {
   val results = mutableListOf<Pair<String, JsonElement>>()
 
@@ -334,9 +336,8 @@ class ExpressDecompiler(val catalog: A2uiCatalog) {
         }
 
         val itemsReprs = mutableListOf<String>()
-        val identifierRegex = Regex("^[a-zA-Z_][a-zA-Z0-9_]*$")
         for ((k, v) in valElement) {
-          val kRepr = if (identifierRegex.matches(k)) k else decompileString(k)
+          val kRepr = if (IDENTIFIER_REGEX.matches(k)) k else decompileString(k)
           itemsReprs.add("$kRepr: ${decompileValue(v, compIds)}")
         }
         return "{${itemsReprs.joinToString(", ")}}"
