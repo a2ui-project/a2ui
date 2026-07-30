@@ -1,0 +1,91 @@
+# Copyright 2026 Google LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#      https://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+"""CLI interface for A2UI Skill Generator (Zero external API key dependencies)."""
+
+import argparse
+import os
+import sys
+from pathlib import Path
+from typing import List, Optional
+
+from .config import SkillConfig
+from .generator import SkillGenerator
+
+
+def main(args: Optional[List[str]] = None) -> None:
+    parser = argparse.ArgumentParser(
+        description="A2UI Skill Generator: Synthesizes custom .agents/skills/<name> directories."
+    )
+    parser.add_argument(
+        "--name",
+        default="render-ui",
+        help="Name of the target skill (default: render-ui)",
+    )
+    parser.add_argument(
+        "--description",
+        default="Skill for rendering dynamic A2UI user interfaces in webview using component catalogs.",
+        help="Description for SKILL.md frontmatter",
+    )
+    parser.add_argument(
+        "--catalog",
+        action="append",
+        dest="catalogs",
+        help="Path to component catalog JSON/YAML definition file (can specify multiple)",
+    )
+    parser.add_argument(
+        "--target-language",
+        default="javascript",
+        choices=["python", "javascript", "js", "typescript", "ts"],
+        help="Target language for generated builder DSL and references (default: javascript)",
+    )
+    parser.add_argument(
+        "--examples",
+        help="Path to directory containing example A2UI JSON payload files",
+    )
+    parser.add_argument(
+        "--example",
+        action="append",
+        dest="examples_list",
+        help="Example A2UI JSON message payload (file path or JSON string)",
+    )
+    parser.add_argument(
+        "--output",
+        help="Target output directory (default: .agents/skills/<name>)",
+    )
+
+    parsed_args = parser.parse_args(args)
+
+    catalogs = parsed_args.catalogs or []
+    examples_list = parsed_args.examples_list or []
+    out_dir = parsed_args.output or f".agents/skills/{parsed_args.name}"
+
+    config = SkillConfig(
+        skill_name=parsed_args.name,
+        description=parsed_args.description,
+        output_dir=out_dir,
+        target_language=parsed_args.target_language,
+        catalogs=catalogs,
+        examples_path=parsed_args.examples,
+        examples=examples_list,
+    )
+
+    generator = SkillGenerator(config=config)
+    created_path = generator.generate()
+
+    print(f"Success: Skill successfully created at {created_path}")
+
+
+if __name__ == "__main__":
+    main()
