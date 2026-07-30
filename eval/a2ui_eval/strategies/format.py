@@ -36,7 +36,7 @@ def _get_strategy(
     """Resolves and instantiates the InferenceFormat strategy for the given format.
 
     Args:
-        format_name: The name of the format strategy (json, direct_json, express, elemental, or atom).
+        format_name: The name of the format strategy (direct_json, express, elemental, or atom).
         version: The specification version (e.g. 0.9.1 or 1.0).
         catalog_config: The catalog configuration details.
         surface_id: The surface identifier target.
@@ -49,7 +49,7 @@ def _get_strategy(
         catalogs=[catalog_config],
         experiments={"version_1_0"} if version == "1.0" else None,
     )
-    if format_name in ("json", "direct_json", "transport"):
+    if format_name in ("direct_json", "transport"):
         return direct_json_format
 
     catalog = direct_json_format.get_selected_catalog()
@@ -206,6 +206,6 @@ def format_solver(format_name: str, version: str) -> list[Solver]:
         format_system_prompt(format_name, version),
         measured_generate(),
     ]
-    if format_name != "json":
+    if format_name not in ("direct_json", "transport"):
         chain.append(compile_format_payload(format_name, version))
     return chain

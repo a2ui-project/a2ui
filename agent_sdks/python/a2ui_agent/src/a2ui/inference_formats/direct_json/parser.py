@@ -151,4 +151,15 @@ class DirectJsonParser(Parser):
 
 
 # Backward compatibility aliases
-TransportParser = DirectJsonParser
+class TransportParser(DirectJsonParser):
+    """Deprecated alias for DirectJsonParser."""
+
+    def __init__(self, *args, **kwargs):
+        import warnings
+
+        warnings.warn(
+            "TransportParser is deprecated. Use DirectJsonParser instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        super().__init__(*args, **kwargs)

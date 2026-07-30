@@ -12,33 +12,16 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Deprecated module alias for a2ui.inference_formats.direct_json."""
+"""Deprecated stub module for a2ui.inference_formats.transport.parser."""
 
 import warnings
+from a2ui.inference_formats.direct_json.parser import DirectJsonParser, TransportParser  # noqa: E402
 
 warnings.warn(
-    "a2ui.inference_formats.transport is deprecated. "
+    "a2ui.inference_formats.transport.parser is deprecated. "
     "Please import from a2ui.inference_formats.direct_json instead.",
     DeprecationWarning,
     stacklevel=2,
 )
 
-from a2ui.inference_formats.direct_json import (  # noqa: E402
-    DirectJsonFormat,
-    DirectJsonParser,
-    DirectJsonStreamParser,
-    TransportFormat,
-    TransportParser,
-    TransportStreamParser,
-    A2uiStreamParser,
-)
-
-__all__ = [
-    "DirectJsonFormat",
-    "DirectJsonParser",
-    "DirectJsonStreamParser",
-    "TransportFormat",
-    "TransportParser",
-    "TransportStreamParser",
-    "A2uiStreamParser",
-]
+__all__ = ["DirectJsonParser", "TransportParser"]

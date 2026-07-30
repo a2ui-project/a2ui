@@ -1145,5 +1145,29 @@ class DirectJsonStreamParser:
 
 
 # Backward compatibility aliases
-TransportStreamParser = DirectJsonStreamParser
-A2uiStreamParser = DirectJsonStreamParser
+class TransportStreamParser(DirectJsonStreamParser):
+    """Deprecated alias for DirectJsonStreamParser."""
+
+    def __new__(cls, catalog: A2uiCatalog):
+        import warnings
+
+        warnings.warn(
+            "TransportStreamParser is deprecated. Use DirectJsonStreamParser instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return DirectJsonStreamParser(catalog)
+
+
+class A2uiStreamParser(DirectJsonStreamParser):
+    """Deprecated alias for DirectJsonStreamParser."""
+
+    def __new__(cls, catalog: A2uiCatalog):
+        import warnings
+
+        warnings.warn(
+            "A2uiStreamParser is deprecated. Use DirectJsonStreamParser instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return DirectJsonStreamParser(catalog)
