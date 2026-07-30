@@ -31,7 +31,11 @@ import {
 } from '@angular/core';
 import {DomSanitizer, SafeResourceUrl} from '@angular/platform-browser';
 import Ajv from 'ajv';
-import {IncomingWebFrameMessageSchema, IncomingWebFrameMessage, A2uiMessageType} from './web-frame-messages';
+import {
+  IncomingWebFrameMessageSchema,
+  IncomingWebFrameMessage,
+  A2uiMessageType,
+} from './web-frame-messages';
 import stringify from 'fast-json-stable-stringify';
 
 const WebAppFrameUrlPropsSchema = z.object({
@@ -221,7 +225,9 @@ export class WebAppFrameUrl
     }
   }
 
-  private handleAction(data: Extract<IncomingWebFrameMessage, {type: typeof A2uiMessageType.Action}>) {
+  private handleAction(
+    data: Extract<IncomingWebFrameMessage, {type: typeof A2uiMessageType.Action}>,
+  ) {
     if (data.action in this.allowedEvents()) {
       const schema = this.allowedEvents()[data.action];
       if (!this.disableSchemaValidation() && schema) {

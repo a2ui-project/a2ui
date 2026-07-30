@@ -42,8 +42,8 @@ export const A2uiMessageType = {
  * the payload for each specific message type (e.g., actions, data changes, function calls).
  */
 export const IncomingWebFrameMessageSchema = z.discriminatedUnion('type', [
-  z.object({ type: z.literal(A2uiMessageType.SandboxProxyReady) }),
-  z.object({ type: z.literal(A2uiMessageType.AppFrameReady) }),
+  z.object({type: z.literal(A2uiMessageType.SandboxProxyReady)}),
+  z.object({type: z.literal(A2uiMessageType.AppFrameReady)}),
   z.object({
     type: z.literal(A2uiMessageType.Action),
     action: z.string(),
