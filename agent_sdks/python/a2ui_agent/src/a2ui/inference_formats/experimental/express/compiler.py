@@ -84,6 +84,19 @@ def _schema_allows_databinding(schema: Any) -> bool:
     return False
 
 
+def _has_databinding(v: Any) -> bool:
+    """Recursively checks if a value structure contains a dynamic DataBinding ($path) ref."""
+    if isinstance(v, dict):
+        if "call" in v or "event" in v or "functionCall" in v:
+            return False
+        if "path" in v and "componentId" not in v:
+            return True
+        return any(_has_databinding(x) for x in v.values())
+    if isinstance(v, list):
+        return any(_has_databinding(x) for x in v)
+    return False
+
+
 def _schema_expects_option_objects(schema: Any) -> bool:
     """Checks if a property's schema expects a list of objects with label/value properties."""
     if not isinstance(schema, dict):
@@ -432,7 +445,7 @@ class ExpressCompiler:
             if prop_name in seen_properties:
                 raise ExpressDuplicatePropertyError(comp_name, prop_name)
             seen_properties.add(prop_name)
-            if isinstance(arg, dict) and arg.get("skipped"):
+            if arg == {"skipped": True}:
                 comp_dict[prop_name] = None
                 continue
 
@@ -444,19 +457,7 @@ class ExpressCompiler:
             )
             prop_schema = self.helper.get_property_schema(comp_name, prop_name)
             if prop_schema and not _schema_allows_databinding(prop_schema):
-
-                def has_databinding(v: Any) -> bool:
-                    if isinstance(v, dict):
-                        if "call" in v or "event" in v or "functionCall" in v:
-                            return False
-                        if "path" in v and "componentId" not in v:
-                            return True
-                        return any(has_databinding(x) for x in v.values())
-                    if isinstance(v, list):
-                        return any(has_databinding(x) for x in v)
-                    return False
-
-                if has_databinding(mapped_val):
+                if _has_databinding(mapped_val):
                     raise ExpressForbiddenDatabindingError(comp_name, prop_name)
                 if isinstance(mapped_val, list) and _schema_expects_option_objects(
                     prop_schema
@@ -707,7 +708,7 @@ class ExpressCompiler:
                             raise ExpressInvalidParamError(fn_name, k, fn_props)
                         if k in compiled_args:
                             raise ExpressDuplicateParamError(fn_name, k)
-                        if isinstance(v, dict) and v.get("skipped"):
+                        if v == {"skipped": True}:
                             continue
                         val_item = self._compile_value(v, raw_symbols, ctx, is_action)
                         if val_item is not None:
