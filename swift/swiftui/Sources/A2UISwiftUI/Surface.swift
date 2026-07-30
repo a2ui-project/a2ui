@@ -35,7 +35,7 @@ public struct Surface<Catalog: CatalogView>: View {
   public var body: some View {
     if let rootNode = viewModel.rootNode {
       Catalog(node: rootNode)
-        .environment(\.a2uiTheme, viewModel.getActiveTheme())
+        .environment(\.a2uiTheme, viewModel.theme)
     } else {
       ProgressView()
     }

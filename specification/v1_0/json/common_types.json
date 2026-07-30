@@ -32,6 +32,10 @@
         "id": {
           "$ref": "#/$defs/ComponentId"
         },
+        "catalogId": {
+          "type": "string",
+          "description": "The catalog ID for this component, overriding any surface-level default catalogId."
+        },
         "accessibility": {
           "$ref": "#/$defs/AccessibilityAttributes"
         }
@@ -161,6 +165,15 @@
         }
       ]
     },
+    "FunctionCommon": {
+      "type": "object",
+      "properties": {
+        "catalogId": {
+          "type": "string",
+          "description": "The catalog ID for this function, overriding any surface-level default catalogId."
+        }
+      }
+    },
     "IndexSystemFunction": {
       "type": "object",
       "description": "Returns the 0-based index of the current item when rendering a dynamic list from a template. This function MUST ONLY be available when evaluating template items within a list context.",
@@ -192,6 +205,10 @@
           "type": "string",
           "description": "The name of the function to call."
         },
+        "catalogId": {
+          "type": "string",
+          "description": "The catalog ID for this function, overriding any surface-level default catalogId."
+        },
         "args": {
           "type": "object",
           "description": "Arguments passed to the function.",
@@ -212,7 +229,8 @@
       "oneOf": [
         {"$ref": "catalog.json#/$defs/anyFunction"},
         {"$ref": "#/$defs/IndexSystemFunction"}
-      ]
+      ],
+      "unevaluatedProperties": false
     },
     "CheckRule": {
       "type": "object",

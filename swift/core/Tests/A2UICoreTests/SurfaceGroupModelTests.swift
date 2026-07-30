@@ -27,8 +27,8 @@ struct SurfaceGroupModelTests {
     let catalog = try makeTestCatalog()
     let vm = SurfaceViewModel(surfaceID: "s1", catalog: catalog)
     group.addSurface(vm)
-    #expect(group.surface(id: "s1") != nil)
-    #expect(group.allSurfaces().count == 1)
+    #expect(group.surfacesMap["s1"] != nil)
+    #expect(group.surfacesMap.count == 1)
   }
 
   @Test func addDuplicateSurfaceIsIgnored() throws {
@@ -38,7 +38,7 @@ struct SurfaceGroupModelTests {
     let vm2 = SurfaceViewModel(surfaceID: "s1", catalog: catalog)
     group.addSurface(vm1)
     group.addSurface(vm2)
-    #expect(group.allSurfaces().count == 1)
+    #expect(group.surfacesMap.count == 1)
   }
 
   @Test func removeSurfaceRemovesFromGroup() throws {
@@ -47,29 +47,7 @@ struct SurfaceGroupModelTests {
     let vm = SurfaceViewModel(surfaceID: "s1", catalog: catalog)
     group.addSurface(vm)
     group.removeSurface(id: "s1")
-    #expect(group.surface(id: "s1") == nil)
-    #expect(group.allSurfaces().isEmpty)
-  }
-
-  @Test func getClientDataModelReturnsNilWhenNoFlagSet() throws {
-    let group = SurfaceGroupModel()
-    let catalog = try makeTestCatalog()
-    let vm = SurfaceViewModel(surfaceID: "s1", catalog: catalog)
-    group.addSurface(vm)
-    #expect(group.getClientDataModel() == nil)
-  }
-
-  @Test func getClientDataModelAggregatesFlaggedSurfaces() throws {
-    let group = SurfaceGroupModel()
-    let catalog = try makeTestCatalog()
-    let vm1 = SurfaceViewModel(surfaceID: "s1", catalog: catalog)
-    let vm2 = SurfaceViewModel(surfaceID: "s2", catalog: catalog)
-    vm2.dataModel.set("/foo", value: "hello")
-    group.addSurface(vm1)
-    group.addSurface(vm2)
-    group.setSendDataModel(surfaceID: "s2", enabled: true)
-    let dataModel = try #require(group.getClientDataModel())
-    let s2Data = try #require(dataModel["s2"])
-    #expect(s2Data["foo"]?.stringValue == "hello")
+    #expect(group.surfacesMap["s1"] == nil)
+    #expect(group.surfacesMap.isEmpty)
   }
 }

@@ -46,23 +46,34 @@ struct MessageErrorMapperTests {
     }
   }
 
-  @Test func extractSurfaceIDFromValidLine() {
+  @Test func parseExtractsSurfaceIDOnFailure() {
     let parser = MessageParser()
-    let id = parser.extractSurfaceID(
-      fromLine: """
-        {
-          "createSurface": {
-            "surfaceId": "s1",
-            "catalogId": "default"
-          }
+    let invalidPayloadWithSurface = """
+      {
+        "createSurface": {
+          "surfaceId": "s1"
         }
-        """)
-    #expect(id == "s1")
+      }
+      """
+    do {
+      _ = try parser.parse(jsonString: invalidPayloadWithSurface)
+      Issue.record("Expected parse to throw MessageParseError")
+    } catch let parseError as MessageParseError {
+      #expect(parseError.surfaceID == "s1")
+    } catch {
+      Issue.record("Expected MessageParseError, got \(error)")
+    }
   }
 
-  @Test func extractSurfaceIDReturnsNilForInvalidJson() {
+  @Test func parseReturnsNilSurfaceIDForInvalidJson() {
     let parser = MessageParser()
-    let id = parser.extractSurfaceID(fromLine: "not valid json")
-    #expect(id == nil)
+    do {
+      _ = try parser.parse(jsonString: "not valid json")
+      Issue.record("Expected parse to throw MessageParseError")
+    } catch let parseError as MessageParseError {
+      #expect(parseError.surfaceID == nil)
+    } catch {
+      Issue.record("Expected MessageParseError, got \(error)")
+    }
   }
 }

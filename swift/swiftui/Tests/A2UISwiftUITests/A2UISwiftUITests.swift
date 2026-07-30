@@ -38,10 +38,7 @@ struct TestCatalogView: CatalogView {
   }
 }
 
-/// A simple theme for testing.
-struct TestRenderTheme: SurfaceTheme {
-  let color: String
-}
+
 
 // MARK: - Surface Tests
 
@@ -123,11 +120,11 @@ struct ThemeEnvironmentTests {
   }
 
   @Test func themeEnvironmentCanBeSet() throws {
-    let theme = TestRenderTheme(color: "blue")
+    let theme: [String: JSONValue] = ["color": .string("blue")]
     var env = EnvironmentValues()
     env.a2uiTheme = theme
     #expect(env.a2uiTheme != nil)
-    #expect((env.a2uiTheme as? TestRenderTheme)?.color == "blue")
+    #expect(env.a2uiTheme?["color"]?.stringValue == "blue")
   }
 
   @Test func themeEnvironmentDefaultsToNil() {

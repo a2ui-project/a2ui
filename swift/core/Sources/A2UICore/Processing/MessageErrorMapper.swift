@@ -36,6 +36,13 @@ public struct MessageErrorMapper: Sendable {
     _ error: Error,
     surfaceID: String
   ) -> ClientServerError {
+    if let parseError = error as? MessageParseError {
+      return map(
+        parseError.underlyingError,
+        surfaceID: parseError.surfaceID ?? surfaceID
+      )
+    }
+
     if let genericError = error as? GenericError {
       return .generic(genericError)
     }
