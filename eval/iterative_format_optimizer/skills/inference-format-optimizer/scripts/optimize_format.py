@@ -605,7 +605,9 @@ def main(argv: Optional[List[str]] = None) -> None:
     target_history = (
         args.history_dir
         if args.history_dir
-        else os.path.join(workspace_root, "eval", "iterative_format_optimizer", "history")
+        else os.path.join(
+            workspace_root, "eval", "iterative_format_optimizer", "history"
+        )
     )
     regenerate_master_index(target_history)
 

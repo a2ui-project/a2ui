@@ -569,7 +569,6 @@ def test_regenerate_master_index_results_json_fallback(tmp_path: Any) -> None:
     text = master_md.read_text(encoding="utf-8")
     assert "fallback hypo" in text
 
-
     regenerate_master_index(str(history_dir))
     master_md = tmp_path / "history_summary.md"
     assert master_md.exists()
@@ -590,7 +589,15 @@ def test_main_cli_parse() -> None:
 @patch("utils.archiver.archive_run")
 def test_main_cli_archive(mock_archive: MagicMock) -> None:
     with pytest.raises(SystemExit) as e:
-        main(["--format", "atom", "--archive", "--hypothesis", "test archive hypo", "--status", "KEEP"])
+        main([
+            "--format",
+            "atom",
+            "--archive",
+            "--hypothesis",
+            "test archive hypo",
+            "--status",
+            "KEEP",
+        ])
     assert e.value.code == 0
     assert mock_archive.called
 
@@ -606,43 +613,47 @@ def test_main_cli_save_baseline(
         "results": {
             "scores": [
                 {"name": "a2ui_scorer", "metrics": {"accuracy": {"value": 1.0}}},
-                {"name": "measured_model_graded_qa", "metrics": {"accuracy": {"value": 1.0}}},
+                {
+                    "name": "measured_model_graded_qa",
+                    "metrics": {"accuracy": {"value": 1.0}},
+                },
             ]
         },
-        "samples": [
-            {
-                "id": "s1",
-                "metadata": {
-                    "name": "sample_1",
-                    "inference_duration_seconds": 1.0,
-                    "inference_input_tokens": 100,
-                    "inference_output_tokens": 50,
-                    "inference_reasoning_tokens": 20,
-                },
-                "scores": {
-                    "a2ui_scorer": {"value": 1.0},
-                    "measured_model_graded_qa": {"value": "C"},
-                },
-                "events": [
-                    {
-                        "event": "model",
-                        "working_time": 1.0,
-                        "call": {"response": {"usageMetadata": {"thoughtsTokenCount": 20}}},
-                    }
-                ],
-            }
-        ],
+        "samples": [{
+            "id": "s1",
+            "metadata": {
+                "name": "sample_1",
+                "inference_duration_seconds": 1.0,
+                "inference_input_tokens": 100,
+                "inference_output_tokens": 50,
+                "inference_reasoning_tokens": 20,
+            },
+            "scores": {
+                "a2ui_scorer": {"value": 1.0},
+                "measured_model_graded_qa": {"value": "C"},
+            },
+            "events": [{
+                "event": "model",
+                "working_time": 1.0,
+                "call": {"response": {"usageMetadata": {"thoughtsTokenCount": 20}}},
+            }],
+        }],
     }
 
     base_dir = tmp_path / "baselines"
     with pytest.raises(SystemExit) as e:
         main([
-            "--format", "atom",
+            "--format",
+            "atom",
             "--save-baseline",
-            "--thinking-budget", "1000",
-            "--epochs", "2",
-            "--temperature", "0.5",
-            "--baseline-dir", str(base_dir),
+            "--thinking-budget",
+            "1000",
+            "--epochs",
+            "2",
+            "--temperature",
+            "0.5",
+            "--baseline-dir",
+            str(base_dir),
             "--sanity",
         ])
     assert e.value.code == 0
@@ -654,7 +665,11 @@ def test_main_cli_save_baseline(
 @patch("glob.glob")
 @patch("optimize_format.regenerate_master_index")
 def test_main_cli_normal_report_generation(
-    mock_regen: MagicMock, mock_glob: MagicMock, mock_load: MagicMock, mock_run_eval: MagicMock, tmp_path: Any
+    mock_regen: MagicMock,
+    mock_glob: MagicMock,
+    mock_load: MagicMock,
+    mock_run_eval: MagicMock,
+    tmp_path: Any,
 ) -> None:
     mock_glob.return_value = [str(tmp_path / "test.eval")]
     mock_load.return_value = {
@@ -663,27 +678,29 @@ def test_main_cli_normal_report_generation(
                 {"name": "a2ui_scorer", "metrics": {"accuracy": {"value": 1.0}}},
             ]
         },
-        "samples": [
-            {
-                "id": "s1",
-                "metadata": {"name": "sample_1"},
-            }
-        ],
+        "samples": [{
+            "id": "s1",
+            "metadata": {"name": "sample_1"},
+        }],
     }
 
     base_dir = tmp_path / "baselines"
     base_dir.mkdir()
-    (base_dir / "results.json").write_text(json.dumps({"results": {"scores": []}}), encoding="utf-8")
+    (base_dir / "results.json").write_text(
+        json.dumps({"results": {"scores": []}}), encoding="utf-8"
+    )
 
     hist_dir = tmp_path / "history"
     hist_dir.mkdir()
 
     with patch("sys.stdout"):
         main([
-            "--format", "atom",
-            "--baseline-dir", str(base_dir),
-            "--history-dir", str(hist_dir),
+            "--format",
+            "atom",
+            "--baseline-dir",
+            str(base_dir),
+            "--history-dir",
+            str(hist_dir),
             "--sanity",
         ])
     assert mock_regen.called
-

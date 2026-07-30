@@ -105,9 +105,7 @@ def sync_worktree_history(
     copied_runs = []
 
     for wt in target_worktrees:
-        wt_history = os.path.join(
-            wt, "eval", "iterative_format_optimizer", "history"
-        )
+        wt_history = os.path.join(wt, "eval", "iterative_format_optimizer", "history")
         if not os.path.exists(wt_history):
             wt_history = os.path.join(wt, "eval", "history")
         if not os.path.exists(wt_history):

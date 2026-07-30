@@ -13,14 +13,14 @@ This skill provides procedural workflows, CLI orchestrators, decision guardrails
 
 All execution scripts live under `scripts/` in this skill:
 
-| Action                          | Executable Command                                                                                                      |
-| :------------------------------ | :---------------------------------------------------------------------------------------------------------------------- |
-| **Run Fast Validation Eval**    | `python scripts/optimize_format.py --format <format>`                                                                   |
-| **Run Full Evaluation Suite**   | `python scripts/optimize_format.py --format <format> --full`                                                            |
-| **Test Parsing / Compilation**  | `python scripts/optimize_format.py --format <format> --compile "(Card (Text \"Hi\"))"`                                  |
-| **Compare vs Baseline**         | `python scripts/compare_results.py --baseline eval/iterative_format_optimizer/baselines/<format>/unbounded_run_meta.json eval/iterative_format_optimizer/logs/temp_optimization/`          |
-| **Archive Run Artifacts**       | `python scripts/optimize_format.py --format <format> --archive --hypothesis "..." --status KEEP [--history-dir <path>]` |
-| **Sync Multi-Worktree History** | `python scripts/sync_history.py [--history-dir <path>]`                                                                 |
+| Action                          | Executable Command                                                                                                                                                                |
+| :------------------------------ | :-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Run Fast Validation Eval**    | `python scripts/optimize_format.py --format <format>`                                                                                                                             |
+| **Run Full Evaluation Suite**   | `python scripts/optimize_format.py --format <format> --full`                                                                                                                      |
+| **Test Parsing / Compilation**  | `python scripts/optimize_format.py --format <format> --compile "(Card (Text \"Hi\"))"`                                                                                            |
+| **Compare vs Baseline**         | `python scripts/compare_results.py --baseline eval/iterative_format_optimizer/baselines/<format>/unbounded_run_meta.json eval/iterative_format_optimizer/logs/temp_optimization/` |
+| **Archive Run Artifacts**       | `python scripts/optimize_format.py --format <format> --archive --hypothesis "..." --status KEEP [--history-dir <path>]`                                                           |
+| **Sync Multi-Worktree History** | `python scripts/sync_history.py [--history-dir <path>]`                                                                                                                           |
 
 ---
 

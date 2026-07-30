@@ -38,22 +38,22 @@ Execute all subsequent steps inside that worktree directory.
 
 Use these unified CLI commands to avoid writing custom Python scripts or manual archiving steps:
 
-| Task                         | Unified Command                                                                                               |
-| :--------------------------- | :------------------------------------------------------------------------------------------------------------ |
-| **Test S-Expr Compilation**  | `uv run python eval/iterative_format_optimizer/skills/inference-format-optimizer/scripts/optimize_format.py --format atom --compile "(Card (Text \"Hi\"))"`              |
-| **Test S-Expr AST Parsing**  | `uv run python eval/iterative_format_optimizer/skills/inference-format-optimizer/scripts/optimize_format.py --format atom --parse "(Card (Text \"Hi\"))"`                |
-| **Test Decompilation**       | `uv run python eval/iterative_format_optimizer/skills/inference-format-optimizer/scripts/optimize_format.py --format atom --decompile '{"version":"v1.0",...}'`          |
-| **Run Fast Subset Eval**     | `uv run python eval/iterative_format_optimizer/skills/inference-format-optimizer/scripts/optimize_format.py --format atom`                                               |
-| **Run Targeted Prompt Eval** | `uv run python eval/iterative_format_optimizer/skills/inference-format-optimizer/scripts/optimize_format.py --format atom --prompt loginForm`                            |
+| Task                         | Unified Command                                                                                                                                                                                                                                        |
+| :--------------------------- | :----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Test S-Expr Compilation**  | `uv run python eval/iterative_format_optimizer/skills/inference-format-optimizer/scripts/optimize_format.py --format atom --compile "(Card (Text \"Hi\"))"`                                                                                            |
+| **Test S-Expr AST Parsing**  | `uv run python eval/iterative_format_optimizer/skills/inference-format-optimizer/scripts/optimize_format.py --format atom --parse "(Card (Text \"Hi\"))"`                                                                                              |
+| **Test Decompilation**       | `uv run python eval/iterative_format_optimizer/skills/inference-format-optimizer/scripts/optimize_format.py --format atom --decompile '{"version":"v1.0",...}'`                                                                                        |
+| **Run Fast Subset Eval**     | `uv run python eval/iterative_format_optimizer/skills/inference-format-optimizer/scripts/optimize_format.py --format atom`                                                                                                                             |
+| **Run Targeted Prompt Eval** | `uv run python eval/iterative_format_optimizer/skills/inference-format-optimizer/scripts/optimize_format.py --format atom --prompt loginForm`                                                                                                          |
 | **Compare vs Baseline**      | `uv run python eval/iterative_format_optimizer/skills/inference-format-optimizer/scripts/compare_results.py --baseline eval/iterative_format_optimizer/baselines/atom/unbounded_run_meta.json eval/iterative_format_optimizer/logs/temp_optimization/` |
-| **Archive Run (Atomic)**     | `uv run python eval/iterative_format_optimizer/skills/inference-format-optimizer/scripts/optimize_format.py --format atom --archive --hypothesis "..." --status KEEP`    |
-| **Full Milestone Check**     | `uv run python eval/iterative_format_optimizer/skills/inference-format-optimizer/scripts/optimize_format.py --format atom --full`                                        |
+| **Archive Run (Atomic)**     | `uv run python eval/iterative_format_optimizer/skills/inference-format-optimizer/scripts/optimize_format.py --format atom --archive --hypothesis "..." --status KEEP`                                                                                  |
+| **Full Milestone Check**     | `uv run python eval/iterative_format_optimizer/skills/inference-format-optimizer/scripts/optimize_format.py --format atom --full`                                                                                                                      |
 
 ### 🚫 Anti-Patterns & Operational Guardrails
 
 1. **DO NOT write ad-hoc `python -c` scripts** to import `AtomCompiler` or test S-expressions. Use `--compile` or `--parse` instead.
 2. **DO NOT run manual 5-step shell archiving dances** (`mkdir`, `cp`, `git diff > patch.diff`). Use `optimize_format.py --archive` instead.
-3. **DO NOT retry backtracked hypotheses**. Always check `eval/iterative_format_optimizer/history_summary.md` first.` first.
+3. **DO NOT retry backtracked hypotheses**. Always check `eval/iterative_format_optimizer/history_summary.md` first.
 
 ---
 
@@ -63,7 +63,7 @@ For each iteration, perform the following steps:
 
 ### Step 1: Analyze History & Formulate Hypothesis
 
-1. **Check Historical Index & Past Runs**: Read `eval/iterative/history_summary.md` and scan recent `run_meta.json` files in `eval/iterative/history/` to inspect all previous experiments, their hypotheses, status (`KEEP` vs `REVERT`), and code diffs.
+1. **Check Historical Index & Past Runs**: Read `eval/iterative_format_optimizer/history_summary.md` and scan recent `run_meta.json` files in `eval/iterative_format_optimizer/history/` to inspect all previous experiments, their hypotheses, status (`KEEP` vs `REVERT`), and code diffs.
 2. **Anti-Repetition Constraint**: **DO NOT** repeat or retry a hypothesis, prompt rule edit, or code modification that was already tested and reverted in a past run.
 3. **Analyze Failure Patterns**: Review baseline failure logs in `eval/baselines/{format}/results.json` to identify unresolved failure patterns (e.g. nested layout errors, dangling string references, missing optional attributes).
 4. **Formulate a Minimal Hypothesis**: State a specific, targeted hypothesis (e.g. "Replacing positional parameter placeholders with explicit keyword syntax will eliminate container nesting ambiguity").
@@ -93,21 +93,21 @@ For each iteration, perform the following steps:
 Run the orchestrator script to compile the metrics and generate the current diagnostic report. By default, this runs on a small-scale validation subset of 5 diverse prompts to minimize cost and execution time:
 
 ```bash
-uv run python eval/iterative/optimize_format.py --format <format> --model <model>
+uv run python eval/iterative_format_optimizer/skills/inference-format-optimizer/scripts/optimize_format.py --format <format> --model <model>
 ```
 
 _Note: For targeted debugging of a specific failure, you can run:_
 
 ```bash
-uv run python eval/iterative/optimize_format.py --format <format> --model <model> --prompt <prompt_name>
+uv run python eval/iterative_format_optimizer/skills/inference-format-optimizer/scripts/optimize_format.py --format <format> --model <model> --prompt <prompt_name>
 ```
 
 ### Step 4: Evaluate Metrics & Compare Against Baseline
 
-Run `compare_results.py` to compare your current run directory against the baseline directory (`eval/baselines/transport` or `eval/baselines/<format>`). By default, it computes median metrics:
+Run `compare_results.py` to compare your current run directory against the baseline directory (`eval/iterative_format_optimizer/baselines/<format>`). By default, it computes median metrics:
 
 ```bash
-uv run python eval/iterative/compare_results.py --baseline eval/baselines/<format> <current_run_dir_or_eval_log>
+uv run python eval/iterative_format_optimizer/skills/inference-format-optimizer/scripts/compare_results.py --baseline eval/iterative_format_optimizer/baselines/<format>/unbounded_run_meta.json <current_run_dir_or_eval_log>
 ```
 
 _(To inspect mean averages instead of default medians, pass `--average`)_.
@@ -129,7 +129,7 @@ Analyze the generated Markdown table and Metric Definitions Key:
 Evaluate your iteration against these 4 decision rules:
 
 1. **Rule 1 (Correctness Guardrail - Non-negotiable)**: `Schema Acc` and `Quality Score` **MUST NOT** regress below Baseline.
-   - _If Accuracy Degrades_ $\rightarrow$ You **MUST** immediately roll back the changes using `uv run python eval/iterative/optimize_format.py --format <format> --revert`.
+   - _If Accuracy Degrades_ $\rightarrow$ You **MUST** immediately roll back the changes using `uv run python eval/iterative_format_optimizer/skills/inference-format-optimizer/scripts/optimize_format.py --format <format> --revert`.
 
 2. **Rule 2 (Efficiency Regression Caps - Non-negotiable)**: Even if accuracy remains equal or 100%, you **MUST REVERT** if:
    - `Median Code Output Tok` increases by **> 5%** vs baseline/previous run.
@@ -140,7 +140,7 @@ Evaluate your iteration against these 4 decision rules:
    - Check `Score (S_opt)` in the comparison table:
      $$S_{\text{opt}} = 0.50 \times \text{SchemaAcc} + 0.30 \times \text{QualityScore} - 0.15 \times \left(\frac{\text{CodeTok}}{\text{BaseCodeTok}}\right) - 0.05 \times \left(\frac{\text{ReasonTok}}{\text{BaseReasonTok}}\right) - 0.03 \times \left(\frac{\text{InputTok}}{\text{BaseInputTok}}\right)$$
    - _If $S_{\text{opt}}(\text{Current}) > S*{\text{opt}}(\text{Baseline})$* $\rightarrow$ **KEEP CHANGE**.
-   - _If $S_{\text{opt}}(\text{Current}) \le S*{\text{opt}}(\text{Baseline})$* $\rightarrow$ **REVERT CHANGE** (`uv run python eval/iterative/optimize_format.py --format <format> --revert`).
+   - _If $S_{\text{opt}}(\text{Current}) \le S*{\text{opt}}(\text{Baseline})$* $\rightarrow$ **REVERT CHANGE** (`uv run python eval/iterative_format_optimizer/skills/inference-format-optimizer/scripts/optimize_format.py --format <format> --revert`).
 
 ### Step 6: Archive Iteration Run
 
@@ -150,12 +150,12 @@ To save the historical run context for future analysis and allow the orchestrato
 2. Create the run folder:
    ```bash
    # Directory naming: run_<three_digit_index>_<commit_sha>_<slugified_summary>
-   mkdir -p eval/iterative/history/run_003_a8f9c1b_fix_brackets
+   mkdir -p eval/iterative_format_optimizer/history/<format>/run_003_a8f9c1b_fix_brackets
    ```
 3. Archive logs and files:
-   - Copy report: `cp eval/iterative/current_report.md eval/iterative/history/run_003_a8f9c1b_fix_brackets/report.md`
-   - Copy results log: `cp eval/iterative_format_optimizer/logs/temp_optimization/results.json eval/iterative_format_optimizer/history/atom/run_003_a8f9c1b_fix_brackets/results.json`
-   - Generate diff patch: `git diff > eval/iterative/history/run_003_a8f9c1b_fix_brackets/patch.diff`
+   - Copy report: `cp eval/iterative_format_optimizer/current_report.md eval/iterative_format_optimizer/history/<format>/run_003_a8f9c1b_fix_brackets/report.md`
+   - Copy results log: `cp eval/iterative_format_optimizer/logs/temp_optimization/results.json eval/iterative_format_optimizer/history/<format>/run_003_a8f9c1b_fix_brackets/results.json`
+   - Generate diff patch: `git diff > eval/iterative_format_optimizer/history/<format>/run_003_a8f9c1b_fix_brackets/patch.diff`
 4. Write `run_meta.json` folder metadata detailing your hypothesis and annotations:
    ```json
    {
@@ -173,11 +173,11 @@ To save the historical run context for future analysis and allow the orchestrato
 1. **Tier 1: Subagent Fast Inner Loop (Validation Subset)**: Subagents execute rapid hypothesis iterations using the fast validation subset. When a run meets decision rules (`KEEP`), the subagent archives the run and commits its branch as a **Milestone Candidate**.
 2. **Synchronizing Multi-Worktree History**: Collect history across parallel agent worktrees into main history:
    ```bash
-   uv run python eval/iterative/sync_history.py
+   uv run python eval/iterative_format_optimizer/skills/inference-format-optimizer/scripts/sync_history.py
    ```
 3. **Tier 2: Outer-Loop Milestone Full Suite Check**: Before merging a Milestone Candidate branch into `main`, execute full suite verification across all evaluation samples:
    ```bash
-   uv run python eval/iterative/optimize_format.py --format <format> --model <model> --full
+   uv run python eval/iterative_format_optimizer/skills/inference-format-optimizer/scripts/optimize_format.py --format <format> --model <model> --full
    ```
 4. **PR Creation & Merging**: Create a Pull Request to merge your worktree branch back to the main repository. When branches are merged, the history run folders merge conflict-free. Future agents starting from `main` will automatically inherit the complete collective history of all previous runs.
 

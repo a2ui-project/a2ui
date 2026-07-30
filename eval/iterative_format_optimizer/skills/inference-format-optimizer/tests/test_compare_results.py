@@ -358,8 +358,6 @@ class TestCompareResults(unittest.TestCase):
         self.assertIn("Score (S_opt)", md)
         self.assertIn("curr", md)
 
-
-
     @patch("subprocess.check_output")
     def test_resolve_results_file_eval_success(self, mock_check):
         mock_check.return_value = json.dumps({"samples": []})
@@ -421,17 +419,15 @@ class TestCompareResults(unittest.TestCase):
                         "a2ui_scorer": {"value": 1.0},
                         "measured_model_graded_qa": {"value": "C"},
                     },
-                    "events": [
-                        {
-                            "event": "model",
-                            "working_time": 2.0,
-                            "usage": {
-                                "input_tokens": 1000,
-                                "output_tokens": 200,
-                                "reasoning_tokens": 500,
-                            },
-                        }
-                    ],
+                    "events": [{
+                        "event": "model",
+                        "working_time": 2.0,
+                        "usage": {
+                            "input_tokens": 1000,
+                            "output_tokens": 200,
+                            "reasoning_tokens": 500,
+                        },
+                    }],
                 },
                 {
                     "id": "s2",
@@ -445,17 +441,15 @@ class TestCompareResults(unittest.TestCase):
                         "a2ui_scorer": {"value": "INCORRECT"},
                         "measured_model_graded_qa": {"value": 0.0},
                     },
-                    "events": [
-                        {
-                            "event": "model",
-                            "working_time": 4.0,
-                            "usage": {
-                                "input_tokens": 2000,
-                                "output_tokens": 400,
-                                "reasoning_tokens": 1000,
-                            },
-                        }
-                    ],
+                    "events": [{
+                        "event": "model",
+                        "working_time": 4.0,
+                        "usage": {
+                            "input_tokens": 2000,
+                            "output_tokens": 400,
+                            "reasoning_tokens": 1000,
+                        },
+                    }],
                 },
             ],
             "stats": {"started_at": 100, "completed_at": 110},
@@ -474,16 +468,22 @@ class TestCompareResults(unittest.TestCase):
 
     def test_format_delta_pct(self):
         from compare_results import format_delta_pct
+
         self.assertEqual(format_delta_pct(None, 10.0), "-")
         self.assertEqual(format_delta_pct(10.0, None), "-")
         self.assertEqual(format_delta_pct(10.0, 0.0), "-")
         self.assertEqual(format_delta_pct(12.0, 10.0), "+20.0%")
         self.assertEqual(format_delta_pct(8.0, 10.0), "-20.0%")
-        self.assertEqual(format_delta_pct(0.9, 0.8, is_percentage_points=True), "+10.0%")
-        self.assertEqual(format_delta_pct(0.7, 0.8, is_percentage_points=True), "-10.0%")
+        self.assertEqual(
+            format_delta_pct(0.9, 0.8, is_percentage_points=True), "+10.0%"
+        )
+        self.assertEqual(
+            format_delta_pct(0.7, 0.8, is_percentage_points=True), "-10.0%"
+        )
 
     def test_compute_s_opt(self):
         from compare_results import compute_s_opt
+
         m = {
             "schema_acc": 0.9,
             "quality_acc": 0.8,
@@ -503,6 +503,7 @@ class TestCompareResults(unittest.TestCase):
 
     def test_generate_markdown_table(self):
         from compare_results import generate_markdown_table
+
         b = {
             "name": "base_run",
             "sample_count": 51,
@@ -535,6 +536,7 @@ class TestCompareResults(unittest.TestCase):
     @patch("compare_results.extract_metrics")
     def test_compare_results_main_cli(self, mock_extract):
         from compare_results import main
+
         mock_extract.return_value = {
             "name": "test_run",
             "sample_count": 51,
@@ -562,6 +564,7 @@ class TestCompareResults(unittest.TestCase):
 
     def test_extract_metrics_dict_samples_structure(self):
         from compare_results import extract_metrics
+
         temp_dir = tempfile.mkdtemp()
         res_json = os.path.join(temp_dir, "results.json")
         dict_data = {

@@ -102,8 +102,8 @@ class TestSyncHistory(unittest.TestCase):
             with open(os.path.join(run1, "run_meta.json"), "w") as f:
                 json.dump({"hypothesis": "wt1 hypo", "status": "KEEP"}, f)
 
-            mock_sub.return_value = (
-                f"worktree {temp_dir}\nworktree {wt1}\n".encode("utf-8")
+            mock_sub.return_value = f"worktree {temp_dir}\nworktree {wt1}\n".encode(
+                "utf-8"
             )
             with patch("sync_history.regenerate_master_index"):
                 copied = sync_worktree_history(

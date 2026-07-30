@@ -318,7 +318,10 @@ class TestRunnerAndReporter(unittest.TestCase):
             "results": {
                 "scores": [
                     {"name": "a2ui_scorer", "metrics": {"accuracy": {"value": 1.0}}},
-                    {"name": "measured_model_graded_qa", "metrics": {"accuracy": {"value": 1.0}}},
+                    {
+                        "name": "measured_model_graded_qa",
+                        "metrics": {"accuracy": {"value": 1.0}},
+                    },
                 ]
             },
             "samples": [],
@@ -327,7 +330,10 @@ class TestRunnerAndReporter(unittest.TestCase):
             "results": {
                 "scores": [
                     {"name": "a2ui_scorer", "metrics": {"accuracy": {"value": 0.8}}},
-                    {"name": "measured_model_graded_qa", "metrics": {"accuracy": {"value": 0.8}}},
+                    {
+                        "name": "measured_model_graded_qa",
+                        "metrics": {"accuracy": {"value": 0.8}},
+                    },
                 ]
             },
             "samples": [],
@@ -350,31 +356,31 @@ class TestRunnerAndReporter(unittest.TestCase):
 
         log_data = {
             "results": {"scores": []},
-            "samples": [
-                {
-                    "id": "sample_fail_1",
-                    "metadata": {"name": "failing_sample"},
-                    "input": "Generate a broken component",
-                    "scores": {
-                        "a2ui_scorer": {
-                            "value": 0.0,
-                            "explanation": "Syntax error in payload",
-                        },
-                        "measured_model_graded_qa": {
-                            "value": "I",
-                            "explanation": "Incorrect layout structure",
-                        },
+            "samples": [{
+                "id": "sample_fail_1",
+                "metadata": {"name": "failing_sample"},
+                "input": "Generate a broken component",
+                "scores": {
+                    "a2ui_scorer": {
+                        "value": 0.0,
+                        "explanation": "Syntax error in payload",
                     },
-                    "events": [
-                        {
-                            "event": "model",
-                            "output": {"completion": "(Text 'broken')"},
-                        }
-                    ],
-                }
-            ],
+                    "measured_model_graded_qa": {
+                        "value": "I",
+                        "explanation": "Incorrect layout structure",
+                    },
+                },
+                "events": [{
+                    "event": "model",
+                    "output": {"completion": "(Text 'broken')"},
+                }],
+            }],
         }
-        pytest_results = {"success": False, "stdout": "Test failed!", "stderr": "Error trace"}
+        pytest_results = {
+            "success": False,
+            "stdout": "Test failed!",
+            "stderr": "Error trace",
+        }
 
         report = generate_optimization_report(
             log_data=log_data,
@@ -394,31 +400,27 @@ class TestRunnerAndReporter(unittest.TestCase):
 
         log_data = {
             "results": {"scores": []},
-            "samples": [
-                {
-                    "id": "sample_list_1",
-                    "metadata": {"name": "sample_list_score"},
-                    "input": "Prompt test",
-                    "scores": [
-                        {
-                            "name": "a2ui_scorer",
-                            "value": 0.0,
-                            "explanation": "List format failure",
-                        },
-                        {
-                            "name": "measured_model_graded_qa",
-                            "value": "I",
-                            "explanation": "List format QA failure",
-                        },
-                    ],
-                    "events": [
-                        {
-                            "event": "model",
-                            "output": {"completion": "(Button 'Click')"},
-                        }
-                    ],
-                }
-            ],
+            "samples": [{
+                "id": "sample_list_1",
+                "metadata": {"name": "sample_list_score"},
+                "input": "Prompt test",
+                "scores": [
+                    {
+                        "name": "a2ui_scorer",
+                        "value": 0.0,
+                        "explanation": "List format failure",
+                    },
+                    {
+                        "name": "measured_model_graded_qa",
+                        "value": "I",
+                        "explanation": "List format QA failure",
+                    },
+                ],
+                "events": [{
+                    "event": "model",
+                    "output": {"completion": "(Button 'Click')"},
+                }],
+            }],
         }
         pytest_results = {"success": True, "stdout": "", "stderr": ""}
 
@@ -435,6 +437,7 @@ class TestRunnerAndReporter(unittest.TestCase):
 
     def test_get_uv_binary_resolution(self):
         from utils.runner import _get_uv_binary
+
         bin_path = _get_uv_binary()
         self.assertTrue(isinstance(bin_path, str))
         self.assertTrue(len(bin_path) > 0)
@@ -442,6 +445,7 @@ class TestRunnerAndReporter(unittest.TestCase):
     @patch("subprocess.run")
     def test_run_evaluation_full_args(self, mock_run):
         from utils.runner import run_evaluation
+
         mock_run.return_value = MagicMock(returncode=0)
         res = run_evaluation(
             format_name="atom",
@@ -461,6 +465,7 @@ class TestRunnerAndReporter(unittest.TestCase):
     @patch("subprocess.run")
     def test_run_evaluation_transport_and_defaults(self, mock_run):
         from utils.runner import run_evaluation
+
         mock_run.return_value = MagicMock(returncode=0)
         res = run_evaluation(
             format_name="transport",
@@ -477,6 +482,7 @@ class TestRunnerAndReporter(unittest.TestCase):
     @patch("subprocess.run")
     def test_get_git_diff_exception(self, mock_run):
         from utils.runner import get_git_diff
+
         mock_run.side_effect = Exception("git failed")
         diff = get_git_diff("/tmp")
         self.assertEqual(diff, "")
@@ -484,12 +490,14 @@ class TestRunnerAndReporter(unittest.TestCase):
     @patch("subprocess.check_output")
     def test_load_log_data_success(self, mock_sub):
         from utils.runner import load_log_data
+
         mock_sub.return_value = json.dumps({"test": "data"})
         res = load_log_data("/tmp/test.eval")
         self.assertEqual(res, {"test": "data"})
 
     def test_archiver_archive_run_full(self):
         import utils.archiver
+
         temp_dir = tempfile.mkdtemp()
         try:
             skill_dir = os.path.join(temp_dir, "skills", "inference-format-optimizer")
@@ -535,6 +543,7 @@ class TestRunnerAndReporter(unittest.TestCase):
             test_decompile_payload,
             test_parse_ast,
         )
+
         with self.assertRaises(ValueError):
             test_compile_snippet("unknown_format", "snippet")
 
@@ -547,6 +556,7 @@ class TestRunnerAndReporter(unittest.TestCase):
     @patch("subprocess.check_output")
     def test_get_git_commit_sha_error(self, mock_sub):
         from utils.archiver import _get_git_commit_sha
+
         mock_sub.side_effect = subprocess.CalledProcessError(1, "git")
         sha = _get_git_commit_sha("/tmp")
         self.assertEqual(sha, "0000000")
@@ -554,6 +564,7 @@ class TestRunnerAndReporter(unittest.TestCase):
     @patch("subprocess.run")
     def test_run_unit_tests_failed(self, mock_run):
         from utils.runner import run_unit_tests
+
         mock_run.return_value = MagicMock(returncode=1, stdout="Fail", stderr="Err")
         res = run_unit_tests()
         self.assertFalse(res["success"])
@@ -564,7 +575,10 @@ class TestRunnerAndReporter(unittest.TestCase):
             "results": {
                 "scores": [
                     {"name": "a2ui_scorer", "metrics": {"accuracy": {"value": 0.8}}},
-                    {"name": "measured_model_graded_qa", "metrics": {"accuracy": {"value": 0.9}}},
+                    {
+                        "name": "measured_model_graded_qa",
+                        "metrics": {"accuracy": {"value": 0.9}},
+                    },
                 ]
             },
             "samples": {
@@ -575,12 +589,10 @@ class TestRunnerAndReporter(unittest.TestCase):
                         "inference_input_tokens": 200,
                         "inference_output_tokens": 50,
                     },
-                    "events": [
-                        {
-                            "event": "model",
-                            "usage": {"input_tokens": 200, "output_tokens": 50},
-                        }
-                    ],
+                    "events": [{
+                        "event": "model",
+                        "usage": {"input_tokens": 200, "output_tokens": 50},
+                    }],
                 }
             },
         }
@@ -596,20 +608,16 @@ class TestRunnerAndReporter(unittest.TestCase):
                     {"name": "a2ui_scorer", "metrics": {"accuracy": {"value": 0.7}}},
                 ]
             },
-            "samples": [
-                {
-                    "metadata": {
-                        "inference_duration_seconds": 2.5,
-                        "inference_reasoning_tokens": 120,
-                    },
-                    "events": [
-                        {
-                            "event": "model",
-                            "duration": 2.5,
-                        }
-                    ],
-                }
-            ],
+            "samples": [{
+                "metadata": {
+                    "inference_duration_seconds": 2.5,
+                    "inference_reasoning_tokens": 120,
+                },
+                "events": [{
+                    "event": "model",
+                    "duration": 2.5,
+                }],
+            }],
         }
         res = extract_metrics_from_log(log_data)
         self.assertEqual(res["algo_accuracy"], 0.7)
@@ -617,6 +625,7 @@ class TestRunnerAndReporter(unittest.TestCase):
 
     def test_archiver_archive_run_default_dir(self):
         import utils.archiver
+
         with patch("sync_history.regenerate_master_index"):
             with patch("sync_history.sync_worktree_history"):
                 dest = utils.archiver.archive_run(
@@ -631,6 +640,7 @@ class TestRunnerAndReporter(unittest.TestCase):
     @patch("utils.archiver.load_log_data")
     def test_archiver_eval_log_fallback(self, mock_load):
         import utils.archiver
+
         mock_load.return_value = {
             "results": {"scores": []},
             "samples": [{"metadata": {"evaluation_duration_seconds": 1.0}}],

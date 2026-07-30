@@ -47,7 +47,7 @@ Parses Inspect AI logs and baseline results, computing per-sample medians (or me
 Enables safe, concurrent multi-agent optimization by collecting archived history run folders across Git worktrees into the main repository history.
 
 - **Zero-Collision ID Re-indexing**: Detects run ID conflicts across parallel worktree agents and automatically re-indexes incoming run IDs sequentially.
-- **Master Index Reconstruction**: Automatically rebuilds [`history_summary.md`](../../history_summary.md) to maintain collective memory across all past agent experiments.
+- **Master Index Reconstruction**: Automatically rebuilds [`history_summary.md`](../../../history_summary.md) to maintain collective memory across all past agent experiments.
 
 ### 2.4 Autonomous Subagent Prompt Loop ([`agent_instructions.md`](agent_instructions.md))
 
@@ -100,7 +100,7 @@ To prevent race conditions, file modification conflicts, and execution contamina
 
 ### 4.2 Self-Contained Archived History Artifacts
 
-Every archived run directory under [`eval/iterative_format_optimizer/history/`](../../history/) contains 4 self-contained artifacts:
+Every archived run directory under [`eval/iterative_format_optimizer/history/`](../../../history/) contains 4 self-contained artifacts:
 
 1. **`patch.diff`**: Full Git diff patch of all python compiler/decompiler/prompt modifications. Enables instant inspection or re-application (`git apply patch.diff`) independent of branch retention.
 2. **`report.md`**: Markdown optimization report with active code diffs, pass/fail tables, and error tracebacks.
@@ -131,4 +131,4 @@ flowchart TD
 - **Algorithmic Orchestrator**: [`optimize_format.py`](../scripts/optimize_format.py)
 - **Results & Delta Comparator**: [`compare_results.py`](../scripts/compare_results.py)
 - **Multi-Worktree History Synchronizer**: [`sync_history.py`](../scripts/sync_history.py)
-- **Master History Summary Index**: [`history_summary.md`](../../history_summary.md)
+- **Master History Summary Index**: [`history_summary.md`](../../../history_summary.md)
