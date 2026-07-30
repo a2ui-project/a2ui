@@ -287,18 +287,3 @@ class DirectJsonFormat(InferenceFormat):
                 self._catalog_example_paths[catalog.catalog_id], validate=validate
             )
         return ""
-
-
-# Backward compatibility aliases
-class TransportFormat(DirectJsonFormat):
-    """Deprecated alias for DirectJsonFormat."""
-
-    def __init__(self, *args, **kwargs):
-        import warnings
-
-        warnings.warn(
-            "TransportFormat is deprecated. Use DirectJsonFormat instead.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-        super().__init__(*args, **kwargs)

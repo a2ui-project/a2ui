@@ -1142,32 +1142,3 @@ class DirectJsonStreamParser:
                 self._traverse_component_topology(
                     item, extra_components, comp_id, parent_key
                 )
-
-
-# Backward compatibility aliases
-class TransportStreamParser(DirectJsonStreamParser):
-    """Deprecated alias for DirectJsonStreamParser."""
-
-    def __new__(cls, catalog: A2uiCatalog):
-        import warnings
-
-        warnings.warn(
-            "TransportStreamParser is deprecated. Use DirectJsonStreamParser instead.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-        return DirectJsonStreamParser(catalog)
-
-
-class A2uiStreamParser(DirectJsonStreamParser):
-    """Deprecated alias for DirectJsonStreamParser."""
-
-    def __new__(cls, catalog: A2uiCatalog):
-        import warnings
-
-        warnings.warn(
-            "A2uiStreamParser is deprecated. Use DirectJsonStreamParser instead.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-        return DirectJsonStreamParser(catalog)

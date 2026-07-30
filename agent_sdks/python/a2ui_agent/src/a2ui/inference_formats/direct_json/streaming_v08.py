@@ -241,7 +241,3 @@ class DirectJsonStreamParserV08(DirectJsonStreamParser):
                     return False
                 self._yielded_data_model.update(contents_dict)
         return True
-
-
-# Backward compatibility alias
-TransportStreamParserV08 = DirectJsonStreamParserV08

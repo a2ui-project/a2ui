@@ -30,7 +30,3 @@ class _DirectJsonDecompiler:
         """Wraps JSON string blocks within <a2ui-json> tags."""
         full_json = "\n".join(blocks)
         return f"{A2UI_OPEN_TAG}\n{full_json}\n{A2UI_CLOSE_TAG}"
-
-
-# Backward compatibility alias
-_TransportDecompiler = _DirectJsonDecompiler

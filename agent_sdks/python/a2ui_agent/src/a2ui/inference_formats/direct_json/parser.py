@@ -148,18 +148,3 @@ class DirectJsonParser(Parser):
     def wrap_decompiled_blocks(self, blocks: List[str]) -> str:
         """Wraps multiple decompiled blocks with the format's enclosing tags/markers."""
         return _DirectJsonDecompiler().wrap_decompiled_blocks(blocks)
-
-
-# Backward compatibility aliases
-class TransportParser(DirectJsonParser):
-    """Deprecated alias for DirectJsonParser."""
-
-    def __init__(self, *args, **kwargs):
-        import warnings
-
-        warnings.warn(
-            "TransportParser is deprecated. Use DirectJsonParser instead.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-        super().__init__(*args, **kwargs)

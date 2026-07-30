@@ -116,18 +116,3 @@ class DirectJsonPromptGenerator(PromptGenerator):
         if not catalog:
             return ""
         return catalog.render_as_llm_instructions() or ""
-
-
-# Backward compatibility aliases
-class TransportPromptGenerator(DirectJsonPromptGenerator):
-    """Deprecated alias for DirectJsonPromptGenerator."""
-
-    def __init__(self, *args, **kwargs):
-        import warnings
-
-        warnings.warn(
-            "TransportPromptGenerator is deprecated. Use DirectJsonPromptGenerator instead.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-        super().__init__(*args, **kwargs)

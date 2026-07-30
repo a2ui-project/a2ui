@@ -280,7 +280,3 @@ class DirectJsonStreamParserV09(DirectJsonStreamParser):
                     if k not in (SURFACE_ID_KEY, 'root'):
                         self._yielded_data_model[k] = v
         return True
-
-
-# Backward compatibility alias
-TransportStreamParserV09 = DirectJsonStreamParserV09
