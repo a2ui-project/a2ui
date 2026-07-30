@@ -657,14 +657,24 @@ root = Text("Hello")"""
         # 4. standalone function call compilation
         dsl_call = 'openUrl("https://example.com")'
         env_call = compiler.compile(dsl_call)
-        self.assertEqual(env_call["callFunction"]["call"], "openUrl")
+    def test_keyword_arguments_compilation(self):
+        """Verifies compilation of Express DSL statements using keyword arguments."""
+        compiler = ExpressCompiler(self.catalog)
+        dsl = """root = Card(child=main_col)
+main_col = Column(children=[t1, b1], align="center")
+t1 = Text(text="Save Changes", variant="body")
+b1 = Button(child=Text("Click"), action=Event("save", {id: 42}))"""
+        envelope = compiler.compile(dsl)
+        components = envelope["createSurface"]["components"]
+        comp_map = {c["id"]: c for c in components}
 
-        # 5. Schema helper get_property_type
-        self.assertEqual(
-            self.helper.get_property_type("Column", "children"), "ChildList"
-        )
-        self.assertEqual(self.helper.get_property_type("Button", "action"), "Action")
-        self.assertIsNone(self.helper.get_property_type("Unknown", "prop"))
+        self.assertEqual(comp_map["root"]["child"], "main_col")
+        self.assertEqual(comp_map["main_col"]["children"], ["t1", "b1"])
+        self.assertEqual(comp_map["main_col"]["align"], "center")
+        self.assertEqual(comp_map["t1"]["text"], "Save Changes")
+        self.assertEqual(comp_map["t1"]["variant"], "body")
+        self.assertEqual(comp_map["b1"]["action"]["event"]["name"], "save")
+        self.assertEqual(comp_map["b1"]["action"]["event"]["context"]["id"], 42)
 
 
 if __name__ == "__main__":

@@ -338,7 +338,8 @@ class ExpressCompiler:
             return None
 
         comp_name = ast["call"]
-        args = ast["args"]
+        args = ast.get("args", [])
+        kwargs = ast.get("kwargs", {})
 
         if comp_name not in self.helper.components:
             # Not a component, could be a standalone action/helper; skip writing as component
@@ -353,7 +354,8 @@ class ExpressCompiler:
         non_check_properties = [p for p in properties if p != "checks"]
         raw_checks = []
 
-        # Map positional arguments
+        # Collect (prop_name, arg_val) pairs from positional and keyword args
+        prop_arg_pairs = []
         prop_idx = 0
         for arg in args:
             if _is_check_expression(arg):
@@ -364,64 +366,74 @@ class ExpressCompiler:
                 continue
 
             if prop_idx < len(non_check_properties):
-                prop_name = non_check_properties[prop_idx]
+                prop_arg_pairs.append((non_check_properties[prop_idx], arg))
                 prop_idx += 1
 
-                if isinstance(arg, dict) and arg.get("skipped"):
-                    comp_dict[prop_name] = None
-                    continue
+        for k, v in kwargs.items():
+            if _is_check_expression(v):
+                if isinstance(v, list):
+                    raw_checks.extend(v)
+                else:
+                    raw_checks.append(v)
+                continue
+            prop_arg_pairs.append((k, v))
 
-                mapped_val = self._compile_value(
-                    arg,
-                    raw_symbols,
-                    ctx,
-                    is_action=(prop_name in ["action", "submitAction"]),
-                )
-                prop_schema = self.helper.get_property_schema(comp_name, prop_name)
-                if prop_schema and not _schema_allows_databinding(prop_schema):
+        for prop_name, arg in prop_arg_pairs:
+            if isinstance(arg, dict) and arg.get("skipped"):
+                comp_dict[prop_name] = None
+                continue
 
-                    def has_databinding(v: Any) -> bool:
-                        if isinstance(v, dict):
-                            if "call" in v or "event" in v or "functionCall" in v:
-                                return False
-                            if "path" in v and "componentId" not in v:
-                                return True
-                            return any(has_databinding(x) for x in v.values())
-                        if isinstance(v, list):
-                            return any(has_databinding(x) for x in v)
-                        return False
+            mapped_val = self._compile_value(
+                arg,
+                raw_symbols,
+                ctx,
+                is_action=(prop_name in ["action", "submitAction"]),
+            )
+            prop_schema = self.helper.get_property_schema(comp_name, prop_name)
+            if prop_schema and not _schema_allows_databinding(prop_schema):
 
-                    if has_databinding(mapped_val):
-                        raise ValueError(
-                            f"Property '{prop_name}' of component '{comp_name}' does"
-                            " not support dynamic data bindings (paths). You must"
-                            " provide a static value/array instead."
-                        )
-                    if isinstance(mapped_val, list) and _schema_expects_option_objects(
-                        prop_schema
-                    ):
-                        mapped_val = [
-                            {"label": opt, "value": opt}
-                            if isinstance(opt, str)
-                            else opt
-                            for opt in mapped_val
-                        ]
-                enum_vals = self.helper.get_property_enum(comp_name, prop_name)
-                if enum_vals and isinstance(mapped_val, str):
-                    if mapped_val not in enum_vals:
-                        raise ValueError(
-                            f"Value '{mapped_val}' is not a valid enum choice for"
-                            f" property '{prop_name}' of component '{comp_name}'."
-                            f" Allowed values are: {enum_vals}"
-                        )
-                comp_dict[prop_name] = mapped_val
+                def has_databinding(v: Any) -> bool:
+                    if isinstance(v, dict):
+                        if "call" in v or "event" in v or "functionCall" in v:
+                            return False
+                        if "path" in v and "componentId" not in v:
+                            return True
+                        return any(has_databinding(x) for x in v.values())
+                    if isinstance(v, list):
+                        return any(has_databinding(x) for x in v)
+                    return False
 
-                if (
-                    prop_name == "value"
-                    and isinstance(mapped_val, dict)
-                    and "path" in mapped_val
+                if has_databinding(mapped_val):
+                    raise ValueError(
+                        f"Property '{prop_name}' of component '{comp_name}' does"
+                        " not support dynamic data bindings (paths). You must"
+                        " provide a static value/array instead."
+                    )
+                if isinstance(mapped_val, list) and _schema_expects_option_objects(
+                    prop_schema
                 ):
-                    sibling_value_path = mapped_val
+                    mapped_val = [
+                        {"label": opt, "value": opt}
+                        if isinstance(opt, str)
+                        else opt
+                        for opt in mapped_val
+                    ]
+            enum_vals = self.helper.get_property_enum(comp_name, prop_name)
+            if enum_vals and isinstance(mapped_val, str):
+                if mapped_val not in enum_vals:
+                    raise ValueError(
+                        f"Value '{mapped_val}' is not a valid enum choice for"
+                        f" property '{prop_name}' of component '{comp_name}'."
+                        f" Allowed values are: {enum_vals}"
+                    )
+            comp_dict[prop_name] = mapped_val
+
+            if (
+                prop_name == "value"
+                and isinstance(mapped_val, dict)
+                and "path" in mapped_val
+            ):
+                sibling_value_path = mapped_val
 
         # Set active path for nested check compile resolution
         ctx.active_value_path = sibling_value_path
@@ -631,6 +643,7 @@ class ExpressCompiler:
                 # Is it a regular catalog function?
                 if fn_name in self.helper.functions:
                     fn_props = self.helper.get_function_properties(fn_name)
+                    fn_kwargs = val.get("kwargs", {})
                     compiled_args = {}
                     for idx, arg in enumerate(fn_args):
                         if idx < len(fn_props):
@@ -641,6 +654,13 @@ class ExpressCompiler:
                             )
                             if val_item is not None:
                                 compiled_args[fn_props[idx]] = val_item
+
+                    for k, v in fn_kwargs.items():
+                        if isinstance(v, dict) and v.get("skipped"):
+                            continue
+                        val_item = self._compile_value(v, raw_symbols, ctx, is_action)
+                        if val_item is not None:
+                            compiled_args[k] = val_item
 
                     # Wrap in functionCall only if inside an action field
                     if is_action:
