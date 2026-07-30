@@ -206,6 +206,86 @@ async def get_pong_mcp_app_json(tool_context: ToolContext):
     return {"validated_a2ui_json": messages}
 
 
+async def get_pong_app_web_frame_json(tool_context: ToolContext):
+    """Fetches the Pong game app using the WebAppFrameUrl component."""
+
+    # Reset score on reload
+    global PONG_CURRENT_SCORE
+    PONG_CURRENT_SCORE = {"player": 0, "cpu": 0}
+
+    messages = [
+        {
+            "version": "v0.9",
+            "createSurface": {
+                "surfaceId": PONG_SURFACE_ID,
+                "catalogId": (
+                    "https://a2ui.org/samples/community/agent/adk/mcp_app_proxy/catalogs/0.9/mcp_app_catalog.json"
+                ),
+            },
+        },
+        {
+            "version": "v0.9",
+            "updateDataModel": {
+                "surfaceId": PONG_SURFACE_ID,
+                "path": "/",
+                "value": {
+                    "pong_state": {
+                        "player_score": PONG_CURRENT_SCORE["player"],
+                        "cpu_score": PONG_CURRENT_SCORE["cpu"],
+                        "commentary": "Let the match begin!",
+                    }
+                },
+            },
+        },
+        {
+            "version": "v0.9",
+            "updateComponents": {
+                "surfaceId": PONG_SURFACE_ID,
+                "components": [
+                    {
+                        "id": "root",
+                        "component": "PongLayout",
+                        "mcpComponent": "web_frame_app_root",
+                        "scoreboardComponent": "scoreboard_root",
+                    },
+                    {
+                        "id": "web_frame_app_root",
+                        "component": "WebAppFrameUrl",
+                        "url": "http://localhost:8081/pong_app_web_frame.html",
+                        "allowedEvents": {
+                            "commentate_pong": {
+                                "type": "object",
+                                "properties": {
+                                    "game_event": {"type": "string"},
+                                    "silent": {"type": "boolean"},
+                                },
+                            }
+                        },
+                        "allowedFunctions": {
+                            "showWinnerModal": {
+                                "type": "object",
+                                "properties": {"winner": {"type": "string"}},
+                            }
+                        },
+                        "mutableData": {"state": {}},
+                        "config": {"matchingScore": 5},
+                        "data": {"paths": {"state": "/pong_state"}},
+                    },
+                    {
+                        "id": "scoreboard_root",
+                        "component": "PongScoreBoard",
+                        "playerScore": {"path": "/pong_state/player_score"},
+                        "cpuScore": {"path": "/pong_state/cpu_score"},
+                        "commentary": {"path": "/pong_state/commentary"},
+                    },
+                ],
+            },
+        },
+    ]
+    tool_context.actions.skip_summarization = True
+    return {"validated_a2ui_json": messages}
+
+
 async def commentate_pong_game(tool_context: ToolContext, game_event: str):
     """Generates a witty neon-themed sports commentary or lighthearted trash talk comment based on the game event description, and applies it to the game scoreboard.
 
