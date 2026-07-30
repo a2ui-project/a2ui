@@ -268,6 +268,7 @@ async def get_pong_app_web_frame_json(tool_context: ToolContext):
                             }
                         },
                         "mutableData": {"state": {}},
+                        "config": {"matchingScore": 5},
                         "data": {"paths": {"state": "/pong_state"}},
                     },
                     {

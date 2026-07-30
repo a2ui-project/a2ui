@@ -42,6 +42,7 @@ const MSG_TYPE_APP_FRAME_READY = 'a2ui_app_frame_ready';
 
 let localPlayerScore = 0;
 let localCpuScore = 0;
+let winningScore;
 
 let functionCallId = 0;
 
@@ -102,6 +103,11 @@ function applyContainerDimensions(containerDimensions) {
 }
 
 function handleAppFrameInit(data) {
+  const configData = data.value.config;
+  const matchingScore = configData?.matchingScore;
+  if (typeof matchingScore === 'number' && matchingScore > 0) {
+    winningScore = matchingScore;
+  }
   const initialData = data.value.initialData;
   if (initialData?.state) {
     if (typeof initialData.state.player_score === 'number')

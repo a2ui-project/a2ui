@@ -40,6 +40,7 @@ import stringify from 'fast-json-stable-stringify';
 
 const WebAppFrameUrlPropsSchema = z.object({
   url: z.string().optional(),
+  config: z.record(z.unknown()).optional(),
   data: z.any().optional(),
   allowedEvents: z.record(z.unknown()).optional(),
   allowedFunctions: z.record(z.unknown()).optional(),
@@ -478,6 +479,7 @@ export class WebAppFrameUrl
         {
           type: A2uiMessageType.AppFrameInit,
           value: {
+            config: this.props()['config']?.value() ?? {},
             initialData: initialData,
             allowedEvents: this.allowedEvents(),
             allowedFunctions: this.allowedFunctions(),

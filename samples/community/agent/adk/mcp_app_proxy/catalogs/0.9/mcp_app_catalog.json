@@ -123,6 +123,10 @@
               "description": "A map of data model keys that the embedded application is authorized to mutate in the parent A2UI Data Model, mapped to JSON Schemas defining their allowed values.",
               "additionalProperties": {"type": "object"}
             },
+            "config": {
+              "type": "object",
+              "description": "A dictionary of static key-value initialization properties passed directly to the embedded application without reactive data model binding."
+            },
             "data": {
               "type": "object",
               "description": "Data binding configuration for the component.",

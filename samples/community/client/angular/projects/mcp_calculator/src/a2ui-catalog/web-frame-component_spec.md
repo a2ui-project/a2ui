@@ -124,7 +124,7 @@ sequenceDiagram
     participant App as Embedded App (Inner Iframe)
 
     App->>Host: 1. a2ui_app_frame_ready
-    Host->>App: 2. a2ui_app_frame_init (initial data, authorized actions, MessagePort, host context)
+    Host->>App: 2. a2ui_app_frame_init (config, initial data, authorized actions, MessagePort, host context)
 ```
 
 1. **`a2ui_app_frame_ready` (Embedded App -> Host Client):** Once the embedded application is fully
@@ -136,14 +136,19 @@ sequenceDiagram
    }
    ```
 2. **`a2ui_app_frame_init` (Host Client -> Embedded App):** Upon receiving the ready signal, the
-   Host Client immediately replies with an `a2ui_app_frame_init` message containing the initial
-   state of the bound data model and lists of authorized actions and client functions. **Host
-   clients must also transfer a `MessagePort` (e.g., `event.ports[0]`)** with this message to
-   establish the dedicated 1-to-1 communication bridge for the `@a2ui/web-bridge` SDK.
+   Host Client immediately replies with an `a2ui_app_frame_init` message containing the static
+   configuration (`config`), the initial state of the bound data model (`initialData`), and lists
+   of authorized actions and client functions. **Host clients must also transfer a `MessagePort`
+   (e.g., `event.ports[0]`)** with this message to establish the dedicated 1-to-1 communication
+   bridge for the `@a2ui/web-bridge` SDK.
    ```json
    {
      "type": "a2ui_app_frame_init",
      "value": {
+       "config": {
+         "theme": "dark",
+         "apiKey": "token_123"
+       },
        "initialData": {
          "selectedModel": {"id": "model_s", "trim": "Plaid"},
          "carColor": "Pearl White"
@@ -368,6 +373,10 @@ Used to load an external web application hosted on a remote domain.
         "$ref": "common_types.json#/$defs/DynamicString",
         "description": "The external URL to load inside the iframe."
       },
+      "config": {
+        "type": "object",
+        "description": "A dictionary of static key-value initialization properties passed directly to the embedded application without reactive data model binding."
+      },
       "data": {
         "type": "object",
         "properties": {
@@ -441,6 +450,10 @@ Used to load standalone, sandboxed, model-generated HTML/JS layouts.
         "type": "string",
         "description": "The raw HTML string to render via srcdoc."
       },
+      "config": {
+        "type": "object",
+        "description": "A dictionary of static key-value initialization properties passed directly to the embedded application without reactive data model binding."
+      },
       "data": {
         "type": "object",
         "properties": {
@@ -490,6 +503,16 @@ Used to load standalone, sandboxed, model-generated HTML/JS layouts.
   }
 }
 ```
+
+## 4.3. Data types and state binding patterns
+
+WebAppFrame components distinguish between three categories of data passed to the embedded application. Selecting the appropriate category depends on whether the data changes over time, where the source of truth lives, and whether the embedded application is authorized to mutate it.
+
+| Data Type                                                     | Source of Truth / Location                                                        | Lifetime Mutability                                                                                                | Reactive Subscriptions                                                                                                                                              | When to Use                                                                                                         |
+| :------------------------------------------------------------ | :-------------------------------------------------------------------------------- | :----------------------------------------------------------------------------------------------------------------- | :------------------------------------------------------------------------------------------------------------------------------------------------------------------ | :------------------------------------------------------------------------------------------------------------------ |
+| **Static Configuration (`config`)**                           | Inline in the **Component Definition** in the UI stream.                          | **Immutable.** Evaluated once when the component is created. Neither the iframe nor the host or server changes it. | **None.** Delivered once during the `a2ui_app_frame_init` handshake. No listeners are created.                                                                      | Widget initialization settings, theme preferences, API keys, tenant IDs, static labels, or feature flags.           |
+| **Read-Only Bound Data (`data.paths` without `mutableData`)** | In the shared **A2UI Data Model**, referenced via a JSON Pointer in `data.paths`. | **Externally dynamic.** Read-only to the iframe, but the host or server can dynamically update it at any time.     | **Active subscription.** The host subscribes to the Data Model path and pushes `a2ui_data_model_update` messages whenever the value changes.                        | Real-time streaming values from the backend, such as live sports scores, stock ticker prices, or status indicators. |
+| **Mutable Bound Data (`data.paths` with `mutableData`)**      | In the shared **A2UI Data Model**, referenced via a JSON Pointer in `data.paths`. | **Bidirectional.** Both the server/host and the embedded iframe can update or mutate the value.                    | **Active bidirectional sync.** The host pushes updates to the iframe, and the host firewall authorizes incoming `a2ui_data_model_change` mutations from the iframe. | Interactive form fields, user selections, calculator inputs, or shared document state that the user modifies.       |
 
 # 5. Rendering setup and security controls
 
