@@ -676,6 +676,30 @@ b1 = Button(child=Text("Click"), action=Event("save", {id: 42}))"""
         self.assertEqual(comp_map["b1"]["action"]["event"]["name"], "save")
         self.assertEqual(comp_map["b1"]["action"]["event"]["context"]["id"], 42)
 
+    def test_flexible_hybrid_nesting_compilation(self):
+        """Verifies compilation of Express DSL statements using inline/hybrid nested component syntax."""
+        compiler = ExpressCompiler(self.catalog)
+        dsl = """card1 = Card(child=Text("Inside Card"))
+root = Column(children=[Text("Top Header"), card1, Button("Click", action=Event("submit"))], align="center")"""
+        envelope = compiler.compile(dsl)
+        components = envelope["createSurface"]["components"]
+        comp_map = {c["id"]: c for c in components}
+
+        self.assertIn("root", comp_map)
+        self.assertIn("card1", comp_map)
+        self.assertEqual(comp_map["root"]["component"], "Column")
+        self.assertEqual(comp_map["root"]["align"], "center")
+
+        # Verify child ID array includes card1 and generated inline IDs
+        children_ids = comp_map["root"]["children"]
+        self.assertEqual(len(children_ids), 3)
+        self.assertEqual(children_ids[1], "card1")
+
+        # Verify card1 child points to generated inline ID for Text("Inside Card")
+        inline_card_child = comp_map["card1"]["child"]
+        self.assertIn(inline_card_child, comp_map)
+        self.assertEqual(comp_map[inline_card_child]["text"], "Inside Card")
+
 
 if __name__ == "__main__":
     unittest.main()

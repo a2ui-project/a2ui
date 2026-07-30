@@ -123,7 +123,10 @@ class _ExpressDecompiler:
         return f"{A2UI_INFERENCE_OPEN_TAG}\n{full_dsl}\n{A2UI_INFERENCE_CLOSE_TAG}"
 
     def decompile(
-        self, envelope_json: dict, use_keyword_args: bool = False
+        self,
+        envelope_json: dict,
+        use_keyword_args: bool = False,
+        use_hybrid_nesting: bool = False,
     ) -> str:
         """Decompiles standard A2UI wire JSON into clean A2UI Express lines.
 

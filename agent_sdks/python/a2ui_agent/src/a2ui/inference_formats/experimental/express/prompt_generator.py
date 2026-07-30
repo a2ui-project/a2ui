@@ -40,14 +40,17 @@ IMPORTANT: You must ALWAYS output A2UI Express DSL notation wrapped inside `<a2u
 
 ## Grammar Rules
 
-1. Output exactly one variable assignment statement per line:
-   variable_name = ComponentName(prop1=val1, prop2=val2)
-   or positional/keyword arguments:
-   variable_name = ComponentName(val1, prop2=val2)
+1. Component constructors can be assigned to variables on their own line OR nested directly inline inside parent component arguments:
+   - Top-Level Variable Assignment:
+     header = ComponentA(prop1="val1")
+     root = ComponentB([header])
+   - Inline Component Nesting:
+     root = ComponentB([ComponentA(prop1="val1"), ComponentC("Click")])
+   - Hybrid Nesting (Recommended):
+     header = ComponentA(prop1="val1")
+     root = ComponentB([header, ComponentC("Click", action=Event("submit"))])
 
    Keyword arguments (`param=value`) are supported and recommended when omitting optional parameters. Positional arguments with `_` placeholders are also supported.
-
-   CRITICAL: Component constructors can ONLY appear on the right-hand side of a variable assignment. They CANNOT be passed directly as positional arguments to other components. You must assign every component to a variable on its own line and reference that variable name instead.
 
    Variable names MUST start with a letter or underscore, and only contain letters, digits, and underscores.
 
