@@ -21,6 +21,12 @@ class ExpressCompilerError(ValueError):
     """Base class for all Express DSL compilation errors."""
 
     def __init__(self, message: str, help_message: Optional[str] = None):
+        """Initializes an Express compiler error with a message and optional help hint.
+
+        Args:
+            message: The detailed compilation error description.
+            help_message: Practical suggestion or hint for resolving the error.
+        """
         super().__init__(message)
         self.help_message = help_message
 
@@ -29,6 +35,13 @@ class ExpressUnknownPropertyError(ExpressCompilerError):
     """Raised when a component argument is not a valid property in the catalog schema."""
 
     def __init__(self, comp_name: str, prop_name: str, valid_props: List[str]):
+        """Initializes an unknown property error.
+
+        Args:
+            comp_name: The name of the target component.
+            prop_name: The name of the invalid property provided.
+            valid_props: List of valid property names defined for the component schema.
+        """
         msg = (
             f"Property '{prop_name}' is not a valid property of component"
             f" '{comp_name}'."
@@ -49,6 +62,12 @@ class ExpressDuplicatePropertyError(ExpressCompilerError):
     """Raised when a property is provided multiple times for a single component instance."""
 
     def __init__(self, comp_name: str, prop_name: str):
+        """Initializes a duplicate property error.
+
+        Args:
+            comp_name: The name of the target component.
+            prop_name: The name of the property provided multiple times.
+        """
         msg = (
             f"Property '{prop_name}' of component '{comp_name}' was provided multiple"
             " times."
@@ -66,6 +85,13 @@ class ExpressInvalidParamError(ExpressCompilerError):
     """Raised when a function argument is not a valid parameter in the function schema."""
 
     def __init__(self, fn_name: str, param_name: str, valid_params: List[str]):
+        """Initializes an invalid function parameter error.
+
+        Args:
+            fn_name: The name of the function being called.
+            param_name: The name of the invalid parameter provided.
+            valid_params: List of valid parameter names for the function schema.
+        """
         msg = (
             f"Argument '{param_name}' is not a valid parameter of function '{fn_name}'."
         )
@@ -85,6 +111,12 @@ class ExpressDuplicateParamError(ExpressCompilerError):
     """Raised when a function parameter is provided multiple times."""
 
     def __init__(self, fn_name: str, param_name: str):
+        """Initializes a duplicate function parameter error.
+
+        Args:
+            fn_name: The name of the function being called.
+            param_name: The name of the parameter provided multiple times.
+        """
         msg = (
             f"Argument '{param_name}' of function '{fn_name}' was provided multiple"
             " times."
@@ -102,6 +134,12 @@ class ExpressForbiddenDatabindingError(ExpressCompilerError):
     """Raised when dynamic databinding ($path) is used on a property that forbids databinding."""
 
     def __init__(self, comp_name: str, prop_name: str):
+        """Initializes a forbidden databinding error.
+
+        Args:
+            comp_name: The name of the target component.
+            prop_name: The name of the property that forbids dynamic databinding.
+        """
         msg = (
             f"Property '{prop_name}' of component '{comp_name}' does not support"
             " dynamic data bindings (paths)."
@@ -119,6 +157,11 @@ class ExpressUndefinedRootError(ExpressCompilerError):
     """Raised when a root component reference is missing from the DSL."""
 
     def __init__(self, root_target: str):
+        """Initializes an undefined root error.
+
+        Args:
+            root_target: The target root component variable name expected.
+        """
         msg = f"Root target '{root_target}' is not defined."
         help_msg = (
             f"Ensure root component '{root_target}' is assigned in your Express DSL."
@@ -131,9 +174,14 @@ class ExpressUndefinedChildError(ExpressCompilerError):
     """Raised when a child component variable reference is missing from the DSL."""
 
     def __init__(self, child_id: str):
+        """Initializes an undefined child reference error.
+
+        Args:
+            child_id: The identifier of the referenced child component missing from the DSL.
+        """
         msg = f"Child target '{child_id}' is not defined."
         help_msg = (
             f"Ensure component reference '{child_id}' is defined in your Express DSL."
         )
-        super().__init__(msg, help_message=help_msg)
+        super().__init__(msg, help_message=help_message)
         self.child_id = child_id

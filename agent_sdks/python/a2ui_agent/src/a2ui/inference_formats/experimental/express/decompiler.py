@@ -118,7 +118,14 @@ class _ExpressDecompiler:
         self.helper = CatalogSchemaHelper(catalog)
 
     def wrap_decompiled_blocks(self, blocks: list[str]) -> str:
-        # Merge individual express blocks into a single wrapper block
+        """Wraps individual decompiled A2UI Express DSL blocks within sentinel tags.
+
+        Args:
+            blocks: A list of decompiled A2UI Express DSL statement strings.
+
+        Returns:
+            The merged A2UI Express DSL string enclosed within opening and closing sentinel tags.
+        """
         full_dsl = "\n".join(blocks)
         return f"{A2UI_INFERENCE_OPEN_TAG}\n{full_dsl}\n{A2UI_INFERENCE_CLOSE_TAG}"
 
@@ -130,7 +137,8 @@ class _ExpressDecompiler:
         """Decompiles standard A2UI wire JSON into clean A2UI Express lines.
 
         Args:
-            envelope_json: The standard A2UI v1.0 JSON envelope.
+            envelope_json: The standard A2UI v1.0 JSON envelope or message dict.
+            use_keyword_args: Whether to format component arguments as keyword parameters (e.g., param=value).
 
         Returns:
             The decompiled A2UI Express DSL string.

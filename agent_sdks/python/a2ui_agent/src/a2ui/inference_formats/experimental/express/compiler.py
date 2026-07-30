@@ -42,7 +42,13 @@ from .errors import (
 
 
 def _set_nested_path(d: dict, path_str: str, val: Any) -> None:
-    """Populates a nested dictionary path from a JSON pointer-like string."""
+    """Populates a nested dictionary path from a JSON pointer-like string.
+
+    Args:
+        d: The target dictionary to mutate.
+        path_str: The data path string (e.g. "$/user/name").
+        val: The value to set at the specified path.
+    """
     if path_str.startswith("$/"):
         clean_path = path_str[2:]
     elif path_str.startswith("$"):
@@ -63,7 +69,14 @@ def _set_nested_path(d: dict, path_str: str, val: Any) -> None:
 
 
 def _schema_allows_databinding(schema: Any) -> bool:
-    """Recursively checks if a property's schema allows a dynamic DataBinding ref."""
+    """Recursively checks if a property's schema allows a dynamic DataBinding ref.
+
+    Args:
+        schema: The JSON schema dict for the target property.
+
+    Returns:
+        True if the schema permits dynamic databinding; False otherwise.
+    """
     if not isinstance(schema, dict):
         return False
     if "$ref" in schema:
@@ -85,7 +98,14 @@ def _schema_allows_databinding(schema: Any) -> bool:
 
 
 def _has_databinding(v: Any) -> bool:
-    """Recursively checks if a value structure contains a dynamic DataBinding ($path) ref."""
+    """Recursively checks if a value structure contains a dynamic DataBinding ($path) ref.
+
+    Args:
+        v: The value (dict, list, or primitive) to inspect.
+
+    Returns:
+        True if a dynamic DataBinding is found; False otherwise.
+    """
     if isinstance(v, dict):
         if "call" in v or "event" in v or "functionCall" in v:
             return False

@@ -35,11 +35,27 @@ class ExpressParser(Parser):
         surface_id: str = "main",
         version: str = "v1.0",
     ):
+        """Initializes the Express parser with a catalog schema and target version.
+
+        Args:
+            catalog: Catalog or A2uiCatalog schema helper.
+            surface_id: Surface identifier for compiled messages.
+            version: Target A2UI protocol version ("v0.9", "v0.9.1", or "v1.0").
+        """
         self.catalog = catalog
         self.surface_id = surface_id
         self.version = version
 
     def has_format_content(self, content: str, *, complete: bool = False) -> bool:
+        """Checks whether the given content string contains A2UI Express sentinel tags.
+
+        Args:
+            content: The text content to inspect.
+            complete: Whether to require both opening and closing sentinel tags.
+
+        Returns:
+            True if Express format tags are detected; False otherwise.
+        """
         if complete:
             return (
                 A2UI_INFERENCE_OPEN_TAG in content
