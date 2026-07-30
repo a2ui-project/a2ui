@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import asyncio
 import json
 import re
 from inspect_ai.solver import Solver, solver, TaskState, Generate
@@ -179,33 +180,33 @@ def parse_with_hard_kill_timeout(
     completion: str,
     timeout_sec: float = 5.0,
 ) -> list:
-    manager = multiprocessing.Manager()
-    return_dict = manager.dict()
-    p = multiprocessing.Process(
-        target=_process_target_wrapper,
-        args=(
-            format_name,
-            version,
-            resolved_catalog_path,
-            surface_id,
-            completion,
-            return_dict,
-        ),
-    )
-    p.start()
-    p.join(timeout=timeout_sec)
-    if p.is_alive():
-        p.kill()
-        p.join()
-        raise TimeoutError(
-            f"Format compilation timed out after {timeout_sec}s and process was killed."
+    with multiprocessing.Manager() as manager:
+        return_dict = manager.dict()
+        p = multiprocessing.Process(
+            target=_process_target_wrapper,
+            args=(
+                format_name,
+                version,
+                resolved_catalog_path,
+                surface_id,
+                completion,
+                return_dict,
+            ),
         )
+        p.start()
+        p.join(timeout=timeout_sec)
+        if p.is_alive():
+            p.kill()
+            p.join()
+            raise TimeoutError(
+                f"Format compilation timed out after {timeout_sec}s and process was killed."
+            )
 
-    if "error" in return_dict:
-        raise ValueError(return_dict["error"])
-    if "result" not in return_dict:
-        raise ValueError("Compilation produced no output.")
-    return return_dict["result"]
+        if "error" in return_dict:
+            raise ValueError(return_dict["error"])
+        if "result" not in return_dict:
+            raise ValueError("Compilation produced no output.")
+        return return_dict["result"]
 
 
 @solver
@@ -236,7 +237,8 @@ def compile_format_payload(format_name: str, version: str) -> Solver:
                 surface_id = found_id
 
         try:
-            compiled_jsons = parse_with_hard_kill_timeout(
+            compiled_jsons = await asyncio.to_thread(
+                parse_with_hard_kill_timeout,
                 format_name,
                 version,
                 resolved_catalog_path,
