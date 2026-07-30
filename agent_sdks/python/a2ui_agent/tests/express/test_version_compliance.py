@@ -48,11 +48,13 @@ class TestVersionCompliance(unittest.TestCase):
         $/user/name = "Alice"
         """
         res = compiler.compile(dsl, surface_id="surf_v1")
-        self.assertIsInstance(res, dict)
-        self.assertEqual(res["version"], "v1.0")
-        self.assertIn("createSurface", res)
-        self.assertIn("components", res["createSurface"])
-        self.assertIn("dataModel", res["createSurface"])
+        self.assertIsInstance(res, list)
+        self.assertEqual(len(res), 1)
+        envelope = res[0]
+        self.assertEqual(envelope["version"], "v1.0")
+        self.assertIn("createSurface", envelope)
+        self.assertIn("components", envelope["createSurface"])
+        self.assertIn("dataModel", envelope["createSurface"])
 
     def test_compile_v0_9_multi_message(self):
         compiler = ExpressCompiler(self.catalog, version="v0.9")

@@ -131,18 +131,24 @@ class _ExpressDecompiler:
 
     def decompile(
         self,
-        envelope_json: dict,
+        envelope_json: Union[dict, list],
         use_keyword_args: bool = False,
     ) -> str:
         """Decompiles standard A2UI wire JSON into clean A2UI Express lines.
 
         Args:
-            envelope_json: The standard A2UI v1.0 JSON envelope or message dict.
+            envelope_json: Standard A2UI wire JSON envelope dict or list of message dicts.
             use_keyword_args: Whether to format component arguments as keyword parameters (e.g., param=value).
 
         Returns:
             The decompiled A2UI Express DSL string.
         """
+        if isinstance(envelope_json, list):
+            return "\n".join(
+                self.decompile(item, use_keyword_args=use_keyword_args)
+                for item in envelope_json
+                if item
+            )
         # Handle deleteSurface action
         if SurfaceOperation.DELETE in envelope_json:
             surf_op = envelope_json[SurfaceOperation.DELETE]

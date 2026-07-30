@@ -199,7 +199,7 @@ class ExpressCompiler:
         catalog_id: str = "",
         is_final: bool = True,
         version: Optional[str] = None,
-    ) -> Union[dict, list]:
+    ) -> list[dict[str, Any]]:
         """Compiles plain A2UI Express DSL into standard A2UI wire JSON.
 
         Args:
@@ -210,10 +210,11 @@ class ExpressCompiler:
             version: Target version override ("v0.9", "v0.9.1", or "v1.0").
 
         Returns:
-            The A2UI wire JSON envelope dict (v1.0) or list of message dicts (v0.9).
+            A list of standard A2UI wire JSON message dicts.
 
         Raises:
             ValueError: If the root component variable is missing or unsupported features are used.
+            ExpressCompilerError: If a component property, parameter, databinding, or reference is invalid.
         """
         target_version = version or self.version
         ctx = _CompileContext()
@@ -306,10 +307,10 @@ class ExpressCompiler:
             _set_nested_path(data_model, path_name, compiled_val)
 
         if target_delete_surface_id is not None:
-            return {
+            return [{
                 "version": target_version,
                 SurfaceOperation.DELETE: {"surfaceId": target_delete_surface_id},
-            }
+            }]
 
         if standalone_function_calls:
             if target_version in ("v0.9", "v0.9.1"):
@@ -322,28 +323,28 @@ class ExpressCompiler:
             compiled_val = self._compile_value(
                 first_call, raw_symbols, ctx, is_action=False
             )
-            return {
+            return [{
                 "version": target_version,
                 "functionCallId": f"call_{ctx.inline_counter}",
                 SurfaceOperation.CALL_FUNC: {
                     "call": compiled_val.get("call"),
                     "args": compiled_val.get("args", {}),
                 },
-            }
+            }]
 
         compiled_components = []
 
         # Adjacency list flattening starting at root
         if "root" not in raw_symbols:
             if data_path_assignments:
-                return {
+                return [{
                     "version": target_version,
                     SurfaceOperation.UPDATE_DATA: {
                         "surfaceId": surface_id,
                         "path": "/",
                         "value": data_model,
                     },
-                }
+                }]
             raise ExpressUndefinedRootError("root")
 
         for var_name, ast in raw_symbols.items():
@@ -398,7 +399,7 @@ class ExpressCompiler:
         if data_model:
             envelope[SurfaceOperation.CREATE]["dataModel"] = data_model
 
-        return envelope
+        return [envelope]
 
     def _compile_ast_node(
         self, var_name: str, ast: Any, raw_symbols: dict, ctx: _CompileContext

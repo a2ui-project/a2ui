@@ -70,7 +70,7 @@ class TestExpressCompiler(unittest.TestCase):
 repField = TextField("Representative", $/form/rep, "Enter name")
 valueField = TextField("Deal Value", $/form/value, "0.00", "number", ?required)"""
 
-        envelope = compiler.compile(dsl, surface_id="test_surf")
+        envelope = compiler.compile(dsl, surface_id="test_surf")[0]
         self.assertEqual(envelope["version"], "v1.0")
         self.assertEqual(envelope["createSurface"]["surfaceId"], "test_surf")
 
@@ -112,7 +112,7 @@ welcome = Text(formatString("Welcome, ${/user/name}!"))
 saveButton = Button(saveLabel, "primary", Event("submitDeal", {rep: $/form/rep}))
 saveLabel = Text("Save")"""
 
-        envelope = compiler.compile(dsl)
+        envelope = compiler.compile(dsl)[0]
         components = envelope["createSurface"]["components"]
 
         welcome_comp = next(c for c in components if c["id"] == "welcome")
@@ -140,7 +140,7 @@ saveLabel = Text("Save")"""
         """Validates compilation of standalone function calls into CallFunctionMessages."""
         compiler = ExpressCompiler(self.catalog)
         dsl = """openUrl("https://example.com")"""
-        envelope = compiler.compile(dsl)
+        envelope = compiler.compile(dsl)[0]
 
         self.assertEqual(envelope["version"], "v1.0")
         self.assertIn("callFunction", envelope)
@@ -156,7 +156,7 @@ saveLabel = Text("Save")"""
 tab1 = {title: "Overview", child: contentCol}
 contentCol = Column([])"""
 
-        envelope = compiler.compile(dsl)
+        envelope = compiler.compile(dsl)[0]
         components = envelope["createSurface"]["components"]
 
         tabs_comp = next(c for c in components if c["id"] == "root")
@@ -176,7 +176,7 @@ btn2Label = Text("Cancel")
 myAction = Event("submit", {val: "42"})
 closeAction = Event("close")"""
 
-        envelope = compiler.compile(dsl)
+        envelope = compiler.compile(dsl)[0]
         components = envelope["createSurface"]["components"]
 
         btn1 = next(c for c in components if c["id"] == "btn1")
@@ -196,7 +196,7 @@ btn1_label = Text("Click")
 btn2 = Button(btn2_label)
 btn2_label = Text("Submit")"""
 
-        envelope = compiler.compile(dsl)
+        envelope = compiler.compile(dsl)[0]
         components = envelope["createSurface"]["components"]
 
         btn1_comp = next(c for c in components if c["id"] == "btn1")
@@ -216,7 +216,7 @@ btn2_label = Text("Submit")"""
 
         # 1. Test deleteSurface
         delete_dsl = 'deleteSurface("my-surface-123")'
-        del_envelope = compiler.compile(delete_dsl)
+        del_envelope = compiler.compile(delete_dsl)[0]
         self.assertEqual(
             del_envelope,
             {"version": "v1.0", "deleteSurface": {"surfaceId": "my-surface-123"}},
@@ -226,7 +226,7 @@ btn2_label = Text("Submit")"""
         data_dsl = """$/form/firstName = "Alice"
 $/form/lastName = "Smith"
 $/age = 25"""
-        data_envelope = compiler.compile(data_dsl, surface_id="data-surf")
+        data_envelope = compiler.compile(data_dsl, surface_id="data-surf")[0]
         self.assertEqual(
             data_envelope,
             {
@@ -247,7 +247,7 @@ $/age = 25"""
 breedList = List(_template($/breeds, breedTemplate))
 breedTemplate = Image($url)
 $/breeds = [{"url": "https://example.com/poodle.jpg"}]"""
-        list_envelope = compiler.compile(list_dsl)
+        list_envelope = compiler.compile(list_dsl)[0]
         components = list_envelope["createSurface"]["components"]
 
         list_comp = next(c for c in components if c["id"] == "breedList")
@@ -260,7 +260,7 @@ $/breeds = [{"url": "https://example.com/poodle.jpg"}]"""
 
         # 4. Test map literal parsing and nested array of maps
         map_dsl = """$/form/data = [{"id": 1, "meta": {"name": "Alice"}}]"""
-        map_envelope = compiler.compile(map_dsl)
+        map_envelope = compiler.compile(map_dsl)[0]
         self.assertEqual(
             map_envelope["updateDataModel"]["value"]["form"]["data"],
             [{"id": 1, "meta": {"name": "Alice"}}],
@@ -276,7 +276,7 @@ $/breeds = [{"url": "https://example.com/poodle.jpg"}]"""
 
         # 2. Test string containing '=' character inside assignment value
         dsl_with_equals = 'welcome = Text("Hello = World")\nroot = Column([welcome])'
-        envelope = compiler.compile(dsl_with_equals)
+        envelope = compiler.compile(dsl_with_equals)[0]
         welcome_comp = next(
             c for c in envelope["createSurface"]["components"] if c["id"] == "welcome"
         )
@@ -313,7 +313,7 @@ $/breeds = [{"url": "https://example.com/poodle.jpg"}]"""
 
         # 6. Verify Event helper compilation context layouts
         event_dsl_dict = 'root = Button("Submit", _, Event("click", {"source": "btn"}))'
-        event_envelope_dict = compiler.compile(event_dsl_dict)
+        event_envelope_dict = compiler.compile(event_dsl_dict)[0]
         btn_comp_dict = next(
             c
             for c in event_envelope_dict["createSurface"]["components"]
@@ -337,7 +337,7 @@ $/breeds = [{"url": "https://example.com/poodle.jpg"}]"""
 
         # 8. Verify bare $ path compilation
         dollar_dsl = """root = Text($)"""
-        dollar_envelope = compiler.compile(dollar_dsl)
+        dollar_envelope = compiler.compile(dollar_dsl)[0]
         text_comp = next(
             c
             for c in dollar_envelope["createSurface"]["components"]
@@ -347,7 +347,7 @@ $/breeds = [{"url": "https://example.com/poodle.jpg"}]"""
 
         # 9. Verify nested check compilation and active value path injection
         nested_check_dsl = """root = TextField("Label", $/form/email, "placeholder", "shortText", ?and([?required, ?email]))"""
-        nested_check_envelope = compiler.compile(nested_check_dsl)
+        nested_check_envelope = compiler.compile(nested_check_dsl)[0]
         textfield_comp = next(
             c
             for c in nested_check_envelope["createSurface"]["components"]
@@ -374,7 +374,7 @@ $/breeds = [{"url": "https://example.com/poodle.jpg"}]"""
 
         # 10. Verify inline component constructor unrolling
         inline_dsl = """root = Row([Text("Soup"), Text("$8")])"""
-        inline_envelope = compiler.compile(inline_dsl)
+        inline_envelope = compiler.compile(inline_dsl)[0]
         comps = inline_envelope["createSurface"]["components"]
         self.assertEqual(len(comps), 3)
 
@@ -391,7 +391,7 @@ $/breeds = [{"url": "https://example.com/poodle.jpg"}]"""
     // Another comment block
     btn = Button("Submit") // Inline comment 2
     """
-        comment_envelope = compiler.compile(comment_dsl)
+        comment_envelope = compiler.compile(comment_dsl)[0]
         comment_comps = comment_envelope["createSurface"]["components"]
         self.assertEqual(len(comment_comps), 2)
 
@@ -404,7 +404,7 @@ $/breeds = [{"url": "https://example.com/poodle.jpg"}]"""
             'root = TextField("Label", $/val, ?numeric(1, 10, "Custom range error'
             ' message"))'
         )
-        res = compiler.compile(dsl_check_msg)
+        res = compiler.compile(dsl_check_msg)[0]
         checks = res["createSurface"]["components"][0]["checks"]
         self.assertEqual(len(checks), 1)
         self.assertEqual(checks[0]["condition"]["call"], "numeric")
@@ -414,7 +414,7 @@ $/breeds = [{"url": "https://example.com/poodle.jpg"}]"""
 
         # 2. Test unregistered function call fallback
         dsl_fallback_fn = 'root = TextField("Label", my_unregistered_func(1, 2))'
-        res_fallback = compiler.compile(dsl_fallback_fn)
+        res_fallback = compiler.compile(dsl_fallback_fn)[0]
         tf = res_fallback["createSurface"]["components"][0]
         self.assertEqual(tf["value"]["call"], "my_unregistered_func")
         self.assertEqual(tf["value"]["args"], [1, 2])
@@ -438,7 +438,7 @@ btnLabel = Text("Click Thread 2")
 
         def compile_worker(dsl: str, expected_id: str):
             try:
-                res = compiler.compile(dsl, surface_id="test_surf")
+                res = compiler.compile(dsl, surface_id="test_surf")[0]
                 components = res["createSurface"]["components"]
                 child = next((c for c in components if c["id"] == expected_id), None)
                 self.assertIsNotNone(child)
@@ -494,7 +494,7 @@ btnLabel = Text("Click Thread 2")
     root = Column([btn1]);
     btn1 = Button("Click Me");
     """
-        envelope = compiler.compile(semicolon_dsl)
+        envelope = compiler.compile(semicolon_dsl)[0]
         self.assertEqual(len(envelope["createSurface"]["components"]), 2)
 
         # 2. Test trailing commas in lists, maps, component calls, and checks
@@ -504,7 +504,7 @@ btnLabel = Text("Click Thread 2")
     btn2 = TextField("Input", $/val, "placeholder", _, ?numeric(1, 10,),);
     myAction = Event("click", {a: 1, b: 2,},);
     """
-        envelope2 = compiler.compile(trailing_comma_dsl)
+        envelope2 = compiler.compile(trailing_comma_dsl)[0]
         components = envelope2["createSurface"]["components"]
         self.assertEqual(len(components), 3)
 
@@ -520,7 +520,7 @@ btnLabel = Text("Click Thread 2")
       )
     btn1 = Text("Hello World")
     """
-        envelope3 = compiler.compile(continuation_dsl)
+        envelope3 = compiler.compile(continuation_dsl)[0]
         self.assertEqual(len(envelope3["createSurface"]["components"]), 2)
 
     def test_strict_enum_validation(self):
@@ -559,7 +559,7 @@ btnLabel = Text("Click Thread 2")
         valid_dsl = (
             'root = Button("Click", "primary", Event("click", {rep: $/some/path}))'
         )
-        envelope = compiler.compile(valid_dsl)
+        envelope = compiler.compile(valid_dsl)[0]
         self.assertEqual(len(envelope["createSurface"]["components"]), 1)
 
     def test_polymorphic_catalog_initialization(self):
@@ -590,7 +590,7 @@ valueField = TextField("Deal Value", $/form/value, "0.00", "number", ?required)"
         for cat_input in [core_catalog, a2ui_catalog]:
             # Compiler
             compiler = ExpressCompiler(cat_input)
-            envelope = compiler.compile(dsl, surface_id="test_surf")
+            envelope = compiler.compile(dsl, surface_id="test_surf")[0]
             self.assertEqual(
                 len(envelope["createSurface"]["components"]), expected_components_count
             )
@@ -652,19 +652,19 @@ valueField = TextField("Deal Value", $/form/value, "0.00", "number", ?required)"
         dsl_data = """set $/user/age = 30
 data $/items = ["a", "b"]
 root = Text("Hello")"""
-        envelope = compiler.compile(dsl_data)
+        envelope = compiler.compile(dsl_data)[0]
         dm = envelope["createSurface"]["dataModel"]
         self.assertEqual(dm["user"]["age"], 30)
         self.assertEqual(dm["items"], ["a", "b"])
 
         # 3. deleteSurface compilation
         dsl_del = 'deleteSurface("s1")'
-        env_del = compiler.compile(dsl_del)
+        env_del = compiler.compile(dsl_del)[0]
         self.assertEqual(env_del["deleteSurface"]["surfaceId"], "s1")
 
         # 4. standalone function call compilation
         dsl_call = 'openUrl("https://example.com")'
-        env_call = compiler.compile(dsl_call)
+        env_call = compiler.compile(dsl_call)[0]
         self.assertEqual(env_call["callFunction"]["call"], "openUrl")
 
     def test_keyword_arguments_compilation(self):
@@ -674,7 +674,7 @@ root = Text("Hello")"""
 main_col = Column(children=[t1, b1], align="center")
 t1 = Text(text="Save Changes", variant="body")
 b1 = Button(child=Text("Click"), action=Event("save", {id: 42}))"""
-        envelope = compiler.compile(dsl)
+        envelope = compiler.compile(dsl)[0]
         components = envelope["createSurface"]["components"]
         comp_map = {c["id"]: c for c in components}
 
@@ -691,7 +691,7 @@ b1 = Button(child=Text("Click"), action=Event("save", {id: 42}))"""
         compiler = ExpressCompiler(self.catalog)
         dsl = """card1 = Card(child=Text("Inside Card"))
 root = Column(children=[Text("Top Header"), card1, Button("Click", action=Event("submit"))], align="center")"""
-        envelope = compiler.compile(dsl)
+        envelope = compiler.compile(dsl)[0]
         components = envelope["createSurface"]["components"]
         comp_map = {c["id"]: c for c in components}
 
@@ -759,7 +759,7 @@ root = Column(children=[Text("Top Header"), card1, Button("Click", action=Event(
             'root = TextField("Username", value=$user, checks=[?isLength(5, 20,'
             ' "Username must be between 5 and 20 chars")])'
         )
-        envelope = compiler.compile(dsl)
+        envelope = compiler.compile(dsl)[0]
         components = envelope["createSurface"]["components"]
         comp = components[0]
         self.assertEqual(len(comp["checks"]), 1)

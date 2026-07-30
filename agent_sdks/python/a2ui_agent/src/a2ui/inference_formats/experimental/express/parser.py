@@ -83,12 +83,9 @@ class ExpressParser(Parser):
 
         compiler = ExpressCompiler(self.catalog, version=self.version)
         try:
-            compiled = compiler.compile(
+            return compiler.compile(
                 format_content, surface_id=self.surface_id, is_final=is_final
             )
-            if isinstance(compiled, list):
-                return compiled
-            return [compiled]
         except (SyntaxError, ValueError) as e:
             orig_err = e
             if isinstance(e, ValueError) and isinstance(e.__cause__, SyntaxError):
@@ -107,7 +104,7 @@ class ExpressParser(Parser):
                 help_message=help_msg,
             ) from e
 
-    def decompile(self, val: dict[str, Any]) -> str:
+    def decompile(self, val: Union[dict[str, Any], list[dict[str, Any]]]) -> str:
         """Decompiles a structured A2UI payload into this format's raw notation."""
         return _ExpressDecompiler(self.catalog).decompile(val)
 
