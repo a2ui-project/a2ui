@@ -15,7 +15,7 @@
 """Standard A2UI Direct JSON inference format coordination."""
 
 import copy
-from typing import Any, Optional, Callable, Union, cast
+from typing import Any, Optional, Callable, Union
 
 from a2ui.schema.utils import load_from_bundled_resource
 from a2ui.inference_format import InferenceFormat
@@ -26,7 +26,6 @@ from a2ui.schema.constants import (
     COMMON_TYPES_SCHEMA_KEY,
     SPEC_VERSION_MAP,
     INLINE_CATALOGS_KEY,
-    SUPPORTED_CATALOG_IDS_KEY,
     CATALOG_COMPONENTS_KEY,
     INLINE_CATALOG_NAME,
 )
@@ -83,7 +82,7 @@ class DirectJsonFormat(InferenceFormat):
         """The parser instance configured for this Direct JSON format."""
         if self._parser is None:
             if not self._supported_catalogs:
-                raise ValueError(
+                raise A2uiCatalogError(
                     "No supported catalogs configured for the Direct JSON format."
                 )
             default_catalog = self._supported_catalogs[0]

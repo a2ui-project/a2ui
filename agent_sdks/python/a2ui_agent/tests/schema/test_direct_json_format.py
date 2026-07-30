@@ -12,7 +12,8 @@
 import io
 import pytest
 from unittest.mock import patch, MagicMock
-from a2ui.inference_formats.direct_json.format import DirectJsonFormat
+from a2ui.core import A2uiCatalogError
+from a2ui.inference_formats.direct_json import DirectJsonFormat, DirectJsonParser
 from a2ui.basic_catalog import BasicCatalog
 from a2ui.schema.constants import (
     VERSION_0_8,
@@ -116,8 +117,6 @@ def test_schema_manager_fallback_local_assets(mock_importlib_resources):
 
 
 def test_direct_json_parser_methods():
-    from a2ui.inference_formats.direct_json.parser import DirectJsonParser
-
     tf = DirectJsonFormat(VERSION_0_8, catalogs=[BasicCatalog.get_config(VERSION_0_8)])
     cat = tf._supported_catalogs[0]
     parser = DirectJsonParser(cat)
@@ -149,3 +148,10 @@ def test_direct_json_parser_methods():
         '<a2ui-json>\n{"beginRendering": {"surfaceId": "s1", "root":'
         ' "c1"}}\n</a2ui-json>'
     )
+
+
+def test_direct_json_parser_no_supported_catalogs():
+    direct_json_format = DirectJsonFormat(VERSION_0_8)
+    direct_json_format._supported_catalogs = []
+    with pytest.raises(A2uiCatalogError, match="No supported catalogs configured"):
+        _ = direct_json_format.parser

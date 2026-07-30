@@ -39,7 +39,7 @@ from typing import Optional
 from a2a import types as a2a_types
 from a2ui.a2a.parts import create_a2ui_part, parse_content_to_parts
 from a2ui.parser.parser import Parser
-from a2ui.inference_formats.direct_json.parser import DirectJsonParser
+from a2ui.inference_formats.direct_json import DirectJsonParser
 from a2ui.schema import constants
 from a2ui.schema.catalog import A2uiCatalog
 from google.adk.a2a.converters import part_converter

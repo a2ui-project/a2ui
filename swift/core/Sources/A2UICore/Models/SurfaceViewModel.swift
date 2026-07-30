@@ -321,7 +321,8 @@ public final class SurfaceViewModel: @unchecked Sendable, ObservableObject {
       identity: .literal(value),
       get: { [weak self] in
         guard let self else { return value.boolValue ?? false }
-        return self.evaluateDynamicValue(value, basePath: basePath, data: self.dataModel.data).boolValue ?? false
+        return self.evaluateDynamicValue(value, basePath: basePath, data: self.dataModel.data)
+          .boolValue ?? false
       },
       set: { _ in }
     )
@@ -348,7 +349,8 @@ public final class SurfaceViewModel: @unchecked Sendable, ObservableObject {
       identity: .literal(value),
       get: { [weak self] in
         guard let self else { return value.stringValue ?? "" }
-        return self.evaluateDynamicValue(value, basePath: basePath, data: self.dataModel.data).stringValue ?? ""
+        return self.evaluateDynamicValue(value, basePath: basePath, data: self.dataModel.data)
+          .stringValue ?? ""
       },
       set: { _ in }
     )
@@ -375,7 +377,8 @@ public final class SurfaceViewModel: @unchecked Sendable, ObservableObject {
       identity: .literal(value),
       get: { [weak self] in
         guard let self else { return value.doubleValue ?? 0.0 }
-        return self.evaluateDynamicValue(value, basePath: basePath, data: self.dataModel.data).doubleValue ?? 0.0
+        return self.evaluateDynamicValue(value, basePath: basePath, data: self.dataModel.data)
+          .doubleValue ?? 0.0
       },
       set: { _ in }
     )
