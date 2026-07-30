@@ -127,11 +127,12 @@ class ExpressAstVisitor(ExpressVisitor):
             args.append(self.visit(expr))
         return {"check": name, "args": args}
 
-    def visitArg(self, ctx: ExpressParser.ArgContext):
+    def visitArg(self, ctx: ExpressParser.ArgContext) -> dict:
         # arg : named_arg | expression ;
         if ctx.named_arg():
-            return self.visit(ctx.named_arg())
-        return self.visit(ctx.expression())
+            k, v = self.visit(ctx.named_arg())
+            return {"type": "kw", "key": k, "value": v}
+        return {"type": "pos", "value": self.visit(ctx.expression())}
 
     def visitNamed_arg(self, ctx: ExpressParser.Named_argContext) -> tuple[str, Any]:
         # named_arg : identifier '=' expression ;
@@ -146,9 +147,10 @@ class ExpressAstVisitor(ExpressVisitor):
         kwargs = {}
         for arg_ctx in ctx.arg():
             res = self.visit(arg_ctx)
-            if isinstance(res, tuple) and len(res) == 2:
-                k, v = res
-                kwargs[k] = v
+            if isinstance(res, dict) and res.get("type") == "kw":
+                kwargs[res["key"]] = res["value"]
+            elif isinstance(res, dict) and res.get("type") == "pos":
+                args.append(res["value"])
             else:
                 args.append(res)
         node = {"call": name, "args": args}
