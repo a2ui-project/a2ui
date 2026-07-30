@@ -40,17 +40,11 @@ IMPORTANT: You must ALWAYS output A2UI Express DSL notation wrapped inside `<a2u
 
 ## Grammar Rules
 
-1. Component constructors can be assigned to variables on their own line OR nested directly inline inside parent component arguments:
-   - Top-Level Variable Assignment:
-     header = ComponentA(prop1="val1")
-     root = ComponentB([header])
-   - Inline Component Nesting:
-     root = ComponentB([ComponentA(prop1="val1"), ComponentC("Click")])
-   - Hybrid Nesting (Recommended):
-     header = ComponentA(prop1="val1")
-     root = ComponentB([header, ComponentC("Click", action=Event("submit"))])
+1. Component constructors can be assigned to variables or nested inline inside parent component arguments:
+   header = ComponentA(prop1="val1")
+   root = ComponentB([header, ComponentC("Click", action=Event("submit"))])
 
-   Keyword arguments (`param=value`) are supported and recommended when omitting optional parameters. Positional arguments with `_` placeholders are also supported.
+   Keyword arguments (`param=value`) and positional arguments with `_` placeholders are supported.
 
    Variable names MUST start with a letter or underscore, and only contain letters, digits, and underscores.
 
@@ -77,8 +71,7 @@ IMPORTANT: You must ALWAYS output A2UI Express DSL notation wrapped inside `<a2u
 8. Action events: represent server-side actions using the Event helper:
    Event("save_deal", {rep: $/form/rep})
 
-9. Nested functions: call client functions directly using catalog signatures,
-   for example openUrl("https://example.com").
+9. Nested functions: call client functions directly using catalog signatures, for example myFunction("value").
 
 10. Data model population: Assign a value directly to an absolute data path (e.g. $/path/to/key = "value") to populate or initialize values inside the shared dataModel. The value can be a primitive, array, or map.
 
@@ -87,12 +80,12 @@ IMPORTANT: You must ALWAYS output A2UI Express DSL notation wrapped inside `<a2u
     And define the template component variable on another line, utilizing relative path references prefixed with $:
     itemTemplate = Image($url)
 
-12. Lifecycle & Deletion: To delete a user interface surface, output the standalone `deleteSurface(surfaceId)` command (with no variable assignment):
+12. To delete a user interface surface, output the standalone `deleteSurface(surfaceId)` command (no variable assignment):
     deleteSurface("dashboard-surface-1")
 
-13. Static properties: Arguments annotated with '(static only)' in the signatures below MUST be defined as literal values or arrays inline (or as a local DSL variable representing a static structure). You CANNOT use a dynamic data binding path (prefixed by $) for these arguments.
+13. Static properties: Arguments annotated with '(static)' in the signatures below MUST be defined as literal values or arrays inline. You CANNOT use a dynamic data binding path (prefixed by $) for these arguments.
 
-14. Required actions: Parameters named 'action' (or annotated as required in component signatures) are strictly required. You must pass a valid Event (e.g. Event("click")) or function call. If no specific action is described in the user request, you must provide a dummy click event like Event("click") instead of passing null or omitting the parameter.'''
+14. Required actions: Parameters named 'action' (or annotated in component signatures) are strictly required. You must pass a valid Event (e.g. Event("click")) or function call. If no specific action is described in the user request, you must provide a dummy click event like Event("click") instead of passing null or omitting the parameter.'''
 
 
 def _schema_allows_databinding(prop_schema: Any) -> bool:
@@ -181,7 +174,7 @@ class ExpressPromptGenerator(PromptGenerator):
                 if is_component_id:
                     arg_label += " (component ID)"
                 elif not _schema_allows_databinding(p_schema):
-                    arg_label += " (static only)"
+                    arg_label += " (static)"
 
                 ordered_args.append(arg_label)
 
