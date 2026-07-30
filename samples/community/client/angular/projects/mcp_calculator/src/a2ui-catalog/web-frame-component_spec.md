@@ -395,7 +395,7 @@ Used to load an external web application hosted on a remote domain.
       },
       "mutableData": {
         "type": "object",
-        "description": "A map of authorized Data Model keys to their expected JSON Schema.",
+        "description": "A map of data model keys that the embedded application is authorized to mutate in the parent A2UI Data Model, mapped to JSON Schemas defining their allowed values.",
         "additionalProperties": {
           "type": "object",
           "description": "A valid JSON Schema definition."
@@ -465,7 +465,7 @@ Used to load standalone, sandboxed, model-generated HTML/JS layouts.
       },
       "mutableData": {
         "type": "object",
-        "description": "A map of authorized Data Model keys to their expected JSON Schema.",
+        "description": "A map of data model keys that the embedded application is authorized to mutate in the parent A2UI Data Model, mapped to JSON Schemas defining their allowed values.",
         "additionalProperties": {
           "type": "object",
           "description": "A valid JSON Schema definition."
