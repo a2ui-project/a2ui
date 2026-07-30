@@ -62,6 +62,24 @@
       }
     },
     {
+      "description": "Valid createSurface without catalogId",
+      "valid": true,
+      "data": {
+        "version": "v1.0",
+        "createSurface": {
+          "surfaceId": "test_surface",
+          "components": [
+            {
+              "id": "root",
+              "component": "Text",
+              "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
+              "text": "Component with explicit catalogId"
+            }
+          ]
+        }
+      }
+    },
+    {
       "description": "Invalid: createSurface contains additional unexpected properties",
       "valid": false,
       "data": {

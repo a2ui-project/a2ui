@@ -18,6 +18,22 @@
       }
     },
     {
+      "description": "CallFunctionMessage: Valid with catalogId and wantResponse",
+      "valid": true,
+      "data": {
+        "version": "v1.0",
+        "callFunction": {
+          "call": "openUrl",
+          "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
+          "args": {
+            "url": "https://example.com"
+          }
+        },
+        "functionCallId": "unique-call-id-123-cat",
+        "wantResponse": true
+      }
+    },
+    {
       "description": "CallFunctionMessage: Valid with remoteOnly",
       "valid": true,
       "data": {
