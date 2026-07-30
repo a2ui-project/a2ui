@@ -151,6 +151,9 @@ def _parse_and_validate_in_process(
     return compiled_jsons
 
 
+import traceback
+
+
 def _process_target_wrapper(
     format_name: str,
     version: str,
@@ -165,7 +168,7 @@ def _process_target_wrapper(
         )
         return_dict["result"] = res
     except Exception as e:
-        return_dict["error"] = str(e)
+        return_dict["error"] = f"{e}\n{traceback.format_exc()}"
 
 
 def parse_with_hard_kill_timeout(
