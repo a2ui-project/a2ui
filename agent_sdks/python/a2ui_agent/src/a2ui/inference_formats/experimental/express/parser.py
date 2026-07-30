@@ -30,10 +30,14 @@ class ExpressParser(Parser):
     """Concrete parser implementation for A2UI Express DSL responses."""
 
     def __init__(
-        self, catalog: Union[Catalog[Any, Any], A2uiCatalog], surface_id: str = "main"
+        self,
+        catalog: Union[Catalog[Any, Any], A2uiCatalog],
+        surface_id: str = "main",
+        version: str = "v1.0",
     ):
         self.catalog = catalog
         self.surface_id = surface_id
+        self.version = version
 
     def has_format_content(self, content: str, *, complete: bool = False) -> bool:
         if complete:
@@ -61,12 +65,14 @@ class ExpressParser(Parser):
         """Compiles raw Express DSL to structured A2UI messages."""
         from a2ui.parser.errors import A2uiCompilationError
 
-        compiler = ExpressCompiler(self.catalog)
+        compiler = ExpressCompiler(self.catalog, version=self.version)
         try:
-            compiled_json = compiler.compile(
+            compiled = compiler.compile(
                 format_content, surface_id=self.surface_id, is_final=is_final
             )
-            return [compiled_json]
+            if isinstance(compiled, list):
+                return compiled
+            return [compiled]
         except (SyntaxError, ValueError) as e:
             orig_err = e
             if isinstance(e, ValueError) and isinstance(e.__cause__, SyntaxError):

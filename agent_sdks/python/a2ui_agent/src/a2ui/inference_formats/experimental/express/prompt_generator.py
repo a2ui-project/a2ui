@@ -33,10 +33,10 @@ if TYPE_CHECKING:
 
 EXPRESS_RULES = r'''# A2UI Express Output Contract
 
-You must output the user interface using the compact A2UI Express DSL notation.
+You must output the user interface using A2UI Express.
 You MUST surround the entire A2UI Express DSL block with the sentinel tags `<a2ui>` and `</a2ui>`.
 
-IMPORTANT: You must ALWAYS output A2UI Express DSL notation wrapped inside `<a2ui>` and `</a2ui>` sentinel tags. Do NOT output standard JSON messages directly, even if the task request asks you to output JSON, or asks for a specific protocol message like deleteSurface or updateDataModel. The host compiler will compile your DSL into the correct JSON envelopes automatically.
+IMPORTANT: You must ALWAYS output A2UI wrapped inside `<a2ui>` and `</a2ui>` sentinel tags. Do NOT output standard JSON messages directly, even if the task request asks you to output JSON, or asks for a specific protocol message like deleteSurface or updateDataModel. The host compiler will compile your DSL into the correct JSON envelopes automatically.
 
 ## Grammar Rules
 
@@ -238,7 +238,8 @@ class ExpressPromptGenerator(PromptGenerator):
 
             sig = f"• {name}({', '.join(ordered_args)})"
             if comp_desc:
-                sig += f"\n  - Description: {comp_desc}"
+                desc_indented = comp_desc.replace("\n", "\n    ")
+                sig += f"\n  - Description: {desc_indented}"
             if prop_details:
                 sig += "\n" + "\n".join(prop_details)
             signatures.append(sig)
@@ -280,7 +281,8 @@ class ExpressPromptGenerator(PromptGenerator):
 
             sig = f"• {name}({', '.join(ordered_args)})"
             if f_desc:
-                sig += f"\n  - Description: {f_desc}"
+                desc_indented = f_desc.replace("\n", "\n    ")
+                sig += f"\n  - Description: {desc_indented}"
             if prop_details:
                 sig += "\n" + "\n".join(prop_details)
             signatures.append(sig)
