@@ -38,7 +38,7 @@ jobs:
 
       - name: Install Google GenAI SDK
         run: |
-          pip install google-genai
+          pip install "google-genai>=1.0.0"
 
       - name: Invoke Antigravity Agent API
         env:
@@ -56,10 +56,10 @@ jobs:
           client = genai.Client(api_key=api_key)
 
           prompt = (
-              '1. Clone the target repository: https://github.com/google/a2ui (branch: main).\n'
+              '1. Clone the target repository: https://github.com/a2ui-project/a2ui (branch: main).\n'
               '2. Locate and read the compliance skill file at `.agents/skills/a2ui-audit/SKILL.md`.\n'
               '3. Follow all instructions in the skill file to perform an Antigravity compliance audit on the repository.\n'
-              '4. If any compliance violations or formatting issues are found, create a detailed GitHub Issue on google/a2ui summarizing the findings.'
+              '4. If any compliance violations or formatting issues are found, create a detailed GitHub Issue on a2ui-project/a2ui summarizing the findings.'
           )
 
           print('🚀 Launching Antigravity Agent interaction...')
