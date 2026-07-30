@@ -12,26 +12,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Deprecated module alias for a2ui.inference_formats.direct_json."""
+from .format import DirectJsonFormat
+from .parser import DirectJsonParser
+from .streaming import DirectJsonStreamParser, A2uiStreamParser
 
-import warnings
-
-warnings.warn(
-    "a2ui.inference_formats.transport is deprecated. "
-    "Please import from a2ui.inference_formats.direct_json instead.",
-    DeprecationWarning,
-    stacklevel=2,
-)
-
-from a2ui.inference_formats.direct_json import (
-    DirectJsonFormat,
-    DirectJsonParser,
-    DirectJsonStreamParser,
-    TransportFormat,
-    TransportParser,
-    TransportStreamParser,
-    A2uiStreamParser,
-)
+# Backward compatibility aliases
+TransportFormat = DirectJsonFormat
+TransportParser = DirectJsonParser
+TransportStreamParser = DirectJsonStreamParser
 
 __all__ = [
     "DirectJsonFormat",
@@ -40,5 +28,5 @@ __all__ = [
     "TransportFormat",
     "TransportParser",
     "TransportStreamParser",
-    "A2uiStreamParser",
+    "A2uiStreamParser",  # Deprecated. Use DirectJsonStreamParser instead.
 ]

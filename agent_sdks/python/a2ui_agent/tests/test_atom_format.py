@@ -248,14 +248,14 @@ class TestAtomFormat(unittest.TestCase):
         """Test AtomPromptGenerator generation of catalog prompt rules and component signatures."""
         from a2ui.inference_formats.experimental.atom import AtomFormat
         from a2ui.schema.catalog import CatalogConfig
-        from a2ui.inference_formats.transport import TransportFormat
+        from a2ui.inference_formats.direct_json import DirectJsonFormat
 
         cat_path = str(REPO_ROOT / "specification/v1_0/catalogs/basic/catalog.json")
         cat_cfg = CatalogConfig.from_path("basic_catalog", cat_path)
-        transport_format = TransportFormat(
+        direct_json_format = DirectJsonFormat(
             version="1.0", catalogs=[cat_cfg], experiments={"version_1_0"}
         )
-        cat = transport_format.get_selected_catalog()
+        cat = direct_json_format.get_selected_catalog()
 
         fmt = AtomFormat(catalog=cat, examples_path="/tmp/examples")
         self.assertEqual(fmt.examples_path, "/tmp/examples")
@@ -279,14 +279,14 @@ class TestAtomFormat(unittest.TestCase):
         """Test positional property mapping in AtomCompiler with real catalog schema helper."""
         from a2ui.inference_formats.experimental.atom import AtomCompiler
         from a2ui.schema.catalog import CatalogConfig
-        from a2ui.inference_formats.transport import TransportFormat
+        from a2ui.inference_formats.direct_json import DirectJsonFormat
 
         cat_path = str(REPO_ROOT / "specification/v1_0/catalogs/basic/catalog.json")
         cat_cfg = CatalogConfig.from_path("basic_catalog", cat_path)
-        transport_format = TransportFormat(
+        direct_json_format = DirectJsonFormat(
             version="1.0", catalogs=[cat_cfg], experiments={"version_1_0"}
         )
-        cat = transport_format.get_selected_catalog()
+        cat = direct_json_format.get_selected_catalog()
 
         compiler = AtomCompiler(catalog=cat)
         text = '(Card (Column (Text "Positional Text Property")))'
@@ -379,14 +379,14 @@ class TestAtomFormat(unittest.TestCase):
         from a2ui.inference_formats.experimental.atom import AtomFormat
         from a2ui.inference_formats.experimental.atom.prompt_generator import _get_schema_enum
         from a2ui.schema.catalog import CatalogConfig
-        from a2ui.inference_formats.transport import TransportFormat
+        from a2ui.inference_formats.direct_json import DirectJsonFormat
 
         cat_path = str(REPO_ROOT / "specification/v1_0/catalogs/basic/catalog.json")
         cat_cfg = CatalogConfig.from_path("basic_catalog", cat_path)
-        transport_format = TransportFormat(
+        direct_json_format = DirectJsonFormat(
             version="1.0", catalogs=[cat_cfg], experiments={"version_1_0"}
         )
-        cat = transport_format.get_selected_catalog()
+        cat = direct_json_format.get_selected_catalog()
 
         fmt = AtomFormat(catalog=cat)
         func_sigs = fmt.prompt_generator.generate_function_signatures()
@@ -414,14 +414,14 @@ class TestAtomFormat(unittest.TestCase):
         """Test _schema_expects_single_child and formatDate/formatCurrency helpers."""
         from a2ui.inference_formats.experimental.atom import AtomCompiler
         from a2ui.schema.catalog import CatalogConfig
-        from a2ui.inference_formats.transport import TransportFormat
+        from a2ui.inference_formats.direct_json import DirectJsonFormat
 
         cat_path = str(REPO_ROOT / "specification/v1_0/catalogs/basic/catalog.json")
         cat_cfg = CatalogConfig.from_path("basic_catalog", cat_path)
-        transport_format = TransportFormat(
+        direct_json_format = DirectJsonFormat(
             version="1.0", catalogs=[cat_cfg], experiments={"version_1_0"}
         )
-        cat = transport_format.get_selected_catalog()
+        cat = direct_json_format.get_selected_catalog()
 
         compiler = AtomCompiler(catalog=cat)
         self.assertTrue(compiler._schema_expects_single_child("Card"))
@@ -587,14 +587,14 @@ class TestAtomFormat(unittest.TestCase):
     def test_compile_child_list_template_property_assignment(self):
         """Test standard v1.0 Catalog List component dynamic template assignment to children property."""
         from a2ui.schema.catalog import CatalogConfig
-        from a2ui.inference_formats.transport import TransportFormat
+        from a2ui.inference_formats.direct_json import DirectJsonFormat
 
         cat_path = str(REPO_ROOT / "specification/v1_0/catalogs/basic/catalog.json")
         cat_cfg = CatalogConfig.from_path("basic_catalog", cat_path)
-        transport_format = TransportFormat(
+        direct_json_format = DirectJsonFormat(
             version="1.0", catalogs=[cat_cfg], experiments={"version_1_0"}
         )
-        cat = transport_format.get_selected_catalog()
+        cat = direct_json_format.get_selected_catalog()
 
         compiler = AtomCompiler(catalog=cat)
         text = '(List :items $/products :template (template item (Card (Text "Item"))))'
@@ -664,14 +664,14 @@ class TestAtomFormat(unittest.TestCase):
         """Test think tags, a2ui-json, direct JSON, createSurface forms, weight conversions, and functions with real catalog."""
         from a2ui.inference_formats.experimental.atom import AtomCompiler, AtomDecompiler, AtomFormat, AtomParser
         from a2ui.schema.catalog import CatalogConfig
-        from a2ui.inference_formats.transport import TransportFormat
+        from a2ui.inference_formats.direct_json import DirectJsonFormat
 
         cat_path = str(REPO_ROOT / "specification/v1_0/catalogs/basic/catalog.json")
         cat_cfg = CatalogConfig.from_path("basic_catalog", cat_path)
-        transport_format = TransportFormat(
+        direct_json_format = DirectJsonFormat(
             version="1.0", catalogs=[cat_cfg], experiments={"version_1_0"}
         )
-        cat = transport_format.get_selected_catalog()
+        cat = direct_json_format.get_selected_catalog()
         compiler = AtomCompiler(catalog=cat)
         decompiler = AtomDecompiler(catalog=cat)
 

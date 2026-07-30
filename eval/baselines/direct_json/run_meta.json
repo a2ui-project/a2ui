@@ -1,5 +1,5 @@
 {
-  "format": "transport",
+  "format": "direct_json",
   "metrics": {
     "schema_acc": 0.9803921568627451,
     "quality_acc": 0.9019607843137255,

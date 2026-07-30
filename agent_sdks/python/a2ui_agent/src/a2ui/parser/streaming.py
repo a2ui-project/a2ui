@@ -15,11 +15,11 @@
 """Deprecated compatibility redirect for A2uiStreamParser."""
 
 import warnings
-from a2ui.inference_formats.transport.streaming import A2uiStreamParser
+from a2ui.inference_formats.direct_json.streaming import A2uiStreamParser
 
 warnings.warn(
     "a2ui.parser.streaming is deprecated. "
-    "Please import from a2ui.inference_formats.transport instead.",
+    "Please import from a2ui.inference_formats.direct_json instead.",
     DeprecationWarning,
     stacklevel=2,
 )
