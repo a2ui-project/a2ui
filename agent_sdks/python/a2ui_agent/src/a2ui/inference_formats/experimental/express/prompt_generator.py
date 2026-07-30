@@ -14,8 +14,8 @@
 
 """Prompt compiler for A2UI Express.
 
-Compiles standard JSON catalog schemas into compact plain-text signatures and
-instruction blocks for on-device models (e.g., Gemma 4).
+Compiles A2UI catalog schemas into compact plain-text signatures and
+instruction blocks.
 """
 
 import json
@@ -36,7 +36,7 @@ EXPRESS_RULES = r'''# A2UI Express Output Contract
 You must output the user interface using A2UI Express.
 You MUST surround the entire A2UI Express DSL block with the sentinel tags `<a2ui>` and `</a2ui>`.
 
-IMPORTANT: You must ALWAYS output A2UI wrapped inside `<a2ui>` and `</a2ui>` sentinel tags. Do NOT output standard JSON messages directly, even if the task request asks you to output JSON, or asks for a specific protocol message like deleteSurface or updateDataModel. The host compiler will compile your DSL into the correct JSON envelopes automatically.
+IMPORTANT: You must ALWAYS output A2UI wrapped inside `<a2ui>` and `</a2ui>` sentinel tags. The host compiler will compile your A2UI output into the correct JSON envelopes automatically.
 
 ## Grammar Rules
 
