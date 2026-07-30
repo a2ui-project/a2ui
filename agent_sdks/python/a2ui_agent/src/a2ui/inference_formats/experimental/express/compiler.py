@@ -413,9 +413,7 @@ class ExpressCompiler:
                     prop_schema
                 ):
                     mapped_val = [
-                        {"label": opt, "value": opt}
-                        if isinstance(opt, str)
-                        else opt
+                        {"label": opt, "value": opt} if isinstance(opt, str) else opt
                         for opt in mapped_val
                     ]
             enum_vals = self.helper.get_property_enum(comp_name, prop_name)
