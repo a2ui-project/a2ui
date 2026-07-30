@@ -26,13 +26,13 @@ import pytest
 
 from a2ui.basic_catalog import BasicCatalog
 from a2ui.core import A2uiValidationError
-from a2ui.inference_formats.transport.format import TransportFormat
+from a2ui.inference_formats.direct_json.format import DirectJsonFormat
 from a2ui.schema.constants import VERSION_0_9
 
 
 def _make_catalog():
     """Create a real A2uiCatalog with v0.9 basic catalog."""
-    tf = TransportFormat(VERSION_0_9, catalogs=[BasicCatalog.get_config(VERSION_0_9)])
+    tf = DirectJsonFormat(VERSION_0_9, catalogs=[BasicCatalog.get_config(VERSION_0_9)])
     return tf._supported_catalogs[0]
 
 

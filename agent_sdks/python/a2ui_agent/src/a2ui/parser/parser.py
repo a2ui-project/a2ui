@@ -156,7 +156,7 @@ def parse_response(content: str) -> List[ResponsePart]:
         DeprecationWarning,
         stacklevel=2,
     )
-    from a2ui.inference_formats.transport.parser import unwrap_response
+    from a2ui.inference_formats.direct_json.parser import unwrap_response
     from a2ui.parser.payload_fixer import parse_and_fix
 
     parts = unwrap_response(content)

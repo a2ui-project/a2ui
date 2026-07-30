@@ -48,7 +48,7 @@ from a2ui.schema.constants import (
     A2UI_OPEN_TAG,
     A2UI_CLOSE_TAG,
 )
-from a2ui.inference_formats.transport import TransportFormat
+from a2ui.inference_formats.direct_json import DirectJsonFormat
 from a2ui.parser.parser import parse_response, ResponsePart
 from a2ui.basic_catalog.provider import BasicCatalog
 from a2ui.schema.common_modifiers import remove_strict_validation
@@ -71,7 +71,7 @@ class RestaurantAgent:
             self._build_llm_agent()
         )
 
-        self._inference_formats: Dict[str, TransportFormat] = {}
+        self._inference_formats: Dict[str, DirectJsonFormat] = {}
         self._ui_runners: Dict[str, Runner] = {}
         self._parsers = OrderedDict()
         self._max_parsers = 1000  # Max active sessions to keep in memory
@@ -88,8 +88,8 @@ class RestaurantAgent:
     def agent_card(self) -> AgentCard:
         return self._agent_card
 
-    def _build_inference_format(self, version: str) -> TransportFormat:
-        return TransportFormat(
+    def _build_inference_format(self, version: str) -> DirectJsonFormat:
+        return DirectJsonFormat(
             version=version,
             catalogs=[
                 BasicCatalog.get_config(
@@ -149,7 +149,7 @@ class RestaurantAgent:
         return "Finding restaurants that match your criteria..."
 
     def _build_llm_agent(
-        self, inference_format: Optional[TransportFormat] = None
+        self, inference_format: Optional[DirectJsonFormat] = None
     ) -> LlmAgent:
         """Builds the LLM agent for the restaurant agent."""
         model_env = (
@@ -275,12 +275,12 @@ class RestaurantAgent:
                                 yield p.text
 
             if selected_catalog:
-                from a2ui.inference_formats.transport.streaming import TransportStreamParser
+                from a2ui.inference_formats.direct_json.streaming import DirectJsonStreamParser
 
                 if session_id in self._parsers:
                     self._parsers.move_to_end(session_id)
                 else:
-                    self._parsers[session_id] = TransportStreamParser(
+                    self._parsers[session_id] = DirectJsonStreamParser(
                         catalog=selected_catalog
                     )
                     if len(self._parsers) > self._max_parsers:

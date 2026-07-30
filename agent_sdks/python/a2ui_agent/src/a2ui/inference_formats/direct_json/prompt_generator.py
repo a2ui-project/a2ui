@@ -19,18 +19,18 @@ from a2ui.prompt import PromptGenerator
 from a2ui.core.schema.client_capabilities import V09Capabilities
 
 if TYPE_CHECKING:
-    from a2ui.inference_formats.transport.format import TransportFormat
+    from a2ui.inference_formats.direct_json.format import DirectJsonFormat
     from a2ui.schema.catalog import A2uiCatalog
 
 
-class TransportPromptGenerator(PromptGenerator):
-    """Formats standard JSON schema system prompt instructions (Transport Format)."""
+class DirectJsonPromptGenerator(PromptGenerator):
+    """Formats standard JSON schema system prompt instructions (Direct JSON Format)."""
 
-    def __init__(self, format_inst: "TransportFormat"):
-        """Initializes the prompt generator with a TransportFormat context.
+    def __init__(self, format_inst: "DirectJsonFormat"):
+        """Initializes the prompt generator with a DirectJsonFormat context.
 
         Args:
-            format_inst: The TransportFormat instance.
+            format_inst: The DirectJsonFormat instance.
         """
         self._format = format_inst
         self.selected_catalog: Optional["A2uiCatalog"] = None

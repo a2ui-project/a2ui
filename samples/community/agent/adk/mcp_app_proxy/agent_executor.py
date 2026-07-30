@@ -20,7 +20,7 @@ from a2a.types import AgentCapabilities, AgentCard, AgentExtension, AgentSkill
 from a2ui.a2a.extension import try_activate_a2ui_extension
 from a2ui.adk.a2a.event_converter import A2uiEventConverter
 from a2ui.schema.constants import A2UI_CLIENT_CAPABILITIES_KEY
-from a2ui.inference_formats.transport import TransportFormat
+from a2ui.inference_formats.direct_json import DirectJsonFormat
 from google.adk.a2a.converters.request_converter import AgentRunRequest
 from google.adk.a2a.executor.a2a_agent_executor import A2aAgentExecutor
 from google.adk.a2a.executor.a2a_agent_executor import A2aAgentExecutorConfig
