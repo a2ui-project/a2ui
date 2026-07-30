@@ -138,13 +138,16 @@ class ExpressCompiler:
     def __init__(
         self,
         catalog: Union[Catalog[Any, Any], A2uiCatalog],
+        version: str = "v1.0",
     ):
         """Initializes the compiler with the specified catalog.
 
         Args:
             catalog: A Catalog or an A2uiCatalog.
+            version: Target A2UI protocol version ("v0.9", "v0.9.1", or "v1.0").
         """
         self.helper = CatalogSchemaHelper(catalog)
+        self.version = version
 
     def compile(
         self,
@@ -152,20 +155,24 @@ class ExpressCompiler:
         surface_id: str = "default_surface",
         catalog_id: str = "",
         is_final: bool = True,
-    ) -> dict:
-        """Compiles plain A2UI Express DSL into standard A2UI v1.0 wire JSON.
+        version: Optional[str] = None,
+    ) -> Union[dict, list]:
+        """Compiles plain A2UI Express DSL into standard A2UI wire JSON.
 
         Args:
             dsl_text: The source A2UI Express DSL text block.
             surface_id: The unique identifier for the compiled user interface surface.
             catalog_id: The URI/identifier of the schema catalog to reference.
+            is_final: Whether this is the final compilation pass.
+            version: Target version override ("v0.9", "v0.9.1", or "v1.0").
 
         Returns:
-            The standard A2UI v1.0 JSON envelope.
+            The A2UI wire JSON envelope dict (v1.0) or list of message dicts (v0.9).
 
         Raises:
-            ValueError: If the root component variable is missing.
+            ValueError: If the root component variable is missing or unsupported features are used.
         """
+        target_version = version or self.version
         ctx = _CompileContext()
         # Detect if sentinel tags exist in the input
         has_sentinels = "<a2ui>" in dsl_text
@@ -257,18 +264,22 @@ class ExpressCompiler:
 
         if target_delete_surface_id is not None:
             return {
-                "version": "v1.0",
+                "version": target_version,
                 SurfaceOperation.DELETE: {"surfaceId": target_delete_surface_id},
             }
 
         if standalone_function_calls:
+            if target_version in ("v0.9", "v0.9.1"):
+                raise ValueError(
+                    f"Standalone function calls are not supported in A2UI {target_version}"
+                )
             first_call = standalone_function_calls[0]
             ctx.inline_counter += 1
             compiled_val = self._compile_value(
                 first_call, raw_symbols, ctx, is_action=False
             )
             return {
-                "version": "v1.0",
+                "version": target_version,
                 "functionCallId": f"call_{ctx.inline_counter}",
                 SurfaceOperation.CALL_FUNC: {
                     "call": compiled_val.get("call"),
@@ -282,7 +293,7 @@ class ExpressCompiler:
         if "root" not in raw_symbols:
             if data_path_assignments:
                 return {
-                    "version": "v1.0",
+                    "version": target_version,
                     SurfaceOperation.UPDATE_DATA: {
                         "surfaceId": surface_id,
                         "path": "/",
@@ -307,8 +318,38 @@ class ExpressCompiler:
                 "catalogId", "https://a2ui.org/catalog.json"
             )
 
+        if target_version in ("v0.9", "v0.9.1"):
+            messages = [
+                {
+                    "version": target_version,
+                    SurfaceOperation.CREATE: {
+                        "surfaceId": surface_id,
+                        "catalogId": catalog_id,
+                    },
+                },
+                {
+                    "version": target_version,
+                    "updateComponents": {
+                        "surfaceId": surface_id,
+                        "components": compiled_components,
+                    },
+                },
+            ]
+            if data_model:
+                messages.append(
+                    {
+                        "version": target_version,
+                        SurfaceOperation.UPDATE_DATA: {
+                            "surfaceId": surface_id,
+                            "path": "/",
+                            "value": data_model,
+                        },
+                    }
+                )
+            return messages
+
         envelope = {
-            "version": "v1.0",
+            "version": target_version,
             SurfaceOperation.CREATE: {
                 "surfaceId": surface_id,
                 "catalogId": catalog_id,
