@@ -22,6 +22,9 @@
 # MkDocs format. Runs only on the upstream `a2ui-project/a2ui` repository.
 name: Docs
 
+permissions:
+  contents: read
+
 on:
   push:
     branches:
