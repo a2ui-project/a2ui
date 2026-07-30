@@ -126,7 +126,6 @@ class _ExpressDecompiler:
         self,
         envelope_json: dict,
         use_keyword_args: bool = False,
-        use_hybrid_nesting: bool = False,
     ) -> str:
         """Decompiles standard A2UI wire JSON into clean A2UI Express lines.
 

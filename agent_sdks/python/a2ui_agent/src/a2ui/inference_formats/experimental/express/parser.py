@@ -79,12 +79,16 @@ class ExpressParser(Parser):
                 orig_err = e.__cause__
             line = getattr(orig_err, "lineno", None)
             column = getattr(orig_err, "offset", None)
+            help_msg = (
+                getattr(e, "help_message", None)
+                or "Please correct the syntax error in your Express DSL."
+            )
             raise A2uiCompilationError(
                 message=str(e),
                 raw_content=format_content,
                 line=line,
                 column=column,
-                help_message="Please correct the syntax error in your Express DSL.",
+                help_message=help_msg,
             ) from e
 
     def decompile(self, val: dict[str, Any]) -> str:

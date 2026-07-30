@@ -29,6 +29,16 @@ from .generated.express_parser import ExpressParser
 from .visitor import ExpressAstVisitor, ExpressErrorListener
 from .schema_helper import CatalogSchemaHelper
 from .constants import SurfaceOperation
+from .errors import (
+    ExpressCompilerError,
+    ExpressUnknownPropertyError,
+    ExpressDuplicatePropertyError,
+    ExpressInvalidParamError,
+    ExpressDuplicateParamError,
+    ExpressForbiddenDatabindingError,
+    ExpressUndefinedRootError,
+    ExpressUndefinedChildError,
+)
 
 
 def _set_nested_path(d: dict, path_str: str, val: Any) -> None:
@@ -301,10 +311,7 @@ class ExpressCompiler:
                         "value": data_model,
                     },
                 }
-            raise ValueError(
-                "A2UI Express source must define a 'root' variable or have data model"
-                " path assignments."
-            )
+            raise ExpressUndefinedRootError("root")
 
         for var_name, ast in raw_symbols.items():
             comp_dict = self._compile_ast_node(var_name, ast, raw_symbols, ctx)
@@ -418,7 +425,13 @@ class ExpressCompiler:
                 continue
             prop_arg_pairs.append((k, v))
 
+        seen_properties = set()
         for prop_name, arg in prop_arg_pairs:
+            if prop_name not in properties:
+                raise ExpressUnknownPropertyError(comp_name, prop_name, properties)
+            if prop_name in seen_properties:
+                raise ExpressDuplicatePropertyError(comp_name, prop_name)
+            seen_properties.add(prop_name)
             if isinstance(arg, dict) and arg.get("skipped"):
                 comp_dict[prop_name] = None
                 continue
@@ -444,11 +457,7 @@ class ExpressCompiler:
                     return False
 
                 if has_databinding(mapped_val):
-                    raise ValueError(
-                        f"Property '{prop_name}' of component '{comp_name}' does"
-                        " not support dynamic data bindings (paths). You must"
-                        " provide a static value/array instead."
-                    )
+                    raise ExpressForbiddenDatabindingError(comp_name, prop_name)
                 if isinstance(mapped_val, list) and _schema_expects_option_objects(
                     prop_schema
                 ):
@@ -694,6 +703,10 @@ class ExpressCompiler:
                                 compiled_args[fn_props[idx]] = val_item
 
                     for k, v in fn_kwargs.items():
+                        if k not in fn_props:
+                            raise ExpressInvalidParamError(fn_name, k, fn_props)
+                        if k in compiled_args:
+                            raise ExpressDuplicateParamError(fn_name, k)
                         if isinstance(v, dict) and v.get("skipped"):
                             continue
                         val_item = self._compile_value(v, raw_symbols, ctx, is_action)

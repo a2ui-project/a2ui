@@ -137,7 +137,7 @@ async def test_a2ui_express_solvers() -> None:
         state = await prompt_solver(state, dummy_generate)
         assert len(state.messages) == 1
         assert state.messages[0].role == "system"
-        assert "A2UI Express Output Contract" in state.messages[0].content
+        assert "A2UI Express DSL Output Contract" in state.messages[0].content
 
         # 2. Test Compile Solver
         compile_solver = compile_format_payload("express", version="1.0")

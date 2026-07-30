@@ -24,6 +24,14 @@ from a2ui.inference_formats.experimental.express.prompt_generator import Express
 from a2ui.inference_formats.experimental.express.compiler import ExpressCompiler
 from a2ui.inference_formats.experimental.express.schema_helper import CatalogSchemaHelper
 from a2ui.inference_formats.experimental.express.parser import ExpressParser
+from a2ui.inference_formats.experimental.express.errors import (
+    ExpressUnknownPropertyError,
+    ExpressDuplicatePropertyError,
+    ExpressInvalidParamError,
+    ExpressDuplicateParamError,
+    ExpressForbiddenDatabindingError,
+    ExpressUndefinedRootError,
+)
 
 SPEC_DIR = os.path.abspath(
     os.path.join(
@@ -657,6 +665,7 @@ root = Text("Hello")"""
         # 4. standalone function call compilation
         dsl_call = 'openUrl("https://example.com")'
         env_call = compiler.compile(dsl_call)
+        self.assertEqual(env_call["callFunction"]["call"], "openUrl")
 
     def test_keyword_arguments_compilation(self):
         """Verifies compilation of Express DSL statements using keyword arguments."""
@@ -700,6 +709,67 @@ root = Column(children=[Text("Top Header"), card1, Button("Click", action=Event(
         inline_card_child = comp_map["card1"]["child"]
         self.assertIn(inline_card_child, comp_map)
         self.assertEqual(comp_map[inline_card_child]["text"], "Inside Card")
+
+    def test_custom_exception_types(self):
+        """Verifies specific ExpressCompilerError subclasses are raised for invalid DSL constructs."""
+        compiler = ExpressCompiler(self.catalog)
+
+        # 1. Unknown component property
+        with self.assertRaises(ExpressUnknownPropertyError) as ctx:
+            compiler.compile('root = Text(text="Hi", nonExistentProp="bad")')
+        self.assertEqual(ctx.exception.comp_name, "Text")
+        self.assertEqual(ctx.exception.prop_name, "nonExistentProp")
+        self.assertIn("nonExistentProp", str(ctx.exception))
+
+        # 2. Duplicate component property
+        with self.assertRaises(ExpressDuplicatePropertyError) as ctx:
+            compiler.compile('root = Text("Positional", text="KeywordDuplicate")')
+        self.assertEqual(ctx.exception.comp_name, "Text")
+        self.assertEqual(ctx.exception.prop_name, "text")
+
+        # 3. Invalid function parameter
+        with self.assertRaises(ExpressInvalidParamError) as ctx:
+            compiler.compile(
+                'root = Button("Click", action=openUrl("https://example.com",'
+                " unknownParam=123))"
+            )
+        self.assertEqual(ctx.exception.fn_name, "openUrl")
+        self.assertEqual(ctx.exception.param_name, "unknownParam")
+
+        # 4. Duplicate function parameter
+        with self.assertRaises(ExpressDuplicateParamError) as ctx:
+            compiler.compile(
+                'root = Button("Click", action=openUrl("https://example.com",'
+                ' url="https://duplicate.com"))'
+            )
+        self.assertEqual(ctx.exception.fn_name, "openUrl")
+        self.assertEqual(ctx.exception.param_name, "url")
+
+        # 5. Missing root definition
+        with self.assertRaises(ExpressUndefinedRootError) as ctx:
+            compiler.compile('some_var = Text("Hello")')
+        self.assertEqual(ctx.exception.root_target, "root")
+
+    def test_compiler_extended_check_and_enum_coverage(self):
+        """Tests additional check expressions and invalid enum choice validation."""
+        compiler = ExpressCompiler(self.catalog)
+
+        # Check expression with explicit integer parameter and custom error message
+        dsl = (
+            'root = TextField("Username", value=$user, checks=[?isLength(5, 20,'
+            ' "Username must be between 5 and 20 chars")])'
+        )
+        envelope = compiler.compile(dsl)
+        components = envelope["createSurface"]["components"]
+        comp = components[0]
+        self.assertEqual(len(comp["checks"]), 1)
+        check = comp["checks"][0]
+        self.assertEqual(check["message"], "Username must be between 5 and 20 chars")
+
+        # Invalid enum choice validation
+        with self.assertRaises(ValueError) as ctx:
+            compiler.compile('root = Text("Hello", variant="invalid_variant_enum")')
+        self.assertIn("is not a valid enum choice", str(ctx.exception))
 
 
 if __name__ == "__main__":
