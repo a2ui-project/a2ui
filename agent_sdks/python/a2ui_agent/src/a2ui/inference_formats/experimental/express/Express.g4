@@ -81,12 +81,23 @@ check
     : CHECK ('(' (expression (',' expression)* ','?)? ')')?
     ;
 
-/**
- * A component constructor or function call.
- * Accepts positional expressions and optional trailing commas.
- */
 call
-    : identifier '(' (expression (',' expression)* ','?)? ')'
+    : identifier '(' (arg (',' arg)* ','?)? ')'
+    ;
+
+/**
+ * A single call argument, which can be named or positional.
+ */
+arg
+    : named_arg
+    | expression
+    ;
+
+/**
+ * A named argument assignment (e.g. 'variant = "primary"').
+ */
+named_arg
+    : identifier '=' expression
     ;
 
 /**
