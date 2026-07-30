@@ -122,7 +122,9 @@ class _ExpressDecompiler:
         full_dsl = "\n".join(blocks)
         return f"{A2UI_INFERENCE_OPEN_TAG}\n{full_dsl}\n{A2UI_INFERENCE_CLOSE_TAG}"
 
-    def decompile(self, envelope_json: dict) -> str:
+    def decompile(
+        self, envelope_json: dict, use_keyword_args: bool = False
+    ) -> str:
         """Decompiles standard A2UI wire JSON into clean A2UI Express lines.
 
         Args:
@@ -268,17 +270,22 @@ class _ExpressDecompiler:
                     val = c[prop_name]
                     p_schema = self.helper.get_property_schema(comp_name, prop_name)
                     is_prop_ref = _is_component_reference_property(p_schema)
-                    args_reprs.append(self._decompile_value(val, comp_ids, is_prop_ref))
+                    val_str = self._decompile_value(val, comp_ids, is_prop_ref)
+                    if use_keyword_args:
+                        args_reprs.append(f"{prop_name}={val_str}")
+                    else:
+                        args_reprs.append(val_str)
                 else:
-                    # Only append "_" if there is a subsequent regular property that has a value
-                    idx = properties.index(prop_name)
-                    has_subsequent_val = False
-                    for p in properties[idx + 1 :]:
-                        if p != "checks" and p in c:
-                            has_subsequent_val = True
-                            break
-                    if has_subsequent_val:
-                        args_reprs.append("_")
+                    if not use_keyword_args:
+                        # Only append "_" if there is a subsequent regular property that has a value
+                        idx = properties.index(prop_name)
+                        has_subsequent_val = False
+                        for p in properties[idx + 1 :]:
+                            if p != "checks" and p in c:
+                                has_subsequent_val = True
+                                break
+                        if has_subsequent_val:
+                            args_reprs.append("_")
 
             # Strip trailing optional skipped arguments for readability
             while args_reprs and args_reprs[-1] == "_":
