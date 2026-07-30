@@ -28,7 +28,7 @@ from .generated.express_lexer import ExpressLexer
 from .generated.express_parser import ExpressParser
 from .visitor import ExpressAstVisitor, ExpressErrorListener
 from .schema_helper import CatalogSchemaHelper
-from .constants import SurfaceOperation
+from .constants import SurfaceOperation, A2uiWireMessage
 from .errors import (
     ExpressCompilerError,
     ExpressUnknownPropertyError,
@@ -199,7 +199,7 @@ class ExpressCompiler:
         catalog_id: str = "",
         is_final: bool = True,
         version: Optional[str] = None,
-    ) -> list[dict[str, Any]]:
+    ) -> list[A2uiWireMessage]:
         """Compiles plain A2UI Express DSL into standard A2UI wire JSON.
 
         Args:

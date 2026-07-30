@@ -12,7 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Constants used by A2UI Express."""
+from typing import Any, Dict
+
+A2uiWireMessage = Dict[str, Any]
 
 
 class SurfaceOperation:
