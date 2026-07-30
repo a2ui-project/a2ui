@@ -50,27 +50,39 @@ class ExpressLiveDemoTest {
     val outputFile = File("../../express_live_demo_output.txt").canonicalFile
     val sb = StringBuilder()
 
-    sb.appendLine("================================================================================")
-    sb.appendLine("                     A2UI Express Format Live Demonstration                     ")
-    sb.appendLine("================================================================================")
+    sb.appendLine(
+      "================================================================================"
+    )
+    sb.appendLine(
+      "                     A2UI Express Format Live Demonstration                     "
+    )
+    sb.appendLine(
+      "================================================================================"
+    )
     sb.appendLine()
 
     // 1. Initialize format for v0.9 compliant target
     val format = ExpressFormat(catalog = catalog, surfaceId = "main_surface", version = "v0.9")
 
     // 2. Generate Prompt Contract
-    sb.appendLine("--------------------------------------------------------------------------------")
-    sb.appendLine("1. GENERATED SYSTEM PROMPT CONTRACT")
-    sb.appendLine("--------------------------------------------------------------------------------")
-    val prompt = format.promptGenerator.generate(
-      roleDescription = "You are a customer service assistant capable of rendering UI.",
-      includeSchema = true
+    sb.appendLine(
+      "--------------------------------------------------------------------------------"
     )
+    sb.appendLine("1. GENERATED SYSTEM PROMPT CONTRACT")
+    sb.appendLine(
+      "--------------------------------------------------------------------------------"
+    )
+    val prompt =
+      format.promptGenerator.generate(
+        roleDescription = "You are a customer service assistant capable of rendering UI.",
+        includeSchema = true,
+      )
     sb.appendLine(prompt)
     sb.appendLine()
 
     // 3. Compile Express DSL Response into A2UI v1.0 JSON Envelope
-    val expressResponse = """
+    val expressResponse =
+      """
       Here is your requested registration form:
       <a2ui>
       root = Column([title, nameInput, emailInput, submitBtn])
@@ -79,18 +91,27 @@ class ExpressLiveDemoTest {
       emailInput = TextField("Email Address", $/user/email, "user@example.com", ?required)
       submitBtn = Button("Submit Registration", Event("save_customer", {name: $/user/name, email: $/user/email}))
       </a2ui>
-    """.trimIndent()
+    """
+        .trimIndent()
 
-    sb.appendLine("--------------------------------------------------------------------------------")
+    sb.appendLine(
+      "--------------------------------------------------------------------------------"
+    )
     sb.appendLine("2. RAW LLM RESPONSE CONTAINING A2UI EXPRESS DSL")
-    sb.appendLine("--------------------------------------------------------------------------------")
+    sb.appendLine(
+      "--------------------------------------------------------------------------------"
+    )
     sb.appendLine(expressResponse)
     sb.appendLine()
 
     val responseParts = format.parser.parseResponse(expressResponse)
-    sb.appendLine("--------------------------------------------------------------------------------")
+    sb.appendLine(
+      "--------------------------------------------------------------------------------"
+    )
     sb.appendLine("3. PARSED RESPONSE PARTS (TEXT + COMPILED A2UI JSON)")
-    sb.appendLine("--------------------------------------------------------------------------------")
+    sb.appendLine(
+      "--------------------------------------------------------------------------------"
+    )
     for ((idx, part) in responseParts.withIndex()) {
       sb.appendLine("Part #$idx:")
       if (part.a2uiRaw != null) {
@@ -108,15 +129,25 @@ class ExpressLiveDemoTest {
     val compiledEnvelope = expressPart.a2uiJson!![0] as JsonObject
     val decompiledDsl = format.parser.decompile(compiledEnvelope)
 
-    sb.appendLine("--------------------------------------------------------------------------------")
+    sb.appendLine(
+      "--------------------------------------------------------------------------------"
+    )
     sb.appendLine("4. DECOMPILED EXPRESS DSL FROM JSON ENVELOPE")
-    sb.appendLine("--------------------------------------------------------------------------------")
+    sb.appendLine(
+      "--------------------------------------------------------------------------------"
+    )
     sb.appendLine(decompiledDsl)
     sb.appendLine()
 
-    sb.appendLine("================================================================================")
-    sb.appendLine("                              DEMO COMPLETE SUCCESS                             ")
-    sb.appendLine("================================================================================")
+    sb.appendLine(
+      "================================================================================"
+    )
+    sb.appendLine(
+      "                              DEMO COMPLETE SUCCESS                             "
+    )
+    sb.appendLine(
+      "================================================================================"
+    )
 
     outputFile.writeText(sb.toString())
     println("Demo output successfully written to: ${outputFile.absolutePath}")

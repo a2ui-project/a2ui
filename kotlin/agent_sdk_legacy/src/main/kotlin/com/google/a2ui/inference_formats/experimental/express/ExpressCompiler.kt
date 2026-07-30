@@ -105,10 +105,7 @@ class CompileContext {
  *
  * Compiles A2UI Express plain-text DSL statements into standard A2UI v1.0 JSON messages.
  */
-class ExpressCompiler(
-  val catalog: A2uiCatalog,
-  val version: String = "v1.0",
-) {
+class ExpressCompiler(val catalog: A2uiCatalog, val version: String = "v1.0") {
   val helper = CatalogSchemaHelper(catalog)
 
   fun compile(
@@ -229,7 +226,9 @@ class ExpressCompiler(
 
     if (standaloneFunctionCalls.isNotEmpty()) {
       if (targetVersion == "v0.9" || targetVersion == "v0.9.1") {
-        throw A2uiParseException("Standalone function calls are not supported in A2UI $targetVersion")
+        throw A2uiParseException(
+          "Standalone function calls are not supported in A2UI $targetVersion"
+        )
       }
       val firstCall = standaloneFunctionCalls[0]
       ctx.inlineCounter++
@@ -281,42 +280,46 @@ class ExpressCompiler(
     val finalCatalogId = if (catalogId.isNotEmpty()) catalogId else catalog.catalogId
 
     if (targetVersion == "v0.9" || targetVersion == "v0.9.1") {
-      val messages = mutableListOf<JsonElement>(
-        JsonObject(
-          mapOf(
-            "version" to JsonPrimitive(targetVersion),
-            SurfaceOperation.CREATE to JsonObject(
-              mapOf(
-                "surfaceId" to JsonPrimitive(surfaceId),
-                "catalogId" to JsonPrimitive(finalCatalogId),
-              )
-            ),
-          )
-        ),
-        JsonObject(
-          mapOf(
-            "version" to JsonPrimitive(targetVersion),
-            "updateComponents" to JsonObject(
-              mapOf(
-                "surfaceId" to JsonPrimitive(surfaceId),
-                "components" to JsonArray(compiledComponents),
-              )
-            ),
-          )
+      val messages =
+        mutableListOf<JsonElement>(
+          JsonObject(
+            mapOf(
+              "version" to JsonPrimitive(targetVersion),
+              SurfaceOperation.CREATE to
+                JsonObject(
+                  mapOf(
+                    "surfaceId" to JsonPrimitive(surfaceId),
+                    "catalogId" to JsonPrimitive(finalCatalogId),
+                  )
+                ),
+            )
+          ),
+          JsonObject(
+            mapOf(
+              "version" to JsonPrimitive(targetVersion),
+              "updateComponents" to
+                JsonObject(
+                  mapOf(
+                    "surfaceId" to JsonPrimitive(surfaceId),
+                    "components" to JsonArray(compiledComponents),
+                  )
+                ),
+            )
+          ),
         )
-      )
       if (dataModel.isNotEmpty()) {
         messages.add(
           JsonObject(
             mapOf(
               "version" to JsonPrimitive(targetVersion),
-              SurfaceOperation.UPDATE_DATA to JsonObject(
-                mapOf(
-                  "surfaceId" to JsonPrimitive(surfaceId),
-                  "path" to JsonPrimitive("/"),
-                  "value" to anyToJsonElement(dataModel),
-                )
-              ),
+              SurfaceOperation.UPDATE_DATA to
+                JsonObject(
+                  mapOf(
+                    "surfaceId" to JsonPrimitive(surfaceId),
+                    "path" to JsonPrimitive("/"),
+                    "value" to anyToJsonElement(dataModel),
+                  )
+                ),
             )
           )
         )
@@ -335,7 +338,10 @@ class ExpressCompiler(
     }
 
     return JsonObject(
-      mapOf("version" to JsonPrimitive(targetVersion), SurfaceOperation.CREATE to JsonObject(createMap))
+      mapOf(
+        "version" to JsonPrimitive(targetVersion),
+        SurfaceOperation.CREATE to JsonObject(createMap),
+      )
     )
   }
 
