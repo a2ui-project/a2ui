@@ -75,7 +75,7 @@ class ExpressDecompilerTest {
     """
         .trimIndent()
 
-    val compiled = compiler.compile(dsl, surfaceId = "main")
+    val compiled = compiler.compile(dsl, surfaceId = "main") as JsonObject
     val decompiled = decompiler.decompile(compiled)
 
     assertTrue(decompiled.contains("root = Column"))

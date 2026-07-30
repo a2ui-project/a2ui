@@ -105,7 +105,10 @@ class CompileContext {
  *
  * Compiles A2UI Express plain-text DSL statements into standard A2UI v1.0 JSON messages.
  */
-class ExpressCompiler(val catalog: A2uiCatalog) {
+class ExpressCompiler(
+  val catalog: A2uiCatalog,
+  val version: String = "v1.0",
+) {
   val helper = CatalogSchemaHelper(catalog)
 
   fun compile(
@@ -113,7 +116,9 @@ class ExpressCompiler(val catalog: A2uiCatalog) {
     surfaceId: String = "default_surface",
     catalogId: String = "",
     isFinal: Boolean = true,
-  ): JsonObject {
+    version: String? = null,
+  ): JsonElement {
+    val targetVersion = version ?: this.version
     val ctx = CompileContext()
     val hasSentinels = dslText.contains(A2uiConstants.A2UI_OPEN_TAG)
     val lines = mutableListOf<String>()
@@ -215,7 +220,7 @@ class ExpressCompiler(val catalog: A2uiCatalog) {
     if (targetDeleteSurfaceId != null) {
       return JsonObject(
         mapOf(
-          "version" to JsonPrimitive("v1.0"),
+          "version" to JsonPrimitive(targetVersion),
           SurfaceOperation.DELETE to
             JsonObject(mapOf("surfaceId" to JsonPrimitive(targetDeleteSurfaceId))),
         )
@@ -223,6 +228,9 @@ class ExpressCompiler(val catalog: A2uiCatalog) {
     }
 
     if (standaloneFunctionCalls.isNotEmpty()) {
+      if (targetVersion == "v0.9" || targetVersion == "v0.9.1") {
+        throw A2uiParseException("Standalone function calls are not supported in A2UI $targetVersion")
+      }
       val firstCall = standaloneFunctionCalls[0]
       ctx.inlineCounter++
       val compiledVal = compileValue(firstCall, rawSymbols, ctx, isAction = false)
@@ -232,7 +240,7 @@ class ExpressCompiler(val catalog: A2uiCatalog) {
 
       return JsonObject(
         mapOf(
-          "version" to JsonPrimitive("v1.0"),
+          "version" to JsonPrimitive(targetVersion),
           "functionCallId" to JsonPrimitive("call_${ctx.inlineCounter}"),
           SurfaceOperation.CALL_FUNC to
             JsonObject(mapOf("call" to JsonPrimitive(fnName), "args" to fnArgs)),
@@ -244,7 +252,7 @@ class ExpressCompiler(val catalog: A2uiCatalog) {
       if (dataPathAssignments.isNotEmpty()) {
         return JsonObject(
           mapOf(
-            "version" to JsonPrimitive("v1.0"),
+            "version" to JsonPrimitive(targetVersion),
             SurfaceOperation.UPDATE_DATA to
               JsonObject(
                 mapOf(
@@ -272,6 +280,50 @@ class ExpressCompiler(val catalog: A2uiCatalog) {
 
     val finalCatalogId = if (catalogId.isNotEmpty()) catalogId else catalog.catalogId
 
+    if (targetVersion == "v0.9" || targetVersion == "v0.9.1") {
+      val messages = mutableListOf<JsonElement>(
+        JsonObject(
+          mapOf(
+            "version" to JsonPrimitive(targetVersion),
+            SurfaceOperation.CREATE to JsonObject(
+              mapOf(
+                "surfaceId" to JsonPrimitive(surfaceId),
+                "catalogId" to JsonPrimitive(finalCatalogId),
+              )
+            ),
+          )
+        ),
+        JsonObject(
+          mapOf(
+            "version" to JsonPrimitive(targetVersion),
+            "updateComponents" to JsonObject(
+              mapOf(
+                "surfaceId" to JsonPrimitive(surfaceId),
+                "components" to JsonArray(compiledComponents),
+              )
+            ),
+          )
+        )
+      )
+      if (dataModel.isNotEmpty()) {
+        messages.add(
+          JsonObject(
+            mapOf(
+              "version" to JsonPrimitive(targetVersion),
+              SurfaceOperation.UPDATE_DATA to JsonObject(
+                mapOf(
+                  "surfaceId" to JsonPrimitive(surfaceId),
+                  "path" to JsonPrimitive("/"),
+                  "value" to anyToJsonElement(dataModel),
+                )
+              ),
+            )
+          )
+        )
+      }
+      return JsonArray(messages)
+    }
+
     val createMap =
       mutableMapOf<String, JsonElement>(
         "surfaceId" to JsonPrimitive(surfaceId),
@@ -283,7 +335,7 @@ class ExpressCompiler(val catalog: A2uiCatalog) {
     }
 
     return JsonObject(
-      mapOf("version" to JsonPrimitive("v1.0"), SurfaceOperation.CREATE to JsonObject(createMap))
+      mapOf("version" to JsonPrimitive(targetVersion), SurfaceOperation.CREATE to JsonObject(createMap))
     )
   }
 

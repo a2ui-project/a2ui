@@ -26,7 +26,11 @@ import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
 
 /** Concrete parser implementation for A2UI Express DSL responses. */
-class ExpressParser(val catalog: A2uiCatalog, val surfaceId: String = "main") : Parser {
+class ExpressParser(
+  val catalog: A2uiCatalog,
+  val surfaceId: String = "main",
+  val version: String = "v1.0",
+) : Parser {
 
   override fun hasFormatContent(content: String, complete: Boolean): Boolean {
     if (complete) {
@@ -46,10 +50,14 @@ class ExpressParser(val catalog: A2uiCatalog, val surfaceId: String = "main") : 
   }
 
   override fun compile(formatContent: String, isFinal: Boolean): List<JsonElement> {
-    val compiler = ExpressCompiler(catalog)
+    val compiler = ExpressCompiler(catalog, version = version)
     return try {
       val compiledJson = compiler.compile(formatContent, surfaceId = surfaceId, isFinal = isFinal)
-      listOf(compiledJson)
+      if (compiledJson is kotlinx.serialization.json.JsonArray) {
+        compiledJson.toList()
+      } else {
+        listOf(compiledJson)
+      }
     } catch (e: Exception) {
       throw A2uiCompilationError(
         message = e.message ?: "Failed to compile Express DSL",

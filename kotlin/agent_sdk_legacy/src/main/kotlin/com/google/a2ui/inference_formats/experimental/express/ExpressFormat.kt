@@ -32,6 +32,7 @@ class ExpressFormat(
   val catalog: A2uiCatalog? = null,
   val surfaceId: String = "main",
   val examplesPath: String? = null,
+  val version: String = "v1.0",
 ) : InferenceFormat {
 
   fun ensureCatalog(): A2uiCatalog {
@@ -48,6 +49,6 @@ class ExpressFormat(
 
   override val parser: Parser by lazy {
     val cat = ensureCatalog()
-    ExpressParser(cat, surfaceId)
+    ExpressParser(cat, surfaceId, version = version)
   }
 }

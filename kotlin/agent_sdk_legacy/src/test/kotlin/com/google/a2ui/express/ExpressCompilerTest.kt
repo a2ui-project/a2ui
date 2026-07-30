@@ -80,7 +80,7 @@ class ExpressCompilerTest {
     """
         .trimIndent()
 
-    val envelope = compiler.compile(dsl, surfaceId = "test_surf")
+    val envelope = compiler.compile(dsl, surfaceId = "test_surf") as JsonObject
     assertEquals("v1.0", (envelope["version"] as JsonPrimitive).content)
 
     val createSurf = envelope["createSurface"] as JsonObject
@@ -113,9 +113,51 @@ class ExpressCompilerTest {
   fun testDeleteSurfaceCompilation() {
     val compiler = ExpressCompiler(catalog)
     val dsl = "deleteSurface(\"test-surface-123\")"
-    val envelope = compiler.compile(dsl)
+    val envelope = compiler.compile(dsl) as JsonObject
 
     val deleteSurf = envelope["deleteSurface"] as JsonObject
     assertEquals("test-surface-123", (deleteSurf["surfaceId"] as JsonPrimitive).content)
+  }
+
+  @Test
+  fun testCompilationV09MultiMessage() {
+    val compiler = ExpressCompiler(catalog, version = "v0.9")
+    val dsl =
+      """
+      root = Column([txt])
+      txt = Text("Hello World")
+      $/user/name = "Alice"
+      """
+        .trimIndent()
+
+    val array = compiler.compile(dsl, surfaceId = "surf_v09") as JsonArray
+    assertEquals(3, array.size)
+
+    val msg0 = array[0] as JsonObject
+    assertEquals("v0.9", (msg0["version"] as JsonPrimitive).content)
+    val createSurf = msg0["createSurface"] as JsonObject
+    assertEquals("surf_v09", (createSurf["surfaceId"] as JsonPrimitive).content)
+    assertTrue(!createSurf.containsKey("components"))
+
+    val msg1 = array[1] as JsonObject
+    assertEquals("v0.9", (msg1["version"] as JsonPrimitive).content)
+    val updateComps = msg1["updateComponents"] as JsonObject
+    assertEquals("surf_v09", (updateComps["surfaceId"] as JsonPrimitive).content)
+    assertTrue(updateComps.containsKey("components"))
+
+    val msg2 = array[2] as JsonObject
+    assertEquals("v0.9", (msg2["version"] as JsonPrimitive).content)
+    val updateData = msg2["updateDataModel"] as JsonObject
+    assertEquals("surf_v09", (updateData["surfaceId"] as JsonPrimitive).content)
+  }
+
+  @Test
+  fun testCompilationV091Target() {
+    val compiler = ExpressCompiler(catalog, version = "v0.9.1")
+    val dsl = "root = Text(\"Hi\")"
+    val array = compiler.compile(dsl, surfaceId = "surf_v091") as JsonArray
+    assertEquals(2, array.size)
+    assertEquals("v0.9.1", ((array[0] as JsonObject)["version"] as JsonPrimitive).content)
+    assertEquals("v0.9.1", ((array[1] as JsonObject)["version"] as JsonPrimitive).content)
   }
 }
