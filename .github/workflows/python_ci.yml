@@ -24,6 +24,7 @@ on:
       - "samples/agent/adk/**"
       - ".agents/skills/**"
       - "scripts/run_skills_tests.py"
+      - ".github/scripts/**"
       - ".github/workflows/python_ci.yml"
       - ".github/actions/setup-python/**"
   pull_request:
@@ -34,6 +35,7 @@ on:
       - "samples/agent/adk/**"
       - ".agents/skills/**"
       - "scripts/run_skills_tests.py"
+      - ".github/scripts/**"
       - ".github/workflows/python_ci.yml"
       - ".github/actions/setup-python/**"
 
@@ -68,3 +70,5 @@ jobs:
         run: uv build --all
       - name: Run Skills Unit Tests
         run: uv run python3 scripts/run_skills_tests.py
+      - name: Run Workflow Script Unit Tests
+        run: python3 -m unittest discover -s .github/scripts/tests

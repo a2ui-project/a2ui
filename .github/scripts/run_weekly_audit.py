@@ -16,9 +16,6 @@
 
 import os
 import time
-from google import genai
-
-
 def main() -> None:
     api_key = os.environ.get("GEMINI_API_KEY")
     if not api_key:
@@ -29,6 +26,8 @@ def main() -> None:
     gh_token = os.environ.get("GH_TOKEN")
     if not gh_token:
         raise ValueError("GH_TOKEN environment variable is not configured.")
+
+    from google import genai
 
     client = genai.Client(api_key=api_key)
 
