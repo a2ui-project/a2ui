@@ -116,18 +116,30 @@ async def calculate_via_mcp(operation: str, a: float, b: float):
         return f"Error connecting to MCP server: {e}"
 
 
-async def get_pong_app_a2ui_json(tool_context: ToolContext):
-    """Fetches the Pong game app."""
+async def get_pong_mcp_app_json(tool_context: ToolContext):
+    """Fetches the Pong game app using the McpApp component."""
 
     current_dir = os.path.dirname(os.path.abspath(__file__))
-    html_file_path = os.path.join(current_dir, "pong_app.html")
+    html_file_path = os.path.join(current_dir, "pong_base.html")
+    mcp_bridge_path = os.path.join(current_dir, "pong_mcp_bridge.js")
+    engine_path = os.path.join(current_dir, "pong_engine.js")
 
     try:
         with open(html_file_path, "r", encoding="utf-8") as f:
             html_content = f.read()
-    except FileNotFoundError:
-        logger.error(f"Could not find {html_file_path}")
-        return {"error": "Could not find pong app HTML file."}
+        with open(mcp_bridge_path, "r", encoding="utf-8") as f:
+            mcp_bridge = f.read()
+        with open(engine_path, "r", encoding="utf-8") as f:
+            engine = f.read()
+
+        html_content = html_content.replace("// {{BRIDGE_SCRIPT}}", mcp_bridge).replace(
+            "// {{ENGINE_SCRIPT}}", engine
+        )
+    except FileNotFoundError as e:
+        logger.error(f"Could not find pong app file: {e.filename}")
+        return {
+            "error": f"Could not find pong app file: {os.path.basename(e.filename)}"
+        }
 
     encoded_html = "url_encoded:" + urllib.parse.quote(html_content)
 
