@@ -72,10 +72,10 @@ Use these exact positional signatures to instantiate components. Do not output p
   - url: The URL of the audio to be played.
   - description: A description of the audio, such as a title or summary.
 • Button(child (component ID), variant?, action, checks?)
-  - child: The ID of the child component. Use a 'Text' component for a labeled button. Only use an 'Icon' if the requirements explicitly ask for an icon-only button. Do NOT define the child component inline.
+  - child: The ID of the child component. Use a 'Text' component for a labeled button. Only use an 'Icon' if the requirements explicitly ask for an icon-only button.
   - variant: A hint for the button style. If omitted, a default button style is used. 'primary' indicates this is the main call-to-action button. 'borderless' means the button has no visual border or background, making its child content appear like a clickable link. Must be one of: 'default', 'primary', 'borderless'
 • Card(child (component ID))
-  - child: The ID of the single child component to be rendered inside the card. To display multiple elements, you MUST wrap them in a layout component (like Column or Row) and pass that container's ID here. Do NOT pass multiple IDs or a non-existent ID. Do NOT define the child component inline.
+  - child: The ID of the single child component to be rendered inside the card. To display multiple elements, you MUST wrap them in a layout component (like Column or Row) and pass that container's ID here. Do NOT pass multiple IDs or a non-existent ID.
 • CheckBox(label, value, checks?)
   - label: The text to display next to the checkbox.
   - value: The current state of the checkbox (true for checked, false for unchecked).
@@ -113,8 +113,8 @@ Use these exact positional signatures to instantiate components. Do not output p
   - direction: The direction in which the list items are laid out. Must be one of: 'vertical', 'horizontal'
   - align: Defines the alignment of children along the cross axis. Must be one of: 'start', 'center', 'end', 'stretch'
 • Modal(trigger (component ID), content (component ID))
-  - trigger: The ID of the component that opens the modal when interacted with (e.g., a button). Do NOT define the component inline.
-  - content: The ID of the component to be displayed inside the modal. Do NOT define the component inline.
+  - trigger: The ID of the component that opens the modal when interacted with (e.g., a button).
+  - content: The ID of the component to be displayed inside the modal.
 • Row(children, justify?, align?)
   - Description: A layout component that arranges its children horizontally. To create a grid layout, nest Columns within this Row.
   - children: Defines the children. Use an array of strings for a fixed set of children, or a template object to generate children from a data list. Children cannot be defined inline, they must be referred to by ID.
