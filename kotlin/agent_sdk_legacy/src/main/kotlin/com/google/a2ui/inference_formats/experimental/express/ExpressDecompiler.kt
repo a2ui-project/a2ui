@@ -337,7 +337,11 @@ class ExpressDecompiler(val catalog: A2uiCatalog) {
 
         val itemsReprs = mutableListOf<String>()
         for ((k, v) in valElement) {
-          val kRepr = if (IDENTIFIER_REGEX.matches(k)) k else decompileString(k)
+          val isIdentifier =
+            k.isNotEmpty() &&
+              (k[0].isLetter() || k[0] == '_') &&
+              k.all { it.isLetterOrDigit() || it == '_' }
+          val kRepr = if (isIdentifier) k else decompileString(k)
           itemsReprs.add("$kRepr: ${decompileValue(v, compIds)}")
         }
         return "{${itemsReprs.joinToString(", ")}}"

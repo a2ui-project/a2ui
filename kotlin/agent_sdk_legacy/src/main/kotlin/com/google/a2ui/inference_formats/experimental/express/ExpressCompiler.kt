@@ -117,21 +117,21 @@ class ExpressCompiler(val catalog: A2uiCatalog, val version: String = "v1.0") {
   ): JsonElement {
     val targetVersion = version ?: this.version
     val ctx = CompileContext()
-    val hasSentinels = dslText.contains(A2uiConstants.A2UI_OPEN_TAG)
+    val hasSentinels = dslText.contains(A2uiConstants.A2UI_INFERENCE_OPEN_TAG)
     val lines = mutableListOf<String>()
     var insideA2ui = !hasSentinels
 
     for (line in dslText.lines()) {
       var trimmed = line.trim()
       var activeLine = line
-      if (trimmed.contains(A2uiConstants.A2UI_OPEN_TAG)) {
+      if (trimmed.contains(A2uiConstants.A2UI_INFERENCE_OPEN_TAG)) {
         insideA2ui = true
-        activeLine = activeLine.replace(A2uiConstants.A2UI_OPEN_TAG, "")
+        activeLine = activeLine.replace(A2uiConstants.A2UI_INFERENCE_OPEN_TAG, "")
         trimmed = activeLine.trim()
       }
-      if (trimmed.contains(A2uiConstants.A2UI_CLOSE_TAG)) {
+      if (trimmed.contains(A2uiConstants.A2UI_INFERENCE_CLOSE_TAG)) {
         insideA2ui = false
-        activeLine = activeLine.split(A2uiConstants.A2UI_CLOSE_TAG)[0]
+        activeLine = activeLine.split(A2uiConstants.A2UI_INFERENCE_CLOSE_TAG)[0]
         if (activeLine.trim().isNotEmpty()) {
           lines.add(activeLine)
         }
