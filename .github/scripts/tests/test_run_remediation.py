@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Unit tests for .github/scripts/run_weekly_audit.py."""
+"""Unit tests for .github/scripts/run_remediation.py."""
 
 import os
 import sys
@@ -24,44 +24,90 @@ REPO_ROOT = Path(__file__).resolve().parents[3]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
-# Dynamically import run_weekly_audit script
 import importlib.util
 
-script_path = REPO_ROOT / ".github" / "scripts" / "run_weekly_audit.py"
-spec = importlib.util.spec_from_file_location("run_weekly_audit", script_path)
+script_path = REPO_ROOT / ".github" / "scripts" / "run_remediation.py"
+spec = importlib.util.spec_from_file_location("run_remediation", script_path)
 assert spec is not None
 assert spec.loader is not None
-run_weekly_audit = importlib.util.module_from_spec(spec)
-spec.loader.exec_module(run_weekly_audit)
-main = run_weekly_audit.main
+run_remediation = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(run_remediation)
+main = run_remediation.main
 
 
-class TestRunWeeklyAudit(unittest.TestCase):
+class TestRunRemediation(unittest.TestCase):
 
-    @patch.dict(os.environ, {}, clear=True)
+    @patch.dict(
+        os.environ,
+        {
+            "GITHUB_TOKEN": "fake-token",
+            "ISSUE_NUMBER": "2138",
+            "RECOMMENDATION_INDEX": "1",
+        },
+        clear=True,
+    )
     def test_missing_gemini_api_key(self) -> None:
         with self.assertRaisesRegex(ValueError, "GEMINI_API_KEY"):
             main()
 
-    @patch.dict(os.environ, {"GEMINI_API_KEY": "fake-key"}, clear=True)
+    @patch.dict(
+        os.environ,
+        {
+            "GEMINI_API_KEY": "fake-key",
+            "ISSUE_NUMBER": "2138",
+            "RECOMMENDATION_INDEX": "1",
+        },
+        clear=True,
+    )
     def test_missing_github_token(self) -> None:
         with self.assertRaisesRegex(ValueError, "GITHUB_TOKEN"):
+            main()
+
+    @patch.dict(
+        os.environ,
+        {
+            "GEMINI_API_KEY": "fake-key",
+            "GITHUB_TOKEN": "fake-token",
+            "RECOMMENDATION_INDEX": "1",
+        },
+        clear=True,
+    )
+    def test_missing_issue_number(self) -> None:
+        with self.assertRaisesRegex(ValueError, "ISSUE_NUMBER"):
+            main()
+
+    @patch.dict(
+        os.environ,
+        {
+            "GEMINI_API_KEY": "fake-key",
+            "GITHUB_TOKEN": "fake-token",
+            "ISSUE_NUMBER": "2138",
+        },
+        clear=True,
+    )
+    def test_missing_recommendation_index(self) -> None:
+        with self.assertRaisesRegex(ValueError, "RECOMMENDATION_INDEX"):
             main()
 
     @patch("time.sleep", return_value=None)
     @patch.dict(
         os.environ,
-        {"GEMINI_API_KEY": "fake-key", "GITHUB_TOKEN": "fake-token"},
+        {
+            "GEMINI_API_KEY": "fake-key",
+            "GITHUB_TOKEN": "fake-token",
+            "ISSUE_NUMBER": "2138",
+            "RECOMMENDATION_INDEX": "1",
+        },
         clear=True,
     )
-    def test_successful_audit_run(self, mock_sleep: MagicMock) -> None:
+    def test_successful_remediation_run(self, mock_sleep: MagicMock) -> None:
         mock_genai = MagicMock()
         mock_client = MagicMock()
         mock_genai.Client.return_value = mock_client
 
-        mock_interaction_queued = MagicMock(id="test-id-123", status="queued")
+        mock_interaction_queued = MagicMock(id="test-rem-id", status="queued")
         mock_interaction_completed = MagicMock(
-            id="test-id-123", status="completed", output_text="Audit Passed"
+            id="test-rem-id", status="completed", output_text="Remediation Passed"
         )
 
         mock_client.interactions.create.return_value = mock_interaction_queued
@@ -77,23 +123,28 @@ class TestRunWeeklyAudit(unittest.TestCase):
 
         mock_genai.Client.assert_called_once_with(api_key="fake-key")
         mock_client.interactions.create.assert_called_once()
-        mock_client.interactions.get.assert_called_with(id="test-id-123")
+        mock_client.interactions.get.assert_called_with(id="test-rem-id")
         mock_sleep.assert_called_once_with(30)
 
     @patch("time.sleep", return_value=None)
     @patch.dict(
         os.environ,
-        {"GEMINI_API_KEY": "fake-key", "GITHUB_TOKEN": "fake-token"},
+        {
+            "GEMINI_API_KEY": "fake-key",
+            "GITHUB_TOKEN": "fake-token",
+            "ISSUE_NUMBER": "2138",
+            "RECOMMENDATION_INDEX": "1",
+        },
         clear=True,
     )
-    def test_failed_audit_run(self, mock_sleep: MagicMock) -> None:
+    def test_failed_remediation_run(self, mock_sleep: MagicMock) -> None:
         mock_genai = MagicMock()
         mock_client = MagicMock()
         mock_genai.Client.return_value = mock_client
 
-        mock_interaction_queued = MagicMock(id="test-id-123", status="queued")
+        mock_interaction_queued = MagicMock(id="test-rem-id", status="queued")
         mock_interaction_failed = MagicMock(
-            id="test-id-123", status="failed", output_text="Audit Failed"
+            id="test-rem-id", status="failed", output_text="Remediation Failed"
         )
 
         mock_client.interactions.create.return_value = mock_interaction_queued

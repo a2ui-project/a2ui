@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Executes the Antigravity weekly compliance audit using the Google GenAI SDK."""
+"""Executes an automated remediation PR creation using the Google GenAI SDK."""
 
 import inspect
 import os
@@ -29,16 +29,30 @@ def main() -> None:
     if not gh_token:
         raise ValueError("GITHUB_TOKEN environment variable is not configured.")
 
+    issue_num = os.environ.get("ISSUE_NUMBER")
+    if not issue_num:
+        raise ValueError("ISSUE_NUMBER environment variable is not configured.")
+
+    rec_idx = os.environ.get("RECOMMENDATION_INDEX")
+    if not rec_idx:
+        raise ValueError("RECOMMENDATION_INDEX environment variable is not configured.")
+
     from google import genai  # type: ignore[import-not-found]
 
     client = genai.Client(api_key=api_key)
 
-    prompt = inspect.cleandoc("""
+    prompt = inspect.cleandoc(f"""
         1. Clone the target repository: https://github.com/a2ui-project/a2ui (branch: main).
-        2. Find and execute the compliance audit skill at `.agents/skills/a2ui-audit/SKILL.md`.
+        2. In your terminal sessions, export the required environment variables:
+           export ISSUE_NUMBER="{issue_num}"
+           export RECOMMENDATION_INDEX="{rec_idx}"
+        3. Read and follow all instructions in `.agents/skills/a2ui-audit/references/remediate-problem.md` to remediate recommendation #{rec_idx} from issue #{issue_num} and submit a Draft Pull Request.
         """)
 
-    print("🚀 Launching Antigravity Agent interaction...")
+    print(
+        f"🚀 Launching Antigravity Agent interaction for Issue #{issue_num}"
+        f" Item #{rec_idx}..."
+    )
     interaction = client.interactions.create(
         agent="antigravity-preview-05-2026",
         input=prompt,
@@ -64,17 +78,19 @@ def main() -> None:
     attempts = 0
     while interaction.status in ["in_progress", "queued"]:
         if attempts >= max_attempts:
-            raise TimeoutError("Audit interaction timed out after 60 minutes.")
+            raise TimeoutError("Remediation interaction timed out after 60 minutes.")
         time.sleep(30)
         interaction = client.interactions.get(id=interaction.id)
         attempts += 1
         print(f"Current status: {interaction.status}...")
 
-    print("--- Audit Completed ---")
+    print("--- Remediation Completed ---")
     print(interaction.output_text)
 
     if interaction.status != "completed":
-        raise RuntimeError(f"Audit interaction ended with status: {interaction.status}")
+        raise RuntimeError(
+            f"Remediation interaction ended with status: {interaction.status}"
+        )
 
 
 if __name__ == "__main__":
