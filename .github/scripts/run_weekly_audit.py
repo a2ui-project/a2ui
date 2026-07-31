@@ -14,36 +14,10 @@
 
 """Executes the Antigravity weekly compliance audit using the Google GenAI SDK."""
 
+import inspect
 import os
-import subprocess
 import sys
 import time
-
-
-def extract_report_text(interaction) -> str:
-    """Extracts the longest text payload from the interaction steps or output."""
-    candidates: list[str] = []
-
-    if getattr(interaction, "output_text", None):
-        candidates.append(interaction.output_text.strip())
-
-    for step in getattr(interaction, "steps", None) or []:
-        step_dict = step.model_dump() if hasattr(step, "model_dump") else {}
-        for key in ("content", "result", "summary"):
-            val = step_dict.get(key)
-            if isinstance(val, str) and val.strip():
-                candidates.append(val.strip())
-            elif isinstance(val, list):
-                for item in val:
-                    if isinstance(item, dict):
-                        text = item.get("text", "").strip()
-                        if text:
-                            candidates.append(text)
-
-    if not candidates:
-        return ""
-
-    return max(candidates, key=len)
 
 
 def main() -> None:
@@ -59,16 +33,10 @@ def main() -> None:
 
     client = genai.Client(api_key=api_key)
 
-    prompt = (
-        "1. Clone the target repository: https://github.com/a2ui-project/a2ui (branch:"
-        " main).\n2. Locate and read the compliance skill file at"
-        " `.agents/skills/a2ui-audit/SKILL.md`.\n3. Follow all instructions in the"
-        " skill file to perform an Antigravity compliance audit on the repository.\n4."
-        " Publish the report as a new GitHub issue on a2ui-project/a2ui by executing:\n"
-        "   python3 .agents/skills/a2ui-audit/scripts/create_compliance_report.py"
-        " compliance_report.md --repo a2ui-project/a2ui\n5. Your final response MUST be"
-        " the complete Markdown report and nothing else."
-    )
+    prompt = inspect.cleandoc("""
+        1. Clone the target repository: https://github.com/a2ui-project/a2ui (branch: main).
+        2. Find and execute the compliance audit skill at `.agents/skills/a2ui-audit/SKILL.md`.
+        """)
 
     print("🚀 Launching Antigravity Agent interaction...")
     interaction = client.interactions.create(
@@ -91,10 +59,15 @@ def main() -> None:
 
     print(f"Interaction created! ID: {interaction.id}")
 
-    # Poll for completion with a 30-second interval
+    # Poll for completion with a 30-second interval (max 60 minutes)
+    max_attempts = 120
+    attempts = 0
     while interaction.status in ["in_progress", "queued"]:
+        if attempts >= max_attempts:
+            raise TimeoutError("Audit interaction timed out after 60 minutes.")
         time.sleep(30)
         interaction = client.interactions.get(id=interaction.id)
+        attempts += 1
         print(f"Current status: {interaction.status}...")
 
     print("--- Audit Completed ---")
@@ -102,30 +75,6 @@ def main() -> None:
 
     if interaction.status != "completed":
         raise RuntimeError(f"Audit interaction ended with status: {interaction.status}")
-
-    report_text = extract_report_text(interaction)
-    if report_text:
-        report_file = "compliance_report.md"
-        with open(report_file, "w", encoding="utf-8") as f:
-            f.write(report_text)
-
-        script_path = os.path.join(
-            ".agents", "skills", "a2ui-audit", "scripts", "create_compliance_report.py"
-        )
-        if os.path.exists(script_path):
-            print("📢 Publishing compliance report issue to GitHub...")
-            subprocess.run(
-                [
-                    sys.executable,
-                    script_path,
-                    report_file,
-                    "--repo",
-                    "a2ui-project/a2ui",
-                ],
-                check=False,
-            )
-        if os.path.exists(report_file):
-            os.remove(report_file)
 
 
 if __name__ == "__main__":

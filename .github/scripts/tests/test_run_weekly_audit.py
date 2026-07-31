@@ -46,23 +46,20 @@ class TestRunWeeklyAudit(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "GITHUB_TOKEN"):
             main()
 
-    @patch("subprocess.run")
     @patch("time.sleep", return_value=None)
     @patch.dict(
         os.environ,
         {"GEMINI_API_KEY": "fake-key", "GITHUB_TOKEN": "fake-token"},
         clear=True,
     )
-    def test_successful_audit_run(
-        self, mock_sleep: MagicMock, mock_subprocess: MagicMock
-    ) -> None:
+    def test_successful_audit_run(self, mock_sleep: MagicMock) -> None:
         mock_genai = MagicMock()
         mock_client = MagicMock()
         mock_genai.Client.return_value = mock_client
 
         mock_interaction_queued = MagicMock(id="test-id-123", status="queued")
         mock_interaction_completed = MagicMock(
-            id="test-id-123", status="completed", output_text="# Audit Passed Report"
+            id="test-id-123", status="completed", output_text="Audit Passed"
         )
 
         mock_client.interactions.create.return_value = mock_interaction_queued
@@ -108,23 +105,6 @@ class TestRunWeeklyAudit(unittest.TestCase):
         ):
             with self.assertRaisesRegex(RuntimeError, "status: failed"):
                 main()
-
-    def test_extract_report_text(self) -> None:
-        extract_report_text = run_weekly_audit.extract_report_text
-
-        mock_int = MagicMock()
-        mock_int.output_text = "Short text"
-        mock_step = MagicMock()
-        mock_step.model_dump.return_value = {
-            "result": (
-                "This is a much longer report content extracted from interaction steps"
-            )
-        }
-        mock_int.steps = [mock_step]
-        self.assertEqual(
-            extract_report_text(mock_int),
-            "This is a much longer report content extracted from interaction steps",
-        )
 
 
 if __name__ == "__main__":
