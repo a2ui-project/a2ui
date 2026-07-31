@@ -11,13 +11,13 @@ A complete evaluation use case requires the full conversational context:
 - **System prompt (`system_prompt`)**: Domain-specific instructions, application personas, clinical triage rules, or business policies.
 - **Conversation history (`messages`)**: The complete dialogue sequence leading up to the final UI generation request.
 - **Tool call history (`tool_calls` and `tool` roles)**: Include all assistant function calls and tool return payloads—including unrelated tool calls or extra background context. Testing models with realistic, noisy conversation histories verifies that the agent can still reason accurately in the presence of potentially confusing extra context, representing real production usage.
-- **Expected output description (`target`)**: A qualitative rubric for the LLM-as-a-judge. Describe which UI components must appear, how data binding should be wired, and what errors should be penalized, rather than providing a hardcoded JSON string.
+- **Expected output description (`target`)**: A qualitative rubric for the LLM-as-a-judge. Do not include a hardcoded JSON string, as that ties the evaluation to a particular inference format (such as JSON vs. XML or DSL). Instead, describe which UI components must appear, how data binding should be wired, and what errors should be penalized.
 
 ## Creating representative synthetic data from production logs
 
 To contribute an effective evaluation data point, base your scenario on real production logs so the length, structure, and complexity reflect actual usage. However, evaluation datasets must never contain confidential information, personally identifiable information (PII), or proprietary business data.
 
-It is your responsibility as a contributor to personally audit every data point before submission and verify that all content is appropriate for public release.
+While the Contributor License Agreement (CLA) covers legal redistribution rights, it is your responsibility as a contributor to personally audit every data point before submission to verify that all content is free of confidential data, PII, or proprietary information and is appropriate for public release.
 
 ### Recommended anonymization workflow
 

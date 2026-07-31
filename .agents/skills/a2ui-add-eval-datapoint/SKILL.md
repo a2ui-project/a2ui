@@ -40,7 +40,7 @@ For a complete unencrypted reference example of a multi-turn conversation with s
 **Key authoring requirements from `eval/CONTRIBUTING_USE_CASES.md`:**
 
 - Include the full multi-turn conversation history (`messages`), including assistant function calls (`tool_calls`) and tool responses (`role: tool`). Do not use single-turn prompts.
-- Write the `target` as a qualitative judging rubric for the LLM-as-a-judge (what UI components must appear, data binding rules, and what errors to penalize), rather than a hardcoded JSON string.
+- Write the `target` as a qualitative judging rubric for the LLM-as-a-judge (what UI components must appear, data binding rules, and what errors to penalize). Do not include a hardcoded JSON string, as that ties the evaluation to a particular inference format.
 
 ### 3. Validate schema compliance
 
