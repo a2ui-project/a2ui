@@ -12,10 +12,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Standard A2UI transport inference format coordination."""
+"""Standard A2UI Direct JSON inference format coordination."""
 
 import copy
-from typing import Any, Optional, Callable, Union, cast
+from typing import Any, Optional, Callable, Union
 
 from a2ui.schema.utils import load_from_bundled_resource
 from a2ui.inference_format import InferenceFormat
@@ -26,18 +26,17 @@ from a2ui.schema.constants import (
     COMMON_TYPES_SCHEMA_KEY,
     SPEC_VERSION_MAP,
     INLINE_CATALOGS_KEY,
-    SUPPORTED_CATALOG_IDS_KEY,
     CATALOG_COMPONENTS_KEY,
     INLINE_CATALOG_NAME,
 )
 from a2ui.schema.catalog import CatalogConfig, A2uiCatalog
 from a2ui.core import A2uiCatalogError
-from a2ui.inference_formats.transport.parser import TransportParser
-from a2ui.inference_formats.transport.prompt_generator import TransportPromptGenerator
+from a2ui.inference_formats.direct_json.parser import DirectJsonParser
+from a2ui.inference_formats.direct_json.prompt_generator import DirectJsonPromptGenerator
 
 
-class TransportFormat(InferenceFormat):
-    """Manages standard A2UI JSON schema responses and prompt injection (Transport Format)."""
+class DirectJsonFormat(InferenceFormat):
+    """Manages standard A2UI JSON schema responses and prompt injection (Direct JSON Format)."""
 
     def __init__(
         self,
@@ -49,7 +48,7 @@ class TransportFormat(InferenceFormat):
         ] = None,
         experiments: Optional[Union[set[str], frozenset[str]]] = None,
     ):
-        """Initializes the TransportFormat with schemas and catalogs.
+        """Initializes the DirectJsonFormat with schemas and catalogs.
 
         Args:
             version: The A2UI protocol specification version (e.g. "0.9").
@@ -67,27 +66,27 @@ class TransportFormat(InferenceFormat):
         self._supported_catalogs: list[A2uiCatalog] = []
         self._catalog_example_paths: dict[str, str] = {}
         self._schema_modifiers = schema_modifiers or []
-        self._parser: Optional[TransportParser] = None
-        self._prompt_generator: Optional[TransportPromptGenerator] = None
+        self._parser: Optional[DirectJsonParser] = None
+        self._prompt_generator: Optional[DirectJsonPromptGenerator] = None
         self._load_schemas(version, catalogs or [])
 
     @property
-    def prompt_generator(self) -> TransportPromptGenerator:
-        """The prompt generator instance configured for this Transport format."""
+    def prompt_generator(self) -> DirectJsonPromptGenerator:
+        """The prompt generator instance configured for this Direct JSON format."""
         if self._prompt_generator is None:
-            self._prompt_generator = TransportPromptGenerator(self)
+            self._prompt_generator = DirectJsonPromptGenerator(self)
         return self._prompt_generator
 
     @property
-    def parser(self) -> TransportParser:
-        """The parser instance configured for this Transport format."""
+    def parser(self) -> DirectJsonParser:
+        """The parser instance configured for this Direct JSON format."""
         if self._parser is None:
             if not self._supported_catalogs:
-                raise ValueError(
-                    "No supported catalogs configured for the transport format."
+                raise A2uiCatalogError(
+                    "No supported catalogs configured for the Direct JSON format."
                 )
             default_catalog = self._supported_catalogs[0]
-            self._parser = TransportParser(
+            self._parser = DirectJsonParser(
                 default_catalog,
                 default_catalog.validator,
             )

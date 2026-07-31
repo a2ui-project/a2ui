@@ -18,7 +18,7 @@ import re
 import json
 from typing import Any, List, Dict, Optional, Set, TYPE_CHECKING
 
-from a2ui.inference_formats.transport.streaming import TransportStreamParser
+from a2ui.inference_formats.direct_json.streaming import DirectJsonStreamParser
 from a2ui.parser.response_part import ResponsePart
 from a2ui.parser.constants import *
 from a2ui.schema.constants import SURFACE_ID_KEY, CATALOG_COMPONENTS_KEY
@@ -28,7 +28,7 @@ if TYPE_CHECKING:
     from a2ui.schema.catalog import A2uiCatalog
 
 
-class TransportStreamParserV09(TransportStreamParser):
+class DirectJsonStreamParserV09(DirectJsonStreamParser):
     """Streaming parser implementation for A2UI v0.9 specification."""
 
     def __init__(self, catalog: A2uiCatalog):

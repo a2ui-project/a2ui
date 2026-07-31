@@ -46,26 +46,26 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
-class TransportStreamParser:
+class DirectJsonStreamParser:
     """Parses a stream of text for A2UI JSON messages with fine-grained component yielding.
 
     This class acts as a factory that returns a version-specific parser instance
     (V08 or V09) depending on the catalog version.
     """
 
-    def __new__(cls, catalog: A2uiCatalog) -> TransportStreamParser:
-        if cls is TransportStreamParser:
+    def __new__(cls, catalog: A2uiCatalog) -> DirectJsonStreamParser:
+        if cls is DirectJsonStreamParser:
             version = catalog.version
             # Lazy import inside __new__ to prevent circular import errors, as the
-            # version-specific subclass modules import TransportStreamParser from this module.
+            # version-specific subclass modules import DirectJsonStreamParser from this module.
             if version == VERSION_0_8:
-                from .streaming_v08 import TransportStreamParserV08
+                from .streaming_v08 import DirectJsonStreamParserV08
 
-                return TransportStreamParserV08(catalog=catalog)
+                return DirectJsonStreamParserV08(catalog=catalog)
             else:
-                from .streaming_v09 import TransportStreamParserV09
+                from .streaming_v09 import DirectJsonStreamParserV09
 
-                return TransportStreamParserV09(catalog=catalog)
+                return DirectJsonStreamParserV09(catalog=catalog)
         return super().__new__(cls)
 
     def __init__(self, catalog: A2uiCatalog):
@@ -1142,7 +1142,3 @@ class TransportStreamParser:
                 self._traverse_component_topology(
                     item, extra_components, comp_id, parent_key
                 )
-
-
-# Deprecated redirect.
-A2uiStreamParser = TransportStreamParser

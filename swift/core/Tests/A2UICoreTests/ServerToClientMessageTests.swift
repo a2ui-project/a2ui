@@ -22,7 +22,8 @@ struct ServerToClientMessageTests {
   // MARK: - Decoding
 
   @Test func decodeCreateSurface() throws {
-    let json = try #require("""
+    let json = try #require(
+      """
       {
         "version": "v0.9.1",
         "createSurface": {
@@ -44,7 +45,8 @@ struct ServerToClientMessageTests {
   }
 
   @Test func decodeCreateSurfaceWithSendDataModel() throws {
-    let json = try #require("""
+    let json = try #require(
+      """
       {
         "version": "v0.9.1",
         "createSurface": {
@@ -63,7 +65,8 @@ struct ServerToClientMessageTests {
   }
 
   @Test func decodeUpdateComponents() throws {
-    let json = try #require("""
+    let json = try #require(
+      """
       {
         "version": "v0.9.1",
         "updateComponents": {
@@ -87,7 +90,8 @@ struct ServerToClientMessageTests {
   }
 
   @Test func decodeUpdateDataModel() throws {
-    let json = try #require("""
+    let json = try #require(
+      """
       {
         "version": "v0.9.1",
         "updateDataModel": {
@@ -110,7 +114,8 @@ struct ServerToClientMessageTests {
   }
 
   @Test func decodeUpdateDataModelDefaultsToRootPath() throws {
-    let json = try #require("""
+    let json = try #require(
+      """
       {
         "version": "v0.9.1",
         "updateDataModel": {
@@ -128,7 +133,8 @@ struct ServerToClientMessageTests {
   }
 
   @Test func decodeDeleteSurface() throws {
-    let json = try #require("""
+    let json = try #require(
+      """
       {
         "version": "v0.9.1",
         "deleteSurface": {
@@ -165,7 +171,8 @@ struct ServerToClientMessageTests {
   }
 
   @Test func decodeRejectsUnsupportedVersion() throws {
-    let json = try #require("""
+    let json = try #require(
+      """
       {
         "version": "v2.0",
         "createSurface": {"surfaceId": "s1", "catalogId": "default"}
@@ -177,7 +184,8 @@ struct ServerToClientMessageTests {
   }
 
   @Test func decodeAcceptsVersion09() throws {
-    let json = try #require("""
+    let json = try #require(
+      """
       {
         "version": "v0.9",
         "createSurface": {"surfaceId": "s1", "catalogId": "default"}

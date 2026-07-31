@@ -33,7 +33,7 @@ from a2ui.basic_catalog.provider import BasicCatalog
 from a2ui.core.parser.parser import parse_response
 from a2ui.core.schema.common_modifiers import remove_strict_validation
 from a2ui.core.schema.constants import A2UI_CLOSE_TAG, A2UI_OPEN_TAG, VERSION_0_8
-from a2ui.inference_formats.transport import TransportFormat
+from a2ui.inference_formats.direct_json import DirectJsonFormat
 import dotenv
 from google.adk.agents import run_config
 from google.adk.agents.llm_agent import LlmAgent
@@ -65,7 +65,7 @@ class ContactAgent:
             self._build_llm_agent()
         )
 
-        self._inference_formats: Dict[str, TransportFormat] = {}
+        self._inference_formats: Dict[str, DirectJsonFormat] = {}
         self._ui_runners: Dict[str, Runner] = {}
 
         # Gemini Enerprise only supports VERSION_0_8 for now.
@@ -81,9 +81,9 @@ class ContactAgent:
     def agent_card(self) -> AgentCard:
         return self._agent_card
 
-    def _build_inference_format(self, version: str) -> TransportFormat:
+    def _build_inference_format(self, version: str) -> DirectJsonFormat:
         # Gemini Enerprise only supports VERSION_0_8 for now.
-        return TransportFormat(
+        return DirectJsonFormat(
             version=version,
             catalogs=[
                 BasicCatalog.get_config(
@@ -153,7 +153,7 @@ class ContactAgent:
         return "Looking up contact information..."
 
     def _build_llm_agent(
-        self, inference_format: Optional[TransportFormat] = None
+        self, inference_format: Optional[DirectJsonFormat] = None
     ) -> LlmAgent:
         """Builds the LLM agent for the contact agent."""
 

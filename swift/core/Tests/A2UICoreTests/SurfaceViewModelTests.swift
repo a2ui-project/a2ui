@@ -45,29 +45,24 @@ struct TestConcatFunction: FunctionImplementation {
   }
 }
 
-/// A simple `SurfaceTheme` for testing.
-struct TestSurfaceTheme: SurfaceTheme {
-  let color: String
-}
-
 /// Builds a `Catalog` with a button component schema that has dynamic
 /// properties, and a `concat` local function for testing.
 func makeTestCatalog() throws -> Catalog {
   let buttonSchema = try Schema(
     instance: """
-    {
-      "type": "object",
-      "properties": {
-        "id": { "type": "string" },
-        "component": { "type": "string" },
-        "label": { "$ref": "https://a2ui.org/schemas/v0_9_1/common.json#/$defs/DynamicString" },
-        "enabled": { "$ref": "https://a2ui.org/schemas/v0_9_1/common.json#/$defs/DynamicBoolean" },
-        "onClick": { "$ref": "https://a2ui.org/schemas/v0_9_1/common.json#/$defs/Action" },
-        "children": { "$ref": "https://a2ui.org/schemas/v0_9_1/common.json#/$defs/ChildList" }
-      },
-      "required": ["id", "component"]
-    }
-    """,
+      {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string" },
+          "component": { "type": "string" },
+          "label": { "$ref": "https://a2ui.org/schemas/v0_9_1/common.json#/$defs/DynamicString" },
+          "enabled": { "$ref": "https://a2ui.org/schemas/v0_9_1/common.json#/$defs/DynamicBoolean" },
+          "onClick": { "$ref": "https://a2ui.org/schemas/v0_9_1/common.json#/$defs/Action" },
+          "children": { "$ref": "https://a2ui.org/schemas/v0_9_1/common.json#/$defs/ChildList" }
+        },
+        "required": ["id", "component"]
+      }
+      """,
     remoteSchemas: A2UICommonSchema.allSchemas
   )
 
@@ -105,7 +100,12 @@ struct SurfaceViewModelTests {
       catalogs: [catalog],
       actionHandler: handler
     )
-    let surface = processor.createSurface(surfaceID: "test-surface", catalog: catalog)
+    let surface = SurfaceViewModel(
+      surfaceID: "test-surface",
+      catalog: catalog,
+      actionHandler: handler
+    )
+    processor.surfaceGroupModel.addSurface(surface)
     return (processor, surface, handler)
   }
 
@@ -116,7 +116,7 @@ struct SurfaceViewModelTests {
     processor.updateComponents(
       surfaceID: surface.surfaceID,
       components: [
-        ["id": "root", "component": "button", "label": "Click Me"],
+        ["id": "root", "component": "button", "label": "Click Me"]
       ]
     )
     #expect(surface.componentsModel.get("root") != nil)
@@ -128,7 +128,7 @@ struct SurfaceViewModelTests {
     processor.updateComponents(
       surfaceID: "test-surface",
       components: [
-        ["id": "root"],
+        ["id": "root"]
       ]
     )
     #expect(handler.capturedErrors.count == 1)
@@ -142,7 +142,7 @@ struct SurfaceViewModelTests {
     processor.updateComponents(
       surfaceID: "test-surface",
       components: [
-        ["component": "button"],
+        ["component": "button"]
       ]
     )
     #expect(handler.capturedErrors.count == 1)
@@ -156,7 +156,7 @@ struct SurfaceViewModelTests {
     processor.updateComponents(
       surfaceID: "test-surface",
       components: [
-        ["id": "root", "component": "unknown_type"],
+        ["id": "root", "component": "unknown_type"]
       ]
     )
     #expect(handler.capturedErrors.count == 1)
@@ -167,7 +167,7 @@ struct SurfaceViewModelTests {
     processor.updateComponents(
       surfaceID: "test-surface",
       components: [
-        ["id": "root", "component": "button", "label": "Old"],
+        ["id": "root", "component": "button", "label": "Old"]
       ]
     )
     #expect(surface.componentsModel.get("root")?.type == "button")
@@ -176,7 +176,7 @@ struct SurfaceViewModelTests {
     processor.updateComponents(
       surfaceID: "test-surface",
       components: [
-        ["id": "root", "component": "text"],
+        ["id": "root", "component": "text"]
       ]
     )
     // The component should not be stored since "text" isn't in the catalog
@@ -189,16 +189,14 @@ struct SurfaceViewModelTests {
   @Test func updateDataModelSetsValueAtPath() throws {
     let (processor, surface, _) = try makeProcessor()
     processor.updateDataModel(surfaceID: surface.surfaceID, path: "/user/name", value: "Alice")
-    let data = surface.dataModel.snapshot()
-    #expect(data["user/name"]?.stringValue == "Alice")
+    #expect(surface.dataModel.get("/user/name")?.stringValue == "Alice")
   }
 
   @Test func updateDataModelSetsNilRemovesValue() throws {
     let (processor, surface, _) = try makeProcessor()
     processor.updateDataModel(surfaceID: surface.surfaceID, path: "/user/name", value: "Alice")
     processor.updateDataModel(surfaceID: surface.surfaceID, path: "/user/name", value: nil)
-    let data = surface.dataModel.snapshot()
-    #expect(data["user/name"] == nil)
+    #expect(surface.dataModel.get("/user/name") == nil)
   }
 
   // MARK: - Root Node Resolution
@@ -215,7 +213,7 @@ struct SurfaceViewModelTests {
     processor.updateComponents(
       surfaceID: surface.surfaceID,
       components: [
-        ["id": "root", "component": "button", "label": "Hello"],
+        ["id": "root", "component": "button", "label": "Hello"]
       ]
     )
     let root = surface.componentsModel.get("root")
@@ -228,11 +226,10 @@ struct SurfaceViewModelTests {
     processor.updateComponents(
       surfaceID: surface.surfaceID,
       components: [
-        ["id": "root", "component": "button", "label": ["path": "/user/name"]],
+        ["id": "root", "component": "button", "label": ["path": "/user/name"]]
       ]
     )
-    let data = surface.dataModel.snapshot()
-    #expect(data["user/name"]?.stringValue == "Alice")
+    #expect(surface.dataModel.get("/user/name")?.stringValue == "Alice")
   }
 
   // MARK: - Dynamic Boolean Resolution
@@ -242,7 +239,7 @@ struct SurfaceViewModelTests {
     processor.updateComponents(
       surfaceID: surface.surfaceID,
       components: [
-        ["id": "root", "component": "button", "enabled": true],
+        ["id": "root", "component": "button", "enabled": true]
       ]
     )
     let root = surface.componentsModel.get("root")
@@ -263,9 +260,9 @@ struct SurfaceViewModelTests {
             "event": [
               "name": "click",
               "context": ["userId": "123"],
-            ],
+            ]
           ],
-        ],
+        ]
       ]
     )
     let root = surface.componentsModel.get("root")
@@ -286,9 +283,9 @@ struct SurfaceViewModelTests {
             "functionCall": [
               "call": "submit",
               "args": ["formId": "contact"],
-            ],
+            ]
           ],
-        ],
+        ]
       ]
     )
     let root = surface.componentsModel.get("root")
@@ -313,27 +310,30 @@ struct SurfaceViewModelTests {
         ["id": "child2", "component": "button", "label": "Second"],
       ]
     )
-    #expect(surface.componentsModel.count == 3)
+    #expect(surface.componentsModel.components.count == 3)
     #expect(surface.componentsModel.get("child1") != nil)
     #expect(surface.componentsModel.get("child2") != nil)
   }
 
-  // MARK: - Theme Updates
+  // MARK: - Theme
 
-  @Test func updateThemeSetsActiveTheme() throws {
-    let (_, surface, _) = try makeProcessor()
-    let theme = TestSurfaceTheme(color: "blue")
-    surface.updateTheme(theme)
-    let active = surface.getActiveTheme()
-    #expect(active != nil)
-    #expect((active as? TestSurfaceTheme)?.color == "blue")
+  @Test func surfaceViewModelInitializesWithTheme() throws {
+    let catalog = try makeTestCatalog()
+    let theme: [String: JSONValue] = ["color": .string("blue")]
+    let surface = SurfaceViewModel(
+      surfaceID: "s1",
+      catalog: catalog,
+      theme: theme
+    )
+    #expect(surface.theme != nil)
+    #expect(surface.theme?["color"]?.stringValue == "blue")
   }
 
   // MARK: - Component Buffer
 
   @Test func getComponentsReturnsEmptyDictInitially() throws {
     let (_, surface, _) = try makeProcessor()
-    #expect(surface.componentsModel.isEmpty)
+    #expect(surface.componentsModel.components.isEmpty)
   }
 
   @Test func getComponentsReturnsAllStoredComponents() throws {
@@ -345,7 +345,7 @@ struct SurfaceViewModelTests {
         ["id": "b", "component": "button"],
       ]
     )
-    #expect(surface.componentsModel.count == 2)
+    #expect(surface.componentsModel.components.count == 2)
     #expect(surface.componentsModel.get("a") != nil)
     #expect(surface.componentsModel.get("b") != nil)
   }
@@ -359,16 +359,16 @@ struct SurfaceViewModelTests {
     // property (no DataBinding wrapping).
     let schema = try Schema(
       instance: """
-      {
-        "type": "object",
-        "properties": {
-          "id": { "type": "string" },
-          "component": { "type": "string" },
-          "items": { "$ref": "https://a2ui.org/schemas/v0_9_1/common.json#/$defs/DynamicStringList" }
-        },
-        "required": ["id", "component"]
-      }
-      """,
+        {
+          "type": "object",
+          "properties": {
+            "id": { "type": "string" },
+            "component": { "type": "string" },
+            "items": { "$ref": "https://a2ui.org/schemas/v0_9_1/common.json#/$defs/DynamicStringList" }
+          },
+          "required": ["id", "component"]
+        }
+        """,
       remoteSchemas: A2UICommonSchema.allSchemas
     )
 
@@ -380,7 +380,8 @@ struct SurfaceViewModelTests {
 
     let handler = TestActionHandler()
     let processor = MessageProcessor(catalogs: [catalog], actionHandler: handler)
-    let surface = processor.createSurface(surfaceID: "s1", catalog: catalog)
+    let surface = SurfaceViewModel(surfaceID: "s1", catalog: catalog, actionHandler: handler)
+    processor.surfaceGroupModel.addSurface(surface)
 
     // Provide a value for "items" that is a plain string array.
     // If classifySchema misidentified "DynamicStringList" as "DynamicString",
@@ -389,7 +390,7 @@ struct SurfaceViewModelTests {
     processor.updateComponents(
       surfaceID: surface.surfaceID,
       components: [
-        ["id": "root", "component": "custom", "items": ["a", "b", "c"]],
+        ["id": "root", "component": "custom", "items": ["a", "b", "c"]]
       ]
     )
 
@@ -450,7 +451,7 @@ struct SurfaceViewModelTests {
             "componentId": "card",
             "path": "/items",
           ],
-        ],
+        ]
       ]
     )
 
@@ -507,15 +508,15 @@ struct SurfaceComponentsModelTests {
 
   @Test func startsEmpty() {
     let model = SurfaceComponentsModel()
-    #expect(model.isEmpty)
-    #expect(model.count == 0)
+    #expect(model.components.isEmpty)
+    #expect(model.components.count == 0)
   }
 
   @Test func addAndGetComponent() {
     let model = SurfaceComponentsModel()
     let component = ComponentModel(id: "btn1", type: "button", properties: ["label": "OK"])
     model.addComponent(component)
-    #expect(model.count == 1)
+    #expect(model.components.count == 1)
     #expect(model.get("btn1")?.type == "button")
   }
 
@@ -524,7 +525,7 @@ struct SurfaceComponentsModelTests {
     model.addComponent(ComponentModel(id: "btn1", type: "button", properties: [:]))
     model.removeComponent("btn1")
     #expect(model.get("btn1") == nil)
-    #expect(model.isEmpty)
+    #expect(model.components.isEmpty)
   }
 
   @Test func replaceComponentWithSameId() {
@@ -532,13 +533,13 @@ struct SurfaceComponentsModelTests {
     model.addComponent(ComponentModel(id: "btn1", type: "button", properties: ["label": "Old"]))
     model.addComponent(ComponentModel(id: "btn1", type: "button", properties: ["label": "New"]))
     #expect(model.get("btn1")?.properties["label"]?.stringValue == "New")
-    #expect(model.count == 1)
+    #expect(model.components.count == 1)
   }
 
-  @Test func snapshotReturnsCopy() {
+  @Test func componentsPropertyReturnsDictionary() {
     let model = SurfaceComponentsModel()
     model.addComponent(ComponentModel(id: "a", type: "button", properties: [:]))
-    let snap = model.snapshot()
+    let snap = model.components
     #expect(snap.count == 1)
     #expect(snap["a"] != nil)
   }
@@ -550,8 +551,7 @@ struct DataModelTests {
 
   @Test func startsEmpty() {
     let model = DataModel()
-    let snapshot = model.snapshot()
-    #expect(snapshot == .object([:]))
+    #expect(model.data == .object([:]))
   }
 
   @Test func setsAndGetsValueAtPath() {
@@ -573,104 +573,27 @@ struct DataModelTests {
   }
 }
 
-// MARK: - MessageProcessor Tests
-
-struct MessageProcessorTests {
-
-  // MARK: - Setup Helper
-
-  private func makeProcessor() throws -> (MessageProcessor, TestActionHandler) {
-    let handler = TestActionHandler()
-    let catalog = try makeTestCatalog()
-    let processor = MessageProcessor(
-      catalogs: [catalog],
-      actionHandler: handler
+extension MessageProcessor {
+  fileprivate func updateComponents(
+    surfaceID: String,
+    components: [[String: JSONValue]]
+  ) {
+    processMessage(
+      .updateComponents(
+        UpdateComponentsMessage(surfaceID: surfaceID, components: components)
+      )
     )
-    return (processor, handler)
   }
 
-  // MARK: - Surface Creation
-
-  @Test func createSurfaceWithCatalogID() throws {
-    let (processor, _) = try makeProcessor()
-    let surface = processor.createSurface(surfaceID: "s1", catalogID: "test-catalog")
-    #expect(surface != nil)
-    #expect(surface?.surfaceID == "s1")
-  }
-
-  @Test func createSurfaceReturnsNilForUnknownCatalog() throws {
-    let (processor, _) = try makeProcessor()
-    let surface = processor.createSurface(surfaceID: "s1", catalogID: "unknown")
-    #expect(surface == nil)
-  }
-
-  @Test func getSurfaceReturnsCreatedSurface() throws {
-    let (processor, _) = try makeProcessor()
-    _ = processor.createSurface(surfaceID: "s1", catalogID: "test-catalog")
-    #expect(processor.getSurface("s1") != nil)
-  }
-
-  @Test func deleteSurfaceRemovesIt() throws {
-    let (processor, _) = try makeProcessor()
-    _ = processor.createSurface(surfaceID: "s1", catalogID: "test-catalog")
-    processor.deleteSurface("s1")
-    #expect(processor.getSurface("s1") == nil)
-  }
-
-  // MARK: - Message Processing
-
-  @Test func processCreateSurfaceMessage() throws {
-    let (processor, _) = try makeProcessor()
-    let msg = CreateSurfaceMessage(surfaceID: "s1", catalogID: "test-catalog")
-    processor.processMessage(.createSurface(msg))
-    #expect(processor.getSurface("s1") != nil)
-  }
-
-  @Test func processDeleteSurfaceMessage() throws {
-    let (processor, _) = try makeProcessor()
-    let create = CreateSurfaceMessage(surfaceID: "s1", catalogID: "test-catalog")
-    processor.processMessage(.createSurface(create))
-    let delete = DeleteSurfaceMessage(surfaceID: "s1")
-    processor.processMessage(.deleteSurface(delete))
-    #expect(processor.getSurface("s1") == nil)
-  }
-
-  @Test func processUpdateComponentsMessage() throws {
-    let (processor, handler) = try makeProcessor()
-    let create = CreateSurfaceMessage(surfaceID: "s1", catalogID: "test-catalog")
-    processor.processMessage(.createSurface(create))
-
-    let update = UpdateComponentsMessage(
-      surfaceID: "s1",
-      components: [["id": "root", "component": "button", "label": "Hi"]]
+  fileprivate func updateDataModel(
+    surfaceID: String,
+    path: String,
+    value: JSONValue?
+  ) {
+    processMessage(
+      .updateDataModel(
+        UpdateDataModelMessage(surfaceID: surfaceID, path: path, value: value)
+      )
     )
-    processor.processMessage(.updateComponents(update))
-
-    let surface = processor.getSurface("s1")
-    #expect(surface?.componentsModel.get("root") != nil)
-    #expect(handler.capturedErrors.isEmpty)
-  }
-
-  @Test func processUpdateDataModelMessage() throws {
-    let (processor, _) = try makeProcessor()
-    let create = CreateSurfaceMessage(surfaceID: "s1", catalogID: "test-catalog")
-    processor.processMessage(.createSurface(create))
-
-    let update = UpdateDataModelMessage(surfaceID: "s1", path: "/foo", value: "bar")
-    processor.processMessage(.updateDataModel(update))
-
-    let surface = processor.getSurface("s1")
-    #expect(surface?.dataModel.get("/foo")?.stringValue == "bar")
-  }
-
-  @Test func processMultipleMessages() throws {
-    let (processor, _) = try makeProcessor()
-    let messages: [ServerToClientMessage] = [
-      .createSurface(CreateSurfaceMessage(surfaceID: "s1", catalogID: "test-catalog")),
-      .updateDataModel(UpdateDataModelMessage(surfaceID: "s1", path: "/x", value: 42)),
-      .deleteSurface(DeleteSurfaceMessage(surfaceID: "s1")),
-    ]
-    processor.processMessages(messages)
-    #expect(processor.getSurface("s1") == nil)
   }
 }
