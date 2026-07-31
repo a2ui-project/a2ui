@@ -382,7 +382,7 @@ export class McpApp extends CatalogComponent<any> implements OnDestroy, OnInit {
       method: z.literal('ui/requests/function-call'),
       params: z.object({
         call: z.string(),
-        args: z.record(z.any()),
+        args: z.record(z.string(), z.any()),
       }),
     });
 

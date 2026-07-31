@@ -13,7 +13,8 @@
   "dependencies": {
     "@a2ui/angular": "workspace:*",
     "@a2ui/markdown-it": "*",
-    "@a2ui/web_core": "workspace:*"
+    "@a2ui/web_core": "workspace:*",
+    "zod": "^3.25.76"
   },
   "devDependencies": {
     "wireit": "^0.15.0-pre.2"
