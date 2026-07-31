@@ -75,6 +75,7 @@ describe('ChoicePicker Component', () => {
               id: 'choice_picker_a11y',
               component: 'ChoicePicker',
               options: [{label: 'Option 1', value: '1'}],
+              value: [],
               accessibility: {
                 label: 'Group Label',
                 description: 'Group Description',

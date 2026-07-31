@@ -51,11 +51,13 @@ describe('Slider Component', () => {
             {
               id: 'slider_normal',
               component: 'Slider',
+              max: 100,
               value: 50,
             },
             {
               id: 'slider_a11y',
               component: 'Slider',
+              max: 100,
               value: 50,
               accessibility: {
                 label: 'Volume Control',

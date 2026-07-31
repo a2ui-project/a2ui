@@ -61,6 +61,7 @@ describe('CheckBox Component', () => {
               id: 'checkbox_a11y',
               component: 'CheckBox',
               label: 'Check me accessible',
+              value: false,
               accessibility: {
                 label: 'A11y Label',
                 description: 'A11y Description',
