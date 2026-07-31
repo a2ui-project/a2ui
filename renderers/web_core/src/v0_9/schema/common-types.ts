@@ -146,9 +146,12 @@ export type CheckRule = z.infer<typeof CheckRuleSchema>;
 
 export const CheckableSchema = z
   .object({
-    checks: z.array(CheckRuleSchema).optional().describe('A list of checks to perform.'),
-    isValid: z.boolean().optional().describe('Whether the checks currently pass.'),
-    validationErrors: z.array(z.string()).optional().describe('Current validation error messages.'),
+    'checks': z.array(CheckRuleSchema).optional().describe('A list of checks to perform.'),
+    'isValid': z.boolean().optional().describe('Whether the checks currently pass.'),
+    'validationErrors': z
+      .array(z.string())
+      .optional()
+      .describe('Current validation error messages.'),
   })
   .describe(
     'REF:common_types.json#/$defs/Checkable|Properties for components that support client-side checks.',
@@ -158,10 +161,10 @@ export type Checkable = z.infer<typeof CheckableSchema>;
 
 export const AccessibilityAttributesSchema = z
   .object({
-    label: DynamicStringSchema.optional().describe(
+    'label': DynamicStringSchema.optional().describe(
       'REF:common_types.json#/$defs/DynamicString|A short string used by assistive technologies to convey the purpose of an element.',
     ),
-    description: DynamicStringSchema.optional().describe(
+    'description': DynamicStringSchema.optional().describe(
       'REF:common_types.json#/$defs/DynamicString|Additional information provided by assistive technologies about an element.',
     ),
   })
@@ -174,9 +177,9 @@ export type AccessibilityAttributes = z.infer<typeof AccessibilityAttributesSche
 
 export const AnyComponentSchema = z
   .object({
-    component: z.string().describe('The type name of the component.'),
-    id: ComponentIdSchema.optional(),
-    weight: z.number().optional(),
+    'component': z.string().describe('The type name of the component.'),
+    'id': ComponentIdSchema.optional(),
+    'weight': z.number().optional(),
   })
   .passthrough()
   .describe('A generic A2UI component definition.');
