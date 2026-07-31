@@ -52,13 +52,15 @@ describe('DateTimeInput Component', () => {
               id: 'datetime_normal',
               component: 'DateTimeInput',
               value: '2026-07-31T12:00:00Z',
-              type: 'dateTime',
+              enableDate: true,
+              enableTime: true,
             },
             {
               id: 'datetime_a11y',
               component: 'DateTimeInput',
               value: '2026-07-31T12:00:00Z',
-              type: 'dateTime',
+              enableDate: true,
+              enableTime: true,
               accessibility: {
                 label: 'Choose date and time',
                 description: 'Please select a future date and time',
@@ -99,7 +101,10 @@ describe('DateTimeInput Component', () => {
     const input = el.shadowRoot.querySelector('input');
     assert.ok(input);
     assert.strictEqual(input.getAttribute('aria-label'), 'Choose date and time');
-    assert.strictEqual(input.getAttribute('aria-description'), 'Please select a future date and time');
+    assert.strictEqual(
+      input.getAttribute('aria-description'),
+      'Please select a future date and time',
+    );
 
     document.body.removeChild(el);
   });

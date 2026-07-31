@@ -111,7 +111,10 @@ describe('Modal Component', () => {
     const dialog = el.shadowRoot.querySelector('dialog');
     assert.ok(dialog);
     assert.strictEqual(dialog.getAttribute('aria-label'), 'Information Dialog');
-    assert.strictEqual(dialog.getAttribute('aria-description'), 'This dialog shows important information');
+    assert.strictEqual(
+      dialog.getAttribute('aria-description'),
+      'This dialog shows important information',
+    );
 
     document.body.removeChild(el);
   });

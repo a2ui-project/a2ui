@@ -97,7 +97,10 @@ describe('Video Component', () => {
     const video = el.shadowRoot.querySelector('video');
     assert.ok(video);
     assert.strictEqual(video.getAttribute('aria-label'), 'Product Demo Video');
-    assert.strictEqual(video.getAttribute('aria-description'), 'A video demonstrating the product features');
+    assert.strictEqual(
+      video.getAttribute('aria-description'),
+      'A video demonstrating the product features',
+    );
 
     document.body.removeChild(el);
   });
