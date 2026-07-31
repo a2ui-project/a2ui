@@ -2,6 +2,7 @@
 
 - (v0_9) Add prototype pollution protection and safe property lookup to `DataModel` (non-breaking security fix).
 - (v0_8) Export `A2uiMessageSchema` in public API.
+- Enable `inlineSources` in `tsconfig.json` to populate `sourcesContent` in sourcemaps.
 
 ## 0.10.5
 

@@ -7,23 +7,16 @@ An evaluation test verifies that a prompt or conversational history produces exp
 
 For a detailed overview of the evaluation architecture, multi-stage scoring, and secret management, see [DESIGN.md](DESIGN.md).
 
-## Datasets and Schema
+## Contributing Use Cases & Datasets
 
-Evaluation data points live in `datasets/*.yaml` files (e.g., `datasets/core_v0_9_1.yaml`, `datasets/core_v1_0.yaml`, `datasets/multi_turn_conversation_dataset.yaml`).
+To contribute evaluation use cases or datasets, read [CONTRIBUTING_USE_CASES.md](CONTRIBUTING_USE_CASES.md). It explains:
 
-Every dataset file must conform to the JSON schema defined in `datasets/dataset_schema.json`.
+- How to use the `a2ui-add-eval-datapoint` skill to automatically convert your data into the dataset format.
+- Why full multi-turn conversation context (including unrelated tool calls) is required.
+- Where to view unencrypted multi-turn examples (`examples/example_eval_case.json`).
+- How to work with Transcrypt encryption when creating or editing files.
 
-### Dataset Structure
-
-Each sample in a dataset YAML file defines:
-
-- **`name`** (required): Unique identifier for the sample.
-- **`description`** (required): Human-readable summary of the test scenario.
-- **`catalog`** (required): Relative path to the component catalog (e.g., `"specification/{version}/catalogs/basic/catalog.json"`).
-- **`dataset`** (optional): Logical dataset grouping name (defaults to file basename).
-- **`system_prompt`** (optional): Domain-specific system instructions (e.g. clinical triage rules or travel policies).
-- **`messages`** (required): Chat conversation turns (`user`, `assistant` with optional `tool_calls`, `tool` returns, and `system`).
-- **`target`** (optional): Expected UI outcome description and grading criteria for the LLM judge.
+Evaluation data points live in `datasets/*.yaml` files and must conform to the JSON schema defined in `datasets/dataset_schema.json`.
 
 ## Running Evaluations
 
