@@ -97,7 +97,7 @@ export class A2uiBasicTextFieldElement extends BasicCatalogA2uiLitElement<typeof
             .value=${props.value || ''}
             @input=${onInput}
             aria-label=${props.accessibility?.label ?? nothing}
-            aria-describedby=${props.accessibility?.description ?? nothing}
+            aria-description=${props.accessibility?.description ?? nothing}
           ></textarea>`
         : html`<input
             type=${type}
@@ -105,7 +105,7 @@ export class A2uiBasicTextFieldElement extends BasicCatalogA2uiLitElement<typeof
             .value=${props.value || ''}
             @input=${onInput}
             aria-label=${props.accessibility?.label ?? nothing}
-            aria-describedby=${props.accessibility?.description ?? nothing}
+            aria-description=${props.accessibility?.description ?? nothing}
           />`}
       ${isInvalid && props.validationErrors?.length
         ? html`<div class="error">${props.validationErrors[0]}</div>`

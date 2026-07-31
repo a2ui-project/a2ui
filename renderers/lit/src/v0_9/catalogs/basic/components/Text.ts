@@ -133,11 +133,24 @@ export class A2uiBasicTextElement extends BasicCatalogA2uiLitElement<typeof Text
         break; // body and caption.
     }
 
+    const label = props.accessibility?.label;
+    const description = props.accessibility?.description;
+
     const renderedMarkdown = markdown(markdownText, this.markdownRenderer);
     // There's not a good way to handle the caption variant in markdown, so we
     // tag it with a class so it can be tweaked via CSS.
     if (props.variant === 'caption') {
-      return html`<span class="a2ui-caption">${renderedMarkdown}</span>`;
+      return html`<span
+        class="a2ui-caption"
+        aria-label=${label ?? nothing}
+        aria-description=${description ?? nothing}
+        >${renderedMarkdown}</span
+      >`;
+    }
+    if (label || description) {
+      return html`<span aria-label=${label ?? nothing} aria-description=${description ?? nothing}
+        >${renderedMarkdown}</span
+      >`;
     }
     return html`${renderedMarkdown}`;
   }

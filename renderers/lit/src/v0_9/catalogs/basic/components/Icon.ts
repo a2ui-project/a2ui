@@ -90,18 +90,22 @@ export class A2uiIconElement extends BasicCatalogA2uiLitElement<typeof IconApi> 
         class="svg"
         viewBox="0 0 24 24"
         aria-label=${label ?? nothing}
-        aria-describedby=${description ?? nothing}
+        aria-description=${description ?? nothing}
         aria-hidden=${isHidden ? 'true' : nothing}
-      ><path d=${path}></path></svg>`;
+      >
+        <path d=${path}></path>
+      </svg>`;
     }
 
     const iconName = typeof name === 'string' ? toMaterialSymbol(name) : '';
     return html`<span
       class="material-symbol"
+      role="img"
       aria-label=${label ?? nothing}
-      aria-describedby=${description ?? nothing}
+      aria-description=${description ?? nothing}
       aria-hidden=${isHidden ? 'true' : nothing}
-    >${iconName}</span>`;
+      >${iconName}</span
+    >`;
   }
 }
 

@@ -71,6 +71,15 @@ describe('ChoicePicker Component', () => {
               value: [],
               filterable: true,
             },
+            {
+              id: 'choice_picker_a11y',
+              component: 'ChoicePicker',
+              options: [{label: 'Option 1', value: '1'}],
+              accessibility: {
+                label: 'Group Label',
+                description: 'Group Description',
+              },
+            },
           ],
         },
       },
@@ -113,6 +122,24 @@ describe('ChoicePicker Component', () => {
 
     // Now only Apple should be visible + main label = 2 labels
     assert.strictEqual(el.shadowRoot.querySelectorAll('label').length, 2);
+
+    document.body.removeChild(el);
+  });
+
+  it('should render role="group", aria-label, and aria-description on options container', async () => {
+    const el = document.createElement('a2ui-choicepicker') as any;
+    document.body.appendChild(el);
+
+    const context = new ComponentContext(surface, 'choice_picker_a11y');
+    await asyncUpdate(el, e => {
+      e.context = context;
+    });
+
+    const groupDiv = el.shadowRoot.querySelector('div[role="group"]');
+    assert.ok(groupDiv);
+    assert.strictEqual(groupDiv.getAttribute('role'), 'group');
+    assert.strictEqual(groupDiv.getAttribute('aria-label'), 'Group Label');
+    assert.strictEqual(groupDiv.getAttribute('aria-description'), 'Group Description');
 
     document.body.removeChild(el);
   });

@@ -54,7 +54,7 @@ export class A2uiVideoElement extends BasicCatalogA2uiLitElement<typeof VideoApi
       controls
       class="a2ui-video"
       aria-label=${props.accessibility?.label ?? nothing}
-      aria-describedby=${props.accessibility?.description ?? nothing}
+      aria-description=${props.accessibility?.description ?? nothing}
     ></video>`;
   }
 }

@@ -77,7 +77,7 @@ export class A2uiSliderElement extends BasicCatalogA2uiLitElement<typeof SliderA
         .value=${props.value?.toString() || '0'}
         @input=${(e: Event) => props.setValue?.(Number((e.target as HTMLInputElement).value))}
         aria-label=${props.accessibility?.label ?? nothing}
-        aria-describedby=${props.accessibility?.description ?? nothing}
+        aria-description=${props.accessibility?.description ?? nothing}
       />
     `;
   }

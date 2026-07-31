@@ -1,6 +1,7 @@
 ## Unreleased
 
 - (v0_9) Add accessibility attributes (`aria-label`, `aria-describedby`) support to Lit basic catalog components (#1410).
+- (v0_9) Fix ARIA attributes in Lit basic catalog components: use `aria-description` instead of `aria-describedby` for text descriptions, add `role="region"` to `Card`, `role="group"` to `ChoicePicker`, `role="img"` to `Icon`, and bind accessibility attributes in `Text`.
 - Enable `inlineSources` in `tsconfig.json` to populate `sourcesContent` in sourcemaps.
 
 ## 0.10.2

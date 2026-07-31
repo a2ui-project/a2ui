@@ -155,7 +155,7 @@ describe('Button Component', () => {
     assert.strictEqual(dispatchedAction, false);
   });
 
-  it('should render aria-label and aria-describedby when accessibility attributes are set', async () => {
+  it('should render aria-label and aria-description when accessibility attributes are set', async () => {
     const el = document.createElement('a2ui-basic-button') as A2uiBasicButtonElement;
     element = el;
     document.body.appendChild(el);
@@ -168,6 +168,6 @@ describe('Button Component', () => {
     const button = el.shadowRoot?.querySelector('button');
     assert.ok(button);
     assert.strictEqual(button.getAttribute('aria-label'), 'Custom Accessible Label');
-    assert.strictEqual(button.getAttribute('aria-describedby'), 'Custom Accessible Description');
+    assert.strictEqual(button.getAttribute('aria-description'), 'Custom Accessible Description');
   });
 });

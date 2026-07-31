@@ -57,6 +57,15 @@ describe('CheckBox Component', () => {
               isValid: false,
               validationErrors: ['This is required'],
             },
+            {
+              id: 'checkbox_a11y',
+              component: 'CheckBox',
+              label: 'Check me accessible',
+              accessibility: {
+                label: 'A11y Label',
+                description: 'A11y Description',
+              },
+            },
           ],
         },
       },
@@ -76,6 +85,23 @@ describe('CheckBox Component', () => {
     const errorDiv = el.shadowRoot.querySelector('.error');
     assert.ok(errorDiv);
     assert.strictEqual(errorDiv.textContent.trim(), 'This is required');
+
+    document.body.removeChild(el);
+  });
+
+  it('should render aria-label and aria-description in CheckBox input', async () => {
+    const el = document.createElement('a2ui-checkbox') as any;
+    document.body.appendChild(el);
+
+    const context = new ComponentContext(surface, 'checkbox_a11y');
+    await asyncUpdate(el, e => {
+      e.context = context;
+    });
+
+    const input = el.shadowRoot.querySelector('input[type="checkbox"]');
+    assert.ok(input);
+    assert.strictEqual(input.getAttribute('aria-label'), 'A11y Label');
+    assert.strictEqual(input.getAttribute('aria-description'), 'A11y Description');
 
     document.body.removeChild(el);
   });

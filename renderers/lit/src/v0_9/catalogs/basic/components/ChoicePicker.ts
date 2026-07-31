@@ -149,8 +149,9 @@ export class A2uiChoicePickerElement extends BasicCatalogA2uiLitElement<typeof C
         : nothing}
       <div
         class=${classMap({options: true, chips: isChips})}
+        role="group"
         aria-label=${props.accessibility?.label ?? nothing}
-        aria-describedby=${props.accessibility?.description ?? nothing}
+        aria-description=${props.accessibility?.description ?? nothing}
       >
         ${options.map((opt: any) =>
           isChips

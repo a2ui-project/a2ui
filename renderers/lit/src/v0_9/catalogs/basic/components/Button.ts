@@ -112,7 +112,7 @@ export class A2uiBasicButtonElement extends BasicCatalogA2uiLitElement<typeof Bu
         @click=${() => !isDisabled && props.action && props.action()}
         ?disabled=${isDisabled}
         aria-label=${props.accessibility?.label ?? nothing}
-        aria-describedby=${props.accessibility?.description ?? nothing}
+        aria-description=${props.accessibility?.description ?? nothing}
       >
         ${props.child ? html`${this.renderNode(props.child)}` : nothing}
       </button>

@@ -62,9 +62,12 @@ export class A2uiCardElement extends BasicCatalogA2uiLitElement<typeof CardApi> 
 
     if (label || description) {
       return html`<div
+        role="region"
         aria-label=${label ?? nothing}
-        aria-describedby=${description ?? nothing}
-      >${childHtml}</div>`;
+        aria-description=${description ?? nothing}
+      >
+        ${childHtml}
+      </div>`;
     }
 
     return html`${childHtml}`;

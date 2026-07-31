@@ -66,7 +66,7 @@ export class A2uiLitModal extends BasicCatalogA2uiLitElement<typeof ModalApi> {
       <dialog
         class="a2ui-modal a2ui-modal-overlay"
         aria-label=${props.accessibility?.label ?? nothing}
-        aria-describedby=${props.accessibility?.description ?? nothing}
+        aria-description=${props.accessibility?.description ?? nothing}
       >
         <form method="dialog" style="text-align: right;">
           <button class="a2ui-modal-close">×</button>

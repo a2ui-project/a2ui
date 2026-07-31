@@ -47,7 +47,7 @@ export class A2uiAudioPlayerElement extends BasicCatalogA2uiLitElement<typeof Au
         src=${props.url}
         controls
         aria-label=${props.accessibility?.label ?? nothing}
-        aria-describedby=${props.accessibility?.description ?? nothing}
+        aria-description=${props.accessibility?.description ?? nothing}
       ></audio>
     `;
   }

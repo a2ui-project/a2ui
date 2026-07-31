@@ -75,6 +75,15 @@ describe('Text Component', () => {
               text: 'Caption text',
               variant: 'caption',
             },
+            {
+              id: 't_a11y',
+              component: 'Text',
+              text: 'Accessible Text',
+              accessibility: {
+                label: 'Accessible Label',
+                description: 'Accessible Description',
+              },
+            },
           ],
         },
       },
@@ -141,5 +150,21 @@ describe('Text Component', () => {
     const innerSpan = captionSpan.querySelector('.no-markdown-renderer');
     assert.ok(innerSpan);
     assert.strictEqual(innerSpan.textContent?.trim(), 'Caption text');
+  });
+
+  it('should render aria-label and aria-description when accessibility properties are provided', async () => {
+    const el = document.createElement('a2ui-basic-text') as A2uiBasicTextElement;
+    element = el;
+    document.body.appendChild(el);
+
+    const context = new ComponentContext(surface, 't_a11y');
+    await asyncUpdate(el, e => {
+      e.context = context;
+    });
+
+    const a11ySpan = el.shadowRoot?.querySelector('span[aria-label]');
+    assert.ok(a11ySpan);
+    assert.strictEqual(a11ySpan.getAttribute('aria-label'), 'Accessible Label');
+    assert.strictEqual(a11ySpan.getAttribute('aria-description'), 'Accessible Description');
   });
 });
