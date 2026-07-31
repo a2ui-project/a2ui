@@ -101,8 +101,9 @@ export class ButtonComponent extends BasicCatalogComponent<typeof ButtonApi> {
   readonly variant = computed(() => this.props()['variant']?.value() ?? 'default');
   readonly child = computed(() => this.props()['child']?.value());
   readonly action = computed(() => this.props()['action']?.value());
-  readonly ariaLabel = computed(() => this.props()['accessibility']?.value()?.label ?? null);
-  readonly ariaDescribedBy = computed(() => this.props()['accessibility']?.value()?.description ?? null);
+  readonly accessibility = computed(() => this.props()['accessibility']?.value());
+  readonly ariaLabel = computed(() => this.accessibility()?.label ?? null);
+  readonly ariaDescribedBy = computed(() => this.accessibility()?.description ?? null);
 
   handleClick() {
     const action = this.action();

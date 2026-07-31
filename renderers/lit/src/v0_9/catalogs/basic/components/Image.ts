@@ -85,9 +85,9 @@ export class A2uiImageElement extends BasicCatalogA2uiLitElement<typeof ImageApi
     };
 
     const altText =
-      props.accessibility?.label ||
-      props.accessibility?.description ||
-      props.description ||
+      props.accessibility?.label ??
+      props.accessibility?.description ??
+      props.description ??
       '';
 
     return html`<img

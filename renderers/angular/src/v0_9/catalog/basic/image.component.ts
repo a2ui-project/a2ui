@@ -79,5 +79,5 @@ export class ImageComponent extends BasicCatalogComponent<typeof ImageApi> {
   readonly fit = computed(() => this.props()['fit']?.value() || 'cover');
   readonly variant = computed(() => this.props()['variant']?.value() || 'default');
   readonly accessibility = computed(() => this.props()['accessibility']?.value());
-  readonly altText = computed(() => this.accessibility()?.label || this.accessibility()?.description || this.description());
+  readonly altText = computed(() => this.accessibility()?.label ?? this.accessibility()?.description ?? this.description());
 }

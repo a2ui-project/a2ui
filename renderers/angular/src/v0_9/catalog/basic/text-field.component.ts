@@ -99,8 +99,9 @@ export class TextFieldComponent extends BasicCatalogComponent<typeof TextFieldAp
   readonly label = computed(() => this.props()['label']?.value());
   readonly value = computed(() => this.props()['value']?.value() || '');
   readonly variant = computed(() => this.props()['variant']?.value());
-  readonly ariaLabel = computed(() => this.props()['accessibility']?.value()?.label ?? null);
-  readonly ariaDescribedBy = computed(() => this.props()['accessibility']?.value()?.description ?? null);
+  readonly accessibility = computed(() => this.props()['accessibility']?.value());
+  readonly ariaLabel = computed(() => this.accessibility()?.label ?? null);
+  readonly ariaDescribedBy = computed(() => this.accessibility()?.description ?? null);
 
   readonly inputType = computed(() => {
     switch (this.variant()) {
