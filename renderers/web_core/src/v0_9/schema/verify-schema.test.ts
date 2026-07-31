@@ -16,7 +16,6 @@
 
 import {describe, it} from 'node:test';
 import * as assert from 'node:assert';
-import {zodToJsonSchema} from 'zod-to-json-schema';
 import {readFileSync, existsSync} from 'fs';
 import {resolve, join} from 'path';
 import {
@@ -26,6 +25,7 @@ import {
   UpdateDataModelMessageSchema,
   DeleteSurfaceMessageSchema,
 } from './server-to-client.js';
+import {zodToJsonSchema} from '../../common/zod-utils.js';
 
 const currentDir = typeof __dirname !== 'undefined' ? __dirname : resolve('src/v0_9/schema');
 const specPathCandidate1 = resolve(currentDir, '../../../../../specification/v0_9/json');

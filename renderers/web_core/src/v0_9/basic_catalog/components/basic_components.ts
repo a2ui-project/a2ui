@@ -27,6 +27,7 @@ import {
   CheckableSchema,
 } from '../../schema/common-types.js';
 import {ComponentApi} from '../../catalog/types.js';
+import {getObjectShape} from '../../../common/zod-utils.js';
 
 const CommonProps = {
   'accessibility': AccessibilityAttributesSchema.optional(),
@@ -354,7 +355,7 @@ export const ButtonApi = {
         )
         .optional(),
       'action': ActionSchema.optional(),
-      ...CheckableSchema.shape,
+      ...getObjectShape(CheckableSchema),
     })
     .strict(),
 } satisfies ComponentApi;
@@ -375,7 +376,7 @@ export const TextFieldApi = {
         .string()
         .describe('A regular expression used for client-side validation of the input.')
         .optional(),
-      ...CheckableSchema.shape,
+      ...getObjectShape(CheckableSchema),
     })
     .strict(),
 } satisfies ComponentApi;
@@ -389,7 +390,7 @@ export const CheckBoxApi = {
       'value': DynamicBooleanSchema.describe(
         'The current state of the checkbox (true for checked, false for unchecked).',
       ),
-      ...CheckableSchema.shape,
+      ...getObjectShape(CheckableSchema),
     })
     .strict(),
 } satisfies ComponentApi;
@@ -428,7 +429,7 @@ export const ChoicePickerApi = {
         .default(false)
         .describe('If true, displays a search input to filter the options.')
         .optional(),
-      ...CheckableSchema.shape,
+      ...getObjectShape(CheckableSchema),
     })
     .strict()
     .describe('A component that allows selecting one or more options from a list.'),
@@ -443,7 +444,7 @@ export const SliderApi = {
       'min': z.number().default(0).describe('The minimum value of the slider.').optional(),
       'max': z.number().describe('The maximum value of the slider.'),
       'value': DynamicNumberSchema.describe('The current value of the slider.'),
-      ...CheckableSchema.shape,
+      ...getObjectShape(CheckableSchema),
     })
     .strict(),
 } satisfies ComponentApi;
@@ -475,7 +476,7 @@ export const DateTimeInputApi = {
         .describe('The maximum allowed date/time in ISO 8601 format.')
         .optional(),
       'label': DynamicStringSchema.describe('The text label for the input field.').optional(),
-      ...CheckableSchema.shape,
+      ...getObjectShape(CheckableSchema),
     })
     .strict(),
 } satisfies ComponentApi;

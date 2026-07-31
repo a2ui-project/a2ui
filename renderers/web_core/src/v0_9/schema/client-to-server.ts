@@ -29,7 +29,7 @@ export const A2uiClientActionSchema = z
     sourceComponentId: z.string().describe('The id of the component that triggered the event.'),
     timestamp: z.string().datetime().describe('An ISO 8601 timestamp of when the event occurred.'),
     context: z
-      .record(z.any())
+      .record(z.string(), z.any())
       .describe(
         "A JSON object containing the key-value pairs from the component's action.event.context, after resolving all data bindings.",
       ),
@@ -93,7 +93,7 @@ export const A2uiClientDataModelSchema = z
   .object({
     version: z.enum(['v0.9', 'v0.9.1']),
     surfaces: z
-      .record(z.object({}).passthrough())
+      .record(z.string(), z.object({}).passthrough())
       .describe('A map of surface IDs to their current data models.'),
   })
   .strict();

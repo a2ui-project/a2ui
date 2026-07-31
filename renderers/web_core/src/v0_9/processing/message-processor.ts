@@ -19,7 +19,7 @@ import {Catalog, ComponentApi} from '../catalog/types.js';
 import {SurfaceGroupModel} from '../state/surface-group-model.js';
 import {ComponentModel} from '../state/component-model.js';
 import {Subscription} from '../common/events.js';
-import {zodToJsonSchema} from 'zod-to-json-schema';
+import {zodToJsonSchema} from '../../common/zod-utils.js';
 
 import {
   A2uiMessage,
@@ -102,7 +102,7 @@ export class MessageProcessor<T extends ComponentApi> {
     const components: Record<string, any> = {};
 
     for (const [name, api] of catalog.components.entries()) {
-      const zodSchema = zodToJsonSchema(api.schema, {
+      const zodSchema = zodToJsonSchema(api.schema as any, {
         target: 'jsonSchema2019-09',
       }) as any;
 
@@ -126,7 +126,7 @@ export class MessageProcessor<T extends ComponentApi> {
 
     const functions: any[] = [];
     for (const api of catalog.functions.values()) {
-      const zodSchema = zodToJsonSchema(api.schema, {
+      const zodSchema = zodToJsonSchema(api.schema as any, {
         target: 'jsonSchema2019-09',
       }) as any;
 
@@ -142,7 +142,7 @@ export class MessageProcessor<T extends ComponentApi> {
 
     let theme: Record<string, any> | undefined;
     if (catalog.themeSchema) {
-      const zodSchema = zodToJsonSchema(catalog.themeSchema, {
+      const zodSchema = zodToJsonSchema(catalog.themeSchema as any, {
         target: 'jsonSchema2019-09',
       }) as any;
 
@@ -323,8 +323,10 @@ export class MessageProcessor<T extends ComponentApi> {
         if (componentApi) {
           const validationResult = componentApi.schema.safeParse(properties);
           if (!validationResult.success) {
-            const formattedErrors = validationResult.error.errors
-              .map(err => `${err.path.join('.') || 'root'}: ${err.message}`)
+            const zodError = validationResult.error as any;
+            const issues = zodError.errors ?? zodError.issues ?? [];
+            const formattedErrors = issues
+              .map((err: any) => `${err.path?.join('.') || 'root'}: ${err.message}`)
               .join(', ');
             throw new A2uiValidationError(
               `Validation failed for component '${componentType}' (${id}): ${formattedErrors}`,

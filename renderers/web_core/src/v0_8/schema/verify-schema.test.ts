@@ -16,7 +16,7 @@
 
 import {describe, it} from 'node:test';
 import * as assert from 'node:assert';
-import {zodToJsonSchema} from 'zod-to-json-schema';
+import {zodToJsonSchema} from '../../common/zod-utils.js';
 import {readFileSync} from 'fs';
 import {resolve, join, dirname} from 'path';
 import {fileURLToPath} from 'url';

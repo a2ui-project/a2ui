@@ -15,12 +15,20 @@
  */
 
 import type {z} from 'zod';
-import type {
-  StringValueSchema,
-  NumberValueSchema,
-  BooleanValueSchema,
+import {
+  StringValueObjectSchema,
+  NumberValueObjectSchema,
+  BooleanValueObjectSchema,
 } from '../schema/common-types.js';
 
-export declare interface StringValue extends z.infer<typeof StringValueSchema> {}
-export declare interface NumberValue extends z.infer<typeof NumberValueSchema> {}
-export declare interface BooleanValue extends z.infer<typeof BooleanValueSchema> {}
+export interface StringValue extends z.infer<typeof StringValueObjectSchema> {
+  [key: string]: any;
+}
+
+export interface NumberValue extends z.infer<typeof NumberValueObjectSchema> {
+  [key: string]: any;
+}
+
+export interface BooleanValue extends z.infer<typeof BooleanValueObjectSchema> {
+  [key: string]: any;
+}

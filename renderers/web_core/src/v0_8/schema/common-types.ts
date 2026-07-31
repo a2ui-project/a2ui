@@ -30,15 +30,15 @@ const exactlyOneKey = (val: any, ctx: z.RefinementCtx) => {
   }
 };
 
-export const StringValueSchema = z
+export const StringValueObjectSchema = z
   .object({
     path: z.string().optional(),
     literalString: z.string().optional(),
     literal: z.string().optional(),
   })
-  .strict()
-  .superRefine(exactlyOneKey);
-export type StringValue = z.infer<typeof StringValueSchema>;
+  .strict();
+export const StringValueSchema = StringValueObjectSchema.superRefine(exactlyOneKey);
+export type StringValue = z.infer<typeof StringValueObjectSchema>;
 
 const DataValueMapItemSchema: z.ZodType<any> = z.lazy(() =>
   z
@@ -88,55 +88,70 @@ export function createDataValueSchema(options: {maxDepth?: number} = {}) {
 
 export const DataValueSchema = createDataValueSchema();
 
-export const NumberValueSchema = z
+export const NumberValueObjectSchema = z
   .object({
     path: z.string().optional(),
     literalNumber: z.number().optional(),
     literal: z.number().optional(),
   })
-  .strict()
-  .superRefine(exactlyOneKey);
-export type NumberValue = z.infer<typeof NumberValueSchema>;
+  .strict();
+export const NumberValueSchema = NumberValueObjectSchema.superRefine(exactlyOneKey);
+export type NumberValue = z.infer<typeof NumberValueObjectSchema>;
 
-export const BooleanValueSchema = z
+export const BooleanValueObjectSchema = z
   .object({
     path: z.string().optional(),
     literalBoolean: z.boolean().optional(),
     literal: z.boolean().optional(),
   })
-  .strict()
-  .superRefine(exactlyOneKey);
-export type BooleanValue = z.infer<typeof BooleanValueSchema>;
+  .strict();
+export const BooleanValueSchema = BooleanValueObjectSchema.superRefine(exactlyOneKey);
+export type BooleanValue = z.infer<typeof BooleanValueObjectSchema>;
 
 /**
  * Action Schema for components that trigger user actions
  */
+export const ActionValueObjectSchema = z
+  .object({
+    path: z
+      .string()
+      .describe("A data binding reference to a location in the data model (e.g., '/user/name').")
+      .optional(),
+    literalString: z.string().describe('A fixed, hardcoded string value.').optional(),
+    literalNumber: z.number().optional(),
+    literalBoolean: z.boolean().optional(),
+  })
+  .describe('The dynamic value. Define EXACTLY ONE of the nested properties.')
+  .strict();
+export const ActionValueSchema = ActionValueObjectSchema.superRefine(exactlyOneKey);
+export type ActionValue = z.infer<typeof ActionValueObjectSchema>;
+
+export const ActionObjectSchema = z.object({
+  name: z.string().describe("A unique name identifying the action (e.g., 'submitForm')."),
+  context: z
+    .array(
+      z.object({
+        key: z.string(),
+        value: ActionValueObjectSchema,
+      }),
+    )
+    .describe('A key-value map of data bindings to be resolved when the action is triggered.')
+    .optional(),
+});
+
 export const ActionSchema = z.object({
   name: z.string().describe("A unique name identifying the action (e.g., 'submitForm')."),
   context: z
     .array(
       z.object({
         key: z.string(),
-        value: z
-          .object({
-            path: z
-              .string()
-              .describe(
-                "A data binding reference to a location in the data model (e.g., '/user/name').",
-              )
-              .optional(),
-            literalString: z.string().describe('A fixed, hardcoded string value.').optional(),
-            literalNumber: z.number().optional(),
-            literalBoolean: z.boolean().optional(),
-          })
-          .describe('The dynamic value. Define EXACTLY ONE of the nested properties.')
-          .strict()
-          .superRefine(exactlyOneKey),
+        value: ActionValueSchema,
       }),
     )
     .describe('A key-value map of data bindings to be resolved when the action is triggered.')
     .optional(),
 });
+export type Action = z.infer<typeof ActionObjectSchema>;
 
 /**
  * Component Properties Schemas
@@ -232,18 +247,26 @@ export const ButtonSchema = z.object({
     .describe('Indicates if this button should be styled as the primary action.'),
 });
 
-export const CheckboxSchema = z.object({
+export const CheckboxValueObjectSchema = z
+  .object({
+    path: z
+      .string()
+      .describe("A data binding reference to a location in the data model (e.g., '/user/name').")
+      .optional(),
+    literalBoolean: z.boolean().optional(),
+  })
+  .strict();
+
+export const CheckboxValueSchema = CheckboxValueObjectSchema.superRefine(exactlyOneKey);
+
+export const CheckboxObjectSchema = z.object({
+  label: StringValueObjectSchema,
+  value: CheckboxValueObjectSchema,
+});
+
+export const CheckboxSchema = CheckboxObjectSchema.extend({
   label: StringValueSchema,
-  value: z
-    .object({
-      path: z
-        .string()
-        .describe("A data binding reference to a location in the data model (e.g., '/user/name').")
-        .optional(),
-      literalBoolean: z.boolean().optional(),
-    })
-    .strict()
-    .superRefine(exactlyOneKey),
+  value: CheckboxValueSchema,
 });
 
 export const TextFieldSchema = z.object({
@@ -263,54 +286,62 @@ export const DateTimeInputSchema = z.object({
     .describe("The string format for the output (e.g., 'YYYY-MM-DD')."),
 });
 
-export const MultipleChoiceSchema = z.object({
-  selections: z
-    .object({
-      path: z
-        .string()
-        .describe("A data binding reference to a location in the data model (e.g., '/user/name').")
-        .optional(),
-      literalArray: z.array(z.string()).optional(),
-    })
-    .strict()
-    .superRefine(exactlyOneKey),
-  options: z
-    .array(
-      z.object({
-        label: z
-          .object({
-            path: z
-              .string()
-              .describe(
-                "A data binding reference to a location in the data model (e.g., '/user/name').",
-              )
-              .optional(),
-            literalString: z.string().describe('A fixed, hardcoded string value.').optional(),
-          })
-          .strict()
-          .superRefine(exactlyOneKey),
-        value: z.string(),
-      }),
-    )
-    .optional(),
+export const ArrayValueObjectSchema = z
+  .object({
+    path: z
+      .string()
+      .describe("A data binding reference to a location in the data model (e.g., '/user/name').")
+      .optional(),
+    literalArray: z.array(z.string()).optional(),
+  })
+  .strict();
+
+export const ArrayValueSchema = ArrayValueObjectSchema.superRefine(exactlyOneKey);
+
+export const MultipleChoiceOptionObjectSchema = z.object({
+  label: StringValueObjectSchema,
+  value: z.string(),
+});
+
+export const MultipleChoiceOptionSchema = z.object({
+  label: StringValueSchema,
+  value: z.string(),
+});
+
+export const MultipleChoiceObjectSchema = z.object({
+  selections: ArrayValueObjectSchema,
+  options: z.array(MultipleChoiceOptionObjectSchema).optional(),
   maxAllowedSelections: z.number().optional(),
   type: z.enum(['checkbox', 'chips']).optional(),
   filterable: z.boolean().optional(),
 });
 
-export const SliderSchema = z.object({
-  value: z
-    .object({
-      path: z
-        .string()
-        .describe("A data binding reference to a location in the data model (e.g., '/user/name').")
-        .optional(),
-      literalNumber: z.number().optional(),
-    })
-    .strict()
-    .superRefine(exactlyOneKey),
+export const MultipleChoiceSchema = MultipleChoiceObjectSchema.extend({
+  selections: ArrayValueSchema,
+  options: z.array(MultipleChoiceOptionSchema).optional(),
+});
+
+export const SliderValueObjectSchema = z
+  .object({
+    path: z
+      .string()
+      .describe("A data binding reference to a location in the data model (e.g., '/user/name').")
+      .optional(),
+    literalNumber: z.number().optional(),
+  })
+  .strict();
+
+export const SliderValueSchema = SliderValueObjectSchema.superRefine(exactlyOneKey);
+
+export const SliderObjectSchema = z.object({
+  value: SliderValueObjectSchema,
   minValue: z.number().optional(),
   maxValue: z.number().optional(),
+  label: StringValueObjectSchema.optional(),
+});
+
+export const SliderSchema = SliderObjectSchema.extend({
+  value: SliderValueSchema,
   label: StringValueSchema.optional(),
 });
 
@@ -319,15 +350,17 @@ export const ComponentArrayTemplateSchema = z.object({
   dataBinding: z.string(),
 });
 
-export const ComponentArrayReferenceSchema = z
+export const ComponentArrayReferenceObjectSchema = z
   .object({
     explicitList: z.array(z.string()).optional(),
     template: ComponentArrayTemplateSchema.describe(
       'A template for generating a dynamic list of children from a data model list. `componentId` is the component to use as a template, and `dataBinding` is the path to the map of components in the data model. Values in the map will define the list of children.',
     ).optional(),
   })
-  .strict()
-  .superRefine(exactlyOneKey);
+  .strict();
+
+export const ComponentArrayReferenceSchema =
+  ComponentArrayReferenceObjectSchema.superRefine(exactlyOneKey);
 
 export const RowSchema = z.object({
   children: ComponentArrayReferenceSchema,

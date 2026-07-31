@@ -15,44 +15,208 @@
  */
 
 import type {z} from 'zod';
-import type {
-  ActionSchema,
-  AudioPlayerSchema,
-  ButtonSchema,
-  CardSchema,
-  CheckboxSchema,
-  ColumnSchema,
-  DateTimeInputSchema,
-  DividerSchema,
-  IconSchema,
-  ImageSchema,
-  ListSchema,
-  ModalSchema,
-  MultipleChoiceSchema,
-  RowSchema,
-  SliderSchema,
-  TabsSchema,
-  TextFieldSchema,
+import type {StringValue} from './primitives.js';
+import {
+  ActionValueObjectSchema,
+  ActionObjectSchema,
   TextSchema,
+  ImageSchema,
+  IconSchema,
   VideoSchema,
+  AudioPlayerSchema,
+  TabsSchema,
+  DividerSchema,
+  ModalSchema,
+  ButtonSchema,
+  TextFieldSchema,
+  CheckboxObjectSchema,
+  DateTimeInputSchema,
+  MultipleChoiceObjectSchema,
+  SliderObjectSchema,
+  ComponentArrayTemplateSchema,
+  ComponentArrayReferenceObjectSchema,
+  RowSchema,
+  ColumnSchema,
+  ListSchema,
+  CardSchema,
 } from '../schema/common-types.js';
 
-export declare interface Action extends z.infer<typeof ActionSchema> {}
-export declare interface Text extends z.infer<typeof TextSchema> {}
-export declare interface Image extends z.infer<typeof ImageSchema> {}
-export declare interface Icon extends z.infer<typeof IconSchema> {}
-export declare interface Video extends z.infer<typeof VideoSchema> {}
-export declare interface AudioPlayer extends z.infer<typeof AudioPlayerSchema> {}
-export declare interface Tabs extends z.infer<typeof TabsSchema> {}
-export declare interface Row extends z.infer<typeof RowSchema> {}
-export declare interface Column extends z.infer<typeof ColumnSchema> {}
-export declare interface List extends z.infer<typeof ListSchema> {}
-export declare interface Button extends z.infer<typeof ButtonSchema> {}
-export declare interface Modal extends z.infer<typeof ModalSchema> {}
-export declare interface Card extends z.infer<typeof CardSchema> {}
-export declare interface Divider extends z.infer<typeof DividerSchema> {}
-export declare interface TextField extends z.infer<typeof TextFieldSchema> {}
-export declare interface Checkbox extends z.infer<typeof CheckboxSchema> {}
-export declare interface DateTimeInput extends z.infer<typeof DateTimeInputSchema> {}
-export declare interface MultipleChoice extends z.infer<typeof MultipleChoiceSchema> {}
-export declare interface Slider extends z.infer<typeof SliderSchema> {}
+export interface ActionValue extends z.infer<typeof ActionValueObjectSchema> {
+  [key: string]: any;
+}
+
+export interface Action extends z.infer<typeof ActionObjectSchema> {
+  [key: string]: any;
+}
+
+/**
+ * Text component properties.
+ * Corresponds to `TextSchema` in `../schema/common-types.js`.
+ */
+export interface Text extends z.infer<typeof TextSchema> {
+  [key: string]: any;
+}
+
+/**
+ * Image component properties.
+ * Corresponds to `ImageSchema` in `../schema/common-types.js`.
+ */
+export interface Image extends z.infer<typeof ImageSchema> {
+  [key: string]: any;
+}
+
+/**
+ * Icon component properties.
+ * Corresponds to `IconSchema` in `../schema/common-types.js`.
+ */
+export interface Icon extends z.infer<typeof IconSchema> {
+  [key: string]: any;
+}
+
+/**
+ * Video component properties.
+ * Corresponds to `VideoSchema` in `../schema/common-types.js`.
+ */
+export interface Video extends z.infer<typeof VideoSchema> {
+  [key: string]: any;
+}
+
+/**
+ * AudioPlayer component properties.
+ * Corresponds to `AudioPlayerSchema` in `../schema/common-types.js`.
+ */
+export interface AudioPlayer extends z.infer<typeof AudioPlayerSchema> {
+  [key: string]: any;
+}
+
+/**
+ * Tab item definition for Tabs container.
+ * Corresponds to `TabItemSchema` in `../schema/common-types.js`.
+ */
+export interface TabItem {
+  title: StringValue;
+  child: string;
+  [key: string]: any;
+}
+
+/**
+ * Tabs container component properties.
+ * Corresponds to `TabsSchema` in `../schema/common-types.js`.
+ */
+export interface Tabs extends z.infer<typeof TabsSchema> {
+  [key: string]: any;
+}
+
+/**
+ * Template for dynamic component array rendering.
+ * Corresponds to `ComponentArrayTemplateSchema` in `../schema/common-types.js`.
+ */
+export interface ComponentArrayTemplate extends z.infer<typeof ComponentArrayTemplateSchema> {
+  [key: string]: any;
+}
+
+/**
+ * Reference list or template for container children.
+ * Corresponds to `ComponentArrayReferenceSchema` in `../schema/common-types.js`.
+ */
+export interface ComponentArrayReference extends z.infer<
+  typeof ComponentArrayReferenceObjectSchema
+> {
+  [key: string]: any;
+}
+
+/**
+ * Row layout container component properties.
+ * Corresponds to `RowSchema` in `../schema/common-types.js`.
+ */
+export interface Row extends z.infer<typeof RowSchema> {
+  [key: string]: any;
+}
+
+/**
+ * Column layout container component properties.
+ * Corresponds to `ColumnSchema` in `../schema/common-types.js`.
+ */
+export interface Column extends z.infer<typeof ColumnSchema> {
+  [key: string]: any;
+}
+
+/**
+ * List container component properties.
+ * Corresponds to `ListSchema` in `../schema/common-types.js`.
+ */
+export interface List extends z.infer<typeof ListSchema> {
+  [key: string]: any;
+}
+
+/**
+ * Button component properties.
+ * Corresponds to `ButtonSchema` in `../schema/common-types.js`.
+ */
+export interface Button extends z.infer<typeof ButtonSchema> {
+  [key: string]: any;
+}
+
+/**
+ * Modal dialog component properties.
+ * Corresponds to `ModalSchema` in `../schema/common-types.js`.
+ */
+export interface Modal extends z.infer<typeof ModalSchema> {
+  [key: string]: any;
+}
+
+/**
+ * Card container component properties.
+ * Corresponds to `CardSchema` in `../schema/common-types.js`.
+ */
+export interface Card extends z.infer<typeof CardSchema> {
+  [key: string]: any;
+}
+
+/**
+ * Divider line component properties.
+ * Corresponds to `DividerSchema` in `../schema/common-types.js`.
+ */
+export interface Divider extends z.infer<typeof DividerSchema> {
+  [key: string]: any;
+}
+
+/**
+ * TextField input component properties.
+ * Corresponds to `TextFieldSchema` in `../schema/common-types.js`.
+ */
+export interface TextField extends z.infer<typeof TextFieldSchema> {
+  [key: string]: any;
+}
+
+/**
+ * Checkbox input component properties.
+ * Corresponds to `CheckboxSchema` in `../schema/common-types.js`.
+ */
+export interface Checkbox extends z.infer<typeof CheckboxObjectSchema> {
+  [key: string]: any;
+}
+
+/**
+ * DateTimeInput component properties.
+ * Corresponds to `DateTimeInputSchema` in `../schema/common-types.js`.
+ */
+export interface DateTimeInput extends z.infer<typeof DateTimeInputSchema> {
+  [key: string]: any;
+}
+
+/**
+ * MultipleChoice input component properties.
+ * Corresponds to `MultipleChoiceSchema` in `../schema/common-types.js`.
+ */
+export interface MultipleChoice extends z.infer<typeof MultipleChoiceObjectSchema> {
+  [key: string]: any;
+}
+
+/**
+ * Slider input component properties.
+ * Corresponds to `SliderSchema` in `../schema/common-types.js`.
+ */
+export interface Slider extends z.infer<typeof SliderObjectSchema> {
+  [key: string]: any;
+}

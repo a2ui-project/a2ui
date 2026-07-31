@@ -23,6 +23,7 @@ import {SurfaceModel} from '../state/surface-model.js';
 import {Catalog} from '../catalog/types.js';
 import {ComponentModel} from '../state/component-model.js';
 import {CommonSchemas} from '../schema/common-types.js';
+import {getObjectShape} from '../../common/zod-utils.js';
 
 describe('GenericBinder Checkable Trait', () => {
   const mockCatalog = new Catalog('test', [], []);
@@ -54,7 +55,7 @@ describe('GenericBinder Checkable Trait', () => {
 
     const schema = z.object({
       value: CommonSchemas.DynamicString,
-      checks: CommonSchemas.Checkable.shape.checks,
+      checks: getObjectShape(CommonSchemas.Checkable)!.checks,
     });
 
     return {surface, schema};

@@ -301,7 +301,7 @@ describe('DataContext', () => {
             received: 'number',
             path: ['foo'],
             message: 'Expected string, received number',
-          },
+          } as any,
         ]);
       };
       let dispatchedError: any = null;

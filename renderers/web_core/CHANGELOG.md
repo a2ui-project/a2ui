@@ -1,7 +1,9 @@
 ## Unreleased
 
+- **BREAKING CHANGE**: Move `zod` from direct `dependencies` to `peerDependencies` (`"^3.25.0 || ^4.0.0"`). Consuming applications must explicitly install `zod` in their root `package.json`. Adds dual-compatibility support for both Zod 3.25+ and Zod 4.0+. ([#2002](https://github.com/a2ui-project/a2ui/issues/2002))
 - (v0_9) Validate component properties against catalog schema in `MessageProcessor` to prevent malformed component actions.
 - (v0_9) Add prototype pollution protection and safe property lookup to `DataModel` (non-breaking security fix).
+- (v0_8) Declare explicit TypeScript interfaces for v0.8 component and primitive types (such as `StringValue`, `NumberValue`, `BooleanValue`, `ActionValue`, `Action`) instead of deriving them via `z.infer<typeof Schema>`. This prevents Zod generic type parameter leakage in compiled `.d.ts` declaration files across Zod 3 and Zod 4 environments.
 - (v0_8) Export `A2uiMessageSchema` in public API.
 - Enable `inlineSources` in `tsconfig.json` to populate `sourcesContent` in sourcemaps.
 
