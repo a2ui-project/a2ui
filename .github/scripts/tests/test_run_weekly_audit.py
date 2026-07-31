@@ -62,7 +62,7 @@ class TestRunWeeklyAudit(unittest.TestCase):
 
         mock_interaction_queued = MagicMock(id="test-id-123", status="queued")
         mock_interaction_completed = MagicMock(
-            id="test-id-123", status="completed", output_text="Audit Passed"
+            id="test-id-123", status="completed", output_text="# Audit Passed Report"
         )
 
         mock_client.interactions.create.return_value = mock_interaction_queued
@@ -108,6 +108,19 @@ class TestRunWeeklyAudit(unittest.TestCase):
         ):
             with self.assertRaisesRegex(RuntimeError, "status: failed"):
                 main()
+
+    def test_extract_report_text(self) -> None:
+        extract_report_text = run_weekly_audit.extract_report_text
+
+        mock_int = MagicMock()
+        mock_int.output_text = "# Main Report\nBody content"
+        self.assertEqual(extract_report_text(mock_int), "# Main Report\nBody content")
+
+        mock_int.output_text = "...}"
+        mock_step = MagicMock()
+        mock_step.model_dump.return_value = {"result": "# Step Report\nDetails"}
+        mock_int.steps = [mock_step]
+        self.assertEqual(extract_report_text(mock_int), "# Step Report\nDetails")
 
 
 if __name__ == "__main__":

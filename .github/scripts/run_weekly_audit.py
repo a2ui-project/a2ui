@@ -20,6 +20,27 @@ import sys
 import time
 
 
+def extract_report_text(interaction) -> str:
+    """Extracts the full report text from interaction output or steps."""
+    if interaction.output_text and interaction.output_text.strip().startswith("#"):
+        return interaction.output_text.strip()
+
+    for step in reversed(getattr(interaction, "steps", None) or []):
+        step_dict = step.model_dump() if hasattr(step, "model_dump") else {}
+        for key in ("result", "content", "summary"):
+            val = step_dict.get(key)
+            if isinstance(val, str) and val.strip().startswith("#"):
+                return val.strip()
+            elif isinstance(val, list):
+                for item in val:
+                    if isinstance(item, dict) and item.get(
+                        "text", ""
+                    ).strip().startswith("#"):
+                        return item["text"].strip()
+
+    return ""
+
+
 def main() -> None:
     api_key = os.environ.get("GEMINI_API_KEY")
     if not api_key:
@@ -76,10 +97,11 @@ def main() -> None:
     if interaction.status != "completed":
         raise RuntimeError(f"Audit interaction ended with status: {interaction.status}")
 
-    if interaction.output_text:
+    report_text = extract_report_text(interaction)
+    if report_text:
         report_file = "compliance_report.md"
         with open(report_file, "w", encoding="utf-8") as f:
-            f.write(interaction.output_text)
+            f.write(report_text)
 
         script_path = os.path.join(
             ".agents", "skills", "a2ui-audit", "scripts", "create_compliance_report.py"
