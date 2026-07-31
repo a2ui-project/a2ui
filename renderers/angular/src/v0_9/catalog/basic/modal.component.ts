@@ -52,7 +52,9 @@ import {ModalApi} from '@a2ui/web_core/v0_9/basic_catalog';
             [attr.aria-label]="accessibilityLabel() || null"
             [attr.aria-description]="accessibilityDescription() || null"
           >
-            <button class="a2ui-modal-close" aria-label="Close" (click)="closeModal()">&times;</button>
+            <button class="a2ui-modal-close" aria-label="Close" (click)="closeModal()">
+              &times;
+            </button>
             @if (content()) {
               <a2ui-v09-component-host [componentKey]="content()!" [surfaceId]="surfaceId()">
               </a2ui-v09-component-host>

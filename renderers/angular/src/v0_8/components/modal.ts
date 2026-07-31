@@ -42,7 +42,9 @@ import type {AnyComponentNode, ModalNode} from '../types';
           [class]="theme.components.Modal.element"
           (click)="$event.stopPropagation()"
         >
-          <button class="a2ui-modal-close" aria-label="Close" (click)="closeModal()">&times;</button>
+          <button class="a2ui-modal-close" aria-label="Close" (click)="closeModal()">
+            &times;
+          </button>
           @if (contentChild()) {
             <ng-container a2ui-renderer [surfaceId]="surfaceId()!" [component]="contentChild()!" />
           }

@@ -34,6 +34,7 @@ describe('TextFieldComponent', () => {
     fixture = TestBed.createComponent(TextFieldComponent);
     component = fixture.componentInstance;
     fixture.componentRef.setInput('surfaceId', 'surf1');
+    fixture.componentRef.setInput('componentId', 'test-text-field');
     defaultProps = {
       label: createBoundProperty('Username'),
       value: createBoundProperty('testuser'),
