@@ -1042,6 +1042,17 @@ The [`catalogs/basic/catalog.json`] provides the baseline set of components and 
 | **and**            | Logical AND operation on a list of boolean values.                       |
 | **or**             | Logical OR operation on a list of boolean values.                        |
 | **not**            | Logical NOT operation on a boolean value.                                |
+| **add**            | Adds two numbers.                                                        |
+| **subtract**       | Subtracts one number from another.                                       |
+| **multiply**       | Multiplies two numbers.                                                  |
+| **divide**         | Divides one number by another.                                           |
+| **greater_than**   | Checks if the first number is greater than the second.                   |
+| **less_than**      | Checks if the first number is less than the second.                      |
+| **equals**         | Checks if two values are equal.                                          |
+| **not_equals**     | Checks if two values are not equal.                                      |
+| **contains**       | Checks if a string contains a substring.                                 |
+| **starts_with**    | Checks if a string starts with a prefix.                                 |
+| **ends_with**      | Checks if a string ends with a suffix.                                   |
 
 ### The `formatString` function
 

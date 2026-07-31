@@ -1240,6 +1240,321 @@
       },
       "required": ["call", "args"],
       "unevaluatedProperties": false
+    },
+    "add": {
+      "type": "object",
+      "description": "Adds two numbers.",
+      "properties": {
+        "call": {
+          "const": "add"
+        },
+        "args": {
+          "type": "object",
+          "properties": {
+            "a": {
+              "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicNumber",
+              "description": "The first number."
+            },
+            "b": {
+              "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicNumber",
+              "description": "The second number."
+            }
+          },
+          "required": ["a", "b"],
+          "unevaluatedProperties": false
+        },
+        "returnType": {
+          "const": "number"
+        }
+      },
+      "required": ["call", "args"],
+      "unevaluatedProperties": false
+    },
+    "subtract": {
+      "type": "object",
+      "description": "Subtracts one number from another.",
+      "properties": {
+        "call": {
+          "const": "subtract"
+        },
+        "args": {
+          "type": "object",
+          "properties": {
+            "a": {
+              "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicNumber",
+              "description": "The number to subtract from."
+            },
+            "b": {
+              "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicNumber",
+              "description": "The number to subtract."
+            }
+          },
+          "required": ["a", "b"],
+          "unevaluatedProperties": false
+        },
+        "returnType": {
+          "const": "number"
+        }
+      },
+      "required": ["call", "args"],
+      "unevaluatedProperties": false
+    },
+    "multiply": {
+      "type": "object",
+      "description": "Multiplies two numbers.",
+      "properties": {
+        "call": {
+          "const": "multiply"
+        },
+        "args": {
+          "type": "object",
+          "properties": {
+            "a": {
+              "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicNumber",
+              "description": "The first number."
+            },
+            "b": {
+              "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicNumber",
+              "description": "The second number."
+            }
+          },
+          "required": ["a", "b"],
+          "unevaluatedProperties": false
+        },
+        "returnType": {
+          "const": "number"
+        }
+      },
+      "required": ["call", "args"],
+      "unevaluatedProperties": false
+    },
+    "divide": {
+      "type": "object",
+      "description": "Divides one number by another. Division by zero yields positive or negative infinity, or NaN when the dividend is also zero.",
+      "properties": {
+        "call": {
+          "const": "divide"
+        },
+        "args": {
+          "type": "object",
+          "properties": {
+            "a": {
+              "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicNumber",
+              "description": "The dividend."
+            },
+            "b": {
+              "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicNumber",
+              "description": "The divisor."
+            }
+          },
+          "required": ["a", "b"],
+          "unevaluatedProperties": false
+        },
+        "returnType": {
+          "const": "number"
+        }
+      },
+      "required": ["call", "args"],
+      "unevaluatedProperties": false
+    },
+    "greater_than": {
+      "type": "object",
+      "description": "Checks if the first number is greater than the second.",
+      "properties": {
+        "call": {
+          "const": "greater_than"
+        },
+        "args": {
+          "type": "object",
+          "properties": {
+            "a": {
+              "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicNumber",
+              "description": "The number to compare."
+            },
+            "b": {
+              "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicNumber",
+              "description": "The threshold number."
+            }
+          },
+          "required": ["a", "b"],
+          "unevaluatedProperties": false
+        },
+        "returnType": {
+          "const": "boolean"
+        }
+      },
+      "required": ["call", "args"],
+      "unevaluatedProperties": false
+    },
+    "less_than": {
+      "type": "object",
+      "description": "Checks if the first number is less than the second.",
+      "properties": {
+        "call": {
+          "const": "less_than"
+        },
+        "args": {
+          "type": "object",
+          "properties": {
+            "a": {
+              "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicNumber",
+              "description": "The number to compare."
+            },
+            "b": {
+              "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicNumber",
+              "description": "The threshold number."
+            }
+          },
+          "required": ["a", "b"],
+          "unevaluatedProperties": false
+        },
+        "returnType": {
+          "const": "boolean"
+        }
+      },
+      "required": ["call", "args"],
+      "unevaluatedProperties": false
+    },
+    "equals": {
+      "type": "object",
+      "description": "Checks if two values are equal.",
+      "properties": {
+        "call": {
+          "const": "equals"
+        },
+        "args": {
+          "type": "object",
+          "properties": {
+            "a": {
+              "description": "The first value."
+            },
+            "b": {
+              "description": "The second value."
+            }
+          },
+          "required": ["a", "b"],
+          "unevaluatedProperties": false
+        },
+        "returnType": {
+          "const": "boolean"
+        }
+      },
+      "required": ["call", "args"],
+      "unevaluatedProperties": false
+    },
+    "not_equals": {
+      "type": "object",
+      "description": "Checks if two values are not equal.",
+      "properties": {
+        "call": {
+          "const": "not_equals"
+        },
+        "args": {
+          "type": "object",
+          "properties": {
+            "a": {
+              "description": "The first value."
+            },
+            "b": {
+              "description": "The second value."
+            }
+          },
+          "required": ["a", "b"],
+          "unevaluatedProperties": false
+        },
+        "returnType": {
+          "const": "boolean"
+        }
+      },
+      "required": ["call", "args"],
+      "unevaluatedProperties": false
+    },
+    "contains": {
+      "type": "object",
+      "description": "Checks if a string contains a substring.",
+      "properties": {
+        "call": {
+          "const": "contains"
+        },
+        "args": {
+          "type": "object",
+          "properties": {
+            "string": {
+              "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicString",
+              "description": "The source string."
+            },
+            "substring": {
+              "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicString",
+              "description": "The substring to search for."
+            }
+          },
+          "required": ["string", "substring"],
+          "unevaluatedProperties": false
+        },
+        "returnType": {
+          "const": "boolean"
+        }
+      },
+      "required": ["call", "args"],
+      "unevaluatedProperties": false
+    },
+    "starts_with": {
+      "type": "object",
+      "description": "Checks if a string starts with a prefix.",
+      "properties": {
+        "call": {
+          "const": "starts_with"
+        },
+        "args": {
+          "type": "object",
+          "properties": {
+            "string": {
+              "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicString",
+              "description": "The source string."
+            },
+            "prefix": {
+              "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicString",
+              "description": "The prefix to search for."
+            }
+          },
+          "required": ["string", "prefix"],
+          "unevaluatedProperties": false
+        },
+        "returnType": {
+          "const": "boolean"
+        }
+      },
+      "required": ["call", "args"],
+      "unevaluatedProperties": false
+    },
+    "ends_with": {
+      "type": "object",
+      "description": "Checks if a string ends with a suffix.",
+      "properties": {
+        "call": {
+          "const": "ends_with"
+        },
+        "args": {
+          "type": "object",
+          "properties": {
+            "string": {
+              "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicString",
+              "description": "The source string."
+            },
+            "suffix": {
+              "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicString",
+              "description": "The suffix to search for."
+            }
+          },
+          "required": ["string", "suffix"],
+          "unevaluatedProperties": false
+        },
+        "returnType": {
+          "const": "boolean"
+        }
+      },
+      "required": ["call", "args"],
+      "unevaluatedProperties": false
     }
   },
   "$defs": {
@@ -1376,6 +1691,39 @@
         },
         {
           "$ref": "#/functions/not"
+        },
+        {
+          "$ref": "#/functions/add"
+        },
+        {
+          "$ref": "#/functions/subtract"
+        },
+        {
+          "$ref": "#/functions/multiply"
+        },
+        {
+          "$ref": "#/functions/divide"
+        },
+        {
+          "$ref": "#/functions/greater_than"
+        },
+        {
+          "$ref": "#/functions/less_than"
+        },
+        {
+          "$ref": "#/functions/equals"
+        },
+        {
+          "$ref": "#/functions/not_equals"
+        },
+        {
+          "$ref": "#/functions/contains"
+        },
+        {
+          "$ref": "#/functions/starts_with"
+        },
+        {
+          "$ref": "#/functions/ends_with"
         }
       ]
     }
