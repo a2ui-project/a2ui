@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import { Types } from '../types';
+import type {ServerToClientMessage} from '../types';
 
 export interface A2TextPayload {
   kind: 'text';
@@ -23,7 +23,7 @@ export interface A2TextPayload {
 
 export interface A2DataPayload {
   kind: 'data';
-  data: Types.ServerToClientMessage;
+  data: ServerToClientMessage;
 }
 
-export type A2AServerPayload = Array<A2DataPayload | A2TextPayload> | { error: string };
+export type A2AServerPayload = Array<A2DataPayload | A2TextPayload> | {error: string};

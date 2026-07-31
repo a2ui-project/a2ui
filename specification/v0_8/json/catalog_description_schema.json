@@ -26,9 +26,5 @@
       }
     }
   },
-  "required": [
-    "catalogId",
-    "components",
-    "styles"
-  ]
+  "required": ["catalogId", "components", "styles"]
 }

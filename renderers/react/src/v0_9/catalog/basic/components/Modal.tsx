@@ -25,11 +25,16 @@ export const Modal = createComponentImplementation(ModalApi, ({props, buildChild
 
   return (
     <>
-      <div onClick={() => setIsOpen(true)} style={{display: 'inline-block'}}>
+      <div
+        className="a2ui-modal-trigger"
+        onClick={() => setIsOpen(true)}
+        style={{display: 'inline-block'}}
+      >
         {props.trigger ? buildChild(props.trigger) : null}
       </div>
       {isOpen && (
         <div
+          className="a2ui-modal-overlay"
           style={{
             position: 'fixed',
             top: 0,
@@ -56,10 +61,11 @@ export const Modal = createComponentImplementation(ModalApi, ({props, buildChild
               flexDirection: 'column',
               color: 'var(--a2ui-color-on-surface, inherit)',
             }}
-            onClick={(e) => e.stopPropagation()}
+            onClick={e => e.stopPropagation()}
           >
             <div style={{display: 'flex', justifyContent: 'flex-end'}}>
               <button
+                className="a2ui-modal-close"
                 onClick={() => setIsOpen(false)}
                 style={{
                   border: 'none',

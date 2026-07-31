@@ -24,14 +24,14 @@
  * Runs automatically via prebuild/predev hooks in package.json.
  */
 
-import { readFileSync, writeFileSync, readdirSync } from 'fs';
-import { join, dirname } from 'path';
-import { fileURLToPath } from 'url';
+import {readFileSync, writeFileSync, readdirSync} from 'fs';
+import {join, dirname} from 'path';
+import {fileURLToPath} from 'url';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(__dirname, '../../..'); // monorepo root
 const V08_EXAMPLES = join(ROOT, 'specification/v0_8/json/catalogs/basic/examples');
-const V09_EXAMPLES = join(ROOT, 'specification/v0_9/json/catalogs/basic/examples');
+const V09_EXAMPLES = join(ROOT, 'specification/v0_9/catalogs/basic/examples');
 const V08_OUT = join(__dirname, '../src/data/gallery/v08/generated.ts');
 const V09_OUT = join(__dirname, '../src/data/gallery/v09/generated.ts');
 
@@ -53,21 +53,43 @@ const LICENSE = `/**
 
 // Gallery card heights per slug
 const HEIGHTS = {
-  'flight-status': 280, 'email-compose': 420, 'calendar-day': 380,
-  'weather-current': 320, 'product-card': 380, 'music-player': 400,
-  'task-card': 200, 'user-profile': 420, 'login-form': 340,
-  'notification-permission': 240, 'purchase-complete': 380, 'chat-message': 380,
-  'coffee-order': 420, 'sports-player': 380, 'account-balance': 280,
-  'workout-summary': 320, 'event-detail': 320, 'track-list': 380,
-  'software-purchase': 380, 'restaurant-card': 340, 'shipping-status': 380,
-  'credit-card': 280, 'step-counter': 320, 'recipe-card': 380,
-  'contact-card': 400, 'podcast-episode': 300, 'stats-card': 240,
-  'countdown-timer': 260, 'movie-card': 380,
+  'flight-status': 280,
+  'email-compose': 420,
+  'calendar-day': 380,
+  'weather-current': 320,
+  'product-card': 380,
+  'music-player': 400,
+  'task-card': 200,
+  'user-profile': 420,
+  'login-form': 340,
+  'notification-permission': 240,
+  'purchase-complete': 380,
+  'chat-message': 380,
+  'coffee-order': 420,
+  'sports-player': 380,
+  'account-balance': 280,
+  'workout-summary': 320,
+  'event-detail': 320,
+  'track-list': 380,
+  'software-purchase': 380,
+  'restaurant-card': 340,
+  'shipping-status': 380,
+  'credit-card': 280,
+  'step-counter': 320,
+  'recipe-card': 380,
+  'contact-card': 400,
+  'podcast-episode': 300,
+  'stats-card': 240,
+  'countdown-timer': 260,
+  'movie-card': 380,
 };
 const DEFAULT_HEIGHT = 340;
 
 function slugToName(slug) {
-  return slug.split('-').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
+  return slug
+    .split('-')
+    .map(w => w.charAt(0).toUpperCase() + w.slice(1))
+    .join(' ');
 }
 
 /**
@@ -107,16 +129,24 @@ function sanitizeV08Components(components) {
 
     for (const [type, props] of Object.entries(inner)) {
       // Fix unsupported textFieldType values
-      if (type === 'TextField' && props.textFieldType && !V08_TEXTFIELD_TYPES.has(props.textFieldType)) {
+      if (
+        type === 'TextField' &&
+        props.textFieldType &&
+        !V08_TEXTFIELD_TYPES.has(props.textFieldType)
+      ) {
         props.textFieldType = 'shortText';
       }
       // Fix unsupported alignment values
-      if ((type === 'Row' || type === 'Column') && props.alignment && !V08_ALIGNMENTS.has(props.alignment)) {
+      if (
+        (type === 'Row' || type === 'Column') &&
+        props.alignment &&
+        !V08_ALIGNMENTS.has(props.alignment)
+      ) {
         props.alignment = 'center';
       }
       // Ensure action is an object, not a string
       if (type === 'Button' && typeof props.action === 'string') {
-        props.action = { name: props.action };
+        props.action = {name: props.action};
       }
     }
     return copy;
@@ -171,7 +201,9 @@ function parseV09(example, slug) {
 }
 
 function generateFile(examplesDir, version, parser) {
-  const files = readdirSync(examplesDir).filter(f => f.endsWith('.json')).sort();
+  const files = readdirSync(examplesDir)
+    .filter(f => f.endsWith('.json'))
+    .sort();
   const widgets = [];
 
   for (const file of files) {
@@ -179,12 +211,12 @@ function generateFile(examplesDir, version, parser) {
     const raw = JSON.parse(readFileSync(join(examplesDir, file), 'utf-8'));
     const parsed = parser(raw, slug);
     const height = HEIGHTS[slug] || DEFAULT_HEIGHT;
-    widgets.push({ slug, parsed, height });
+    widgets.push({slug, parsed, height});
   }
 
-  const json = (obj) => JSON.stringify(obj, null, 2).replace(/\n/g, '\n  ');
+  const json = obj => JSON.stringify(obj, null, 2).replace(/\n/g, '\n  ');
 
-  const entries = widgets.map(({ slug, parsed, height }) => {
+  const entries = widgets.map(({slug, parsed, height}) => {
     const constName = slug.toUpperCase().replace(/-/g, '_');
     return `
 const ${constName} = {
@@ -203,9 +235,9 @@ const ${constName} = {
   });
 
   const arrayName = version === '0.8' ? 'V08_GALLERY_WIDGETS' : 'V09_GALLERY_WIDGETS';
-  const arrayEntries = widgets.map(({ slug }) =>
-    `  ${slug.toUpperCase().replace(/-/g, '_')},`
-  ).join('\n');
+  const arrayEntries = widgets
+    .map(({slug}) => `  ${slug.toUpperCase().replace(/-/g, '_')},`)
+    .join('\n');
 
   return `${LICENSE}
 

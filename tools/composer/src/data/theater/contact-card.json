@@ -58,11 +58,7 @@
           "component": {
             "Column": {
               "children": {
-                "explicitList": [
-                  "user_heading",
-                  "description_text_1",
-                  "description_text_2"
-                ]
+                "explicitList": ["user_heading", "description_text_1", "description_text_2"]
               },
               "alignment": "center"
             }
@@ -104,10 +100,7 @@
           "component": {
             "Column": {
               "children": {
-                "explicitList": [
-                  "calendar_primary_text",
-                  "calendar_secondary_text"
-                ]
+                "explicitList": ["calendar_primary_text", "calendar_secondary_text"]
               },
               "distribution": "start",
               "alignment": "start"
@@ -119,10 +112,7 @@
           "component": {
             "Row": {
               "children": {
-                "explicitList": [
-                  "calendar_icon",
-                  "calendar_text_column"
-                ]
+                "explicitList": ["calendar_icon", "calendar_text_column"]
               },
               "distribution": "start",
               "alignment": "start"
@@ -165,10 +155,7 @@
           "component": {
             "Column": {
               "children": {
-                "explicitList": [
-                  "location_primary_text",
-                  "location_secondary_text"
-                ]
+                "explicitList": ["location_primary_text", "location_secondary_text"]
               },
               "distribution": "start",
               "alignment": "start"
@@ -180,10 +167,7 @@
           "component": {
             "Row": {
               "children": {
-                "explicitList": [
-                  "location_icon",
-                  "location_text_column"
-                ]
+                "explicitList": ["location_icon", "location_text_column"]
               },
               "distribution": "start",
               "alignment": "start"
@@ -226,10 +210,7 @@
           "component": {
             "Column": {
               "children": {
-                "explicitList": [
-                  "mail_primary_text",
-                  "mail_secondary_text"
-                ]
+                "explicitList": ["mail_primary_text", "mail_secondary_text"]
               },
               "distribution": "start",
               "alignment": "start"
@@ -241,10 +222,7 @@
           "component": {
             "Row": {
               "children": {
-                "explicitList": [
-                  "mail_icon",
-                  "mail_text_column"
-                ]
+                "explicitList": ["mail_icon", "mail_text_column"]
               },
               "distribution": "start",
               "alignment": "start"
@@ -293,10 +271,7 @@
           "component": {
             "Column": {
               "children": {
-                "explicitList": [
-                  "call_primary_text",
-                  "call_secondary_text"
-                ]
+                "explicitList": ["call_primary_text", "call_secondary_text"]
               },
               "distribution": "start",
               "alignment": "start"
@@ -308,10 +283,7 @@
           "component": {
             "Row": {
               "children": {
-                "explicitList": [
-                  "call_icon",
-                  "call_text_column"
-                ]
+                "explicitList": ["call_icon", "call_text_column"]
               },
               "distribution": "start",
               "alignment": "start"
@@ -324,12 +296,7 @@
           "component": {
             "Column": {
               "children": {
-                "explicitList": [
-                  "info_row_1",
-                  "info_row_2",
-                  "info_row_3",
-                  "info_row_4"
-                ]
+                "explicitList": ["info_row_1", "info_row_2", "info_row_3", "info_row_4"]
               },
               "alignment": "stretch"
             }
@@ -384,10 +351,7 @@
           "component": {
             "Row": {
               "children": {
-                "explicitList": [
-                  "button_1",
-                  "button_2"
-                ]
+                "explicitList": ["button_1", "button_2"]
               },
               "distribution": "center",
               "alignment": "center"
@@ -409,9 +373,7 @@
           "component": {
             "Row": {
               "children": {
-                "explicitList": [
-                  "link_text"
-                ]
+                "explicitList": ["link_text"]
               },
               "distribution": "center",
               "alignment": "center"

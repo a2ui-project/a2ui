@@ -14,13 +14,13 @@
  * limitations under the License.
  */
 
-import { html, nothing, css } from "lit";
-import { customElement } from "lit/decorators.js";
-import { SliderApi } from "@a2ui/web_core/v0_9/basic_catalog";
-import { BasicCatalogA2uiLitElement } from "../basic-catalog-a2ui-lit-element.js";
-import { A2uiController } from "@a2ui/lit/v0_9";
+import {html, nothing, css} from 'lit';
+import {customElement} from 'lit/decorators.js';
+import {SliderApi} from '@a2ui/web_core/v0_9/basic_catalog';
+import {BasicCatalogA2uiLitElement} from '../basic-catalog-a2ui-lit-element.js';
+import {A2uiController} from '../../../a2ui-controller.js';
 
-@customElement("a2ui-slider")
+@customElement('a2ui-slider')
 export class A2uiSliderElement extends BasicCatalogA2uiLitElement<typeof SliderApi> {
   /**
    * The slider can be customized with the following CSS variables:
@@ -31,7 +31,7 @@ export class A2uiSliderElement extends BasicCatalogA2uiLitElement<typeof SliderA
    * - `--a2ui-slider-label-font-size`: Font size of the label. Defaults to `--a2ui-label-font-size` then `--a2ui-font-size-s`.
    * - `--a2ui-slider-label-font-weight`: Font weight of the label. Defaults to `--a2ui-label-font-weight` then `bold`.
    */
-  static styles = css`
+  static override styles = css`
     :host {
       display: flex;
       flex-direction: column;
@@ -44,10 +44,13 @@ export class A2uiSliderElement extends BasicCatalogA2uiLitElement<typeof SliderA
       align-items: center;
     }
     .header label {
-      font-size: var(--a2ui-slider-label-font-size, var(--a2ui-label-font-size, var(--a2ui-font-size-s)));
+      font-size: var(
+        --a2ui-slider-label-font-size,
+        var(--a2ui-label-font-size, var(--a2ui-font-size-s))
+      );
       font-weight: var(--a2ui-slider-label-font-weight, var(--a2ui-label-font-weight, bold));
     }
-    input[type="range"] {
+    input[type='range'] {
       width: 100%;
       accent-color: var(--a2ui-slider-thumb-color, var(--a2ui-color-primary, #007bff));
       background: var(--a2ui-slider-track-color, var(--a2ui-color-secondary, #e9ecef));
@@ -58,7 +61,7 @@ export class A2uiSliderElement extends BasicCatalogA2uiLitElement<typeof SliderA
     return new A2uiController(this, SliderApi);
   }
 
-  render() {
+  override render() {
     const props = this.controller.props;
     if (!props) return nothing;
 
@@ -71,9 +74,8 @@ export class A2uiSliderElement extends BasicCatalogA2uiLitElement<typeof SliderA
         type="range"
         min=${props.min ?? 0}
         max=${props.max ?? 100}
-        .value=${props.value?.toString() || "0"}
-        @input=${(e: Event) =>
-          props.setValue?.(Number((e.target as HTMLInputElement).value))}
+        .value=${props.value?.toString() || '0'}
+        @input=${(e: Event) => props.setValue?.(Number((e.target as HTMLInputElement).value))}
       />
     `;
   }
@@ -81,5 +83,5 @@ export class A2uiSliderElement extends BasicCatalogA2uiLitElement<typeof SliderA
 
 export const A2uiSlider = {
   ...SliderApi,
-  tagName: "a2ui-slider",
+  tagName: 'a2ui-slider',
 };

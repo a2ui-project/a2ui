@@ -14,10 +14,10 @@
  * limitations under the License.
  */
 
-import { describe, it, expect } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import {describe, it, expect} from 'vitest';
+import {render, screen} from '@testing-library/react';
 import React from 'react';
-import { TestWrapper, TestRenderer, createSurfaceUpdate, createBeginRendering } from '../../utils';
+import {TestWrapper, TestRenderer, createSurfaceUpdate, createBeginRendering} from '../../utils';
 import type * as Types from '@a2ui/web_core/types/types';
 
 /**
@@ -29,16 +29,19 @@ describe('Card Component', () => {
     it('should render a section element', () => {
       const messages: Types.ServerToClientMessage[] = [
         createSurfaceUpdate([
-          { id: 'text-1', component: { Text: { text: { literalString: 'Card content' } , usageHint: 'body' } } },
-          { id: 'card-1', component: { Card: { child: 'text-1' } } },
+          {
+            id: 'text-1',
+            component: {Text: {text: {literalString: 'Card content'}, usageHint: 'body'}},
+          },
+          {id: 'card-1', component: {Card: {child: 'text-1'}}},
         ]),
         createBeginRendering('card-1'),
       ];
 
-      const { container } = render(
+      const {container} = render(
         <TestWrapper>
           <TestRenderer messages={messages} />
-        </TestWrapper>
+        </TestWrapper>,
       );
 
       const section = container.querySelector('section');
@@ -48,16 +51,19 @@ describe('Card Component', () => {
     it('should render with wrapper div', () => {
       const messages: Types.ServerToClientMessage[] = [
         createSurfaceUpdate([
-          { id: 'text-1', component: { Text: { text: { literalString: 'Content' } , usageHint: 'body' } } },
-          { id: 'card-1', component: { Card: { child: 'text-1' } } },
+          {
+            id: 'text-1',
+            component: {Text: {text: {literalString: 'Content'}, usageHint: 'body'}},
+          },
+          {id: 'card-1', component: {Card: {child: 'text-1'}}},
         ]),
         createBeginRendering('card-1'),
       ];
 
-      const { container } = render(
+      const {container} = render(
         <TestWrapper>
           <TestRenderer messages={messages} />
-        </TestWrapper>
+        </TestWrapper>,
       );
 
       const wrapper = container.querySelector('.a2ui-card');
@@ -69,8 +75,11 @@ describe('Card Component', () => {
     it('should render child Text component', () => {
       const messages: Types.ServerToClientMessage[] = [
         createSurfaceUpdate([
-          { id: 'text-1', component: { Text: { text: { literalString: 'Card content' } , usageHint: 'body' } } },
-          { id: 'card-1', component: { Card: { child: 'text-1' } } },
+          {
+            id: 'text-1',
+            component: {Text: {text: {literalString: 'Card content'}, usageHint: 'body'}},
+          },
+          {id: 'card-1', component: {Card: {child: 'text-1'}}},
         ]),
         createBeginRendering('card-1'),
       ];
@@ -78,7 +87,7 @@ describe('Card Component', () => {
       render(
         <TestWrapper>
           <TestRenderer messages={messages} />
-        </TestWrapper>
+        </TestWrapper>,
       );
 
       expect(screen.getByText('Card content')).toBeInTheDocument();
@@ -87,9 +96,12 @@ describe('Card Component', () => {
     it('should render nested Button in Card', () => {
       const messages: Types.ServerToClientMessage[] = [
         createSurfaceUpdate([
-          { id: 'btn-text', component: { Text: { text: { literalString: 'Click me' } , usageHint: 'body' } } },
-          { id: 'btn-1', component: { Button: { child: 'btn-text', action: { name: 'click' } } } },
-          { id: 'card-1', component: { Card: { child: 'btn-1' } } },
+          {
+            id: 'btn-text',
+            component: {Text: {text: {literalString: 'Click me'}, usageHint: 'body'}},
+          },
+          {id: 'btn-1', component: {Button: {child: 'btn-text', action: {name: 'click'}}}},
+          {id: 'card-1', component: {Card: {child: 'btn-1'}}},
         ]),
         createBeginRendering('card-1'),
       ];
@@ -97,7 +109,7 @@ describe('Card Component', () => {
       render(
         <TestWrapper>
           <TestRenderer messages={messages} />
-        </TestWrapper>
+        </TestWrapper>,
       );
 
       expect(screen.getByRole('button')).toBeInTheDocument();
@@ -109,16 +121,19 @@ describe('Card Component', () => {
     it('should apply theme classes to section', () => {
       const messages: Types.ServerToClientMessage[] = [
         createSurfaceUpdate([
-          { id: 'text-1', component: { Text: { text: { literalString: 'Content' } , usageHint: 'body' } } },
-          { id: 'card-1', component: { Card: { child: 'text-1' } } },
+          {
+            id: 'text-1',
+            component: {Text: {text: {literalString: 'Content'}, usageHint: 'body'}},
+          },
+          {id: 'card-1', component: {Card: {child: 'text-1'}}},
         ]),
         createBeginRendering('card-1'),
       ];
 
-      const { container } = render(
+      const {container} = render(
         <TestWrapper>
           <TestRenderer messages={messages} />
-        </TestWrapper>
+        </TestWrapper>,
       );
 
       const section = container.querySelector('section');
@@ -133,16 +148,19 @@ describe('Card Component', () => {
     it('should have correct DOM structure', () => {
       const messages: Types.ServerToClientMessage[] = [
         createSurfaceUpdate([
-          { id: 'text-1', component: { Text: { text: { literalString: 'Content' } , usageHint: 'body' } } },
-          { id: 'card-1', component: { Card: { child: 'text-1' } } },
+          {
+            id: 'text-1',
+            component: {Text: {text: {literalString: 'Content'}, usageHint: 'body'}},
+          },
+          {id: 'card-1', component: {Card: {child: 'text-1'}}},
         ]),
         createBeginRendering('card-1'),
       ];
 
-      const { container } = render(
+      const {container} = render(
         <TestWrapper>
           <TestRenderer messages={messages} />
-        </TestWrapper>
+        </TestWrapper>,
       );
 
       const wrapper = container.querySelector('.a2ui-card');

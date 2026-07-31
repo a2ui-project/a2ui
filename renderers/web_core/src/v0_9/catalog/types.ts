@@ -16,24 +16,10 @@
 
 import {z} from 'zod';
 import {DataContext} from '../rendering/data-context.js';
-import {Signal} from '@preact/signals-core';
+import {Signal} from '../reactivity/signals.js';
 import {A2uiExpressionError} from '../errors.js';
 
-/**
- * Robust check for a Preact Signal that works across package boundaries.
- */
-export function isSignal(val: any): val is Signal<any> {
-  return val && typeof val === 'object' && 'value' in val && 'peek' in val;
-}
-
-export type A2uiReturnType =
-  | 'string'
-  | 'number'
-  | 'boolean'
-  | 'array'
-  | 'object'
-  | 'any'
-  | 'void';
+export type A2uiReturnType = 'string' | 'number' | 'boolean' | 'array' | 'object' | 'any' | 'void';
 
 export type InferA2uiReturnType<T extends A2uiReturnType> = T extends 'string'
   ? string
@@ -84,11 +70,7 @@ export function createFunctionImplementation<
     name: api.name,
     returnType: api.returnType,
     schema: api.schema,
-    execute: execute as (
-      args: Record<string, any>,
-      ctx: DataContext,
-      ab?: AbortSignal,
-    ) => unknown,
+    execute: execute as (args: Record<string, any>, ctx: DataContext, ab?: AbortSignal) => unknown,
   };
 }
 
@@ -120,14 +102,25 @@ export interface ComponentApi<Schema extends z.ZodTypeAny = z.ZodTypeAny> {
  * This type uses `z.infer` on the `schema` property of a `ComponentApi` object.
  * It is used to access the schema props of a component with type safety.
  */
-export type InferredComponentApiSchemaType<Api extends ComponentApi> = z.infer<
-  Api['schema']
->;
+export type InferredComponentApiSchemaType<Api extends ComponentApi> = z.infer<Api['schema']>;
+
+/**
+ * Interface for Catalog to prevent property renaming in 1P (Closure Compiler).
+ *
+ * This must declare all publicly accessed properties of Catalog.
+ */
+export declare interface CatalogInterface<T extends ComponentApi> {
+  readonly id: string;
+  readonly components: ReadonlyMap<string, T>;
+  readonly functions: ReadonlyMap<string, FunctionImplementation>;
+  readonly themeSchema?: z.ZodObject<any>;
+  readonly invoker: FunctionInvoker;
+}
 
 /**
  * A collection of available components and functions.
  */
-export class Catalog<T extends ComponentApi> {
+export class Catalog<T extends ComponentApi> implements CatalogInterface<T> {
   readonly id: string;
 
   /**
@@ -177,10 +170,7 @@ export class Catalog<T extends ComponentApi> {
     this.invoker = (name, rawArgs, ctx, abortSignal) => {
       const fn = this.functions.get(name);
       if (!fn) {
-        throw new A2uiExpressionError(
-          `Function not found in catalog '${this.id}': ${name}`,
-          name,
-        );
+        throw new A2uiExpressionError(`Function not found in catalog '${this.id}': ${name}`, name);
       }
 
       // Provides runtime safety: Coerces and strips invalid arguments before execute()

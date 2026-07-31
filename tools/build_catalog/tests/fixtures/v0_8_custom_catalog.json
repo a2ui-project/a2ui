@@ -3,11 +3,11 @@
     "CustomV08Component": {
       "type": "object",
       "properties": {
-        "title": { "$ref": "standard_catalog_definition.json#/components/Text" }
+        "title": {"$ref": "standard_catalog_definition.json#/components/Text"}
       }
     }
   },
   "styles": {
-    "secondaryColor": { "type": "string" }
+    "secondaryColor": {"type": "string"}
   }
 }

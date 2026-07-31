@@ -14,10 +14,10 @@
  * limitations under the License.
  */
 
-import { describe, it, expect } from 'vitest';
-import { render } from '@testing-library/react';
+import {describe, it, expect} from 'vitest';
+import {render} from '@testing-library/react';
 import React from 'react';
-import { TestWrapper, TestRenderer, createSurfaceUpdate, createBeginRendering } from '../../utils';
+import {TestWrapper, TestRenderer, createSurfaceUpdate, createBeginRendering} from '../../utils';
 import type * as Types from '@a2ui/web_core/types/types';
 
 /**
@@ -37,13 +37,13 @@ function createListMessages(
     direction?: 'vertical' | 'horizontal';
     alignment?: 'start' | 'center' | 'end' | 'stretch';
   },
-  surfaceId = '@default'
+  surfaceId = '@default',
 ): Types.ServerToClientMessage[] {
   const children = props.childIds.map((childId, index) => ({
     id: childId,
     component: {
       Text: {
-        text: { literalString: props.childTexts?.[index] ?? `Item ${index + 1}` },
+        text: {literalString: props.childTexts?.[index] ?? `Item ${index + 1}`},
         usageHint: 'body',
       },
     },
@@ -57,14 +57,14 @@ function createListMessages(
           id,
           component: {
             List: {
-              children: { explicitList: props.childIds },
+              children: {explicitList: props.childIds},
               direction: props.direction,
               alignment: props.alignment,
             },
           },
         },
       ],
-      surfaceId
+      surfaceId,
     ),
     createBeginRendering(id, surfaceId),
   ];
@@ -77,10 +77,10 @@ describe('List Component', () => {
         childIds: ['item-1', 'item-2'],
       });
 
-      const { container } = render(
+      const {container} = render(
         <TestWrapper>
           <TestRenderer messages={messages} />
-        </TestWrapper>
+        </TestWrapper>,
       );
 
       const list = container.querySelector('.a2ui-list');
@@ -92,10 +92,10 @@ describe('List Component', () => {
         childIds: ['item-1', 'item-2'],
       });
 
-      const { container } = render(
+      const {container} = render(
         <TestWrapper>
           <TestRenderer messages={messages} />
-        </TestWrapper>
+        </TestWrapper>,
       );
 
       const section = container.querySelector('.a2ui-list section');
@@ -108,10 +108,10 @@ describe('List Component', () => {
         childTexts: ['First', 'Second', 'Third'],
       });
 
-      const { container } = render(
+      const {container} = render(
         <TestWrapper>
           <TestRenderer messages={messages} />
-        </TestWrapper>
+        </TestWrapper>,
       );
 
       expect(container.textContent).toContain('First');
@@ -124,10 +124,10 @@ describe('List Component', () => {
         childIds: ['item-1', 'item-2', 'item-3', 'item-4'],
       });
 
-      const { container } = render(
+      const {container} = render(
         <TestWrapper>
           <TestRenderer messages={messages} />
-        </TestWrapper>
+        </TestWrapper>,
       );
 
       // Each Text component is wrapped in a2ui-text div
@@ -143,15 +143,15 @@ describe('List Component', () => {
         childIds: ['item-1', 'item-2', 'item-3', 'item-4'],
       });
 
-      const { container: container2 } = render(
+      const {container: container2} = render(
         <TestWrapper>
           <TestRenderer messages={messages2} />
-        </TestWrapper>
+        </TestWrapper>,
       );
-      const { container: container4 } = render(
+      const {container: container4} = render(
         <TestWrapper>
           <TestRenderer messages={messages4} />
-        </TestWrapper>
+        </TestWrapper>,
       );
 
       const items2 = container2.querySelectorAll('.a2ui-text');
@@ -169,10 +169,10 @@ describe('List Component', () => {
         childIds: ['item-1'],
       });
 
-      const { container } = render(
+      const {container} = render(
         <TestWrapper>
           <TestRenderer messages={messages} />
-        </TestWrapper>
+        </TestWrapper>,
       );
 
       const list = container.querySelector('.a2ui-list');
@@ -185,10 +185,10 @@ describe('List Component', () => {
         direction: 'horizontal',
       });
 
-      const { container } = render(
+      const {container} = render(
         <TestWrapper>
           <TestRenderer messages={messages} />
-        </TestWrapper>
+        </TestWrapper>,
       );
 
       const list = container.querySelector('.a2ui-list');
@@ -202,10 +202,10 @@ describe('List Component', () => {
         direction: 'vertical',
       });
 
-      const { container } = render(
+      const {container} = render(
         <TestWrapper>
           <TestRenderer messages={messages} />
-        </TestWrapper>
+        </TestWrapper>,
       );
 
       const list = container.querySelector('.a2ui-list');
@@ -222,15 +222,15 @@ describe('List Component', () => {
         direction: 'vertical',
       });
 
-      const { container: containerH } = render(
+      const {container: containerH} = render(
         <TestWrapper>
           <TestRenderer messages={messagesH} />
-        </TestWrapper>
+        </TestWrapper>,
       );
-      const { container: containerV } = render(
+      const {container: containerV} = render(
         <TestWrapper>
           <TestRenderer messages={messagesV} />
-        </TestWrapper>
+        </TestWrapper>,
       );
 
       const listH = containerH.querySelector('.a2ui-list');
@@ -250,7 +250,7 @@ describe('List Component', () => {
             id: 'list-1',
             component: {
               List: {
-                children: { explicitList: [] },
+                children: {explicitList: []},
               },
             },
           },
@@ -258,10 +258,10 @@ describe('List Component', () => {
         createBeginRendering('list-1'),
       ];
 
-      const { container } = render(
+      const {container} = render(
         <TestWrapper>
           <TestRenderer messages={messages} />
-        </TestWrapper>
+        </TestWrapper>,
       );
 
       const list = container.querySelector('.a2ui-list');
@@ -277,10 +277,10 @@ describe('List Component', () => {
         childIds: ['item-1', 'item-2'],
       });
 
-      const { container } = render(
+      const {container} = render(
         <TestWrapper>
           <TestRenderer messages={messages} />
-        </TestWrapper>
+        </TestWrapper>,
       );
 
       const list = container.querySelector('.a2ui-list');

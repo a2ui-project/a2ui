@@ -14,7 +14,7 @@ The `@a2ui/web_core` package contains the core logic, state management, and prot
 
 ### Version v0_9 (Recommended)
 
-The v0_9 architecture centers around a decoupled model where rendering is driven by a `SurfaceGroupModel` and its constituent `SurfaceModel`s. 
+The v0_9 architecture centers around a decoupled model where rendering is driven by a `SurfaceGroupModel` and its constituent `SurfaceModel`s.
 
 - **Internal Models**: `DataModel` manages the application state, while `SurfaceComponentsModel` tracks the components rendered on a surface.
 - **DataContext**: Provides the execution environment for expressions and functions defined in the A2UI protocol.
@@ -27,7 +27,7 @@ Maintains compatibility with the initial A2UI specification version, focusing on
 ## Installation
 
 ```bash
-npm install @a2ui/web_core
+yarn install @a2ui/web_core
 ```
 
 ## Development
@@ -37,7 +37,7 @@ npm install @a2ui/web_core
 The package uses `wireit` for optimized build orchestration:
 
 ```bash
-npm run build
+yarn build
 ```
 
 ### Testing
@@ -45,13 +45,13 @@ npm run build
 Run the test suite using the native Node.js test runner:
 
 ```bash
-npm test
+yarn test
 ```
 
 Generate coverage reports:
 
 ```bash
-npm run test:coverage
+yarn test:coverage
 ```
 
 ## Legal Notice

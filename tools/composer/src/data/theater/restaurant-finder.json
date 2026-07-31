@@ -18,10 +18,7 @@
           "component": {
             "Column": {
               "children": {
-                "explicitList": [
-                  "loading_title-heading",
-                  "loading_item-list"
-                ]
+                "explicitList": ["loading_title-heading", "loading_item-list"]
               }
             }
           }
@@ -58,10 +55,7 @@
           "component": {
             "Column": {
               "children": {
-                "explicitList": [
-                  "title-heading",
-                  "loading_item-list"
-                ]
+                "explicitList": ["title-heading", "loading_item-list"]
               }
             }
           }
@@ -113,10 +107,7 @@
           "component": {
             "Column": {
               "children": {
-                "explicitList": [
-                  "title-heading",
-                  "item-list"
-                ]
+                "explicitList": ["title-heading", "item-list"]
               }
             }
           }
@@ -176,10 +167,7 @@
           "component": {
             "Column": {
               "children": {
-                "explicitList": [
-                  "title-heading",
-                  "item-list"
-                ]
+                "explicitList": ["title-heading", "item-list"]
               }
             }
           }
@@ -217,10 +205,7 @@
           "component": {
             "Row": {
               "children": {
-                "explicitList": [
-                  "loading_template-image",
-                  "loading_card-details"
-                ]
+                "explicitList": ["loading_template-image", "loading_card-details"]
               }
             }
           }
@@ -252,10 +237,7 @@
           "component": {
             "Column": {
               "children": {
-                "explicitList": [
-                  "title-heading",
-                  "item-list"
-                ]
+                "explicitList": ["title-heading", "item-list"]
               }
             }
           }
@@ -303,10 +285,7 @@
           "component": {
             "Row": {
               "children": {
-                "explicitList": [
-                  "template-image",
-                  "loading_card-details"
-                ]
+                "explicitList": ["template-image", "loading_card-details"]
               }
             }
           }
@@ -338,10 +317,7 @@
           "component": {
             "Column": {
               "children": {
-                "explicitList": [
-                  "title-heading",
-                  "item-list"
-                ]
+                "explicitList": ["title-heading", "item-list"]
               }
             }
           }
@@ -407,10 +383,7 @@
           "component": {
             "Row": {
               "children": {
-                "explicitList": [
-                  "template-image",
-                  "card-details"
-                ]
+                "explicitList": ["template-image", "card-details"]
               }
             }
           }
@@ -442,10 +415,7 @@
           "component": {
             "Column": {
               "children": {
-                "explicitList": [
-                  "title-heading",
-                  "item-list"
-                ]
+                "explicitList": ["title-heading", "item-list"]
               }
             }
           }
@@ -551,10 +521,7 @@
           "component": {
             "Row": {
               "children": {
-                "explicitList": [
-                  "template-image",
-                  "card-details"
-                ]
+                "explicitList": ["template-image", "card-details"]
               }
             }
           }
@@ -586,10 +553,7 @@
           "component": {
             "Column": {
               "children": {
-                "explicitList": [
-                  "title-heading",
-                  "item-list"
-                ]
+                "explicitList": ["title-heading", "item-list"]
               }
             }
           }
@@ -695,10 +659,7 @@
           "component": {
             "Row": {
               "children": {
-                "explicitList": [
-                  "template-image",
-                  "card-details"
-                ]
+                "explicitList": ["template-image", "card-details"]
               }
             }
           }
@@ -730,10 +691,7 @@
           "component": {
             "Column": {
               "children": {
-                "explicitList": [
-                  "title-heading",
-                  "item-list"
-                ]
+                "explicitList": ["title-heading", "item-list"]
               }
             }
           }
@@ -840,10 +798,7 @@
           "component": {
             "Row": {
               "children": {
-                "explicitList": [
-                  "template-image",
-                  "card-details"
-                ]
+                "explicitList": ["template-image", "card-details"]
               }
             }
           }
@@ -875,10 +830,7 @@
           "component": {
             "Column": {
               "children": {
-                "explicitList": [
-                  "title-heading",
-                  "item-list"
-                ]
+                "explicitList": ["title-heading", "item-list"]
               }
             }
           }
@@ -985,10 +937,7 @@
           "component": {
             "Row": {
               "children": {
-                "explicitList": [
-                  "template-image",
-                  "card-details"
-                ]
+                "explicitList": ["template-image", "card-details"]
               }
             }
           }
@@ -1020,10 +969,7 @@
           "component": {
             "Column": {
               "children": {
-                "explicitList": [
-                  "title-heading",
-                  "item-list"
-                ]
+                "explicitList": ["title-heading", "item-list"]
               }
             }
           }
@@ -1130,10 +1076,7 @@
           "component": {
             "Row": {
               "children": {
-                "explicitList": [
-                  "template-image",
-                  "card-details"
-                ]
+                "explicitList": ["template-image", "card-details"]
               }
             }
           }
@@ -1165,10 +1108,7 @@
           "component": {
             "Column": {
               "children": {
-                "explicitList": [
-                  "title-heading",
-                  "item-list"
-                ]
+                "explicitList": ["title-heading", "item-list"]
               }
             }
           }
@@ -1275,10 +1215,7 @@
           "component": {
             "Row": {
               "children": {
-                "explicitList": [
-                  "template-image",
-                  "card-details"
-                ]
+                "explicitList": ["template-image", "card-details"]
               }
             }
           }
@@ -1310,10 +1247,7 @@
           "component": {
             "Column": {
               "children": {
-                "explicitList": [
-                  "title-heading",
-                  "item-list"
-                ]
+                "explicitList": ["title-heading", "item-list"]
               }
             }
           }
@@ -1462,10 +1396,7 @@
           "component": {
             "Row": {
               "children": {
-                "explicitList": [
-                  "template-image",
-                  "card-details"
-                ]
+                "explicitList": ["template-image", "card-details"]
               }
             }
           }
@@ -1497,10 +1428,7 @@
           "component": {
             "Column": {
               "children": {
-                "explicitList": [
-                  "title-heading",
-                  "item-list"
-                ]
+                "explicitList": ["title-heading", "item-list"]
               }
             }
           }

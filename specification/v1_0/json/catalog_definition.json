@@ -1,0 +1,171 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://a2ui.org/specification/v1_0/catalog_definition.json",
+  "title": "A2UI Catalog Definition Schema",
+  "description": "A collection of component and function definitions.",
+  "type": "object",
+  "properties": {
+    "$schema": {"type": "string"},
+    "$id": {"type": "string"},
+    "protocolVersion": {
+      "type": "string",
+      "pattern": "^(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)(?:\\.(0|[1-9][0-9]*))?(?:-((?:0|[1-9][0-9]*|[0-9]*[a-zA-Z-][0-9a-zA-Z-]*)(?:\\.(?:0|[1-9][0-9]*|[0-9]*[a-zA-Z-][0-9a-zA-Z-]*))*))?(?:\\+([0-9a-zA-Z-]+(?:\\.[0-9a-zA-Z-]+)*))?$",
+      "default": "0.9",
+      "description": "The A2UI specification version of this catalog definition (e.g. '1.0'). Defaults to '0.9' if omitted."
+    },
+    "$defs": {
+      "type": "object",
+      "description": "Standardized schema definitions referenced from outside the catalog file.",
+      "properties": {
+        "anyComponent": {
+          "title": "A2UI Any Component Schema",
+          "description": "Unified validation schema for all components.",
+          "$ref": "https://json-schema.org/draft/2020-12/schema"
+        },
+        "anyFunction": {
+          "title": "A2UI Any Function Schema",
+          "description": "Unified validation schema for all functions.",
+          "$ref": "https://json-schema.org/draft/2020-12/schema"
+        }
+      },
+      "required": ["anyComponent", "anyFunction"],
+      "additionalProperties": false
+    },
+    "title": {
+      "type": "string",
+      "description": "The title of the catalog."
+    },
+    "description": {
+      "type": "string",
+      "description": "A human-readable description of the catalog."
+    },
+    "catalogId": {
+      "type": "string",
+      "description": "Unique identifier for this catalog."
+    },
+    "instructions": {
+      "type": "string",
+      "description": "Markdown-formatted design guidelines or instructions specific to this catalog."
+    },
+    "components": {
+      "type": "object",
+      "description": "Definitions for UI components supported by this catalog.",
+      "additionalProperties": {
+        "$ref": "https://json-schema.org/draft/2020-12/schema"
+      }
+    },
+    "functions": {
+      "type": "object",
+      "description": "Definitions for functions supported by this catalog.",
+      "additionalProperties": {
+        "$ref": "#/$defs/FunctionDefinition"
+      }
+    }
+  },
+  "required": ["catalogId"],
+  "additionalProperties": false,
+  "$defs": {
+    "FunctionCallValidationSchema": {
+      "type": "object",
+      "description": "JSON Schema structure that validates a wire-level FunctionCall object.",
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "type": {
+              "const": "object"
+            },
+            "description": {
+              "type": "string"
+            },
+            "properties": {
+              "type": "object",
+              "properties": {
+                "call": {
+                  "type": "object",
+                  "properties": {
+                    "const": {"type": "string"}
+                  },
+                  "required": ["const"]
+                },
+                "catalogId": {
+                  "type": "object",
+                  "description": "Optional catalog ID override for this function call."
+                },
+                "args": {
+                  "type": "object",
+                  "description": "A JSON Schema describing the expected arguments (args) for this function.",
+                  "$ref": "https://json-schema.org/draft/2020-12/schema"
+                }
+              },
+              "required": ["call"],
+              "additionalProperties": false
+            },
+            "required": {
+              "type": "array",
+              "items": {"type": "string"},
+              "contains": {"const": "call"}
+            },
+            "unevaluatedProperties": {
+              "type": "boolean"
+            },
+            "additionalProperties": {
+              "type": "boolean"
+            }
+          },
+          "required": ["type", "properties", "required"]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "type": {
+              "const": "object"
+            },
+            "description": {
+              "type": "string"
+            },
+            "allOf": {
+              "type": "array",
+              "items": {"type": "object"},
+              "minItems": 1
+            },
+            "unevaluatedProperties": {
+              "type": "boolean"
+            },
+            "additionalProperties": {
+              "type": "boolean"
+            }
+          },
+          "required": ["type", "allOf"]
+        }
+      ]
+    },
+    "FunctionDefinition": {
+      "type": "object",
+      "description": "Describes a function's validation schema and interface metadata.",
+      "allOf": [
+        {
+          "$ref": "#/$defs/FunctionCallValidationSchema"
+        },
+        {
+          "type": "object",
+          "properties": {
+            "returnType": {
+              "type": "string",
+              "enum": ["string", "number", "boolean", "array", "object", "any", "void"],
+              "description": "The type of value this function returns."
+            },
+            "callableFrom": {
+              "type": "string",
+              "enum": ["rendererOnly", "agentOnly", "rendererOrAgent"],
+              "default": "rendererOnly",
+              "description": "Specifies where this function can be invoked from."
+            }
+          },
+          "required": ["returnType"]
+        }
+      ],
+      "unevaluatedProperties": false
+    }
+  }
+}

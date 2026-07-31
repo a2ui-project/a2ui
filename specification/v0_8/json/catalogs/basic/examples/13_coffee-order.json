@@ -16,13 +16,7 @@
           "component": {
             "Column": {
               "children": {
-                "explicitList": [
-                  "header",
-                  "items",
-                  "divider",
-                  "totals",
-                  "actions"
-                ]
+                "explicitList": ["header", "items", "divider", "totals", "actions"]
               }
             }
           }
@@ -32,10 +26,7 @@
           "component": {
             "Row": {
               "children": {
-                "explicitList": [
-                  "coffee-icon",
-                  "store-name"
-                ]
+                "explicitList": ["coffee-icon", "store-name"]
               },
               "alignment": "center"
             }
@@ -67,10 +58,7 @@
           "component": {
             "Column": {
               "children": {
-                "explicitList": [
-                  "item1",
-                  "item2"
-                ]
+                "explicitList": ["item1", "item2"]
               }
             }
           }
@@ -80,10 +68,7 @@
           "component": {
             "Row": {
               "children": {
-                "explicitList": [
-                  "item1-details",
-                  "item1-price"
-                ]
+                "explicitList": ["item1-details", "item1-price"]
               },
               "distribution": "spaceBetween",
               "alignment": "start"
@@ -95,10 +80,7 @@
           "component": {
             "Column": {
               "children": {
-                "explicitList": [
-                  "item1-name",
-                  "item1-size"
-                ]
+                "explicitList": ["item1-name", "item1-size"]
               }
             }
           }
@@ -141,10 +123,7 @@
           "component": {
             "Row": {
               "children": {
-                "explicitList": [
-                  "item2-details",
-                  "item2-price"
-                ]
+                "explicitList": ["item2-details", "item2-price"]
               },
               "distribution": "spaceBetween",
               "alignment": "start"
@@ -156,10 +135,7 @@
           "component": {
             "Column": {
               "children": {
-                "explicitList": [
-                  "item2-name",
-                  "item2-size"
-                ]
+                "explicitList": ["item2-name", "item2-size"]
               }
             }
           }
@@ -208,11 +184,7 @@
           "component": {
             "Column": {
               "children": {
-                "explicitList": [
-                  "subtotal-row",
-                  "tax-row",
-                  "total-row"
-                ]
+                "explicitList": ["subtotal-row", "tax-row", "total-row"]
               }
             }
           }
@@ -222,10 +194,7 @@
           "component": {
             "Row": {
               "children": {
-                "explicitList": [
-                  "subtotal-label",
-                  "subtotal-value"
-                ]
+                "explicitList": ["subtotal-label", "subtotal-value"]
               },
               "distribution": "spaceBetween"
             }
@@ -258,10 +227,7 @@
           "component": {
             "Row": {
               "children": {
-                "explicitList": [
-                  "tax-label",
-                  "tax-value"
-                ]
+                "explicitList": ["tax-label", "tax-value"]
               },
               "distribution": "spaceBetween"
             }
@@ -294,10 +260,7 @@
           "component": {
             "Row": {
               "children": {
-                "explicitList": [
-                  "total-label",
-                  "total-value"
-                ]
+                "explicitList": ["total-label", "total-value"]
               },
               "distribution": "spaceBetween"
             }
@@ -330,10 +293,7 @@
           "component": {
             "Row": {
               "children": {
-                "explicitList": [
-                  "purchase-btn",
-                  "add-btn"
-                ]
+                "explicitList": ["purchase-btn", "add-btn"]
               }
             }
           }

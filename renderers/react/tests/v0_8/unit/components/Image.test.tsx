@@ -14,23 +14,23 @@
  * limitations under the License.
  */
 
-import { describe, it, expect } from 'vitest';
-import { render } from '@testing-library/react';
+import {describe, it, expect} from 'vitest';
+import {render} from '@testing-library/react';
 import React from 'react';
-import { TestWrapper, TestRenderer, createSimpleMessages } from '../../utils';
+import {TestWrapper, TestRenderer, createSimpleMessages} from '../../utils';
 
 describe('Image Component', () => {
   describe('Basic Rendering', () => {
     it('should render an img element', () => {
       const messages = createSimpleMessages('img-1', 'Image', {
-        url: { literalString: 'https://example.com/image.jpg' },
+        url: {literalString: 'https://example.com/image.jpg'},
         usageHint: 'mediumFeature',
       });
 
-      const { container } = render(
+      const {container} = render(
         <TestWrapper>
           <TestRenderer messages={messages} />
-        </TestWrapper>
+        </TestWrapper>,
       );
 
       const img = container.querySelector('img');
@@ -39,14 +39,14 @@ describe('Image Component', () => {
 
     it('should render with wrapper div', () => {
       const messages = createSimpleMessages('img-1', 'Image', {
-        url: { literalString: 'https://example.com/image.jpg' },
+        url: {literalString: 'https://example.com/image.jpg'},
         usageHint: 'mediumFeature',
       });
 
-      const { container } = render(
+      const {container} = render(
         <TestWrapper>
           <TestRenderer messages={messages} />
-        </TestWrapper>
+        </TestWrapper>,
       );
 
       const wrapper = container.querySelector('.a2ui-image');
@@ -55,14 +55,14 @@ describe('Image Component', () => {
 
     it('should set src attribute from url', () => {
       const messages = createSimpleMessages('img-1', 'Image', {
-        url: { literalString: 'https://example.com/photo.png' },
+        url: {literalString: 'https://example.com/photo.png'},
         usageHint: 'mediumFeature',
       });
 
-      const { container } = render(
+      const {container} = render(
         <TestWrapper>
           <TestRenderer messages={messages} />
-        </TestWrapper>
+        </TestWrapper>,
       );
 
       const img = container.querySelector('img');
@@ -71,14 +71,14 @@ describe('Image Component', () => {
 
     it('should have empty alt attribute', () => {
       const messages = createSimpleMessages('img-1', 'Image', {
-        url: { literalString: 'https://example.com/image.jpg' },
+        url: {literalString: 'https://example.com/image.jpg'},
         usageHint: 'mediumFeature',
       });
 
-      const { container } = render(
+      const {container} = render(
         <TestWrapper>
           <TestRenderer messages={messages} />
-        </TestWrapper>
+        </TestWrapper>,
       );
 
       const img = container.querySelector('img');
@@ -87,23 +87,23 @@ describe('Image Component', () => {
 
     it('should render different src for different url inputs', () => {
       const messages1 = createSimpleMessages('img-1', 'Image', {
-        url: { literalString: 'https://example.com/first.jpg' },
+        url: {literalString: 'https://example.com/first.jpg'},
         usageHint: 'mediumFeature',
       });
       const messages2 = createSimpleMessages('img-2', 'Image', {
-        url: { literalString: 'https://example.com/second.jpg' },
+        url: {literalString: 'https://example.com/second.jpg'},
         usageHint: 'mediumFeature',
       });
 
-      const { container: container1 } = render(
+      const {container: container1} = render(
         <TestWrapper>
           <TestRenderer messages={messages1} />
-        </TestWrapper>
+        </TestWrapper>,
       );
-      const { container: container2 } = render(
+      const {container: container2} = render(
         <TestWrapper>
           <TestRenderer messages={messages2} />
-        </TestWrapper>
+        </TestWrapper>,
       );
 
       const img1 = container1.querySelector('img');
@@ -116,14 +116,14 @@ describe('Image Component', () => {
 
     it('should return null for empty url', () => {
       const messages = createSimpleMessages('img-1', 'Image', {
-        url: { literalString: '' },
+        url: {literalString: ''},
         usageHint: 'mediumFeature',
       });
 
-      const { container } = render(
+      const {container} = render(
         <TestWrapper>
           <TestRenderer messages={messages} />
-        </TestWrapper>
+        </TestWrapper>,
       );
 
       const img = container.querySelector('img');
@@ -132,19 +132,26 @@ describe('Image Component', () => {
   });
 
   describe('Usage Hints', () => {
-    const usageHints = ['icon', 'avatar', 'smallFeature', 'mediumFeature', 'largeFeature', 'header'];
+    const usageHints = [
+      'icon',
+      'avatar',
+      'smallFeature',
+      'mediumFeature',
+      'largeFeature',
+      'header',
+    ];
 
-    usageHints.forEach((hint) => {
+    usageHints.forEach(hint => {
       it(`should render with usageHint="${hint}"`, () => {
         const messages = createSimpleMessages('img-1', 'Image', {
-          url: { literalString: 'https://example.com/image.jpg' },
+          url: {literalString: 'https://example.com/image.jpg'},
           usageHint: hint,
         });
 
-        const { container } = render(
+        const {container} = render(
           <TestWrapper>
             <TestRenderer messages={messages} />
-          </TestWrapper>
+          </TestWrapper>,
         );
 
         const img = container.querySelector('img');
@@ -155,23 +162,23 @@ describe('Image Component', () => {
     it('should apply different theme classes for different usageHints', () => {
       // usageHint affects which theme classes are merged onto the section element
       const messagesNoHint = createSimpleMessages('img-1', 'Image', {
-        url: { literalString: 'https://example.com/image.jpg' },
+        url: {literalString: 'https://example.com/image.jpg'},
         usageHint: 'mediumFeature',
       });
       const messagesWithHint = createSimpleMessages('img-2', 'Image', {
-        url: { literalString: 'https://example.com/image.jpg' },
+        url: {literalString: 'https://example.com/image.jpg'},
         usageHint: 'avatar',
       });
 
-      const { container: containerNoHint } = render(
+      const {container: containerNoHint} = render(
         <TestWrapper>
           <TestRenderer messages={messagesNoHint} />
-        </TestWrapper>
+        </TestWrapper>,
       );
-      const { container: containerWithHint } = render(
+      const {container: containerWithHint} = render(
         <TestWrapper>
           <TestRenderer messages={messagesWithHint} />
-        </TestWrapper>
+        </TestWrapper>,
       );
 
       const sectionNoHint = containerNoHint.querySelector('section');
@@ -191,14 +198,14 @@ describe('Image Component', () => {
   describe('Fit Mode', () => {
     it('should default to fill fit mode', () => {
       const messages = createSimpleMessages('img-1', 'Image', {
-        url: { literalString: 'https://example.com/image.jpg' },
+        url: {literalString: 'https://example.com/image.jpg'},
         usageHint: 'mediumFeature',
       });
 
-      const { container } = render(
+      const {container} = render(
         <TestWrapper>
           <TestRenderer messages={messages} />
-        </TestWrapper>
+        </TestWrapper>,
       );
 
       const section = container.querySelector('section');
@@ -207,18 +214,18 @@ describe('Image Component', () => {
 
     const fitModes = ['contain', 'cover', 'fill', 'none', 'scale-down'];
 
-    fitModes.forEach((fit) => {
+    fitModes.forEach(fit => {
       it(`should set --object-fit CSS variable for fit="${fit}"`, () => {
         const messages = createSimpleMessages('img-1', 'Image', {
-          url: { literalString: 'https://example.com/image.jpg' },
+          url: {literalString: 'https://example.com/image.jpg'},
           usageHint: 'mediumFeature',
           fit,
         });
 
-        const { container } = render(
+        const {container} = render(
           <TestWrapper>
             <TestRenderer messages={messages} />
-          </TestWrapper>
+          </TestWrapper>,
         );
 
         const section = container.querySelector('section');
@@ -228,25 +235,25 @@ describe('Image Component', () => {
 
     it('should set different --object-fit for different fit inputs', () => {
       const messagesCover = createSimpleMessages('img-1', 'Image', {
-        url: { literalString: 'https://example.com/image.jpg' },
+        url: {literalString: 'https://example.com/image.jpg'},
         usageHint: 'mediumFeature',
         fit: 'cover',
       });
       const messagesContain = createSimpleMessages('img-2', 'Image', {
-        url: { literalString: 'https://example.com/image.jpg' },
+        url: {literalString: 'https://example.com/image.jpg'},
         usageHint: 'mediumFeature',
         fit: 'contain',
       });
 
-      const { container: containerCover } = render(
+      const {container: containerCover} = render(
         <TestWrapper>
           <TestRenderer messages={messagesCover} />
-        </TestWrapper>
+        </TestWrapper>,
       );
-      const { container: containerContain } = render(
+      const {container: containerContain} = render(
         <TestWrapper>
           <TestRenderer messages={messagesContain} />
-        </TestWrapper>
+        </TestWrapper>,
       );
 
       const sectionCover = containerCover.querySelector('section');
@@ -255,7 +262,7 @@ describe('Image Component', () => {
       expect(sectionCover?.style.getPropertyValue('--object-fit')).toBe('cover');
       expect(sectionContain?.style.getPropertyValue('--object-fit')).toBe('contain');
       expect(sectionCover?.style.getPropertyValue('--object-fit')).not.toBe(
-        sectionContain?.style.getPropertyValue('--object-fit')
+        sectionContain?.style.getPropertyValue('--object-fit'),
       );
     });
   });
@@ -263,14 +270,14 @@ describe('Image Component', () => {
   describe('Theme Support', () => {
     it('should render within section container', () => {
       const messages = createSimpleMessages('img-1', 'Image', {
-        url: { literalString: 'https://example.com/image.jpg' },
+        url: {literalString: 'https://example.com/image.jpg'},
         usageHint: 'mediumFeature',
       });
 
-      const { container } = render(
+      const {container} = render(
         <TestWrapper>
           <TestRenderer messages={messages} />
-        </TestWrapper>
+        </TestWrapper>,
       );
 
       const section = container.querySelector('section');
@@ -280,14 +287,14 @@ describe('Image Component', () => {
 
     it('should apply theme classes to section', () => {
       const messages = createSimpleMessages('img-1', 'Image', {
-        url: { literalString: 'https://example.com/image.jpg' },
+        url: {literalString: 'https://example.com/image.jpg'},
         usageHint: 'mediumFeature',
       });
 
-      const { container } = render(
+      const {container} = render(
         <TestWrapper>
           <TestRenderer messages={messages} />
-        </TestWrapper>
+        </TestWrapper>,
       );
 
       const section = container.querySelector('section');
@@ -302,14 +309,14 @@ describe('Image Component', () => {
   describe('Structure', () => {
     it('should have correct DOM structure', () => {
       const messages = createSimpleMessages('img-1', 'Image', {
-        url: { literalString: 'https://example.com/image.jpg' },
+        url: {literalString: 'https://example.com/image.jpg'},
         usageHint: 'mediumFeature',
       });
 
-      const { container } = render(
+      const {container} = render(
         <TestWrapper>
           <TestRenderer messages={messages} />
-        </TestWrapper>
+        </TestWrapper>,
       );
 
       const wrapper = container.querySelector('.a2ui-image');

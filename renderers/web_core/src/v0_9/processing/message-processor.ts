@@ -29,10 +29,7 @@ import {
   DeleteSurfaceMessage,
   A2uiMessageListWrapper,
 } from '../schema/server-to-client.js';
-import {
-  A2uiClientCapabilities,
-  InlineCatalog,
-} from '../schema/client-capabilities.js';
+import {A2uiClientCapabilities, InlineCatalog} from '../schema/client-capabilities.js';
 import {A2uiClientDataModel} from '../schema/client-to-server.js';
 import {A2uiStateError, A2uiValidationError} from '../errors.js';
 
@@ -42,6 +39,16 @@ import {A2uiStateError, A2uiValidationError} from '../errors.js';
 export interface CapabilitiesOptions {
   /** If true, the full definition of all catalogs will be included. */
   includeInlineCatalogs?: boolean;
+  /** The protocol version to generate capabilities for. Defaults to the processor's configured version. */
+  version?: 'v0.9' | 'v0.9.1';
+}
+
+/**
+ * Options for configuring a MessageProcessor instance.
+ */
+export interface MessageProcessorOptions {
+  /** The default protocol version to use for capability generation and data model reporting. Defaults to 'v0.9'. */
+  version?: 'v0.9' | 'v0.9.1';
 }
 
 /**
@@ -50,18 +57,22 @@ export interface CapabilitiesOptions {
  */
 export class MessageProcessor<T extends ComponentApi> {
   readonly model: SurfaceGroupModel<T>;
+  readonly version: 'v0.9' | 'v0.9.1';
 
   /**
    * Creates a new message processor.
    *
    * @param catalogs A list of available catalogs.
    * @param actionHandler A global handler for actions from all surfaces.
+   * @param options Configuration options for the processor.
    */
   constructor(
     private catalogs: Catalog<T>[],
     private actionHandler?: ActionListener,
+    options?: MessageProcessorOptions,
   ) {
     this.model = new SurfaceGroupModel<T>();
+    this.version = options?.version ?? 'v0.9';
     if (this.actionHandler) {
       this.model.onAction.subscribe(this.actionHandler);
     }
@@ -74,19 +85,17 @@ export class MessageProcessor<T extends ComponentApi> {
    * @returns The capabilities object.
    */
   getClientCapabilities(options?: CapabilitiesOptions): A2uiClientCapabilities {
-    const capabilities: A2uiClientCapabilities = {
-      'v0.9': {
-        supportedCatalogIds: this.catalogs.map(c => c.id),
-      },
+    // `version` can be used to fine-tune the returned capabilities.
+    const version = options?.version ?? this.version;
+    const versionCaps: any = {
+      supportedCatalogIds: this.catalogs.map(c => c.id),
     };
 
     if (options?.includeInlineCatalogs) {
-      capabilities['v0.9'].inlineCatalogs = this.catalogs.map(c =>
-        this.generateInlineCatalog(c),
-      );
+      versionCaps.inlineCatalogs = this.catalogs.map(c => this.generateInlineCatalog(c));
     }
 
-    return capabilities;
+    return {[version]: versionCaps} as A2uiClientCapabilities;
   }
 
   private generateInlineCatalog(catalog: Catalog<T>): InlineCatalog {
@@ -153,10 +162,7 @@ export class MessageProcessor<T extends ComponentApi> {
     if (typeof node !== 'object' || node === null) return;
 
     // If the node itself is a REF target, transform it and stop recursion.
-    if (
-      typeof node.description === 'string' &&
-      node.description.startsWith('REF:')
-    ) {
+    if (typeof node.description === 'string' && node.description.startsWith('REF:')) {
       const parts = node.description.substring(4).split('|');
       const ref = parts[0];
       const desc = parts[1] || '';
@@ -189,7 +195,7 @@ export class MessageProcessor<T extends ComponentApi> {
   /**
    * Returns the aggregated data model for all surfaces that have 'sendDataModel' enabled.
    */
-  getClientDataModel(): A2uiClientDataModel | undefined {
+  getClientDataModel(version: 'v0.9' | 'v0.9.1' = this.version): A2uiClientDataModel | undefined {
     const surfaces: Record<string, any> = {};
 
     for (const surface of this.model.surfacesMap.values()) {
@@ -203,7 +209,7 @@ export class MessageProcessor<T extends ComponentApi> {
     }
 
     return {
-      version: 'v0.9',
+      version,
       surfaces,
     };
   }
@@ -283,12 +289,7 @@ export class MessageProcessor<T extends ComponentApi> {
       throw new A2uiStateError(`Surface ${surfaceId} already exists.`);
     }
 
-    const surface = new SurfaceModel<T>(
-      surfaceId,
-      catalog,
-      theme,
-      sendDataModel ?? false,
-    );
+    const surface = new SurfaceModel<T>(surfaceId, catalog, theme, sendDataModel ?? false);
     this.model.addSurface(surface);
   }
 
@@ -298,29 +299,46 @@ export class MessageProcessor<T extends ComponentApi> {
     this.model.deleteSurface(payload.surfaceId);
   }
 
-  private processUpdateComponentsMessage(
-    message: UpdateComponentsMessage,
-  ): void {
+  private processUpdateComponentsMessage(message: UpdateComponentsMessage): void {
     const payload = message.updateComponents;
     if (!payload.surfaceId) return;
 
     const surface = this.model.getSurface(payload.surfaceId);
     if (!surface) {
-      throw new A2uiStateError(
-        `Surface not found for message: ${payload.surfaceId}`,
-      );
+      throw new A2uiStateError(`Surface not found for message: ${payload.surfaceId}`);
     }
 
+    // 1. Validation pass: validate all components before mutating state
     for (const comp of payload.components) {
       const {id, component, ...properties} = comp;
 
       if (!id) {
-        throw new A2uiValidationError(
-          `Component '${component}' is missing an 'id'.`,
-        );
+        throw new A2uiValidationError(`Component '${component}' is missing an 'id'.`);
       }
 
       const existing = surface.componentsModel.get(id);
+      const componentType = component || existing?.type;
+      if (componentType) {
+        const componentApi = surface.catalog.components.get(componentType);
+        if (componentApi) {
+          const validationResult = componentApi.schema.safeParse(properties);
+          if (!validationResult.success) {
+            const formattedErrors = validationResult.error.errors
+              .map(err => `${err.path.join('.') || 'root'}: ${err.message}`)
+              .join(', ');
+            throw new A2uiValidationError(
+              `Validation failed for component '${componentType}' (${id}): ${formattedErrors}`,
+            );
+          }
+        }
+      }
+    }
+
+    // 2. Mutation pass: apply state updates
+    for (const comp of payload.components) {
+      const {id, component, ...properties} = comp;
+      const existing = surface.componentsModel.get(id);
+
       if (existing) {
         if (component && component !== existing.type) {
           // Recreate component if type changes
@@ -332,9 +350,7 @@ export class MessageProcessor<T extends ComponentApi> {
         }
       } else {
         if (!component) {
-          throw new A2uiValidationError(
-            `Cannot create component ${id} without a type.`,
-          );
+          throw new A2uiValidationError(`Cannot create component ${id} without a type.`);
         }
         const newComponent = new ComponentModel(id, component, properties);
         surface.componentsModel.addComponent(newComponent);
@@ -348,9 +364,7 @@ export class MessageProcessor<T extends ComponentApi> {
 
     const surface = this.model.getSurface(payload.surfaceId);
     if (!surface) {
-      throw new A2uiStateError(
-        `Surface not found for message: ${payload.surfaceId}`,
-      );
+      throw new A2uiStateError(`Surface not found for message: ${payload.surfaceId}`);
     }
 
     const path = payload.path || '/';

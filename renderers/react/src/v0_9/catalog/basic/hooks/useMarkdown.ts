@@ -32,7 +32,7 @@ export function useMarkdown(text: string, options?: MarkdownRendererOptions) {
         console.warn(
           '[useMarkdown]',
           "can't render markdown because no markdown renderer is configured.\n",
-          'Use `@a2ui/markdown-it`, or your own markdown renderer.'
+          'Use `@a2ui/markdown-it`, or your own markdown renderer.',
         );
         warningLogged = true;
       }
@@ -44,12 +44,12 @@ export function useMarkdown(text: string, options?: MarkdownRendererOptions) {
     const parsedOptions = optionsKey ? JSON.parse(optionsKey) : undefined;
 
     renderer(text, parsedOptions)
-      .then((result) => {
+      .then(result => {
         if (active) {
           setHtml(result);
         }
       })
-      .catch((err) => {
+      .catch(err => {
         console.error('[useMarkdown] Render failed:', err);
       });
 

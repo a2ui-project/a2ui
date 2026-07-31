@@ -16,10 +16,7 @@
           "component": {
             "Column": {
               "children": {
-                "explicitList": [
-                  "restaurant-image",
-                  "content"
-                ]
+                "explicitList": ["restaurant-image", "content"]
               }
             }
           }
@@ -40,12 +37,7 @@
           "component": {
             "Column": {
               "children": {
-                "explicitList": [
-                  "name-row",
-                  "cuisine",
-                  "rating-row",
-                  "details-row"
-                ]
+                "explicitList": ["name-row", "cuisine", "rating-row", "details-row"]
               }
             }
           }
@@ -55,10 +47,7 @@
           "component": {
             "Row": {
               "children": {
-                "explicitList": [
-                  "restaurant-name",
-                  "price-range"
-                ]
+                "explicitList": ["restaurant-name", "price-range"]
               },
               "distribution": "spaceBetween",
               "alignment": "center"
@@ -103,11 +92,7 @@
           "component": {
             "Row": {
               "children": {
-                "explicitList": [
-                  "star-icon",
-                  "rating",
-                  "reviews"
-                ]
+                "explicitList": ["star-icon", "rating", "reviews"]
               },
               "alignment": "center"
             }
@@ -150,10 +135,7 @@
           "component": {
             "Row": {
               "children": {
-                "explicitList": [
-                  "distance",
-                  "delivery-time"
-                ]
+                "explicitList": ["distance", "delivery-time"]
               }
             }
           }

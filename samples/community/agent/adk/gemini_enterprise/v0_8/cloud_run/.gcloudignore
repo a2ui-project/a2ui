@@ -1,0 +1,11 @@
+# Ignore common Python build artifacts
+__pycache__/
+*.pyc
+*.pyo
+build/
+dist/
+*.egg-info/
+.venv/
+venv/
+
+.adk/

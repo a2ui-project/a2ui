@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import { BooleanValue, NumberValue, StringValue } from "../types/primitives";
+import {BooleanValue, NumberValue, StringValue} from '../types/primitives';
 import {
   AnyComponentNode,
   ComponentArrayReference,
@@ -38,87 +38,77 @@ import {
   ResolvedTextField,
   ResolvedVideo,
   ValueMap,
-} from "../types/types";
+} from '../types/types';
 
 export function isValueMap(value: unknown): value is ValueMap {
-  return isObject(value) && "key" in value;
+  return isObject(value) && 'key' in value;
 }
 
 export function isPath(key: string, value: unknown): value is string {
-  return key === "path" && typeof value === "string";
+  return key === 'path' && typeof value === 'string';
 }
 
 export function isObject(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
-export function isComponentArrayReference(
-  value: unknown,
-): value is ComponentArrayReference {
+export function isComponentArrayReference(value: unknown): value is ComponentArrayReference {
   if (!isObject(value)) return false;
-  return "explicitList" in value || "template" in value;
+  return 'explicitList' in value || 'template' in value;
 }
 
 function isStringValue(value: unknown): value is StringValue {
   return (
     isObject(value) &&
-    ("path" in value ||
-      ("literal" in value && typeof value.literal === "string") ||
-      "literalString" in value)
+    ('path' in value ||
+      ('literal' in value && typeof value.literal === 'string') ||
+      'literalString' in value)
   );
 }
 
 function isNumberValue(value: unknown): value is NumberValue {
   return (
     isObject(value) &&
-    ("path" in value ||
-      ("literal" in value && typeof value.literal === "number") ||
-      "literalNumber" in value)
+    ('path' in value ||
+      ('literal' in value && typeof value.literal === 'number') ||
+      'literalNumber' in value)
   );
 }
 
 function isBooleanValue(value: unknown): value is BooleanValue {
   return (
     isObject(value) &&
-    ("path" in value ||
-      ("literal" in value && typeof value.literal === "boolean") ||
-      "literalBoolean" in value)
+    ('path' in value ||
+      ('literal' in value && typeof value.literal === 'boolean') ||
+      'literalBoolean' in value)
   );
 }
 
 function isAnyComponentNode(value: unknown): value is AnyComponentNode {
   if (!isObject(value)) return false;
-  const hasBaseKeys = "id" in value && "type" in value && "properties" in value;
+  const hasBaseKeys = 'id' in value && 'type' in value && 'properties' in value;
   if (!hasBaseKeys) return false;
 
   return true;
 }
 
-export function isResolvedAudioPlayer(
-  props: unknown,
-): props is ResolvedAudioPlayer {
-  return isObject(props) && "url" in props && isStringValue(props.url);
+export function isResolvedAudioPlayer(props: unknown): props is ResolvedAudioPlayer {
+  return isObject(props) && 'url' in props && isStringValue(props.url);
 }
 
 export function isResolvedButton(props: unknown): props is ResolvedButton {
   return (
-    isObject(props) &&
-    "child" in props &&
-    isAnyComponentNode(props.child) &&
-    "action" in props
+    isObject(props) && 'child' in props && isAnyComponentNode(props.child) && 'action' in props
   );
 }
 
 export function isResolvedCard(props: unknown): props is ResolvedCard {
   if (!isObject(props)) return false;
-  if (!("child" in props)) {
-    if (!("children" in props)) {
+  if (!('child' in props)) {
+    if (!('children' in props)) {
       return false;
     } else {
-      return (
-        Array.isArray(props.children) &&
-        props.children.every(isAnyComponentNode)
-      );
+      return Array.isArray(props.children) && props.children.every(isAnyComponentNode);
     }
   }
 
@@ -128,9 +118,9 @@ export function isResolvedCard(props: unknown): props is ResolvedCard {
 export function isResolvedCheckbox(props: unknown): props is ResolvedCheckbox {
   return (
     isObject(props) &&
-    "label" in props &&
+    'label' in props &&
     isStringValue(props.label) &&
-    "value" in props &&
+    'value' in props &&
     isBooleanValue(props.value)
   );
 }
@@ -138,16 +128,14 @@ export function isResolvedCheckbox(props: unknown): props is ResolvedCheckbox {
 export function isResolvedColumn(props: unknown): props is ResolvedColumn {
   return (
     isObject(props) &&
-    "children" in props &&
+    'children' in props &&
     Array.isArray(props.children) &&
     props.children.every(isAnyComponentNode)
   );
 }
 
-export function isResolvedDateTimeInput(
-  props: unknown,
-): props is ResolvedDateTimeInput {
-  return isObject(props) && "value" in props && isStringValue(props.value);
+export function isResolvedDateTimeInput(props: unknown): props is ResolvedDateTimeInput {
+  return isObject(props) && 'value' in props && isStringValue(props.value);
 }
 
 export function isResolvedDivider(props: unknown): props is ResolvedDivider {
@@ -157,17 +145,17 @@ export function isResolvedDivider(props: unknown): props is ResolvedDivider {
 }
 
 export function isResolvedImage(props: unknown): props is ResolvedImage {
-  return isObject(props) && "url" in props && isStringValue(props.url);
+  return isObject(props) && 'url' in props && isStringValue(props.url);
 }
 
 export function isResolvedIcon(props: unknown): props is ResolvedIcon {
-  return isObject(props) && "name" in props && isStringValue(props.name);
+  return isObject(props) && 'name' in props && isStringValue(props.name);
 }
 
 export function isResolvedList(props: unknown): props is ResolvedList {
   return (
     isObject(props) &&
-    "children" in props &&
+    'children' in props &&
     Array.isArray(props.children) &&
     props.children.every(isAnyComponentNode)
   );
@@ -176,38 +164,36 @@ export function isResolvedList(props: unknown): props is ResolvedList {
 export function isResolvedModal(props: unknown): props is ResolvedModal {
   return (
     isObject(props) &&
-    "entryPointChild" in props &&
+    'entryPointChild' in props &&
     isAnyComponentNode(props.entryPointChild) &&
-    "contentChild" in props &&
+    'contentChild' in props &&
     isAnyComponentNode(props.contentChild)
   );
 }
 
-export function isResolvedMultipleChoice(
-  props: unknown,
-): props is ResolvedMultipleChoice {
-  return isObject(props) && "selections" in props;
+export function isResolvedMultipleChoice(props: unknown): props is ResolvedMultipleChoice {
+  return isObject(props) && 'selections' in props;
 }
 
 export function isResolvedRow(props: unknown): props is ResolvedRow {
   return (
     isObject(props) &&
-    "children" in props &&
+    'children' in props &&
     Array.isArray(props.children) &&
     props.children.every(isAnyComponentNode)
   );
 }
 
 export function isResolvedSlider(props: unknown): props is ResolvedSlider {
-  return isObject(props) && "value" in props && isNumberValue(props.value);
+  return isObject(props) && 'value' in props && isNumberValue(props.value);
 }
 
 function isResolvedTabItem(item: unknown): item is ResolvedTabItem {
   return (
     isObject(item) &&
-    "title" in item &&
+    'title' in item &&
     isStringValue(item.title) &&
-    "child" in item &&
+    'child' in item &&
     isAnyComponentNode(item.child)
   );
 }
@@ -215,22 +201,20 @@ function isResolvedTabItem(item: unknown): item is ResolvedTabItem {
 export function isResolvedTabs(props: unknown): props is ResolvedTabs {
   return (
     isObject(props) &&
-    "tabItems" in props &&
+    'tabItems' in props &&
     Array.isArray(props.tabItems) &&
     props.tabItems.every(isResolvedTabItem)
   );
 }
 
 export function isResolvedText(props: unknown): props is ResolvedText {
-  return isObject(props) && "text" in props && isStringValue(props.text);
+  return isObject(props) && 'text' in props && isStringValue(props.text);
 }
 
-export function isResolvedTextField(
-  props: unknown,
-): props is ResolvedTextField {
-  return isObject(props) && "label" in props && isStringValue(props.label);
+export function isResolvedTextField(props: unknown): props is ResolvedTextField {
+  return isObject(props) && 'label' in props && isStringValue(props.label);
 }
 
 export function isResolvedVideo(props: unknown): props is ResolvedVideo {
-  return isObject(props) && "url" in props && isStringValue(props.url);
+  return isObject(props) && 'url' in props && isStringValue(props.url);
 }

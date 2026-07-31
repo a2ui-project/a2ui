@@ -14,4 +14,4 @@
  * limitations under the License.
  */
 
-export { markdown } from "./markdown.js";
+export {markdown} from './markdown.js';

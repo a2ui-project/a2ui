@@ -14,36 +14,32 @@
  * limitations under the License.
  */
 
-"use client";
+'use client';
 
-import { useState, useCallback } from "react";
+import {useState, useCallback} from 'react';
 import {
   CopilotChat,
   JsonSerializable,
   useAgentContext,
   useFrontendTool,
-} from "@copilotkit/react-core/v2";
-import { z } from "zod";
-import { parseRobustJSON } from "@/lib/json-parser";
-import { EditorHeader } from "./editor-header";
-import { CodeEditor } from "./code-editor";
-import { PreviewPane } from "./preview-pane";
-import { DataPanel } from "./data-panel";
-import {
-  ResizableHandle,
-  ResizablePanel,
-  ResizablePanelGroup,
-} from "@/components/ui/resizable";
-import { useWidgets } from "@/contexts/widgets-context";
-import type { Widget, DataState } from "@/types/widget";
-import type { A2UIComponent } from "@/types/widget";
+} from '@copilotkit/react-core/v2';
+import {z} from 'zod';
+import {parseRobustJSON} from '@/lib/json-parser';
+import {EditorHeader} from './editor-header';
+import {CodeEditor} from './code-editor';
+import {PreviewPane} from './preview-pane';
+import {DataPanel} from './data-panel';
+import {ResizableHandle, ResizablePanel, ResizablePanelGroup} from '@/components/ui/resizable';
+import {useWidgets} from '@/contexts/widgets-context';
+import type {Widget, DataState} from '@/types/widget';
+import type {A2UIComponent} from '@/types/widget';
 
 interface WidgetEditorProps {
   widget: Widget;
 }
 
-export function WidgetEditor({ widget }: WidgetEditorProps) {
-  const { updateWidget } = useWidgets();
+export function WidgetEditor({widget}: WidgetEditorProps) {
+  const {updateWidget} = useWidgets();
 
   // Local state for components (JSON string for editor)
   const [componentsJson, setComponentsJson] = useState(() =>
@@ -55,9 +51,7 @@ export function WidgetEditor({ widget }: WidgetEditorProps) {
   const [activeDataStateIndex, setActiveDataStateIndex] = useState(0);
 
   // Parsed components for preview (null if invalid JSON)
-  const [components, setComponents] = useState<A2UIComponent[]>(
-    widget.components,
-  );
+  const [components, setComponents] = useState<A2UIComponent[]>(widget.components);
 
   const handleComponentsChange = useCallback(
     (json: string) => {
@@ -65,7 +59,7 @@ export function WidgetEditor({ widget }: WidgetEditorProps) {
       try {
         const parsed = JSON.parse(json) as A2UIComponent[];
         setComponents(parsed);
-        updateWidget(widget.id, { components: parsed });
+        updateWidget(widget.id, {components: parsed});
       } catch {
         // Invalid JSON, don't update
       }
@@ -76,7 +70,7 @@ export function WidgetEditor({ widget }: WidgetEditorProps) {
   const handleDataStatesChange = useCallback(
     (newDataStates: DataState[]) => {
       setDataStates(newDataStates);
-      updateWidget(widget.id, { dataStates: newDataStates });
+      updateWidget(widget.id, {dataStates: newDataStates});
     },
     [widget.id, updateWidget],
   );
@@ -84,7 +78,7 @@ export function WidgetEditor({ widget }: WidgetEditorProps) {
   const handleAddDataState = useCallback(() => {
     const newState: DataState = {
       name: `state-${dataStates.length + 1}`,
-      data: dataStates[0]?.data ? { ...dataStates[0].data } : {},
+      data: dataStates[0]?.data ? {...dataStates[0].data} : {},
     };
     const newDataStates = [...dataStates, newState];
     handleDataStatesChange(newDataStates);
@@ -93,9 +87,7 @@ export function WidgetEditor({ widget }: WidgetEditorProps) {
 
   const handleUpdateDataState = useCallback(
     (index: number, data: Record<string, unknown>) => {
-      const newDataStates = dataStates.map((ds, i) =>
-        i === index ? { ...ds, data } : ds,
-      );
+      const newDataStates = dataStates.map((ds, i) => (i === index ? {...ds, data} : ds));
       handleDataStatesChange(newDataStates);
     },
     [dataStates, handleDataStatesChange],
@@ -103,9 +95,7 @@ export function WidgetEditor({ widget }: WidgetEditorProps) {
 
   const handleRenameDataState = useCallback(
     (index: number, name: string) => {
-      const newDataStates = dataStates.map((ds, i) =>
-        i === index ? { ...ds, name } : ds,
-      );
+      const newDataStates = dataStates.map((ds, i) => (i === index ? {...ds, name} : ds));
       handleDataStatesChange(newDataStates);
     },
     [dataStates, handleDataStatesChange],
@@ -126,44 +116,42 @@ export function WidgetEditor({ widget }: WidgetEditorProps) {
   const activeData = dataStates[activeDataStateIndex]?.data ?? {};
 
   useAgentContext({
-    description: "The current data",
+    description: 'The current data',
     value: activeData as Record<string, JsonSerializable>,
   });
 
   useAgentContext({
-    description: "The current components",
+    description: 'The current components',
     value: components as unknown as JsonSerializable[],
   });
 
   // Tool for AI to edit the widget
   useFrontendTool({
-    name: "editWidget",
+    name: 'editWidget',
     description:
-      "Edit the widget by updating its data and/or components. Both parameters are optional - pass only what you want to change.",
+      'Edit the widget by updating its data and/or components. Both parameters are optional - pass only what you want to change.',
     parameters: z.object({
       data: z
         .string()
         .optional()
         .describe(
-          "The new data object for the widget as a JSON string, not a raw JSON object. Optional.",
+          'The new data object for the widget as a JSON string, not a raw JSON object. Optional.',
         ),
       components: z
         .string()
         .optional()
         .describe(
-          "The new components array for the widget as a JSON string, not a raw JSON object. Optional.",
+          'The new components array for the widget as a JSON string, not a raw JSON object. Optional.',
         ),
     }),
-    render: ({ args, status }) => {
-      const isBuilding = status !== "complete";
+    render: ({args, status}) => {
+      const isBuilding = status !== 'complete';
 
       return (
         <details className="my-4">
           <summary className="text-xs text-muted-foreground cursor-pointer hover:text-foreground transition-colors px-2 py-1">
             {isBuilding ? (
-              <span className="animate-pulse mb-4">
-                Generating component...
-              </span>
+              <span className="animate-pulse mb-4">Generating component...</span>
             ) : (
               <span>View details</span>
             )}
@@ -174,7 +162,7 @@ export function WidgetEditor({ widget }: WidgetEditorProps) {
         </details>
       );
     },
-    handler: async ({ data, components: newComponents }) => {
+    handler: async ({data, components: newComponents}) => {
       try {
         if (data !== undefined) {
           handleUpdateDataState(
@@ -184,15 +172,11 @@ export function WidgetEditor({ widget }: WidgetEditorProps) {
         }
         if (newComponents !== undefined) {
           // Pretty-print the JSON for the editor
-          const prettyJson = JSON.stringify(
-            parseRobustJSON(newComponents),
-            null,
-            2,
-          );
+          const prettyJson = JSON.stringify(parseRobustJSON(newComponents), null, 2);
           handleComponentsChange(prettyJson);
         }
       } catch (error) {
-        console.error("Error parsing JSON:", error);
+        console.error('Error parsing JSON:', error);
         return {
           success: false,
           error: `Invalid JSON, make sure it is stringified: ${error}`,
@@ -221,10 +205,7 @@ export function WidgetEditor({ widget }: WidgetEditorProps) {
             <ResizablePanelGroup direction="vertical">
               {/* Code Editor */}
               <ResizablePanel defaultSize={70} minSize={20}>
-                <CodeEditor
-                  value={componentsJson}
-                  onChange={handleComponentsChange}
-                />
+                <CodeEditor value={componentsJson} onChange={handleComponentsChange} />
               </ResizablePanel>
 
               <ResizableHandle />

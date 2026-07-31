@@ -21,14 +21,20 @@
 }
 
 .label {
-  font-size: var(--a2ui-textfield-label-font-size, var(--a2ui-label-font-size, var(--a2ui-font-size-s)));
+  font-size: var(
+    --a2ui-textfield-label-font-size,
+    var(--a2ui-label-font-size, var(--a2ui-font-size-s))
+  );
   font-weight: var(--a2ui-textfield-label-font-weight, var(--a2ui-label-font-weight, bold));
 }
 
 .input {
   background-color: var(--a2ui-color-input, #fff);
   color: var(--a2ui-color-on-input, #333);
-  border: var(--a2ui-textfield-border, var(--a2ui-border-width, 1px) solid var(--a2ui-color-border, #ccc));
+  border: var(
+    --a2ui-textfield-border,
+    var(--a2ui-border-width, 1px) solid var(--a2ui-color-border, #ccc)
+  );
   border-radius: var(--a2ui-textfield-border-radius, var(--a2ui-spacing-m, 8px));
   padding: var(--a2ui-textfield-padding, var(--a2ui-spacing-m, 0.5rem));
   font-family: inherit;

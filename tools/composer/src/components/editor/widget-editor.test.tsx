@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */ // TODO: remediate legacy any types
 /**
  * Copyright 2026 Google LLC
  *
@@ -14,12 +15,12 @@
  * limitations under the License.
  */
 
-import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, act } from '@testing-library/react';
-import { WidgetEditor } from './widget-editor';
-import { useWidgets } from '@/contexts/widgets-context';
-import type { Widget } from '@/types/widget';
-import { useFrontendTool } from '@copilotkit/react-core/v2';
+import {describe, it, expect, vi, beforeEach} from 'vitest';
+import {render, screen, act} from '@testing-library/react';
+import {WidgetEditor} from './widget-editor';
+import {useWidgets} from '@/contexts/widgets-context';
+import type {Widget} from '@/types/widget';
+import {useFrontendTool} from '@copilotkit/react-core/v2';
 import React from 'react';
 
 // Mock child components
@@ -27,8 +28,8 @@ vi.mock('./editor-header', () => ({
   EditorHeader: () => <div data-testid="editor-header" />,
 }));
 vi.mock('./code-editor', () => ({
-  CodeEditor: ({ value, onChange }: any) => (
-    <textarea data-testid="code-editor" value={value} onChange={(e) => onChange(e.target.value)} />
+  CodeEditor: ({value, onChange}: any) => (
+    <textarea data-testid="code-editor" value={value} onChange={e => onChange(e.target.value)} />
   ),
 }));
 vi.mock('./preview-pane', () => ({
@@ -47,8 +48,8 @@ vi.mock('@copilotkit/react-core/v2', () => ({
 
 // Mock Resizable components
 vi.mock('@/components/ui/resizable', () => ({
-  ResizablePanelGroup: ({ children }: any) => <div>{children}</div>,
-  ResizablePanel: ({ children }: any) => <div>{children}</div>,
+  ResizablePanelGroup: ({children}: any) => <div>{children}</div>,
+  ResizablePanel: ({children}: any) => <div>{children}</div>,
   ResizableHandle: () => <div>Handle</div>,
 }));
 
@@ -64,7 +65,7 @@ describe('WidgetEditor', () => {
     specVersion: '0.8',
     root: 'root',
     components: [],
-    dataStates: [{ name: 'default', data: {} }],
+    dataStates: [{name: 'default', data: {}}],
     createdAt: new Date(),
     updatedAt: new Date(),
   };
@@ -92,19 +93,19 @@ describe('WidgetEditor', () => {
     expect(useFrontendTool).toHaveBeenCalledWith(
       expect.objectContaining({
         name: 'editWidget',
-      })
+      }),
     );
   });
 
   it('should update components when code editor changes', async () => {
     render(<WidgetEditor widget={mockWidget} />);
     const editor = screen.getByTestId('code-editor');
-    
+
     await act(async () => {
-      fireEvent.change(editor, { target: { value: '[{"id": "new"}]' } });
+      fireEvent.change(editor, {target: {value: '[{"id": "new"}]'}});
     });
 
-    expect(mockUpdateWidget).toHaveBeenCalledWith('1', { components: [{ id: 'new' }] });
+    expect(mockUpdateWidget).toHaveBeenCalledWith('1', {components: [{id: 'new'}]});
   });
 
   it('should handle editWidget tool calls', async () => {
@@ -117,13 +118,13 @@ describe('WidgetEditor', () => {
     render(<WidgetEditor widget={mockWidget} />);
 
     const result = await act(async () => {
-      return await toolHandler({ data: '{"foo": "bar"}', components: '[{"id": "root"}]' });
+      return await toolHandler({data: '{"foo": "bar"}', components: '[{"id": "root"}]'});
     });
 
     expect(result.success).toBe(true);
-    expect(mockUpdateWidget).toHaveBeenCalledWith('1', { components: [{ id: 'root' }] });
+    expect(mockUpdateWidget).toHaveBeenCalledWith('1', {components: [{id: 'root'}]});
   });
 });
 
 // Helper for fireEvent
-import { fireEvent } from '@testing-library/react';
+import {fireEvent} from '@testing-library/react';

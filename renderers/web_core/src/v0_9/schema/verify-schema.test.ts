@@ -17,9 +17,8 @@
 import {describe, it} from 'node:test';
 import * as assert from 'node:assert';
 import {zodToJsonSchema} from 'zod-to-json-schema';
-import {readFileSync} from 'fs';
-import {resolve, join, dirname} from 'path';
-import {fileURLToPath} from 'url';
+import {readFileSync, existsSync} from 'fs';
+import {resolve, join} from 'path';
 import {
   A2uiMessageSchema,
   CreateSurfaceMessageSchema,
@@ -28,23 +27,16 @@ import {
   DeleteSurfaceMessageSchema,
 } from './server-to-client.js';
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = dirname(__filename);
-
-// `__dirname` will be `dist/src/v0_9/schema` when run via `node --test dist/**/*.test.js`
-const SPEC_DIR_V0_9 = resolve(
-  __dirname,
-  '../../../../../../specification/v0_9/json',
-);
+const currentDir = typeof __dirname !== 'undefined' ? __dirname : resolve('src/v0_9/schema');
+const specPathCandidate1 = resolve(currentDir, '../../../../../specification/v0_9/json');
+const specPathCandidate2 = resolve(currentDir, '../../../../../../specification/v0_9/json');
+const SPEC_DIR_V0_9 = existsSync(specPathCandidate1) ? specPathCandidate1 : specPathCandidate2;
 
 // Parse both so we can do structural comparison rather than formatting
 // Compare definitions specifically, ignoring descriptions
 function compareDefinitions(zodDefs: any, jsonDefs: any): Record<string, any> {
   const diff: Record<string, any> = {};
-  const keys = new Set([
-    ...Object.keys(zodDefs || {}),
-    ...Object.keys(jsonDefs || {}),
-  ]);
+  const keys = new Set([...Object.keys(zodDefs || {}), ...Object.keys(jsonDefs || {})]);
 
   for (const key of keys) {
     if (key === 'A2uiMessage') continue; // Zod wrapper artifact
@@ -67,10 +59,7 @@ function getObjectDiff(obj1: any, obj2: any, path = ''): Record<string, any> {
   // Ignore descriptions in strict structural comparison
   const ignoreKeys = new Set(['description', 'title', '$id', '$schema']);
 
-  const keys = new Set([
-    ...Object.keys(obj1 || {}),
-    ...Object.keys(obj2 || {}),
-  ]);
+  const keys = new Set([...Object.keys(obj1 || {}), ...Object.keys(obj2 || {})]);
 
   for (const key of keys) {
     if (ignoreKeys.has(key)) continue;
@@ -79,21 +68,17 @@ function getObjectDiff(obj1: any, obj2: any, path = ''): Record<string, any> {
     const val1 = obj1 ? obj1[key] : undefined;
     const val2 = obj2 ? obj2[key] : undefined;
 
-    // Zod emits `type: "string"` for consts, whereas JSON Schema infers it.
+    // `type: 'string'` and `const: 'v0.9'` and `enum: ['v0.9', 'v0.9.1']` are accepted here.
     if (
-      path.endsWith('version') &&
-      key === 'type' &&
-      val1 === 'string' &&
-      val2 === undefined
+      (path.endsWith('version') || currentPath.includes('properties.version')) &&
+      (key === 'type' || key === 'const' || key === 'enum')
     ) {
       continue;
     }
 
     // Zod doesn't emit additionalProperties: true by default, but it's the default
     if (
-      currentPath.endsWith(
-        'updateDataModel.properties.value.additionalProperties',
-      ) &&
+      currentPath.endsWith('updateDataModel.properties.value.additionalProperties') &&
       val1 === undefined &&
       val2 === true
     ) {
@@ -115,12 +100,7 @@ function getObjectDiff(obj1: any, obj2: any, path = ''): Record<string, any> {
       continue;
     }
 
-    if (
-      typeof val1 === 'object' &&
-      val1 !== null &&
-      typeof val2 === 'object' &&
-      val2 !== null
-    ) {
+    if (typeof val1 === 'object' && val1 !== null && typeof val2 === 'object' && val2 !== null) {
       if (Array.isArray(val1) && Array.isArray(val2)) {
         // Sort arrays to ignore order differences (like `required`)
         const sortedVal1 = [...val1].sort();
@@ -183,9 +163,7 @@ function verifySchema(
   }
 
   const rootZodSchema =
-    (generatedSchema.definitions || generatedSchema.$defs || {})[
-      'A2uiMessage'
-    ] || {};
+    (generatedSchema.definitions || generatedSchema.$defs || {})['A2uiMessage'] || {};
 
   if (officialSchema.oneOf || officialSchema.anyOf) {
     const zodOneOf = rootZodSchema.anyOf || rootZodSchema.oneOf || [];
@@ -208,10 +186,7 @@ function verifySchema(
       );
     }
   } else if (officialSchema.properties) {
-    const topLevelDiff = getObjectDiff(
-      rootZodSchema.properties,
-      officialSchema.properties,
-    );
+    const topLevelDiff = getObjectDiff(rootZodSchema.properties, officialSchema.properties);
     if (Object.keys(topLevelDiff).length > 0) {
       assert.deepStrictEqual(
         topLevelDiff,
@@ -224,26 +199,29 @@ function verifySchema(
   console.log(`Zod schema structurally matches the ${version} JSON spec!`);
 }
 
-describe('A2UI Schema Verification v0.9', () => {
+describe('A2UI Schema Verification v0.9 & v0.9.1', () => {
   it('verifies v0.9 schema', () => {
-    verifySchema(
-      'v0.9',
-      A2uiMessageSchema,
-      join(SPEC_DIR_V0_9, 'server_to_client.json'),
-      {
-        CreateSurfaceMessage: CreateSurfaceMessageSchema,
-        UpdateComponentsMessage: UpdateComponentsMessageSchema,
-        UpdateDataModelMessage: UpdateDataModelMessageSchema,
-        DeleteSurfaceMessage: DeleteSurfaceMessageSchema,
-      },
-    );
+    verifySchema('v0.9', A2uiMessageSchema, join(SPEC_DIR_V0_9, 'server_to_client.json'), {
+      CreateSurfaceMessage: CreateSurfaceMessageSchema,
+      UpdateComponentsMessage: UpdateComponentsMessageSchema,
+      UpdateDataModelMessage: UpdateDataModelMessageSchema,
+      DeleteSurfaceMessage: DeleteSurfaceMessageSchema,
+    });
   });
 
-  it('validates A2uiMessage wrapper', () => {
-    const msg = {
+  it('validates A2uiMessage v0.9 wrapper', () => {
+    const msgV09 = {
       version: 'v0.9',
       deleteSurface: {surfaceId: 'surface-1'},
     };
-    assert.deepStrictEqual(A2uiMessageSchema.parse(msg), msg);
+    assert.deepStrictEqual(A2uiMessageSchema.parse(msgV09), msgV09);
+  });
+
+  it('validates A2uiMessage v0.9.1 wrapper', () => {
+    const msgV091 = {
+      version: 'v0.9.1',
+      deleteSurface: {surfaceId: 'surface-2'},
+    };
+    assert.deepStrictEqual(A2uiMessageSchema.parse(msgV091), msgV091);
   });
 });

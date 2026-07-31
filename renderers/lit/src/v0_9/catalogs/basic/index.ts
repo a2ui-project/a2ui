@@ -14,39 +14,39 @@
  * limitations under the License.
  */
 
-import { Catalog } from "@a2ui/web_core/v0_9";
-import { BASIC_FUNCTIONS } from "@a2ui/web_core/v0_9/basic_catalog";
-import { LitComponentApi } from "@a2ui/lit/v0_9";
+import {Catalog} from '@a2ui/web_core/v0_9';
+import {BASIC_FUNCTIONS} from '@a2ui/web_core/v0_9/basic_catalog';
+import {LitComponentApi} from '../../types.js';
 
-import { A2uiText } from "./components/Text.js";
-import { A2uiButton } from "./components/Button.js";
-import { A2uiTextField } from "./components/TextField.js";
-import { A2uiRow } from "./components/Row.js";
-import { A2uiColumn } from "./components/Column.js";
-import { A2uiList } from "./components/List.js";
-import { A2uiImage } from "./components/Image.js";
-import { A2uiIcon } from "./components/Icon.js";
-import { A2uiVideo } from "./components/Video.js";
-import { A2uiAudioPlayer } from "./components/AudioPlayer.js";
-import { A2uiCard } from "./components/Card.js";
-import { A2uiDivider } from "./components/Divider.js";
-import { A2uiCheckBox } from "./components/CheckBox.js";
-import { A2uiSlider } from "./components/Slider.js";
-import { A2uiDateTimeInput } from "./components/DateTimeInput.js";
-import { A2uiChoicePicker } from "./components/ChoicePicker.js";
-import { A2uiTabs } from "./components/Tabs.js";
-import { A2uiModal } from "./components/Modal.js";
+import {A2uiText} from './components/Text.js';
+import {A2uiButton} from './components/Button.js';
+import {A2uiTextField} from './components/TextField.js';
+import {A2uiRow} from './components/Row.js';
+import {A2uiColumn} from './components/Column.js';
+import {A2uiList} from './components/List.js';
+import {A2uiImage} from './components/Image.js';
+import {A2uiIcon} from './components/Icon.js';
+import {A2uiVideo} from './components/Video.js';
+import {A2uiAudioPlayer} from './components/AudioPlayer.js';
+import {A2uiCard} from './components/Card.js';
+import {A2uiDivider} from './components/Divider.js';
+import {A2uiCheckBox} from './components/CheckBox.js';
+import {A2uiSlider} from './components/Slider.js';
+import {A2uiDateTimeInput} from './components/DateTimeInput.js';
+import {A2uiChoicePicker} from './components/ChoicePicker.js';
+import {A2uiTabs} from './components/Tabs.js';
+import {A2uiModal} from './components/Modal.js';
 
 /**
  * The basic catalog for A2UI components in Lit.
  *
- * This catalog includes a wider range of components compared to the minimal catalog,
- * such as list, image, icon, video, audio player, card, divider, checkbox, slider,
- * date-time input, choice picker, tabs, and modal. It also includes the basic functions
- * from package @a2ui/web_core.
+ * This catalog includes a wide range of components such as list, image, icon,
+ * video, audio player, card, divider, checkbox, slider, date-time input, choice
+ * picker, tabs, and modal. It also includes the basic functions from package
+ * @a2ui/web_core.
  */
 export const basicCatalog = new Catalog<LitComponentApi>(
-  "https://a2ui.org/specification/v0_9/basic_catalog.json",
+  'https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json',
   [
     A2uiText,
     A2uiButton,

@@ -15,7 +15,7 @@
  */
 
 import '@testing-library/jest-dom';
-import { vi } from 'vitest';
+import {vi} from 'vitest';
 
 // Mock matchMedia if needed (common for some Radix/UI components)
 Object.defineProperty(window, 'matchMedia', {
@@ -39,3 +39,11 @@ class ResizeObserver {
   disconnect() {}
 }
 window.ResizeObserver = ResizeObserver;
+
+// Neutralize programmatic anchor clicks (e.g. file-download handlers that do
+// `a.href = url; a.click()`). In jsdom these attempt a real navigation, which
+// logs "Not implemented: navigation to another Document" and leaves the run
+// hanging so `vitest run` never exits. React Testing Library dispatches events
+// via dispatchEvent (not Element.click), and button clicks go through
+// HTMLElement.prototype.click, so overriding only the anchor prototype is safe.
+HTMLAnchorElement.prototype.click = vi.fn();

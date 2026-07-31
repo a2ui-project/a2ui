@@ -14,17 +14,12 @@
  * limitations under the License.
  */
 
-import { describe, it, expect, vi } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
-import React, { useEffect } from 'react';
-import { A2UIProvider, A2UIRenderer, useA2UI } from '../../../src/v0_8';
+import {describe, it, expect, vi} from 'vitest';
+import {render, screen, waitFor} from '@testing-library/react';
+import React, {useEffect} from 'react';
+import {A2UIProvider, A2UIRenderer, useA2UI} from '../../../src/v0_8';
 import type * as Types from '@a2ui/web_core/types/types';
-import {
-  TestWrapper,
-  TestRenderer,
-  createSurfaceUpdate,
-  createBeginRendering,
-} from '../utils';
+import {TestWrapper, TestRenderer, createSurfaceUpdate, createBeginRendering} from '../utils';
 
 /**
  * Component Integration Tests
@@ -35,7 +30,7 @@ import {
 describe('Component Updates', () => {
   it('should update already-rendered surface with surfaceUpdate alone (no new beginRendering)', async () => {
     function UpdateWithoutBeginRenderingRenderer() {
-      const { processMessages } = useA2UI();
+      const {processMessages} = useA2UI();
       const [stage, setStage] = React.useState<'initial' | 'updated'>('initial');
 
       useEffect(() => {
@@ -43,7 +38,12 @@ describe('Component Updates', () => {
           // Initial render: surfaceUpdate + beginRendering
           processMessages([
             createSurfaceUpdate([
-              { id: 'text-1', component: { Text: { text: { literalString: 'Original text' } , usageHint: 'body' } } },
+              {
+                id: 'text-1',
+                component: {
+                  Text: {text: {literalString: 'Original text'}, usageHint: 'body'},
+                },
+              },
             ]),
             createBeginRendering('text-1'),
           ]);
@@ -52,7 +52,10 @@ describe('Component Updates', () => {
           // Update: only surfaceUpdate, NO beginRendering
           processMessages([
             createSurfaceUpdate([
-              { id: 'text-1', component: { Text: { text: { literalString: 'Updated text' } , usageHint: 'body' } } },
+              {
+                id: 'text-1',
+                component: {Text: {text: {literalString: 'Updated text'}, usageHint: 'body'}},
+              },
             ]),
             // Note: no createBeginRendering here
           ]);
@@ -70,7 +73,7 @@ describe('Component Updates', () => {
     render(
       <A2UIProvider>
         <UpdateWithoutBeginRenderingRenderer />
-      </A2UIProvider>
+      </A2UIProvider>,
     );
 
     // Initial content should be visible
@@ -86,12 +89,15 @@ describe('Component Updates', () => {
 
   it('should update component props when new message received', () => {
     function UpdateRenderer() {
-      const { processMessages } = useA2UI();
+      const {processMessages} = useA2UI();
 
       useEffect(() => {
         processMessages([
           createSurfaceUpdate([
-            { id: 'text-1', component: { Text: { text: { literalString: 'Before' } , usageHint: 'body' } } },
+            {
+              id: 'text-1',
+              component: {Text: {text: {literalString: 'Before'}, usageHint: 'body'}},
+            },
           ]),
           createBeginRendering('text-1'),
         ]);
@@ -99,7 +105,10 @@ describe('Component Updates', () => {
         setTimeout(() => {
           processMessages([
             createSurfaceUpdate([
-              { id: 'text-1', component: { Text: { text: { literalString: 'After' } , usageHint: 'body' } } },
+              {
+                id: 'text-1',
+                component: {Text: {text: {literalString: 'After'}, usageHint: 'body'}},
+              },
             ]),
             createBeginRendering('text-1'),
           ]);
@@ -112,7 +121,7 @@ describe('Component Updates', () => {
     render(
       <A2UIProvider>
         <UpdateRenderer />
-      </A2UIProvider>
+      </A2UIProvider>,
     );
 
     expect(screen.getByText('Before')).toBeInTheDocument();
@@ -124,12 +133,15 @@ describe('Component Updates', () => {
 
   it('should handle component type change', () => {
     function TypeChangeRenderer() {
-      const { processMessages } = useA2UI();
+      const {processMessages} = useA2UI();
 
       useEffect(() => {
         processMessages([
           createSurfaceUpdate([
-            { id: 'comp-1', component: { Text: { text: { literalString: 'I am text' } , usageHint: 'body' } } },
+            {
+              id: 'comp-1',
+              component: {Text: {text: {literalString: 'I am text'}, usageHint: 'body'}},
+            },
           ]),
           createBeginRendering('comp-1'),
         ]);
@@ -137,8 +149,14 @@ describe('Component Updates', () => {
         setTimeout(() => {
           processMessages([
             createSurfaceUpdate([
-              { id: 'btn-text', component: { Text: { text: { literalString: 'Click me' } , usageHint: 'body' } } },
-              { id: 'comp-1', component: { Button: { child: 'btn-text', action: { name: 'test' } } } },
+              {
+                id: 'btn-text',
+                component: {Text: {text: {literalString: 'Click me'}, usageHint: 'body'}},
+              },
+              {
+                id: 'comp-1',
+                component: {Button: {child: 'btn-text', action: {name: 'test'}}},
+              },
             ]),
             createBeginRendering('comp-1'),
           ]);
@@ -151,24 +169,27 @@ describe('Component Updates', () => {
     render(
       <A2UIProvider>
         <TypeChangeRenderer />
-      </A2UIProvider>
+      </A2UIProvider>,
     );
 
     expect(screen.getByText('I am text')).toBeInTheDocument();
 
     return waitFor(() => {
-      expect(screen.getByRole('button', { name: 'Click me' })).toBeInTheDocument();
+      expect(screen.getByRole('button', {name: 'Click me'})).toBeInTheDocument();
     });
   });
 
   it('should add new components to existing surface', () => {
     function AddComponentRenderer() {
-      const { processMessages } = useA2UI();
+      const {processMessages} = useA2UI();
 
       useEffect(() => {
         processMessages([
           createSurfaceUpdate([
-            { id: 'text-1', component: { Text: { text: { literalString: 'First' } , usageHint: 'body' } } },
+            {
+              id: 'text-1',
+              component: {Text: {text: {literalString: 'First'}, usageHint: 'body'}},
+            },
           ]),
           createBeginRendering('text-1'),
         ]);
@@ -176,9 +197,18 @@ describe('Component Updates', () => {
         setTimeout(() => {
           processMessages([
             createSurfaceUpdate([
-              { id: 'text-1', component: { Text: { text: { literalString: 'First' } , usageHint: 'body' } } },
-              { id: 'text-2', component: { Text: { text: { literalString: 'Second' } , usageHint: 'body' } } },
-              { id: 'col-1', component: { Column: { children: { explicitList: ['text-1', 'text-2'] } } } },
+              {
+                id: 'text-1',
+                component: {Text: {text: {literalString: 'First'}, usageHint: 'body'}},
+              },
+              {
+                id: 'text-2',
+                component: {Text: {text: {literalString: 'Second'}, usageHint: 'body'}},
+              },
+              {
+                id: 'col-1',
+                component: {Column: {children: {explicitList: ['text-1', 'text-2']}}},
+              },
             ]),
             createBeginRendering('col-1'),
           ]);
@@ -191,7 +221,7 @@ describe('Component Updates', () => {
     render(
       <A2UIProvider>
         <AddComponentRenderer />
-      </A2UIProvider>
+      </A2UIProvider>,
     );
 
     return waitFor(() => {
@@ -202,7 +232,7 @@ describe('Component Updates', () => {
 
   it('should remove elements from a list via surfaceUpdate', async () => {
     function RemoveElementsRenderer() {
-      const { processMessages } = useA2UI();
+      const {processMessages} = useA2UI();
       const [stage, setStage] = React.useState<'initial' | 'removed'>('initial');
 
       useEffect(() => {
@@ -210,10 +240,22 @@ describe('Component Updates', () => {
           // Initial: list with 3 items
           processMessages([
             createSurfaceUpdate([
-              { id: 'item-1', component: { Text: { text: { literalString: 'Item 1' } , usageHint: 'body' } } },
-              { id: 'item-2', component: { Text: { text: { literalString: 'Item 2' } , usageHint: 'body' } } },
-              { id: 'item-3', component: { Text: { text: { literalString: 'Item 3' } , usageHint: 'body' } } },
-              { id: 'list-1', component: { List: { children: { explicitList: ['item-1', 'item-2', 'item-3'] } } } },
+              {
+                id: 'item-1',
+                component: {Text: {text: {literalString: 'Item 1'}, usageHint: 'body'}},
+              },
+              {
+                id: 'item-2',
+                component: {Text: {text: {literalString: 'Item 2'}, usageHint: 'body'}},
+              },
+              {
+                id: 'item-3',
+                component: {Text: {text: {literalString: 'Item 3'}, usageHint: 'body'}},
+              },
+              {
+                id: 'list-1',
+                component: {List: {children: {explicitList: ['item-1', 'item-2', 'item-3']}}},
+              },
             ]),
             createBeginRendering('list-1'),
           ]);
@@ -222,9 +264,18 @@ describe('Component Updates', () => {
           // Update: remove middle item (only surfaceUpdate, no beginRendering)
           processMessages([
             createSurfaceUpdate([
-              { id: 'item-1', component: { Text: { text: { literalString: 'Item 1' } , usageHint: 'body' } } },
-              { id: 'item-3', component: { Text: { text: { literalString: 'Item 3' } , usageHint: 'body' } } },
-              { id: 'list-1', component: { List: { children: { explicitList: ['item-1', 'item-3'] } } } },
+              {
+                id: 'item-1',
+                component: {Text: {text: {literalString: 'Item 1'}, usageHint: 'body'}},
+              },
+              {
+                id: 'item-3',
+                component: {Text: {text: {literalString: 'Item 3'}, usageHint: 'body'}},
+              },
+              {
+                id: 'list-1',
+                component: {List: {children: {explicitList: ['item-1', 'item-3']}}},
+              },
             ]),
           ]);
         }
@@ -241,7 +292,7 @@ describe('Component Updates', () => {
     render(
       <A2UIProvider>
         <RemoveElementsRenderer />
-      </A2UIProvider>
+      </A2UIProvider>,
     );
 
     // All 3 items should be visible initially
@@ -260,7 +311,7 @@ describe('Component Updates', () => {
 
   it('should reorder elements via surfaceUpdate', async () => {
     function ReorderElementsRenderer() {
-      const { processMessages } = useA2UI();
+      const {processMessages} = useA2UI();
       const [stage, setStage] = React.useState<'initial' | 'reordered'>('initial');
 
       useEffect(() => {
@@ -268,10 +319,24 @@ describe('Component Updates', () => {
           // Initial order: A, B, C
           processMessages([
             createSurfaceUpdate([
-              { id: 'item-a', component: { Text: { text: { literalString: 'A' } , usageHint: 'body' } } },
-              { id: 'item-b', component: { Text: { text: { literalString: 'B' } , usageHint: 'body' } } },
-              { id: 'item-c', component: { Text: { text: { literalString: 'C' } , usageHint: 'body' } } },
-              { id: 'col-1', component: { Column: { children: { explicitList: ['item-a', 'item-b', 'item-c'] } } } },
+              {
+                id: 'item-a',
+                component: {Text: {text: {literalString: 'A'}, usageHint: 'body'}},
+              },
+              {
+                id: 'item-b',
+                component: {Text: {text: {literalString: 'B'}, usageHint: 'body'}},
+              },
+              {
+                id: 'item-c',
+                component: {Text: {text: {literalString: 'C'}, usageHint: 'body'}},
+              },
+              {
+                id: 'col-1',
+                component: {
+                  Column: {children: {explicitList: ['item-a', 'item-b', 'item-c']}},
+                },
+              },
             ]),
             createBeginRendering('col-1'),
           ]);
@@ -280,10 +345,24 @@ describe('Component Updates', () => {
           // Reorder: C, A, B (only surfaceUpdate, no beginRendering)
           processMessages([
             createSurfaceUpdate([
-              { id: 'item-a', component: { Text: { text: { literalString: 'A' } , usageHint: 'body' } } },
-              { id: 'item-b', component: { Text: { text: { literalString: 'B' } , usageHint: 'body' } } },
-              { id: 'item-c', component: { Text: { text: { literalString: 'C' } , usageHint: 'body' } } },
-              { id: 'col-1', component: { Column: { children: { explicitList: ['item-c', 'item-a', 'item-b'] } } } },
+              {
+                id: 'item-a',
+                component: {Text: {text: {literalString: 'A'}, usageHint: 'body'}},
+              },
+              {
+                id: 'item-b',
+                component: {Text: {text: {literalString: 'B'}, usageHint: 'body'}},
+              },
+              {
+                id: 'item-c',
+                component: {Text: {text: {literalString: 'C'}, usageHint: 'body'}},
+              },
+              {
+                id: 'col-1',
+                component: {
+                  Column: {children: {explicitList: ['item-c', 'item-a', 'item-b']}},
+                },
+              },
             ]),
           ]);
         }
@@ -297,23 +376,21 @@ describe('Component Updates', () => {
       );
     }
 
-    const { container } = render(
+    const {container} = render(
       <A2UIProvider>
         <ReorderElementsRenderer />
-      </A2UIProvider>
+      </A2UIProvider>,
     );
 
     // Wait for reorder to complete
     await waitFor(() => {
       expect(screen.getByTestId('stage')).toHaveTextContent('reordered');
+      const textElements = container.querySelectorAll('.a2ui-text');
+      expect(textElements).toHaveLength(3);
+      expect(textElements[0]).toHaveTextContent('C');
+      expect(textElements[1]).toHaveTextContent('A');
+      expect(textElements[2]).toHaveTextContent('B');
     });
-
-    // Verify new order: C, A, B
-    const textElements = container.querySelectorAll('.a2ui-text');
-    expect(textElements).toHaveLength(3);
-    expect(textElements[0]).toHaveTextContent('C');
-    expect(textElements[1]).toHaveTextContent('A');
-    expect(textElements[2]).toHaveTextContent('B');
   });
 
   it('should NOT empty the surface when invalid surfaceUpdate is rejected (requires deleteSurface)', async () => {
@@ -321,15 +398,20 @@ describe('Component Updates', () => {
     // This test verifies that a rejected message does not affect the existing surface.
     // To truly clear a surface, use deleteSurface message instead.
     function EmptySurfaceRenderer() {
-      const { processMessages } = useA2UI();
+      const {processMessages} = useA2UI();
       const [stage, setStage] = React.useState<'initial' | 'attempted'>('initial');
 
       useEffect(() => {
         if (stage === 'initial') {
           processMessages([
             createSurfaceUpdate([
-              { id: 'text-1', component: { Text: { text: { literalString: 'Persistent content' }, usageHint: 'body' } } },
-              { id: 'col-1', component: { Column: { children: { explicitList: ['text-1'] } } } },
+              {
+                id: 'text-1',
+                component: {
+                  Text: {text: {literalString: 'Persistent content'}, usageHint: 'body'},
+                },
+              },
+              {id: 'col-1', component: {Column: {children: {explicitList: ['text-1']}}}},
             ]),
             createBeginRendering('col-1'),
           ]);
@@ -339,7 +421,9 @@ describe('Component Updates', () => {
           // but the existing surface should be unaffected.
           try {
             processMessages([
-              { surfaceUpdate: { surfaceId: '@default', components: [] } } as unknown as Types.ServerToClientMessage,
+              {
+                surfaceUpdate: {surfaceId: '@default', components: []},
+              } as unknown as Types.ServerToClientMessage,
             ]);
           } catch {
             // Expected: Zod validation rejects empty components array
@@ -349,7 +433,10 @@ describe('Component Updates', () => {
 
       return (
         <>
-          <A2UIRenderer surfaceId="@default" fallback={<span data-testid="empty-fallback">Empty</span>} />
+          <A2UIRenderer
+            surfaceId="@default"
+            fallback={<span data-testid="empty-fallback">Empty</span>}
+          />
           <span data-testid="stage">{stage}</span>
         </>
       );
@@ -358,7 +445,7 @@ describe('Component Updates', () => {
     render(
       <A2UIProvider>
         <EmptySurfaceRenderer />
-      </A2UIProvider>
+      </A2UIProvider>,
     );
 
     expect(screen.getByText('Persistent content')).toBeInTheDocument();
@@ -376,19 +463,22 @@ describe('Nested Components', () => {
   it('should render deeply nested component structures', () => {
     const messages: Types.ServerToClientMessage[] = [
       createSurfaceUpdate([
-        { id: 'inner-text', component: { Text: { text: { literalString: 'Deep content' } , usageHint: 'body' } } },
-        { id: 'inner-card', component: { Card: { child: 'inner-text' } } },
-        { id: 'inner-col', component: { Column: { children: { explicitList: ['inner-card'] } } } },
-        { id: 'outer-card', component: { Card: { child: 'inner-col' } } },
-        { id: 'outer-col', component: { Column: { children: { explicitList: ['outer-card'] } } } },
+        {
+          id: 'inner-text',
+          component: {Text: {text: {literalString: 'Deep content'}, usageHint: 'body'}},
+        },
+        {id: 'inner-card', component: {Card: {child: 'inner-text'}}},
+        {id: 'inner-col', component: {Column: {children: {explicitList: ['inner-card']}}}},
+        {id: 'outer-card', component: {Card: {child: 'inner-col'}}},
+        {id: 'outer-col', component: {Column: {children: {explicitList: ['outer-card']}}}},
       ]),
       createBeginRendering('outer-col'),
     ];
 
-    const { container } = render(
+    const {container} = render(
       <TestWrapper>
         <TestRenderer messages={messages} />
-      </TestWrapper>
+      </TestWrapper>,
     );
 
     expect(screen.getByText('Deep content')).toBeInTheDocument();
@@ -400,13 +490,22 @@ describe('Nested Components', () => {
   it('should handle List with multiple items', () => {
     const messages: Types.ServerToClientMessage[] = [
       createSurfaceUpdate([
-        { id: 'item-1', component: { Text: { text: { literalString: 'Item 1' } , usageHint: 'body' } } },
-        { id: 'item-2', component: { Text: { text: { literalString: 'Item 2' } , usageHint: 'body' } } },
-        { id: 'item-3', component: { Text: { text: { literalString: 'Item 3' } , usageHint: 'body' } } },
+        {
+          id: 'item-1',
+          component: {Text: {text: {literalString: 'Item 1'}, usageHint: 'body'}},
+        },
+        {
+          id: 'item-2',
+          component: {Text: {text: {literalString: 'Item 2'}, usageHint: 'body'}},
+        },
+        {
+          id: 'item-3',
+          component: {Text: {text: {literalString: 'Item 3'}, usageHint: 'body'}},
+        },
         {
           id: 'list-1',
           component: {
-            List: { children: { explicitList: ['item-1', 'item-2', 'item-3'] } },
+            List: {children: {explicitList: ['item-1', 'item-2', 'item-3']}},
           },
         },
       ]),
@@ -416,7 +515,7 @@ describe('Nested Components', () => {
     render(
       <TestWrapper>
         <TestRenderer messages={messages} />
-      </TestWrapper>
+      </TestWrapper>,
     );
 
     expect(screen.getByText('Item 1')).toBeInTheDocument();
@@ -427,28 +526,34 @@ describe('Nested Components', () => {
   it('should handle Row with mixed children', () => {
     const messages: Types.ServerToClientMessage[] = [
       createSurfaceUpdate([
-        { id: 'text-1', component: { Text: { text: { literalString: 'Label' } , usageHint: 'body' } } },
-        { id: 'btn-text', component: { Text: { text: { literalString: 'Action' } , usageHint: 'body' } } },
-        { id: 'btn-1', component: { Button: { child: 'btn-text', action: { name: 'act' } } } },
-        { id: 'icon-1', component: { Icon: { name: { literalString: 'home' } } } },
+        {
+          id: 'text-1',
+          component: {Text: {text: {literalString: 'Label'}, usageHint: 'body'}},
+        },
+        {
+          id: 'btn-text',
+          component: {Text: {text: {literalString: 'Action'}, usageHint: 'body'}},
+        },
+        {id: 'btn-1', component: {Button: {child: 'btn-text', action: {name: 'act'}}}},
+        {id: 'icon-1', component: {Icon: {name: {literalString: 'home'}}}},
         {
           id: 'row-1',
           component: {
-            Row: { children: { explicitList: ['text-1', 'btn-1', 'icon-1'] } },
+            Row: {children: {explicitList: ['text-1', 'btn-1', 'icon-1']}},
           },
         },
       ]),
       createBeginRendering('row-1'),
     ];
 
-    const { container } = render(
+    const {container} = render(
       <TestWrapper>
         <TestRenderer messages={messages} />
-      </TestWrapper>
+      </TestWrapper>,
     );
 
     expect(screen.getByText('Label')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Action' })).toBeInTheDocument();
+    expect(screen.getByRole('button', {name: 'Action'})).toBeInTheDocument();
     expect(container.querySelector('.a2ui-icon')).toBeInTheDocument();
   });
 });
@@ -459,7 +564,7 @@ describe('Error Handling', () => {
 
     const messages: Types.ServerToClientMessage[] = [
       createSurfaceUpdate([
-        { id: 'btn-1', component: { Button: { child: 'non-existent', action: { name: 'test' } } } },
+        {id: 'btn-1', component: {Button: {child: 'non-existent', action: {name: 'test'}}}},
       ]),
       createBeginRendering('btn-1'),
     ];
@@ -468,7 +573,7 @@ describe('Error Handling', () => {
       render(
         <TestWrapper>
           <TestRenderer messages={messages} />
-        </TestWrapper>
+        </TestWrapper>,
       );
     }).toThrow();
 
@@ -478,7 +583,10 @@ describe('Error Handling', () => {
   it('should render valid content without issues', () => {
     const messages: Types.ServerToClientMessage[] = [
       createSurfaceUpdate([
-        { id: 'text-1', component: { Text: { text: { literalString: 'Safe content' } , usageHint: 'body' } } },
+        {
+          id: 'text-1',
+          component: {Text: {text: {literalString: 'Safe content'}, usageHint: 'body'}},
+        },
       ]),
       createBeginRendering('text-1'),
     ];
@@ -486,7 +594,7 @@ describe('Error Handling', () => {
     render(
       <TestWrapper>
         <TestRenderer messages={messages} />
-      </TestWrapper>
+      </TestWrapper>,
     );
 
     expect(screen.getByText('Safe content')).toBeInTheDocument();

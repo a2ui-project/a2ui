@@ -21,7 +21,7 @@
  * and the adapter interprets them based on specVersion. Only two places need
  * to understand the internal structure: the renderer adapter and the AI prompt.
  */
-export type A2UIComponent = Record<string, unknown> & { id: string };
+export type A2UIComponent = Record<string, unknown> & {id: string};
 
 export interface DataState {
   name: string;

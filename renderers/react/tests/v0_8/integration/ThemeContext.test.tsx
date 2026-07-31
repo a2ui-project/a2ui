@@ -14,12 +14,12 @@
  * limitations under the License.
  */
 
-import { describe, it, expect } from 'vitest';
-import { render } from '@testing-library/react';
+import {describe, it, expect} from 'vitest';
+import {render} from '@testing-library/react';
 import React from 'react';
-import { TestWrapper, TestRenderer, createSurfaceUpdate, createBeginRendering } from '../utils';
+import {TestWrapper, TestRenderer, createSurfaceUpdate, createBeginRendering} from '../utils';
 import type * as Types from '@a2ui/web_core/types/types';
-import { litTheme } from '../../../src/v0_8/theme/litTheme';
+import {litTheme} from '../../../src/v0_8/theme/litTheme';
 
 /**
  * Theme Context tests - verify components respect the theme from context.
@@ -37,11 +37,11 @@ function createMockTheme(): Types.Theme {
   return {
     components: {
       // Content
-      AudioPlayer: { 'test-audioplayer': true },
-      Divider: { 'test-divider': true },
-      Icon: { 'test-icon': true },
+      AudioPlayer: {'test-audioplayer': true},
+      Divider: {'test-divider': true},
+      Icon: {'test-icon': true},
       Image: {
-        all: { 'test-image-all': true },
+        all: {'test-image-all': true},
         avatar: {},
         header: {},
         icon: {},
@@ -50,56 +50,56 @@ function createMockTheme(): Types.Theme {
         smallFeature: {},
       },
       Text: {
-        all: { 'test-text-all': true },
-        h1: { 'test-text-h1': true },
-        h2: { 'test-text-h2': true },
+        all: {'test-text-all': true},
+        h1: {'test-text-h1': true},
+        h2: {'test-text-h2': true},
         h3: {},
         h4: {},
         h5: {},
         body: {},
         caption: {},
       },
-      Video: { 'test-video': true },
+      Video: {'test-video': true},
 
       // Layout
-      Card: { 'test-card': true },
-      Column: { 'test-column': true },
-      List: { 'test-list': true },
+      Card: {'test-card': true},
+      Column: {'test-column': true},
+      List: {'test-list': true},
       Modal: {
         backdrop: {},
-        element: { 'test-modal-element': true },
+        element: {'test-modal-element': true},
       },
-      Row: { 'test-row': true },
+      Row: {'test-row': true},
       Tabs: {
-        container: { 'test-tabs-container': true },
-        controls: { all: { 'test-tabs-control': true }, selected: { 'test-tabs-selected': true } },
-        element: { 'test-tabs-element': true },
+        container: {'test-tabs-container': true},
+        controls: {all: {'test-tabs-control': true}, selected: {'test-tabs-selected': true}},
+        element: {'test-tabs-element': true},
       },
 
       // Interactive
-      Button: { 'test-button': true },
+      Button: {'test-button': true},
       CheckBox: {
-        container: { 'test-checkbox-container': true },
+        container: {'test-checkbox-container': true},
         element: {},
         label: {},
       },
       DateTimeInput: {
-        container: { 'test-datetime-container': true },
+        container: {'test-datetime-container': true},
         label: {},
         element: {},
       },
       MultipleChoice: {
-        container: { 'test-multiplechoice-container': true },
+        container: {'test-multiplechoice-container': true},
         label: {},
         element: {},
       },
       Slider: {
-        container: { 'test-slider-container': true },
+        container: {'test-slider-container': true},
         label: {},
         element: {},
       },
       TextField: {
-        container: { 'test-textfield-container': true },
+        container: {'test-textfield-container': true},
         label: {},
         element: {},
       },
@@ -143,16 +143,19 @@ describe('ThemeContext', () => {
     it('should apply litTheme classes by default', () => {
       const messages: Types.ServerToClientMessage[] = [
         createSurfaceUpdate([
-          { id: 'text-1', component: { Text: { text: { literalString: 'Click' } , usageHint: 'body' } } },
-          { id: 'btn-1', component: { Button: { child: 'text-1', action: { name: 'test' } } } },
+          {
+            id: 'text-1',
+            component: {Text: {text: {literalString: 'Click'}, usageHint: 'body'}},
+          },
+          {id: 'btn-1', component: {Button: {child: 'text-1', action: {name: 'test'}}}},
         ]),
         createBeginRendering('btn-1'),
       ];
 
-      const { container } = render(
+      const {container} = render(
         <TestWrapper>
           <TestRenderer messages={messages} />
-        </TestWrapper>
+        </TestWrapper>,
       );
 
       const button = container.querySelector('.a2ui-button button');
@@ -163,7 +166,7 @@ describe('ThemeContext', () => {
       expect(litButtonClasses.length).toBeGreaterThan(0);
 
       // Verify at least one litTheme class is present
-      const hasLitClass = litButtonClasses.some((cls) => button?.classList.contains(cls));
+      const hasLitClass = litButtonClasses.some(cls => button?.classList.contains(cls));
       expect(hasLitClass).toBe(true);
 
       // Should NOT have mock theme classes
@@ -174,16 +177,19 @@ describe('ThemeContext', () => {
       const mockTheme = createMockTheme();
       const messages: Types.ServerToClientMessage[] = [
         createSurfaceUpdate([
-          { id: 'text-1', component: { Text: { text: { literalString: 'Click' } , usageHint: 'body' } } },
-          { id: 'btn-1', component: { Button: { child: 'text-1', action: { name: 'test' } } } },
+          {
+            id: 'text-1',
+            component: {Text: {text: {literalString: 'Click'}, usageHint: 'body'}},
+          },
+          {id: 'btn-1', component: {Button: {child: 'text-1', action: {name: 'test'}}}},
         ]),
         createBeginRendering('btn-1'),
       ];
 
-      const { container } = render(
+      const {container} = render(
         <TestWrapper theme={mockTheme}>
           <TestRenderer messages={messages} />
-        </TestWrapper>
+        </TestWrapper>,
       );
 
       const button = container.querySelector('.a2ui-button button');
@@ -194,7 +200,7 @@ describe('ThemeContext', () => {
 
       // Should NOT have litTheme classes
       const litButtonClasses = Object.keys(litTheme.components.Button);
-      const hasLitClass = litButtonClasses.some((cls) => button?.classList.contains(cls));
+      const hasLitClass = litButtonClasses.some(cls => button?.classList.contains(cls));
       expect(hasLitClass).toBe(false);
     });
 
@@ -202,16 +208,19 @@ describe('ThemeContext', () => {
       const mockTheme = createMockTheme();
       const messages: Types.ServerToClientMessage[] = [
         createSurfaceUpdate([
-          { id: 'text-1', component: { Text: { text: { literalString: 'Content' } , usageHint: 'body' } } },
-          { id: 'card-1', component: { Card: { child: 'text-1' } } },
+          {
+            id: 'text-1',
+            component: {Text: {text: {literalString: 'Content'}, usageHint: 'body'}},
+          },
+          {id: 'card-1', component: {Card: {child: 'text-1'}}},
         ]),
         createBeginRendering('card-1'),
       ];
 
-      const { container } = render(
+      const {container} = render(
         <TestWrapper theme={mockTheme}>
           <TestRenderer messages={messages} />
-        </TestWrapper>
+        </TestWrapper>,
       );
 
       const section = container.querySelector('.a2ui-card > section');
@@ -223,15 +232,18 @@ describe('ThemeContext', () => {
       const mockTheme = createMockTheme();
       const messages: Types.ServerToClientMessage[] = [
         createSurfaceUpdate([
-          { id: 'text-1', component: { Text: { text: { literalString: 'Hello' } , usageHint: 'body' } } },
+          {
+            id: 'text-1',
+            component: {Text: {text: {literalString: 'Hello'}, usageHint: 'body'}},
+          },
         ]),
         createBeginRendering('text-1'),
       ];
 
-      const { container } = render(
+      const {container} = render(
         <TestWrapper theme={mockTheme}>
           <TestRenderer messages={messages} />
-        </TestWrapper>
+        </TestWrapper>,
       );
 
       const section = container.querySelector('.a2ui-text > section');
@@ -243,16 +255,19 @@ describe('ThemeContext', () => {
       const mockTheme = createMockTheme();
       const messages: Types.ServerToClientMessage[] = [
         createSurfaceUpdate([
-          { id: 'text-1', component: { Text: { text: { literalString: 'Item' } , usageHint: 'body' } } },
-          { id: 'col-1', component: { Column: { children: { explicitList: ['text-1'] } } } },
+          {
+            id: 'text-1',
+            component: {Text: {text: {literalString: 'Item'}, usageHint: 'body'}},
+          },
+          {id: 'col-1', component: {Column: {children: {explicitList: ['text-1']}}}},
         ]),
         createBeginRendering('col-1'),
       ];
 
-      const { container } = render(
+      const {container} = render(
         <TestWrapper theme={mockTheme}>
           <TestRenderer messages={messages} />
-        </TestWrapper>
+        </TestWrapper>,
       );
 
       const section = container.querySelector('.a2ui-column > section');
@@ -264,16 +279,19 @@ describe('ThemeContext', () => {
       const mockTheme = createMockTheme();
       const messages: Types.ServerToClientMessage[] = [
         createSurfaceUpdate([
-          { id: 'text-1', component: { Text: { text: { literalString: 'Item' } , usageHint: 'body' } } },
-          { id: 'row-1', component: { Row: { children: { explicitList: ['text-1'] } } } },
+          {
+            id: 'text-1',
+            component: {Text: {text: {literalString: 'Item'}, usageHint: 'body'}},
+          },
+          {id: 'row-1', component: {Row: {children: {explicitList: ['text-1']}}}},
         ]),
         createBeginRendering('row-1'),
       ];
 
-      const { container } = render(
+      const {container} = render(
         <TestWrapper theme={mockTheme}>
           <TestRenderer messages={messages} />
-        </TestWrapper>
+        </TestWrapper>,
       );
 
       const section = container.querySelector('.a2ui-row > section');
@@ -289,8 +307,8 @@ describe('ThemeContext', () => {
             id: 'tf-1',
             component: {
               TextField: {
-                value: { path: 'test.value' },
-                label: { literalString: 'Name' },
+                value: {path: 'test.value'},
+                label: {literalString: 'Name'},
               },
             },
           },
@@ -298,10 +316,10 @@ describe('ThemeContext', () => {
         createBeginRendering('tf-1'),
       ];
 
-      const { container } = render(
+      const {container} = render(
         <TestWrapper theme={mockTheme}>
           <TestRenderer messages={messages} />
-        </TestWrapper>
+        </TestWrapper>,
       );
 
       const section = container.querySelector('.a2ui-textfield > section');
@@ -317,8 +335,8 @@ describe('ThemeContext', () => {
             id: 'cb-1',
             component: {
               CheckBox: {
-                value: { path: 'test.checked' },
-                label: { literalString: 'Accept' },
+                value: {path: 'test.checked'},
+                label: {literalString: 'Accept'},
               },
             },
           },
@@ -326,10 +344,10 @@ describe('ThemeContext', () => {
         createBeginRendering('cb-1'),
       ];
 
-      const { container } = render(
+      const {container} = render(
         <TestWrapper theme={mockTheme}>
           <TestRenderer messages={messages} />
-        </TestWrapper>
+        </TestWrapper>,
       );
 
       const section = container.querySelector('.a2ui-checkbox > section');
@@ -344,15 +362,21 @@ describe('ThemeContext', () => {
       const mockTheme = createMockTheme();
       const messages: Types.ServerToClientMessage[] = [
         createSurfaceUpdate([
-          { id: 'tab-content-1', component: { Text: { text: { literalString: 'Tab 1 Content' } , usageHint: 'body' } } },
-          { id: 'tab-content-2', component: { Text: { text: { literalString: 'Tab 2 Content' } , usageHint: 'body' } } },
+          {
+            id: 'tab-content-1',
+            component: {Text: {text: {literalString: 'Tab 1 Content'}, usageHint: 'body'}},
+          },
+          {
+            id: 'tab-content-2',
+            component: {Text: {text: {literalString: 'Tab 2 Content'}, usageHint: 'body'}},
+          },
           {
             id: 'tabs-1',
             component: {
               Tabs: {
                 tabItems: [
-                  { title: { literalString: 'Tab 1' }, child: 'tab-content-1' },
-                  { title: { literalString: 'Tab 2' }, child: 'tab-content-2' },
+                  {title: {literalString: 'Tab 1'}, child: 'tab-content-1'},
+                  {title: {literalString: 'Tab 2'}, child: 'tab-content-2'},
                 ],
               },
             },
@@ -361,10 +385,10 @@ describe('ThemeContext', () => {
         createBeginRendering('tabs-1'),
       ];
 
-      const { container } = render(
+      const {container} = render(
         <TestWrapper theme={mockTheme}>
           <TestRenderer messages={messages} />
-        </TestWrapper>
+        </TestWrapper>,
       );
 
       const section = container.querySelector('.a2ui-tabs > section');
@@ -375,16 +399,14 @@ describe('ThemeContext', () => {
     it('should apply custom theme to Divider component', () => {
       const mockTheme = createMockTheme();
       const messages: Types.ServerToClientMessage[] = [
-        createSurfaceUpdate([
-          { id: 'div-1', component: { Divider: {} } },
-        ]),
+        createSurfaceUpdate([{id: 'div-1', component: {Divider: {}}}]),
         createBeginRendering('div-1'),
       ];
 
-      const { container } = render(
+      const {container} = render(
         <TestWrapper theme={mockTheme}>
           <TestRenderer messages={messages} />
-        </TestWrapper>
+        </TestWrapper>,
       );
 
       const hr = container.querySelector('.a2ui-divider hr');
@@ -395,16 +417,14 @@ describe('ThemeContext', () => {
     it('should apply custom theme to Icon component', () => {
       const mockTheme = createMockTheme();
       const messages: Types.ServerToClientMessage[] = [
-        createSurfaceUpdate([
-          { id: 'icon-1', component: { Icon: { name: { literalString: 'home' } } } },
-        ]),
+        createSurfaceUpdate([{id: 'icon-1', component: {Icon: {name: {literalString: 'home'}}}}]),
         createBeginRendering('icon-1'),
       ];
 
-      const { container } = render(
+      const {container} = render(
         <TestWrapper theme={mockTheme}>
           <TestRenderer messages={messages} />
-        </TestWrapper>
+        </TestWrapper>,
       );
 
       const section = container.querySelector('.a2ui-icon > section');
@@ -420,9 +440,9 @@ describe('ThemeContext', () => {
             id: 'slider-1',
             component: {
               Slider: {
-                value: { path: 'test.slider' },
-                min: { literalNumber: 0 },
-                max: { literalNumber: 100 },
+                value: {path: 'test.slider'},
+                min: {literalNumber: 0},
+                max: {literalNumber: 100},
               },
             },
           },
@@ -430,10 +450,10 @@ describe('ThemeContext', () => {
         createBeginRendering('slider-1'),
       ];
 
-      const { container } = render(
+      const {container} = render(
         <TestWrapper theme={mockTheme}>
           <TestRenderer messages={messages} />
-        </TestWrapper>
+        </TestWrapper>,
       );
 
       const section = container.querySelector('.a2ui-slider > section');
@@ -449,10 +469,10 @@ describe('ThemeContext', () => {
             id: 'mc-1',
             component: {
               MultipleChoice: {
-                selections: { literalArray: [] },
+                selections: {literalArray: []},
                 options: [
-                  { label: { literalString: 'Option A' }, value: 'a' },
-                  { label: { literalString: 'Option B' }, value: 'b' },
+                  {label: {literalString: 'Option A'}, value: 'a'},
+                  {label: {literalString: 'Option B'}, value: 'b'},
                 ],
               },
             },
@@ -461,10 +481,10 @@ describe('ThemeContext', () => {
         createBeginRendering('mc-1'),
       ];
 
-      const { container } = render(
+      const {container} = render(
         <TestWrapper theme={mockTheme}>
           <TestRenderer messages={messages} />
-        </TestWrapper>
+        </TestWrapper>,
       );
 
       const section = container.querySelector('.a2ui-multiplechoice > section');
@@ -478,17 +498,20 @@ describe('ThemeContext', () => {
       const mockTheme = createMockTheme();
       const messages: Types.ServerToClientMessage[] = [
         createSurfaceUpdate([
-          { id: 'text-1', component: { Text: { text: { literalString: 'Click' } , usageHint: 'body' } } },
-          { id: 'btn-1', component: { Button: { child: 'text-1', action: { name: 'test' } } } },
+          {
+            id: 'text-1',
+            component: {Text: {text: {literalString: 'Click'}, usageHint: 'body'}},
+          },
+          {id: 'btn-1', component: {Button: {child: 'text-1', action: {name: 'test'}}}},
         ]),
         createBeginRendering('btn-1'),
       ];
 
       // Render with mock theme
-      const { container: mockContainer, unmount: unmountMock } = render(
+      const {container: mockContainer, unmount: unmountMock} = render(
         <TestWrapper theme={mockTheme}>
           <TestRenderer messages={messages} />
-        </TestWrapper>
+        </TestWrapper>,
       );
 
       const mockButton = mockContainer.querySelector('.a2ui-button button');
@@ -497,10 +520,10 @@ describe('ThemeContext', () => {
       unmountMock();
 
       // Render with default theme
-      const { container: defaultContainer } = render(
+      const {container: defaultContainer} = render(
         <TestWrapper>
           <TestRenderer messages={messages} />
-        </TestWrapper>
+        </TestWrapper>,
       );
 
       const defaultButton = defaultContainer.querySelector('.a2ui-button button');
@@ -508,7 +531,7 @@ describe('ThemeContext', () => {
 
       // Should have litTheme classes
       const litButtonClasses = Object.keys(litTheme.components.Button);
-      const hasLitClass = litButtonClasses.some((cls) => defaultButton?.classList.contains(cls));
+      const hasLitClass = litButtonClasses.some(cls => defaultButton?.classList.contains(cls));
       expect(hasLitClass).toBe(true);
     });
   });

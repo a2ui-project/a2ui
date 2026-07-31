@@ -47,7 +47,7 @@ export const ChoicePicker = createComponentImplementation(ChoicePickerApi, ({pro
     (opt: _Option) =>
       !props.filterable ||
       filter === '' ||
-      String(opt.label).toLowerCase().includes(filter.toLowerCase())
+      String(opt.label).toLowerCase().includes(filter.toLowerCase()),
   );
 
   const listClasses = `${styles.options} ${props.displayStyle === 'chips' ? styles.chips : ''}`;
@@ -60,7 +60,7 @@ export const ChoicePicker = createComponentImplementation(ChoicePickerApi, ({pro
           type="text"
           placeholder="Filter options..."
           value={filter}
-          onChange={(e) => setFilter(e.target.value)}
+          onChange={e => setFilter(e.target.value)}
           className={styles.filterInput}
         />
       )}
@@ -72,7 +72,7 @@ export const ChoicePicker = createComponentImplementation(ChoicePickerApi, ({pro
               <button
                 key={i}
                 onClick={() => onToggle(opt.value)}
-                className={`${styles.chip} ${isSelected ? styles.selected : ''}`}
+                className={`${styles.chip} chip ${isSelected ? `${styles.selected} selected` : ''}`}
                 aria-pressed={isSelected}
               >
                 {opt.label}

@@ -37,11 +37,7 @@
           "component": {
             "Column": {
               "children": {
-                "explicitList": [
-                  "modal-title",
-                  "modal-message",
-                  "dismiss-button"
-                ]
+                "explicitList": ["modal-title", "modal-message", "dismiss-button"]
               },
               "alignment": "center"
             }

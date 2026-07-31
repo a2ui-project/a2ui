@@ -14,16 +14,16 @@
  * limitations under the License.
  */
 
-import { html, css, nothing } from "lit";
-import { customElement, property } from "lit/decorators.js";
-import { Root } from "./root.js";
-import { StateEvent } from "../events/events.js";
-import { classMap } from "lit/directives/class-map.js";
-import * as Types from "@a2ui/web_core/types/types";
-import { styleMap } from "lit/directives/style-map.js";
-import { structuralStyles } from "./styles.js";
+import {html, css, nothing} from 'lit';
+import {customElement, property} from 'lit/decorators.js';
+import {Root} from './root.js';
+import {StateEvent} from '../events/events.js';
+import {classMap} from 'lit/directives/class-map.js';
+import * as Types from '@a2ui/web_core/types/types';
+import {styleMap} from 'lit/directives/style-map.js';
+import {structuralStyles} from './styles.js';
 
-@customElement("a2ui-button")
+@customElement('a2ui-button')
 export class Button extends Root {
   @property()
   accessor action: Types.Action | null = null;
@@ -52,8 +52,8 @@ export class Button extends Root {
         if (!this.action) {
           return;
         }
-        const evt = new StateEvent<"a2ui.action">({
-          eventType: "a2ui.action",
+        const evt = new StateEvent<'a2ui.action'>({
+          eventType: 'a2ui.action',
           action: this.action,
           dataContextPath: this.dataContextPath,
           sourceComponentId: this.id,

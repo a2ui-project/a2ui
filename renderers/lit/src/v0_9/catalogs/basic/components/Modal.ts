@@ -14,13 +14,13 @@
  * limitations under the License.
  */
 
-import { html, nothing, css } from "lit";
-import { customElement, query } from "lit/decorators.js";
-import { ModalApi } from "@a2ui/web_core/v0_9/basic_catalog";
-import { BasicCatalogA2uiLitElement } from "../basic-catalog-a2ui-lit-element.js";
-import { A2uiController } from "@a2ui/lit/v0_9";
+import {html, nothing, css} from 'lit';
+import {customElement, query} from 'lit/decorators.js';
+import {ModalApi} from '@a2ui/web_core/v0_9/basic_catalog';
+import {BasicCatalogA2uiLitElement} from '../basic-catalog-a2ui-lit-element.js';
+import {A2uiController} from '../../../a2ui-controller.js';
 
-@customElement("a2ui-modal")
+@customElement('a2ui-modal')
 export class A2uiLitModal extends BasicCatalogA2uiLitElement<typeof ModalApi> {
   /**
    * The styles of the modal can be customized by redefining the following
@@ -30,7 +30,7 @@ export class A2uiLitModal extends BasicCatalogA2uiLitElement<typeof ModalApi> {
    * - `--a2ui-modal-padding`: Padding inside the dialog content area. Defaults to `24px`.
    * - `--a2ui-modal-border-radius`: Border radius of the dialog. Defaults to `8px`.
    */
-  static styles = css`
+  static override styles = css`
     :host {
       display: inline-block;
     }
@@ -49,19 +49,23 @@ export class A2uiLitModal extends BasicCatalogA2uiLitElement<typeof ModalApi> {
   protected createController() {
     return new A2uiController(this, ModalApi);
   }
-  @query("dialog") accessor dialog!: HTMLDialogElement;
+  @query('dialog') accessor dialog!: HTMLDialogElement;
 
-  render() {
+  override render() {
     const props = this.controller.props;
     if (!props) return nothing;
 
     return html`
-      <div @click=${() => this.dialog?.showModal()} style="display: contents;">
+      <div
+        @click=${() => this.dialog?.showModal()}
+        class="a2ui-modal-trigger"
+        style="display: contents;"
+      >
         ${props.trigger ? html`${this.renderNode(props.trigger)}` : nothing}
       </div>
-      <dialog class="a2ui-modal">
+      <dialog class="a2ui-modal a2ui-modal-overlay">
         <form method="dialog" style="text-align: right;">
-          <button>×</button>
+          <button class="a2ui-modal-close">×</button>
         </form>
         ${props.content ? html`${this.renderNode(props.content)}` : nothing}
       </dialog>
@@ -71,5 +75,5 @@ export class A2uiLitModal extends BasicCatalogA2uiLitElement<typeof ModalApi> {
 
 export const A2uiModal = {
   ...ModalApi,
-  tagName: "a2ui-modal",
+  tagName: 'a2ui-modal',
 };

@@ -14,9 +14,10 @@
  * limitations under the License.
  */
 
-import { Component, computed, ChangeDetectionStrategy } from '@angular/core';
-import { ComponentHostComponent } from '../../core/component-host.component';
-import { BasicCatalogComponent } from './basic-catalog-component';
+import {Component, computed, ChangeDetectionStrategy} from '@angular/core';
+import {ComponentHostComponent} from '../../core/component-host.component';
+import {BasicCatalogComponent} from './basic-catalog-component';
+import {CardApi} from '@a2ui/web_core/v0_9/basic_catalog';
 
 /**
  * Angular implementation of the A2UI Card component (v0.9).
@@ -60,6 +61,6 @@ import { BasicCatalogComponent } from './basic-catalog-component';
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
-export class CardComponent extends BasicCatalogComponent {
+export class CardComponent extends BasicCatalogComponent<typeof CardApi> {
   readonly child = computed(() => this.props()['child']?.value());
 }

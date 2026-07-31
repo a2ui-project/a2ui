@@ -51,9 +51,7 @@
           "component": {
             "Column": {
               "children": {
-                "explicitList": [
-                  "loading_"
-                ]
+                "explicitList": ["loading_"]
               }
             }
           }

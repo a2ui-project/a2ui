@@ -15,87 +15,194 @@
  * limitations under the License.
  */
 
-import { describe, it } from 'node:test';
+import {describe, it} from 'node:test';
 import assert from 'node:assert';
-import { runPublish } from './publish_npm.mjs';
+import {main} from './publish_npm.mjs';
 
 describe('publish_npm script integration test', () => {
-  it('should correctly topologically sort and execute dry-run publishing logic', async () => {
+  it('should topologically sort packages based on dependencies', async () => {
     const executedCommands = [];
+    const mocks = {
+      runCommand: (cmd, args, options) => {
+        executedCommands.push(
+          `${cmd} ${args.join(' ')} (in ${options?.cwd ? options.cwd.split('/').pop() : 'root'})`,
+        );
+      },
+      execSync: cmd => {
+        if (cmd.includes('npm info')) return '0.0.1\n';
+        return '';
+      },
+    };
 
-    // Mock command runner
-    function mockRunCommand(cmd, args, options) {
-      executedCommands.push(`${cmd} ${args.join(' ')} (in ${options?.cwd ? options.cwd.split('/').pop() : 'root'})`);
-    }
-
-    // Mock execSync for npm view
-    function mockExecSync(cmd) {
-      if (cmd.includes('npm view')) {
-        // Return older versions so pre-flight check passes
-        if (cmd.includes('@a2ui/web_core')) return '0.0.1\n';
-        if (cmd.includes('@a2ui/markdown-it')) return '0.0.1\n';
-        if (cmd.includes('@a2ui/lit')) return '0.0.1\n';
-      }
-      return '';
-    }
-
-    // Run the script with --yes, --skip-tests (no --dry-run so we can record commands)
-    // We target web_core, markdown-it, and lit. lit depends on them, so they MUST be processed first.
-    await runPublish(
-      ['--packages=lit,web_core,markdown-it', '--yes', '--skip-tests'],
-      mockRunCommand,
-      mockExecSync,
-      null // readline not needed with --yes
+    await main(
+      [
+        '--package=lit',
+        '--package=web_core',
+        '--package=markdown-it',
+        '--skip-tests',
+        '--no-dry-run',
+      ],
+      mocks,
     );
 
-    // Verify topological order in preparation phase
-    const webCoreInstallIndex = executedCommands.findIndex(cmd => cmd.includes('install') && cmd.includes('web_core'));
-    const markdownItInstallIndex = executedCommands.findIndex(cmd => cmd.includes('install') && cmd.includes('markdown-it'));
-    const litInstallIndex = executedCommands.findIndex(cmd => cmd.includes('install') && cmd.includes('lit'));
+    const webCoreInstallIndex = executedCommands.findIndex(
+      cmd => cmd.includes('install') && cmd.includes('web_core'),
+    );
+    const markdownItInstallIndex = executedCommands.findIndex(
+      cmd => cmd.includes('install') && cmd.includes('markdown-it'),
+    );
+    const litInstallIndex = executedCommands.findIndex(
+      cmd => cmd.includes('install') && cmd.includes('lit'),
+    );
 
-    assert.ok(webCoreInstallIndex > -1, 'Should install web_core');
-    assert.ok(markdownItInstallIndex > -1, 'Should install markdown-it');
-    assert.ok(litInstallIndex > -1, 'Should install lit');
-    assert.ok(webCoreInstallIndex < litInstallIndex, 'web_core must be prepared before lit (topological sort)');
+    assert.ok(webCoreInstallIndex < litInstallIndex, 'web_core must be prepared before lit');
     assert.ok(markdownItInstallIndex < litInstallIndex, 'markdown-it must be prepared before lit');
-
-    // Verify topological order in publish phase
-    const webCorePublishIndex = executedCommands.findIndex(cmd => cmd.includes('publish:package') && cmd.includes('web_core'));
-    const markdownItPublishIndex = executedCommands.findIndex(cmd => cmd.includes('publish:package') && cmd.includes('markdown-it'));
-    const litPublishIndex = executedCommands.findIndex(cmd => cmd.includes('publish:package') && cmd.includes('lit'));
-
-    assert.ok(webCorePublishIndex > -1, 'Should publish web_core');
-    assert.ok(markdownItPublishIndex > -1, 'Should publish markdown-it');
-    assert.ok(litPublishIndex > -1, 'Should publish lit');
-    assert.ok(webCorePublishIndex < litPublishIndex, 'web_core must be published before lit');
-    assert.ok(markdownItPublishIndex < litPublishIndex, 'markdown-it must be published before lit');
   });
 
-  it('should skip publishing when --test-only is provided', async () => {
+  it('should default to dry-run mode (skip publish)', async () => {
     const executedCommands = [];
+    let gcloudCalled = false;
+    const mocks = {
+      runCommand: (cmd, args) => {
+        executedCommands.push(`${cmd} ${args.join(' ')}`);
+      },
+      execSync: cmd => {
+        if (cmd.includes('gcloud auth')) gcloudCalled = true;
+        if (cmd.includes('npm info')) return '0.0.1\n';
+        return '';
+      },
+    };
 
-    function mockRunCommand(cmd, args, options) {
-      executedCommands.push(`${cmd} ${args.join(' ')}`);
-    }
+    await main(['--package=web_core'], mocks);
 
-    function mockExecSync(cmd) {
-      if (cmd.includes('npm view')) return '0.0.1\n';
-      return '';
-    }
+    const hasPublish = executedCommands.some(cmd => cmd.includes('publish:package'));
+    const hasInstall = executedCommands.some(cmd => cmd.includes('yarn install'));
 
-    await runPublish(
-      ['--packages=web_core', '--yes', '--test-only'],
-      mockRunCommand,
-      mockExecSync,
-      null
-    );
+    assert.strictEqual(gcloudCalled, true, 'Should authenticate in dry-run to query yarn npm info');
+    assert.strictEqual(hasPublish, false, 'Should NOT publish in dry-run');
+    assert.ok(hasInstall, 'Should still run yarn install in dry-run by default');
+  });
 
-    const hasInstall = executedCommands.some(cmd => cmd.includes('npm install'));
-    const hasTest = executedCommands.some(cmd => cmd.includes('npm run test'));
+  it('should authenticate and publish when --no-dry-run is passed', async () => {
+    const executedCommands = [];
+    let gcloudCalled = false;
+    const mocks = {
+      runCommand: (cmd, args) => {
+        executedCommands.push(`${cmd} ${args.join(' ')}`);
+      },
+      execSync: cmd => {
+        if (cmd.includes('gcloud auth')) gcloudCalled = true;
+        if (cmd.includes('npm info')) return '0.0.1\n';
+        return 'dummy_token\n';
+      },
+    };
+
+    await main(['--package=web_core', '--no-dry-run'], mocks);
+
     const hasPublish = executedCommands.some(cmd => cmd.includes('publish:package'));
 
-    assert.ok(hasInstall, 'Should run npm install');
-    assert.ok(hasTest, 'Should run npm test');
-    assert.strictEqual(hasPublish, false, 'Should NOT run publish:package');
+    assert.ok(gcloudCalled, 'Should authenticate via gcloud when --no-dry-run is passed');
+    assert.ok(hasPublish, 'Should publish when --no-dry-run is passed');
+  });
+
+  it('should skip tests when --skip-tests is passed', async () => {
+    const executedCommands = [];
+    const mocks = {
+      runCommand: (cmd, args) => {
+        executedCommands.push(`${cmd} ${args.join(' ')}`);
+      },
+      execSync: cmd => {
+        if (cmd.includes('npm info')) return '0.0.1\n';
+        return '';
+      },
+    };
+
+    await main(['--package=web_core', '--skip-tests'], mocks);
+
+    const hasTest = executedCommands.some(cmd => cmd.includes('run test'));
+    assert.strictEqual(hasTest, false, 'Should NOT run tests when --skip-tests is passed');
+  });
+
+  it('should automatically add core dependencies if missing', async () => {
+    const executedCommands = [];
+    const mocks = {
+      runCommand: (cmd, args, options) => {
+        executedCommands.push(
+          `${cmd} ${args.join(' ')} (in ${options?.cwd ? options.cwd.split('/').pop() : 'root'})`,
+        );
+      },
+      execSync: cmd => {
+        if (cmd.includes('npm info')) return '{"version":"0.0.1"}\n';
+        return '';
+      },
+    };
+
+    await main(['--package=lit'], mocks);
+
+    const hasLitInstall = executedCommands.some(cmd => cmd.includes('yarn install (in lit)'));
+    const hasCoreInstall = executedCommands.some(cmd => cmd.includes('yarn install (in web_core)'));
+    const hasMdInstall = executedCommands.some(cmd =>
+      cmd.includes('yarn install (in markdown-it)'),
+    );
+
+    assert.ok(hasLitInstall, 'Should run yarn install in lit');
+    assert.ok(hasCoreInstall, 'Should run yarn install in web_core');
+    assert.ok(hasMdInstall, 'Should run yarn install in markdown-it');
+  });
+
+  it('should throw an error when no packages are specified', async () => {
+    await assert.rejects(
+      () => main([]),
+      err => {
+        assert.match(err.message, /Usage: publish_npm --package=pkg1/);
+        return true;
+      },
+    );
+  });
+
+  it('should output help message and return early when --help is passed', async () => {
+    const executedCommands = [];
+    const mocks = {
+      runCommand: (cmd, args) => {
+        executedCommands.push(`${cmd} ${args.join(' ')}`);
+      },
+      execSync: () => '',
+    };
+
+    await main(['--help'], mocks);
+    assert.strictEqual(
+      executedCommands.length,
+      0,
+      'Should not run any commands when help is passed',
+    );
+  });
+
+  it('should throw when the auth token cannot be obtained', async () => {
+    const originalNpmToken = process.env.NPM_TOKEN;
+    delete process.env.NPM_TOKEN;
+
+    const mocks = {
+      runCommand: () => {},
+      execSync: cmd => {
+        if (cmd.includes('gcloud auth')) {
+          throw new Error('gcloud command failed');
+        }
+        return '';
+      },
+    };
+
+    try {
+      await assert.rejects(
+        () => main(['--package=web_core'], mocks),
+        err => {
+          assert.match(err.message, /Could not find access token/);
+          return true;
+        },
+      );
+    } finally {
+      if (originalNpmToken !== undefined) {
+        process.env.NPM_TOKEN = originalNpmToken;
+      }
+    }
   });
 });

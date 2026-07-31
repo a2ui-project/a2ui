@@ -14,15 +14,15 @@
  * limitations under the License.
  */
 
-import { ChangeDetectionStrategy, Component, computed, input } from '@angular/core';
-import { DynamicComponent } from '../rendering/dynamic-component';
-import { Renderer } from '../rendering/renderer';
-import { Types } from '../types';
+import {ChangeDetectionStrategy, Component, computed, input} from '@angular/core';
+import {DynamicComponent} from '../rendering/dynamic-component';
+import {Renderer} from '../rendering/renderer';
+import type {AnyComponentNode, ResolvedRow, RowNode} from '../types';
 
 @Component({
   selector: 'a2ui-row',
   imports: [Renderer],
-  changeDetection: ChangeDetectionStrategy.Eager,
+  changeDetection: ChangeDetectionStrategy.OnPush,
   host: {
     '[attr.alignment]': 'alignment()',
     '[attr.distribution]': 'distribution()',
@@ -91,10 +91,10 @@ import { Types } from '../types';
     </section>
   `,
 })
-export class Row extends DynamicComponent<Types.RowNode> {
-  readonly alignment = input<Types.ResolvedRow['alignment']>('stretch');
-  readonly distribution = input<Types.ResolvedRow['distribution']>('start');
-  readonly children = input<Types.AnyComponentNode[] | null>();
+export class Row extends DynamicComponent<RowNode> {
+  readonly alignment = input<ResolvedRow['alignment']>('stretch');
+  readonly distribution = input<ResolvedRow['distribution']>('start');
+  readonly children = input<AnyComponentNode[] | null>();
 
   protected readonly classes = computed(() => ({
     ...this.theme.components.Row,

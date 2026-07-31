@@ -14,52 +14,6 @@
  * limitations under the License.
  */
 
-import { DestroyRef, Signal, signal as angularSignal } from '@angular/core';
-import { Signal as PreactSignal, effect, signal as preactSignal } from '@a2ui/web_core/v0_9';
-export { preactSignal };
-
-/**
- * Bridges a Preact Signal (from A2UI web_core) to a reactive Angular Signal.
- *
- * This utility handles the lifecycle mapping between Preact and Angular,
- * ensuring that updates from the A2UI data model are propagated correctly
- * to Angular's change detection, and resources are cleaned up when the
- * component is destroyed.
- *
- * @param preactSignal The source Preact Signal.
- * @param destroyRef Angular DestroyRef for lifecycle management.
- * @param ngZone Optional NgZone to ensure updates run within the Angular zone
- *               (necessary for correct change detection in OnPush components).
- * @returns A read-only Angular Signal.
- */
-import { NgZone } from '@angular/core';
-
-export function toAngularSignal<T>(
-  preactSignal: PreactSignal<T>,
-  destroyRef: DestroyRef,
-  ngZone?: NgZone,
-): Signal<T> {
-  const s = angularSignal(preactSignal.peek());
-
-  const dispose = effect(() => {
-    if (ngZone) {
-      ngZone.run(() => s.set(preactSignal.value));
-    } else {
-      s.set(preactSignal.value);
-    }
-  });
-
-  destroyRef.onDestroy(() => {
-    dispose();
-    // Some signals returned by DataContext.resolveSignal have a custom unsubscribe for AbortControllers
-    if ((preactSignal as any).unsubscribe) {
-      (preactSignal as any).unsubscribe();
-    }
-  });
-
-  return s.asReadonly();
-}
-
 /**
  * Normalizes a data model path by combining a relative path with a base context.
  *
@@ -71,7 +25,11 @@ export function toAngularSignal<T>(
  * @param index The index of the child component.
  * @returns A fully normalized absolute path for the indexed child.
  */
-export function getNormalizedPath(path: string, dataContextPath: string, index: number): string {
+export function getNormalizedPath(
+  path: string | undefined,
+  dataContextPath: string,
+  index: number,
+): string {
   let normalized = path || '';
   if (!normalized.startsWith('/')) {
     const base = dataContextPath === '/' ? '' : dataContextPath;

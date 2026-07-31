@@ -39,7 +39,7 @@ const ResolvedChild = memo(
       () => new ComponentContext(surface, id, basePath),
       // componentModel is used as a trigger for recreation even if not in the body
       // eslint-disable-next-line react-hooks/exhaustive-deps
-      [surface, id, basePath, componentModel]
+      [surface, id, basePath, componentModel],
     );
 
     const buildChild = useCallback(
@@ -54,11 +54,11 @@ const ResolvedChild = memo(
           />
         );
       },
-      [surface, context.dataContext.path]
+      [surface, context.dataContext.path],
     );
 
     return <ComponentToRender context={context} buildChild={buildChild} />;
-  }
+  },
 );
 ResolvedChild.displayName = 'ResolvedChild';
 
@@ -72,13 +72,13 @@ export const DeferredChild: React.FC<{
     let version = 0;
     return {
       subscribe: (cb: () => void) => {
-        const unsub1 = surface.componentsModel.onCreated.subscribe((comp) => {
+        const unsub1 = surface.componentsModel.onCreated.subscribe(comp => {
           if (comp.id === id) {
             version++;
             cb();
           }
         });
-        const unsub2 = surface.componentsModel.onDeleted.subscribe((delId) => {
+        const unsub2 = surface.componentsModel.onDeleted.subscribe(delId => {
           if (delId === id) {
             version++;
             cb();

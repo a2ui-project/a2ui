@@ -3,7 +3,7 @@
     "version": "v0.9",
     "createSurface": {
       "surfaceId": "default",
-      "catalogId": "https://a2ui.org/specification/v0_9/basic_catalog.json",
+      "catalogId": "https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json",
       "theme": {
         "primaryColor": "#FF0000",
         "font": "Roboto"
@@ -18,10 +18,7 @@
         {
           "id": "root",
           "component": "Column",
-          "children": [
-            "title-heading",
-            "item-list"
-          ]
+          "children": ["title-heading", "item-list"]
         },
         {
           "id": "title-heading",
@@ -48,10 +45,7 @@
         {
           "id": "card-layout",
           "component": "Row",
-          "children": [
-            "card-image",
-            "card-details"
-          ]
+          "children": ["card-image", "card-details"]
         },
         {
           "id": "card-image",

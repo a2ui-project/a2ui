@@ -18,10 +18,7 @@
           "component": {
             "Column": {
               "children": {
-                "explicitList": [
-                  "title-heading",
-                  "item-list"
-                ]
+                "explicitList": ["title-heading", "item-list"]
               }
             }
           }
@@ -64,10 +61,7 @@
           "component": {
             "Row": {
               "children": {
-                "explicitList": [
-                  "template-image",
-                  "card-details"
-                ]
+                "explicitList": ["template-image", "card-details"]
               }
             }
           }

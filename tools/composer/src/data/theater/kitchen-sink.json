@@ -867,11 +867,7 @@
           "component": {
             "Row": {
               "children": {
-                "explicitList": [
-                  "icon-1",
-                  "icon-2",
-                  "icon-3"
-                ]
+                "explicitList": ["icon-1", "icon-2", "icon-3"]
               },
               "distribution": "spaceEvenly",
               "alignment": "center"
@@ -926,11 +922,7 @@
           "component": {
             "Column": {
               "children": {
-                "explicitList": [
-                  "div-text-1",
-                  "div-horiz",
-                  "div-text-2"
-                ]
+                "explicitList": ["div-text-1", "div-horiz", "div-text-2"]
               },
               "distribution": "start",
               "alignment": "stretch"
@@ -1140,11 +1132,7 @@
           "component": {
             "List": {
               "children": {
-                "explicitList": [
-                  "list-item-1",
-                  "list-item-2",
-                  "list-item-3"
-                ]
+                "explicitList": ["list-item-1", "list-item-2", "list-item-3"]
               },
               "direction": "vertical",
               "alignment": "stretch"

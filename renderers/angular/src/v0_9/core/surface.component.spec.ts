@@ -14,14 +14,14 @@
  * limitations under the License.
  */
 
-import { Component, Input, ChangeDetectionStrategy } from '@angular/core';
-import { ComponentFixture, TestBed } from '@angular/core/testing';
-import { SurfaceComponent } from './surface.component';
-import { ComponentHostComponent } from './component-host.component';
-import { By } from '@angular/platform-browser';
-import { A2uiRendererService } from './a2ui-renderer.service';
-import { ComponentBinder } from './component-binder.service';
-import { ComponentModel } from '@a2ui/web_core/v0_9';
+import {Component, Input, ChangeDetectionStrategy} from '@angular/core';
+import {ComponentFixture, TestBed} from '@angular/core/testing';
+import {SurfaceComponent} from './surface.component';
+import {ComponentHostComponent} from './component-host.component';
+import {By} from '@angular/platform-browser';
+import {A2uiRendererService} from './a2ui-renderer.service';
+import {ComponentBinder} from './component-binder.service';
+import {ComponentModel} from '@a2ui/web_core/v0_9';
 
 @Component({
   selector: 'test-text',
@@ -47,11 +47,11 @@ describe('SurfaceComponent', () => {
       surfaceGroup: {
         getSurface: jasmine.createSpy('getSurface').and.returnValue({
           componentsModel: new Map([
-            ['root', new ComponentModel('root', 'Text', { text: { value: 'Hello' } })],
+            ['root', new ComponentModel('root', 'Text', {text: {value: 'Hello'}})],
           ]),
           catalog: {
             id: 'mock-catalog',
-            components: new Map([['Text', { type: 'Text', component: TestTextComponent }]]),
+            components: new Map([['Text', {type: 'Text', component: TestTextComponent}]]),
           },
         }),
       },
@@ -61,8 +61,8 @@ describe('SurfaceComponent', () => {
     await TestBed.configureTestingModule({
       imports: [SurfaceComponent],
       providers: [
-        { provide: A2uiRendererService, useValue: mockRendererService },
-        { provide: ComponentBinder, useValue: mockBinder },
+        {provide: A2uiRendererService, useValue: mockRendererService},
+        {provide: ComponentBinder, useValue: mockBinder},
       ],
     }).compileComponents();
 
@@ -84,7 +84,7 @@ describe('SurfaceComponent', () => {
     const host = fixture.debugElement.query(By.directive(ComponentHostComponent));
     expect(host).toBeTruthy();
     expect(host.componentInstance.surfaceId()).toBe('test-surface');
-    expect(host.componentInstance.componentKey()).toEqual({ id: 'root', basePath: '/custom/path' });
+    expect(host.componentInstance.componentKey()).toEqual({id: 'root', basePath: '/custom/path'});
   });
 
   it('should use default dataContextPath of "/"', () => {
@@ -92,6 +92,6 @@ describe('SurfaceComponent', () => {
     fixture.detectChanges();
 
     const host = fixture.debugElement.query(By.directive(ComponentHostComponent));
-    expect(host.componentInstance.componentKey()).toEqual({ id: 'root', basePath: '/' });
+    expect(host.componentInstance.componentKey()).toEqual({id: 'root', basePath: '/'});
   });
 });

@@ -14,9 +14,9 @@
  * limitations under the License.
  */
 
-import { ChangeDetectionStrategy, Component, computed, input } from '@angular/core';
-import { DynamicComponent } from '../rendering/dynamic-component';
-import { Types } from '../types';
+import {ChangeDetectionStrategy, Component, computed, input} from '@angular/core';
+import {DynamicComponent} from '../rendering/dynamic-component';
+import type {DateTimeInputNode, StringValue} from '../types';
 
 @Component({
   selector: 'a2ui-datetime-input',
@@ -41,12 +41,17 @@ import { Types } from '../types';
     :host {
       display: block;
     }
+    input,
+    input::-webkit-datetime-edit,
+    input::-webkit-datetime-edit-fields-wrapper {
+      color: #333;
+    }
   `,
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
-export class DateTimeInput extends DynamicComponent<Types.DateTimeInputNode> {
-  readonly label = input<Types.StringValue | null>(null);
-  readonly value = input.required<Types.StringValue | null>();
+export class DateTimeInput extends DynamicComponent<DateTimeInputNode> {
+  readonly label = input<StringValue | null>(null);
+  readonly value = input.required<StringValue | null>();
   readonly enableDate = input<boolean>(true);
   readonly enableTime = input<boolean>(false);
 
@@ -66,15 +71,20 @@ export class DateTimeInput extends DynamicComponent<Types.DateTimeInputNode> {
     const valueNode = this.value();
     if (valueNode && typeof valueNode === 'object' && 'path' in valueNode && valueNode.path) {
       // Update the local data model directly to ensure immediate UI feedback and avoid unnecessary network requests.
-      this.processor.processMessages([{
-        dataModelUpdate: {
-          surfaceId: this.surfaceId()!,
-          path: this.processor.resolvePath(valueNode.path as string, this.component().dataContextPath),
-          contents: [{ key: '.', valueString: value }],
+      this.processor.processMessages([
+        {
+          dataModelUpdate: {
+            surfaceId: this.surfaceId()!,
+            path: this.processor.resolvePath(
+              valueNode.path as string,
+              this.component().dataContextPath,
+            ),
+            contents: [{key: '.', valueString: value}],
+          },
         },
-      }]);
+      ]);
     } else {
-      this.handleAction('change', { value });
+      this.handleAction('change', {value});
     }
   }
 
@@ -83,7 +93,7 @@ export class DateTimeInput extends DynamicComponent<Types.DateTimeInputNode> {
       name,
       context: Object.entries(context).map(([key, val]) => ({
         key,
-        value: typeof val === 'number' ? { literalNumber: val } : { literalString: String(val) },
+        value: typeof val === 'number' ? {literalNumber: val} : {literalString: String(val)},
       })),
     });
   }

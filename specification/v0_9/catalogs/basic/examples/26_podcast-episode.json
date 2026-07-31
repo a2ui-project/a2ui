@@ -1,0 +1,123 @@
+{
+  "name": "Podcast Episode",
+  "description": "Example of podcast episode demonstrating AudioPlayer and date formatting.",
+  "messages": [
+    {
+      "version": "v0.9",
+      "createSurface": {
+        "surfaceId": "gallery-podcast-episode",
+        "catalogId": "https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json",
+        "sendDataModel": true
+      }
+    },
+    {
+      "version": "v0.9",
+      "updateComponents": {
+        "surfaceId": "gallery-podcast-episode",
+        "components": [
+          {
+            "id": "root",
+            "component": "Card",
+            "child": "main-row"
+          },
+          {
+            "id": "main-row",
+            "component": "Row",
+            "children": ["artwork", "content"],
+            "align": "start"
+          },
+          {
+            "id": "artwork",
+            "component": "Image",
+            "url": {
+              "path": "/artwork"
+            },
+            "fit": "cover"
+          },
+          {
+            "id": "content",
+            "component": "Column",
+            "children": ["show-name", "episode-title", "meta-row", "description", "audio-player"]
+          },
+          {
+            "id": "show-name",
+            "component": "Text",
+            "text": {
+              "path": "/showName"
+            },
+            "variant": "caption"
+          },
+          {
+            "id": "episode-title",
+            "component": "Text",
+            "text": {
+              "path": "/episodeTitle"
+            },
+            "variant": "h4"
+          },
+          {
+            "id": "meta-row",
+            "component": "Row",
+            "children": ["duration", "date"]
+          },
+          {
+            "id": "duration",
+            "component": "Text",
+            "text": {
+              "path": "/duration"
+            },
+            "variant": "caption"
+          },
+          {
+            "id": "date",
+            "component": "Text",
+            "text": {
+              "call": "formatDate",
+              "args": {
+                "value": {
+                  "path": "/date"
+                },
+                "format": "MMM d, yyyy"
+              },
+              "returnType": "string"
+            },
+            "variant": "caption"
+          },
+          {
+            "id": "description",
+            "component": "Text",
+            "text": {
+              "path": "/description"
+            },
+            "variant": "body"
+          },
+          {
+            "id": "audio-player",
+            "component": "AudioPlayer",
+            "url": {
+              "path": "/audioUrl"
+            },
+            "description": {
+              "path": "/episodeTitle"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "version": "v0.9",
+      "updateDataModel": {
+        "surfaceId": "gallery-podcast-episode",
+        "value": {
+          "artwork": "https://images.unsplash.com/photo-1478737270239-2f02b77fc618?w=100&h=100&fit=crop",
+          "showName": "Tech Talk Daily",
+          "episodeTitle": "The Future of AI in Product Design",
+          "duration": "45 min",
+          "date": "2024-12-15",
+          "description": "How AI is transforming the way we design and build products.",
+          "audioUrl": "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3"
+        }
+      }
+    }
+  ]
+}

@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */ // TODO: remediate legacy any types
 /**
  * Copyright 2026 Google LLC
  *
@@ -16,21 +17,29 @@
 
 'use client';
 
-import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { 
-  Play, Pause, SkipBack, Settings,
-  ChevronDown, Activity, Code2,
-  Zap, LayoutTemplate, Monitor, Database
+import React, {useState, useEffect, useRef, useCallback} from 'react';
+import {
+  Play,
+  Pause,
+  SkipBack,
+  Settings,
+  ChevronDown,
+  Activity,
+  Code2,
+  Zap,
+  LayoutTemplate,
+  Monitor,
+  Database,
 } from 'lucide-react';
-import { useStreamingPlayer } from '@/components/theater/useStreamingPlayer';
-import { useA2UISurface } from '@/components/theater/useA2UISurface';
-import { A2UIViewer } from '@/lib/a2ui';
-import { Button } from '@/components/ui/button';
-import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from '@/components/ui/resizable';
-import { scenarios, ScenarioId } from '@/data/theater';
+import {useStreamingPlayer} from '@/components/theater/useStreamingPlayer';
+import {useA2UISurface} from '@/components/theater/useA2UISurface';
+import {A2UIViewer} from '@/lib/a2ui';
+import {Button} from '@/components/ui/button';
+import {ResizableHandle, ResizablePanel, ResizablePanelGroup} from '@/components/ui/resizable';
+import {scenarios, ScenarioId} from '@/data/theater';
 
 const RENDERERS = ['Lit (Web Components)', 'React', 'Angular'] as const;
-type RendererType = typeof RENDERERS[number];
+type RendererType = (typeof RENDERERS)[number];
 type LeftTab = 'events' | 'data' | 'config';
 
 function updateURL(scenario: string, step: number, renderer: string) {
@@ -42,7 +51,7 @@ function updateURL(scenario: string, step: number, renderer: string) {
   window.history.replaceState({}, '', `${window.location.pathname}?${params.toString()}`);
 }
 
-function readURL(): { scenario?: string; step?: number; renderer?: string } {
+function readURL(): {scenario?: string; step?: number; renderer?: string} {
   if (typeof window === 'undefined') return {};
   const params = new URLSearchParams(window.location.search);
   return {
@@ -68,7 +77,9 @@ export default function TheaterPage() {
   }, []);
   const [selectedScenario, setSelectedScenario] = useState<ScenarioId>(() => {
     const url = readURL();
-    return (url.scenario && url.scenario in scenarios) ? url.scenario as ScenarioId : 'restaurant-booking';
+    return url.scenario && url.scenario in scenarios
+      ? (url.scenario as ScenarioId)
+      : 'restaurant-booking';
   });
 
   const {
@@ -92,25 +103,30 @@ export default function TheaterPage() {
 
   useEffect(() => {
     const url = readURL();
-    if (url.renderer && RENDERERS.includes(url.renderer as RendererType)) setRenderer(url.renderer as RendererType);
+    if (url.renderer && RENDERERS.includes(url.renderer as RendererType))
+      setRenderer(url.renderer as RendererType);
     if (url.step !== undefined) seek(url.step);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
     updateURL(selectedScenario, progress, renderer);
   }, [selectedScenario, progress, renderer]);
 
-  const handleScenarioChange = useCallback((id: ScenarioId) => {
-    setSelectedScenario(id);
-    stop();
-  }, [stop]);
+  const handleScenarioChange = useCallback(
+    (id: ScenarioId) => {
+      setSelectedScenario(id);
+      stop();
+    },
+    [stop],
+  );
 
   const dataEndRef = useRef<HTMLDivElement>(null);
   const eventsEndRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
     if (playbackState === 'playing') {
-      dataEndRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
-      eventsEndRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
+      dataEndRef.current?.scrollIntoView({behavior: 'smooth', block: 'end'});
+      eventsEndRef.current?.scrollIntoView({behavior: 'smooth', block: 'end'});
     }
   }, [progress, playbackState]);
 
@@ -122,8 +138,11 @@ export default function TheaterPage() {
 
       switch (e.key) {
         case ' ':
-          e.preventDefault();
-          playbackState === 'playing' ? pause() : play();
+          if (playbackState === 'playing') {
+            pause();
+          } else {
+            play();
+          }
           break;
         case 'ArrowRight':
           e.preventDefault();
@@ -140,7 +159,11 @@ export default function TheaterPage() {
   }, [playbackState, progress, totalChunks, play, pause, seek]);
 
   if (!mounted) {
-    return <div className="flex h-screen items-center justify-center bg-background text-foreground font-sans">Loading...</div>;
+    return (
+      <div className="flex h-screen items-center justify-center bg-background text-foreground font-sans">
+        Loading...
+      </div>
+    );
   }
 
   return (
@@ -148,12 +171,15 @@ export default function TheaterPage() {
       {/* Header */}
       <header className="relative z-10 flex h-14 items-center justify-between gap-4 border-b bg-background/80 px-4 md:px-6 backdrop-blur-md">
         <div className="hidden md:flex items-center gap-1 rounded-xl bg-muted/50 p-1 shadow-inner border border-border/50">
-          {([
-            { id: 'events' as LeftTab, icon: Activity, label: 'Events' },
-            { id: 'data' as LeftTab, icon: Database, label: 'Data' },
-            { id: 'config' as LeftTab, icon: Settings, label: 'Config' },
-          ]).map(tab => (
-            <Button key={tab.id} variant="ghost" size="sm"
+          {[
+            {id: 'events' as LeftTab, icon: Activity, label: 'Events'},
+            {id: 'data' as LeftTab, icon: Database, label: 'Data'},
+            {id: 'config' as LeftTab, icon: Settings, label: 'Config'},
+          ].map(tab => (
+            <Button
+              key={tab.id}
+              variant="ghost"
+              size="sm"
               className={`h-8 text-xs font-medium px-3 gap-1.5 rounded-lg transition-all ${leftTab === tab.id ? 'bg-background shadow-sm text-foreground' : 'text-muted-foreground hover:text-foreground'}`}
               onClick={() => setLeftTab(tab.id)}
             >
@@ -165,38 +191,67 @@ export default function TheaterPage() {
         {/* Playback */}
         <div className="flex flex-1 max-w-2xl items-center gap-3 md:gap-5">
           <div className="flex items-center gap-1.5">
-            <Button variant="outline" size="icon" className="h-8 w-8 rounded-full border-border/50" onClick={stop}>
+            <Button
+              variant="outline"
+              size="icon"
+              className="h-8 w-8 rounded-full border-border/50"
+              onClick={stop}
+            >
               <SkipBack className="h-3.5 w-3.5 text-muted-foreground" />
             </Button>
             {playbackState === 'playing' ? (
-              <Button variant="default" size="icon" className="h-9 w-9 rounded-full shadow-md" onClick={pause}>
+              <Button
+                variant="default"
+                size="icon"
+                className="h-9 w-9 rounded-full shadow-md"
+                onClick={pause}
+              >
                 <Pause className="h-4 w-4" />
               </Button>
             ) : (
-              <Button variant="default" size="icon" className="h-9 w-9 rounded-full shadow-md bg-primary" onClick={play}>
+              <Button
+                variant="default"
+                size="icon"
+                className="h-9 w-9 rounded-full shadow-md bg-primary"
+                onClick={play}
+              >
                 <Play className="h-4 w-4 ml-0.5" />
               </Button>
             )}
           </div>
           <div className="flex-1 flex items-center gap-3 group">
-            <span className="text-[10px] font-mono text-muted-foreground w-6 text-right tabular-nums">{progress}</span>
+            <span className="text-[10px] font-mono text-muted-foreground w-6 text-right tabular-nums">
+              {progress}
+            </span>
             <div className="relative flex-1 flex items-center h-5">
-              <input type="range" min="0" max={totalChunks} value={progress}
-                onChange={(e) => seek(parseInt(e.target.value, 10))}
+              <input
+                type="range"
+                min="0"
+                max={totalChunks}
+                value={progress}
+                onChange={e => seek(parseInt(e.target.value, 10))}
                 className="absolute inset-0 w-full opacity-0 cursor-pointer z-10"
               />
               <div className="w-full h-1 bg-secondary rounded-full overflow-hidden">
-                <div className="h-full bg-primary transition-all duration-200 ease-out"
-                  style={{ width: `${totalChunks > 0 ? (progress / totalChunks) * 100 : 0}%` }}
+                <div
+                  className="h-full bg-primary transition-all duration-200 ease-out"
+                  style={{width: `${totalChunks > 0 ? (progress / totalChunks) * 100 : 0}%`}}
                 />
               </div>
-              <div className="absolute h-2.5 w-2.5 bg-primary rounded-full shadow-sm border border-background pointer-events-none"
-                style={{ left: `calc(${totalChunks > 0 ? (progress / totalChunks) * 100 : 0}% - 5px)` }}
+              <div
+                className="absolute h-2.5 w-2.5 bg-primary rounded-full shadow-sm border border-background pointer-events-none"
+                style={{
+                  left: `calc(${totalChunks > 0 ? (progress / totalChunks) * 100 : 0}% - 5px)`,
+                }}
               />
             </div>
-            <span className="text-[10px] font-mono text-muted-foreground w-6 tabular-nums">{totalChunks}</span>
+            <span className="text-[10px] font-mono text-muted-foreground w-6 tabular-nums">
+              {totalChunks}
+            </span>
           </div>
-          <Button variant="outline" size="sm"
+          <Button
+            variant="outline"
+            size="sm"
             className="h-7 w-12 text-[10px] font-mono font-medium rounded-full border-border/50"
             onClick={() => setSpeed(speed === 1 ? 2 : speed === 2 ? 4 : speed === 4 ? 0.5 : 1)}
           >
@@ -218,39 +273,54 @@ export default function TheaterPage() {
 
       <ResizablePanelGroup direction="horizontal" className="flex-1">
         {/* Left Pane */}
-        <ResizablePanel defaultSize={38} minSize={25} maxSize={55}
+        <ResizablePanel
+          defaultSize={38}
+          minSize={25}
+          maxSize={55}
           className={`bg-muted/20 border-r border-border/50 ${mobileView === 'left' ? 'flex' : 'hidden md:flex'} flex-col`}
         >
           <div className="h-full flex flex-col relative">
             <div className="absolute inset-0 overflow-y-auto p-4 custom-scrollbar">
-
               {leftTab === 'events' ? (
                 <div className="flex flex-col gap-2 pb-8">
                   <h2 className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground flex items-center gap-1.5 mb-2">
                     <Activity className="h-3 w-3 text-primary" /> Lifecycle Events
                   </h2>
                   {visibleEvents.length === 0 && (
-                    <p className="text-xs text-muted-foreground italic">Press play to see events...</p>
+                    <p className="text-xs text-muted-foreground italic">
+                      Press play to see events...
+                    </p>
                   )}
                   {visibleEvents.map((evt, i) => (
-                    <div key={i}
+                    <div
+                      key={i}
                       onClick={() => seek(evt.chunkIndex + 1)}
                       className={`p-3 rounded-lg border cursor-pointer transition-all hover:scale-[1.01] ${
-                        evt.type === 'surface' ? 'border-blue-500/30 bg-blue-500/5' :
-                        evt.type === 'components' ? 'border-emerald-500/30 bg-emerald-500/5' :
-                        evt.type === 'data' ? 'border-amber-500/30 bg-amber-500/5' :
-                        evt.type === 'action' ? 'border-purple-500/30 bg-purple-500/5' :
-                        'border-red-500/30 bg-red-500/5'
+                        evt.type === 'surface'
+                          ? 'border-blue-500/30 bg-blue-500/5'
+                          : evt.type === 'components'
+                            ? 'border-emerald-500/30 bg-emerald-500/5'
+                            : evt.type === 'data'
+                              ? 'border-amber-500/30 bg-amber-500/5'
+                              : evt.type === 'action'
+                                ? 'border-purple-500/30 bg-purple-500/5'
+                                : 'border-red-500/30 bg-red-500/5'
                       }`}
                     >
                       <div className="flex items-center gap-2 mb-1">
-                        <span className={`text-[9px] font-bold uppercase ${
-                          evt.type === 'surface' ? 'text-blue-500' :
-                          evt.type === 'components' ? 'text-emerald-500' :
-                          evt.type === 'data' ? 'text-amber-500' :
-                          evt.type === 'action' ? 'text-purple-500' :
-                          'text-red-500'
-                        }`}>
+                        <span
+                          className={`text-[9px] font-bold uppercase ${
+                            evt.type === 'surface'
+                              ? 'text-blue-500'
+                              : evt.type === 'components'
+                                ? 'text-emerald-500'
+                                : evt.type === 'data'
+                                  ? 'text-amber-500'
+                                  : evt.type === 'action'
+                                    ? 'text-purple-500'
+                                    : 'text-red-500'
+                          }`}
+                        >
                           {evt.type === 'action' ? '↑' : '↓'} {evt.type}
                         </span>
                       </div>
@@ -259,7 +329,6 @@ export default function TheaterPage() {
                   ))}
                   <div ref={eventsEndRef} className="h-2" />
                 </div>
-
               ) : leftTab === 'data' ? (
                 /* DATA TAB — real JSONL chunks as they arrive over the wire */
                 <div className="flex flex-col gap-2 pb-8">
@@ -267,10 +336,13 @@ export default function TheaterPage() {
                     <Database className="h-3 w-3 text-amber-500" /> JSONL Stream
                   </h2>
                   {receivedChunks.length === 0 && (
-                    <p className="text-xs text-muted-foreground italic">Press play to stream JSONL chunks...</p>
+                    <p className="text-xs text-muted-foreground italic">
+                      Press play to stream JSONL chunks...
+                    </p>
                   )}
                   {receivedChunks.map((chunk, i) => (
-                    <div key={i}
+                    <div
+                      key={i}
                       onClick={() => seek(chunk.index + 1)}
                       className={`rounded-lg border overflow-hidden cursor-pointer transition-all ${
                         chunk.index === progress - 1
@@ -283,18 +355,24 @@ export default function TheaterPage() {
                       }`}
                     >
                       {/* Chunk header */}
-                      <div className={`flex items-center justify-between px-3 py-1.5 ${
-                        chunk.isClient ? 'bg-purple-500/10' : 'bg-muted/30'
-                      }`}>
+                      <div
+                        className={`flex items-center justify-between px-3 py-1.5 ${
+                          chunk.isClient ? 'bg-purple-500/10' : 'bg-muted/30'
+                        }`}
+                      >
                         <div className="flex items-center gap-2">
                           <span className="text-[9px] font-bold tabular-nums bg-muted/50 rounded px-1.5 py-0.5">
                             #{chunk.index + 1}
                           </span>
-                          <span className={`text-[9px] font-bold ${chunk.isClient ? 'text-purple-500' : 'text-primary/70'}`}>
+                          <span
+                            className={`text-[9px] font-bold ${chunk.isClient ? 'text-purple-500' : 'text-primary/70'}`}
+                          >
                             {chunk.isClient ? '↑ CLIENT' : '↓ SERVER'}
                           </span>
                         </div>
-                        <span className="text-[9px] text-muted-foreground font-mono">{formatBytes(chunk.bytes)}</span>
+                        <span className="text-[9px] text-muted-foreground font-mono">
+                          {formatBytes(chunk.bytes)}
+                        </span>
                       </div>
                       {/* Wire content — single JSONL line */}
                       <div className="px-3 py-2 font-mono text-[10px] leading-relaxed overflow-x-auto custom-scrollbar-sm bg-card/50">
@@ -311,7 +389,6 @@ export default function TheaterPage() {
                   )}
                   <div ref={dataEndRef} className="h-2" />
                 </div>
-
               ) : (
                 /* CONFIG TAB */
                 <div className="space-y-5">
@@ -323,11 +400,16 @@ export default function TheaterPage() {
                       <Activity className="h-4 w-4 text-primary" /> Scenario
                     </h3>
                     <div className="relative">
-                      <select value={selectedScenario}
-                        onChange={(e) => handleScenarioChange(e.target.value as ScenarioId)}
+                      <select
+                        value={selectedScenario}
+                        onChange={e => handleScenarioChange(e.target.value as ScenarioId)}
                         className="w-full text-sm p-2 pl-3 pr-8 border border-border/50 rounded-lg bg-background appearance-none shadow-sm focus:outline-none focus:ring-2 focus:ring-primary/20 cursor-pointer"
                       >
-                        {Object.keys(scenarios).map(id => <option key={id} value={id}>{id}</option>)}
+                        {Object.keys(scenarios).map(id => (
+                          <option key={id} value={id}>
+                            {id}
+                          </option>
+                        ))}
                       </select>
                       <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
                     </div>
@@ -340,11 +422,16 @@ export default function TheaterPage() {
                       <Monitor className="h-4 w-4 text-primary" /> Renderer
                     </h3>
                     <div className="relative">
-                      <select value={renderer}
-                        onChange={(e) => setRenderer(e.target.value as RendererType)}
+                      <select
+                        value={renderer}
+                        onChange={e => setRenderer(e.target.value as RendererType)}
                         className="w-full text-sm p-2 pl-3 pr-8 border border-border/50 rounded-lg bg-background appearance-none shadow-sm focus:outline-none focus:ring-2 focus:ring-primary/20 cursor-pointer"
                       >
-                        {RENDERERS.map(r => <option key={r} value={r}>{r}</option>)}
+                        {RENDERERS.map(r => (
+                          <option key={r} value={r}>
+                            {r}
+                          </option>
+                        ))}
                       </select>
                       <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
                     </div>
@@ -362,7 +449,9 @@ export default function TheaterPage() {
                       </select>
                       <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
                     </div>
-                    <p className="text-[11px] text-muted-foreground">Simulated in-memory playback.</p>
+                    <p className="text-[11px] text-muted-foreground">
+                      Simulated in-memory playback.
+                    </p>
                   </div>
                 </div>
               )}
@@ -370,10 +459,16 @@ export default function TheaterPage() {
           </div>
         </ResizablePanel>
 
-        <ResizableHandle withHandle className="hidden md:flex bg-border/50 hover:bg-primary/50 transition-colors" />
+        <ResizableHandle
+          withHandle
+          className="hidden md:flex bg-border/50 hover:bg-primary/50 transition-colors"
+        />
 
         {/* Right Pane: Renderer */}
-        <ResizablePanel defaultSize={62} className={`${mobileView === 'renderer' ? 'flex' : 'hidden md:flex'} flex-col`}>
+        <ResizablePanel
+          defaultSize={62}
+          className={`${mobileView === 'renderer' ? 'flex' : 'hidden md:flex'} flex-col`}
+        >
           <div className="h-full bg-muted/10 relative overflow-hidden flex flex-col">
             <div className="absolute inset-0 p-6 overflow-y-auto custom-scrollbar">
               <div className="max-w-4xl mx-auto">
@@ -387,7 +482,9 @@ export default function TheaterPage() {
                     <span className="text-[10px] font-semibold text-muted-foreground tracking-wide flex items-center gap-1.5">
                       <Code2 className="h-3 w-3" /> {renderer}
                     </span>
-                    <span className="text-[10px] text-muted-foreground font-mono">{selectedScenario}</span>
+                    <span className="text-[10px] text-muted-foreground font-mono">
+                      {selectedScenario}
+                    </span>
                   </div>
                   <div className="p-4 bg-dot-pattern">
                     {surfaceState.components.length > 0 ? (
@@ -396,7 +493,7 @@ export default function TheaterPage() {
                           root={surfaceState.root}
                           components={surfaceState.components}
                           data={surfaceState.data}
-                          onAction={(action) => console.log('Theater Action:', action)}
+                          onAction={action => console.log('Theater Action:', action)}
                         />
                       </div>
                     ) : (
@@ -405,8 +502,12 @@ export default function TheaterPage() {
                           <Code2 className="h-5 w-5 text-primary" />
                         </div>
                         <div>
-                          <p className="font-mono text-sm text-foreground mb-0.5">{'<A2UIRenderer />'}</p>
-                          <p className="text-xs text-muted-foreground">Press play to start streaming</p>
+                          <p className="font-mono text-sm text-foreground mb-0.5">
+                            {'<A2UIRenderer />'}
+                          </p>
+                          <p className="text-xs text-muted-foreground">
+                            Press play to start streaming
+                          </p>
                         </div>
                       </div>
                     )}
@@ -420,25 +521,34 @@ export default function TheaterPage() {
 
       {/* Mobile Nav */}
       <div className="flex md:hidden w-full items-center gap-1 bg-background/95 backdrop-blur-md p-2 border-t border-border/50 z-50">
-        {([
-          { view: 'left' as const, tab: 'events' as LeftTab, icon: Activity, label: 'Events' },
-          { view: 'renderer' as const, tab: null, icon: LayoutTemplate, label: 'Render' },
-          { view: 'left' as const, tab: 'data' as LeftTab, icon: Database, label: 'Data' },
-          { view: 'left' as const, tab: 'config' as LeftTab, icon: Settings, label: 'Config' },
-        ]).map(item => (
-          <Button key={item.label} variant="ghost" size="sm"
+        {[
+          {view: 'left' as const, tab: 'events' as LeftTab, icon: Activity, label: 'Events'},
+          {view: 'renderer' as const, tab: null, icon: LayoutTemplate, label: 'Render'},
+          {view: 'left' as const, tab: 'data' as LeftTab, icon: Database, label: 'Data'},
+          {view: 'left' as const, tab: 'config' as LeftTab, icon: Settings, label: 'Config'},
+        ].map(item => (
+          <Button
+            key={item.label}
+            variant="ghost"
+            size="sm"
             className={`flex-1 h-11 flex-col gap-0.5 text-[9px] font-medium ${
               (item.tab ? mobileView === 'left' && leftTab === item.tab : mobileView === 'renderer')
-                ? 'bg-background shadow-sm text-foreground' : 'text-muted-foreground'
+                ? 'bg-background shadow-sm text-foreground'
+                : 'text-muted-foreground'
             }`}
-            onClick={() => { setMobileView(item.view); if (item.tab) setLeftTab(item.tab); }}
+            onClick={() => {
+              setMobileView(item.view);
+              if (item.tab) setLeftTab(item.tab);
+            }}
           >
             <item.icon className="h-3.5 w-3.5" /> {item.label}
           </Button>
         ))}
       </div>
 
-      <style dangerouslySetInnerHTML={{__html: `
+      <style
+        dangerouslySetInnerHTML={{
+          __html: `
         .custom-scrollbar::-webkit-scrollbar { width: 5px; height: 5px; }
         .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
         .custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(156,163,175,0.3); border-radius: 10px; }
@@ -446,7 +556,9 @@ export default function TheaterPage() {
         .custom-scrollbar-sm::-webkit-scrollbar-track { background: transparent; }
         .custom-scrollbar-sm::-webkit-scrollbar-thumb { background: rgba(156,163,175,0.3); border-radius: 10px; }
         .bg-dot-pattern { background-image: radial-gradient(rgba(156,163,175,0.15) 1px, transparent 1px); background-size: 16px 16px; }
-      `}} />
+      `,
+        }}
+      />
     </div>
   );
 }

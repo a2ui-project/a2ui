@@ -1,116 +1,139 @@
 # Publishing Guide for A2UI Web Packages
 
-This guide is for project maintainers. It details the publishing process to the npm registry for all web-related packages in this repository.
+This guide outlines the workflow for project maintainers publishing web packages
+(`@a2ui/*`) to npm through Google's internal Artifact Registry.
 
-## Automated Release Workflow (Recommended)
+## Prerequisites: Authentication
 
-The following scripts in `renderers/scripts/` automate the versioning, building, testing, and publishing of packages. These should generally be run from the `main` branch after a PR has been merged.
-
-### 1. Increment Versions (Local)
-
-To increment a package version and automatically sync all internal dependents (updating their `package-lock.json` files). This should be done in a PR:
+Publishing requires access to Google's internal Artifact Registry. Google Cloud
+CLI must be authenticated before starting:
 
 ```sh
-# Automatically increment patch version (e.g. 0.9.5 -> 0.9.6)
-renderers/scripts/increment_version.mjs web_core
-
-# Set a specific version (e.g. including pre-releases)
-renderers/scripts/increment_version.mjs lit 0.9.2-beta.1
+gcloud auth login
 ```
 
-This script will:
-- Update the `package.json` of the target package.
-- Scan the entire mono-repo for internal dependents (via `file:` links).
-- Run `npm install` in those dependents to update their lockfiles.
-
-### 2. Publish to Staging (Artifact Registry)
-
-Once versions are updated and merged into `main`, use the `publish_npm` script to build, test, and upload the packages to Google's internal Artifact Registry.
-
-```sh
-# Publish multiple packages (they will be sorted automatically by dependency)
-./renderers/scripts/publish_npm.mjs --packages=lit,web_core
-```
-
-This script will:
-- Run `npx google-artifactregistry-auth` to authenticate.
-- Sort packages topologically (e.g., publishing `web_core` before `lit`).
-- Verify that if a renderer is being published, `web_core` is also included (use `--force` to skip).
-- Run pre-flight checks against existing `npmjs` versions and prompt for confirmation.
-- For each package: `npm install` -> `npm test` -> `npm run publish:package`.
-
-**Advanced Flags for publish_npm.mjs:**
-- `--force`: Skips the `web_core` inclusion warning.
-- `--yes`: Bypasses the manual user confirmation prompt (useful for CI).
-- `--dry-run`: Simulates the process, printing the commands it *would* execute without actually running them.
-- `--skip-tests`: Skips the `npm run test` phase before publishing.
-- `--test-only`: Runs the full build and test suite in topological order, but skips the final `npm run publish:package` step. Useful for verifying that packages build and tests pass before performing a real release.
-
-### 3. Upload Manifest
-
-Finally, trigger the public release to npmjs.com by uploading a manifest file:
-
-```sh
-./renderers/scripts/upload_manifest.mjs
-```
-
-This generates a `manifest.json` with the current versions of all renderer packages and uploads it to GCS to trigger the internal release infrastructure. You should receive an email from exit-gate noting that publishing has commenced.
-
-#### Manual alternative
-
-You can also do this step manually, if you are authenticated with `gcloud` with a corporate Google account in the correct groups:
-
-1. Create a new manifest.json file with these contents:
-   ```json
-   {
-     "publish_all": true
-   }
-   ```
-
-2. Upload the file
-
-   ```sh
-   gcloud storage cp manifest.json gs://oss-exit-gate-prod-projects-bucket/a2ui/npm/manifests/manifest.json
-   ```
+The release scripts retrieve this authentication token using
+`gcloud auth print-access-token` when needed.
 
 ---
 
-## Internal Release Process
+## Release Workflow
 
-The internal release infrastructure monitors the GCS bucket for new manifests. Once a manifest is uploaded, it triggers a series of checks and then publishes the specified versions to the public npm registry.
+All scripts should be executed from the repository root. The workflow consists
+of a pull request bumping the versions of the packages to release, followed by
+publishing from the `main` branch.
 
-1. Ensure your local `.npmrc` in the package directory is correctly configured if you are debugging, but the automated scripts handle authentication via `google-artifactregistry-auth`.
-2. If you need to manually overwrite or create an `.npmrc` for local testing:
-   ```sh
-   echo "//registry.npmjs.org/:_authToken=\${NPM_TOKEN}" > .npmrc
-   ```
+### 1. Increment Versions (in a Pull Request)
 
-## About the `publish:package` command
-
-Because these are scoped packages (`@a2ui/`), they require the `--access public` flag to be published to the public registry. The `publish:package` script handles this automatically, as well as replacing the path dependencies with package dependencies.
+`increment_version.mjs` can be run on a local branch to bump package versions
+and synchronize locks:
 
 ```sh
-npm run publish:package
+# Increment patch version automatically (e.g., 0.9.5 -> 0.9.6)
+./renderers/scripts/increment_version.mjs web_core
+
+# Set an explicit version
+./renderers/scripts/increment_version.mjs lit 0.10.0-beta.1
 ```
 
-*Note: This command runs the build, prepares the `dist/` directory, and then executes `npm publish dist/ --access public`.*
+This branch should be merged into `main` through a PR as with any other change
+to the repo.
+
+**CLI parameters for `increment_version.mjs`:**
+
+- `<package-name>`: The name of the package to update (e.g., `web_core` or `@a2ui/web_core`).
+- `[new-version]`: The specific new version to set (e.g., `1.0.1`). If omitted, increments the patch version automatically.
+- `--skip-sync`: Skip synchronizing dependent packages (running `yarn install` in dependents). **Not recommended.**
+
+### 2. Publish to Staging (from `main`)
+
+Once the new versions land in `main` and it is checked out locally,
+`publish_npm.mjs` can be used to build, test, and upload the packages to
+Google's internal Artifact Registry:
+
+```sh
+./renderers/scripts/publish_npm.mjs --package=lit --package=web_core
+```
+
+This script publishes requested packages in the correct dependency order (e.g.,
+ensuring `web_core` is published before `lit`), runs unit tests, and verifies
+that required core packages exist on the registry.
+
+By default, the script runs in dry-run mode to prevent accidental uploads; the
+`--no-dry-run` flag can be passed to actually upload the packages:
+
+```sh
+./renderers/scripts/publish_npm.mjs --package=lit --package=web_core --no-dry-run
+```
+
+Artifacts are uploaded to: [go/a2ui-oss-exit-gate-artifacts](https://go/a2ui-oss-exit-gate-artifacts).
+This URL points to a web app that allows verifying that the packages have been uploaded correctly.
+
+For each package it should be checked:
+
+- That it has been uploaded at the expected version
+- That its size is non-zero in the "Files" tab of the details of the version.
+
+**CLI parameters for `publish_npm.mjs`:**
+
+- `-p, --package=<name>`: Package(s) to publish. Can be specified multiple times. Accepts short names (e.g., `web_core`) or scoped names (e.g., `@a2ui/web_core`).
+- `--no-dry-run`: Actually publish the packages. By default, the script runs in dry-run mode.
+- `--skip-tests`: Skip building and testing packages before publishing. **Not recommended.**
+
+### 3. Trigger Public Release (from `main`)
+
+Once packages are verified in staging, a release manifest must be uploaded to
+trigger the internal Exit Gate pipeline, which publishes them to npm:
+
+```sh
+./renderers/scripts/upload_manifest.mjs --package=web_core --package=lit
+```
+
+Similarly to `publish_npm.mjs`, this script runs in dry-run by default, so the
+`--no-dry-run` flag must be passed to actually trigger the release:
+
+```sh
+./renderers/scripts/upload_manifest.mjs --package=web_core --package=lit --no-dry-run
+```
+
+Confirmation emails from Exit Gate and npm reporting on the progress of the
+actual publishing will be sent automatically. Publishing normally takes around
+5 minutes.
+
+**CLI parameters for `upload_manifest.mjs`:**
+
+- `-p, --package=<name>`: Package(s) to trigger release for (e.g., `--package=lit`). Can be specified multiple times.
+- `--no-dry-run`: Actually trigger the public release via Exit Gate. By default, the script runs in dry-run mode.
 
 ---
 
-### How It Works
+## What is the `publish:package` yarn script doing?
 
-**What happens during `npm run publish:package`?**
-Before publishing, the script runs the necessary `build` command which processes the code. Then, a preparation script (usually `prepare-publish.mjs`) runs, which:
-1. Copies `package.json`, `README.md`, and `LICENSE` to the `dist/` folder.
-2. It scans all dependencies and peerDependencies for internal `@a2ui/` packages (those using `file:` links) and updates them to the actual current versions in the mono-repo (e.g., `^0.9.0`).
-3. Adjusts exports and paths (removing the `./dist/` prefix) so they are correct when consumed from the package root.
-4. Removes any build scripts (`prepublishOnly`, `scripts`, `wireit`) so they don't interfere with the publish process.
+A2UI web packages depend on each other via `workspace:*` links during development. When `publish_npm.mjs` invokes a package's `publish:package` target, the following preparation steps occur:
 
-The `npm publish dist/` command then uploads only the contents of the `dist/` directory to the npm registry.
+1. **Build & Metadata Transformation**: `prepare-publish.mjs` copies build output into `dist/`, replaces internal `workspace:` protocols with absolute semantic version ranges (e.g., `^0.10.3`), and strips development scripts/dependencies.
+2. **Boundary Isolation**: Because the root workspace config excludes `dist/` (`!**/dist`), an empty `yarn.lock` is initialized inside `dist/` to establish it as an independent package boundary.
+3. **Clean Upload**: `yarn npm publish --access public` executes strictly inside `dist/`, ensuring only clean production assets are uploaded.
 
-**What exactly gets published?**
-Only the `dist/` directory, `src/` directory (for sourcemaps), `package.json`, `README.md`, and `LICENSE` are included in the published package. This is strictly controlled by the `"files"` array in the original `package.json`.
+---
 
-**What about the License?**
-The package is automatically published under the `Apache-2.0` open-source license, as defined in `package.json`.
+## What are valid values for the `--package` argument?
 
+The `increment_version.mjs`, `publish_npm.mjs` and `upload_manifest.mjs` scripts
+work with all packages in the `renderers` directory of the monorepo:
+
+- `web_core`
+- `markdown-it`
+- `angular`
+- `lit`
+- `react`
+
+The scripts also support the full package names, e.g. `@a2ui/web_core`, but the
+`@a2ui/` prefix is not required.
+
+---
+
+## Troubleshooting
+
+- **Dirty Working Tree Warnings**: If build artifacts or temporary files
+  persist, `yarn clean:all` can be run from the monorepo root before trying again.

@@ -14,10 +14,10 @@
  * limitations under the License.
  */
 
-import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, act } from '@testing-library/react';
+import {describe, it, expect, vi, beforeEach} from 'vitest';
+import {render, screen, act} from '@testing-library/react';
 import * as storage from '@/lib/storage';
-import { Widget } from '@/types/widget';
+import {Widget} from '@/types/widget';
 import React from 'react';
 
 vi.mock('@/lib/storage', () => ({
@@ -45,34 +45,51 @@ describe('WidgetsContext', () => {
   });
 
   const getTestUtils = async () => {
-    const { WidgetsProvider, useWidgets } = await import('./widgets-context');
-    
+    const {WidgetsProvider, useWidgets} = await import('./widgets-context');
+
     const TestComponent = () => {
-      const { widgets, loading, addWidget, updateWidget, removeWidget } = useWidgets();
+      const {widgets, loading, addWidget, updateWidget, removeWidget} = useWidgets();
       if (loading) return <div>Loading...</div>;
       return (
         <div>
           <div data-testid="count">{widgets.length}</div>
           {widgets.map(w => (
-            <div key={w.id} data-testid={`widget-${w.id}`}>{w.name}</div>
+            <div key={w.id} data-testid={`widget-${w.id}`}>
+              {w.name}
+            </div>
           ))}
-          <button onClick={() => addWidget({ id: '2', name: 'New', specVersion: '0.8', createdAt: new Date(), updatedAt: new Date(), root: 'root', components: [], dataStates: [] })}>Add</button>
-          <button onClick={() => updateWidget('1', { name: 'Updated' })}>Update</button>
+          <button
+            onClick={() =>
+              addWidget({
+                id: '2',
+                name: 'New',
+                specVersion: '0.8',
+                createdAt: new Date(),
+                updatedAt: new Date(),
+                root: 'root',
+                components: [],
+                dataStates: [],
+              })
+            }
+          >
+            Add
+          </button>
+          <button onClick={() => updateWidget('1', {name: 'Updated'})}>Update</button>
           <button onClick={() => removeWidget('1')}>Remove</button>
         </div>
       );
     };
 
-    return { WidgetsProvider, TestComponent };
+    return {WidgetsProvider, TestComponent};
   };
 
   it('should load widgets on mount', async () => {
-    const { WidgetsProvider, TestComponent } = await getTestUtils();
+    const {WidgetsProvider, TestComponent} = await getTestUtils();
     await act(async () => {
       render(
         <WidgetsProvider>
           <TestComponent />
-        </WidgetsProvider>
+        </WidgetsProvider>,
       );
     });
 
@@ -82,17 +99,17 @@ describe('WidgetsContext', () => {
   });
 
   it('should add a widget', async () => {
-    const { WidgetsProvider, TestComponent } = await getTestUtils();
+    const {WidgetsProvider, TestComponent} = await getTestUtils();
     await act(async () => {
       render(
         <WidgetsProvider>
           <TestComponent />
-        </WidgetsProvider>
+        </WidgetsProvider>,
       );
     });
 
     await screen.findByTestId('count');
-    
+
     await act(async () => {
       screen.getByText('Add').click();
     });
@@ -102,17 +119,17 @@ describe('WidgetsContext', () => {
   });
 
   it('should update a widget', async () => {
-    const { WidgetsProvider, TestComponent } = await getTestUtils();
+    const {WidgetsProvider, TestComponent} = await getTestUtils();
     await act(async () => {
       render(
         <WidgetsProvider>
           <TestComponent />
-        </WidgetsProvider>
+        </WidgetsProvider>,
       );
     });
 
     await screen.findByTestId('count');
-    
+
     await act(async () => {
       screen.getByText('Update').click();
     });
@@ -122,17 +139,17 @@ describe('WidgetsContext', () => {
   });
 
   it('should remove a widget', async () => {
-    const { WidgetsProvider, TestComponent } = await getTestUtils();
+    const {WidgetsProvider, TestComponent} = await getTestUtils();
     await act(async () => {
       render(
         <WidgetsProvider>
           <TestComponent />
-        </WidgetsProvider>
+        </WidgetsProvider>,
       );
     });
 
     await screen.findByTestId('count');
-    
+
     await act(async () => {
       screen.getByText('Remove').click();
     });

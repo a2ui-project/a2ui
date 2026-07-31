@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import type { A2UIComponent } from '@/types/widget';
+import type {A2UIComponent} from '@/types/widget';
 
 export interface ComponentProp {
   name: string;
@@ -49,7 +49,8 @@ export const COMPONENTS_DATA: ComponentCategory[] = [
     components: [
       {
         name: 'Row',
-        description: 'Horizontal flex container that arranges children in a row with configurable alignment and distribution.',
+        description:
+          'Horizontal flex container that arranges children in a row with configurable alignment and distribution.',
         usage: `{
   "id": "row-1",
   "component": {
@@ -65,7 +66,8 @@ export const COMPONENTS_DATA: ComponentCategory[] = [
         props: [
           {
             name: 'children',
-            description: 'Child components to render inside the row. Can be an explicit list of component IDs or a template for dynamic rendering.',
+            description:
+              'Child components to render inside the row. Can be an explicit list of component IDs or a template for dynamic rendering.',
             type: 'ComponentArrayReference',
           },
           {
@@ -92,28 +94,29 @@ export const COMPONENTS_DATA: ComponentCategory[] = [
                 Row: {
                   alignment: 'center',
                   distribution: 'spaceBetween',
-                  children: { explicitList: ['text-1', 'text-2', 'text-3'] },
+                  children: {explicitList: ['text-1', 'text-2', 'text-3']},
                 },
               },
             },
             {
               id: 'text-1',
-              component: { Text: { text: { literalString: 'Left' }, usageHint: 'body' } },
+              component: {Text: {text: {literalString: 'Left'}, usageHint: 'body'}},
             },
             {
               id: 'text-2',
-              component: { Text: { text: { literalString: 'Center' }, usageHint: 'body' } },
+              component: {Text: {text: {literalString: 'Center'}, usageHint: 'body'}},
             },
             {
               id: 'text-3',
-              component: { Text: { text: { literalString: 'Right' }, usageHint: 'body' } },
+              component: {Text: {text: {literalString: 'Right'}, usageHint: 'body'}},
             },
           ],
         },
       },
       {
         name: 'Column',
-        description: 'Vertical flex container that arranges children in a column with configurable alignment and distribution.',
+        description:
+          'Vertical flex container that arranges children in a column with configurable alignment and distribution.',
         usage: `{
   "id": "column-1",
   "component": {
@@ -129,7 +132,8 @@ export const COMPONENTS_DATA: ComponentCategory[] = [
         props: [
           {
             name: 'children',
-            description: 'Child components to render inside the column. Can be an explicit list of component IDs or a template for dynamic rendering.',
+            description:
+              'Child components to render inside the column. Can be an explicit list of component IDs or a template for dynamic rendering.',
             type: 'ComponentArrayReference',
           },
           {
@@ -156,28 +160,31 @@ export const COMPONENTS_DATA: ComponentCategory[] = [
                 Column: {
                   alignment: 'center',
                   distribution: 'start',
-                  children: { explicitList: ['text-1', 'text-2', 'text-3'] },
+                  children: {explicitList: ['text-1', 'text-2', 'text-3']},
                 },
               },
             },
             {
               id: 'text-1',
-              component: { Text: { text: { literalString: 'Header' }, usageHint: 'h3' } },
+              component: {Text: {text: {literalString: 'Header'}, usageHint: 'h3'}},
             },
             {
               id: 'text-2',
-              component: { Text: { text: { literalString: 'Content goes here' }, usageHint: 'body' } },
+              component: {
+                Text: {text: {literalString: 'Content goes here'}, usageHint: 'body'},
+              },
             },
             {
               id: 'text-3',
-              component: { Text: { text: { literalString: 'Footer' }, usageHint: 'caption' } },
+              component: {Text: {text: {literalString: 'Footer'}, usageHint: 'caption'}},
             },
           ],
         },
       },
       {
         name: 'List',
-        description: 'Container for rendering lists of items, supporting both vertical and horizontal layouts.',
+        description:
+          'Container for rendering lists of items, supporting both vertical and horizontal layouts.',
         usage: `{
   "id": "list-1",
   "component": {
@@ -195,7 +202,8 @@ export const COMPONENTS_DATA: ComponentCategory[] = [
         props: [
           {
             name: 'children',
-            description: 'Child components or template for list items. Use template with dataBinding to render items from data.',
+            description:
+              'Child components or template for list items. Use template with dataBinding to render items from data.',
             type: 'ComponentArrayReference',
           },
           {
@@ -214,28 +222,29 @@ export const COMPONENTS_DATA: ComponentCategory[] = [
               component: {
                 List: {
                   direction: 'vertical',
-                  children: { explicitList: ['item-1', 'item-2', 'item-3'] },
+                  children: {explicitList: ['item-1', 'item-2', 'item-3']},
                 },
               },
             },
             {
               id: 'item-1',
-              component: { Text: { text: { literalString: '• First item' }, usageHint: 'body' } },
+              component: {Text: {text: {literalString: '• First item'}, usageHint: 'body'}},
             },
             {
               id: 'item-2',
-              component: { Text: { text: { literalString: '• Second item' }, usageHint: 'body' } },
+              component: {Text: {text: {literalString: '• Second item'}, usageHint: 'body'}},
             },
             {
               id: 'item-3',
-              component: { Text: { text: { literalString: '• Third item' }, usageHint: 'body' } },
+              component: {Text: {text: {literalString: '• Third item'}, usageHint: 'body'}},
             },
           ],
         },
       },
       {
         name: 'Card',
-        description: 'A styled container that provides card-like appearance with elevation and padding.',
+        description:
+          'A styled container that provides card-like appearance with elevation and padding.',
         usage: `{
   "id": "card-1",
   "component": {
@@ -266,17 +275,22 @@ export const COMPONENTS_DATA: ComponentCategory[] = [
               id: 'card-content',
               component: {
                 Column: {
-                  children: { explicitList: ['card-title', 'card-body'] },
+                  children: {explicitList: ['card-title', 'card-body']},
                 },
               },
             },
             {
               id: 'card-title',
-              component: { Text: { text: { literalString: 'Card Title' }, usageHint: 'h4' } },
+              component: {Text: {text: {literalString: 'Card Title'}, usageHint: 'h4'}},
             },
             {
               id: 'card-body',
-              component: { Text: { text: { literalString: 'This is the card content with some descriptive text.' }, usageHint: 'body' } },
+              component: {
+                Text: {
+                  text: {literalString: 'This is the card content with some descriptive text.'},
+                  usageHint: 'body',
+                },
+              },
             },
           ],
         },
@@ -288,7 +302,8 @@ export const COMPONENTS_DATA: ComponentCategory[] = [
     components: [
       {
         name: 'Text',
-        description: 'Display text content with semantic styling hints. Supports markdown rendering and data binding.',
+        description:
+          'Display text content with semantic styling hints. Supports markdown rendering and data binding.',
         usage: `{
   "id": "text-1",
   "component": {
@@ -301,12 +316,14 @@ export const COMPONENTS_DATA: ComponentCategory[] = [
         props: [
           {
             name: 'text',
-            description: 'The text content to display. Can be a literal string or a path binding to data.',
+            description:
+              'The text content to display. Can be a literal string or a path binding to data.',
             type: 'StringValue',
           },
           {
             name: 'usageHint',
-            description: 'Semantic hint for text styling. Determines font size, weight, and other typographic properties.',
+            description:
+              'Semantic hint for text styling. Determines font size, weight, and other typographic properties.',
             type: 'enum',
             values: ['h1', 'h2', 'h3', 'h4', 'h5', 'caption', 'body'],
           },
@@ -318,29 +335,41 @@ export const COMPONENTS_DATA: ComponentCategory[] = [
               id: 'text-container',
               component: {
                 Column: {
-                  children: { explicitList: ['text-h1', 'text-h2', 'text-h3', 'text-body', 'text-caption'] },
+                  children: {
+                    explicitList: ['text-h1', 'text-h2', 'text-h3', 'text-body', 'text-caption'],
+                  },
                 },
               },
             },
             {
               id: 'text-h1',
-              component: { Text: { text: { literalString: 'Heading 1' }, usageHint: 'h1' } },
+              component: {Text: {text: {literalString: 'Heading 1'}, usageHint: 'h1'}},
             },
             {
               id: 'text-h2',
-              component: { Text: { text: { literalString: 'Heading 2' }, usageHint: 'h2' } },
+              component: {Text: {text: {literalString: 'Heading 2'}, usageHint: 'h2'}},
             },
             {
               id: 'text-h3',
-              component: { Text: { text: { literalString: 'Heading 3' }, usageHint: 'h3' } },
+              component: {Text: {text: {literalString: 'Heading 3'}, usageHint: 'h3'}},
             },
             {
               id: 'text-body',
-              component: { Text: { text: { literalString: 'Body text for paragraphs and content.' }, usageHint: 'body' } },
+              component: {
+                Text: {
+                  text: {literalString: 'Body text for paragraphs and content.'},
+                  usageHint: 'body',
+                },
+              },
             },
             {
               id: 'text-caption',
-              component: { Text: { text: { literalString: 'Caption text for labels and hints' }, usageHint: 'caption' } },
+              component: {
+                Text: {
+                  text: {literalString: 'Caption text for labels and hints'},
+                  usageHint: 'caption',
+                },
+              },
             },
           ],
         },
@@ -385,7 +414,7 @@ export const COMPONENTS_DATA: ComponentCategory[] = [
               id: 'image-1',
               component: {
                 Image: {
-                  url: { literalString: 'https://picsum.photos/200/150' },
+                  url: {literalString: 'https://picsum.photos/200/150'},
                   usageHint: 'mediumFeature',
                   fit: 'cover',
                 },
@@ -396,7 +425,8 @@ export const COMPONENTS_DATA: ComponentCategory[] = [
       },
       {
         name: 'Icon',
-        description: 'Display Material Icons by name. Icons are rendered using the Google Icon font.',
+        description:
+          'Display Material Icons by name. Icons are rendered using the Google Icon font.',
         usage: `{
   "id": "icon-1",
   "component": {
@@ -408,7 +438,8 @@ export const COMPONENTS_DATA: ComponentCategory[] = [
         props: [
           {
             name: 'name',
-            description: 'The Material Icon name (e.g., "check_circle", "home", "settings"). Uses snake_case naming.',
+            description:
+              'The Material Icon name (e.g., "check_circle", "home", "settings"). Uses snake_case naming.',
             type: 'StringValue',
           },
         ],
@@ -421,29 +452,29 @@ export const COMPONENTS_DATA: ComponentCategory[] = [
                 Row: {
                   distribution: 'start',
                   alignment: 'center',
-                  children: { explicitList: ['icon-1', 'icon-2', 'icon-3', 'icon-4', 'icon-5'] },
+                  children: {explicitList: ['icon-1', 'icon-2', 'icon-3', 'icon-4', 'icon-5']},
                 },
               },
             },
             {
               id: 'icon-1',
-              component: { Icon: { name: { literalString: 'home' } } },
+              component: {Icon: {name: {literalString: 'home'}}},
             },
             {
               id: 'icon-2',
-              component: { Icon: { name: { literalString: 'settings' } } },
+              component: {Icon: {name: {literalString: 'settings'}}},
             },
             {
               id: 'icon-3',
-              component: { Icon: { name: { literalString: 'check_circle' } } },
+              component: {Icon: {name: {literalString: 'check_circle'}}},
             },
             {
               id: 'icon-4',
-              component: { Icon: { name: { literalString: 'favorite' } } },
+              component: {Icon: {name: {literalString: 'favorite'}}},
             },
             {
               id: 'icon-5',
-              component: { Icon: { name: { literalString: 'star' } } },
+              component: {Icon: {name: {literalString: 'star'}}},
             },
           ],
         },
@@ -473,7 +504,7 @@ export const COMPONENTS_DATA: ComponentCategory[] = [
               id: 'video-1',
               component: {
                 Video: {
-                  url: { literalString: 'https://www.w3schools.com/html/mov_bbb.mp4' },
+                  url: {literalString: 'https://www.w3schools.com/html/mov_bbb.mp4'},
                 },
               },
             },
@@ -519,7 +550,7 @@ export const COMPONENTS_DATA: ComponentCategory[] = [
               id: 'audio-1',
               component: {
                 AudioPlayer: {
-                  url: { literalString: 'https://www.w3schools.com/html/horse.mp3' },
+                  url: {literalString: 'https://www.w3schools.com/html/horse.mp3'},
                 },
               },
             },
@@ -547,7 +578,8 @@ export const COMPONENTS_DATA: ComponentCategory[] = [
         props: [
           {
             name: 'text',
-            description: 'The current input value. Typically bound to a data path for two-way binding.',
+            description:
+              'The current input value. Typically bound to a data path for two-way binding.',
             type: 'StringValue',
           },
           {
@@ -574,14 +606,14 @@ export const COMPONENTS_DATA: ComponentCategory[] = [
               id: 'textfield-1',
               component: {
                 TextField: {
-                  text: { path: '/name' },
-                  label: { literalString: 'Enter your name' },
+                  text: {path: '/name'},
+                  label: {literalString: 'Enter your name'},
                   type: 'shortText',
                 },
               },
             },
           ],
-          data: { name: '' },
+          data: {name: ''},
         },
       },
       {
@@ -615,13 +647,13 @@ export const COMPONENTS_DATA: ComponentCategory[] = [
               id: 'checkbox-1',
               component: {
                 CheckBox: {
-                  label: { literalString: 'I agree to the terms and conditions' },
-                  value: { path: '/agreed' },
+                  label: {literalString: 'I agree to the terms and conditions'},
+                  value: {path: '/agreed'},
                 },
               },
             },
           ],
-          data: { agreed: false },
+          data: {agreed: false},
         },
       },
       {
@@ -640,7 +672,8 @@ export const COMPONENTS_DATA: ComponentCategory[] = [
         props: [
           {
             name: 'value',
-            description: 'The current slider value. Typically bound to a data path for two-way binding.',
+            description:
+              'The current slider value. Typically bound to a data path for two-way binding.',
             type: 'NumberValue',
           },
           {
@@ -661,14 +694,14 @@ export const COMPONENTS_DATA: ComponentCategory[] = [
               id: 'slider-1',
               component: {
                 Slider: {
-                  value: { path: '/volume' },
+                  value: {path: '/volume'},
                   minValue: 0,
                   maxValue: 100,
                 },
               },
             },
           ],
-          data: { volume: 50 },
+          data: {volume: 50},
         },
       },
       {
@@ -688,7 +721,8 @@ export const COMPONENTS_DATA: ComponentCategory[] = [
         props: [
           {
             name: 'value',
-            description: 'The current date/time value in ISO format. Typically bound to a data path.',
+            description:
+              'The current date/time value in ISO format. Typically bound to a data path.',
             type: 'StringValue',
           },
           {
@@ -716,14 +750,14 @@ export const COMPONENTS_DATA: ComponentCategory[] = [
               id: 'datetime-1',
               component: {
                 DateTimeInput: {
-                  value: { path: '/date' },
+                  value: {path: '/date'},
                   enableDate: true,
                   enableTime: false,
                 },
               },
             },
           ],
-          data: { date: '2025-01-15' },
+          data: {date: '2025-01-15'},
         },
       },
       {
@@ -767,18 +801,18 @@ export const COMPONENTS_DATA: ComponentCategory[] = [
               id: 'select-1',
               component: {
                 MultipleChoice: {
-                  selections: { path: '/country' },
+                  selections: {path: '/country'},
                   options: [
-                    { label: { literalString: 'United States' }, value: 'US' },
-                    { label: { literalString: 'Canada' }, value: 'CA' },
-                    { label: { literalString: 'Mexico' }, value: 'MX' },
+                    {label: {literalString: 'United States'}, value: 'US'},
+                    {label: {literalString: 'Canada'}, value: 'CA'},
+                    {label: {literalString: 'Mexico'}, value: 'MX'},
                   ],
                   maxAllowedSelections: 1,
                 },
               },
             },
           ],
-          data: { country: ['US'] },
+          data: {country: ['US']},
         },
       },
     ],
@@ -788,7 +822,8 @@ export const COMPONENTS_DATA: ComponentCategory[] = [
     components: [
       {
         name: 'Button',
-        description: 'Interactive button that triggers an action when clicked. Contains a child component for its content.',
+        description:
+          'Interactive button that triggers an action when clicked. Contains a child component for its content.',
         usage: `{
   "id": "button-1",
   "component": {
@@ -806,7 +841,8 @@ export const COMPONENTS_DATA: ComponentCategory[] = [
         props: [
           {
             name: 'child',
-            description: 'Component ID to render as the button content (typically a Text or Row with Icon + Text).',
+            description:
+              'Component ID to render as the button content (typically a Text or Row with Icon + Text).',
             type: 'string',
           },
           {
@@ -824,7 +860,7 @@ export const COMPONENTS_DATA: ComponentCategory[] = [
                 Row: {
                   distribution: 'start',
                   alignment: 'center',
-                  children: { explicitList: ['button-1', 'button-2'] },
+                  children: {explicitList: ['button-1', 'button-2']},
                 },
               },
             },
@@ -833,20 +869,20 @@ export const COMPONENTS_DATA: ComponentCategory[] = [
               component: {
                 Button: {
                   child: 'button-label-1',
-                  action: { name: 'primary-action' },
+                  action: {name: 'primary-action'},
                 },
               },
             },
             {
               id: 'button-label-1',
-              component: { Text: { text: { literalString: 'Submit' }, usageHint: 'body' } },
+              component: {Text: {text: {literalString: 'Submit'}, usageHint: 'body'}},
             },
             {
               id: 'button-2',
               component: {
                 Button: {
                   child: 'button-label-2',
-                  action: { name: 'secondary-action' },
+                  action: {name: 'secondary-action'},
                 },
               },
             },
@@ -855,24 +891,25 @@ export const COMPONENTS_DATA: ComponentCategory[] = [
               component: {
                 Row: {
                   alignment: 'center',
-                  children: { explicitList: ['btn-icon', 'btn-text'] },
+                  children: {explicitList: ['btn-icon', 'btn-text']},
                 },
               },
             },
             {
               id: 'btn-icon',
-              component: { Icon: { name: { literalString: 'add' } } },
+              component: {Icon: {name: {literalString: 'add'}}},
             },
             {
               id: 'btn-text',
-              component: { Text: { text: { literalString: 'Add Item' }, usageHint: 'body' } },
+              component: {Text: {text: {literalString: 'Add Item'}, usageHint: 'body'}},
             },
           ],
         },
       },
       {
         name: 'Tabs',
-        description: 'Tab navigation component with multiple panels. Each tab has a title and associated content.',
+        description:
+          'Tab navigation component with multiple panels. Each tab has a title and associated content.',
         usage: `{
   "id": "tabs-1",
   "component": {
@@ -900,24 +937,33 @@ export const COMPONENTS_DATA: ComponentCategory[] = [
               component: {
                 Tabs: {
                   tabItems: [
-                    { title: { literalString: 'Overview' }, child: 'tab-1' },
-                    { title: { literalString: 'Details' }, child: 'tab-2' },
-                    { title: { literalString: 'Reviews' }, child: 'tab-3' },
+                    {title: {literalString: 'Overview'}, child: 'tab-1'},
+                    {title: {literalString: 'Details'}, child: 'tab-2'},
+                    {title: {literalString: 'Reviews'}, child: 'tab-3'},
                   ],
                 },
               },
             },
             {
               id: 'tab-1',
-              component: { Text: { text: { literalString: 'This is the overview content.' }, usageHint: 'body' } },
+              component: {
+                Text: {
+                  text: {literalString: 'This is the overview content.'},
+                  usageHint: 'body',
+                },
+              },
             },
             {
               id: 'tab-2',
-              component: { Text: { text: { literalString: 'Here are the details.' }, usageHint: 'body' } },
+              component: {
+                Text: {text: {literalString: 'Here are the details.'}, usageHint: 'body'},
+              },
             },
             {
               id: 'tab-3',
-              component: { Text: { text: { literalString: 'User reviews go here.' }, usageHint: 'body' } },
+              component: {
+                Text: {text: {literalString: 'User reviews go here.'}, usageHint: 'body'},
+              },
             },
           ],
         },
@@ -937,7 +983,8 @@ export const COMPONENTS_DATA: ComponentCategory[] = [
         props: [
           {
             name: 'entryPointChild',
-            description: 'Component ID of the element that triggers the modal (typically a Button).',
+            description:
+              'Component ID of the element that triggers the modal (typically a Button).',
             type: 'string',
           },
           {
@@ -963,29 +1010,36 @@ export const COMPONENTS_DATA: ComponentCategory[] = [
               component: {
                 Button: {
                   child: 'modal-trigger-text',
-                  action: { name: 'open-modal' },
+                  action: {name: 'open-modal'},
                 },
               },
             },
             {
               id: 'modal-trigger-text',
-              component: { Text: { text: { literalString: 'Open Modal' }, usageHint: 'body' } },
+              component: {Text: {text: {literalString: 'Open Modal'}, usageHint: 'body'}},
             },
             {
               id: 'modal-content',
               component: {
                 Column: {
-                  children: { explicitList: ['modal-title', 'modal-body'] },
+                  children: {explicitList: ['modal-title', 'modal-body']},
                 },
               },
             },
             {
               id: 'modal-title',
-              component: { Text: { text: { literalString: 'Modal Title' }, usageHint: 'h3' } },
+              component: {Text: {text: {literalString: 'Modal Title'}, usageHint: 'h3'}},
             },
             {
               id: 'modal-body',
-              component: { Text: { text: { literalString: 'This is the modal content. Click outside or the X to close.' }, usageHint: 'body' } },
+              component: {
+                Text: {
+                  text: {
+                    literalString: 'This is the modal content. Click outside or the X to close.',
+                  },
+                  usageHint: 'body',
+                },
+              },
             },
           ],
         },
@@ -1032,13 +1086,13 @@ export const COMPONENTS_DATA: ComponentCategory[] = [
               id: 'divider-demo',
               component: {
                 Column: {
-                  children: { explicitList: ['text-above', 'divider-1', 'text-below'] },
+                  children: {explicitList: ['text-above', 'divider-1', 'text-below']},
                 },
               },
             },
             {
               id: 'text-above',
-              component: { Text: { text: { literalString: 'Content above' }, usageHint: 'body' } },
+              component: {Text: {text: {literalString: 'Content above'}, usageHint: 'body'}},
             },
             {
               id: 'divider-1',
@@ -1051,7 +1105,7 @@ export const COMPONENTS_DATA: ComponentCategory[] = [
             },
             {
               id: 'text-below',
-              component: { Text: { text: { literalString: 'Content below' }, usageHint: 'body' } },
+              component: {Text: {text: {literalString: 'Content below'}, usageHint: 'body'}},
             },
           ],
         },

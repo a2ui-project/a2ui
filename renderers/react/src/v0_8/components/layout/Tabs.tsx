@@ -52,7 +52,7 @@ export const Tabs = memo(function Tabs({node, surfaceId}: A2UIComponentProps<Typ
             const classes = isSelected
               ? mergeClassMaps(
                   theme.components.Tabs.controls.all,
-                  theme.components.Tabs.controls.selected
+                  theme.components.Tabs.controls.selected,
                 )
               : theme.components.Tabs.controls.all;
 

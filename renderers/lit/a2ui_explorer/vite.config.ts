@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import { defineConfig } from 'vite';
+import {defineConfig} from 'vite';
 
 export default defineConfig({
   build: {
@@ -25,7 +25,7 @@ export default defineConfig({
   },
   server: {
     fs: {
-      allow: ['../', '../../../specification']
-    }
-  }
+      allow: ['../', '../../../specification'],
+    },
+  },
 });

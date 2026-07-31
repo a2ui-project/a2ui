@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import { markdown } from "./markdown.js";
+import {markdown} from './markdown.js';
 
 /**
  * Contexts used to inject dependencies into the Lit renderer.

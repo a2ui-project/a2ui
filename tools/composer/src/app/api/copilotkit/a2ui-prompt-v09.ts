@@ -19,17 +19,17 @@
  *
  * Uses the actual v0.9 catalog spec and rules from the specification directory.
  */
-import { readFileSync } from 'fs';
-import { join } from 'path';
+import {readFileSync} from 'fs';
+import {join} from 'path';
 
 // Load the actual v0.9 catalog spec and rules
 const catalogSpec = readFileSync(
-  join(process.cwd(), '../../specification/v0_9/json/basic_catalog.json'),
+  join(process.cwd(), '../../specification/v0_9/catalogs/basic/catalog.json'),
   'utf-8',
 );
 
 const catalogRules = readFileSync(
-  join(process.cwd(), '../../specification/v0_9/json/basic_catalog_rules.txt'),
+  join(process.cwd(), '../../specification/v0_9/catalogs/basic/rules.txt'),
   'utf-8',
 );
 

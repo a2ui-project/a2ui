@@ -43,7 +43,7 @@ export function classMapToString(classMap: Record<string, boolean> | undefined):
  * // Returns: { backgroundColor: 'red', fontSize: '16px', '--custom-var': 'blue' }
  */
 export function stylesToObject(
-  styles: Record<string, string> | undefined
+  styles: Record<string, string> | undefined,
 ): React.CSSProperties | undefined {
   if (!styles || Object.keys(styles).length === 0) return undefined;
 

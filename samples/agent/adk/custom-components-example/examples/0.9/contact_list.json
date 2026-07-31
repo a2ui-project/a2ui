@@ -3,7 +3,7 @@
     "version": "v0.9",
     "createSurface": {
       "surfaceId": "contact-list",
-      "catalogId": "https://a2ui.org/specification/v0_9/basic_catalog.json",
+      "catalogId": "https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json",
       "theme": {
         "primaryColor": "#007BFF",
         "font": "Roboto"
@@ -18,10 +18,7 @@
         {
           "id": "root",
           "component": "Column",
-          "children": [
-            "title-heading",
-            "item-list"
-          ]
+          "children": ["title-heading", "item-list"]
         },
         {
           "id": "title-heading",
@@ -46,11 +43,7 @@
         {
           "id": "card-layout",
           "component": "Row",
-          "children": [
-            "template-image",
-            "card-details",
-            "view-button"
-          ],
+          "children": ["template-image", "card-details", "view-button"],
           "align": "center"
         },
         {
@@ -64,10 +57,7 @@
         {
           "id": "card-details",
           "component": "Column",
-          "children": [
-            "template-name",
-            "template-title"
-          ]
+          "children": ["template-name", "template-title"]
         },
         {
           "id": "template-name",

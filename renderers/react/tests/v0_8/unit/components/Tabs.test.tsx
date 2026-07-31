@@ -14,10 +14,10 @@
  * limitations under the License.
  */
 
-import { describe, it, expect } from 'vitest';
-import { render, screen, fireEvent } from '@testing-library/react';
+import {describe, it, expect} from 'vitest';
+import {render, screen, fireEvent} from '@testing-library/react';
 import React from 'react';
-import { TestWrapper, TestRenderer, createSurfaceUpdate, createBeginRendering } from '../../utils';
+import {TestWrapper, TestRenderer, createSurfaceUpdate, createBeginRendering} from '../../utils';
 import type * as Types from '@a2ui/web_core/types/types';
 
 /**
@@ -35,11 +35,11 @@ import type * as Types from '@a2ui/web_core/types/types';
 function createTabsMessages(
   id: string,
   props: {
-    tabs: Array<{ title: string; contentText: string }>;
+    tabs: Array<{title: string; contentText: string}>;
   },
-  surfaceId = '@default'
+  surfaceId = '@default',
 ): Types.ServerToClientMessage[] {
-  const components: Array<{ id: string; component: Record<string, unknown> }> = [];
+  const components: Array<{id: string; component: Record<string, unknown>}> = [];
 
   // Create content components for each tab
   const tabItems = props.tabs.map((tab, index) => {
@@ -47,11 +47,11 @@ function createTabsMessages(
     components.push({
       id: contentId,
       component: {
-        Text: { text: { literalString: tab.contentText }, usageHint: 'body' },
+        Text: {text: {literalString: tab.contentText}, usageHint: 'body'},
       },
     });
     return {
-      title: { literalString: tab.title },
+      title: {literalString: tab.title},
       child: contentId,
     };
   });
@@ -60,14 +60,11 @@ function createTabsMessages(
   components.push({
     id,
     component: {
-      Tabs: { tabItems },
+      Tabs: {tabItems},
     },
   });
 
-  return [
-    createSurfaceUpdate(components, surfaceId),
-    createBeginRendering(id, surfaceId),
-  ];
+  return [createSurfaceUpdate(components, surfaceId), createBeginRendering(id, surfaceId)];
 }
 
 describe('Tabs Component', () => {
@@ -75,15 +72,15 @@ describe('Tabs Component', () => {
     it('should render a tabs container with correct class', () => {
       const messages = createTabsMessages('tabs-1', {
         tabs: [
-          { title: 'Tab 1', contentText: 'Content 1' },
-          { title: 'Tab 2', contentText: 'Content 2' },
+          {title: 'Tab 1', contentText: 'Content 1'},
+          {title: 'Tab 2', contentText: 'Content 2'},
         ],
       });
 
-      const { container } = render(
+      const {container} = render(
         <TestWrapper>
           <TestRenderer messages={messages} />
-        </TestWrapper>
+        </TestWrapper>,
       );
 
       const wrapper = container.querySelector('.a2ui-tabs');
@@ -93,13 +90,13 @@ describe('Tabs Component', () => {
 
     it('should render section element inside wrapper', () => {
       const messages = createTabsMessages('tabs-1', {
-        tabs: [{ title: 'Tab 1', contentText: 'Content 1' }],
+        tabs: [{title: 'Tab 1', contentText: 'Content 1'}],
       });
 
-      const { container } = render(
+      const {container} = render(
         <TestWrapper>
           <TestRenderer messages={messages} />
-        </TestWrapper>
+        </TestWrapper>,
       );
 
       const section = container.querySelector('.a2ui-tabs > section');
@@ -109,15 +106,15 @@ describe('Tabs Component', () => {
     it('should render buttons container with id="buttons"', () => {
       const messages = createTabsMessages('tabs-1', {
         tabs: [
-          { title: 'Tab 1', contentText: 'Content 1' },
-          { title: 'Tab 2', contentText: 'Content 2' },
+          {title: 'Tab 1', contentText: 'Content 1'},
+          {title: 'Tab 2', contentText: 'Content 2'},
         ],
       });
 
-      const { container } = render(
+      const {container} = render(
         <TestWrapper>
           <TestRenderer messages={messages} />
-        </TestWrapper>
+        </TestWrapper>,
       );
 
       const buttonsContainer = container.querySelector('#buttons');
@@ -130,16 +127,16 @@ describe('Tabs Component', () => {
     it('should render a button for each tab', () => {
       const messages = createTabsMessages('tabs-1', {
         tabs: [
-          { title: 'First', contentText: 'Content 1' },
-          { title: 'Second', contentText: 'Content 2' },
-          { title: 'Third', contentText: 'Content 3' },
+          {title: 'First', contentText: 'Content 1'},
+          {title: 'Second', contentText: 'Content 2'},
+          {title: 'Third', contentText: 'Content 3'},
         ],
       });
 
-      const { container } = render(
+      const {container} = render(
         <TestWrapper>
           <TestRenderer messages={messages} />
-        </TestWrapper>
+        </TestWrapper>,
       );
 
       const buttons = container.querySelectorAll('#buttons button');
@@ -149,37 +146,37 @@ describe('Tabs Component', () => {
     it('should display tab titles in buttons', () => {
       const messages = createTabsMessages('tabs-1', {
         tabs: [
-          { title: 'Overview', contentText: 'Content 1' },
-          { title: 'Details', contentText: 'Content 2' },
+          {title: 'Overview', contentText: 'Content 1'},
+          {title: 'Details', contentText: 'Content 2'},
         ],
       });
 
       render(
         <TestWrapper>
           <TestRenderer messages={messages} />
-        </TestWrapper>
+        </TestWrapper>,
       );
 
-      expect(screen.getByRole('button', { name: 'Overview' })).toBeInTheDocument();
-      expect(screen.getByRole('button', { name: 'Details' })).toBeInTheDocument();
+      expect(screen.getByRole('button', {name: 'Overview'})).toBeInTheDocument();
+      expect(screen.getByRole('button', {name: 'Details'})).toBeInTheDocument();
     });
 
     it('should disable the currently selected tab button', () => {
       const messages = createTabsMessages('tabs-1', {
         tabs: [
-          { title: 'Tab 1', contentText: 'Content 1' },
-          { title: 'Tab 2', contentText: 'Content 2' },
+          {title: 'Tab 1', contentText: 'Content 1'},
+          {title: 'Tab 2', contentText: 'Content 2'},
         ],
       });
 
       render(
         <TestWrapper>
           <TestRenderer messages={messages} />
-        </TestWrapper>
+        </TestWrapper>,
       );
 
-      const tab1Button = screen.getByRole('button', { name: 'Tab 1' });
-      const tab2Button = screen.getByRole('button', { name: 'Tab 2' });
+      const tab1Button = screen.getByRole('button', {name: 'Tab 1'});
+      const tab2Button = screen.getByRole('button', {name: 'Tab 2'});
 
       // First tab selected by default - should be disabled
       expect(tab1Button).toBeDisabled();
@@ -189,19 +186,19 @@ describe('Tabs Component', () => {
     it('should have different disabled states for different tabs', () => {
       const messages = createTabsMessages('tabs-1', {
         tabs: [
-          { title: 'Tab A', contentText: 'Content A' },
-          { title: 'Tab B', contentText: 'Content B' },
+          {title: 'Tab A', contentText: 'Content A'},
+          {title: 'Tab B', contentText: 'Content B'},
         ],
       });
 
       render(
         <TestWrapper>
           <TestRenderer messages={messages} />
-        </TestWrapper>
+        </TestWrapper>,
       );
 
-      const tabA = screen.getByRole('button', { name: 'Tab A' }) as HTMLButtonElement;
-      const tabB = screen.getByRole('button', { name: 'Tab B' }) as HTMLButtonElement;
+      const tabA = screen.getByRole('button', {name: 'Tab A'}) as HTMLButtonElement;
+      const tabB = screen.getByRole('button', {name: 'Tab B'}) as HTMLButtonElement;
 
       // Initially Tab A is selected (disabled)
       expect(tabA.disabled).not.toBe(tabB.disabled);
@@ -212,15 +209,15 @@ describe('Tabs Component', () => {
     it('should select first tab by default', () => {
       const messages = createTabsMessages('tabs-1', {
         tabs: [
-          { title: 'Tab 1', contentText: 'First tab content' },
-          { title: 'Tab 2', contentText: 'Second tab content' },
+          {title: 'Tab 1', contentText: 'First tab content'},
+          {title: 'Tab 2', contentText: 'Second tab content'},
         ],
       });
 
       render(
         <TestWrapper>
           <TestRenderer messages={messages} />
-        </TestWrapper>
+        </TestWrapper>,
       );
 
       // First tab's content should be visible
@@ -230,22 +227,22 @@ describe('Tabs Component', () => {
     it('should switch content when clicking a different tab', () => {
       const messages = createTabsMessages('tabs-1', {
         tabs: [
-          { title: 'Tab 1', contentText: 'First tab content' },
-          { title: 'Tab 2', contentText: 'Second tab content' },
+          {title: 'Tab 1', contentText: 'First tab content'},
+          {title: 'Tab 2', contentText: 'Second tab content'},
         ],
       });
 
       render(
         <TestWrapper>
           <TestRenderer messages={messages} />
-        </TestWrapper>
+        </TestWrapper>,
       );
 
       // Initially first tab content visible
       expect(screen.getByText('First tab content')).toBeInTheDocument();
 
       // Click second tab
-      fireEvent.click(screen.getByRole('button', { name: 'Tab 2' }));
+      fireEvent.click(screen.getByRole('button', {name: 'Tab 2'}));
 
       // Second tab content should now be visible
       expect(screen.getByText('Second tab content')).toBeInTheDocument();
@@ -254,19 +251,19 @@ describe('Tabs Component', () => {
     it('should hide previous tab content when switching', () => {
       const messages = createTabsMessages('tabs-1', {
         tabs: [
-          { title: 'Tab 1', contentText: 'First tab content' },
-          { title: 'Tab 2', contentText: 'Second tab content' },
+          {title: 'Tab 1', contentText: 'First tab content'},
+          {title: 'Tab 2', contentText: 'Second tab content'},
         ],
       });
 
       render(
         <TestWrapper>
           <TestRenderer messages={messages} />
-        </TestWrapper>
+        </TestWrapper>,
       );
 
       // Click second tab
-      fireEvent.click(screen.getByRole('button', { name: 'Tab 2' }));
+      fireEvent.click(screen.getByRole('button', {name: 'Tab 2'}));
 
       // First tab content should no longer be in document
       expect(screen.queryByText('First tab content')).not.toBeInTheDocument();
@@ -275,19 +272,19 @@ describe('Tabs Component', () => {
     it('should update disabled state when switching tabs', () => {
       const messages = createTabsMessages('tabs-1', {
         tabs: [
-          { title: 'Tab 1', contentText: 'Content 1' },
-          { title: 'Tab 2', contentText: 'Content 2' },
+          {title: 'Tab 1', contentText: 'Content 1'},
+          {title: 'Tab 2', contentText: 'Content 2'},
         ],
       });
 
       render(
         <TestWrapper>
           <TestRenderer messages={messages} />
-        </TestWrapper>
+        </TestWrapper>,
       );
 
-      const tab1Button = screen.getByRole('button', { name: 'Tab 1' });
-      const tab2Button = screen.getByRole('button', { name: 'Tab 2' });
+      const tab1Button = screen.getByRole('button', {name: 'Tab 1'});
+      const tab2Button = screen.getByRole('button', {name: 'Tab 2'});
 
       // Initially Tab 1 is disabled
       expect(tab1Button).toBeDisabled();
@@ -304,33 +301,33 @@ describe('Tabs Component', () => {
     it('should handle switching between multiple tabs', () => {
       const messages = createTabsMessages('tabs-1', {
         tabs: [
-          { title: 'Tab 1', contentText: 'Content One' },
-          { title: 'Tab 2', contentText: 'Content Two' },
-          { title: 'Tab 3', contentText: 'Content Three' },
+          {title: 'Tab 1', contentText: 'Content One'},
+          {title: 'Tab 2', contentText: 'Content Two'},
+          {title: 'Tab 3', contentText: 'Content Three'},
         ],
       });
 
       render(
         <TestWrapper>
           <TestRenderer messages={messages} />
-        </TestWrapper>
+        </TestWrapper>,
       );
 
       // Start at Tab 1
       expect(screen.getByText('Content One')).toBeInTheDocument();
 
       // Go to Tab 3
-      fireEvent.click(screen.getByRole('button', { name: 'Tab 3' }));
+      fireEvent.click(screen.getByRole('button', {name: 'Tab 3'}));
       expect(screen.getByText('Content Three')).toBeInTheDocument();
       expect(screen.queryByText('Content One')).not.toBeInTheDocument();
 
       // Go to Tab 2
-      fireEvent.click(screen.getByRole('button', { name: 'Tab 2' }));
+      fireEvent.click(screen.getByRole('button', {name: 'Tab 2'}));
       expect(screen.getByText('Content Two')).toBeInTheDocument();
       expect(screen.queryByText('Content Three')).not.toBeInTheDocument();
 
       // Go back to Tab 1
-      fireEvent.click(screen.getByRole('button', { name: 'Tab 1' }));
+      fireEvent.click(screen.getByRole('button', {name: 'Tab 1'}));
       expect(screen.getByText('Content One')).toBeInTheDocument();
     });
   });
@@ -340,20 +337,32 @@ describe('Tabs Component', () => {
       const messages: Types.ServerToClientMessage[] = [
         createSurfaceUpdate([
           // Tab 1: Column with multiple text items
-          { id: 'text-1a', component: { Text: { text: { literalString: 'Item 1' } , usageHint: 'body' } } },
-          { id: 'text-1b', component: { Text: { text: { literalString: 'Item 2' } , usageHint: 'body' } } },
-          { id: 'col-1', component: { Column: { children: { explicitList: ['text-1a', 'text-1b'] } } } },
+          {
+            id: 'text-1a',
+            component: {Text: {text: {literalString: 'Item 1'}, usageHint: 'body'}},
+          },
+          {
+            id: 'text-1b',
+            component: {Text: {text: {literalString: 'Item 2'}, usageHint: 'body'}},
+          },
+          {
+            id: 'col-1',
+            component: {Column: {children: {explicitList: ['text-1a', 'text-1b']}}},
+          },
           // Tab 2: Button
-          { id: 'btn-text', component: { Text: { text: { literalString: 'Click me' } , usageHint: 'body' } } },
-          { id: 'btn-1', component: { Button: { child: 'btn-text', action: { name: 'test' } } } },
+          {
+            id: 'btn-text',
+            component: {Text: {text: {literalString: 'Click me'}, usageHint: 'body'}},
+          },
+          {id: 'btn-1', component: {Button: {child: 'btn-text', action: {name: 'test'}}}},
           // Tabs
           {
             id: 'tabs-1',
             component: {
               Tabs: {
                 tabItems: [
-                  { title: { literalString: 'List' }, child: 'col-1' },
-                  { title: { literalString: 'Action' }, child: 'btn-1' },
+                  {title: {literalString: 'List'}, child: 'col-1'},
+                  {title: {literalString: 'Action'}, child: 'btn-1'},
                 ],
               },
             },
@@ -365,7 +374,7 @@ describe('Tabs Component', () => {
       render(
         <TestWrapper>
           <TestRenderer messages={messages} />
-        </TestWrapper>
+        </TestWrapper>,
       );
 
       // First tab shows column content
@@ -373,23 +382,23 @@ describe('Tabs Component', () => {
       expect(screen.getByText('Item 2')).toBeInTheDocument();
 
       // Switch to second tab
-      fireEvent.click(screen.getByRole('button', { name: 'Action' }));
+      fireEvent.click(screen.getByRole('button', {name: 'Action'}));
 
       // Button should be visible
-      expect(screen.getByRole('button', { name: 'Click me' })).toBeInTheDocument();
+      expect(screen.getByRole('button', {name: 'Click me'})).toBeInTheDocument();
     });
   });
 
   describe('Empty/Edge Cases', () => {
     it('should render with single tab', () => {
       const messages = createTabsMessages('tabs-1', {
-        tabs: [{ title: 'Only Tab', contentText: 'Only content' }],
+        tabs: [{title: 'Only Tab', contentText: 'Only content'}],
       });
 
-      const { container } = render(
+      const {container} = render(
         <TestWrapper>
           <TestRenderer messages={messages} />
-        </TestWrapper>
+        </TestWrapper>,
       );
 
       const buttons = container.querySelectorAll('#buttons button');
@@ -403,17 +412,17 @@ describe('Tabs Component', () => {
           {
             id: 'tabs-1',
             component: {
-              Tabs: { tabItems: [] },
+              Tabs: {tabItems: []},
             },
           },
         ]),
         createBeginRendering('tabs-1'),
       ];
 
-      const { container } = render(
+      const {container} = render(
         <TestWrapper>
           <TestRenderer messages={messages} />
-        </TestWrapper>
+        </TestWrapper>,
       );
 
       // Should still render the tabs wrapper
@@ -431,13 +440,13 @@ describe('Tabs Component', () => {
       // Tabs styling comes from structural CSS, not theme classes.
       // The litTheme.components.Tabs.container is intentionally empty.
       const messages = createTabsMessages('tabs-1', {
-        tabs: [{ title: 'Tab 1', contentText: 'Content 1' }],
+        tabs: [{title: 'Tab 1', contentText: 'Content 1'}],
       });
 
-      const { container } = render(
+      const {container} = render(
         <TestWrapper>
           <TestRenderer messages={messages} />
-        </TestWrapper>
+        </TestWrapper>,
       );
 
       const section = container.querySelector('.a2ui-tabs > section');
@@ -448,13 +457,13 @@ describe('Tabs Component', () => {
       // Tabs button container styling comes from structural CSS.
       // The litTheme.components.Tabs.element is intentionally empty.
       const messages = createTabsMessages('tabs-1', {
-        tabs: [{ title: 'Tab 1', contentText: 'Content 1' }],
+        tabs: [{title: 'Tab 1', contentText: 'Content 1'}],
       });
 
-      const { container } = render(
+      const {container} = render(
         <TestWrapper>
           <TestRenderer messages={messages} />
-        </TestWrapper>
+        </TestWrapper>,
       );
 
       const buttonsContainer = container.querySelector('#buttons');
@@ -466,15 +475,15 @@ describe('Tabs Component', () => {
       // The litTheme.components.Tabs.controls.all/selected are intentionally empty.
       const messages = createTabsMessages('tabs-1', {
         tabs: [
-          { title: 'Tab 1', contentText: 'Content 1' },
-          { title: 'Tab 2', contentText: 'Content 2' },
+          {title: 'Tab 1', contentText: 'Content 1'},
+          {title: 'Tab 2', contentText: 'Content 2'},
         ],
       });
 
-      const { container } = render(
+      const {container} = render(
         <TestWrapper>
           <TestRenderer messages={messages} />
-        </TestWrapper>
+        </TestWrapper>,
       );
 
       const buttons = container.querySelectorAll('#buttons button');
@@ -487,13 +496,13 @@ describe('Tabs Component', () => {
   describe('Structure', () => {
     it('should have correct DOM structure: div.a2ui-tabs > section > #buttons + content', () => {
       const messages = createTabsMessages('tabs-1', {
-        tabs: [{ title: 'Tab 1', contentText: 'Content 1' }],
+        tabs: [{title: 'Tab 1', contentText: 'Content 1'}],
       });
 
-      const { container } = render(
+      const {container} = render(
         <TestWrapper>
           <TestRenderer messages={messages} />
-        </TestWrapper>
+        </TestWrapper>,
       );
 
       const wrapper = container.querySelector('.a2ui-tabs');
@@ -516,18 +525,18 @@ describe('Tabs Component', () => {
     it('should have focusable tab buttons', () => {
       const messages = createTabsMessages('tabs-1', {
         tabs: [
-          { title: 'Tab 1', contentText: 'Content 1' },
-          { title: 'Tab 2', contentText: 'Content 2' },
+          {title: 'Tab 1', contentText: 'Content 1'},
+          {title: 'Tab 2', contentText: 'Content 2'},
         ],
       });
 
       render(
         <TestWrapper>
           <TestRenderer messages={messages} />
-        </TestWrapper>
+        </TestWrapper>,
       );
 
-      const tab2Button = screen.getByRole('button', { name: 'Tab 2' });
+      const tab2Button = screen.getByRole('button', {name: 'Tab 2'});
       tab2Button.focus();
       expect(document.activeElement).toBe(tab2Button);
     });
@@ -535,22 +544,22 @@ describe('Tabs Component', () => {
     it('should be keyboard activatable', () => {
       const messages = createTabsMessages('tabs-1', {
         tabs: [
-          { title: 'Tab 1', contentText: 'Content 1' },
-          { title: 'Tab 2', contentText: 'Content 2' },
+          {title: 'Tab 1', contentText: 'Content 1'},
+          {title: 'Tab 2', contentText: 'Content 2'},
         ],
       });
 
       render(
         <TestWrapper>
           <TestRenderer messages={messages} />
-        </TestWrapper>
+        </TestWrapper>,
       );
 
-      const tab2Button = screen.getByRole('button', { name: 'Tab 2' });
+      const tab2Button = screen.getByRole('button', {name: 'Tab 2'});
 
       // Focus and press Enter
       tab2Button.focus();
-      fireEvent.keyDown(tab2Button, { key: 'Enter' });
+      fireEvent.keyDown(tab2Button, {key: 'Enter'});
       fireEvent.click(tab2Button); // Buttons respond to click, not keyDown by default
 
       expect(screen.getByText('Content 2')).toBeInTheDocument();

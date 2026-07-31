@@ -14,10 +14,10 @@
  * limitations under the License.
  */
 
-import { ComponentFixture, TestBed } from '@angular/core/testing';
-import { Renderer } from './renderer';
-import { Catalog } from './catalog';
-import { Component, Input } from '@angular/core';
+import {ComponentFixture, TestBed} from '@angular/core/testing';
+import {Renderer} from './renderer';
+import {Catalog} from './catalog';
+import {Component, Input} from '@angular/core';
 
 @Component({
   selector: 'test-comp',
@@ -51,12 +51,12 @@ describe('v0.8 Renderer', () => {
 
   beforeEach(async () => {
     mockCatalog = {
-      TestComp: { type: () => TestComp },
+      TestComp: {type: () => TestComp},
     };
 
     await TestBed.configureTestingModule({
       imports: [TestHost],
-      providers: [{ provide: Catalog, useValue: mockCatalog }],
+      providers: [{provide: Catalog, useValue: mockCatalog}],
     }).compileComponents();
 
     fixture = TestBed.createComponent(TestHost);
@@ -66,7 +66,7 @@ describe('v0.8 Renderer', () => {
     fixture.componentInstance.surfaceId = 'surf-1';
     fixture.componentInstance.component = {
       type: 'TestComp',
-      properties: { text: 'Hello v0.8' },
+      properties: {text: 'Hello v0.8'},
       weight: 10,
     };
 
@@ -84,7 +84,7 @@ describe('v0.8 Renderer', () => {
     fixture.componentInstance.surfaceId = 'surf-1';
     fixture.componentInstance.component = {
       type: 'TestComp',
-      properties: { text: 'Async Hello' },
+      properties: {text: 'Async Hello'},
     };
 
     fixture.detectChanges();
@@ -113,7 +113,7 @@ describe('v0.8 Renderer', () => {
     fixture.componentInstance.surfaceId = 'surf-1';
     fixture.componentInstance.component = {
       type: 'TestComp',
-      properties: { text: 'Function Hello' },
+      properties: {text: 'Function Hello'},
     };
 
     fixture.detectChanges();
@@ -158,12 +158,12 @@ describe('v0.8 Renderer Regression Tests', () => {
 
   beforeEach(async () => {
     mockCatalog = {
-      CompWithInputs: { type: () => CompWithInputs },
+      CompWithInputs: {type: () => CompWithInputs},
     };
 
     await TestBed.configureTestingModule({
       imports: [TestHost],
-      providers: [{ provide: Catalog, useValue: mockCatalog }],
+      providers: [{provide: Catalog, useValue: mockCatalog}],
     }).compileComponents();
 
     fixture = TestBed.createComponent(TestHost);
@@ -213,14 +213,14 @@ describe('v0.8 Renderer Regression Tests', () => {
       }
     }
 
-    mockCatalog['CompWithChildren'] = { type: () => CompWithChildren };
+    mockCatalog['CompWithChildren'] = {type: () => CompWithChildren};
 
     fixture.componentInstance.surfaceId = 'surf-1';
     fixture.componentInstance.component = {
       type: 'CompWithChildren',
       properties: {
-        children: [{ id: 'child-1' }],
-        child: { id: 'child-2' },
+        children: [{id: 'child-1'}],
+        child: {id: 'child-2'},
       },
     };
 
@@ -228,7 +228,20 @@ describe('v0.8 Renderer Regression Tests', () => {
     await fixture.whenStable();
     fixture.detectChanges();
 
-    expect(setCapture.children).toEqual([{ id: 'child-1' }]);
-    expect(setCapture.child).toEqual({ id: 'child-2' });
+    expect(setCapture.children).toEqual([{id: 'child-1'}]);
+    expect(setCapture.child).toEqual({id: 'child-2'});
+  });
+
+  it('should gracefully handle components with missing properties', async () => {
+    // This covers the fix where node.properties might be undefined.
+    fixture.componentInstance.surfaceId = 'surf-1';
+    fixture.componentInstance.component = {
+      type: 'CompWithInputs',
+      // Notice: No 'properties' key here.
+    };
+
+    expect(() => {
+      fixture.detectChanges();
+    }).not.toThrow();
   });
 });

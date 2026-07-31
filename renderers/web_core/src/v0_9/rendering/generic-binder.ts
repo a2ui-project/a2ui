@@ -16,12 +16,7 @@
 
 import {z} from 'zod';
 import {ComponentContext} from './component-context.js';
-import {
-  Action,
-  ChildList,
-  DataBinding,
-  FunctionCall,
-} from '../schema/common-types.js';
+import {Action, ChildList, DataBinding, FunctionCall} from '../schema/common-types.js';
 
 // --- Schema Scraping ---
 
@@ -60,10 +55,7 @@ export function scrapeSchemaBehavior(schema: z.ZodTypeAny): BehaviorNode {
   return getFieldBehavior(schema);
 }
 
-function getFieldBehavior(
-  type: z.ZodTypeAny,
-  propertyName?: string,
-): BehaviorNode {
+function getFieldBehavior(type: z.ZodTypeAny, propertyName?: string): BehaviorNode {
   let current = type;
 
   // Unwrap optionals/nullables/defaults
@@ -84,26 +76,18 @@ function getFieldBehavior(
     const options = current._def.options as z.ZodTypeAny[];
 
     // ActionSchema is a union containing { event: ... }
-    const isAction = options.some(
-      o => o._def.typeName === 'ZodObject' && o._def.shape().event,
-    );
+    const isAction = options.some(o => o._def.typeName === 'ZodObject' && o._def.shape().event);
     if (isAction) return {type: 'ACTION'};
 
     // Dynamic strings/values are unions containing DataBindingSchema { path: ... } but NOT { componentId: ... }
     const isDynamic = options.some(
-      o =>
-        o._def.typeName === 'ZodObject' &&
-        o._def.shape().path &&
-        !o._def.shape().componentId,
+      o => o._def.typeName === 'ZodObject' && o._def.shape().path && !o._def.shape().componentId,
     );
     if (isDynamic) return {type: 'DYNAMIC'};
 
     // ChildList is a union containing an array and an object with { componentId, path }
     const isChildList = options.some(
-      o =>
-        o._def.typeName === 'ZodObject' &&
-        o._def.shape().componentId &&
-        o._def.shape().path,
+      o => o._def.typeName === 'ZodObject' && o._def.shape().componentId && o._def.shape().path,
     );
     if (isChildList) return {type: 'STRUCTURAL'};
   } else if (current._def.typeName === 'ZodString') {
@@ -154,9 +138,9 @@ export type ResolveA2uiProp<T> = [NonNullable<T>] extends [Action]
  * If a schema has a `value: DynamicString`, this type generates a `setValue(val: string)` method.
  */
 export type GenerateSetters<T> = {
-  [K in keyof T as IsDynamic<T[K]> extends true
-    ? `set${Capitalize<string & K>}`
-    : never]-?: (value: Exclude<NonNullable<T[K]>, DynamicTypes>) => void;
+  [K in keyof T as IsDynamic<T[K]> extends true ? `set${Capitalize<string & K>}` : never]-?: (
+    value: Exclude<NonNullable<T[K]>, DynamicTypes>,
+  ) => void;
 };
 
 /**
@@ -238,23 +222,15 @@ export class GenericBinder<T> {
     this.notify();
   }
 
-  private resolveAndBind(
-    value: any,
-    behavior: BehaviorNode,
-    path: string[],
-    isSync: boolean,
-  ): any {
+  private resolveAndBind(value: any, behavior: BehaviorNode, path: string[], isSync: boolean): any {
     if (value === undefined || value === null) return value;
 
     switch (behavior.type) {
       case 'DYNAMIC': {
-        const bound = this.context.dataContext.subscribeDynamicValue(
-          value,
-          newVal => {
-            this.updateDeepValue(path, newVal);
-            this.notify();
-          },
-        );
+        const bound = this.context.dataContext.subscribeDynamicValue(value, newVal => {
+          this.updateDeepValue(path, newVal);
+          this.notify();
+        });
 
         if (!isSync) {
           this.dataListeners.push(() => bound.unsubscribe());
@@ -272,8 +248,7 @@ export class GenericBinder<T> {
               return this.context.dataContext.resolveDynamicValue(val);
             if (Array.isArray(val)) return val.map(resolveDeepSync);
             const res: any = {};
-            for (const [k, v] of Object.entries(val))
-              res[k] = resolveDeepSync(v);
+            for (const [k, v] of Object.entries(val)) res[k] = resolveDeepSync(v);
             return res;
           };
           this.context.dispatchAction(resolveDeepSync(value));
@@ -281,12 +256,7 @@ export class GenericBinder<T> {
       }
 
       case 'STRUCTURAL': {
-        if (
-          value &&
-          typeof value === 'object' &&
-          value.path &&
-          value.componentId
-        ) {
+        if (value && typeof value === 'object' && value.path && value.componentId) {
           const bound = this.context.dataContext.subscribeDynamicValue(
             {path: value.path},
             newVal => {
@@ -319,21 +289,16 @@ export class GenericBinder<T> {
 
       case 'CHECKABLE': {
         const rules = Array.isArray(value) ? value : [];
-        const ruleResults: {valid: boolean; message: string}[] = rules.map(
-          () => ({valid: true, message: ''}),
-        );
+        const ruleResults: {valid: boolean; message: string}[] = rules.map(() => ({
+          valid: true,
+          message: '',
+        }));
 
         const parentPath = path.slice(0, -1);
         const updateValidationState = () => {
           const errors = ruleResults.filter(r => !r.valid).map(r => r.message);
-          this.updateDeepValue(
-            [...parentPath, 'isValid' as any],
-            errors.length === 0,
-          );
-          this.updateDeepValue(
-            [...parentPath, 'validationErrors' as any],
-            errors,
-          );
+          this.updateDeepValue([...parentPath, 'isValid' as any], errors.length === 0);
+          this.updateDeepValue([...parentPath, 'validationErrors' as any], errors);
           this.notify();
         };
 
@@ -342,13 +307,10 @@ export class GenericBinder<T> {
           const message = rule.message || 'Validation failed';
           ruleResults[index].message = message;
 
-          const bound = this.context.dataContext.subscribeDynamicValue(
-            condition,
-            newVal => {
-              ruleResults[index].valid = !!newVal;
-              updateValidationState();
-            },
-          );
+          const bound = this.context.dataContext.subscribeDynamicValue(condition, newVal => {
+            ruleResults[index].valid = !!newVal;
+            updateValidationState();
+          });
 
           if (!isSync) {
             this.dataListeners.push(() => bound.unsubscribe());
@@ -359,17 +321,9 @@ export class GenericBinder<T> {
         });
 
         // Set initial state
-        const initialErrors = ruleResults
-          .filter(r => !r.valid)
-          .map(r => r.message);
-        this.updateDeepValue(
-          [...parentPath, 'isValid' as any],
-          initialErrors.length === 0,
-        );
-        this.updateDeepValue(
-          [...parentPath, 'validationErrors' as any],
-          initialErrors,
-        );
+        const initialErrors = ruleResults.filter(r => !r.valid).map(r => r.message);
+        this.updateDeepValue([...parentPath, 'isValid' as any], initialErrors.length === 0);
+        this.updateDeepValue([...parentPath, 'validationErrors' as any], initialErrors);
 
         return value; // The 'checks' property itself remains as the original rules array
       }
@@ -380,12 +334,7 @@ export class GenericBinder<T> {
       case 'ARRAY': {
         if (!Array.isArray(value)) return value;
         return value.map((item, index) =>
-          this.resolveAndBind(
-            item,
-            behavior.element,
-            [...path, index.toString()],
-            isSync,
-          ),
+          this.resolveAndBind(item, behavior.element, [...path, index.toString()], isSync),
         );
       }
 
@@ -396,12 +345,7 @@ export class GenericBinder<T> {
         // 1. Resolve all provided properties
         for (const [k, v] of Object.entries(value)) {
           const childBehavior = behavior.shape[k] || {type: 'STATIC'};
-          result[k] = this.resolveAndBind(
-            v,
-            childBehavior,
-            [...path, k],
-            isSync,
-          );
+          result[k] = this.resolveAndBind(v, childBehavior, [...path, k], isSync);
         }
 
         // 2. Ensure all dynamic setters exist, even if the property wasn't provided in the payload
@@ -410,15 +354,8 @@ export class GenericBinder<T> {
             const setterName = `set${k.charAt(0).toUpperCase() + k.slice(1)}`;
             const rawPropValue = value[k];
             result[setterName] = (newValue: any) => {
-              if (
-                rawPropValue &&
-                typeof rawPropValue === 'object' &&
-                'path' in rawPropValue
-              ) {
-                this.context.dataContext.set(
-                  (rawPropValue as any).path,
-                  newValue,
-                );
+              if (rawPropValue && typeof rawPropValue === 'object' && 'path' in rawPropValue) {
+                this.context.dataContext.set((rawPropValue as any).path, newValue);
               }
             };
           }
@@ -439,11 +376,7 @@ export class GenericBinder<T> {
 
     if (Array.isArray(obj)) {
       const newArr = [...obj];
-      newArr[Number(key)] = this.cloneAndUpdate(
-        newArr[Number(key)],
-        rest,
-        newValue,
-      );
+      newArr[Number(key)] = this.cloneAndUpdate(newArr[Number(key)], rest, newValue);
       return newArr;
     } else {
       return {

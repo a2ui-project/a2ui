@@ -14,13 +14,13 @@
  * limitations under the License.
  */
 
-import { ComponentFixture, TestBed } from '@angular/core/testing';
-import { Column } from './column';
-import { MessageProcessor } from '../data/processor';
-import { Theme } from '../rendering/theming';
-import { Catalog } from '../rendering/catalog';
-import { Types } from '../types';
-import { Directive, Input, ChangeDetectionStrategy } from '@angular/core';
+import {ComponentFixture, TestBed} from '@angular/core/testing';
+import {Column} from './column';
+import {MessageProcessor} from '../data/processor';
+import {Theme} from '../rendering/theming';
+import {Catalog} from '../rendering/catalog';
+import type {ColumnNode} from '../types';
+import {Directive, Input} from '@angular/core';
 
 @Directive({
   selector: '[a2ui-renderer]',
@@ -41,30 +41,29 @@ describe('Column Component', () => {
   let fixture: ComponentFixture<Column>;
   let mockTheme: Theme;
 
-  const mockNode: Types.ColumnNode = {
+  const mockNode: ColumnNode = {
     id: 'col-1',
     type: 'Column',
     weight: 1,
     properties: {
-      children: [{ id: 'child-1', type: 'Text', properties: {} }],
+      children: [{id: 'child-1', type: 'Text', properties: {}}],
     },
   };
 
   beforeEach(async () => {
     mockTheme = new Theme();
-    mockTheme.components = { Column: { 'custom-col': true } } as any;
+    mockTheme.components = {Column: {'custom-col': true}} as any;
 
     await TestBed.configureTestingModule({
       imports: [Column],
       providers: [
-        { provide: MessageProcessor, useValue: {} },
-        { provide: Theme, useValue: mockTheme },
-        { provide: Catalog, useValue: {} },
+        {provide: MessageProcessor, useValue: {}},
+        {provide: Theme, useValue: mockTheme},
+        {provide: Catalog, useValue: {}},
       ],
     })
       .overrideComponent(Column, {
         set: {
-          changeDetection: ChangeDetectionStrategy.Default,
           imports: [MockRenderer],
         },
       })

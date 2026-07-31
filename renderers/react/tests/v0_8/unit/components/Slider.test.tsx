@@ -14,10 +14,10 @@
  * limitations under the License.
  */
 
-import { describe, it, expect } from 'vitest';
-import { render, fireEvent } from '@testing-library/react';
+import {describe, it, expect} from 'vitest';
+import {render, fireEvent} from '@testing-library/react';
 import React from 'react';
-import { TestWrapper, TestRenderer, createSimpleMessages } from '../../utils';
+import {TestWrapper, TestRenderer, createSimpleMessages} from '../../utils';
 
 /**
  * Slider tests following A2UI specification.
@@ -28,13 +28,13 @@ describe('Slider Component', () => {
   describe('Basic Rendering', () => {
     it('should render a range input', () => {
       const messages = createSimpleMessages('sl-1', 'Slider', {
-        value: { literalNumber: 50 },
+        value: {literalNumber: 50},
       });
 
-      const { container } = render(
+      const {container} = render(
         <TestWrapper>
           <TestRenderer messages={messages} />
-        </TestWrapper>
+        </TestWrapper>,
       );
 
       const input = container.querySelector('input[type="range"]');
@@ -45,13 +45,13 @@ describe('Slider Component', () => {
 
     it('should render with wrapper div having correct class', () => {
       const messages = createSimpleMessages('sl-1', 'Slider', {
-        value: { literalNumber: 50 },
+        value: {literalNumber: 50},
       });
 
-      const { container } = render(
+      const {container} = render(
         <TestWrapper>
           <TestRenderer messages={messages} />
-        </TestWrapper>
+        </TestWrapper>,
       );
 
       const wrapper = container.querySelector('.a2ui-slider');
@@ -61,15 +61,15 @@ describe('Slider Component', () => {
 
     it('should render with exact initial value', () => {
       const messages = createSimpleMessages('sl-1', 'Slider', {
-        value: { literalNumber: 75 },
+        value: {literalNumber: 75},
         minValue: 0,
         maxValue: 100,
       });
 
-      const { container } = render(
+      const {container} = render(
         <TestWrapper>
           <TestRenderer messages={messages} />
-        </TestWrapper>
+        </TestWrapper>,
       );
 
       const input = container.querySelector('input[type="range"]') as HTMLInputElement;
@@ -81,15 +81,15 @@ describe('Slider Component', () => {
 
     it('should display current value in span matching input value', () => {
       const messages = createSimpleMessages('sl-1', 'Slider', {
-        value: { literalNumber: 42 },
+        value: {literalNumber: 42},
         minValue: 0,
         maxValue: 100,
       });
 
-      const { container } = render(
+      const {container} = render(
         <TestWrapper>
           <TestRenderer messages={messages} />
-        </TestWrapper>
+        </TestWrapper>,
       );
 
       const input = container.querySelector('input[type="range"]') as HTMLInputElement;
@@ -102,25 +102,25 @@ describe('Slider Component', () => {
 
     it('should render different values for different inputs', () => {
       const messages1 = createSimpleMessages('sl-1', 'Slider', {
-        value: { literalNumber: 25 },
+        value: {literalNumber: 25},
         minValue: 0,
         maxValue: 100,
       });
       const messages2 = createSimpleMessages('sl-2', 'Slider', {
-        value: { literalNumber: 75 },
+        value: {literalNumber: 75},
         minValue: 0,
         maxValue: 100,
       });
 
-      const { container: container1 } = render(
+      const {container: container1} = render(
         <TestWrapper>
           <TestRenderer messages={messages1} />
-        </TestWrapper>
+        </TestWrapper>,
       );
-      const { container: container2 } = render(
+      const {container: container2} = render(
         <TestWrapper>
           <TestRenderer messages={messages2} />
-        </TestWrapper>
+        </TestWrapper>,
       );
 
       const input1 = container1.querySelector('input[type="range"]') as HTMLInputElement;
@@ -135,15 +135,15 @@ describe('Slider Component', () => {
   describe('Min/Max Values', () => {
     it('should set exact min attribute value', () => {
       const messages = createSimpleMessages('sl-1', 'Slider', {
-        value: { literalNumber: 50 },
+        value: {literalNumber: 50},
         minValue: 10,
         maxValue: 100,
       });
 
-      const { container } = render(
+      const {container} = render(
         <TestWrapper>
           <TestRenderer messages={messages} />
-        </TestWrapper>
+        </TestWrapper>,
       );
 
       const input = container.querySelector('input[type="range"]') as HTMLInputElement;
@@ -153,15 +153,15 @@ describe('Slider Component', () => {
 
     it('should set exact max attribute value', () => {
       const messages = createSimpleMessages('sl-1', 'Slider', {
-        value: { literalNumber: 50 },
+        value: {literalNumber: 50},
         minValue: 0,
         maxValue: 200,
       });
 
-      const { container } = render(
+      const {container} = render(
         <TestWrapper>
           <TestRenderer messages={messages} />
-        </TestWrapper>
+        </TestWrapper>,
       );
 
       const input = container.querySelector('input[type="range"]') as HTMLInputElement;
@@ -171,13 +171,13 @@ describe('Slider Component', () => {
 
     it('should default min/max to 0 when not provided', () => {
       const messages = createSimpleMessages('sl-1', 'Slider', {
-        value: { literalNumber: 0 },
+        value: {literalNumber: 0},
       });
 
-      const { container } = render(
+      const {container} = render(
         <TestWrapper>
           <TestRenderer messages={messages} />
-        </TestWrapper>
+        </TestWrapper>,
       );
 
       const input = container.querySelector('input[type="range"]') as HTMLInputElement;
@@ -187,15 +187,15 @@ describe('Slider Component', () => {
 
     it('should handle negative min values', () => {
       const messages = createSimpleMessages('sl-1', 'Slider', {
-        value: { literalNumber: 0 },
+        value: {literalNumber: 0},
         minValue: -100,
         maxValue: 100,
       });
 
-      const { container } = render(
+      const {container} = render(
         <TestWrapper>
           <TestRenderer messages={messages} />
-        </TestWrapper>
+        </TestWrapper>,
       );
 
       const input = container.querySelector('input[type="range"]') as HTMLInputElement;
@@ -206,21 +206,21 @@ describe('Slider Component', () => {
   describe('User Interaction', () => {
     it('should update input value on change', () => {
       const messages = createSimpleMessages('sl-1', 'Slider', {
-        value: { literalNumber: 50 },
+        value: {literalNumber: 50},
         minValue: 0,
         maxValue: 100,
       });
 
-      const { container } = render(
+      const {container} = render(
         <TestWrapper>
           <TestRenderer messages={messages} />
-        </TestWrapper>
+        </TestWrapper>,
       );
 
       const input = container.querySelector('input[type="range"]') as HTMLInputElement;
       expect(input.value).toBe('50'); // Initial value
 
-      fireEvent.change(input, { target: { value: '80' } });
+      fireEvent.change(input, {target: {value: '80'}});
 
       expect(input.value).toBe('80'); // New value
       expect(input.value).not.toBe('50'); // Not old value
@@ -228,15 +228,15 @@ describe('Slider Component', () => {
 
     it('should update displayed span value in sync with input', () => {
       const messages = createSimpleMessages('sl-1', 'Slider', {
-        value: { literalNumber: 50 },
+        value: {literalNumber: 50},
         minValue: 0,
         maxValue: 100,
       });
 
-      const { container } = render(
+      const {container} = render(
         <TestWrapper>
           <TestRenderer messages={messages} />
-        </TestWrapper>
+        </TestWrapper>,
       );
 
       const input = container.querySelector('input[type="range"]') as HTMLInputElement;
@@ -244,7 +244,7 @@ describe('Slider Component', () => {
 
       expect(span?.textContent).toBe('50'); // Initial
 
-      fireEvent.change(input, { target: { value: '25' } });
+      fireEvent.change(input, {target: {value: '25'}});
 
       // Both should update together
       expect(input.value).toBe('25');
@@ -253,29 +253,29 @@ describe('Slider Component', () => {
 
     it('should handle multiple sequential value changes', () => {
       const messages = createSimpleMessages('sl-1', 'Slider', {
-        value: { literalNumber: 50 },
+        value: {literalNumber: 50},
         minValue: 0,
         maxValue: 100,
       });
 
-      const { container } = render(
+      const {container} = render(
         <TestWrapper>
           <TestRenderer messages={messages} />
-        </TestWrapper>
+        </TestWrapper>,
       );
 
       const input = container.querySelector('input[type="range"]') as HTMLInputElement;
       const span = container.querySelector('section span');
 
-      fireEvent.change(input, { target: { value: '10' } });
+      fireEvent.change(input, {target: {value: '10'}});
       expect(input.value).toBe('10');
       expect(span?.textContent).toBe('10');
 
-      fireEvent.change(input, { target: { value: '90' } });
+      fireEvent.change(input, {target: {value: '90'}});
       expect(input.value).toBe('90');
       expect(span?.textContent).toBe('90');
 
-      fireEvent.change(input, { target: { value: '50' } });
+      fireEvent.change(input, {target: {value: '50'}});
       expect(input.value).toBe('50');
       expect(span?.textContent).toBe('50');
     });
@@ -284,16 +284,16 @@ describe('Slider Component', () => {
   describe('Structure', () => {
     it('should have correct DOM structure: label, input, span in order', () => {
       const messages = createSimpleMessages('sl-1', 'Slider', {
-        value: { literalNumber: 50 },
-        label: { literalString: 'Volume' },
+        value: {literalNumber: 50},
+        label: {literalString: 'Volume'},
         minValue: 0,
         maxValue: 100,
       });
 
-      const { container } = render(
+      const {container} = render(
         <TestWrapper>
           <TestRenderer messages={messages} />
-        </TestWrapper>
+        </TestWrapper>,
       );
 
       const section = container.querySelector('section');
@@ -308,13 +308,13 @@ describe('Slider Component', () => {
 
     it('should omit label from DOM structure when not provided', () => {
       const messages = createSimpleMessages('sl-1', 'Slider', {
-        value: { literalNumber: 50 },
+        value: {literalNumber: 50},
       });
 
-      const { container } = render(
+      const {container} = render(
         <TestWrapper>
           <TestRenderer messages={messages} />
-        </TestWrapper>
+        </TestWrapper>,
       );
 
       const section = container.querySelector('section');
@@ -328,13 +328,13 @@ describe('Slider Component', () => {
 
     it('should have input inside section container', () => {
       const messages = createSimpleMessages('sl-1', 'Slider', {
-        value: { literalNumber: 50 },
+        value: {literalNumber: 50},
       });
 
-      const { container } = render(
+      const {container} = render(
         <TestWrapper>
           <TestRenderer messages={messages} />
-        </TestWrapper>
+        </TestWrapper>,
       );
 
       const section = container.querySelector('section');

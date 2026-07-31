@@ -14,10 +14,10 @@
  * limitations under the License.
  */
 
-import { defineConfig } from 'vite'
-import react from '@vitejs/plugin-react'
+import {defineConfig} from 'vite';
+import react from '@vitejs/plugin-react';
 
-import { resolve } from 'path'
+import {resolve} from 'path';
 
 // https://vite.dev/config/
 export default defineConfig({
@@ -25,8 +25,8 @@ export default defineConfig({
   server: {
     fs: {
       // Allow serving files from the root of the repo (where specifications are)
-      allow: ['../../../../']
-    }
+      allow: ['../../../../'],
+    },
   },
   resolve: {
     alias: {
@@ -34,12 +34,12 @@ export default defineConfig({
       '@a2ui/react/v0_8': resolve(__dirname, '../src/v0_8/index.ts'),
       '@a2ui/react/styles': resolve(__dirname, '../src/styles/index.ts'),
       '@a2ui/react': resolve(__dirname, '../src/index.ts'),
-      '@a2ui/markdown-it': resolve(__dirname, '../../markdown/markdown-it/dist/src/markdown.js')
-    }
+      '@a2ui/markdown-it': resolve(__dirname, '../../markdown/markdown-it/dist/src/markdown.js'),
+    },
   },
   test: {
     environment: 'jsdom',
     globals: true,
-    setupFiles: ['./src/setupTests.ts']
-  }
-} as any)
+    setupFiles: ['./src/setupTests.ts'],
+  },
+} as any);

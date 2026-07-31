@@ -20,13 +20,13 @@ import type * as Types from '@a2ui/web_core/types/types';
  * Create a surface update message with components.
  */
 export function createSurfaceUpdate(
-  components: Array<{ id: string; component: Record<string, unknown> }>,
-  surfaceId = '@default'
+  components: Array<{id: string; component: Record<string, unknown>}>,
+  surfaceId = '@default',
 ): Types.ServerToClientMessage {
   return {
     surfaceUpdate: {
       surfaceId,
-      components: components.map((c) => ({
+      components: components.map(c => ({
         id: c.id,
         component: c.component,
       })),
@@ -39,7 +39,7 @@ export function createSurfaceUpdate(
  */
 export function createBeginRendering(
   rootId: string,
-  surfaceId = '@default'
+  surfaceId = '@default',
 ): Types.ServerToClientMessage {
   return {
     beginRendering: {
@@ -56,13 +56,10 @@ export function createSimpleMessages(
   id: string,
   componentType: string,
   props: Record<string, unknown>,
-  surfaceId = '@default'
+  surfaceId = '@default',
 ): Types.ServerToClientMessage[] {
   return [
-    createSurfaceUpdate(
-      [{ id, component: { [componentType]: props } }],
-      surfaceId
-    ),
+    createSurfaceUpdate([{id, component: {[componentType]: props}}], surfaceId),
     createBeginRendering(id, surfaceId),
   ];
 }
@@ -72,9 +69,15 @@ export function createSimpleMessages(
  * Per A2UI spec: Updates application state independently of UI structure.
  */
 export function createDataModelUpdate(
-  contents: Array<{ key: string; valueString?: string; valueNumber?: number; valueBoolean?: boolean; valueMap?: unknown[] }>,
+  contents: Array<{
+    key: string;
+    valueString?: string;
+    valueNumber?: number;
+    valueBoolean?: boolean;
+    valueMap?: unknown[];
+  }>,
   surfaceId = '@default',
-  path?: string
+  path?: string,
 ): Types.ServerToClientMessage {
   return {
     dataModelUpdate: {
@@ -102,9 +105,9 @@ export function createDeleteSurface(surfaceId: string): Types.ServerToClientMess
  * Uses valueString for JSON-serializable values.
  */
 export function createDataModelUpdateSpec(
-  contents: Array<{ key: string; valueString?: string; valueMap?: unknown[] }>,
+  contents: Array<{key: string; valueString?: string; valueMap?: unknown[]}>,
   surfaceId = '@default',
-  path = '/'
+  path = '/',
 ): Types.ServerToClientMessage {
   return {
     dataModelUpdate: {

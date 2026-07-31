@@ -14,10 +14,10 @@
  * limitations under the License.
  */
 
-import { nothing } from "lit";
-import { html, unsafeStatic } from "lit/static-html.js";
-import { ComponentContext, Catalog } from "@a2ui/web_core/v0_9";
-import { LitComponentApi } from "@a2ui/lit/v0_9";
+import {nothing} from 'lit';
+import {html, unsafeStatic} from 'lit/static-html.js';
+import {ComponentContext, Catalog} from '@a2ui/web_core/v0_9';
+import {LitComponentApi} from '../types.js';
 
 /**
  * Pure function that acts as a generic container for A2UI components.
@@ -34,10 +34,7 @@ import { LitComponentApi } from "@a2ui/lit/v0_9";
  * the `renderNode` method on the base `A2uiLitElement` class, which handles context
  * creation automatically.
  */
-export function renderA2uiNode(
-  context: ComponentContext,
-  catalog: Catalog<LitComponentApi>,
-) {
+export function renderA2uiNode(context: ComponentContext, catalog: Catalog<LitComponentApi>) {
   const type = context.componentModel.type;
   const implementation = catalog.components.get(type);
 

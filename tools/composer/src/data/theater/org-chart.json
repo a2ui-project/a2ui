@@ -14,10 +14,7 @@
           "component": {
             "Column": {
               "children": {
-                "explicitList": [
-                  "title",
-                  "org-chart"
-                ]
+                "explicitList": ["title", "org-chart"]
               }
             }
           }

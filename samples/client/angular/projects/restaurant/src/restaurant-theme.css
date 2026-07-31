@@ -16,7 +16,11 @@
 
 :root {
   /* Button Overrides */
-  --a2ui-button-background: linear-gradient(135deg, light-dark(var(--p-70), var(--p-40)) 0%, light-dark(var(--p-60), var(--p-30)) 100%);
+  --a2ui-button-background: linear-gradient(
+    135deg,
+    light-dark(var(--p-70), var(--p-40)) 0%,
+    light-dark(var(--p-60), var(--p-30)) 100%
+  );
   --a2ui-button-box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
   --a2ui-button-font-weight: 500;
   --a2ui-button-border-radius: 9999px;
@@ -28,7 +32,22 @@
   /* Card Overrides */
   --a2ui-card-border: none;
   --a2ui-card-border-radius: 24px;
-  --a2ui-card-background: radial-gradient(circle at top left, light-dark(transparent, rgba(6, 182, 212, 0.15)), transparent 40%), radial-gradient(circle at bottom right, light-dark(transparent, rgba(139, 92, 246, 0.15)), transparent 40%), linear-gradient(135deg, light-dark(rgba(255, 255, 255, 0.7), rgba(30, 41, 59, 0.7)), light-dark(rgba(255, 255, 255, 0.7), rgba(15, 23, 42, 0.8)));
+  --a2ui-card-background:
+    radial-gradient(
+      circle at top left,
+      light-dark(transparent, rgba(6, 182, 212, 0.15)),
+      transparent 40%
+    ),
+    radial-gradient(
+      circle at bottom right,
+      light-dark(transparent, rgba(139, 92, 246, 0.15)),
+      transparent 40%
+    ),
+    linear-gradient(
+      135deg,
+      light-dark(rgba(255, 255, 255, 0.7), rgba(30, 41, 59, 0.7)),
+      light-dark(rgba(255, 255, 255, 0.7), rgba(15, 23, 42, 0.8))
+    );
 
   /* Image Overrides */
   --a2ui-image-border-radius: 12px;

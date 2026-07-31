@@ -16,11 +16,11 @@
 
 'use client';
 
-import { useState, Component, type ReactNode } from 'react';
-import { Moon, Sun, AlertTriangle } from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import { A2UIViewer } from '@/lib/a2ui';
-import type { A2UIComponent, SpecVersion } from '@/types/widget';
+import {useState, Component, type ReactNode} from 'react';
+import {Moon, Sun, AlertTriangle} from 'lucide-react';
+import {Button} from '@/components/ui/button';
+import {A2UIViewer} from '@/lib/a2ui';
+import type {A2UIComponent, SpecVersion} from '@/types/widget';
 
 /**
  * Error boundary for the A2UI preview.
@@ -28,22 +28,22 @@ import type { A2UIComponent, SpecVersion } from '@/types/widget';
  * and shows a fallback instead of crashing the entire editor.
  */
 class PreviewErrorBoundary extends Component<
-  { children: ReactNode; resetKey: string },
-  { error: Error | null }
+  {children: ReactNode; resetKey: string},
+  {error: Error | null}
 > {
-  state: { error: Error | null } = { error: null };
+  state: {error: Error | null} = {error: null};
 
   static getDerivedStateFromError(error: Error) {
-    return { error };
+    return {error};
   }
 
   componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
     console.error('A2UI Preview Error:', error, errorInfo);
   }
 
-  componentDidUpdate(prevProps: { resetKey: string }) {
+  componentDidUpdate(prevProps: {resetKey: string}) {
     if (prevProps.resetKey !== this.props.resetKey && this.state.error) {
-      this.setState({ error: null });
+      this.setState({error: null});
     }
   }
 
@@ -72,14 +72,16 @@ interface PreviewPaneProps {
   specVersion?: SpecVersion;
 }
 
-export function PreviewPane({ root, components, data, specVersion }: PreviewPaneProps) {
+export function PreviewPane({root, components, data, specVersion}: PreviewPaneProps) {
   const [isDark, setIsDark] = useState(false);
 
   // Reset key changes when components change, clearing the error boundary
   const resetKey = JSON.stringify(components);
 
   return (
-    <div className={`flex h-full flex-col border-l border-border ${isDark ? 'bg-neutral-900' : 'bg-neutral-50'}`}>
+    <div
+      className={`flex h-full flex-col border-l border-border ${isDark ? 'bg-neutral-900' : 'bg-neutral-50'}`}
+    >
       <div className="flex justify-end p-2">
         <Button
           variant="ghost"
@@ -101,7 +103,7 @@ export function PreviewPane({ root, components, data, specVersion }: PreviewPane
             components={components}
             data={data}
             specVersion={specVersion}
-            onAction={(action) => console.log('Widget action:', action)}
+            onAction={action => console.log('Widget action:', action)}
           />
         </PreviewErrorBoundary>
       </div>

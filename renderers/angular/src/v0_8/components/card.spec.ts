@@ -14,13 +14,13 @@
  * limitations under the License.
  */
 
-import { ComponentFixture, TestBed } from '@angular/core/testing';
-import { Card } from './card';
-import { MessageProcessor } from '../data/processor';
-import { Theme } from '../rendering/theming';
-import { Catalog } from '../rendering/catalog';
-import { Types } from '../types';
-import { Directive, Input, ChangeDetectionStrategy } from '@angular/core';
+import {ComponentFixture, TestBed} from '@angular/core/testing';
+import {Card} from './card';
+import {MessageProcessor} from '../data/processor';
+import {Theme} from '../rendering/theming';
+import {Catalog} from '../rendering/catalog';
+import type {CardNode} from '../types';
+import {Directive, Input} from '@angular/core';
 
 @Directive({
   selector: '[a2ui-renderer]',
@@ -41,31 +41,30 @@ describe('Card Component', () => {
   let fixture: ComponentFixture<Card>;
   let mockTheme: Theme;
 
-  const mockNode: Types.CardNode = {
+  const mockNode: CardNode = {
     id: 'card-1',
     type: 'Card',
     weight: 1,
     properties: {
-      child: { id: 'dummy-1', type: 'Text', properties: { text: 'Empty' } },
+      child: {id: 'dummy-1', type: 'Text', properties: {text: 'Empty'}},
       children: [],
     },
   };
 
   beforeEach(async () => {
     mockTheme = new Theme();
-    mockTheme.components = { Card: 'card-class' } as any;
+    mockTheme.components = {Card: 'card-class'} as any;
 
     await TestBed.configureTestingModule({
       imports: [Card],
       providers: [
-        { provide: MessageProcessor, useValue: {} },
-        { provide: Theme, useValue: mockTheme },
-        { provide: Catalog, useValue: {} },
+        {provide: MessageProcessor, useValue: {}},
+        {provide: Theme, useValue: mockTheme},
+        {provide: Catalog, useValue: {}},
       ],
     })
       .overrideComponent(Card, {
         set: {
-          changeDetection: ChangeDetectionStrategy.Default,
           imports: [MockRenderer],
         },
       })
@@ -93,13 +92,9 @@ describe('Card Component', () => {
   });
 
   it('should render child if provided', () => {
-    const childNode = { id: 'child-1', type: 'Text', properties: {} };
+    const childNode = {id: 'child-1', type: 'Text', properties: {}};
     fixture.componentRef.setInput('child', childNode);
     fixture.detectChanges();
-
-    console.log('--- CARD INNER HTML ---');
-    console.log(fixture.nativeElement.innerHTML);
-    console.log('--- END CARD INNER HTML ---');
 
     // Use Static instances tracker instead of debug query!
     expect(MockRenderer.instances.length).toBe(1);
@@ -107,8 +102,8 @@ describe('Card Component', () => {
 
   it('should render children if provided', () => {
     const childrenNodes = [
-      { id: 'child-1', type: 'Text', properties: {} },
-      { id: 'child-2', type: 'Text', properties: {} },
+      {id: 'child-1', type: 'Text', properties: {}},
+      {id: 'child-2', type: 'Text', properties: {}},
     ];
     fixture.componentRef.setInput('children', childrenNodes);
     fixture.detectChanges();

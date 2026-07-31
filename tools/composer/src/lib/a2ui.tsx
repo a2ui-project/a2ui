@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */ // TODO: remediate legacy any types
 /**
  * Copyright 2026 Google LLC
  *
@@ -25,12 +26,12 @@
  */
 'use client';
 
-import dynamic from "next/dynamic";
-import { A2UIViewer as BaseA2UIViewer } from "@a2ui/react";
-import { viewerTheme } from "./viewerTheme";
-import type { A2UIComponent, SpecVersion } from "@/types/widget";
+import dynamic from 'next/dynamic';
+import {A2UIViewer as BaseA2UIViewer} from '@a2ui/react';
+import {viewerTheme} from './viewerTheme';
+import type {A2UIComponent, SpecVersion} from '@/types/widget';
 
-const V09Viewer = dynamic(() => import("./v09Viewer").then(m => ({ default: m.V09Viewer })), {
+const V09Viewer = dynamic(() => import('./v09Viewer').then(m => ({default: m.V09Viewer})), {
   ssr: false,
 });
 
@@ -43,12 +44,12 @@ export interface A2UIViewerProps {
   className?: string;
 }
 
-export function A2UIViewer({ specVersion = '0.8', components, ...props }: A2UIViewerProps) {
+export function A2UIViewer({specVersion = '0.8', components, ...props}: A2UIViewerProps) {
   if (specVersion === '0.9') {
     return (
       <V09Viewer
         root={props.root}
-        components={components as Array<{ id: string; component: string; [key: string]: unknown }>}
+        components={components as Array<{id: string; component: string; [key: string]: unknown}>}
         data={props.data}
         onAction={props.onAction}
       />
@@ -59,7 +60,7 @@ export function A2UIViewer({ specVersion = '0.8', components, ...props }: A2UIVi
     <BaseA2UIViewer
       theme={viewerTheme}
       root={props.root}
-      components={components as Array<{ id: string; component: Record<string, unknown> }>}
+      components={components as Array<{id: string; component: Record<string, unknown>}>}
       data={props.data}
       onAction={props.onAction as any}
       className={props.className}

@@ -14,13 +14,13 @@
  * limitations under the License.
  */
 
-import { html, nothing, css } from "lit";
-import { customElement } from "lit/decorators.js";
-import { VideoApi } from "@a2ui/web_core/v0_9/basic_catalog";
-import { BasicCatalogA2uiLitElement } from "../basic-catalog-a2ui-lit-element.js";
-import { A2uiController } from "@a2ui/lit/v0_9";
+import {html, nothing, css} from 'lit';
+import {customElement} from 'lit/decorators.js';
+import {VideoApi} from '@a2ui/web_core/v0_9/basic_catalog';
+import {BasicCatalogA2uiLitElement} from '../basic-catalog-a2ui-lit-element.js';
+import {A2uiController} from '../../../a2ui-controller.js';
 
-@customElement("a2ui-video")
+@customElement('a2ui-video')
 export class A2uiVideoElement extends BasicCatalogA2uiLitElement<typeof VideoApi> {
   /**
    * The styles of the video can be customized by redefining the following
@@ -28,7 +28,7 @@ export class A2uiVideoElement extends BasicCatalogA2uiLitElement<typeof VideoApi
    *
    * - `--a2ui-video-border-radius`: Controls the rounded corners of the video. Defaults to `0`.
    */
-  static styles = css`
+  static override styles = css`
     :host {
       display: block;
       width: 100%;
@@ -45,7 +45,7 @@ export class A2uiVideoElement extends BasicCatalogA2uiLitElement<typeof VideoApi
     return new A2uiController(this, VideoApi);
   }
 
-  render() {
+  override render() {
     const props = this.controller.props;
     if (!props) return nothing;
 
@@ -55,5 +55,5 @@ export class A2uiVideoElement extends BasicCatalogA2uiLitElement<typeof VideoApi
 
 export const A2uiVideo = {
   ...VideoApi,
-  tagName: "a2ui-video",
+  tagName: 'a2ui-video',
 };

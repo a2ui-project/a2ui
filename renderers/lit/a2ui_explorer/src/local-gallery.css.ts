@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import { css } from "lit";
+import {css} from 'lit';
 
 /**
  * Styles for the LocalGallery component.
@@ -111,14 +111,57 @@ export const appStyles = css`
     background: #1e293b;
     border-bottom: 1px solid rgba(148, 163, 184, 0.1);
     display: flex;
-    justify-content: space-between;
-    align-items: center;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 12px;
+
+    h2 {
+      margin: 0;
+    }
   }
 
-  .stepper-controls {
+  .agent-controls {
     display: flex;
     gap: 8px;
-    align-items: center;
+    justify-content: space-between;
+
+    fieldset {
+      border: 1px solid rgba(148, 163, 184, 0.2);
+      border-radius: 8px;
+    }
+
+    .theme-controls {
+      font-size: 0.9rem;
+      margin-right: 8px;
+      color: #94a3b8;
+      display: flex;
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 4px;
+    }
+
+    .color-input-group {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+    }
+
+    .color-input {
+      border: none;
+      padding: 0;
+      width: 24px;
+      height: 24px;
+      cursor: pointer;
+      background: none;
+    }
+
+    .message-controls {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      font-size: 0.9rem;
+      color: #94a3b8;
+    }
   }
 
   button {
@@ -185,7 +228,7 @@ export const appStyles = css`
     flex: 1;
     overflow-y: auto;
     padding: 16px;
-    font-family: "JetBrains Mono", monospace;
+    font-family: 'JetBrains Mono', monospace;
     font-size: 0.8rem;
     white-space: pre-wrap;
   }

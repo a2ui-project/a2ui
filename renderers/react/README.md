@@ -14,7 +14,7 @@ generate rich, interactive user interfaces through declarative JSON.
 ## Installation
 
 ```bash
-npm install @a2ui/react @a2ui/web_core
+yarn add @a2ui/react @a2ui/web_core
 ```
 
 ## Protocol Versioning
@@ -24,70 +24,114 @@ A2UI supports multiple protocol versions to ensure backward compatibility. For n
 To use the v0.9 implementation, import from the versioned path:
 
 ```typescript
-import { A2uiSurface, basicCatalog } from '@a2ui/react/v0_9';
+import {A2uiSurface, basicCatalog} from '@a2ui/react/v0_9';
 ```
 
 ## Quick Start
 
-The React renderer works alongside the `MessageProcessor` from `@a2ui/web_core`.
+The React renderer works alongside the `MessageProcessor` from `@a2ui/web_core`. The processor interprets JSON messages from an AI agent and manages the resulting UI state. The core concepts are:
+
+- **Processor** — receives and interprets the agent's messages.
+- **Surface** — an independent rendering area, uniquely identified by a string ID, that the agent creates and populates with components.
+- **Catalog** — the set of components (e.g. `Text`, `Column`, `Button`) available for a surface to use.
+
+The example below creates a processor with the built-in `basicCatalog`, feeds it a sequence of hardcoded messages, and renders the resulting surface.
 
 ```tsx
-import { useState, useEffect } from 'react';
-import { MessageProcessor } from '@a2ui/web_core/v0_9';
-import { A2uiSurface, basicCatalog } from '@a2ui/react/v0_9';
+import {useState, useEffect} from 'react';
+import {MessageProcessor} from '@a2ui/web_core/v0_9';
+import {A2uiSurface, basicCatalog} from '@a2ui/react/v0_9';
 
-function App() {
-  // 1. Initialize the MessageProcessor with your catalogs
-  const [processor] = useState(() => new MessageProcessor([basicCatalog]));
-  const [surface, setSurface] = useState(null);
+export default function App() {
+  // 1. Create the processor and feed it messages.
+  const [processor] = useState(() => {
+    const p = new MessageProcessor([basicCatalog]);
+    p.processMessages(sampleAgentMessages);
+    return p;
+  });
 
+  // 2. Set up listeners to keep the UI up to date as messages arrive.
+  const [surfaces, setSurfaces] = useState(() => Array.from(processor.model.surfacesMap.values()));
   useEffect(() => {
-    // 2. Listen for surface creation
-    const sub = processor.onSurfaceCreated(s => {
-      // You can filter by surfaceId or manage multiple surfaces
-      if (s.id === 'main-chat') setSurface(s);
-    });
+    const sync = () => setSurfaces(Array.from(processor.model.surfacesMap.values()));
 
-    // 3. Process messages from your agent (e.g., via WebSocket or SSE)
-    // For demo purposes, we manually process a creation message:
-    processor.processMessages([{
-      version: 'v0.9',
-      createSurface: { 
-        surfaceId: 'main-chat', 
-        catalogId: basicCatalog.id // 'https://a2ui.org/specification/v0_9/basic_catalog.json'
-      }
-    }]);
+    const createdSub = processor.onSurfaceCreated(sync);
+    const deletedSub = processor.onSurfaceDeleted(sync);
 
-    return () => sub.unsubscribe();
+    return () => {
+      createdSub.unsubscribe();
+      deletedSub.unsubscribe();
+    };
   }, [processor]);
 
-  // 4. Render the surface once it's available
+  // 3. Render every surface the agent has created.
   return (
     <div className="a2ui-container">
-      {surface ? <A2uiSurface surface={surface} /> : <div>Initializing Agent UI...</div>}
+      {surfaces.length === 0 && <div>Waiting for agent...</div>}
+      {surfaces.map(surface => (
+        <A2uiSurface key={surface.id} surface={surface} />
+      ))}
     </div>
   );
 }
+
+// In a real app, these messages would come from an agent via WebSocket, SSE, etc.
+// Here we hardcode them to show the message format.
+const sampleAgentMessages = [
+  {
+    version: 'v0.9' as const,
+    createSurface: {surfaceId: 'main-chat', catalogId: basicCatalog.id},
+  },
+  {
+    version: 'v0.9' as const,
+    updateComponents: {
+      surfaceId: 'main-chat',
+      components: [
+        {id: 'root', component: 'Column', children: ['greeting', 'description']},
+        {id: 'greeting', component: 'Text', text: {path: '/title'}},
+        {id: 'description', component: 'Text', text: {path: '/body'}},
+      ],
+    },
+  },
+  {
+    version: 'v0.9' as const,
+    updateDataModel: {
+      surfaceId: 'main-chat',
+      path: '/',
+      value: {
+        title: 'Hello from A2UI!',
+        body: 'Replace these messages with real agent responses to build interactive UIs.',
+      },
+    },
+  },
+];
 ```
+
+Running this example should display "Hello from A2UI!". The example demonstrates three message types:
+
+- [`createSurface`](../../specification/v0_9/docs/a2ui_protocol.md#createsurface) initializes the rendering surface.
+- [`updateComponents`](../../specification/v0_9/docs/a2ui_protocol.md#updatecomponents) defines the UI tree. Here, a `Column` containing two `Text` components.
+- [`updateDataModel`](../../specification/v0_9/docs/a2ui_protocol.md#updatedatamodel) provides the data that the components reference via [`path` bindings](../../specification/v0_9/docs/a2ui_protocol.md#path-resolution--scope) (e.g. `{ path: '/title' }` resolves to the `title` field in the data model).
 
 ## Defining Custom Components
 
 A2UI v0.9 strictly separates a component's API (Schema) from its implementation.
 
 ### 1. Define the Component API
+
 Use Zod to define the properties. Using `CommonSchemas` from `web_core` enables automatic binding for A2UI primitives.
 
 ```typescript
-import { z } from 'zod';
-import { CommonSchemas } from '@a2ui/web_core/v0_9';
+import {z} from 'zod';
+import {CommonSchemas} from '@a2ui/web_core/v0_9';
 
 export const MyProfileApi = {
   name: 'Profile',
   schema: z.object({
-    username: CommonSchemas.DynamicString,  // Can be literal "Alice" or {path: "/user/name"}
+    username: CommonSchemas.DynamicString, // Can be literal "Alice" or {path: "/user/name"}
     bio: CommonSchemas.DynamicString,
     avatarUrl: CommonSchemas.DynamicString,
-    onEdit: CommonSchemas.Action,           // Resolves to a clickable () => void
+    onEdit: CommonSchemas.Action, // Resolves to a clickable () => void
     isEditable: CommonSchemas.DynamicBoolean,
     // Add 'checks' if you want validation support (standard in v0.9 interactive components)
     checks: CommonSchemas.Checkable.shape.checks,
@@ -96,38 +140,38 @@ export const MyProfileApi = {
 ```
 
 ### 2. Create the React Implementation
+
 The `createComponentImplementation` factory uses a **Generic Binder** to resolve all dynamic values before your component renders.
 
 ```tsx
-import { createComponentImplementation } from '@a2ui/react/v0_9';
+import {createComponentImplementation} from '@a2ui/react/v0_9';
 
-export const MyProfile = createComponentImplementation(
-  MyProfileApi, 
-  ({ props, buildChild }) => {
-    // 'props' is strictly inferred from the Zod schema:
-    // props.username is 'string' (resolved from DynamicString)
-    // props.onEdit is '() => void' (resolved from Action)
-    
-    return (
-      <div className="profile-widget">
-        <img src={props.avatarUrl ?? ''} alt={props.username} />
-        <h2>{props.username}</h2>
-        <p>{props.bio}</p>
-        
-        {props.isEditable && (
-          <button onClick={props.onEdit} disabled={props.isValid === false}>
-            Edit Profile
-          </button>
-        )}
-        
-        {/* Render validation errors if any check fails */}
-        {props.validationErrors?.map((err, i) => (
-          <div key={i} className="error-hint" style={{color: 'red'}}>{err}</div>
-        ))}
-      </div>
-    );
-  }
-);
+export const MyProfile = createComponentImplementation(MyProfileApi, ({props, buildChild}) => {
+  // 'props' is strictly inferred from the Zod schema:
+  // props.username is 'string' (resolved from DynamicString)
+  // props.onEdit is '() => void' (resolved from Action)
+
+  return (
+    <div className="profile-widget">
+      <img src={props.avatarUrl ?? ''} alt={props.username} />
+      <h2>{props.username}</h2>
+      <p>{props.bio}</p>
+
+      {props.isEditable && (
+        <button onClick={props.onEdit} disabled={props.isValid === false}>
+          Edit Profile
+        </button>
+      )}
+
+      {/* Render validation errors if any check fails */}
+      {props.validationErrors?.map((err, i) => (
+        <div key={i} className="error-hint" style={{color: 'red'}}>
+          {err}
+        </div>
+      ))}
+    </div>
+  );
+});
 ```
 
 ## Generic Binder Features
@@ -144,23 +188,20 @@ The Generic Binder is a framework-agnostic engine that transforms raw JSON paylo
 For advanced use cases where you need direct access to the `ComponentContext` or want to manage reactivity manually (e.g., for performance-critical animations), use `createBinderlessComponentImplementation`.
 
 ```tsx
-import { createBinderlessComponentImplementation } from '@a2ui/react/v0_9';
+import {createBinderlessComponentImplementation} from '@a2ui/react/v0_9';
 
-export const RawInspector = createBinderlessComponentImplementation(
-  InspectorApi, 
-  ({ context }) => {
-    // Access the raw, unresolved component model and the data model directly
-    const rawData = context.componentModel.properties;
-    const componentId = context.componentModel.id;
-    
-    return (
-      <details>
-        <summary>Raw Component State (ID: {componentId})</summary>
-        <pre>{JSON.stringify(rawData, null, 2)}</pre>
-      </details>
-    );
-  }
-);
+export const RawInspector = createBinderlessComponentImplementation(InspectorApi, ({context}) => {
+  // Access the raw, unresolved component model and the data model directly
+  const rawData = context.componentModel.properties;
+  const componentId = context.componentModel.id;
+
+  return (
+    <details>
+      <summary>Raw Component State (ID: {componentId})</summary>
+      <pre>{JSON.stringify(rawData, null, 2)}</pre>
+    </details>
+  );
+});
 ```
 
 ## Defining Catalogs and Functions
@@ -168,24 +209,24 @@ export const RawInspector = createBinderlessComponentImplementation(
 Group your components and logic functions into a `Catalog` to be used by the `MessageProcessor`.
 
 ```typescript
-import { Catalog, createFunctionImplementation } from '@a2ui/web_core/v0_9';
-import { z } from 'zod';
+import {Catalog, createFunctionImplementation} from '@a2ui/web_core/v0_9';
+import {z} from 'zod';
 
 // 1. Implement a custom logic function
 const myCheckFunc = createFunctionImplementation(
-  { 
-    name: 'is_admin', 
-    returnType: 'boolean', 
-    schema: z.object({ role: z.string() }) 
+  {
+    name: 'is_admin',
+    returnType: 'boolean',
+    schema: z.object({role: z.string()}),
   },
-  (args) => args.role === 'admin'
+  args => args.role === 'admin',
 );
 
 // 2. Compose the catalog
 export const myCatalog = new Catalog(
   'https://example.com/catalogs/v1.json',
   [MyProfile, RawInspector], // List of ReactComponentImplementation
-  [myCheckFunc]               // List of FunctionImplementation
+  [myCheckFunc], // List of FunctionImplementation
 );
 ```
 
@@ -205,7 +246,6 @@ Some components in this package (like `Text`) use **CSS Modules** for style enca
 
 You can also use CSS Modules for styling your custom components or extending the basic catalog:
 
-
 ```css
 /* MyComponent.module.css */
 .myComponent {
@@ -222,12 +262,8 @@ You can also use CSS Modules for styling your custom components or extending the
 ```tsx
 import styles from './MyComponent.module.css';
 
-export const MyComponent = createComponentImplementation(MyComponentApi, ({ props }) => {
-  return (
-    <div className={styles.myComponent}>
-      {/* ... */}
-    </div>
-  );
+export const MyComponent = createComponentImplementation(MyComponentApi, ({props}) => {
+  return <div className={styles.myComponent}>{/* ... */}</div>;
 });
 ```
 
@@ -242,13 +278,13 @@ A2UI v0.8 is maintained for backward compatibility. While it remains the default
 To use the v0.8 renderer, you use the `A2UIProvider` and `A2UIRenderer` components:
 
 ```tsx
-import { A2UIProvider, A2UIRenderer, injectStyles } from '@a2ui/react/v0_8';
+import {A2UIProvider, A2UIRenderer, injectStyles} from '@a2ui/react/v0_8';
 
 // Inject v0.8 styles
 injectStyles();
 
 function LegacyApp() {
-  const handleAction = (msg) => console.log('Action:', msg);
+  const handleAction = msg => console.log('Action:', msg);
 
   return (
     <A2UIProvider onAction={handleAction}>
@@ -261,21 +297,21 @@ function LegacyApp() {
 
 ### Key Differences (v0.8 vs v0.9)
 
-| Feature | v0.8 (Legacy) | v0.9 (Current) |
-| :--- | :--- | :--- |
-| **Protocol** | Uses `BeginRendering`, `SurfaceUpdate`. | Uses `createSurface`, `updateComponents`, `updateDataModel`. |
-| **Data Flow** | Unidirectional surface updates. | Bidirectional synchronization (`sendDataModel`). |
-| **Type Safety** | Props accessed via `node.properties`. | Strongly typed `props` inferred from Zod schemas. |
-| **Logic** | Limited client-side logic. | Extensible `Function` system (e.g., `formatString`, `required`). |
-| **Reactivity** | Hooks-based (`useA2UIComponent`). | Automatic via the **Generic Binder** middleware. |
-| **Binding** | Manual resolution in component body. | Declarative two-way binding with injected setters. |
+| Feature         | v0.8 (Legacy)                           | v0.9 (Current)                                                   |
+| :-------------- | :-------------------------------------- | :--------------------------------------------------------------- |
+| **Protocol**    | Uses `BeginRendering`, `SurfaceUpdate`. | Uses `createSurface`, `updateComponents`, `updateDataModel`.     |
+| **Data Flow**   | Unidirectional surface updates.         | Bidirectional synchronization (`sendDataModel`).                 |
+| **Type Safety** | Props accessed via `node.properties`.   | Strongly typed `props` inferred from Zod schemas.                |
+| **Logic**       | Limited client-side logic.              | Extensible `Function` system (e.g., `formatString`, `required`). |
+| **Reactivity**  | Hooks-based (`useA2UIComponent`).       | Automatic via the **Generic Binder** middleware.                 |
+| **Binding**     | Manual resolution in component body.    | Declarative two-way binding with injected setters.               |
 
 In v0.8, components are responsible for resolving their own dynamic values using hooks:
 
 ```tsx
 // v0.8 Manual Resolution
-function TextField({ node, surfaceId }) {
-  const { resolveString, setValue } = useA2UIComponent(node, surfaceId);
+function TextField({node, surfaceId}) {
+  const {resolveString, setValue} = useA2UIComponent(node, surfaceId);
   const label = resolveString(node.properties.label);
   // ...
 }
@@ -292,3 +328,104 @@ All operational data received from an external agent—including its messages an
 
 **Developer Responsibility**: Failure to properly validate data and strictly sandbox rendered content can introduce severe vulnerabilities. Developers are responsible for implementing appropriate security measures—such as input sanitization, Content Security Policies (CSP), and secure credential handling—to protect their systems and users.
 
+## Development
+
+### Setup
+
+```bash
+# In the A2UI monorepo root
+yarn install
+```
+
+### Build
+
+```bash
+yarn build    # Build the package
+yarn dev      # Watch mode
+```
+
+### Type Check
+
+```bash
+yarn typecheck
+```
+
+### Lint
+
+```bash
+yarn lint
+```
+
+## Testing
+
+### Unit Tests
+
+Uses [Vitest](https://vitest.dev/) +
+[React Testing Library](https://testing-library.com/docs/react-testing-library/intro/).
+
+```bash
+yarn test              # Run once
+yarn test:watch    # Watch mode
+```
+
+**Structure:** `tests/ ├── setup.ts # Initializes component catalog ├──
+helpers.tsx # TestWrapper, TestRenderer, message creators └── components/ #
+Component tests (*.test.tsx)`
+
+**Example:** ```tsx import { render, screen, fireEvent } from
+'@testing-library/react'; import { TestWrapper, TestRenderer,
+createSimpleMessages } from '../helpers';
+
+it('should dispatch action on click', () => { const onAction = vi.fn(); const
+messages = createSimpleMessages('btn-1', 'Button', { child: 'text-1', action: {
+name: 'submit' }, });
+
+render( <TestWrapper onAction={onAction}> <TestRenderer messages={messages} />
+</TestWrapper> );
+
+fireEvent.click(screen.getByRole('button'));
+expect(onAction).toHaveBeenCalled(); }); ```
+
+## Visual Parity Testing
+
+The React renderer maintains visual parity with the Lit renderer (reference
+implementation). A comprehensive test suite compares pixel-perfect screenshots
+between both renderers.
+
+### Running Visual Parity Tests
+
+```bash
+cd visual-parity
+yarn test
+```
+
+### Quick Commands
+
+```bash
+# Run all tests
+yarn test
+
+# Run specific component tests
+yarn test --grep "button"
+
+# Run with UI mode
+yarn test:ui
+
+# Start dev servers for manual inspection
+yarn dev
+# React: http://localhost:5001
+# Lit: http://localhost:5002
+```
+
+### Documentation
+
+- **[visual-parity/README.md](./visual-parity/README.md)** - Test suite usage
+  and fixture creation
+- **[visual-parity/PARITY.md](./visual-parity/PARITY.md)** - CSS
+  transformation approach and implementation status
+
+### Key Concepts
+
+1.  **Structural Mirroring**: React components mirror Lit's Shadow DOM structure
+2.  **CSS Selector Transformation**: `:host` → `.a2ui-surface .a2ui-{component}`
+3.  **Specificity Matching**: Uses `:where()` to match Lit's low specificity

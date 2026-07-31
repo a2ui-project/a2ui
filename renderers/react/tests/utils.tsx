@@ -15,11 +15,11 @@
  */
 
 import React from 'react';
-import { render } from '@testing-library/react';
-import { vi } from 'vitest';
-import { SurfaceModel, ComponentModel, Catalog, ComponentContext } from '@a2ui/web_core/v0_9';
-import { BASIC_FUNCTIONS } from '@a2ui/web_core/v0_9/basic_catalog';
-import type { ReactComponentImplementation } from '../src/v0_9/adapter';
+import {render} from '@testing-library/react';
+import {vi} from 'vitest';
+import {SurfaceModel, ComponentModel, Catalog, ComponentContext} from '@a2ui/web_core/v0_9';
+import {BASIC_FUNCTIONS} from '@a2ui/web_core/v0_9/basic_catalog';
+import type {ReactComponentImplementation} from '../src/v0_9/adapter';
 
 export interface RenderA2uiOptions {
   initialData?: Record<string, any>;
@@ -39,20 +39,20 @@ export function renderA2uiComponent(
   impl: ReactComponentImplementation,
   componentId: string,
   initialProperties: Record<string, any>,
-  options: RenderA2uiOptions = {}
+  options: RenderA2uiOptions = {},
 ) {
-  const { 
-    initialData = {}, 
-    additionalImpls = [], 
+  const {
+    initialData = {},
+    additionalImpls = [],
     additionalComponents = [],
-    functions = BASIC_FUNCTIONS
+    functions = BASIC_FUNCTIONS,
   } = options;
 
   // Combine all implementations into the catalog
   const allImpls = [impl, ...additionalImpls];
   const catalog = new Catalog('test-catalog', allImpls, functions);
   const surface = new SurfaceModel<ReactComponentImplementation>('test-surface', catalog);
-  
+
   // Setup data model
   surface.dataModel.set('/', initialData);
 
@@ -72,14 +72,14 @@ export function renderA2uiComponent(
   // 2. Otherwise, render a placeholder div that tests can query.
   const buildChild = vi.fn((id: string, basePath?: string) => {
     const compModel = surface.componentsModel.get(id);
-    
+
     if (!compModel) {
       return <div key={`${id}-${basePath}`} data-testid={`child-${id}`} data-basepath={basePath} />;
     }
 
     const compImpl = surface.catalog.components.get(compModel.type);
     if (!compImpl) {
-       return <div key={`${id}-${basePath}`} data-testid={`error-unknown-type-${compModel.type}`} />;
+      return <div key={`${id}-${basePath}`} data-testid={`error-unknown-type-${compModel.type}`} />;
     }
 
     const ctx = new ComponentContext(surface, id, basePath || '/');
@@ -90,14 +90,12 @@ export function renderA2uiComponent(
 
   const ComponentToRender = impl.render;
 
-  const view = render(
-    <ComponentToRender context={mainContext} buildChild={buildChild} />
-  );
+  const view = render(<ComponentToRender context={mainContext} buildChild={buildChild} />);
 
-  return { 
-    view, 
-    surface, 
-    buildChild, 
+  return {
+    view,
+    surface,
+    buildChild,
     mainModel,
     context: mainContext,
     // Helper to trigger data model updates and wait for re-render
@@ -105,6 +103,6 @@ export function renderA2uiComponent(
       surface.dataModel.set(path, value);
       // Wait for React to process the useSyncExternalStore update
       await new Promise(resolve => setTimeout(resolve, 0));
-    }
+    },
   };
 }

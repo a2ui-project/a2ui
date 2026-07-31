@@ -14,10 +14,10 @@
  * limitations under the License.
  */
 
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import {describe, it, expect, vi, beforeEach} from 'vitest';
 import localforage from 'localforage';
-import { getWidgets, saveWidget, deleteWidget } from './storage';
-import { Widget } from '@/types/widget';
+import {getWidgets, saveWidget, deleteWidget} from './storage';
+import {Widget} from '@/types/widget';
 
 vi.mock('localforage', () => ({
   default: {
@@ -65,12 +65,12 @@ describe('storage', () => {
     });
 
     it('should update existing widget', async () => {
-      const existingWidget = { ...mockWidget, name: 'Old Name' };
+      const existingWidget = {...mockWidget, name: 'Old Name'};
       vi.mocked(localforage.getItem).mockResolvedValue([existingWidget]);
-      
-      const updatedWidget = { ...mockWidget, name: 'New Name' };
+
+      const updatedWidget = {...mockWidget, name: 'New Name'};
       await saveWidget(updatedWidget);
-      
+
       expect(localforage.setItem).toHaveBeenCalledWith('widgets', [updatedWidget]);
     });
   });

@@ -14,24 +14,24 @@
  * limitations under the License.
  */
 
-import { describe, it, expect } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import {describe, it, expect} from 'vitest';
+import {render, screen, waitFor} from '@testing-library/react';
 import React from 'react';
-import { TestWrapper, TestRenderer, createSimpleMessages } from '../../utils';
-import { litTheme, defaultTheme } from '../../../../src/v0_8';
+import {TestWrapper, TestRenderer, createSimpleMessages} from '../../utils';
+import {litTheme, defaultTheme} from '../../../../src/v0_8';
 
 describe('Text Component', () => {
   describe('Basic Rendering', () => {
     it('should render text with literal string', async () => {
       const messages = createSimpleMessages('text-1', 'Text', {
-        text: { literalString: 'Hello World' },
+        text: {literalString: 'Hello World'},
         usageHint: 'body',
       });
 
       render(
         <TestWrapper>
           <TestRenderer messages={messages} />
-        </TestWrapper>
+        </TestWrapper>,
       );
 
       await waitFor(() => {
@@ -41,14 +41,14 @@ describe('Text Component', () => {
 
     it('should render text with whitespace only', async () => {
       const messages = createSimpleMessages('text-1', 'Text', {
-        text: { literalString: '   ' },
+        text: {literalString: '   '},
         usageHint: 'body',
       });
 
-      const { container } = render(
+      const {container} = render(
         <TestWrapper>
           <TestRenderer messages={messages} />
-        </TestWrapper>
+        </TestWrapper>,
       );
 
       // Surface should exist with whitespace content
@@ -58,14 +58,14 @@ describe('Text Component', () => {
 
     it('should render empty string', async () => {
       const messages = createSimpleMessages('text-1', 'Text', {
-        text: { literalString: '' },
+        text: {literalString: ''},
         usageHint: 'body',
       });
 
-      const { container } = render(
+      const {container} = render(
         <TestWrapper>
           <TestRenderer messages={messages} />
-        </TestWrapper>
+        </TestWrapper>,
       );
 
       expect(container.querySelector('.a2ui-surface')).toBeInTheDocument();
@@ -75,17 +75,17 @@ describe('Text Component', () => {
   describe('Usage Hints', () => {
     const usageHints = ['h1', 'h2', 'h3', 'h4', 'h5', 'caption', 'body'] as const;
 
-    usageHints.forEach((hint) => {
+    usageHints.forEach(hint => {
       it(`should render with usageHint="${hint}"`, async () => {
         const messages = createSimpleMessages('text-1', 'Text', {
-          text: { literalString: `${hint} text` },
+          text: {literalString: `${hint} text`},
           usageHint: hint,
         });
 
         render(
           <TestWrapper>
             <TestRenderer messages={messages} />
-          </TestWrapper>
+          </TestWrapper>,
         );
 
         await waitFor(() => {
@@ -98,14 +98,14 @@ describe('Text Component', () => {
     // The usageHint only affects CSS classes, not the wrapper element.
     it('should render h1 with section wrapper (Lit DOM structure)', async () => {
       const messages = createSimpleMessages('text-1', 'Text', {
-        text: { literalString: 'Main Title' },
+        text: {literalString: 'Main Title'},
         usageHint: 'h1',
       });
 
-      const { container } = render(
+      const {container} = render(
         <TestWrapper>
           <TestRenderer messages={messages} />
-        </TestWrapper>
+        </TestWrapper>,
       );
 
       await waitFor(() => {
@@ -118,14 +118,14 @@ describe('Text Component', () => {
 
     it('should render h2 with section wrapper (Lit DOM structure)', async () => {
       const messages = createSimpleMessages('text-1', 'Text', {
-        text: { literalString: 'Section Title' },
+        text: {literalString: 'Section Title'},
         usageHint: 'h2',
       });
 
-      const { container } = render(
+      const {container} = render(
         <TestWrapper>
           <TestRenderer messages={messages} />
-        </TestWrapper>
+        </TestWrapper>,
       );
 
       await waitFor(() => {
@@ -137,14 +137,14 @@ describe('Text Component', () => {
 
     it('should render caption with section wrapper (Lit DOM structure)', async () => {
       const messages = createSimpleMessages('text-1', 'Text', {
-        text: { literalString: 'Caption text' },
+        text: {literalString: 'Caption text'},
         usageHint: 'caption',
       });
 
-      const { container } = render(
+      const {container} = render(
         <TestWrapper>
           <TestRenderer messages={messages} />
-        </TestWrapper>
+        </TestWrapper>,
       );
 
       await waitFor(() => {
@@ -156,14 +156,14 @@ describe('Text Component', () => {
 
     it('should render body with section wrapper (Lit DOM structure)', async () => {
       const messages = createSimpleMessages('text-1', 'Text', {
-        text: { literalString: 'Body text' },
+        text: {literalString: 'Body text'},
         usageHint: 'body',
       });
 
-      const { container } = render(
+      const {container} = render(
         <TestWrapper>
           <TestRenderer messages={messages} />
-        </TestWrapper>
+        </TestWrapper>,
       );
 
       await waitFor(() => {
@@ -177,14 +177,14 @@ describe('Text Component', () => {
   describe('Theme Support', () => {
     it('should apply default theme classes', async () => {
       const messages = createSimpleMessages('text-1', 'Text', {
-        text: { literalString: 'Themed text' },
+        text: {literalString: 'Themed text'},
         usageHint: 'body',
       });
 
-      const { container } = render(
+      const {container} = render(
         <TestWrapper theme={defaultTheme}>
           <TestRenderer messages={messages} />
-        </TestWrapper>
+        </TestWrapper>,
       );
 
       await waitFor(() => {
@@ -197,14 +197,14 @@ describe('Text Component', () => {
 
     it('should apply lit theme classes for h1', async () => {
       const messages = createSimpleMessages('text-1', 'Text', {
-        text: { literalString: 'Lit theme text' },
+        text: {literalString: 'Lit theme text'},
         usageHint: 'h1',
       });
 
-      const { container } = render(
+      const {container} = render(
         <TestWrapper theme={litTheme}>
           <TestRenderer messages={messages} />
-        </TestWrapper>
+        </TestWrapper>,
       );
 
       await waitFor(() => {
@@ -217,14 +217,14 @@ describe('Text Component', () => {
 
     it('should apply body variant classes from lit theme', async () => {
       const messages = createSimpleMessages('text-1', 'Text', {
-        text: { literalString: 'Body text' },
+        text: {literalString: 'Body text'},
         usageHint: 'body',
       });
 
-      const { container } = render(
+      const {container} = render(
         <TestWrapper theme={litTheme}>
           <TestRenderer messages={messages} />
-        </TestWrapper>
+        </TestWrapper>,
       );
 
       await waitFor(() => {
@@ -239,14 +239,14 @@ describe('Text Component', () => {
   describe('Markdown Rendering', () => {
     it('should render bold text', async () => {
       const messages = createSimpleMessages('text-1', 'Text', {
-        text: { literalString: 'This is **bold** text' },
+        text: {literalString: 'This is **bold** text'},
         usageHint: 'body',
       });
 
-      const { container } = render(
+      const {container} = render(
         <TestWrapper>
           <TestRenderer messages={messages} />
-        </TestWrapper>
+        </TestWrapper>,
       );
 
       await waitFor(() => {
@@ -258,14 +258,14 @@ describe('Text Component', () => {
 
     it('should render italic text', async () => {
       const messages = createSimpleMessages('text-1', 'Text', {
-        text: { literalString: 'This is *italic* text' },
+        text: {literalString: 'This is *italic* text'},
         usageHint: 'body',
       });
 
-      const { container } = render(
+      const {container} = render(
         <TestWrapper>
           <TestRenderer messages={messages} />
-        </TestWrapper>
+        </TestWrapper>,
       );
 
       await waitFor(() => {
@@ -277,14 +277,14 @@ describe('Text Component', () => {
 
     it('should render inline code', async () => {
       const messages = createSimpleMessages('text-1', 'Text', {
-        text: { literalString: 'Use the `console.log()` function' },
+        text: {literalString: 'Use the `console.log()` function'},
         usageHint: 'body',
       });
 
-      const { container } = render(
+      const {container} = render(
         <TestWrapper>
           <TestRenderer messages={messages} />
-        </TestWrapper>
+        </TestWrapper>,
       );
 
       await waitFor(() => {
@@ -296,14 +296,14 @@ describe('Text Component', () => {
 
     it('should render unordered lists', async () => {
       const messages = createSimpleMessages('text-1', 'Text', {
-        text: { literalString: '- Item 1\n- Item 2\n- Item 3' },
+        text: {literalString: '- Item 1\n- Item 2\n- Item 3'},
         usageHint: 'body',
       });
 
-      const { container } = render(
+      const {container} = render(
         <TestWrapper>
           <TestRenderer messages={messages} />
-        </TestWrapper>
+        </TestWrapper>,
       );
 
       await waitFor(() => {
@@ -316,14 +316,14 @@ describe('Text Component', () => {
 
     it('should render ordered lists', async () => {
       const messages = createSimpleMessages('text-1', 'Text', {
-        text: { literalString: '1. First\n2. Second\n3. Third' },
+        text: {literalString: '1. First\n2. Second\n3. Third'},
         usageHint: 'body',
       });
 
-      const { container } = render(
+      const {container} = render(
         <TestWrapper>
           <TestRenderer messages={messages} />
-        </TestWrapper>
+        </TestWrapper>,
       );
 
       await waitFor(() => {
@@ -336,14 +336,14 @@ describe('Text Component', () => {
 
     it('should render links', async () => {
       const messages = createSimpleMessages('text-1', 'Text', {
-        text: { literalString: 'Visit [Google](https://google.com)' },
+        text: {literalString: 'Visit [Google](https://google.com)'},
         usageHint: 'body',
       });
 
-      const { container } = render(
+      const {container} = render(
         <TestWrapper>
           <TestRenderer messages={messages} />
-        </TestWrapper>
+        </TestWrapper>,
       );
 
       await waitFor(() => {
@@ -356,14 +356,14 @@ describe('Text Component', () => {
 
     it('should render plain URLs as text (auto-linkify not enabled)', async () => {
       const messages = createSimpleMessages('text-1', 'Text', {
-        text: { literalString: 'Check out https://example.com for more' },
+        text: {literalString: 'Check out https://example.com for more'},
         usageHint: 'body',
       });
 
-      const { container } = render(
+      const {container} = render(
         <TestWrapper>
           <TestRenderer messages={messages} />
-        </TestWrapper>
+        </TestWrapper>,
       );
 
       await waitFor(() => {
@@ -375,14 +375,14 @@ describe('Text Component', () => {
 
     it('should render blockquotes', async () => {
       const messages = createSimpleMessages('text-1', 'Text', {
-        text: { literalString: '> This is a quote' },
+        text: {literalString: '> This is a quote'},
         usageHint: 'body',
       });
 
-      const { container } = render(
+      const {container} = render(
         <TestWrapper>
           <TestRenderer messages={messages} />
-        </TestWrapper>
+        </TestWrapper>,
       );
 
       await waitFor(() => {
@@ -393,14 +393,14 @@ describe('Text Component', () => {
 
     it('should render code blocks', async () => {
       const messages = createSimpleMessages('text-1', 'Text', {
-        text: { literalString: '```\nconst x = 1;\n```' },
+        text: {literalString: '```\nconst x = 1;\n```'},
         usageHint: 'body',
       });
 
-      const { container } = render(
+      const {container} = render(
         <TestWrapper>
           <TestRenderer messages={messages} />
-        </TestWrapper>
+        </TestWrapper>,
       );
 
       await waitFor(() => {
@@ -413,14 +413,14 @@ describe('Text Component', () => {
 
     it('should preserve line breaks in text', async () => {
       const messages = createSimpleMessages('text-1', 'Text', {
-        text: { literalString: 'Line 1\nLine 2' },
+        text: {literalString: 'Line 1\nLine 2'},
         usageHint: 'body',
       });
 
-      const { container } = render(
+      const {container} = render(
         <TestWrapper>
           <TestRenderer messages={messages} />
-        </TestWrapper>
+        </TestWrapper>,
       );
 
       await waitFor(() => {
@@ -434,14 +434,14 @@ describe('Text Component', () => {
   describe('Markdown Theme Classes', () => {
     it('should apply theme classes to markdown elements', async () => {
       const messages = createSimpleMessages('text-1', 'Text', {
-        text: { literalString: '- List item' },
+        text: {literalString: '- List item'},
         usageHint: 'body',
       });
 
-      const { container } = render(
+      const {container} = render(
         <TestWrapper theme={litTheme}>
           <TestRenderer messages={messages} />
-        </TestWrapper>
+        </TestWrapper>,
       );
 
       await waitFor(() => {
@@ -454,14 +454,14 @@ describe('Text Component', () => {
 
     it('should apply paragraph classes from theme', async () => {
       const messages = createSimpleMessages('text-1', 'Text', {
-        text: { literalString: 'A paragraph of text.' },
+        text: {literalString: 'A paragraph of text.'},
         usageHint: 'body',
       });
 
-      const { container } = render(
+      const {container} = render(
         <TestWrapper theme={litTheme}>
           <TestRenderer messages={messages} />
-        </TestWrapper>
+        </TestWrapper>,
       );
 
       await waitFor(() => {
@@ -476,14 +476,14 @@ describe('Text Component', () => {
   describe('Security', () => {
     it('should not render raw HTML', async () => {
       const messages = createSimpleMessages('text-1', 'Text', {
-        text: { literalString: '<script>alert("xss")</script>' },
+        text: {literalString: '<script>alert("xss")</script>'},
         usageHint: 'body',
       });
 
-      const { container } = render(
+      const {container} = render(
         <TestWrapper>
           <TestRenderer messages={messages} />
-        </TestWrapper>
+        </TestWrapper>,
       );
 
       await waitFor(() => {
@@ -497,14 +497,14 @@ describe('Text Component', () => {
 
     it('should not render onclick handlers', async () => {
       const messages = createSimpleMessages('text-1', 'Text', {
-        text: { literalString: '<div onclick="alert(1)">Click me</div>' },
+        text: {literalString: '<div onclick="alert(1)">Click me</div>'},
         usageHint: 'body',
       });
 
-      const { container } = render(
+      const {container} = render(
         <TestWrapper>
           <TestRenderer messages={messages} />
-        </TestWrapper>
+        </TestWrapper>,
       );
 
       await waitFor(() => {
@@ -516,14 +516,14 @@ describe('Text Component', () => {
 
     it('should not render iframe tags', async () => {
       const messages = createSimpleMessages('text-1', 'Text', {
-        text: { literalString: '<iframe src="https://evil.com"></iframe>' },
+        text: {literalString: '<iframe src="https://evil.com"></iframe>'},
         usageHint: 'body',
       });
 
-      const { container } = render(
+      const {container} = render(
         <TestWrapper>
           <TestRenderer messages={messages} />
-        </TestWrapper>
+        </TestWrapper>,
       );
 
       await waitFor(() => {

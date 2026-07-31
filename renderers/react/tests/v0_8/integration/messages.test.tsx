@@ -14,10 +14,10 @@
  * limitations under the License.
  */
 
-import { describe, it, expect } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
-import React, { useEffect } from 'react';
-import { A2UIProvider, A2UIRenderer, useA2UI } from '../../../src/v0_8';
+import {describe, it, expect} from 'vitest';
+import {render, screen, waitFor} from '@testing-library/react';
+import React, {useEffect} from 'react';
+import {A2UIProvider, A2UIRenderer, useA2UI} from '../../../src/v0_8';
 import type * as Types from '@a2ui/web_core/types/types';
 import {
   TestWrapper,
@@ -38,7 +38,7 @@ describe('Message Processing', () => {
   describe('Basic Processing', () => {
     it('should not render surface until beginRendering is received', () => {
       function StagedRenderer() {
-        const { processMessages } = useA2UI();
+        const {processMessages} = useA2UI();
         const [stage, setStage] = React.useState<'initial' | 'updated' | 'rendering'>('initial');
 
         useEffect(() => {
@@ -46,7 +46,12 @@ describe('Message Processing', () => {
             // Step 1: Only send surfaceUpdate (no beginRendering)
             processMessages([
               createSurfaceUpdate([
-                { id: 'text-1', component: { Text: { text: { literalString: 'Should not appear yet' } , usageHint: 'body' } } },
+                {
+                  id: 'text-1',
+                  component: {
+                    Text: {text: {literalString: 'Should not appear yet'}, usageHint: 'body'},
+                  },
+                },
               ]),
             ]);
             setStage('updated');
@@ -70,7 +75,7 @@ describe('Message Processing', () => {
       render(
         <A2UIProvider>
           <StagedRenderer />
-        </A2UIProvider>
+        </A2UIProvider>,
       );
 
       // After surfaceUpdate only, content should NOT be visible
@@ -87,7 +92,10 @@ describe('Message Processing', () => {
     it('should process surfaceUpdate and beginRendering messages', () => {
       const messages: Types.ServerToClientMessage[] = [
         createSurfaceUpdate([
-          { id: 'text-1', component: { Text: { text: { literalString: 'Hello World' } , usageHint: 'body' } } },
+          {
+            id: 'text-1',
+            component: {Text: {text: {literalString: 'Hello World'}, usageHint: 'body'}},
+          },
         ]),
         createBeginRendering('text-1'),
       ];
@@ -95,7 +103,7 @@ describe('Message Processing', () => {
       render(
         <TestWrapper>
           <TestRenderer messages={messages} />
-        </TestWrapper>
+        </TestWrapper>,
       );
 
       expect(screen.getByText('Hello World')).toBeInTheDocument();
@@ -103,19 +111,25 @@ describe('Message Processing', () => {
 
     it('should process multiple messages in sequence', () => {
       function SequentialRenderer() {
-        const { processMessages } = useA2UI();
+        const {processMessages} = useA2UI();
 
         useEffect(() => {
           processMessages([
             createSurfaceUpdate([
-              { id: 'text-1', component: { Text: { text: { literalString: 'Initial' } , usageHint: 'body' } } },
+              {
+                id: 'text-1',
+                component: {Text: {text: {literalString: 'Initial'}, usageHint: 'body'}},
+              },
             ]),
             createBeginRendering('text-1'),
           ]);
 
           processMessages([
             createSurfaceUpdate([
-              { id: 'text-1', component: { Text: { text: { literalString: 'Updated' } , usageHint: 'body' } } },
+              {
+                id: 'text-1',
+                component: {Text: {text: {literalString: 'Updated'}, usageHint: 'body'}},
+              },
             ]),
             createBeginRendering('text-1'),
           ]);
@@ -127,7 +141,7 @@ describe('Message Processing', () => {
       render(
         <A2UIProvider>
           <SequentialRenderer />
-        </A2UIProvider>
+        </A2UIProvider>,
       );
 
       expect(screen.getByText('Updated')).toBeInTheDocument();
@@ -136,13 +150,16 @@ describe('Message Processing', () => {
 
     it('should handle empty message arrays gracefully', () => {
       function EmptyMessagesRenderer() {
-        const { processMessages } = useA2UI();
+        const {processMessages} = useA2UI();
 
         useEffect(() => {
           processMessages([]);
           processMessages([
             createSurfaceUpdate([
-              { id: 'text-1', component: { Text: { text: { literalString: 'After empty' } , usageHint: 'body' } } },
+              {
+                id: 'text-1',
+                component: {Text: {text: {literalString: 'After empty'}, usageHint: 'body'}},
+              },
             ]),
             createBeginRendering('text-1'),
           ]);
@@ -154,7 +171,7 @@ describe('Message Processing', () => {
       render(
         <A2UIProvider>
           <EmptyMessagesRenderer />
-        </A2UIProvider>
+        </A2UIProvider>,
       );
 
       expect(screen.getByText('After empty')).toBeInTheDocument();
@@ -164,18 +181,32 @@ describe('Message Processing', () => {
   describe('Multiple Surfaces', () => {
     it('should render different content on different surfaces', () => {
       function MultiSurfaceRenderer() {
-        const { processMessages } = useA2UI();
+        const {processMessages} = useA2UI();
 
         useEffect(() => {
           processMessages([
             createSurfaceUpdate(
-              [{ id: 'text-a', component: { Text: { text: { literalString: 'Surface A Content' } , usageHint: 'body' } } }],
-              'surface-a'
+              [
+                {
+                  id: 'text-a',
+                  component: {
+                    Text: {text: {literalString: 'Surface A Content'}, usageHint: 'body'},
+                  },
+                },
+              ],
+              'surface-a',
             ),
             createBeginRendering('text-a', 'surface-a'),
             createSurfaceUpdate(
-              [{ id: 'text-b', component: { Text: { text: { literalString: 'Surface B Content' } , usageHint: 'body' } } }],
-              'surface-b'
+              [
+                {
+                  id: 'text-b',
+                  component: {
+                    Text: {text: {literalString: 'Surface B Content'}, usageHint: 'body'},
+                  },
+                },
+              ],
+              'surface-b',
             ),
             createBeginRendering('text-b', 'surface-b'),
           ]);
@@ -196,7 +227,7 @@ describe('Message Processing', () => {
       render(
         <A2UIProvider>
           <MultiSurfaceRenderer />
-        </A2UIProvider>
+        </A2UIProvider>,
       );
 
       expect(screen.getByText('Surface A Content')).toBeInTheDocument();
@@ -210,20 +241,34 @@ describe('Message Processing', () => {
 
     it('should update surfaces independently', () => {
       function IndependentSurfaceRenderer() {
-        const { processMessages } = useA2UI();
+        const {processMessages} = useA2UI();
         const [step, setStep] = React.useState(0);
 
         useEffect(() => {
           if (step === 0) {
             processMessages([
               createSurfaceUpdate(
-                [{ id: 'text-a', component: { Text: { text: { literalString: 'A: Initial' } , usageHint: 'body' } } }],
-                'surface-a'
+                [
+                  {
+                    id: 'text-a',
+                    component: {
+                      Text: {text: {literalString: 'A: Initial'}, usageHint: 'body'},
+                    },
+                  },
+                ],
+                'surface-a',
               ),
               createBeginRendering('text-a', 'surface-a'),
               createSurfaceUpdate(
-                [{ id: 'text-b', component: { Text: { text: { literalString: 'B: Initial' } , usageHint: 'body' } } }],
-                'surface-b'
+                [
+                  {
+                    id: 'text-b',
+                    component: {
+                      Text: {text: {literalString: 'B: Initial'}, usageHint: 'body'},
+                    },
+                  },
+                ],
+                'surface-b',
               ),
               createBeginRendering('text-b', 'surface-b'),
             ]);
@@ -231,8 +276,15 @@ describe('Message Processing', () => {
           } else if (step === 1) {
             processMessages([
               createSurfaceUpdate(
-                [{ id: 'text-a', component: { Text: { text: { literalString: 'A: Updated' } , usageHint: 'body' } } }],
-                'surface-a'
+                [
+                  {
+                    id: 'text-a',
+                    component: {
+                      Text: {text: {literalString: 'A: Updated'}, usageHint: 'body'},
+                    },
+                  },
+                ],
+                'surface-a',
               ),
               createBeginRendering('text-a', 'surface-a'),
             ]);
@@ -250,7 +302,7 @@ describe('Message Processing', () => {
       render(
         <A2UIProvider>
           <IndependentSurfaceRenderer />
-        </A2UIProvider>
+        </A2UIProvider>,
       );
 
       expect(screen.getByText('A: Updated')).toBeInTheDocument();
@@ -261,7 +313,7 @@ describe('Message Processing', () => {
       render(
         <A2UIProvider>
           <A2UIRenderer surfaceId="does-not-exist" />
-        </A2UIProvider>
+        </A2UIProvider>,
       );
       // Should render without error but with no content
     });
@@ -270,14 +322,21 @@ describe('Message Processing', () => {
   describe('Delete Surface', () => {
     it('should remove surface content when deleteSurface is received', async () => {
       function DeleteSurfaceRenderer() {
-        const { processMessages } = useA2UI();
+        const {processMessages} = useA2UI();
         const [deleted, setDeleted] = React.useState(false);
 
         useEffect(() => {
           processMessages([
             createSurfaceUpdate(
-              [{ id: 'text-1', component: { Text: { text: { literalString: 'Surface content' } , usageHint: 'body' } } }],
-              'deletable-surface'
+              [
+                {
+                  id: 'text-1',
+                  component: {
+                    Text: {text: {literalString: 'Surface content'}, usageHint: 'body'},
+                  },
+                },
+              ],
+              'deletable-surface',
             ),
             createBeginRendering('text-1', 'deletable-surface'),
           ]);
@@ -299,7 +358,7 @@ describe('Message Processing', () => {
       render(
         <A2UIProvider>
           <DeleteSurfaceRenderer />
-        </A2UIProvider>
+        </A2UIProvider>,
       );
 
       expect(screen.getByText('Surface content')).toBeInTheDocument();
@@ -312,7 +371,7 @@ describe('Message Processing', () => {
 
     it('should handle deleting a non-existent surface gracefully', () => {
       function DeleteNonExistentRenderer() {
-        const { processMessages } = useA2UI();
+        const {processMessages} = useA2UI();
         const [attempted, setAttempted] = React.useState(false);
 
         useEffect(() => {
@@ -328,7 +387,7 @@ describe('Message Processing', () => {
       render(
         <A2UIProvider>
           <DeleteNonExistentRenderer />
-        </A2UIProvider>
+        </A2UIProvider>,
       );
 
       expect(screen.getByTestId('status')).toHaveTextContent('completed');
@@ -336,20 +395,34 @@ describe('Message Processing', () => {
 
     it('should only delete the specified surface, leaving others intact', async () => {
       function MultiSurfaceDeleteRenderer() {
-        const { processMessages } = useA2UI();
+        const {processMessages} = useA2UI();
         const [deleted, setDeleted] = React.useState(false);
 
         useEffect(() => {
           // Create two surfaces
           processMessages([
             createSurfaceUpdate(
-              [{ id: 'text-a', component: { Text: { text: { literalString: 'Surface A content' } , usageHint: 'body' } } }],
-              'surface-a'
+              [
+                {
+                  id: 'text-a',
+                  component: {
+                    Text: {text: {literalString: 'Surface A content'}, usageHint: 'body'},
+                  },
+                },
+              ],
+              'surface-a',
             ),
             createBeginRendering('text-a', 'surface-a'),
             createSurfaceUpdate(
-              [{ id: 'text-b', component: { Text: { text: { literalString: 'Surface B content' } , usageHint: 'body' } } }],
-              'surface-b'
+              [
+                {
+                  id: 'text-b',
+                  component: {
+                    Text: {text: {literalString: 'Surface B content'}, usageHint: 'body'},
+                  },
+                },
+              ],
+              'surface-b',
             ),
             createBeginRendering('text-b', 'surface-b'),
           ]);
@@ -373,7 +446,7 @@ describe('Message Processing', () => {
       render(
         <A2UIProvider>
           <MultiSurfaceDeleteRenderer />
-        </A2UIProvider>
+        </A2UIProvider>,
       );
 
       // Both surfaces should be visible initially
@@ -390,7 +463,7 @@ describe('Message Processing', () => {
 
     it('should allow re-creating a surface after deletion with the same ID', async () => {
       function RecreateAfterDeleteRenderer() {
-        const { processMessages } = useA2UI();
+        const {processMessages} = useA2UI();
         const [stage, setStage] = React.useState<'initial' | 'deleted' | 'recreated'>('initial');
 
         useEffect(() => {
@@ -398,8 +471,15 @@ describe('Message Processing', () => {
             // Create surface
             processMessages([
               createSurfaceUpdate(
-                [{ id: 'text-1', component: { Text: { text: { literalString: 'Original content' } , usageHint: 'body' } } }],
-                'recyclable-surface'
+                [
+                  {
+                    id: 'text-1',
+                    component: {
+                      Text: {text: {literalString: 'Original content'}, usageHint: 'body'},
+                    },
+                  },
+                ],
+                'recyclable-surface',
               ),
               createBeginRendering('text-1', 'recyclable-surface'),
             ]);
@@ -412,8 +492,18 @@ describe('Message Processing', () => {
             // Re-create surface with same ID but different content
             processMessages([
               createSurfaceUpdate(
-                [{ id: 'text-2', component: { Text: { text: { literalString: 'New content after recreation' } , usageHint: 'body' } } }],
-                'recyclable-surface'
+                [
+                  {
+                    id: 'text-2',
+                    component: {
+                      Text: {
+                        text: {literalString: 'New content after recreation'},
+                        usageHint: 'body',
+                      },
+                    },
+                  },
+                ],
+                'recyclable-surface',
               ),
               createBeginRendering('text-2', 'recyclable-surface'),
             ]);
@@ -431,7 +521,7 @@ describe('Message Processing', () => {
       render(
         <A2UIProvider>
           <RecreateAfterDeleteRenderer />
-        </A2UIProvider>
+        </A2UIProvider>,
       );
 
       // Initial content should be visible
@@ -449,13 +539,18 @@ describe('Message Processing', () => {
   describe('Clear Surfaces', () => {
     it('should clear all surfaces when clearSurfaces is called', () => {
       function ClearRenderer() {
-        const { processMessages, clearSurfaces } = useA2UI();
+        const {processMessages, clearSurfaces} = useA2UI();
         const [cleared, setCleared] = React.useState(false);
 
         useEffect(() => {
           processMessages([
             createSurfaceUpdate([
-              { id: 'text-1', component: { Text: { text: { literalString: 'Will be cleared' } , usageHint: 'body' } } },
+              {
+                id: 'text-1',
+                component: {
+                  Text: {text: {literalString: 'Will be cleared'}, usageHint: 'body'},
+                },
+              },
             ]),
             createBeginRendering('text-1'),
           ]);
@@ -477,7 +572,7 @@ describe('Message Processing', () => {
       render(
         <A2UIProvider>
           <ClearRenderer />
-        </A2UIProvider>
+        </A2UIProvider>,
       );
 
       expect(screen.getByText('Will be cleared')).toBeInTheDocument();
@@ -490,14 +585,17 @@ describe('Message Processing', () => {
 
     it('should allow new content after clearing', () => {
       function ClearAndRefillRenderer() {
-        const { processMessages, clearSurfaces } = useA2UI();
+        const {processMessages, clearSurfaces} = useA2UI();
         const [step, setStep] = React.useState(0);
 
         useEffect(() => {
           if (step === 0) {
             processMessages([
               createSurfaceUpdate([
-                { id: 'text-1', component: { Text: { text: { literalString: 'Original' } , usageHint: 'body' } } },
+                {
+                  id: 'text-1',
+                  component: {Text: {text: {literalString: 'Original'}, usageHint: 'body'}},
+                },
               ]),
               createBeginRendering('text-1'),
             ]);
@@ -508,7 +606,12 @@ describe('Message Processing', () => {
           } else if (step === 2) {
             processMessages([
               createSurfaceUpdate([
-                { id: 'text-2', component: { Text: { text: { literalString: 'New Content' } , usageHint: 'body' } } },
+                {
+                  id: 'text-2',
+                  component: {
+                    Text: {text: {literalString: 'New Content'}, usageHint: 'body'},
+                  },
+                },
               ]),
               createBeginRendering('text-2'),
             ]);
@@ -521,7 +624,7 @@ describe('Message Processing', () => {
       render(
         <A2UIProvider>
           <ClearAndRefillRenderer />
-        </A2UIProvider>
+        </A2UIProvider>,
       );
 
       return waitFor(() => {

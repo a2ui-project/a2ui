@@ -21,7 +21,10 @@
 }
 
 .label {
-  font-size: var(--a2ui-choicepicker-label-font-size, var(--a2ui-label-font-size, var(--a2ui-font-size-s)));
+  font-size: var(
+    --a2ui-choicepicker-label-font-size,
+    var(--a2ui-label-font-size, var(--a2ui-font-size-s))
+  );
   font-weight: var(--a2ui-choicepicker-label-font-weight, var(--a2ui-label-font-weight, bold));
   color: var(--a2ui-choicepicker-label-color, inherit);
 }
@@ -29,9 +32,15 @@
 .filterInput {
   background-color: var(--a2ui-color-input, #fff);
   color: var(--a2ui-color-on-input, #333);
-  border: var(--a2ui-textfield-border, var(--a2ui-border-width, 1px) solid var(--a2ui-color-border, #ccc));
+  border: var(
+    --a2ui-textfield-border,
+    var(--a2ui-border-width, 1px) solid var(--a2ui-color-border, #ccc)
+  );
   border-radius: var(--a2ui-textfield-border-radius, var(--a2ui-spacing-m, 8px));
-  padding: var(--a2ui-choicepicker-filter-padding, var(--a2ui-spacing-xs, 4px) var(--a2ui-spacing-s, 8px));
+  padding: var(
+    --a2ui-choicepicker-filter-padding,
+    var(--a2ui-spacing-xs, 4px) var(--a2ui-spacing-s, 8px)
+  );
   font-family: inherit;
   transition: border-color 0.2s;
 }
@@ -57,7 +66,10 @@
 }
 
 .chip {
-  padding: var(--a2ui-choicepicker-chip-padding, var(--a2ui-spacing-s, 4px) var(--a2ui-spacing-m, 8px));
+  padding: var(
+    --a2ui-choicepicker-chip-padding,
+    var(--a2ui-spacing-s, 4px) var(--a2ui-spacing-m, 8px)
+  );
   border-radius: var(--a2ui-choicepicker-chip-border-radius, 999px);
   border: 1px solid var(--a2ui-color-border, #ccc);
   background-color: var(--a2ui-color-surface, #fff);
@@ -65,7 +77,9 @@
   cursor: pointer;
   font-size: var(--a2ui-font-size-xs, 0.75rem);
   font-family: inherit;
-  transition: background-color 0.2s, border-color 0.2s;
+  transition:
+    background-color 0.2s,
+    border-color 0.2s;
 }
 
 .chip.selected {

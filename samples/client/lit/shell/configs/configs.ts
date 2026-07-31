@@ -14,5 +14,6 @@
  * limitations under the License.
  */
 
-export type { AppConfig } from "./types.js";
-export { restaurantConfig } from "./restaurant.js";
+export type {AppConfig} from './types.js';
+export {restaurantConfig} from './restaurant.js';
+export {localConfig} from './local.js';

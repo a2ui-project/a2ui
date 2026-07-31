@@ -14,28 +14,28 @@
  * limitations under the License.
  */
 
-import { LitElement, html, css, nothing, PropertyValueMap } from "lit";
-import { customElement, property } from "lit/decorators.js";
+import {LitElement, html, css, nothing, PropertyValueMap} from 'lit';
+import {customElement, property} from 'lit/decorators.js';
 
 export enum Direction {
-  HORIZONTAL = "horizontal",
-  VERTICAL = "vertical",
+  HORIZONTAL = 'horizontal',
+  VERTICAL = 'vertical',
 }
 
-const STORAGE_PREFIX = "ui-split";
+const STORAGE_PREFIX = 'ui-split';
 
-@customElement("ui-splitter")
+@customElement('ui-splitter')
 export class Splitter extends LitElement {
-  @property({ reflect: true, attribute: true })
+  @property({reflect: true, attribute: true})
   accessor direction = Direction.HORIZONTAL;
 
-  @property({ reflect: true, attribute: true })
-  accessor name = "";
+  @property({reflect: true, attribute: true})
+  accessor name = '';
 
-  @property({ reflect: true, attribute: true, type: "number" })
+  @property({reflect: true, attribute: true, type: 'number'})
   accessor minSegmentSizeHorizontal = 325;
 
-  @property({ reflect: true, attribute: true, type: "number" })
+  @property({reflect: true, attribute: true, type: 'number'})
   accessor minSegmentSizeVertical = 200;
 
   @property({
@@ -45,9 +45,7 @@ export class Splitter extends LitElement {
     hasChanged(value) {
       if (!Array.isArray(value) || value.length < 2) {
         console.warn(
-          `A splitter needs two or more sections; ${JSON.stringify(
-            value
-          )} was provided`
+          `A splitter needs two or more sections; ${JSON.stringify(value)} was provided`,
         );
         return false;
       }
@@ -80,39 +78,37 @@ export class Splitter extends LitElement {
       position: relative;
     }
 
-    :host([direction="horizontal"].active) {
+    :host([direction='horizontal'].active) {
       cursor: ew-resize;
     }
 
-    :host([direction="vertical"].active) {
+    :host([direction='vertical'].active) {
       cursor: ns-resize;
     }
 
-    :host([direction="horizontal"]) .drag-handle {
+    :host([direction='horizontal']) .drag-handle {
       cursor: ew-resize;
       width: var(--handle-size);
       translate: calc(var(--handle-size) * -0.5) 0;
     }
 
-    :host([direction="vertical"]) .drag-handle {
+    :host([direction='vertical']) .drag-handle {
       cursor: ns-resize;
       height: var(--handle-size);
       translate: 0 calc(var(--handle-size) * -0.5);
     }
   `;
 
-  #resizeObserver = new ResizeObserver((entries) => {
+  #resizeObserver = new ResizeObserver(entries => {
     if (entries.length === 0) {
       return;
     }
 
     const [entry] = entries;
     if (this.direction === Direction.HORIZONTAL) {
-      this.#minSizeNormalized =
-        this.minSegmentSizeHorizontal / entry.contentRect.width;
+      this.#minSizeNormalized = this.minSegmentSizeHorizontal / entry.contentRect.width;
     } else {
-      this.#minSizeNormalized =
-        this.minSegmentSizeVertical / entry.contentRect.height;
+      this.#minSizeNormalized = this.minSegmentSizeVertical / entry.contentRect.height;
     }
 
     this.#setAndStore();
@@ -134,7 +130,7 @@ export class Splitter extends LitElement {
     if (this.name) {
       globalThis.sessionStorage.setItem(
         `${STORAGE_PREFIX}-${this.name}`,
-        JSON.stringify(this.split)
+        JSON.stringify(this.split),
       );
     }
 
@@ -151,7 +147,7 @@ export class Splitter extends LitElement {
       return;
     }
 
-    const idx = Number.parseInt(handle.dataset.idx || "");
+    const idx = Number.parseInt(handle.dataset.idx || '');
     if (Number.isNaN(idx)) {
       return;
     }
@@ -172,12 +168,12 @@ export class Splitter extends LitElement {
     this.#bounds.width = end.right - start.left;
     this.#bounds.height = end.bottom - start.top;
 
-    this.style.userSelect = "none";
-    this.classList.add("active");
+    this.style.userSelect = 'none';
+    this.classList.add('active');
 
     handle.setPointerCapture(evt.pointerId);
-    window.addEventListener("pointermove", this.#onPointerMoveBound);
-    window.addEventListener("pointerup", this.#onPointerUpBound, {
+    window.addEventListener('pointermove', this.#onPointerMoveBound);
+    window.addEventListener('pointerup', this.#onPointerUpBound, {
       once: true,
     });
   }
@@ -193,22 +189,14 @@ export class Splitter extends LitElement {
     const total = this.split[this.#handleIdx] + this.split[this.#handleIdx + 1];
     switch (this.direction) {
       case Direction.HORIZONTAL: {
-        x = this.#clamp(
-          x,
-          this.#minSizeNormalized,
-          1 - this.#minSizeNormalized
-        );
+        x = this.#clamp(x, this.#minSizeNormalized, 1 - this.#minSizeNormalized);
         this.split[this.#handleIdx] = x * total;
         this.split[this.#handleIdx + 1] = (1 - x) * total;
         break;
       }
 
       case Direction.VERTICAL: {
-        y = this.#clamp(
-          y,
-          this.#minSizeNormalized,
-          1 - this.#minSizeNormalized
-        );
+        y = this.#clamp(y, this.#minSizeNormalized, 1 - this.#minSizeNormalized);
         this.split[this.#handleIdx] = y * total;
         this.split[this.#handleIdx + 1] = (1 - y) * total;
         break;
@@ -220,10 +208,10 @@ export class Splitter extends LitElement {
 
   #onPointerUp() {
     this.#handleIdx = null;
-    this.style.userSelect = "initial";
-    this.classList.remove("active");
+    this.style.userSelect = 'initial';
+    this.classList.remove('active');
 
-    window.removeEventListener("pointermove", this.#onPointerMoveBound);
+    window.removeEventListener('pointermove', this.#onPointerMoveBound);
   }
 
   #clamp(value: number, min: number, max: number) {
@@ -244,9 +232,7 @@ export class Splitter extends LitElement {
       return;
     }
 
-    const split = globalThis.sessionStorage.getItem(
-      `${STORAGE_PREFIX}-${this.name}`
-    );
+    const split = globalThis.sessionStorage.getItem(`${STORAGE_PREFIX}-${this.name}`);
     if (split) {
       const numSplit: number[] = JSON.parse(split) as number[];
       if (Array.isArray(numSplit)) {
@@ -255,12 +241,8 @@ export class Splitter extends LitElement {
             this.split[i] = numSplit[i];
           }
         } else {
-          console.warn(
-            "Stored splitter value differs from configured value - resetting"
-          );
-          globalThis.sessionStorage.removeItem(
-            `${STORAGE_PREFIX}-${this.name}`
-          );
+          console.warn('Stored splitter value differs from configured value - resetting');
+          globalThis.sessionStorage.removeItem(`${STORAGE_PREFIX}-${this.name}`);
         }
       }
     }
@@ -291,20 +273,16 @@ export class Splitter extends LitElement {
     if (amountToBeBorrowed > 0) {
       // Now we go through all the other segments from which we determined that
       // we could borrow. We reduce each one by a fractional amount of the total.
-      const totalBorrowable = borrowable.reduce(
-        (prev, curr) => prev + split[curr],
-        0
-      );
+      const totalBorrowable = borrowable.reduce((prev, curr) => prev + split[curr], 0);
       for (let s = 0; s < borrowable.length; s++) {
-        const proportion =
-          (split[borrowable[s]] / totalBorrowable) * amountToBeBorrowed;
+        const proportion = (split[borrowable[s]] / totalBorrowable) * amountToBeBorrowed;
 
         // Now ensure that the borrowed item never dips below the min size,
         // either. This could result in competition at very small spaces.
         split[borrowable[s]] = this.#clamp(
           this.split[borrowable[s]] - proportion,
           this.#minSizeNormalized,
-          1
+          1,
         );
       }
     }
@@ -316,16 +294,16 @@ export class Splitter extends LitElement {
     }
 
     // And apply.
-    const styles = split.map((_, idx) => `var(--slot-${idx})`).join(` 0px `);
+    const styles = split.map((_, idx) => `var(--slot-${idx})`).join(' 0px ');
     switch (this.direction) {
       case Direction.VERTICAL: {
-        this.style.gridTemplateColumns = "";
+        this.style.gridTemplateColumns = '';
         this.style.gridTemplateRows = styles;
         break;
       }
 
       case Direction.HORIZONTAL: {
-        this.style.gridTemplateRows = "";
+        this.style.gridTemplateRows = '';
         this.style.gridTemplateColumns = styles;
         break;
       }
@@ -338,11 +316,9 @@ export class Splitter extends LitElement {
   }
 
   protected willUpdate(
-    changedProperties:
-      | PropertyValueMap<{ direction: Direction }>
-      | Map<PropertyKey, unknown>
+    changedProperties: PropertyValueMap<{direction: Direction}> | Map<PropertyKey, unknown>,
   ): void {
-    if (!changedProperties.has("direction")) {
+    if (!changedProperties.has('direction')) {
       return;
     }
 

@@ -14,18 +14,18 @@
  * limitations under the License.
  */
 
-import { html, css, nothing } from "lit";
-import { customElement, property } from "lit/decorators.js";
-import { Root } from "./root.js";
-import { A2uiMessageProcessor } from "@a2ui/web_core/data/model-processor";
-import * as Primitives from "@a2ui/web_core/types/primitives";
-import * as Types from "@a2ui/web_core/types/types";
-import { classMap } from "lit/directives/class-map.js";
-import { styleMap } from "lit/directives/style-map.js";
-import { structuralStyles } from "./styles.js";
-import { Styles } from "../index.js";
+import {html, css, nothing} from 'lit';
+import {customElement, property} from 'lit/decorators.js';
+import {Root} from './root.js';
+import {A2uiMessageProcessor} from '@a2ui/web_core/data/model-processor';
+import * as Primitives from '@a2ui/web_core/types/primitives';
+import * as Types from '@a2ui/web_core/types/types';
+import {classMap} from 'lit/directives/class-map.js';
+import {styleMap} from 'lit/directives/style-map.js';
+import {structuralStyles} from './styles.js';
+import {Styles} from '../index.js';
 
-@customElement("a2ui-image")
+@customElement('a2ui-image')
 export class Image extends Root {
   @property()
   accessor url: Primitives.StringValue | null = null;
@@ -34,10 +34,10 @@ export class Image extends Root {
   accessor altText: Primitives.StringValue | null = null;
 
   @property()
-  accessor usageHint: Types.ResolvedImage["usageHint"] | null = null;
+  accessor usageHint: Types.ResolvedImage['usageHint'] | null = null;
 
   @property()
-  accessor fit: "contain" | "cover" | "fill" | "none" | "scale-down" | null = null;
+  accessor fit: 'contain' | 'cover' | 'fill' | 'none' | 'scale-down' | null = null;
 
   static styles = [
     structuralStyles,
@@ -68,21 +68,21 @@ export class Image extends Root {
     }
 
     const render = (url: string) => {
-      let resolvedAlt = "";
+      let resolvedAlt = '';
       if (this.altText) {
-        if (typeof this.altText === "object") {
-          if ("literalString" in this.altText) {
-            resolvedAlt = this.altText.literalString ?? "";
-          } else if ("literal" in this.altText) {
-            resolvedAlt = this.altText.literal ?? "";
-          } else if ("path" in this.altText && this.altText.path) {
+        if (typeof this.altText === 'object') {
+          if ('literalString' in this.altText) {
+            resolvedAlt = this.altText.literalString ?? '';
+          } else if ('literal' in this.altText) {
+            resolvedAlt = this.altText.literal ?? '';
+          } else if ('path' in this.altText && this.altText.path) {
             if (this.processor && this.component) {
               const data = this.processor.getData(
                 this.component,
                 this.altText.path,
-                this.surfaceId ?? A2uiMessageProcessor.DEFAULT_SURFACE_ID
+                this.surfaceId ?? A2uiMessageProcessor.DEFAULT_SURFACE_ID,
               );
-              if (typeof data === "string") {
+              if (typeof data === 'string') {
                 resolvedAlt = data;
               }
             }
@@ -92,14 +92,14 @@ export class Image extends Root {
       return html`<img src=${url} alt=${resolvedAlt} />`;
     };
 
-    if (this.url && typeof this.url === "object") {
-      if ("literalString" in this.url) {
-        const imageUrl = this.url.literalString ?? "";
+    if (this.url && typeof this.url === 'object') {
+      if ('literalString' in this.url) {
+        const imageUrl = this.url.literalString ?? '';
         return render(imageUrl);
-      } else if ("literal" in this.url) {
-        const imageUrl = this.url.literal ?? "";
+      } else if ('literal' in this.url) {
+        const imageUrl = this.url.literal ?? '';
         return render(imageUrl);
-      } else if (this.url && "path" in this.url && this.url.path) {
+      } else if (this.url && 'path' in this.url && this.url.path) {
         if (!this.processor || !this.component) {
           return html`(no model)`;
         }
@@ -107,13 +107,13 @@ export class Image extends Root {
         const imageUrl = this.processor.getData(
           this.component,
           this.url.path,
-          this.surfaceId ?? A2uiMessageProcessor.DEFAULT_SURFACE_ID
+          this.surfaceId ?? A2uiMessageProcessor.DEFAULT_SURFACE_ID,
         );
         if (!imageUrl) {
           return html`Invalid image URL`;
         }
 
-        if (typeof imageUrl !== "string") {
+        if (typeof imageUrl !== 'string') {
           return html`Invalid image URL`;
         }
         return render(imageUrl);
@@ -126,14 +126,14 @@ export class Image extends Root {
   render() {
     const classes = Styles.merge(
       this.theme.components.Image.all,
-      this.usageHint ? this.theme.components.Image[this.usageHint] : {}
+      this.usageHint ? this.theme.components.Image[this.usageHint] : {},
     );
 
     return html`<section
       class=${classMap(classes)}
       style=${styleMap({
         ...(this.theme.additionalStyles?.Image ?? {}),
-        "--object-fit": this.fit ?? "fill",
+        '--object-fit': this.fit ?? 'fill',
       })}
     >
       ${this.#renderImage()}

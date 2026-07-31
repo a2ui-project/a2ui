@@ -91,15 +91,7 @@
                       "usageHint": {
                         "type": "string",
                         "description": "A hint for the base text style. One of:\n- `h1`: Largest heading.\n- `h2`: Second largest heading.\n- `h3`: Third largest heading.\n- `h4`: Fourth largest heading.\n- `h5`: Fifth largest heading.\n- `caption`: Small text for captions.\n- `body`: Standard body text.",
-                        "enum": [
-                          "h1",
-                          "h2",
-                          "h3",
-                          "h4",
-                          "h5",
-                          "caption",
-                          "body"
-                        ]
+                        "enum": ["h1", "h2", "h3", "h4", "h5", "caption", "body"]
                       }
                     },
                     "required": ["text"]
@@ -137,13 +129,7 @@
                       "fit": {
                         "type": "string",
                         "description": "Specifies how the image should be resized to fit its container. This corresponds to the CSS 'object-fit' property.",
-                        "enum": [
-                          "contain",
-                          "cover",
-                          "fill",
-                          "none",
-                          "scale-down"
-                        ]
+                        "enum": ["contain", "cover", "fill", "none", "scale-down"]
                       },
                       "usageHint": {
                         "type": "string",
@@ -624,13 +610,7 @@
                       "textFieldType": {
                         "type": "string",
                         "description": "The type of input field to display.",
-                        "enum": [
-                          "date",
-                          "longText",
-                          "number",
-                          "shortText",
-                          "obscured"
-                        ]
+                        "enum": ["date", "longText", "number", "shortText", "obscured"]
                       },
                       "validationRegexp": {
                         "type": "string",

@@ -14,13 +14,12 @@
  * limitations under the License.
  */
 
-import { ComponentFixture, TestBed } from '@angular/core/testing';
-import { TextField } from './text-field';
-import { MessageProcessor } from '../data/processor';
-import { Theme } from '../rendering/theming';
-import { Catalog } from '../rendering/catalog';
-import { By } from '@angular/platform-browser';
-import { ChangeDetectionStrategy } from '@angular/core';
+import {ComponentFixture, TestBed} from '@angular/core/testing';
+import {TextField} from './text-field';
+import {MessageProcessor} from '../data/processor';
+import {Theme} from '../rendering/theming';
+import {Catalog} from '../rendering/catalog';
+import {By} from '@angular/platform-browser';
 
 describe('TextField Component', () => {
   let component: TextField;
@@ -48,26 +47,20 @@ describe('TextField Component', () => {
     await TestBed.configureTestingModule({
       imports: [TextField],
       providers: [
-        { provide: MessageProcessor, useValue: mockProcessor },
-        { provide: Theme, useValue: mockTheme },
-        { provide: Catalog, useValue: {} },
+        {provide: MessageProcessor, useValue: mockProcessor},
+        {provide: Theme, useValue: mockTheme},
+        {provide: Catalog, useValue: {}},
       ],
-    })
-      .overrideComponent(TextField, {
-        set: {
-          changeDetection: ChangeDetectionStrategy.Default,
-        },
-      })
-      .compileComponents();
+    }).compileComponents();
 
     fixture = TestBed.createComponent(TextField);
     component = fixture.componentInstance;
 
     fixture.componentRef.setInput('surfaceId', 'surface-1');
-    fixture.componentRef.setInput('component', { id: 'tf-1', type: 'TextField', weight: 1 });
+    fixture.componentRef.setInput('component', {id: 'tf-1', type: 'TextField', weight: 1});
     fixture.componentRef.setInput('weight', 1);
-    fixture.componentRef.setInput('label', { literalString: 'Name' });
-    fixture.componentRef.setInput('text', { literalString: 'John Doe' });
+    fixture.componentRef.setInput('label', {literalString: 'Name'});
+    fixture.componentRef.setInput('text', {literalString: 'John Doe'});
 
     fixture.detectChanges();
   });
@@ -111,6 +104,6 @@ describe('TextField Component', () => {
     const message = mockProcessor.dispatch.calls.mostRecent().args[0];
     expect(message.userAction).toBeTruthy();
     expect(message.userAction!.name).toBe('input');
-    expect(message.userAction!.context).toEqual({ value: 'Jane Doe' });
+    expect(message.userAction!.context).toEqual({value: 'Jane Doe'});
   });
 });

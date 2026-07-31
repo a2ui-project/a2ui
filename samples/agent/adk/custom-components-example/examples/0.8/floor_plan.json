@@ -22,11 +22,7 @@
           "component": {
             "Column": {
               "children": {
-                "explicitList": [
-                  "floor-plan-title",
-                  "floor-plan-comp",
-                  "dismiss-fp"
-                ]
+                "explicitList": ["floor-plan-title", "floor-plan-comp", "dismiss-fp"]
               }
             }
           }
@@ -49,9 +45,7 @@
               "url": "http://localhost:10004/static/floorplan.html?data=%7B%22mappings%22%3A%20%5B%7B%22deskId%22%3A%20%22desk-1%22%2C%20%22contactId%22%3A%20%224%22%2C%20%22contactName%22%3A%20%22Jane%20Doe%22%7D%2C%20%7B%22deskId%22%3A%20%22desk-2%22%2C%20%22contactId%22%3A%20%221%22%2C%20%22contactName%22%3A%20%22Alex%20Jordan%22%7D%2C%20%7B%22deskId%22%3A%20%22desk-3%22%2C%20%22contactId%22%3A%20%223%22%2C%20%22contactName%22%3A%20%22Jordan%20Taylor%22%7D%2C%20%7B%22deskId%22%3A%20%22desk-4%22%2C%20%22contactId%22%3A%20%225%22%2C%20%22contactName%22%3A%20%22John%20Smith%22%7D%2C%20%7B%22deskId%22%3A%20%22desk-5%22%2C%20%22contactId%22%3A%20%226%22%2C%20%22contactName%22%3A%20%22Alice%20Johnson%22%7D%2C%20%7B%22deskId%22%3A%20%22desk-7%22%2C%20%22contactId%22%3A%20%222%22%2C%20%22contactName%22%3A%20%22Casey%20Smith%22%7D%5D%7D",
               "height": 400,
               "interactionMode": "interactive",
-              "allowedEvents": [
-                "chart_node_click"
-              ]
+              "allowedEvents": ["chart_node_click"]
             }
           }
         },

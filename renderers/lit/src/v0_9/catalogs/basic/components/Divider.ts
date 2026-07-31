@@ -14,14 +14,14 @@
  * limitations under the License.
  */
 
-import { html, nothing, css } from "lit";
-import { customElement } from "lit/decorators.js";
-import { classMap } from "lit/directives/class-map.js";
-import { DividerApi } from "@a2ui/web_core/v0_9/basic_catalog";
-import { A2uiController } from "@a2ui/lit/v0_9";
-import { BasicCatalogA2uiLitElement } from "../basic-catalog-a2ui-lit-element.js";
+import {html, nothing, css} from 'lit';
+import {customElement} from 'lit/decorators.js';
+import {classMap} from 'lit/directives/class-map.js';
+import {DividerApi} from '@a2ui/web_core/v0_9/basic_catalog';
+import {A2uiController} from '../../../a2ui-controller.js';
+import {BasicCatalogA2uiLitElement} from '../basic-catalog-a2ui-lit-element.js';
 
-@customElement("a2ui-divider")
+@customElement('a2ui-divider')
 export class A2uiDividerElement extends BasicCatalogA2uiLitElement<typeof DividerApi> {
   /**
    * The styles of the divider can be customized by redefining the following
@@ -30,7 +30,7 @@ export class A2uiDividerElement extends BasicCatalogA2uiLitElement<typeof Divide
    * - `--a2ui-divider-border`: The styling for the divider border. Defaults to `--a2ui-border-width` solid `--a2ui-color-border`.
    * - `--a2ui-divider-spacing`: The spacing around the divider. Defaults to `--a2ui-spacing-m`.
    */
-  static styles = css`
+  static override styles = css`
     :host {
       display: block;
       align-self: stretch;
@@ -60,17 +60,17 @@ export class A2uiDividerElement extends BasicCatalogA2uiLitElement<typeof Divide
     return new A2uiController(this, DividerApi);
   }
 
-  render() {
+  override render() {
     const props = this.controller.props;
     if (!props) return nothing;
 
     const classes = {
-      "a2ui-divider": true,
-      vertical: props.axis === "vertical",
-      horizontal: props.axis !== "vertical",
+      'a2ui-divider': true,
+      vertical: props.axis === 'vertical',
+      horizontal: props.axis !== 'vertical',
     };
 
-    return props.axis === "vertical"
+    return props.axis === 'vertical'
       ? html`<div class=${classMap(classes)}></div>`
       : html`<hr class=${classMap(classes)} />`;
   }
@@ -78,5 +78,5 @@ export class A2uiDividerElement extends BasicCatalogA2uiLitElement<typeof Divide
 
 export const A2uiDivider = {
   ...DividerApi,
-  tagName: "a2ui-divider",
+  tagName: 'a2ui-divider',
 };

@@ -14,15 +14,14 @@
  * limitations under the License.
  */
 
-import { ReactiveController, LitElement } from "lit";
+import {ReactiveController} from 'lit';
 import {
   GenericBinder,
-  ComponentContext,
   ComponentApi,
   ResolveA2uiProps,
   InferredComponentApiSchemaType,
-} from "@a2ui/web_core/v0_9";
-import { A2uiLitElement } from "./a2ui-lit-element.js";
+} from '@a2ui/web_core/v0_9';
+import {A2uiLitElement} from './a2ui-lit-element.js';
 
 /**
  * A Lit ReactiveController that binds an A2UI component context to its API schema.
@@ -32,15 +31,13 @@ import { A2uiLitElement } from "./a2ui-lit-element.js";
  *
  * @template Api The specific A2UI component API interface this controller is bound to.
  */
-export class A2uiController<
-  Api extends ComponentApi,
-> implements ReactiveController {
+export class A2uiController<Api extends ComponentApi> implements ReactiveController {
   /**
    * The current reactive properties of the A2UI component, matching the expected output schema.
    */
   public props: ResolveA2uiProps<InferredComponentApiSchemaType<Api>>;
   private binder: GenericBinder<InferredComponentApiSchemaType<Api>>;
-  private subscription?: { unsubscribe: () => void };
+  private subscription?: {unsubscribe: () => void};
 
   /**
    * Initializes the controller, binding it to the given Lit element and API schema.
@@ -53,9 +50,7 @@ export class A2uiController<
     api: Api,
   ) {
     this.binder = new GenericBinder(this.host.context, api.schema);
-    this.props = this.binder.snapshot as ResolveA2uiProps<
-      InferredComponentApiSchemaType<Api>
-    >;
+    this.props = this.binder.snapshot as ResolveA2uiProps<InferredComponentApiSchemaType<Api>>;
     this.host.addController(this);
     if (this.host.isConnected) {
       this.hostConnected();
@@ -69,10 +64,8 @@ export class A2uiController<
    */
   hostConnected() {
     if (!this.subscription) {
-      this.subscription = this.binder.subscribe((newProps) => {
-        this.props = newProps as ResolveA2uiProps<
-          InferredComponentApiSchemaType<Api>
-        >;
+      this.subscription = this.binder.subscribe(newProps => {
+        this.props = newProps as ResolveA2uiProps<InferredComponentApiSchemaType<Api>>;
         this.host.requestUpdate();
       });
     }

@@ -72,7 +72,7 @@
               "text": {
                 "path": "/partySize"
               },
-              "type": "number"
+              "textFieldType": "number"
             }
           }
         },

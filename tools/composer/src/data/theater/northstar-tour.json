@@ -92,14 +92,14 @@
         {
           "id": "f1-info",
           "type": "Text",
-          "props": { "text": "UA 123 - 10:45 AM - $450" }
+          "props": {"text": "UA 123 - 10:45 AM - $450"}
         },
         {
           "id": "f1-select",
           "type": "Button",
           "props": {
             "label": "Select",
-            "onClick": { "actionId": "select_flight", "parameters": { "id": "UA123" } }
+            "onClick": {"actionId": "select_flight", "parameters": {"id": "UA123"}}
           }
         },
         {
@@ -113,14 +113,14 @@
         {
           "id": "f2-info",
           "type": "Text",
-          "props": { "text": "DL 456 - 01:20 PM - $520" }
+          "props": {"text": "DL 456 - 01:20 PM - $520"}
         },
         {
           "id": "f2-select",
           "type": "Button",
           "props": {
             "label": "Select",
-            "onClick": { "actionId": "select_flight", "parameters": { "id": "DL456" } }
+            "onClick": {"actionId": "select_flight", "parameters": {"id": "DL456"}}
           }
         }
       ]
@@ -132,7 +132,7 @@
       "surfaceId": "flight-selector",
       "sourceComponentId": "f1-select",
       "timestamp": "2026-03-15T15:00:00Z",
-      "context": { "id": "UA123" }
+      "context": {"id": "UA123"}
     }
   },
   {
@@ -150,7 +150,7 @@
         {
           "id": "selected-info",
           "type": "Text",
-          "props": { "text": "Confirmed for 10:45 AM departure. Now searching for restaurants..." }
+          "props": {"text": "Confirmed for 10:45 AM departure. Now searching for restaurants..."}
         }
       ]
     }
@@ -191,14 +191,14 @@
         {
           "id": "r1-text",
           "type": "Text",
-          "props": { "text": "Carbone - Italian - ★★★★★" }
+          "props": {"text": "Carbone - Italian - ★★★★★"}
         },
         {
           "id": "r1-book",
           "type": "Button",
           "props": {
             "label": "Book",
-            "onClick": { "actionId": "book_restaurant", "parameters": { "name": "Carbone" } }
+            "onClick": {"actionId": "book_restaurant", "parameters": {"name": "Carbone"}}
           }
         },
         {
@@ -212,14 +212,17 @@
         {
           "id": "r2-text",
           "type": "Text",
-          "props": { "text": "TWA Constellation - American - ★★★★☆" }
+          "props": {"text": "TWA Constellation - American - ★★★★☆"}
         },
         {
           "id": "r2-book",
           "type": "Button",
           "props": {
             "label": "Book",
-            "onClick": { "actionId": "book_restaurant", "parameters": { "name": "TWA Constellation" } }
+            "onClick": {
+              "actionId": "book_restaurant",
+              "parameters": {"name": "TWA Constellation"}
+            }
           }
         }
       ]
@@ -231,7 +234,7 @@
       "surfaceId": "restaurant-list",
       "sourceComponentId": "r1-book",
       "timestamp": "2026-03-15T15:05:00Z",
-      "context": { "name": "Carbone" }
+      "context": {"name": "Carbone"}
     }
   },
   {
@@ -254,19 +257,19 @@
         {
           "id": "b-title",
           "type": "Text",
-          "props": { "text": "Book at Carbone", "variant": "h3" }
+          "props": {"text": "Book at Carbone", "variant": "h3"}
         },
         {
           "id": "b-party",
           "type": "TextField",
-          "props": { "label": "Party Size", "value": "2" }
+          "props": {"label": "Party Size", "value": "2"}
         },
         {
           "id": "b-submit",
           "type": "Button",
           "props": {
             "label": "Confirm Booking",
-            "onClick": { "actionId": "submit_booking" }
+            "onClick": {"actionId": "submit_booking"}
           }
         }
       ]
@@ -286,7 +289,7 @@
       "surfaceId": "booking-form",
       "sourceComponentId": "b-submit",
       "timestamp": "2026-03-15T15:10:00Z",
-      "context": { "partySize": "4" }
+      "context": {"partySize": "4"}
     }
   },
   {
@@ -296,7 +299,10 @@
         {
           "id": "root",
           "type": "Text",
-          "props": { "text": "✅ All set! UA 123 booked and Carbone reserved for 4.", "color": "success" }
+          "props": {
+            "text": "✅ All set! UA 123 booked and Carbone reserved for 4.",
+            "color": "success"
+          }
         }
       ]
     }

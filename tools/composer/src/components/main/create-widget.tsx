@@ -14,38 +14,34 @@
  * limitations under the License.
  */
 
-"use client";
+'use client';
 
-import { useState, useRef, useEffect } from "react";
-import { useRouter } from "next/navigation";
-import { v4 as uuidv4 } from "uuid";
-import {
-  useAgent,
-  useCopilotKit,
-  useFrontendTool,
-} from "@copilotkit/react-core/v2";
-import { z } from "zod";
-import { WidgetInput } from "./widget-input";
-import { useWidgets } from "@/contexts/widgets-context";
-import { useSpecVersion } from "@/contexts/spec-version-context";
-import type { Widget } from "@/types/widget";
-import type { A2UIComponent } from "@/types/widget";
-import { parseRobustJSON } from "@/lib/json-parser";
+import {useState, useRef, useEffect} from 'react';
+import {useRouter} from 'next/navigation';
+import {v4 as uuidv4} from 'uuid';
+import {useAgent, useCopilotKit, useFrontendTool} from '@copilotkit/react-core/v2';
+import {z} from 'zod';
+import {WidgetInput} from './widget-input';
+import {useWidgets} from '@/contexts/widgets-context';
+import {useSpecVersion} from '@/contexts/spec-version-context';
+import type {Widget} from '@/types/widget';
+import type {A2UIComponent} from '@/types/widget';
+import {parseRobustJSON} from '@/lib/json-parser';
 
 const DEFAULT_COMPONENTS_V08: A2UIComponent[] = [
   {
-    id: "root",
+    id: 'root',
     component: {
       Card: {
-        child: "content",
+        child: 'content',
       },
     },
   },
   {
-    id: "content",
+    id: 'content',
     component: {
       Text: {
-        text: { path: "/title" },
+        text: {path: '/title'},
       },
     },
   },
@@ -53,30 +49,30 @@ const DEFAULT_COMPONENTS_V08: A2UIComponent[] = [
 
 const DEFAULT_COMPONENTS_V09: A2UIComponent[] = [
   {
-    id: "root",
-    component: "Card",
-    child: "content",
+    id: 'root',
+    component: 'Card',
+    child: 'content',
   },
   {
-    id: "content",
-    component: "Text",
-    text: { path: "/title" },
+    id: 'content',
+    component: 'Text',
+    text: {path: '/title'},
   },
 ];
 
-const DEFAULT_DATA = { title: "Hello World" };
+const DEFAULT_DATA = {title: 'Hello World'};
 
 export function CreateWidget() {
   const router = useRouter();
-  const { addWidget } = useWidgets();
-  const { specVersion } = useSpecVersion();
+  const {addWidget} = useWidgets();
+  const {specVersion} = useSpecVersion();
   const agentId = specVersion === '0.9' ? 'v09' : 'v08';
-  const { agent } = useAgent({ agentId });
-  const { copilotkit } = useCopilotKit();
+  const {agent} = useAgent({agentId});
+  const {copilotkit} = useCopilotKit();
 
   const defaultComponents = specVersion === '0.9' ? DEFAULT_COMPONENTS_V09 : DEFAULT_COMPONENTS_V08;
 
-  const [inputValue, setInputValue] = useState("");
+  const [inputValue, setInputValue] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
   const [dotCount, setDotCount] = useState(1);
 
@@ -87,22 +83,19 @@ export function CreateWidget() {
 
   // Frontend tool for creating new widgets - captures AI output
   useFrontendTool({
-    name: "editWidget",
-    description:
-      "Create a new widget with the specified name, data, and components.",
+    name: 'editWidget',
+    description: 'Create a new widget with the specified name, data, and components.',
     parameters: z.object({
       name: z
         .string()
         .describe(
           'A short descriptive name for the widget (e.g. "User Profile Card", "Weather Widget").',
         ),
-      data: z.string().describe("The data object for the widget in JSON."),
-      components: z
-        .string()
-        .describe("The components array for the widget in JSON."),
+      data: z.string().describe('The data object for the widget in JSON.'),
+      components: z.string().describe('The components array for the widget in JSON.'),
     }),
-    render: ({ args, status }) => {
-      const isGenerating = status !== "complete";
+    render: ({args, status}) => {
+      const isGenerating = status !== 'complete';
 
       return (
         <div className="w-full">
@@ -113,8 +106,8 @@ export function CreateWidget() {
               transition-all shadow-sm border text-foreground
               ${
                 isGenerating
-                  ? "bg-secondary/50 border-border cursor-wait"
-                  : "bg-primary text-primary-foreground border-primary hover:bg-primary/90 cursor-pointer hover:shadow-md"
+                  ? 'bg-secondary/50 border-border cursor-wait'
+                  : 'bg-primary text-primary-foreground border-primary hover:bg-primary/90 cursor-pointer hover:shadow-md'
               }
             `}
             disabled={isGenerating}
@@ -145,17 +138,11 @@ export function CreateWidget() {
               <span>
                 {isGenerating ? (
                   <>
-                    Creating:{" "}
-                    <span className="font-semibold">
-                      {args?.name || "Widget"}
-                    </span>
+                    Creating: <span className="font-semibold">{args?.name || 'Widget'}</span>
                   </>
                 ) : (
                   <>
-                    Created:{" "}
-                    <span className="font-semibold">
-                      {args?.name || "Widget"}
-                    </span>
+                    Created: <span className="font-semibold">{args?.name || 'Widget'}</span>
                   </>
                 )}
               </span>
@@ -178,23 +165,18 @@ export function CreateWidget() {
         </div>
       );
     },
-    handler: async ({ name, data, components }) => {
+    handler: async ({name, data, components}) => {
       try {
         generatedName.current = name;
-        generatedData.current = parseRobustJSON(data) as Record<
-          string,
-          unknown
-        >;
-        generatedComponents.current = parseRobustJSON(
-          components,
-        ) as A2UIComponent[];
+        generatedData.current = parseRobustJSON(data) as Record<string, unknown>;
+        generatedComponents.current = parseRobustJSON(components) as A2UIComponent[];
       } catch (error) {
         return {
           success: false,
           error: `Error parsing JSON: ${error}`,
         };
       }
-      return { success: true };
+      return {success: true};
     },
   });
 
@@ -218,25 +200,25 @@ export function CreateWidget() {
       // Add user message
       agent.addMessage({
         id: crypto.randomUUID(),
-        role: "user",
+        role: 'user',
         content: inputValue,
       });
 
       // Run agent (will call editWidget tool)
-      await copilotkit.runAgent({ agent });
+      await copilotkit.runAgent({agent});
 
       // Create widget with generated content (or defaults if tool wasn't called)
       const newWidget: Widget = {
         id: widgetId,
-        name: generatedName.current ?? "Untitled widget",
+        name: generatedName.current ?? 'Untitled widget',
         createdAt: new Date(),
         updatedAt: new Date(),
         specVersion,
-        root: "root",
+        root: 'root',
         components: generatedComponents.current ?? defaultComponents,
         dataStates: [
           {
-            name: "default",
+            name: 'default',
             data: generatedData.current ?? DEFAULT_DATA,
           },
         ],
@@ -245,7 +227,7 @@ export function CreateWidget() {
       await addWidget(newWidget);
       router.push(`/widget/${widgetId}`);
     } catch (error) {
-      console.error("Failed to generate widget:", error);
+      console.error('Failed to generate widget:', error);
       setIsGenerating(false);
     }
   };
@@ -258,7 +240,7 @@ export function CreateWidget() {
     }
 
     const interval = setInterval(() => {
-      setDotCount((prev) => (prev >= 3 ? 1 : prev + 1));
+      setDotCount(prev => (prev >= 3 ? 1 : prev + 1));
     }, 500);
 
     return () => clearInterval(interval);
@@ -268,15 +250,15 @@ export function CreateWidget() {
     const id = uuidv4();
     const newWidget: Widget = {
       id,
-      name: "Untitled widget",
+      name: 'Untitled widget',
       createdAt: new Date(),
       updatedAt: new Date(),
       specVersion,
-      root: "root",
+      root: 'root',
       components: defaultComponents,
       dataStates: [
         {
-          name: "default",
+          name: 'default',
           data: DEFAULT_DATA,
         },
       ],
@@ -287,24 +269,18 @@ export function CreateWidget() {
 
   return (
     <div className="flex w-full flex-col items-center gap-4 px-4">
-      <h1 className="text-4xl font-extralight tracking-tight">
-        What would you like to build?
-      </h1>
+      <h1 className="text-4xl font-extralight tracking-tight">What would you like to build?</h1>
       <WidgetInput
         value={inputValue}
         onChange={setInputValue}
         onSubmit={handleCreate}
         disabled={isGenerating}
       />
-      <span className="text-xs text-muted-foreground">
-        Powered by 🪁 CopilotKit
-      </span>
+      <span className="text-xs text-muted-foreground">Powered by 🪁 CopilotKit</span>
       {isGenerating ? (
         <span className="mt-4 text-lg text-muted-foreground">
           Generating widget
-          <span className="inline-block w-[0.75rem] text-left">
-            {".".repeat(dotCount)}
-          </span>
+          <span className="inline-block w-[0.75rem] text-left">{'.'.repeat(dotCount)}</span>
         </span>
       ) : (
         <button

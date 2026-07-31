@@ -14,8 +14,9 @@
  * limitations under the License.
  */
 
-import { Component, computed, ChangeDetectionStrategy } from '@angular/core';
-import { BasicCatalogComponent } from './basic-catalog-component';
+import {Component, computed, ChangeDetectionStrategy} from '@angular/core';
+import {BasicCatalogComponent} from './basic-catalog-component';
+import {CheckBoxApi} from '@a2ui/web_core/v0_9/basic_catalog';
 
 /**
  * Angular implementation of the A2UI CheckBox component (v0.9).
@@ -67,6 +68,7 @@ import { BasicCatalogComponent } from './basic-catalog-component';
         background: var(--a2ui-checkbox-background, inherit);
         border: var(--a2ui-checkbox-border, var(--a2ui-border-width, 1px) solid #ccc);
         border-radius: var(--a2ui-checkbox-border-radius, 4px);
+        accent-color: var(--a2ui-color-primary);
       }
       .a2ui-check-box-text {
         font-size: var(
@@ -79,7 +81,7 @@ import { BasicCatalogComponent } from './basic-catalog-component';
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
-export class CheckBoxComponent extends BasicCatalogComponent {
+export class CheckBoxComponent extends BasicCatalogComponent<typeof CheckBoxApi> {
   readonly value = computed(() => this.props()['value']?.value() === true);
   readonly label = computed(() => this.props()['label']?.value());
 

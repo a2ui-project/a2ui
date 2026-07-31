@@ -1,0 +1,38 @@
+[
+  {
+    "id": "1",
+    "name": "Alex Li",
+    "title": "Product Marketing Manager",
+    "team": "Team Macally",
+    "department": "Marketing",
+    "location": "New York",
+    "email": "alex.li@example.com",
+    "mobile": "+1 (415) 171-1080",
+    "calendar": "Free until 4:00 PM",
+    "imageUrl": "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=100&h=100&fit=crop"
+  },
+  {
+    "id": "2",
+    "name": "Casey Smith",
+    "title": "Digital Marketing Specialist",
+    "team": "Growth Team",
+    "department": "Marketing",
+    "location": "New York",
+    "email": "casey.smith@example.com",
+    "mobile": "+1 (415) 222-3333",
+    "calendar": "In a meeting",
+    "imageUrl": "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=100&h=100&fit=crop"
+  },
+  {
+    "id": "3",
+    "name": "Jordan Taylor",
+    "title": "Senior Software Engineer",
+    "team": "Core Platform",
+    "department": "Engineering",
+    "location": "San Francisco",
+    "email": "jordan.taylor@example.com",
+    "mobile": "+1 (650) 444-5555",
+    "calendar": "Focus time",
+    "imageUrl": "https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=100&h=100&fit=crop"
+  }
+]

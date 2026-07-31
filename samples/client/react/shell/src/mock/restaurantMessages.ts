@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import type { Types } from '@a2ui/react';
+import {A2uiMessage} from '@a2ui/web_core/v0_9';
 
 /**
  * Mock A2UI messages for the restaurant finder demo.
@@ -69,142 +69,130 @@ const restaurantData = [
  * Creates mock messages for a restaurant list display.
  * This simulates what the agent would return for a "find restaurants" query.
  */
-export function createRestaurantListMessages(): Types.ServerToClientMessage[] {
+export function createRestaurantListMessages(): A2uiMessage[] {
   return [
     {
-      beginRendering: {
+      version: 'v0.9',
+      createSurface: {
         surfaceId: 'default',
-        root: 'root-column',
-        styles: { primaryColor: '#FF0000', font: 'Roboto' },
+        catalogId: 'https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json',
+        theme: {primaryColor: '#FF0000', font: 'Roboto'},
       },
     },
     {
-      surfaceUpdate: {
+      version: 'v0.9',
+      updateComponents: {
         surfaceId: 'default',
         components: [
           {
-            id: 'root-column',
-            component: {
-              Column: {
-                children: { explicitList: ['title-heading', 'item-list'] },
-              },
-            },
+            id: 'root',
+            component: 'Column',
+            children: ['title-heading', 'item-list'],
           },
           {
             id: 'title-heading',
-            component: {
-              Text: { usageHint: 'h1', text: { path: '/title' } },
-            },
+            component: 'Text',
+            variant: 'h1',
+            text: {path: '/title'},
           },
           {
             id: 'item-list',
-            component: {
-              List: {
-                direction: 'vertical',
-                children: {
-                  template: {
-                    componentId: 'item-card-template',
-                    dataBinding: '/items',
-                  },
-                },
-              },
+            component: 'List',
+            direction: 'vertical',
+            children: {
+              componentId: 'item-card-template',
+              path: '/items',
             },
           },
           {
             id: 'item-card-template',
-            component: { Card: { child: 'card-layout' } },
+            component: 'Card',
+            child: 'card-layout',
           },
           {
             id: 'card-layout',
-            component: {
-              Row: {
-                children: { explicitList: ['template-image', 'card-details'] },
-              },
-            },
+            component: 'Row',
+            children: ['template-image', 'card-details'],
           },
           {
             id: 'template-image',
+            component: 'Image',
+            url: {path: 'imageUrl'},
             weight: 1,
-            component: { Image: { url: { path: 'imageUrl' } } },
           },
           {
             id: 'card-details',
+            component: 'Column',
+            children: [
+              'template-name',
+              'template-rating',
+              'template-detail',
+              'template-link',
+              'template-book-button',
+            ],
             weight: 2,
-            component: {
-              Column: {
-                children: {
-                  explicitList: [
-                    'template-name',
-                    'template-rating',
-                    'template-detail',
-                    'template-link',
-                    'template-book-button',
-                  ],
-                },
-              },
-            },
           },
           {
             id: 'template-name',
-            component: { Text: { usageHint: 'h3', text: { path: 'name' } } },
+            component: 'Text',
+            variant: 'h3',
+            text: {path: 'name'},
           },
           {
             id: 'template-rating',
-            component: { Text: { text: { path: 'rating' } } },
+            component: 'Text',
+            text: {path: 'rating'},
           },
           {
             id: 'template-detail',
-            component: { Text: { text: { path: 'detail' } } },
+            component: 'Text',
+            text: {path: 'detail'},
           },
           {
             id: 'template-link',
-            component: { Text: { text: { path: 'infoLink' } } },
+            component: 'Text',
+            text: {path: 'infoLink'},
           },
           {
             id: 'template-book-button',
-            component: {
-              Button: {
-                child: 'book-now-text',
-                primary: true,
-                action: {
-                  name: 'book_restaurant',
-                  context: [
-                    { key: 'restaurantName', value: { path: 'name' } },
-                    { key: 'imageUrl', value: { path: 'imageUrl' } },
-                    { key: 'address', value: { path: 'address' } },
-                  ],
+            component: 'Button',
+            child: 'book-now-text',
+            variant: 'primary',
+            action: {
+              event: {
+                name: 'book_restaurant',
+                context: {
+                  restaurantName: {path: 'name'},
+                  imageUrl: {path: 'imageUrl'},
+                  address: {path: 'address'},
                 },
               },
             },
           },
           {
             id: 'book-now-text',
-            component: { Text: { text: { literalString: 'Book Now' } } },
+            component: 'Text',
+            text: 'Book Now',
           },
         ],
       },
     },
     {
-      dataModelUpdate: {
+      version: 'v0.9',
+      updateDataModel: {
         surfaceId: 'default',
         path: '/',
-        contents: [
-          { key: 'title', valueString: 'Top 5 Chinese Restaurants in New York' },
-          {
-            key: 'items',
-            valueMap: restaurantData.map((restaurant, index) => ({
-              key: `item${index + 1}`,
-              valueMap: [
-                { key: 'name', valueString: restaurant.name },
-                { key: 'rating', valueString: restaurant.rating },
-                { key: 'detail', valueString: restaurant.detail },
-                { key: 'infoLink', valueString: restaurant.infoLink },
-                { key: 'imageUrl', valueString: restaurant.imageUrl },
-                { key: 'address', valueString: restaurant.address },
-              ],
-            })),
-          },
-        ],
+        value: {
+          title: 'Top 5 Chinese Restaurants in New York',
+          items: restaurantData.map(restaurant => ({
+            name: restaurant.name,
+            rating: restaurant.rating,
+            detail: restaurant.detail,
+            infoLink: restaurant.infoLink,
+            imageUrl: restaurant.imageUrl,
+            address: restaurant.address,
+          })),
+        },
       },
     },
   ];
@@ -217,119 +205,112 @@ export function createRestaurantListMessages(): Types.ServerToClientMessage[] {
 export function createBookingFormMessages(
   restaurantName: string,
   imageUrl: string,
-  address: string
-): Types.ServerToClientMessage[] {
+  address: string,
+): A2uiMessage[] {
   return [
     {
-      beginRendering: {
+      version: 'v0.9',
+      createSurface: {
         surfaceId: 'booking-form',
-        root: 'booking-form-column',
-        styles: { primaryColor: '#FF0000', font: 'Roboto' },
+        catalogId: 'https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json',
+        theme: {primaryColor: '#FF0000', font: 'Roboto'},
       },
     },
     {
-      surfaceUpdate: {
+      version: 'v0.9',
+      updateComponents: {
         surfaceId: 'booking-form',
         components: [
           {
-            id: 'booking-form-column',
-            component: {
-              Column: {
-                children: {
-                  explicitList: [
-                    'booking-title',
-                    'restaurant-image',
-                    'restaurant-address',
-                    'party-size-field',
-                    'datetime-field',
-                    'dietary-field',
-                    'submit-button',
-                  ],
-                },
-              },
-            },
+            id: 'root',
+            component: 'Column',
+            children: [
+              'booking-title',
+              'restaurant-image',
+              'restaurant-address',
+              'party-size-field',
+              'datetime-field',
+              'dietary-field',
+              'submit-button',
+            ],
           },
           {
             id: 'booking-title',
-            component: { Text: { usageHint: 'h2', text: { path: '/title' } } },
+            component: 'Text',
+            variant: 'h2',
+            text: {path: '/title'},
           },
           {
             id: 'restaurant-image',
-            component: { Image: { url: { path: '/imageUrl' } } },
+            component: 'Image',
+            url: {path: '/imageUrl'},
           },
           {
             id: 'restaurant-address',
-            component: { Text: { text: { path: '/address' } } },
+            component: 'Text',
+            text: {path: '/address'},
           },
           {
             id: 'party-size-field',
-            component: {
-              TextField: {
-                label: { literalString: 'Party Size' },
-                text: { path: '/partySize' },
-                type: 'number',
-              },
-            },
+            component: 'TextField',
+            label: 'Party Size',
+            value: {path: '/partySize'},
+            variant: 'number',
           },
           {
             id: 'datetime-field',
-            component: {
-              DateTimeInput: {
-                label: { literalString: 'Date & Time' },
-                value: { path: '/reservationTime' },
-                enableDate: true,
-                enableTime: true,
-              },
-            },
+            component: 'DateTimeInput',
+            label: 'Date & Time',
+            value: {path: '/reservationTime'},
+            enableDate: true,
+            enableTime: true,
           },
           {
             id: 'dietary-field',
-            component: {
-              TextField: {
-                label: { literalString: 'Dietary Requirements' },
-                text: { path: '/dietary' },
-              },
-            },
+            component: 'TextField',
+            label: 'Dietary Requirements',
+            value: {path: '/dietary'},
           },
           {
             id: 'submit-button',
-            component: {
-              Button: {
-                child: 'submit-reservation-text',
-                primary: true,
-                action: {
-                  name: 'submit_booking',
-                  context: [
-                    { key: 'restaurantName', value: { path: '/restaurantName' } },
-                    { key: 'partySize', value: { path: '/partySize' } },
-                    { key: 'reservationTime', value: { path: '/reservationTime' } },
-                    { key: 'dietary', value: { path: '/dietary' } },
-                    { key: 'imageUrl', value: { path: '/imageUrl' } },
-                  ],
+            component: 'Button',
+            child: 'submit-reservation-text',
+            variant: 'primary',
+            action: {
+              event: {
+                name: 'submit_booking',
+                context: {
+                  restaurantName: {path: '/restaurantName'},
+                  partySize: {path: '/partySize'},
+                  reservationTime: {path: '/reservationTime'},
+                  dietary: {path: '/dietary'},
+                  imageUrl: {path: '/imageUrl'},
                 },
               },
             },
           },
           {
             id: 'submit-reservation-text',
-            component: { Text: { text: { literalString: 'Submit Reservation' } } },
+            component: 'Text',
+            text: 'Submit Reservation',
           },
         ],
       },
     },
     {
-      dataModelUpdate: {
+      version: 'v0.9',
+      updateDataModel: {
         surfaceId: 'booking-form',
         path: '/',
-        contents: [
-          { key: 'title', valueString: `Book a Table at ${restaurantName}` },
-          { key: 'address', valueString: address },
-          { key: 'restaurantName', valueString: restaurantName },
-          { key: 'partySize', valueString: '2' },
-          { key: 'reservationTime', valueString: '' },
-          { key: 'dietary', valueString: '' },
-          { key: 'imageUrl', valueString: imageUrl },
-        ],
+        value: {
+          title: `Book a Table at ${restaurantName}`,
+          address: address,
+          restaurantName: restaurantName,
+          partySize: '2',
+          reservationTime: '',
+          dietary: '',
+          imageUrl: imageUrl,
+        },
       },
     },
   ];
@@ -344,92 +325,87 @@ export function createConfirmationMessages(
   partySize: string,
   reservationTime: string,
   dietary: string,
-  imageUrl: string
-): Types.ServerToClientMessage[] {
+  imageUrl: string,
+): A2uiMessage[] {
   return [
     {
-      beginRendering: {
+      version: 'v0.9',
+      createSurface: {
         surfaceId: 'confirmation',
-        root: 'confirmation-card',
-        styles: { primaryColor: '#FF0000', font: 'Roboto' },
+        catalogId: 'https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json',
+        theme: {primaryColor: '#FF0000', font: 'Roboto'},
       },
     },
     {
-      surfaceUpdate: {
+      version: 'v0.9',
+      updateComponents: {
         surfaceId: 'confirmation',
         components: [
           {
-            id: 'confirmation-card',
-            component: { Card: { child: 'confirmation-column' } },
+            id: 'root',
+            component: 'Card',
+            child: 'confirmation-column',
           },
           {
             id: 'confirmation-column',
-            component: {
-              Column: {
-                children: {
-                  explicitList: [
-                    'confirm-title',
-                    'confirm-image',
-                    'divider1',
-                    'confirm-details',
-                    'divider2',
-                    'confirm-dietary',
-                    'divider3',
-                    'confirm-text',
-                  ],
-                },
-              },
-            },
+            component: 'Column',
+            children: [
+              'confirm-title',
+              'confirm-image',
+              'divider1',
+              'confirm-details',
+              'divider2',
+              'confirm-dietary',
+              'divider3',
+              'confirm-text',
+            ],
           },
           {
             id: 'confirm-title',
-            component: { Text: { usageHint: 'h2', text: { path: '/title' } } },
+            component: 'Text',
+            variant: 'h2',
+            text: {path: '/title'},
           },
           {
             id: 'confirm-image',
-            component: { Image: { url: { path: '/imageUrl' } } },
+            component: 'Image',
+            url: {path: '/imageUrl'},
           },
           {
             id: 'confirm-details',
-            component: { Text: { text: { path: '/bookingDetails' } } },
+            component: 'Text',
+            text: {path: '/bookingDetails'},
           },
           {
             id: 'confirm-dietary',
-            component: { Text: { text: { path: '/dietaryRequirements' } } },
+            component: 'Text',
+            text: {path: '/dietaryRequirements'},
           },
           {
             id: 'confirm-text',
-            component: {
-              Text: {
-                usageHint: 'h5',
-                text: { literalString: 'We look forward to seeing you!' },
-              },
-            },
+            component: 'Text',
+            variant: 'h5',
+            text: 'We look forward to seeing you!',
           },
-          { id: 'divider1', component: { Divider: {} } },
-          { id: 'divider2', component: { Divider: {} } },
-          { id: 'divider3', component: { Divider: {} } },
+          {id: 'divider1', component: 'Divider'},
+          {id: 'divider2', component: 'Divider'},
+          {id: 'divider3', component: 'Divider'},
         ],
       },
     },
     {
-      dataModelUpdate: {
+      version: 'v0.9',
+      updateDataModel: {
         surfaceId: 'confirmation',
         path: '/',
-        contents: [
-          { key: 'title', valueString: `Booking Confirmed at ${restaurantName}` },
-          {
-            key: 'bookingDetails',
-            valueString: `${partySize} people at ${reservationTime || 'TBD'}`,
-          },
-          {
-            key: 'dietaryRequirements',
-            valueString: dietary
-              ? `Dietary Requirements: ${dietary}`
-              : 'No dietary requirements specified',
-          },
-          { key: 'imageUrl', valueString: imageUrl },
-        ],
+        value: {
+          title: `Booking Confirmed at ${restaurantName}`,
+          bookingDetails: `${partySize} people at ${reservationTime || 'TBD'}`,
+          dietaryRequirements: dietary
+            ? `Dietary Requirements: ${dietary}`
+            : 'No dietary requirements specified',
+          imageUrl: imageUrl,
+        },
       },
     },
   ];

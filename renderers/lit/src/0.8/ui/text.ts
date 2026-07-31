@@ -14,19 +14,19 @@
  * limitations under the License.
  */
 
-import { html, css, nothing } from "lit";
-import { customElement, property } from "lit/decorators.js";
-import { markdown } from "./directives/directives.js";
-import { Root } from "./root.js";
-import { A2uiMessageProcessor } from "@a2ui/web_core/data/model-processor";
-import * as Primitives from "@a2ui/web_core/types/primitives";
-import * as Types from "@a2ui/web_core/types/types";
-import * as Context from "./context/context.js";
-import { consume } from "@lit/context";
-import { classMap } from "lit/directives/class-map.js";
-import { styleMap } from "lit/directives/style-map.js";
-import { structuralStyles } from "./styles.js";
-import { Styles } from "../index.js";
+import {html, css, nothing} from 'lit';
+import {customElement, property} from 'lit/decorators.js';
+import {markdown} from './directives/directives.js';
+import {Root} from './root.js';
+import {A2uiMessageProcessor} from '@a2ui/web_core/data/model-processor';
+import * as Primitives from '@a2ui/web_core/types/primitives';
+import * as Types from '@a2ui/web_core/types/types';
+import * as Context from './context/context.js';
+import {consume} from '@lit/context';
+import {classMap} from 'lit/directives/class-map.js';
+import {styleMap} from 'lit/directives/style-map.js';
+import {structuralStyles} from './styles.js';
+import {Styles} from '../index.js';
 
 interface HintedStyles {
   h1: Record<string, string>;
@@ -38,13 +38,13 @@ interface HintedStyles {
   caption: Record<string, string>;
 }
 
-@customElement("a2ui-text")
+@customElement('a2ui-text')
 export class Text extends Root {
   @property()
   accessor text: Primitives.StringValue | null = null;
 
-  @property({ reflect: true, attribute: "usage-hint" })
-  accessor usageHint: Types.ResolvedText["usageHint"] | null = null;
+  @property({reflect: true, attribute: 'usage-hint'})
+  accessor usageHint: Types.ResolvedText['usageHint'] | null = null;
 
   // Allow users to specify their own markdown renderer,
   // or the one provided by @a2ui/markdown-it.
@@ -73,12 +73,12 @@ export class Text extends Root {
   #renderText() {
     let textValue: string | null | undefined = null;
 
-    if (this.text && typeof this.text === "object") {
-      if ("literalString" in this.text && this.text.literalString) {
+    if (this.text && typeof this.text === 'object') {
+      if ('literalString' in this.text && this.text.literalString) {
         textValue = this.text.literalString;
-      } else if ("literal" in this.text && this.text.literal !== undefined) {
+      } else if ('literal' in this.text && this.text.literal !== undefined) {
         textValue = this.text.literal;
-      } else if (this.text && "path" in this.text && this.text.path) {
+      } else if (this.text && 'path' in this.text && this.text.path) {
         if (!this.processor || !this.component) {
           return html`(no model)`;
         }
@@ -86,7 +86,7 @@ export class Text extends Root {
         const value = this.processor.getData(
           this.component,
           this.text.path,
-          this.surfaceId ?? A2uiMessageProcessor.DEFAULT_SURFACE_ID
+          this.surfaceId ?? A2uiMessageProcessor.DEFAULT_SURFACE_ID,
         );
 
         if (value !== null && value !== undefined) {
@@ -101,43 +101,40 @@ export class Text extends Root {
 
     let markdownText = textValue;
     switch (this.usageHint) {
-      case "h1":
+      case 'h1':
         markdownText = `# ${markdownText}`;
         break;
-      case "h2":
+      case 'h2':
         markdownText = `## ${markdownText}`;
         break;
-      case "h3":
+      case 'h3':
         markdownText = `### ${markdownText}`;
         break;
-      case "h4":
+      case 'h4':
         markdownText = `#### ${markdownText}`;
         break;
-      case "h5":
+      case 'h5':
         markdownText = `##### ${markdownText}`;
         break;
-      case "caption":
+      case 'caption':
         markdownText = `*${markdownText}*`;
         break;
       default:
         break; // Body.
     }
 
-    return html`${markdown(
-      markdownText,
-      this.markdownRenderer, {
-        tagClassMap: Styles.appendToAll(this.theme.markdown, ["ol", "ul", "li"], {})
-      },
-    )}`;
+    return html`${markdown(markdownText, this.markdownRenderer, {
+      tagClassMap: Styles.appendToAll(this.theme.markdown, ['ol', 'ul', 'li'], {}),
+    })}`;
   }
 
   #areHintedStyles(styles: unknown): styles is HintedStyles {
-    if (typeof styles !== "object") return false;
+    if (typeof styles !== 'object') return false;
     if (Array.isArray(styles)) return false;
     if (!styles) return false;
 
-    const expected = ["h1", "h2", "h3", "h4", "h5", "h6", "caption", "body"];
-    return expected.every((v) => v in styles);
+    const expected = ['h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'caption', 'body'];
+    return expected.every(v => v in styles);
   }
 
   #getAdditionalStyles() {
@@ -146,7 +143,7 @@ export class Text extends Root {
     if (!styles) return additionalStyles;
 
     if (this.#areHintedStyles(styles)) {
-      const hint = this.usageHint ?? "body";
+      const hint = this.usageHint ?? 'body';
       additionalStyles = styles[hint] as Record<string, string>;
     } else {
       additionalStyles = styles;
@@ -158,14 +155,12 @@ export class Text extends Root {
   render() {
     const classes = Styles.merge(
       this.theme.components.Text.all,
-      this.usageHint ? this.theme.components.Text[this.usageHint] : {}
+      this.usageHint ? this.theme.components.Text[this.usageHint] : {},
     );
 
     return html`<section
       class=${classMap(classes)}
-      style=${this.theme.additionalStyles?.Text
-        ? styleMap(this.#getAdditionalStyles())
-        : nothing}
+      style=${this.theme.additionalStyles?.Text ? styleMap(this.#getAdditionalStyles()) : nothing}
     >
       ${this.#renderText()}
     </section>`;

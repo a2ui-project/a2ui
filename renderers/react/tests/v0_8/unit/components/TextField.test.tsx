@@ -14,10 +14,10 @@
  * limitations under the License.
  */
 
-import { describe, it, expect } from 'vitest';
-import { render, screen, fireEvent } from '@testing-library/react';
+import {describe, it, expect} from 'vitest';
+import {render, screen, fireEvent} from '@testing-library/react';
 import React from 'react';
-import { TestWrapper, TestRenderer, createSimpleMessages } from '../../utils';
+import {TestWrapper, TestRenderer, createSimpleMessages} from '../../utils';
 
 /**
  * TextField tests following A2UI specification.
@@ -32,13 +32,13 @@ describe('TextField Component', () => {
   describe('Basic Rendering', () => {
     it('should render an input element', () => {
       const messages = createSimpleMessages('tf-1', 'TextField', {
-        label: { literalString: 'Username' },
+        label: {literalString: 'Username'},
       });
 
-      const { container } = render(
+      const {container} = render(
         <TestWrapper>
           <TestRenderer messages={messages} />
-        </TestWrapper>
+        </TestWrapper>,
       );
 
       const input = container.querySelector('input');
@@ -47,13 +47,13 @@ describe('TextField Component', () => {
 
     it('should render with wrapper div', () => {
       const messages = createSimpleMessages('tf-1', 'TextField', {
-        label: { literalString: 'Email' },
+        label: {literalString: 'Email'},
       });
 
-      const { container } = render(
+      const {container} = render(
         <TestWrapper>
           <TestRenderer messages={messages} />
-        </TestWrapper>
+        </TestWrapper>,
       );
 
       const wrapper = container.querySelector('.a2ui-textfield');
@@ -62,14 +62,14 @@ describe('TextField Component', () => {
 
     it('should render with initial text value', () => {
       const messages = createSimpleMessages('tf-1', 'TextField', {
-        label: { literalString: 'Name' },
-        text: { literalString: 'John Doe' },
+        label: {literalString: 'Name'},
+        text: {literalString: 'John Doe'},
       });
 
-      const { container } = render(
+      const {container} = render(
         <TestWrapper>
           <TestRenderer messages={messages} />
-        </TestWrapper>
+        </TestWrapper>,
       );
 
       const input = container.querySelector('input') as HTMLInputElement;
@@ -78,13 +78,13 @@ describe('TextField Component', () => {
 
     it('should render placeholder text', () => {
       const messages = createSimpleMessages('tf-1', 'TextField', {
-        label: { literalString: 'Search' },
+        label: {literalString: 'Search'},
       });
 
-      const { container } = render(
+      const {container} = render(
         <TestWrapper>
           <TestRenderer messages={messages} />
-        </TestWrapper>
+        </TestWrapper>,
       );
 
       const input = container.querySelector('input') as HTMLInputElement;
@@ -95,13 +95,13 @@ describe('TextField Component', () => {
   describe('Label Rendering', () => {
     it('should render label (required field)', () => {
       const messages = createSimpleMessages('tf-1', 'TextField', {
-        label: { literalString: 'Username' },
+        label: {literalString: 'Username'},
       });
 
       render(
         <TestWrapper>
           <TestRenderer messages={messages} />
-        </TestWrapper>
+        </TestWrapper>,
       );
 
       expect(screen.getByText('Username')).toBeInTheDocument();
@@ -109,13 +109,13 @@ describe('TextField Component', () => {
 
     it('should associate label with input via htmlFor', () => {
       const messages = createSimpleMessages('tf-1', 'TextField', {
-        label: { literalString: 'Email Address' },
+        label: {literalString: 'Email Address'},
       });
 
-      const { container } = render(
+      const {container} = render(
         <TestWrapper>
           <TestRenderer messages={messages} />
-        </TestWrapper>
+        </TestWrapper>,
       );
 
       const label = container.querySelector('label');
@@ -127,14 +127,14 @@ describe('TextField Component', () => {
   describe('Input Types (type)', () => {
     it('should render text input by default (shortText)', () => {
       const messages = createSimpleMessages('tf-1', 'TextField', {
-        label: { literalString: 'Name' },
+        label: {literalString: 'Name'},
         type: 'shortText',
       });
 
-      const { container } = render(
+      const {container} = render(
         <TestWrapper>
           <TestRenderer messages={messages} />
-        </TestWrapper>
+        </TestWrapper>,
       );
 
       const input = container.querySelector('input');
@@ -143,14 +143,14 @@ describe('TextField Component', () => {
 
     it('should render number input for type=number', () => {
       const messages = createSimpleMessages('tf-1', 'TextField', {
-        label: { literalString: 'Age' },
+        label: {literalString: 'Age'},
         textFieldType: 'number',
       });
 
-      const { container } = render(
+      const {container} = render(
         <TestWrapper>
           <TestRenderer messages={messages} />
-        </TestWrapper>
+        </TestWrapper>,
       );
 
       const input = container.querySelector('input');
@@ -159,14 +159,14 @@ describe('TextField Component', () => {
 
     it('should render date input for type=date', () => {
       const messages = createSimpleMessages('tf-1', 'TextField', {
-        label: { literalString: 'Birth Date' },
+        label: {literalString: 'Birth Date'},
         textFieldType: 'date',
       });
 
-      const { container } = render(
+      const {container} = render(
         <TestWrapper>
           <TestRenderer messages={messages} />
-        </TestWrapper>
+        </TestWrapper>,
       );
 
       const input = container.querySelector('input');
@@ -175,14 +175,14 @@ describe('TextField Component', () => {
 
     it('should render textarea for type=longText', () => {
       const messages = createSimpleMessages('tf-1', 'TextField', {
-        label: { literalString: 'Description' },
+        label: {literalString: 'Description'},
         textFieldType: 'longText',
       });
 
-      const { container } = render(
+      const {container} = render(
         <TestWrapper>
           <TestRenderer messages={messages} />
-        </TestWrapper>
+        </TestWrapper>,
       );
 
       const textarea = container.querySelector('textarea');
@@ -194,35 +194,35 @@ describe('TextField Component', () => {
   describe('User Interaction', () => {
     it('should update value on change', () => {
       const messages = createSimpleMessages('tf-1', 'TextField', {
-        label: { literalString: 'Input' },
+        label: {literalString: 'Input'},
       });
 
-      const { container } = render(
+      const {container} = render(
         <TestWrapper>
           <TestRenderer messages={messages} />
-        </TestWrapper>
+        </TestWrapper>,
       );
 
       const input = container.querySelector('input') as HTMLInputElement;
-      fireEvent.change(input, { target: { value: 'New value' } });
+      fireEvent.change(input, {target: {value: 'New value'}});
 
       expect(input.value).toBe('New value');
     });
 
     it('should update textarea value on change', () => {
       const messages = createSimpleMessages('tf-1', 'TextField', {
-        label: { literalString: 'Comments' },
+        label: {literalString: 'Comments'},
         textFieldType: 'longText',
       });
 
-      const { container } = render(
+      const {container} = render(
         <TestWrapper>
           <TestRenderer messages={messages} />
-        </TestWrapper>
+        </TestWrapper>,
       );
 
       const textarea = container.querySelector('textarea') as HTMLTextAreaElement;
-      fireEvent.change(textarea, { target: { value: 'Long text content' } });
+      fireEvent.change(textarea, {target: {value: 'Long text content'}});
 
       expect(textarea.value).toBe('Long text content');
     });
@@ -231,13 +231,13 @@ describe('TextField Component', () => {
   describe('Theme Support', () => {
     it('should render within section container', () => {
       const messages = createSimpleMessages('tf-1', 'TextField', {
-        label: { literalString: 'Field' },
+        label: {literalString: 'Field'},
       });
 
-      const { container } = render(
+      const {container} = render(
         <TestWrapper>
           <TestRenderer messages={messages} />
-        </TestWrapper>
+        </TestWrapper>,
       );
 
       const section = container.querySelector('section');

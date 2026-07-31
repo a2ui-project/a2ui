@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import assert from 'node:assert';
+import * as assert from 'node:assert';
 import {describe, it, beforeEach} from 'node:test';
 import {SurfaceModel} from './surface-model.js';
 import {Catalog, ComponentApi} from '../catalog/types.js';
@@ -45,17 +45,12 @@ describe('SurfaceModel', () => {
   });
 
   it('exposes components model', () => {
-    surface.componentsModel.addComponent(
-      new ComponentModel('c1', 'Button', {}),
-    );
+    surface.componentsModel.addComponent(new ComponentModel('c1', 'Button', {}));
     assert.ok(surface.componentsModel.get('c1'));
   });
 
   it('dispatches actions with metadata', async () => {
-    await surface.dispatchAction(
-      {event: {name: 'click', context: {foo: 'bar'}}},
-      'comp-1',
-    );
+    await surface.dispatchAction({event: {name: 'click', context: {foo: 'bar'}}}, 'comp-1');
     assert.strictEqual(actions.length, 1);
     const action = actions[0];
     assert.strictEqual(action.name, 'click');
@@ -105,10 +100,6 @@ describe('SurfaceModel', () => {
     // After dispose, no more actions should be emitted.
     // The EventEmitter.dispose method clears all listeners.
     surface.dispatchAction({event: {name: 'click'}}, 'c1');
-    assert.strictEqual(
-      actionReceived,
-      false,
-      'Should not receive actions after dispose',
-    );
+    assert.strictEqual(actionReceived, false, 'Should not receive actions after dispose');
   });
 });

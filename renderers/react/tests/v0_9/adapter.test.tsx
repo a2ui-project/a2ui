@@ -14,19 +14,28 @@
  * limitations under the License.
  */
 
-import { describe, it, expect, vi } from 'vitest';
-import { render, screen, act } from '@testing-library/react';
-import { createComponentImplementation } from '../../src/v0_9/adapter';
-import { A2uiSurface } from '../../src/v0_9/A2uiSurface';
-import { ComponentContext, ComponentModel, SurfaceModel, Catalog, CommonSchemas } from '@a2ui/web_core/v0_9';
-import { z } from 'zod';
+import {describe, it, expect, vi} from 'vitest';
+import {render, screen, act} from '@testing-library/react';
+import {createComponentImplementation} from '../../src/v0_9/adapter';
+import {A2uiSurface} from '../../src/v0_9/A2uiSurface';
+import {
+  ComponentContext,
+  ComponentModel,
+  SurfaceModel,
+  Catalog,
+  CommonSchemas,
+} from '@a2ui/web_core/v0_9';
+import {z} from 'zod';
 
 const mockCatalog = new Catalog('test', [], []);
 
 describe('adapter', () => {
   it('should render component with resolved props', () => {
     const surface = new SurfaceModel<any>('test-surface', mockCatalog);
-    const compModel = new ComponentModel('c1', 'TestComp', { text: 'Hello World', child: 'child1' });
+    const compModel = new ComponentModel('c1', 'TestComp', {
+      text: 'Hello World',
+      child: 'child1',
+    });
     surface.componentsModel.addComponent(compModel);
 
     const context = new ComponentContext(surface, 'c1', '/');
@@ -35,21 +44,20 @@ describe('adapter', () => {
       name: 'TestComp',
       schema: z.object({
         text: CommonSchemas.DynamicString,
-        child: CommonSchemas.ComponentId
-      })
+        child: CommonSchemas.ComponentId,
+      }),
     };
 
-    const TestComponent = createComponentImplementation(
-      TestApiDef,
-      ({ props, buildChild }) => {
-        return <div>
+    const TestComponent = createComponentImplementation(TestApiDef, ({props, buildChild}) => {
+      return (
+        <div>
           <span>{props.text}</span>
           {props.child && buildChild(props.child)}
-        </div>;
-      }
-    );
+        </div>
+      );
+    });
 
-    const buildChild = vi.fn().mockImplementation((id) => <div data-testid={id}>Child</div>);
+    const buildChild = vi.fn().mockImplementation(id => <div data-testid={id}>Child</div>);
 
     render(<TestComponent.render context={context} buildChild={buildChild} />);
 
@@ -59,9 +67,9 @@ describe('adapter', () => {
 
   it('should react to data model changes', async () => {
     const surface = new SurfaceModel<any>('test-surface', mockCatalog);
-    const compModel = new ComponentModel('c1', 'TestComp', { text: { path: '/greeting' } });
+    const compModel = new ComponentModel('c1', 'TestComp', {text: {path: '/greeting'}});
     surface.componentsModel.addComponent(compModel);
-    
+
     // Set initial data
     surface.dataModel.set('/greeting', 'Hello Reactive');
 
@@ -70,18 +78,17 @@ describe('adapter', () => {
     const TestApiDef = {
       name: 'TestComp',
       schema: z.object({
-        text: CommonSchemas.DynamicString
-      })
+        text: CommonSchemas.DynamicString,
+      }),
     };
 
-    const TestComponent = createComponentImplementation(
-      TestApiDef,
-      ({ props }) => {
-        return <div data-testid="msg">{props.text}</div>;
-      }
-    );
+    const TestComponent = createComponentImplementation(TestApiDef, ({props}) => {
+      return <div data-testid="msg">{props.text}</div>;
+    });
 
-    const { getByTestId } = render(<TestComponent.render context={context} buildChild={() => null} />);
+    const {getByTestId} = render(
+      <TestComponent.render context={context} buildChild={() => null} />,
+    );
 
     expect(getByTestId('msg').textContent).toBe('Hello Reactive');
 
@@ -95,9 +102,9 @@ describe('adapter', () => {
 
   it('should clean up listeners on unmount', () => {
     const surface = new SurfaceModel<any>('test-surface', mockCatalog);
-    const compModel = new ComponentModel('c1', 'TestComp', { text: { path: '/greeting' } });
+    const compModel = new ComponentModel('c1', 'TestComp', {text: {path: '/greeting'}});
     surface.componentsModel.addComponent(compModel);
-    
+
     const context = new ComponentContext(surface, 'c1', '/');
 
     const unsubscribeSpy = vi.fn();
@@ -109,64 +116,69 @@ describe('adapter', () => {
     const TestApiDef = {
       name: 'TestComp',
       schema: z.object({
-        text: CommonSchemas.DynamicString
-      })
+        text: CommonSchemas.DynamicString,
+      }),
     };
 
-    const TestComponent = createComponentImplementation(
-      TestApiDef,
-      ({ props }) => {
-        return <div>{props.text}</div>;
-      }
-    );
+    const TestComponent = createComponentImplementation(TestApiDef, ({props}) => {
+      return <div>{props.text}</div>;
+    });
 
-    const { unmount } = render(<TestComponent.render context={context} buildChild={() => null} />);
+    const {unmount} = render(<TestComponent.render context={context} buildChild={() => null} />);
 
     expect(spyAddListener).toHaveBeenCalled();
-    
+
     unmount();
-    
+
     expect(unsubscribeSpy).toHaveBeenCalled();
   });
 
   it('preserves progressive rendering (avoids stale closures from over-memoization)', async () => {
-    const ParentApiDef = { name: 'TestParent', schema: z.object({ child: CommonSchemas.ComponentId }) };
-    const ChildApiDef = { name: 'TestChild', schema: z.object({ text: CommonSchemas.DynamicString }) };
-    
+    const ParentApiDef = {
+      name: 'TestParent',
+      schema: z.object({child: CommonSchemas.ComponentId}),
+    };
+    const ChildApiDef = {
+      name: 'TestChild',
+      schema: z.object({text: CommonSchemas.DynamicString}),
+    };
+
     let parentRenderCount = 0;
 
-    const TestParent = createComponentImplementation(ParentApiDef, ({ props, buildChild }) => {
+    const TestParent = createComponentImplementation(ParentApiDef, ({props, buildChild}) => {
       parentRenderCount++;
       return <div data-testid="parent">{props.child && buildChild(props.child)}</div>;
     });
 
-    const TestChild = createComponentImplementation(ChildApiDef, ({ props }) => (
+    const TestChild = createComponentImplementation(ChildApiDef, ({props}) => (
       <span data-testid="resolved">{props.text}</span>
     ));
 
     const testCatalog = new Catalog('test', [TestParent, TestChild], []);
     const surface = new SurfaceModel<any>('test-surface', testCatalog);
-    
+
     // 1. Initial State: Parent component exists, but its child is missing from the surface.
-    const parentModel = new ComponentModel('root', 'TestParent', { child: 'child1' });
+    const parentModel = new ComponentModel('root', 'TestParent', {child: 'child1'});
     surface.componentsModel.addComponent(parentModel);
 
-    const { getByTestId, queryByTestId } = render(<A2uiSurface surface={surface} />);
+    const {getByTestId, queryByTestId} = render(<A2uiSurface surface={surface} />);
 
     // Assert the missing child renders the fallback
     expect(getByTestId('parent').textContent).toContain('[Loading child1...]');
-    
+
     const countBeforeChild = parentRenderCount;
 
     // 2. Simulate streaming 'updateComponents' adding the missing child
     await act(async () => {
-      surface.componentsModel.addComponent(new ComponentModel('child1', 'TestChild', { text: 'Loaded Data' }));
+      surface.componentsModel.addComponent(
+        new ComponentModel('child1', 'TestChild', {text: 'Loaded Data'}),
+      );
     });
 
     // 3. Child should automatically resolve through DeferredChild's subscription
     expect(queryByTestId('resolved')).not.toBeNull();
     expect(getByTestId('resolved').textContent).toBe('Loaded Data');
-    
+
     // Crucially, the parent should NOT have re-rendered because of the child addition.
     // The DeferredChild wrapper localized the update.
     expect(parentRenderCount).toBe(countBeforeChild);

@@ -27,8 +27,8 @@
  */
 'use client';
 
-import { createContext, useContext, useState, useEffect, useCallback, type ReactNode } from 'react';
-import type { SpecVersion } from '@/types/widget';
+import {createContext, useContext, useState, useEffect, useCallback, type ReactNode} from 'react';
+import type {SpecVersion} from '@/types/widget';
 
 const STORAGE_KEY = 'a2ui-spec-version';
 const DEFAULT_VERSION: SpecVersion = '0.9';
@@ -41,7 +41,7 @@ interface SpecVersionContextValue {
 
 const SpecVersionContext = createContext<SpecVersionContextValue | null>(null);
 
-export function SpecVersionProvider({ children }: { children: ReactNode }) {
+export function SpecVersionProvider({children}: {children: ReactNode}) {
   const [specVersion, setSpecVersionState] = useState<SpecVersion>(DEFAULT_VERSION);
   const [isLoaded, setIsLoaded] = useState(false);
 
@@ -60,7 +60,7 @@ export function SpecVersionProvider({ children }: { children: ReactNode }) {
   }, []);
 
   return (
-    <SpecVersionContext.Provider value={{ specVersion, setSpecVersion, isLoaded }}>
+    <SpecVersionContext.Provider value={{specVersion, setSpecVersion, isLoaded}}>
       {children}
     </SpecVersionContext.Provider>
   );

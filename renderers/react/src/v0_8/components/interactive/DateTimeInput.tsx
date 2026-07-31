@@ -60,7 +60,7 @@ export const DateTimeInput = memo(function DateTimeInput({
         setValue(valuePath, newValue);
       }
     },
-    [valuePath, setValue]
+    [valuePath, setValue],
   );
 
   // Determine input type based on enableDate and enableTime

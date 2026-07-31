@@ -14,11 +14,11 @@
  * limitations under the License.
  */
 
-import { ComponentFixture, TestBed } from '@angular/core/testing';
-import { Surface } from './surface';
-import { MessageProcessor } from '../data/processor';
-import { Types } from '../types';
-import { Directive, Input, ChangeDetectionStrategy } from '@angular/core';
+import {ComponentFixture, TestBed} from '@angular/core/testing';
+import {Surface} from './surface';
+import {MessageProcessor} from '../data/processor';
+import type {AnyComponentNode, Surface as SurfaceType} from '../types';
+import {Directive, Input} from '@angular/core';
 
 @Directive({
   selector: '[a2ui-renderer]',
@@ -38,14 +38,14 @@ describe('Surface Component', () => {
   let component: Surface;
   let fixture: ComponentFixture<Surface>;
   let mockProcessor: jasmine.SpyObj<MessageProcessor>;
-  let surfacesMap: Map<string, Types.Surface>;
+  let surfacesMap: Map<string, SurfaceType>;
 
-  const mockRootComponent: Types.AnyComponentNode = {
+  const mockRootComponent: AnyComponentNode = {
     id: 'root-1',
     type: 'Column',
     properties: {},
   };
-  const mockSurfaceData: Types.Surface = {
+  const mockSurfaceData: SurfaceType = {
     id: 'surface-1',
     componentTree: mockRootComponent,
   } as any;
@@ -57,11 +57,10 @@ describe('Surface Component', () => {
 
     await TestBed.configureTestingModule({
       imports: [Surface],
-      providers: [{ provide: MessageProcessor, useValue: mockProcessor }],
+      providers: [{provide: MessageProcessor, useValue: mockProcessor}],
     })
       .overrideComponent(Surface, {
         set: {
-          changeDetection: ChangeDetectionStrategy.Default,
           imports: [MockRenderer],
         },
       })

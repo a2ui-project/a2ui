@@ -14,13 +14,13 @@
  * limitations under the License.
  */
 
-import assert from "node:assert";
-import { describe, it, beforeEach, mock, after, before } from "node:test";
-import { setupTestDom, teardownTestDom, asyncUpdate } from "./dom-setup.js";
+import assert from 'node:assert';
+import {describe, it, beforeEach, mock, after, before} from 'node:test';
+import {setupTestDom, teardownTestDom, asyncUpdate} from './dom-setup.js';
 
-import { A2uiController } from "../a2ui-controller.js";
-import { MessageProcessor, ComponentContext } from "@a2ui/web_core/v0_9";
-import { TextApi } from "@a2ui/web_core/v0_9/basic_catalog";
+import {A2uiController} from '../a2ui-controller.js';
+import {MessageProcessor, ComponentContext} from '@a2ui/web_core/v0_9';
+import {TextApi} from '@a2ui/web_core/v0_9/basic_catalog';
 
 /**
  * These tests verify:
@@ -28,7 +28,7 @@ import { TextApi } from "@a2ui/web_core/v0_9/basic_catalog";
  * - Automatically triggering `requestUpdate()` on the host element when data properties change.
  * - Safely cleaning up subscriptions when the host is disconnected or the controller is disposed.
  */
-describe("A2uiController", () => {
+describe('A2uiController', () => {
   let basicCatalog: any;
 
   /**
@@ -36,15 +36,13 @@ describe("A2uiController", () => {
    * defined in the `before()` hook below.
    */
   async function createMockHost(context: ComponentContext) {
-    const mockHost = document.createElement(
-      "test-mock-host",
-    ) as any;
+    const mockHost = document.createElement('test-mock-host') as any;
     document.body.appendChild(mockHost);
 
     // Initializing the context property triggers Lit's reactive execution cycle,
     // which in turn synchronously creates the controller instance via createController()
     // inside the custom element's update hooks.
-    await asyncUpdate(mockHost, (host) => {
+    await asyncUpdate(mockHost, host => {
       host.context = context;
     });
 
@@ -56,8 +54,8 @@ describe("A2uiController", () => {
 
     // Dynamically import component files *after* setting up JSDOM globals
     // to prevent LitElement from evaluating in an empty Node context and crashing.
-    const { A2uiLitElement } = await import("../a2ui-lit-element.js");
-    basicCatalog = (await import("../catalogs/basic/index.js")).basicCatalog;
+    const {A2uiLitElement} = await import('../a2ui-lit-element.js');
+    basicCatalog = (await import('../catalogs/basic/index.js')).basicCatalog;
 
     /**
      * A real Lit element registered as `test-mock-host` in JSDOM.
@@ -73,7 +71,7 @@ describe("A2uiController", () => {
         return this.testController;
       }
     }
-    customElements.define("test-mock-host", TestMockHost);
+    customElements.define('test-mock-host', TestMockHost);
   });
 
   after(teardownTestDom);
@@ -87,84 +85,84 @@ describe("A2uiController", () => {
     // Initialize the test surface and seed an initial text component
     processor.processMessages([
       {
-        version: "v0.9",
+        version: 'v0.9',
         createSurface: {
-          surfaceId: "test-surface",
+          surfaceId: 'test-surface',
           catalogId: basicCatalog.id,
         },
       },
       {
-        version: "v0.9",
+        version: 'v0.9',
         updateComponents: {
-          surfaceId: "test-surface",
+          surfaceId: 'test-surface',
           components: [
             {
-              id: "test-comp",
-              component: "Text",
-              text: "Initial",
+              id: 'test-comp',
+              component: 'Text',
+              text: 'Initial',
             },
           ],
         },
       },
     ]);
 
-    surface = processor.model.getSurface("test-surface")!;
-    context = new ComponentContext(surface, "test-comp");
+    surface = processor.model.getSurface('test-surface')!;
+    context = new ComponentContext(surface, 'test-comp');
   });
 
-  it("should initialize with correct props and bind to context", async () => {
+  it('should initialize with correct props and bind to context', async () => {
     // For this specific test, we manually mount the DOM element without the helper
     // because we need to spy on `addController` BEFORE the context is evaluated.
-    const mockHost = document.createElement("test-mock-host") as any;
+    const mockHost = document.createElement('test-mock-host') as any;
     document.body.appendChild(mockHost);
 
-    mock.method(mockHost, "addController");
+    mock.method(mockHost, 'addController');
 
-    await asyncUpdate(mockHost, (host) => {
+    await asyncUpdate(mockHost, host => {
       host.context = context;
     });
 
     const controller = mockHost.testController;
 
     assert.ok((mockHost.addController as any).mock.calls.length >= 1);
-    assert.strictEqual(controller.props.text, "Initial");
+    assert.strictEqual(controller.props.text, 'Initial');
   });
 
-  it("should request update on host when data changes", async () => {
+  it('should request update on host when data changes', async () => {
     const mockHost = await createMockHost(context);
     const controller = mockHost.testController;
 
     // Map requestUpdate only *after* initial initialization to catch changes
-    mock.method(mockHost, "requestUpdate");
+    mock.method(mockHost, 'requestUpdate');
 
-    assert.strictEqual(controller.props.text, "Initial");
+    assert.strictEqual(controller.props.text, 'Initial');
 
     // Changing the model should trigger an update
     // We bind to a literal string so changing the literal string in component model works or we change data mode.
     // Wait, literal string doesn't get updated easily by data model.
     // Let's bind path instead.
     // Replace the text component with a path binding and populate the data model
-    await asyncUpdate(processor, (p) =>
+    await asyncUpdate(processor, p =>
       p.processMessages([
         {
-          version: "v0.9",
+          version: 'v0.9',
           updateComponents: {
-            surfaceId: "test-surface",
+            surfaceId: 'test-surface',
             components: [
               {
-                id: "test-comp-2",
-                component: "Text",
-                text: { path: "/myText" },
+                id: 'test-comp-2',
+                component: 'Text',
+                text: {path: '/myText'},
               },
             ],
           },
         },
         {
-          version: "v0.9",
+          version: 'v0.9',
           updateDataModel: {
-            surfaceId: "test-surface",
-            path: "/myText",
-            value: "Updated",
+            surfaceId: 'test-surface',
+            path: '/myText',
+            value: 'Updated',
           },
         },
       ]),
@@ -173,57 +171,57 @@ describe("A2uiController", () => {
     // Simulate what happens when a component's ID changes or it gets recycled by
     // disposing the old controller and replacing the host context instance.
     controller.dispose();
-    const context2 = new ComponentContext(surface, "test-comp-2");
+    const context2 = new ComponentContext(surface, 'test-comp-2');
 
     const mockHost2 = await createMockHost(context2);
     const controller2 = mockHost2.testController;
 
-    mock.method(mockHost2, "requestUpdate");
+    mock.method(mockHost2, 'requestUpdate');
 
-    assert.strictEqual(controller2.props.text, "Updated");
+    assert.strictEqual(controller2.props.text, 'Updated');
 
     // Trigger another reactive update by advancing the bound data model property
-    await asyncUpdate(processor, (p) =>
+    await asyncUpdate(processor, p =>
       p.processMessages([
         {
-          version: "v0.9",
+          version: 'v0.9',
           updateDataModel: {
-            surfaceId: "test-surface",
-            path: "/myText",
-            value: "Update2",
+            surfaceId: 'test-surface',
+            path: '/myText',
+            value: 'Update2',
           },
         },
       ]),
     );
 
-    assert.strictEqual(controller2.props.text, "Update2");
+    assert.strictEqual(controller2.props.text, 'Update2');
     assert.ok((mockHost2.requestUpdate as any).mock.calls.length > 0);
 
     controller2.dispose();
   });
 
-  it("should unsubscribe when host disconnected", async () => {
+  it('should unsubscribe when host disconnected', async () => {
     const mockHost = await createMockHost(context);
     const controller = mockHost.testController;
 
-    mock.method(mockHost, "requestUpdate");
+    mock.method(mockHost, 'requestUpdate');
 
     controller.hostDisconnected();
 
     const initialCalls = (mockHost.requestUpdate as any).mock.calls.length;
 
     // Attempt to trigger a component update while the host is disconnected
-    await asyncUpdate(processor, (p) =>
+    await asyncUpdate(processor, p =>
       p.processMessages([
         {
-          version: "v0.9",
+          version: 'v0.9',
           updateComponents: {
-            surfaceId: "test-surface",
+            surfaceId: 'test-surface',
             components: [
               {
-                id: "test-comp",
-                component: "Text",
-                text: "Another",
+                id: 'test-comp',
+                component: 'Text',
+                text: 'Another',
               },
             ],
           },
@@ -232,11 +230,8 @@ describe("A2uiController", () => {
     );
 
     // Props should not update
-    assert.notStrictEqual(controller.props.text, "Another");
+    assert.notStrictEqual(controller.props.text, 'Another');
     // requestUpdate shouldn't be called again
-    assert.strictEqual(
-      (mockHost.requestUpdate as any).mock.calls.length,
-      initialCalls,
-    );
+    assert.strictEqual((mockHost.requestUpdate as any).mock.calls.length, initialCalls);
   });
 });

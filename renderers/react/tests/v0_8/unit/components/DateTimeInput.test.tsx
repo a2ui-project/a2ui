@@ -14,10 +14,10 @@
  * limitations under the License.
  */
 
-import { describe, it, expect } from 'vitest';
-import { render, fireEvent } from '@testing-library/react';
+import {describe, it, expect} from 'vitest';
+import {render, fireEvent} from '@testing-library/react';
 import React from 'react';
-import { TestWrapper, TestRenderer, createSimpleMessages } from '../../utils';
+import {TestWrapper, TestRenderer, createSimpleMessages} from '../../utils';
 
 /**
  * DateTimeInput tests following A2UI specification.
@@ -28,13 +28,13 @@ describe('DateTimeInput Component', () => {
   describe('Basic Rendering', () => {
     it('should render an input element', () => {
       const messages = createSimpleMessages('dt-1', 'DateTimeInput', {
-        value: { literalString: '2024-01-15' },
+        value: {literalString: '2024-01-15'},
       });
 
-      const { container } = render(
+      const {container} = render(
         <TestWrapper>
           <TestRenderer messages={messages} />
-        </TestWrapper>
+        </TestWrapper>,
       );
 
       const input = container.querySelector('input');
@@ -43,13 +43,13 @@ describe('DateTimeInput Component', () => {
 
     it('should render with wrapper div', () => {
       const messages = createSimpleMessages('dt-1', 'DateTimeInput', {
-        value: { literalString: '2024-01-15' },
+        value: {literalString: '2024-01-15'},
       });
 
-      const { container } = render(
+      const {container} = render(
         <TestWrapper>
           <TestRenderer messages={messages} />
-        </TestWrapper>
+        </TestWrapper>,
       );
 
       const wrapper = container.querySelector('.a2ui-datetime-input');
@@ -58,13 +58,13 @@ describe('DateTimeInput Component', () => {
 
     it('should render with initial value', () => {
       const messages = createSimpleMessages('dt-1', 'DateTimeInput', {
-        value: { literalString: '2024-06-20' },
+        value: {literalString: '2024-06-20'},
       });
 
-      const { container } = render(
+      const {container} = render(
         <TestWrapper>
           <TestRenderer messages={messages} />
-        </TestWrapper>
+        </TestWrapper>,
       );
 
       const input = container.querySelector('input') as HTMLInputElement;
@@ -73,21 +73,21 @@ describe('DateTimeInput Component', () => {
 
     it('should render different values for different inputs', () => {
       const messages1 = createSimpleMessages('dt-1', 'DateTimeInput', {
-        value: { literalString: '2024-01-01' },
+        value: {literalString: '2024-01-01'},
       });
       const messages2 = createSimpleMessages('dt-2', 'DateTimeInput', {
-        value: { literalString: '2024-12-31' },
+        value: {literalString: '2024-12-31'},
       });
 
-      const { container: container1 } = render(
+      const {container: container1} = render(
         <TestWrapper>
           <TestRenderer messages={messages1} />
-        </TestWrapper>
+        </TestWrapper>,
       );
-      const { container: container2 } = render(
+      const {container: container2} = render(
         <TestWrapper>
           <TestRenderer messages={messages2} />
-        </TestWrapper>
+        </TestWrapper>,
       );
 
       const input1 = container1.querySelector('input') as HTMLInputElement;
@@ -102,13 +102,13 @@ describe('DateTimeInput Component', () => {
   describe('Input Type', () => {
     it('should render date input by default (enableDate=true, enableTime=false)', () => {
       const messages = createSimpleMessages('dt-1', 'DateTimeInput', {
-        value: { literalString: '2024-01-15' },
+        value: {literalString: '2024-01-15'},
       });
 
-      const { container } = render(
+      const {container} = render(
         <TestWrapper>
           <TestRenderer messages={messages} />
-        </TestWrapper>
+        </TestWrapper>,
       );
 
       const input = container.querySelector('input');
@@ -119,15 +119,15 @@ describe('DateTimeInput Component', () => {
 
     it('should render date input when enableDate=true', () => {
       const messages = createSimpleMessages('dt-1', 'DateTimeInput', {
-        value: { literalString: '2024-01-15' },
+        value: {literalString: '2024-01-15'},
         enableDate: true,
         enableTime: false,
       });
 
-      const { container } = render(
+      const {container} = render(
         <TestWrapper>
           <TestRenderer messages={messages} />
-        </TestWrapper>
+        </TestWrapper>,
       );
 
       const input = container.querySelector('input');
@@ -136,15 +136,15 @@ describe('DateTimeInput Component', () => {
 
     it('should render time input when enableTime=true and enableDate=false', () => {
       const messages = createSimpleMessages('dt-1', 'DateTimeInput', {
-        value: { literalString: '14:30' },
+        value: {literalString: '14:30'},
         enableDate: false,
         enableTime: true,
       });
 
-      const { container } = render(
+      const {container} = render(
         <TestWrapper>
           <TestRenderer messages={messages} />
-        </TestWrapper>
+        </TestWrapper>,
       );
 
       const input = container.querySelector('input');
@@ -154,15 +154,15 @@ describe('DateTimeInput Component', () => {
 
     it('should render datetime-local input when both enableDate and enableTime are true', () => {
       const messages = createSimpleMessages('dt-1', 'DateTimeInput', {
-        value: { literalString: '2024-01-15T14:30' },
+        value: {literalString: '2024-01-15T14:30'},
         enableDate: true,
         enableTime: true,
       });
 
-      const { container } = render(
+      const {container} = render(
         <TestWrapper>
           <TestRenderer messages={messages} />
-        </TestWrapper>
+        </TestWrapper>,
       );
 
       const input = container.querySelector('input');
@@ -173,25 +173,25 @@ describe('DateTimeInput Component', () => {
 
     it('should render different input types for different configurations', () => {
       const messagesDate = createSimpleMessages('dt-1', 'DateTimeInput', {
-        value: { literalString: '2024-01-15' },
+        value: {literalString: '2024-01-15'},
         enableDate: true,
         enableTime: false,
       });
       const messagesTime = createSimpleMessages('dt-2', 'DateTimeInput', {
-        value: { literalString: '14:30' },
+        value: {literalString: '14:30'},
         enableDate: false,
         enableTime: true,
       });
 
-      const { container: containerDate } = render(
+      const {container: containerDate} = render(
         <TestWrapper>
           <TestRenderer messages={messagesDate} />
-        </TestWrapper>
+        </TestWrapper>,
       );
-      const { container: containerTime } = render(
+      const {container: containerTime} = render(
         <TestWrapper>
           <TestRenderer messages={messagesTime} />
-        </TestWrapper>
+        </TestWrapper>,
       );
 
       const inputDate = containerDate.querySelector('input');
@@ -206,15 +206,15 @@ describe('DateTimeInput Component', () => {
   describe('Label', () => {
     it('should render "Date" label for date input', () => {
       const messages = createSimpleMessages('dt-1', 'DateTimeInput', {
-        value: { literalString: '2024-01-15' },
+        value: {literalString: '2024-01-15'},
         enableDate: true,
         enableTime: false,
       });
 
-      const { container } = render(
+      const {container} = render(
         <TestWrapper>
           <TestRenderer messages={messages} />
-        </TestWrapper>
+        </TestWrapper>,
       );
 
       const label = container.querySelector('label');
@@ -223,15 +223,15 @@ describe('DateTimeInput Component', () => {
 
     it('should render "Time" label for time input', () => {
       const messages = createSimpleMessages('dt-1', 'DateTimeInput', {
-        value: { literalString: '14:30' },
+        value: {literalString: '14:30'},
         enableDate: false,
         enableTime: true,
       });
 
-      const { container } = render(
+      const {container} = render(
         <TestWrapper>
           <TestRenderer messages={messages} />
-        </TestWrapper>
+        </TestWrapper>,
       );
 
       const label = container.querySelector('label');
@@ -240,15 +240,15 @@ describe('DateTimeInput Component', () => {
 
     it('should render "Date & Time" label for datetime input', () => {
       const messages = createSimpleMessages('dt-1', 'DateTimeInput', {
-        value: { literalString: '2024-01-15T14:30' },
+        value: {literalString: '2024-01-15T14:30'},
         enableDate: true,
         enableTime: true,
       });
 
-      const { container } = render(
+      const {container} = render(
         <TestWrapper>
           <TestRenderer messages={messages} />
-        </TestWrapper>
+        </TestWrapper>,
       );
 
       const label = container.querySelector('label');
@@ -257,13 +257,13 @@ describe('DateTimeInput Component', () => {
 
     it('should associate label with input via htmlFor', () => {
       const messages = createSimpleMessages('dt-1', 'DateTimeInput', {
-        value: { literalString: '2024-01-15' },
+        value: {literalString: '2024-01-15'},
       });
 
-      const { container } = render(
+      const {container} = render(
         <TestWrapper>
           <TestRenderer messages={messages} />
-        </TestWrapper>
+        </TestWrapper>,
       );
 
       const label = container.querySelector('label');
@@ -275,19 +275,19 @@ describe('DateTimeInput Component', () => {
   describe('User Interaction', () => {
     it('should update value on change', () => {
       const messages = createSimpleMessages('dt-1', 'DateTimeInput', {
-        value: { literalString: '2024-01-15' },
+        value: {literalString: '2024-01-15'},
       });
 
-      const { container } = render(
+      const {container} = render(
         <TestWrapper>
           <TestRenderer messages={messages} />
-        </TestWrapper>
+        </TestWrapper>,
       );
 
       const input = container.querySelector('input') as HTMLInputElement;
       expect(input.value).toBe('2024-01-15');
 
-      fireEvent.change(input, { target: { value: '2024-06-20' } });
+      fireEvent.change(input, {target: {value: '2024-06-20'}});
 
       expect(input.value).toBe('2024-06-20');
       expect(input.value).not.toBe('2024-01-15');
@@ -295,21 +295,21 @@ describe('DateTimeInput Component', () => {
 
     it('should update time value on change', () => {
       const messages = createSimpleMessages('dt-1', 'DateTimeInput', {
-        value: { literalString: '10:00' },
+        value: {literalString: '10:00'},
         enableDate: false,
         enableTime: true,
       });
 
-      const { container } = render(
+      const {container} = render(
         <TestWrapper>
           <TestRenderer messages={messages} />
-        </TestWrapper>
+        </TestWrapper>,
       );
 
       const input = container.querySelector('input') as HTMLInputElement;
       expect(input.value).toBe('10:00');
 
-      fireEvent.change(input, { target: { value: '18:30' } });
+      fireEvent.change(input, {target: {value: '18:30'}});
 
       expect(input.value).toBe('18:30');
       expect(input.value).not.toBe('10:00');
@@ -319,13 +319,13 @@ describe('DateTimeInput Component', () => {
   describe('Structure', () => {
     it('should have correct DOM structure: div > section > label + input', () => {
       const messages = createSimpleMessages('dt-1', 'DateTimeInput', {
-        value: { literalString: '2024-01-15' },
+        value: {literalString: '2024-01-15'},
       });
 
-      const { container } = render(
+      const {container} = render(
         <TestWrapper>
           <TestRenderer messages={messages} />
-        </TestWrapper>
+        </TestWrapper>,
       );
 
       const wrapper = container.querySelector('.a2ui-datetime-input');

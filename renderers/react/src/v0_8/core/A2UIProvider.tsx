@@ -106,17 +106,17 @@ export function A2UIProvider({onAction, theme, children}: A2UIProviderProps) {
     actionsRef.current = {
       processMessages: (messages: Types.ServerToClientMessage[]) => {
         processor.processMessages(messages);
-        setVersion((v) => v + 1);
+        setVersion(v => v + 1);
       },
 
       setData: (
         node: Types.AnyComponentNode | null,
         path: string,
         value: Types.DataValue,
-        surfaceId: string
+        surfaceId: string,
       ) => {
         processor.setData(node, path, value, surfaceId);
-        setVersion((v) => v + 1);
+        setVersion(v => v + 1);
       },
 
       dispatch: (message: Types.A2UIClientEventMessage) => {
@@ -127,7 +127,7 @@ export function A2UIProvider({onAction, theme, children}: A2UIProviderProps) {
 
       clearSurfaces: () => {
         processor.clearSurfaces();
-        setVersion((v) => v + 1);
+        setVersion(v => v + 1);
       },
 
       getSurface: (surfaceId: string) => {
@@ -211,6 +211,6 @@ export function useA2UIContext(): A2UIContextValue {
       version: state.version,
       onAction: null, // Use dispatch instead
     }),
-    [actions, state.version]
+    [actions, state.version],
   );
 }

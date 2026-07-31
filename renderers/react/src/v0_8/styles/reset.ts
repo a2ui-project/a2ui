@@ -32,7 +32,7 @@
  */
 export const resetStyles: string = `
 @layer a2ui-reset {
-  :where(.a2ui-surface) :where(*) {
+  :where(.a2ui-surface) :where(*:not(svg, svg *:not(foreignObject *))) {
     all: revert;
   }
 }

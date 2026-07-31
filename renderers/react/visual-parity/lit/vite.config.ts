@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import { defineConfig } from 'vite';
+import {defineConfig} from 'vite';
 
 export default defineConfig({
   root: 'lit',

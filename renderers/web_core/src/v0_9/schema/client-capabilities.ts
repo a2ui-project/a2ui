@@ -28,14 +28,7 @@ export interface FunctionDefinition {
   name: string;
   description?: string;
   parameters: JsonSchema;
-  returnType:
-    | 'string'
-    | 'number'
-    | 'boolean'
-    | 'array'
-    | 'object'
-    | 'any'
-    | 'void';
+  returnType: 'string' | 'number' | 'boolean' | 'array' | 'object' | 'any' | 'void';
 }
 
 /**
@@ -49,11 +42,22 @@ export interface InlineCatalog {
 }
 
 /**
+ * The supported capabilities for a specific protocol version.
+ */
+export interface A2uiVersionCapabilities {
+  supportedCatalogIds: string[];
+  inlineCatalogs?: InlineCatalog[];
+}
+
+/**
  * The capabilities structure sent from the client to the server as part of transport metadata.
  */
-export interface A2uiClientCapabilities {
-  'v0.9': {
-    supportedCatalogIds: string[];
-    inlineCatalogs?: InlineCatalog[];
-  };
-}
+export type A2uiClientCapabilities =
+  | {
+      'v0.9': A2uiVersionCapabilities;
+      'v0.9.1'?: A2uiVersionCapabilities;
+    }
+  | {
+      'v0.9'?: A2uiVersionCapabilities;
+      'v0.9.1': A2uiVersionCapabilities;
+    };

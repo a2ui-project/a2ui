@@ -16,11 +16,11 @@
 
 'use client';
 
-import { WidgetEditor } from '@/components/editor/widget-editor';
-import { useWidgets } from '@/contexts/widgets-context';
+import {WidgetEditor} from '@/components/editor/widget-editor';
+import {useWidgets} from '@/contexts/widgets-context';
 
-export function ClientWidgetPage({ id }: { id: string }) {
-  const { loading, getWidget } = useWidgets();
+export function ClientWidgetPage({id}: {id: string}) {
+  const {loading, getWidget} = useWidgets();
 
   if (loading) {
     return (

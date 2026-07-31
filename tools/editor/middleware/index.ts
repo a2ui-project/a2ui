@@ -14,5 +14,5 @@
  * limitations under the License.
  */
 
-export * as GeminiMiddleware from "./gemini.js";
-export * as ImageFallbackMiddleware from "./image-fallback.js";
+export * as GeminiMiddleware from './gemini.js';
+export * as ImageFallbackMiddleware from './image-fallback.js';

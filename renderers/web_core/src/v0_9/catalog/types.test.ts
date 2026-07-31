@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import assert from 'node:assert';
+import * as assert from 'node:assert';
 import {describe, it} from 'node:test';
 import {
   Catalog,
@@ -128,8 +128,7 @@ describe('InferredComponentApiSchemaType', () => {
       : false;
 
     // typesMatchExact only accepts "true" if `TypesAreEquivalent`
-    const typesMatchExact: TypesAreEquivalent<ExpectedType, InferredType> =
-      true;
+    const typesMatchExact: TypesAreEquivalent<ExpectedType, InferredType> = true;
 
     // Appease linter by using the variables
     assert.ok(mockApi);

@@ -16,11 +16,11 @@
 
 'use client';
 
-import { useEffect } from 'react';
-import { X, RotateCcw, ExternalLink } from 'lucide-react';
-import { Widget } from '@/types/widget';
-import { Button } from '@/components/ui/button';
-import { A2UIViewer } from '@/lib/a2ui';
+import {useEffect} from 'react';
+import {X, RotateCcw, ExternalLink} from 'lucide-react';
+import {Widget} from '@/types/widget';
+import {Button} from '@/components/ui/button';
+import {A2UIViewer} from '@/lib/a2ui';
 import Editor from '@monaco-editor/react';
 
 interface WidgetPreviewModalProps {
@@ -29,7 +29,7 @@ interface WidgetPreviewModalProps {
   onOpenInEditor?: () => void;
 }
 
-export function WidgetPreviewModal({ widget, onClose, onOpenInEditor }: WidgetPreviewModalProps) {
+export function WidgetPreviewModal({widget, onClose, onOpenInEditor}: WidgetPreviewModalProps) {
   // Get the actual A2UI JSON
   const componentsJson = JSON.stringify(widget.components, null, 2);
   const dataJson = JSON.stringify(widget.dataStates?.[0]?.data ?? {}, null, 2);
@@ -49,10 +49,7 @@ export function WidgetPreviewModal({ widget, onClose, onOpenInEditor }: WidgetPr
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center">
       {/* Backdrop */}
-      <div
-        className="absolute inset-0 bg-black/50 backdrop-blur-sm"
-        onClick={onClose}
-      />
+      <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={onClose} />
 
       {/* Modal */}
       <div className="relative flex h-[80vh] w-[90vw] max-w-5xl overflow-hidden rounded-2xl bg-neutral-100 shadow-2xl">
@@ -60,10 +57,7 @@ export function WidgetPreviewModal({ widget, onClose, onOpenInEditor }: WidgetPr
         <div className="flex flex-1 flex-col">
           {/* Header */}
           <div className="flex items-center gap-3 border-b border-border bg-white px-4 h-10 shrink-0">
-            <button
-              className="p-1 rounded-md hover:bg-muted"
-              title="Reset preview"
-            >
+            <button className="p-1 rounded-md hover:bg-muted" title="Reset preview">
               <RotateCcw className="h-3.5 w-3.5 text-muted-foreground" />
             </button>
             <span className="text-xs font-medium text-muted-foreground">{widget.name}</span>
@@ -96,10 +90,7 @@ export function WidgetPreviewModal({ widget, onClose, onOpenInEditor }: WidgetPr
           <div className="flex items-center border-b border-border bg-white px-4 h-10 shrink-0">
             <span className="text-xs font-medium text-muted-foreground">Components</span>
             <div className="flex-1" />
-            <button
-              onClick={onClose}
-              className="p-1 rounded-md hover:bg-muted"
-            >
+            <button onClick={onClose} className="p-1 rounded-md hover:bg-muted">
               <X className="h-3.5 w-3.5 text-muted-foreground" />
             </button>
           </div>
@@ -113,12 +104,12 @@ export function WidgetPreviewModal({ widget, onClose, onOpenInEditor }: WidgetPr
                 value={componentsJson}
                 options={{
                   readOnly: true,
-                  minimap: { enabled: false },
+                  minimap: {enabled: false},
                   lineNumbers: 'on',
                   scrollBeyondLastLine: false,
                   fontSize: 12,
                   wordWrap: 'on',
-                  padding: { top: 8, bottom: 8 },
+                  padding: {top: 8, bottom: 8},
                   overviewRulerBorder: false,
                   overviewRulerLanes: 0,
                   hideCursorInOverviewRuler: true,
@@ -144,12 +135,12 @@ export function WidgetPreviewModal({ widget, onClose, onOpenInEditor }: WidgetPr
                 value={dataJson}
                 options={{
                   readOnly: true,
-                  minimap: { enabled: false },
+                  minimap: {enabled: false},
                   lineNumbers: 'on',
                   scrollBeyondLastLine: false,
                   fontSize: 12,
                   wordWrap: 'on',
-                  padding: { top: 8, bottom: 8 },
+                  padding: {top: 8, bottom: 8},
                   overviewRulerBorder: false,
                   overviewRulerLanes: 0,
                   hideCursorInOverviewRuler: true,

@@ -79,7 +79,7 @@ export interface UseA2UIComponentResult {
  */
 export function useA2UIComponent<T extends Types.AnyComponentNode>(
   node: T,
-  surfaceId: string
+  surfaceId: string,
 ): UseA2UIComponentResult {
   // Use stable actions - won't cause re-renders when version changes
   const actions = useA2UIActions();
@@ -113,7 +113,7 @@ export function useA2UIComponent<T extends Types.AnyComponentNode>(
       }
       return null;
     },
-    [actions, node, surfaceId]
+    [actions, node, surfaceId],
   );
 
   /**
@@ -136,7 +136,7 @@ export function useA2UIComponent<T extends Types.AnyComponentNode>(
       }
       return null;
     },
-    [actions, node, surfaceId]
+    [actions, node, surfaceId],
   );
 
   /**
@@ -159,7 +159,7 @@ export function useA2UIComponent<T extends Types.AnyComponentNode>(
       }
       return null;
     },
-    [actions, node, surfaceId]
+    [actions, node, surfaceId],
   );
 
   /**
@@ -169,7 +169,7 @@ export function useA2UIComponent<T extends Types.AnyComponentNode>(
     (path: string, value: Types.DataValue) => {
       actions.setData(node, path, value, surfaceId);
     },
-    [actions, node, surfaceId]
+    [actions, node, surfaceId],
   );
 
   /**
@@ -179,7 +179,7 @@ export function useA2UIComponent<T extends Types.AnyComponentNode>(
     (path: string): Types.DataValue | null => {
       return actions.getData(node, path, surfaceId);
     },
-    [actions, node, surfaceId]
+    [actions, node, surfaceId],
   );
 
   /**
@@ -215,7 +215,7 @@ export function useA2UIComponent<T extends Types.AnyComponentNode>(
         },
       });
     },
-    [actions, node, surfaceId]
+    [actions, node, surfaceId],
   );
 
   /**
@@ -226,7 +226,7 @@ export function useA2UIComponent<T extends Types.AnyComponentNode>(
     (prefix: string) => {
       return `${prefix}${baseId}`;
     },
-    [baseId]
+    [baseId],
   );
 
   return useMemo(
@@ -249,6 +249,6 @@ export function useA2UIComponent<T extends Types.AnyComponentNode>(
       getValue,
       sendAction,
       getUniqueId,
-    ]
+    ],
   );
 }

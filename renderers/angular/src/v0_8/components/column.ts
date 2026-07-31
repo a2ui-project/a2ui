@@ -14,15 +14,15 @@
  * limitations under the License.
  */
 
-import { ChangeDetectionStrategy, Component, computed, input } from '@angular/core';
-import { Types } from '../types';
-import { DynamicComponent } from '../rendering/dynamic-component';
-import { Renderer } from '../rendering/renderer';
+import {ChangeDetectionStrategy, Component, computed, input} from '@angular/core';
+import type {AnyComponentNode, ColumnNode, ResolvedColumn} from '../types';
+import {DynamicComponent} from '../rendering/dynamic-component';
+import {Renderer} from '../rendering/renderer';
 
 @Component({
   selector: 'a2ui-column',
   imports: [Renderer],
-  changeDetection: ChangeDetectionStrategy.Eager,
+  changeDetection: ChangeDetectionStrategy.OnPush,
   styles: `
     :host {
       display: flex;
@@ -87,10 +87,10 @@ import { Renderer } from '../rendering/renderer';
     </section>
   `,
 })
-export class Column extends DynamicComponent<Types.ColumnNode> {
-  readonly alignment = input<Types.ResolvedColumn['alignment']>('stretch');
-  readonly distribution = input<Types.ResolvedColumn['distribution']>('start');
-  readonly children = input<Types.AnyComponentNode[] | null>();
+export class Column extends DynamicComponent<ColumnNode> {
+  readonly alignment = input<ResolvedColumn['alignment']>('stretch');
+  readonly distribution = input<ResolvedColumn['distribution']>('start');
+  readonly children = input<AnyComponentNode[] | null>();
 
   protected readonly classes = computed(() => ({
     ...this.theme.components.Column,

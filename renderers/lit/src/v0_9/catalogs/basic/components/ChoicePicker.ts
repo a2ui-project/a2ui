@@ -14,17 +14,15 @@
  * limitations under the License.
  */
 
-import { html, nothing, css } from "lit";
-import { customElement, state } from "lit/decorators.js";
-import { classMap } from "lit/directives/class-map.js";
-import { ChoicePickerApi } from "@a2ui/web_core/v0_9/basic_catalog";
-import { BasicCatalogA2uiLitElement } from "../basic-catalog-a2ui-lit-element.js";
-import { A2uiController } from "@a2ui/lit/v0_9";
+import {html, nothing, css} from 'lit';
+import {customElement, state} from 'lit/decorators.js';
+import {classMap} from 'lit/directives/class-map.js';
+import {ChoicePickerApi} from '@a2ui/web_core/v0_9/basic_catalog';
+import {BasicCatalogA2uiLitElement} from '../basic-catalog-a2ui-lit-element.js';
+import {A2uiController} from '../../../a2ui-controller.js';
 
-@customElement("a2ui-choicepicker")
-export class A2uiChoicePickerElement extends BasicCatalogA2uiLitElement<
-  typeof ChoicePickerApi
-> {
+@customElement('a2ui-choicepicker')
+export class A2uiChoicePickerElement extends BasicCatalogA2uiLitElement<typeof ChoicePickerApi> {
   /**
    * The styles of the choice picker can be customized by redefining the following
    * CSS variables:
@@ -37,7 +35,7 @@ export class A2uiChoicePickerElement extends BasicCatalogA2uiLitElement<
    * - `--a2ui-choicepicker-chip-padding`: Padding for chips. Defaults to `--a2ui-spacing-s` and `--a2ui-spacing-m` (4px 8px).
    * - `--a2ui-choicepicker-chip-border-radius`: Border radius for chips. Defaults to `999px`.
    */
-  static styles = css`
+  static override styles = css`
     :host {
       display: flex;
       flex-direction: column;
@@ -54,7 +52,10 @@ export class A2uiChoicePickerElement extends BasicCatalogA2uiLitElement<
       font-size: var(--a2ui-choicepicker-label-font-size, inherit);
     }
     :host > label {
-      font-size: var(--a2ui-choicepicker-label-font-size, var(--a2ui-label-font-size, var(--a2ui-font-size-s)));
+      font-size: var(
+        --a2ui-choicepicker-label-font-size,
+        var(--a2ui-label-font-size, var(--a2ui-font-size-s))
+      );
       font-weight: var(--a2ui-choicepicker-label-font-weight, var(--a2ui-label-font-weight, bold));
     }
     .filter-input {
@@ -62,7 +63,10 @@ export class A2uiChoicePickerElement extends BasicCatalogA2uiLitElement<
       color: var(--a2ui-color-on-input, #333);
       border: var(--a2ui-textfield-border, var(--a2ui-border));
       border-radius: var(--a2ui-textfield-border-radius, var(--a2ui-spacing-m));
-      padding: var(--a2ui-choicepicker-filter-padding, var(--a2ui-spacing-xs, 4px) var(--a2ui-spacing-s, 8px));
+      padding: var(
+        --a2ui-choicepicker-filter-padding,
+        var(--a2ui-spacing-xs, 4px) var(--a2ui-spacing-s, 8px)
+      );
       font-family: inherit;
     }
     .filter-input:focus {
@@ -76,7 +80,10 @@ export class A2uiChoicePickerElement extends BasicCatalogA2uiLitElement<
       gap: var(--a2ui-choicepicker-gap, var(--a2ui-spacing-xs, 0.25rem));
     }
     .chip {
-      padding: var(--a2ui-choicepicker-chip-padding, var(--a2ui-spacing-s, 4px) var(--a2ui-spacing-m, 8px));
+      padding: var(
+        --a2ui-choicepicker-chip-padding,
+        var(--a2ui-spacing-s, 4px) var(--a2ui-spacing-m, 8px)
+      );
       border-radius: var(--a2ui-choicepicker-chip-border-radius, 999px);
       border: 1px solid var(--a2ui-color-border, #ccc);
       background-color: var(--a2ui-color-surface, #fff);
@@ -98,13 +105,13 @@ export class A2uiChoicePickerElement extends BasicCatalogA2uiLitElement<
     return new A2uiController(this, ChoicePickerApi);
   }
 
-  render() {
+  override render() {
     const props = this.controller.props;
     if (!props) return nothing;
 
     const selected = Array.isArray(props.value) ? props.value : [];
-    const isMulti = props.variant === "multipleSelection";
-    const isChips = props.displayStyle === "chips";
+    const isMulti = props.variant === 'multipleSelection';
+    const isChips = props.displayStyle === 'chips';
 
     const toggle = (val: string) => {
       if (!props.setValue) return;
@@ -122,8 +129,8 @@ export class A2uiChoicePickerElement extends BasicCatalogA2uiLitElement<
     const options = (props.options || []).filter(
       (opt: any) =>
         !props.filterable ||
-        this.filter === "" ||
-        String(opt.label).toLowerCase().includes(this.filter.toLowerCase())
+        this.filter === '' ||
+        String(opt.label).toLowerCase().includes(this.filter.toLowerCase()),
     );
 
     return html`
@@ -140,7 +147,7 @@ export class A2uiChoicePickerElement extends BasicCatalogA2uiLitElement<
             />
           `
         : nothing}
-      <div class=${classMap({ options: true, chips: isChips })}>
+      <div class=${classMap({options: true, chips: isChips})}>
         ${options.map((opt: any) =>
           isChips
             ? html`
@@ -158,13 +165,13 @@ export class A2uiChoicePickerElement extends BasicCatalogA2uiLitElement<
             : html`
                 <label>
                   <input
-                    type=${isMulti ? "checkbox" : "radio"}
+                    type=${isMulti ? 'checkbox' : 'radio'}
                     .checked=${selected.includes(opt.value)}
                     @change=${() => toggle(opt.value)}
                   />
                   ${opt.label}
                 </label>
-              `
+              `,
         )}
       </div>
     `;
@@ -173,5 +180,5 @@ export class A2uiChoicePickerElement extends BasicCatalogA2uiLitElement<
 
 export const A2uiChoicePicker = {
   ...ChoicePickerApi,
-  tagName: "a2ui-choicepicker",
+  tagName: 'a2ui-choicepicker',
 };

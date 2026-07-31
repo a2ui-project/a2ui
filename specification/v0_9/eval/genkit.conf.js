@@ -14,11 +14,11 @@
  * limitations under the License.
  */
 
-import { googleAI } from "@genkit-ai/google-genai";
-import { configure } from "genkit";
+import {googleAI} from '@genkit-ai/google-genai';
+import {configure} from 'genkit';
 
 export default configure({
   plugins: [googleAI()],
-  logLevel: "debug",
+  logLevel: 'debug',
   enableTracingAndMetrics: true,
 });

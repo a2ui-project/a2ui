@@ -22,8 +22,8 @@
 
 export type ClientCapabilitiesUri = string;
 export declare interface ClientCapabilitiesDynamic {
-  components: { [key: string]: unknown };
-  styles: { [key: string]: unknown };
+  components: {[key: string]: unknown};
+  styles: {[key: string]: unknown};
 }
 
 export declare interface ClientCapabilitiesCatalogUri {
@@ -34,9 +34,7 @@ export declare interface ClientCapabilitiesDynamicCatalog {
   dynamicCatalog: ClientCapabilitiesDynamic;
 }
 
-export type ClientCapabilities =
-  | ClientCapabilitiesCatalogUri
-  | ClientCapabilitiesDynamicCatalog;
+export type ClientCapabilities = ClientCapabilitiesCatalogUri | ClientCapabilitiesDynamicCatalog;
 
 /**
  * A message sent from the client to the server. Exactly ONE of the properties

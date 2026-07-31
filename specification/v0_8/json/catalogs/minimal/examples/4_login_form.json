@@ -24,12 +24,7 @@
           "component": {
             "Column": {
               "children": {
-                "explicitList": [
-                  "form_title",
-                  "username_field",
-                  "password_field",
-                  "submit_button"
-                ]
+                "explicitList": ["form_title", "username_field", "password_field", "submit_button"]
               },
               "distribution": "start",
               "alignment": "stretch"

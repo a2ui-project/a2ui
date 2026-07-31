@@ -14,11 +14,11 @@
  * limitations under the License.
  */
 
-import { IncomingMessage, ServerResponse } from "http";
-import { Plugin, ViteDevServer } from "vite";
-import { GoogleGenAI } from "@google/genai";
-import { v0_8 } from "@a2ui/lit";
-import { createA2UIPrompt, createImageParsePrompt } from "./prompts";
+import {IncomingMessage, ServerResponse} from 'http';
+import {Plugin, ViteDevServer} from 'vite';
+import {GoogleGenAI} from '@google/genai';
+import {v0_8} from '@a2ui/lit';
+import {createA2UIPrompt, createImageParsePrompt} from './prompts';
 
 // TODO: Reenable.
 // import ServerToClientMessage from "../schemas/a2ui-message.js";
@@ -26,44 +26,42 @@ import { createA2UIPrompt, createImageParsePrompt } from "./prompts";
 let catalog: v0_8.Types.ClientCapabilitiesDynamic | null = null;
 let ai: GoogleGenAI;
 export const plugin = (): Plugin => {
-  if (!("GEMINI_API_KEY" in process.env && process.env.GEMINI_KEY !== "")) {
-    throw new Error("No GEMINI_API_KEY environment variable; add one to .env");
+  if (!('GEMINI_API_KEY' in process.env && process.env.GEMINI_KEY !== '')) {
+    throw new Error('No GEMINI_API_KEY environment variable; add one to .env');
   }
 
   return {
-    name: "custom-gemini-handler",
+    name: 'custom-gemini-handler',
     configureServer(server: ViteDevServer) {
       server.middlewares.use(
-        "/a2ui",
+        '/a2ui',
         async (req: IncomingMessage, res: ServerResponse, next: () => void) => {
           if (!ai) {
-            ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+            ai = new GoogleGenAI({apiKey: process.env.GEMINI_API_KEY});
           }
 
-          if (req.method === "POST") {
-            let contents = "";
+          if (req.method === 'POST') {
+            let contents = '';
 
-            req.on("data", (chunk) => {
+            req.on('data', chunk => {
               contents += chunk.toString();
             });
 
-            req.on("end", async () => {
+            req.on('end', async () => {
               try {
-                const payload = JSON.parse(
-                  contents
-                ) as v0_8.Types.A2UIClientEventMessage;
+                const payload = JSON.parse(contents) as v0_8.Types.A2UIClientEventMessage;
                 if (payload.clientUiCapabilities || payload.userAction) {
                   if (payload.clientUiCapabilities) {
-                    if ("dynamicCatalog" in payload.clientUiCapabilities) {
+                    if ('dynamicCatalog' in payload.clientUiCapabilities) {
                       catalog = payload.clientUiCapabilities.dynamicCatalog;
 
                       res.statusCode = 200;
-                      res.setHeader("Content-Type", "application/json");
+                      res.setHeader('Content-Type', 'application/json');
                       res.end(
                         JSON.stringify({
-                          role: "model",
-                          parts: [{ text: "Dynamic Catalog Received" }],
-                        })
+                          role: 'model',
+                          parts: [{text: 'Dynamic Catalog Received'}],
+                        }),
                       );
                       return;
                     }
@@ -75,11 +73,11 @@ export const plugin = (): Plugin => {
                   // Other payload - assume this is a user request.
                   if (!payload.request || !catalog) {
                     res.statusCode = 400;
-                    res.setHeader("Content-Type", "application/json");
+                    res.setHeader('Content-Type', 'application/json');
                     res.end(
                       JSON.stringify({
-                        error: `Invalid message - No payload or catalog`,
-                      })
+                        error: 'Invalid message - No payload or catalog',
+                      }),
                     );
                     return;
                   }
@@ -90,20 +88,13 @@ export const plugin = (): Plugin => {
                       instructions: string;
                     };
 
-                    let imageDescription = "";
-                    if (
-                      request.imageData &&
-                      request.imageData.startsWith("data:")
-                    ) {
-                      const mimeType = /data:(.*);/
-                        .exec(request.imageData)
-                        ?.at(1);
+                    let imageDescription = '';
+                    if (request.imageData && request.imageData.startsWith('data:')) {
+                      const mimeType = /data:(.*);/.exec(request.imageData)?.at(1);
                       if (!mimeType) {
-                        throw new Error("Invalid inline data");
+                        throw new Error('Invalid inline data');
                       }
-                      const data = request.imageData.substring(
-                        `data:${mimeType};base64,`.length
-                      );
+                      const data = request.imageData.substring(`data:${mimeType};base64,`.length);
                       const contentPart = {
                         inlineData: {
                           mimeType,
@@ -111,12 +102,9 @@ export const plugin = (): Plugin => {
                         },
                       };
 
-                      const prompt = createImageParsePrompt(
-                        catalog,
-                        contentPart
-                      );
+                      const prompt = createImageParsePrompt(catalog, contentPart);
                       const modelResponse = await ai.models.generateContent({
-                        model: "gemini-2.5-flash",
+                        model: 'gemini-2.5-flash',
                         contents: prompt,
                         config: {
                           systemInstruction: `
@@ -126,17 +114,17 @@ export const plugin = (): Plugin => {
                         please.`,
                         },
                       });
-                      imageDescription = modelResponse.text ?? "";
+                      imageDescription = modelResponse.text ?? '';
                     }
 
                     const prompt = createA2UIPrompt(
                       catalog,
                       imageDescription,
-                      request.instructions
+                      request.instructions,
                     );
 
                     const modelResponse = await ai.models.generateContent({
-                      model: "gemini-2.5-flash",
+                      model: 'gemini-2.5-flash',
                       contents: prompt,
                       config: {
                         // responseMimeType: "application/json",
@@ -162,24 +150,24 @@ export const plugin = (): Plugin => {
                       },
                     });
                     res.statusCode = 200;
-                    res.setHeader("Content-Type", "application/json");
+                    res.setHeader('Content-Type', 'application/json');
                     res.end(
                       JSON.stringify({
-                        role: "model",
-                        parts: [{ text: modelResponse.text }],
-                      })
+                        role: 'model',
+                        parts: [{text: modelResponse.text}],
+                      }),
                     );
                   } else {
-                    throw new Error("Expected request to be an object");
+                    throw new Error('Expected request to be an object');
                   }
                 }
               } catch (err) {
                 res.statusCode = 400;
-                res.setHeader("Content-Type", "application/json");
+                res.setHeader('Content-Type', 'application/json');
                 res.end(
                   JSON.stringify({
                     error: `Invalid message - ${err}`,
-                  })
+                  }),
                 );
               }
             });
@@ -188,7 +176,7 @@ export const plugin = (): Plugin => {
           } else {
             next();
           }
-        }
+        },
       );
     },
   };

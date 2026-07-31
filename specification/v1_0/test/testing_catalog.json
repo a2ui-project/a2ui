@@ -1,0 +1,91 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://a2ui.org/specification/v1_0/testing_catalog.json",
+  "protocolVersion": "1.0",
+  "title": "A2UI Testing Catalog",
+  "description": "Catalog for testing purposes.",
+  "catalogId": "https://a2ui.org/specification/v1_0/testing_catalog.json",
+  "components": {
+    "Text": {
+      "type": "object",
+      "allOf": [
+        {"$ref": "common_types.json#/$defs/ComponentCommon"},
+        {
+          "type": "object",
+          "properties": {
+            "component": {"const": "Text"},
+            "text": {
+              "$ref": "common_types.json#/$defs/DynamicString"
+            }
+          },
+          "required": ["component", "text"]
+        }
+      ]
+    }
+  },
+  "functions": {
+    "openUrl": {
+      "type": "object",
+      "description": "Opens the specified URL in a browser or handler. This function has no return value.",
+      "returnType": "void",
+      "allOf": [
+        {
+          "$ref": "common_types.json#/$defs/FunctionCommon"
+        },
+        {
+          "type": "object",
+          "properties": {
+            "call": {
+              "const": "openUrl"
+            },
+            "args": {
+              "type": "object",
+              "properties": {
+                "url": {
+                  "type": "string",
+                  "format": "uri",
+                  "description": "The URL to open."
+                }
+              },
+              "required": ["url"],
+              "unevaluatedProperties": false
+            }
+          },
+          "required": ["call", "args"]
+        }
+      ],
+      "unevaluatedProperties": false
+    },
+    "pingAgent": {
+      "type": "object",
+      "description": "Pings the agent from the renderer side.",
+      "returnType": "void",
+      "allOf": [
+        {
+          "$ref": "common_types.json#/$defs/FunctionCommon"
+        },
+        {
+          "type": "object",
+          "properties": {
+            "call": {
+              "const": "pingAgent"
+            }
+          },
+          "required": ["call"]
+        }
+      ],
+      "unevaluatedProperties": false
+    }
+  },
+  "$defs": {
+    "anyComponent": {
+      "oneOf": [{"$ref": "#/components/Text"}],
+      "discriminator": {
+        "propertyName": "component"
+      }
+    },
+    "anyFunction": {
+      "oneOf": [{"$ref": "#/functions/openUrl"}, {"$ref": "#/functions/pingAgent"}]
+    }
+  }
+}

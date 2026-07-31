@@ -14,5 +14,5 @@
  * limitations under the License.
  */
 
-export * from "./theme.js";
-export * from "./markdown.js";
+export * from './theme.js';
+export * from './markdown.js';

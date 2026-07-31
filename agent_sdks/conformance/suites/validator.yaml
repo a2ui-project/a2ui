@@ -1,0 +1,2771 @@
+# Copyright 2026 Google LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+- name: test_validator_circular_reference_v08
+  description: Tests that circular references are detected.
+  catalog:
+    version: "0.8"
+    s2c_schema: "test_data/simplified_s2c_v08.json"
+    catalog_schema:
+      catalogId: test_catalog
+      components:
+        Card:
+          type: object
+          properties:
+            child:
+              type: string
+  action: validate
+  payload:
+    - beginRendering:
+        root: c1
+        surfaceId: s1
+    - surfaceUpdate:
+        surfaceId: s1
+        components:
+          - id: c1
+            component:
+              Card:
+                child: c2
+          - id: c2
+            component:
+              Card:
+                child: c1
+  expect_error:
+    category: "RecursionError"
+    message: "Circular reference detected"
+
+- name: test_validator_0_9
+  description: Tests validation of v0.9 messages.
+  catalog:
+    version: "0.9"
+    common_types_schema: "test_data/simplified_common_types_v09.json"
+    s2c_schema: "test_data/simplified_s2c_v09.json"
+    catalog_schema: "test_data/simplified_catalog_v09.json"
+  action: validate
+  steps:
+    - payload:
+        - version: v0.9
+          createSurface:
+            surfaceId: test-id
+            catalogId: standard
+            theme:
+              primaryColor: blue
+              iconUrl: http://img
+    - payload:
+        - createSurface:
+            surfaceId: "123"
+            catalogId: standard
+      expect_error:
+        category: "ValidationError"
+        details:
+          - path: "messages.0.version"
+            code: "missing_field"
+    - payload:
+        - version: v0.8
+          createSurface:
+            surfaceId: "123"
+            catalogId: standard
+      expect_error:
+        category: "ValidationError"
+        details:
+          - path: "messages.0.version"
+            code: "invalid_value"
+    - payload:
+        - version: v0.9
+          createSurface:
+            surfaceId: 123
+            catalogId: standard
+      expect_error:
+        category: "ValidationError"
+        details:
+          - path: "messages.0.createSurface.surfaceId"
+            code: "type_mismatch"
+    - payload:
+        - version: v0.9
+          createSurface:
+            surfaceId: "123"
+      expect_error:
+        category: "ValidationError"
+        details:
+          - path: "messages.0.createSurface.catalogId"
+            code: "missing_field"
+
+- name: test_validator_0_8
+  description: Tests validation of v0.8 messages.
+  catalog:
+    version: "0.8"
+    s2c_schema: "test_data/simplified_s2c_v08.json"
+    catalog_schema:
+      catalogId: standard
+      components: {}
+  action: validate
+  steps:
+    - payload:
+        - beginRendering:
+            surfaceId: test-id
+            root: root
+            styles:
+              primaryColor: "#ff0000"
+    - payload:
+        - beginRendering:
+            surfaceId: 123
+            root: root
+      expect_error: 123 is not of type 'string'
+    - payload:
+        - beginRendering:
+            surfaceId: id
+            root: root
+            styles: not-an-object
+      expect_error: "'not-an-object' is not of type 'object'"
+
+- name: test_custom_catalog_0_8
+  description: Tests validation with a custom catalog in v0.8.
+  catalog:
+    version: "0.8"
+    s2c_schema: "test_data/simplified_s2c_v08.json"
+    catalog_schema:
+      catalogId: custom
+      components:
+        Canvas:
+          type: object
+          properties:
+            children:
+              type: object
+              properties:
+                explicitList:
+                  type: array
+                  items:
+                    type: string
+              required:
+                - explicitList
+          required:
+            - children
+        Chart:
+          type: object
+          properties:
+            type:
+              type: string
+              enum:
+                - doughnut
+                - pie
+            title:
+              type: object
+              properties:
+                literalString:
+                  type: string
+                path:
+                  type: string
+            chartData:
+              type: object
+              properties:
+                literalArray:
+                  type: array
+                path:
+                  type: string
+          required:
+            - type
+            - chartData
+        GoogleMap:
+          type: object
+          properties:
+            center:
+              type: object
+              properties:
+                literalObject:
+                  type: object
+                path:
+                  type: string
+            zoom:
+              type: object
+              properties:
+                literalNumber:
+                  type: number
+                path:
+                  type: string
+          required:
+            - center
+            - zoom
+  action: validate
+  payload:
+    - surfaceUpdate:
+        surfaceId: id1
+        components:
+          - id: root
+            component:
+              Canvas:
+                children:
+                  explicitList:
+                    - c1
+                    - c2
+          - id: c1
+            component:
+              Canvas:
+                children:
+                  explicitList: []
+          - id: c2
+            component:
+              Chart:
+                type: pie
+                chartData:
+                  path: /data
+
+- name: test_custom_catalog_0_9
+  description: Tests validation with a custom catalog in v0.9.
+  catalog:
+    version: "0.9"
+    common_types_schema: "test_data/simplified_common_types_v09.json"
+    s2c_schema: "test_data/simplified_s2c_v09.json"
+    catalog_schema:
+      catalogId: custom
+      components:
+        Canvas:
+          type: object
+          allOf:
+            - $ref: "#/$defs/ComponentCommon"
+            - $ref: "#/$defs/CatalogComponentCommon"
+            - type: object
+              properties:
+                component:
+                  const: Canvas
+                children:
+                  $ref: "#/$defs/ChildList"
+              required:
+                - component
+                - children
+        Chart:
+          type: object
+          allOf:
+            - $ref: "#/$defs/ComponentCommon"
+            - $ref: "#/$defs/CatalogComponentCommon"
+            - type: object
+              properties:
+                component:
+                  const: Chart
+                chartType:
+                  enum:
+                    - doughnut
+                    - pie
+                title:
+                  $ref: "#/$defs/DynamicString"
+                chartData:
+                  $ref: "#/$defs/DynamicValue"
+              required:
+                - component
+                - chartType
+                - chartData
+        GoogleMap:
+          type: object
+          allOf:
+            - $ref: "#/$defs/ComponentCommon"
+            - $ref: "#/$defs/CatalogComponentCommon"
+            - type: object
+              properties:
+                component:
+                  const: GoogleMap
+                center:
+                  $ref: "#/$defs/DynamicValue"
+                zoom:
+                  $ref: "#/$defs/DynamicNumber"
+                pins:
+                  $ref: "#/$defs/DynamicValue"
+              required:
+                - component
+                - center
+                - zoom
+      $defs:
+        ComponentId:
+          type: string
+        ComponentCommon:
+          type: object
+          properties:
+            id:
+              $ref: "#/$defs/ComponentId"
+          required:
+            - id
+        ChildList:
+          oneOf:
+            - type: array
+              items:
+                $ref: "#/$defs/ComponentId"
+            - type: object
+              properties:
+                componentId:
+                  $ref: "#/$defs/ComponentId"
+                path:
+                  type: string
+              required:
+                - componentId
+                - path
+              additionalProperties: false
+        DynamicString:
+          anyOf:
+            - type: string
+            - type: object
+        DynamicValue:
+          anyOf:
+            - type: object
+            - type: array
+        DynamicNumber:
+          anyOf:
+            - type: number
+            - type: object
+        CatalogComponentCommon:
+          type: object
+          properties:
+            weight:
+              type: number
+        anyComponent:
+          oneOf:
+            - $ref: "#/components/Canvas"
+            - $ref: "#/components/Chart"
+            - $ref: "#/components/GoogleMap"
+          discriminator:
+            propertyName: component
+  action: validate
+  payload:
+    - version: v0.9
+      updateComponents:
+        surfaceId: s1
+        components:
+          - id: root
+            component: Canvas
+            children:
+              - c1
+              - c2
+          - id: c1
+            component: Canvas
+            children: []
+          - id: c2
+            component: Chart
+            chartType: doughnut
+            chartData:
+              path: /data
+
+- name: test_validate_duplicate_ids_v08
+  description: Tests that duplicate IDs are detected in v0.8.
+  catalog:
+    version: "0.8"
+    s2c_schema: "test_data/simplified_s2c_v08.json"
+    catalog_schema:
+      catalogId: standard
+      components:
+        Text:
+          type: object
+          properties:
+            text:
+              type: string
+  action: validate
+  payload:
+    - beginRendering:
+        root: root
+        surfaceId: test-surface
+    - surfaceUpdate:
+        surfaceId: test-surface
+        components:
+          - id: root
+            component:
+              Text:
+                text: Root
+          - id: c1
+            component:
+              Text:
+                text: Hello
+          - id: c1
+            component:
+              Text:
+                text: World
+  expect_error:
+    category: "IntegrityError"
+    message: "Duplicate component ID: c1"
+
+- name: test_validate_duplicate_ids_v09
+  description: Tests that duplicate IDs are detected in v0.9.
+  catalog:
+    version: "0.9"
+    common_types_schema: "test_data/simplified_common_types_v09.json"
+    s2c_schema: "test_data/simplified_s2c_v09.json"
+    catalog_schema:
+      catalogId: standard
+      components:
+        Text:
+          type: object
+          properties:
+            component:
+              const: Text
+            text:
+              type: string
+          required:
+            - component
+            - text
+      $defs:
+        anyComponent:
+          oneOf:
+            - $ref: "#/components/Text"
+          discriminator:
+            propertyName: component
+  action: validate
+  payload:
+    - version: v0.9
+      createSurface:
+        surfaceId: test-surface
+        catalogId: std
+    - version: v0.9
+      updateComponents:
+        surfaceId: test-surface
+        components:
+          - id: root
+            component: Text
+            text: Root
+          - id: c1
+            component: Text
+            text: Hello
+          - id: c1
+            component: Text
+            text: World
+  expect_error: "Duplicate component ID: c1"
+
+- name: test_validate_missing_root_v08
+  description: Tests that missing root component is detected in v0.8.
+  catalog:
+    version: "0.8"
+    s2c_schema: "test_data/simplified_s2c_v08.json"
+    catalog_schema:
+      catalogId: standard
+      components:
+        Text:
+          type: object
+          properties:
+            text:
+              type: string
+  action: validate
+  payload:
+    - beginRendering:
+        root: root
+        surfaceId: test
+    - surfaceUpdate:
+        surfaceId: test
+        components:
+          - id: c1
+            component:
+              Text:
+                text: hi
+  expect_error:
+    category: "IntegrityError"
+    message: "Missing root component"
+
+- name: test_validate_missing_root_v09
+  description: Tests that missing root component is detected in v0.9.
+  catalog:
+    version: "0.9"
+    common_types_schema: "test_data/simplified_common_types_v09.json"
+    s2c_schema: "test_data/simplified_s2c_v09.json"
+    catalog_schema:
+      catalogId: standard
+      components:
+        Text:
+          type: object
+          properties:
+            component:
+              const: Text
+            text:
+              type: string
+          required:
+            - component
+            - text
+      $defs:
+        anyComponent:
+          oneOf:
+            - $ref: "#/components/Text"
+          discriminator:
+            propertyName: component
+  action: validate
+  payload:
+    - version: v0.9
+      createSurface:
+        surfaceId: test
+        catalogId: std
+    - version: v0.9
+      updateComponents:
+        surfaceId: test
+        components:
+          - id: c1
+            component: Text
+            text: hi
+  expect_error: Missing root component
+
+- name: test_validate_dangling_references_v08
+  description: Tests that dangling references are detected in v0.8.
+  catalog:
+    version: "0.8"
+    s2c_schema: "test_data/simplified_s2c_v08.json"
+    catalog_schema:
+      catalogId: standard
+      components:
+        Column:
+          type: object
+          properties:
+            children:
+              type: array
+              items:
+                type: string
+        Card:
+          type: object
+          properties:
+            child:
+              type: string
+  action: validate
+  steps:
+    - payload:
+        - beginRendering:
+            root: root
+            surfaceId: test-surface
+        - surfaceUpdate:
+            surfaceId: test-surface
+            components:
+              - id: root
+                component:
+                  Column:
+                    children:
+                      - missing
+      expect_error: references non-existent component
+    - payload:
+        - beginRendering:
+            root: root
+            surfaceId: test-surface
+        - surfaceUpdate:
+            surfaceId: test-surface
+            components:
+              - id: root
+                component:
+                  Card:
+                    child: missing
+      expect_error: references non-existent component
+
+- name: test_validate_dangling_references_v09
+  description: Tests that dangling references are detected in v0.9.
+  catalog:
+    version: "0.9"
+    common_types_schema: "test_data/simplified_common_types_v09.json"
+    s2c_schema: "test_data/simplified_s2c_v09.json"
+    catalog_schema:
+      catalogId: standard
+      components:
+        Column:
+          type: object
+          properties:
+            component:
+              const: Column
+            children:
+              $ref: "https://a2ui.org/specification/v0_9/common_types.json#/$defs/ChildList"
+          required:
+            - component
+            - children
+        Card:
+          type: object
+          properties:
+            component:
+              const: Card
+            child:
+              $ref: "https://a2ui.org/specification/v0_9/common_types.json#/$defs/ComponentId"
+          required:
+            - component
+            - child
+      $defs:
+        anyComponent:
+          oneOf:
+            - $ref: "#/components/Column"
+            - $ref: "#/components/Card"
+          discriminator:
+            propertyName: component
+  action: validate
+  steps:
+    - payload:
+        - version: v0.9
+          createSurface:
+            surfaceId: test-surface
+            catalogId: std
+        - version: v0.9
+          updateComponents:
+            surfaceId: test-surface
+            components:
+              - id: root
+                component: Column
+                children:
+                  - missing
+      expect_error: references non-existent component
+    - payload:
+        - version: v0.9
+          createSurface:
+            surfaceId: test-surface
+            catalogId: std
+        - version: v0.9
+          updateComponents:
+            surfaceId: test-surface
+            components:
+              - id: root
+                component: Card
+                child: missing
+      expect_error: references non-existent component
+
+- name: test_validate_self_reference_v08
+  description: Tests that self-references are detected in v0.8.
+  catalog:
+    version: "0.8"
+    s2c_schema: "test_data/simplified_s2c_v08.json"
+    catalog_schema:
+      catalogId: standard
+      components:
+        Card:
+          type: object
+          properties:
+            child:
+              type: string
+  action: validate
+  payload:
+    - beginRendering:
+        root: root
+        surfaceId: test-surface
+    - surfaceUpdate:
+        surfaceId: test-surface
+        components:
+          - id: root
+            component:
+              Card:
+                child: root
+  expect_error: Self-reference detected
+
+- name: test_validate_self_reference_v09
+  description: Tests that self-references are detected in v0.9.
+  catalog:
+    version: "0.9"
+    common_types_schema: "test_data/simplified_common_types_v09.json"
+    s2c_schema: "test_data/simplified_s2c_v09.json"
+    catalog_schema:
+      catalogId: standard
+      components:
+        Card:
+          type: object
+          properties:
+            component:
+              const: Card
+            child:
+              $ref: "https://a2ui.org/specification/v0_9/common_types.json#/$defs/ComponentId"
+          required:
+            - component
+            - child
+      $defs:
+        anyComponent:
+          oneOf:
+            - $ref: "#/components/Card"
+          discriminator:
+            propertyName: component
+  action: validate
+  payload:
+    - version: v0.9
+      createSurface:
+        surfaceId: test-surface
+        catalogId: std
+    - version: v0.9
+      updateComponents:
+        surfaceId: test-surface
+        components:
+          - id: root
+            component: Card
+            child: root
+  expect_error: Self-reference detected
+
+- name: test_validate_function_call_recursion_v08
+  description: Tests that function call recursion limit is exceeded in v0.8.
+  catalog:
+    version: "0.8"
+    s2c_schema: "test_data/simplified_s2c_v08.json"
+    catalog_schema:
+      catalogId: standard
+      components:
+        Button:
+          type: object
+          properties:
+            label:
+              type: string
+            action:
+              type: object
+  action: validate
+  payload:
+    - beginRendering:
+        root: root
+        surfaceId: test-surface
+    - surfaceUpdate:
+        surfaceId: test-surface
+        components:
+          - id: root
+            component:
+              Button:
+                label: btn
+                action:
+                  functionCall:
+                    call: f0
+                    args:
+                      functionCall:
+                        call: f1
+                        args:
+                          functionCall:
+                            call: f2
+                            args:
+                              functionCall:
+                                call: f3
+                                args:
+                                  functionCall:
+                                    call: f4
+                                    args:
+                                      functionCall:
+                                        call: f5
+                                        args: {}
+  expect_error: "Recursion limit exceeded: functionCall depth > 5"
+
+- name: test_validate_function_call_recursion_v09
+  description: Tests that function call recursion limit is exceeded in v0.9.
+  catalog:
+    version: "0.9"
+    common_types_schema: "test_data/simplified_common_types_v09.json"
+    s2c_schema: "test_data/simplified_s2c_v09.json"
+    catalog_schema:
+      catalogId: standard
+      components:
+        Button:
+          type: object
+          properties:
+            component:
+              const: Button
+            text:
+              type: string
+            action:
+              type: object
+          required:
+            - component
+            - text
+            - action
+      $defs:
+        anyComponent:
+          oneOf:
+            - $ref: "#/components/Button"
+          discriminator:
+            propertyName: component
+  action: validate
+  payload:
+    - version: v0.9
+      createSurface:
+        surfaceId: test-surface
+        catalogId: std
+    - version: v0.9
+      updateComponents:
+        surfaceId: test-surface
+        components:
+          - id: root
+            component: Button
+            text: btn
+            action:
+              functionCall:
+                call: f0
+                args:
+                  functionCall:
+                    call: f1
+                    args:
+                      functionCall:
+                        call: f2
+                        args:
+                          functionCall:
+                            call: f3
+                            args:
+                              functionCall:
+                                call: f4
+                                args:
+                                  functionCall:
+                                    call: f5
+                                    args: {}
+  expect_error: "Recursion limit exceeded: functionCall depth > 5"
+
+- name: test_validate_orphaned_component_v08
+  description: Tests that orphaned components are detected in v0.8.
+  catalog:
+    version: "0.8"
+    s2c_schema: "test_data/simplified_s2c_v08.json"
+    catalog_schema:
+      catalogId: standard
+      components:
+        Text:
+          type: object
+          properties:
+            text:
+              type: string
+  action: validate
+  payload:
+    - beginRendering:
+        root: root
+        surfaceId: test-surface
+    - surfaceUpdate:
+        surfaceId: test-surface
+        components:
+          - id: root
+            component:
+              Text:
+                text: Root
+          - id: orphan
+            component:
+              Text:
+                text: Orphan
+  expect_error: Component 'orphan' is not reachable from 'root'
+
+- name: test_validate_orphaned_component_v09
+  description: Tests that orphaned components are detected in v0.9.
+  catalog:
+    version: "0.9"
+    common_types_schema: "test_data/simplified_common_types_v09.json"
+    s2c_schema: "test_data/simplified_s2c_v09.json"
+    catalog_schema:
+      catalogId: standard
+      components:
+        Text:
+          type: object
+          properties:
+            component:
+              const: Text
+            text:
+              type: string
+          required:
+            - component
+            - text
+      $defs:
+        anyComponent:
+          oneOf:
+            - $ref: "#/components/Text"
+          discriminator:
+            propertyName: component
+  action: validate
+  payload:
+    - version: v0.9
+      createSurface:
+        surfaceId: test-surface
+        catalogId: std
+    - version: v0.9
+      updateComponents:
+        surfaceId: test-surface
+        components:
+          - id: root
+            component: Text
+            text: Root
+          - id: orphan
+            component: Text
+            text: Orphan
+  expect_error: Component 'orphan' is not reachable from 'root'
+
+- name: test_validate_template_reachability_v08
+  description: Tests template reachability in v0.8.
+  catalog:
+    version: "0.8"
+    s2c_schema: "test_data/simplified_s2c_v08.json"
+    catalog_schema:
+      catalogId: standard
+      components:
+        Column:
+          type: object
+          properties:
+            children:
+              type: array
+              items:
+                type: string
+        Text:
+          type: object
+          properties:
+            text:
+              type: string
+  action: validate
+  steps:
+    - payload:
+        - beginRendering:
+            root: root
+            surfaceId: test-surface
+        - surfaceUpdate:
+            surfaceId: test-surface
+            components:
+              - id: root
+                component:
+                  Column:
+                    children:
+                      - template-id
+              - id: template-id
+                component:
+                  Text:
+                    text: Reachable
+    - payload:
+        - beginRendering:
+            root: root
+            surfaceId: test-surface
+        - surfaceUpdate:
+            surfaceId: test-surface
+            components:
+              - id: root
+                component:
+                  Column:
+                    children:
+                      - missing-id
+              - id: template-id
+                component:
+                  Text:
+                    text: Reachable
+      expect_error: references non-existent component 'missing-id'
+
+- name: test_validate_template_reachability_v09
+  description: Tests template reachability in v0.9.
+  catalog:
+    version: "0.9"
+    common_types_schema: "test_data/simplified_common_types_v09.json"
+    s2c_schema: "test_data/simplified_s2c_v09.json"
+    catalog_schema:
+      catalogId: standard
+      components:
+        List:
+          type: object
+          properties:
+            component:
+              const: List
+            children:
+              $ref: "https://a2ui.org/specification/v0_9/common_types.json#/$defs/ChildList"
+          required:
+            - component
+            - children
+        Text:
+          type: object
+          properties:
+            component:
+              const: Text
+            text:
+              type: string
+          required:
+            - component
+            - text
+      $defs:
+        anyComponent:
+          oneOf:
+            - $ref: "#/components/List"
+            - $ref: "#/components/Text"
+          discriminator:
+            propertyName: component
+  action: validate
+  steps:
+    - payload:
+        - version: v0.9
+          createSurface:
+            surfaceId: test-surface
+            catalogId: std
+        - version: v0.9
+          updateComponents:
+            surfaceId: test-surface
+            components:
+              - id: root
+                component: List
+                children:
+                  componentId: template-id
+                  path: /items
+              - id: template-id
+                component: Text
+                text: Reachable
+    - payload:
+        - version: v0.9
+          createSurface:
+            surfaceId: test-surface
+            catalogId: std
+        - version: v0.9
+          updateComponents:
+            surfaceId: test-surface
+            components:
+              - id: root
+                component: List
+                children:
+                  componentId: missing-id
+                  path: /items
+              - id: template-id
+                component: Text
+                text: Reachable
+      expect_error: references non-existent component 'missing-id'
+
+- name: test_validate_v08_custom_root_reachability
+  description: Tests custom root reachability in v0.8.
+  catalog:
+    version: "0.8"
+    s2c_schema: "test_data/simplified_s2c_v08.json"
+    catalog_schema:
+      catalogId: standard
+      components:
+        Text:
+          type: object
+          properties:
+            text:
+              type: string
+        Card:
+          type: object
+          properties:
+            child:
+              type: string
+  action: validate
+  steps:
+    - payload:
+        - beginRendering:
+            root: custom-root
+            surfaceId: test-surface
+        - surfaceUpdate:
+            surfaceId: test-surface
+            components:
+              - id: custom-root
+                component:
+                  Text:
+                    text: I am the root
+              - id: orphan
+                component:
+                  Text:
+                    text: I am an orphan
+      expect_error: Component 'orphan' is not reachable from 'custom-root'
+    - payload:
+        - beginRendering:
+            root: custom-root
+            surfaceId: test-surface
+        - surfaceUpdate:
+            surfaceId: test-surface
+            components:
+              - id: custom-root
+                component:
+                  Card:
+                    child: orphan
+              - id: orphan
+                component:
+                  Text:
+                    text: I am no longer an orphan
+
+- name: test_validate_invalid_paths_v08
+  description: Tests invalid paths in v0.8.
+  catalog:
+    version: "0.8"
+    s2c_schema: "test_data/simplified_s2c_v08.json"
+    catalog_schema:
+      catalogId: standard
+      components:
+        Text:
+          type: object
+          properties:
+            text:
+              type: object
+  action: validate
+  payload:
+    - dataModelUpdate:
+        surfaceId: surface1
+        path: /invalid/escape/~2
+        contents:
+          - key: dummy
+            valueString: data
+  expect_error: (Invalid path syntax|is not valid under any of the given schemas)
+
+- name: test_validate_invalid_paths_v09
+  description: Tests invalid paths in v0.9.
+  catalog:
+    version: "0.9"
+    common_types_schema: "test_data/simplified_common_types_v09.json"
+    s2c_schema: "test_data/simplified_s2c_v09.json"
+    catalog_schema:
+      catalogId: standard
+      components:
+        Text:
+          type: object
+          properties:
+            component:
+              const: Text
+            text:
+              type: object
+          required:
+            - component
+            - text
+      $defs:
+        anyComponent:
+          oneOf:
+            - $ref: "#/components/Text"
+          discriminator:
+            propertyName: component
+  action: validate
+  payload:
+    - version: v0.9
+      updateComponents:
+        surfaceId: test-surface
+        components:
+          - id: root
+            component: Text
+            text:
+              path: /invalid/escape/~2
+  expect_error: (Invalid path syntax|is not valid under any of the given schemas)
+
+- name: test_validate_component_nesting_depth_limit_exceeded_v08
+  description: Tests that global recursion limit is exceeded in v0.8.
+  catalog:
+    version: "0.8"
+    s2c_schema: "test_data/simplified_s2c_v08.json"
+    catalog_schema:
+      catalogId: standard
+      components:
+        Card:
+          type: object
+          properties:
+            child:
+              type: string
+        Text:
+          type: object
+          properties:
+            text:
+              type: string
+  action: validate
+  payload:
+    - beginRendering:
+        surfaceId: test-surface
+        root: root
+    - surfaceUpdate:
+        surfaceId: test-surface
+        components:
+          - id: root
+            component:
+              Card:
+                child: c0
+          - id: c0
+            component:
+              Card:
+                child: c1
+          - id: c1
+            component:
+              Card:
+                child: c2
+          - id: c2
+            component:
+              Card:
+                child: c3
+          - id: c3
+            component:
+              Card:
+                child: c4
+          - id: c4
+            component:
+              Card:
+                child: c5
+          - id: c5
+            component:
+              Card:
+                child: c6
+          - id: c6
+            component:
+              Card:
+                child: c7
+          - id: c7
+            component:
+              Card:
+                child: c8
+          - id: c8
+            component:
+              Card:
+                child: c9
+          - id: c9
+            component:
+              Card:
+                child: c10
+          - id: c10
+            component:
+              Card:
+                child: c11
+          - id: c11
+            component:
+              Card:
+                child: c12
+          - id: c12
+            component:
+              Card:
+                child: c13
+          - id: c13
+            component:
+              Card:
+                child: c14
+          - id: c14
+            component:
+              Card:
+                child: c15
+          - id: c15
+            component:
+              Card:
+                child: c16
+          - id: c16
+            component:
+              Card:
+                child: c17
+          - id: c17
+            component:
+              Card:
+                child: c18
+          - id: c18
+            component:
+              Card:
+                child: c19
+          - id: c19
+            component:
+              Card:
+                child: c20
+          - id: c20
+            component:
+              Card:
+                child: c21
+          - id: c21
+            component:
+              Card:
+                child: c22
+          - id: c22
+            component:
+              Card:
+                child: c23
+          - id: c23
+            component:
+              Card:
+                child: c24
+          - id: c24
+            component:
+              Card:
+                child: c25
+          - id: c25
+            component:
+              Card:
+                child: c26
+          - id: c26
+            component:
+              Card:
+                child: c27
+          - id: c27
+            component:
+              Card:
+                child: c28
+          - id: c28
+            component:
+              Card:
+                child: c29
+          - id: c29
+            component:
+              Card:
+                child: c30
+          - id: c30
+            component:
+              Card:
+                child: c31
+          - id: c31
+            component:
+              Card:
+                child: c32
+          - id: c32
+            component:
+              Card:
+                child: c33
+          - id: c33
+            component:
+              Card:
+                child: c34
+          - id: c34
+            component:
+              Card:
+                child: c35
+          - id: c35
+            component:
+              Card:
+                child: c36
+          - id: c36
+            component:
+              Card:
+                child: c37
+          - id: c37
+            component:
+              Card:
+                child: c38
+          - id: c38
+            component:
+              Card:
+                child: c39
+          - id: c39
+            component:
+              Card:
+                child: c40
+          - id: c40
+            component:
+              Card:
+                child: c41
+          - id: c41
+            component:
+              Card:
+                child: c42
+          - id: c42
+            component:
+              Card:
+                child: c43
+          - id: c43
+            component:
+              Card:
+                child: c44
+          - id: c44
+            component:
+              Card:
+                child: c45
+          - id: c45
+            component:
+              Card:
+                child: c46
+          - id: c46
+            component:
+              Card:
+                child: c47
+          - id: c47
+            component:
+              Card:
+                child: c48
+          - id: c48
+            component:
+              Card:
+                child: c49
+          - id: c49
+            component:
+              Card:
+                child: c50
+          - id: c50
+            component:
+              Card:
+                child: c51
+          - id: c51
+            component:
+              Card:
+                child: c52
+          - id: c52
+            component:
+              Card:
+                child: c53
+          - id: c53
+            component:
+              Card:
+                child: c54
+          - id: c54
+            component:
+              Card:
+                child: c55
+          - id: c55
+            component:
+              Text:
+                text: End
+  expect_error: "Global recursion limit exceeded: logical depth"
+
+- name: test_validate_recursion_limit_exceeded_v09
+  description: Tests that global recursion limit is exceeded in v0.9.
+  catalog:
+    version: "0.9"
+    common_types_schema: "test_data/simplified_common_types_v09.json"
+    s2c_schema: "test_data/simplified_s2c_v09.json"
+    catalog_schema:
+      catalogId: standard
+      components:
+        Card:
+          type: object
+          properties:
+            component:
+              const: Card
+            child:
+              $ref: "https://a2ui.org/specification/v0_9/common_types.json#/$defs/ComponentId"
+          required:
+            - component
+            - child
+        Text:
+          type: object
+          properties:
+            component:
+              const: Text
+            text:
+              type: string
+          required:
+            - component
+            - text
+      $defs:
+        anyComponent:
+          oneOf:
+            - $ref: "#/components/Card"
+            - $ref: "#/components/Text"
+          discriminator:
+            propertyName: component
+  action: validate
+  payload:
+    - version: v0.9
+      createSurface:
+        surfaceId: test-surface
+        catalogId: std
+    - version: v0.9
+      updateComponents:
+        surfaceId: test-surface
+        components:
+          - id: root
+            component: Card
+            child: c0
+          - id: c0
+            component: Card
+            child: c1
+          - id: c1
+            component: Card
+            child: c2
+          - id: c2
+            component: Card
+            child: c3
+          - id: c3
+            component: Card
+            child: c4
+          - id: c4
+            component: Card
+            child: c5
+          - id: c5
+            component: Card
+            child: c6
+          - id: c6
+            component: Card
+            child: c7
+          - id: c7
+            component: Card
+            child: c8
+          - id: c8
+            component: Card
+            child: c9
+          - id: c9
+            component: Card
+            child: c10
+          - id: c10
+            component: Card
+            child: c11
+          - id: c11
+            component: Card
+            child: c12
+          - id: c12
+            component: Card
+            child: c13
+          - id: c13
+            component: Card
+            child: c14
+          - id: c14
+            component: Card
+            child: c15
+          - id: c15
+            component: Card
+            child: c16
+          - id: c16
+            component: Card
+            child: c17
+          - id: c17
+            component: Card
+            child: c18
+          - id: c18
+            component: Card
+            child: c19
+          - id: c19
+            component: Card
+            child: c20
+          - id: c20
+            component: Card
+            child: c21
+          - id: c21
+            component: Card
+            child: c22
+          - id: c22
+            component: Card
+            child: c23
+          - id: c23
+            component: Card
+            child: c24
+          - id: c24
+            component: Card
+            child: c25
+          - id: c25
+            component: Card
+            child: c26
+          - id: c26
+            component: Card
+            child: c27
+          - id: c27
+            component: Card
+            child: c28
+          - id: c28
+            component: Card
+            child: c29
+          - id: c29
+            component: Card
+            child: c30
+          - id: c30
+            component: Card
+            child: c31
+          - id: c31
+            component: Card
+            child: c32
+          - id: c32
+            component: Card
+            child: c33
+          - id: c33
+            component: Card
+            child: c34
+          - id: c34
+            component: Card
+            child: c35
+          - id: c35
+            component: Card
+            child: c36
+          - id: c36
+            component: Card
+            child: c37
+          - id: c37
+            component: Card
+            child: c38
+          - id: c38
+            component: Card
+            child: c39
+          - id: c39
+            component: Card
+            child: c40
+          - id: c40
+            component: Card
+            child: c41
+          - id: c41
+            component: Card
+            child: c42
+          - id: c42
+            component: Card
+            child: c43
+          - id: c43
+            component: Card
+            child: c44
+          - id: c44
+            component: Card
+            child: c45
+          - id: c45
+            component: Card
+            child: c46
+          - id: c46
+            component: Card
+            child: c47
+          - id: c47
+            component: Card
+            child: c48
+          - id: c48
+            component: Card
+            child: c49
+          - id: c49
+            component: Card
+            child: c50
+          - id: c50
+            component: Card
+            child: c51
+          - id: c51
+            component: Card
+            child: c52
+          - id: c52
+            component: Card
+            child: c53
+          - id: c53
+            component: Card
+            child: c54
+          - id: c54
+            component: Card
+            child: c55
+          - id: c55
+            component: Text
+            text: End
+  expect_error: "Global recursion limit exceeded: logical depth"
+
+- name: test_validate_recursion_limit_valid_v08
+  description: Tests that global recursion limit is valid in v0.8.
+  catalog:
+    version: "0.8"
+    s2c_schema: "test_data/simplified_s2c_v08.json"
+    catalog_schema:
+      catalogId: standard
+      components:
+        Card:
+          type: object
+          properties:
+            child:
+              type: string
+        Text:
+          type: object
+          properties:
+            text:
+              type: string
+  action: validate
+  payload:
+    - beginRendering:
+        surfaceId: test-surface
+        root: root
+    - surfaceUpdate:
+        surfaceId: test-surface
+        components:
+          - id: root
+            component:
+              Card:
+                child: c0
+          - id: c0
+            component:
+              Card:
+                child: c1
+          - id: c1
+            component:
+              Card:
+                child: c2
+          - id: c2
+            component:
+              Card:
+                child: c3
+          - id: c3
+            component:
+              Card:
+                child: c4
+          - id: c4
+            component:
+              Card:
+                child: c5
+          - id: c5
+            component:
+              Card:
+                child: c6
+          - id: c6
+            component:
+              Card:
+                child: c7
+          - id: c7
+            component:
+              Card:
+                child: c8
+          - id: c8
+            component:
+              Card:
+                child: c9
+          - id: c9
+            component:
+              Card:
+                child: c10
+          - id: c10
+            component:
+              Card:
+                child: c11
+          - id: c11
+            component:
+              Card:
+                child: c12
+          - id: c12
+            component:
+              Card:
+                child: c13
+          - id: c13
+            component:
+              Card:
+                child: c14
+          - id: c14
+            component:
+              Card:
+                child: c15
+          - id: c15
+            component:
+              Card:
+                child: c16
+          - id: c16
+            component:
+              Card:
+                child: c17
+          - id: c17
+            component:
+              Card:
+                child: c18
+          - id: c18
+            component:
+              Card:
+                child: c19
+          - id: c19
+            component:
+              Card:
+                child: c20
+          - id: c20
+            component:
+              Card:
+                child: c21
+          - id: c21
+            component:
+              Card:
+                child: c22
+          - id: c22
+            component:
+              Card:
+                child: c23
+          - id: c23
+            component:
+              Card:
+                child: c24
+          - id: c24
+            component:
+              Card:
+                child: c25
+          - id: c25
+            component:
+              Card:
+                child: c26
+          - id: c26
+            component:
+              Card:
+                child: c27
+          - id: c27
+            component:
+              Card:
+                child: c28
+          - id: c28
+            component:
+              Card:
+                child: c29
+          - id: c29
+            component:
+              Card:
+                child: c30
+          - id: c30
+            component:
+              Card:
+                child: c31
+          - id: c31
+            component:
+              Card:
+                child: c32
+          - id: c32
+            component:
+              Card:
+                child: c33
+          - id: c33
+            component:
+              Card:
+                child: c34
+          - id: c34
+            component:
+              Card:
+                child: c35
+          - id: c35
+            component:
+              Card:
+                child: c36
+          - id: c36
+            component:
+              Card:
+                child: c37
+          - id: c37
+            component:
+              Card:
+                child: c38
+          - id: c38
+            component:
+              Card:
+                child: c39
+          - id: c39
+            component:
+              Card:
+                child: c40
+          - id: c40
+            component:
+              Text:
+                text: End
+
+- name: test_validate_recursion_limit_valid_v09
+  description: Tests that global recursion limit is valid in v0.9.
+  catalog:
+    version: "0.9"
+    common_types_schema: "test_data/simplified_common_types_v09.json"
+    s2c_schema: "test_data/simplified_s2c_v09.json"
+    catalog_schema:
+      catalogId: standard
+      components:
+        Card:
+          type: object
+          properties:
+            component:
+              const: Card
+            child:
+              $ref: "https://a2ui.org/specification/v0_9/common_types.json#/$defs/ComponentId"
+          required:
+            - component
+            - child
+        Text:
+          type: object
+          properties:
+            component:
+              const: Text
+            text:
+              type: string
+          required:
+            - component
+            - text
+      $defs:
+        anyComponent:
+          oneOf:
+            - $ref: "#/components/Card"
+            - $ref: "#/components/Text"
+          discriminator:
+            propertyName: component
+  action: validate
+  payload:
+    - version: v0.9
+      createSurface:
+        surfaceId: test-surface
+        catalogId: std
+    - version: v0.9
+      updateComponents:
+        surfaceId: test-surface
+        components:
+          - id: root
+            component: Card
+            child: c0
+          - id: c0
+            component: Card
+            child: c1
+          - id: c1
+            component: Card
+            child: c2
+          - id: c2
+            component: Card
+            child: c3
+          - id: c3
+            component: Card
+            child: c4
+          - id: c4
+            component: Card
+            child: c5
+          - id: c5
+            component: Card
+            child: c6
+          - id: c6
+            component: Card
+            child: c7
+          - id: c7
+            component: Card
+            child: c8
+          - id: c8
+            component: Card
+            child: c9
+          - id: c9
+            component: Card
+            child: c10
+          - id: c10
+            component: Card
+            child: c11
+          - id: c11
+            component: Card
+            child: c12
+          - id: c12
+            component: Card
+            child: c13
+          - id: c13
+            component: Card
+            child: c14
+          - id: c14
+            component: Card
+            child: c15
+          - id: c15
+            component: Card
+            child: c16
+          - id: c16
+            component: Card
+            child: c17
+          - id: c17
+            component: Card
+            child: c18
+          - id: c18
+            component: Card
+            child: c19
+          - id: c19
+            component: Card
+            child: c20
+          - id: c20
+            component: Card
+            child: c21
+          - id: c21
+            component: Card
+            child: c22
+          - id: c22
+            component: Card
+            child: c23
+          - id: c23
+            component: Card
+            child: c24
+          - id: c24
+            component: Card
+            child: c25
+          - id: c25
+            component: Card
+            child: c26
+          - id: c26
+            component: Card
+            child: c27
+          - id: c27
+            component: Card
+            child: c28
+          - id: c28
+            component: Card
+            child: c29
+          - id: c29
+            component: Card
+            child: c30
+          - id: c30
+            component: Card
+            child: c31
+          - id: c31
+            component: Card
+            child: c32
+          - id: c32
+            component: Card
+            child: c33
+          - id: c33
+            component: Card
+            child: c34
+          - id: c34
+            component: Card
+            child: c35
+          - id: c35
+            component: Card
+            child: c36
+          - id: c36
+            component: Card
+            child: c37
+          - id: c37
+            component: Card
+            child: c38
+          - id: c38
+            component: Card
+            child: c39
+          - id: c39
+            component: Card
+            child: c40
+          - id: c40
+            component: Text
+            text: End
+
+- name: test_validate_global_recursion_limit_exceeded_v09
+  description: Tests that global recursion limit is exceeded for data model in v0.9.
+  catalog:
+    version: "0.9"
+    common_types_schema: "test_data/simplified_common_types_v09.json"
+    s2c_schema: "test_data/simplified_s2c_v09.json"
+    catalog_schema: "test_data/simplified_catalog_v09.json"
+  action: validate
+  payload:
+    - version: v0.9
+      updateDataModel:
+        surfaceId: test-surface
+        value:
+          level: 0
+          next:
+            level: 1
+            next:
+              level: 2
+              next:
+                level: 3
+                next:
+                  level: 4
+                  next:
+                    level: 5
+                    next:
+                      level: 6
+                      next:
+                        level: 7
+                        next:
+                          level: 8
+                          next:
+                            level: 9
+                            next:
+                              level: 10
+                              next:
+                                level: 11
+                                next:
+                                  level: 12
+                                  next:
+                                    level: 13
+                                    next:
+                                      level: 14
+                                      next:
+                                        level: 15
+                                        next:
+                                          level: 16
+                                          next:
+                                            level: 17
+                                            next:
+                                              level: 18
+                                              next:
+                                                level: 19
+                                                next:
+                                                  level: 20
+                                                  next:
+                                                    level: 21
+                                                    next:
+                                                      level: 22
+                                                      next:
+                                                        level: 23
+                                                        next:
+                                                          level: 24
+                                                          next:
+                                                            level: 25
+                                                            next:
+                                                              level: 26
+                                                              next:
+                                                                level: 27
+                                                                next:
+                                                                  level: 28
+                                                                  next:
+                                                                    level: 29
+                                                                    next:
+                                                                      level: 30
+                                                                      next:
+                                                                        level: 31
+                                                                        next:
+                                                                          level: 32
+                                                                          next:
+                                                                            level: 33
+                                                                            next:
+                                                                              level: 34
+                                                                              next:
+                                                                                level: 35
+                                                                                next:
+                                                                                  level: 36
+                                                                                  next:
+                                                                                    level: 37
+                                                                                    next:
+                                                                                      level: 38
+                                                                                      next:
+                                                                                        level: 39
+                                                                                        next:
+                                                                                          level: 40
+                                                                                          next:
+                                                                                            level: 41
+                                                                                            next:
+                                                                                              level: 42
+                                                                                              next:
+                                                                                                level: 43
+                                                                                                next:
+                                                                                                  level: 44
+                                                                                                  next:
+                                                                                                    level: 45
+                                                                                                    next:
+                                                                                                      level: 46
+                                                                                                      next:
+                                                                                                        level: 47
+                                                                                                        next:
+                                                                                                          level: 48
+                                                                                                          next:
+                                                                                                            level: 49
+                                                                                                            next:
+                                                                                                              level: 50
+                                                                                                              next:
+                                                                                                                level: 51
+                                                                                                                next:
+                                                                                                                  level: 52
+                                                                                                                  next:
+                                                                                                                    level: 53
+                                                                                                                    next:
+                                                                                                                      level: 54
+                                                                                                                      next:
+                                                                                                                        level: 55
+  expect_error: Global recursion limit exceeded
+
+- name: test_validate_circular_reference_v09
+  description: Tests that circular references are detected in v0.9.
+  catalog:
+    version: "0.9"
+    common_types_schema: "test_data/simplified_common_types_v09.json"
+    s2c_schema: "test_data/simplified_s2c_v09.json"
+    catalog_schema:
+      catalogId: "test_catalog"
+      components:
+        Card:
+          type: object
+          properties:
+            component: {const: "Card"}
+            child:
+              $ref: "https://a2ui.org/specification/v0_9/common_types.json#/$defs/ComponentId"
+          required: ["component", "child"]
+      $defs:
+        anyComponent:
+          oneOf:
+            - {$ref: "#/components/Card"}
+          discriminator: {propertyName: "component"}
+  action: validate
+  payload:
+    - version: v0.9
+      createSurface: {surfaceId: "s1", catalogId: "test_catalog"}
+    - version: v0.9
+      updateComponents:
+        surfaceId: "s1"
+        components:
+          - id: "root"
+            component: "Card"
+            child: "c1"
+          - id: "c1"
+            component: "Card"
+            child: "root"
+  expect_error: Circular reference detected
+
+- name: test_validate_multi_surface_v08
+  description: Tests that multiple surfaces with different root IDs validate correctly.
+  catalog:
+    version: "0.8"
+    s2c_schema: "test_data/simplified_s2c_v08.json"
+    catalog_schema:
+      catalogId: standard
+      components:
+        Card:
+          type: object
+          properties:
+            child:
+              type: string
+        Text:
+          type: object
+          properties:
+            text:
+              type: string
+  action: validate
+  payload:
+    - beginRendering:
+        surfaceId: surface-a
+        root: root-a
+    - beginRendering:
+        surfaceId: surface-b
+        root: root-b
+    - surfaceUpdate:
+        surfaceId: surface-a
+        components:
+          - id: root-a
+            component:
+              Card:
+                child: child-a
+          - id: child-a
+            component:
+              Text:
+                text: Hello A
+    - surfaceUpdate:
+        surfaceId: surface-b
+        components:
+          - id: root-b
+            component:
+              Card:
+                child: child-b
+          - id: child-b
+            component:
+              Text:
+                text: Hello B
+
+- name: test_validate_multi_surface_missing_root_v08
+  description: Tests that missing root in one surface still fails validation.
+  catalog:
+    version: "0.8"
+    s2c_schema: "test_data/simplified_s2c_v08.json"
+    catalog_schema:
+      catalogId: standard
+      components:
+        Text:
+          type: object
+          properties:
+            text:
+              type: string
+  action: validate
+  payload:
+    - beginRendering:
+        surfaceId: surface-a
+        root: root-a
+    - beginRendering:
+        surfaceId: surface-b
+        root: root-b
+    - surfaceUpdate:
+        surfaceId: surface-a
+        components:
+          - id: root-a
+            component:
+              Text:
+                text: Hello A
+    - surfaceUpdate:
+        surfaceId: surface-b
+        components:
+          - id: not-root-b
+            component:
+              Text:
+                text: Hello B
+  expect_error: Missing root component.*root-b
+
+- name: test_incremental_update_no_root_v08
+  description: Incremental update without root component should pass.
+  catalog:
+    version: "0.8"
+    s2c_schema: "test_data/simplified_s2c_v08.json"
+    catalog_schema:
+      catalogId: standard
+      components:
+        Card:
+          type: object
+          properties:
+            child:
+              type: string
+        Text:
+          type: object
+          properties:
+            text:
+              type: string
+  action: validate
+  payload:
+    - surfaceUpdate:
+        surfaceId: contact-card
+        components:
+          - id: main_card
+            component:
+              Card:
+                child: col
+          - id: col
+            component:
+              Text:
+                text: Updated
+
+- name: test_incremental_update_no_root_v09
+  description: Incremental update without root component should pass (v0.9).
+  catalog:
+    version: "0.9"
+    common_types_schema: "test_data/simplified_common_types_v09.json"
+    s2c_schema: "test_data/simplified_s2c_v09.json"
+    catalog_schema:
+      catalogId: std
+      components:
+        Card:
+          type: object
+          properties:
+            component:
+              const: Card
+            child:
+              $ref: "https://a2ui.org/specification/v0_9/common_types.json#/$defs/ComponentId"
+          required:
+            - component
+            - child
+        Text:
+          type: object
+          properties:
+            component:
+              const: Text
+            text:
+              type: string
+          required:
+            - component
+            - text
+      $defs:
+        anyComponent:
+          oneOf:
+            - $ref: "#/components/Card"
+            - $ref: "#/components/Text"
+          discriminator:
+            propertyName: component
+  action: validate
+  payload:
+    - version: v0.9
+      updateComponents:
+        surfaceId: contact-card
+        components:
+          - id: card1
+            component: Card
+            child: text1
+          - id: text1
+            component: Text
+            text: Updated
+
+- name: test_incremental_update_orphans_allowed_v08
+  description: Incremental update with 'orphaned' components should pass.
+  catalog:
+    version: "0.8"
+    s2c_schema: "test_data/simplified_s2c_v08.json"
+    catalog_schema:
+      catalogId: standard
+      components:
+        Text:
+          type: object
+          properties:
+            text:
+              type: string
+  action: validate
+  payload:
+    - surfaceUpdate:
+        surfaceId: contact-card
+        components:
+          - id: text1
+            component:
+              Text:
+                text: Hello
+          - id: text2
+            component:
+              Text:
+                text: World
+
+- name: test_incremental_update_self_ref_still_fails_v08
+  description: Self-references should still be caught in incremental updates (v0.8).
+  catalog:
+    version: "0.8"
+    s2c_schema: "test_data/simplified_s2c_v08.json"
+    catalog_schema:
+      catalogId: standard
+      components:
+        Card:
+          type: object
+          properties:
+            child:
+              type: string
+  action: validate
+  payload:
+    - surfaceUpdate:
+        surfaceId: s1
+        components:
+          - id: card1
+            component:
+              Card:
+                child: card1
+  expect_error: Self-reference detected
+
+- name: test_incremental_update_self_ref_still_fails_v09
+  description: Self-references should still be caught in incremental updates (v0.9).
+  catalog:
+    version: "0.9"
+    common_types_schema: "test_data/simplified_common_types_v09.json"
+    s2c_schema: "test_data/simplified_s2c_v09.json"
+    catalog_schema:
+      catalogId: std
+      components:
+        Card:
+          type: object
+          properties:
+            component:
+              const: Card
+            child:
+              $ref: "https://a2ui.org/specification/v0_9/common_types.json#/$defs/ComponentId"
+          required:
+            - component
+            - child
+      $defs:
+        anyComponent:
+          oneOf:
+            - $ref: "#/components/Card"
+          discriminator:
+            propertyName: component
+  action: validate
+  payload:
+    - version: v0.9
+      updateComponents:
+        surfaceId: s1
+        components:
+          - id: card1
+            component: Card
+            child: card1
+  expect_error: Self-reference detected
+
+- name: test_incremental_update_cycle_still_fails_v08
+  description: Cycles should still be caught in incremental updates (v0.8).
+  catalog:
+    version: "0.8"
+    s2c_schema: "test_data/simplified_s2c_v08.json"
+    catalog_schema:
+      catalogId: standard
+      components:
+        Card:
+          type: object
+          properties:
+            child:
+              type: string
+  action: validate
+  payload:
+    - surfaceUpdate:
+        surfaceId: s1
+        components:
+          - id: a
+            component:
+              Card:
+                child: b
+          - id: b
+            component:
+              Card:
+                child: a
+  expect_error: Circular reference detected
+
+- name: test_incremental_update_cycle_still_fails_v09
+  description: Cycles should still be caught in incremental updates (v0.9).
+  catalog:
+    version: "0.9"
+    common_types_schema: "test_data/simplified_common_types_v09.json"
+    s2c_schema: "test_data/simplified_s2c_v09.json"
+    catalog_schema:
+      catalogId: std
+      components:
+        Card:
+          type: object
+          properties:
+            component:
+              const: Card
+            child:
+              $ref: "https://a2ui.org/specification/v0_9/common_types.json#/$defs/ComponentId"
+          required:
+            - component
+            - child
+      $defs:
+        anyComponent:
+          oneOf:
+            - $ref: "#/components/Card"
+          discriminator:
+            propertyName: component
+  action: validate
+  payload:
+    - version: v0.9
+      updateComponents:
+        surfaceId: s1
+        components:
+          - id: a
+            component: Card
+            child: b
+          - id: b
+            component: Card
+            child: a
+  expect_error: Circular reference detected
+
+- name: test_incremental_update_duplicates_still_fail_v08
+  description: Duplicate IDs should still be caught in incremental updates (v0.8).
+  catalog:
+    version: "0.8"
+    s2c_schema: "test_data/simplified_s2c_v08.json"
+    catalog_schema:
+      catalogId: standard
+      components:
+        Text:
+          type: object
+          properties:
+            text:
+              type: string
+  action: validate
+  payload:
+    - surfaceUpdate:
+        surfaceId: s1
+        components:
+          - id: text1
+            component:
+              Text:
+                text: A
+          - id: text1
+            component:
+              Text:
+                text: B
+  expect_error: Duplicate component ID
+
+- name: test_incremental_update_duplicates_still_fail_v09
+  description: Duplicate IDs should still be caught in incremental updates (v0.9).
+  catalog:
+    version: "0.9"
+    common_types_schema: "test_data/simplified_common_types_v09.json"
+    s2c_schema: "test_data/simplified_s2c_v09.json"
+    catalog_schema:
+      catalogId: std
+      components:
+        Text:
+          type: object
+          properties:
+            component:
+              const: Text
+            text:
+              type: string
+          required:
+            - component
+            - text
+      $defs:
+        anyComponent:
+          oneOf:
+            - $ref: "#/components/Text"
+          discriminator:
+            propertyName: component
+  action: validate
+  payload:
+    - version: v0.9
+      updateComponents:
+        surfaceId: s1
+        components:
+          - id: text1
+            component: Text
+            text: A
+          - id: text1
+            component: Text
+            text: B
+  expect_error: Duplicate component ID
+
+- name: test_validate_global_recursion_limit_exceeded_v08
+  description: Tests that global recursion limit is exceeded in v0.8.
+  catalog:
+    version: "0.8"
+    s2c_schema: "test_data/simplified_s2c_v08.json"
+    catalog_schema:
+      catalogId: standard
+      components:
+        DeepComp:
+          type: object
+          additionalProperties: true
+  action: validate
+  payload:
+    - beginRendering:
+        surfaceId: test-surface
+        root: root
+    - surfaceUpdate:
+        surfaceId: test-surface
+        components:
+          - id: root
+            component:
+              DeepComp:
+                level: 0
+                next:
+                  level: 1
+                  next:
+                    level: 2
+                    next:
+                      level: 3
+                      next:
+                        level: 4
+                        next:
+                          level: 5
+                          next:
+                            level: 6
+                            next:
+                              level: 7
+                              next:
+                                level: 8
+                                next:
+                                  level: 9
+                                  next:
+                                    level: 10
+                                    next:
+                                      level: 11
+                                      next:
+                                        level: 12
+                                        next:
+                                          level: 13
+                                          next:
+                                            level: 14
+                                            next:
+                                              level: 15
+                                              next:
+                                                level: 16
+                                                next:
+                                                  level: 17
+                                                  next:
+                                                    level: 18
+                                                    next:
+                                                      level: 19
+                                                      next:
+                                                        level: 20
+                                                        next:
+                                                          level: 21
+                                                          next:
+                                                            level: 22
+                                                            next:
+                                                              level: 23
+                                                              next:
+                                                                level: 24
+                                                                next:
+                                                                  level: 25
+                                                                  next:
+                                                                    level: 26
+                                                                    next:
+                                                                      level: 27
+                                                                      next:
+                                                                        level: 28
+                                                                        next:
+                                                                          level: 29
+                                                                          next:
+                                                                            level: 30
+                                                                            next:
+                                                                              level: 31
+                                                                              next:
+                                                                                level: 32
+                                                                                next:
+                                                                                  level: 33
+                                                                                  next:
+                                                                                    level: 34
+                                                                                    next:
+                                                                                      level: 35
+                                                                                      next:
+                                                                                        level: 36
+                                                                                        next:
+                                                                                          level: 37
+                                                                                          next:
+                                                                                            level: 38
+                                                                                            next:
+                                                                                              level: 39
+                                                                                              next:
+                                                                                                level: 40
+                                                                                                next:
+                                                                                                  level: 41
+                                                                                                  next:
+                                                                                                    level: 42
+                                                                                                    next:
+                                                                                                      level: 43
+                                                                                                      next:
+                                                                                                        level: 44
+                                                                                                        next:
+                                                                                                          level: 45
+                                                                                                          next:
+                                                                                                            level: 46
+                                                                                                            next:
+                                                                                                              level: 47
+                                                                                                              next:
+                                                                                                                level: 48
+                                                                                                                next:
+                                                                                                                  level: 49
+                                                                                                                  next:
+                                                                                                                    level: 50
+                                                                                                                    next:
+                                                                                                                      level: 51
+                                                                                                                      next:
+                                                                                                                        level: 52
+                                                                                                                        next:
+                                                                                                                          level: 53
+                                                                                                                          next:
+                                                                                                                            level: 54
+                                                                                                                            next:
+                                                                                                                              level: 55
+  expect_error: Global recursion limit exceeded
+
+- name: test_validate_invalid_child_type
+  description: Tests that invalid child type (number instead of string) throws.
+  catalog:
+    version: "0.8"
+    s2c_schema: "test_data/simplified_s2c_v08.json"
+    catalog_schema:
+      catalogId: standard
+      components:
+        Container:
+          type: object
+          properties:
+            child:
+              type: string
+  action: validate
+  payload:
+    - surfaceUpdate:
+        surfaceId: s1
+        components:
+          - id: c1
+            component:
+              Container:
+                child: 123
+  expect_error: "123 is not of type 'string'"
+
+- name: test_custom_catalog_validation_success_v09
+  description: Tests validation success with a custom catalog in v0.9.
+  catalog:
+    version: "0.9"
+    common_types_schema: "test_data/simplified_common_types_v09.json"
+    s2c_schema: "test_data/simplified_s2c_v09.json"
+    catalog_schema:
+      catalogId: "https://example.com/custom_catalog"
+      components:
+        Text:
+          type: object
+          properties:
+            component: {const: "Text"}
+            text: {type: string}
+          required: [component, text]
+      $defs:
+        anyComponent:
+          oneOf:
+            - $ref: "#/components/Text"
+          discriminator: {propertyName: "component"}
+  action: validate
+  payload:
+    - version: "v0.9"
+      updateComponents:
+        surfaceId: "s1"
+        components:
+          - id: "root"
+            component: "Text"
+            text: "hello"
+
+- name: test_custom_catalog_validation_success_v08
+  description: Tests validation success with a custom catalog in v0.8.
+  catalog:
+    version: "0.8"
+    s2c_schema: "test_data/simplified_s2c_v08.json"
+    catalog_schema:
+      catalogId: "custom"
+      components:
+        Text:
+          type: object
+          properties:
+            text: {type: string}
+  action: validate
+  payload:
+    - surfaceUpdate:
+        surfaceId: "s1"
+        components:
+          - id: "root"
+            component:
+              Text:
+                text: "hello"
+
+- name: test_custom_catalog_validation_failure_v08
+  description: Tests validation failure with a custom catalog in v0.8.
+  catalog:
+    version: "0.8"
+    s2c_schema: "test_data/simplified_s2c_v08.json"
+    catalog_schema:
+      catalogId: "custom"
+      components:
+        Text:
+          type: object
+          properties:
+            text: {type: string}
+  action: validate
+  payload:
+    - surfaceUpdate:
+        surfaceId: "s1"
+        components:
+          - id: "root"
+            component:
+              Text:
+                text: 123
+  expect_error: "123 is not of type 'string'"
+
+- name: test_custom_catalog_validation_failure_v09
+  description: Tests validation failure with a custom catalog in v0.9.
+  catalog:
+    version: "0.9"
+    common_types_schema: "test_data/simplified_common_types_v09.json"
+    s2c_schema: "test_data/simplified_s2c_v09.json"
+    catalog_schema:
+      catalogId: "custom"
+      components:
+        Text:
+          type: object
+          properties:
+            component: {const: "Text"}
+            text: {type: string}
+          required: [component, text]
+      $defs:
+        anyComponent:
+          oneOf:
+            - $ref: "#/components/Text"
+          discriminator: {propertyName: "component"}
+  action: validate
+  payload:
+    - version: "v0.9"
+      updateComponents:
+        surfaceId: "s1"
+        components:
+          - id: "root"
+            component: "Text"
+            text: 123
+  expect_error: "123 is not of type 'string'"

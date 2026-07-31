@@ -14,9 +14,9 @@
  * limitations under the License.
  */
 
-import { ChangeDetectionStrategy, Component, computed, input } from '@angular/core';
-import { DynamicComponent } from '../rendering/dynamic-component';
-import { Types } from '../types';
+import {ChangeDetectionStrategy, Component, computed, input} from '@angular/core';
+import {DynamicComponent} from '../rendering/dynamic-component';
+import type {IconNode, StringValue} from '../types';
 
 @Component({
   selector: 'a2ui-icon',
@@ -24,7 +24,7 @@ import { Types } from '../types';
     'aria-hidden': 'true',
     tabindex: '-1',
   },
-  changeDetection: ChangeDetectionStrategy.Eager,
+  changeDetection: ChangeDetectionStrategy.OnPush,
   styles: `
     :host {
       display: block;
@@ -43,7 +43,19 @@ import { Types } from '../types';
     }
   `,
 })
-export class Icon extends DynamicComponent<Types.IconNode> {
-  readonly name = input<Types.StringValue | null>(null);
-  protected readonly resolvedName = computed(() => this.resolvePrimitive(this.name()));
+export class Icon extends DynamicComponent<IconNode> {
+  readonly name = input<StringValue | null>(null);
+
+  // g-icon uses snake_case for the icon names. We convert camelCase and TitleCase here.
+  protected readonly resolvedName = computed(() => {
+    const rawName = this.resolvePrimitive(this.name());
+    if (!rawName) return '';
+    return this.toSnakeCase(rawName);
+  });
+
+  private toSnakeCase(str: string): string {
+    return str
+      .replace(/^[A-Z]/, letter => letter.toLowerCase())
+      .replace(/[A-Z]/g, letter => `_${letter.toLowerCase()}`);
+  }
 }

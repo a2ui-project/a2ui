@@ -15,9 +15,9 @@
  */
 
 import { Component, computed, ChangeDetectionStrategy } from '@angular/core';
-import { mapJustify, mapAlign } from '@a2ui/web_core/v0_9/basic_catalog';
+import { mapJustify, mapAlign, ColumnApi } from '@a2ui/web_core/v0_9/basic_catalog';
 import { ComponentHostComponent } from '../../core/component-host.component';
-import { getNormalizedPath } from '../../core/utils';
+import { Child } from '../../core/component-binder.service';
 import { BasicCatalogComponent } from './basic-catalog-component';
 
 /**
@@ -42,53 +42,20 @@ import { BasicCatalogComponent } from './basic-catalog-component';
     '[style.align-items]': 'align()',
   },
   template: `
-    @if (!isRepeating()) {
-      @for (child of normalizedChildren(); track child.id) {
-        <a2ui-v09-component-host [componentKey]="child" [surfaceId]="surfaceId()">
-        </a2ui-v09-component-host>
-      }
-    }
-
-    @if (isRepeating()) {
-      @for (item of children(); track item; let i = $index) {
-        <a2ui-v09-component-host
-          [componentKey]="{ id: templateId()!, basePath: getNormalizedPath(i) }"
-          [surfaceId]="surfaceId()"
-        >
-        </a2ui-v09-component-host>
-      }
+    @for (child of children(); track trackChild($index, child)) {
+      <a2ui-v09-component-host [componentKey]="child" [surfaceId]="surfaceId()">
+      </a2ui-v09-component-host>
     }
   `,
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
-export class ColumnComponent extends BasicCatalogComponent {
+export class ColumnComponent extends BasicCatalogComponent<typeof ColumnApi> {
   protected readonly justify = computed(() => mapJustify(this.props()['justify']?.value()));
   protected readonly align = computed(() => mapAlign(this.props()['align']?.value()));
 
-  protected readonly children = computed(() => {
-    const raw = this.props()['children']?.value() || [];
-    return Array.isArray(raw) ? raw : [];
-  });
+  protected readonly children = computed(() => this.props()['children'].value() || []);
 
-  protected readonly isRepeating = computed(() => {
-    return !!this.props()['children']?.raw?.componentId;
-  });
-
-  protected readonly templateId = computed(() => {
-    return this.props()['children']?.raw?.componentId;
-  });
-
-  protected readonly normalizedChildren = computed(() => {
-    if (this.isRepeating()) return [];
-    return this.children().map((child) => {
-      if (typeof child === 'object' && child !== null && 'id' in child) {
-        return child as { id: string; basePath: string };
-      }
-      return { id: child as string, basePath: this.dataContextPath() };
-    });
-  });
-
-  protected getNormalizedPath(index: number) {
-    return getNormalizedPath(this.props()['children']?.raw?.path, this.dataContextPath(), index);
+  protected trackChild(_index: number, child: Child) {
+    return `${child.basePath}/${child.id}`;
   }
 }

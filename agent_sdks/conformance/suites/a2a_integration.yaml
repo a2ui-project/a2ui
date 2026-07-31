@@ -1,0 +1,167 @@
+# Copyright 2026 Google LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+- name: test_create_a2ui_part
+  action: create_a2ui_part
+  args:
+    data: {"foo": "bar"}
+    version: "0.9.1"
+  expect:
+    mime_type: "application/a2ui+json"
+
+- name: test_create_a2ui_part_legacy_default
+  action: create_a2ui_part
+  args:
+    data: {"foo": "bar"}
+  expect:
+    mime_type: "application/json+a2ui"
+
+- name: test_is_a2ui_part
+  action: is_a2ui_part
+  args:
+    mime_type: "application/a2ui+json"
+  expect: true
+
+- name: test_try_activate_extension_success
+  action: try_activate_extension
+  args:
+    uris: ["https://a2ui.org/a2a-extension/a2ui/v0.8"]
+  expect: true
+
+- name: test_try_activate_extension_failure
+  action: try_activate_extension
+  args:
+    uris: ["other"]
+  expect: false
+
+- name: test_handler_replaces_smart_quotes
+  action: handle_rpc
+  args:
+    request:
+      jsonrpc: "2.0"
+      method: "message/send"
+      id: 1
+      params:
+        message:
+          contextId: "test-context"
+          parts: []
+          metadata:
+            a2uiClientCapabilities:
+              supportedCatalogIds:
+                ["https://a2ui.org/specification/v0_8/standard_catalog_definition.json"]
+    runner_output: "Here is your chart:\n<a2ui-json>\n[\n  {\n    “beginRendering”: {\n      “surfaceId”: “sales-dashboard”\n    }\n  }\n]\n</a2ui-json>\nEnjoy!"
+  expect:
+    parts:
+      - kind: "text"
+        text: "Here is your chart:"
+      - kind: "data"
+        mimeType: "application/a2ui+json"
+        data: {"beginRendering": {"surfaceId": "sales-dashboard"}}
+      - kind: "text"
+        text: "Enjoy!"
+
+- name: test_handler_passes_regular_text
+  action: handle_rpc
+  args:
+    request:
+      jsonrpc: "2.0"
+      method: "message/send"
+      id: 1
+      params:
+        message:
+          contextId: "test-context"
+          parts: []
+    runner_output: "This is a normal conversational turn."
+  expect:
+    parts:
+      - kind: "text"
+        text: "This is a normal conversational turn."
+
+- name: test_handler_gracefully_handles_invalid_json
+  action: handle_rpc
+  args:
+    request:
+      jsonrpc: "2.0"
+      method: "message/send"
+      id: 1
+      params:
+        message:
+          contextId: "test-context"
+          parts: []
+    runner_output: "Here is an invalid chart:\n<a2ui-json>\n[\n  {\n    “beginRendering”: {  MISSING CLOSING BRACKETS...\n</a2ui-json>\nOops."
+  expect:
+    parts:
+      - kind: "text"
+        text: "Here is an invalid chart:\n<a2ui-json>\n[\n  {\n    “beginRendering”: {  MISSING CLOSING BRACKETS...\n</a2ui-json>\nOops."
+
+- name: test_get_extension_minimal
+  action: get_extension
+  args:
+    version: "0.8"
+  expect:
+    uri: "https://a2ui.org/a2a-extension/a2ui/v0.8"
+    params: null
+
+- name: test_get_extension_with_inline
+  action: get_extension
+  args:
+    version: "0.8"
+    accepts_inline_catalogs: true
+  expect:
+    uri: "https://a2ui.org/a2a-extension/a2ui/v0.8"
+    params:
+      acceptsInlineCatalogs: true
+
+- name: test_get_extension_with_catalogs
+  action: get_extension
+  args:
+    version: "0.8"
+    supported_catalog_ids: ["a", "b", "c"]
+  expect:
+    uri: "https://a2ui.org/a2a-extension/a2ui/v0.8"
+    params:
+      supportedCatalogIds: ["a", "b", "c"]
+
+- name: test_try_activate_success
+  action: try_activate
+  args:
+    requested: ["https://a2ui.org/a2a-extension/a2ui/v0.8"]
+    advertised: ["https://a2ui.org/a2a-extension/a2ui/v0.8"]
+  expect:
+    activated: "https://a2ui.org/a2a-extension/a2ui/v0.8"
+    version: "0.8"
+
+- name: test_try_activate_not_requested
+  action: try_activate
+  args:
+    requested: []
+    advertised: ["https://a2ui.org/a2a-extension/a2ui/v0.8"]
+  expect:
+    activated: null
+
+- name: test_select_newest
+  action: select_newest
+  args:
+    requested:
+      - "https://a2ui.org/a2a-extension/a2ui/v0.1.0"
+      - "https://a2ui.org/a2a-extension/a2ui/v1.2.0"
+      - "https://a2ui.org/a2a-extension/a2ui/v0.8.0"
+      - "https://a2ui.org/a2a-extension/a2ui/v1.10.0"
+    advertised:
+      - "https://a2ui.org/a2a-extension/a2ui/v0.1.0"
+      - "https://a2ui.org/a2a-extension/a2ui/v1.2.0"
+      - "https://a2ui.org/a2a-extension/a2ui/v1.10.0"
+      - "https://a2ui.org/a2a-extension/a2ui/v2.0.0"
+  expect:
+    newest: "https://a2ui.org/a2a-extension/a2ui/v1.10.0"

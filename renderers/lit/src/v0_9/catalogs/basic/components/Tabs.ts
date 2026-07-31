@@ -14,14 +14,14 @@
  * limitations under the License.
  */
 
-import { html, nothing, css } from "lit";
-import { customElement, state } from "lit/decorators.js";
-import { classMap } from "lit/directives/class-map.js";
-import { TabsApi } from "@a2ui/web_core/v0_9/basic_catalog";
-import { BasicCatalogA2uiLitElement } from "../basic-catalog-a2ui-lit-element.js";
-import { A2uiController } from "@a2ui/lit/v0_9";
+import {html, nothing, css} from 'lit';
+import {customElement, state} from 'lit/decorators.js';
+import {classMap} from 'lit/directives/class-map.js';
+import {TabsApi} from '@a2ui/web_core/v0_9/basic_catalog';
+import {BasicCatalogA2uiLitElement} from '../basic-catalog-a2ui-lit-element.js';
+import {A2uiController} from '../../../a2ui-controller.js';
 
-@customElement("a2ui-tabs")
+@customElement('a2ui-tabs')
 export class A2uiLitTabs extends BasicCatalogA2uiLitElement<typeof TabsApi> {
   /**
    * The styles of the tabs can be customized by redefining the following
@@ -34,14 +34,17 @@ export class A2uiLitTabs extends BasicCatalogA2uiLitElement<typeof TabsApi> {
    * - `--a2ui-tabs-border`: Default `--a2ui-border-width` solid `--a2ui-color-border`.
    * - `--a2ui-tabs-content-padding`: Default `0 var(--a2ui-spacing-m, 0.5rem)`.
    */
-  static styles = css`
+  static override styles = css`
     :host {
       display: block;
     }
     .a2ui-tabs-headers {
       display: flex;
       gap: var(--a2ui-spacing-xs, 0.25rem);
-      border-bottom: var(--a2ui-tabs-border, var(--a2ui-border-width, 1px) solid var(--a2ui-color-border, #ccc));
+      border-bottom: var(
+        --a2ui-tabs-border,
+        var(--a2ui-border-width, 1px) solid var(--a2ui-color-border, #ccc)
+      );
       margin-bottom: var(--a2ui-spacing-m, 0.5rem);
     }
     .a2ui-tabs-header {
@@ -68,7 +71,7 @@ export class A2uiLitTabs extends BasicCatalogA2uiLitElement<typeof TabsApi> {
 
   @state() accessor activeIndex = 0;
 
-  render() {
+  override render() {
     const props = this.controller.props;
     if (!props || !props.tabs) return nothing;
     return html`
@@ -77,7 +80,8 @@ export class A2uiLitTabs extends BasicCatalogA2uiLitElement<typeof TabsApi> {
           (tab: any, i: number) => html`
             <button
               class=${classMap({
-                "a2ui-tabs-header": true,
+                'a2ui-tabs-header': true,
+                'a2ui-tab-button': true,
                 active: i === this.activeIndex,
               })}
               @click=${() => (this.activeIndex = i)}
@@ -98,5 +102,5 @@ export class A2uiLitTabs extends BasicCatalogA2uiLitElement<typeof TabsApi> {
 
 export const A2uiTabs = {
   ...TabsApi,
-  tagName: "a2ui-tabs",
+  tagName: 'a2ui-tabs',
 };

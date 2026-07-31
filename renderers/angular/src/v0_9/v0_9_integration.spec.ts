@@ -14,13 +14,13 @@
  * limitations under the License.
  */
 
-import { ComponentFixture, TestBed } from '@angular/core/testing';
-import { Component, ChangeDetectionStrategy } from '@angular/core';
-import { A2uiRendererService, A2UI_RENDERER_CONFIG } from './core/a2ui-renderer.service';
-import { SurfaceComponent } from './core/surface.component';
-import { BasicCatalog } from './catalog/basic/basic-catalog';
-import { A2uiMessage } from '@a2ui/web_core/v0_9';
-import { MarkdownRenderer } from './core/markdown';
+import {ComponentFixture, TestBed} from '@angular/core/testing';
+import {Component, ChangeDetectionStrategy} from '@angular/core';
+import {A2uiRendererService, A2UI_RENDERER_CONFIG} from './core/a2ui-renderer.service';
+import {SurfaceComponent} from './core/surface.component';
+import {BasicCatalog} from './catalog/basic/basic-catalog';
+import {A2uiMessage} from '@a2ui/web_core/v0_9';
+import {MarkdownRenderer} from './core/markdown';
 
 import * as restaurantCardMock from './test_data/mocks/restaurant-card.json';
 import * as contactCardMock from './test_data/mocks/contact-card.json';
@@ -79,7 +79,7 @@ describe('v0.9 Angular Renderer Integration', () => {
         version: 'v0.9',
         createSurface: {
           surfaceId: 'test-surface',
-          catalogId: 'https://a2ui.org/specification/v0_9/basic_catalog.json',
+          catalogId: 'https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json',
         },
       },
       {
@@ -136,7 +136,7 @@ describe('v0.9 Angular Renderer Integration', () => {
         version: 'v0.9',
         createSurface: {
           surfaceId: 'test-surface',
-          catalogId: 'https://a2ui.org/specification/v0_9/basic_catalog.json',
+          catalogId: 'https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json',
         },
       },
       {
@@ -147,7 +147,7 @@ describe('v0.9 Angular Renderer Integration', () => {
             {
               id: 'root',
               component: 'Text',
-              text: { path: '/user/name' },
+              text: {path: '/user/name'},
             },
           ],
         },
@@ -187,7 +187,7 @@ describe('v0.9 Angular Renderer Integration', () => {
         version: 'v0.9',
         createSurface: {
           surfaceId: 'test-surface',
-          catalogId: 'https://a2ui.org/specification/v0_9/basic_catalog.json',
+          catalogId: 'https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json',
         },
       },
       {
@@ -202,7 +202,7 @@ describe('v0.9 Angular Renderer Integration', () => {
               action: {
                 event: {
                   name: 'navigate',
-                  context: { url: 'https://example.com' },
+                  context: {url: 'https://example.com'},
                 },
               },
             },
@@ -227,7 +227,7 @@ describe('v0.9 Angular Renderer Integration', () => {
     const actionArg = actionSpy.calls.mostRecent().args[0];
     expect(actionArg.surfaceId).toBe('test-surface');
     expect(actionArg.name).toBe('navigate');
-    expect(actionArg.context).toEqual({ url: 'https://example.com' });
+    expect(actionArg.context).toEqual({url: 'https://example.com'});
     expect(actionArg.sourceComponentId).toBe('root');
     expect(actionArg.timestamp).toBeDefined();
   });
@@ -279,5 +279,78 @@ describe('v0.9 Angular Renderer Integration', () => {
       const dividerEl = fixture.nativeElement.querySelector('a2ui-v09-divider');
       expect(dividerEl).toBeTruthy();
     });
+  });
+});
+
+// TODO: Replace this by actual 0.9.1 tests by loading from the examples.
+// Note that this cannot be done now, because the v0_9_1 examples have the wrong
+// "version" field ("0.9" instead of "0.9.1").
+describe('v0.9.1 Angular Renderer Integration', () => {
+  let fixture: ComponentFixture<TestHost>;
+  let rendererService: A2uiRendererService;
+  let actionSpy: jasmine.Spy;
+
+  beforeEach(async () => {
+    actionSpy = jasmine.createSpy('actionHandler');
+
+    await TestBed.configureTestingModule({
+      imports: [TestHost],
+      providers: [
+        A2uiRendererService,
+        BasicCatalog,
+        {
+          provide: A2UI_RENDERER_CONFIG,
+          useFactory: (basicCatalog: BasicCatalog) => ({
+            catalogs: [basicCatalog],
+            actionHandler: actionSpy,
+          }),
+          deps: [BasicCatalog],
+        },
+        {
+          provide: MarkdownRenderer,
+          useValue: {
+            render: (val: string) => Promise.resolve(val),
+          },
+        },
+      ],
+    }).compileComponents();
+
+    fixture = TestBed.createComponent(TestHost);
+    rendererService = TestBed.inject(A2uiRendererService);
+  });
+
+  it('should process and render v0.9.1 messages', async () => {
+    const v091Messages: A2uiMessage[] = [
+      {
+        version: 'v0.9.1',
+        createSurface: {
+          surfaceId: 'v091-surface',
+          catalogId: 'https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json',
+        },
+      },
+      {
+        version: 'v0.9.1',
+        updateComponents: {
+          surfaceId: 'v091-surface',
+          components: [
+            {
+              id: 'root',
+              component: 'Text',
+              text: 'Hello from v0.9.1!',
+            },
+          ],
+        },
+      },
+    ];
+
+    rendererService.processMessages(v091Messages);
+    fixture.componentInstance.surfaceId = 'v091-surface';
+    fixture.detectChanges();
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    const textEl = fixture.nativeElement.querySelector('a2ui-v09-text');
+    expect(textEl).toBeTruthy();
+    expect(textEl.textContent).toContain('Hello from v0.9.1!');
   });
 });

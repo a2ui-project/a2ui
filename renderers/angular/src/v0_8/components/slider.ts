@@ -14,9 +14,9 @@
  * limitations under the License.
  */
 
-import { ChangeDetectionStrategy, Component, computed, input } from '@angular/core';
-import { Types } from '../types';
-import { DynamicComponent } from '../rendering/dynamic-component';
+import {ChangeDetectionStrategy, Component, computed, input} from '@angular/core';
+import type {NumberValue, SliderNode, StringValue} from '../types';
+import {DynamicComponent} from '../rendering/dynamic-component';
 
 @Component({
   selector: 'a2ui-slider',
@@ -29,7 +29,7 @@ import { DynamicComponent } from '../rendering/dynamic-component';
         type="range"
         [class]="theme.components.Slider.element"
         [id]="inputId"
-        [attr.aria-labelledby]="labelId"
+        [attr.aria-label]="resolvedLabel() ? resolvedLabel() : 'Slider'"
         [min]="minValue()"
         [max]="maxValue()"
         [value]="resolvedValue() ?? 0"
@@ -44,9 +44,9 @@ import { DynamicComponent } from '../rendering/dynamic-component';
   `,
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
-export class Slider extends DynamicComponent<Types.SliderNode> {
-  readonly label = input<Types.StringValue | null>(null);
-  readonly value = input.required<Types.NumberValue | null>();
+export class Slider extends DynamicComponent<SliderNode> {
+  readonly label = input<StringValue | null>(null);
+  readonly value = input.required<NumberValue | null>();
   readonly minValue = input<number>(0);
   readonly maxValue = input<number>(100);
 
@@ -61,15 +61,20 @@ export class Slider extends DynamicComponent<Types.SliderNode> {
     const valueNode = this.value();
     if (valueNode && typeof valueNode === 'object' && 'path' in valueNode && valueNode.path) {
       // Update the local data model directly to ensure immediate UI feedback and avoid unnecessary network requests.
-      this.processor.processMessages([{
-        dataModelUpdate: {
-          surfaceId: this.surfaceId()!,
-          path: this.processor.resolvePath(valueNode.path as string, this.component().dataContextPath),
-          contents: [{ key: '.', valueNumber: value }],
+      this.processor.processMessages([
+        {
+          dataModelUpdate: {
+            surfaceId: this.surfaceId()!,
+            path: this.processor.resolvePath(
+              valueNode.path as string,
+              this.component().dataContextPath,
+            ),
+            contents: [{key: '.', valueNumber: value}],
+          },
         },
-      }]);
+      ]);
     } else {
-      this.handleAction('change', { value });
+      this.handleAction('change', {value});
     }
   }
 
@@ -78,7 +83,7 @@ export class Slider extends DynamicComponent<Types.SliderNode> {
       name,
       context: Object.entries(context).map(([key, val]) => ({
         key,
-        value: typeof val === 'number' ? { literalNumber: val } : { literalString: String(val) },
+        value: typeof val === 'number' ? {literalNumber: val} : {literalString: String(val)},
       })),
     });
   }

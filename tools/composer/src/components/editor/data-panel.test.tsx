@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */ // TODO: remediate legacy any types
 /**
  * Copyright 2026 Google LLC
  *
@@ -14,19 +15,15 @@
  * limitations under the License.
  */
 
-import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, fireEvent } from '@testing-library/react';
-import { DataPanel } from './data-panel';
+import {describe, it, expect, vi, beforeEach} from 'vitest';
+import {render, screen, fireEvent} from '@testing-library/react';
+import {DataPanel} from './data-panel';
 import React from 'react';
 
 // Mock Monaco Editor
 vi.mock('@monaco-editor/react', () => ({
-  default: ({ value, onChange }: any) => (
-    <textarea 
-      data-testid="monaco-mock" 
-      value={value} 
-      onChange={(e) => onChange(e.target.value)} 
-    />
+  default: ({value, onChange}: any) => (
+    <textarea data-testid="monaco-mock" value={value} onChange={e => onChange(e.target.value)} />
   ),
 }));
 
@@ -38,10 +35,10 @@ vi.mock('lucide-react', () => ({
 
 describe('DataPanel', () => {
   const mockStates = [
-    { name: 'State 1', data: { a: 1 } },
-    { name: 'State 2', data: { b: 2 } },
+    {name: 'State 1', data: {a: 1}},
+    {name: 'State 2', data: {b: 2}},
   ];
-  
+
   const mockProps = {
     dataStates: mockStates,
     activeIndex: 0,
@@ -79,8 +76,8 @@ describe('DataPanel', () => {
   it('should update state when JSON is edited', () => {
     render(<DataPanel {...mockProps} />);
     const editor = screen.getByTestId('monaco-mock');
-    fireEvent.change(editor, { target: { value: '{"new": "data"}' } });
-    expect(mockProps.onUpdateState).toHaveBeenCalledWith(0, { new: 'data' });
+    fireEvent.change(editor, {target: {value: '{"new": "data"}'}});
+    expect(mockProps.onUpdateState).toHaveBeenCalledWith(0, {new: 'data'});
   });
 
   it('should call onRenameState when a tab is double clicked', () => {

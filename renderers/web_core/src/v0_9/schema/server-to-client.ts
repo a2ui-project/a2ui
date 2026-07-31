@@ -17,17 +17,19 @@
 import {z} from 'zod';
 import {AnyComponentSchema} from './common-types.js';
 
+/**
+ * Supported protocol versions for this schema.
+ * v0.9 renderers transparently accept v0.9.1 messages as the catalog structure is identical.
+ */
+type SupportedVersion = 'v0.9' | 'v0.9.1';
+
 export const CreateSurfaceMessageSchema = z
   .object({
-    version: z.literal('v0.9'),
+    version: z.enum(['v0.9', 'v0.9.1']),
     createSurface: z
       .object({
-        surfaceId: z
-          .string()
-          .describe('The unique identifier for the UI surface to be rendered.'),
-        catalogId: z
-          .string()
-          .describe('A string that uniquely identifies this catalog.'),
+        surfaceId: z.string().describe('The unique identifier for the UI surface to be rendered.'),
+        catalogId: z.string().describe('A string that uniquely identifies this catalog.'),
         theme: z.any().optional().describe('Theme parameters for the surface.'),
         sendDataModel: z
           .boolean()
@@ -40,12 +42,10 @@ export const CreateSurfaceMessageSchema = z
 
 export const UpdateComponentsMessageSchema = z
   .object({
-    version: z.literal('v0.9'),
+    version: z.enum(['v0.9', 'v0.9.1']),
     updateComponents: z
       .object({
-        surfaceId: z
-          .string()
-          .describe('The unique identifier for the UI surface to be updated.'),
+        surfaceId: z.string().describe('The unique identifier for the UI surface to be updated.'),
         components: z
           .array(AnyComponentSchema)
           .min(1)
@@ -57,22 +57,17 @@ export const UpdateComponentsMessageSchema = z
 
 export const UpdateDataModelMessageSchema = z
   .object({
-    version: z.literal('v0.9'),
+    version: z.enum(['v0.9', 'v0.9.1']),
     updateDataModel: z
       .object({
         surfaceId: z
           .string()
-          .describe(
-            'The unique identifier for the UI surface this data model update applies to.',
-          ),
+          .describe('The unique identifier for the UI surface this data model update applies to.'),
         path: z
           .string()
           .optional()
           .describe('An optional path to a location within the data model.'),
-        value: z
-          .any()
-          .optional()
-          .describe('The data to be updated in the data model.'),
+        value: z.any().optional().describe('The data to be updated in the data model.'),
       })
       .strict(),
   })
@@ -80,21 +75,17 @@ export const UpdateDataModelMessageSchema = z
 
 export const DeleteSurfaceMessageSchema = z
   .object({
-    version: z.literal('v0.9'),
+    version: z.enum(['v0.9', 'v0.9.1']),
     deleteSurface: z
       .object({
-        surfaceId: z
-          .string()
-          .describe('The unique identifier for the UI surface to be deleted.'),
+        surfaceId: z.string().describe('The unique identifier for the UI surface to be deleted.'),
       })
       .strict(),
   })
   .strict();
 
-export declare interface CreateSurfaceMessage extends z.infer<
-  typeof CreateSurfaceMessageSchema
-> {
-  version: 'v0.9';
+export declare interface CreateSurfaceMessage extends z.infer<typeof CreateSurfaceMessageSchema> {
+  version: SupportedVersion;
   createSurface: {
     surfaceId: string;
     catalogId: string;
@@ -105,7 +96,7 @@ export declare interface CreateSurfaceMessage extends z.infer<
 export declare interface UpdateComponentsMessage extends z.infer<
   typeof UpdateComponentsMessageSchema
 > {
-  version: 'v0.9';
+  version: SupportedVersion;
   updateComponents: {
     surfaceId: string;
     components: any[];
@@ -114,17 +105,15 @@ export declare interface UpdateComponentsMessage extends z.infer<
 export declare interface UpdateDataModelMessage extends z.infer<
   typeof UpdateDataModelMessageSchema
 > {
-  version: 'v0.9';
+  version: SupportedVersion;
   updateDataModel: {
     surfaceId: string;
     path?: string;
     value?: any;
   };
 }
-export declare interface DeleteSurfaceMessage extends z.infer<
-  typeof DeleteSurfaceMessageSchema
-> {
-  version: 'v0.9';
+export declare interface DeleteSurfaceMessage extends z.infer<typeof DeleteSurfaceMessageSchema> {
+  version: SupportedVersion;
   deleteSurface: {
     surfaceId: string;
   };
@@ -144,9 +133,7 @@ export type A2uiMessage =
   | UpdateDataModelMessage
   | DeleteSurfaceMessage;
 
-export const A2uiMessageListSchema = z
-  .array(A2uiMessageSchema)
-  .describe('A list of messages.');
+export const A2uiMessageListSchema = z.array(A2uiMessageSchema).describe('A list of messages.');
 
 export type A2uiMessageList = z.infer<typeof A2uiMessageListSchema>;
 
@@ -157,6 +144,4 @@ export const A2uiMessageListWrapperSchema = z
   .strict()
   .describe('An object wrapping a list of messages.');
 
-export type A2uiMessageListWrapper = z.infer<
-  typeof A2uiMessageListWrapperSchema
->;
+export type A2uiMessageListWrapper = z.infer<typeof A2uiMessageListWrapperSchema>;

@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import { useState, useEffect, useCallback, useRef } from 'react';
+import {useState, useEffect, useCallback, useRef} from 'react';
 
 export type PlaybackState = 'playing' | 'paused' | 'stopped';
 
@@ -32,10 +32,10 @@ export function useJsonlPlayer<T>({
   initialProgress = 0,
 }: UseJsonlPlayerOptions<T>) {
   const [playbackState, setPlaybackState] = useState<PlaybackState>(
-    autoPlay ? 'playing' : 'stopped'
+    autoPlay ? 'playing' : 'stopped',
   );
   // progress represents the *number of messages* currently active (0 to totalMessages)
-  const [progress, setProgress] = useState(Math.min(initialProgress, messages.length)); 
+  const [progress, setProgress] = useState(Math.min(initialProgress, messages.length));
   const [speed, setSpeed] = useState(1);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
@@ -62,17 +62,20 @@ export function useJsonlPlayer<T>({
     setProgress(0);
   }, []);
 
-  const seek = useCallback((index: number) => {
-    if (index >= 0 && index <= totalMessages) {
-      setProgress(index);
-    }
-  }, [totalMessages]);
+  const seek = useCallback(
+    (index: number) => {
+      if (index >= 0 && index <= totalMessages) {
+        setProgress(index);
+      }
+    },
+    [totalMessages],
+  );
 
   useEffect(() => {
     if (playbackState === 'playing') {
       const ms = baseIntervalMs / speed;
       timerRef.current = setInterval(() => {
-        setProgress((prev) => {
+        setProgress(prev => {
           if (prev >= totalMessages) {
             setPlaybackState('paused');
             return prev;

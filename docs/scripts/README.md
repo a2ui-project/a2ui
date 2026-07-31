@@ -13,6 +13,7 @@ The script performs a uni-directional transformation: **GitHub Markdown → MkDo
 ### Alert/Admonition Conversion
 
 The script handles the following conversions:
+
 - GitHub uses a blockquote-based syntax for alerts.
 - MkDocs requires the `!!!` or `???` syntax to render colored callout boxes.
 
@@ -27,14 +28,16 @@ python docs/scripts/convert_docs.py
 ### Example
 
 - **Source (GitHub-flavored Markdown):**
-  ```markdown
-  > ⚠️ **Attention**
-  >
-  > This is an alert.
-  ```
+
+    ```markdown
+    > ⚠️ **Attention**
+    >
+    > This is an alert.
+    ```
 
 - **Target (MkDocs Syntax):**
-  ```markdown
-  !!! warning "Attention"
-      This is an alert.
-  ```
+
+    ```markdown
+    !!! warning "Attention"
+    This is an alert.
+    ```

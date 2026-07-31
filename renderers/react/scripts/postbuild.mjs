@@ -14,15 +14,15 @@
  * limitations under the License.
  */
 
-import { copyFileSync, mkdirSync, existsSync } from 'node:fs';
-import { join } from 'node:path';
+import {copyFileSync, mkdirSync, existsSync} from 'node:fs';
+import {join} from 'node:path';
 
 const root = process.cwd();
 const dist = join(root, 'dist');
 const src = join(root, 'src');
 
 if (!existsSync(dist)) {
-  mkdirSync(dist, { recursive: true });
+  mkdirSync(dist, {recursive: true});
 }
 
 // Function to copy a file to both .d.ts and .d.cts
@@ -32,7 +32,7 @@ function copyDts(source, destinationDir) {
   const targetDcts = join(destinationDir, 'index.d.cts');
 
   if (!existsSync(destinationDir)) {
-    mkdirSync(destinationDir, { recursive: true });
+    mkdirSync(destinationDir, {recursive: true});
   }
 
   copyFileSync(dts, targetDts);
@@ -43,7 +43,7 @@ function copyDts(source, destinationDir) {
 copyDts(join(src, 'styles', 'index.d.ts'), join(dist, 'styles'));
 
 // Create v0_8 styles directory in dist
-mkdirSync(join(dist, 'v0_8', 'styles'), { recursive: true });
+mkdirSync(join(dist, 'v0_8', 'styles'), {recursive: true});
 
 // Copy v0_8 styles declaration
 copyDts(join(src, 'v0_8', 'styles', 'index.d.ts'), join(dist, 'v0_8', 'styles'));

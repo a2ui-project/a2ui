@@ -18,10 +18,7 @@
           "component": {
             "Column": {
               "children": {
-                "explicitList": [
-                  "title-heading",
-                  "restaurant-row-1"
-                ]
+                "explicitList": ["title-heading", "restaurant-row-1"]
               }
             }
           }
@@ -42,10 +39,7 @@
           "component": {
             "Row": {
               "children": {
-                "explicitList": [
-                  "item-card-1",
-                  "item-card-2"
-                ]
+                "explicitList": ["item-card-1", "item-card-2"]
               }
             }
           }
@@ -64,10 +58,7 @@
           "component": {
             "Column": {
               "children": {
-                "explicitList": [
-                  "template-image-1",
-                  "card-details-1"
-                ]
+                "explicitList": ["template-image-1", "card-details-1"]
               }
             }
           }
@@ -195,10 +186,7 @@
           "component": {
             "Column": {
               "children": {
-                "explicitList": [
-                  "template-image-2",
-                  "card-details-2"
-                ]
+                "explicitList": ["template-image-2", "card-details-2"]
               }
             }
           }

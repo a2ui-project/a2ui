@@ -14,4 +14,4 @@
  * limitations under the License.
  */
 
-export * as ImageFallbackMiddleware from "./image-fallback.js";
+export * as ImageFallbackMiddleware from './image-fallback.js';

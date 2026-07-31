@@ -12,16 +12,13 @@
   {
     "surfaceUpdate": {
       "surfaceId": "sales-dashboard",
-      "components": [        
+      "components": [
         {
           "id": "root-column",
           "component": {
             "Column": {
               "children": {
-                "explicitList": [
-                  "chart-title",
-                  "category-list"
-                ]
+                "explicitList": ["chart-title", "category-list"]
               }
             }
           }
@@ -65,10 +62,7 @@
             "Row": {
               "distribution": "spaceBetween",
               "children": {
-                "explicitList": [
-                  "item-label",
-                  "item-value"
-                ]
+                "explicitList": ["item-label", "item-value"]
               }
             }
           }
@@ -104,11 +98,11 @@
         "chart": {
           "title": "Sales by Category",
           "items": [
-            { "label": "Apparel", "value": 41 },
-            { "label": "Home Goods", "value": 15 },
-            { "label": "Electronics", "value": 28 },
-            { "label": "Health & Beauty", "value": 10 },
-            { "label": "Other", "value": 6 }
+            {"label": "Apparel", "value": 41},
+            {"label": "Home Goods", "value": 15},
+            {"label": "Electronics", "value": 28},
+            {"label": "Health & Beauty", "value": 10},
+            {"label": "Other", "value": 6}
           ]
         }
       }

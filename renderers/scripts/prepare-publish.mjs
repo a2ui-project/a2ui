@@ -14,10 +14,10 @@
  * limitations under the License.
  */
 
-import { readFileSync, writeFileSync, copyFileSync, existsSync, mkdirSync } from 'node:fs';
-import { join, resolve } from 'node:path';
-import { fileURLToPath } from 'node:url';
-import { getPackageGraph } from './lib/workspace.mjs';
+import {readFileSync, writeFileSync, copyFileSync, existsSync, mkdirSync} from 'node:fs';
+import {join, resolve} from 'node:path';
+import {fileURLToPath} from 'node:url';
+import {getPackageGraph} from './lib/workspace.mjs';
 
 // This script prepares a package for publishing.
 // Arguments:
@@ -43,18 +43,18 @@ const resolvedDistDir = resolve(packageDir, distDir);
 const rootDir = resolve(scriptDir, '../../');
 
 if (!existsSync(resolvedDistDir)) {
-  mkdirSync(resolvedDistDir, { recursive: true });
+  mkdirSync(resolvedDistDir, {recursive: true});
 }
 
 const graph = getPackageGraph();
 const pkg = JSON.parse(readFileSync(resolvedSourcePkg, 'utf8'));
 
 // 2. Update internal @a2ui dependencies
-const updateInternalDeps = (deps) => {
+const updateInternalDeps = deps => {
   if (!deps) return;
   for (const name in deps) {
     const version = deps[name];
-    if (version.startsWith('file:') && graph[name]) {
+    if ((version.startsWith('file:') || version.startsWith('workspace:')) && graph[name]) {
       deps[name] = '^' + graph[name].version;
     }
   }
@@ -112,9 +112,12 @@ delete pkg.devDependencies;
 
 writeFileSync(join(resolvedDistDir, 'package.json'), JSON.stringify(pkg, null, 2));
 
-// 5. Copy README and LICENSE
+// 5. Copy README, CHANGELOG and LICENSE
 if (existsSync(join(packageDir, 'README.md'))) {
   copyFileSync(join(packageDir, 'README.md'), join(resolvedDistDir, 'README.md'));
+}
+if (existsSync(join(packageDir, 'CHANGELOG.md'))) {
+  copyFileSync(join(packageDir, 'CHANGELOG.md'), join(resolvedDistDir, 'CHANGELOG.md'));
 }
 const rootLicense = join(rootDir, 'LICENSE');
 if (existsSync(rootLicense)) {

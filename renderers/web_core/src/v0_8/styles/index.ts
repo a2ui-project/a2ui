@@ -14,24 +14,16 @@
  * limitations under the License.
  */
 
-import { behavior } from "./behavior.js";
-import { border } from "./border.js";
-import { colors } from "./colors.js";
-import { icons } from "./icons.js";
-import { layout } from "./layout.js";
-import { opacity } from "./opacity.js";
-import { type } from "./type.js";
+import {behavior} from './behavior.js';
+import {border} from './border.js';
+import {colors} from './colors.js';
+import {icons} from './icons.js';
+import {layout} from './layout.js';
+import {opacity} from './opacity.js';
+import {type} from './type.js';
 
-export * from "./utils.js";
+export * from './utils.js';
 
-export const structuralStyles: string = [
-  behavior,
-  border,
-  colors,
-  icons,
-  layout,
-  opacity,
-  type,
-]
+export const structuralStyles: string = [behavior, border, colors, icons, layout, opacity, type]
   .flat(Infinity)
-  .join("\n");
+  .join('\n');

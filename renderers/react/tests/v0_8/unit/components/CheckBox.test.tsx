@@ -14,10 +14,10 @@
  * limitations under the License.
  */
 
-import { describe, it, expect } from 'vitest';
-import { render, screen, fireEvent } from '@testing-library/react';
+import {describe, it, expect} from 'vitest';
+import {render, screen, fireEvent} from '@testing-library/react';
 import React from 'react';
-import { TestWrapper, TestRenderer, createSimpleMessages } from '../../utils';
+import {TestWrapper, TestRenderer, createSimpleMessages} from '../../utils';
 
 /**
  * CheckBox tests following A2UI specification.
@@ -27,14 +27,14 @@ describe('CheckBox Component', () => {
   describe('Basic Rendering', () => {
     it('should render a checkbox input', () => {
       const messages = createSimpleMessages('cb-1', 'CheckBox', {
-        label: { literalString: 'Accept terms' },
-        value: { literalBoolean: false },
+        label: {literalString: 'Accept terms'},
+        value: {literalBoolean: false},
       });
 
-      const { container } = render(
+      const {container} = render(
         <TestWrapper>
           <TestRenderer messages={messages} />
-        </TestWrapper>
+        </TestWrapper>,
       );
 
       const checkbox = container.querySelector('input[type="checkbox"]');
@@ -43,14 +43,14 @@ describe('CheckBox Component', () => {
 
     it('should render with wrapper div', () => {
       const messages = createSimpleMessages('cb-1', 'CheckBox', {
-        label: { literalString: 'Subscribe' },
-        value: { literalBoolean: false },
+        label: {literalString: 'Subscribe'},
+        value: {literalBoolean: false},
       });
 
-      const { container } = render(
+      const {container} = render(
         <TestWrapper>
           <TestRenderer messages={messages} />
-        </TestWrapper>
+        </TestWrapper>,
       );
 
       const wrapper = container.querySelector('.a2ui-checkbox');
@@ -59,14 +59,14 @@ describe('CheckBox Component', () => {
 
     it('should render unchecked when value is false', () => {
       const messages = createSimpleMessages('cb-1', 'CheckBox', {
-        label: { literalString: 'Option' },
-        value: { literalBoolean: false },
+        label: {literalString: 'Option'},
+        value: {literalBoolean: false},
       });
 
-      const { container } = render(
+      const {container} = render(
         <TestWrapper>
           <TestRenderer messages={messages} />
-        </TestWrapper>
+        </TestWrapper>,
       );
 
       const checkbox = container.querySelector('input[type="checkbox"]') as HTMLInputElement;
@@ -75,14 +75,14 @@ describe('CheckBox Component', () => {
 
     it('should render checked when value is true', () => {
       const messages = createSimpleMessages('cb-1', 'CheckBox', {
-        label: { literalString: 'Option' },
-        value: { literalBoolean: true },
+        label: {literalString: 'Option'},
+        value: {literalBoolean: true},
       });
 
-      const { container } = render(
+      const {container} = render(
         <TestWrapper>
           <TestRenderer messages={messages} />
-        </TestWrapper>
+        </TestWrapper>,
       );
 
       const checkbox = container.querySelector('input[type="checkbox"]') as HTMLInputElement;
@@ -91,27 +91,31 @@ describe('CheckBox Component', () => {
 
     it('should render different states for different value inputs', () => {
       const messagesTrue = createSimpleMessages('cb-1', 'CheckBox', {
-        label: { literalString: 'Checked option' },
-        value: { literalBoolean: true },
+        label: {literalString: 'Checked option'},
+        value: {literalBoolean: true},
       });
       const messagesFalse = createSimpleMessages('cb-2', 'CheckBox', {
-        label: { literalString: 'Unchecked option' },
-        value: { literalBoolean: false },
+        label: {literalString: 'Unchecked option'},
+        value: {literalBoolean: false},
       });
 
-      const { container: containerTrue } = render(
+      const {container: containerTrue} = render(
         <TestWrapper>
           <TestRenderer messages={messagesTrue} />
-        </TestWrapper>
+        </TestWrapper>,
       );
-      const { container: containerFalse } = render(
+      const {container: containerFalse} = render(
         <TestWrapper>
           <TestRenderer messages={messagesFalse} />
-        </TestWrapper>
+        </TestWrapper>,
       );
 
-      const checkboxTrue = containerTrue.querySelector('input[type="checkbox"]') as HTMLInputElement;
-      const checkboxFalse = containerFalse.querySelector('input[type="checkbox"]') as HTMLInputElement;
+      const checkboxTrue = containerTrue.querySelector(
+        'input[type="checkbox"]',
+      ) as HTMLInputElement;
+      const checkboxFalse = containerFalse.querySelector(
+        'input[type="checkbox"]',
+      ) as HTMLInputElement;
 
       expect(checkboxTrue.checked).toBe(true);
       expect(checkboxFalse.checked).toBe(false);
@@ -121,23 +125,23 @@ describe('CheckBox Component', () => {
 
     it('should render different labels for different inputs', () => {
       const messages1 = createSimpleMessages('cb-1', 'CheckBox', {
-        label: { literalString: 'First Option' },
-        value: { literalBoolean: false },
+        label: {literalString: 'First Option'},
+        value: {literalBoolean: false},
       });
       const messages2 = createSimpleMessages('cb-2', 'CheckBox', {
-        label: { literalString: 'Second Option' },
-        value: { literalBoolean: false },
+        label: {literalString: 'Second Option'},
+        value: {literalBoolean: false},
       });
 
-      const { container: container1 } = render(
+      const {container: container1} = render(
         <TestWrapper>
           <TestRenderer messages={messages1} />
-        </TestWrapper>
+        </TestWrapper>,
       );
-      const { container: container2 } = render(
+      const {container: container2} = render(
         <TestWrapper>
           <TestRenderer messages={messages2} />
-        </TestWrapper>
+        </TestWrapper>,
       );
 
       const label1 = container1.querySelector('label');
@@ -152,14 +156,14 @@ describe('CheckBox Component', () => {
   describe('Label Rendering', () => {
     it('should render label (required field)', () => {
       const messages = createSimpleMessages('cb-1', 'CheckBox', {
-        label: { literalString: 'Accept terms and conditions' },
-        value: { literalBoolean: false },
+        label: {literalString: 'Accept terms and conditions'},
+        value: {literalBoolean: false},
       });
 
       render(
         <TestWrapper>
           <TestRenderer messages={messages} />
-        </TestWrapper>
+        </TestWrapper>,
       );
 
       expect(screen.getByText('Accept terms and conditions')).toBeInTheDocument();
@@ -167,14 +171,14 @@ describe('CheckBox Component', () => {
 
     it('should associate label with checkbox via htmlFor', () => {
       const messages = createSimpleMessages('cb-1', 'CheckBox', {
-        label: { literalString: 'Remember me' },
-        value: { literalBoolean: false },
+        label: {literalString: 'Remember me'},
+        value: {literalBoolean: false},
       });
 
-      const { container } = render(
+      const {container} = render(
         <TestWrapper>
           <TestRenderer messages={messages} />
-        </TestWrapper>
+        </TestWrapper>,
       );
 
       const label = container.querySelector('label');
@@ -186,14 +190,14 @@ describe('CheckBox Component', () => {
   describe('User Interaction', () => {
     it('should toggle checked state on click', () => {
       const messages = createSimpleMessages('cb-1', 'CheckBox', {
-        label: { literalString: 'Toggle me' },
-        value: { literalBoolean: false },
+        label: {literalString: 'Toggle me'},
+        value: {literalBoolean: false},
       });
 
-      const { container } = render(
+      const {container} = render(
         <TestWrapper>
           <TestRenderer messages={messages} />
-        </TestWrapper>
+        </TestWrapper>,
       );
 
       const checkbox = container.querySelector('input[type="checkbox"]') as HTMLInputElement;
@@ -208,18 +212,18 @@ describe('CheckBox Component', () => {
 
     it('should toggle via change event', () => {
       const messages = createSimpleMessages('cb-1', 'CheckBox', {
-        label: { literalString: 'Option' },
-        value: { literalBoolean: false },
+        label: {literalString: 'Option'},
+        value: {literalBoolean: false},
       });
 
-      const { container } = render(
+      const {container} = render(
         <TestWrapper>
           <TestRenderer messages={messages} />
-        </TestWrapper>
+        </TestWrapper>,
       );
 
       const checkbox = container.querySelector('input[type="checkbox"]') as HTMLInputElement;
-      fireEvent.change(checkbox, { target: { checked: true } });
+      fireEvent.change(checkbox, {target: {checked: true}});
 
       expect(checkbox.checked).toBe(true);
     });
@@ -228,14 +232,14 @@ describe('CheckBox Component', () => {
   describe('Theme Support', () => {
     it('should render within section container', () => {
       const messages = createSimpleMessages('cb-1', 'CheckBox', {
-        label: { literalString: 'Option' },
-        value: { literalBoolean: false },
+        label: {literalString: 'Option'},
+        value: {literalBoolean: false},
       });
 
-      const { container } = render(
+      const {container} = render(
         <TestWrapper>
           <TestRenderer messages={messages} />
-        </TestWrapper>
+        </TestWrapper>,
       );
 
       const section = container.querySelector('section');
@@ -247,14 +251,14 @@ describe('CheckBox Component', () => {
   describe('Structure', () => {
     it('should render checkbox before label (Lit structure)', () => {
       const messages = createSimpleMessages('cb-1', 'CheckBox', {
-        label: { literalString: 'Option label' },
-        value: { literalBoolean: false },
+        label: {literalString: 'Option label'},
+        value: {literalBoolean: false},
       });
 
-      const { container } = render(
+      const {container} = render(
         <TestWrapper>
           <TestRenderer messages={messages} />
-        </TestWrapper>
+        </TestWrapper>,
       );
 
       const section = container.querySelector('section');

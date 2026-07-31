@@ -17,8 +17,9 @@
 export {
   type ClientToServerMessage as A2UIClientEventMessage,
   type ClientCapabilitiesDynamic,
-} from "./client-event.js";
-export { type Action } from "./components.js";
+  type UserAction as ClientEventUserAction,
+} from './client-event.js';
+export {type Action} from './components.js';
 
 import {
   AudioPlayer,
@@ -39,9 +40,9 @@ import {
   Text,
   TextField,
   Video,
-} from "./components";
+} from './components';
 
-import type { z } from "zod";
+import type {z} from 'zod';
 import type {
   A2uiMessageSchema,
   BeginRenderingMessageSchema,
@@ -51,13 +52,13 @@ import type {
   DeleteSurfaceMessageSchema,
   SurfaceUpdateMessageSchema,
   ValueMapSchema,
-} from "../schema/server-to-client.js";
+} from '../schema/server-to-client.js';
 import type {
   ComponentArrayReferenceSchema,
   ComponentArrayTemplateSchema,
-} from "../schema/common-types.js";
-import { StringValue, NumberValue, BooleanValue } from "./primitives";
-export type { StringValue, NumberValue, BooleanValue };
+} from '../schema/common-types.js';
+import {StringValue, NumberValue, BooleanValue} from './primitives';
+export type {StringValue, NumberValue, BooleanValue};
 
 export type MessageProcessor = {
   getSurfaces(): ReadonlyMap<string, Surface>;
@@ -69,11 +70,7 @@ export type MessageProcessor = {
    * This correctly handles the special `.` path, which refers to the node's
    * own data context.
    */
-  getData(
-    node: AnyComponentNode,
-    relativePath: string,
-    surfaceId: string,
-  ): DataValue | null;
+  getData(node: AnyComponentNode, relativePath: string, surfaceId: string): DataValue | null;
 
   setData(
     node: AnyComponentNode | null,
@@ -244,28 +241,23 @@ export declare interface UserAction {
 }
 
 /** A recursive type for any valid JSON-like value in the data model. */
-export declare type DataValue =
-  | string
-  | number
-  | boolean
-  | null
-  | DataMap
-  | DataObject
-  | DataArray;
-export declare type DataObject = { [key: string]: DataValue };
+export declare type DataValue = string | number | boolean | null | DataMap | DataObject | DataArray;
+export declare type DataObject = {[key: string]: DataValue};
 export declare type DataMap = Map<string, DataValue>;
 export declare type DataArray = DataValue[];
 
 /** A template for creating components from a list in the data model. */
-export declare interface ComponentArrayTemplate
-  extends z.infer<typeof ComponentArrayTemplateSchema> {
+export declare interface ComponentArrayTemplate extends z.infer<
+  typeof ComponentArrayTemplateSchema
+> {
   componentId: string;
   dataBinding: string;
 }
 
 /** Defines a list of child components, either explicitly or via a template. */
-export declare interface ComponentArrayReference
-  extends z.infer<typeof ComponentArrayReferenceSchema> {
+export declare interface ComponentArrayReference extends z.infer<
+  typeof ComponentArrayReferenceSchema
+> {
   explicitList?: string[];
   template?: ComponentArrayTemplate;
 }
@@ -353,7 +345,7 @@ export declare type ResolvedValue =
   | ResolvedArray;
 
 /** A generic map where each value has been recursively resolved. */
-export declare type ResolvedMap = { [key: string]: ResolvedValue };
+export declare type ResolvedMap = {[key: string]: ResolvedValue};
 
 /** A generic array where each item has been recursively resolved. */
 export declare type ResolvedArray = ResolvedValue[];
@@ -369,92 +361,92 @@ interface BaseComponentNode {
 }
 
 export declare interface TextNode extends BaseComponentNode {
-  type: "Text";
+  type: 'Text';
   properties: ResolvedText;
 }
 
 export declare interface ImageNode extends BaseComponentNode {
-  type: "Image";
+  type: 'Image';
   properties: ResolvedImage;
 }
 
 export declare interface IconNode extends BaseComponentNode {
-  type: "Icon";
+  type: 'Icon';
   properties: ResolvedIcon;
 }
 
 export declare interface VideoNode extends BaseComponentNode {
-  type: "Video";
+  type: 'Video';
   properties: ResolvedVideo;
 }
 
 export declare interface AudioPlayerNode extends BaseComponentNode {
-  type: "AudioPlayer";
+  type: 'AudioPlayer';
   properties: ResolvedAudioPlayer;
 }
 
 export declare interface RowNode extends BaseComponentNode {
-  type: "Row";
+  type: 'Row';
   properties: ResolvedRow;
 }
 
 export declare interface ColumnNode extends BaseComponentNode {
-  type: "Column";
+  type: 'Column';
   properties: ResolvedColumn;
 }
 
 export declare interface ListNode extends BaseComponentNode {
-  type: "List";
+  type: 'List';
   properties: ResolvedList;
 }
 
 export declare interface CardNode extends BaseComponentNode {
-  type: "Card";
+  type: 'Card';
   properties: ResolvedCard;
 }
 
 export declare interface TabsNode extends BaseComponentNode {
-  type: "Tabs";
+  type: 'Tabs';
   properties: ResolvedTabs;
 }
 
 export declare interface DividerNode extends BaseComponentNode {
-  type: "Divider";
+  type: 'Divider';
   properties: ResolvedDivider;
 }
 
 export declare interface ModalNode extends BaseComponentNode {
-  type: "Modal";
+  type: 'Modal';
   properties: ResolvedModal;
 }
 
 export declare interface ButtonNode extends BaseComponentNode {
-  type: "Button";
+  type: 'Button';
   properties: ResolvedButton;
 }
 
 export declare interface CheckboxNode extends BaseComponentNode {
-  type: "CheckBox";
+  type: 'CheckBox';
   properties: ResolvedCheckbox;
 }
 
 export declare interface TextFieldNode extends BaseComponentNode {
-  type: "TextField";
+  type: 'TextField';
   properties: ResolvedTextField;
 }
 
 export declare interface DateTimeInputNode extends BaseComponentNode {
-  type: "DateTimeInput";
+  type: 'DateTimeInput';
   properties: ResolvedDateTimeInput;
 }
 
 export declare interface MultipleChoiceNode extends BaseComponentNode {
-  type: "MultipleChoice";
+  type: 'MultipleChoice';
   properties: ResolvedMultipleChoice;
 }
 
 export declare interface SliderNode extends BaseComponentNode {
-  type: "Slider";
+  type: 'Slider';
   properties: ResolvedSlider;
 }
 
@@ -505,38 +497,26 @@ export declare type ResolvedSlider = Slider;
 
 export declare interface ResolvedRow {
   children: AnyComponentNode[];
-  distribution?:
-    | "start"
-    | "center"
-    | "end"
-    | "spaceBetween"
-    | "spaceAround"
-    | "spaceEvenly";
-  alignment?: "start" | "center" | "end" | "stretch";
+  distribution?: 'start' | 'center' | 'end' | 'spaceBetween' | 'spaceAround' | 'spaceEvenly';
+  alignment?: 'start' | 'center' | 'end' | 'stretch';
 }
 
 export declare interface ResolvedColumn {
   children: AnyComponentNode[];
-  distribution?:
-    | "start"
-    | "center"
-    | "end"
-    | "spaceBetween"
-    | "spaceAround"
-    | "spaceEvenly";
-  alignment?: "start" | "center" | "end" | "stretch";
+  distribution?: 'start' | 'center' | 'end' | 'spaceBetween' | 'spaceAround' | 'spaceEvenly';
+  alignment?: 'start' | 'center' | 'end' | 'stretch';
 }
 
 export declare interface ResolvedButton {
   child: AnyComponentNode;
-  action: Button["action"];
+  action: Button['action'];
   primary?: boolean;
 }
 
 export declare interface ResolvedList {
   children: AnyComponentNode[];
-  direction?: "vertical" | "horizontal";
-  alignment?: "start" | "center" | "end" | "stretch";
+  direction?: 'vertical' | 'horizontal';
+  alignment?: 'start' | 'center' | 'end' | 'stretch';
 }
 
 export declare interface ResolvedCard {

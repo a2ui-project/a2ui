@@ -38,7 +38,7 @@ const a = {
   'layout-al-c': true,
 };
 
-const audio = { 'layout-w-100': true };
+const audio = {'layout-w-100': true};
 
 const body = {
   'typography-f-s': true,
@@ -77,11 +77,11 @@ const heading = {
   'color-c-n10': true,
 };
 
-const h1 = { ...heading, 'typography-sz-tl': true };
-const h2 = { ...heading, 'typography-sz-tm': true };
-const h3 = { ...heading, 'typography-sz-ts': true };
+const h1 = {...heading, 'typography-sz-tl': true};
+const h2 = {...heading, 'typography-sz-tm': true};
+const h3 = {...heading, 'typography-sz-ts': true};
 
-const iframe = { 'behavior-sw-n': true };
+const iframe = {'behavior-sw-n': true};
 
 const input = {
   'typography-f-sf': true,
@@ -118,8 +118,8 @@ const orderedList = {
   'layout-as-n': true,
 };
 
-const unorderedList = { ...orderedList };
-const listItem = { ...orderedList };
+const unorderedList = {...orderedList};
+const listItem = {...orderedList};
 
 const pre = {
   'typography-f-c': true,
@@ -136,22 +136,22 @@ const textarea = {
   'layout-fs-c': true,
 };
 
-const video = { 'layout-el-cv': true };
+const video = {'layout-el-cv': true};
 
 // Light variants (replaces v0_8.Styles.merge with plain spreads)
-const aLight = { ...a, 'color-c-n5': true };
-const inputLight = { ...input, 'color-c-n5': true };
-const textareaLight = { ...textarea, 'color-c-n5': true };
-const buttonLight = { ...button, 'color-c-n100': true };
-const h1Light = { ...h1, 'color-c-n5': true };
-const h2Light = { ...h2, 'color-c-n5': true };
-const h3Light = { ...h3, 'color-c-n5': true };
-const bodyLight = { ...body, 'color-c-n5': true };
-const pLight = { ...p, 'color-c-n35': true };
-const preLight = { ...pre, 'color-c-n35': true };
-const orderedListLight = { ...orderedList, 'color-c-n35': true };
-const unorderedListLight = { ...unorderedList, 'color-c-n35': true };
-const listItemLight = { ...listItem, 'color-c-n35': true };
+const aLight = {...a, 'color-c-n5': true};
+const inputLight = {...input, 'color-c-n5': true};
+const textareaLight = {...textarea, 'color-c-n5': true};
+const buttonLight = {...button, 'color-c-n100': true};
+const h1Light = {...h1, 'color-c-n5': true};
+const h2Light = {...h2, 'color-c-n5': true};
+const h3Light = {...h3, 'color-c-n5': true};
+const bodyLight = {...body, 'color-c-n5': true};
+const pLight = {...p, 'color-c-n35': true};
+const preLight = {...pre, 'color-c-n35': true};
+const orderedListLight = {...orderedList, 'color-c-n35': true};
+const unorderedListLight = {...unorderedList, 'color-c-n35': true};
+const listItemLight = {...listItem, 'color-c-n35': true};
 
 // =============================================================================
 // Theme export
@@ -210,7 +210,7 @@ export const viewerTheme = {
         'layout-al-c': true,
       },
     },
-    Column: { 'layout-g-2': true },
+    Column: {'layout-g-2': true},
     DateTimeInput: {
       container: {},
       label: {},
@@ -236,7 +236,7 @@ export const viewerTheme = {
         'layout-w-100': true,
         'layout-h-100': true,
       },
-      avatar: { 'is-avatar': true },
+      avatar: {'is-avatar': true},
       header: {},
       icon: {},
       largeFeature: {},
@@ -249,7 +249,7 @@ export const viewerTheme = {
       'layout-p-2': true,
     },
     Modal: {
-      backdrop: { 'color-bbgc-p60_20': true },
+      backdrop: {'color-bbgc-p60_20': true},
       element: {
         'border-br-2': true,
         'color-bgc-p100': true,
@@ -264,7 +264,7 @@ export const viewerTheme = {
       label: {},
       element: {},
     },
-    Row: { 'layout-g-4': true },
+    Row: {'layout-g-4': true},
     Slider: {
       container: {},
       label: {},
@@ -272,7 +272,7 @@ export const viewerTheme = {
     },
     Tabs: {
       container: {},
-      controls: { all: {}, selected: {} },
+      controls: {all: {}, selected: {}},
       element: {},
     },
     Text: {

@@ -14,10 +14,19 @@
  * limitations under the License.
  */
 
-import { Directive, inject, input } from '@angular/core';
-import { MessageProcessor } from '../data';
-import { Theme } from './theming';
-import { Types } from '../types';
+import {Directive, inject, input} from '@angular/core';
+import {MessageProcessor} from '../data';
+import {Theme} from './theming';
+import type {
+  A2UIClientEventMessage,
+  Action,
+  AnyComponentNode,
+  BooleanValue,
+  NumberValue,
+  ServerToClientMessage,
+  StringValue,
+  SurfaceID,
+} from '../types';
 
 let idCounter = 0;
 
@@ -26,15 +35,15 @@ let idCounter = 0;
     '[style.--weight]': 'weight()',
   },
 })
-export abstract class DynamicComponent<T extends Types.AnyComponentNode = Types.AnyComponentNode> {
+export abstract class DynamicComponent<T extends AnyComponentNode = AnyComponentNode> {
   protected readonly processor = inject(MessageProcessor);
   protected readonly theme = inject(Theme);
 
-  readonly surfaceId = input.required<Types.SurfaceID | null>();
+  readonly surfaceId = input.required<SurfaceID | null>();
   readonly component = input.required<T>();
   readonly weight = input.required<string | number>();
 
-  protected sendAction(action: Types.Action): Promise<Types.ServerToClientMessage[]> {
+  protected sendAction(action: Action): Promise<ServerToClientMessage[]> {
     const component = this.component();
     const surfaceId = this.surfaceId() ?? undefined;
     const context: Record<string, unknown> = {};
@@ -55,7 +64,7 @@ export abstract class DynamicComponent<T extends Types.AnyComponentNode = Types.
       }
     }
 
-    const message: Types.A2UIClientEventMessage = {
+    const message: A2UIClientEventMessage = {
       userAction: {
         name: action.name,
         sourceComponentId: component.id,
@@ -68,18 +77,16 @@ export abstract class DynamicComponent<T extends Types.AnyComponentNode = Types.
     return this.processor.dispatch(message);
   }
 
-  protected resolvePrimitive(value: Types.StringValue | null): string | null;
-  protected resolvePrimitive(value: Types.BooleanValue | null): boolean | null;
-  protected resolvePrimitive(value: Types.NumberValue | null): number | null;
-  protected resolvePrimitive(
-    value: Types.StringValue | Types.BooleanValue | Types.NumberValue | null,
-  ) {
+  protected resolvePrimitive(value: StringValue | null): string | null;
+  protected resolvePrimitive(value: BooleanValue | null): boolean | null;
+  protected resolvePrimitive(value: NumberValue | null): number | null;
+  protected resolvePrimitive(value: StringValue | BooleanValue | NumberValue | null) {
     const component = this.component();
     const surfaceId = this.surfaceId();
 
     if (!value || typeof value !== 'object') {
       return null;
-    } else if ('literal' in value && value.literal != null) {
+    } else if ('literal' in value && value.literal !== null && value.literal !== undefined) {
       return value.literal;
     } else if (value.path) {
       return this.processor.getData(component, value.path, surfaceId ?? undefined) as any;

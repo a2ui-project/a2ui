@@ -14,5 +14,5 @@
  * limitations under the License.
  */
 
-export * from "./base.js";
-export * from "./validation-event.js";
+export * from './base.js';
+export * from './validation-event.js';

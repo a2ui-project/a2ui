@@ -20,5 +20,5 @@ export const opacity = `
     .map((_, idx) => {
       return `.opacity-el-${idx * 5} { opacity: ${idx / 20}; }`;
     })
-    .join("\n")}
+    .join('\n')}
 `;

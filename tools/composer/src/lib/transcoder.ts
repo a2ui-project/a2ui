@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */ // TODO: remediate legacy any types
 /**
  * Copyright 2026 Google LLC
  *
@@ -16,7 +17,7 @@
 
 /**
  * Transpile A2UI messages to v0.8 format that the React renderer understands.
- * 
+ *
  * v0.8 messages (beginRendering, surfaceUpdate, dataModelUpdate) pass through as-is.
  * v0.9 messages (createSurface, updateComponents, updateDataModel) get converted.
  */
@@ -26,9 +27,9 @@ export function transpileToV0_8(msg: any): any {
     return {
       beginRendering: {
         surfaceId: msg.createSurface.surfaceId,
-        root: msg.createSurface.root || "root",
-        styles: msg.createSurface.styles || {}
-      }
+        root: msg.createSurface.root || 'root',
+        styles: msg.createSurface.styles || {},
+      },
     };
   }
   if (msg.updateComponents) {
@@ -42,21 +43,21 @@ export function transpileToV0_8(msg: any): any {
         // v0.9 format: convert type/props to v0.8 component map
         const props = comp.props || {};
         const v08Props: Record<string, any> = {};
-        
+
         for (const [key, value] of Object.entries(props)) {
           if (key === 'children' && Array.isArray(value)) {
             // v0.9 children: ["id1", "id2"] -> v0.8 children: { explicitList: ["id1", "id2"] }
-            v08Props.children = { explicitList: value };
+            v08Props.children = {explicitList: value};
           } else if (key === 'variant') {
             // v0.9 variant -> v0.8 usageHint
             v08Props.usageHint = value;
           } else if (key === 'text' && typeof value === 'string') {
             // v0.9 text: "Hello" -> v0.8 text: { stringValue: "Hello" }
-            v08Props.text = { stringValue: value };
+            v08Props.text = {stringValue: value};
           } else if (key === 'url' && typeof value === 'string') {
-            v08Props.url = { stringValue: value };
+            v08Props.url = {stringValue: value};
           } else if (key === 'label' && typeof value === 'string') {
-            v08Props.label = { stringValue: value };
+            v08Props.label = {stringValue: value};
           } else if (key === 'child' && typeof value === 'string') {
             // Single child ref
             v08Props.child = value;
@@ -64,20 +65,20 @@ export function transpileToV0_8(msg: any): any {
             v08Props[key] = value;
           }
         }
-        
+
         return {
           id: comp.id,
-          component: { [comp.type]: v08Props }
+          component: {[comp.type]: v08Props},
         };
       }
       return comp;
     });
-    
+
     return {
       surfaceUpdate: {
         surfaceId: msg.updateComponents.surfaceId,
-        components
-      }
+        components,
+      },
     };
   }
   if (msg.updateDataModel) {
@@ -85,18 +86,18 @@ export function transpileToV0_8(msg: any): any {
       dataModelUpdate: {
         surfaceId: msg.updateDataModel.surfaceId,
         path: msg.updateDataModel.path || '/',
-        contents: msg.updateDataModel.contents
-      }
+        contents: msg.updateDataModel.contents,
+      },
     };
   }
   if (msg.deleteSurface) {
     return {
       deleteSurface: {
-        surfaceId: msg.deleteSurface.surfaceId
-      }
+        surfaceId: msg.deleteSurface.surfaceId,
+      },
     };
   }
-  
+
   // v0.8 messages pass through as-is
   return msg;
 }

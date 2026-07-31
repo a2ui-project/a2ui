@@ -14,20 +14,27 @@
  * limitations under the License.
  */
 
-import {useState, useEffect, useSyncExternalStore, useCallback} from 'react';
-import {MessageProcessor, SurfaceModel} from '@a2ui/web_core/v0_9';
-import {basicCatalog, A2uiSurface, MarkdownContext, type ReactComponentImplementation} from '@a2ui/react/v0_9';
-import {exampleFiles, getMessages} from './examples';
+import {useState, useEffect, useSyncExternalStore, useCallback, useRef} from 'react';
+import {MessageProcessor, type SurfaceModel, type A2uiClientAction} from '@a2ui/web_core/v0_9';
+import {
+  basicCatalog,
+  A2uiSurface,
+  MarkdownContext,
+  type ReactComponentImplementation,
+} from '@a2ui/react/v0_9';
+import {getDemoItems} from './examples';
 import {renderMarkdown} from '@a2ui/markdown-it';
 import styles from './App.module.css';
 
-const DataModelViewer = ({surface}: {surface: SurfaceModel<any>}) => {
+const demoItems = getDemoItems();
+
+const DataModelViewer = ({surface}: {surface: SurfaceModel<ReactComponentImplementation>}) => {
   const subscribeHook = useCallback(
     (callback: () => void) => {
       const bound = surface.dataModel.subscribe('/', callback);
       return () => bound.unsubscribe();
     },
-    [surface]
+    [surface],
   );
 
   const getSnapshot = useCallback(() => {
@@ -44,29 +51,68 @@ const DataModelViewer = ({surface}: {surface: SurfaceModel<any>}) => {
   );
 };
 
-export default function App() {
-  const [selectedExampleKey, setSelectedExampleKey] = useState(exampleFiles[0].key);
-  const selectedExample = exampleFiles.find((e) => e.key === selectedExampleKey)?.data as any;
+/**
+ * Properties for the main explorer application component.
+ */
+export interface AppProps {
+  /**
+   * Id of the example to select on initial component load.
+   * @internal @visibleForTesting
+   */
+  initialExampleId?: string;
+  /**
+   * Callback to intercept dispatched actions.
+   * @internal @visibleForTesting
+   */
+  onAction?: (action: A2uiClientAction) => void;
+}
 
-  const [logs, setLogs] = useState<any[]>([]);
-  const [processor, setProcessor] = useState<MessageProcessor<ReactComponentImplementation> | null>(null);
+/**
+ * Represents an entry in the explorer action dispatch log.
+ */
+interface LogEntry {
+  /** ISO timestamp of when the action was intercepted. */
+  time: string;
+  /** The intercepted client action object. */
+  action: A2uiClientAction;
+}
+
+export const App = ({initialExampleId, onAction}: AppProps) => {
+  const [selectedExampleId, setSelectedExampleId] = useState(initialExampleId ?? demoItems[0].id);
+  const selectedItem = demoItems.find(e => e.id === selectedExampleId);
+
+  const [logs, setLogs] = useState<LogEntry[]>([]);
+  const [processor, setProcessor] = useState<MessageProcessor<ReactComponentImplementation> | null>(
+    null,
+  );
   const [surfaces, setSurfaces] = useState<string[]>([]);
   const [currentMessageIndex, setCurrentMessageIndex] = useState(-1);
+
+  const onActionRef = useRef(onAction);
+  useEffect(() => {
+    onActionRef.current = onAction;
+  }, [onAction]);
 
   // Initialize or reset processor
   const resetProcessor = useCallback(
     (advanceToEnd: boolean = false) => {
-      setProcessor((prevProcessor) => {
+      setProcessor(prevProcessor => {
         if (prevProcessor) {
           prevProcessor.model.dispose();
         }
-        const newProcessor = new MessageProcessor<ReactComponentImplementation>([basicCatalog], async (action: any) => {
-          setLogs((l) => [...l, {time: new Date().toISOString(), action}]);
-        });
+        const newProcessor = new MessageProcessor<ReactComponentImplementation>(
+          [basicCatalog],
+          async (action: A2uiClientAction) => {
+            setLogs(l => [...l, {time: new Date().toISOString(), action}]);
+            if (onActionRef.current) {
+              onActionRef.current(action);
+            }
+          },
+        );
 
-        const msgs = getMessages(selectedExample);
+        const msgs = selectedItem?.messages;
         if (advanceToEnd && msgs) {
-          newProcessor.processMessages(msgs);
+          newProcessor.processMessages(structuredClone(msgs));
         }
         return newProcessor;
       });
@@ -74,14 +120,14 @@ export default function App() {
       setLogs([]);
       setSurfaces([]);
 
-      const msgs = getMessages(selectedExample);
+      const msgs = selectedItem?.messages;
       if (advanceToEnd && msgs) {
         setCurrentMessageIndex(msgs.length - 1);
       } else {
         setCurrentMessageIndex(-1);
       }
     },
-    [selectedExample]
+    [selectedItem],
   );
 
   // Effect to handle example selection change
@@ -89,12 +135,12 @@ export default function App() {
     resetProcessor(true);
     // Cleanup on unmount or when changing examples
     return () => {
-      setProcessor((prev) => {
+      setProcessor(prev => {
         if (prev) prev.model.dispose();
         return null;
       });
     };
-  }, [selectedExampleKey, resetProcessor]);
+  }, [selectedExampleId, resetProcessor]);
 
   // Handle surface subscriptions
   useEffect(() => {
@@ -104,7 +150,7 @@ export default function App() {
     }
 
     const updateSurfaces = () => {
-      setSurfaces(Array.from(processor.model.surfacesMap.values()).map((s: any) => s.id as string));
+      setSurfaces(Array.from(processor.model.surfacesMap.values()).map(s => s.id));
     };
 
     updateSurfaces();
@@ -119,13 +165,13 @@ export default function App() {
   }, [processor]);
 
   const advanceToMessage = (index: number) => {
-    const msgs = getMessages(selectedExample);
+    const msgs = selectedItem?.messages;
     if (!processor || !msgs) return;
 
     // Process messages from currentMessageIndex + 1 to index
     const messagesToProcess = msgs.slice(currentMessageIndex + 1, index + 1);
     if (messagesToProcess.length > 0) {
-      processor.processMessages(messagesToProcess);
+      processor.processMessages(structuredClone(messagesToProcess));
       setCurrentMessageIndex(index);
     }
   };
@@ -134,7 +180,7 @@ export default function App() {
     resetProcessor(false);
   };
 
-  const messages = getMessages(selectedExample) || [];
+  const messages = selectedItem?.messages ?? [];
 
   return (
     <div className={styles.app}>
@@ -144,11 +190,10 @@ export default function App() {
           <p className={styles.subtitle}>Preview and interact with React components</p>
         </div>
         <div className={styles.stepperControls}>
-          <span>Message {currentMessageIndex + 1} of {messages.length}</span>
-          <button 
-            className={styles.button} 
-            onClick={handleReset}
-          >
+          <span>
+            Message {currentMessageIndex + 1} of {messages.length}
+          </span>
+          <button className={styles.button} onClick={handleReset}>
             Reset
           </button>
         </div>
@@ -157,16 +202,15 @@ export default function App() {
       <main className={styles.main}>
         {/* Left Column: Sample List */}
         <div className={styles.navPane}>
-          {exampleFiles.map((ex) => {
-            const isActive = selectedExampleKey === ex.key;
+          {demoItems.map(item => {
+            const isActive = selectedExampleId === item.id;
             return (
               <button
-                key={ex.key}
+                key={item.id}
                 className={`${styles.navItem} ${isActive ? styles.active : ''}`}
-                onClick={() => setSelectedExampleKey(ex.key)}
+                onClick={() => setSelectedExampleId(item.id)}
               >
-                <div className={styles.navTitle}>{(ex.data as any).name || ex.key}</div>
-                <div className={styles.navDesc}>{ex.catalog}</div>
+                <div className={styles.navTitle}>{item.title}</div>
               </button>
             );
           })}
@@ -177,9 +221,11 @@ export default function App() {
           <div className={styles.previewContent}>
             <div className={styles.surfaceContainer}>
               {surfaces.length === 0 && (
-                <p style={{color: '#888', textAlign: 'center'}}>No surfaces loaded. Advance the stepper to create one.</p>
+                <p style={{color: '#888', textAlign: 'center'}}>
+                  No surfaces loaded. Advance the stepper to create one.
+                </p>
               )}
-              {surfaces.map((surfaceId) => {
+              {surfaces.map(surfaceId => {
                 const surface = processor?.model.getSurface(surfaceId);
                 if (!surface) return null;
                 return (
@@ -205,7 +251,7 @@ export default function App() {
           >
             <h3 style={{margin: '0 0 1rem 0', fontSize: '0.9rem', color: '#94a3b8'}}>MESSAGES</h3>
             <div style={{display: 'flex', flexDirection: 'column', gap: '0.5rem'}}>
-              {messages.map((msg: any, i: number) => {
+              {messages.map((msg, i) => {
                 const isActive = i <= currentMessageIndex;
                 return (
                   <div
@@ -221,7 +267,11 @@ export default function App() {
                     }}
                   >
                     <div
-                      style={{display: 'flex', justifyContent: 'space-between', marginBottom: '8px'}}
+                      style={{
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        marginBottom: '8px',
+                      }}
                     >
                       <strong>Message {i + 1}</strong>
                       {!isActive && (
@@ -261,7 +311,7 @@ export default function App() {
               {surfaces.length === 0 ? (
                 <p style={{color: '#888', fontSize: '12px'}}>Empty Data Model</p>
               ) : null}
-              {surfaces.map((surfaceId) => {
+              {surfaces.map(surfaceId => {
                 const surface = processor?.model.getSurface(surfaceId);
                 if (!surface) return null;
                 return <DataModelViewer key={surfaceId} surface={surface} />;
@@ -279,7 +329,13 @@ export default function App() {
                 {logs.map((log, i) => (
                   <div key={i} className={styles.logEntry}>
                     <strong style={{display: 'block', color: '#38bdf8'}}>{log.time}</strong>
-                    <pre style={{margin: '4px 0 0 0', whiteSpace: 'pre-wrap', wordBreak: 'break-all'}}>
+                    <pre
+                      style={{
+                        margin: '4px 0 0 0',
+                        whiteSpace: 'pre-wrap',
+                        wordBreak: 'break-all',
+                      }}
+                    >
                       {JSON.stringify(log.action, null, 2)}
                     </pre>
                   </div>
@@ -291,4 +347,4 @@ export default function App() {
       </main>
     </div>
   );
-}
+};

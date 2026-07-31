@@ -31,7 +31,7 @@ export const CheckBox = memo(function CheckBox({
 }: A2UIComponentProps<Types.CheckboxNode>) {
   const {theme, resolveString, resolveBoolean, setValue, getValue} = useA2UIComponent(
     node,
-    surfaceId
+    surfaceId,
   );
   const props = node.properties;
   const id = useId();
@@ -69,7 +69,7 @@ export const CheckBox = memo(function CheckBox({
         setValue(valuePath, newValue);
       }
     },
-    [valuePath, setValue]
+    [valuePath, setValue],
   );
 
   // Structure mirrors Lit's CheckBox component:

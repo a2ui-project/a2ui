@@ -16,11 +16,7 @@
           "component": {
             "Column": {
               "children": {
-                "explicitList": [
-                  "header",
-                  "divider",
-                  "messages"
-                ]
+                "explicitList": ["header", "divider", "messages"]
               }
             }
           }
@@ -30,10 +26,7 @@
           "component": {
             "Row": {
               "children": {
-                "explicitList": [
-                  "channel-icon",
-                  "channel-name"
-                ]
+                "explicitList": ["channel-icon", "channel-name"]
               },
               "alignment": "center"
             }
@@ -71,10 +64,7 @@
           "component": {
             "Column": {
               "children": {
-                "explicitList": [
-                  "message1",
-                  "message2"
-                ]
+                "explicitList": ["message1", "message2"]
               },
               "alignment": "start"
             }
@@ -85,10 +75,7 @@
           "component": {
             "Row": {
               "children": {
-                "explicitList": [
-                  "avatar1",
-                  "msg1-content"
-                ]
+                "explicitList": ["avatar1", "msg1-content"]
               },
               "alignment": "start"
             }
@@ -111,10 +98,7 @@
           "component": {
             "Column": {
               "children": {
-                "explicitList": [
-                  "msg1-header",
-                  "msg1-text"
-                ]
+                "explicitList": ["msg1-header", "msg1-text"]
               }
             }
           }
@@ -124,10 +108,7 @@
           "component": {
             "Row": {
               "children": {
-                "explicitList": [
-                  "msg1-username",
-                  "msg1-time"
-                ]
+                "explicitList": ["msg1-username", "msg1-time"]
               },
               "alignment": "center"
             }
@@ -171,10 +152,7 @@
           "component": {
             "Row": {
               "children": {
-                "explicitList": [
-                  "avatar2",
-                  "msg2-content"
-                ]
+                "explicitList": ["avatar2", "msg2-content"]
               },
               "alignment": "start"
             }
@@ -197,10 +175,7 @@
           "component": {
             "Column": {
               "children": {
-                "explicitList": [
-                  "msg2-header",
-                  "msg2-text"
-                ]
+                "explicitList": ["msg2-header", "msg2-text"]
               }
             }
           }
@@ -210,10 +185,7 @@
           "component": {
             "Row": {
               "children": {
-                "explicitList": [
-                  "msg2-username",
-                  "msg2-time"
-                ]
+                "explicitList": ["msg2-username", "msg2-time"]
               },
               "alignment": "center"
             }

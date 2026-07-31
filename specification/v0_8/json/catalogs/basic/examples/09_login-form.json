@@ -33,10 +33,7 @@
           "component": {
             "Column": {
               "children": {
-                "explicitList": [
-                  "title",
-                  "subtitle"
-                ]
+                "explicitList": ["title", "subtitle"]
               },
               "alignment": "center"
             }
@@ -124,10 +121,7 @@
           "component": {
             "Row": {
               "children": {
-                "explicitList": [
-                  "no-account",
-                  "signup-link"
-                ]
+                "explicitList": ["no-account", "signup-link"]
               },
               "distribution": "center"
             }

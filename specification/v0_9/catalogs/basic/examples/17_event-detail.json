@@ -1,0 +1,144 @@
+{
+  "name": "Event Detail",
+  "description": "Example of event detail demonstrating date and string formatting.",
+  "messages": [
+    {
+      "version": "v0.9",
+      "createSurface": {
+        "surfaceId": "gallery-event-detail",
+        "catalogId": "https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json",
+        "sendDataModel": true
+      }
+    },
+    {
+      "version": "v0.9",
+      "updateComponents": {
+        "surfaceId": "gallery-event-detail",
+        "components": [
+          {
+            "id": "root",
+            "component": "Card",
+            "child": "main-column"
+          },
+          {
+            "id": "main-column",
+            "component": "Column",
+            "children": ["title", "time-row", "location-row", "description", "divider", "actions"]
+          },
+          {
+            "id": "title",
+            "component": "Text",
+            "text": {
+              "path": "/title"
+            },
+            "variant": "h2"
+          },
+          {
+            "id": "time-row",
+            "component": "Row",
+            "children": ["time-icon", "time-text"],
+            "align": "center"
+          },
+          {
+            "id": "time-icon",
+            "component": "Icon",
+            "name": "calendarToday"
+          },
+          {
+            "id": "time-text",
+            "component": "Text",
+            "text": {
+              "call": "formatString",
+              "args": {
+                "value": "${formatDate(value: ${/start}, format: 'E, MMM d')} • ${formatDate(value: ${/start}, format: 'h:mm a')} - ${formatDate(value: ${/end}, format: 'h:mm a')}"
+              },
+              "returnType": "string"
+            },
+            "variant": "body"
+          },
+          {
+            "id": "location-row",
+            "component": "Row",
+            "children": ["location-icon", "location-text"],
+            "align": "center"
+          },
+          {
+            "id": "location-icon",
+            "component": "Icon",
+            "name": "locationOn"
+          },
+          {
+            "id": "location-text",
+            "component": "Text",
+            "text": {
+              "path": "/location"
+            },
+            "variant": "body"
+          },
+          {
+            "id": "description",
+            "component": "Text",
+            "text": {
+              "path": "/description"
+            },
+            "variant": "body"
+          },
+          {
+            "id": "divider",
+            "component": "Divider"
+          },
+          {
+            "id": "actions",
+            "component": "Row",
+            "children": ["accept-btn", "decline-btn"]
+          },
+          {
+            "id": "accept-btn-text",
+            "component": "Text",
+            "text": "Accept"
+          },
+          {
+            "id": "accept-btn",
+            "component": "Button",
+            "child": "accept-btn-text",
+            "action": {
+              "event": {
+                "name": "accept",
+                "context": {}
+              }
+            }
+          },
+          {
+            "id": "decline-btn-text",
+            "component": "Text",
+            "text": "Decline"
+          },
+          {
+            "id": "decline-btn",
+            "component": "Button",
+            "child": "decline-btn-text",
+            "action": {
+              "event": {
+                "name": "decline",
+                "context": {}
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "version": "v0.9",
+      "updateDataModel": {
+        "surfaceId": "gallery-event-detail",
+        "value": {
+          "title": "Product Launch Meeting",
+          "start": "2025-12-19T14:00:00Z",
+          "end": "2025-12-19T15:30:00Z",
+          "location": "Conference Room A, Building 2",
+          "description": "Review final product specs and marketing materials before the Q1 launch."
+        }
+      }
+    }
+  ]
+}

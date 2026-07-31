@@ -51,11 +51,7 @@ export class ExpressionParser {
         if (parsed !== null) {
           parts.push(parsed);
         }
-      } else if (
-        scanner.peek() === '\\' &&
-        scanner.peek(1) === '$' &&
-        scanner.peek(2) === '{'
-      ) {
+      } else if (scanner.peek() === '\\' && scanner.peek(1) === '$' && scanner.peek(2) === '{') {
         scanner.advance();
         parts.push('${');
         scanner.advance(2);
@@ -65,11 +61,7 @@ export class ExpressionParser {
           if (scanner.matches('${')) {
             break;
           }
-          if (
-            scanner.peek() === '\\' &&
-            scanner.peek(1) === '$' &&
-            scanner.peek(2) === '{'
-          ) {
+          if (scanner.peek() === '\\' && scanner.peek(1) === '$' && scanner.peek(2) === '{') {
             break;
           }
           scanner.advance();
@@ -128,18 +120,13 @@ export class ExpressionParser {
     const result = this.parseExpressionInternal(scanner, depth);
     if (!scanner.isAtEnd()) {
       throw new A2uiExpressionError(
-        `Unexpected characters at end of expression: '${scanner.input.substring(
-          scanner.pos,
-        )}'`,
+        `Unexpected characters at end of expression: '${scanner.input.substring(scanner.pos)}'`,
       );
     }
     return result;
   }
 
-  private parseExpressionInternal(
-    scanner: Scanner,
-    depth: number,
-  ): DynamicValue {
+  private parseExpressionInternal(scanner: Scanner, depth: number): DynamicValue {
     scanner.skipWhitespace();
     if (scanner.isAtEnd()) return '';
 
@@ -218,9 +205,7 @@ export class ExpressionParser {
     }
 
     if (!scanner.match(')')) {
-      throw new A2uiExpressionError(
-        `Expected ')' after function arguments for '${funcName}'`,
-      );
+      throw new A2uiExpressionError(`Expected ')' after function arguments for '${funcName}'`);
     }
 
     return {call: funcName, args, returnType: 'any'};
@@ -228,10 +213,7 @@ export class ExpressionParser {
 
   private scanIdentifier(scanner: Scanner): string {
     const start = scanner.pos;
-    while (
-      !scanner.isAtEnd() &&
-      (this.isAlnum(scanner.peek()) || scanner.peek() === '_')
-    ) {
+    while (!scanner.isAtEnd() && (this.isAlnum(scanner.peek()) || scanner.peek() === '_')) {
       scanner.advance();
     }
     return scanner.input.substring(start, scanner.pos);
@@ -259,19 +241,14 @@ export class ExpressionParser {
 
   private parseNumberLiteral(scanner: Scanner): number {
     const start = scanner.pos;
-    while (
-      !scanner.isAtEnd() &&
-      (this.isDigit(scanner.peek()) || scanner.peek() === '.')
-    ) {
+    while (!scanner.isAtEnd() && (this.isDigit(scanner.peek()) || scanner.peek() === '.')) {
       scanner.advance();
     }
     return Number(scanner.input.substring(start, scanner.pos));
   }
 
   private isAlnum(c: string): boolean {
-    return (
-      (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9')
-    );
+    return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9');
   }
 
   private isDigit(c: string): boolean {

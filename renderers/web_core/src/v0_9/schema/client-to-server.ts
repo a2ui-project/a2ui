@@ -24,19 +24,10 @@ export const A2uiClientActionSchema = z
   .object({
     name: z
       .string()
-      .describe(
-        "The name of the action, taken from the component's action.event.name property.",
-      ),
-    surfaceId: z
-      .string()
-      .describe('The id of the surface where the event originated.'),
-    sourceComponentId: z
-      .string()
-      .describe('The id of the component that triggered the event.'),
-    timestamp: z
-      .string()
-      .datetime()
-      .describe('An ISO 8601 timestamp of when the event occurred.'),
+      .describe("The name of the action, taken from the component's action.event.name property."),
+    surfaceId: z.string().describe('The id of the surface where the event originated.'),
+    sourceComponentId: z.string().describe('The id of the component that triggered the event.'),
+    timestamp: z.string().datetime().describe('An ISO 8601 timestamp of when the event occurred.'),
     context: z
       .record(z.any())
       .describe(
@@ -51,9 +42,7 @@ export const A2uiClientActionSchema = z
 export const A2uiValidationErrorSchema = z
   .object({
     code: z.literal('VALIDATION_FAILED'),
-    surfaceId: z
-      .string()
-      .describe('The id of the surface where the error occurred.'),
+    surfaceId: z.string().describe('The id of the surface where the error occurred.'),
     path: z
       .string()
       .describe(
@@ -61,9 +50,7 @@ export const A2uiValidationErrorSchema = z
       ),
     message: z
       .string()
-      .describe(
-        'A short one or two sentence description of why validation failed.',
-      ),
+      .describe('A short one or two sentence description of why validation failed.'),
   })
   .strict();
 
@@ -75,12 +62,8 @@ export const A2uiGenericErrorSchema = z
     code: z.string().refine(c => c !== 'VALIDATION_FAILED'),
     message: z
       .string()
-      .describe(
-        'A short one or two sentence description of why the error occurred.',
-      ),
-    surfaceId: z
-      .string()
-      .describe('The id of the surface where the error occurred.'),
+      .describe('A short one or two sentence description of why the error occurred.'),
+    surfaceId: z.string().describe('The id of the surface where the error occurred.'),
   })
   .passthrough();
 
@@ -88,10 +71,7 @@ export const A2uiGenericErrorSchema = z
  * Reports a client-side error.
  * Matches 'error' in specification/v0_9/json/client_to_server.json.
  */
-export const A2uiClientErrorSchema = z.union([
-  A2uiValidationErrorSchema,
-  A2uiGenericErrorSchema,
-]);
+export const A2uiClientErrorSchema = z.union([A2uiValidationErrorSchema, A2uiGenericErrorSchema]);
 
 /**
  * A message sent from the A2UI client to the server.
@@ -99,13 +79,10 @@ export const A2uiClientErrorSchema = z.union([
  */
 export const A2uiClientMessageSchema = z
   .object({
-    version: z.literal('v0.9'),
+    version: z.enum(['v0.9', 'v0.9.1']),
   })
   .and(
-    z.union([
-      z.object({action: A2uiClientActionSchema}),
-      z.object({error: A2uiClientErrorSchema}),
-    ]),
+    z.union([z.object({action: A2uiClientActionSchema}), z.object({error: A2uiClientErrorSchema})]),
   );
 
 /**
@@ -114,7 +91,7 @@ export const A2uiClientMessageSchema = z
  */
 export const A2uiClientDataModelSchema = z
   .object({
-    version: z.literal('v0.9'),
+    version: z.enum(['v0.9', 'v0.9.1']),
     surfaces: z
       .record(z.object({}).passthrough())
       .describe('A map of surface IDs to their current data models.'),
@@ -139,6 +116,4 @@ export const A2uiClientMessageListWrapperSchema = z
   .strict()
   .describe('An object wrapping a list of client messages.');
 
-export type A2uiClientMessageListWrapper = z.infer<
-  typeof A2uiClientMessageListWrapperSchema
->;
+export type A2uiClientMessageListWrapper = z.infer<typeof A2uiClientMessageListWrapperSchema>;

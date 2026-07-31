@@ -3,7 +3,7 @@
     "version": "v0.9",
     "createSurface": {
       "surfaceId": "gallery-contact-card",
-      "catalogId": "https://a2ui.org/specification/v0_9/basic_catalog.json"
+      "catalogId": "https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json"
     }
   },
   {
@@ -19,32 +19,25 @@
         {
           "id": "main-column",
           "component": "Column",
-          "children": [
-            "avatar-image",
-            "name",
-            "title",
-            "divider",
-            "contact-info",
-            "actions"
-          ],
+          "children": ["avatar-image", "name", "title", "divider", "contact-info", "actions"],
           "align": "center"
         },
         {
           "id": "avatar-image",
           "component": "Image",
-          "url": { "path": "/avatar" },
+          "url": {"path": "/avatar"},
           "fit": "cover"
         },
         {
           "id": "name",
           "component": "Text",
-          "text": { "path": "/name" },
+          "text": {"path": "/name"},
           "weight": 700
         },
         {
           "id": "title",
           "component": "Text",
-          "text": { "path": "/title" }
+          "text": {"path": "/title"}
         },
         {
           "id": "divider",
@@ -69,7 +62,7 @@
         {
           "id": "phone-text",
           "component": "Text",
-          "text": { "path": "/phone" }
+          "text": {"path": "/phone"}
         },
         {
           "id": "email-row",
@@ -85,7 +78,7 @@
         {
           "id": "email-text",
           "component": "Text",
-          "text": { "path": "/email" }
+          "text": {"path": "/email"}
         },
         {
           "id": "location-row",
@@ -101,7 +94,7 @@
         {
           "id": "location-text",
           "component": "Text",
-          "text": { "path": "/location" }
+          "text": {"path": "/location"}
         },
         {
           "id": "actions",
@@ -115,7 +108,7 @@
           "action": {
             "functionCall": {
               "call": "call",
-              "args": { "number": { "path": "/phone" } }
+              "args": {"number": {"path": "/phone"}}
             }
           }
         },
@@ -131,7 +124,7 @@
           "action": {
             "functionCall": {
               "call": "message",
-              "args": { "recipient": { "path": "/email" } }
+              "args": {"recipient": {"path": "/email"}}
             }
           }
         },

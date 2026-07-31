@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import assert from 'node:assert';
+import * as assert from 'node:assert';
 import {describe, it, beforeEach} from 'node:test';
 import {DataModel} from './data-model.js';
 
@@ -311,22 +311,10 @@ describe('DataModel', () => {
   });
 
   it('throws when path is null or undefined', () => {
-    assert.throws(
-      () => model.get(null as any),
-      /Path cannot be null or undefined/,
-    );
-    assert.throws(
-      () => model.get(undefined as any),
-      /Path cannot be null or undefined/,
-    );
-    assert.throws(
-      () => model.set(null as any, 'value'),
-      /Path cannot be null or undefined/,
-    );
-    assert.throws(
-      () => model.set(undefined as any, 'value'),
-      /Path cannot be null or undefined/,
-    );
+    assert.throws(() => model.get(null as any), /Path cannot be null or undefined/);
+    assert.throws(() => model.get(undefined as any), /Path cannot be null or undefined/);
+    assert.throws(() => model.set(null as any, 'value'), /Path cannot be null or undefined/);
+    assert.throws(() => model.set(undefined as any, 'value'), /Path cannot be null or undefined/);
   });
 
   it('calculates descendants against root path', () => {
@@ -334,5 +322,137 @@ describe('DataModel', () => {
     const isDescendant = (model as any).isDescendant.bind(model);
     assert.strictEqual(isDescendant('/user', '/'), true);
     assert.strictEqual(isDescendant('/', '/'), false);
+  });
+
+  describe('JSON Pointer Escaping (RFC 6901)', () => {
+    it('handles escaped slashes (~1)', () => {
+      model.set('/user/detailed~1info', 'some info');
+      assert.strictEqual(model.get('/user/detailed~1info'), 'some info');
+
+      // Verify it was actually set as a key with a slash in the underlying object
+      const user = model.get('/user');
+      assert.strictEqual(user['detailed/info'], 'some info');
+      assert.strictEqual(user['detailed~1info'], undefined);
+    });
+
+    it('handles escaped tildes (~0)', () => {
+      model.set('/user/profile~0name', 'profile~name');
+      assert.strictEqual(model.get('/user/profile~0name'), 'profile~name');
+
+      const user = model.get('/user');
+      assert.strictEqual(user['profile~name'], 'profile~name');
+      assert.strictEqual(user['profile~0name'], undefined);
+    });
+
+    it('handles mixed escaped characters', () => {
+      model.set('/user/a~0b~1c', 'value');
+      assert.strictEqual(model.get('/user/a~0b~1c'), 'value');
+
+      const user = model.get('/user');
+      assert.strictEqual(user['a~b/c'], 'value');
+    });
+
+    it('handles escaped sequence order correctly (~01)', () => {
+      model.set('/user/a~01b', 'value');
+      assert.strictEqual(model.get('/user/a~01b'), 'value');
+
+      const user = model.get('/user');
+      assert.strictEqual(user['a~1b'], 'value');
+    });
+  });
+
+  // --- Security Tests: Prototype Pollution Protection ---
+
+  it('prevents prototype pollution via __proto__ in set, get, getSignal, subscribe', () => {
+    assert.throws(
+      () => model.set('/__proto__/polluted', 'hacked'),
+      /Forbidden path segment '__proto__'/,
+    );
+    assert.throws(() => model.get('/__proto__/polluted'), /Forbidden path segment '__proto__'/);
+    assert.throws(
+      () => model.getSignal('/__proto__/polluted'),
+      /Forbidden path segment '__proto__'/,
+    );
+    assert.throws(
+      () => model.subscribe('/__proto__/polluted', () => {}),
+      /Forbidden path segment '__proto__'/,
+    );
+    assert.strictEqual(({} as any).polluted, undefined);
+  });
+
+  it('prevents prototype pollution via constructor in set, get, getSignal, subscribe', () => {
+    assert.throws(
+      () => model.set('/constructor/prototype/polluted', 'hacked'),
+      /Forbidden path segment 'constructor'/,
+    );
+    assert.throws(
+      () => model.get('/constructor/prototype/polluted'),
+      /Forbidden path segment 'constructor'/,
+    );
+    assert.throws(
+      () => model.getSignal('/constructor/prototype/polluted'),
+      /Forbidden path segment 'constructor'/,
+    );
+    assert.throws(
+      () => model.subscribe('/constructor/prototype/polluted', () => {}),
+      /Forbidden path segment 'constructor'/,
+    );
+    assert.strictEqual(({} as any).polluted, undefined);
+  });
+
+  it('prevents prototype pollution via prototype in set, get, getSignal, subscribe', () => {
+    assert.throws(
+      () => model.set('/user/prototype/polluted', 'hacked'),
+      /Forbidden path segment 'prototype'/,
+    );
+    assert.throws(
+      () => model.get('/user/prototype/polluted'),
+      /Forbidden path segment 'prototype'/,
+    );
+    assert.throws(
+      () => model.getSignal('/user/prototype/polluted'),
+      /Forbidden path segment 'prototype'/,
+    );
+    assert.throws(
+      () => model.subscribe('/user/prototype/polluted', () => {}),
+      /Forbidden path segment 'prototype'/,
+    );
+    assert.strictEqual(({} as any).polluted, undefined);
+  });
+
+  it('does not leak Object.prototype inherited properties on get', () => {
+    assert.strictEqual(model.get('/toString'), undefined);
+    assert.strictEqual(model.get('/valueOf'), undefined);
+    assert.strictEqual(model.get('/hasOwnProperty'), undefined);
+  });
+
+  it('allows setting and reading own properties named after prototype methods', () => {
+    model.set('/toString', 'custom toString');
+    assert.strictEqual(model.get('/toString'), 'custom toString');
+
+    model.set('/valueOf/nested', 'custom valueOf');
+    assert.strictEqual(model.get('/valueOf/nested'), 'custom valueOf');
+  });
+
+  it('throws when trying to set nested property through a primitive in an array', () => {
+    assert.throws(() => {
+      model.set('/items/0/foo', 'bar');
+    }, /Cannot set path/);
+  });
+
+  it('returns undefined for out-of-bounds or non-numeric array index in get', () => {
+    assert.strictEqual(model.get('/items/99'), undefined);
+    assert.strictEqual(model.get('/items/-1'), undefined);
+    assert.strictEqual(model.get('/items/invalid'), undefined);
+  });
+
+  it('rejects leading-zero array indices (RFC 6901)', () => {
+    assert.throws(() => {
+      model.set('/items/01', 'value');
+    }, /Cannot use non-numeric segment/);
+    assert.throws(() => {
+      model.set('/items/01/nested', 'value');
+    }, /Cannot use non-numeric segment/);
+    assert.strictEqual(model.get('/items/01'), undefined);
   });
 });

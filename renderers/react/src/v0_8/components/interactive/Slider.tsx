@@ -31,7 +31,7 @@ export const Slider = memo(function Slider({
 }: A2UIComponentProps<Types.SliderNode>) {
   const {theme, resolveNumber, resolveString, setValue, getValue} = useA2UIComponent(
     node,
-    surfaceId
+    surfaceId,
   );
   const props = node.properties;
   const id = useId();
@@ -71,7 +71,7 @@ export const Slider = memo(function Slider({
         setValue(valuePath, newValue);
       }
     },
-    [valuePath, setValue]
+    [valuePath, setValue],
   );
 
   // Access label from props if it exists (Lit component supports it but type doesn't define it)

@@ -14,31 +14,34 @@
  * limitations under the License.
  */
 
-import { html, nothing, css, PropertyValues } from "lit";
-import { customElement } from "lit/decorators.js";
-import { map } from "lit/directives/map.js";
-import { RowApi } from "@a2ui/web_core/v0_9/basic_catalog";
-import { BasicCatalogA2uiLitElement } from "../basic-catalog-a2ui-lit-element.js";
-import { A2uiController } from "@a2ui/lit/v0_9";
+import {html, nothing, css, PropertyValues} from 'lit';
+import {customElement} from 'lit/decorators.js';
+import {map} from 'lit/directives/map.js';
+import {RowApi} from '@a2ui/web_core/v0_9/basic_catalog';
+import {
+  BasicCatalogA2uiLitElement,
+  type ResolvedChildList,
+} from '../basic-catalog-a2ui-lit-element.js';
+import {A2uiController} from '../../../a2ui-controller.js';
 
 const JUSTIFY_MAP: Record<string, string> = {
-  start: "flex-start",
-  center: "center",
-  end: "flex-end",
-  spaceBetween: "space-between",
-  spaceAround: "space-around",
-  spaceEvenly: "space-evenly",
-  stretch: "stretch",
+  start: 'flex-start',
+  center: 'center',
+  end: 'flex-end',
+  spaceBetween: 'space-between',
+  spaceAround: 'space-around',
+  spaceEvenly: 'space-evenly',
+  stretch: 'stretch',
 };
 
 const ALIGN_MAP: Record<string, string> = {
-  start: "flex-start",
-  center: "center",
-  end: "flex-end",
-  stretch: "stretch",
+  start: 'flex-start',
+  center: 'center',
+  end: 'flex-end',
+  stretch: 'stretch',
 };
 
-@customElement("a2ui-basic-row")
+@customElement('a2ui-basic-row')
 export class A2uiBasicRowElement extends BasicCatalogA2uiLitElement<typeof RowApi> {
   /**
    * The styles of the row can be customized by redefining the following
@@ -46,7 +49,7 @@ export class A2uiBasicRowElement extends BasicCatalogA2uiLitElement<typeof RowAp
    *
    * - `--a2ui-row-gap`: The gap between items in the row. Defaults to `--a2ui-spacing-m`.
    */
-  static styles = css`
+  static override styles = css`
     :host {
       display: flex;
       flex-direction: row;
@@ -58,28 +61,26 @@ export class A2uiBasicRowElement extends BasicCatalogA2uiLitElement<typeof RowAp
     return new A2uiController(this, RowApi);
   }
 
-  updated(changedProperties: PropertyValues) {
+  override updated(changedProperties: PropertyValues) {
     super.updated(changedProperties);
     const props = this.controller.props;
     if (props) {
-      this.style.justifyContent = JUSTIFY_MAP[props.justify ?? ""] ?? "flex-start";
-      this.style.alignItems = ALIGN_MAP[props.align ?? ""] ?? "stretch";
+      this.style.justifyContent = JUSTIFY_MAP[props.justify ?? ''] ?? 'flex-start';
+      this.style.alignItems = ALIGN_MAP[props.align ?? ''] ?? 'stretch';
     }
   }
 
-  render() {
+  override render() {
     const props = this.controller.props;
     if (!props) return nothing;
 
-    const children = Array.isArray(props.children) ? props.children : [];
+    const children: ResolvedChildList = Array.isArray(props.children) ? props.children : [];
 
-    return html`
-      ${map(children, (child: any) => html`${this.renderNode(child)}`)}
-    `;
+    return html` ${map(children, child => html`${this.renderNode(child)}`)} `;
   }
 }
 
 export const A2uiRow = {
   ...RowApi,
-  tagName: "a2ui-basic-row",
+  tagName: 'a2ui-basic-row',
 };

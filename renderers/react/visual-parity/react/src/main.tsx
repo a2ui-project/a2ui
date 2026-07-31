@@ -16,10 +16,10 @@
 
 import React from 'react';
 import ReactDOM from 'react-dom/client';
-import { A2UIProvider, initializeDefaultCatalog } from '@a2ui/react';
-import { injectStyles } from '@a2ui/react/styles';
-import { FixturePage } from './FixturePage';
-import { getTheme, themeNames } from '../../fixtures/themes';
+import {A2UIProvider, initializeDefaultCatalog} from '@a2ui/react';
+import {injectStyles} from '@a2ui/react/styles';
+import {FixturePage} from './FixturePage';
+import {getTheme, themeNames} from '../../fixtures/themes';
 
 // Initialize the default component catalog
 initializeDefaultCatalog();
@@ -46,5 +46,5 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
     <A2UIProvider theme={selectedTheme}>
       <FixturePage />
     </A2UIProvider>
-  </React.StrictMode>
+  </React.StrictMode>,
 );

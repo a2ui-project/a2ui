@@ -14,10 +14,10 @@
  * limitations under the License.
  */
 
-import { describe, it, expect, vi } from 'vitest';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
-import React, { useEffect } from 'react';
-import { A2UIProvider, A2UIRenderer, useA2UI } from '../../../src/v0_8';
+import {describe, it, expect, vi} from 'vitest';
+import {render, screen, fireEvent, waitFor} from '@testing-library/react';
+import React, {useEffect} from 'react';
+import {A2UIProvider, A2UIRenderer, useA2UI} from '../../../src/v0_8';
 import type * as Types from '@a2ui/web_core/types/types';
 import {
   createSurfaceUpdate,
@@ -37,18 +37,14 @@ import {
 describe('Template Integration', () => {
   it('should expand template with dataBinding to array', () => {
     function TemplateRenderer() {
-      const { processMessages } = useA2UI();
+      const {processMessages} = useA2UI();
 
       useEffect(() => {
         processMessages([
           createDataModelUpdateSpec([
             {
               key: 'items',
-              valueString: JSON.stringify([
-                { name: 'Item A' },
-                { name: 'Item B' },
-                { name: 'Item C' },
-              ]),
+              valueString: JSON.stringify([{name: 'Item A'}, {name: 'Item B'}, {name: 'Item C'}]),
             },
           ]),
           createSurfaceUpdate([
@@ -68,7 +64,7 @@ describe('Template Integration', () => {
             {
               id: 'item-template',
               component: {
-                Text: { text: { path: 'name' }, usageHint: 'body' },
+                Text: {text: {path: 'name'}, usageHint: 'body'},
               },
             },
           ]),
@@ -82,7 +78,7 @@ describe('Template Integration', () => {
     render(
       <A2UIProvider>
         <TemplateRenderer />
-      </A2UIProvider>
+      </A2UIProvider>,
     );
 
     expect(screen.getByText('Item A')).toBeInTheDocument();
@@ -92,7 +88,7 @@ describe('Template Integration', () => {
 
   it('should handle template with primitive array values using path "."', () => {
     function PrimitiveTemplateRenderer() {
-      const { processMessages } = useA2UI();
+      const {processMessages} = useA2UI();
 
       useEffect(() => {
         processMessages([
@@ -119,7 +115,7 @@ describe('Template Integration', () => {
             {
               id: 'tag-template',
               component: {
-                Text: { text: { path: '.' }, usageHint: 'body' },
+                Text: {text: {path: '.'}, usageHint: 'body'},
               },
             },
           ]),
@@ -133,7 +129,7 @@ describe('Template Integration', () => {
     render(
       <A2UIProvider>
         <PrimitiveTemplateRenderer />
-      </A2UIProvider>
+      </A2UIProvider>,
     );
 
     expect(screen.getByText('travel')).toBeInTheDocument();
@@ -143,7 +139,7 @@ describe('Template Integration', () => {
 
   it('should expand nested templates with layered data contexts', () => {
     function NestedTemplateRenderer() {
-      const { processMessages } = useA2UI();
+      const {processMessages} = useA2UI();
 
       useEffect(() => {
         processMessages([
@@ -151,8 +147,8 @@ describe('Template Integration', () => {
             {
               key: 'days',
               valueString: JSON.stringify([
-                { title: 'Day 1', activities: ['Morning Walk', 'Museum Visit'] },
-                { title: 'Day 2', activities: ['Market Trip'] },
+                {title: 'Day 1', activities: ['Morning Walk', 'Museum Visit']},
+                {title: 'Day 2', activities: ['Market Trip']},
               ]),
             },
           ]),
@@ -174,14 +170,14 @@ describe('Template Integration', () => {
               id: 'day-template',
               component: {
                 Column: {
-                  children: { explicitList: ['day-title', 'activity-list'] },
+                  children: {explicitList: ['day-title', 'activity-list']},
                 },
               },
             },
             {
               id: 'day-title',
               component: {
-                Text: { text: { path: 'title' }, usageHint: 'body' },
+                Text: {text: {path: 'title'}, usageHint: 'body'},
               },
             },
             {
@@ -200,7 +196,7 @@ describe('Template Integration', () => {
             {
               id: 'activity-template',
               component: {
-                Text: { text: { path: '.' }, usageHint: 'body' },
+                Text: {text: {path: '.'}, usageHint: 'body'},
               },
             },
           ]),
@@ -214,7 +210,7 @@ describe('Template Integration', () => {
     render(
       <A2UIProvider>
         <NestedTemplateRenderer />
-      </A2UIProvider>
+      </A2UIProvider>,
     );
 
     expect(screen.getByText('Day 1')).toBeInTheDocument();
@@ -226,7 +222,7 @@ describe('Template Integration', () => {
 
   it('should rebuild template when data arrives after components', async () => {
     function LateDataRenderer() {
-      const { processMessages } = useA2UI();
+      const {processMessages} = useA2UI();
       const [step, setStep] = React.useState(0);
 
       useEffect(() => {
@@ -249,7 +245,7 @@ describe('Template Integration', () => {
               {
                 id: 'item-template',
                 component: {
-                  Text: { text: { path: 'name' }, usageHint: 'body' },
+                  Text: {text: {path: 'name'}, usageHint: 'body'},
                 },
               },
             ]),
@@ -262,10 +258,7 @@ describe('Template Integration', () => {
               createDataModelUpdateSpec([
                 {
                   key: 'items',
-                  valueString: JSON.stringify([
-                    { name: 'Late Item 1' },
-                    { name: 'Late Item 2' },
-                  ]),
+                  valueString: JSON.stringify([{name: 'Late Item 1'}, {name: 'Late Item 2'}]),
                 },
               ]),
             ]);
@@ -279,7 +272,7 @@ describe('Template Integration', () => {
     render(
       <A2UIProvider>
         <LateDataRenderer />
-      </A2UIProvider>
+      </A2UIProvider>,
     );
 
     await waitFor(() => {
@@ -294,7 +287,7 @@ describe('Template Integration', () => {
     // Use a top-level valueMap with flat string values that the processor converts to a Map,
     // combined with a JSON-encoded array for the iterable data.
     function MapTemplateRenderer() {
-      const { processMessages } = useA2UI();
+      const {processMessages} = useA2UI();
 
       useEffect(() => {
         processMessages([
@@ -302,8 +295,8 @@ describe('Template Integration', () => {
             {
               key: 'users',
               valueString: JSON.stringify([
-                { name: 'Alice', role: 'Admin' },
-                { name: 'Bob', role: 'User' },
+                {name: 'Alice', role: 'Admin'},
+                {name: 'Bob', role: 'User'},
               ]),
             },
           ]),
@@ -324,27 +317,27 @@ describe('Template Integration', () => {
             {
               id: 'user-card',
               component: {
-                Card: { child: 'user-info' },
+                Card: {child: 'user-info'},
               },
             },
             {
               id: 'user-info',
               component: {
                 Column: {
-                  children: { explicitList: ['user-name', 'user-role'] },
+                  children: {explicitList: ['user-name', 'user-role']},
                 },
               },
             },
             {
               id: 'user-name',
               component: {
-                Text: { text: { path: 'name' }, usageHint: 'body' },
+                Text: {text: {path: 'name'}, usageHint: 'body'},
               },
             },
             {
               id: 'user-role',
               component: {
-                Text: { text: { path: 'role' }, usageHint: 'body' },
+                Text: {text: {path: 'role'}, usageHint: 'body'},
               },
             },
           ]),
@@ -358,7 +351,7 @@ describe('Template Integration', () => {
     render(
       <A2UIProvider>
         <MapTemplateRenderer />
-      </A2UIProvider>
+      </A2UIProvider>,
     );
 
     expect(screen.getByText('Alice')).toBeInTheDocument();
@@ -371,7 +364,7 @@ describe('Template Integration', () => {
     const mockOnAction = vi.fn();
 
     function ComplexTemplateRenderer() {
-      const { processMessages } = useA2UI();
+      const {processMessages} = useA2UI();
 
       useEffect(() => {
         processMessages([
@@ -379,8 +372,8 @@ describe('Template Integration', () => {
             {
               key: 'products',
               valueString: JSON.stringify([
-                { id: 'prod-1', name: 'Widget', price: '$10' },
-                { id: 'prod-2', name: 'Gadget', price: '$20' },
+                {id: 'prod-1', name: 'Widget', price: '$10'},
+                {id: 'prod-2', name: 'Gadget', price: '$20'},
               ]),
             },
           ]),
@@ -402,20 +395,20 @@ describe('Template Integration', () => {
               id: 'product-row',
               component: {
                 Row: {
-                  children: { explicitList: ['product-name', 'product-price', 'buy-button'] },
+                  children: {explicitList: ['product-name', 'product-price', 'buy-button']},
                 },
               },
             },
             {
               id: 'product-name',
               component: {
-                Text: { text: { path: 'name' }, usageHint: 'body' },
+                Text: {text: {path: 'name'}, usageHint: 'body'},
               },
             },
             {
               id: 'product-price',
               component: {
-                Text: { text: { path: 'price' }, usageHint: 'body' },
+                Text: {text: {path: 'price'}, usageHint: 'body'},
               },
             },
             {
@@ -425,9 +418,7 @@ describe('Template Integration', () => {
                   child: 'buy-text',
                   action: {
                     name: 'buy',
-                    context: [
-                      { key: 'productId', value: { path: 'id' } },
-                    ],
+                    context: [{key: 'productId', value: {path: 'id'}}],
                   },
                 },
               },
@@ -435,7 +426,7 @@ describe('Template Integration', () => {
             {
               id: 'buy-text',
               component: {
-                Text: { text: { literalString: 'Buy' }, usageHint: 'body' },
+                Text: {text: {literalString: 'Buy'}, usageHint: 'body'},
               },
             },
           ]),
@@ -449,7 +440,7 @@ describe('Template Integration', () => {
     render(
       <A2UIProvider onAction={mockOnAction}>
         <ComplexTemplateRenderer />
-      </A2UIProvider>
+      </A2UIProvider>,
     );
 
     expect(screen.getByText('Widget')).toBeInTheDocument();
@@ -457,7 +448,7 @@ describe('Template Integration', () => {
     expect(screen.getByText('Gadget')).toBeInTheDocument();
     expect(screen.getByText('$20')).toBeInTheDocument();
 
-    const buyButtons = screen.getAllByRole('button', { name: 'Buy' });
+    const buyButtons = screen.getAllByRole('button', {name: 'Buy'});
     expect(buyButtons).toHaveLength(2);
 
     fireEvent.click(getElement(buyButtons, 0));
@@ -469,7 +460,7 @@ describe('Template Integration', () => {
 
   it('should handle empty data array gracefully', () => {
     function EmptyDataRenderer() {
-      const { processMessages } = useA2UI();
+      const {processMessages} = useA2UI();
 
       useEffect(() => {
         processMessages([
@@ -484,14 +475,14 @@ describe('Template Integration', () => {
               id: 'root',
               component: {
                 Column: {
-                  children: { explicitList: ['header', 'item-list'] },
+                  children: {explicitList: ['header', 'item-list']},
                 },
               },
             },
             {
               id: 'header',
               component: {
-                Text: { text: { literalString: 'Items:' }, usageHint: 'body' },
+                Text: {text: {literalString: 'Items:'}, usageHint: 'body'},
               },
             },
             {
@@ -510,7 +501,7 @@ describe('Template Integration', () => {
             {
               id: 'item-template',
               component: {
-                Text: { text: { path: 'name' }, usageHint: 'body' },
+                Text: {text: {path: 'name'}, usageHint: 'body'},
               },
             },
           ]),
@@ -524,7 +515,7 @@ describe('Template Integration', () => {
     render(
       <A2UIProvider>
         <EmptyDataRenderer />
-      </A2UIProvider>
+      </A2UIProvider>,
     );
 
     expect(screen.getByText('Items:')).toBeInTheDocument();
@@ -532,7 +523,7 @@ describe('Template Integration', () => {
 
   it('should update template when data changes', async () => {
     function DataChangeRenderer() {
-      const { processMessages } = useA2UI();
+      const {processMessages} = useA2UI();
       const [step, setStep] = React.useState(0);
 
       useEffect(() => {
@@ -541,7 +532,7 @@ describe('Template Integration', () => {
             createDataModelUpdateSpec([
               {
                 key: 'items',
-                valueString: JSON.stringify([{ name: 'Original' }]),
+                valueString: JSON.stringify([{name: 'Original'}]),
               },
             ]),
             createSurfaceUpdate([
@@ -561,7 +552,7 @@ describe('Template Integration', () => {
               {
                 id: 'item-template',
                 component: {
-                  Text: { text: { path: 'name' }, usageHint: 'body' },
+                  Text: {text: {path: 'name'}, usageHint: 'body'},
                 },
               },
             ]),
@@ -574,10 +565,7 @@ describe('Template Integration', () => {
               createDataModelUpdateSpec([
                 {
                   key: 'items',
-                  valueString: JSON.stringify([
-                    { name: 'Updated 1' },
-                    { name: 'Updated 2' },
-                  ]),
+                  valueString: JSON.stringify([{name: 'Updated 1'}, {name: 'Updated 2'}]),
                 },
               ]),
             ]);
@@ -591,7 +579,7 @@ describe('Template Integration', () => {
     render(
       <A2UIProvider>
         <DataChangeRenderer />
-      </A2UIProvider>
+      </A2UIProvider>,
     );
 
     expect(screen.getByText('Original')).toBeInTheDocument();

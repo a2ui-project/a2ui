@@ -71,7 +71,7 @@ export const TextField = memo(function TextField({
         setValue(textPath, newValue);
       }
     },
-    [validationRegexp, textPath, setValue]
+    [validationRegexp, textPath, setValue],
   );
 
   const inputType = fieldType === 'number' ? 'number' : fieldType === 'date' ? 'date' : 'text';

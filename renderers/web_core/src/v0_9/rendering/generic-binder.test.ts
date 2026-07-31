@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import assert from 'node:assert';
+import * as assert from 'node:assert';
 import {describe, it} from 'node:test';
 import {z} from 'zod';
 import {GenericBinder} from './generic-binder.js';
@@ -42,8 +42,7 @@ describe('GenericBinder Checkable Trait', () => {
       [
         'min_length',
         {
-          execute: (args: any) =>
-            typeof args.value === 'string' && args.value.length >= args.min,
+          execute: (args: any) => typeof args.value === 'string' && args.value.length >= args.min,
           schema: z.object({value: z.any(), min: z.number()}),
         },
       ],
@@ -85,9 +84,7 @@ describe('GenericBinder Checkable Trait', () => {
 
     // Initial state: should be invalid
     assert.strictEqual(binder.snapshot.isValid, false);
-    assert.deepStrictEqual(binder.snapshot.validationErrors, [
-      'Value is required',
-    ]);
+    assert.deepStrictEqual(binder.snapshot.validationErrors, ['Value is required']);
 
     // Update data: should become valid
     surface.dataModel.set('/val', 'hello');
@@ -138,9 +135,7 @@ describe('GenericBinder Checkable Trait', () => {
     await new Promise(resolve => setTimeout(resolve, 0));
 
     assert.strictEqual(binder.snapshot.isValid, false);
-    assert.deepStrictEqual(binder.snapshot.validationErrors, [
-      'Must be at least 3 characters',
-    ]);
+    assert.deepStrictEqual(binder.snapshot.validationErrors, ['Must be at least 3 characters']);
 
     // Update data to satisfy all rules
     surface.dataModel.set('/val', 'hello');
@@ -171,9 +166,7 @@ describe('GenericBinder Checkable Trait', () => {
     const binder = new GenericBinder<any>(context, schema);
 
     assert.strictEqual(binder.snapshot.isValid, false);
-    assert.deepStrictEqual(binder.snapshot.validationErrors, [
-      'Validation failed',
-    ]);
+    assert.deepStrictEqual(binder.snapshot.validationErrors, ['Validation failed']);
   });
 
   it('should default to valid if checks array is empty or undefined', async () => {

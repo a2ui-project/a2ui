@@ -1,0 +1,149 @@
+# Copyright 2026 Google LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+- name: test_parse_empty_response
+  description: Tests that empty response raises error.
+  action: parse_full
+  input: ""
+  expect_error:
+    category: "ParseError"
+    message: "not found in response"
+
+- name: test_parse_response_only_text_no_tags
+  description: Tests that response without tags raises error.
+  action: parse_full
+  input: "Only text, no tags."
+  expect_error:
+    category: "ParseError"
+    message: "not found in response"
+
+- name: test_parse_response_empty_tags
+  description: Tests that empty tags raise error.
+  action: parse_full
+  input: "<a2ui-json></a2ui-json>"
+  expect_error:
+    category: "ParseError"
+    message: "A2UI JSON part is empty"
+
+- name: test_parse_response_only_json_with_tags
+  description: Tests parsing only JSON with tags.
+  action: parse_full
+  input: '<a2ui-json>[{"id": "test"}]</a2ui-json>'
+  expect:
+    - text: ""
+      a2ui: [{"id": "test"}]
+
+- name: test_parse_response_with_text_and_tags
+  description: Tests parsing response with text before tags.
+  action: parse_full
+  input: "Hello\n<a2ui-json>[{\"id\": \"test\"}]</a2ui-json>"
+  expect:
+    - text: "Hello"
+      a2ui: [{"id": "test"}]
+
+- name: test_parse_response_with_trailing_text
+  description: Tests parsing response with trailing text.
+  action: parse_full
+  input: "Hello\n<a2ui-json>[{\"id\": \"test\"}]</a2ui-json>\nGoodbye"
+  expect:
+    - text: "Hello"
+      a2ui: [{"id": "test"}]
+    - text: "Goodbye"
+
+- name: test_parse_response_multiple_blocks
+  description: Tests parsing multiple blocks.
+  action: parse_full
+  input: "Part 1\n<a2ui-json>\n[{\"id\": \"1\"}]\n</a2ui-json>\nPart 2\n<a2ui-json>\n[{\"id\": \"2\"}]\n</a2ui-json>\nPart 3"
+  expect:
+    - text: "Part 1"
+      a2ui: [{"id": "1"}]
+    - text: "Part 2"
+      a2ui: [{"id": "2"}]
+    - text: "Part 3"
+
+- name: test_parse_response_with_markdown_blocks
+  description: Tests stripping markdown code blocks inside tags.
+  action: parse_full
+  input: "Text\n<a2ui-json>\n```json\n[{\"id\": \"test\"}]\n```\n</a2ui-json>"
+  expect:
+    - text: "Text"
+      a2ui: [{"id": "test"}]
+
+- name: test_parse_response_invalid_json
+  description: Tests that invalid JSON raises error.
+  action: parse_full
+  input: "<a2ui-json>\ninvalid_json\n</a2ui-json>"
+  expect_error:
+    category: "ParseError"
+    message: "Failed to parse"
+
+- name: test_fix_payload_trailing_comma_list
+  description: Tests removing trailing comma in list.
+  action: fix_payload
+  input: '[{"type": "Text", "text": "Hello"},]'
+  expect: [{"type": "Text", "text": "Hello"}]
+
+- name: test_fix_payload_trailing_comma_object
+  description: Tests removing trailing comma in object.
+  action: fix_payload
+  input: '{"type": "Text", "text": "Hello",}'
+  expect: [{"type": "Text", "text": "Hello"}]
+
+- name: test_fix_payload_auto_wrap
+  description: Tests auto-wrapping single object in list.
+  action: fix_payload
+  input: '{"type": "Text", "text": "Hello"}'
+  expect: [{"type": "Text", "text": "Hello"}]
+
+- name: test_fix_payload_smart_quotes
+  description: Tests normalizing smart quotes.
+  action: fix_payload
+  input: '{"type": “Text”, "other": "Value’s"}'
+  expect: [{"type": "Text", "other": "Value's"}]
+
+- name: test_has_a2ui_parts_true
+  description: Tests that has_a2ui_parts returns true when tags are present.
+  action: has_parts
+  input: "Hello <a2ui-json>[]</a2ui-json> World"
+  expect: true
+
+- name: test_has_a2ui_parts_false_no_tags
+  description: Tests that has_a2ui_parts returns false when no tags are present.
+  action: has_parts
+  input: "Hello World"
+  expect: false
+
+- name: test_has_a2ui_parts_false_only_open
+  description: Tests that has_a2ui_parts returns false when only open tag is present.
+  action: has_parts
+  input: "Hello <a2ui-json> World"
+  expect: false
+
+- name: test_fix_payload_commas_in_strings
+  description: "Tests that commas in strings are not removed."
+  action: fix_payload
+  input: '{"text": "Hello, world", "array": ["a,b", "c"]}'
+  expect: [{"text": "Hello, world", "array": ["a,b", "c"]}]
+
+- name: test_fix_payload_trailing_comma_nested_object
+  description: Tests removing trailing comma in a nested object.
+  action: fix_payload
+  input: '{"a": {"b": 1,}}'
+  expect: [{"a": {"b": 1}}]
+
+- name: test_fix_payload_trailing_comma_nested_array
+  description: Tests removing trailing comma in a nested array.
+  action: fix_payload
+  input: '[{"a": [1, 2, 3,]}]'
+  expect: [{"a": [1, 2, 3]}]

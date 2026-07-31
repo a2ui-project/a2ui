@@ -70,7 +70,7 @@ export const Modal = memo(function Modal({node, surfaceId}: A2UIComponentProps<T
         closeModal();
       }
     },
-    [closeModal]
+    [closeModal],
   );
 
   // Handle Escape key (for jsdom test compatibility - real browsers use native dialog behavior)
@@ -80,7 +80,7 @@ export const Modal = memo(function Modal({node, surfaceId}: A2UIComponentProps<T
         closeModal();
       }
     },
-    [closeModal]
+    [closeModal],
   );
 
   // Apply --weight CSS variable on root div (:host equivalent) for flex layouts

@@ -16,11 +16,7 @@
           "component": {
             "Column": {
               "children": {
-                "explicitList": [
-                  "header-row",
-                  "divider",
-                  "actions"
-                ]
+                "explicitList": ["header-row", "divider", "actions"]
               }
             }
           }
@@ -30,10 +26,7 @@
           "component": {
             "Row": {
               "children": {
-                "explicitList": [
-                  "date-col",
-                  "events-col"
-                ]
+                "explicitList": ["date-col", "events-col"]
               }
             }
           }
@@ -43,10 +36,7 @@
           "component": {
             "Column": {
               "children": {
-                "explicitList": [
-                  "day-name",
-                  "day-number"
-                ]
+                "explicitList": ["day-name", "day-number"]
               },
               "alignment": "start"
             }
@@ -79,11 +69,7 @@
           "component": {
             "Column": {
               "children": {
-                "explicitList": [
-                  "event1",
-                  "event2",
-                  "event3"
-                ]
+                "explicitList": ["event1", "event2", "event3"]
               }
             }
           }
@@ -93,10 +79,7 @@
           "component": {
             "Column": {
               "children": {
-                "explicitList": [
-                  "event1-title",
-                  "event1-time"
-                ]
+                "explicitList": ["event1-title", "event1-time"]
               }
             }
           }
@@ -128,10 +111,7 @@
           "component": {
             "Column": {
               "children": {
-                "explicitList": [
-                  "event2-title",
-                  "event2-time"
-                ]
+                "explicitList": ["event2-title", "event2-time"]
               }
             }
           }
@@ -163,10 +143,7 @@
           "component": {
             "Column": {
               "children": {
-                "explicitList": [
-                  "event3-title",
-                  "event3-time"
-                ]
+                "explicitList": ["event3-title", "event3-time"]
               }
             }
           }
@@ -204,10 +181,7 @@
           "component": {
             "Row": {
               "children": {
-                "explicitList": [
-                  "add-btn",
-                  "discard-btn"
-                ]
+                "explicitList": ["add-btn", "discard-btn"]
               }
             }
           }

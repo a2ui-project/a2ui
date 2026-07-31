@@ -24,12 +24,12 @@ import {
   PLATFORM_ID,
   ComponentRef,
 } from '@angular/core';
-import { DOCUMENT, isPlatformBrowser } from '@angular/common';
-import { structuralStyles } from '@a2ui/web_core/styles/index';
-import { Catalog } from './catalog';
-import { MessageProcessor } from '../data';
-import { Types } from '../types';
-import { DynamicComponent } from './dynamic-component';
+import {DOCUMENT, isPlatformBrowser} from '@angular/common';
+import {structuralStyles} from '@a2ui/web_core/styles/index';
+import {Catalog} from './catalog';
+import {MessageProcessor} from '../data';
+import type {AnyComponentNode, SurfaceID} from '../types';
+import {DynamicComponent} from './dynamic-component';
 
 @Directive({
   selector: '[a2ui-renderer]',
@@ -42,12 +42,12 @@ export class Renderer {
   private readonly container = inject(ViewContainerRef);
   private readonly processor: MessageProcessor = inject(MessageProcessor);
 
-  readonly surfaceId = input.required<Types.SurfaceID>();
-  readonly component = input.required<Types.AnyComponentNode>();
+  readonly surfaceId = input.required<SurfaceID>();
+  readonly component = input.required<AnyComponentNode>();
 
   private currentId: string | null = null;
   private currentType: string | null = null;
-  private currentComponentRef: ComponentRef<DynamicComponent<Types.AnyComponentNode>> | null = null;
+  private currentComponentRef: ComponentRef<DynamicComponent<AnyComponentNode>> | null = null;
 
   constructor() {
     const platformId = inject(PLATFORM_ID);
@@ -61,8 +61,8 @@ export class Renderer {
     }
 
     effect(() => {
-      // Explicitly depend on the MessageProcessor's version signal. This ensures that the effect re-runs 
-      // whenever data model changes occur, even if the node's object reference remains identical 
+      // Explicitly depend on the MessageProcessor's version signal. This ensures that the effect re-runs
+      // whenever data model changes occur, even if the node's object reference remains identical
       // (as in the case of in-place mutations from local updates).
       this.processor.version();
 
@@ -87,7 +87,7 @@ export class Renderer {
 
       // Focus Loss Prevention:
       // If we have an existing component and its unique identity (ID and Type) hasn't changed,
-      // we update its @Input() values in-place. This preserves the underlying DOM element, 
+      // we update its @Input() values in-place. This preserves the underlying DOM element,
       // maintaining focus, text selection, and cursor position.
       if (this.currentComponentRef && this.currentId === id && this.currentType === type) {
         this.updateInputs(this.currentComponentRef, node, surfaceId);
@@ -113,23 +113,27 @@ export class Renderer {
 
   private render(
     container: ViewContainerRef,
-    node: Types.AnyComponentNode,
+    node: AnyComponentNode,
     surfaceId: string,
     config: any,
   ) {
     const componentTypeOrPromise = this.resolveComponentType(config);
 
     if (componentTypeOrPromise instanceof Promise) {
-      componentTypeOrPromise.then((componentType) => {
+      componentTypeOrPromise.then(componentType => {
         // Ensure we are still supposed to render this component
         if (this.currentId === node.id && this.currentType === node.type) {
-          const componentRef = container.createComponent(componentType) as ComponentRef<DynamicComponent<Types.AnyComponentNode>>;
+          const componentRef = container.createComponent(componentType) as ComponentRef<
+            DynamicComponent<AnyComponentNode>
+          >;
           this.currentComponentRef = componentRef;
           this.updateInputs(componentRef, node, surfaceId);
         }
       });
     } else if (componentTypeOrPromise) {
-      const componentRef = container.createComponent(componentTypeOrPromise) as ComponentRef<DynamicComponent<Types.AnyComponentNode>>;
+      const componentRef = container.createComponent(componentTypeOrPromise) as ComponentRef<
+        DynamicComponent<AnyComponentNode>
+      >;
       this.currentComponentRef = componentRef;
       this.updateInputs(componentRef, node, surfaceId);
     }
@@ -148,27 +152,29 @@ export class Renderer {
     return null;
   }
 
-  /** 
+  /**
    * Updates the inputs of an existing component instance with the latest data from the node.
    * This is called during component reuse to keep the UI in sync without losing DOM state (like focus).
    */
   private updateInputs(
-    componentRef: ComponentRef<DynamicComponent<Types.AnyComponentNode>>,
-    node: Types.AnyComponentNode,
+    componentRef: ComponentRef<DynamicComponent<AnyComponentNode>>,
+    node: AnyComponentNode,
     surfaceId: string,
   ) {
     componentRef.setInput('surfaceId', surfaceId);
     componentRef.setInput('component', node);
     componentRef.setInput('weight', node.weight ?? 0);
 
-    const props = node.properties as Record<string, unknown>;
-    for (const [key, value] of Object.entries(props)) {
-      try {
-        componentRef.setInput(key, value);
-      } catch (e) {
-        console.warn(
-          `[Renderer] Property "${key}" could not be set on component ${node.type}. If this property is required by the specification, ensure the component declares it as an input.`,
-        );
+    if (node.properties) {
+      const props = node.properties as Record<string, unknown>;
+      for (const [key, value] of Object.entries(props)) {
+        try {
+          componentRef.setInput(key, value);
+        } catch {
+          console.warn(
+            `[Renderer] Property "${key}" could not be set on component ${node.type}. If this property is required by the specification, ensure the component declares it as an input.`,
+          );
+        }
       }
     }
     componentRef.changeDetectorRef.markForCheck();

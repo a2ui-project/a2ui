@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-import { PaletteKey, PaletteKeyVals, shades } from "../types/colors.js";
-import { toProp } from "./utils.js";
+import {PaletteKey, PaletteKeyVals, shades} from '../types/colors.js';
+import {toProp} from './utils.js';
 
 const color = <C extends PaletteKeyVals>(src: PaletteKey<C>) =>
   `
@@ -26,7 +26,7 @@ const color = <C extends PaletteKeyVals>(src: PaletteKey<C>) =>
           key,
         )}), var(${toProp(inverseKey)})); }`;
       })
-      .join("\n")}
+      .join('\n')}
 
     ${src
       .map((key: string) => {
@@ -51,9 +51,9 @@ const color = <C extends PaletteKeyVals>(src: PaletteKey<C>) =>
         `);
         }
 
-        return vals.join("\n");
+        return vals.join('\n');
       })
-      .join("\n")}
+      .join('\n')}
 
   ${src
     .map((key: string) => {
@@ -62,7 +62,7 @@ const color = <C extends PaletteKeyVals>(src: PaletteKey<C>) =>
         key,
       )}), var(${toProp(inverseKey)})); }`;
     })
-    .join("\n")}
+    .join('\n')}
   `;
 
 const getInverseKey = (key: string): string => {
@@ -78,16 +78,16 @@ const getInverseKey = (key: string): string => {
 };
 
 const keyFactory = <K extends PaletteKeyVals>(prefix: K) => {
-  return shades.map((v) => `${prefix}${v}`) as PaletteKey<K>;
+  return shades.map(v => `${prefix}${v}`) as PaletteKey<K>;
 };
 
 export const colors = [
-  color(keyFactory("p")),
-  color(keyFactory("s")),
-  color(keyFactory("t")),
-  color(keyFactory("n")),
-  color(keyFactory("nv")),
-  color(keyFactory("e")),
+  color(keyFactory('p')),
+  color(keyFactory('s')),
+  color(keyFactory('t')),
+  color(keyFactory('n')),
+  color(keyFactory('nv')),
+  color(keyFactory('e')),
   `
     .color-bgc-transparent {
       background-color: transparent;

@@ -16,11 +16,7 @@
           "component": {
             "Column": {
               "children": {
-                "explicitList": [
-                  "card-type-row",
-                  "card-number",
-                  "card-details"
-                ]
+                "explicitList": ["card-type-row", "card-number", "card-details"]
               }
             }
           }
@@ -30,10 +26,7 @@
           "component": {
             "Row": {
               "children": {
-                "explicitList": [
-                  "card-icon",
-                  "card-type"
-                ]
+                "explicitList": ["card-icon", "card-type"]
               },
               "distribution": "spaceBetween",
               "alignment": "center"
@@ -77,10 +70,7 @@
           "component": {
             "Row": {
               "children": {
-                "explicitList": [
-                  "holder-col",
-                  "expiry-col"
-                ]
+                "explicitList": ["holder-col", "expiry-col"]
               },
               "distribution": "spaceBetween"
             }
@@ -91,10 +81,7 @@
           "component": {
             "Column": {
               "children": {
-                "explicitList": [
-                  "holder-label",
-                  "holder-name"
-                ]
+                "explicitList": ["holder-label", "holder-name"]
               }
             }
           }
@@ -126,10 +113,7 @@
           "component": {
             "Column": {
               "children": {
-                "explicitList": [
-                  "expiry-label",
-                  "expiry-date"
-                ]
+                "explicitList": ["expiry-label", "expiry-date"]
               },
               "alignment": "end"
             }

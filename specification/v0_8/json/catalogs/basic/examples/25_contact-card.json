@@ -74,11 +74,7 @@
           "component": {
             "Column": {
               "children": {
-                "explicitList": [
-                  "phone-row",
-                  "email-row",
-                  "location-row"
-                ]
+                "explicitList": ["phone-row", "email-row", "location-row"]
               }
             }
           }
@@ -88,10 +84,7 @@
           "component": {
             "Row": {
               "children": {
-                "explicitList": [
-                  "phone-icon",
-                  "phone-text"
-                ]
+                "explicitList": ["phone-icon", "phone-text"]
               },
               "alignment": "center"
             }
@@ -123,10 +116,7 @@
           "component": {
             "Row": {
               "children": {
-                "explicitList": [
-                  "email-icon",
-                  "email-text"
-                ]
+                "explicitList": ["email-icon", "email-text"]
               },
               "alignment": "center"
             }
@@ -158,10 +148,7 @@
           "component": {
             "Row": {
               "children": {
-                "explicitList": [
-                  "location-icon",
-                  "location-text"
-                ]
+                "explicitList": ["location-icon", "location-text"]
               },
               "alignment": "center"
             }
@@ -193,10 +180,7 @@
           "component": {
             "Row": {
               "children": {
-                "explicitList": [
-                  "call-btn",
-                  "message-btn"
-                ]
+                "explicitList": ["call-btn", "message-btn"]
               }
             }
           }

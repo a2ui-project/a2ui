@@ -14,10 +14,10 @@
  * limitations under the License.
  */
 
-import { describe, it, expect } from 'vitest';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
-import React, { useEffect } from 'react';
-import { A2UIProvider, A2UIRenderer, useA2UI } from '../../../src/v0_8';
+import {describe, it, expect} from 'vitest';
+import {render, screen, fireEvent, waitFor} from '@testing-library/react';
+import React, {useEffect} from 'react';
+import {A2UIProvider, A2UIRenderer, useA2UI} from '../../../src/v0_8';
 import type * as Types from '@a2ui/web_core/types/types';
 import {
   TestWrapper,
@@ -37,18 +37,16 @@ describe('Data Binding', () => {
   describe('dataModelUpdate Messages', () => {
     it('should initialize data model via dataModelUpdate before rendering', () => {
       function DataModelRenderer() {
-        const { processMessages } = useA2UI();
+        const {processMessages} = useA2UI();
 
         useEffect(() => {
           processMessages([
-            createDataModelUpdate([
-              { key: 'greeting', valueString: 'Hello from data model'},
-            ]),
+            createDataModelUpdate([{key: 'greeting', valueString: 'Hello from data model'}]),
             createSurfaceUpdate([
               {
                 id: 'text-1',
                 component: {
-                  Text: { text: { path: 'greeting' }, usageHint: 'body' },
+                  Text: {text: {path: 'greeting'}, usageHint: 'body'},
                 },
               },
             ]),
@@ -62,7 +60,7 @@ describe('Data Binding', () => {
       render(
         <A2UIProvider>
           <DataModelRenderer />
-        </A2UIProvider>
+        </A2UIProvider>,
       );
 
       expect(screen.getByText('Hello from data model')).toBeInTheDocument();
@@ -70,24 +68,25 @@ describe('Data Binding', () => {
 
     it('should update existing data model values', async () => {
       function DataUpdateRenderer() {
-        const { processMessages } = useA2UI();
+        const {processMessages} = useA2UI();
         const [step, setStep] = React.useState(0);
 
         useEffect(() => {
           if (step === 0) {
             processMessages([
-              createDataModelUpdate([{ key: 'counter', valueString: 'Count: 0'}]),
+              createDataModelUpdate([{key: 'counter', valueString: 'Count: 0'}]),
               createSurfaceUpdate([
-                { id: 'text-1', component: { Text: { text: { path: 'counter' } , usageHint: 'body' } } },
+                {
+                  id: 'text-1',
+                  component: {Text: {text: {path: 'counter'}, usageHint: 'body'}},
+                },
               ]),
               createBeginRendering('text-1'),
             ]);
             setStep(1);
           } else if (step === 1) {
             setTimeout(() => {
-              processMessages([
-                createDataModelUpdate([{ key: 'counter', valueString: 'Count: 1'}]),
-              ]);
+              processMessages([createDataModelUpdate([{key: 'counter', valueString: 'Count: 1'}])]);
             }, 10);
           }
         }, [processMessages, step]);
@@ -98,7 +97,7 @@ describe('Data Binding', () => {
       render(
         <A2UIProvider>
           <DataUpdateRenderer />
-        </A2UIProvider>
+        </A2UIProvider>,
       );
 
       await waitFor(() => {
@@ -110,7 +109,7 @@ describe('Data Binding', () => {
   describe('Path Bindings', () => {
     it('should propagate data changes across components sharing the same path', async () => {
       function SharedDataRenderer() {
-        const { processMessages } = useA2UI();
+        const {processMessages} = useA2UI();
 
         useEffect(() => {
           processMessages([
@@ -119,21 +118,21 @@ describe('Data Binding', () => {
                 id: 'tf-1',
                 component: {
                   TextField: {
-                    text: { path: 'shared.name' },
-                    label: { literalString: 'Name' },
+                    text: {path: 'shared.name'},
+                    label: {literalString: 'Name'},
                   },
                 },
               },
               {
                 id: 'text-1',
                 component: {
-                  Text: { text: { path: 'shared.name' }, usageHint: 'body' },
+                  Text: {text: {path: 'shared.name'}, usageHint: 'body'},
                 },
               },
               {
                 id: 'col-1',
                 component: {
-                  Column: { children: { explicitList: ['tf-1', 'text-1'] } },
+                  Column: {children: {explicitList: ['tf-1', 'text-1']}},
                 },
               },
             ]),
@@ -144,16 +143,16 @@ describe('Data Binding', () => {
         return <A2UIRenderer surfaceId="@default" />;
       }
 
-      const { container } = render(
+      const {container} = render(
         <A2UIProvider>
           <SharedDataRenderer />
-        </A2UIProvider>
+        </A2UIProvider>,
       );
 
       const input = container.querySelector('input');
       expect(input).toBeInTheDocument();
 
-      fireEvent.change(input!, { target: { value: 'Alice' } });
+      fireEvent.change(input!, {target: {value: 'Alice'}});
 
       await waitFor(() => {
         expect(screen.getByText('Alice')).toBeInTheDocument();
@@ -167,8 +166,8 @@ describe('Data Binding', () => {
             id: 'tf-1',
             component: {
               TextField: {
-                value: { path: 'form.username' },
-                label: { literalString: 'Username' },
+                value: {path: 'form.username'},
+                label: {literalString: 'Username'},
               },
             },
           },
@@ -176,16 +175,16 @@ describe('Data Binding', () => {
         createBeginRendering('tf-1'),
       ];
 
-      const { container } = render(
+      const {container} = render(
         <TestWrapper>
           <TestRenderer messages={messages} />
-        </TestWrapper>
+        </TestWrapper>,
       );
 
       const input = container.querySelector('input');
       expect(input).toBeInTheDocument();
 
-      fireEvent.change(input!, { target: { value: 'testuser' } });
+      fireEvent.change(input!, {target: {value: 'testuser'}});
       expect(input).toHaveValue('testuser');
     });
 
@@ -196,8 +195,8 @@ describe('Data Binding', () => {
             id: 'cb-1',
             component: {
               CheckBox: {
-                value: { path: 'form.agree' },
-                label: { literalString: 'I agree' },
+                value: {path: 'form.agree'},
+                label: {literalString: 'I agree'},
               },
             },
           },
@@ -205,10 +204,10 @@ describe('Data Binding', () => {
         createBeginRendering('cb-1'),
       ];
 
-      const { container } = render(
+      const {container} = render(
         <TestWrapper>
           <TestRenderer messages={messages} />
-        </TestWrapper>
+        </TestWrapper>,
       );
 
       const checkbox = container.querySelector('input[type="checkbox"]') as HTMLInputElement;
@@ -223,20 +222,20 @@ describe('Data Binding', () => {
   describe('Server-Driven Data Model Updates', () => {
     it('should update TextField when dataModelUpdate changes bound path value', async () => {
       function TextFieldDataUpdateRenderer() {
-        const { processMessages } = useA2UI();
+        const {processMessages} = useA2UI();
         const [stage, setStage] = React.useState<'initial' | 'updated'>('initial');
 
         useEffect(() => {
           if (stage === 'initial') {
             processMessages([
-              createDataModelUpdate([{ key: 'user.name', valueString: 'Alice'}]),
+              createDataModelUpdate([{key: 'user.name', valueString: 'Alice'}]),
               createSurfaceUpdate([
                 {
                   id: 'tf-1',
                   component: {
                     TextField: {
-                      text: { path: 'user.name' },
-                      label: { literalString: 'Name' },
+                      text: {path: 'user.name'},
+                      label: {literalString: 'Name'},
                     },
                   },
                 },
@@ -245,9 +244,7 @@ describe('Data Binding', () => {
             ]);
             setTimeout(() => setStage('updated'), 10);
           } else if (stage === 'updated') {
-            processMessages([
-              createDataModelUpdate([{ key: 'user.name', valueString: 'Bob'}]),
-            ]);
+            processMessages([createDataModelUpdate([{key: 'user.name', valueString: 'Bob'}])]);
           }
         }, [processMessages, stage]);
 
@@ -259,10 +256,10 @@ describe('Data Binding', () => {
         );
       }
 
-      const { container } = render(
+      const {container} = render(
         <A2UIProvider>
           <TextFieldDataUpdateRenderer />
-        </A2UIProvider>
+        </A2UIProvider>,
       );
 
       const input = container.querySelector('input') as HTMLInputElement;
@@ -276,20 +273,20 @@ describe('Data Binding', () => {
 
     it('should update CheckBox when dataModelUpdate changes bound path value', async () => {
       function CheckBoxDataUpdateRenderer() {
-        const { processMessages } = useA2UI();
+        const {processMessages} = useA2UI();
         const [stage, setStage] = React.useState<'initial' | 'updated'>('initial');
 
         useEffect(() => {
           if (stage === 'initial') {
             processMessages([
-              createDataModelUpdate([{ key: 'settings.enabled', valueBoolean: false}]),
+              createDataModelUpdate([{key: 'settings.enabled', valueBoolean: false}]),
               createSurfaceUpdate([
                 {
                   id: 'cb-1',
                   component: {
                     CheckBox: {
-                      value: { path: 'settings.enabled' },
-                      label: { literalString: 'Enable feature' },
+                      value: {path: 'settings.enabled'},
+                      label: {literalString: 'Enable feature'},
                     },
                   },
                 },
@@ -299,7 +296,7 @@ describe('Data Binding', () => {
             setTimeout(() => setStage('updated'), 10);
           } else if (stage === 'updated') {
             processMessages([
-              createDataModelUpdate([{ key: 'settings.enabled', valueBoolean: true}]),
+              createDataModelUpdate([{key: 'settings.enabled', valueBoolean: true}]),
             ]);
           }
         }, [processMessages, stage]);
@@ -315,7 +312,7 @@ describe('Data Binding', () => {
       render(
         <A2UIProvider>
           <CheckBoxDataUpdateRenderer />
-        </A2UIProvider>
+        </A2UIProvider>,
       );
 
       expect(screen.getByRole('checkbox')).not.toBeChecked();
@@ -328,19 +325,19 @@ describe('Data Binding', () => {
 
     it('should update Slider when dataModelUpdate changes bound path value', async () => {
       function SliderDataUpdateRenderer() {
-        const { processMessages } = useA2UI();
+        const {processMessages} = useA2UI();
         const [stage, setStage] = React.useState<'initial' | 'updated'>('initial');
 
         useEffect(() => {
           if (stage === 'initial') {
             processMessages([
-              createDataModelUpdate([{ key: 'volume', valueNumber: 30}]),
+              createDataModelUpdate([{key: 'volume', valueNumber: 30}]),
               createSurfaceUpdate([
                 {
                   id: 'slider-1',
                   component: {
                     Slider: {
-                      value: { path: 'volume' },
+                      value: {path: 'volume'},
                       minValue: 0,
                       maxValue: 100,
                     },
@@ -351,9 +348,7 @@ describe('Data Binding', () => {
             ]);
             setTimeout(() => setStage('updated'), 10);
           } else if (stage === 'updated') {
-            processMessages([
-              createDataModelUpdate([{ key: 'volume', valueNumber: 80}]),
-            ]);
+            processMessages([createDataModelUpdate([{key: 'volume', valueNumber: 80}])]);
           }
         }, [processMessages, stage]);
 
@@ -368,7 +363,7 @@ describe('Data Binding', () => {
       render(
         <A2UIProvider>
           <SliderDataUpdateRenderer />
-        </A2UIProvider>
+        </A2UIProvider>,
       );
 
       expect(screen.getByRole('slider')).toHaveValue('30');
@@ -381,30 +376,30 @@ describe('Data Binding', () => {
 
     it('should update multiple components bound to the same path simultaneously', async () => {
       function MultiComponentDataUpdateRenderer() {
-        const { processMessages } = useA2UI();
+        const {processMessages} = useA2UI();
         const [stage, setStage] = React.useState<'initial' | 'updated'>('initial');
 
         useEffect(() => {
           if (stage === 'initial') {
             processMessages([
-              createDataModelUpdate([{ key: 'shared.value', valueString: 'Initial'}]),
+              createDataModelUpdate([{key: 'shared.value', valueString: 'Initial'}]),
               createSurfaceUpdate([
                 {
                   id: 'text-1',
-                  component: { Text: { text: { path: 'shared.value' } , usageHint: 'body' } },
+                  component: {Text: {text: {path: 'shared.value'}, usageHint: 'body'}},
                 },
                 {
                   id: 'tf-1',
                   component: {
                     TextField: {
-                      text: { path: 'shared.value' },
-                      label: { literalString: 'Input' },
+                      text: {path: 'shared.value'},
+                      label: {literalString: 'Input'},
                     },
                   },
                 },
                 {
                   id: 'col-1',
-                  component: { Column: { children: { explicitList: ['text-1', 'tf-1'] } } },
+                  component: {Column: {children: {explicitList: ['text-1', 'tf-1']}}},
                 },
               ]),
               createBeginRendering('col-1'),
@@ -412,7 +407,7 @@ describe('Data Binding', () => {
             setTimeout(() => setStage('updated'), 10);
           } else if (stage === 'updated') {
             processMessages([
-              createDataModelUpdate([{ key: 'shared.value', valueString: 'Updated'}]),
+              createDataModelUpdate([{key: 'shared.value', valueString: 'Updated'}]),
             ]);
           }
         }, [processMessages, stage]);
@@ -425,10 +420,10 @@ describe('Data Binding', () => {
         );
       }
 
-      const { container } = render(
+      const {container} = render(
         <A2UIProvider>
           <MultiComponentDataUpdateRenderer />
-        </A2UIProvider>
+        </A2UIProvider>,
       );
 
       expect(screen.getByText('Initial')).toBeInTheDocument();
@@ -444,22 +439,28 @@ describe('Data Binding', () => {
 
     it('should handle dataModelUpdate with multiple key/value pairs at once', async () => {
       function MultiKeyDataUpdateRenderer() {
-        const { processMessages } = useA2UI();
+        const {processMessages} = useA2UI();
         const [stage, setStage] = React.useState<'initial' | 'updated'>('initial');
 
         useEffect(() => {
           if (stage === 'initial') {
             processMessages([
               createDataModelUpdate([
-                { key: 'form.firstName', valueString: 'John'},
-                { key: 'form.lastName', valueString: 'Doe'},
+                {key: 'form.firstName', valueString: 'John'},
+                {key: 'form.lastName', valueString: 'Doe'},
               ]),
               createSurfaceUpdate([
-                { id: 'text-first', component: { Text: { text: { path: 'form.firstName' } , usageHint: 'body' } } },
-                { id: 'text-last', component: { Text: { text: { path: 'form.lastName' } , usageHint: 'body' } } },
+                {
+                  id: 'text-first',
+                  component: {Text: {text: {path: 'form.firstName'}, usageHint: 'body'}},
+                },
+                {
+                  id: 'text-last',
+                  component: {Text: {text: {path: 'form.lastName'}, usageHint: 'body'}},
+                },
                 {
                   id: 'row-1',
-                  component: { Row: { children: { explicitList: ['text-first', 'text-last'] } } },
+                  component: {Row: {children: {explicitList: ['text-first', 'text-last']}}},
                 },
               ]),
               createBeginRendering('row-1'),
@@ -468,8 +469,8 @@ describe('Data Binding', () => {
           } else if (stage === 'updated') {
             processMessages([
               createDataModelUpdate([
-                { key: 'form.firstName', valueString: 'Jane'},
-                { key: 'form.lastName', valueString: 'Smith'},
+                {key: 'form.firstName', valueString: 'Jane'},
+                {key: 'form.lastName', valueString: 'Smith'},
               ]),
             ]);
           }
@@ -486,7 +487,7 @@ describe('Data Binding', () => {
       render(
         <A2UIProvider>
           <MultiKeyDataUpdateRenderer />
-        </A2UIProvider>
+        </A2UIProvider>,
       );
 
       expect(screen.getByText('John')).toBeInTheDocument();
@@ -503,19 +504,19 @@ describe('Data Binding', () => {
 
     it('should handle deeply nested path values in dataModelUpdate', async () => {
       function NestedPathRenderer() {
-        const { processMessages } = useA2UI();
+        const {processMessages} = useA2UI();
         const [stage, setStage] = React.useState<'initial' | 'updated'>('initial');
 
         useEffect(() => {
           if (stage === 'initial') {
             processMessages([
-              createDataModelUpdate([
-                { key: 'user.profile.address.city', valueString: 'New York'},
-              ]),
+              createDataModelUpdate([{key: 'user.profile.address.city', valueString: 'New York'}]),
               createSurfaceUpdate([
                 {
                   id: 'text-1',
-                  component: { Text: { text: { path: 'user.profile.address.city' } , usageHint: 'body' } },
+                  component: {
+                    Text: {text: {path: 'user.profile.address.city'}, usageHint: 'body'},
+                  },
                 },
               ]),
               createBeginRendering('text-1'),
@@ -524,7 +525,7 @@ describe('Data Binding', () => {
           } else if (stage === 'updated') {
             processMessages([
               createDataModelUpdate([
-                { key: 'user.profile.address.city', valueString: 'Los Angeles'},
+                {key: 'user.profile.address.city', valueString: 'Los Angeles'},
               ]),
             ]);
           }
@@ -541,7 +542,7 @@ describe('Data Binding', () => {
       render(
         <A2UIProvider>
           <NestedPathRenderer />
-        </A2UIProvider>
+        </A2UIProvider>,
       );
 
       expect(screen.getByText('New York')).toBeInTheDocument();
@@ -555,19 +556,19 @@ describe('Data Binding', () => {
 
     it('should update DateTimeInput when dataModelUpdate changes bound path value', async () => {
       function DateTimeInputDataUpdateRenderer() {
-        const { processMessages } = useA2UI();
+        const {processMessages} = useA2UI();
         const [stage, setStage] = React.useState<'initial' | 'updated'>('initial');
 
         useEffect(() => {
           if (stage === 'initial') {
             processMessages([
-              createDataModelUpdate([{ key: 'appointment.date', valueString: '2024-01-15'}]),
+              createDataModelUpdate([{key: 'appointment.date', valueString: '2024-01-15'}]),
               createSurfaceUpdate([
                 {
                   id: 'dt-1',
                   component: {
                     DateTimeInput: {
-                      value: { path: 'appointment.date' },
+                      value: {path: 'appointment.date'},
                       enableDate: true,
                       enableTime: false,
                     },
@@ -579,7 +580,7 @@ describe('Data Binding', () => {
             setTimeout(() => setStage('updated'), 10);
           } else if (stage === 'updated') {
             processMessages([
-              createDataModelUpdate([{ key: 'appointment.date', valueString: '2024-06-20'}]),
+              createDataModelUpdate([{key: 'appointment.date', valueString: '2024-06-20'}]),
             ]);
           }
         }, [processMessages, stage]);
@@ -592,10 +593,10 @@ describe('Data Binding', () => {
         );
       }
 
-      const { container } = render(
+      const {container} = render(
         <A2UIProvider>
           <DateTimeInputDataUpdateRenderer />
-        </A2UIProvider>
+        </A2UIProvider>,
       );
 
       const dateInput = container.querySelector('input[type="date"]') as HTMLInputElement;
@@ -609,7 +610,7 @@ describe('Data Binding', () => {
 
     it('should update MultipleChoice when dataModelUpdate changes bound path value', async () => {
       function MultipleChoiceDataUpdateRenderer() {
-        const { processMessages } = useA2UI();
+        const {processMessages} = useA2UI();
         const [stage, setStage] = React.useState<'initial' | 'updated'>('initial');
 
         useEffect(() => {
@@ -620,11 +621,11 @@ describe('Data Binding', () => {
                   id: 'mc-1',
                   component: {
                     MultipleChoice: {
-                      selections: { path: 'survey.answers' },
+                      selections: {path: 'survey.answers'},
                       options: [
-                        { label: { literalString: 'Option 1' }, value: 'option1' },
-                        { label: { literalString: 'Option 2' }, value: 'option2' },
-                        { label: { literalString: 'Option 3' }, value: 'option3' },
+                        {label: {literalString: 'Option 1'}, value: 'option1'},
+                        {label: {literalString: 'Option 2'}, value: 'option2'},
+                        {label: {literalString: 'Option 3'}, value: 'option3'},
                       ],
                     },
                   },
@@ -644,10 +645,10 @@ describe('Data Binding', () => {
         );
       }
 
-      const { container } = render(
+      const {container} = render(
         <A2UIProvider>
           <MultipleChoiceDataUpdateRenderer />
-        </A2UIProvider>
+        </A2UIProvider>,
       );
 
       // Should render a select dropdown with 3 options
@@ -662,18 +663,20 @@ describe('Data Binding', () => {
 
     it('should update Image when dataModelUpdate changes bound path value', async () => {
       function ImageDataUpdateRenderer() {
-        const { processMessages } = useA2UI();
+        const {processMessages} = useA2UI();
         const [stage, setStage] = React.useState<'initial' | 'updated'>('initial');
 
         useEffect(() => {
           if (stage === 'initial') {
             processMessages([
-              createDataModelUpdate([{ key: 'product.imageUrl', valueString: 'https://example.com/old-product.jpg'}]),
+              createDataModelUpdate([
+                {key: 'product.imageUrl', valueString: 'https://example.com/old-product.jpg'},
+              ]),
               createSurfaceUpdate([
                 {
                   id: 'img-1',
                   component: {
-                    Image: { url: { path: 'product.imageUrl' }, usageHint: 'mediumFeature' },
+                    Image: {url: {path: 'product.imageUrl'}, usageHint: 'mediumFeature'},
                   },
                 },
               ]),
@@ -682,7 +685,9 @@ describe('Data Binding', () => {
             setTimeout(() => setStage('updated'), 10);
           } else if (stage === 'updated') {
             processMessages([
-              createDataModelUpdate([{ key: 'product.imageUrl', valueString: 'https://example.com/new-product.jpg'}]),
+              createDataModelUpdate([
+                {key: 'product.imageUrl', valueString: 'https://example.com/new-product.jpg'},
+              ]),
             ]);
           }
         }, [processMessages, stage]);
@@ -695,10 +700,10 @@ describe('Data Binding', () => {
         );
       }
 
-      const { container } = render(
+      const {container} = render(
         <A2UIProvider>
           <ImageDataUpdateRenderer />
-        </A2UIProvider>
+        </A2UIProvider>,
       );
 
       const img = container.querySelector('img') as HTMLImageElement;
@@ -712,18 +717,18 @@ describe('Data Binding', () => {
 
     it('should update Icon when dataModelUpdate changes bound path value', async () => {
       function IconDataUpdateRenderer() {
-        const { processMessages } = useA2UI();
+        const {processMessages} = useA2UI();
         const [stage, setStage] = React.useState<'initial' | 'updated'>('initial');
 
         useEffect(() => {
           if (stage === 'initial') {
             processMessages([
-              createDataModelUpdate([{ key: 'ui.statusIcon', valueString: 'check'}]),
+              createDataModelUpdate([{key: 'ui.statusIcon', valueString: 'check'}]),
               createSurfaceUpdate([
                 {
                   id: 'icon-1',
                   component: {
-                    Icon: { name: { path: 'ui.statusIcon' } },
+                    Icon: {name: {path: 'ui.statusIcon'}},
                   },
                 },
               ]),
@@ -732,7 +737,7 @@ describe('Data Binding', () => {
             setTimeout(() => setStage('updated'), 10);
           } else if (stage === 'updated') {
             processMessages([
-              createDataModelUpdate([{ key: 'ui.statusIcon', valueString: 'error'}]),
+              createDataModelUpdate([{key: 'ui.statusIcon', valueString: 'error'}]),
             ]);
           }
         }, [processMessages, stage]);
@@ -745,10 +750,10 @@ describe('Data Binding', () => {
         );
       }
 
-      const { container } = render(
+      const {container} = render(
         <A2UIProvider>
           <IconDataUpdateRenderer />
-        </A2UIProvider>
+        </A2UIProvider>,
       );
 
       expect(container.querySelector('.g-icon')).toHaveTextContent('check');
@@ -761,18 +766,20 @@ describe('Data Binding', () => {
 
     it('should update Video when dataModelUpdate changes bound path value', async () => {
       function VideoDataUpdateRenderer() {
-        const { processMessages } = useA2UI();
+        const {processMessages} = useA2UI();
         const [stage, setStage] = React.useState<'initial' | 'updated'>('initial');
 
         useEffect(() => {
           if (stage === 'initial') {
             processMessages([
-              createDataModelUpdate([{ key: 'media.videoUrl', valueString: 'https://example.com/old-video.mp4'}]),
+              createDataModelUpdate([
+                {key: 'media.videoUrl', valueString: 'https://example.com/old-video.mp4'},
+              ]),
               createSurfaceUpdate([
                 {
                   id: 'video-1',
                   component: {
-                    Video: { url: { path: 'media.videoUrl' } },
+                    Video: {url: {path: 'media.videoUrl'}},
                   },
                 },
               ]),
@@ -781,7 +788,9 @@ describe('Data Binding', () => {
             setTimeout(() => setStage('updated'), 10);
           } else if (stage === 'updated') {
             processMessages([
-              createDataModelUpdate([{ key: 'media.videoUrl', valueString: 'https://example.com/new-video.mp4'}]),
+              createDataModelUpdate([
+                {key: 'media.videoUrl', valueString: 'https://example.com/new-video.mp4'},
+              ]),
             ]);
           }
         }, [processMessages, stage]);
@@ -794,10 +803,10 @@ describe('Data Binding', () => {
         );
       }
 
-      const { container } = render(
+      const {container} = render(
         <A2UIProvider>
           <VideoDataUpdateRenderer />
-        </A2UIProvider>
+        </A2UIProvider>,
       );
 
       const video = container.querySelector('video') as HTMLVideoElement;
@@ -811,20 +820,22 @@ describe('Data Binding', () => {
 
     it('should update AudioPlayer when dataModelUpdate changes bound path value', async () => {
       function AudioPlayerDataUpdateRenderer() {
-        const { processMessages } = useA2UI();
+        const {processMessages} = useA2UI();
         const [stage, setStage] = React.useState<'initial' | 'updated'>('initial');
 
         useEffect(() => {
           if (stage === 'initial') {
             processMessages([
-              createDataModelUpdate([{ key: 'media.audioUrl', valueString: 'https://example.com/old-audio.mp3'}]),
+              createDataModelUpdate([
+                {key: 'media.audioUrl', valueString: 'https://example.com/old-audio.mp3'},
+              ]),
               createSurfaceUpdate([
                 {
                   id: 'audio-1',
                   component: {
                     AudioPlayer: {
-                      url: { path: 'media.audioUrl' },
-                      description: { literalString: 'Audio track' },
+                      url: {path: 'media.audioUrl'},
+                      description: {literalString: 'Audio track'},
                     },
                   },
                 },
@@ -834,7 +845,9 @@ describe('Data Binding', () => {
             setTimeout(() => setStage('updated'), 10);
           } else if (stage === 'updated') {
             processMessages([
-              createDataModelUpdate([{ key: 'media.audioUrl', valueString: 'https://example.com/new-audio.mp3'}]),
+              createDataModelUpdate([
+                {key: 'media.audioUrl', valueString: 'https://example.com/new-audio.mp3'},
+              ]),
             ]);
           }
         }, [processMessages, stage]);
@@ -847,10 +860,10 @@ describe('Data Binding', () => {
         );
       }
 
-      const { container } = render(
+      const {container} = render(
         <A2UIProvider>
           <AudioPlayerDataUpdateRenderer />
-        </A2UIProvider>
+        </A2UIProvider>,
       );
 
       const audio = container.querySelector('audio') as HTMLAudioElement;

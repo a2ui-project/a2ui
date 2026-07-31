@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import { JSDOM } from "jsdom";
+import {JSDOM} from 'jsdom';
 
 let dom: JSDOM | null = null;
 const originalGlobals: Record<string, any> = {};
@@ -39,20 +39,20 @@ function applyGlobals(obj: Record<string, any>) {
  */
 export function setupTestDom() {
   if (!dom) {
-    dom = new JSDOM("<!DOCTYPE html><body></body>");
+    dom = new JSDOM('<!DOCTYPE html><body></body>');
 
     const names = [
-      "window",
-      "document",
-      "HTMLElement",
-      "customElements",
-      "Element",
-      "Node",
-      "Event",
-      "MutationObserver",
-      "requestAnimationFrame",
-      "cancelAnimationFrame",
-      "CSSStyleSheet",
+      'window',
+      'document',
+      'HTMLElement',
+      'customElements',
+      'Element',
+      'Node',
+      'Event',
+      'MutationObserver',
+      'requestAnimationFrame',
+      'cancelAnimationFrame',
+      'CSSStyleSheet',
     ];
 
     // Save originals once
@@ -61,7 +61,7 @@ export function setupTestDom() {
     }
   } else {
     // Reset body if already created
-    dom.window.document.body.innerHTML = "";
+    dom.window.document.body.innerHTML = '';
   }
 
   // TODO(ditman): Update jsdom to ^29.0.0, which includes CSSOM by default, and remove this.
@@ -69,14 +69,11 @@ export function setupTestDom() {
     dom.window.document.adoptedStyleSheets = [];
   }
 
-  if (
-    dom.window.CSSStyleSheet &&
-    !dom.window.CSSStyleSheet.prototype.replaceSync
-  ) {
+  if (dom.window.CSSStyleSheet && !dom.window.CSSStyleSheet.prototype.replaceSync) {
     dom.window.CSSStyleSheet.prototype.replaceSync = function (text: string) {
       let styleEl = (this as any)._styleEl;
       if (!styleEl) {
-        styleEl = dom!.window.document.createElement("style");
+        styleEl = dom!.window.document.createElement('style');
         dom!.window.document.head.appendChild(styleEl);
         (this as any)._styleEl = styleEl;
       }
@@ -107,7 +104,7 @@ export function setupTestDom() {
 export function teardownTestDom() {
   // Clear the document to prevent leaks between tests
   if (dom) {
-    dom.window.document.body.innerHTML = "";
+    dom.window.document.body.innerHTML = '';
     dom = null;
   }
 
@@ -127,6 +124,6 @@ export async function asyncUpdate<T = any>(
     await (target as any).updateComplete;
   } else {
     // Await a macro-task for mock objects that lack Lit's lifecycle
-    await new Promise((r) => setTimeout(r, 0));
+    await new Promise(r => setTimeout(r, 0));
   }
 }

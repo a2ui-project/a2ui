@@ -61,7 +61,7 @@ export const ComponentNode = memo(function ComponentNode({
 
   const Component = useMemo(
     () => (nodeType ? actualRegistry.get(nodeType) : null),
-    [actualRegistry, nodeType]
+    [actualRegistry, nodeType],
   );
 
   // Handle null/undefined/invalid nodes gracefully

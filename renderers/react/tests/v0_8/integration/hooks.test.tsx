@@ -14,11 +14,11 @@
  * limitations under the License.
  */
 
-import { describe, it, expect, vi } from 'vitest';
-import { render } from '@testing-library/react';
+import {describe, it, expect, vi} from 'vitest';
+import {render} from '@testing-library/react';
 import React from 'react';
-import { A2UIProvider, useA2UI } from '../../../src/v0_8';
-import { getElement } from '../utils';
+import {A2UIProvider, useA2UI} from '../../../src/v0_8';
+import {getElement} from '../utils';
 
 /**
  * Context Hooks Integration Tests
@@ -49,21 +49,19 @@ describe('Context Hooks', () => {
       const api = useA2UI();
       actionRefs.push(api);
 
-      return (
-        <button onClick={() => api.processMessages([])}>Trigger</button>
-      );
+      return <button onClick={() => api.processMessages([])}>Trigger</button>;
     }
 
-    const { rerender } = render(
+    const {rerender} = render(
       <A2UIProvider>
         <ActionTracker />
-      </A2UIProvider>
+      </A2UIProvider>,
     );
 
     rerender(
       <A2UIProvider>
         <ActionTracker />
-      </A2UIProvider>
+      </A2UIProvider>,
     );
 
     const ref0 = getElement(actionRefs, 0);

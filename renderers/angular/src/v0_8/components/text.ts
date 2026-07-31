@@ -22,12 +22,12 @@ import {
   input,
   ViewEncapsulation,
 } from '@angular/core';
-import { AsyncPipe } from '@angular/common';
-import { DynamicComponent } from '../rendering/dynamic-component';
+import {AsyncPipe} from '@angular/common';
+import {DynamicComponent} from '../rendering/dynamic-component';
 import * as Primitives from '@a2ui/web_core/types/primitives';
 import * as Styles from '@a2ui/web_core/styles/index';
-import { Types } from '../types';
-import { MarkdownRenderer } from '../data/markdown';
+import type {ResolvedText, TextNode} from '../types';
+import {MarkdownRenderer} from '../data/markdown';
 
 interface HintedStyles {
   h1: Record<string, string>;
@@ -41,7 +41,7 @@ interface HintedStyles {
 
 @Component({
   selector: 'a2ui-text',
-  changeDetection: ChangeDetectionStrategy.Eager,
+  changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <section
       [class]="classes()"
@@ -67,16 +67,16 @@ interface HintedStyles {
     }
   `,
 })
-export class Text extends DynamicComponent<Types.TextNode> {
+export class Text extends DynamicComponent<TextNode> {
   private markdownRenderer = inject(MarkdownRenderer);
   readonly text = input.required<Primitives.StringValue | null>();
-  readonly usageHint = input<Types.ResolvedText['usageHint'] | null>(null);
+  readonly usageHint = input<ResolvedText['usageHint'] | null>(null);
 
   protected resolvedText = computed(() => {
     const usageHint = this.usageHint();
     let value = super.resolvePrimitive(this.text());
 
-    if (value == null) {
+    if (value === null || value === undefined) {
       return Promise.resolve('');
     }
 
@@ -143,6 +143,6 @@ export class Text extends DynamicComponent<Types.TextNode> {
     }
 
     const expected = ['h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'caption', 'body'];
-    return expected.every((v) => v in styles);
+    return expected.every(v => v in styles);
   }
 }

@@ -14,11 +14,11 @@
  * limitations under the License.
  */
 
-import { describe, it, expect } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
-import React, { useEffect } from 'react';
-import { A2UIProvider, A2UIRenderer, useA2UI } from '../../../src/v0_8';
-import { createSurfaceUpdate, createBeginRendering } from '../utils';
+import {describe, it, expect} from 'vitest';
+import {render, screen, waitFor} from '@testing-library/react';
+import React, {useEffect} from 'react';
+import {A2UIProvider, A2UIRenderer, useA2UI} from '../../../src/v0_8';
+import {createSurfaceUpdate, createBeginRendering} from '../utils';
 
 /**
  * Property Updates Integration Tests
@@ -32,14 +32,19 @@ describe('Property Updates via surfaceUpdate', () => {
   describe('Content Components', () => {
     it('should update Text content', async () => {
       function TextUpdateRenderer() {
-        const { processMessages } = useA2UI();
+        const {processMessages} = useA2UI();
         const [stage, setStage] = React.useState<'initial' | 'updated'>('initial');
 
         useEffect(() => {
           if (stage === 'initial') {
             processMessages([
               createSurfaceUpdate([
-                { id: 'text-1', component: { Text: { text: { literalString: 'Original text' } , usageHint: 'body' } } },
+                {
+                  id: 'text-1',
+                  component: {
+                    Text: {text: {literalString: 'Original text'}, usageHint: 'body'},
+                  },
+                },
               ]),
               createBeginRendering('text-1'),
             ]);
@@ -47,7 +52,12 @@ describe('Property Updates via surfaceUpdate', () => {
           } else if (stage === 'updated') {
             processMessages([
               createSurfaceUpdate([
-                { id: 'text-1', component: { Text: { text: { literalString: 'Updated text' } , usageHint: 'body' } } },
+                {
+                  id: 'text-1',
+                  component: {
+                    Text: {text: {literalString: 'Updated text'}, usageHint: 'body'},
+                  },
+                },
               ]),
             ]);
           }
@@ -64,7 +74,7 @@ describe('Property Updates via surfaceUpdate', () => {
       render(
         <A2UIProvider>
           <TextUpdateRenderer />
-        </A2UIProvider>
+        </A2UIProvider>,
       );
 
       expect(screen.getByText('Original text')).toBeInTheDocument();
@@ -78,14 +88,17 @@ describe('Property Updates via surfaceUpdate', () => {
 
     it('should update Text usageHint', async () => {
       function TextUsageRenderer() {
-        const { processMessages } = useA2UI();
+        const {processMessages} = useA2UI();
         const [stage, setStage] = React.useState<'initial' | 'updated'>('initial');
 
         useEffect(() => {
           if (stage === 'initial') {
             processMessages([
               createSurfaceUpdate([
-                { id: 'text-1', component: { Text: { text: { literalString: 'Heading' }, usageHint: 'h1' } } },
+                {
+                  id: 'text-1',
+                  component: {Text: {text: {literalString: 'Heading'}, usageHint: 'h1'}},
+                },
               ]),
               createBeginRendering('text-1'),
             ]);
@@ -93,7 +106,10 @@ describe('Property Updates via surfaceUpdate', () => {
           } else if (stage === 'updated') {
             processMessages([
               createSurfaceUpdate([
-                { id: 'text-1', component: { Text: { text: { literalString: 'Heading' }, usageHint: 'caption' } } },
+                {
+                  id: 'text-1',
+                  component: {Text: {text: {literalString: 'Heading'}, usageHint: 'caption'}},
+                },
               ]),
             ]);
           }
@@ -107,10 +123,10 @@ describe('Property Updates via surfaceUpdate', () => {
         );
       }
 
-      const { container } = render(
+      const {container} = render(
         <A2UIProvider>
           <TextUsageRenderer />
-        </A2UIProvider>
+        </A2UIProvider>,
       );
 
       // usageHint affects CSS classes, not the element tag
@@ -126,14 +142,22 @@ describe('Property Updates via surfaceUpdate', () => {
 
     it('should update Image url', async () => {
       function ImageUpdateRenderer() {
-        const { processMessages } = useA2UI();
+        const {processMessages} = useA2UI();
         const [stage, setStage] = React.useState<'initial' | 'updated'>('initial');
 
         useEffect(() => {
           if (stage === 'initial') {
             processMessages([
               createSurfaceUpdate([
-                { id: 'img-1', component: { Image: { url: { literalString: 'https://example.com/old.jpg' }, usageHint: 'mediumFeature' } } },
+                {
+                  id: 'img-1',
+                  component: {
+                    Image: {
+                      url: {literalString: 'https://example.com/old.jpg'},
+                      usageHint: 'mediumFeature',
+                    },
+                  },
+                },
               ]),
               createBeginRendering('img-1'),
             ]);
@@ -141,7 +165,15 @@ describe('Property Updates via surfaceUpdate', () => {
           } else if (stage === 'updated') {
             processMessages([
               createSurfaceUpdate([
-                { id: 'img-1', component: { Image: { url: { literalString: 'https://example.com/new.jpg' }, usageHint: 'mediumFeature' } } },
+                {
+                  id: 'img-1',
+                  component: {
+                    Image: {
+                      url: {literalString: 'https://example.com/new.jpg'},
+                      usageHint: 'mediumFeature',
+                    },
+                  },
+                },
               ]),
             ]);
           }
@@ -155,30 +187,41 @@ describe('Property Updates via surfaceUpdate', () => {
         );
       }
 
-      const { container } = render(
+      const {container} = render(
         <A2UIProvider>
           <ImageUpdateRenderer />
-        </A2UIProvider>
+        </A2UIProvider>,
       );
 
       expect(container.querySelector('img')).toHaveAttribute('src', 'https://example.com/old.jpg');
 
       await waitFor(() => {
         expect(screen.getByTestId('stage')).toHaveTextContent('updated');
-        expect(container.querySelector('img')).toHaveAttribute('src', 'https://example.com/new.jpg');
+        expect(container.querySelector('img')).toHaveAttribute(
+          'src',
+          'https://example.com/new.jpg',
+        );
       });
     });
 
     it('should update Image usageHint', async () => {
       function ImageUsageRenderer() {
-        const { processMessages } = useA2UI();
+        const {processMessages} = useA2UI();
         const [stage, setStage] = React.useState<'initial' | 'updated'>('initial');
 
         useEffect(() => {
           if (stage === 'initial') {
             processMessages([
               createSurfaceUpdate([
-                { id: 'img-1', component: { Image: { url: { literalString: 'https://example.com/img.jpg' }, usageHint: 'icon' } } },
+                {
+                  id: 'img-1',
+                  component: {
+                    Image: {
+                      url: {literalString: 'https://example.com/img.jpg'},
+                      usageHint: 'icon',
+                    },
+                  },
+                },
               ]),
               createBeginRendering('img-1'),
             ]);
@@ -186,7 +229,15 @@ describe('Property Updates via surfaceUpdate', () => {
           } else if (stage === 'updated') {
             processMessages([
               createSurfaceUpdate([
-                { id: 'img-1', component: { Image: { url: { literalString: 'https://example.com/img.jpg' }, usageHint: 'avatar' } } },
+                {
+                  id: 'img-1',
+                  component: {
+                    Image: {
+                      url: {literalString: 'https://example.com/img.jpg'},
+                      usageHint: 'avatar',
+                    },
+                  },
+                },
               ]),
             ]);
           }
@@ -200,10 +251,10 @@ describe('Property Updates via surfaceUpdate', () => {
         );
       }
 
-      const { container } = render(
+      const {container} = render(
         <A2UIProvider>
           <ImageUsageRenderer />
-        </A2UIProvider>
+        </A2UIProvider>,
       );
 
       // usageHint affects CSS classes via theme, not a data attribute
@@ -219,14 +270,14 @@ describe('Property Updates via surfaceUpdate', () => {
 
     it('should update Icon name', async () => {
       function IconUpdateRenderer() {
-        const { processMessages } = useA2UI();
+        const {processMessages} = useA2UI();
         const [stage, setStage] = React.useState<'initial' | 'updated'>('initial');
 
         useEffect(() => {
           if (stage === 'initial') {
             processMessages([
               createSurfaceUpdate([
-                { id: 'icon-1', component: { Icon: { name: { literalString: 'home' } } } },
+                {id: 'icon-1', component: {Icon: {name: {literalString: 'home'}}}},
               ]),
               createBeginRendering('icon-1'),
             ]);
@@ -234,7 +285,7 @@ describe('Property Updates via surfaceUpdate', () => {
           } else if (stage === 'updated') {
             processMessages([
               createSurfaceUpdate([
-                { id: 'icon-1', component: { Icon: { name: { literalString: 'settings' } } } },
+                {id: 'icon-1', component: {Icon: {name: {literalString: 'settings'}}}},
               ]),
             ]);
           }
@@ -248,10 +299,10 @@ describe('Property Updates via surfaceUpdate', () => {
         );
       }
 
-      const { container } = render(
+      const {container} = render(
         <A2UIProvider>
           <IconUpdateRenderer />
-        </A2UIProvider>
+        </A2UIProvider>,
       );
 
       expect(container.querySelector('.g-icon')).toHaveTextContent('home');
@@ -266,15 +317,21 @@ describe('Property Updates via surfaceUpdate', () => {
   describe('Interactive Components', () => {
     it('should update Button child text', async () => {
       function ButtonUpdateRenderer() {
-        const { processMessages } = useA2UI();
+        const {processMessages} = useA2UI();
         const [stage, setStage] = React.useState<'initial' | 'updated'>('initial');
 
         useEffect(() => {
           if (stage === 'initial') {
             processMessages([
               createSurfaceUpdate([
-                { id: 'btn-text', component: { Text: { text: { literalString: 'Click me' } , usageHint: 'body' } } },
-                { id: 'btn-1', component: { Button: { child: 'btn-text', action: { name: 'submit' } } } },
+                {
+                  id: 'btn-text',
+                  component: {Text: {text: {literalString: 'Click me'}, usageHint: 'body'}},
+                },
+                {
+                  id: 'btn-1',
+                  component: {Button: {child: 'btn-text', action: {name: 'submit'}}},
+                },
               ]),
               createBeginRendering('btn-1'),
             ]);
@@ -282,8 +339,14 @@ describe('Property Updates via surfaceUpdate', () => {
           } else if (stage === 'updated') {
             processMessages([
               createSurfaceUpdate([
-                { id: 'btn-text', component: { Text: { text: { literalString: 'Submit now' } , usageHint: 'body' } } },
-                { id: 'btn-1', component: { Button: { child: 'btn-text', action: { name: 'submit' } } } },
+                {
+                  id: 'btn-text',
+                  component: {Text: {text: {literalString: 'Submit now'}, usageHint: 'body'}},
+                },
+                {
+                  id: 'btn-1',
+                  component: {Button: {child: 'btn-text', action: {name: 'submit'}}},
+                },
               ]),
             ]);
           }
@@ -300,28 +363,31 @@ describe('Property Updates via surfaceUpdate', () => {
       render(
         <A2UIProvider>
           <ButtonUpdateRenderer />
-        </A2UIProvider>
+        </A2UIProvider>,
       );
 
-      expect(screen.getByRole('button', { name: 'Click me' })).toBeInTheDocument();
+      expect(screen.getByRole('button', {name: 'Click me'})).toBeInTheDocument();
 
       await waitFor(() => {
         expect(screen.getByTestId('stage')).toHaveTextContent('updated');
-        expect(screen.getByRole('button', { name: 'Submit now' })).toBeInTheDocument();
-        expect(screen.queryByRole('button', { name: 'Click me' })).not.toBeInTheDocument();
+        expect(screen.getByRole('button', {name: 'Submit now'})).toBeInTheDocument();
+        expect(screen.queryByRole('button', {name: 'Click me'})).not.toBeInTheDocument();
       });
     });
 
     it('should update TextField label', async () => {
       function TextFieldLabelRenderer() {
-        const { processMessages } = useA2UI();
+        const {processMessages} = useA2UI();
         const [stage, setStage] = React.useState<'initial' | 'updated'>('initial');
 
         useEffect(() => {
           if (stage === 'initial') {
             processMessages([
               createSurfaceUpdate([
-                { id: 'field-1', component: { TextField: { label: { literalString: 'Username' } } } },
+                {
+                  id: 'field-1',
+                  component: {TextField: {label: {literalString: 'Username'}}},
+                },
               ]),
               createBeginRendering('field-1'),
             ]);
@@ -329,7 +395,10 @@ describe('Property Updates via surfaceUpdate', () => {
           } else if (stage === 'updated') {
             processMessages([
               createSurfaceUpdate([
-                { id: 'field-1', component: { TextField: { label: { literalString: 'Email address' } } } },
+                {
+                  id: 'field-1',
+                  component: {TextField: {label: {literalString: 'Email address'}}},
+                },
               ]),
             ]);
           }
@@ -346,7 +415,7 @@ describe('Property Updates via surfaceUpdate', () => {
       render(
         <A2UIProvider>
           <TextFieldLabelRenderer />
-        </A2UIProvider>
+        </A2UIProvider>,
       );
 
       expect(screen.getByText('Username')).toBeInTheDocument();
@@ -360,14 +429,22 @@ describe('Property Updates via surfaceUpdate', () => {
 
     it('should update CheckBox label', async () => {
       function CheckBoxLabelRenderer() {
-        const { processMessages } = useA2UI();
+        const {processMessages} = useA2UI();
         const [stage, setStage] = React.useState<'initial' | 'updated'>('initial');
 
         useEffect(() => {
           if (stage === 'initial') {
             processMessages([
               createSurfaceUpdate([
-                { id: 'cb-1', component: { CheckBox: { label: { literalString: 'Accept terms' }, value: { literalBoolean: false } } } },
+                {
+                  id: 'cb-1',
+                  component: {
+                    CheckBox: {
+                      label: {literalString: 'Accept terms'},
+                      value: {literalBoolean: false},
+                    },
+                  },
+                },
               ]),
               createBeginRendering('cb-1'),
             ]);
@@ -375,7 +452,15 @@ describe('Property Updates via surfaceUpdate', () => {
           } else if (stage === 'updated') {
             processMessages([
               createSurfaceUpdate([
-                { id: 'cb-1', component: { CheckBox: { label: { literalString: 'I agree to the terms and conditions' }, value: { literalBoolean: false } } } },
+                {
+                  id: 'cb-1',
+                  component: {
+                    CheckBox: {
+                      label: {literalString: 'I agree to the terms and conditions'},
+                      value: {literalBoolean: false},
+                    },
+                  },
+                },
               ]),
             ]);
           }
@@ -392,7 +477,7 @@ describe('Property Updates via surfaceUpdate', () => {
       render(
         <A2UIProvider>
           <CheckBoxLabelRenderer />
-        </A2UIProvider>
+        </A2UIProvider>,
       );
 
       expect(screen.getByText('Accept terms')).toBeInTheDocument();
@@ -406,14 +491,22 @@ describe('Property Updates via surfaceUpdate', () => {
 
     it('should update CheckBox checked state', async () => {
       function CheckBoxStateRenderer() {
-        const { processMessages } = useA2UI();
+        const {processMessages} = useA2UI();
         const [stage, setStage] = React.useState<'initial' | 'updated'>('initial');
 
         useEffect(() => {
           if (stage === 'initial') {
             processMessages([
               createSurfaceUpdate([
-                { id: 'cb-1', component: { CheckBox: { label: { literalString: 'Option' }, value: { literalBoolean: false } } } },
+                {
+                  id: 'cb-1',
+                  component: {
+                    CheckBox: {
+                      label: {literalString: 'Option'},
+                      value: {literalBoolean: false},
+                    },
+                  },
+                },
               ]),
               createBeginRendering('cb-1'),
             ]);
@@ -421,7 +514,15 @@ describe('Property Updates via surfaceUpdate', () => {
           } else if (stage === 'updated') {
             processMessages([
               createSurfaceUpdate([
-                { id: 'cb-1', component: { CheckBox: { label: { literalString: 'Option' }, value: { literalBoolean: true } } } },
+                {
+                  id: 'cb-1',
+                  component: {
+                    CheckBox: {
+                      label: {literalString: 'Option'},
+                      value: {literalBoolean: true},
+                    },
+                  },
+                },
               ]),
             ]);
           }
@@ -438,7 +539,7 @@ describe('Property Updates via surfaceUpdate', () => {
       render(
         <A2UIProvider>
           <CheckBoxStateRenderer />
-        </A2UIProvider>
+        </A2UIProvider>,
       );
 
       expect(screen.getByRole('checkbox')).not.toBeChecked();
@@ -451,7 +552,7 @@ describe('Property Updates via surfaceUpdate', () => {
 
     it('should update Slider value', async () => {
       function SliderValueRenderer() {
-        const { processMessages } = useA2UI();
+        const {processMessages} = useA2UI();
         const [stage, setStage] = React.useState<'initial' | 'updated'>('initial');
 
         useEffect(() => {
@@ -462,7 +563,7 @@ describe('Property Updates via surfaceUpdate', () => {
                   id: 'slider-1',
                   component: {
                     Slider: {
-                      value: { literalNumber: 25 },
+                      value: {literalNumber: 25},
                       minValue: 0,
                       maxValue: 100,
                     },
@@ -479,7 +580,7 @@ describe('Property Updates via surfaceUpdate', () => {
                   id: 'slider-1',
                   component: {
                     Slider: {
-                      value: { literalNumber: 75 },
+                      value: {literalNumber: 75},
                       minValue: 0,
                       maxValue: 100,
                     },
@@ -501,7 +602,7 @@ describe('Property Updates via surfaceUpdate', () => {
       render(
         <A2UIProvider>
           <SliderValueRenderer />
-        </A2UIProvider>
+        </A2UIProvider>,
       );
 
       expect(screen.getByRole('slider')).toHaveValue('25');
@@ -514,7 +615,7 @@ describe('Property Updates via surfaceUpdate', () => {
 
     it('should update Slider min and max values', async () => {
       function SliderRangeRenderer() {
-        const { processMessages } = useA2UI();
+        const {processMessages} = useA2UI();
         const [stage, setStage] = React.useState<'initial' | 'updated'>('initial');
 
         useEffect(() => {
@@ -525,7 +626,7 @@ describe('Property Updates via surfaceUpdate', () => {
                   id: 'slider-1',
                   component: {
                     Slider: {
-                      value: { literalNumber: 50 },
+                      value: {literalNumber: 50},
                       minValue: 0,
                       maxValue: 100,
                     },
@@ -542,7 +643,7 @@ describe('Property Updates via surfaceUpdate', () => {
                   id: 'slider-1',
                   component: {
                     Slider: {
-                      value: { literalNumber: 50 },
+                      value: {literalNumber: 50},
                       minValue: 10,
                       maxValue: 200,
                     },
@@ -564,7 +665,7 @@ describe('Property Updates via surfaceUpdate', () => {
       render(
         <A2UIProvider>
           <SliderRangeRenderer />
-        </A2UIProvider>
+        </A2UIProvider>,
       );
 
       const slider = screen.getByRole('slider');
@@ -582,15 +683,23 @@ describe('Property Updates via surfaceUpdate', () => {
   describe('Layout Components', () => {
     it('should update Column alignment', async () => {
       function ColumnAlignmentRenderer() {
-        const { processMessages } = useA2UI();
+        const {processMessages} = useA2UI();
         const [stage, setStage] = React.useState<'initial' | 'updated'>('initial');
 
         useEffect(() => {
           if (stage === 'initial') {
             processMessages([
               createSurfaceUpdate([
-                { id: 'text-1', component: { Text: { text: { literalString: 'Content' } , usageHint: 'body' } } },
-                { id: 'col-1', component: { Column: { children: { explicitList: ['text-1'] }, alignment: 'start' } } },
+                {
+                  id: 'text-1',
+                  component: {Text: {text: {literalString: 'Content'}, usageHint: 'body'}},
+                },
+                {
+                  id: 'col-1',
+                  component: {
+                    Column: {children: {explicitList: ['text-1']}, alignment: 'start'},
+                  },
+                },
               ]),
               createBeginRendering('col-1'),
             ]);
@@ -598,8 +707,16 @@ describe('Property Updates via surfaceUpdate', () => {
           } else if (stage === 'updated') {
             processMessages([
               createSurfaceUpdate([
-                { id: 'text-1', component: { Text: { text: { literalString: 'Content' } , usageHint: 'body' } } },
-                { id: 'col-1', component: { Column: { children: { explicitList: ['text-1'] }, alignment: 'center' } } },
+                {
+                  id: 'text-1',
+                  component: {Text: {text: {literalString: 'Content'}, usageHint: 'body'}},
+                },
+                {
+                  id: 'col-1',
+                  component: {
+                    Column: {children: {explicitList: ['text-1']}, alignment: 'center'},
+                  },
+                },
               ]),
             ]);
           }
@@ -613,10 +730,10 @@ describe('Property Updates via surfaceUpdate', () => {
         );
       }
 
-      const { container } = render(
+      const {container} = render(
         <A2UIProvider>
           <ColumnAlignmentRenderer />
-        </A2UIProvider>
+        </A2UIProvider>,
       );
 
       expect(container.querySelector('.a2ui-column')).toHaveAttribute('data-alignment', 'start');
@@ -629,15 +746,23 @@ describe('Property Updates via surfaceUpdate', () => {
 
     it('should update Column distribution', async () => {
       function ColumnDistributionRenderer() {
-        const { processMessages } = useA2UI();
+        const {processMessages} = useA2UI();
         const [stage, setStage] = React.useState<'initial' | 'updated'>('initial');
 
         useEffect(() => {
           if (stage === 'initial') {
             processMessages([
               createSurfaceUpdate([
-                { id: 'text-1', component: { Text: { text: { literalString: 'Content' } , usageHint: 'body' } } },
-                { id: 'col-1', component: { Column: { children: { explicitList: ['text-1'] }, distribution: 'start' } } },
+                {
+                  id: 'text-1',
+                  component: {Text: {text: {literalString: 'Content'}, usageHint: 'body'}},
+                },
+                {
+                  id: 'col-1',
+                  component: {
+                    Column: {children: {explicitList: ['text-1']}, distribution: 'start'},
+                  },
+                },
               ]),
               createBeginRendering('col-1'),
             ]);
@@ -645,8 +770,19 @@ describe('Property Updates via surfaceUpdate', () => {
           } else if (stage === 'updated') {
             processMessages([
               createSurfaceUpdate([
-                { id: 'text-1', component: { Text: { text: { literalString: 'Content' } , usageHint: 'body' } } },
-                { id: 'col-1', component: { Column: { children: { explicitList: ['text-1'] }, distribution: 'spaceBetween' } } },
+                {
+                  id: 'text-1',
+                  component: {Text: {text: {literalString: 'Content'}, usageHint: 'body'}},
+                },
+                {
+                  id: 'col-1',
+                  component: {
+                    Column: {
+                      children: {explicitList: ['text-1']},
+                      distribution: 'spaceBetween',
+                    },
+                  },
+                },
               ]),
             ]);
           }
@@ -660,31 +796,42 @@ describe('Property Updates via surfaceUpdate', () => {
         );
       }
 
-      const { container } = render(
+      const {container} = render(
         <A2UIProvider>
           <ColumnDistributionRenderer />
-        </A2UIProvider>
+        </A2UIProvider>,
       );
 
       expect(container.querySelector('.a2ui-column')).toHaveAttribute('data-distribution', 'start');
 
       await waitFor(() => {
         expect(screen.getByTestId('stage')).toHaveTextContent('updated');
-        expect(container.querySelector('.a2ui-column')).toHaveAttribute('data-distribution', 'spaceBetween');
+        expect(container.querySelector('.a2ui-column')).toHaveAttribute(
+          'data-distribution',
+          'spaceBetween',
+        );
       });
     });
 
     it('should update Row alignment', async () => {
       function RowAlignmentRenderer() {
-        const { processMessages } = useA2UI();
+        const {processMessages} = useA2UI();
         const [stage, setStage] = React.useState<'initial' | 'updated'>('initial');
 
         useEffect(() => {
           if (stage === 'initial') {
             processMessages([
               createSurfaceUpdate([
-                { id: 'text-1', component: { Text: { text: { literalString: 'Content' } , usageHint: 'body' } } },
-                { id: 'row-1', component: { Row: { children: { explicitList: ['text-1'] }, alignment: 'start' } } },
+                {
+                  id: 'text-1',
+                  component: {Text: {text: {literalString: 'Content'}, usageHint: 'body'}},
+                },
+                {
+                  id: 'row-1',
+                  component: {
+                    Row: {children: {explicitList: ['text-1']}, alignment: 'start'},
+                  },
+                },
               ]),
               createBeginRendering('row-1'),
             ]);
@@ -692,8 +839,14 @@ describe('Property Updates via surfaceUpdate', () => {
           } else if (stage === 'updated') {
             processMessages([
               createSurfaceUpdate([
-                { id: 'text-1', component: { Text: { text: { literalString: 'Content' } , usageHint: 'body' } } },
-                { id: 'row-1', component: { Row: { children: { explicitList: ['text-1'] }, alignment: 'end' } } },
+                {
+                  id: 'text-1',
+                  component: {Text: {text: {literalString: 'Content'}, usageHint: 'body'}},
+                },
+                {
+                  id: 'row-1',
+                  component: {Row: {children: {explicitList: ['text-1']}, alignment: 'end'}},
+                },
               ]),
             ]);
           }
@@ -707,10 +860,10 @@ describe('Property Updates via surfaceUpdate', () => {
         );
       }
 
-      const { container } = render(
+      const {container} = render(
         <A2UIProvider>
           <RowAlignmentRenderer />
-        </A2UIProvider>
+        </A2UIProvider>,
       );
 
       expect(container.querySelector('.a2ui-row')).toHaveAttribute('data-alignment', 'start');
@@ -723,15 +876,23 @@ describe('Property Updates via surfaceUpdate', () => {
 
     it('should update List direction', async () => {
       function ListDirectionRenderer() {
-        const { processMessages } = useA2UI();
+        const {processMessages} = useA2UI();
         const [stage, setStage] = React.useState<'initial' | 'updated'>('initial');
 
         useEffect(() => {
           if (stage === 'initial') {
             processMessages([
               createSurfaceUpdate([
-                { id: 'item-1', component: { Text: { text: { literalString: 'Item' } , usageHint: 'body' } } },
-                { id: 'list-1', component: { List: { children: { explicitList: ['item-1'] }, direction: 'vertical' } } },
+                {
+                  id: 'item-1',
+                  component: {Text: {text: {literalString: 'Item'}, usageHint: 'body'}},
+                },
+                {
+                  id: 'list-1',
+                  component: {
+                    List: {children: {explicitList: ['item-1']}, direction: 'vertical'},
+                  },
+                },
               ]),
               createBeginRendering('list-1'),
             ]);
@@ -739,8 +900,16 @@ describe('Property Updates via surfaceUpdate', () => {
           } else if (stage === 'updated') {
             processMessages([
               createSurfaceUpdate([
-                { id: 'item-1', component: { Text: { text: { literalString: 'Item' } , usageHint: 'body' } } },
-                { id: 'list-1', component: { List: { children: { explicitList: ['item-1'] }, direction: 'horizontal' } } },
+                {
+                  id: 'item-1',
+                  component: {Text: {text: {literalString: 'Item'}, usageHint: 'body'}},
+                },
+                {
+                  id: 'list-1',
+                  component: {
+                    List: {children: {explicitList: ['item-1']}, direction: 'horizontal'},
+                  },
+                },
               ]),
             ]);
           }
@@ -754,17 +923,20 @@ describe('Property Updates via surfaceUpdate', () => {
         );
       }
 
-      const { container } = render(
+      const {container} = render(
         <A2UIProvider>
           <ListDirectionRenderer />
-        </A2UIProvider>
+        </A2UIProvider>,
       );
 
       expect(container.querySelector('.a2ui-list')).toHaveAttribute('data-direction', 'vertical');
 
       await waitFor(() => {
         expect(screen.getByTestId('stage')).toHaveTextContent('updated');
-        expect(container.querySelector('.a2ui-list')).toHaveAttribute('data-direction', 'horizontal');
+        expect(container.querySelector('.a2ui-list')).toHaveAttribute(
+          'data-direction',
+          'horizontal',
+        );
       });
     });
   });
@@ -772,19 +944,24 @@ describe('Property Updates via surfaceUpdate', () => {
   describe('Complex Components', () => {
     it('should update Tabs titles', async () => {
       function TabsTitleRenderer() {
-        const { processMessages } = useA2UI();
+        const {processMessages} = useA2UI();
         const [stage, setStage] = React.useState<'initial' | 'updated'>('initial');
 
         useEffect(() => {
           if (stage === 'initial') {
             processMessages([
               createSurfaceUpdate([
-                { id: 'content-1', component: { Text: { text: { literalString: 'Tab content' } , usageHint: 'body' } } },
+                {
+                  id: 'content-1',
+                  component: {
+                    Text: {text: {literalString: 'Tab content'}, usageHint: 'body'},
+                  },
+                },
                 {
                   id: 'tabs-1',
                   component: {
                     Tabs: {
-                      tabItems: [{ title: { literalString: 'Tab A' }, child: 'content-1' }],
+                      tabItems: [{title: {literalString: 'Tab A'}, child: 'content-1'}],
                     },
                   },
                 },
@@ -795,12 +972,17 @@ describe('Property Updates via surfaceUpdate', () => {
           } else if (stage === 'updated') {
             processMessages([
               createSurfaceUpdate([
-                { id: 'content-1', component: { Text: { text: { literalString: 'Tab content' } , usageHint: 'body' } } },
+                {
+                  id: 'content-1',
+                  component: {
+                    Text: {text: {literalString: 'Tab content'}, usageHint: 'body'},
+                  },
+                },
                 {
                   id: 'tabs-1',
                   component: {
                     Tabs: {
-                      tabItems: [{ title: { literalString: 'Renamed Tab' }, child: 'content-1' }],
+                      tabItems: [{title: {literalString: 'Renamed Tab'}, child: 'content-1'}],
                     },
                   },
                 },
@@ -820,33 +1002,36 @@ describe('Property Updates via surfaceUpdate', () => {
       render(
         <A2UIProvider>
           <TabsTitleRenderer />
-        </A2UIProvider>
+        </A2UIProvider>,
       );
 
-      expect(screen.getByRole('button', { name: 'Tab A' })).toBeInTheDocument();
+      expect(screen.getByRole('button', {name: 'Tab A'})).toBeInTheDocument();
 
       await waitFor(() => {
         expect(screen.getByTestId('stage')).toHaveTextContent('updated');
-        expect(screen.getByRole('button', { name: 'Renamed Tab' })).toBeInTheDocument();
-        expect(screen.queryByRole('button', { name: 'Tab A' })).not.toBeInTheDocument();
+        expect(screen.getByRole('button', {name: 'Renamed Tab'})).toBeInTheDocument();
+        expect(screen.queryByRole('button', {name: 'Tab A'})).not.toBeInTheDocument();
       });
     });
 
     it('should add new tabs via surfaceUpdate', async () => {
       function TabsAddRenderer() {
-        const { processMessages } = useA2UI();
+        const {processMessages} = useA2UI();
         const [stage, setStage] = React.useState<'initial' | 'updated'>('initial');
 
         useEffect(() => {
           if (stage === 'initial') {
             processMessages([
               createSurfaceUpdate([
-                { id: 'content-1', component: { Text: { text: { literalString: 'Content 1' } , usageHint: 'body' } } },
+                {
+                  id: 'content-1',
+                  component: {Text: {text: {literalString: 'Content 1'}, usageHint: 'body'}},
+                },
                 {
                   id: 'tabs-1',
                   component: {
                     Tabs: {
-                      tabItems: [{ title: { literalString: 'Tab 1' }, child: 'content-1' }],
+                      tabItems: [{title: {literalString: 'Tab 1'}, child: 'content-1'}],
                     },
                   },
                 },
@@ -857,15 +1042,21 @@ describe('Property Updates via surfaceUpdate', () => {
           } else if (stage === 'updated') {
             processMessages([
               createSurfaceUpdate([
-                { id: 'content-1', component: { Text: { text: { literalString: 'Content 1' } , usageHint: 'body' } } },
-                { id: 'content-2', component: { Text: { text: { literalString: 'Content 2' } , usageHint: 'body' } } },
+                {
+                  id: 'content-1',
+                  component: {Text: {text: {literalString: 'Content 1'}, usageHint: 'body'}},
+                },
+                {
+                  id: 'content-2',
+                  component: {Text: {text: {literalString: 'Content 2'}, usageHint: 'body'}},
+                },
                 {
                   id: 'tabs-1',
                   component: {
                     Tabs: {
                       tabItems: [
-                        { title: { literalString: 'Tab 1' }, child: 'content-1' },
-                        { title: { literalString: 'Tab 2' }, child: 'content-2' },
+                        {title: {literalString: 'Tab 1'}, child: 'content-1'},
+                        {title: {literalString: 'Tab 2'}, child: 'content-2'},
                       ],
                     },
                   },
@@ -886,16 +1077,16 @@ describe('Property Updates via surfaceUpdate', () => {
       render(
         <A2UIProvider>
           <TabsAddRenderer />
-        </A2UIProvider>
+        </A2UIProvider>,
       );
 
-      expect(screen.getByRole('button', { name: 'Tab 1' })).toBeInTheDocument();
-      expect(screen.queryByRole('button', { name: 'Tab 2' })).not.toBeInTheDocument();
+      expect(screen.getByRole('button', {name: 'Tab 1'})).toBeInTheDocument();
+      expect(screen.queryByRole('button', {name: 'Tab 2'})).not.toBeInTheDocument();
 
       await waitFor(() => {
         expect(screen.getByTestId('stage')).toHaveTextContent('updated');
-        expect(screen.getByRole('button', { name: 'Tab 1' })).toBeInTheDocument();
-        expect(screen.getByRole('button', { name: 'Tab 2' })).toBeInTheDocument();
+        expect(screen.getByRole('button', {name: 'Tab 1'})).toBeInTheDocument();
+        expect(screen.getByRole('button', {name: 'Tab 2'})).toBeInTheDocument();
       });
     });
   });

@@ -14,16 +14,16 @@
  * limitations under the License.
  */
 
-import { html, css, nothing } from "lit";
-import { customElement, property } from "lit/decorators.js";
-import { Root } from "./root.js";
-import { A2uiMessageProcessor } from "@a2ui/web_core/data/model-processor";
-import * as Primitives from "@a2ui/web_core/types/primitives";
-import { classMap } from "lit/directives/class-map.js";
-import { styleMap } from "lit/directives/style-map.js";
-import { structuralStyles } from "./styles.js";
+import {html, css, nothing} from 'lit';
+import {customElement, property} from 'lit/decorators.js';
+import {Root} from './root.js';
+import {A2uiMessageProcessor} from '@a2ui/web_core/data/model-processor';
+import * as Primitives from '@a2ui/web_core/types/primitives';
+import {classMap} from 'lit/directives/class-map.js';
+import {styleMap} from 'lit/directives/style-map.js';
+import {structuralStyles} from './styles.js';
 
-@customElement("a2ui-video")
+@customElement('a2ui-video')
 export class Video extends Root {
   @property()
   accessor url: Primitives.StringValue | null = null;
@@ -54,12 +54,12 @@ export class Video extends Root {
       return nothing;
     }
 
-    if (this.url && typeof this.url === "object") {
-      if ("literalString" in this.url) {
+    if (this.url && typeof this.url === 'object') {
+      if ('literalString' in this.url) {
         return html`<video controls src=${this.url.literalString} />`;
-      } else if ("literal" in this.url) {
+      } else if ('literal' in this.url) {
         return html`<video controls src=${this.url.literal} />`;
-      } else if (this.url && "path" in this.url && this.url.path) {
+      } else if (this.url && 'path' in this.url && this.url.path) {
         if (!this.processor || !this.component) {
           return html`(no processor)`;
         }
@@ -67,13 +67,13 @@ export class Video extends Root {
         const videoUrl = this.processor.getData(
           this.component,
           this.url.path,
-          this.surfaceId ?? A2uiMessageProcessor.DEFAULT_SURFACE_ID
+          this.surfaceId ?? A2uiMessageProcessor.DEFAULT_SURFACE_ID,
         );
         if (!videoUrl) {
           return html`Invalid video URL`;
         }
 
-        if (typeof videoUrl !== "string") {
+        if (typeof videoUrl !== 'string') {
           return html`Invalid video URL`;
         }
         return html`<video controls src=${videoUrl} />`;

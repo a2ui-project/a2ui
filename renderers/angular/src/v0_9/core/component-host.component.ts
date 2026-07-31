@@ -16,13 +16,14 @@
 
 import {
   ChangeDetectionStrategy,
-  ChangeDetectorRef,
   Component,
   DestroyRef,
   Type,
   inject,
   input,
   effect,
+  signal,
+  NgZone,
 } from '@angular/core';
 import {NgComponentOutlet} from '@angular/common';
 import {ComponentContext, ComponentModel, SurfaceModel, Subscription} from '@a2ui/web_core/v0_9';
@@ -45,18 +46,18 @@ import {BoundProperty} from './types';
   selector: 'a2ui-v09-component-host',
   imports: [NgComponentOutlet],
   host: {
-    'style': 'display: contents;'
+    style: 'display: contents;',
   },
   template: `
-    @if (componentType) {
+    @if (componentType()) {
       <ng-container
         *ngComponentOutlet="
-          componentType;
+          componentType()!;
           inputs: {
-            props: props,
-            surfaceId: surfaceId(),
-            componentId: resolvedComponentId,
-            dataContextPath: resolvedDataContextPath,
+            'props': props(),
+            'surfaceId': surfaceId(),
+            'componentId': resolvedComponentId,
+            'dataContextPath': resolvedDataContextPath,
           }
         "
       ></ng-container>
@@ -74,10 +75,10 @@ export class ComponentHostComponent {
   private readonly rendererService = inject(A2uiRendererService);
   private readonly binder = inject(ComponentBinder);
   private readonly destroyRef = inject(DestroyRef);
-  private readonly cdr = inject(ChangeDetectorRef);
+  private readonly ngZone = inject(NgZone);
 
-  protected componentType: Type<any> | null = null;
-  protected props: Record<string, BoundProperty> = {};
+  protected readonly componentType = signal<Type<unknown> | null>(null);
+  protected readonly props = signal<Record<string, BoundProperty>>({});
   private context?: ComponentContext;
 
   protected resolvedComponentId: string = '';
@@ -85,17 +86,22 @@ export class ComponentHostComponent {
 
   private propsSub?: Subscription;
   private createSub?: Subscription;
+  private surfaceSub?: Subscription;
 
   constructor() {
     effect(() => {
       const key = this.componentKey();
       const surfaceId = this.surfaceId();
-      this.setupComponent(key, surfaceId);
+      if (key && surfaceId) {
+        this.resetState();
+        this.setupComponent(key, surfaceId);
+      }
     });
 
     this.destroyRef.onDestroy(() => {
       this.propsSub?.unsubscribe();
       this.createSub?.unsubscribe();
+      this.surfaceSub?.unsubscribe();
     });
   }
 
@@ -105,7 +111,28 @@ export class ComponentHostComponent {
     const surface = this.rendererService.surfaceGroup?.getSurface(surfaceId);
 
     if (!surface) {
-      console.warn(`Surface ${surfaceId} not found`);
+      console.warn(`Surface ${surfaceId} not found. Waiting for it...`);
+      this.surfaceSub?.unsubscribe();
+      let unsubscribed = false;
+      const sub = this.rendererService.surfaceGroup?.onSurfaceCreated?.subscribe(s => {
+        if (s.id === surfaceId) {
+          unsubscribed = true;
+          if (this.surfaceSub) {
+            this.surfaceSub.unsubscribe();
+            this.surfaceSub = undefined;
+          }
+          this.ngZone.run(() => {
+            this.setupComponent(key, surfaceId);
+          });
+        }
+      });
+      if (sub) {
+        this.surfaceSub = sub;
+        if (unsubscribed) {
+          this.surfaceSub.unsubscribe();
+          this.surfaceSub = undefined;
+        }
+      }
       return;
     }
 
@@ -127,7 +154,7 @@ export class ComponentHostComponent {
     if (!componentModel) {
       console.warn(`Component ${id} not found in surface ${surfaceId}. Waiting for it...`);
 
-      const sub = surface.componentsModel.onCreated.subscribe((comp) => {
+      const sub = surface.componentsModel.onCreated.subscribe(comp => {
         if (comp.id === id) {
           this.initializeComponent(surface, comp, id, basePath);
           sub.unsubscribe();
@@ -141,7 +168,7 @@ export class ComponentHostComponent {
   }
 
   private initializeComponent(
-    surface: SurfaceModel<any>,
+    surface: SurfaceModel,
     componentModel: ComponentModel,
     id: string,
     basePath: string,
@@ -154,21 +181,20 @@ export class ComponentHostComponent {
       console.error(`Component type "${componentModel.type}" not found in catalog "${catalog.id}"`);
       return;
     }
-    this.componentType = api.component;
+    this.componentType.set(api.component);
 
     // Create context
     this.context = new ComponentContext(surface, id, basePath);
-    this.props = this.binder.bind(this.context);
+    this.props.set(this.binder.bind(this.context));
     this.resolvedDataContextPath = this.context.dataContext.path;
 
     // Subscribes to updates to the component model properties, to get the
     // component to react when a new prop is added after creation.
     this.propsSub = componentModel.onUpdated.subscribe(() => {
-      this.props = this.binder.bind(this.context!);
-      this.cdr.markForCheck();
+      this.ngZone.run(() => {
+        this.props.set(this.binder.bind(this.context!));
+      });
     });
-
-    this.cdr.markForCheck();
   }
 
   /**
@@ -179,10 +205,10 @@ export class ComponentHostComponent {
   private resetState(): void {
     this.propsSub?.unsubscribe();
     this.createSub?.unsubscribe();
+    this.surfaceSub?.unsubscribe();
 
-    this.componentType = null;
-    this.props = {};
+    this.componentType.set(null);
+    this.props.set({});
     this.resolvedDataContextPath = '/';
-    this.cdr.markForCheck();
   }
 }

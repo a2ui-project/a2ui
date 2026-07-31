@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import { Injectable } from '@angular/core';
+import {Injectable} from '@angular/core';
 
 export interface MarkdownRendererOptions {
   tagClassMap?: Record<string, string>;
@@ -30,17 +30,17 @@ export abstract class MarkdownRenderer {
 export class DefaultMarkdownRenderer extends MarkdownRenderer {
   private static warningLogged = false;
 
-  override async render(
-    markdown: string,
-    options?: MarkdownRendererOptions,
-  ): Promise<string> {
+  override async render(markdown: string, options?: MarkdownRendererOptions): Promise<string> {
     try {
-      // @ts-ignore - optional peer dependency
-      const { renderMarkdown } = await import('@a2ui/markdown-it');
+      // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+      // @ts-ignore - optional peer dependency throws TS1323 under Angular compiler but not under NodeNext
+      const {renderMarkdown} = await import('@a2ui/markdown-it');
       return await renderMarkdown(markdown, options as any);
-    } catch (e) {
+    } catch {
       if (!DefaultMarkdownRenderer.warningLogged) {
-        console.warn("[DefaultMarkdownRenderer] Failed to load optional `@a2ui/markdown-it` renderer. Using fallback.");
+        console.warn(
+          '[DefaultMarkdownRenderer] Failed to load optional `@a2ui/markdown-it` renderer. Using fallback.',
+        );
         DefaultMarkdownRenderer.warningLogged = true;
       }
       return markdown;
@@ -48,7 +48,9 @@ export class DefaultMarkdownRenderer extends MarkdownRenderer {
   }
 }
 
-export function provideMarkdownRenderer(renderFn?: (markdown: string, options?: MarkdownRendererOptions) => Promise<string>) {
+export function provideMarkdownRenderer(
+  renderFn?: (markdown: string, options?: MarkdownRendererOptions) => Promise<string>,
+) {
   if (renderFn) {
     return {
       provide: MarkdownRenderer,
@@ -57,5 +59,5 @@ export function provideMarkdownRenderer(renderFn?: (markdown: string, options?: 
       },
     };
   }
-  return { provide: MarkdownRenderer, useClass: DefaultMarkdownRenderer };
+  return {provide: MarkdownRenderer, useClass: DefaultMarkdownRenderer};
 }

@@ -14,19 +14,19 @@
  * limitations under the License.
  */
 
-import { setupTestDom, teardownTestDom, asyncUpdate } from "../dom-setup.js";
-import assert from "node:assert";
-import { describe, it, beforeEach, after, before } from "node:test";
-import { ComponentContext, MessageProcessor } from "@a2ui/web_core/v0_9";
+import {setupTestDom, teardownTestDom, asyncUpdate} from '../dom-setup.js';
+import assert from 'node:assert';
+import {describe, it, beforeEach, after, before} from 'node:test';
+import {ComponentContext, MessageProcessor} from '@a2ui/web_core/v0_9';
 
-describe("CheckBox Component", () => {
+describe('CheckBox Component', () => {
   let basicCatalog: any;
 
   before(async () => {
     setupTestDom();
-    basicCatalog = (await import("../../catalogs/basic/index.js")).basicCatalog;
+    basicCatalog = (await import('../../catalogs/basic/index.js')).basicCatalog;
     // Ensure component is registered
-    await import("../../catalogs/basic/components/CheckBox.js");
+    await import('../../catalogs/basic/components/CheckBox.js');
   });
 
   after(teardownTestDom);
@@ -38,44 +38,44 @@ describe("CheckBox Component", () => {
     processor = new MessageProcessor([basicCatalog]);
     processor.processMessages([
       {
-        version: "v0.9",
+        version: 'v0.9',
         createSurface: {
-          surfaceId: "test-surface",
+          surfaceId: 'test-surface',
           catalogId: basicCatalog.id,
         },
       },
       {
-        version: "v0.9",
+        version: 'v0.9',
         updateComponents: {
-          surfaceId: "test-surface",
+          surfaceId: 'test-surface',
           components: [
             {
-              id: "checkbox_invalid",
-              component: "CheckBox",
-              label: "Check me",
+              id: 'checkbox_invalid',
+              component: 'CheckBox',
+              label: 'Check me',
               value: false,
               isValid: false,
-              validationErrors: ["This is required"],
+              validationErrors: ['This is required'],
             },
           ],
         },
       },
     ]);
-    surface = processor.model.getSurface("test-surface")!;
+    surface = processor.model.getSurface('test-surface')!;
   });
 
-  it("should render validation error in CheckBox", async () => {
-    const el = document.createElement("a2ui-checkbox") as any;
+  it('should render validation error in CheckBox', async () => {
+    const el = document.createElement('a2ui-checkbox') as any;
     document.body.appendChild(el);
 
-    const context = new ComponentContext(surface, "checkbox_invalid");
-    await asyncUpdate(el, (e) => {
+    const context = new ComponentContext(surface, 'checkbox_invalid');
+    await asyncUpdate(el, e => {
       e.context = context;
     });
 
-    const errorDiv = el.shadowRoot.querySelector(".error");
+    const errorDiv = el.shadowRoot.querySelector('.error');
     assert.ok(errorDiv);
-    assert.strictEqual(errorDiv.textContent.trim(), "This is required");
+    assert.strictEqual(errorDiv.textContent.trim(), 'This is required');
 
     document.body.removeChild(el);
   });

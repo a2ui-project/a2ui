@@ -1,74 +1,74 @@
 [
-    {
-        "id": "1",
-        "name": "Alex Jordan",
-        "title": "Product Marketing Manager",
-        "team": "Team Macally",
-        "department": "Marketing",
-        "location": "New York",
-        "email": "alex.jordan@example.com",
-        "mobile": "+1 (415) 171-1080",
-        "calendar": "Free until 4:00 PM",
-        "imageUrl": "http://localhost:10004/static/profile1.png"
-    },
-    {
-        "id": "2",
-        "name": "Casey Smith",
-        "title": "Digital Marketing Specialist",
-        "team": "Growth Team",
-        "department": "Marketing",
-        "location": "New York",
-        "email": "casey.smith@example.com",
-        "mobile": "+1 (415) 222-3333",
-        "calendar": "In a meeting",
-        "imageUrl": "http://localhost:10004/static/profile2.png"
-    },
-    {
-        "id": "3",
-        "name": "Jordan Taylor",
-        "title": "Senior Software Engineer",
-        "team": "Core Platform",
-        "department": "Engineering",
-        "location": "San Francisco",
-        "email": "jordan.taylor@example.com",
-        "mobile": "+1 (650) 444-5555",
-        "calendar": "Focus time",
-        "imageUrl": "http://localhost:10004/static/profile3.png"
-    },
-    {
-        "id": "4",
-        "name": "Jane Doe",
-        "title": "CEO",
-        "team": "Executive",
-        "department": "Leadership",
-        "location": "New York",
-        "email": "jane.doe@example.com",
-        "mobile": "+1 (212) 555-0100",
-        "calendar": "Busy",
-        "imageUrl": "http://localhost:10004/static/profile4.png"
-    },
-    {
-        "id": "5",
-        "name": "John Smith",
-        "title": "VP Marketing",
-        "team": "Marketing",
-        "department": "Leadership",
-        "location": "New York",
-        "email": "john.smith@example.com",
-        "mobile": "+1 (212) 555-0101",
-        "calendar": "Free",
-        "imageUrl": "http://localhost:10004/static/profile1.png"
-    },
-    {
-        "id": "6",
-        "name": "Alice Johnson",
-        "title": "Director",
-        "team": "Marketing",
-        "department": "Leadership",
-        "location": "London",
-        "email": "alice.johnson@example.com",
-        "mobile": "+44 20 7946 0102",
-        "calendar": "Out of office",
-        "imageUrl": "http://localhost:10004/static/profile3.png"
-    }
+  {
+    "id": "1",
+    "name": "Alex Jordan",
+    "title": "Product Marketing Manager",
+    "team": "Team Macally",
+    "department": "Marketing",
+    "location": "New York",
+    "email": "alex.jordan@example.com",
+    "mobile": "+1 (415) 171-1080",
+    "calendar": "Free until 4:00 PM",
+    "imageUrl": "http://localhost:10004/static/profile1.png"
+  },
+  {
+    "id": "2",
+    "name": "Casey Smith",
+    "title": "Digital Marketing Specialist",
+    "team": "Growth Team",
+    "department": "Marketing",
+    "location": "New York",
+    "email": "casey.smith@example.com",
+    "mobile": "+1 (415) 222-3333",
+    "calendar": "In a meeting",
+    "imageUrl": "http://localhost:10004/static/profile2.png"
+  },
+  {
+    "id": "3",
+    "name": "Jordan Taylor",
+    "title": "Senior Software Engineer",
+    "team": "Core Platform",
+    "department": "Engineering",
+    "location": "San Francisco",
+    "email": "jordan.taylor@example.com",
+    "mobile": "+1 (650) 444-5555",
+    "calendar": "Focus time",
+    "imageUrl": "http://localhost:10004/static/profile3.png"
+  },
+  {
+    "id": "4",
+    "name": "Jane Doe",
+    "title": "CEO",
+    "team": "Executive",
+    "department": "Leadership",
+    "location": "New York",
+    "email": "jane.doe@example.com",
+    "mobile": "+1 (212) 555-0100",
+    "calendar": "Busy",
+    "imageUrl": "http://localhost:10004/static/profile4.png"
+  },
+  {
+    "id": "5",
+    "name": "John Smith",
+    "title": "VP Marketing",
+    "team": "Marketing",
+    "department": "Leadership",
+    "location": "New York",
+    "email": "john.smith@example.com",
+    "mobile": "+1 (212) 555-0101",
+    "calendar": "Free",
+    "imageUrl": "http://localhost:10004/static/profile1.png"
+  },
+  {
+    "id": "6",
+    "name": "Alice Johnson",
+    "title": "Director",
+    "team": "Marketing",
+    "department": "Leadership",
+    "location": "London",
+    "email": "alice.johnson@example.com",
+    "mobile": "+44 20 7946 0102",
+    "calendar": "Out of office",
+    "imageUrl": "http://localhost:10004/static/profile3.png"
+  }
 ]

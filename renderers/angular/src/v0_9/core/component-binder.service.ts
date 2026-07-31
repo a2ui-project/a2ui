@@ -14,10 +14,16 @@
  * limitations under the License.
  */
 
-import { DestroyRef, Injectable, inject, NgZone } from '@angular/core';
-import { ComponentContext, computed } from '@a2ui/web_core/v0_9';
-import { toAngularSignal } from './utils';
-import { BoundProperty } from './types';
+import {
+  DestroyRef,
+  Injectable,
+  inject,
+  Signal as AngularSignal,
+  EnvironmentInjector,
+} from '@angular/core';
+import {ComponentContext, computed} from '@a2ui/web_core/v0_9';
+import {BoundProperty, ComponentTemplate} from './types';
+import {assertAngularSignal, initializeAngularReactivity} from './reactivity';
 
 /** Represents a reference to a child component. */
 export interface Child {
@@ -38,7 +44,10 @@ export interface Child {
 })
 export class ComponentBinder {
   private destroyRef = inject(DestroyRef);
-  private ngZone = inject(NgZone);
+
+  constructor() {
+    initializeAngularReactivity(inject(EnvironmentInjector));
+  }
 
   /**
    * Binds all properties of a component to an object of Angular Signals.
@@ -48,20 +57,25 @@ export class ComponentBinder {
    */
   bind(context: ComponentContext): Record<string, BoundProperty> {
     const props = context.componentModel.properties;
-    const bound: Record<string, any> = {};
+    const bound: Record<string, BoundProperty<unknown>> = {};
 
     for (const key of Object.keys(props)) {
       const value = props[key];
+      let template: ComponentTemplate | undefined = undefined;
 
-      let preactSig;
-      const isChildListTemplate = value && typeof value === 'object' && 'componentId' in value && 'path' in value;
-      const isBoundPath = value && typeof value === 'object' && 'path' in value && !('componentId' in value);
+      let valueSignal;
+      const isChildListTemplate =
+        value && typeof value === 'object' && 'componentId' in value && 'path' in value;
+      const isBoundPath =
+        value && typeof value === 'object' && 'path' in value && !('componentId' in value);
 
       if (isChildListTemplate) {
-        const listSig = context.dataContext.resolveSignal({ path: value.path });
+        const listSig = context.dataContext.resolveSignal({path: value.path});
+        assertAngularSignal(listSig);
+
         const listContext = context.dataContext.nested(value.path);
-        preactSig = computed(() => {
-          const arr = listSig.value;
+        valueSignal = computed(() => {
+          const arr = listSig();
           const currentArr = Array.isArray(arr) ? arr : [];
           return currentArr.map((_, i) => ({
             id: value.componentId,
@@ -69,71 +83,88 @@ export class ComponentBinder {
           }));
         });
       } else {
-        preactSig = context.dataContext.resolveSignal(value);
+        valueSignal = context.dataContext.resolveSignal(value);
       }
 
       if (['child', 'trigger', 'content'].includes(key)) {
-        const originalSig = preactSig;
-        preactSig = computed(() => {
-          const val = originalSig.value;
+        const originalSig = valueSignal;
+        assertAngularSignal(originalSig);
+
+        valueSignal = computed(() => {
+          const val = originalSig();
           if (!val) return null;
           if (typeof val === 'object' && val !== null && 'id' in val) {
             return val;
           }
-          return { id: val, basePath: context.dataContext.path };
+          return {id: val, basePath: context.dataContext.path};
         });
       } else if (key === 'children') {
-        const originalSig = preactSig;
-        preactSig = computed(() => {
-          const val = originalSig.value;
+        const originalSig = valueSignal;
+        assertAngularSignal(originalSig);
+        const id = value?.componentId;
+        const path = value?.path;
+        if (id && path) {
+          template = {id, path};
+        }
+        valueSignal = computed(() => {
+          const val = originalSig();
           const arr = Array.isArray(val) ? val : [];
           return arr.map(item => {
             if (typeof item === 'object' && item !== null && 'id' in item) {
               return item;
             }
-            return { id: item, basePath: context.dataContext.path };
+            return {id: item, basePath: context.dataContext.path};
           });
         });
       }
 
-      const angSig = toAngularSignal(preactSig as any, this.destroyRef, this.ngZone);
+      if (valueSignal?.unsubscribe) {
+        this.destroyRef.onDestroy(() => valueSignal.unsubscribe!());
+      }
 
       bound[key] = {
-        value: angSig,
+        value: valueSignal as AngularSignal<unknown>,
         raw: value,
+        template,
         onUpdate: isBoundPath
-          ? (newValue: any) => context.dataContext.set(value.path, newValue)
+          ? (newValue: unknown) => context.dataContext.set(value.path, newValue)
           : () => {}, // No-op for non-bound values
       };
 
       if (key === 'checks') {
         const checksArray = Array.isArray(value) ? value : [];
 
-        const ruleResults = checksArray.map((rule: any) => {
+        const ruleResults = checksArray.map(rule => {
           const condition = rule.condition || rule;
           const message = rule.message || 'Validation failed';
           const conditionSig = context.dataContext.resolveSignal(condition);
-          return { conditionSig, message };
+          return {conditionSig, message};
         });
 
-        const isValidPreactSig = computed(() => {
-          return ruleResults.every((r: any) => !!r.conditionSig.value);
+        const isValidSignal = computed(() => {
+          return ruleResults.every(r => {
+            assertAngularSignal(r.conditionSig);
+            return !!r.conditionSig();
+          });
         });
 
-        const validationErrorsPreactSig = computed(() => {
+        const validationErrorsSignal = computed(() => {
           return ruleResults
-            .filter((r: any) => !r.conditionSig.value)
-            .map((r: any) => r.message);
+            .filter(r => {
+              assertAngularSignal(r.conditionSig);
+              return !r.conditionSig();
+            })
+            .map(r => r.message);
         });
 
         bound['isValid'] = {
-          value: toAngularSignal(isValidPreactSig, this.destroyRef, this.ngZone),
+          value: isValidSignal as AngularSignal<boolean>,
           raw: null,
           onUpdate: () => {},
         };
 
         bound['validationErrors'] = {
-          value: toAngularSignal(validationErrorsPreactSig, this.destroyRef, this.ngZone),
+          value: validationErrorsSignal as AngularSignal<unknown>,
           raw: null,
           onUpdate: () => {},
         };

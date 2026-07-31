@@ -14,17 +14,15 @@
  * limitations under the License.
  */
 
-import { html, nothing, css } from "lit";
-import { customElement } from "lit/decorators.js";
-import { classMap } from "lit/directives/class-map.js";
-import { TextFieldApi } from "@a2ui/web_core/v0_9/basic_catalog";
-import { BasicCatalogA2uiLitElement } from "../basic-catalog-a2ui-lit-element.js";
-import { A2uiController } from "@a2ui/lit/v0_9";
+import {html, nothing, css} from 'lit';
+import {customElement} from 'lit/decorators.js';
+import {classMap} from 'lit/directives/class-map.js';
+import {TextFieldApi} from '@a2ui/web_core/v0_9/basic_catalog';
+import {BasicCatalogA2uiLitElement} from '../basic-catalog-a2ui-lit-element.js';
+import {A2uiController} from '../../../a2ui-controller.js';
 
-@customElement("a2ui-basic-textfield")
-export class A2uiBasicTextFieldElement extends BasicCatalogA2uiLitElement<
-  typeof TextFieldApi
-> {
+@customElement('a2ui-basic-textfield')
+export class A2uiBasicTextFieldElement extends BasicCatalogA2uiLitElement<typeof TextFieldApi> {
   /**
    * The styles of the text field can be customized by redefining the following
    * CSS variables:
@@ -41,7 +39,7 @@ export class A2uiBasicTextFieldElement extends BasicCatalogA2uiLitElement<
    * - `--a2ui-color-input`: Background color.
    * - `--a2ui-color-on-input`: Text color.
    */
-  static styles = css`
+  static override styles = css`
     :host {
       display: flex;
       flex-direction: column;
@@ -63,7 +61,10 @@ export class A2uiBasicTextFieldElement extends BasicCatalogA2uiLitElement<
       border-color: var(--a2ui-textfield-color-error, red);
     }
     label {
-      font-size: var(--a2ui-textfield-label-font-size, var(--a2ui-label-font-size, var(--a2ui-font-size-s)));
+      font-size: var(
+        --a2ui-textfield-label-font-size,
+        var(--a2ui-label-font-size, var(--a2ui-font-size-s))
+      );
       font-weight: var(--a2ui-textfield-label-font-weight, var(--a2ui-label-font-weight, bold));
     }
     .error {
@@ -76,41 +77,40 @@ export class A2uiBasicTextFieldElement extends BasicCatalogA2uiLitElement<
     return new A2uiController(this, TextFieldApi);
   }
 
-  render() {
+  override render() {
     const props = this.controller.props;
     if (!props) return nothing;
 
     const isInvalid = props.isValid === false;
-    const onInput = (e: Event) =>
-      props.setValue?.((e.target as HTMLInputElement).value);
-    let type = "text";
-    if (props.variant === "number") type = "number";
-    if (props.variant === "obscured") type = "password";
+    const onInput = (e: Event) => props.setValue?.((e.target as HTMLInputElement).value);
+    let type: 'text' | 'number' | 'password' = 'text';
+    if (props.variant === 'number') type = 'number';
+    if (props.variant === 'obscured') type = 'password';
 
-    const classes = { "a2ui-textfield": true, invalid: isInvalid };
+    const classes = {'a2ui-textfield': true, invalid: isInvalid};
 
     return html`
       ${props.label ? html`<label>${props.label}</label>` : nothing}
-        ${props.variant === "longText"
-          ? html`<textarea
-              class=${classMap(classes)}
-              .value=${props.value || ""}
-              @input=${onInput}
-            ></textarea>`
-          : html`<input
-              type=${type}
-              class=${classMap(classes)}
-              .value=${props.value || ""}
-              @input=${onInput}
-            />`}
-        ${isInvalid && props.validationErrors?.length
-          ? html`<div class="error">${props.validationErrors[0]}</div>`
-          : nothing}
+      ${props.variant === 'longText'
+        ? html`<textarea
+            class=${classMap(classes)}
+            .value=${props.value || ''}
+            @input=${onInput}
+          ></textarea>`
+        : html`<input
+            type=${type}
+            class=${classMap(classes)}
+            .value=${props.value || ''}
+            @input=${onInput}
+          />`}
+      ${isInvalid && props.validationErrors?.length
+        ? html`<div class="error">${props.validationErrors[0]}</div>`
+        : nothing}
     `;
   }
 }
 
 export const A2uiTextField = {
   ...TextFieldApi,
-  tagName: "a2ui-basic-textfield",
+  tagName: 'a2ui-basic-textfield',
 };

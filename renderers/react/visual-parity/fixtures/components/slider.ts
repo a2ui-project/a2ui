@@ -21,7 +21,7 @@
  * Using path bindings for values to match the A2UI data model pattern.
  */
 
-import type { ComponentFixture } from '../types';
+import type {ComponentFixture} from '../types';
 
 export const slider: ComponentFixture = {
   root: 'slider-1',
@@ -33,7 +33,7 @@ export const slider: ComponentFixture = {
       id: 'slider-1',
       component: {
         Slider: {
-          value: { path: '/slider/value' },
+          value: {path: '/slider/value'},
           minValue: 0,
           maxValue: 100,
         },

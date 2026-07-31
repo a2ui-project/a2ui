@@ -14,10 +14,16 @@
  * limitations under the License.
  */
 
-import { describe, it, expect, vi } from 'vitest';
-import { render, screen, fireEvent } from '@testing-library/react';
+import {describe, it, expect, vi} from 'vitest';
+import {render, screen, fireEvent} from '@testing-library/react';
 import React from 'react';
-import { TestWrapper, TestRenderer, createSurfaceUpdate, createBeginRendering, getMockCallArg } from '../../utils';
+import {
+  TestWrapper,
+  TestRenderer,
+  createSurfaceUpdate,
+  createBeginRendering,
+  getMockCallArg,
+} from '../../utils';
 import type * as Types from '@a2ui/web_core/types/types';
 
 /**
@@ -37,11 +43,19 @@ function createButtonMessages(
   id: string,
   props: {
     actionName: string;
-    actionContext?: Array<{ key: string; value: { literalString?: string; literalNumber?: number; literalBoolean?: boolean; path?: string } }>;
+    actionContext?: Array<{
+      key: string;
+      value: {
+        literalString?: string;
+        literalNumber?: number;
+        literalBoolean?: boolean;
+        path?: string;
+      };
+    }>;
     childText?: string;
     primary?: boolean;
   },
-  surfaceId = '@default'
+  surfaceId = '@default',
 ): Types.ServerToClientMessage[] {
   const textId = `${id}-text`;
 
@@ -53,8 +67,8 @@ function createButtonMessages(
           id: textId,
           component: {
             Text: {
-              text: { literalString: props.childText ?? 'Click me' },
-            usageHint: 'body',
+              text: {literalString: props.childText ?? 'Click me'},
+              usageHint: 'body',
             },
           },
         },
@@ -73,7 +87,7 @@ function createButtonMessages(
           },
         },
       ],
-      surfaceId
+      surfaceId,
     ),
     createBeginRendering(id, surfaceId),
   ];
@@ -82,12 +96,12 @@ function createButtonMessages(
 describe('Button Component', () => {
   describe('Basic Rendering', () => {
     it('should render a button element', () => {
-      const messages = createButtonMessages('btn-1', { actionName: 'submit' });
+      const messages = createButtonMessages('btn-1', {actionName: 'submit'});
 
-      const { container } = render(
+      const {container} = render(
         <TestWrapper>
           <TestRenderer messages={messages} />
-        </TestWrapper>
+        </TestWrapper>,
       );
 
       const button = container.querySelector('button');
@@ -96,12 +110,12 @@ describe('Button Component', () => {
     });
 
     it('should render with wrapper div having correct class', () => {
-      const messages = createButtonMessages('btn-1', { actionName: 'submit' });
+      const messages = createButtonMessages('btn-1', {actionName: 'submit'});
 
-      const { container } = render(
+      const {container} = render(
         <TestWrapper>
           <TestRenderer messages={messages} />
-        </TestWrapper>
+        </TestWrapper>,
       );
 
       const wrapper = container.querySelector('.a2ui-button');
@@ -115,10 +129,10 @@ describe('Button Component', () => {
         childText: 'Submit Form',
       });
 
-      const { container } = render(
+      const {container} = render(
         <TestWrapper>
           <TestRenderer messages={messages} />
-        </TestWrapper>
+        </TestWrapper>,
       );
 
       const button = container.querySelector('button');
@@ -137,22 +151,22 @@ describe('Button Component', () => {
         childText: 'Cancel',
       });
 
-      const { container: container1 } = render(
+      const {container: container1} = render(
         <TestWrapper>
           <TestRenderer messages={messages1} />
-        </TestWrapper>
+        </TestWrapper>,
       );
-      const { container: container2 } = render(
+      const {container: container2} = render(
         <TestWrapper>
           <TestRenderer messages={messages2} />
-        </TestWrapper>
+        </TestWrapper>,
       );
 
       expect(container1.querySelector('button')?.textContent).toContain('Save');
       expect(container2.querySelector('button')?.textContent).toContain('Cancel');
       // Verify they're different
       expect(container1.querySelector('button')?.textContent).not.toBe(
-        container2.querySelector('button')?.textContent
+        container2.querySelector('button')?.textContent,
       );
     });
   });
@@ -160,12 +174,12 @@ describe('Button Component', () => {
   describe('Action Handling', () => {
     it('should call onAction with correct action name when clicked', () => {
       const mockOnAction = vi.fn();
-      const messages = createButtonMessages('btn-1', { actionName: 'submit-form' });
+      const messages = createButtonMessages('btn-1', {actionName: 'submit-form'});
 
       render(
         <TestWrapper onAction={mockOnAction}>
           <TestRenderer messages={messages} />
-        </TestWrapper>
+        </TestWrapper>,
       );
 
       const button = screen.getByRole('button');
@@ -186,15 +200,15 @@ describe('Button Component', () => {
       const messages = createButtonMessages('btn-1', {
         actionName: 'delete-item',
         actionContext: [
-          { key: 'itemId', value: { literalString: '123' } },
-          { key: 'confirmed', value: { literalBoolean: true } },
+          {key: 'itemId', value: {literalString: '123'}},
+          {key: 'confirmed', value: {literalBoolean: true}},
         ],
       });
 
       render(
         <TestWrapper onAction={mockOnAction}>
           <TestRenderer messages={messages} />
-        </TestWrapper>
+        </TestWrapper>,
       );
 
       fireEvent.click(screen.getByRole('button'));
@@ -211,12 +225,12 @@ describe('Button Component', () => {
 
     it('should not call onAction before click', () => {
       const mockOnAction = vi.fn();
-      const messages = createButtonMessages('btn-1', { actionName: 'test' });
+      const messages = createButtonMessages('btn-1', {actionName: 'test'});
 
       render(
         <TestWrapper onAction={mockOnAction}>
           <TestRenderer messages={messages} />
-        </TestWrapper>
+        </TestWrapper>,
       );
 
       // No click - should not have been called
@@ -225,12 +239,12 @@ describe('Button Component', () => {
 
     it('should call onAction multiple times for multiple clicks', () => {
       const mockOnAction = vi.fn();
-      const messages = createButtonMessages('btn-1', { actionName: 'increment' });
+      const messages = createButtonMessages('btn-1', {actionName: 'increment'});
 
       render(
         <TestWrapper onAction={mockOnAction}>
           <TestRenderer messages={messages} />
-        </TestWrapper>
+        </TestWrapper>,
       );
 
       const button = screen.getByRole('button');
@@ -244,12 +258,12 @@ describe('Button Component', () => {
 
   describe('Accessibility', () => {
     it('should be focusable', () => {
-      const messages = createButtonMessages('btn-1', { actionName: 'action' });
+      const messages = createButtonMessages('btn-1', {actionName: 'action'});
 
       render(
         <TestWrapper>
           <TestRenderer messages={messages} />
-        </TestWrapper>
+        </TestWrapper>,
       );
 
       const button = screen.getByRole('button');
@@ -259,12 +273,12 @@ describe('Button Component', () => {
 
     it('should be clickable via role', () => {
       const mockOnAction = vi.fn();
-      const messages = createButtonMessages('btn-1', { actionName: 'action' });
+      const messages = createButtonMessages('btn-1', {actionName: 'action'});
 
       render(
         <TestWrapper onAction={mockOnAction}>
           <TestRenderer messages={messages} />
-        </TestWrapper>
+        </TestWrapper>,
       );
 
       // Using getByRole ensures the button has proper ARIA role

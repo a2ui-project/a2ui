@@ -14,13 +14,12 @@
  * limitations under the License.
  */
 
-import { ComponentFixture, TestBed } from '@angular/core/testing';
-import { AudioPlayer } from './audio';
-import { Types } from '../types';
-import { Theme } from '../rendering/theming';
-import { ChangeDetectionStrategy } from '@angular/core';
-import { MessageProcessor } from '../data/processor';
-import { Catalog } from '../rendering/catalog';
+import {ComponentFixture, TestBed} from '@angular/core/testing';
+import {AudioPlayer} from './audio';
+import type {AudioPlayerNode} from '../types';
+import {Theme} from '../rendering/theming';
+import {MessageProcessor} from '../data/processor';
+import {Catalog} from '../rendering/catalog';
 
 describe('AudioPlayer Component', () => {
   let component: AudioPlayer;
@@ -28,12 +27,12 @@ describe('AudioPlayer Component', () => {
   let mockTheme: Theme;
   let mockProcessor: jasmine.SpyObj<MessageProcessor>;
 
-  const mockAudioNode: Types.AudioPlayerNode = {
+  const mockAudioNode: AudioPlayerNode = {
     id: 'audio-1',
     type: 'AudioPlayer',
     weight: 1,
     properties: {
-      url: { literalString: 'https://example.com/audio.mp3' },
+      url: {literalString: 'https://example.com/audio.mp3'},
     },
   };
 
@@ -44,20 +43,16 @@ describe('AudioPlayer Component', () => {
       'getData',
     ]);
     mockTheme = new Theme();
-    mockTheme.additionalStyles = { AudioPlayer: { backgroundColor: 'red' } } as any;
+    mockTheme.additionalStyles = {AudioPlayer: {backgroundColor: 'red'}} as any;
 
     await TestBed.configureTestingModule({
       imports: [AudioPlayer],
       providers: [
-        { provide: MessageProcessor, useValue: mockProcessor },
-        { provide: Theme, useValue: mockTheme },
-        { provide: Catalog, useValue: {} },
+        {provide: MessageProcessor, useValue: mockProcessor},
+        {provide: Theme, useValue: mockTheme},
+        {provide: Catalog, useValue: {}},
       ],
-    })
-      .overrideComponent(AudioPlayer, {
-        set: { changeDetection: ChangeDetectionStrategy.Default },
-      })
-      .compileComponents();
+    }).compileComponents();
 
     fixture = TestBed.createComponent(AudioPlayer);
     component = fixture.componentInstance;

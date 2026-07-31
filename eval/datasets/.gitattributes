@@ -1,0 +1,1 @@
+*.yaml filter=crypt diff=crypt merge=crypt

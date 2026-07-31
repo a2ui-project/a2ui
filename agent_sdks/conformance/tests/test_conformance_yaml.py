@@ -36,7 +36,7 @@ SCHEMA = load_json_file(SCHEMA_PATH)
 
 
 def get_yaml_files():
-    pattern = os.path.join(CONFORMANCE_DIR, "*.yaml")
+    pattern = os.path.join(CONFORMANCE_DIR, "suites", "*.yaml")
     return glob.glob(pattern)
 
 

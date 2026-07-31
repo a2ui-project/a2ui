@@ -14,15 +14,15 @@
  * limitations under the License.
  */
 
-import { ChangeDetectionStrategy, Component, input } from '@angular/core';
-import { Types } from '../types';
-import { DynamicComponent } from '../rendering/dynamic-component';
-import { Renderer } from '../rendering/renderer';
+import {ChangeDetectionStrategy, Component, input} from '@angular/core';
+import type {AnyComponentNode, ListNode, ResolvedList} from '../types';
+import {DynamicComponent} from '../rendering/dynamic-component';
+import {Renderer} from '../rendering/renderer';
 
 @Component({
   selector: 'a2ui-list',
   imports: [Renderer],
-  changeDetection: ChangeDetectionStrategy.Eager,
+  changeDetection: ChangeDetectionStrategy.OnPush,
   host: {
     '[attr.direction]': 'direction()',
   },
@@ -66,8 +66,8 @@ import { Renderer } from '../rendering/renderer';
     </section>
   `,
 })
-export class List extends DynamicComponent<Types.ListNode> {
-  readonly alignment = input<Types.ResolvedList['alignment']>('stretch');
-  readonly direction = input<Types.ResolvedList['direction']>('vertical');
-  readonly children = input<Types.AnyComponentNode[] | null>(null);
+export class List extends DynamicComponent<ListNode> {
+  readonly alignment = input<ResolvedList['alignment']>('stretch');
+  readonly direction = input<ResolvedList['direction']>('vertical');
+  readonly children = input<AnyComponentNode[] | null>(null);
 }

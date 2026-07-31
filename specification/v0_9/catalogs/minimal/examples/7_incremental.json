@@ -1,0 +1,134 @@
+{
+  "name": "Incremental List",
+  "description": "Demonstrates progressive rendering of a list with templates and data model reactivity.",
+  "messages": [
+    {
+      "version": "v0.9",
+      "createSurface": {
+        "surfaceId": "example_7",
+        "catalogId": "https://a2ui.org/specification/v0_9/catalogs/minimal/catalog.json"
+      }
+    },
+    {
+      "version": "v0.9",
+      "updateDataModel": {
+        "surfaceId": "example_7",
+        "path": "/",
+        "value": {
+          "restaurants": [
+            {
+              "title": "The Golden Fork",
+              "subtitle": "Fine Dining & Spirits",
+              "address": "123 Gastronomy Lane"
+            },
+            {
+              "title": "Ocean's Bounty",
+              "subtitle": "Fresh Daily Seafood",
+              "address": "456 Shoreline Dr"
+            },
+            {
+              "title": "Pizzeria Roma",
+              "subtitle": "Authentic Wood-Fired Pizza",
+              "address": "789 Napoli Way"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "version": "v0.9",
+      "updateComponents": {
+        "surfaceId": "example_7",
+        "components": [
+          {
+            "id": "root",
+            "component": "Column",
+            "children": {
+              "path": "/restaurants",
+              "componentId": "restaurant_card"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "version": "v0.9",
+      "updateComponents": {
+        "surfaceId": "example_7",
+        "components": [
+          {
+            "id": "restaurant_card",
+            "component": "Column",
+            "children": ["rc_title", "rc_subtitle", "rc_address"]
+          },
+          {
+            "id": "rc_title",
+            "component": "Text",
+            "text": {
+              "path": "title"
+            }
+          },
+          {
+            "id": "rc_subtitle",
+            "component": "Text",
+            "text": {
+              "path": "subtitle"
+            }
+          },
+          {
+            "id": "rc_address",
+            "component": "Text",
+            "text": {
+              "path": "address"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "version": "v0.9",
+      "updateDataModel": {
+        "surfaceId": "example_7",
+        "path": "/restaurants/3",
+        "value": {
+          "title": "Spice Route",
+          "subtitle": "Exotic Flavors from the East",
+          "address": "101 Silk Road St"
+        }
+      }
+    },
+    {
+      "version": "v0.9",
+      "updateComponents": {
+        "surfaceId": "example_7",
+        "components": [
+          {
+            "id": "restaurant_card",
+            "component": "Column",
+            "children": ["rc_title", "rc_subtitle", "rc_address", "rc_button"]
+          },
+          {
+            "id": "rc_button",
+            "component": "Button",
+            "child": "rc_button_label",
+            "action": {
+              "event": {
+                "name": "book_now",
+                "context": {
+                  "restaurantName": {
+                    "path": "title"
+                  }
+                }
+              }
+            }
+          },
+          {
+            "id": "rc_button_label",
+            "component": "Text",
+            "text": "Book now"
+          }
+        ]
+      }
+    }
+  ]
+}

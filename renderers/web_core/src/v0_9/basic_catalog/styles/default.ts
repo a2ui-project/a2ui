@@ -51,15 +51,15 @@ const DEFAULT_CSS = `
     --a2ui-color-on-surface: light-dark(#333, #eee);
 
     --a2ui-color-primary: #17e;
-    --a2ui-color-primary-light: color-mix(in oklab, var(--a2ui-color-primary) 85%, white);
-    --a2ui-color-primary-dark: color-mix(in oklab, var(--a2ui-color-primary) 85%, black);
-    --a2ui-color-primary-hover: light-dark(var(--a2ui-color-primary-dark), var(--a2ui-color-primary-light));
+    --a2ui-color-primary-light: ${computeColorVariant('light', {colorVar: '--a2ui-color-primary'})};
+    --a2ui-color-primary-dark: ${computeColorVariant('dark', {colorVar: '--a2ui-color-primary'})};
+    --a2ui-color-primary-hover: ${computeColorVariant('hover', {darkVar: '--a2ui-color-primary-dark', lightVar: '--a2ui-color-primary-light'})};
     --a2ui-color-on-primary: #fff;
 
     --a2ui-color-secondary: light-dark(#ddd, #333);
-    --a2ui-color-secondary-light: color-mix(in oklab, var(--a2ui-color-secondary) 85%, white);
-    --a2ui-color-secondary-dark: color-mix(in oklab, var(--a2ui-color-secondary) 95%, black);
-    --a2ui-color-secondary-hover: light-dark(var(--a2ui-color-secondary-dark), var(--a2ui-color-secondary-light));
+    --a2ui-color-secondary-light: ${computeColorVariant('light', {colorVar: '--a2ui-color-secondary'})};
+    --a2ui-color-secondary-dark: ${computeColorVariant('dark', {colorVar: '--a2ui-color-secondary', percentage: 95})};
+    --a2ui-color-secondary-hover: ${computeColorVariant('hover', {darkVar: '--a2ui-color-secondary-dark', lightVar: '--a2ui-color-secondary-light'})};
     --a2ui-color-on-secondary: light-dark(#333, #eee);
 
     --a2ui-border-radius: 0.25rem;
@@ -134,5 +134,73 @@ export function injectBasicCatalogStyles() {
   const sheet = getDefaultStyleSheet();
   if (!document.adoptedStyleSheets.includes(sheet)) {
     document.adoptedStyleSheets = [...document.adoptedStyleSheets, sheet];
+  }
+}
+
+/**
+ * Options for computing light and dark color variants.
+ */
+export interface ColorVariantLightDarkOptions {
+  /** The CSS variable name of the base color (e.g., '--a2ui-color-primary'). */
+  colorVar: string;
+  /** The percentage of the base color to retain in the mix (default 85). */
+  percentage?: number;
+  /** The color to mix with (default 'white' for light, 'black' for dark). */
+  mixColor?: string;
+}
+
+/**
+ * Options for computing hover color variants using light-dark().
+ */
+export interface ColorVariantHoverOptions {
+  /** The CSS variable name of the dark variant. */
+  darkVar: string;
+  /** The CSS variable name of the light variant. */
+  lightVar: string;
+}
+
+/**
+ * Computes the formula for light or dark variants of a color.
+ * @param type The type of variant to compute ('light' or 'dark').
+ * @param options Options containing the base color variable and optional percentage.
+ * @returns The CSS formula string.
+ */
+export function computeColorVariant(
+  type: 'light' | 'dark',
+  options: ColorVariantLightDarkOptions,
+): string;
+
+/**
+ * Computes the formula for hover variants of a color.
+ * @param type The type of variant to compute ('hover').
+ * @param options Options containing the dark and light variant variable names.
+ * @returns The CSS formula string.
+ */
+export function computeColorVariant(type: 'hover', options: ColorVariantHoverOptions): string;
+
+/**
+ * Computes the formula for light, dark, or hover variants of a color.
+ * By default, light variants are mixed with white and dark variants with black.
+ * @param type The type of variant to compute ('light', 'dark', 'hover').
+ * @param options Options containing variable names, percentages, and optional mix color.
+ * @returns The CSS formula string.
+ */
+export function computeColorVariant(
+  type: 'light' | 'dark' | 'hover',
+  options: ColorVariantLightDarkOptions | ColorVariantHoverOptions,
+): string {
+  switch (type) {
+    case 'light': {
+      const opt = options as ColorVariantLightDarkOptions;
+      return `color-mix(in oklab, var(${opt.colorVar}) ${opt.percentage ?? 85}%, ${opt.mixColor ?? 'white'})`;
+    }
+    case 'dark': {
+      const opt = options as ColorVariantLightDarkOptions;
+      return `color-mix(in oklab, var(${opt.colorVar}) ${opt.percentage ?? 85}%, ${opt.mixColor ?? 'black'})`;
+    }
+    case 'hover': {
+      const opt = options as ColorVariantHoverOptions;
+      return `light-dark(var(${opt.darkVar}), var(${opt.lightVar}))`;
+    }
   }
 }

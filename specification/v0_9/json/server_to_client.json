@@ -5,10 +5,10 @@
   "description": "Describes a JSON payload for an A2UI (Agent to UI) message, which is used to dynamically construct and update user interfaces.",
   "type": "object",
   "oneOf": [
-    { "$ref": "#/$defs/CreateSurfaceMessage" },
-    { "$ref": "#/$defs/UpdateComponentsMessage" },
-    { "$ref": "#/$defs/UpdateDataModelMessage" },
-    { "$ref": "#/$defs/DeleteSurfaceMessage" }
+    {"$ref": "#/$defs/CreateSurfaceMessage"},
+    {"$ref": "#/$defs/UpdateComponentsMessage"},
+    {"$ref": "#/$defs/UpdateDataModelMessage"},
+    {"$ref": "#/$defs/DeleteSurfaceMessage"}
   ],
   "$defs": {
     "CreateSurfaceMessage": {
@@ -19,7 +19,7 @@
         },
         "createSurface": {
           "type": "object",
-          "description": "Signals the client to create a new surface and begin rendering it. When this message is sent, the client will expect 'updateComponents' and/or 'updateDataModel' messages for the same surfaceId that define the component tree.",
+          "description": "Signals the client to create a new surface and begin rendering it. It is an error to send 'createSurface' for a surfaceId that already exists without first deleting it. When this message is sent, the client will expect 'updateComponents' and/or 'updateDataModel' messages for the same surfaceId that define the component tree.",
           "properties": {
             "surfaceId": {
               "type": "string",

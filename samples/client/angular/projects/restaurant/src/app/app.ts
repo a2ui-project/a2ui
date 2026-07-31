@@ -14,17 +14,17 @@
  * limitations under the License.
  */
 
-import { SurfaceComponent, A2uiRendererService } from '@a2ui/angular/v0_9';
+import {SurfaceComponent, A2uiRendererService} from '@a2ui/angular/v0_9';
 import * as Types from '@a2ui/web_core/types/types';
-import { ChangeDetectionStrategy, Component, DOCUMENT, inject, signal } from '@angular/core';
-import { Client } from './client';
+import {ChangeDetectionStrategy, Component, DOCUMENT, inject, signal} from '@angular/core';
+import {Client} from './client';
 
 @Component({
   selector: 'app-root',
   templateUrl: './app.html',
   styleUrl: 'app.css',
   imports: [SurfaceComponent],
-  changeDetection: ChangeDetectionStrategy.Eager,
+  changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class App {
   protected client = inject(Client);
@@ -62,7 +62,7 @@ export class App {
   }
 
   protected toggleTheme(button: HTMLButtonElement) {
-    const { colorScheme } = window.getComputedStyle(button);
+    const {colorScheme} = window.getComputedStyle(button);
     const classList = this.document.body.classList;
 
     if (colorScheme === 'dark') {
@@ -78,7 +78,7 @@ export class App {
     this.loadingTextIndex.set(0);
 
     this.loadingInterval = window.setInterval(() => {
-      this.loadingTextIndex.update((prev) => (prev + 1) % this.loadingTextLines.length);
+      this.loadingTextIndex.update(prev => (prev + 1) % this.loadingTextLines.length);
     }, 2000);
   }
 

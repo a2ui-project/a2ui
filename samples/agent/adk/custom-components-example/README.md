@@ -4,7 +4,7 @@ This sample uses the Agent Development Kit (ADK) along with the A2A protocol to 
 
 ## Prerequisites
 
-- Python 3.9 or higher
+- Python — see `requires-python` in [pyproject.toml](pyproject.toml)
 - [UV](https://docs.astral.sh/uv/)
 - Access to an LLM and API Key
 
@@ -12,9 +12,9 @@ This sample uses the Agent Development Kit (ADK) along with the A2A protocol to 
 
 1. Navigate to the samples directory:
 
-    ```bash
-    cd samples/agent/adk/custom-components-example
-    ```
+   ```bash
+   cd samples/agent/adk/custom-components-example
+   ```
 
 2. Create an environment file with your API key:
 
@@ -28,17 +28,24 @@ This sample uses the Agent Development Kit (ADK) along with the A2A protocol to 
    uv run .
    ```
 
-4. (Optional) Run the server with standard `WebFrame` instead of the custom `McpAppsCustomComponent`:
+   The server listens on `http://localhost:10004` by default (override with `uv run . --port <port>`). It uses the Gemini `gemini-3-flash-preview` model by default; override it via the `LITELLM_MODEL` environment variable (e.g. `LITELLM_MODEL=gemini/gemini-2.5-flash`).
+
+4. Verify the server is running by fetching its agent card:
+
+   ```bash
+   curl http://localhost:10004/.well-known/agent-card.json
+   ```
+
+5. (Optional) Run the server with standard `WebFrame` instead of the custom `McpAppsCustomComponent`:
 
    ```bash
    USE_MCP_SANDBOX=false uv run .
    ```
 
-
 ## Disclaimer
 
 Important: The sample code provided is for demonstration purposes and illustrates the mechanics of the Agent-to-Agent (A2A) protocol. When building production applications, it is critical to treat any agent operating outside of your direct control as a potentially untrusted entity.
 
-All data received from an external agent—including but not limited to its AgentCard, messages, artifacts, and task statuses—should be handled as untrusted input. For example, a malicious agent could provide an AgentCard containing crafted data in its fields (e.g., description, name, skills.description). If this data is used without sanitization to construct prompts for a Large Language Model (LLM), it could expose your application to prompt injection attacks.  Failure to properly validate and sanitize this data before use can introduce security vulnerabilities into your application.
+All data received from an external agent—including but not limited to its AgentCard, messages, artifacts, and task statuses—should be handled as untrusted input. For example, a malicious agent could provide an AgentCard containing crafted data in its fields (e.g., description, name, skills.description). If this data is used without sanitization to construct prompts for a Large Language Model (LLM), it could expose your application to prompt injection attacks. Failure to properly validate and sanitize this data before use can introduce security vulnerabilities into your application.
 
 Developers are responsible for implementing appropriate security measures, such as input validation and secure handling of credentials to protect their systems and users.

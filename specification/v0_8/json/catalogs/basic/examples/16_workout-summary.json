@@ -16,12 +16,7 @@
           "component": {
             "Column": {
               "children": {
-                "explicitList": [
-                  "header",
-                  "divider",
-                  "metrics-row",
-                  "date"
-                ]
+                "explicitList": ["header", "divider", "metrics-row", "date"]
               }
             }
           }
@@ -31,10 +26,7 @@
           "component": {
             "Row": {
               "children": {
-                "explicitList": [
-                  "workout-icon",
-                  "title"
-                ]
+                "explicitList": ["workout-icon", "title"]
               },
               "alignment": "center"
             }
@@ -72,11 +64,7 @@
           "component": {
             "Row": {
               "children": {
-                "explicitList": [
-                  "duration-col",
-                  "calories-col",
-                  "distance-col"
-                ]
+                "explicitList": ["duration-col", "calories-col", "distance-col"]
               },
               "distribution": "spaceAround"
             }
@@ -87,10 +75,7 @@
           "component": {
             "Column": {
               "children": {
-                "explicitList": [
-                  "duration-value",
-                  "duration-label"
-                ]
+                "explicitList": ["duration-value", "duration-label"]
               },
               "alignment": "center"
             }
@@ -123,10 +108,7 @@
           "component": {
             "Column": {
               "children": {
-                "explicitList": [
-                  "calories-value",
-                  "calories-label"
-                ]
+                "explicitList": ["calories-value", "calories-label"]
               },
               "alignment": "center"
             }
@@ -159,10 +141,7 @@
           "component": {
             "Column": {
               "children": {
-                "explicitList": [
-                  "distance-value",
-                  "distance-label"
-                ]
+                "explicitList": ["distance-value", "distance-label"]
               },
               "alignment": "center"
             }

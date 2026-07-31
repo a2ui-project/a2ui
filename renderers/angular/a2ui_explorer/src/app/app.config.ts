@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-import { ApplicationConfig, provideBrowserGlobalErrorListeners } from '@angular/core';
-import { provideMarkdownRenderer } from '../../../src/v0_9/core/markdown';
+import {ApplicationConfig, provideBrowserGlobalErrorListeners} from '@angular/core';
+import {provideMarkdownRenderer} from '../../../src/v0_9/core/markdown';
 
 export const appConfig: ApplicationConfig = {
   providers: [provideBrowserGlobalErrorListeners(), provideMarkdownRenderer()],

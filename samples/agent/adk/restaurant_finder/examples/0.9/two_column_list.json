@@ -3,7 +3,7 @@
     "version": "v0.9",
     "createSurface": {
       "surfaceId": "default",
-      "catalogId": "https://a2ui.org/specification/v0_9/basic_catalog.json",
+      "catalogId": "https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json",
       "theme": {
         "primaryColor": "#FF0000",
         "font": "Roboto"
@@ -18,10 +18,7 @@
         {
           "id": "root",
           "component": "Column",
-          "children": [
-            "title-heading",
-            "restaurant-list"
-          ]
+          "children": ["title-heading", "restaurant-list"]
         },
         {
           "id": "title-heading",
@@ -43,10 +40,7 @@
         {
           "id": "row-template",
           "component": "Row",
-          "children": [
-            "card-template-left",
-            "card-template-right"
-          ]
+          "children": ["card-template-left", "card-template-right"]
         },
         {
           "id": "card-template-left",
@@ -57,10 +51,7 @@
         {
           "id": "card-layout-left",
           "component": "Column",
-          "children": [
-            "template-image-left",
-            "card-details-left"
-          ]
+          "children": ["template-image-left", "card-details-left"]
         },
         {
           "id": "template-image-left",
@@ -137,10 +128,7 @@
         {
           "id": "card-layout-right",
           "component": "Column",
-          "children": [
-            "template-image-right",
-            "card-details-right"
-          ]
+          "children": ["template-image-right", "card-details-right"]
         },
         {
           "id": "template-image-right",

@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import type { A2UIComponent } from '@/types/widget';
+import type {A2UIComponent} from '@/types/widget';
 
 export interface ComponentProp {
   name: string;
@@ -49,7 +49,8 @@ export const COMPONENTS_DATA_V09: ComponentCategory[] = [
     components: [
       {
         name: 'Row',
-        description: 'Horizontal flex container that arranges children in a row with configurable alignment and justification.',
+        description:
+          'Horizontal flex container that arranges children in a row with configurable alignment and justification.',
         usage: `{
   "id": "row-1",
   "component": "Row",
@@ -74,7 +75,15 @@ export const COMPONENTS_DATA_V09: ComponentCategory[] = [
             name: 'justify',
             description: 'Horizontal distribution of children along the row.',
             type: 'enum',
-            values: ['start', 'center', 'end', 'spaceBetween', 'spaceAround', 'spaceEvenly', 'stretch'],
+            values: [
+              'start',
+              'center',
+              'end',
+              'spaceBetween',
+              'spaceAround',
+              'spaceEvenly',
+              'stretch',
+            ],
             default: 'start',
           },
         ],
@@ -111,7 +120,8 @@ export const COMPONENTS_DATA_V09: ComponentCategory[] = [
       },
       {
         name: 'Column',
-        description: 'Vertical flex container that arranges children in a column with configurable alignment and justification.',
+        description:
+          'Vertical flex container that arranges children in a column with configurable alignment and justification.',
         usage: `{
   "id": "column-1",
   "component": "Column",
@@ -136,7 +146,15 @@ export const COMPONENTS_DATA_V09: ComponentCategory[] = [
             name: 'justify',
             description: 'Vertical distribution of children along the column.',
             type: 'enum',
-            values: ['start', 'center', 'end', 'spaceBetween', 'spaceAround', 'spaceEvenly', 'stretch'],
+            values: [
+              'start',
+              'center',
+              'end',
+              'spaceBetween',
+              'spaceAround',
+              'spaceEvenly',
+              'stretch',
+            ],
             default: 'start',
           },
         ],
@@ -173,7 +191,8 @@ export const COMPONENTS_DATA_V09: ComponentCategory[] = [
       },
       {
         name: 'List',
-        description: 'Container for rendering lists of items, supporting both vertical and horizontal layouts.',
+        description:
+          'Container for rendering lists of items, supporting both vertical and horizontal layouts.',
         usage: `{
   "id": "list-1",
   "component": "List",
@@ -188,7 +207,8 @@ export const COMPONENTS_DATA_V09: ComponentCategory[] = [
         props: [
           {
             name: 'children',
-            description: 'Child component IDs or template for list items. Use template with dataBinding to render items from data.',
+            description:
+              'Child component IDs or template for list items. Use template with dataBinding to render items from data.',
             type: 'string[] | template',
           },
           {
@@ -238,7 +258,8 @@ export const COMPONENTS_DATA_V09: ComponentCategory[] = [
       },
       {
         name: 'Card',
-        description: 'A styled container that provides card-like appearance with elevation and padding.',
+        description:
+          'A styled container that provides card-like appearance with elevation and padding.',
         usage: `{
   "id": "card-1",
   "component": "Card",
@@ -286,7 +307,8 @@ export const COMPONENTS_DATA_V09: ComponentCategory[] = [
     components: [
       {
         name: 'Text',
-        description: 'Display text content with semantic styling variants. Supports markdown rendering and data binding.',
+        description:
+          'Display text content with semantic styling variants. Supports markdown rendering and data binding.',
         usage: `{
   "id": "text-1",
   "component": "Text",
@@ -296,12 +318,14 @@ export const COMPONENTS_DATA_V09: ComponentCategory[] = [
         props: [
           {
             name: 'text',
-            description: 'The text content to display. Can be a plain string or a path binding to data.',
+            description:
+              'The text content to display. Can be a plain string or a path binding to data.',
             type: 'string | { path: string }',
           },
           {
             name: 'variant',
-            description: 'Semantic variant for text styling. Determines font size, weight, and other typographic properties.',
+            description:
+              'Semantic variant for text styling. Determines font size, weight, and other typographic properties.',
             type: 'enum',
             values: ['h1', 'h2', 'h3', 'h4', 'h5', 'caption', 'body'],
           },
@@ -392,7 +416,8 @@ export const COMPONENTS_DATA_V09: ComponentCategory[] = [
       },
       {
         name: 'Icon',
-        description: 'Display Material Icons by name. Icons are rendered using the Google Icon font.',
+        description:
+          'Display Material Icons by name. Icons are rendered using the Google Icon font.',
         usage: `{
   "id": "icon-1",
   "component": "Icon",
@@ -401,7 +426,8 @@ export const COMPONENTS_DATA_V09: ComponentCategory[] = [
         props: [
           {
             name: 'name',
-            description: 'The Material Icon name (e.g., "check_circle", "home", "settings"). Uses snake_case naming.',
+            description:
+              'The Material Icon name (e.g., "check_circle", "home", "settings"). Uses snake_case naming.',
             type: 'string | { path: string }',
           },
         ],
@@ -524,7 +550,8 @@ export const COMPONENTS_DATA_V09: ComponentCategory[] = [
         props: [
           {
             name: 'value',
-            description: 'The current input value. Typically bound to a data path for two-way binding.',
+            description:
+              'The current input value. Typically bound to a data path for two-way binding.',
             type: 'string | { path: string }',
           },
           {
@@ -551,12 +578,12 @@ export const COMPONENTS_DATA_V09: ComponentCategory[] = [
             {
               id: 'textfield-1',
               component: 'TextField',
-              value: { path: '/name' },
+              value: {path: '/name'},
               label: 'Enter your name',
               variant: 'shortText',
             } as A2UIComponent,
           ],
-          data: { name: '' },
+          data: {name: ''},
         },
       },
       {
@@ -587,10 +614,10 @@ export const COMPONENTS_DATA_V09: ComponentCategory[] = [
               id: 'checkbox-1',
               component: 'CheckBox',
               label: 'I agree to the terms and conditions',
-              value: { path: '/agreed' },
+              value: {path: '/agreed'},
             } as A2UIComponent,
           ],
-          data: { agreed: false },
+          data: {agreed: false},
         },
       },
       {
@@ -606,7 +633,8 @@ export const COMPONENTS_DATA_V09: ComponentCategory[] = [
         props: [
           {
             name: 'value',
-            description: 'The current slider value. Typically bound to a data path for two-way binding.',
+            description:
+              'The current slider value. Typically bound to a data path for two-way binding.',
             type: 'number | { path: string }',
           },
           {
@@ -632,12 +660,12 @@ export const COMPONENTS_DATA_V09: ComponentCategory[] = [
             {
               id: 'slider-1',
               component: 'Slider',
-              value: { path: '/volume' },
+              value: {path: '/volume'},
               min: 0,
               max: 100,
             } as A2UIComponent,
           ],
-          data: { volume: 50 },
+          data: {volume: 50},
         },
       },
       {
@@ -654,7 +682,8 @@ export const COMPONENTS_DATA_V09: ComponentCategory[] = [
         props: [
           {
             name: 'value',
-            description: 'The current date/time value in ISO format. Typically bound to a data path.',
+            description:
+              'The current date/time value in ISO format. Typically bound to a data path.',
             type: 'string | { path: string }',
           },
           {
@@ -696,17 +725,18 @@ export const COMPONENTS_DATA_V09: ComponentCategory[] = [
             {
               id: 'datetime-1',
               component: 'DateTimeInput',
-              value: { path: '/date' },
+              value: {path: '/date'},
               enableDate: true,
               enableTime: false,
             } as A2UIComponent,
           ],
-          data: { date: '2025-01-15' },
+          data: {date: '2025-01-15'},
         },
       },
       {
         name: 'ChoicePicker',
-        description: 'Selection input for choosing from predefined options. Supports single and multiple selection via radio buttons or checkboxes.',
+        description:
+          'Selection input for choosing from predefined options. Supports single and multiple selection via radio buttons or checkboxes.',
         usage: `{
   "id": "choice-1",
   "component": "ChoicePicker",
@@ -764,7 +794,8 @@ export const COMPONENTS_DATA_V09: ComponentCategory[] = [
     components: [
       {
         name: 'Button',
-        description: 'Interactive button that triggers an action when clicked. Contains a child component for its content.',
+        description:
+          'Interactive button that triggers an action when clicked. Contains a child component for its content.',
         usage: `{
   "id": "button-1",
   "component": "Button",
@@ -782,7 +813,8 @@ export const COMPONENTS_DATA_V09: ComponentCategory[] = [
         props: [
           {
             name: 'child',
-            description: 'Component ID to render as the button content (typically a Text or Row with Icon + Text).',
+            description:
+              'Component ID to render as the button content (typically a Text or Row with Icon + Text).',
             type: 'string',
           },
           {
@@ -793,7 +825,8 @@ export const COMPONENTS_DATA_V09: ComponentCategory[] = [
           },
           {
             name: 'action',
-            description: 'Action configuration dispatched when the button is clicked. Contains an event object with name and optional context.',
+            description:
+              'Action configuration dispatched when the button is clicked. Contains an event object with name and optional context.',
             type: 'Action',
           },
         ],
@@ -812,7 +845,7 @@ export const COMPONENTS_DATA_V09: ComponentCategory[] = [
               component: 'Button',
               child: 'button-label-1',
               variant: 'primary',
-              action: { event: { name: 'primary-action' } },
+              action: {event: {name: 'primary-action'}},
             } as A2UIComponent,
             {
               id: 'button-label-1',
@@ -825,7 +858,7 @@ export const COMPONENTS_DATA_V09: ComponentCategory[] = [
               component: 'Button',
               child: 'button-label-2',
               variant: 'borderless',
-              action: { event: { name: 'secondary-action' } },
+              action: {event: {name: 'secondary-action'}},
             } as A2UIComponent,
             {
               id: 'button-label-2',
@@ -849,7 +882,8 @@ export const COMPONENTS_DATA_V09: ComponentCategory[] = [
       },
       {
         name: 'Tabs',
-        description: 'Tab navigation component with multiple panels. Each tab has a title and associated content.',
+        description:
+          'Tab navigation component with multiple panels. Each tab has a title and associated content.',
         usage: `{
   "id": "tabs-1",
   "component": "Tabs",
@@ -862,7 +896,8 @@ export const COMPONENTS_DATA_V09: ComponentCategory[] = [
         props: [
           {
             name: 'tabs',
-            description: 'Array of tab configurations, each with a title string and child component ID.',
+            description:
+              'Array of tab configurations, each with a title string and child component ID.',
             type: 'array',
           },
         ],
@@ -873,9 +908,9 @@ export const COMPONENTS_DATA_V09: ComponentCategory[] = [
               id: 'tabs-1',
               component: 'Tabs',
               tabs: [
-                { title: 'Overview', child: 'tab-1' },
-                { title: 'Details', child: 'tab-2' },
-                { title: 'Reviews', child: 'tab-3' },
+                {title: 'Overview', child: 'tab-1'},
+                {title: 'Details', child: 'tab-2'},
+                {title: 'Reviews', child: 'tab-3'},
               ],
             } as A2UIComponent,
             {
@@ -911,7 +946,8 @@ export const COMPONENTS_DATA_V09: ComponentCategory[] = [
         props: [
           {
             name: 'trigger',
-            description: 'Component ID of the element that triggers the modal (typically a Button).',
+            description:
+              'Component ID of the element that triggers the modal (typically a Button).',
             type: 'string',
           },
           {
@@ -934,7 +970,7 @@ export const COMPONENTS_DATA_V09: ComponentCategory[] = [
               component: 'Button',
               child: 'modal-trigger-text',
               variant: 'primary',
-              action: { event: { name: 'open-modal' } },
+              action: {event: {name: 'open-modal'}},
             } as A2UIComponent,
             {
               id: 'modal-trigger-text',

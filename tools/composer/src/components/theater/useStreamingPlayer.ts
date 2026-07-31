@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */ // TODO: remediate legacy any types
 /**
  * Copyright 2026 Google LLC
  *
@@ -14,7 +15,7 @@
  * limitations under the License.
  */
 
-import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
+import {useState, useEffect, useCallback, useRef, useMemo} from 'react';
 
 export type PlaybackState = 'playing' | 'paused' | 'stopped';
 
@@ -60,36 +61,52 @@ function toLifecycleEvents(messages: any[]): LifecycleEvent[] {
   for (let i = 0; i < messages.length; i++) {
     const msg = messages[i];
     if (msg.beginRendering) {
-      events.push({ chunkIndex: i, summary: `Surface "${msg.beginRendering.surfaceId || 'default'}" created`, type: 'surface' });
+      events.push({
+        chunkIndex: i,
+        summary: `Surface "${msg.beginRendering.surfaceId || 'default'}" created`,
+        type: 'surface',
+      });
     }
     if (msg.createSurface) {
-      events.push({ chunkIndex: i, summary: `Surface "${msg.createSurface.surfaceId}" created`, type: 'surface' });
+      events.push({
+        chunkIndex: i,
+        summary: `Surface "${msg.createSurface.surfaceId}" created`,
+        type: 'surface',
+      });
     }
     if (msg.surfaceUpdate) {
       const count = msg.surfaceUpdate.components?.length || 0;
       const types = msg.surfaceUpdate.components
-        ?.map((c: any) => c.component ? Object.keys(c.component)[0] : c.type || '?')
+        ?.map((c: any) => (c.component ? Object.keys(c.component)[0] : c.type || '?'))
         .filter((v: string, j: number, a: string[]) => a.indexOf(v) === j);
-      events.push({ chunkIndex: i, summary: `${count} components registered: ${types?.join(', ')}`, type: 'components' });
+      events.push({
+        chunkIndex: i,
+        summary: `${count} components registered: ${types?.join(', ')}`,
+        type: 'components',
+      });
     }
     if (msg.updateComponents) {
       const count = msg.updateComponents.components?.length || 0;
-      events.push({ chunkIndex: i, summary: `${count} components updated`, type: 'components' });
+      events.push({chunkIndex: i, summary: `${count} components updated`, type: 'components'});
     }
     if (msg.dataModelUpdate) {
       const keys = msg.dataModelUpdate.contents?.map((c: any) => c.key).filter(Boolean) || [];
-      events.push({ chunkIndex: i, summary: `Data model: ${keys.join(', ')}`, type: 'data' });
+      events.push({chunkIndex: i, summary: `Data model: ${keys.join(', ')}`, type: 'data'});
     }
     if (msg.updateDataModel) {
       const keys = msg.updateDataModel.contents?.map((c: any) => c.key).filter(Boolean) || [];
-      events.push({ chunkIndex: i, summary: `Data model: ${keys.join(', ')}`, type: 'data' });
+      events.push({chunkIndex: i, summary: `Data model: ${keys.join(', ')}`, type: 'data'});
     }
     if (msg.clientEvent || msg.action) {
       const name = msg.clientEvent?.name || msg.action?.name || 'action';
-      events.push({ chunkIndex: i, summary: `User action: ${name}`, type: 'action' });
+      events.push({chunkIndex: i, summary: `User action: ${name}`, type: 'action'});
     }
     if (msg.deleteSurface) {
-      events.push({ chunkIndex: i, summary: `Surface "${msg.deleteSurface.surfaceId}" deleted`, type: 'delete' });
+      events.push({
+        chunkIndex: i,
+        summary: `Surface "${msg.deleteSurface.surfaceId}" deleted`,
+        type: 'delete',
+      });
     }
   }
   return events;
@@ -123,9 +140,12 @@ export function useStreamingPlayer(messages: any[], baseIntervalMs = 800) {
     setProgress(0);
   }, []);
 
-  const seek = useCallback((index: number) => {
-    setProgress(Math.max(0, Math.min(index, totalChunks)));
-  }, [totalChunks]);
+  const seek = useCallback(
+    (index: number) => {
+      setProgress(Math.max(0, Math.min(index, totalChunks)));
+    },
+    [totalChunks],
+  );
 
   // Playback timer — one chunk per tick
   useEffect(() => {
@@ -143,7 +163,9 @@ export function useStreamingPlayer(messages: any[], baseIntervalMs = 800) {
     } else if (timerRef.current) {
       clearInterval(timerRef.current);
     }
-    return () => { if (timerRef.current) clearInterval(timerRef.current); };
+    return () => {
+      if (timerRef.current) clearInterval(timerRef.current);
+    };
   }, [playbackState, speed, totalChunks, baseIntervalMs]);
 
   // Chunks received so far

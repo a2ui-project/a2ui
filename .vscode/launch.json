@@ -1,0 +1,47 @@
+{
+  // Use IntelliSense to learn about possible attributes.
+  // Hover to view descriptions of existing attributes.
+  // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+  "version": "0.2.0",
+  // Configurations to run commands via VS Code UI in 'Run and Debug' panel.
+  "configurations": [
+    {
+      "name": "restaurant finder, Lit renderer",
+      "type": "node-terminal",
+      "request": "launch",
+      "command": "yarn workspace @a2ui/shell dev",
+      "cwd": "${workspaceFolder}"
+    },
+    {
+      "name": "restaurant finder, Flutter renderer",
+      "type": "dart",
+      "request": "launch",
+      "program": "lib/main.dart",
+      "cwd": "${workspaceFolder}/samples/client/flutter/restaurant_finder/app"
+    },
+    {
+      "name": "restaurant finder, Python agent",
+      "type": "node-terminal",
+      "request": "launch",
+      "command": "uv run .",
+      "cwd": "${workspaceFolder}/samples/agent/adk/restaurant_finder",
+      "env": {
+        "GEMINI_API_KEY": "${env:GEMINI_API_KEY}"
+      }
+    },
+    {
+      "name": "fix licenses",
+      "type": "node-terminal",
+      "request": "launch",
+      "command": "./scripts/fix_licenses.sh",
+      "cwd": "${workspaceFolder}"
+    },
+    {
+      "name": "fix format",
+      "type": "node-terminal",
+      "request": "launch",
+      "command": "./scripts/fix_format.sh --write",
+      "cwd": "${workspaceFolder}"
+    }
+  ]
+}

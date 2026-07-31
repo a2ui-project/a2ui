@@ -14,10 +14,10 @@
  * limitations under the License.
  */
 
-import { describe, it, expect } from 'vitest';
-import { render, fireEvent } from '@testing-library/react';
+import {describe, it, expect} from 'vitest';
+import {render, fireEvent} from '@testing-library/react';
 import React from 'react';
-import { TestWrapper, TestRenderer, createSimpleMessages } from '../../utils';
+import {TestWrapper, TestRenderer, createSimpleMessages} from '../../utils';
 
 /**
  * MultipleChoice tests following A2UI specification.
@@ -30,17 +30,17 @@ describe('MultipleChoice Component', () => {
   describe('Basic Rendering', () => {
     it('should render a select element', () => {
       const messages = createSimpleMessages('mc-1', 'MultipleChoice', {
-        selections: { path: '/mcSelections' },
+        selections: {path: '/mcSelections'},
         options: [
-          { label: { literalString: 'Option A' }, value: 'a' },
-          { label: { literalString: 'Option B' }, value: 'b' },
+          {label: {literalString: 'Option A'}, value: 'a'},
+          {label: {literalString: 'Option B'}, value: 'b'},
         ],
       });
 
-      const { container } = render(
+      const {container} = render(
         <TestWrapper>
           <TestRenderer messages={messages} />
-        </TestWrapper>
+        </TestWrapper>,
       );
 
       const select = container.querySelector('select');
@@ -50,16 +50,14 @@ describe('MultipleChoice Component', () => {
 
     it('should render with wrapper div having correct class', () => {
       const messages = createSimpleMessages('mc-1', 'MultipleChoice', {
-        selections: { path: '/mcSelections' },
-        options: [
-          { label: { literalString: 'Option A' }, value: 'a' },
-        ],
+        selections: {path: '/mcSelections'},
+        options: [{label: {literalString: 'Option A'}, value: 'a'}],
       });
 
-      const { container } = render(
+      const {container} = render(
         <TestWrapper>
           <TestRenderer messages={messages} />
-        </TestWrapper>
+        </TestWrapper>,
       );
 
       const wrapper = container.querySelector('.a2ui-multiplechoice');
@@ -69,18 +67,18 @@ describe('MultipleChoice Component', () => {
 
     it('should render all option labels', () => {
       const messages = createSimpleMessages('mc-1', 'MultipleChoice', {
-        selections: { path: '/mcSelections' },
+        selections: {path: '/mcSelections'},
         options: [
-          { label: { literalString: 'First Option' }, value: 'first' },
-          { label: { literalString: 'Second Option' }, value: 'second' },
-          { label: { literalString: 'Third Option' }, value: 'third' },
+          {label: {literalString: 'First Option'}, value: 'first'},
+          {label: {literalString: 'Second Option'}, value: 'second'},
+          {label: {literalString: 'Third Option'}, value: 'third'},
         ],
       });
 
-      const { container } = render(
+      const {container} = render(
         <TestWrapper>
           <TestRenderer messages={messages} />
-        </TestWrapper>
+        </TestWrapper>,
       );
 
       const options = container.querySelectorAll('option');
@@ -92,18 +90,18 @@ describe('MultipleChoice Component', () => {
 
     it('should render correct number of options', () => {
       const messages = createSimpleMessages('mc-1', 'MultipleChoice', {
-        selections: { path: '/mcSelections' },
+        selections: {path: '/mcSelections'},
         options: [
-          { label: { literalString: 'A' }, value: 'a' },
-          { label: { literalString: 'B' }, value: 'b' },
-          { label: { literalString: 'C' }, value: 'c' },
+          {label: {literalString: 'A'}, value: 'a'},
+          {label: {literalString: 'B'}, value: 'b'},
+          {label: {literalString: 'C'}, value: 'c'},
         ],
       });
 
-      const { container } = render(
+      const {container} = render(
         <TestWrapper>
           <TestRenderer messages={messages} />
-        </TestWrapper>
+        </TestWrapper>,
       );
 
       const options = container.querySelectorAll('option');
@@ -112,28 +110,26 @@ describe('MultipleChoice Component', () => {
 
     it('should render different options for different inputs', () => {
       const messages1 = createSimpleMessages('mc-1', 'MultipleChoice', {
-        selections: { path: '/mcSelections1' },
-        options: [
-          { label: { literalString: 'Alpha' }, value: 'alpha' },
-        ],
+        selections: {path: '/mcSelections1'},
+        options: [{label: {literalString: 'Alpha'}, value: 'alpha'}],
       });
       const messages2 = createSimpleMessages('mc-2', 'MultipleChoice', {
-        selections: { path: '/mcSelections2' },
+        selections: {path: '/mcSelections2'},
         options: [
-          { label: { literalString: 'Beta' }, value: 'beta' },
-          { label: { literalString: 'Gamma' }, value: 'gamma' },
+          {label: {literalString: 'Beta'}, value: 'beta'},
+          {label: {literalString: 'Gamma'}, value: 'gamma'},
         ],
       });
 
-      const { container: container1 } = render(
+      const {container: container1} = render(
         <TestWrapper>
           <TestRenderer messages={messages1} />
-        </TestWrapper>
+        </TestWrapper>,
       );
-      const { container: container2 } = render(
+      const {container: container2} = render(
         <TestWrapper>
           <TestRenderer messages={messages2} />
-        </TestWrapper>
+        </TestWrapper>,
       );
 
       expect(container1.textContent).toContain('Alpha');
@@ -147,16 +143,14 @@ describe('MultipleChoice Component', () => {
   describe('Description Label', () => {
     it('should render default description when not provided', () => {
       const messages = createSimpleMessages('mc-1', 'MultipleChoice', {
-        selections: { path: '/mcSelections' },
-        options: [
-          { label: { literalString: 'Option A' }, value: 'a' },
-        ],
+        selections: {path: '/mcSelections'},
+        options: [{label: {literalString: 'Option A'}, value: 'a'}],
       });
 
-      const { container } = render(
+      const {container} = render(
         <TestWrapper>
           <TestRenderer messages={messages} />
-        </TestWrapper>
+        </TestWrapper>,
       );
 
       const label = container.querySelector('label');
@@ -166,16 +160,14 @@ describe('MultipleChoice Component', () => {
 
     it('should associate label with select via htmlFor', () => {
       const messages = createSimpleMessages('mc-1', 'MultipleChoice', {
-        selections: { path: '/mcSelections' },
-        options: [
-          { label: { literalString: 'Option A' }, value: 'a' },
-        ],
+        selections: {path: '/mcSelections'},
+        options: [{label: {literalString: 'Option A'}, value: 'a'}],
       });
 
-      const { container } = render(
+      const {container} = render(
         <TestWrapper>
           <TestRenderer messages={messages} />
-        </TestWrapper>
+        </TestWrapper>,
       );
 
       const label = container.querySelector('label');
@@ -187,18 +179,18 @@ describe('MultipleChoice Component', () => {
   describe('Option Values', () => {
     it('should set correct value attributes on options', () => {
       const messages = createSimpleMessages('mc-1', 'MultipleChoice', {
-        selections: { path: '/mcSelections' },
+        selections: {path: '/mcSelections'},
         options: [
-          { label: { literalString: 'Small' }, value: 'sm' },
-          { label: { literalString: 'Medium' }, value: 'md' },
-          { label: { literalString: 'Large' }, value: 'lg' },
+          {label: {literalString: 'Small'}, value: 'sm'},
+          {label: {literalString: 'Medium'}, value: 'md'},
+          {label: {literalString: 'Large'}, value: 'lg'},
         ],
       });
 
-      const { container } = render(
+      const {container} = render(
         <TestWrapper>
           <TestRenderer messages={messages} />
-        </TestWrapper>
+        </TestWrapper>,
       );
 
       const options = container.querySelectorAll('option');
@@ -211,51 +203,51 @@ describe('MultipleChoice Component', () => {
   describe('User Interaction', () => {
     it('should update select value on change', () => {
       const messages = createSimpleMessages('mc-1', 'MultipleChoice', {
-        selections: { path: '/mcSelections' },
+        selections: {path: '/mcSelections'},
         options: [
-          { label: { literalString: 'Option A' }, value: 'a' },
-          { label: { literalString: 'Option B' }, value: 'b' },
-          { label: { literalString: 'Option C' }, value: 'c' },
+          {label: {literalString: 'Option A'}, value: 'a'},
+          {label: {literalString: 'Option B'}, value: 'b'},
+          {label: {literalString: 'Option C'}, value: 'c'},
         ],
       });
 
-      const { container } = render(
+      const {container} = render(
         <TestWrapper>
           <TestRenderer messages={messages} />
-        </TestWrapper>
+        </TestWrapper>,
       );
 
       const select = container.querySelector('select') as HTMLSelectElement;
-      fireEvent.change(select, { target: { value: 'b' } });
+      fireEvent.change(select, {target: {value: 'b'}});
 
       expect(select.value).toBe('b');
     });
 
     it('should handle multiple sequential changes', () => {
       const messages = createSimpleMessages('mc-1', 'MultipleChoice', {
-        selections: { path: '/mcSelections' },
+        selections: {path: '/mcSelections'},
         options: [
-          { label: { literalString: 'Option A' }, value: 'a' },
-          { label: { literalString: 'Option B' }, value: 'b' },
-          { label: { literalString: 'Option C' }, value: 'c' },
+          {label: {literalString: 'Option A'}, value: 'a'},
+          {label: {literalString: 'Option B'}, value: 'b'},
+          {label: {literalString: 'Option C'}, value: 'c'},
         ],
       });
 
-      const { container } = render(
+      const {container} = render(
         <TestWrapper>
           <TestRenderer messages={messages} />
-        </TestWrapper>
+        </TestWrapper>,
       );
 
       const select = container.querySelector('select') as HTMLSelectElement;
 
-      fireEvent.change(select, { target: { value: 'a' } });
+      fireEvent.change(select, {target: {value: 'a'}});
       expect(select.value).toBe('a');
 
-      fireEvent.change(select, { target: { value: 'c' } });
+      fireEvent.change(select, {target: {value: 'c'}});
       expect(select.value).toBe('c');
 
-      fireEvent.change(select, { target: { value: 'b' } });
+      fireEvent.change(select, {target: {value: 'b'}});
       expect(select.value).toBe('b');
     });
   });
@@ -263,17 +255,17 @@ describe('MultipleChoice Component', () => {
   describe('Structure', () => {
     it('should have correct DOM structure: div > section > label + select', () => {
       const messages = createSimpleMessages('mc-1', 'MultipleChoice', {
-        selections: { path: '/mcSelections' },
+        selections: {path: '/mcSelections'},
         options: [
-          { label: { literalString: 'Option A' }, value: 'a' },
-          { label: { literalString: 'Option B' }, value: 'b' },
+          {label: {literalString: 'Option A'}, value: 'a'},
+          {label: {literalString: 'Option B'}, value: 'b'},
         ],
       });
 
-      const { container } = render(
+      const {container} = render(
         <TestWrapper>
           <TestRenderer messages={messages} />
-        </TestWrapper>
+        </TestWrapper>,
       );
 
       const wrapper = container.querySelector('.a2ui-multiplechoice');
@@ -290,16 +282,14 @@ describe('MultipleChoice Component', () => {
 
     it('should have select inside section container', () => {
       const messages = createSimpleMessages('mc-1', 'MultipleChoice', {
-        selections: { path: '/mcSelections' },
-        options: [
-          { label: { literalString: 'Option A' }, value: 'a' },
-        ],
+        selections: {path: '/mcSelections'},
+        options: [{label: {literalString: 'Option A'}, value: 'a'}],
       });
 
-      const { container } = render(
+      const {container} = render(
         <TestWrapper>
           <TestRenderer messages={messages} />
-        </TestWrapper>
+        </TestWrapper>,
       );
 
       const section = container.querySelector('section');
@@ -309,17 +299,17 @@ describe('MultipleChoice Component', () => {
 
     it('should have options inside select', () => {
       const messages = createSimpleMessages('mc-1', 'MultipleChoice', {
-        selections: { path: '/mcSelections' },
+        selections: {path: '/mcSelections'},
         options: [
-          { label: { literalString: 'Option A' }, value: 'a' },
-          { label: { literalString: 'Option B' }, value: 'b' },
+          {label: {literalString: 'Option A'}, value: 'a'},
+          {label: {literalString: 'Option B'}, value: 'b'},
         ],
       });
 
-      const { container } = render(
+      const {container} = render(
         <TestWrapper>
           <TestRenderer messages={messages} />
-        </TestWrapper>
+        </TestWrapper>,
       );
 
       const select = container.querySelector('select');

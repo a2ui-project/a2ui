@@ -45,7 +45,7 @@ export function createComponentImplementation<Api extends ComponentApi>(
   api: Api,
   RenderComponent: React.FC<
     ReactA2uiComponentProps<ResolveA2uiProps<InferredComponentApiSchemaType<Api>>>
-  >
+  >,
 ): ReactComponentImplementation {
   type Props = ResolveA2uiProps<InferredComponentApiSchemaType<Api>>;
 
@@ -78,7 +78,7 @@ export function createComponentImplementation<Api extends ComponentApi>(
         const sub = binding.subscribe(callback);
         return () => sub.unsubscribe();
       },
-      [binding]
+      [binding],
     );
 
     const getSnapshot = useCallback(() => binding.snapshot, [binding]);
@@ -109,7 +109,7 @@ export function createBinderlessComponentImplementation(
   RenderComponent: React.FC<{
     context: ComponentContext;
     buildChild: (id: string, basePath?: string) => React.ReactNode;
-  }>
+  }>,
 ): ReactComponentImplementation {
   return {
     name: api.name,

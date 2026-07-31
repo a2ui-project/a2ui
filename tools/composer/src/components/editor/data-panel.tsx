@@ -16,12 +16,12 @@
 
 'use client';
 
-import { useState, useEffect } from 'react';
-import { Plus, X } from 'lucide-react';
+import {useState, useEffect} from 'react';
+import {Plus, X} from 'lucide-react';
 import Editor from '@monaco-editor/react';
-import { Button } from '@/components/ui/button';
-import { cn } from '@/lib/utils';
-import type { DataState } from '@/types/widget';
+import {Button} from '@/components/ui/button';
+import {cn} from '@/lib/utils';
+import type {DataState} from '@/types/widget';
 
 interface DataPanelProps {
   dataStates: DataState[];
@@ -44,7 +44,7 @@ export function DataPanel({
 }: DataPanelProps) {
   const activeState = dataStates[activeIndex];
   const [jsonValue, setJsonValue] = useState(() =>
-    JSON.stringify(activeState?.data ?? {}, null, 2)
+    JSON.stringify(activeState?.data ?? {}, null, 2),
   );
 
   // Update editor when active state changes
@@ -85,7 +85,7 @@ export function DataPanel({
               'group flex items-center gap-1 px-3 py-2 text-sm font-medium transition-colors cursor-pointer flex-shrink-0 whitespace-nowrap',
               activeIndex === index
                 ? 'text-foreground bg-background rounded-t-md border-x border-t border-border -mb-px'
-                : 'text-muted-foreground hover:text-foreground'
+                : 'text-muted-foreground hover:text-foreground',
             )}
             onClick={() => onActiveIndexChange(index)}
             onDoubleClick={() => handleTabDoubleClick(index)}
@@ -93,7 +93,7 @@ export function DataPanel({
             <span>{state.name}</span>
             {dataStates.length > 1 && index !== 0 && (
               <button
-                onClick={(e) => {
+                onClick={e => {
                   e.stopPropagation();
                   onDeleteState(index);
                 }}
@@ -122,14 +122,14 @@ export function DataPanel({
           defaultLanguage="json"
           onChange={handleChange}
           options={{
-            minimap: { enabled: false },
+            minimap: {enabled: false},
             fontSize: 13,
             lineNumbers: 'on',
             scrollBeyondLastLine: false,
             automaticLayout: true,
             tabSize: 2,
             wordWrap: 'on',
-            padding: { top: 8, bottom: 8 },
+            padding: {top: 8, bottom: 8},
             overviewRulerBorder: false,
             overviewRulerLanes: 0,
             hideCursorInOverviewRuler: true,

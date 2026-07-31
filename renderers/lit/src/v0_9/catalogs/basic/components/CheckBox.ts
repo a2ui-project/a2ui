@@ -14,14 +14,14 @@
  * limitations under the License.
  */
 
-import { html, nothing, css } from "lit";
-import { customElement } from "lit/decorators.js";
-import { classMap } from "lit/directives/class-map.js";
-import { CheckBoxApi } from "@a2ui/web_core/v0_9/basic_catalog";
-import { BasicCatalogA2uiLitElement } from "../basic-catalog-a2ui-lit-element.js";
-import { A2uiController } from "@a2ui/lit/v0_9";
+import {html, nothing, css} from 'lit';
+import {customElement} from 'lit/decorators.js';
+import {classMap} from 'lit/directives/class-map.js';
+import {CheckBoxApi} from '@a2ui/web_core/v0_9/basic_catalog';
+import {BasicCatalogA2uiLitElement} from '../basic-catalog-a2ui-lit-element.js';
+import {A2uiController} from '../../../a2ui-controller.js';
 
-@customElement("a2ui-checkbox")
+@customElement('a2ui-checkbox')
 export class A2uiCheckBoxElement extends BasicCatalogA2uiLitElement<typeof CheckBoxApi> {
   /**
    * The styles of the checkbox can be customized by redefining the following
@@ -35,7 +35,7 @@ export class A2uiCheckBoxElement extends BasicCatalogA2uiLitElement<typeof Check
    * - `--a2ui-checkbox-label-font-size`: Font size of the label. Defaults to `--a2ui-label-font-size` then `--a2ui-font-size-s`.
    * - `--a2ui-checkbox-label-font-weight`: Font weight of the label. Defaults to `--a2ui-label-font-weight` then `bold`.
    */
-  static styles = css`
+  static override styles = css`
     :host {
       display: block;
     }
@@ -48,7 +48,10 @@ export class A2uiCheckBoxElement extends BasicCatalogA2uiLitElement<typeof Check
       display: inline-flex;
       align-items: center;
       gap: var(--a2ui-checkbox-gap, var(--a2ui-spacing-s, 0.5rem));
-      font-size: var(--a2ui-checkbox-label-font-size, var(--a2ui-label-font-size, var(--a2ui-font-size-s)));
+      font-size: var(
+        --a2ui-checkbox-label-font-size,
+        var(--a2ui-label-font-size, var(--a2ui-font-size-s))
+      );
       font-weight: var(--a2ui-checkbox-label-font-weight, var(--a2ui-label-font-weight, bold));
       cursor: pointer;
     }
@@ -76,13 +79,13 @@ export class A2uiCheckBoxElement extends BasicCatalogA2uiLitElement<typeof Check
     return new A2uiController(this, CheckBoxApi);
   }
 
-  render() {
+  override render() {
     const props = this.controller.props;
     if (!props) return nothing;
 
     const isInvalid = props.isValid === false;
-    const labelClasses = { "a2ui-checkbox": true, invalid: isInvalid };
-    const inputClasses = { invalid: isInvalid };
+    const labelClasses = {'a2ui-checkbox': true, invalid: isInvalid};
+    const inputClasses = {invalid: isInvalid};
 
     return html`
       <div class="container">
@@ -91,8 +94,7 @@ export class A2uiCheckBoxElement extends BasicCatalogA2uiLitElement<typeof Check
             type="checkbox"
             class=${classMap(inputClasses)}
             .checked=${props.value || false}
-            @change=${(e: Event) =>
-              props.setValue?.((e.target as HTMLInputElement).checked)}
+            @change=${(e: Event) => props.setValue?.((e.target as HTMLInputElement).checked)}
           />
           ${props.label}
         </label>
@@ -106,5 +108,5 @@ export class A2uiCheckBoxElement extends BasicCatalogA2uiLitElement<typeof Check
 
 export const A2uiCheckBox = {
   ...CheckBoxApi,
-  tagName: "a2ui-checkbox",
+  tagName: 'a2ui-checkbox',
 };

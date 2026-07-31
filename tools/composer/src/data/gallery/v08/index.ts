@@ -14,4 +14,4 @@
  * limitations under the License.
  */
 
-export { V08_GALLERY_WIDGETS } from './generated';
+export {V08_GALLERY_WIDGETS} from './generated';

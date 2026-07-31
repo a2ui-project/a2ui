@@ -14,12 +14,12 @@
  * limitations under the License.
  */
 
-import { A2uiRendererService } from '@a2ui/angular/v0_9';
+import {A2uiRendererService} from '@a2ui/angular/v0_9';
 import * as Types from '@a2ui/web_core/types/types';
-import { inject, Injectable, signal } from '@angular/core';
+import {inject, Injectable, signal} from '@angular/core';
 import {A2uiClientAction, A2uiMessage} from '@a2ui/web_core/v0_9';
 
-@Injectable({ providedIn: 'root' })
+@Injectable({providedIn: 'root'})
 export class Client {
   private readonly renderer = inject(A2uiRendererService);
   private contextId?: string;
@@ -35,8 +35,10 @@ export class Client {
     }
   }
 
-  async makeRequest(request: Types.A2UIClientEventMessage | string): Promise<Types.ServerToClientMessage[]> {
-    let messages: Types.ServerToClientMessage[] = [];
+  async makeRequest(
+    request: Types.A2UIClientEventMessage | string,
+  ): Promise<Types.ServerToClientMessage[]> {
+    const messages: Types.ServerToClientMessage[] = [];
     try {
       this.isLoading.set(true);
 
@@ -48,8 +50,8 @@ export class Client {
 
       const isString = typeof request === 'string';
       const bodyData = isString
-        ? { query: request, contextId: this.contextId }
-        : { event: request, contextId: this.contextId };
+        ? {query: request, contextId: this.contextId}
+        : {event: request, contextId: this.contextId};
 
       const response = await fetch('/a2a', {
         body: JSON.stringify(bodyData),
@@ -57,7 +59,7 @@ export class Client {
       });
 
       if (!response.ok) {
-        const error = (await response.json()) as { error: string };
+        const error = (await response.json()) as {error: string};
         throw new Error(error.error);
       }
 
@@ -79,7 +81,7 @@ export class Client {
 
   private async handleStreamingResponse(
     response: Response,
-    messages: Types.ServerToClientMessage[]
+    messages: Types.ServerToClientMessage[],
   ): Promise<void> {
     const reader = response.body?.getReader();
     if (!reader) {
@@ -90,11 +92,11 @@ export class Client {
     let buffer = '';
 
     while (true) {
-      const { done, value } = await reader.read();
+      const {done, value} = await reader.read();
       if (done) break;
 
       const now = performance.now();
-      buffer += decoder.decode(value, { stream: true });
+      buffer += decoder.decode(value, {stream: true});
 
       // Parse SSE events. The server sends "data: <json>\n\n"
       const lines = buffer.split('\n\n');
@@ -115,7 +117,7 @@ export class Client {
               }
               const parts = responseData.parts || (Array.isArray(responseData) ? responseData : []);
               console.log(
-                `[client] [${performance.now().toFixed(2)}ms] Scheduling processing for ${parts.length} parts`
+                `[client] [${performance.now().toFixed(2)}ms] Scheduling processing for ${parts.length} parts`,
               );
               // Use a microtask to ensure we don't block the stream reader
               await Promise.resolve();
@@ -132,10 +134,10 @@ export class Client {
 
   private async handleNonStreamingResponse(
     response: Response,
-    messages: Types.ServerToClientMessage[]
+    messages: Types.ServerToClientMessage[],
   ): Promise<void> {
     const responseData = await response.json();
-    console.log(`[client] Received JSON response:`, responseData);
+    console.log('[client] Received JSON response:', responseData);
 
     if (responseData.contextId) {
       this.contextId = responseData.contextId;

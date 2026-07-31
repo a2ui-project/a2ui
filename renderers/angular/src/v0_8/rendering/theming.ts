@@ -14,16 +14,16 @@
  * limitations under the License.
  */
 
-import { Injectable } from '@angular/core';
-import { Types } from '../types';
+import {Injectable} from '@angular/core';
+import type {Theme as ThemeType} from '../types';
 
 @Injectable({
   providedIn: 'root',
 })
 export class Theme {
-  components: Types.Theme['components'] = {} as Types.Theme['components'];
-  elements: Types.Theme['elements'] = {} as Types.Theme['elements'];
-  markdown: Types.Theme['markdown'] = {
+  components: ThemeType['components'] = {} as ThemeType['components'];
+  elements: ThemeType['elements'] = {} as ThemeType['elements'];
+  markdown: ThemeType['markdown'] = {
     p: [],
     h1: [],
     h2: [],
@@ -37,9 +37,9 @@ export class Theme {
     strong: [],
     em: [],
   };
-  additionalStyles?: Types.Theme['additionalStyles'];
+  additionalStyles?: ThemeType['additionalStyles'];
 
-  update(theme: Types.Theme) {
+  update(theme: ThemeType) {
     this.components = theme.components;
     this.elements = theme.elements;
     this.markdown = theme.markdown;

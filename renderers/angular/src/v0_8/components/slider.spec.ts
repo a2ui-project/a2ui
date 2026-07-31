@@ -14,13 +14,12 @@
  * limitations under the License.
  */
 
-import { ComponentFixture, TestBed } from '@angular/core/testing';
-import { Slider } from './slider';
-import { MessageProcessor } from '../data/processor';
-import { Theme } from '../rendering/theming';
-import { Catalog } from '../rendering/catalog';
-import { By } from '@angular/platform-browser';
-import { ChangeDetectionStrategy } from '@angular/core';
+import {ComponentFixture, TestBed} from '@angular/core/testing';
+import {Slider} from './slider';
+import {MessageProcessor} from '../data/processor';
+import {Theme} from '../rendering/theming';
+import {Catalog} from '../rendering/catalog';
+import {By} from '@angular/platform-browser';
 
 describe('Slider Component', () => {
   let component: Slider;
@@ -48,26 +47,20 @@ describe('Slider Component', () => {
     await TestBed.configureTestingModule({
       imports: [Slider],
       providers: [
-        { provide: MessageProcessor, useValue: mockProcessor },
-        { provide: Theme, useValue: mockTheme },
-        { provide: Catalog, useValue: {} },
+        {provide: MessageProcessor, useValue: mockProcessor},
+        {provide: Theme, useValue: mockTheme},
+        {provide: Catalog, useValue: {}},
       ],
-    })
-      .overrideComponent(Slider, {
-        set: {
-          changeDetection: ChangeDetectionStrategy.Default,
-        },
-      })
-      .compileComponents();
+    }).compileComponents();
 
     fixture = TestBed.createComponent(Slider);
     component = fixture.componentInstance;
 
     fixture.componentRef.setInput('surfaceId', 'surface-1');
-    fixture.componentRef.setInput('component', { id: 'slider-1', type: 'Slider', weight: 1 });
+    fixture.componentRef.setInput('component', {id: 'slider-1', type: 'Slider', weight: 1});
     fixture.componentRef.setInput('weight', 1);
-    fixture.componentRef.setInput('label', { literalString: 'Volume' });
-    fixture.componentRef.setInput('value', { literalNumber: 50 });
+    fixture.componentRef.setInput('label', {literalString: 'Volume'});
+    fixture.componentRef.setInput('value', {literalNumber: 50});
     fixture.componentRef.setInput('minValue', 0);
     fixture.componentRef.setInput('maxValue', 100);
 
@@ -102,6 +95,21 @@ describe('Slider Component', () => {
     const message = mockProcessor.dispatch.calls.mostRecent().args[0];
     expect(message.userAction).toBeTruthy();
     expect(message.userAction!.name).toBe('change');
-    expect(message.userAction!.context).toEqual({ value: 75 });
+    expect(message.userAction!.context).toEqual({value: 75});
+  });
+
+  it('should use label as aria-label when label is set', () => {
+    const inputEl = fixture.debugElement.query(By.css('input[type="range"]'));
+    expect(inputEl).toBeTruthy();
+    expect(inputEl.nativeElement.getAttribute('aria-label')).toBe('Volume');
+  });
+
+  it('should use default aria-label when label is not set', () => {
+    fixture.componentRef.setInput('label', null);
+    fixture.detectChanges();
+
+    const inputEl = fixture.debugElement.query(By.css('input[type="range"]'));
+    expect(inputEl).toBeTruthy();
+    expect(inputEl.nativeElement.getAttribute('aria-label')).toBe('Slider');
   });
 });

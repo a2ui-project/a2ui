@@ -30,17 +30,11 @@ describe('ExpressionParser', () => {
   });
 
   it('parses simple interpolation', () => {
-    assert.deepStrictEqual(parser.parse('hello ${foo}'), [
-      'hello ',
-      {path: 'foo'},
-    ]);
+    assert.deepStrictEqual(parser.parse('hello ${foo}'), ['hello ', {path: 'foo'}]);
   });
 
   it('parses number interpolation', () => {
-    assert.deepStrictEqual(parser.parse('number is ${num}'), [
-      'number is ',
-      {path: 'num'},
-    ]);
+    assert.deepStrictEqual(parser.parse('number is ${num}'), ['number is ', {path: 'num'}]);
   });
 
   it('parses nested interpolation', () => {
@@ -48,18 +42,11 @@ describe('ExpressionParser', () => {
     // Wait, the parser extracts content. Let's see what `val is ${${nested}}` parses to:
     // It extracts `${nested}` and parses it. That evaluates to `{ path: "${nested}" }` or something.
     // Actually, `parseExpression("${nested}")` will recursively call `parseExpression("nested")` and return `{ path: "nested" }`.
-    assert.deepStrictEqual(parser.parse('val is ${${nested}}'), [
-      'val is ',
-      {path: 'nested'},
-    ]);
+    assert.deepStrictEqual(parser.parse('val is ${${nested}}'), ['val is ', {path: 'nested'}]);
   });
 
   it('handles escaped interpolation', () => {
-    assert.deepStrictEqual(parser.parse('escaped \\${foo}'), [
-      'escaped ',
-      '${',
-      'foo}',
-    ]);
+    assert.deepStrictEqual(parser.parse('escaped \\${foo}'), ['escaped ', '${', 'foo}']);
   });
 
   it('parses function calls', () => {
@@ -77,12 +64,7 @@ describe('ExpressionParser', () => {
   });
 
   it('parses keywords', () => {
-    assert.deepStrictEqual(parser.parse('${true} ${false} ${null}'), [
-      true,
-      ' ',
-      false,
-      ' ',
-    ]);
+    assert.deepStrictEqual(parser.parse('${true} ${false} ${null}'), [true, ' ', false, ' ']);
   });
 
   it('returns error on max depth exceeded', () => {
@@ -116,9 +98,7 @@ describe('ExpressionParser', () => {
   });
 
   it('handles empty identifiers', () => {
-    assert.deepStrictEqual(parser.parse('${()}'), [
-      {call: '', args: {}, returnType: 'any'},
-    ]);
+    assert.deepStrictEqual(parser.parse('${()}'), [{call: '', args: {}, returnType: 'any'}]);
     assert.deepStrictEqual(parser.parseExpression(''), '');
     assert.deepStrictEqual(parser.parseExpression('()'), {
       call: '',

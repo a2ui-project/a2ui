@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+<!doctype html>
 <!--
  Copyright 2025 Google LLC
 
@@ -51,18 +51,15 @@
         --primary: #137fec;
         --text-color: #fff;
         --background: light-dark(#f6f7f8, #101922);
-        --border-color: oklch(
-          from var(--background-light) l c h / calc(alpha * 0.15)
-        );
-        --elevated-background-light: oklch(
-          from var(--background-light) l c h / calc(alpha * 0.05)
-        );
+        --border-color: oklch(from var(--background-light) l c h / calc(alpha * 0.15));
+        --elevated-background-light: oklch(from var(--background-light) l c h / calc(alpha * 0.05));
         --bb-grid-size: 4px;
         --bb-grid-size-3: calc(var(--bb-grid-size) * 3);
         --bb-grid-size-4: calc(var(--bb-grid-size) * 4);
         --bb-grid-size-6: calc(var(--bb-grid-size) * 6);
 
-        --background: radial-gradient(
+        --background:
+          radial-gradient(
             at 0% 0%,
             light-dark(rgba(161, 196, 253, 0.3), rgba(6, 182, 212, 0.15)) 0px,
             transparent 50%
@@ -95,9 +92,8 @@
 
       html,
       body {
-        --font-family: "Outfit", "Helvetica Neue", Helvetica, Arial, sans-serif;
-        --font-family-flex: "Outfit", "Helvetica Neue", Helvetica, Arial,
-          sans-serif;
+        --font-family: 'Outfit', 'Helvetica Neue', Helvetica, Arial, sans-serif;
+        --font-family-flex: 'Outfit', 'Helvetica Neue', Helvetica, Arial, sans-serif;
         --font-family-mono: monospace;
 
         background: var(--background);

@@ -14,6 +14,8 @@
  * limitations under the License.
  */
 
+/// <reference types="node" />
+
 import {describe, it, expect} from 'vitest';
 import {render} from '@testing-library/react';
 import React from 'react';
@@ -25,14 +27,14 @@ import path from 'path';
 describe('v0.9 Basic Catalog Examples Rendering', () => {
   const examplesDir = path.resolve(
     process.cwd(),
-    '../../specification/v0_9/json/catalogs/basic/examples'
+    '../../specification/v0_9/catalogs/basic/examples',
   );
 
   if (!fs.existsSync(examplesDir)) {
     throw new Error(`Examples directory not found: ${examplesDir}`);
   }
 
-  const files = fs.readdirSync(examplesDir).filter((f) => f.endsWith('.json'));
+  const files = fs.readdirSync(examplesDir).filter(f => f.endsWith('.json'));
 
   for (const file of files) {
     it(`should successfully render ${file}`, async () => {
@@ -63,11 +65,55 @@ describe('v0.9 Basic Catalog Examples Rendering', () => {
       const {container} = render(
         <React.StrictMode>
           <A2uiSurface surface={surface as any} />
-        </React.StrictMode>
+        </React.StrictMode>,
       );
 
       // Assert that it rendered something and didn't throw
       expect(container.firstChild).toBeTruthy();
     });
   }
+});
+
+// TODO: Replace this by actual 0.9.1 tests by loading from the examples.
+// Note that this cannot be done now, because the v0_9_1 examples have the wrong
+// "version" field ("0.9" instead of "0.9.1").
+describe('v0.9.1 Basic Catalog Example Rendering', () => {
+  it('should successfully process and render v0.9.1 messages', () => {
+    const processor = new MessageProcessor([basicCatalog]);
+    const messages = [
+      {
+        version: 'v0.9.1' as const,
+        createSurface: {
+          surfaceId: 'v091-react-surface',
+          catalogId: basicCatalog.id,
+        },
+      },
+      {
+        version: 'v0.9.1' as const,
+        updateComponents: {
+          surfaceId: 'v091-react-surface',
+          components: [
+            {
+              id: 'root',
+              component: 'Text',
+              text: 'Hello from v0.9.1 in React!',
+            },
+          ],
+        },
+      },
+    ];
+
+    processor.processMessages(messages);
+    const surface = processor.model.getSurface('v091-react-surface');
+    expect(surface).toBeTruthy();
+
+    const {container} = render(
+      <React.StrictMode>
+        <A2uiSurface surface={surface as any} />
+      </React.StrictMode>,
+    );
+
+    expect(container.firstChild).toBeTruthy();
+    expect(container.textContent).toContain('Hello from v0.9.1 in React!');
+  });
 });

@@ -18,10 +18,7 @@
           "component": {
             "Column": {
               "children": {
-                "explicitList": [
-                  "title-heading",
-                  "item-list"
-                ]
+                "explicitList": ["title-heading", "item-list"]
               }
             }
           }
@@ -64,11 +61,7 @@
           "component": {
             "Row": {
               "children": {
-                "explicitList": [
-                  "template-image",
-                  "card-details",
-                  "view-button"
-                ]
+                "explicitList": ["template-image", "card-details", "view-button"]
               },
               "alignment": "center"
             }
@@ -90,10 +83,7 @@
           "component": {
             "Column": {
               "children": {
-                "explicitList": [
-                  "template-name",
-                  "template-title"
-                ]
+                "explicitList": ["template-name", "template-title"]
               }
             }
           }

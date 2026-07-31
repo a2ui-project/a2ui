@@ -14,27 +14,22 @@
  * limitations under the License.
  */
 
-import { html, noChange } from "lit";
-import {
-  Directive,
-  DirectiveParameters,
-  Part,
-  directive,
-} from "lit/directive.js";
-import { unsafeHTML } from "lit/directives/unsafe-html.js";
-import { until } from "lit/directives/until.js";
-import * as Types from "@a2ui/web_core/types/types";
+import {html, noChange} from 'lit';
+import {Directive, DirectiveParameters, Part, directive} from 'lit/directive.js';
+import {unsafeHTML} from 'lit/directives/unsafe-html.js';
+import {until} from 'lit/directives/until.js';
+import * as Types from '@a2ui/web_core/types/types';
 
 class MarkdownDirective extends Directive {
   private lastValue: string | null = null;
   private lastTagClassMap: string | null = null;
 
-  update(_part: Part, [value, markdownRenderer, markdownOptions]: DirectiveParameters<this>) {
+  override update(
+    _part: Part,
+    [value, markdownRenderer, markdownOptions]: DirectiveParameters<this>,
+  ) {
     const jsonTagClassMap = JSON.stringify(markdownOptions?.tagClassMap);
-    if (
-      this.lastValue === value &&
-      jsonTagClassMap === this.lastTagClassMap
-    ) {
+    if (this.lastValue === value && jsonTagClassMap === this.lastTagClassMap) {
       return noChange;
     }
 
@@ -48,23 +43,29 @@ class MarkdownDirective extends Directive {
    * Renders the markdown string to HTML using the injected markdown renderer,
    * if present. Otherwise, it returns the value wrapped in a span.
    */
-  render(value: string, markdownRenderer?: Types.MarkdownRenderer, markdownOptions?: Types.MarkdownRendererOptions) {
+  render(
+    value: string,
+    markdownRenderer?: Types.MarkdownRenderer,
+    markdownOptions?: Types.MarkdownRendererOptions,
+  ) {
     if (markdownRenderer) {
-      const rendered = markdownRenderer(value, markdownOptions).then((value) => {
+      const rendered = markdownRenderer(value, markdownOptions).then(value => {
         // `value` is a plain string, which we need to convert to a template
         // with the `unsafeHTML` directive.
         // It is the responsibility of the markdown renderer to sanitize the HTML.
         return unsafeHTML(value);
-      })
+      });
       // The until directive lets us render a placeholder *until* the rendered
       // content resolves.
       return until(rendered, html`<span class="no-markdown-renderer">${value}</span>`);
     }
 
     if (!MarkdownDirective.defaultMarkdownWarningLogged) {
-      console.warn("[MarkdownDirective]",
+      console.warn(
+        '[MarkdownDirective]',
         "can't render markdown because no markdown renderer is configured.\n",
-        "Use `@a2ui/markdown-it`, or your own markdown renderer.");
+        'Use `@a2ui/markdown-it`, or your own markdown renderer.',
+      );
       MarkdownDirective.defaultMarkdownWarningLogged = true;
     }
     return html`<span class="no-markdown-renderer">${value}</span>`;

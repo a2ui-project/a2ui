@@ -8,10 +8,7 @@
           "component": {
             "Column": {
               "children": {
-                "explicitList": [
-                  "title",
-                  "action_button"
-                ]
+                "explicitList": ["title", "action_button"]
               },
               "distribution": "center",
               "alignment": "center"

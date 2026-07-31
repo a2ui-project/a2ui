@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import { ComponentApi } from "@a2ui/web_core/v0_9";
+import {ComponentApi} from '@a2ui/web_core/v0_9';
 
 /**
  * Interface representing an A2UI component implementation in Lit.

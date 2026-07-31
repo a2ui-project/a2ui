@@ -14,12 +14,12 @@
  * limitations under the License.
  */
 
-import { A2uiMessageProcessor } from "@a2ui/web_core/data/model-processor";
+import {A2uiMessageProcessor} from '@a2ui/web_core/data/model-processor';
 
-import { SignalArray } from "signal-utils/array";
-import { SignalMap } from "signal-utils/map";
-import { SignalObject } from "signal-utils/object";
-import { SignalSet } from "signal-utils/set";
+import {SignalArray} from 'signal-utils/array';
+import {SignalMap} from 'signal-utils/map';
+import {SignalObject} from 'signal-utils/object';
+import {SignalSet} from 'signal-utils/set';
 
 export function create() {
   return new A2uiMessageProcessor({

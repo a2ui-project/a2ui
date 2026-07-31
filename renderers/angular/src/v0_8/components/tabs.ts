@@ -14,10 +14,10 @@
  * limitations under the License.
  */
 
-import { ChangeDetectionStrategy, Component, input, signal } from '@angular/core';
-import { DynamicComponent } from '../rendering/dynamic-component';
-import { Renderer } from '../rendering/renderer';
-import { Types } from '../types';
+import {ChangeDetectionStrategy, Component, input, signal} from '@angular/core';
+import {DynamicComponent} from '../rendering/dynamic-component';
+import {Renderer} from '../rendering/renderer';
+import type {ResolvedTabs, TabsNode} from '../types';
 
 @Component({
   selector: 'a2ui-tabs',
@@ -52,8 +52,8 @@ import { Types } from '../types';
   `,
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
-export class Tabs extends DynamicComponent<Types.TabsNode> {
-  readonly tabItems = input.required<Types.ResolvedTabs['tabItems']>();
+export class Tabs extends DynamicComponent<TabsNode> {
+  readonly tabItems = input.required<ResolvedTabs['tabItems']>();
   protected readonly selectedIndex = signal(0);
 
   protected selectTab(index: number) {

@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-import React, { useEffect, type ReactNode } from 'react';
-import { A2UIProvider, A2UIRenderer, useA2UI } from '../../../src/v0_8';
+import React, {useEffect, type ReactNode} from 'react';
+import {A2UIProvider, A2UIRenderer, useA2UI} from '../../../src/v0_8';
 import type * as Types from '@a2ui/web_core/types/types';
 
 /**
@@ -28,7 +28,7 @@ export function TestRenderer({
   messages: Types.ServerToClientMessage[];
   surfaceId?: string;
 }) {
-  const { processMessages } = useA2UI();
+  const {processMessages} = useA2UI();
 
   useEffect(() => {
     processMessages(messages);

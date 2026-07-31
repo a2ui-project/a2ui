@@ -14,5 +14,5 @@
  * limitations under the License.
  */
 
-export { Splitter } from "./splitter";
-export { Snackbar } from "./snackbar";
+export {Splitter} from './splitter';
+export {Snackbar} from './snackbar';

@@ -14,8 +14,9 @@
  * limitations under the License.
  */
 
-import { Component, computed, ChangeDetectionStrategy } from '@angular/core';
-import { BasicCatalogComponent } from './basic-catalog-component';
+import {Component, computed, ChangeDetectionStrategy} from '@angular/core';
+import {BasicCatalogComponent} from './basic-catalog-component';
+import {ChoicePickerApi} from '@a2ui/web_core/v0_9/basic_catalog';
 
 /**
  * Angular implementation of the A2UI ChoicePicker component (v0.9).
@@ -42,30 +43,30 @@ import { BasicCatalogComponent } from './basic-catalog-component';
       <!-- Chips Variant -->
       @if (displayStyle() === 'chips') {
         <div class="a2ui-chips-group">
-          @for (choice of choices(); track choice.value) {
+          @for (option of options(); track option.value) {
             <button
               class="a2ui-chip"
-              [class.active]="isSelected(choice.value)"
-              (click)="toggleActive(choice.value)"
+              [class.active]="isSelected(option.value)"
+              (click)="toggleActive(option.value)"
             >
-              {{ choice.label }}
+              {{ option.label }}
             </button>
           }
         </div>
       } @else {
         <!-- Checkbox/Radio Variant -->
         <div class="a2ui-options-group">
-          @for (choice of choices(); track choice.value) {
+          @for (option of options(); track option.value) {
             <label class="a2ui-option-label">
               <input
                 [type]="isMultiple() ? 'checkbox' : 'radio'"
                 [name]="componentId()"
-                [value]="choice.value"
-                [checked]="isSelected(choice.value)"
-                (change)="onCheckChange(choice.value, $event)"
+                [value]="option.value"
+                [checked]="isSelected(option.value)"
+                (change)="onCheckChange(option.value, $event)"
                 class="a2ui-option-input"
               />
-              <span class="a2ui-option-text">{{ choice.label }}</span>
+              <span class="a2ui-option-text">{{ option.label }}</span>
             </label>
           }
         </div>
@@ -125,11 +126,9 @@ import { BasicCatalogComponent } from './basic-catalog-component';
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
-export class ChoicePickerComponent extends BasicCatalogComponent {
+export class ChoicePickerComponent extends BasicCatalogComponent<typeof ChoicePickerApi> {
   readonly displayStyle = computed(() => this.props()['displayStyle']?.value());
-  readonly choices = computed(
-    () => this.props()['choices']?.value() || this.props()['options']?.value() || [],
-  );
+  readonly options = computed(() => this.props()['options']?.value() || []);
   readonly variant = computed(() => this.props()['variant']?.value());
   readonly selectedValue = computed(() => this.props()['value']?.value());
 
@@ -167,7 +166,7 @@ export class ChoicePickerComponent extends BasicCatalogComponent {
       this.props()['value']?.onUpdate(next);
     } else {
       if (active) {
-        this.props()['value']?.onUpdate(value);
+        this.props()['value']?.onUpdate([value]);
       }
     }
   }

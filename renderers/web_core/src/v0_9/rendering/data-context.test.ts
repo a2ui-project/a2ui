@@ -14,9 +14,9 @@
  * limitations under the License.
  */
 
-import assert from 'node:assert';
+import * as assert from 'node:assert';
 import {describe, it, beforeEach} from 'node:test';
-import {signal, computed} from '@preact/signals-core';
+import {signal, computed, peekValue, getValue, setValue} from '../reactivity/signals.js';
 import {z} from 'zod';
 import {DataModel} from '../state/data-model.js';
 import {DataContext} from './data-context.js';
@@ -62,10 +62,7 @@ describe('DataContext', () => {
   });
 
   it('resolves nested paths', () => {
-    assert.strictEqual(
-      context.resolveDynamicValue({path: 'address/city'}),
-      'Wonderland',
-    );
+    assert.strictEqual(context.resolveDynamicValue({path: 'address/city'}), 'Wonderland');
   });
 
   it('updates data via relative path', () => {
@@ -76,18 +73,12 @@ describe('DataContext', () => {
   it('creates nested context', () => {
     const addressContext = context.nested('address');
     assert.strictEqual(addressContext.path, '/user/address');
-    assert.strictEqual(
-      addressContext.resolveDynamicValue({path: 'city'}),
-      'Wonderland',
-    );
+    assert.strictEqual(addressContext.resolveDynamicValue({path: 'city'}), 'Wonderland');
   });
 
   it('handles root context', () => {
     const rootContext = createTestDataContext(model, '/');
-    assert.strictEqual(
-      rootContext.resolveDynamicValue({path: 'user/name'}),
-      'Alice',
-    );
+    assert.strictEqual(rootContext.resolveDynamicValue({path: 'user/name'}), 'Alice');
   });
 
   it('subscribes relative path', () => {
@@ -112,10 +103,7 @@ describe('DataContext', () => {
   });
 
   it('resolves literal arrays', () => {
-    assert.deepStrictEqual(context.resolveDynamicValue(['literal', 'array']), [
-      'literal',
-      'array',
-    ]);
+    assert.deepStrictEqual(context.resolveDynamicValue(['literal', 'array']), ['literal', 'array']);
   });
 
   it('subscribes literal arrays as static', () => {
@@ -183,11 +171,11 @@ describe('DataContext', () => {
     const sig = context.resolveSignal(obj as any);
 
     // It should be a literal signal containing the object
-    assert.deepStrictEqual(sig.peek(), obj);
+    assert.deepStrictEqual(peekValue(sig), obj);
 
     // Updating the path should NOT affect it
     context.set('name', 'Bob');
-    assert.deepStrictEqual(sig.peek(), obj);
+    assert.deepStrictEqual(peekValue(sig), obj);
   });
 
   it('subscribes to function calls with no args', () => {
@@ -195,12 +183,9 @@ describe('DataContext', () => {
     const ctx = createTestDataContext(model, '/', fnInvoker);
 
     let called = false;
-    ctx.subscribeDynamicValue(
-      {call: 'getPi', args: {}, returnType: 'any'},
-      () => {
-        called = true;
-      },
-    );
+    ctx.subscribeDynamicValue({call: 'getPi', args: {}, returnType: 'any'}, () => {
+      called = true;
+    });
     assert.strictEqual(called, false);
   });
 
@@ -208,10 +193,7 @@ describe('DataContext', () => {
     const ctx = createTestDataContext(model, '/user', () => {
       throw new Error('Function invoker is not configured');
     });
-    const sub = ctx.subscribeDynamicValue(
-      {call: 'add', args: {}, returnType: 'any'},
-      () => {},
-    );
+    const sub = ctx.subscribeDynamicValue({call: 'add', args: {}, returnType: 'any'}, () => {});
     assert.strictEqual(sub.value, undefined);
   });
 
@@ -323,14 +305,9 @@ describe('DataContext', () => {
         ]);
       };
       let dispatchedError: any = null;
-      const ctx = createTestDataContext(
-        model,
-        '/',
-        invokerWithZodError,
-        err => {
-          dispatchedError = err;
-        },
-      );
+      const ctx = createTestDataContext(model, '/', invokerWithZodError, err => {
+        dispatchedError = err;
+      });
 
       const result = ctx.resolveDynamicValue({
         call: 'fail',
@@ -351,14 +328,9 @@ describe('DataContext', () => {
         throw err;
       };
       let dispatchedError: any = null;
-      const ctx = createTestDataContext(
-        model,
-        '/',
-        invokerWithRegularError,
-        err => {
-          dispatchedError = err;
-        },
-      );
+      const ctx = createTestDataContext(model, '/', invokerWithRegularError, err => {
+        dispatchedError = err;
+      });
 
       const result = ctx.resolveDynamicValue({
         call: 'fail',
@@ -381,14 +353,9 @@ describe('DataContext', () => {
         throw new A2uiExpressionError('Custom expr error', 'custom_func');
       };
       let dispatchedError: any = null;
-      const ctx = createTestDataContext(
-        model,
-        '/',
-        invokerWithExpressionError,
-        err => {
-          dispatchedError = err;
-        },
-      );
+      const ctx = createTestDataContext(model, '/', invokerWithExpressionError, err => {
+        dispatchedError = err;
+      });
 
       const result = ctx.resolveDynamicValue({
         call: 'fail',
@@ -407,8 +374,7 @@ describe('DataContext', () => {
       const fnInvoker = (name: string) => {
         if (name === 'inner') {
           return computed(() => {
-            if (trigger.value)
-              throw new A2uiExpressionError('Inner failure', 'inner_func');
+            if (getValue(trigger)) throw new A2uiExpressionError('Inner failure', 'inner_func');
             return 'ok';
           });
         }
@@ -434,7 +400,7 @@ describe('DataContext', () => {
       assert.strictEqual(sub.value, 'outer-result');
       assert.strictEqual(dispatchedError, null);
 
-      trigger.value = true;
+      setValue(trigger, true);
       // Accessing sub.value or the effect running triggers the catch.
       assert.strictEqual(sub.value, undefined);
       assert.ok(dispatchedError);
@@ -446,7 +412,7 @@ describe('DataContext', () => {
       const fnInvoker = (name: string) => {
         if (name === 'inner') {
           return computed(() => {
-            if (trigger.value) throw new Error('Generic inner failure');
+            if (getValue(trigger)) throw new Error('Generic inner failure');
             return 'ok';
           });
         }
@@ -472,14 +438,11 @@ describe('DataContext', () => {
       assert.strictEqual(sub.value, 'outer-result');
       assert.strictEqual(dispatchedError, null);
 
-      trigger.value = true;
+      setValue(trigger, true);
       assert.strictEqual(sub.value, undefined);
       assert.ok(dispatchedError);
       assert.strictEqual((dispatchedError as any).code, 'EXPRESSION_ERROR');
-      assert.strictEqual(
-        (dispatchedError as any).message,
-        'Generic inner failure',
-      );
+      assert.strictEqual((dispatchedError as any).message, 'Generic inner failure');
     });
   });
 });

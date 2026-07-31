@@ -8,10 +8,7 @@
           "component": {
             "Row": {
               "children": {
-                "explicitList": [
-                  "left_text",
-                  "right_text"
-                ]
+                "explicitList": ["left_text", "right_text"]
               },
               "distribution": "spaceBetween",
               "alignment": "center"

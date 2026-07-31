@@ -134,13 +134,13 @@ form {
     pointer-events: none;
 
     &::before {
-      content: "dark_mode";
+      content: 'dark_mode';
     }
   }
 }
 
 .g-icon {
-  font-family: "Material Symbols Outlined", "Google Symbols";
+  font-family: 'Material Symbols Outlined', 'Google Symbols';
   font-weight: normal;
   font-style: normal;
   font-display: optional;
@@ -155,27 +155,39 @@ form {
   white-space: nowrap;
   word-wrap: normal;
   direction: ltr;
-  -webkit-font-feature-settings: "liga";
+  -webkit-font-feature-settings: 'liga';
   -webkit-font-smoothing: antialiased;
   overflow: hidden;
 
-  font-variation-settings: "FILL" 0, "wght" 300, "GRAD" 0, "opsz" 48,
-    "ROND" 100;
+  font-variation-settings:
+    'FILL' 0,
+    'wght' 300,
+    'GRAD' 0,
+    'opsz' 48,
+    'ROND' 100;
 
   &.filled {
-    font-variation-settings: "FILL" 1, "wght" 300, "GRAD" 0, "opsz" 48,
-      "ROND" 100;
+    font-variation-settings:
+      'FILL' 1,
+      'wght' 300,
+      'GRAD' 0,
+      'opsz' 48,
+      'ROND' 100;
   }
 
   &.filled-heavy {
-    font-variation-settings: "FILL" 1, "wght" 700, "GRAD" 0, "opsz" 48,
-      "ROND" 100;
+    font-variation-settings:
+      'FILL' 1,
+      'wght' 700,
+      'GRAD' 0,
+      'opsz' 48,
+      'ROND' 100;
   }
 }
 
 @container style(--color-scheme: dark) {
   .theme-toggle .g-icon::before {
-    content: "light_mode";
+    content: 'light_mode';
     color: var(--n-90);
   }
 }
@@ -252,7 +264,7 @@ form {
   position: relative;
 
   &::after {
-    content: "";
+    content: '';
     position: absolute;
     left: 0;
     top: 0;

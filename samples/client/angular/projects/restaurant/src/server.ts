@@ -21,10 +21,10 @@ import {
   writeResponseToNodeResponse,
 } from '@angular/ssr/node';
 import express from 'express';
-import { join } from 'node:path';
-import { v4 as uuidv4 } from 'uuid';
-import { A2AClient } from '@a2a-js/sdk/client';
-import { MessageSendParams, Part, SendMessageSuccessResponse, Task } from '@a2a-js/sdk';
+import {join} from 'node:path';
+import {v4 as uuidv4} from 'uuid';
+import {A2AClient} from '@a2a-js/sdk/client';
+import {MessageSendParams, Part, SendMessageSuccessResponse, Task} from '@a2a-js/sdk';
 
 const browserDistFolder = join(import.meta.dirname, '../browser');
 const app = express();
@@ -37,13 +37,13 @@ app.use(
     maxAge: '1y',
     index: false,
     redirect: false,
-  })
+  }),
 );
 
 app.post('/a2a', (req, res) => {
   let originalBody = '';
 
-  req.on('data', (chunk) => {
+  req.on('data', chunk => {
     originalBody += chunk.toString();
   });
 
@@ -65,7 +65,7 @@ app.post('/a2a', (req, res) => {
               {
                 kind: 'data',
                 data: requestData.event,
-                metadata: { 'mimeType': 'application/json+a2ui' },
+                metadata: {mimeType: 'application/a2ui+json'},
               } as Part,
             ],
             kind: 'message',
@@ -78,7 +78,7 @@ app.post('/a2a', (req, res) => {
             messageId: uuidv4(),
             contextId,
             role: 'user',
-            parts: [{ kind: 'text', text: requestData.query }],
+            parts: [{kind: 'text', text: requestData.query}],
             kind: 'message',
           },
         };
@@ -94,7 +94,7 @@ app.post('/a2a', (req, res) => {
               {
                 kind: 'data',
                 data: requestData,
-                metadata: { 'mimeType': 'application/json+a2ui' },
+                metadata: {mimeType: 'application/a2ui+json'},
               } as Part,
             ],
             kind: 'message',
@@ -107,7 +107,7 @@ app.post('/a2a', (req, res) => {
         message: {
           messageId: uuidv4(),
           role: 'user',
-          parts: [{ kind: 'text', text: originalBody }],
+          parts: [{kind: 'text', text: originalBody}],
           kind: 'message',
         },
       };
@@ -123,16 +123,20 @@ app.post('/a2a', (req, res) => {
     } catch (error: any) {
       console.error('Request error:', error.message);
       if (!res.headersSent) {
-        res.status(500).json({ error: error.message });
+        res.status(500).json({error: error.message});
       } else if (!res.writableEnded) {
-        res.write(`data: ${JSON.stringify({ error: error.message })}\n\n`);
+        res.write(`data: ${JSON.stringify({error: error.message})}\n\n`);
         res.end();
       }
     }
   });
 });
 
-async function handleStreamingResponse(client: A2AClient, sendParams: MessageSendParams, res: express.Response) {
+async function handleStreamingResponse(
+  client: A2AClient,
+  sendParams: MessageSendParams,
+  res: express.Response,
+) {
   process.stdout.write('[server] Streaming mode enabled\n');
   const stream = client.sendMessageStream(sendParams);
 
@@ -156,7 +160,7 @@ async function handleStreamingResponse(client: A2AClient, sendParams: MessageSen
       console.log(`[server] Streaming parts: ${JSON.stringify(parts)}`);
       const responseData = {
         parts,
-        contextId: (event as any).contextId || (event as any).status?.message?.contextId
+        contextId: (event as any).contextId || (event as any).status?.message?.contextId,
       };
       res.write(`data: ${JSON.stringify(responseData)}\n\n`);
     }
@@ -165,34 +169,38 @@ async function handleStreamingResponse(client: A2AClient, sendParams: MessageSen
   console.log('[server] Stream finished');
 }
 
-async function handleNonStreamingResponse(client: A2AClient, sendParams: MessageSendParams, res: express.Response) {
+async function handleNonStreamingResponse(
+  client: A2AClient,
+  sendParams: MessageSendParams,
+  res: express.Response,
+) {
   process.stdout.write('[server] Streaming mode disabled\n');
   const response = await client.sendMessage(sendParams);
   res.set('Cache-Control', 'no-store');
 
   if ('error' in response) {
     console.error('Error:', response.error.message);
-    res.status(500).json({ error: response.error.message });
+    res.status(500).json({error: response.error.message});
     return;
   }
 
   const result = (response as SendMessageSuccessResponse).result as Task;
   res.json({
     parts: result.kind === 'task' ? result.status.message?.parts || [] : [],
-    contextId: result.contextId
+    contextId: result.contextId,
   });
 }
 
 app.use((req, res, next) => {
   angularApp
     .handle(req)
-    .then((response) => (response ? writeResponseToNodeResponse(response, res) : next()))
+    .then(response => (response ? writeResponseToNodeResponse(response, res) : next()))
     .catch(next);
 });
 
 if (isMainModule(import.meta.url) || process.env['pm_id']) {
   const port = process.env['PORT'] || 4000;
-  app.listen(port, (error) => {
+  app.listen(port, error => {
     if (error) {
       throw error;
     }
@@ -204,7 +212,7 @@ if (isMainModule(import.meta.url) || process.env['pm_id']) {
 async function fetchWithCustomHeader(url: string | URL | Request, init?: RequestInit) {
   const headers = new Headers(init?.headers);
   headers.set('X-A2A-Extensions', 'https://a2ui.org/a2a-extension/a2ui/v0.9');
-  const newInit = { ...init, headers };
+  const newInit = {...init, headers};
   return fetch(url, newInit);
 }
 

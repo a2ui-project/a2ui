@@ -3,7 +3,7 @@
     "version": "v0.9",
     "createSurface": {
       "surfaceId": "action-modal",
-      "catalogId": "https://a2ui.org/specification/v0_9/basic_catalog.json",
+      "catalogId": "https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json",
       "theme": {
         "primaryColor": "#007BFF",
         "font": "Roboto"
@@ -29,11 +29,7 @@
         {
           "id": "modal-content-column",
           "component": "Column",
-          "children": [
-            "modal-title",
-            "modal-message",
-            "dismiss-button"
-          ],
+          "children": ["modal-title", "modal-message", "dismiss-button"],
           "align": "center"
         },
         {

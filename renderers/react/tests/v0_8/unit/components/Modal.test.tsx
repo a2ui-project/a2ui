@@ -14,10 +14,16 @@
  * limitations under the License.
  */
 
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import {describe, it, expect, vi, beforeEach, afterEach} from 'vitest';
+import {render, screen, fireEvent, waitFor} from '@testing-library/react';
 import React from 'react';
-import { TestWrapper, TestRenderer, createSurfaceUpdate, createBeginRendering, getMockCallArg } from '../../utils';
+import {
+  TestWrapper,
+  TestRenderer,
+  createSurfaceUpdate,
+  createBeginRendering,
+  getMockCallArg,
+} from '../../utils';
 import type * as Types from '@a2ui/web_core/types/types';
 
 /**
@@ -37,7 +43,7 @@ function createModalMessages(
     triggerText: string;
     contentText: string;
   },
-  surfaceId = '@default'
+  surfaceId = '@default',
 ): Types.ServerToClientMessage[] {
   const triggerId = `${id}-trigger`;
   const contentId = `${id}-content`;
@@ -49,14 +55,14 @@ function createModalMessages(
         {
           id: triggerId,
           component: {
-            Text: { text: { literalString: props.triggerText }, usageHint: 'body' },
+            Text: {text: {literalString: props.triggerText}, usageHint: 'body'},
           },
         },
         // Content component
         {
           id: contentId,
           component: {
-            Text: { text: { literalString: props.contentText }, usageHint: 'body' },
+            Text: {text: {literalString: props.contentText}, usageHint: 'body'},
           },
         },
         // Modal component
@@ -70,7 +76,7 @@ function createModalMessages(
           },
         },
       ],
-      surfaceId
+      surfaceId,
     ),
     createBeginRendering(id, surfaceId),
   ];
@@ -98,10 +104,10 @@ describe('Modal Component', () => {
         contentText: 'Modal Content',
       });
 
-      const { container } = render(
+      const {container} = render(
         <TestWrapper>
           <TestRenderer messages={messages} />
-        </TestWrapper>
+        </TestWrapper>,
       );
 
       const wrapper = container.querySelector('.a2ui-modal');
@@ -118,7 +124,7 @@ describe('Modal Component', () => {
       render(
         <TestWrapper>
           <TestRenderer messages={messages} />
-        </TestWrapper>
+        </TestWrapper>,
       );
 
       expect(screen.getByText('Click to Open')).toBeInTheDocument();
@@ -133,7 +139,7 @@ describe('Modal Component', () => {
       render(
         <TestWrapper>
           <TestRenderer messages={messages} />
-        </TestWrapper>
+        </TestWrapper>,
       );
 
       // Modal content should not be visible initially
@@ -150,17 +156,17 @@ describe('Modal Component', () => {
         contentText: 'Content B',
       });
 
-      const { container: container1 } = render(
+      const {container: container1} = render(
         <TestWrapper>
           <TestRenderer messages={messages1} />
-        </TestWrapper>
+        </TestWrapper>,
       );
-      const { unmount } = { unmount: () => {} };
+      const {unmount} = {unmount: () => {}};
 
-      const { container: container2 } = render(
+      const {container: container2} = render(
         <TestWrapper>
           <TestRenderer messages={messages2} />
-        </TestWrapper>
+        </TestWrapper>,
       );
 
       expect(container1.textContent).toContain('Trigger A');
@@ -179,7 +185,7 @@ describe('Modal Component', () => {
       render(
         <TestWrapper>
           <TestRenderer messages={messages} />
-        </TestWrapper>
+        </TestWrapper>,
       );
 
       // Click the trigger
@@ -200,7 +206,7 @@ describe('Modal Component', () => {
       render(
         <TestWrapper>
           <TestRenderer messages={messages} />
-        </TestWrapper>
+        </TestWrapper>,
       );
 
       fireEvent.click(screen.getByText('Open Modal'));
@@ -220,7 +226,7 @@ describe('Modal Component', () => {
       render(
         <TestWrapper>
           <TestRenderer messages={messages} />
-        </TestWrapper>
+        </TestWrapper>,
       );
 
       fireEvent.click(screen.getByText('Open Modal'));
@@ -236,10 +242,10 @@ describe('Modal Component', () => {
         contentText: 'Modal Content',
       });
 
-      const { container } = render(
+      const {container} = render(
         <TestWrapper>
           <TestRenderer messages={messages} />
-        </TestWrapper>
+        </TestWrapper>,
       );
 
       fireEvent.click(screen.getByText('Open Modal'));
@@ -266,13 +272,13 @@ describe('Modal Component', () => {
       render(
         <TestWrapper>
           <TestRenderer messages={messages} />
-        </TestWrapper>
+        </TestWrapper>,
       );
 
       fireEvent.click(screen.getByText('Open Modal'));
 
       await waitFor(() => {
-        const closeButton = screen.getByRole('button', { name: /close/i });
+        const closeButton = screen.getByRole('button', {name: /close/i});
         expect(closeButton).toBeInTheDocument();
       });
     });
@@ -286,7 +292,7 @@ describe('Modal Component', () => {
       render(
         <TestWrapper>
           <TestRenderer messages={messages} />
-        </TestWrapper>
+        </TestWrapper>,
       );
 
       // Open modal
@@ -297,7 +303,7 @@ describe('Modal Component', () => {
       });
 
       // Click close button
-      const closeButton = screen.getByRole('button', { name: /close/i });
+      const closeButton = screen.getByRole('button', {name: /close/i});
       fireEvent.click(closeButton);
 
       // Modal content should be removed
@@ -315,7 +321,7 @@ describe('Modal Component', () => {
       render(
         <TestWrapper>
           <TestRenderer messages={messages} />
-        </TestWrapper>
+        </TestWrapper>,
       );
 
       // Open modal
@@ -348,7 +354,7 @@ describe('Modal Component', () => {
       render(
         <TestWrapper>
           <TestRenderer messages={messages} />
-        </TestWrapper>
+        </TestWrapper>,
       );
 
       // Open modal
@@ -374,7 +380,7 @@ describe('Modal Component', () => {
       render(
         <TestWrapper>
           <TestRenderer messages={messages} />
-        </TestWrapper>
+        </TestWrapper>,
       );
 
       // Open modal
@@ -387,7 +393,7 @@ describe('Modal Component', () => {
       // Press Escape
       const dialog = document.querySelector('dialog');
       if (dialog) {
-        fireEvent.keyDown(dialog, { key: 'Escape' });
+        fireEvent.keyDown(dialog, {key: 'Escape'});
       }
 
       // Modal should close
@@ -402,12 +408,27 @@ describe('Modal Component', () => {
       const messages: Types.ServerToClientMessage[] = [
         createSurfaceUpdate([
           // Trigger
-          { id: 'trigger-text', component: { Text: { text: { literalString: 'Open' } , usageHint: 'body' } } },
+          {
+            id: 'trigger-text',
+            component: {Text: {text: {literalString: 'Open'}, usageHint: 'body'}},
+          },
           // Modal content: Column with button
-          { id: 'modal-title', component: { Text: { text: { literalString: 'Modal Title' }, usageHint: 'h2' } } },
-          { id: 'btn-text', component: { Text: { text: { literalString: 'Submit' } , usageHint: 'body' } } },
-          { id: 'modal-btn', component: { Button: { child: 'btn-text', action: { name: 'submit' } } } },
-          { id: 'modal-content', component: { Column: { children: { explicitList: ['modal-title', 'modal-btn'] } } } },
+          {
+            id: 'modal-title',
+            component: {Text: {text: {literalString: 'Modal Title'}, usageHint: 'h2'}},
+          },
+          {
+            id: 'btn-text',
+            component: {Text: {text: {literalString: 'Submit'}, usageHint: 'body'}},
+          },
+          {
+            id: 'modal-btn',
+            component: {Button: {child: 'btn-text', action: {name: 'submit'}}},
+          },
+          {
+            id: 'modal-content',
+            component: {Column: {children: {explicitList: ['modal-title', 'modal-btn']}}},
+          },
           // Modal
           {
             id: 'modal-1',
@@ -425,7 +446,7 @@ describe('Modal Component', () => {
       render(
         <TestWrapper>
           <TestRenderer messages={messages} />
-        </TestWrapper>
+        </TestWrapper>,
       );
 
       // Open modal
@@ -433,7 +454,7 @@ describe('Modal Component', () => {
 
       await waitFor(() => {
         expect(screen.getByText('Modal Title')).toBeInTheDocument();
-        expect(screen.getByRole('button', { name: 'Submit' })).toBeInTheDocument();
+        expect(screen.getByRole('button', {name: 'Submit'})).toBeInTheDocument();
       });
     });
 
@@ -441,9 +462,18 @@ describe('Modal Component', () => {
       const mockOnAction = vi.fn();
       const messages: Types.ServerToClientMessage[] = [
         createSurfaceUpdate([
-          { id: 'trigger-text', component: { Text: { text: { literalString: 'Open' } , usageHint: 'body' } } },
-          { id: 'btn-text', component: { Text: { text: { literalString: 'Action Button' } , usageHint: 'body' } } },
-          { id: 'modal-btn', component: { Button: { child: 'btn-text', action: { name: 'modal-action' } } } },
+          {
+            id: 'trigger-text',
+            component: {Text: {text: {literalString: 'Open'}, usageHint: 'body'}},
+          },
+          {
+            id: 'btn-text',
+            component: {Text: {text: {literalString: 'Action Button'}, usageHint: 'body'}},
+          },
+          {
+            id: 'modal-btn',
+            component: {Button: {child: 'btn-text', action: {name: 'modal-action'}}},
+          },
           {
             id: 'modal-1',
             component: {
@@ -460,18 +490,18 @@ describe('Modal Component', () => {
       render(
         <TestWrapper onAction={mockOnAction}>
           <TestRenderer messages={messages} />
-        </TestWrapper>
+        </TestWrapper>,
       );
 
       // Open modal
       fireEvent.click(screen.getByText('Open'));
 
       await waitFor(() => {
-        expect(screen.getByRole('button', { name: 'Action Button' })).toBeInTheDocument();
+        expect(screen.getByRole('button', {name: 'Action Button'})).toBeInTheDocument();
       });
 
       // Click the action button inside modal
-      fireEvent.click(screen.getByRole('button', { name: 'Action Button' }));
+      fireEvent.click(screen.getByRole('button', {name: 'Action Button'}));
 
       expect(mockOnAction).toHaveBeenCalled();
       const event = getMockCallArg<Types.A2UIClientEventMessage>(mockOnAction, 0);
@@ -487,15 +517,15 @@ describe('Modal Component', () => {
         contentText: 'Modal Content',
       });
 
-      const { container } = render(
+      const {container} = render(
         <TestWrapper>
           <TestRenderer messages={messages} />
-        </TestWrapper>
+        </TestWrapper>,
       );
 
       // cursor: pointer is on the section inside the wrapper (entry point)
       const section = container.querySelector('.a2ui-modal > section');
-      expect(section).toHaveStyle({ cursor: 'pointer' });
+      expect(section).toHaveStyle({cursor: 'pointer'});
     });
   });
 
@@ -509,7 +539,7 @@ describe('Modal Component', () => {
       render(
         <TestWrapper>
           <TestRenderer messages={messages} />
-        </TestWrapper>
+        </TestWrapper>,
       );
 
       fireEvent.click(screen.getByText('Open Modal'));
@@ -529,7 +559,7 @@ describe('Modal Component', () => {
       render(
         <TestWrapper>
           <TestRenderer messages={messages} />
-        </TestWrapper>
+        </TestWrapper>,
       );
 
       fireEvent.click(screen.getByText('Open Modal'));
@@ -549,10 +579,10 @@ describe('Modal Component', () => {
         contentText: 'Modal Content',
       });
 
-      const { container } = render(
+      const {container} = render(
         <TestWrapper>
           <TestRenderer messages={messages} />
-        </TestWrapper>
+        </TestWrapper>,
       );
 
       // Entry point wrapper
@@ -576,7 +606,7 @@ describe('Modal Component', () => {
       render(
         <TestWrapper>
           <TestRenderer messages={messages} />
-        </TestWrapper>
+        </TestWrapper>,
       );
 
       fireEvent.click(screen.getByText('Open Modal'));
@@ -610,7 +640,7 @@ describe('Modal Component', () => {
       render(
         <TestWrapper>
           <TestRenderer messages={messages} />
-        </TestWrapper>
+        </TestWrapper>,
       );
 
       // Open modal
@@ -620,7 +650,7 @@ describe('Modal Component', () => {
       });
 
       // Close modal
-      const closeButton = screen.getByRole('button', { name: /close/i });
+      const closeButton = screen.getByRole('button', {name: /close/i});
       fireEvent.click(closeButton);
       await waitFor(() => {
         expect(screen.queryByText('Modal Content')).not.toBeInTheDocument();

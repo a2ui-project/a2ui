@@ -14,12 +14,14 @@
  * limitations under the License.
  */
 
-import { TestBed } from '@angular/core/testing';
-import { AgentStubService } from './agent-stub.service';
-import { A2uiRendererService } from '@a2ui/angular/v0_9';
-import { ActionDispatcher } from './action-dispatcher.service';
-import { Subject } from 'rxjs';
-import { A2uiMessage } from '@a2ui/web_core/v0_9';
+import {TestBed} from '@angular/core/testing';
+import {AgentStubService} from './agent-stub.service';
+import {AgentStubV09Service} from './agent-stub-v09.service';
+import {A2uiRendererService} from '@a2ui/angular/v0_9';
+import {ActionDispatcher} from './action-dispatcher.service';
+import {Subject} from 'rxjs';
+import {A2uiMessage} from '@a2ui/web_core/v0_9';
+import {A2UI_VERSION, Version} from './types';
 
 describe('AgentStubService', () => {
   let service: AgentStubService;
@@ -43,9 +45,10 @@ describe('AgentStubService', () => {
 
     TestBed.configureTestingModule({
       providers: [
-        AgentStubService,
-        { provide: A2uiRendererService, useValue: mockRendererService },
-        { provide: ActionDispatcher, useValue: mockActionDispatcher },
+        {provide: AgentStubService, useClass: AgentStubV09Service},
+        {provide: A2uiRendererService, useValue: mockRendererService},
+        {provide: ActionDispatcher, useValue: mockActionDispatcher},
+        {provide: A2UI_VERSION, useValue: Version.V0_9},
       ],
     });
     service = TestBed.inject(AgentStubService);
@@ -77,7 +80,7 @@ describe('AgentStubService', () => {
       mockRendererService.processMessages.calls.reset();
 
       // 2. Second call: Surface now exists
-      mockSurfaceGroup.getSurface.and.returnValue({ id: surfaceId });
+      mockSurfaceGroup.getSurface.and.returnValue({id: surfaceId});
       service.initializeDemo(messages);
 
       // Should have called processMessages twice:
@@ -85,7 +88,7 @@ describe('AgentStubService', () => {
       const deleteMessages = [
         {
           version: 'v0.9' as const,
-          deleteSurface: { surfaceId },
+          deleteSurface: {surfaceId},
         },
       ];
       expect(mockRendererService.processMessages.calls.allArgs()).toEqual([

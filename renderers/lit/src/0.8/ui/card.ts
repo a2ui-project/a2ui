@@ -14,14 +14,14 @@
  * limitations under the License.
  */
 
-import { html, css, nothing } from "lit";
-import { customElement } from "lit/decorators.js";
-import { Root } from "./root.js";
-import { classMap } from "lit/directives/class-map.js";
-import { styleMap } from "lit/directives/style-map.js";
-import { structuralStyles } from "./styles.js";
+import {html, css, nothing} from 'lit';
+import {customElement} from 'lit/decorators.js';
+import {Root} from './root.js';
+import {classMap} from 'lit/directives/class-map.js';
+import {styleMap} from 'lit/directives/style-map.js';
+import {structuralStyles} from './styles.js';
 
-@customElement("a2ui-card")
+@customElement('a2ui-card')
 export class Card extends Root {
   static styles = [
     structuralStyles,

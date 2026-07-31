@@ -19,7 +19,7 @@ import assert from 'node:assert';
 import {DataModel} from '../state/data-model.js';
 import {DataContext} from '../rendering/data-context.js';
 
-import {signal} from '@preact/signals-core';
+import {signal, setValue} from '../reactivity/signals.js';
 
 const createTestDataContext = (
   model: DataModel,
@@ -40,23 +40,20 @@ describe('Function Execution in DataContext', () => {
 
     const functions = new Map<string, Function>();
     // mimic metronome: returns a stream of ticks
-    functions.set(
-      'metronome',
-      (args: Record<string, any>, abortSignal?: AbortSignal) => {
-        const interval = Number(args['interval']) || 100;
-        const subj = signal<string>('tick 0');
-        let i = 1;
-        const timerId = setInterval(() => {
-          subj.value = `tick ${i++}`;
-        }, interval);
+    functions.set('metronome', (args: Record<string, any>, abortSignal?: AbortSignal) => {
+      const interval = Number(args['interval']) || 100;
+      const subj = signal<string>('tick 0');
+      let i = 1;
+      const timerId = setInterval(() => {
+        setValue(subj, `tick ${i++}`);
+      }, interval);
 
-        abortSignal?.addEventListener('abort', () => {
-          clearInterval(timerId);
-        });
+      abortSignal?.addEventListener('abort', () => {
+        clearInterval(timerId);
+      });
 
-        return subj;
-      },
-    );
+      return subj;
+    });
 
     const context = createTestDataContext(
       dataModel,
@@ -78,23 +75,20 @@ describe('Function Execution in DataContext', () => {
 
     const values: string[] = [];
     return new Promise<void>((resolve, reject) => {
-      const subscription = context.subscribeDynamicValue<string>(
-        dynamicValue,
-        val => {
-          if (val) values.push(val);
-          if (values.length >= 3) {
-            subscription.unsubscribe();
-            try {
-              assert.strictEqual(values[0], 'tick 0');
-              assert.strictEqual(values[1], 'tick 1');
-              assert.strictEqual(values[2], 'tick 2');
-              resolve();
-            } catch (e) {
-              reject(e);
-            }
+      const subscription = context.subscribeDynamicValue<string>(dynamicValue, val => {
+        if (val) values.push(val);
+        if (values.length >= 3) {
+          subscription.unsubscribe();
+          try {
+            assert.strictEqual(values[0], 'tick 0');
+            assert.strictEqual(values[1], 'tick 1');
+            assert.strictEqual(values[2], 'tick 2');
+            resolve();
+          } catch (e) {
+            reject(e);
           }
-        },
-      );
+        }
+      });
       if (subscription.value) {
         values.push(subscription.value);
       }
@@ -130,22 +124,19 @@ describe('Function Execution in DataContext', () => {
 
     const values: string[] = [];
     return new Promise<void>((resolve, reject) => {
-      const subscription = context.subscribeDynamicValue<string>(
-        dynamicValue,
-        val => {
-          if (val) values.push(val);
-          if (values.length === 2) {
-            subscription.unsubscribe();
-            try {
-              assert.strictEqual(values[0], 'echo: hello');
-              assert.strictEqual(values[1], 'echo: world');
-              resolve();
-            } catch (e) {
-              reject(e);
-            }
+      const subscription = context.subscribeDynamicValue<string>(dynamicValue, val => {
+        if (val) values.push(val);
+        if (values.length === 2) {
+          subscription.unsubscribe();
+          try {
+            assert.strictEqual(values[0], 'echo: hello');
+            assert.strictEqual(values[1], 'echo: world');
+            resolve();
+          } catch (e) {
+            reject(e);
           }
-        },
-      );
+        }
+      });
       if (subscription.value) {
         values.push(subscription.value);
       }

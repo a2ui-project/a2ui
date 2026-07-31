@@ -4,7 +4,7 @@
     "Text": {
       "type": "object",
       "properties": {
-        "text": { "type": "string" }
+        "text": {"type": "string"}
       }
     }
   },
@@ -12,7 +12,7 @@
     "theme": {
       "type": "object",
       "properties": {
-        "primaryColor": { "type": "string" }
+        "primaryColor": {"type": "string"}
       }
     }
   }

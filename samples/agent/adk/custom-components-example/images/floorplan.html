@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+<!doctype html>
 <!--
  Copyright 2026 Google LLC
 
@@ -16,366 +16,381 @@
 -->
 
 <html lang="en">
-
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Floor Plan</title>
     <style>
-        body {
-            margin: 0;
-            padding: 0;
-            overflow: hidden;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            background-color: #f5f5f5;
-            height: 100vh;
-            width: 100vw;
-        }
+      body {
+        margin: 0;
+        padding: 0;
+        overflow: hidden;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        background-color: #f5f5f5;
+        height: 100vh;
+        width: 100vw;
+      }
 
-        #container {
-            position: relative;
-            max-width: 100%;
-            max-height: 100%;
-        }
+      #container {
+        position: relative;
+        max-width: 100%;
+        max-height: 100%;
+      }
 
-        #floorplan {
-            display: block;
-            max-width: 100%;
-            max-height: 100vh;
-            object-fit: contain;
-        }
+      #floorplan {
+        display: block;
+        max-width: 100%;
+        max-height: 100vh;
+        object-fit: contain;
+      }
 
-        .hotspot {
-            position: absolute;
-            background-color: rgba(0, 128, 255, 0.2);
-            border: 2px solid rgba(0, 128, 255, 0.5);
-            cursor: pointer;
-            transition: background-color 0.2s;
-            border-radius: 4px;
-        }
+      .hotspot {
+        position: absolute;
+        background-color: rgba(0, 128, 255, 0.2);
+        border: 2px solid rgba(0, 128, 255, 0.5);
+        cursor: pointer;
+        transition: background-color 0.2s;
+        border-radius: 4px;
+      }
 
-        .hotspot:hover {
-            background-color: rgba(0, 128, 255, 0.4);
-        }
+      .hotspot:hover {
+        background-color: rgba(0, 128, 255, 0.4);
+      }
 
-        .tooltip {
-            position: absolute;
-            background: rgba(0, 0, 0, 0.8);
-            color: white;
-            padding: 4px 8px;
-            border-radius: 4px;
-            font-family: sans-serif;
-            font-size: 12px;
-            pointer-events: none;
-            display: none;
-            z-index: 10;
-            white-space: nowrap;
-        }
+      .tooltip {
+        position: absolute;
+        background: rgba(0, 0, 0, 0.8);
+        color: white;
+        padding: 4px 8px;
+        border-radius: 4px;
+        font-family: sans-serif;
+        font-size: 12px;
+        pointer-events: none;
+        display: none;
+        z-index: 10;
+        white-space: nowrap;
+      }
 
+      #viewport {
+        width: 100vw;
+        height: 100vh;
+        overflow: hidden;
+        /* Hide scrollbars, we will use drag or just native? Let's use custom drag if strict. Or native if easier. */
+        /* Actually, for a "map" feel, simpler to have drag. */
+        cursor: grab;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+      }
 
+      #viewport.grabbing {
+        cursor: grabbing;
+      }
 
-        #viewport {
-            width: 100vw;
-            height: 100vh;
-            overflow: hidden;
-            /* Hide scrollbars, we will use drag or just native? Let's use custom drag if strict. Or native if easier. */
-            /* Actually, for a "map" feel, simpler to have drag. */
-            cursor: grab;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-        }
+      #container {
+        position: relative;
+        transform-origin: center center;
+        transition: transform 0.1s ease-out;
+        /* Prevent image dragging ghost */
+        user-select: none;
+      }
 
-        #viewport.grabbing {
-            cursor: grabbing;
-        }
-
-        #container {
-            position: relative;
-            transform-origin: center center;
-            transition: transform 0.1s ease-out;
-            /* Prevent image dragging ghost */
-            user-select: none;
-        }
-
-        /* Disable native image drag */
-        img {
-            -webkit-user-drag: none;
-        }
+      /* Disable native image drag */
+      img {
+        -webkit-user-drag: none;
+      }
     </style>
-</head>
+  </head>
 
-<body>
+  <body>
     <div id="viewport">
-
-        <div id="container">
-            <img id="floorplan" src="floorplan.png" alt="Office Floor Plan">
-            <div id="tooltip" class="tooltip"></div>
-        </div>
+      <div id="container">
+        <img id="floorplan" src="floorplan.png" alt="Office Floor Plan" />
+        <div id="tooltip" class="tooltip"></div>
+      </div>
     </div>
 
+    <script>
+      const viewport = document.getElementById('viewport');
+      const container = document.getElementById('container');
+      const tooltip = document.getElementById('tooltip');
+      let deskMappings = [];
 
+      // Start Zoomed In
+      let scale = 2.5;
 
-    <script>const viewport = document.getElementById('viewport');
-        const container = document.getElementById('container');
-        const tooltip = document.getElementById('tooltip');
-        let deskMappings = [];
+      // Center the view initially?
+      // We'll need to set pointX/Y to center relative to viewport.
+      // For now, let's just start with scale.
 
-        // Start Zoomed In
-        let scale = 2.5;
+      let panning = false;
+      let pointX = 0;
+      let pointY = 0;
+      let startX = 0;
+      let startY = 0;
 
-        // Center the view initially? 
-        // We'll need to set pointX/Y to center relative to viewport.
-        // For now, let's just start with scale.
+      // Ensure transform is applied on load
+      window.onload = () => {
+        updateTransform();
+      };
 
-        let panning = false;
-        let pointX = 0;
-        let pointY = 0;
-        let startX = 0;
-        let startY = 0;
+      // Panning Logic
+      viewport.onmousedown = function (e) {
+        e.preventDefault();
+        startX = e.clientX - pointX;
+        startY = e.clientY - pointY;
+        panning = true;
+        viewport.classList.add('grabbing');
+      };
 
-        // Ensure transform is applied on load
-        window.onload = () => {
-            updateTransform();
-        };
+      viewport.onmouseup = function (e) {
+        panning = false;
+        viewport.classList.remove('grabbing');
+      };
 
-        // Panning Logic
-        viewport.onmousedown = function (e) {
-            e.preventDefault();
-            startX = e.clientX - pointX;
-            startY = e.clientY - pointY;
-            panning = true;
-            viewport.classList.add('grabbing');
+      viewport.onmouseleave = function (e) {
+        panning = false;
+        viewport.classList.remove('grabbing');
+      };
+
+      viewport.onmousemove = function (e) {
+        if (panning) {
+          e.preventDefault();
+          pointX = e.clientX - startX;
+          pointY = e.clientY - startY;
+          updateTransform();
         }
 
-        viewport.onmouseup = function (e) {
-            panning = false;
-            viewport.classList.remove('grabbing');
-        }
+        // Tooltip logic needs to account for zoom if we want it to follow mouse accurately?
+        // Actually existing tooltip uses container relative?
+        // `updateTooltipPos` relied on container.getBoundingClientRect.
+        // If container is transformed, that logic might need adjustment or it might just work if event is relative.
+        updateTooltipPos(e);
+      };
 
-        viewport.onmouseleave = function (e) {
-            panning = false;
-            viewport.classList.remove('grabbing');
-        }
+      function zoom(factor) {
+        console.log('Zooming by factor:', factor);
+        scale *= factor;
+        scale = Math.min(Math.max(0.5, scale), 6); // Allow up to 6x
+        console.log('New scale:', scale);
+        updateTransform();
+      }
 
-        viewport.onmousemove = function (e) {
-            if (panning) {
-                e.preventDefault();
-                pointX = e.clientX - startX;
-                pointY = e.clientY - startY;
-                updateTransform();
-            }
+      function updateTransform() {
+        container.style.transform = `translate(${pointX}px, ${pointY}px) scale(${scale})`;
+      }
 
-            // Tooltip logic needs to account for zoom if we want it to follow mouse accurately?
-            // Actually existing tooltip uses container relative? 
-            // `updateTooltipPos` relied on container.getBoundingClientRect.
-            // If container is transformed, that logic might need adjustment or it might just work if event is relative.
-            updateTooltipPos(e);
-        }
+      // Define generic desk locations (percentages to be responsive)
+      // These are approximations based on the visual layout of typical 4-desk clusters
+      const clusters = [
+        // Top Left Cluster
 
-        function zoom(factor) {
-            console.log("Zooming by factor:", factor);
-            scale *= factor;
-            scale = Math.min(Math.max(0.5, scale), 6); // Allow up to 6x
-            console.log("New scale:", scale);
-            updateTransform();
-        }
+        {
+          id: 'desk-1',
+          top: 10,
+          left: 10,
+          width: 8,
+          height: 12,
+        },
+        {
+          id: 'desk-2',
+          top: 10,
+          left: 18,
+          width: 8,
+          height: 12,
+        },
+        {
+          id: 'desk-3',
+          top: 22,
+          left: 10,
+          width: 8,
+          height: 12,
+        },
+        {
+          id: 'desk-4',
+          top: 22,
+          left: 18,
+          width: 8,
+          height: 12,
+        },
 
-        function updateTransform() {
-            container.style.transform = `translate(${pointX}px, ${pointY}px) scale(${scale})`;
-        }
+        // Top Right Cluster (rotated?) - simpler rects for now
+        {
+          id: 'desk-5',
+          top: 10,
+          left: 70,
+          width: 10,
+          height: 15,
+        },
+        {
+          id: 'desk-6',
+          top: 10,
+          left: 80,
+          width: 10,
+          height: 15,
+        },
 
-        // Define generic desk locations (percentages to be responsive)
-        // These are approximations based on the visual layout of typical 4-desk clusters
-        const clusters = [ // Top Left Cluster
+        // Center Cluster (Diamond)
+        {
+          id: 'desk-7',
+          top: 40,
+          left: 45,
+          width: 10,
+          height: 10,
+        },
 
-            {
-                id: "desk-1", top: 10, left: 10, width: 8, height: 12
-            }
+        // Bottom Left Cluster
+        {
+          id: 'desk-8',
+          top: 60,
+          left: 10,
+          width: 8,
+          height: 12,
+        },
+        {
+          id: 'desk-9',
+          top: 60,
+          left: 18,
+          width: 8,
+          height: 12,
+        },
+        {
+          id: 'desk-10',
+          top: 72,
+          left: 10,
+          width: 8,
+          height: 12,
+        },
+        {
+          id: 'desk-11',
+          top: 72,
+          left: 18,
+          width: 8,
+          height: 12,
+        },
 
-            ,
-            {
-                id: "desk-2", top: 10, left: 18, width: 8, height: 12
-            }
+        // Bottom Right Cluster
+        {
+          id: 'desk-12',
+          top: 60,
+          left: 75,
+          width: 15,
+          height: 10,
+        },
+      ];
 
-            ,
-            {
-                id: "desk-3", top: 22, left: 10, width: 8, height: 12
-            }
+      function createHotspots() {
+        // Clear existing
+        document.querySelectorAll('.hotspot').forEach(el => el.remove());
 
-            ,
-            {
-                id: "desk-4", top: 22, left: 18, width: 8, height: 12
-            }
+        clusters.forEach(desk => {
+          const mapping = deskMappings.find(m => m.deskId === desk.id);
+          // Only create hotspots for mapped desks? Or all? Let's do all but only interact if mapped.
 
-            ,
+          const el = document.createElement('div');
+          el.className = 'hotspot';
+          el.style.top = desk.top + '%';
+          el.style.left = desk.left + '%';
+          el.style.width = desk.width + '%';
+          el.style.height = desk.height + '%';
 
-            // Top Right Cluster (rotated?) - simpler rects for now
-            {
-                id: "desk-5", top: 10, left: 70, width: 10, height: 15
-            }
+          if (mapping) {
+            el.dataset.contactName = mapping.contactName;
+            el.dataset.contactId = mapping.contactId;
 
-            ,
-            {
-                id: "desk-6", top: 10, left: 80, width: 10, height: 15
-            }
+            el.onmouseenter = e => {
+              tooltip.innerText = mapping.contactName;
+              tooltip.style.display = 'block';
+              updateTooltipPos(e);
+            };
+            el.onmousemove = updateTooltipPos;
 
-            ,
+            el.onmouseleave = () => {
+              tooltip.style.display = 'none';
+            };
 
-            // Center Cluster (Diamond)
-            {
-                id: "desk-7", top: 40, left: 45, width: 10, height: 10
-            }
+            el.onclick = () => {
+              // sendMessage('deskSelected', { contactId: mapping.contactId, deskId: desk.id });
+              console.log('[FloorPlan Iframe] Clicking desk:', desk.id);
 
-            ,
+              window.parent.postMessage(
+                {
+                  type: 'a2ui_action',
+                  action: 'chart_node_click',
+                  data: {
+                    clickedNodeName: mapping.contactName,
+                    contactId: mapping.contactId,
+                    deskId: desk.id,
+                    source: 'modal',
+                  },
+                },
+                '*',
+              );
+            };
+          } else {
+            el.style.borderColor = 'rgba(0,0,0,0.1)';
+            el.style.backgroundColor = 'transparent';
+            el.style.cursor = 'default';
+            el.title = 'Empty Desk';
+          }
 
-            // Bottom Left Cluster
-            {
-                id: "desk-8", top: 60, left: 10, width: 8, height: 12
-            }
-
-            ,
-            {
-                id: "desk-9", top: 60, left: 18, width: 8, height: 12
-            }
-
-            ,
-            {
-                id: "desk-10", top: 72, left: 10, width: 8, height: 12
-            }
-
-            ,
-            {
-                id: "desk-11", top: 72, left: 18, width: 8, height: 12
-            }
-
-            ,
-
-            // Bottom Right Cluster
-            {
-                id: "desk-12", top: 60, left: 75, width: 15, height: 10
-            }
-
-        ];
-
-        function createHotspots() {
-            // Clear existing
-            document.querySelectorAll('.hotspot').forEach(el => el.remove());
-
-            clusters.forEach(desk => {
-                const mapping = deskMappings.find(m => m.deskId === desk.id);
-                // Only create hotspots for mapped desks? Or all? Let's do all but only interact if mapped.
-
-                const el = document.createElement('div');
-                el.className = 'hotspot';
-                el.style.top = desk.top + '%';
-                el.style.left = desk.left + '%';
-                el.style.width = desk.width + '%';
-                el.style.height = desk.height + '%';
-
-                if (mapping) {
-                    el.dataset.contactName = mapping.contactName;
-                    el.dataset.contactId = mapping.contactId;
-
-                    el.onmouseenter = (e) => {
-                        tooltip.innerText = mapping.contactName;
-                        tooltip.style.display = 'block';
-                        updateTooltipPos(e);
-                    }
-
-                        ;
-                    el.onmousemove = updateTooltipPos;
-
-                    el.onmouseleave = () => {
-                        tooltip.style.display = 'none';
-                    }
-
-                        ;
-
-                    el.onclick = () => {
-                        // sendMessage('deskSelected', { contactId: mapping.contactId, deskId: desk.id });
-                        console.log("[FloorPlan Iframe] Clicking desk:", desk.id);
-
-                        window.parent.postMessage({
-                            type: 'a2ui_action',
-                            action: 'chart_node_click',
-                            data: {
-                                clickedNodeName: mapping.contactName,
-                                contactId: mapping.contactId,
-                                deskId: desk.id,
-                                source: 'modal'
-                            }
-                        }, '*');
-                    }
-
-                        ;
-                }
-
-                else {
-                    el.style.borderColor = 'rgba(0,0,0,0.1)';
-                    el.style.backgroundColor = 'transparent';
-                    el.style.cursor = 'default';
-                    el.title = "Empty Desk";
-                }
-
-                container.appendChild(el);
-            });
-        }
-
-        function updateTooltipPos(e) {
-            if (tooltip.style.display === 'none') return;
-
-            // To position tooltip correctly near mouse, we can just use fixed page coordinates 
-            // since the tooltip is inside the container, we need to counter-scale it or just put it in body?
-            // Currently tooltip is inside #container. If #container scales, tooltip scales too (gets huge/tiny).
-            // BETTER: Move tooltip to body and use e.clientX/Y.
-        }
-
-        // Move tooltip to body for consistent sizing
-        document.body.appendChild(tooltip);
-
-        function updateTooltipPos(e) {
-            if (tooltip.style.display === 'none') return;
-            tooltip.style.left = (e.clientX + 15) + 'px';
-            tooltip.style.top = (e.clientY + 15) + 'px';
-        }
-
-        function sendMessage(method, params) {
-            // Legacy support if needed, or just switch
-            // window.parent.postMessage({ jsonrpc: "2.0", method: method, params: params }, "*");
-        }
-
-        window.addEventListener('message', (event) => {
-            const data = event.data;
-
-            // Only 'zoom' needed from parent now.
-            if (data.type === 'zoom') {
-                zoom(data.payload.factor);
-            }
+          container.appendChild(el);
         });
+      }
 
-        function getMappingsFromUrl() {
-            try {
-                const params = new URLSearchParams(window.location.search);
-                const dataStr = params.get('data');
-                if (dataStr) {
-                    const data = JSON.parse(dataStr);
-                    if (data.mappings) {
-                        return data.mappings;
-                    }
-                }
-            } catch (e) {
-                console.error("Failed to parse mappings from URL:", e);
-            }
-            return [];
+      function updateTooltipPos(e) {
+        if (tooltip.style.display === 'none') return;
+
+        // To position tooltip correctly near mouse, we can just use fixed page coordinates
+        // since the tooltip is inside the container, we need to counter-scale it or just put it in body?
+        // Currently tooltip is inside #container. If #container scales, tooltip scales too (gets huge/tiny).
+        // BETTER: Move tooltip to body and use e.clientX/Y.
+      }
+
+      // Move tooltip to body for consistent sizing
+      document.body.appendChild(tooltip);
+
+      function updateTooltipPos(e) {
+        if (tooltip.style.display === 'none') return;
+        tooltip.style.left = e.clientX + 15 + 'px';
+        tooltip.style.top = e.clientY + 15 + 'px';
+      }
+
+      function sendMessage(method, params) {
+        // Legacy support if needed, or just switch
+        // window.parent.postMessage({ jsonrpc: "2.0", method: method, params: params }, "*");
+      }
+
+      window.addEventListener('message', event => {
+        const data = event.data;
+
+        // Only 'zoom' needed from parent now.
+        if (data.type === 'zoom') {
+          zoom(data.payload.factor);
         }
+      });
 
-        // Initialize
-        deskMappings = getMappingsFromUrl();
-        createHotspots();
+      function getMappingsFromUrl() {
+        try {
+          const params = new URLSearchParams(window.location.search);
+          const dataStr = params.get('data');
+          if (dataStr) {
+            const data = JSON.parse(dataStr);
+            if (data.mappings) {
+              return data.mappings;
+            }
+          }
+        } catch (e) {
+          console.error('Failed to parse mappings from URL:', e);
+        }
+        return [];
+      }
+
+      // Initialize
+      deskMappings = getMappingsFromUrl();
+      createHotspots();
     </script>
-</body>
-
+  </body>
 </html>
