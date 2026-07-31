@@ -87,8 +87,12 @@ window.addEventListener('message', async event => {
       return;
     }
 
-    if (event.data && event.data.method === RESOURCE_READY_NOTIFICATION) {
-      const {html, sandbox, permissions} = event.data.params;
+    const isMcpResourceReady = event.data && event.data.method === RESOURCE_READY_NOTIFICATION;
+    const isA2uiResourceReady = event.data && event.data.type === 'a2ui_sandbox_resource_ready';
+
+    if (isMcpResourceReady || isA2uiResourceReady) {
+      const payload = isMcpResourceReady ? event.data.params : event.data;
+      const {html, url, sandbox, permissions} = payload as any;
       if (typeof sandbox === 'string') {
         inner.setAttribute('sandbox', sandbox);
       }
@@ -96,22 +100,30 @@ window.addEventListener('message', async event => {
       if (allowAttribute) {
         inner.setAttribute('allow', allowAttribute);
       }
-      if (typeof html === 'string') {
-        const sendInit = () => {
-          if (inner.contentWindow) {
-            // Use "*" because sandboxed iframes with no 'allow-same-origin' have a "null" origin.
-            // A specific target origin will fail matching and block delivery.
-            inner.contentWindow.postMessage({type: 'sandbox-init'}, '*');
-          }
-        };
-        inner.onload = sendInit;
 
+      const sendInit = () => {
+        if (inner.contentWindow) {
+          // Use "*" because sandboxed iframes with no 'allow-same-origin' have a "null" origin.
+          // A specific target origin will fail matching and block delivery.
+          inner.contentWindow.postMessage({type: 'sandbox-init'}, '*');
+        }
+      };
+
+      if (typeof html === 'string') {
+        inner.onload = sendInit;
         inner.srcdoc = html;
+      } else if (typeof url === 'string') {
+        inner.onload = sendInit;
+        inner.src = url;
       }
     } else {
       if (inner && inner.contentWindow) {
         // Same rationale as above: target origin must be "*" to reach sandboxed 'null' windows.
-        inner.contentWindow.postMessage(event.data, '*');
+        inner.contentWindow.postMessage(
+          event.data,
+          '*',
+          event.ports ? [...event.ports] : undefined,
+        );
       }
     }
   } else if (event.source === inner.contentWindow) {
@@ -132,12 +144,24 @@ window.addEventListener('message', async event => {
   }
 });
 
-// Notify Host
+// 1. Notify Host (Standard MCP Apps Component)
+// This uses the standard JSON-RPC 2.0 framing format.
+// Note: This message is a no-op and safely ignored if the host is using a WebAppFrame component instead.
 window.parent.postMessage(
   {
     jsonrpc: '2.0',
     method: PROXY_READY_NOTIFICATION,
     params: {},
+  },
+  EXPECTED_HOST_ORIGIN,
+);
+
+// 2. Notify Host (A2UI WebAppFrame Components)
+// This uses the A2UI flat envelope format.
+// Note: This message is a no-op and safely ignored if the host is using an McpApp component instead.
+window.parent.postMessage(
+  {
+    type: 'a2ui_sandbox_proxy_ready',
   },
   EXPECTED_HOST_ORIGIN,
 );

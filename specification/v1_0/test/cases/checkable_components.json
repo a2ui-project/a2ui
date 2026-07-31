@@ -1,5 +1,5 @@
 {
-  "schema": "server_to_client.json",
+  "schema": "agent_to_renderer.json",
   "tests": [
     {
       "description": "TextField with valid checks",

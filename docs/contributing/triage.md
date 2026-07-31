@@ -2,8 +2,6 @@
 
 go/a2ui-triage
 
-Point of contact: @polinach
-
 See go/a2ui-triage for internal information.
 
 ## Goals
@@ -33,36 +31,41 @@ This section describes goals at a high level. See concrete steps in the section 
 1. P0-P4
 2. status: in-discussion
 3. status: needs-triage
-4. status: front-line-handled
+4. status: first-line-handled
 5. size: small
-6. status: waiting-for-user-response
+6. status: waiting-for-author-response
 
 See [all github labels](https://github.com/a2ui-project/a2ui/labels).
+
+Two of these are automated by [scripts/triage.mjs](../../scripts/triage.mjs): `status: needs-triage` is added and removed entirely by the bot, and `status: waiting-for-author-response` is applied by hand — while it is set the item stays out of the triage queue, and the bot removes it once the author has posted a reply, review, or review comment after the label went on. Replies from anyone else do not clear it, and neither does the author pushing commits without saying anything; remove it by hand in those cases.
 
 ## Triage responsibilities
 
 ### First line triage
 
-For each issue that is [not front-line-handled](https://github.com/a2ui-project/a2ui/issues?q=is%3Aissue%20state%3Aopen%20-label%3AP0%20-label%3AP1%20-label%3AP2%20-label%3AP3%20-label%3A%22status%3A%20front-line-handled%22):
+For each issue that is [not first-line-handled](https://github.com/a2ui-project/a2ui/issues?q=is%3Aissue%20state%3Aopen%20-label%3AP0%20-label%3AP1%20-label%3AP2%20-label%3AP3%20-label%3A%22status%3A%20first-line-handled%22):
 
 - If it is P0, add label `P0` and notify team chat
-- Add label `status: front-line-handled`
+- Add label `status: first-line-handled`
 
 ### Second line triage
 
-Review issues [with label `status: needs-triage`][needs-triage], temporarily adding `status: in-discussion` for items that are actively discussed by the team.
+Push forward items [with label `status: needs-triage`][needs-triage], temporarily adding `status: in-discussion` for items that are [actively discussed by the team][in-discussion].
 
-[needs-triage]: https://github.com/a2ui-project/a2ui/issues?q=state%3Aopen%20label%3A%22status%3A%20needs-triage%22%20repo%3Aa2ui-project%2Fa2ui%2Cflutter%2Fgenui&page=4
+Push forward means to address each item until it no longer matches a [flagging rule](../../scripts/triage.mjs): set a priority, assign P0/P1, answer the external comment, or add `status: waiting-for-author-response` when you need more information. The label is owned by the automation and disappears on its next run. Removing it by hand just speeds that up — if the item still matches a rule, it comes back within a minute.
+
+Use [standard replies](triage-templates.md) that are provided for standard cases.
+
+[needs-triage]: https://github.com/a2ui-project/a2ui/issues?q=state%3Aopen%20label%3A%22status%3A%20needs-triage%22%20repo%3Aa2ui-project%2Fa2ui%2Cflutter%2Fgenui%20-label%3A%22status%3A%20in-discussion%22%20sort%3Aupdated-asc%20-label%3A%22status%3A%20waiting-for-user-response%22
+[in-discussion]: https://github.com/a2ui-project/a2ui/issues?q=state%3Aopen%20label%3A%22status%3A%20in-discussion%22
+
+See internal steps in: go/a2ui-oncall-notes-template.
 
 ## AI assistance
 
-Use this skill to get agent's help with triage process: [.agents/skills/a2ui-issue-triage](../../.agents/skills/a2ui-issue-triage).
+Use this skill to get agent's help with triage process: [.agents/skills/a2ui-issue-triage](../../.agents/skills/a2ui-issue-triage/SKILL.md).
 
 It forks multiple subagents (one for each issue) to try and tries to reproduce the issue if it is something that can be easily reproduced. It won't attempt to repro something that takes a lot of setup.
-
-## Response templates
-
-TODO: add templates for quick responses here
 
 ## Q\&A
 

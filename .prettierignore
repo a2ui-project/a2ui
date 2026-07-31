@@ -15,6 +15,7 @@
 **/node_modules
 **/dist
 **/build
+**/lib
 **/.wireit
 **/*.tsbuildinfo
 .git

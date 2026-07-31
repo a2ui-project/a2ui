@@ -22,6 +22,7 @@ from a2ui.validation.validator import (
 )
 from a2ui.core.validating import analyze_topology
 from a2ui.core.validating.integrity_checker import get_component_references
+from a2ui.schema.utils import wrap_as_json_array
 
 warnings.warn(
     "a2ui.schema.validator is deprecated and will be removed. "
@@ -36,4 +37,5 @@ __all__ = [
     "extract_component_required_fields",
     "analyze_topology",
     "get_component_references",
+    "wrap_as_json_array",
 ]
