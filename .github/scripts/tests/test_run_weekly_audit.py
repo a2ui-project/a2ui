@@ -113,14 +113,18 @@ class TestRunWeeklyAudit(unittest.TestCase):
         extract_report_text = run_weekly_audit.extract_report_text
 
         mock_int = MagicMock()
-        mock_int.output_text = "# Main Report\nBody content"
-        self.assertEqual(extract_report_text(mock_int), "# Main Report\nBody content")
-
-        mock_int.output_text = "...}"
+        mock_int.output_text = "Short text"
         mock_step = MagicMock()
-        mock_step.model_dump.return_value = {"result": "# Step Report\nDetails"}
+        mock_step.model_dump.return_value = {
+            "result": (
+                "This is a much longer report content extracted from interaction steps"
+            )
+        }
         mock_int.steps = [mock_step]
-        self.assertEqual(extract_report_text(mock_int), "# Step Report\nDetails")
+        self.assertEqual(
+            extract_report_text(mock_int),
+            "This is a much longer report content extracted from interaction steps",
+        )
 
 
 if __name__ == "__main__":

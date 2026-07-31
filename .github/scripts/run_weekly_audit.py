@@ -21,24 +21,29 @@ import time
 
 
 def extract_report_text(interaction) -> str:
-    """Extracts the full report text from interaction output or steps."""
-    if interaction.output_text and interaction.output_text.strip().startswith("#"):
-        return interaction.output_text.strip()
+    """Extracts the longest text payload from the interaction steps or output."""
+    candidates: list[str] = []
 
-    for step in reversed(getattr(interaction, "steps", None) or []):
+    if getattr(interaction, "output_text", None):
+        candidates.append(interaction.output_text.strip())
+
+    for step in getattr(interaction, "steps", None) or []:
         step_dict = step.model_dump() if hasattr(step, "model_dump") else {}
-        for key in ("result", "content", "summary"):
+        for key in ("content", "result", "summary"):
             val = step_dict.get(key)
-            if isinstance(val, str) and val.strip().startswith("#"):
-                return val.strip()
+            if isinstance(val, str) and val.strip():
+                candidates.append(val.strip())
             elif isinstance(val, list):
                 for item in val:
-                    if isinstance(item, dict) and item.get(
-                        "text", ""
-                    ).strip().startswith("#"):
-                        return item["text"].strip()
+                    if isinstance(item, dict):
+                        text = item.get("text", "").strip()
+                        if text:
+                            candidates.append(text)
 
-    return ""
+    if not candidates:
+        return ""
+
+    return max(candidates, key=len)
 
 
 def main() -> None:
@@ -61,7 +66,8 @@ def main() -> None:
         " skill file to perform an Antigravity compliance audit on the repository.\n4."
         " Publish the report as a new GitHub issue on a2ui-project/a2ui by executing:\n"
         "   python3 .agents/skills/a2ui-audit/scripts/create_compliance_report.py"
-        " compliance_report.md --repo a2ui-project/a2ui\n"
+        " compliance_report.md --repo a2ui-project/a2ui\n5. Your final response MUST be"
+        " the complete Markdown report and nothing else."
     )
 
     print("🚀 Launching Antigravity Agent interaction...")
