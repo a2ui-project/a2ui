@@ -24,7 +24,7 @@ from a2ui.schema.catalog import A2uiCatalog
 
 from a2ui.schema.constants import A2UI_INFERENCE_OPEN_TAG, A2UI_INFERENCE_CLOSE_TAG
 from .schema_helper import CatalogSchemaHelper
-from .constants import SurfaceOperation, A2uiWireMessage
+from .constants import SurfaceOperation
 
 
 def _flatten_data_model(data_dict: dict) -> list[tuple[str, Any]]:
@@ -131,7 +131,7 @@ class _ExpressDecompiler:
 
     def decompile(
         self,
-        envelope_json: Union[A2uiWireMessage, list[A2uiWireMessage]],
+        envelope_json: Union[dict[str, Any], list[dict[str, Any]]],
         use_keyword_args: bool = False,
     ) -> str:
         """Decompiles standard A2UI wire JSON into clean A2UI Express lines.

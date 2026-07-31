@@ -12,10 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Any, Dict
-
-A2uiWireMessage = Dict[str, Any]
-
 
 class SurfaceOperation:
     """Standard A2UI v1.0 surface operation envelope keys."""

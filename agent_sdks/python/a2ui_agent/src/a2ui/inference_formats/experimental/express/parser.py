@@ -21,7 +21,6 @@ from a2ui.parser.response_part import ResponsePart
 from a2ui.parser.parser import Parser
 from google.adk.utils.feature_decorator import experimental
 from a2ui.schema.constants import A2UI_INFERENCE_OPEN_TAG, A2UI_INFERENCE_CLOSE_TAG
-from .constants import A2uiWireMessage
 from .compiler import ExpressCompiler
 from .decompiler import _ExpressDecompiler
 
@@ -78,7 +77,7 @@ class ExpressParser(Parser):
 
     def compile(
         self, format_content: str, *, is_final: bool = True
-    ) -> List[A2uiWireMessage]:
+    ) -> List[dict[str, Any]]:
         """Compiles raw Express DSL to structured A2UI messages."""
         from a2ui.parser.errors import A2uiCompilationError
 
@@ -105,7 +104,7 @@ class ExpressParser(Parser):
                 help_message=help_msg,
             ) from e
 
-    def decompile(self, val: Union[A2uiWireMessage, List[A2uiWireMessage]]) -> str:
+    def decompile(self, val: Union[dict[str, Any], List[dict[str, Any]]]) -> str:
         """Decompiles a structured A2UI payload into this format's raw notation."""
         return _ExpressDecompiler(self.catalog).decompile(val)
 
