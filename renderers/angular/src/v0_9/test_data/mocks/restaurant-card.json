@@ -53,8 +53,7 @@
         {
           "id": "cuisine",
           "component": "Text",
-          "text": {"path": "/cuisine"},
-          "style": "italic"
+          "text": {"path": "/cuisine"}
         },
         {
           "id": "rating-row",
