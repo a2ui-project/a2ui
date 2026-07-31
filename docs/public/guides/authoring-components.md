@@ -175,8 +175,8 @@ export class Chart extends CatalogComponent<typeof ChartApi> {
 
 Keep these key points in mind when implementing components:
 
--   **Extend `CatalogComponent`**: This gives you access to the type-safe `props` signal input.
--   **Use `props()` Signal**: Access resolved properties reactively via `this.props()['propertyName']?.value()`. The framework automatically handles resolving data bindings and expressions.
+- **Extend `CatalogComponent`**: This gives you access to the type-safe `props` signal input.
+- **Use `props()` Signal**: Access resolved properties reactively via `this.props()['propertyName']?.value()`. The framework automatically handles resolving data bindings and expressions.
 
 ---
 
@@ -205,7 +205,7 @@ export const RIZZ_CHARTS_CATALOG = new AngularCatalog(
 
 Key points for registration:
 
--   **Eager Registration**: Component classes are registered directly in the catalog definition.
+- **Eager Registration**: Component classes are registered directly in the catalog definition.
 
 ---
 
