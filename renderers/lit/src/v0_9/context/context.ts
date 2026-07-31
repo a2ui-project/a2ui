@@ -15,10 +15,12 @@
  */
 
 import {markdown} from './markdown.js';
+import {fallbacks} from './fallbacks.js';
 
 /**
  * Contexts used to inject dependencies into the Lit renderer.
  */
 export const Context = {
   markdown,
+  fallbacks,
 };

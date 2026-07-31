@@ -16,8 +16,11 @@
 
 import {html, nothing, LitElement, PropertyValues} from 'lit';
 import {customElement, property, state} from 'lit/decorators.js';
+import {provide} from '@lit/context';
 import {SurfaceModel, ComponentContext} from '@a2ui/web_core/v0_9';
 import {renderA2uiNode} from './render-a2ui-node.js';
+import {Context} from '../context/context.js';
+import {A2uiLitFallbacks} from '../context/fallbacks.js';
 import {LitComponentApi} from '../types.js';
 
 /**
@@ -37,6 +40,16 @@ export class A2uiSurface extends LitElement {
   @property({type: Object}) accessor surface: SurfaceModel<LitComponentApi> | undefined;
 
   /**
+   * Consumer-provided fallbacks. Provided via `@lit/context` so descendant
+   * `A2uiLitElement`s can `@consume` them for nested pending/unknown children.
+   * Keep a stable reference. Because this is a reactive property, a new object
+   * identity on each render re-renders every pending child.
+   */
+  @provide({context: Context.fallbacks})
+  @property({attribute: false})
+  accessor fallbacks: A2uiLitFallbacks | undefined;
+
+  /**
    * Internal state indicating whether the root component exists.
    * @internal
    */
@@ -46,6 +59,14 @@ export class A2uiSurface extends LitElement {
    * @internal
    */
   private unsubscribe?: () => void;
+  /**
+   * Guards the root-error dispatch so a persistently failing root reports once
+   * PER SURFACE. Keyed on the `SurfaceModel` (mirroring `warnedBySurface` in
+   * `render-a2ui-node.ts`) so a per-element boolean cannot stay latched from a
+   * prior surface and suppress a second surface's root failure.
+   * @internal
+   */
+  private readonly errorDispatchedBySurface = new WeakMap<SurfaceModel<LitComponentApi>, boolean>();
 
   /**
    * Handles lifecycle updates, specifically when the `surface` property changes.
@@ -98,14 +119,32 @@ export class A2uiSurface extends LitElement {
   override render() {
     if (!this.surface) return nothing;
     if (!this._hasRoot) {
-      return html`<slot name="loading"><div>Loading surface...</div></slot>`;
+      // Render no visible default text; keep the named slot so a consumer-projected
+      // `<div slot="loading">` still renders while the root is pending.
+      return html`<slot name="loading"></slot>`;
     }
 
     try {
       const rootContext = new ComponentContext(this.surface, 'root', '/');
-      return html`${renderA2uiNode(rootContext, this.surface.catalog)}`;
+      return html`${renderA2uiNode(rootContext, this.surface.catalog, this.fallbacks)}`;
     } catch (e) {
       console.error('Error creating root context:', e);
+      // Report the error state to the agent, deferred out of the render phase and
+      // guarded so a persistently failing root does not re-dispatch every render.
+      // The visible fallback text is intentionally retained (real-exception path).
+      // Capture the surface now: the deferred microtask must key its guard and
+      // dispatch on the failing surface, not whatever `this.surface` is later.
+      const surface = this.surface;
+      queueMicrotask(() => {
+        if (!surface || this.errorDispatchedBySurface.get(surface)) return;
+        this.errorDispatchedBySurface.set(surface, true);
+        void surface.dispatchError({
+          code: 'SURFACE_RENDER_ERROR',
+          message: 'Error rendering surface',
+          componentId: 'root',
+          reason: e,
+        });
+      });
       return html`<div>Error rendering surface</div>`;
     }
   }

@@ -113,6 +113,26 @@ Running this example should display "Hello from A2UI!". The example demonstrates
 - [`updateComponents`](../../specification/v0_9/docs/a2ui_protocol.md#updatecomponents) defines the UI tree. Here, a `Column` containing two `Text` components.
 - [`updateDataModel`](../../specification/v0_9/docs/a2ui_protocol.md#updatedatamodel) provides the data that the components reference via [`path` bindings](../../specification/v0_9/docs/a2ui_protocol.md#path-resolution--scope) (e.g. `{ path: '/title' }` resolves to the `title` field in the data model).
 
+## Custom Fallbacks
+
+By default the renderer shows nothing while a component is still streaming (`loading`) or when a component's type has no catalog implementation (`unknownComponent`). Pass an optional `fallbacks` prop to `A2uiSurface` to supply your own UI for either state. A fallback is a React node or a function of the fallback info, and it reaches nested children through context.
+
+```tsx
+import {A2uiSurface, type A2uiFallbacks} from '@a2ui/react/v0_9';
+
+// Hoist the object so its identity is stable across renders.
+const fallbacks: A2uiFallbacks = {
+  loading: <span className="a2ui-skeleton">Loading...</span>,
+  unknownComponent: info => <span>Unsupported component: {info.componentType}</span>,
+};
+
+function Chat({surface}) {
+  return <A2uiSurface surface={surface} fallbacks={fallbacks} />;
+}
+```
+
+The `info` argument is a discriminated union keyed on `state`: the `loading` form carries `componentId` and an optional `parentComponentType`, while the `unknownComponent` form additionally carries a required `componentType`.
+
 ## Defining Custom Components
 
 A2UI v0.9 strictly separates a component's API (Schema) from its implementation.

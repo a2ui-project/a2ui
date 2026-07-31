@@ -16,8 +16,11 @@
 
 import {LitElement, nothing} from 'lit';
 import {property} from 'lit/decorators.js';
-import {ComponentContext, ComponentApi, type ComponentId} from '@a2ui/web_core/v0_9';
+import {consume} from '@lit/context';
+import {ComponentContext, ComponentApi, SurfaceModel, type ComponentId} from '@a2ui/web_core/v0_9';
 import {renderA2uiNode} from './surface/render-a2ui-node.js';
+import {Context} from './context/context.js';
+import {A2uiLitFallbacks, renderFallback} from './context/fallbacks.js';
 import {A2uiController} from './a2ui-controller.js';
 
 /**
@@ -39,6 +42,21 @@ type A2uiChildRef = ComponentId | {id: ComponentId; basePath: string};
 export abstract class A2uiLitElement<Api extends ComponentApi> extends LitElement {
   @property({type: Object}) accessor context!: ComponentContext;
   protected controller!: A2uiController<Api>;
+
+  /**
+   * Consumer-provided fallbacks, consumed from the surface via `@lit/context`.
+   * The element CAN consume; the pure `renderA2uiNode` cannot, which is why the
+   * value is threaded into it as a parameter below.
+   */
+  @consume({context: Context.fallbacks, subscribe: true})
+  accessor fallbacks: A2uiLitFallbacks | undefined;
+
+  /**
+   * Active onCreated subscriptions for pending child ids, keyed by child id so at
+   * most one subscription exists per child despite render-time (re-)detection.
+   * The value is the unsubscribe thunk. Cleared in `disconnectedCallback`.
+   */
+  readonly #childSubs = new Map<ComponentId, () => void>();
 
   /**
    * Instantiates the unique controller for this element's specific bound API.
@@ -90,7 +108,72 @@ export abstract class A2uiLitElement<Api extends ComponentApi> extends LitElemen
     // refs without a basePath.
     path = path ?? parentPath;
 
-    return renderA2uiNode(new ComponentContext(surface, componentId, path), surface.catalog);
+    // The parent guard above checks the parent id. This second guard checks the
+    // resolved CHILD id: a nested child referenced before it has streamed would
+    // make the ComponentContext constructor throw. Pre-empt with a guard (not a
+    // try/catch, so a genuine bug still surfaces): render the consumer loading
+    // fallback (or nothing) and re-render when the child arrives.
+    //
+    // Detection is at render time because, unlike the surface (which statically
+    // knows 'root'), the base element does not know which children a subclass
+    // will render until render runs. The Map guard keeps this leak-free: at most
+    // one onCreated subscription exists per pending child id.
+    if (!surface.componentsModel.get(componentId)) {
+      this.#subscribePendingChild(surface, componentId);
+      const parentComponentType = this.context.componentModel.type;
+      return renderFallback(this.fallbacks?.loading, {
+        state: 'loading',
+        componentId,
+        ...(parentComponentType ? {parentComponentType} : {}),
+      });
+    }
+
+    return renderA2uiNode(
+      new ComponentContext(surface, componentId, path),
+      surface.catalog,
+      this.fallbacks,
+      this.context.componentModel.type,
+    );
+  }
+
+  /**
+   * Ensures a single targeted onCreated subscription exists for a pending child.
+   *
+   * Mirrors the surface's subscribe discipline (`a2ui-surface.ts`): filter to the
+   * pending child id, `requestUpdate` on arrival, then unsubscribe. The Map guard
+   * bounds it to one subscription per child id despite per-render detection.
+   */
+  #subscribePendingChild(surface: SurfaceModel<any>, componentId: ComponentId) {
+    if (this.#childSubs.has(componentId)) return;
+    const sub = surface.componentsModel.onCreated.subscribe(comp => {
+      if (comp.id !== componentId) return;
+      this.requestUpdate();
+      this.#childSubs.get(componentId)?.();
+      this.#childSubs.delete(componentId);
+    });
+    this.#childSubs.set(componentId, () => sub.unsubscribe());
+  }
+
+  /**
+   * Unsubscribes every pending-child subscription and clears the Map.
+   *
+   * Shared by `disconnectedCallback` and the `context`-change branch of
+   * `willUpdate` so a rebind cannot leave subscriptions closed over a stale
+   * `SurfaceModel` alive (cross-surface subscription leak).
+   */
+  #clearChildSubs() {
+    for (const unsubscribe of this.#childSubs.values()) {
+      unsubscribe();
+    }
+    this.#childSubs.clear();
+  }
+
+  /**
+   * Cleans up any outstanding pending-child subscriptions.
+   */
+  override disconnectedCallback() {
+    super.disconnectedCallback();
+    this.#clearChildSubs();
   }
 
   /**
@@ -103,6 +186,10 @@ export abstract class A2uiLitElement<Api extends ComponentApi> extends LitElemen
   override willUpdate(changedProperties: Map<string, any>) {
     super.willUpdate(changedProperties);
     if (changedProperties.has('context') && this.context) {
+      // Drop subscriptions bound to the previous context/surface BEFORE
+      // recreating the controller, so a rebind does not leak stale onCreated
+      // subscriptions over the old SurfaceModel.
+      this.#clearChildSubs();
       if (this.controller) {
         this.removeController(this.controller);
         this.controller.dispose();

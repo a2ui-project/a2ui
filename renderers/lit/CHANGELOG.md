@@ -1,5 +1,15 @@
 ## Unreleased
 
+- (v0_9) The root loading state now renders an empty `<slot name="loading">` by
+  default instead of the visible `Loading surface...` placeholder text (#2013).
+  This is a deliberate rendering-default change, not a breaking change:
+  consumer-projected `slot="loading"` content still renders while the root is
+  pending.
+- (v0_9) Add consumer fallbacks via a new `fallbacks` property on
+  `<a2ui-surface>` (#2013). Fallbacks reach nested pending and unknown-component
+  children through `@lit/context`, and unknown component types and root render
+  errors are reported to the agent via `SurfaceModel.dispatchError`.
+
 ## 0.10.2
 
 - (v0_9) Normalize Safari placeholder text color for `DateTimeInput` by updating CSS selectors for `.a2ui-date-time-input`.

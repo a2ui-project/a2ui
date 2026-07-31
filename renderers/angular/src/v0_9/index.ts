@@ -27,6 +27,7 @@
 export * from './core/a2ui-renderer.service';
 export * from './core/component-host.component';
 export * from './core/surface.component';
+export * from './core/fallback-templates';
 export * from './core/catalog_component';
 export * from './core/component-binder.service';
 export * from './core/types';

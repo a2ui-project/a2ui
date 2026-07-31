@@ -2,6 +2,7 @@
 
 - (v0_9) Add prototype pollution protection and safe property lookup to `DataModel` (non-breaking security fix).
 - (v0_8) Export `A2uiMessageSchema` in public API.
+- (v0_9) Add shared renderer fallback contract types (`A2uiFallbackState`, `A2uiFallbackInfo`) covering the `loading`, `unknownComponent`, and `error` states, with an optional `parentComponentType` hint from the instantiating parent, for consistent fallback handling across framework renderers ([#2013](https://github.com/a2ui-project/a2ui/issues/2013)).
 
 ## 0.10.5
 

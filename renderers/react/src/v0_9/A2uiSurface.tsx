@@ -14,9 +14,29 @@
  * limitations under the License.
  */
 
-import React, {useSyncExternalStore, memo, useMemo, useCallback} from 'react';
-import {type SurfaceModel, ComponentContext, type ComponentModel} from '@a2ui/web_core/v0_9';
+import React, {useSyncExternalStore, memo, useMemo, useCallback, useRef, useEffect} from 'react';
+import {
+  type SurfaceModel,
+  ComponentContext,
+  type ComponentModel,
+  type A2uiFallbackInfo,
+  type A2uiFallbackState,
+} from '@a2ui/web_core/v0_9';
 import type {ReactComponentImplementation} from './adapter';
+import {
+  FallbackContext,
+  useFallbacks,
+  type A2uiFallbacks,
+  type A2uiFallbackRenderer,
+} from './FallbackContext';
+
+function renderFallback<S extends A2uiFallbackState>(
+  renderer: A2uiFallbackRenderer<S> | undefined,
+  info: Extract<A2uiFallbackInfo, {state: S}>,
+): React.ReactNode {
+  if (renderer === undefined) return null;
+  return typeof renderer === 'function' ? renderer(info) : renderer;
+}
 
 const ResolvedChild = memo(
   ({
@@ -51,10 +71,11 @@ const ResolvedChild = memo(
             surface={surface}
             id={childId}
             basePath={path}
+            parentComponentType={componentModel.type}
           />
         );
       },
-      [surface, context.dataContext.path],
+      [surface, context.dataContext.path, componentModel.type],
     );
 
     return <ComponentToRender context={context} buildChild={buildChild} />;
@@ -66,7 +87,17 @@ export const DeferredChild: React.FC<{
   surface: SurfaceModel<ReactComponentImplementation>;
   id: string;
   basePath: string;
-}> = memo(({surface, id, basePath}) => {
+  /** The `type` of the instantiating parent. Absent at the surface root. */
+  parentComponentType?: string;
+}> = memo(({surface, id, basePath, parentComponentType}) => {
+  const fallbacks = useFallbacks();
+
+  // Tracks every unknown type warned about, so re-renders (including
+  // StrictMode double-invokes) and type flaps (Nope -> Nope2 -> Nope) do
+  // not repeat the warning for this mount. Lazily initialized so a new Set
+  // is not allocated on every render.
+  const warnedTypesRef = useRef<Set<string> | null>(null);
+
   // 1. Subscribe specifically to this component's existence
   const store = useMemo(() => {
     let version = 0;
@@ -101,15 +132,45 @@ export const DeferredChild: React.FC<{
   useSyncExternalStore(store.subscribe, store.getSnapshot);
 
   const componentModel = surface.componentsModel.get(id);
+  const compImpl = componentModel ? surface.catalog.components.get(componentModel.type) : undefined;
+
+  // The resolved unknown type, or undefined when the component is pending or
+  // resolves to a known implementation. Keys the warn/dispatch effect so a
+  // change in the unknown type re-runs it.
+  const unknownComponentType = componentModel && !compImpl ? componentModel.type : undefined;
+
+  // Warn + dispatch as a post-commit effect so render stays pure. The Set gate
+  // keeps it once-per-distinct-unknown-type for this mount, immune to type
+  // flaps (Nope -> Nope2 -> Nope) and StrictMode double-invokes.
+  useEffect(() => {
+    if (unknownComponentType === undefined) return;
+    const warnedTypes = (warnedTypesRef.current ??= new Set());
+    if (warnedTypes.has(unknownComponentType)) return;
+    warnedTypes.add(unknownComponentType);
+    console.warn(`Component implementation not found for type: ${unknownComponentType}`);
+    void surface.dispatchError({
+      code: 'COMPONENT_NOT_FOUND',
+      message: `Component implementation not found for type: ${unknownComponentType}`,
+      componentId: id,
+      componentType: unknownComponentType,
+    });
+  }, [surface, id, unknownComponentType]);
 
   if (!componentModel) {
-    return <div style={{color: 'gray', padding: '4px'}}>[Loading {id}...]</div>;
+    return renderFallback(fallbacks?.loading, {
+      state: 'loading',
+      componentId: id,
+      ...(parentComponentType !== undefined ? {parentComponentType} : {}),
+    });
   }
 
-  const compImpl = surface.catalog.components.get(componentModel.type);
-
   if (!compImpl) {
-    return <div style={{color: 'red'}}>Unknown component: {componentModel.type}</div>;
+    return renderFallback(fallbacks?.unknownComponent, {
+      state: 'unknownComponent',
+      componentId: id,
+      componentType: componentModel.type,
+      ...(parentComponentType !== undefined ? {parentComponentType} : {}),
+    });
   }
 
   return (
@@ -124,9 +185,19 @@ export const DeferredChild: React.FC<{
 });
 DeferredChild.displayName = 'DeferredChild';
 
-export const A2uiSurface: React.FC<{surface: SurfaceModel<ReactComponentImplementation>}> = ({
-  surface,
-}) => {
+export const A2uiSurface: React.FC<{
+  surface: SurfaceModel<ReactComponentImplementation>;
+  /**
+   * Optional fallbacks for the `loading` and `unknownComponent` states,
+   * delivered via context to nested children. Hoist or memoize this object —
+   * a new identity on every render re-evaluates every pending child.
+   */
+  fallbacks?: A2uiFallbacks;
+}> = ({surface, fallbacks}) => {
   // The root component always has ID 'root' and base path '/'
-  return <DeferredChild surface={surface} id="root" basePath="/" />;
+  return (
+    <FallbackContext.Provider value={fallbacks}>
+      <DeferredChild surface={surface} id="root" basePath="/" />
+    </FallbackContext.Provider>
+  );
 };

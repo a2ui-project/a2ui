@@ -74,6 +74,54 @@ interface ComponentImplementation extends ComponentApi {
 
 The entrypoint widget/view for a specific framework. It is instantiated with a `SurfaceModel` (from the Core SDK). It listens to the model for lifecycle events and dynamically builds the UI tree, initiating the recursive rendering loop at the component with ID `root`.
 
+### Fallback States
+
+When the Surface's render loop cannot render a node, it surfaces one of two consumer-facing fallback states, named identically across every renderer: `loading` (the component is referenced but has not yet streamed in) and `unknownComponent` (the component's `type` has no implementation in the surface's catalog). A third state, `error` (a runtime exception thrown while rendering), is dispatch-only and is not a consumer fallback key.
+
+The payload passed to a fallback is `A2uiFallbackInfo`, a three-arm discriminated union keyed on `state`. The `componentType` field lives only on the `unknownComponent` arm; the `error` arm carries `reason: unknown` (the thrown value); every arm carries `componentId` and an optional `parentComponentType` hint that is absent at the surface root.
+
+```typescript
+export type A2uiFallbackInfo =
+  | {
+      /** The component is referenced but has not yet been streamed to the client. */
+      state: 'loading';
+      /** The id of the component that could not be rendered. */
+      componentId: string;
+      /** The `type` of the component that instantiated this one. Absent at the surface root. */
+      parentComponentType?: string;
+    }
+  | {
+      /** The component's `type` has no implementation in the surface's catalog. */
+      state: 'unknownComponent';
+      /** The id of the component that could not be rendered. */
+      componentId: string;
+      /** The component's declared type. */
+      componentType: string;
+      /** The `type` of the component that instantiated this one. Absent at the surface root. */
+      parentComponentType?: string;
+    }
+  | {
+      /** A runtime exception occurred while rendering the component. */
+      state: 'error';
+      /** The id of the component that could not be rendered. */
+      componentId: string;
+      /** The thrown value. If it is an `Error`, the stack is available on it. */
+      reason: unknown;
+      /** The `type` of the component that instantiated this one. Absent at the surface root. */
+      parentComponentType?: string;
+    };
+
+export type A2uiFallbackState = A2uiFallbackInfo['state'];
+```
+
+Renderers render nothing by default in both consumer-facing states and keep a `console.warn` for developer experience. Each renderer delivers consumer fallbacks in its own idiomatic way:
+
+- React: a context-delivered `fallbacks` prop on `A2uiSurface`, so nested pending children pick it up through context.
+- Angular: `loadingTemplate` and `unknownComponentTemplate` `TemplateRef` inputs on the surface, propagated to nested hosts through the `A2UI_FALLBACK_TEMPLATES` token.
+- Lit: a preserved `loading` slot for the root case plus a `fallbacks` property provided over `@lit/context` for nested children.
+
+On the `unknownComponent` path, and the Lit root `error` path, the renderer calls `surface.dispatchError` with a structured code such as `COMPONENT_NOT_FOUND` once per type, so the agent learns about hallucinated components.
+
 ---
 
 ## 3. Component Implementation Strategies

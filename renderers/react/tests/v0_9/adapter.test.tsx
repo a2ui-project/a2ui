@@ -163,8 +163,8 @@ describe('adapter', () => {
 
     const {getByTestId, queryByTestId} = render(<A2uiSurface surface={surface} />);
 
-    // Assert the missing child renders the fallback
-    expect(getByTestId('parent').textContent).toContain('[Loading child1...]');
+    // Assert the missing child renders nothing by default
+    expect(getByTestId('parent').textContent).toBe('');
 
     const countBeforeChild = parentRenderCount;
 

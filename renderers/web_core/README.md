@@ -54,6 +54,10 @@ Generate coverage reports:
 yarn test:coverage
 ```
 
+## Fallback Contract
+
+`@a2ui/web_core/v0_9` exports the shared vocabulary that every framework renderer uses to describe a component it cannot render yet. Two states are shared across renderers: `loading` (the component id is referenced but has not streamed in) and `unknownComponent` (the component's type has no catalog implementation). `A2uiFallbackInfo` is a discriminated union keyed on `A2uiFallbackState`, carrying `componentId` on every arm plus a required `componentType` on the `unknownComponent` arm. Renderers render nothing by default in both consumer-facing states, and each offers a framework-idiomatic way to override that. See the React, Angular, and Lit renderer READMEs for the per-framework API.
+
 ## Legal Notice
 
 This library is part of the A2UI project. Please refer to the top-level documentation for security considerations and developer responsibilities when handling untrusted agent data.
