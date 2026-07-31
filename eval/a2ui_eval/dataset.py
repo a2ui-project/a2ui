@@ -162,7 +162,7 @@ def load_a2ui_dataset(
         for yaml_file in sorted(DATASETS_DIR.glob("*.yaml")):
             target_files.append(yaml_file)
 
-    is_json = format_name is None or format_name == "json"
+    is_json = format_name is None or format_name in ("direct_json", "json", "transport")
     samples: list[Sample] = []
 
     for target_file in target_files:

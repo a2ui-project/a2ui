@@ -22,7 +22,7 @@ from inspect_ai.model import (
     ChatMessageAssistant,
 )
 from a2ui.schema.catalog import CatalogConfig
-from a2ui.inference_formats.transport import TransportFormat
+from a2ui.inference_formats.direct_json import DirectJsonFormat
 from a2ui.inference_format import InferenceFormat
 from ..shared.utils import GIT_ROOT, measured_generate
 
@@ -36,7 +36,7 @@ def _get_strategy(
     """Resolves and instantiates the InferenceFormat strategy for the given format.
 
     Args:
-        format_name: The name of the format strategy (json, express, elemental, or atom).
+        format_name: The name of the format strategy (direct_json, express, elemental, or atom).
         version: The specification version (e.g. 0.9.1 or 1.0).
         catalog_config: The catalog configuration details.
         surface_id: The surface identifier target.
@@ -44,15 +44,15 @@ def _get_strategy(
     Returns:
         The instantiated InferenceFormat strategy object.
     """
-    transport_format = TransportFormat(
+    direct_json_format = DirectJsonFormat(
         version=version,
         catalogs=[catalog_config],
         experiments={"version_1_0"} if version == "1.0" else None,
     )
-    if format_name == "json":
-        return transport_format
+    if format_name in ("direct_json", "transport"):
+        return direct_json_format
 
-    catalog = transport_format.get_selected_catalog()
+    catalog = direct_json_format.get_selected_catalog()
     if format_name == "express":
         from a2ui.inference_formats.experimental.express.format import ExpressFormat
 
@@ -144,7 +144,7 @@ def compile_format_payload(format_name: str, version: str) -> Solver:
         )
         catalog = (
             strategy.get_selected_catalog()
-            if isinstance(strategy, TransportFormat)
+            if isinstance(strategy, DirectJsonFormat)
             else getattr(strategy, "catalog")
         )
         validator = catalog.validator
@@ -206,6 +206,6 @@ def format_solver(format_name: str, version: str) -> list[Solver]:
         format_system_prompt(format_name, version),
         measured_generate(),
     ]
-    if format_name != "json":
+    if format_name not in ("direct_json", "transport"):
         chain.append(compile_format_payload(format_name, version))
     return chain
