@@ -42,14 +42,14 @@ class TestRunWeeklyAudit(unittest.TestCase):
             main()
 
     @patch.dict(os.environ, {"GEMINI_API_KEY": "fake-key"}, clear=True)
-    def test_missing_gh_token(self) -> None:
-        with self.assertRaisesRegex(ValueError, "GH_TOKEN"):
+    def test_missing_github_token(self) -> None:
+        with self.assertRaisesRegex(ValueError, "GITHUB_TOKEN"):
             main()
 
     @patch("time.sleep", return_value=None)
     @patch.dict(
         os.environ,
-        {"GEMINI_API_KEY": "fake-key", "GH_TOKEN": "fake-token"},
+        {"GEMINI_API_KEY": "fake-key", "GITHUB_TOKEN": "fake-token"},
         clear=True,
     )
     def test_successful_audit_run(self, mock_sleep: MagicMock) -> None:
@@ -81,7 +81,7 @@ class TestRunWeeklyAudit(unittest.TestCase):
     @patch("time.sleep", return_value=None)
     @patch.dict(
         os.environ,
-        {"GEMINI_API_KEY": "fake-key", "GH_TOKEN": "fake-token"},
+        {"GEMINI_API_KEY": "fake-key", "GITHUB_TOKEN": "fake-token"},
         clear=True,
     )
     def test_failed_audit_run(self, mock_sleep: MagicMock) -> None:

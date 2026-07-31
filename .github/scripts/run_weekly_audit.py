@@ -23,9 +23,9 @@ def main() -> None:
     if not api_key:
         raise ValueError("GEMINI_API_KEY environment variable is not configured.")
 
-    gh_token = os.environ.get("GH_TOKEN")
+    gh_token = os.environ.get("GITHUB_TOKEN")
     if not gh_token:
-        raise ValueError("GH_TOKEN environment variable is not configured.")
+        raise ValueError("GITHUB_TOKEN environment variable is not configured.")
 
     from google import genai
 
