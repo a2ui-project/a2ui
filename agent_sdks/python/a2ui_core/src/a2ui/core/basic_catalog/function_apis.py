@@ -358,3 +358,73 @@ class EndsWithApi(FunctionApi):
     name = "ends_with"
     schema = EndsWithArgs
     return_type = "boolean"
+
+
+class ClampArgs(StrictBaseModel):
+    value: DynamicNumber = Field(..., description="The number to constrain.")
+    min: DynamicNumber = Field(..., description="The lower bound of the range.")
+    max: DynamicNumber = Field(
+        ...,
+        description=(
+            "The upper bound of the range. If 'max' is less than 'min', the result is"
+            " 'min'."
+        ),
+    )
+
+
+class ClampApi(FunctionApi):
+    name = "clamp"
+    schema = ClampArgs
+    return_type = "number"
+
+
+class RoundArgs(StrictBaseModel):
+    value: DynamicNumber = Field(..., description="The number to round.")
+    decimals: Optional[DynamicNumber] = Field(
+        None,
+        description=(
+            "Optional. The number of decimal places to round to. Defaults to 0."
+        ),
+    )
+
+
+class RoundApi(FunctionApi):
+    name = "round"
+    schema = RoundArgs
+    return_type = "number"
+
+
+class MinArgs(StrictBaseModel):
+    values: List[DynamicNumber] = Field(
+        ..., description="The list of numbers to compare."
+    )
+
+
+class MinApi(FunctionApi):
+    name = "min"
+    schema = MinArgs
+    return_type = "number"
+
+
+class MaxArgs(StrictBaseModel):
+    values: List[DynamicNumber] = Field(
+        ..., description="The list of numbers to compare."
+    )
+
+
+class MaxApi(FunctionApi):
+    name = "max"
+    schema = MaxArgs
+    return_type = "number"
+
+
+class AbsArgs(StrictBaseModel):
+    value: DynamicNumber = Field(
+        ..., description="The number to take the absolute value of."
+    )
+
+
+class AbsApi(FunctionApi):
+    name = "abs"
+    schema = AbsArgs
+    return_type = "number"

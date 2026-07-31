@@ -1,5 +1,10 @@
 ## Unreleased
 
+- Implement the `clamp`, `round`, `min`, `max` and `abs` basic catalog
+  functions, and generate their API classes from the v0.9 catalog. `clamp`
+  returns `min` when `max` is below `min`, and `round` rounds halfway cases away
+  from zero rather than using the built-in `round`'s banker's rounding, matching
+  the TypeScript implementation in `web_core` (#302).
 - Source the arithmetic, comparison and string operator APIs from the generated
   catalog schemas. The hand-written `basic_catalog.operator_apis` module is
   removed; its classes are now generated into `basic_catalog.function_apis` and

@@ -15,6 +15,7 @@
 import re
 import datetime
 import math
+from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
 from typing import Any, Dict, List, Optional, Union
 from ..rendering import DataContext
 from ..common.events import AbortSignal
@@ -45,6 +46,11 @@ from .function_apis import (
     ContainsApi,
     StartsWithApi,
     EndsWithApi,
+    ClampApi,
+    RoundApi,
+    MinApi,
+    MaxApi,
+    AbsApi,
 )
 from .expression_parser import ExpressionParser
 from .locale_config import get_locale_rules, CURRENCY_SYMBOLS
@@ -546,6 +552,90 @@ def _ends_with_execute(
 EndsWithImplementation = create_function_implementation(EndsWithApi, _ends_with_execute)
 
 
+def _clamp(
+    args: Dict[str, Any],
+    context: Any = None,
+    abort_signal: Optional[Any] = None,
+) -> Union[int, float]:
+    value = _to_float(args["value"])
+    minimum = _to_float(args["min"])
+    maximum = _to_float(args["max"])
+    # The catalog declares that a maximum below the minimum yields the minimum.
+    res = minimum if maximum < minimum else min(max(value, minimum), maximum)
+    return int(res) if res.is_integer() else res
+
+
+ClampImplementation = create_function_implementation(ClampApi, _clamp)
+
+
+def _round(
+    args: Dict[str, Any],
+    context: Any = None,
+    abort_signal: Optional[Any] = None,
+) -> Union[int, float]:
+    value = _to_float(args["value"])
+    raw_decimals = args.get("decimals")
+    decimals = 0 if raw_decimals is None else int(_to_float(raw_decimals))
+    if not math.isfinite(value):
+        return value
+    # ROUND_HALF_UP is decimal's name for rounding ties away from zero, which is
+    # what web_core does and what the built-in round() does not: round(2.5) is 2
+    # and round(-2.5) is -2 under banker's rounding.
+    #
+    # Quantizing a Decimal built from str(value) also keeps the decimal literal
+    # the user wrote rather than its binary approximation, so round(1.005, 2) is
+    # 1.01 rather than the 1.00 that scaling a float would give.
+    try:
+        quantized = Decimal(str(value)).quantize(
+            Decimal(1).scaleb(-decimals), rounding=ROUND_HALF_UP
+        )
+    except (InvalidOperation, OverflowError, ValueError):
+        # A decimals large enough to exceed the context precision leaves the
+        # value unrounded, matching web_core's overflow behaviour.
+        return value
+    res = float(quantized)
+    return int(res) if res.is_integer() else res
+
+
+RoundImplementation = create_function_implementation(RoundApi, _round)
+
+
+def _min(
+    args: Dict[str, Any],
+    context: Any = None,
+    abort_signal: Optional[Any] = None,
+) -> Union[int, float]:
+    res = min(_to_float(v) for v in args["values"])
+    return int(res) if res.is_integer() else res
+
+
+MinImplementation = create_function_implementation(MinApi, _min)
+
+
+def _max(
+    args: Dict[str, Any],
+    context: Any = None,
+    abort_signal: Optional[Any] = None,
+) -> Union[int, float]:
+    res = max(_to_float(v) for v in args["values"])
+    return int(res) if res.is_integer() else res
+
+
+MaxImplementation = create_function_implementation(MaxApi, _max)
+
+
+def _abs(
+    args: Dict[str, Any],
+    context: Any = None,
+    abort_signal: Optional[Any] = None,
+) -> Union[int, float]:
+    res = abs(_to_float(args["value"]))
+    return int(res) if res.is_integer() else res
+
+
+AbsImplementation = create_function_implementation(AbsApi, _abs)
+
+
 def create_basic_catalog_functions(
     locale: Optional[str] = None,
 ) -> List[FunctionImplementation]:
@@ -568,6 +658,11 @@ def create_basic_catalog_functions(
         SubtractImplementation,
         MultiplyImplementation,
         DivideImplementation,
+        ClampImplementation,
+        RoundImplementation,
+        MinImplementation,
+        MaxImplementation,
+        AbsImplementation,
         EqualsImplementation,
         NotEqualsImplementation,
         GreaterThanImplementation,

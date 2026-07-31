@@ -62,6 +62,11 @@ from .function_apis import (
     ContainsApi,
     StartsWithApi,
     EndsWithApi,
+    ClampApi,
+    RoundApi,
+    MinApi,
+    MaxApi,
+    AbsApi,
 )
 from .styles import Theme
 from .function_impls import BASIC_FUNCTION_IMPLEMENTATIONS, create_basic_catalog_functions
