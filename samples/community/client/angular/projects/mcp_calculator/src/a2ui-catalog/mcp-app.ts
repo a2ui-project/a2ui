@@ -22,6 +22,7 @@ import {
   PostMessageTransport,
   SANDBOX_PROXY_READY_METHOD,
 } from '@modelcontextprotocol/ext-apps/app-bridge';
+import stringify from 'fast-json-stable-stringify';
 import {
   ChangeDetectionStrategy,
   Component,
@@ -282,7 +283,7 @@ export class McpApp extends CatalogComponent<any> implements OnDestroy, OnInit {
     // Two-way local data binding: Subscribe to host Data Model changes
     if (surface && Object.keys(dataPaths).length > 0) {
       for (const [key, dataPath] of Object.entries(dataPaths)) {
-        this.lastBoundRootValues[key] = JSON.stringify(surface.dataModel.get(dataPath) ?? null);
+        this.lastBoundRootValues[key] = stringify(surface.dataModel.get(dataPath) ?? null);
 
         const sub = surface.dataModel.subscribe(dataPath, value => {
           // Suppress echoes: If the update was initiated by the app itself, do not
@@ -303,13 +304,13 @@ export class McpApp extends CatalogComponent<any> implements OnDestroy, OnInit {
           // - For primitives: do a direct comparison of the values and update accordingly.
           const prevStr = this.lastBoundRootValues[key];
           const prev = prevStr ? JSON.parse(prevStr) : null;
-          this.lastBoundRootValues[key] = JSON.stringify(value ?? null);
+          this.lastBoundRootValues[key] = stringify(value ?? null);
 
           if (value && typeof value === 'object') {
             // Diff the current root object against the previous cached root object
             for (const [k, v] of Object.entries(value)) {
               const oldVal = prev ? prev[k] : undefined;
-              if (JSON.stringify(oldVal) === JSON.stringify(v)) {
+              if (stringify(oldVal) === stringify(v)) {
                 continue;
               }
               (currentBridge as any)
@@ -327,7 +328,7 @@ export class McpApp extends CatalogComponent<any> implements OnDestroy, OnInit {
             }
           } else {
             // Fallback for primitives
-            if (JSON.stringify(prev) === JSON.stringify(value)) {
+            if (stringify(prev) === stringify(value)) {
               return;
             }
             (currentBridge as any)
@@ -363,7 +364,7 @@ export class McpApp extends CatalogComponent<any> implements OnDestroy, OnInit {
 
         // Perform basic check against current live store state to prevent redundant writes
         const currentValue = surface.dataModel.get(targetPath);
-        if (JSON.stringify(currentValue) === JSON.stringify(params.value)) {
+        if (stringify(currentValue) === stringify(params.value)) {
           return;
         }
 

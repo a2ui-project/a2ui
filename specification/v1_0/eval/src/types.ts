@@ -61,13 +61,13 @@ export interface ComponentDefinition {
 export interface CatalogSchema {
   $schema?: string;
   $id?: string;
+  protocolVersion?: string;
   title?: string;
   description?: string;
   catalogId?: string;
   instructions?: string;
   components?: Record<string, ComponentDefinition>;
   functions?: Record<string, FunctionDefinition>;
-  surfaceProperties?: Record<string, unknown>;
   [key: string]: unknown;
 }
 

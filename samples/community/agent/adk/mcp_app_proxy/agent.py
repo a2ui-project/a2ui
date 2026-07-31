@@ -19,7 +19,7 @@ from typing import Any, ClassVar, Optional, Dict
 from a2a.types import AgentCapabilities, AgentCard, AgentSkill
 from a2ui.a2a.extension import get_a2ui_agent_extension
 from a2ui.adk.send_a2ui_to_client_toolset import A2uiEnabledProvider, A2uiCatalogProvider, A2uiExamplesProvider, SendA2uiToClientToolset
-from a2ui.inference_formats.transport import TransportFormat
+from a2ui.inference_formats.direct_json import DirectJsonFormat
 from a2ui.schema.catalog import CatalogConfig
 from a2ui.schema.constants import VERSION_0_8, VERSION_0_9
 from google.adk.agents.llm_agent import LlmAgent
@@ -30,7 +30,7 @@ from google.adk.runners import Runner
 from google.adk.sessions import InMemorySessionService
 from google.genai import types
 from pydantic import PrivateAttr
-from tools import get_calculator_app, calculate_via_mcp, get_pong_app_a2ui_json, commentate_pong_game
+from tools import get_calculator_app, calculate_via_mcp, get_pong_mcp_app_json, get_pong_app_web_frame_json, commentate_pong_game
 from agent_executor import get_a2ui_enabled, get_a2ui_catalog, get_a2ui_examples
 
 logger = logging.getLogger(__name__)
@@ -38,7 +38,8 @@ logger = logging.getLogger(__name__)
 ROLE_DESCRIPTION = """
 You are an expert A2UI Proxy Agent. Your primary functions are to fetch the Calculator App or the Pong App and display it to the user.
 When the user asks for the calculator, you MUST call the `get_calculator_app` tool.
-When the user asks for Pong, you MUST call the `get_pong_app_a2ui_json` tool.
+When the user asks for Pong with MCP Apps, you MUST call the `get_pong_mcp_app_json` tool.
+When the user asks for Pong with WebApp URL, you MUST call the `get_pong_app_web_frame_json` tool.
 
 IMPORTANT: Do NOT attempt to construct the JSON manually. The tools handle it automatically.
 
@@ -50,7 +51,8 @@ When you receive a `"commentate_pong"` action, immediately call `commentate_pong
 WORKFLOW_DESCRIPTION = """
 1. **Analyze Request**: 
    - If User asks for calculator: Call `get_calculator_app`.
-   - If User asks for Pong: Call `get_pong_app_a2ui_json`.
+   - If User asks for Pong with MCP Apps: Call `get_pong_mcp_app_json`.
+   - If User asks for Pong with WebApp URL: Call `get_pong_app_web_frame_json`.
    - If User interacts with the calculator (ACTION: calculate): Extract 'operation', 'a', and 'b' from the event context and call `calculate_via_mcp`. Return the result to the user.
    - If you receive a `"commentate_pong"` action: Call `commentate_pong_game` with `"game_event"` from `"context" -> "game_event"`. Do not generate text responses; only call the tool.
 """
@@ -88,7 +90,7 @@ class McpAppProxyAgent:
             self._build_llm_agent()
         )
 
-        self._inference_formats: Dict[str, TransportFormat] = {}
+        self._inference_formats: Dict[str, DirectJsonFormat] = {}
         self._ui_runners: Dict[str, Runner] = {}
 
         for version in [VERSION_0_8, VERSION_0_9]:
@@ -108,13 +110,15 @@ class McpAppProxyAgent:
             return self._text_runner
         return self._ui_runners[version]
 
-    def get_inference_format(self, version: Optional[str]) -> Optional[TransportFormat]:
+    def get_inference_format(
+        self, version: Optional[str]
+    ) -> Optional[DirectJsonFormat]:
         if version is None:
             return None
         return self._inference_formats[version]
 
-    def _build_inference_format(self, version: str) -> TransportFormat:
-        return TransportFormat(
+    def _build_inference_format(self, version: str) -> DirectJsonFormat:
+        return DirectJsonFormat(
             version=version,
             catalogs=[
                 CatalogConfig.from_path(
@@ -161,11 +165,18 @@ class McpAppProxyAgent:
                     examples=["open calculator", "show calculator"],
                 ),
                 AgentSkill(
-                    id="open_pong",
-                    name="Open Pong",
-                    description="Opens Pong, a simple HTML game.",
+                    id="open_pong_mcp",
+                    name="Open Pong with MCP Apps",
+                    description="Opens Pong using the MCP App method.",
                     tags=["html", "app", "demo", "tool"],
-                    examples=["open pong", "show pong"],
+                    examples=["open pong with mcp apps"],
+                ),
+                AgentSkill(
+                    id="open_pong_web_frame",
+                    name="Open Pong with WebApp URL",
+                    description="Opens Pong using the new WebAppFrame URL method.",
+                    tags=["html", "app", "demo", "tool"],
+                    examples=["open pong with webapp url"],
                 ),
             ],
         )
@@ -180,7 +191,7 @@ class McpAppProxyAgent:
         )
 
     def _build_llm_agent(
-        self, inference_format: Optional[TransportFormat] = None
+        self, inference_format: Optional[DirectJsonFormat] = None
     ) -> LlmAgent:
         """Builds the LLM agent for the contact agent."""
         instruction = (
@@ -204,7 +215,8 @@ class McpAppProxyAgent:
             tools=[
                 get_calculator_app,
                 calculate_via_mcp,
-                get_pong_app_a2ui_json,
+                get_pong_mcp_app_json,
+                get_pong_app_web_frame_json,
                 commentate_pong_game,
             ],
             planner=BuiltInPlanner(

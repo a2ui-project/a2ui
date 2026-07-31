@@ -39,7 +39,7 @@ from typing import Optional
 from a2a import types as a2a_types
 from a2ui.a2a.parts import create_a2ui_part, parse_content_to_parts
 from a2ui.parser.parser import Parser
-from a2ui.inference_formats.transport.parser import TransportParser
+from a2ui.inference_formats.direct_json import DirectJsonParser
 from a2ui.schema import constants
 from a2ui.schema.catalog import A2uiCatalog
 from google.adk.a2a.converters import part_converter
@@ -76,7 +76,7 @@ class A2uiPartConverter:
         self._bypass_tool_check = bypass_tool_check
         self._fallback_text = fallback_text
         self._version = version
-        self._parser = parser or TransportParser(
+        self._parser = parser or DirectJsonParser(
             a2ui_catalog, validator=a2ui_catalog.validator
         )
 

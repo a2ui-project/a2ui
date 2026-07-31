@@ -442,7 +442,6 @@ export const SliderApi = {
       label: DynamicStringSchema.describe('The label for the slider.').optional(),
       min: z.number().default(0).describe('The minimum value of the slider.').optional(),
       max: z.number().describe('The maximum value of the slider.'),
-      step: z.number().describe('The granularity or step size of the slider.').optional(),
       value: DynamicNumberSchema.describe('The current value of the slider.'),
       checks: CheckableSchema.shape.checks,
     })

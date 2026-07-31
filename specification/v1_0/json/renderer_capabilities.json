@@ -11,7 +11,7 @@
       "properties": {
         "supportedCatalogIds": {
           "type": "array",
-          "description": "An array of string identifiers for each of the component and function catalogs supported by the renderer.",
+          "description": "An array of string identifiers for each of the component and function catalogs supported by the renderer. Multiple catalogs can be mixed in a single surface.",
           "items": {"type": "string"}
         },
         "inlineCatalogs": {

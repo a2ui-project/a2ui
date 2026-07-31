@@ -11,7 +11,7 @@
       "properties": {
         "supportedCatalogIds": {
           "type": "array",
-          "description": "An array of strings, where each string is an ID identifying a Catalog Definition Schema that the agent can generate. This is not necessarily a resolvable URI.",
+          "description": "An array of strings, where each is an ID identifying a Catalog for which the agent can generate content. This is not a resolvable URI. Multiple catalogs can be mixed in a single surface.",
           "items": {"type": "string"}
         },
         "acceptsInlineCatalogs": {

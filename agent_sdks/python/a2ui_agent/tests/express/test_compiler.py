@@ -456,13 +456,13 @@ btnLabel = Text("Click Thread 2")
 
     def test_v10_validator_gating(self):
         """Verifies that A2uiValidator gates v1.0 validation behind flags."""
-        from a2ui.inference_formats.transport.format import TransportFormat
+        from a2ui.inference_formats.direct_json.format import DirectJsonFormat
         from a2ui.validation.validator import A2uiValidator
         from a2ui.core import A2uiCatalogError
 
         catalog_config = CatalogConfig.from_path("basic_catalog", self.catalog_path)
-        transport_format = TransportFormat(version="1.0", catalogs=[catalog_config])
-        catalog = transport_format.get_selected_catalog()
+        direct_json_format = DirectJsonFormat(version="1.0", catalogs=[catalog_config])
+        catalog = direct_json_format.get_selected_catalog()
 
         from unittest.mock import patch
         import os
