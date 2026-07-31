@@ -125,7 +125,9 @@ describe('ChoicePickerComponent', () => {
     const chips = fixture.nativeElement.querySelectorAll('.a2ui-chip');
     expect(chips.length).toBe(2);
     expect(chips[0].classList.contains('active')).toBeTrue();
+    expect(chips[0].getAttribute('aria-pressed')).toBe('true');
     expect(chips[1].classList.contains('active')).toBeFalse();
+    expect(chips[1].getAttribute('aria-pressed')).toBe('false');
 
     chips[1].click();
     expect(onUpdateSpy).toHaveBeenCalledWith(['c1', 'c2']);

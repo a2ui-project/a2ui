@@ -49,10 +49,14 @@ describe('TextFieldComponent', () => {
     expect(component).toBeTruthy();
   });
 
-  it('should render label if provided', () => {
+  it('should render label if provided and link with for/id', () => {
+    fixture.componentRef.setInput('componentId', 'tf-123');
     fixture.detectChanges();
     const label = fixture.debugElement.query(By.css('label'));
+    const input = fixture.debugElement.query(By.css('input'));
     expect(label.nativeElement.textContent).toBe('Username');
+    expect(label.nativeElement.getAttribute('for')).toBe('tf-123');
+    expect(input.nativeElement.getAttribute('id')).toBe('tf-123');
   });
 
   it('should not render label if not provided', () => {

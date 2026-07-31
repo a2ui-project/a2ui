@@ -39,6 +39,7 @@ import {CardApi} from '@a2ui/web_core/v0_9/basic_catalog';
   template: `
     <div
       class="a2ui-card"
+      [attr.role]="accessibilityLabel() || accessibilityDescription() ? 'region' : null"
       [attr.aria-label]="accessibilityLabel() || null"
       [attr.aria-description]="accessibilityDescription() || null"
     >

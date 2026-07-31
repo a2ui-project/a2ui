@@ -35,18 +35,21 @@ export const Card = createComponentImplementation(CardApi, ({props, buildChild})
     margin: 'var(--a2ui-card-margin, var(--a2ui-spacing-m))',
   };
 
+  const label =
+    typeof props.accessibility?.label === 'string' ? props.accessibility.label : undefined;
+  const description =
+    typeof props.accessibility?.description === 'string'
+      ? props.accessibility.description
+      : undefined;
+  const role = label || description ? 'region' : undefined;
+
   return (
     <div
       className="a2ui-card"
       style={style}
-      aria-label={
-        typeof props.accessibility?.label === 'string' ? props.accessibility.label : undefined
-      }
-      aria-description={
-        typeof props.accessibility?.description === 'string'
-          ? props.accessibility.description
-          : undefined
-      }
+      role={role}
+      aria-label={label}
+      aria-description={description}
     >
       {props.child ? buildChild(props.child) : null}
     </div>

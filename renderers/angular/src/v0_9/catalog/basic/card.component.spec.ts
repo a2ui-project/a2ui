@@ -89,4 +89,21 @@ describe('CardComponent', () => {
     expect(host).toBeTruthy();
     expect(host.componentInstance.componentKey()).toEqual({id: 'child-1', basePath: '/'});
   });
+
+  it('should set role="region" when accessibility label or description is present', () => {
+    setComponentProps(fixture, {
+      ...defaultProps,
+      accessibility: createBoundProperty({label: 'Card Label'}),
+    });
+    fixture.detectChanges();
+    const cardEl = fixture.nativeElement.querySelector('.a2ui-card');
+    expect(cardEl.getAttribute('role')).toBe('region');
+    expect(cardEl.getAttribute('aria-label')).toBe('Card Label');
+  });
+
+  it('should not set role="region" when accessibility is omitted', () => {
+    fixture.detectChanges();
+    const cardEl = fixture.nativeElement.querySelector('.a2ui-card');
+    expect(cardEl.getAttribute('role')).toBeNull();
+  });
 });

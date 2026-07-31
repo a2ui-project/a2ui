@@ -105,6 +105,10 @@ describe('ModalComponent', () => {
 
     const overlay = fixture.nativeElement.querySelector('.a2ui-modal-overlay');
     expect(overlay).toBeTruthy();
+    expect(overlay.getAttribute('role')).toBe('dialog');
+    expect(overlay.getAttribute('aria-modal')).toBe('true');
+    const closeBtn = fixture.nativeElement.querySelector('.a2ui-modal-close');
+    expect(closeBtn.getAttribute('aria-label')).toBe('Close');
     const contentHost = fixture.debugElement.query(
       By.css('.a2ui-modal-overlay a2ui-v09-component-host'),
     );

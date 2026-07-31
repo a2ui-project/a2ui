@@ -52,6 +52,7 @@ import {ChoicePickerApi} from '@a2ui/web_core/v0_9/basic_catalog';
             <button
               class="a2ui-chip"
               [class.active]="isSelected(option.value)"
+              [attr.aria-pressed]="isSelected(option.value)"
               (click)="toggleActive(option.value)"
             >
               {{ option.label }}

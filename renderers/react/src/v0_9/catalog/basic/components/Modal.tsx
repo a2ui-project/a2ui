@@ -23,6 +23,13 @@ export const Modal = createComponentImplementation(ModalApi, ({props, buildChild
   useBasicCatalogStyles();
   const [isOpen, setIsOpen] = useState(false);
 
+  const ariaLabel =
+    typeof props.accessibility?.label === 'string' ? props.accessibility.label : undefined;
+  const ariaDescription =
+    typeof props.accessibility?.description === 'string'
+      ? props.accessibility.description
+      : undefined;
+
   return (
     <>
       <div
@@ -35,6 +42,8 @@ export const Modal = createComponentImplementation(ModalApi, ({props, buildChild
       {isOpen && (
         <div
           className="a2ui-modal-overlay"
+          role="dialog"
+          aria-modal="true"
           style={{
             position: 'fixed',
             top: 0,
@@ -62,21 +71,14 @@ export const Modal = createComponentImplementation(ModalApi, ({props, buildChild
               color: 'var(--a2ui-color-on-surface, inherit)',
             }}
             onClick={e => e.stopPropagation()}
-            aria-label={
-              typeof props.accessibility?.label === 'string'
-                ? props.accessibility.label
-                : undefined
-            }
-            aria-description={
-              typeof props.accessibility?.description === 'string'
-                ? props.accessibility.description
-                : undefined
-            }
+            aria-label={ariaLabel}
+            aria-description={ariaDescription}
           >
             <div style={{display: 'flex', justifyContent: 'flex-end'}}>
               <button
                 className="a2ui-modal-close"
                 onClick={() => setIsOpen(false)}
+                aria-label="Close"
                 style={{
                   border: 'none',
                   background: 'none',

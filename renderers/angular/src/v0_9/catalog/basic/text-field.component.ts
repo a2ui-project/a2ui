@@ -42,9 +42,10 @@ import {TextFieldApi} from '@a2ui/web_core/v0_9/basic_catalog';
   template: `
     <div class="a2ui-text-field-container">
       @if (label()) {
-        <label>{{ label() }}</label>
+        <label [attr.for]="componentId()">{{ label() }}</label>
       }
       <input
+        [id]="componentId()"
         [type]="inputType()"
         [value]="value()"
         (input)="handleInput($event)"
