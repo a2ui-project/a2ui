@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import Combine
 import Foundation
 
 /// Manages a flat collection of ``ComponentModel`` instances by ID.
@@ -20,11 +21,11 @@ import Foundation
 /// `web_core`. This is a pure data container with no schema awareness
 /// or validation logic — the `MessageProcessor` handles validation
 /// before adding components here.
-public final class SurfaceComponentsModel: @unchecked Sendable {
+public final class SurfaceComponentsModel: @unchecked Sendable, ObservableObject {
 
   private let lock = NSRecursiveLock()
 
-  private var components: [String: ComponentModel] = [:]
+  @Published public private(set) var components: [String: ComponentModel] = [:]
 
   /// Creates an empty components model.
   public init() {}
@@ -53,25 +54,5 @@ public final class SurfaceComponentsModel: @unchecked Sendable {
     _ = lock.withLock {
       components.removeValue(forKey: id)
     }
-  }
-
-  /// Returns all component IDs currently stored.
-  public var allIDs: [String] {
-    lock.withLock { Array(components.keys) }
-  }
-
-  /// Returns the number of components stored.
-  public var count: Int {
-    lock.withLock { components.count }
-  }
-
-  /// Returns whether the collection is empty.
-  public var isEmpty: Bool {
-    lock.withLock { components.isEmpty }
-  }
-
-  /// Returns a thread-safe snapshot of all components as a dictionary.
-  public func snapshot() -> [String: ComponentModel] {
-    lock.withLock { components }
   }
 }

@@ -12,14 +12,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Standard JSON transport format decompiler."""
+"""Standard Direct JSON format decompiler."""
 
 import json
 from typing import Any, List
 from a2ui.schema.constants import A2UI_OPEN_TAG, A2UI_CLOSE_TAG
 
 
-class _TransportDecompiler:
+class _DirectJsonDecompiler:
     """Private helper to decompile structured JSON payloads."""
 
     def decompile(self, val: dict[str, Any]) -> str:

@@ -19,7 +19,7 @@ from typing import Dict, Any
 import pytest
 
 from a2ui.schema.constants import VERSION_0_9
-from a2ui.inference_formats.transport.format import TransportFormat
+from a2ui.inference_formats.direct_json.format import DirectJsonFormat
 from a2ui.schema.catalog import CatalogConfig
 from a2ui.basic_catalog.provider import BasicCatalog
 from a2ui.schema.common_modifiers import remove_strict_validation
@@ -70,7 +70,7 @@ def test_sample_examples_validation(config):
         sample_path
     )  # Change to sample dir to resolve relative catalog paths if any
 
-    transport_format = TransportFormat(
+    direct_json_format = DirectJsonFormat(
         VERSION_0_9,
         catalogs=config["catalogs"],
         accepts_inline_catalogs=True,
@@ -78,8 +78,10 @@ def test_sample_examples_validation(config):
     )
 
     # Iterate through each catalog and validate its examples
-    for catalog in transport_format._supported_catalogs:
-        examples_path = transport_format._catalog_example_paths.get(catalog.catalog_id)
+    for catalog in direct_json_format._supported_catalogs:
+        examples_path = direct_json_format._catalog_example_paths.get(
+            catalog.catalog_id
+        )
         if not examples_path:
             continue
 

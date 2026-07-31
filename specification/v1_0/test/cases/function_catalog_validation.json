@@ -1295,6 +1295,30 @@
           ]
         }
       }
+    },
+    {
+      "description": "@index: Invalid call with catalogId (system function cannot have catalogId)",
+      "valid": false,
+      "data": {
+        "version": "v1.0",
+        "updateComponents": {
+          "surfaceId": "test",
+          "components": [
+            {
+              "id": "slider1",
+              "component": "Slider",
+              "max": 10,
+              "value": {
+                "call": "@index",
+                "catalogId": "some-catalog",
+                "args": {
+                  "offset": 1
+                }
+              }
+            }
+          ]
+        }
+      }
     }
   ]
 }

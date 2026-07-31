@@ -12,7 +12,8 @@
 import io
 import pytest
 from unittest.mock import patch, MagicMock
-from a2ui.inference_formats.transport.format import TransportFormat
+from a2ui.core import A2uiCatalogError
+from a2ui.inference_formats.direct_json import DirectJsonFormat, DirectJsonParser
 from a2ui.basic_catalog import BasicCatalog
 from a2ui.schema.constants import (
     VERSION_0_8,
@@ -60,23 +61,23 @@ def test_schema_manager_init_valid_version(mock_importlib_resources):
 
     mock_traversable.joinpath.side_effect = joinpath_side_effect
 
-    transport_format = TransportFormat(
+    direct_json_format = DirectJsonFormat(
         VERSION_0_8, catalogs=[BasicCatalog.get_config(VERSION_0_8)]
     )
 
-    assert transport_format._server_to_client_schema["defs"] == "server_defs"
+    assert direct_json_format._server_to_client_schema["defs"] == "server_defs"
     # Basic catalog might have a URI-based ID if not explicitly matched
     # So we check if any catalog exists
-    assert len(transport_format._supported_catalogs) >= 1
+    assert len(direct_json_format._supported_catalogs) >= 1
     # The first one should be the basic one
-    catalog = transport_format._supported_catalogs[0]
+    catalog = direct_json_format._supported_catalogs[0]
     assert catalog.catalog_schema["version"] == VERSION_0_8
     assert "Text" in catalog.catalog_schema["components"]
 
 
 def test_schema_manager_init_invalid_version():
     with pytest.raises(ValueError, match="Unknown A2UI specification version"):
-        TransportFormat("invalid_version")
+        DirectJsonFormat("invalid_version")
 
 
 def test_schema_manager_fallback_local_assets(mock_importlib_resources):
@@ -105,22 +106,20 @@ def test_schema_manager_fallback_local_assets(mock_importlib_resources):
 
         mock_open.side_effect = open_side_effect
 
-        transport_format = TransportFormat(
+        direct_json_format = DirectJsonFormat(
             VERSION_0_8, catalogs=[BasicCatalog.get_config(VERSION_0_8)]
         )
 
-        assert transport_format._server_to_client_schema["defs"] == "local_server"
-        assert len(transport_format._supported_catalogs) >= 1
-        catalog = transport_format._supported_catalogs[0]
+        assert direct_json_format._server_to_client_schema["defs"] == "local_server"
+        assert len(direct_json_format._supported_catalogs) >= 1
+        catalog = direct_json_format._supported_catalogs[0]
         assert "LocalText" in catalog.catalog_schema["components"]
 
 
-def test_transport_parser_methods():
-    from a2ui.inference_formats.transport.parser import TransportParser
-
-    tf = TransportFormat(VERSION_0_8, catalogs=[BasicCatalog.get_config(VERSION_0_8)])
+def test_direct_json_parser_methods():
+    tf = DirectJsonFormat(VERSION_0_8, catalogs=[BasicCatalog.get_config(VERSION_0_8)])
     cat = tf._supported_catalogs[0]
-    parser = TransportParser(cat)
+    parser = DirectJsonParser(cat)
 
     # 1. has_format_content
     assert parser.has_format_content("<a2ui-json>", complete=True) is False
@@ -149,3 +148,10 @@ def test_transport_parser_methods():
         '<a2ui-json>\n{"beginRendering": {"surfaceId": "s1", "root":'
         ' "c1"}}\n</a2ui-json>'
     )
+
+
+def test_direct_json_parser_no_supported_catalogs():
+    direct_json_format = DirectJsonFormat(VERSION_0_8)
+    direct_json_format._supported_catalogs = []
+    with pytest.raises(A2uiCatalogError, match="No supported catalogs configured"):
+        _ = direct_json_format.parser

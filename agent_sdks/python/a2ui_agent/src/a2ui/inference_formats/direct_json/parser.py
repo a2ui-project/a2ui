@@ -22,7 +22,7 @@ from a2ui.validation.validator import A2uiValidator
 from a2ui.schema.constants import A2UI_OPEN_TAG, A2UI_CLOSE_TAG
 from a2ui.core import A2uiParseError
 from a2ui.parser.payload_fixer import parse_and_fix
-from a2ui.inference_formats.transport.decompiler import _TransportDecompiler
+from a2ui.inference_formats.direct_json.decompiler import _DirectJsonDecompiler
 
 
 def unwrap_response(content: str) -> List[ResponsePart]:
@@ -70,15 +70,15 @@ def unwrap_response(content: str) -> List[ResponsePart]:
     return valid_parts
 
 
-class TransportParser(Parser):
-    """Concrete parser implementation for standard A2UI JSON schema responses (Transport Format)."""
+class DirectJsonParser(Parser):
+    """Concrete parser implementation for standard A2UI JSON schema responses (Direct JSON Format)."""
 
     def __init__(
         self,
         catalog: A2uiCatalog,
         validator: Optional[A2uiValidator] = None,
     ):
-        """Initializes the TransportParser.
+        """Initializes the DirectJsonParser.
 
         Args:
             catalog: The A2uiCatalog mapping schema identifiers.
@@ -135,16 +135,16 @@ class TransportParser(Parser):
         Returns:
             A list of parsed or completed ResponsePart objects.
         """
-        from a2ui.inference_formats.transport.streaming import TransportStreamParser
+        from a2ui.inference_formats.direct_json.streaming import DirectJsonStreamParser
 
         if not self._stream_parser:
-            self._stream_parser = TransportStreamParser(self._catalog)
+            self._stream_parser = DirectJsonStreamParser(self._catalog)
         return self._stream_parser.process_chunk(chunk)
 
     def decompile(self, val: dict[str, Any]) -> str:
         """Decompiles a structured A2UI payload into this format's raw notation."""
-        return _TransportDecompiler().decompile(val)
+        return _DirectJsonDecompiler().decompile(val)
 
     def wrap_decompiled_blocks(self, blocks: List[str]) -> str:
         """Wraps multiple decompiled blocks with the format's enclosing tags/markers."""
-        return _TransportDecompiler().wrap_decompiled_blocks(blocks)
+        return _DirectJsonDecompiler().wrap_decompiled_blocks(blocks)
