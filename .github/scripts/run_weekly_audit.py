@@ -54,7 +54,7 @@ def main() -> None:
                 "allowlist": [
                     {
                         "domain": "api.github.com",
-                        "transform": {"Authorization": f"Bearer {gh_token}"},
+                        "transform": [{"Authorization": f"Bearer {gh_token}"}],
                     },
                     {"domain": "github.com"},
                 ]
