@@ -27,7 +27,8 @@
     "lint:fix:all": "yarn workspaces foreach -A -p --topological-dev run lint:fix",
     "format:all": "prettier --config .prettierrc --write .",
     "format:check:all": "prettier --config .prettierrc --check .",
-    "clean:all": "yarn workspaces foreach -A -p run clean"
+    "clean:all": "yarn workspaces foreach -A -p run clean",
+    "test:zod-version": "node scripts/test-zod-version.mjs"
   },
   "devDependencies": {
     "google-artifactregistry-auth": "^3.5.0",
