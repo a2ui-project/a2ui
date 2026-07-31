@@ -17,11 +17,6 @@
       "type": "object",
       "description": "Standardized schema definitions referenced from outside the catalog file.",
       "properties": {
-        "surfaceProperties": {
-          "title": "A2UI Surface Properties Schema",
-          "description": "A JSON Schema that defines the catalog's surface properties.",
-          "$ref": "https://json-schema.org/draft/2020-12/schema"
-        },
         "anyComponent": {
           "title": "A2UI Any Component Schema",
           "description": "Unified validation schema for all components.",

@@ -31,10 +31,6 @@
               "description": "A string that uniquely identifies the default catalog for this surface. It is recommended to prefix this with an internet domain that you own, to avoid conflicts e.g. 'mycompany.com:somecatalog'. Components and function calls that do not explicitly specify a catalogId will use this surface-level default catalogId.",
               "type": "string"
             },
-            "surfaceProperties": {
-              "$ref": "catalog.json#/$defs/surfaceProperties",
-              "description": "Initial surface properties (e.g., {'agentDisplayName': 'My Agent'}). These must validate against the 'surfaceProperties' schema defined in the catalog."
-            },
             "sendDataModel": {
               "type": "boolean",
               "description": "If true, the renderer will send the full data model of this surface in the metadata of every A2A message sent to the agent that created the surface. Defaults to false."
