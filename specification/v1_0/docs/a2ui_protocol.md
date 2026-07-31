@@ -547,7 +547,7 @@ Below is an annotated, fully compliant `catalog.json` schema template (written i
 
 ```jsonc
 {
-  // Rule 7: Strict Top-Level Schema Keys
+  // Strict Top-Level Schema Keys
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
   "protocolVersion": "1.0",
@@ -556,20 +556,20 @@ Below is an annotated, fully compliant `catalog.json` schema template (written i
   "catalogId": "https://example.com/catalogs/custom-v1",
   "instructions": "Design instructions for LLMs when generating layouts under this catalog.",
 
-  // Rule 1: Top-level components declared under top-level "components" map.
+  // Top-level components declared under top-level "components" map.
   "components": {
     "Text": {
       "type": "object",
-      // Rule 5: Components must combine ComponentCommon and local properties using "allOf".
+      // Components must combine ComponentCommon and local properties using "allOf".
       "allOf": [
         {
-          // Rule 3: External references must reference standard types in common_types.json.
+          // External references must reference standard types in common_types.json.
           "$ref": "https://a2ui.org/specification/v1_0/common_types.json#/$defs/ComponentCommon",
         },
         {
           "type": "object",
           "properties": {
-            // Rule 4: Required "component" property must be a constant matching the component key.
+            // Required "component" property must be a constant matching the component key.
             "component": {
               "const": "Text",
             },
@@ -586,16 +586,16 @@ Below is an annotated, fully compliant `catalog.json` schema template (written i
     },
   },
 
-  // Rule 1: Top-level functions declared under top-level "functions" map.
+  // Top-level functions declared under top-level "functions" map.
   "functions": {
     "required": {
       "type": "object",
       "description": "Checks that the value is not null, undefined, or empty.",
-      // Rule 6: Strict function metadata defined outside the properties block.
+      // Strict function metadata defined outside the properties block.
       "returnType": "boolean",
       "callableFrom": "rendererOnly",
       "properties": {
-        // Rule 6: Function call schema requires constant with function's name.
+        // Function call schema requires constant with function's name.
         "call": {
           "const": "required",
         },
@@ -615,13 +615,13 @@ Below is an annotated, fully compliant `catalog.json` schema template (written i
     },
   },
 
-  // Rule 1 & Rule 2: $defs is restricted strictly to anyComponent and anyFunction.
+  // $defs is restricted strictly to anyComponent and anyFunction.
   // Custom definitions or helpers inside a catalog are strictly prohibited under $defs.
   "$defs": {
     "anyComponent": {
       "oneOf": [
         {
-          // Rule 3: Local refs restricted to top-level components map.
+          // Local refs restricted to top-level components map.
           "$ref": "#/components/Text",
         },
       ],
@@ -632,7 +632,7 @@ Below is an annotated, fully compliant `catalog.json` schema template (written i
     "anyFunction": {
       "oneOf": [
         {
-          // Rule 3: Local refs restricted to top-level functions map.
+          // Local refs restricted to top-level functions map.
           "$ref": "#/functions/required",
         },
       ],
@@ -1042,21 +1042,6 @@ The [`catalogs/basic/catalog.json`] provides the baseline set of components and 
 | **and**            | Logical AND operation on a list of boolean values.                       |
 | **or**             | Logical OR operation on a list of boolean values.                        |
 | **not**            | Logical NOT operation on a boolean value.                                |
-
-### Surface Properties
-
-The basic catalog defines the following surface properties that can be set in the `createSurface` message:
-
-| Property             | Type   | Description                                                                                                  |
-| :------------------- | :----- | :----------------------------------------------------------------------------------------------------------- |
-| **iconUrl**          | URI    | A URL for an image (e.g., logo or avatar) that identifies the agent or tool associated with the surface.     |
-| **agentDisplayName** | String | Text to be displayed next to the surface to identify the agent or tool that created it (e.g. "Weather Bot"). |
-
-#### Identity and attribution
-
-The `iconUrl` and `agentDisplayName` fields are used to provide attribution to the user, identifying which sub-agent or tool is responsible for a particular UI surface.
-
-In multi-agent systems or orchestrators, the orchestrator is responsible for setting or validating these fields. This ensures that the identity displayed to the user matches the actual agent being contacted, preventing malicious agents from impersonating trusted services. For example, an orchestrator might overwrite these fields with the verified identity of the sub-agent before forwarding the `createSurface` message to the renderer.
 
 ### The `formatString` function
 
