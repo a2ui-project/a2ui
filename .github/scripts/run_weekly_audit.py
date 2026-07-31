@@ -16,12 +16,12 @@
 
 import os
 import time
+
+
 def main() -> None:
     api_key = os.environ.get("GEMINI_API_KEY")
     if not api_key:
-        raise ValueError(
-            "GEMINI_API_KEY environment variable is not configured."
-        )
+        raise ValueError("GEMINI_API_KEY environment variable is not configured.")
 
     gh_token = os.environ.get("GH_TOKEN")
     if not gh_token:
@@ -54,9 +54,7 @@ def main() -> None:
                 "allowlist": [
                     {
                         "domain": "api.github.com",
-                        "transform": {
-                            "Authorization": f"Bearer {gh_token}"
-                        },
+                        "transform": {"Authorization": f"Bearer {gh_token}"},
                     },
                     {"domain": "github.com"},
                 ]
@@ -76,9 +74,7 @@ def main() -> None:
     print(interaction.output_text)
 
     if interaction.status != "completed":
-        raise RuntimeError(
-            f"Audit interaction ended with status: {interaction.status}"
-        )
+        raise RuntimeError(f"Audit interaction ended with status: {interaction.status}")
 
 
 if __name__ == "__main__":

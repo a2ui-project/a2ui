@@ -106,5 +106,6 @@ class TestRunWeeklyAudit(unittest.TestCase):
             with self.assertRaisesRegex(RuntimeError, "status: failed"):
                 main()
 
+
 if __name__ == "__main__":
     unittest.main()
