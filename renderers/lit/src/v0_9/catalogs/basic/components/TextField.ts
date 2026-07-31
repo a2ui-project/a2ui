@@ -90,14 +90,14 @@ export class A2uiBasicTextFieldElement extends BasicCatalogA2uiLitElement<typeof
 
     const classes = {'a2ui-textfield': true, invalid: isInvalid};
     const ariaLabel = props.accessibility?.label;
-    const ariaDescribedBy = props.accessibility?.description;
+    const ariaDescription = props.accessibility?.description;
 
     return html`
       ${props.label ? html`<label>${props.label}</label>` : nothing}
       ${props.variant === 'longText'
         ? html`<textarea
             aria-label=${ifDefined(ariaLabel)}
-            aria-describedby=${ifDefined(ariaDescribedBy)}
+            aria-description=${ifDefined(ariaDescription)}
             class=${classMap(classes)}
             .value=${props.value || ''}
             @input=${onInput}
@@ -105,7 +105,7 @@ export class A2uiBasicTextFieldElement extends BasicCatalogA2uiLitElement<typeof
         : html`<input
             type=${type}
             aria-label=${ifDefined(ariaLabel)}
-            aria-describedby=${ifDefined(ariaDescribedBy)}
+            aria-description=${ifDefined(ariaDescription)}
             class=${classMap(classes)}
             .value=${props.value || ''}
             @input=${onInput}

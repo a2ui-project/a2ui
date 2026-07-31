@@ -169,6 +169,6 @@ describe('Button Component', () => {
     const button = el.shadowRoot?.querySelector('button');
     assert.ok(button);
     assert.strictEqual(button.getAttribute('aria-label'), 'Book Mott 32 Now');
-    assert.strictEqual(button.getAttribute('aria-describedby'), 'Restaurant booking details');
+    assert.strictEqual(button.getAttribute('aria-description'), 'Restaurant booking details');
   });
 });

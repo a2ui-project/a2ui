@@ -108,12 +108,12 @@ export class A2uiBasicButtonElement extends BasicCatalogA2uiLitElement<typeof Bu
     };
 
     const ariaLabel = props.accessibility?.label;
-    const ariaDescribedBy = props.accessibility?.description;
+    const ariaDescription = props.accessibility?.description;
 
     return html`
       <button
         aria-label=${ifDefined(ariaLabel)}
-        aria-describedby=${ifDefined(ariaDescribedBy)}
+        aria-description=${ifDefined(ariaDescription)}
         class=${classMap(classes)}
         @click=${() => !isDisabled && props.action && props.action()}
         ?disabled=${isDisabled}

@@ -147,6 +147,6 @@ describe('TextFieldComponent', () => {
     fixture.detectChanges();
     const input = fixture.debugElement.query(By.css('input'));
     expect(input.nativeElement.getAttribute('aria-label')).toBe('Enter Username');
-    expect(input.nativeElement.getAttribute('aria-describedby')).toBe('Your unique identifier');
+    expect(input.nativeElement.getAttribute('aria-description')).toBe('Your unique identifier');
   });
 });

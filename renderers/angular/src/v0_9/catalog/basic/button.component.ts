@@ -46,7 +46,7 @@ import {ButtonApi} from '@a2ui/web_core/v0_9/basic_catalog';
       (click)="handleClick()"
       [disabled]="props()['isValid']?.value() === false"
       [attr.aria-label]="ariaLabel()"
-      [attr.aria-describedby]="ariaDescribedBy()"
+      [attr.aria-description]="ariaDescription()"
     >
       @if (child()) {
         <a2ui-v09-component-host [componentKey]="child()!" [surfaceId]="surfaceId()">
@@ -103,7 +103,7 @@ export class ButtonComponent extends BasicCatalogComponent<typeof ButtonApi> {
   readonly action = computed(() => this.props()['action']?.value());
   readonly accessibility = computed(() => this.props()['accessibility']?.value());
   readonly ariaLabel = computed(() => this.accessibility()?.label ?? null);
-  readonly ariaDescribedBy = computed(() => this.accessibility()?.description ?? null);
+  readonly ariaDescription = computed(() => this.accessibility()?.description ?? null);
 
   handleClick() {
     const action = this.action();

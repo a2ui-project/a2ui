@@ -180,7 +180,7 @@ describe('ButtonComponent', () => {
     fixture.detectChanges();
     const button = fixture.debugElement.query(By.css('button'));
     expect(button.nativeElement.getAttribute('aria-label')).toBe('Submit Form');
-    expect(button.nativeElement.getAttribute('aria-describedby')).toBe(
+    expect(button.nativeElement.getAttribute('aria-description')).toBe(
       'Submits the user details to the server'
     );
   });

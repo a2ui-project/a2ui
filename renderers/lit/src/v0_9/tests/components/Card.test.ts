@@ -118,6 +118,6 @@ describe('Card Component', () => {
 
     assert.strictEqual(el.getAttribute('role'), 'region');
     assert.strictEqual(el.getAttribute('aria-label'), 'Featured product info');
-    assert.strictEqual(el.getAttribute('aria-describedby'), 'Detailed specifications and price');
+    assert.strictEqual(el.getAttribute('aria-description'), 'Detailed specifications and price');
   });
 });

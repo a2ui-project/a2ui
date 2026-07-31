@@ -163,6 +163,6 @@ describe('Text Component', () => {
     });
 
     assert.strictEqual(el.getAttribute('aria-label'), 'Custom label');
-    assert.strictEqual(el.getAttribute('aria-describedby'), 'Custom description');
+    assert.strictEqual(el.getAttribute('aria-description'), 'Custom description');
   });
 });

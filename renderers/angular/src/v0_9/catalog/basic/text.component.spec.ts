@@ -192,6 +192,6 @@ describe('TextComponent', () => {
     fixture.detectChanges();
     const hostElement = fixture.nativeElement;
     expect(hostElement.getAttribute('aria-label')).toBe('A text block');
-    expect(hostElement.getAttribute('aria-describedby')).toBe('Contains static text');
+    expect(hostElement.getAttribute('aria-description')).toBe('Contains static text');
   });
 });

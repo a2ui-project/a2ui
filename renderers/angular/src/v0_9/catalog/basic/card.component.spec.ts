@@ -105,6 +105,6 @@ describe('CardComponent', () => {
     const hostElement = fixture.nativeElement;
     expect(hostElement.getAttribute('role')).toBe('region');
     expect(hostElement.getAttribute('aria-label')).toBe('Important Card');
-    expect(hostElement.getAttribute('aria-describedby')).toBe('Contains critical info');
+    expect(hostElement.getAttribute('aria-description')).toBe('Contains critical info');
   });
 });

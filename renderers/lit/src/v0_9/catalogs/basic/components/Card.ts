@@ -70,9 +70,9 @@ export class A2uiCardElement extends BasicCatalogA2uiLitElement<typeof CardApi> 
       }
       const description = props.accessibility?.description;
       if (description) {
-        this.setAttribute('aria-describedby', description as string);
+        this.setAttribute('aria-description', description as string);
       } else {
-        this.removeAttribute('aria-describedby');
+        this.removeAttribute('aria-description');
       }
     }
   }

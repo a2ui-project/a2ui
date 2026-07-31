@@ -206,7 +206,7 @@ describe('TextField Component', () => {
     const input = el.shadowRoot?.querySelector('input');
     assert.ok(input);
     assert.strictEqual(input.getAttribute('aria-label'), 'Enter your username');
-    assert.strictEqual(input.getAttribute('aria-describedby'), 'Must be alphanumeric');
+    assert.strictEqual(input.getAttribute('aria-description'), 'Must be alphanumeric');
   });
 
   it('should render accessibility attributes on textarea when variant is longText', async () => {
@@ -222,6 +222,6 @@ describe('TextField Component', () => {
     const textarea = el.shadowRoot?.querySelector('textarea');
     assert.ok(textarea);
     assert.strictEqual(textarea.getAttribute('aria-label'), 'Tell us about yourself');
-    assert.strictEqual(textarea.getAttribute('aria-describedby'), 'Max 200 words');
+    assert.strictEqual(textarea.getAttribute('aria-description'), 'Max 200 words');
   });
 });

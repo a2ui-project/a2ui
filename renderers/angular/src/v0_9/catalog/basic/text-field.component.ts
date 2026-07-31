@@ -50,7 +50,7 @@ import {TextFieldApi} from '@a2ui/web_core/v0_9/basic_catalog';
         (input)="handleInput($event)"
         [class.invalid]="props()['isValid']?.value() === false"
         [attr.aria-label]="ariaLabel()"
-        [attr.aria-describedby]="ariaDescribedBy()"
+        [attr.aria-description]="ariaDescription()"
       />
       @for (message of props()['validationErrors']?.value(); track message) {
         <div class="a2ui-error-message">{{ message }}</div>
@@ -101,7 +101,7 @@ export class TextFieldComponent extends BasicCatalogComponent<typeof TextFieldAp
   readonly variant = computed(() => this.props()['variant']?.value());
   readonly accessibility = computed(() => this.props()['accessibility']?.value());
   readonly ariaLabel = computed(() => this.accessibility()?.label ?? null);
-  readonly ariaDescribedBy = computed(() => this.accessibility()?.description ?? null);
+  readonly ariaDescription = computed(() => this.accessibility()?.description ?? null);
 
   readonly inputType = computed(() => {
     switch (this.variant()) {

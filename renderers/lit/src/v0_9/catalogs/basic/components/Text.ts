@@ -119,9 +119,9 @@ export class A2uiBasicTextElement extends BasicCatalogA2uiLitElement<typeof Text
       }
       const description = props.accessibility?.description;
       if (description) {
-        this.setAttribute('aria-describedby', description as string);
+        this.setAttribute('aria-description', description as string);
       } else {
-        this.removeAttribute('aria-describedby');
+        this.removeAttribute('aria-description');
       }
     }
   }
