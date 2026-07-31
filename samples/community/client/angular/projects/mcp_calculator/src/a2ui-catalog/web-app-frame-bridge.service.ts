@@ -17,7 +17,7 @@
 import {A2uiRendererService} from '@a2ui/angular/v0_9';
 import {DataContext} from '@a2ui/web_core/v0_9';
 import {DestroyRef, ElementRef, inject, Injectable, Signal} from '@angular/core';
-import Ajv from 'ajv';
+import Ajv, {ValidateFunction} from 'ajv';
 import stringify from 'fast-json-stable-stringify';
 import {
   A2uiMessageType,
@@ -40,6 +40,18 @@ export class WebAppFrameBridgeService {
   private readonly rendererService = inject(A2uiRendererService);
 
   private ajv = new Ajv();
+  private validatorCache = new Map<string, ValidateFunction>();
+
+  private getValidator(schema: object): ValidateFunction {
+    const key = JSON.stringify(schema);
+    let validate = this.validatorCache.get(key);
+    if (!validate) {
+      validate = this.ajv.compile(schema);
+      this.validatorCache.set(key, validate);
+    }
+    return validate;
+  }
+
   private messageHandler: ((event: MessageEvent) => void) | null = null;
   private dataSubscriptions: {unsubscribe: () => void}[] = [];
   private resizeTimeout: ReturnType<typeof setTimeout> | null = null;
@@ -54,6 +66,10 @@ export class WebAppFrameBridgeService {
   constructor() {
     this.destroyRef.onDestroy(() => {
       this.clearDataSubscriptions();
+      if (this.appPort) {
+        this.appPort.close();
+        this.appPort = null;
+      }
       if (this.resizeTimeout) {
         clearTimeout(this.resizeTimeout);
         this.resizeTimeout = null;
@@ -160,7 +176,7 @@ export class WebAppFrameBridgeService {
     if (data.action in allowedEvents) {
       const schema = allowedEvents[data.action];
       if (!this.disableSchemaValidation(props) && schema) {
-        const validate = this.ajv.compile(schema);
+        const validate = this.getValidator(schema as object);
         if (!validate(data.data || {})) {
           console.warn(`Action ${data.action} failed schema validation:`, validate.errors);
           return;
@@ -196,7 +212,7 @@ export class WebAppFrameBridgeService {
     }
     const schema = mutableData[data.key];
     if (!this.disableSchemaValidation(props) && schema) {
-      const validate = this.ajv.compile(schema);
+      const validate = this.getValidator(schema as object);
       if (!validate(data.value)) {
         console.warn(`Data change for ${data.key} failed schema validation:`, validate.errors);
         return;
@@ -236,7 +252,7 @@ export class WebAppFrameBridgeService {
     if (data.call in allowedFunctions) {
       const schema = allowedFunctions[data.call];
       if (!this.disableSchemaValidation(props) && schema) {
-        const validate = this.ajv.compile(schema);
+        const validate = this.getValidator(schema as object);
         if (!validate(data.args || {})) {
           console.warn(`Function ${data.call} failed schema validation:`, validate.errors);
           if (iframeEl.contentWindow) {

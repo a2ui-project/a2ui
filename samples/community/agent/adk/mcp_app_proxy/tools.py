@@ -11,6 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import asyncio
 import os
 import urllib.parse
 import urllib.request
@@ -27,6 +28,12 @@ logger = logging.getLogger(__name__)
 # Global variables for Pong game.
 PONG_SURFACE_ID = "pong_surface"
 PONG_CURRENT_SCORE = {"player": 0, "cpu": 0}
+
+
+def _fetch_url(url: str, headers: dict[str, str], timeout: float = 2.0) -> str:
+    req = urllib.request.Request(url, headers=headers)
+    with urllib.request.urlopen(req, timeout=timeout) as response:
+        return response.read().decode("utf-8")
 
 
 # Define get_calculator_app tool in a way that the LlmAgent can use.
@@ -297,13 +304,14 @@ async def get_pong_app_web_frame_srcdoc_json(tool_context: ToolContext):
     remote_url = os.getenv(
         "PONG_SERVER_URL", "http://localhost:8081/pong_app_web_frame_srcdoc.html"
     )
+    loop = asyncio.get_running_loop()
     try:
-        req = urllib.request.Request(
+        html_content = await loop.run_in_executor(
+            None,
+            _fetch_url,
             remote_url,
-            headers={"User-Agent": "A2UI-Agent"},
+            {"User-Agent": "A2UI-Agent"},
         )
-        with urllib.request.urlopen(req, timeout=2.0) as response:
-            html_content = response.read().decode("utf-8")
     except Exception as e:
         logger.error(f"Could not fetch remote pong app from {remote_url}: {e}.")
         return {"error": f"Could not fetch pong app from remote server ({e})"}
