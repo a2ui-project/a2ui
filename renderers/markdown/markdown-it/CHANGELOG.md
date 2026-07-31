@@ -1,5 +1,7 @@
 ## Unreleased
 
+## 0.1.1
+
 - Enable `inlineSources` in `tsconfig.json` to populate `sourcesContent` in sourcemaps.
 
 ## 0.1.0
