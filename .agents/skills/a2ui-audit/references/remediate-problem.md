@@ -5,7 +5,9 @@ This reference playbook instructs an automated agent on how to remediate a speci
 ---
 
 ## Prerequisites & Environment
+
 The agent execution environment must provide the following environment variables:
+
 - `ISSUE_NUMBER`: The GitHub Issue number of the compliance report (e.g., `2138`).
 - `RECOMMENDATION_INDEX`: The 1-based index of the recommendation item to address (e.g., `1`).
 - `GITHUB_TOKEN`: A token with `contents: write`, `pull-requests: write`, and `issues: write` permissions.
@@ -15,6 +17,7 @@ The agent execution environment must provide the following environment variables
 ## Instructions
 
 ### Step 1: Read Issue Context
+
 1. Retrieve the text of the target compliance report issue from GitHub:
    ```bash
    gh issue view "${ISSUE_NUMBER}" --repo a2ui-project/a2ui --json body --jq '.body'
@@ -25,6 +28,7 @@ The agent execution environment must provide the following environment variables
 ---
 
 ### Step 2: Formulate & Apply Remediation
+
 1. Identify the files and codebases referenced by recommendation `${RECOMMENDATION_INDEX}`.
 2. Carefully inspect the current source code, documentation, or blueprint files.
 3. Implement the minimal necessary change to remediate the reported problem.
@@ -38,6 +42,7 @@ The agent execution environment must provide the following environment variables
 ---
 
 ### Step 3: Configure Git & Create Branch
+
 1. Configure git bot identity:
    ```bash
    git config user.name "github-actions[bot]"
@@ -51,6 +56,7 @@ The agent execution environment must provide the following environment variables
 ---
 
 ### Step 4: Commit and Push
+
 1. Stage all modified files relevant to the remediation:
    ```bash
    git add -u
@@ -67,6 +73,7 @@ The agent execution environment must provide the following environment variables
 ---
 
 ### Step 5: Create Draft PR & Notify Issue
+
 1. Create a Draft Pull Request against the `main` branch:
    ```bash
    PR_URL=$(gh pr create --draft \

@@ -48,8 +48,9 @@ jobs:
 
       - name: Parse Recommendation Index
         id: parse-command
+        env:
+          COMMENT_BODY: ${{ github.event.comment.body }}
         run: |
-          COMMENT_BODY="${{ github.event.comment.body }}"
           RECOMMENDATION_INDEX=$(echo "$COMMENT_BODY" | sed -n 's/.*\/remediate \([0-9]\+\).*/\1/p')
           if [ -z "$RECOMMENDATION_INDEX" ]; then
             echo "Failed to parse recommendation index from comment body."
