@@ -1053,6 +1053,11 @@ The [`catalogs/basic/catalog.json`] provides the baseline set of components and 
 | **contains**       | Checks if a string contains a substring.                                 |
 | **starts_with**    | Checks if a string starts with a prefix.                                 |
 | **ends_with**      | Checks if a string ends with a suffix.                                   |
+| **clamp**          | Constrains a number to an inclusive range.                               |
+| **round**          | Rounds a number to a given number of decimal places.                     |
+| **min**            | Returns the smallest of a list of numbers.                               |
+| **max**            | Returns the largest of a list of numbers.                                |
+| **abs**            | Returns the absolute value of a number.                                  |
 
 ### The `formatString` function
 

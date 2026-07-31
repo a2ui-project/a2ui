@@ -1555,6 +1555,151 @@
       },
       "required": ["call", "args"],
       "unevaluatedProperties": false
+    },
+    "clamp": {
+      "type": "object",
+      "description": "Constrains a number to an inclusive range.",
+      "properties": {
+        "call": {
+          "const": "clamp"
+        },
+        "args": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicNumber",
+              "description": "The number to constrain."
+            },
+            "min": {
+              "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicNumber",
+              "description": "The lower bound of the range."
+            },
+            "max": {
+              "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicNumber",
+              "description": "The upper bound of the range. If 'max' is less than 'min', the result is 'min'."
+            }
+          },
+          "required": ["value", "min", "max"],
+          "unevaluatedProperties": false
+        },
+        "returnType": {
+          "const": "number"
+        }
+      },
+      "required": ["call", "args"],
+      "unevaluatedProperties": false
+    },
+    "round": {
+      "type": "object",
+      "description": "Rounds a number to a given number of decimal places.",
+      "properties": {
+        "call": {
+          "const": "round"
+        },
+        "args": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicNumber",
+              "description": "The number to round."
+            },
+            "decimals": {
+              "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicNumber",
+              "description": "Optional. The number of decimal places to round to. Defaults to 0."
+            }
+          },
+          "required": ["value"],
+          "unevaluatedProperties": false
+        },
+        "returnType": {
+          "const": "number"
+        }
+      },
+      "required": ["call", "args"],
+      "unevaluatedProperties": false
+    },
+    "min": {
+      "type": "object",
+      "description": "Returns the smallest of a list of numbers.",
+      "properties": {
+        "call": {
+          "const": "min"
+        },
+        "args": {
+          "type": "object",
+          "properties": {
+            "values": {
+              "type": "array",
+              "description": "The list of numbers to compare.",
+              "items": {
+                "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicNumber"
+              },
+              "minItems": 2
+            }
+          },
+          "required": ["values"],
+          "unevaluatedProperties": false
+        },
+        "returnType": {
+          "const": "number"
+        }
+      },
+      "required": ["call", "args"],
+      "unevaluatedProperties": false
+    },
+    "max": {
+      "type": "object",
+      "description": "Returns the largest of a list of numbers.",
+      "properties": {
+        "call": {
+          "const": "max"
+        },
+        "args": {
+          "type": "object",
+          "properties": {
+            "values": {
+              "type": "array",
+              "description": "The list of numbers to compare.",
+              "items": {
+                "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicNumber"
+              },
+              "minItems": 2
+            }
+          },
+          "required": ["values"],
+          "unevaluatedProperties": false
+        },
+        "returnType": {
+          "const": "number"
+        }
+      },
+      "required": ["call", "args"],
+      "unevaluatedProperties": false
+    },
+    "abs": {
+      "type": "object",
+      "description": "Returns the absolute value of a number.",
+      "properties": {
+        "call": {
+          "const": "abs"
+        },
+        "args": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicNumber",
+              "description": "The number to take the absolute value of."
+            }
+          },
+          "required": ["value"],
+          "unevaluatedProperties": false
+        },
+        "returnType": {
+          "const": "number"
+        }
+      },
+      "required": ["call", "args"],
+      "unevaluatedProperties": false
     }
   },
   "$defs": {
@@ -1724,6 +1869,21 @@
         },
         {
           "$ref": "#/functions/ends_with"
+        },
+        {
+          "$ref": "#/functions/clamp"
+        },
+        {
+          "$ref": "#/functions/round"
+        },
+        {
+          "$ref": "#/functions/min"
+        },
+        {
+          "$ref": "#/functions/max"
+        },
+        {
+          "$ref": "#/functions/abs"
         }
       ]
     }
