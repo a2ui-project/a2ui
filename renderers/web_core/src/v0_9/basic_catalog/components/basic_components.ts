@@ -353,8 +353,8 @@ export const ButtonApi = {
           "A hint for the button style. If omitted, a default button style is used. 'primary' indicates this is the main call-to-action button. 'borderless' means the button has no visual border or background, making its child content appear like a clickable link.",
         )
         .optional(),
-      action: ActionSchema,
-      checks: CheckableSchema.shape.checks,
+      action: ActionSchema.optional(),
+      ...CheckableSchema.shape,
     })
     .strict(),
 } satisfies ComponentApi;
@@ -375,7 +375,7 @@ export const TextFieldApi = {
         .string()
         .describe('A regular expression used for client-side validation of the input.')
         .optional(),
-      checks: CheckableSchema.shape.checks,
+      ...CheckableSchema.shape,
     })
     .strict(),
 } satisfies ComponentApi;
@@ -389,7 +389,7 @@ export const CheckBoxApi = {
       value: DynamicBooleanSchema.describe(
         'The current state of the checkbox (true for checked, false for unchecked).',
       ),
-      checks: CheckableSchema.shape.checks,
+      ...CheckableSchema.shape,
     })
     .strict(),
 } satisfies ComponentApi;
@@ -428,7 +428,7 @@ export const ChoicePickerApi = {
         .default(false)
         .describe('If true, displays a search input to filter the options.')
         .optional(),
-      checks: CheckableSchema.shape.checks,
+      ...CheckableSchema.shape,
     })
     .strict()
     .describe('A component that allows selecting one or more options from a list.'),
@@ -443,7 +443,7 @@ export const SliderApi = {
       min: z.number().default(0).describe('The minimum value of the slider.').optional(),
       max: z.number().describe('The maximum value of the slider.'),
       value: DynamicNumberSchema.describe('The current value of the slider.'),
-      checks: CheckableSchema.shape.checks,
+      ...CheckableSchema.shape,
     })
     .strict(),
 } satisfies ComponentApi;
@@ -475,7 +475,7 @@ export const DateTimeInputApi = {
         .describe('The maximum allowed date/time in ISO 8601 format.')
         .optional(),
       label: DynamicStringSchema.describe('The text label for the input field.').optional(),
-      checks: CheckableSchema.shape.checks,
+      ...CheckableSchema.shape,
     })
     .strict(),
 } satisfies ComponentApi;

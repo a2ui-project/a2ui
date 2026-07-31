@@ -316,6 +316,18 @@ export class MessageProcessor<T extends ComponentApi> {
       }
 
       const existing = surface.componentsModel.get(id);
+      const componentType = component || existing?.type;
+      if (componentType) {
+        const componentApi = surface.catalog.components.get(componentType);
+        if (componentApi) {
+          const validationResult = componentApi.schema.safeParse(properties);
+          if (!validationResult.success) {
+            throw new A2uiValidationError(
+              `Validation failed for component '${componentType}' (${id}): ${validationResult.error.message}`,
+            );
+          }
+        }
+      }
       if (existing) {
         if (component && component !== existing.type) {
           // Recreate component if type changes

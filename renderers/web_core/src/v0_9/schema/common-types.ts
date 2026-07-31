@@ -147,6 +147,8 @@ export type CheckRule = z.infer<typeof CheckRuleSchema>;
 export const CheckableSchema = z
   .object({
     checks: z.array(CheckRuleSchema).optional().describe('A list of checks to perform.'),
+    isValid: z.boolean().optional().describe('Whether the checks currently pass.'),
+    validationErrors: z.array(z.string()).optional().describe('Current validation error messages.'),
   })
   .describe(
     'REF:common_types.json#/$defs/Checkable|Properties for components that support client-side checks.',
