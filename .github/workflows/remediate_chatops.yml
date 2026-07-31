@@ -30,7 +30,8 @@ jobs:
     timeout-minutes: 60
     if: >
       !github.event.issue.pull_request &&
-      contains(github.event.comment.body, '/remediate ')
+      contains(github.event.comment.body, '/remediate ') &&
+      contains(github.event.issue.title, 'A2UI Compliance Report')
 
     steps:
       - name: Verify Commenter Permissions
