@@ -44,7 +44,7 @@ export class App implements AfterViewInit {
   private messageListenerAdded = false;
   protected readonly mcpAppHtmlUrl = signal<string | null>(null);
   protected readonly isAppLoading = signal<boolean>(false);
-  protected readonly selectedApp = signal<'editor' | 'basic'>('editor');
+  protected readonly selectedApp = signal<'editor' | 'basic' | 'react'>('editor');
 
   private mcpClient: Client | null = null;
 
@@ -118,23 +118,25 @@ export class App implements AfterViewInit {
       } else if (data?.method === 'ui/notifications/initialized') {
         // The host must not message the View before this notification; once it
         // arrives, deliver the instantiating tool call's input and result.
-        target.postMessage(
-          {
-            jsonrpc: '2.0',
-            method: 'ui/notifications/tool-input',
-            params: {arguments: this.toolCallArguments},
-          },
-          window.location.origin,
-        );
-        if (this.toolCallResult) {
+        if (target) {
           target.postMessage(
             {
               jsonrpc: '2.0',
-              method: 'ui/notifications/tool-result',
-              params: this.toolCallResult,
+              method: 'ui/notifications/tool-input',
+              params: {arguments: this.toolCallArguments},
             },
             window.location.origin,
           );
+          if (this.toolCallResult) {
+            target.postMessage(
+              {
+                jsonrpc: '2.0',
+                method: 'ui/notifications/tool-result',
+                params: this.toolCallResult,
+              },
+              window.location.origin,
+            );
+          }
         }
       } else if (data?.method === 'ui/notifications/size-changed') {
         const height = data.params?.height;
@@ -191,7 +193,7 @@ export class App implements AfterViewInit {
   }
 
   onAppChange(value: string) {
-    if (value === 'editor' || value === 'basic') {
+    if (value === 'editor' || value === 'basic' || value === 'react') {
       this.selectedApp.set(value);
     } else {
       console.error(`[Host] Invalid app selected: ${value}`);
@@ -219,7 +221,12 @@ export class App implements AfterViewInit {
       await client.connect(transport);
       this.mcpClient = client;
 
-      const toolName = this.selectedApp() === 'editor' ? 'get_editor_app' : 'get_basic_app';
+      const entryTools = {
+        editor: 'get_editor_app',
+        basic: 'get_basic_app',
+        react: 'get_react_app',
+      } as const;
+      const toolName = entryTools[this.selectedApp()];
 
       // 2. Discover the tool's predeclared UI template (_meta.ui.resourceUri)
       // and which tools the View may call (_meta.ui.visibility).
@@ -256,9 +263,10 @@ export class App implements AfterViewInit {
 
       // 4. Read the resource
       const appResource = await client.readResource({uri: resourceUri});
-      const htmlContentObj = appResource.contents.find(
-        (c: any) => c.mimeType === 'text/html;profile=mcp-app' || 'text' in c,
-      ) as any;
+      // Prefer the MCP App HTML block; fall back to any text-bearing block.
+      const htmlContentObj = (appResource.contents.find(
+        (c: any) => c.mimeType === 'text/html;profile=mcp-app',
+      ) ?? appResource.contents.find((c: any) => 'text' in c)) as any;
 
       if (!htmlContentObj || typeof htmlContentObj.text !== 'string') {
         throw new Error('Resource did not return valid HTML content');
