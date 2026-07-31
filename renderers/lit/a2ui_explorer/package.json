@@ -56,7 +56,8 @@
     "@a2ui/web_core": "workspace:*",
     "@lit-labs/signals": "^0.3.0",
     "@lit/context": "^1.1.6",
-    "lit": "^3.3.3"
+    "lit": "^3.3.3",
+    "zod": "^3.25.76"
   },
   "devDependencies": {
     "@types/jasmine": "^6.0.0",

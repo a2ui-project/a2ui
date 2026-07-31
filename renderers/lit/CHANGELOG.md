@@ -1,5 +1,6 @@
 ## Unreleased
 
+- **BREAKING CHANGE**: Move `zod` from direct `dependencies` to `peerDependencies` (`"^3.25.0 || ^4.0.0"`). Consuming applications must explicitly install `zod` in their root `package.json`. Adds dual-compatibility support for both Zod 3.25+ and Zod 4.0+. ([#2002](https://github.com/a2ui-project/a2ui/issues/2002))
 - Enable `inlineSources` in `tsconfig.json` to populate `sourcesContent` in sourcemaps.
 
 ## 0.10.2
