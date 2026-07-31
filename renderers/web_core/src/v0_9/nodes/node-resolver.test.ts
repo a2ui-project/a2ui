@@ -424,8 +424,6 @@ describe('NodeResolver conformance (port of test_node_graph.py)', () => {
     const root = getValue(resolver.rootNode);
     assert.ok(root);
     const json = root.toJSON();
-    // Dynamic props serialize as their binding's snapshot value; the binder's
-    // synthesized set<Prop> siblings do not appear in node props at all.
     assert.deepStrictEqual(json, {
       id: 'root',
       type: 'Column',
@@ -539,9 +537,9 @@ describe('NodeResolver defect coverage (fixes over the Python reference)', () =>
     assert.strictEqual(bound(boundText, 'text'), 'Bob');
     assert.strictEqual(rootEmissions.count, 0);
 
-    // Editing one item's field re-fires the template's array subscription
-    // (ancestor-path propagation); the item node must update while the
-    // template parent's props stay identity-stable and silent.
+    // Editing one item's field re-fires the template's array subscription;
+    // the item node must update while the template parent's props stay
+    // identity-stable and silent.
     surface.dataModel.set('/items/0/name', 'A2');
     assert.strictEqual(bound(item0, 'text'), 'A2');
     assert.ok(item0Emissions.count >= 1);
@@ -634,7 +632,7 @@ describe('NodeResolver malformed and unusual payloads', () => {
   });
 });
 
-describe('NodeResolver resolved bindings (write-path contract)', () => {
+describe('NodeResolver resolved bindings (write path)', () => {
   it('makes bindings writable iff the payload bound a data path', () => {
     const {surface, resolver} = setup();
     surface.dataModel.set('/username', 'alice');
@@ -694,7 +692,7 @@ describe('NodeResolver resolved bindings (write-path contract)', () => {
   });
 });
 
-describe('NodeResolver construction gate', () => {
+describe('NodeResolver constructor checks and disposal', () => {
   it('rejects a catalog instance other than the surface catalog', () => {
     const catalogA = makeCatalog();
     const catalogB = makeCatalog();

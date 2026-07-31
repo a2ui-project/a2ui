@@ -23,8 +23,8 @@
  * subscribes to that node's props signal only, so a data change re-renders
  * exactly the affected component.
  *
- * Views are reused unchanged: node props are converted back to the shapes the
- * existing view contract expects (child ids as strings, template children as
+ * Views are reused unchanged: node props are converted back to the shapes
+ * existing views expect (child ids as strings, template children as
  * `{id, basePath}` pairs, `ResolvedBinding`s as value + `set<Prop>` pairs)
  * and `buildChild` maps those refs back to their live nodes. A ref the node
  * layer did not resolve (a single-child id whose schema
@@ -101,7 +101,7 @@ function toViewValue(parent: ComponentNode, value: unknown, index: ChildIndex): 
 /**
  * Converts one object level of node props, unwrapping each `ResolvedBinding`
  * into the value + `set<Prop>` pair the views were written against. A
- * read-only binding gets a no-op setter, matching what the legacy binder
+ * read-only binding gets a no-op setter, matching what `GenericBinder`
  * synthesizes for literal-valued properties.
  */
 function toViewProps(
@@ -174,8 +174,8 @@ const NodeView = memo(
     }
     const View = impl.view;
     if (!View) {
-      // Binderless implementation: no unwrapped view exists, so render the
-      // wrapper, which binds from the context itself.
+      // No unwrapped `view` exists; fall back to `render`, which binds from
+      // the context itself.
       const Render = impl.render;
       return <Render context={context!} buildChild={buildChild} />;
     }
@@ -193,8 +193,8 @@ export const A2uiNodeSurface: React.FC<{
   // The resolver is created inside subscribe, which React calls only for
   // committed renders: a render that is discarded (concurrent mode,
   // Suspense) never constructs one, and every constructed resolver is
-  // disposed by its own unsubscribe. StrictMode's double mount simply
-  // creates and disposes two in turn.
+  // disposed by its own unsubscribe. StrictMode's double mount creates and
+  // disposes two in turn.
   const box = useMemo(
     () => ({resolver: undefined as NodeResolver<ReactComponentImplementation> | undefined}),
     [surface],

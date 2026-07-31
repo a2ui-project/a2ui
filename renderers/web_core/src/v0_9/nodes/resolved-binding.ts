@@ -17,14 +17,14 @@
 /**
  * A resolved two-way value in a node's props: a snapshot of the current
  * value, plus a write capability present only when the payload bound a data
- * path. `set` is absent for literal and function-call spellings, so a write
+ * path. `set` is absent for literal and function-call values, so a write
  * without checking writability is a type error rather than a silent no-op.
  *
  * The snapshot is pinned at emission: a new binding arrives through the
  * node's props whenever the underlying value changes.
  *
  * Named `ResolvedBinding` because `DataBinding` is the wire model of the
- * `{"path": ...}` payload spelling.
+ * `{"path": ...}` payload.
  */
 export class ResolvedBinding<T> {
   constructor(
@@ -39,10 +39,10 @@ export class ResolvedBinding<T> {
 }
 
 /**
- * Whether two bindings are equivalent for the emission gate: same
+ * Whether two bindings count as unchanged for props change detection: same
  * writability and equal snapshot values. Plain arrays and objects compare
- * structurally; non-plain objects compare by identity, matching the
- * engine's always-changed treatment of them.
+ * structurally; non-plain objects compare by identity only, mirroring the
+ * resolver's change detection for props.
  */
 export function sameBinding(a: ResolvedBinding<unknown>, b: ResolvedBinding<unknown>): boolean {
   return a.writable === b.writable && valueEquals(a.value, b.value);

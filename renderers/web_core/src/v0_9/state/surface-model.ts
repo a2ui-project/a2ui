@@ -33,7 +33,7 @@ export type ActionListener = (action: A2uiClientAction) => void | Promise<void>;
  * @template F The catalog's function kind. Every state and messaging
  *   capability of the surface works with a schema-only catalog
  *   (`SurfaceModel<T, FunctionApi>`); only node-tree resolution needs
- *   implementations, and `NodeResolver` enforces that on its own constructor.
+ *   implementations.
  */
 export class SurfaceModel<
   T extends ComponentApi = ComponentApi,

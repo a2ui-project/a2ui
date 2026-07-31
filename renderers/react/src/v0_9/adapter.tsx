@@ -31,8 +31,8 @@ export interface ReactComponentImplementation extends ComponentApi {
   /**
    * The unwrapped view function `render` wraps. `A2uiNodeSurface` renders it
    * directly with props resolved by the node layer, so the component works
-   * without `render`'s own binder. Absent on binderless implementations,
-   * which the node surface falls back to rendering through `render`.
+   * without `render`'s own binder. When absent, the node surface falls back
+   * to `render`.
    */
   view?: React.FC<ReactA2uiComponentProps<any>>;
 }

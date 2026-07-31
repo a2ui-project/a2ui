@@ -43,8 +43,8 @@ interface NodeRecord {
    *  classifies as DYNAMIC resolve to {@link ResolvedBinding}s in node
    *  props. Absent on placeholders. */
   readonly behavior?: BehaviorNode;
-  /** The context the binder resolves against; writes constructed for
-   *  path-bound values go through its scoped data context. */
+  /** Writes constructed for path-bound values go through this context's
+   *  scoped data context. */
   readonly context?: ComponentContext;
   readonly componentModel?: ComponentModel;
   readonly binder?: GenericBinder<NodeProps>;
@@ -391,7 +391,7 @@ export class NodeResolver<
    * Rebuilds a node's resolved props from its binder output: child reference
    * properties become live `ComponentNode`s, children this parent no longer
    * references are disposed, and unchanged values keep reference identity so
-   * the node's shallow emission gate stays exact.
+   * the shallow comparison in `ComponentNode.setProps` stays exact.
    */
   private materialize(record: NodeRecord): void {
     if (record.node.disposed) {
@@ -560,11 +560,11 @@ function instanceIdFor(componentId: string, dataPath: string): string {
 /**
  * Converts every position the schema classifies as DYNAMIC into a
  * `ResolvedBinding`: the binder's resolved value as the snapshot, plus a
- * write capability iff the payload spelled the value as a `{"path": ...}`
+ * write capability iff the payload gave the value as a `{"path": ...}`
  * binding, writing through the component's scoped data context. The binder's
- * synthesized `set<Prop>` siblings are dropped: they belong to the legacy
- * prop-pair shape and silently swallow writes to literal-valued properties,
- * which the binding contract forbids.
+ * synthesized `set<Prop>` siblings are dropped: they silently swallow writes
+ * to literal-valued properties, whereas `ResolvedBinding` omits `set` there,
+ * making such writes a type error.
  */
 function wrapDynamicValues(
   value: unknown,

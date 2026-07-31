@@ -92,9 +92,8 @@ export class ComponentNode<TProps extends NodeProps = NodeProps> {
 
   /**
    * Replaces the resolved props, emitting only if a shallow comparison shows
-   * a change. Callers keep unchanged values reference-identical (child nodes
-   * come from the resolver's cache; untouched arrays keep their identity), so
-   * shallow comparison is exact rather than heuristic.
+   * a change. Callers must keep unchanged values reference-identical; the
+   * shallow comparison is exact only under that invariant.
    */
   setProps(next: TProps): void {
     if (this._disposed) {
