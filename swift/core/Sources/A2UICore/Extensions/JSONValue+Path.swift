@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import OrderedJSON
 import OrderedCollections
+import OrderedJSON
 
 extension JSONValue {
   /// Returns the underlying string value if this is a `.string` case.
@@ -40,10 +40,7 @@ extension JSONValue {
     switch self {
     case .integer(let value): return value
     case .number(let value):
-      if value >= Double(Int.min) && value <= Double(Int.max) && value == value.rounded() {
-        return Int(value)
-      }
-      return nil
+      return Int(exactly: value)
     default: return nil
     }
   }
@@ -77,7 +74,8 @@ extension JSONValue {
   /// if this is an `.object` case.
   public var dictionaryValue: [String: JSONValue]? {
     switch self {
-    case .object(let value): return Dictionary(uniqueKeysWithValues: value.map { ($0.key, $0.value) })
+    case .object(let value):
+      return Dictionary(uniqueKeysWithValues: value.map { ($0.key, $0.value) })
     default: return nil
     }
   }

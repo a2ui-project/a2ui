@@ -90,4 +90,3 @@ public enum ServerToClientMessage: Codable, Sendable, Equatable {
     }
   }
 }
-

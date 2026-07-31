@@ -116,18 +116,30 @@ async def calculate_via_mcp(operation: str, a: float, b: float):
         return f"Error connecting to MCP server: {e}"
 
 
-async def get_pong_app_a2ui_json(tool_context: ToolContext):
-    """Fetches the Pong game app."""
+async def get_pong_mcp_app_json(tool_context: ToolContext):
+    """Fetches the Pong game app using the McpApp component."""
 
     current_dir = os.path.dirname(os.path.abspath(__file__))
-    html_file_path = os.path.join(current_dir, "pong_app.html")
+    html_file_path = os.path.join(current_dir, "pong_base.html")
+    mcp_bridge_path = os.path.join(current_dir, "pong_mcp_bridge.js")
+    engine_path = os.path.join(current_dir, "pong_engine.js")
 
     try:
         with open(html_file_path, "r", encoding="utf-8") as f:
             html_content = f.read()
-    except FileNotFoundError:
-        logger.error(f"Could not find {html_file_path}")
-        return {"error": "Could not find pong app HTML file."}
+        with open(mcp_bridge_path, "r", encoding="utf-8") as f:
+            mcp_bridge = f.read()
+        with open(engine_path, "r", encoding="utf-8") as f:
+            engine = f.read()
+
+        html_content = html_content.replace("// {{BRIDGE_SCRIPT}}", mcp_bridge).replace(
+            "// {{ENGINE_SCRIPT}}", engine
+        )
+    except FileNotFoundError as e:
+        logger.error(f"Could not find pong app file: {e.filename}")
+        return {
+            "error": f"Could not find pong app file: {os.path.basename(e.filename)}"
+        }
 
     encoded_html = "url_encoded:" + urllib.parse.quote(html_content)
 
@@ -177,6 +189,86 @@ async def get_pong_app_a2ui_json(tool_context: ToolContext):
                         "title": "Neon Pong",
                         "allowedTools": ["commentate_pong"],
                         "allowedFunctions": ["showWinnerModal"],
+                        "data": {"paths": {"state": "/pong_state"}},
+                    },
+                    {
+                        "id": "scoreboard_root",
+                        "component": "PongScoreBoard",
+                        "playerScore": {"path": "/pong_state/player_score"},
+                        "cpuScore": {"path": "/pong_state/cpu_score"},
+                        "commentary": {"path": "/pong_state/commentary"},
+                    },
+                ],
+            },
+        },
+    ]
+    tool_context.actions.skip_summarization = True
+    return {"validated_a2ui_json": messages}
+
+
+async def get_pong_app_web_frame_json(tool_context: ToolContext):
+    """Fetches the Pong game app using the WebAppFrameUrl component."""
+
+    # Reset score on reload
+    global PONG_CURRENT_SCORE
+    PONG_CURRENT_SCORE = {"player": 0, "cpu": 0}
+
+    messages = [
+        {
+            "version": "v0.9",
+            "createSurface": {
+                "surfaceId": PONG_SURFACE_ID,
+                "catalogId": (
+                    "https://a2ui.org/samples/community/agent/adk/mcp_app_proxy/catalogs/0.9/mcp_app_catalog.json"
+                ),
+            },
+        },
+        {
+            "version": "v0.9",
+            "updateDataModel": {
+                "surfaceId": PONG_SURFACE_ID,
+                "path": "/",
+                "value": {
+                    "pong_state": {
+                        "player_score": PONG_CURRENT_SCORE["player"],
+                        "cpu_score": PONG_CURRENT_SCORE["cpu"],
+                        "commentary": "Let the match begin!",
+                    }
+                },
+            },
+        },
+        {
+            "version": "v0.9",
+            "updateComponents": {
+                "surfaceId": PONG_SURFACE_ID,
+                "components": [
+                    {
+                        "id": "root",
+                        "component": "PongLayout",
+                        "mcpComponent": "web_frame_app_root",
+                        "scoreboardComponent": "scoreboard_root",
+                    },
+                    {
+                        "id": "web_frame_app_root",
+                        "component": "WebAppFrameUrl",
+                        "url": "http://localhost:8081/pong_app_web_frame.html",
+                        "allowedEvents": {
+                            "commentate_pong": {
+                                "type": "object",
+                                "properties": {
+                                    "game_event": {"type": "string"},
+                                    "silent": {"type": "boolean"},
+                                },
+                            }
+                        },
+                        "allowedFunctions": {
+                            "showWinnerModal": {
+                                "type": "object",
+                                "properties": {"winner": {"type": "string"}},
+                            }
+                        },
+                        "mutableData": {"state": {}},
+                        "config": {"matchingScore": 5},
                         "data": {"paths": {"state": "/pong_state"}},
                     },
                     {
