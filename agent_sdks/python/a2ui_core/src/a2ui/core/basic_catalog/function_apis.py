@@ -237,3 +237,124 @@ class NotApi(FunctionApi):
     name = "not"
     schema = NotArgs
     return_type = "boolean"
+
+
+class AddArgs(StrictBaseModel):
+    a: DynamicNumber = Field(..., description="The first number.")
+    b: DynamicNumber = Field(..., description="The second number.")
+
+
+class AddApi(FunctionApi):
+    name = "add"
+    schema = AddArgs
+    return_type = "number"
+
+
+class SubtractArgs(StrictBaseModel):
+    a: DynamicNumber = Field(..., description="The number to subtract from.")
+    b: DynamicNumber = Field(..., description="The number to subtract.")
+
+
+class SubtractApi(FunctionApi):
+    name = "subtract"
+    schema = SubtractArgs
+    return_type = "number"
+
+
+class MultiplyArgs(StrictBaseModel):
+    a: DynamicNumber = Field(..., description="The first number.")
+    b: DynamicNumber = Field(..., description="The second number.")
+
+
+class MultiplyApi(FunctionApi):
+    name = "multiply"
+    schema = MultiplyArgs
+    return_type = "number"
+
+
+class DivideArgs(StrictBaseModel):
+    a: DynamicNumber = Field(..., description="The dividend.")
+    b: DynamicNumber = Field(..., description="The divisor.")
+
+
+class DivideApi(FunctionApi):
+    name = "divide"
+    schema = DivideArgs
+    return_type = "number"
+
+
+class GreaterThanArgs(StrictBaseModel):
+    a: DynamicNumber = Field(..., description="The number to compare.")
+    b: DynamicNumber = Field(..., description="The threshold number.")
+
+
+class GreaterThanApi(FunctionApi):
+    name = "greater_than"
+    schema = GreaterThanArgs
+    return_type = "boolean"
+
+
+class LessThanArgs(StrictBaseModel):
+    a: DynamicNumber = Field(..., description="The number to compare.")
+    b: DynamicNumber = Field(..., description="The threshold number.")
+
+
+class LessThanApi(FunctionApi):
+    name = "less_than"
+    schema = LessThanArgs
+    return_type = "boolean"
+
+
+class EqualsArgs(StrictBaseModel):
+    a: Any = Field(..., description="The first value.")
+    b: Any = Field(..., description="The second value.")
+
+
+class EqualsApi(FunctionApi):
+    name = "equals"
+    schema = EqualsArgs
+    return_type = "boolean"
+
+
+class NotEqualsArgs(StrictBaseModel):
+    a: Any = Field(..., description="The first value.")
+    b: Any = Field(..., description="The second value.")
+
+
+class NotEqualsApi(FunctionApi):
+    name = "not_equals"
+    schema = NotEqualsArgs
+    return_type = "boolean"
+
+
+class ContainsArgs(StrictBaseModel):
+    string: DynamicString = Field(..., description="The source string.")
+    substring: DynamicString = Field(..., description="The substring to search for.")
+
+
+class ContainsApi(FunctionApi):
+    name = "contains"
+    schema = ContainsArgs
+    return_type = "boolean"
+
+
+class StartsWithArgs(StrictBaseModel):
+    string: DynamicString = Field(..., description="The source string.")
+    prefix: DynamicString = Field(..., description="The prefix to search for.")
+
+
+class StartsWithApi(FunctionApi):
+    name = "starts_with"
+    schema = StartsWithArgs
+    return_type = "boolean"
+
+
+class EndsWithArgs(StrictBaseModel):
+    string: DynamicString = Field(..., description="The source string.")
+    suffix: DynamicString = Field(..., description="The suffix to search for.")
+
+
+class EndsWithApi(FunctionApi):
+    name = "ends_with"
+    schema = EndsWithArgs
+    return_type = "boolean"
