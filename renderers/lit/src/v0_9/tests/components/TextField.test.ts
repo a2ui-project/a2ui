@@ -80,6 +80,27 @@ describe('TextField Component', () => {
               isValid: false,
               validationErrors: ['Email is invalid'],
             },
+            {
+              id: 'field_a11y',
+              component: 'TextField',
+              label: 'Username',
+              value: '',
+              accessibility: {
+                label: 'Enter your username',
+                description: 'Must be alphanumeric',
+              },
+            },
+            {
+              id: 'field_long_a11y',
+              component: 'TextField',
+              label: 'Bio',
+              value: '',
+              variant: 'longText',
+              accessibility: {
+                label: 'Tell us about yourself',
+                description: 'Max 200 words',
+              },
+            },
           ],
         },
       },
@@ -170,5 +191,37 @@ describe('TextField Component', () => {
     const input = el.shadowRoot?.querySelector('input');
     assert.ok(input);
     assert.ok(input.classList.contains('invalid'));
+  });
+
+  it('should render accessibility attributes when provided', async () => {
+    const el = document.createElement('a2ui-basic-textfield') as A2uiBasicTextFieldElement;
+    element = el;
+    document.body.appendChild(el);
+
+    const context = new ComponentContext(surface, 'field_a11y');
+    await asyncUpdate(el, e => {
+      e.context = context;
+    });
+
+    const input = el.shadowRoot?.querySelector('input');
+    assert.ok(input);
+    assert.strictEqual(input.getAttribute('aria-label'), 'Enter your username');
+    assert.strictEqual(input.getAttribute('aria-describedby'), 'Must be alphanumeric');
+  });
+
+  it('should render accessibility attributes on textarea when variant is longText', async () => {
+    const el = document.createElement('a2ui-basic-textfield') as A2uiBasicTextFieldElement;
+    element = el;
+    document.body.appendChild(el);
+
+    const context = new ComponentContext(surface, 'field_long_a11y');
+    await asyncUpdate(el, e => {
+      e.context = context;
+    });
+
+    const textarea = el.shadowRoot?.querySelector('textarea');
+    assert.ok(textarea);
+    assert.strictEqual(textarea.getAttribute('aria-label'), 'Tell us about yourself');
+    assert.strictEqual(textarea.getAttribute('aria-describedby'), 'Max 200 words');
   });
 });

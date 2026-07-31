@@ -17,6 +17,7 @@
 import {html, nothing, css} from 'lit';
 import {customElement} from 'lit/decorators.js';
 import {classMap} from 'lit/directives/class-map.js';
+import {ifDefined} from 'lit/directives/if-defined.js';
 import {TextFieldApi} from '@a2ui/web_core/v0_9/basic_catalog';
 import {BasicCatalogA2uiLitElement} from '../basic-catalog-a2ui-lit-element.js';
 import {A2uiController} from '../../../a2ui-controller.js';
@@ -88,17 +89,23 @@ export class A2uiBasicTextFieldElement extends BasicCatalogA2uiLitElement<typeof
     if (props.variant === 'obscured') type = 'password';
 
     const classes = {'a2ui-textfield': true, invalid: isInvalid};
+    const ariaLabel = props.accessibility?.label;
+    const ariaDescribedBy = props.accessibility?.description;
 
     return html`
       ${props.label ? html`<label>${props.label}</label>` : nothing}
       ${props.variant === 'longText'
         ? html`<textarea
+            aria-label=${ifDefined(ariaLabel)}
+            aria-describedby=${ifDefined(ariaDescribedBy)}
             class=${classMap(classes)}
             .value=${props.value || ''}
             @input=${onInput}
           ></textarea>`
         : html`<input
             type=${type}
+            aria-label=${ifDefined(ariaLabel)}
+            aria-describedby=${ifDefined(ariaDescribedBy)}
             class=${classMap(classes)}
             .value=${props.value || ''}
             @input=${onInput}

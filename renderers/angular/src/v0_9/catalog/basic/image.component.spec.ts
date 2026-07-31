@@ -19,6 +19,7 @@ import {ImageComponent} from './image.component';
 import {A2uiRendererService} from '../../core/a2ui-renderer.service';
 import {ComponentBinder} from '../../core/component-binder.service';
 import {setComponentProps, createBoundProperty, ComponentToProps} from '@a2ui/angular/testing';
+import {AccessibilityAttributes} from '@a2ui/web_core/v0_9';
 
 describe('ImageComponent', () => {
   let component: ImageComponent;
@@ -58,6 +59,7 @@ describe('ImageComponent', () => {
       url: createBoundProperty('https://example.com/image.png'),
       fit: createBoundProperty('cover' as const),
       variant: createBoundProperty('avatar' as const),
+      accessibility: createBoundProperty<AccessibilityAttributes>({}),
     };
     setComponentProps(fixture, defaultProps);
   });
@@ -85,6 +87,32 @@ describe('ImageComponent', () => {
     expect(img.alt).toBe('A cute cat');
   });
 
+  it('should render image with accessibility label', () => {
+    setComponentProps(fixture, {
+      ...defaultProps,
+      description: createBoundProperty('A cute cat'),
+      accessibility: createBoundProperty<AccessibilityAttributes>({
+        label: 'A cute cat wearing a hat',
+      }),
+    });
+    fixture.detectChanges();
+    const img = fixture.nativeElement.querySelector('img') as HTMLImageElement;
+    expect(img.alt).toBe('A cute cat wearing a hat');
+  });
+
+  it('should render image with accessibility description when label is not set', () => {
+    setComponentProps(fixture, {
+      ...defaultProps,
+      description: createBoundProperty('A cute cat'),
+      accessibility: createBoundProperty<AccessibilityAttributes>({
+        description: 'A cute cat playing with a ball of yarn',
+      }),
+    });
+    fixture.detectChanges();
+    const img = fixture.nativeElement.querySelector('img') as HTMLImageElement;
+    expect(img.alt).toBe('A cute cat playing with a ball of yarn');
+  });
+ 
   it('should support all specified variants', () => {
     const variants = [
       'icon',

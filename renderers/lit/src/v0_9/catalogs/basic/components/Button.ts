@@ -17,6 +17,7 @@
 import {html, nothing, css} from 'lit';
 import {customElement} from 'lit/decorators.js';
 import {classMap} from 'lit/directives/class-map.js';
+import {ifDefined} from 'lit/directives/if-defined.js';
 import {ButtonApi} from '@a2ui/web_core/v0_9/basic_catalog';
 import {BasicCatalogA2uiLitElement} from '../basic-catalog-a2ui-lit-element.js';
 import {A2uiController} from '../../../a2ui-controller.js';
@@ -106,8 +107,13 @@ export class A2uiBasicButtonElement extends BasicCatalogA2uiLitElement<typeof Bu
       ['a2ui-button-' + (props.variant || 'default')]: true,
     };
 
+    const ariaLabel = props.accessibility?.label;
+    const ariaDescribedBy = props.accessibility?.description;
+
     return html`
       <button
+        aria-label=${ifDefined(ariaLabel)}
+        aria-describedby=${ifDefined(ariaDescribedBy)}
         class=${classMap(classes)}
         @click=${() => !isDisabled && props.action && props.action()}
         ?disabled=${isDisabled}

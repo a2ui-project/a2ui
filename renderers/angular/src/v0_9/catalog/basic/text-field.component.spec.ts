@@ -18,6 +18,7 @@ import {ComponentFixture, TestBed} from '@angular/core/testing';
 import {TextFieldComponent} from './text-field.component';
 import {A2uiRendererService, A2UI_RENDERER_CONFIG} from '../../core/a2ui-renderer.service';
 import {setComponentProps, createBoundProperty, ComponentToProps} from '@a2ui/angular/testing';
+import {AccessibilityAttributes} from '@a2ui/web_core/v0_9';
 import {By} from '@angular/platform-browser';
 
 describe('TextFieldComponent', () => {
@@ -40,6 +41,7 @@ describe('TextFieldComponent', () => {
       variant: createBoundProperty('shortText' as const),
       isValid: createBoundProperty(true),
       validationErrors: createBoundProperty<string[]>([]),
+      accessibility: createBoundProperty<AccessibilityAttributes>({}),
     };
     setComponentProps(fixture, defaultProps);
   });
@@ -132,5 +134,19 @@ describe('TextFieldComponent', () => {
     expect(errorMsgs.length).toBe(2);
     expect(errorMsgs[0].nativeElement.textContent).toContain('Error 1');
     expect(errorMsgs[1].nativeElement.textContent).toContain('Error 2');
+  });
+
+  it('should apply accessibility attributes to input', () => {
+    setComponentProps(fixture, {
+      ...defaultProps,
+      accessibility: createBoundProperty<AccessibilityAttributes>({
+        label: 'Enter Username',
+        description: 'Your unique identifier',
+      }),
+    });
+    fixture.detectChanges();
+    const input = fixture.debugElement.query(By.css('input'));
+    expect(input.nativeElement.getAttribute('aria-label')).toBe('Enter Username');
+    expect(input.nativeElement.getAttribute('aria-describedby')).toBe('Your unique identifier');
   });
 });

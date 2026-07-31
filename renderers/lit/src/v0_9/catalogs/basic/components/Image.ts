@@ -84,9 +84,15 @@ export class A2uiImageElement extends BasicCatalogA2uiLitElement<typeof ImageApi
       objectFit: props.fit || 'fill',
     };
 
+    const altText =
+      props.accessibility?.label ||
+      props.accessibility?.description ||
+      props.description ||
+      '';
+
     return html`<img
       src=${props.url}
-      alt=${props.description || ''}
+      alt=${altText}
       class=${classMap(classes)}
       style=${styleMap(styles)}
     />`;

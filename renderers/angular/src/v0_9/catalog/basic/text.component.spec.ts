@@ -19,6 +19,7 @@ import {TextComponent} from './text.component';
 import {By} from '@angular/platform-browser';
 import {MarkdownRenderer} from '../../core/markdown';
 import {setComponentProps, createBoundProperty, ComponentToProps} from '@a2ui/angular/testing';
+import {AccessibilityAttributes} from '@a2ui/web_core/v0_9';
 import {A2uiRendererService, A2UI_RENDERER_CONFIG} from '../../core/a2ui-renderer.service';
 
 describe('TextComponent', () => {
@@ -46,6 +47,7 @@ describe('TextComponent', () => {
 
     defaultProps = {
       text: createBoundProperty('Hello World'),
+      accessibility: createBoundProperty<AccessibilityAttributes>({}),
     };
     setComponentProps(fixture, defaultProps);
   });
@@ -177,5 +179,19 @@ describe('TextComponent', () => {
     fixture.detectChanges();
 
     expect(mockMarkdownRenderer.render).toHaveBeenCalledWith('');
+  });
+
+  it('should apply accessibility attributes to host element', () => {
+    setComponentProps(fixture, {
+      ...defaultProps,
+      accessibility: createBoundProperty<AccessibilityAttributes>({
+        label: 'A text block',
+        description: 'Contains static text',
+      }),
+    });
+    fixture.detectChanges();
+    const hostElement = fixture.nativeElement;
+    expect(hostElement.getAttribute('aria-label')).toBe('A text block');
+    expect(hostElement.getAttribute('aria-describedby')).toBe('Contains static text');
   });
 });

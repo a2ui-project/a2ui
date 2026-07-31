@@ -17,7 +17,7 @@
 import {ComponentFixture, TestBed} from '@angular/core/testing';
 import {Component, input} from '@angular/core';
 import {ButtonComponent} from './button.component';
-import {Action, ComponentModel} from '@a2ui/web_core/v0_9';
+import {Action, ComponentModel, AccessibilityAttributes} from '@a2ui/web_core/v0_9';
 import {A2uiRendererService} from '../../core/a2ui-renderer.service';
 import {ComponentBinder, Child} from '../../core/component-binder.service';
 import {By} from '@angular/platform-browser';
@@ -95,6 +95,7 @@ describe('ButtonComponent', () => {
       }),
       isValid: createBoundProperty(true),
       validationErrors: createBoundProperty<string[]>([]),
+      accessibility: createBoundProperty<AccessibilityAttributes>({}),
     };
     setComponentProps(fixture, defaultProps);
   });
@@ -166,5 +167,21 @@ describe('ButtonComponent', () => {
     const computedStyle = window.getComputedStyle(button.nativeElement);
 
     expect(computedStyle.backgroundColor).toBe('rgb(255, 0, 0)'); // 'red' is evaluated to rgb in computed style
+  });
+
+  it('should apply accessibility attributes', () => {
+    setComponentProps(fixture, {
+      ...defaultProps,
+      accessibility: createBoundProperty<AccessibilityAttributes>({
+        label: 'Submit Form',
+        description: 'Submits the user details to the server',
+      }),
+    });
+    fixture.detectChanges();
+    const button = fixture.debugElement.query(By.css('button'));
+    expect(button.nativeElement.getAttribute('aria-label')).toBe('Submit Form');
+    expect(button.nativeElement.getAttribute('aria-describedby')).toBe(
+      'Submits the user details to the server'
+    );
   });
 });

@@ -36,6 +36,11 @@ import {CardApi} from '@a2ui/web_core/v0_9/basic_catalog';
   selector: 'a2ui-v09-card',
   standalone: true,
   imports: [ComponentHostComponent],
+  host: {
+    '[attr.role]': 'role()',
+    '[attr.aria-label]': 'ariaLabel()',
+    '[attr.aria-describedby]': 'ariaDescribedBy()',
+  },
   template: `
     <div class="a2ui-card">
       @if (child()) {
@@ -63,4 +68,8 @@ import {CardApi} from '@a2ui/web_core/v0_9/basic_catalog';
 })
 export class CardComponent extends BasicCatalogComponent<typeof CardApi> {
   readonly child = computed(() => this.props()['child']?.value());
+  readonly accessibility = computed(() => this.props()['accessibility']?.value());
+  readonly role = computed(() => this.accessibility()?.role ?? null);
+  readonly ariaLabel = computed(() => this.accessibility()?.label ?? null);
+  readonly ariaDescribedBy = computed(() => this.accessibility()?.description ?? null);
 }

@@ -22,6 +22,7 @@ import {ComponentModel} from '@a2ui/web_core/v0_9';
 import {A2uiRendererService} from '../../core/a2ui-renderer.service';
 import {ComponentBinder} from '../../core/component-binder.service';
 import {setComponentProps, createBoundProperty, ComponentToProps} from '@a2ui/angular/testing';
+import {AccessibilityAttributes} from '@a2ui/web_core/v0_9';
 
 @Component({
   selector: 'dummy-text-for-card',
@@ -74,6 +75,7 @@ describe('CardComponent', () => {
 
     defaultProps = {
       child: createBoundProperty({id: 'child-1', basePath: '/'}),
+      accessibility: createBoundProperty<AccessibilityAttributes>({}),
     };
     setComponentProps(fixture, defaultProps);
   });
@@ -88,5 +90,21 @@ describe('CardComponent', () => {
     const host = fixture.debugElement.query(By.css('a2ui-v09-component-host'));
     expect(host).toBeTruthy();
     expect(host.componentInstance.componentKey()).toEqual({id: 'child-1', basePath: '/'});
+  });
+
+  it('should apply accessibility attributes to host element', () => {
+    setComponentProps(fixture, {
+      ...defaultProps,
+      accessibility: createBoundProperty<AccessibilityAttributes>({
+        role: 'region',
+        label: 'Important Card',
+        description: 'Contains critical info',
+      }),
+    });
+    fixture.detectChanges();
+    const hostElement = fixture.nativeElement;
+    expect(hostElement.getAttribute('role')).toBe('region');
+    expect(hostElement.getAttribute('aria-label')).toBe('Important Card');
+    expect(hostElement.getAttribute('aria-describedby')).toBe('Contains critical info');
   });
 });

@@ -38,6 +38,10 @@ import {TextApi} from '@a2ui/web_core/v0_9/basic_catalog';
 @Component({
   selector: 'a2ui-v09-text',
   standalone: true,
+  host: {
+    '[attr.aria-label]': 'ariaLabel()',
+    '[attr.aria-describedby]': 'ariaDescribedBy()',
+  },
   template: `
     @if (isNonMarkdownVariant()) {
       <span [class]="'a2ui-text ' + variant()">
@@ -146,6 +150,9 @@ export class TextComponent extends BasicCatalogComponent<typeof TextApi> {
 
   readonly variant = computed(() => this.props()['variant']?.value() || 'body');
   readonly text = computed(() => this.props()['text']?.value() || '');
+  readonly accessibility = computed(() => this.props()['accessibility']?.value());
+  readonly ariaLabel = computed(() => this.accessibility()?.label ?? null);
+  readonly ariaDescribedBy = computed(() => this.accessibility()?.description ?? null);
 
   readonly isNonMarkdownVariant = computed(() => {
     return TextComponent.NON_MARKDOWN_VARIANTS.has(this.variant());

@@ -107,6 +107,25 @@ export class A2uiBasicTextElement extends BasicCatalogA2uiLitElement<typeof Text
     return new A2uiController(this, TextApi);
   }
 
+  override updated(changedProperties: Map<string, any>) {
+    super.updated(changedProperties);
+    const props = this.controller.props;
+    if (props) {
+      const label = props.accessibility?.label;
+      if (label) {
+        this.setAttribute('aria-label', label as string);
+      } else {
+        this.removeAttribute('aria-label');
+      }
+      const description = props.accessibility?.description;
+      if (description) {
+        this.setAttribute('aria-describedby', description as string);
+      } else {
+        this.removeAttribute('aria-describedby');
+      }
+    }
+  }
+
   override render() {
     const props = this.controller.props;
     if (!props) return nothing;

@@ -78,6 +78,16 @@ describe('Button Component', () => {
               action: {event: {name: 'ignored'}},
             },
             {
+              id: 'btn_a11y',
+              component: 'Button',
+              child: 'txt1',
+              accessibility: {
+                label: 'Book Mott 32 Now',
+                description: 'Restaurant booking details',
+              },
+              action: {event: {name: 'a11y_click'}},
+            },
+            {
               id: 'txt1',
               component: 'Text',
               text: 'Click Me',
@@ -144,5 +154,21 @@ describe('Button Component', () => {
 
     button.click();
     assert.strictEqual(dispatchedAction, false);
+  });
+
+  it('should render accessibility attributes when provided', async () => {
+    const el = document.createElement('a2ui-basic-button') as A2uiBasicButtonElement;
+    element = el;
+    document.body.appendChild(el);
+
+    const context = new ComponentContext(surface, 'btn_a11y');
+    await asyncUpdate(el, e => {
+      e.context = context;
+    });
+
+    const button = el.shadowRoot?.querySelector('button');
+    assert.ok(button);
+    assert.strictEqual(button.getAttribute('aria-label'), 'Book Mott 32 Now');
+    assert.strictEqual(button.getAttribute('aria-describedby'), 'Restaurant booking details');
   });
 });

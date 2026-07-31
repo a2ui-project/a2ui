@@ -38,7 +38,7 @@ import {ImageApi} from '@a2ui/web_core/v0_9/basic_catalog';
   template: `
     <img
       [src]="url()"
-      [alt]="description()"
+      [alt]="altText()"
       [style.object-fit]="fit()"
       [class]="'a2ui-image ' + variant()"
     />
@@ -78,4 +78,6 @@ export class ImageComponent extends BasicCatalogComponent<typeof ImageApi> {
   readonly description = computed(() => this.props()['description']?.value() || '');
   readonly fit = computed(() => this.props()['fit']?.value() || 'cover');
   readonly variant = computed(() => this.props()['variant']?.value() || 'default');
+  readonly accessibility = computed(() => this.props()['accessibility']?.value());
+  readonly altText = computed(() => this.accessibility()?.label || this.accessibility()?.description || this.description());
 }
