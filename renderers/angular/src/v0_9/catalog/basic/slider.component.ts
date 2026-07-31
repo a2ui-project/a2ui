@@ -47,6 +47,8 @@ import {SliderApi} from '@a2ui/web_core/v0_9/basic_catalog';
         [value]="value()"
         (input)="handleInput($event)"
         class="a2ui-slider"
+        [attr.aria-label]="accessibilityLabel() || null"
+        [attr.aria-description]="accessibilityDescription() || null"
       />
     </div>
   `,

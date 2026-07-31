@@ -42,7 +42,18 @@ export const AudioPlayer = createComponentImplementation(AudioPlayerApi, ({props
           {props.description}
         </span>
       )}
-      <audio src={props.url} controls />
+      <audio
+        src={props.url}
+        controls
+        aria-label={
+          typeof props.accessibility?.label === 'string' ? props.accessibility.label : undefined
+        }
+        aria-description={
+          typeof props.accessibility?.description === 'string'
+            ? props.accessibility.description
+            : undefined
+        }
+      />
     </div>
   );
 });

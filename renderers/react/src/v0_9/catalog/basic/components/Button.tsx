@@ -30,7 +30,19 @@ export const Button = createComponentImplementation(ButtonApi, ({props, buildChi
   }
 
   return (
-    <button className={classes.join(' ')} onClick={props.action} disabled={props.isValid === false}>
+    <button
+      className={classes.join(' ')}
+      onClick={props.action}
+      disabled={props.isValid === false}
+      aria-label={
+        typeof props.accessibility?.label === 'string' ? props.accessibility.label : undefined
+      }
+      aria-description={
+        typeof props.accessibility?.description === 'string'
+          ? props.accessibility.description
+          : undefined
+      }
+    >
       {props.child ? buildChild(props.child) : null}
     </button>
   );

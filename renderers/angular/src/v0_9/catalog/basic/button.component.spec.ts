@@ -167,4 +167,18 @@ describe('ButtonComponent', () => {
 
     expect(computedStyle.backgroundColor).toBe('rgb(255, 0, 0)'); // 'red' is evaluated to rgb in computed style
   });
+
+  it('should render aria-label and aria-description attributes when accessibility prop is provided', () => {
+    setComponentProps(fixture, {
+      ...defaultProps,
+      accessibility: createBoundProperty({
+        label: 'Custom Button Label',
+        description: 'Custom Button Description',
+      }),
+    });
+    fixture.detectChanges();
+    const button = fixture.debugElement.query(By.css('button'));
+    expect(button.nativeElement.getAttribute('aria-label')).toBe('Custom Button Label');
+    expect(button.nativeElement.getAttribute('aria-description')).toBe('Custom Button Description');
+  });
 });

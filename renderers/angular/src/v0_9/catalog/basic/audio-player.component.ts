@@ -39,7 +39,13 @@ import {AudioPlayerApi} from '@a2ui/web_core/v0_9/basic_catalog';
           {{ description() }}
         </div>
       }
-      <audio [attr.src]="url() || null" controls class="a2ui-audio">
+      <audio
+        [attr.src]="url() || null"
+        controls
+        class="a2ui-audio"
+        [attr.aria-label]="accessibilityLabel() || null"
+        [attr.aria-description]="accessibilityDescription() || null"
+      >
         Your browser does not support the audio tag.
       </audio>
     </div>

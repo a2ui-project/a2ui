@@ -50,5 +50,20 @@ export const Image = createComponentImplementation(ImageApi, ({props}) => {
     style.objectFit = 'cover';
   }
 
-  return <img src={props.url} alt={props.description || ''} style={style} />;
+  const ariaLabel =
+    typeof props.accessibility?.label === 'string' ? props.accessibility.label : undefined;
+  const ariaDescription =
+    typeof props.accessibility?.description === 'string'
+      ? props.accessibility.description
+      : undefined;
+  const description = typeof props.description === 'string' ? props.description : '';
+
+  return (
+    <img
+      src={props.url}
+      alt={ariaLabel || description}
+      aria-description={ariaDescription}
+      style={style}
+    />
+  );
 });

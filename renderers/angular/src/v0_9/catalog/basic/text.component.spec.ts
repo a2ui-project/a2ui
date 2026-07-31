@@ -178,4 +178,21 @@ describe('TextComponent', () => {
 
     expect(mockMarkdownRenderer.render).toHaveBeenCalledWith('');
   });
+
+  it('should render aria-label and aria-description when accessibility prop is provided', async () => {
+    setComponentProps(fixture, {
+      ...defaultProps,
+      accessibility: createBoundProperty({
+        label: 'Accessible Text Label',
+        description: 'Accessible Text Description',
+      }),
+    });
+    fixture.detectChanges();
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    const span = fixture.debugElement.query(By.css('.a2ui-text'));
+    expect(span.nativeElement.getAttribute('aria-label')).toBe('Accessible Text Label');
+    expect(span.nativeElement.getAttribute('aria-description')).toBe('Accessible Text Description');
+  });
 });

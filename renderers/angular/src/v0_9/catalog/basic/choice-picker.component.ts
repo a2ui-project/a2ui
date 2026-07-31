@@ -42,7 +42,12 @@ import {ChoicePickerApi} from '@a2ui/web_core/v0_9/basic_catalog';
     <div class="a2ui-choice-picker">
       <!-- Chips Variant -->
       @if (displayStyle() === 'chips') {
-        <div class="a2ui-chips-group">
+        <div
+          class="a2ui-chips-group"
+          role="group"
+          [attr.aria-label]="accessibilityLabel() || null"
+          [attr.aria-description]="accessibilityDescription() || null"
+        >
           @for (option of options(); track option.value) {
             <button
               class="a2ui-chip"
@@ -55,7 +60,12 @@ import {ChoicePickerApi} from '@a2ui/web_core/v0_9/basic_catalog';
         </div>
       } @else {
         <!-- Checkbox/Radio Variant -->
-        <div class="a2ui-options-group">
+        <div
+          class="a2ui-options-group"
+          role="group"
+          [attr.aria-label]="accessibilityLabel() || null"
+          [attr.aria-description]="accessibilityDescription() || null"
+        >
           @for (option of options(); track option.value) {
             <label class="a2ui-option-label">
               <input

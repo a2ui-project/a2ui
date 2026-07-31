@@ -40,7 +40,11 @@ import {TextApi} from '@a2ui/web_core/v0_9/basic_catalog';
   standalone: true,
   template: `
     @if (isNonMarkdownVariant()) {
-      <span [class]="'a2ui-text ' + variant()">
+      <span
+        [class]="'a2ui-text ' + variant()"
+        [attr.aria-label]="accessibilityLabel() || null"
+        [attr.aria-description]="accessibilityDescription() || null"
+      >
         <!-- Nesting block elements like h1 inside a span is not correct HTML5. We should refactor this-->
         @switch (variant()) {
           @case ('h1') {
@@ -64,7 +68,12 @@ import {TextApi} from '@a2ui/web_core/v0_9/basic_catalog';
         }
       </span>
     } @else {
-      <span [class]="'a2ui-text ' + variant()" [innerHTML]="resolvedText()"></span>
+      <span
+        [class]="'a2ui-text ' + variant()"
+        [innerHTML]="resolvedText()"
+        [attr.aria-label]="accessibilityLabel() || null"
+        [attr.aria-description]="accessibilityDescription() || null"
+      ></span>
     }
   `,
   // We use :host ::ng-deep because the template content is injected via innerHTML (Markdown).

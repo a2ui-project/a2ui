@@ -32,7 +32,13 @@ import {VideoApi} from '@a2ui/web_core/v0_9/basic_catalog';
   imports: [],
   template: `
     <div class="a2ui-video-container">
-      <video [attr.src]="url() || null" controls class="a2ui-video">
+      <video
+        [attr.src]="url() || null"
+        controls
+        class="a2ui-video"
+        [attr.aria-label]="accessibilityLabel() || null"
+        [attr.aria-description]="accessibilityDescription() || null"
+      >
         Your browser does not support the video tag.
       </video>
     </div>

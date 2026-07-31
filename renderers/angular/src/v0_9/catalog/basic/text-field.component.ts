@@ -49,6 +49,8 @@ import {TextFieldApi} from '@a2ui/web_core/v0_9/basic_catalog';
         [value]="value()"
         (input)="handleInput($event)"
         [class.invalid]="props()['isValid']?.value() === false"
+        [attr.aria-label]="accessibilityLabel() || null"
+        [attr.aria-description]="accessibilityDescription() || null"
       />
       @for (message of props()['validationErrors']?.value(); track message) {
         <div class="a2ui-error-message">{{ message }}</div>

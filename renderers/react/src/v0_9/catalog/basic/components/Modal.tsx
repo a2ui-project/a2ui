@@ -62,6 +62,16 @@ export const Modal = createComponentImplementation(ModalApi, ({props, buildChild
               color: 'var(--a2ui-color-on-surface, inherit)',
             }}
             onClick={e => e.stopPropagation()}
+            aria-label={
+              typeof props.accessibility?.label === 'string'
+                ? props.accessibility.label
+                : undefined
+            }
+            aria-description={
+              typeof props.accessibility?.description === 'string'
+                ? props.accessibility.description
+                : undefined
+            }
           >
             <div style={{display: 'flex', justifyContent: 'flex-end'}}>
               <button

@@ -1,5 +1,7 @@
 ## Unreleased
 
+- (v0_9) Add accessibility attributes (`accessibility.label`, `accessibility.description`) support to React basic catalog components (#1410).
+
 ## 0.10.2
 
 - (v0_9) Normalize Safari placeholder text color for `DateTimeInput` by injecting WebKit-specific styles via a global stylesheet and adding the `.a2ui-date-time-input` class.

@@ -28,5 +28,19 @@ export const Video = createComponentImplementation(VideoApi, ({props}) => {
     borderRadius: 'var(--a2ui-video-border-radius, 0)',
   };
 
-  return <video src={props.url} controls style={style} />;
+  return (
+    <video
+      src={props.url}
+      controls
+      style={style}
+      aria-label={
+        typeof props.accessibility?.label === 'string' ? props.accessibility.label : undefined
+      }
+      aria-description={
+        typeof props.accessibility?.description === 'string'
+          ? props.accessibility.description
+          : undefined
+      }
+    />
+  );
 });

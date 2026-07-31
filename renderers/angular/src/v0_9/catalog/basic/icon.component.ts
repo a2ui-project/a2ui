@@ -42,11 +42,23 @@ const ICON_NAME_OVERRIDES: Record<string, string> = {
   imports: [],
   template: `
     @if (isSvgPath()) {
-      <svg class="a2ui-icon svg" viewBox="0 0 24 24">
+      <svg
+        class="a2ui-icon svg"
+        viewBox="0 0 24 24"
+        [attr.aria-label]="accessibilityLabel() || null"
+        [attr.aria-description]="accessibilityDescription() || null"
+        [attr.aria-hidden]="isHidden() ? 'true' : null"
+      >
         <path [attr.d]="svgPath()"></path>
       </svg>
     } @else {
-      <i class="material-icons a2ui-icon">
+      <i
+        class="material-icons a2ui-icon"
+        role="img"
+        [attr.aria-label]="accessibilityLabel() || null"
+        [attr.aria-description]="accessibilityDescription() || null"
+        [attr.aria-hidden]="isHidden() ? 'true' : null"
+      >
         {{ iconName() }}
       </i>
     }
@@ -85,6 +97,10 @@ const ICON_NAME_OVERRIDES: Record<string, string> = {
 })
 export class IconComponent extends BasicCatalogComponent<typeof IconApi> {
   readonly iconNameRaw = computed(() => this.props()['name']?.value());
+
+  readonly isHidden = computed(
+    () => !this.accessibilityLabel() && !this.accessibilityDescription(),
+  );
 
   readonly isSvgPath = computed(() => {
     const name = this.iconNameRaw();

@@ -51,6 +51,8 @@ import {DateTimeInputApi} from '@a2ui/web_core/v0_9/basic_catalog';
             [value]="dateValue()"
             (change)="handleDateChange($event)"
             class="a2ui-date-time-input"
+            [attr.aria-label]="accessibilityLabel() || null"
+            [attr.aria-description]="accessibilityDescription() || null"
           />
         }
         @if (enableTime()) {
@@ -59,6 +61,8 @@ import {DateTimeInputApi} from '@a2ui/web_core/v0_9/basic_catalog';
             [value]="timeValue()"
             (change)="handleTimeChange($event)"
             class="a2ui-date-time-input"
+            [attr.aria-label]="accessibilityLabel() || null"
+            [attr.aria-description]="accessibilityDescription() || null"
           />
         }
       </div>

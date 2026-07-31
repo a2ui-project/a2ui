@@ -53,6 +53,18 @@ export abstract class BasicCatalogComponent<
     return props['weight']?.value() ?? null;
   });
 
+  readonly accessibilityLabel = computed(() => {
+    const props = this.props() as Record<string, BoundProperty<any> | undefined>;
+    const accessibility = props['accessibility']?.value();
+    return accessibility?.label ?? null;
+  });
+
+  readonly accessibilityDescription = computed(() => {
+    const props = this.props() as Record<string, BoundProperty<any> | undefined>;
+    const accessibility = props['accessibility']?.value();
+    return accessibility?.description ?? null;
+  });
+
   constructor() {
     super();
     injectBasicCatalogStyles();

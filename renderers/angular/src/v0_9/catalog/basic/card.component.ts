@@ -37,7 +37,11 @@ import {CardApi} from '@a2ui/web_core/v0_9/basic_catalog';
   standalone: true,
   imports: [ComponentHostComponent],
   template: `
-    <div class="a2ui-card">
+    <div
+      class="a2ui-card"
+      [attr.aria-label]="accessibilityLabel() || null"
+      [attr.aria-description]="accessibilityDescription() || null"
+    >
       @if (child()) {
         <a2ui-v09-component-host [componentKey]="child()!" [surfaceId]="surfaceId()">
         </a2ui-v09-component-host>

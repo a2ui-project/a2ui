@@ -64,7 +64,18 @@ export const ChoicePicker = createComponentImplementation(ChoicePickerApi, ({pro
           className={styles.filterInput}
         />
       )}
-      <div className={listClasses}>
+      <div
+        className={listClasses}
+        role="group"
+        aria-label={
+          typeof props.accessibility?.label === 'string' ? props.accessibility.label : undefined
+        }
+        aria-description={
+          typeof props.accessibility?.description === 'string'
+            ? props.accessibility.description
+            : undefined
+        }
+      >
         {options.map((opt: _Option, i: number) => {
           const isSelected = values.includes(opt.value);
           if (props.displayStyle === 'chips') {

@@ -111,6 +111,14 @@ export const DateTimeInput = createComponentImplementation(DateTimeInputApi, ({p
         onChange={onChange}
         min={typeof props.min === 'string' ? props.min : undefined}
         max={typeof props.max === 'string' ? props.max : undefined}
+        aria-label={
+          typeof props.accessibility?.label === 'string' ? props.accessibility.label : undefined
+        }
+        aria-description={
+          typeof props.accessibility?.description === 'string'
+            ? props.accessibility.description
+            : undefined
+        }
       />
     </div>
   );

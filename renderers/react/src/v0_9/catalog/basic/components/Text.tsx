@@ -30,17 +30,29 @@ function MarkdownText({
   text,
   className,
   style,
+  ariaLabel,
+  ariaDescription,
 }: {
   text: string;
   className: string;
   style: React.CSSProperties;
+  ariaLabel?: string;
+  ariaDescription?: string;
 }) {
   const renderedHtml = useMarkdown(text);
   const classes = renderedHtml === null ? `${className} no-markdown-renderer` : className;
   const contentProps =
     renderedHtml !== null ? {dangerouslySetInnerHTML: {__html: renderedHtml}} : {children: text};
 
-  return <div className={classes} style={style} {...contentProps} />;
+  return (
+    <div
+      className={classes}
+      style={style}
+      aria-label={ariaLabel}
+      aria-description={ariaDescription}
+      {...contentProps}
+    />
+  );
 }
 
 /** Renders known variants (h1–h5, caption) as native HTML elements without Markdown. */
@@ -49,23 +61,37 @@ function NonMarkdownText({
   variant,
   className,
   style,
+  ariaLabel,
+  ariaDescription,
 }: {
   text: string;
   variant: string;
   className: string;
   style: React.CSSProperties;
+  ariaLabel?: string;
+  ariaDescription?: string;
 }) {
   const isCaption = variant === 'caption';
   const HeadingTag = isCaption ? 'em' : (variant as 'h1' | 'h2' | 'h3' | 'h4' | 'h5');
   if (isCaption) {
     return (
-      <span className={className} style={style}>
+      <span
+        className={className}
+        style={style}
+        aria-label={ariaLabel}
+        aria-description={ariaDescription}
+      >
         <HeadingTag>{text}</HeadingTag>
       </span>
     );
   }
   return (
-    <div className={className} style={style}>
+    <div
+      className={className}
+      style={style}
+      aria-label={ariaLabel}
+      aria-description={ariaDescription}
+    >
       <HeadingTag>{text}</HeadingTag>
     </div>
   );
@@ -82,12 +108,36 @@ export const Text = createComponentImplementation(TextApi, ({props}) => {
     ...getWeightStyle(props.weight),
   };
 
+  const ariaLabel =
+    typeof props.accessibility?.label === 'string' ? props.accessibility.label : undefined;
+  const ariaDescription =
+    typeof props.accessibility?.description === 'string'
+      ? props.accessibility.description
+      : undefined;
+
   if (variant && NON_MARKDOWN_VARIANTS.has(variant)) {
     const isCaption = variant === 'caption';
     const className = [styles.a2uiText, isCaption ? styles.a2uiCaption : variant].join(' ');
-    return <NonMarkdownText text={text} variant={variant} className={className} style={style} />;
+    return (
+      <NonMarkdownText
+        text={text}
+        variant={variant}
+        className={className}
+        style={style}
+        ariaLabel={ariaLabel}
+        ariaDescription={ariaDescription}
+      />
+    );
   }
 
   const className = [styles.a2uiText, variant || 'body'].join(' ');
-  return <MarkdownText text={text} className={className} style={style} />;
+  return (
+    <MarkdownText
+      text={text}
+      className={className}
+      style={style}
+      ariaLabel={ariaLabel}
+      ariaDescription={ariaDescription}
+    />
+  );
 });

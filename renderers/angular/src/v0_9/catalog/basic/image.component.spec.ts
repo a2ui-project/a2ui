@@ -104,4 +104,18 @@ describe('ImageComponent', () => {
       expect(img.className).toContain(variant);
     }
   });
+
+  it('should render alt and aria-description attributes when accessibility prop is provided', () => {
+    setComponentProps(fixture, {
+      ...defaultProps,
+      accessibility: createBoundProperty({
+        label: 'Accessible Image Label',
+        description: 'Accessible Image Description',
+      }),
+    });
+    fixture.detectChanges();
+    const img = fixture.nativeElement.querySelector('img') as HTMLImageElement;
+    expect(img.alt).toBe('Accessible Image Label');
+    expect(img.getAttribute('aria-description')).toBe('Accessible Image Description');
+  });
 });

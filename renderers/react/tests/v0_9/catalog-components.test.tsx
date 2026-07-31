@@ -400,4 +400,129 @@ describe('Basic Catalog Components', () => {
       expect(surface.dataModel.get('/date')).toBe('2026-03-20');
     });
   });
+
+  describe('Accessibility Attributes', () => {
+    it('renders aria-label and aria-description on Button', () => {
+      const {view} = renderA2uiComponent(Button, 'btn_a11y', {
+        child: 'btn_text',
+        accessibility: {label: 'Custom Button Label', description: 'Custom Button Description'},
+      });
+      const btn = view.container.querySelector('button')!;
+      expect(btn.getAttribute('aria-label')).toBe('Custom Button Label');
+      expect(btn.getAttribute('aria-description')).toBe('Custom Button Description');
+    });
+
+    it('renders aria-label and aria-description on Text', () => {
+      const {view} = renderA2uiComponent(Text, 'txt_a11y', {
+        text: 'Sample Text',
+        accessibility: {label: 'Text Label', description: 'Text Description'},
+      });
+      const el = view.container.firstElementChild!;
+      expect(el.getAttribute('aria-label')).toBe('Text Label');
+      expect(el.getAttribute('aria-description')).toBe('Text Description');
+    });
+
+    it('renders alt and aria-description on Image', () => {
+      const {view} = renderA2uiComponent(Image, 'img_a11y', {
+        url: 'https://example.com/pic.png',
+        accessibility: {label: 'Accessible Image', description: 'Image Description'},
+      });
+      const img = view.container.querySelector('img')!;
+      expect(img.getAttribute('alt')).toBe('Accessible Image');
+      expect(img.getAttribute('aria-description')).toBe('Image Description');
+    });
+
+    it('renders aria-label, aria-description and aria-hidden on Icon', () => {
+      const {view: view1} = renderA2uiComponent(Icon, 'icon1', {
+        name: 'play',
+        accessibility: {label: 'Play Icon', description: 'Plays media'},
+      });
+      const icon1 = view1.container.querySelector('span')!;
+      expect(icon1.getAttribute('aria-label')).toBe('Play Icon');
+      expect(icon1.getAttribute('aria-description')).toBe('Plays media');
+      expect(icon1.getAttribute('aria-hidden')).toBeNull();
+
+      const {view: view2} = renderA2uiComponent(Icon, 'icon2', {
+        name: 'play',
+      });
+      const icon2 = view2.container.querySelector('span')!;
+      expect(icon2.getAttribute('aria-hidden')).toBe('true');
+    });
+
+    it('renders aria-label and aria-description on Card', () => {
+      const {view} = renderA2uiComponent(Card, 'card_a11y', {
+        accessibility: {label: 'Card Label', description: 'Card Description'},
+      });
+      const card = view.container.querySelector('.a2ui-card')!;
+      expect(card.getAttribute('aria-label')).toBe('Card Label');
+      expect(card.getAttribute('aria-description')).toBe('Card Description');
+    });
+
+    it('renders aria-label and aria-description on CheckBox', () => {
+      const {view} = renderA2uiComponent(CheckBox, 'cb_a11y', {
+        accessibility: {label: 'CheckBox Label', description: 'CheckBox Description'},
+      });
+      const input = view.container.querySelector('input[type="checkbox"]')!;
+      expect(input.getAttribute('aria-label')).toBe('CheckBox Label');
+      expect(input.getAttribute('aria-description')).toBe('CheckBox Description');
+    });
+
+    it('renders aria-label and aria-description on ChoicePicker', () => {
+      const {view} = renderA2uiComponent(ChoicePicker, 'cp_a11y', {
+        options: [{label: 'Opt1', value: 'opt1'}],
+        accessibility: {label: 'ChoicePicker Label', description: 'ChoicePicker Description'},
+      });
+      const group = view.container.querySelector('[role="group"]')!;
+      expect(group.getAttribute('aria-label')).toBe('ChoicePicker Label');
+      expect(group.getAttribute('aria-description')).toBe('ChoicePicker Description');
+    });
+
+    it('renders aria-label and aria-description on DateTimeInput', () => {
+      const {view} = renderA2uiComponent(DateTimeInput, 'dt_a11y', {
+        enableDate: true,
+        accessibility: {label: 'DateTime Label', description: 'DateTime Description'},
+      });
+      const input = view.container.querySelector('input')!;
+      expect(input.getAttribute('aria-label')).toBe('DateTime Label');
+      expect(input.getAttribute('aria-description')).toBe('DateTime Description');
+    });
+
+    it('renders aria-label and aria-description on Slider', () => {
+      const {view} = renderA2uiComponent(Slider, 'slider_a11y', {
+        accessibility: {label: 'Slider Label', description: 'Slider Description'},
+      });
+      const input = view.container.querySelector('input[type="range"]')!;
+      expect(input.getAttribute('aria-label')).toBe('Slider Label');
+      expect(input.getAttribute('aria-description')).toBe('Slider Description');
+    });
+
+    it('renders aria-label and aria-description on TextField', () => {
+      const {view} = renderA2uiComponent(TextField, 'tf_a11y', {
+        accessibility: {label: 'TextField Label', description: 'TextField Description'},
+      });
+      const input = view.container.querySelector('input')!;
+      expect(input.getAttribute('aria-label')).toBe('TextField Label');
+      expect(input.getAttribute('aria-description')).toBe('TextField Description');
+    });
+
+    it('renders aria-label and aria-description on Video', () => {
+      const {view} = renderA2uiComponent(Video, 'video_a11y', {
+        url: 'https://example.com/video.mp4',
+        accessibility: {label: 'Video Label', description: 'Video Description'},
+      });
+      const video = view.container.querySelector('video')!;
+      expect(video.getAttribute('aria-label')).toBe('Video Label');
+      expect(video.getAttribute('aria-description')).toBe('Video Description');
+    });
+
+    it('renders aria-label and aria-description on AudioPlayer', () => {
+      const {view} = renderA2uiComponent(AudioPlayer, 'audio_a11y', {
+        url: 'https://example.com/audio.mp3',
+        accessibility: {label: 'Audio Label', description: 'Audio Description'},
+      });
+      const audio = view.container.querySelector('audio')!;
+      expect(audio.getAttribute('aria-label')).toBe('Audio Label');
+      expect(audio.getAttribute('aria-description')).toBe('Audio Description');
+    });
+  });
 });

@@ -39,6 +39,14 @@ export const Icon = createComponentImplementation(IconApi, ({props}) => {
 
   const isPath = typeof props.name === 'object' && props.name !== null && 'svgPath' in props.name;
 
+  const label =
+    typeof props.accessibility?.label === 'string' ? props.accessibility.label : undefined;
+  const description =
+    typeof props.accessibility?.description === 'string'
+      ? props.accessibility.description
+      : undefined;
+  const isHidden = !label && !description;
+
   const baseStyle: React.CSSProperties = {
     ...getBaseLeafStyle(),
     display: 'inline-flex',
@@ -61,6 +69,9 @@ export const Icon = createComponentImplementation(IconApi, ({props}) => {
           width: 'var(--a2ui-icon-size, 24px)',
           height: 'var(--a2ui-icon-size, 24px)',
         }}
+        aria-label={label}
+        aria-description={description}
+        aria-hidden={isHidden ? true : undefined}
       >
         <path d={path}></path>
       </svg>
@@ -80,7 +91,14 @@ export const Icon = createComponentImplementation(IconApi, ({props}) => {
   };
 
   return (
-    <span className="material-symbols-outlined" style={fontStyle}>
+    <span
+      className="material-symbols-outlined"
+      style={fontStyle}
+      role="img"
+      aria-label={label}
+      aria-description={description}
+      aria-hidden={isHidden ? true : undefined}
+    >
       {iconName}
     </span>
   );

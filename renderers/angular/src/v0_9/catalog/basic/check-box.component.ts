@@ -46,6 +46,8 @@ import {CheckBoxApi} from '@a2ui/web_core/v0_9/basic_catalog';
         [checked]="value()"
         (change)="handleChange($event)"
         class="a2ui-check-box-input"
+        [attr.aria-label]="accessibilityLabel() || null"
+        [attr.aria-description]="accessibilityDescription() || null"
       />
       <span class="a2ui-check-box-text">{{ label() }}</span>
     </label>

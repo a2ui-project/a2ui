@@ -38,7 +38,8 @@ import {ImageApi} from '@a2ui/web_core/v0_9/basic_catalog';
   template: `
     <img
       [src]="url()"
-      [alt]="description()"
+      [alt]="accessibilityLabel() || description() || ''"
+      [attr.aria-description]="accessibilityDescription() || null"
       [style.object-fit]="fit()"
       [class]="'a2ui-image ' + variant()"
     />

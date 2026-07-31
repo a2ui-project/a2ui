@@ -47,6 +47,14 @@ export const TextField = createComponentImplementation(TextFieldApi, ({props}) =
           className={inputClasses}
           value={props.value || ''}
           onChange={onChange}
+          aria-label={
+            typeof props.accessibility?.label === 'string' ? props.accessibility.label : undefined
+          }
+          aria-description={
+            typeof props.accessibility?.description === 'string'
+              ? props.accessibility.description
+              : undefined
+          }
         />
       ) : (
         <input
@@ -55,6 +63,14 @@ export const TextField = createComponentImplementation(TextFieldApi, ({props}) =
           className={inputClasses}
           value={props.value || ''}
           onChange={onChange}
+          aria-label={
+            typeof props.accessibility?.label === 'string' ? props.accessibility.label : undefined
+          }
+          aria-description={
+            typeof props.accessibility?.description === 'string'
+              ? props.accessibility.description
+              : undefined
+          }
         />
       )}
       {hasError && <span className={styles.error}>{props.validationErrors![0]}</span>}
