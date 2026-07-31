@@ -15,6 +15,8 @@
 """Executes the Antigravity weekly compliance audit using the Google GenAI SDK."""
 
 import os
+import subprocess
+import sys
 import time
 
 
@@ -32,15 +34,13 @@ def main() -> None:
     client = genai.Client(api_key=api_key)
 
     prompt = (
-        "1. Clone the target repository:"
-        " https://github.com/a2ui-project/a2ui (branch: main).\n"
-        "2. Locate and read the compliance skill file at"
-        " `.agents/skills/a2ui-audit/SKILL.md`.\n"
-        "3. Follow all instructions in the skill file to perform an"
-        " Antigravity compliance audit on the repository.\n"
-        "4. If any compliance violations or formatting issues are found, create"
-        " a detailed GitHub Issue on a2ui-project/a2ui summarizing the"
-        " findings."
+        "1. Clone the target repository: https://github.com/a2ui-project/a2ui (branch:"
+        " main).\n2. Locate and read the compliance skill file at"
+        " `.agents/skills/a2ui-audit/SKILL.md`.\n3. Follow all instructions in the"
+        " skill file to perform an Antigravity compliance audit on the repository.\n4."
+        " Publish the report as a new GitHub issue on a2ui-project/a2ui by executing:\n"
+        "   python3 .agents/skills/a2ui-audit/scripts/create_compliance_report.py"
+        " compliance_report.md --repo a2ui-project/a2ui\n"
     )
 
     print("🚀 Launching Antigravity Agent interaction...")
@@ -75,6 +75,29 @@ def main() -> None:
 
     if interaction.status != "completed":
         raise RuntimeError(f"Audit interaction ended with status: {interaction.status}")
+
+    if interaction.output_text:
+        report_file = "compliance_report.md"
+        with open(report_file, "w", encoding="utf-8") as f:
+            f.write(interaction.output_text)
+
+        script_path = os.path.join(
+            ".agents", "skills", "a2ui-audit", "scripts", "create_compliance_report.py"
+        )
+        if os.path.exists(script_path):
+            print("📢 Publishing compliance report issue to GitHub...")
+            subprocess.run(
+                [
+                    sys.executable,
+                    script_path,
+                    report_file,
+                    "--repo",
+                    "a2ui-project/a2ui",
+                ],
+                check=False,
+            )
+        if os.path.exists(report_file):
+            os.remove(report_file)
 
 
 if __name__ == "__main__":

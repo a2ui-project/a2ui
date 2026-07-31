@@ -46,13 +46,16 @@ class TestRunWeeklyAudit(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "GITHUB_TOKEN"):
             main()
 
+    @patch("subprocess.run")
     @patch("time.sleep", return_value=None)
     @patch.dict(
         os.environ,
         {"GEMINI_API_KEY": "fake-key", "GITHUB_TOKEN": "fake-token"},
         clear=True,
     )
-    def test_successful_audit_run(self, mock_sleep: MagicMock) -> None:
+    def test_successful_audit_run(
+        self, mock_sleep: MagicMock, mock_subprocess: MagicMock
+    ) -> None:
         mock_genai = MagicMock()
         mock_client = MagicMock()
         mock_genai.Client.return_value = mock_client
