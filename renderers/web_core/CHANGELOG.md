@@ -1,5 +1,6 @@
 ## Unreleased
 
+- (v0_9) Validate component properties against catalog schema in `MessageProcessor` to prevent malformed component actions.
 - (v0_9) Add prototype pollution protection and safe property lookup to `DataModel` (non-breaking security fix).
 - (v0_8) Export `A2uiMessageSchema` in public API.
 - Enable `inlineSources` in `tsconfig.json` to populate `sourcesContent` in sourcemaps.
