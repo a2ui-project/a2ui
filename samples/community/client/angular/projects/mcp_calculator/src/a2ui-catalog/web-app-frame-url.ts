@@ -28,16 +28,10 @@ import {
 import {DomSanitizer, SafeResourceUrl} from '@angular/platform-browser';
 import {z} from 'zod';
 import {WebAppFrameBridgeService} from './web-app-frame-bridge.service';
-import {A2uiMessageType} from './web-frame-messages';
+import {A2uiMessageType, WebAppFrameBasePropsSchema} from './web-frame-messages';
 
-const WebAppFrameUrlPropsSchema = z.object({
+const WebAppFrameUrlPropsSchema = WebAppFrameBasePropsSchema.extend({
   url: z.string().optional(),
-  config: z.record(z.unknown()).optional(),
-  data: z.any().optional(),
-  allowedEvents: z.record(z.unknown()).optional(),
-  allowedFunctions: z.record(z.unknown()).optional(),
-  mutableData: z.record(z.unknown()).optional(),
-  disableSchemaValidation: z.boolean().optional(),
 });
 
 export interface WebAppFrameUrlApi extends ComponentApi<typeof WebAppFrameUrlPropsSchema> {
