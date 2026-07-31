@@ -217,8 +217,17 @@ The repository includes several other demos:
 
 See all available A2UI components:
 
+If you're running the gallery from a fresh checkout, build the gallery and its workspace dependencies first:
+
 ```bash
-yarn start gallery
+cd renderers/lit/a2ui_explorer
+yarn build
+```
+
+Start the gallery:
+
+```bash
+yarn dev
 ```
 
 This runs a client-only demo showcasing every standard component (Card, Button, TextField, Timeline, etc.) with live examples and code samples.
