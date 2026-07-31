@@ -9,8 +9,8 @@ A2UI is an agent-driven UI protocol where components render dynamically based on
 A complete evaluation use case requires the full conversational context:
 
 - **System prompt (`system_prompt`)**: Domain-specific instructions, application personas, clinical triage rules, or business policies.
-- **Conversation history (`messages`)**: The complete dialogue sequence leading up to the final UI generation request.
-- **Tool call history (`tool_calls` and `tool` roles)**: Include all assistant function calls and tool return payloads—including unrelated tool calls or extra background context. Testing models with realistic, noisy conversation histories verifies that the agent can still reason accurately in the presence of potentially confusing extra context, representing real production usage.
+- **Conversation history (`messages`)**: The complete dialogue sequence leading up to the final UI generation request. All conversation turns (`user`, `assistant`) and tool call interactions (`tool_calls`, `tool` returns) must be properly interleaved in chronological order within this single `messages` list so the model sees the exact sequence of operations.
+- **Tool call history (`tool_calls` and `tool` roles)**: Within the interleaved `messages` list, include all assistant function calls and tool return payloads—including unrelated tool calls or extra background context. Testing models with realistic, noisy conversation histories verifies that the agent can still reason accurately in the presence of potentially confusing extra context, representing real production usage.
 - **Expected output description (`target`)**: A qualitative rubric for the LLM-as-a-judge. Do not include a hardcoded JSON string, as that ties the evaluation to a particular inference format (such as JSON vs. XML or DSL). Instead, describe which UI components must appear, how data binding should be wired, and what errors should be penalized.
 
 ## Creating representative synthetic data from production logs
@@ -38,7 +38,7 @@ Instead of writing dataset files by hand, use the `a2ui-add-eval-datapoint` AI s
 2. Invoke your AI agent, referencing the skill and your conversation data:
 
    ```text
-   Please use the a2ui-add-eval-datapoint skill to add a new multi-turn evaluation sample to eval/datasets/flight_booking.yaml.
+   Please use the a2ui-add-eval-datapoint skill to add new multi-turn evaluation samples to eval/datasets/flight_booking.yaml.
 
    System prompt:
    "You are a corporate travel assistant. Always present flight options clearly with pricing and carrier information."
