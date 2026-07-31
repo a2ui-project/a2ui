@@ -81,6 +81,85 @@ export const DivideApi = {
   }),
 };
 
+// Numeric
+/**
+ * Constrains a number to an inclusive range.
+ *
+ * If `max` is less than `min`, the result is `min`.
+ *
+ * Arguments:
+ * - `value`: The number to constrain.
+ * - `min`: The lower bound of the range.
+ * - `max`: The upper bound of the range.
+ */
+export const ClampApi = {
+  name: 'clamp' as const,
+  returnType: 'number' as const,
+  schema: z.object({
+    value: z.preprocess(v => (v === null ? undefined : v), z.coerce.number()),
+    min: z.preprocess(v => (v === null ? undefined : v), z.coerce.number()),
+    max: z.preprocess(v => (v === null ? undefined : v), z.coerce.number()),
+  }),
+};
+
+/**
+ * Rounds a number to a given number of decimal places.
+ *
+ * Arguments:
+ * - `value`: The number to round.
+ * - `decimals`: Optional number of decimal places, defaults to 0.
+ */
+export const RoundApi = {
+  name: 'round' as const,
+  returnType: 'number' as const,
+  schema: z.object({
+    value: z.preprocess(v => (v === null ? undefined : v), z.coerce.number()),
+    decimals: z.coerce.number().optional(),
+  }),
+};
+
+/**
+ * Returns the smallest of a list of numbers.
+ *
+ * Arguments:
+ * - `values`: List of numbers to compare (minimum 2).
+ */
+export const MinApi = {
+  name: 'min' as const,
+  returnType: 'number' as const,
+  schema: z.object({
+    values: z.array(z.preprocess(v => (v === null ? undefined : v), z.coerce.number())).min(2),
+  }),
+};
+
+/**
+ * Returns the largest of a list of numbers.
+ *
+ * Arguments:
+ * - `values`: List of numbers to compare (minimum 2).
+ */
+export const MaxApi = {
+  name: 'max' as const,
+  returnType: 'number' as const,
+  schema: z.object({
+    values: z.array(z.preprocess(v => (v === null ? undefined : v), z.coerce.number())).min(2),
+  }),
+};
+
+/**
+ * Returns the absolute value of a number.
+ *
+ * Arguments:
+ * - `value`: The number to take the absolute value of.
+ */
+export const AbsApi = {
+  name: 'abs' as const,
+  returnType: 'number' as const,
+  schema: z.object({
+    value: z.preprocess(v => (v === null ? undefined : v), z.coerce.number()),
+  }),
+};
+
 // Comparison
 /**
  * Checks if two values are equal.
@@ -466,6 +545,11 @@ export const BASIC_FUNCTION_APIS = [
   SubtractApi,
   MultiplyApi,
   DivideApi,
+  ClampApi,
+  RoundApi,
+  MinApi,
+  MaxApi,
+  AbsApi,
   EqualsApi,
   NotEqualsApi,
   GreaterThanApi,

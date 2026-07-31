@@ -80,6 +80,69 @@ describe('BASIC_FUNCTIONS', () => {
     });
   });
 
+  describe('Numeric', () => {
+    it('clamp', () => {
+      assert.strictEqual(invoke('clamp', {value: 5, min: 0, max: 10}, context), 5);
+      assert.strictEqual(invoke('clamp', {value: -1, min: 0, max: 10}, context), 0);
+      assert.strictEqual(invoke('clamp', {value: 11, min: 0, max: 10}, context), 10);
+      assert.strictEqual(invoke('clamp', {value: 0.5, min: 0, max: 1}, context), 0.5);
+      assert.strictEqual(invoke('clamp', {value: '11', min: '0', max: '10'}, context), 10);
+      // The catalog declares that a max below min yields min.
+      assert.strictEqual(invoke('clamp', {value: 5, min: 10, max: 0}, context), 10);
+      assert.throws(() => invoke('clamp', {value: 5, min: 0}, context), A2uiExpressionError);
+      assert.throws(
+        () => invoke('clamp', {value: 5, min: 0, max: null}, context),
+        A2uiExpressionError,
+      );
+      assert.throws(
+        () => invoke('clamp', {value: 'invalid', min: 0, max: 10}, context),
+        A2uiExpressionError,
+      );
+    });
+    it('round', () => {
+      assert.strictEqual(invoke('round', {value: 2.4}, context), 2);
+      assert.strictEqual(invoke('round', {value: 2.5}, context), 3);
+      assert.strictEqual(invoke('round', {value: 1.2345, decimals: 2}, context), 1.23);
+      assert.strictEqual(invoke('round', {value: 1.005, decimals: 2}, context), 1.01);
+      assert.strictEqual(invoke('round', {value: 1234, decimals: -2}, context), 1200);
+      assert.strictEqual(invoke('round', {value: '2.5'}, context), 3);
+      // Halfway cases round away from zero, unlike Math.round.
+      assert.strictEqual(invoke('round', {value: -2.5}, context), -3);
+      assert.strictEqual(invoke('round', {value: -1.005, decimals: 2}, context), -1.01);
+      assert.strictEqual(invoke('round', {value: 0}, context), 0);
+      // A shift large enough to overflow leaves the value untouched.
+      assert.strictEqual(invoke('round', {value: 1.5, decimals: 400}, context), 1.5);
+      assert.throws(() => invoke('round', {}, context), A2uiExpressionError);
+      assert.throws(() => invoke('round', {value: null}, context), A2uiExpressionError);
+      assert.throws(() => invoke('round', {value: 'invalid'}, context), A2uiExpressionError);
+    });
+    it('min', () => {
+      assert.strictEqual(invoke('min', {values: [3, 1, 2]}, context), 1);
+      assert.strictEqual(invoke('min', {values: ['3', '1']}, context), 1);
+      assert.strictEqual(invoke('min', {values: [-5, 5]}, context), -5);
+      assert.throws(() => invoke('min', {values: [1]}, context), A2uiExpressionError);
+      assert.throws(() => invoke('min', {values: [1, null]}, context), A2uiExpressionError);
+      assert.throws(() => invoke('min', {}, context), A2uiExpressionError);
+    });
+    it('max', () => {
+      assert.strictEqual(invoke('max', {values: [3, 1, 2]}, context), 3);
+      assert.strictEqual(invoke('max', {values: ['3', '1']}, context), 3);
+      assert.strictEqual(invoke('max', {values: [-5, -1]}, context), -1);
+      assert.throws(() => invoke('max', {values: [1]}, context), A2uiExpressionError);
+      assert.throws(() => invoke('max', {values: [1, 'invalid']}, context), A2uiExpressionError);
+      assert.throws(() => invoke('max', {}, context), A2uiExpressionError);
+    });
+    it('abs', () => {
+      assert.strictEqual(invoke('abs', {value: -3}, context), 3);
+      assert.strictEqual(invoke('abs', {value: 3}, context), 3);
+      assert.strictEqual(invoke('abs', {value: '-3.5'}, context), 3.5);
+      assert.strictEqual(invoke('abs', {value: 0}, context), 0);
+      assert.throws(() => invoke('abs', {}, context), A2uiExpressionError);
+      assert.throws(() => invoke('abs', {value: null}, context), A2uiExpressionError);
+      assert.throws(() => invoke('abs', {value: 'invalid'}, context), A2uiExpressionError);
+    });
+  });
+
   describe('Comparison', () => {
     it('equals', () => {
       assert.strictEqual(invoke('equals', {a: 1, b: 1}, context), true);

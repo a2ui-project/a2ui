@@ -23,6 +23,11 @@ import {
   SubtractApi,
   MultiplyApi,
   DivideApi,
+  ClampApi,
+  RoundApi,
+  MinApi,
+  MaxApi,
+  AbsApi,
   EqualsApi,
   NotEqualsApi,
   GreaterThanApi,
@@ -89,6 +94,68 @@ export const DivideImplementation = createFunctionImplementation(DivideApi, args
   }
   return numA / numB;
 });
+
+// Numeric
+/**
+ * Implementation of the clamp function.
+ * Constrains 'value' to the inclusive range ['min', 'max'].
+ * Returns 'min' when 'max' is less than 'min', as declared by the catalog.
+ */
+export const ClampImplementation = createFunctionImplementation(ClampApi, args =>
+  args.max < args.min ? args.min : Math.min(Math.max(args.value, args.min), args.max),
+);
+
+/**
+ * Shifts a number by `exponent` powers of ten by rewriting its decimal exponent
+ * rather than multiplying by a power of ten.
+ *
+ * Multiplying reintroduces the binary representation error that rounding is
+ * meant to hide: `1.005 * 100` is `100.49999999999999`, which rounds down to
+ * `1.00`. `Number('1.005e2')` is `100.5`, which rounds to the expected `1.01`.
+ */
+function shiftExponent(value: number, exponent: number): number {
+  const [mantissa, currentExponent] = String(value).split('e');
+  const shifted = currentExponent ? Number(currentExponent) + exponent : exponent;
+  return Number(`${mantissa}e${shifted}`);
+}
+
+/**
+ * Implementation of the rounding function.
+ * Rounds 'value' to 'decimals' decimal places, defaulting to 0.
+ *
+ * Halfway cases round away from zero, so -2.5 becomes -3 rather than the -2
+ * that JavaScript's Math.round would produce. Non-finite values, and shifts
+ * large enough to overflow to Infinity, are returned unchanged.
+ */
+export const RoundImplementation = createFunctionImplementation(RoundApi, args => {
+  const decimals = args.decimals ?? 0;
+  if (!Number.isFinite(args.value)) return args.value;
+  const scaled = shiftExponent(Math.abs(args.value), decimals);
+  if (!Number.isFinite(scaled)) return args.value;
+  return Math.sign(args.value) * shiftExponent(Math.round(scaled), -decimals);
+});
+
+/**
+ * Implementation of the minimum function.
+ * Returns the smallest of the numbers in 'values'.
+ */
+export const MinImplementation = createFunctionImplementation(MinApi, args =>
+  Math.min(...args.values),
+);
+
+/**
+ * Implementation of the maximum function.
+ * Returns the largest of the numbers in 'values'.
+ */
+export const MaxImplementation = createFunctionImplementation(MaxApi, args =>
+  Math.max(...args.values),
+);
+
+/**
+ * Implementation of the absolute value function.
+ * Returns the magnitude of 'value' without its sign.
+ */
+export const AbsImplementation = createFunctionImplementation(AbsApi, args => Math.abs(args.value));
 
 // Comparison
 /**
@@ -458,6 +525,11 @@ export function createBasicCatalogFunctions(options?: {locale?: string}): Functi
     SubtractImplementation,
     MultiplyImplementation,
     DivideImplementation,
+    ClampImplementation,
+    RoundImplementation,
+    MinImplementation,
+    MaxImplementation,
+    AbsImplementation,
     EqualsImplementation,
     NotEqualsImplementation,
     GreaterThanImplementation,
