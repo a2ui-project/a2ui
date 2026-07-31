@@ -86,7 +86,9 @@ export class A2uiImageElement extends BasicCatalogA2uiLitElement<typeof ImageApi
 
     return html`<img
       src=${props.url}
-      alt=${props.description || ''}
+      alt=${props.accessibility?.label || props.description || ''}
+      aria-label=${props.accessibility?.label ?? nothing}
+      aria-describedby=${props.accessibility?.description ?? nothing}
       class=${classMap(classes)}
       style=${styleMap(styles)}
     />`;

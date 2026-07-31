@@ -95,6 +95,8 @@ export class A2uiCheckBoxElement extends BasicCatalogA2uiLitElement<typeof Check
             class=${classMap(inputClasses)}
             .checked=${props.value || false}
             @change=${(e: Event) => props.setValue?.((e.target as HTMLInputElement).checked)}
+            aria-label=${props.accessibility?.label ?? nothing}
+            aria-describedby=${props.accessibility?.description ?? nothing}
           />
           ${props.label}
         </label>

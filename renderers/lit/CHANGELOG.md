@@ -1,5 +1,6 @@
 ## Unreleased
 
+- (v0_9) Add accessibility attributes (`aria-label`, `aria-describedby`) support to Lit basic catalog components (#1410).
 - Enable `inlineSources` in `tsconfig.json` to populate `sourcesContent` in sourcemaps.
 
 ## 0.10.2

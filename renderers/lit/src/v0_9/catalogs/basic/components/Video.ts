@@ -49,7 +49,13 @@ export class A2uiVideoElement extends BasicCatalogA2uiLitElement<typeof VideoApi
     const props = this.controller.props;
     if (!props) return nothing;
 
-    return html`<video src=${props.url} controls class="a2ui-video"></video>`;
+    return html`<video
+      src=${props.url}
+      controls
+      class="a2ui-video"
+      aria-label=${props.accessibility?.label ?? nothing}
+      aria-describedby=${props.accessibility?.description ?? nothing}
+    ></video>`;
   }
 }
 

@@ -80,13 +80,28 @@ export class A2uiIconElement extends BasicCatalogA2uiLitElement<typeof IconApi> 
     const name = props.name;
     const isPath = typeof name === 'object' && name !== null && 'svgPath' in name;
 
+    const label = props.accessibility?.label;
+    const description = props.accessibility?.description;
+    const isHidden = !label && !description;
+
     if (isPath) {
       const path = (name as {svgPath: string}).svgPath;
-      return html`<svg class="svg" viewBox="0 0 24 24"><path d=${path}></path></svg>`;
+      return html`<svg
+        class="svg"
+        viewBox="0 0 24 24"
+        aria-label=${label ?? nothing}
+        aria-describedby=${description ?? nothing}
+        aria-hidden=${isHidden ? 'true' : nothing}
+      ><path d=${path}></path></svg>`;
     }
 
     const iconName = typeof name === 'string' ? toMaterialSymbol(name) : '';
-    return html`<span class="material-symbol">${iconName}</span>`;
+    return html`<span
+      class="material-symbol"
+      aria-label=${label ?? nothing}
+      aria-describedby=${description ?? nothing}
+      aria-hidden=${isHidden ? 'true' : nothing}
+    >${iconName}</span>`;
   }
 }
 

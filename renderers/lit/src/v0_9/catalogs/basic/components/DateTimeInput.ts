@@ -107,6 +107,8 @@ export class A2uiDateTimeInputElement extends BasicCatalogA2uiLitElement<typeof 
         type=${inputType}
         .value=${normalizedValue}
         @input=${(e: Event) => props.setValue?.((e.target as HTMLInputElement).value)}
+        aria-label=${props.accessibility?.label ?? nothing}
+        aria-describedby=${props.accessibility?.description ?? nothing}
       />
     `;
   }

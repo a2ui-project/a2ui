@@ -56,7 +56,18 @@ export class A2uiCardElement extends BasicCatalogA2uiLitElement<typeof CardApi> 
     const props = this.controller.props;
     if (!props) return nothing;
 
-    return html` ${props.child ? html`${this.renderNode(props.child)}` : nothing} `;
+    const label = props.accessibility?.label;
+    const description = props.accessibility?.description;
+    const childHtml = props.child ? html`${this.renderNode(props.child)}` : nothing;
+
+    if (label || description) {
+      return html`<div
+        aria-label=${label ?? nothing}
+        aria-describedby=${description ?? nothing}
+      >${childHtml}</div>`;
+    }
+
+    return html`${childHtml}`;
   }
 }
 
