@@ -111,7 +111,12 @@ tasks.withType<JavaCompile>().configureEach {
 }
 
 tasks.generateGrammarSource {
+  val repoRoot = findRepoRoot()
+  source = fileTree(File(repoRoot, "specification/inference_formats/express")) {
+    include("**/*.g4")
+  }
   arguments = arguments + listOf("-visitor", "-package", "com.google.a2ui.inference_formats.experimental.express.generated")
   outputDirectory = file("${layout.buildDirectory.get()}/generated/sources/antlr/main/com/google/a2ui/inference_formats/experimental/express/generated")
 }
+
 
