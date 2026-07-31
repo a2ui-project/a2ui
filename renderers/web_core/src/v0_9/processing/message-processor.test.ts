@@ -415,6 +415,52 @@ describe('MessageProcessor', () => {
     assert.strictEqual(surface?.componentsModel.get('btn_malformed'), undefined);
   });
 
+  it('does not apply partial updates when one component in a message fails validation', () => {
+    const catalogWithButton = new Catalog('catalog-with-button', [ButtonApi]);
+    const proc = new MessageProcessor([catalogWithButton]);
+
+    proc.processMessages([
+      {
+        version: 'v0.9',
+        createSurface: {surfaceId: 's1', catalogId: 'catalog-with-button'},
+      },
+    ]);
+
+    assert.throws(
+      () => {
+        proc.processMessages([
+          {
+            version: 'v0.9',
+            updateComponents: {
+              surfaceId: 's1',
+              components: [
+                {
+                  id: 'btn_valid',
+                  component: 'Button',
+                  child: 'text1',
+                },
+                {
+                  id: 'btn_malformed',
+                  component: 'Button',
+                  child: 'text1',
+                  action: {
+                    call: 'openUrl',
+                    args: {url: 'https://www.google.com/'},
+                  } as any,
+                },
+              ],
+            },
+          },
+        ]);
+      },
+      (err: any) => err instanceof A2uiValidationError,
+    );
+
+    const surface = proc.model.getSurface('s1');
+    assert.strictEqual(surface?.componentsModel.get('btn_valid'), undefined);
+    assert.strictEqual(surface?.componentsModel.get('btn_malformed'), undefined);
+  });
+
   it('deletes surface', () => {
     processor.processMessages([
       {

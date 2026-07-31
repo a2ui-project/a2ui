@@ -308,6 +308,7 @@ export class MessageProcessor<T extends ComponentApi> {
       throw new A2uiStateError(`Surface not found for message: ${payload.surfaceId}`);
     }
 
+    // 1. Validation pass: validate all components before mutating state
     for (const comp of payload.components) {
       const {id, component, ...properties} = comp;
 
@@ -322,12 +323,22 @@ export class MessageProcessor<T extends ComponentApi> {
         if (componentApi) {
           const validationResult = componentApi.schema.safeParse(properties);
           if (!validationResult.success) {
+            const formattedErrors = validationResult.error.errors
+              .map(err => `${err.path.join('.') || 'root'}: ${err.message}`)
+              .join(', ');
             throw new A2uiValidationError(
-              `Validation failed for component '${componentType}' (${id}): ${validationResult.error.message}`,
+              `Validation failed for component '${componentType}' (${id}): ${formattedErrors}`,
             );
           }
         }
       }
+    }
+
+    // 2. Mutation pass: apply state updates
+    for (const comp of payload.components) {
+      const {id, component, ...properties} = comp;
+      const existing = surface.componentsModel.get(id);
+
       if (existing) {
         if (component && component !== existing.type) {
           // Recreate component if type changes
