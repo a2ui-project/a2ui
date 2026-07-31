@@ -56,7 +56,7 @@
     "@types/markdown-it": "^14.1.2",
     "@types/node": "^25.9.3",
     "@types/uuid": "^11.0.0",
-    "@vitest/browser": "^4.1.8",
+    "@vitest/browser": "^4.1.10",
     "concurrently": "^10.0.3",
     "cypress": "^15.17.0",
     "eslint": "^10.4.1",
