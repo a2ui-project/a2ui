@@ -97,6 +97,7 @@ function ActionExterns() {}
 /** @type {?} */ ActionExterns.prototype.name;
 /** @type {?} */ ActionExterns.prototype.context;
 /** @type {?} */ ActionExterns.prototype.sourceComponentId;
+/** @type {?} */ ActionExterns.prototype.timestamp;
 
 /**
  * Externs for `FunctionCall` interface (`renderers/web_core/src/v0_9/schema/common-types.ts`).

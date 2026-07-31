@@ -132,6 +132,7 @@ test('populates events log correctly when interacting with buttons in minified p
   await page.locator('.rendered-content button', {hasText: 'Click Me'}).click();
 
   // Verify that an event was recorded and displayed with valid details in the log
+  await expectNoErrors(page, errors);
   const logItem = page.locator('.events-section .log-item').first();
   await expect(logItem).toBeVisible();
 
@@ -173,8 +174,8 @@ test('renders Weather Current with date formatting in minified production build'
       text.includes('Mon')
     );
   });
-  expect(hasDayName).toBeTruthy();
   await expectNoErrors(page, errors);
+  expect(hasDayName).toBeTruthy();
 });
 
 test('renders Incremental example without errors in minified production build', async ({page}) => {

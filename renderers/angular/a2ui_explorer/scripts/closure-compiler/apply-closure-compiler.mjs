@@ -129,8 +129,16 @@ const options = {
   warning_level: 'QUIET',
 };
 
+const zodVersion = require('zod/package.json').version;
+const isZod4 = zodVersion.startsWith('4.');
+
+if (isZod4) {
+  console.log(`Zod 4 detected (${zodVersion}). Adding Zod 4 externs.`);
+}
+
 const activeExterns = [
   path.resolve(__dirname, 'externs/globals.externs.js'),
+  ...(isZod4 ? [path.resolve(__dirname, 'externs/zod4.externs.js')] : []),
   path.resolve(__dirname, 'externs/a2ui_web_core_v0_9.externs.js'),
   path.resolve(__dirname, 'externs/angular_framework.externs.js'),
   path.resolve(__dirname, 'externs/a2ui_explorer.externs.js'),
