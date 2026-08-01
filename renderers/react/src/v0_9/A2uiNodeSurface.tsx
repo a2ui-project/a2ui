@@ -19,17 +19,14 @@
  *
  * Where `A2uiSurface` walks component ids and lets each component's wrapper
  * run its own `GenericBinder`, this surface constructs one `NodeResolver` and
- * renders the resolved `ComponentNode` tree it maintains. Each node's view
- * subscribes to that node's props signal only, so a data change re-renders
- * exactly the affected component.
- *
- * Views are reused unchanged: node props are converted back to the shapes
- * existing views expect (child ids as strings, template children as
- * `{id, basePath}` pairs, `ResolvedBinding`s as value + `set<Prop>` pairs)
- * and `buildChild` maps those refs back to their live nodes. A ref the node
- * layer did not resolve (a single-child id whose schema
- * is not declared with `ComponentIdSchema`) falls back to `DeferredChild`
- * recursion over the raw definitions, so catalogs can migrate incrementally.
+ * renders the resolved `ComponentNode` tree it maintains. Each implementation
+ * carries a generated `view` (see `adapter.tsx`) that subscribes to its own
+ * node's props and converts them back to the shapes existing views expect, so
+ * a data change re-renders exactly the affected component. This surface only
+ * dispatches: it hands each `view` its node and a `buildChild` that renders
+ * resolved child nodes, falling back to `DeferredChild` recursion over the
+ * raw definitions for ids the node layer could not classify, so catalogs can
+ * migrate incrementally.
  */
 
 import React, {memo, useCallback, useMemo, useSyncExternalStore} from 'react';
@@ -37,142 +34,48 @@ import {
   ComponentContext,
   ComponentNode,
   NodeResolver,
-  ResolvedBinding,
   effect,
   getValue,
   peekValue,
-  type NodeProps,
-  type Signal,
   type SurfaceModel,
 } from '@a2ui/web_core/v0_9';
 import type {ReactComponentImplementation} from './adapter';
+import {NodeSurfaceContext, type NodeBuildChild} from './node-view';
 import {DeferredChild} from './A2uiSurface';
 
-function useSignalValue<T>(signal: Signal<T>): T {
-  const subscribe = useCallback(
-    (onChange: () => void) =>
-      effect(() => {
-        getValue(signal);
-        onChange();
-      }),
-    [signal],
+/** Renders an implementation that has no `view`: its wrapper binds itself. */
+const RenderFallback: React.FC<{
+  surface: SurfaceModel<ReactComponentImplementation>;
+  node: ComponentNode;
+  impl: ReactComponentImplementation;
+  buildChild: (id: string, basePath?: string) => React.ReactNode;
+}> = ({surface, node, impl, buildChild}) => {
+  const context = useMemo(
+    () => new ComponentContext(surface, node.componentId, node.dataPath),
+    [surface, node],
   );
-  const getSnapshot = useCallback(() => peekValue(signal), [signal]);
-  return useSyncExternalStore(subscribe, getSnapshot);
-}
-
-/** Child nodes of one view, keyed by componentId and by componentId@dataPath. */
-type ChildIndex = Map<string, ComponentNode>;
-
-function registerChild(index: ChildIndex, child: ComponentNode): void {
-  index.set(`${child.componentId}@${child.dataPath}`, child);
-  if (!index.has(child.componentId)) {
-    index.set(child.componentId, child);
-  }
-}
-
-/**
- * Converts node-resolved props to the shapes existing views were written
- * against: a child node becomes its componentId string when it shares the
- * parent's data scope, and an `{id, basePath}` pair when it was spawned at a
- * scoped path (a template item). The nodes themselves are collected into
- * `index` for `buildChild` to find again.
- */
-function toViewValue(parent: ComponentNode, value: unknown, index: ChildIndex): unknown {
-  if (value instanceof ComponentNode) {
-    registerChild(index, value);
-    if (value.dataPath !== parent.dataPath) {
-      return {id: value.componentId, basePath: value.dataPath};
-    }
-    return value.componentId;
-  }
-  if (value instanceof ResolvedBinding) {
-    return toViewValue(parent, value.value, index);
-  }
-  if (Array.isArray(value)) {
-    return value.map(item => toViewValue(parent, item, index));
-  }
-  if (isPlainObject(value)) {
-    return toViewProps(parent, value, index);
-  }
-  // Rebuilding non-plain values (Map, Date, class instances) key-wise would
-  // strip their prototype.
-  return value;
-}
-
-function isPlainObject(value: unknown): value is Record<string, unknown> {
-  if (!value || typeof value !== 'object') {
-    return false;
-  }
-  const proto = Object.getPrototypeOf(value);
-  return proto === Object.prototype || proto === null;
-}
-
-/**
- * Converts one object level of node props, unwrapping each `ResolvedBinding`
- * into the value + `set<Prop>` pair the views were written against. A
- * read-only binding gets a no-op setter, matching what `GenericBinder`
- * synthesizes for literal-valued properties.
- */
-function toViewProps(
-  parent: ComponentNode,
-  props: Record<string, unknown>,
-  index: ChildIndex,
-): Record<string, unknown> {
-  const result: Record<string, unknown> = {};
-  for (const [key, inner] of Object.entries(props)) {
-    if (inner instanceof ResolvedBinding) {
-      result[key] = toViewValue(parent, inner.value, index);
-      result[`set${key.charAt(0).toUpperCase()}${key.slice(1)}`] = inner.set ?? (() => {});
-    } else {
-      result[key] = toViewValue(parent, inner, index);
-    }
-  }
-  return result;
-}
+  const Render = impl.render;
+  return <Render context={context} buildChild={buildChild} />;
+};
 
 const NodeView = memo(
   ({surface, node}: {surface: SurfaceModel<ReactComponentImplementation>; node: ComponentNode}) => {
-    const resolved = useSignalValue(node.props);
-
-    const {viewProps, childIndex} = useMemo(() => {
-      const index: ChildIndex = new Map();
-      const converted: NodeProps = toViewProps(node, resolved, index);
-      return {viewProps: converted, childIndex: index};
-    }, [node, resolved]);
-
-    const context = useMemo(
-      () =>
-        node.isPlaceholder
-          ? undefined
-          : new ComponentContext(surface, node.componentId, node.dataPath),
-      [surface, node],
-    );
-
-    const buildChild = useCallback(
-      (child: string | ComponentNode, basePath?: string): React.ReactNode => {
-        const childNode =
-          child instanceof ComponentNode
-            ? child
-            : (childIndex.get(basePath ? `${child}@${basePath}` : child) ??
-              childIndex.get(`${child}@${node.dataPath}`));
-        if (childNode) {
-          return <NodeView key={childNode.instanceId} surface={surface} node={childNode} />;
+    const buildChild = useCallback<NodeBuildChild>(
+      (child, basePath) => {
+        if (child instanceof ComponentNode) {
+          return <NodeView key={child.instanceId} surface={surface} node={child} />;
         }
-        if (typeof child === 'string') {
-          // Not resolved by the node layer; recurse over the raw definitions.
-          return (
-            <DeferredChild
-              key={`${child}-${basePath ?? node.dataPath}`}
-              surface={surface}
-              id={child}
-              basePath={basePath ?? node.dataPath}
-            />
-          );
-        }
-        return null;
+        // Not resolved by the node layer; recurse over the raw definitions.
+        return (
+          <DeferredChild
+            key={`${child}-${basePath ?? node.dataPath}`}
+            surface={surface}
+            id={child}
+            basePath={basePath ?? node.dataPath}
+          />
+        );
       },
-      [surface, childIndex, node],
+      [surface, node],
     );
 
     if (node.isPlaceholder) {
@@ -184,12 +87,9 @@ const NodeView = memo(
     }
     const View = impl.view;
     if (!View) {
-      // No unwrapped `view` exists; fall back to `render`, which binds from
-      // the context itself.
-      const Render = impl.render;
-      return <Render context={context!} buildChild={buildChild} />;
+      return <RenderFallback surface={surface} node={node} impl={impl} buildChild={buildChild} />;
     }
-    return <View props={viewProps} buildChild={buildChild} context={context!} />;
+    return <View node={node} buildChild={buildChild} />;
   },
 );
 NodeView.displayName = 'NodeView';
@@ -236,5 +136,9 @@ export const A2uiNodeSurface: React.FC<{
   if (!root) {
     return <div style={{color: 'gray', padding: '4px'}}>[Loading root...]</div>;
   }
-  return <NodeView surface={surface} node={root} />;
+  return (
+    <NodeSurfaceContext.Provider value={surface}>
+      <NodeView surface={surface} node={root} />
+    </NodeSurfaceContext.Provider>
+  );
 };

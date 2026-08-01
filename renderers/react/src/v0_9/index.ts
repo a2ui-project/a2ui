@@ -17,6 +17,7 @@
 export * from './A2uiSurface';
 export * from './A2uiNodeSurface';
 export * from './adapter';
+export {type NodeBuildChild, type NodeViewProps} from './node-view';
 
 // Export basic catalog components directly for 3P developers
 export * from './catalog/basic';
