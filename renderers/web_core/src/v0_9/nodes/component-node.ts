@@ -81,6 +81,12 @@ export class ComponentNode<TProps extends NodeProps = NodeProps> {
     return this._disposed;
   }
 
+  /**
+   * True when this node stands in for a component whose definition has not
+   * arrived or whose type has no catalog entry. A placeholder holds the child
+   * position with empty props; when the definition becomes resolvable, the
+   * resolver replaces it in place with a real node and the parent emits once.
+   */
   get isPlaceholder(): boolean {
     return this.type === PLACEHOLDER_TYPE;
   }
