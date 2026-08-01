@@ -19,9 +19,14 @@ package com.google.a2ui
 import kotlinx.serialization.json.JsonObject
 
 /**
- * Defines the contract for an A2UI inference strategy, responsible for constructing the LLM system
- * prompt and providing schema/catalog-driven context to the agent.
+ * Defines the contract for an A2UI inference strategy.
+ *
+ * Deprecated in favor of [InferenceFormat].
  */
+@Deprecated(
+  message = "InferenceStrategy is deprecated. Use InferenceFormat instead.",
+  replaceWith = ReplaceWith("InferenceFormat", "com.google.a2ui.InferenceFormat"),
+)
 interface InferenceStrategy {
   /**
    * Generates a complete system prompt including the provided descriptions, A2UI JSON schema
