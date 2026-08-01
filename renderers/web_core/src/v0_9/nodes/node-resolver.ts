@@ -20,7 +20,12 @@ import {Catalog, ComponentApi, FunctionImplementation} from '../catalog/types.js
 import {ComponentContext} from '../rendering/component-context.js';
 import {DataContext} from '../rendering/data-context.js';
 import {BehaviorNode, GenericBinder, scrapeSchemaBehavior} from '../rendering/generic-binder.js';
-import {ComponentNode, NodeProps, PLACEHOLDER_TYPE} from './component-node.js';
+import {
+  ComponentNode,
+  MutableComponentNode,
+  NodeProps,
+  PLACEHOLDER_TYPE,
+} from './component-node.js';
 import {extractRefFields, RefFields} from './ref-fields.js';
 import {ResolvedBinding, sameBinding} from './resolved-binding.js';
 import {Signal, signal, setValue, peekValue} from '../reactivity/signals.js';
@@ -34,10 +39,10 @@ const ROOT_EDGE_KEY = '>root>root@/';
 const EMPTY_REF_FIELDS: RefFields = {single: new Set(), list: new Set(), nested: new Map()};
 
 interface NodeRecord {
-  readonly node: ComponentNode;
+  readonly node: MutableComponentNode;
   readonly edgeKey: string;
   /** The node whose props reference this one; undefined for the root. */
-  readonly parent?: ComponentNode;
+  readonly parent?: MutableComponentNode;
   readonly refFields: RefFields;
   /** The scraped behavior tree for the component's schema; positions it
    *  classifies as DYNAMIC resolve to {@link ResolvedBinding}s in node
@@ -52,7 +57,7 @@ interface NodeRecord {
   /** The most recent per-component resolution from the binder. */
   lastBinderProps?: NodeProps;
   /** Children this node currently references, keyed by edge. This parent owns their disposal. */
-  childEdges: Map<string, ComponentNode>;
+  childEdges: Map<string, MutableComponentNode>;
 }
 
 /**
@@ -84,11 +89,11 @@ export class NodeResolver<
 
   private readonly surface: SurfaceModel<C, F>;
   private readonly catalog: Catalog<C, F>;
-  private readonly records = new Map<ComponentNode, NodeRecord>();
-  private readonly nodesByEdge = new Map<string, ComponentNode>();
-  private readonly nodesByComponentId = new Map<string, Set<ComponentNode>>();
+  private readonly records = new Map<MutableComponentNode, NodeRecord>();
+  private readonly nodesByEdge = new Map<string, MutableComponentNode>();
+  private readonly nodesByComponentId = new Map<string, Set<MutableComponentNode>>();
   /** Parents holding a placeholder for a component id, awaiting its arrival. */
-  private readonly pendingParents = new Map<string, Set<ComponentNode>>();
+  private readonly pendingParents = new Map<string, Set<MutableComponentNode>>();
   private readonly modelSubs: Subscription[] = [];
   private rootRecord?: NodeRecord;
   private _disposed = false;
@@ -175,7 +180,7 @@ export class NodeResolver<
     if (!affected) {
       return;
     }
-    const parentsToRefresh = new Set<ComponentNode>();
+    const parentsToRefresh = new Set<MutableComponentNode>();
     let rootDeleted = false;
     for (const node of [...affected]) {
       const record = this.records.get(node);
@@ -210,12 +215,12 @@ export class NodeResolver<
     componentId: string,
     dataPath: string,
     edgeKey: string,
-    parent: ComponentNode | undefined,
-  ): ComponentNode {
+    parent: MutableComponentNode | undefined,
+  ): MutableComponentNode {
     const model = this.surface.componentsModel.get(componentId);
     if (!model) {
       const record = this.registerNode(
-        new ComponentNode(
+        new MutableComponentNode(
           instanceIdFor(componentId, dataPath),
           componentId,
           PLACEHOLDER_TYPE,
@@ -242,7 +247,7 @@ export class NodeResolver<
         message: `Component '${componentId}' has type '${model.type}', which is not in catalog '${this.catalog.id}'.`,
       });
       return this.registerNode(
-        new ComponentNode(
+        new MutableComponentNode(
           instanceIdFor(componentId, dataPath),
           componentId,
           PLACEHOLDER_TYPE,
@@ -256,7 +261,7 @@ export class NodeResolver<
     const context = new ComponentContext(this.surface, componentId, dataPath);
     const binder = new GenericBinder<NodeProps>(context, api.schema);
     const record = this.registerNode(
-      new ComponentNode(
+      new MutableComponentNode(
         instanceIdFor(componentId, dataPath),
         componentId,
         model.type,
@@ -286,10 +291,10 @@ export class NodeResolver<
   }
 
   private registerNode(
-    node: ComponentNode,
+    node: MutableComponentNode,
     partial: {
       edgeKey: string;
-      parent?: ComponentNode;
+      parent?: MutableComponentNode;
       refFields: RefFields;
       behavior?: BehaviorNode;
       context?: ComponentContext;
@@ -328,8 +333,8 @@ export class NodeResolver<
     componentId: string,
     dataPath: string,
     edgeKey: string,
-    parent: ComponentNode,
-  ): ComponentNode {
+    parent: MutableComponentNode,
+  ): MutableComponentNode {
     const existing = this.nodesByEdge.get(edgeKey);
     if (this.isCyclic(componentId, dataPath, parent)) {
       // Node identity is parent-scoped, so a cyclic payload would otherwise
@@ -345,7 +350,7 @@ export class NodeResolver<
         message: `Component '${componentId}' at '${dataPath}' is referenced by one of its own descendants; rendering a placeholder instead.`,
       });
       return this.registerNode(
-        new ComponentNode(
+        new MutableComponentNode(
           instanceIdFor(componentId, dataPath),
           componentId,
           PLACEHOLDER_TYPE,
@@ -374,9 +379,9 @@ export class NodeResolver<
   }
 
   /** True when (componentId, dataPath) already appears in the parent chain. */
-  private isCyclic(componentId: string, dataPath: string, parent: ComponentNode): boolean {
+  private isCyclic(componentId: string, dataPath: string, parent: MutableComponentNode): boolean {
     for (
-      let node: ComponentNode | undefined = parent;
+      let node: MutableComponentNode | undefined = parent;
       node;
       node = this.records.get(node)?.parent
     ) {
@@ -391,7 +396,7 @@ export class NodeResolver<
    * Rebuilds a node's resolved props from its binder output: child reference
    * properties become live `ComponentNode`s, children this parent no longer
    * references are disposed, and unchanged values keep reference identity so
-   * the shallow comparison in `ComponentNode.setProps` stays exact.
+   * the shallow comparison in `MutableComponentNode.setProps` stays exact.
    */
   private materialize(record: NodeRecord): void {
     if (record.node.disposed) {
@@ -399,7 +404,7 @@ export class NodeResolver<
     }
     const raw = record.lastBinderProps ?? record.binder?.snapshot ?? {};
     const next: NodeProps = {...raw};
-    const newEdges = new Map<string, ComponentNode>();
+    const newEdges = new Map<string, MutableComponentNode>();
 
     // The binder merges rebuilt props over previous ones and never drops a
     // key the component's properties no longer contain. Ref props drive child
@@ -524,7 +529,7 @@ export class NodeResolver<
   }
 
   /** Disposes a node and, through parent-scoped ownership, its subtree. */
-  private disposeNode(node: ComponentNode): void {
+  private disposeNode(node: MutableComponentNode): void {
     if (node.disposed) {
       return;
     }

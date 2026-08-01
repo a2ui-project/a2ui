@@ -35,6 +35,9 @@ export type NodeProps = Record<string, unknown>;
  * change, including when a child *reference* is replaced (a placeholder
  * upgrade, a deletion, a list change). It does not emit when a child's
  * internal properties change; subscribe to the child's `props` for that.
+ *
+ * The resolver creates, updates, and disposes nodes; application code reads
+ * them.
  */
 export class ComponentNode<TProps extends NodeProps = NodeProps> {
   /**
@@ -56,14 +59,14 @@ export class ComponentNode<TProps extends NodeProps = NodeProps> {
   /** Resolved, reactive properties. Read with `getValue`/`peekValue`. */
   readonly props: Signal<TProps>;
 
-  private readonly _onDestroyed = new EventEmitter<void>();
+  protected readonly _onDestroyed = new EventEmitter<void>();
   /** Fires exactly once, when this node is disposed. */
   readonly onDestroyed: EventSource<void> = this._onDestroyed;
 
-  private cleanups: Array<() => void> = [];
-  private _disposed = false;
+  protected cleanups: Array<() => void> = [];
+  protected _disposed = false;
 
-  constructor(
+  protected constructor(
     instanceId: string,
     componentId: string,
     type: string,
@@ -94,6 +97,41 @@ export class ComponentNode<TProps extends NodeProps = NodeProps> {
   /** Registers teardown work to run when this node is disposed. */
   addCleanup(cleanup: () => void): void {
     this.cleanups.push(cleanup);
+  }
+
+  /**
+   * Serializes the resolved tree for debugging and headless assertions.
+   * Child nodes serialize recursively, bindings as their snapshot values,
+   * and action closures as the string `'<Action>'`.
+   */
+  toJSON(): Record<string, unknown> {
+    if (this.isPlaceholder) {
+      return {id: this.componentId, type: PLACEHOLDER_TYPE};
+    }
+    const serialized: Record<string, unknown> = {
+      id: this.componentId,
+      type: this.type,
+    };
+    const props = peekValue(this.props);
+    for (const [key, value] of Object.entries(props)) {
+      serialized[key] = serializeValue(value);
+    }
+    return serialized;
+  }
+}
+
+/** The write side of {@link ComponentNode}. */
+export class MutableComponentNode<
+  TProps extends NodeProps = NodeProps,
+> extends ComponentNode<TProps> {
+  constructor(
+    instanceId: string,
+    componentId: string,
+    type: string,
+    dataPath: string,
+    initialProps: TProps,
+  ) {
+    super(instanceId, componentId, type, dataPath, initialProps);
   }
 
   /**
@@ -130,26 +168,6 @@ export class ComponentNode<TProps extends NodeProps = NodeProps> {
     this.cleanups = [];
     this._onDestroyed.emit();
     this._onDestroyed.dispose();
-  }
-
-  /**
-   * Serializes the resolved tree for debugging and headless assertions.
-   * Child nodes serialize recursively, bindings as their snapshot values,
-   * and action closures as the string `'<Action>'`.
-   */
-  toJSON(): Record<string, unknown> {
-    if (this.isPlaceholder) {
-      return {id: this.componentId, type: PLACEHOLDER_TYPE};
-    }
-    const serialized: Record<string, unknown> = {
-      id: this.componentId,
-      type: this.type,
-    };
-    const props = peekValue(this.props);
-    for (const [key, value] of Object.entries(props)) {
-      serialized[key] = serializeValue(value);
-    }
-    return serialized;
   }
 }
 

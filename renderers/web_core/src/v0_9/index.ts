@@ -28,7 +28,8 @@ export * from './processing/message-processor.js';
 export * from './rendering/component-context.js';
 export * from './rendering/data-context.js';
 export * from './rendering/generic-binder.js';
-export * from './nodes/component-node.js';
+// MutableComponentNode is deliberately not re-exported.
+export {ComponentNode, PLACEHOLDER_TYPE, type NodeProps} from './nodes/component-node.js';
 export * from './nodes/node-resolver.js';
 export * from './nodes/ref-fields.js';
 export * from './nodes/resolved-binding.js';

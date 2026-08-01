@@ -35,6 +35,7 @@ import {SurfaceModel} from '../state/surface-model.js';
 import {A2uiClientAction} from '../schema/client-to-server.js';
 import {ActionSchema, DynamicStringSchema} from '../schema/common-types.js';
 import {effect, getValue, peekValue, Signal} from '../reactivity/signals.js';
+import * as v0_9 from '../index.js';
 import {ComponentNode, NodeProps, PLACEHOLDER_TYPE} from './component-node.js';
 import {NodeResolver} from './node-resolver.js';
 import {componentReference, componentReferenceList} from './ref-fields.js';
@@ -712,6 +713,22 @@ describe('NodeResolver constructor checks and disposal', () => {
       return new NodeResolver(surface, schemaOnly);
     }
     assert.strictEqual(typeof schemaOnlyCatalogIsRejected, 'function');
+  });
+
+  it('exposes no mutation API on resolved nodes', () => {
+    const {surface, resolver} = setup();
+    add(surface, 'root', 'Column', {children: []});
+    const root = getValue(resolver.rootNode);
+    assert.ok(root);
+    // @ts-expect-error setProps lives on MutableComponentNode, internal to the resolver
+    const _setProps = root.setProps;
+    // @ts-expect-error dispose lives on MutableComponentNode, internal to the resolver
+    const _dispose = root.dispose;
+    // @ts-expect-error node construction is not public API
+    new ComponentNode('id', 'id', 'Text', '/', {});
+    // @ts-expect-error MutableComponentNode is not exported from the package
+    const _leaked = v0_9.MutableComponentNode;
+    resolver.dispose();
   });
 
   it('disposes the whole tree with the resolver, leaving no live nodes', () => {
