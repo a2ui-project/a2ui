@@ -492,7 +492,13 @@ export class NodeResolver<
             other => other.isPlaceholder && other.componentId === child.componentId,
           );
           if (!stillWaiting) {
-            this.pendingParents.get(child.componentId)?.delete(record.node);
+            const waiting = this.pendingParents.get(child.componentId);
+            if (waiting) {
+              waiting.delete(record.node);
+              if (waiting.size === 0) {
+                this.pendingParents.delete(child.componentId);
+              }
+            }
           }
         }
       }
@@ -542,8 +548,11 @@ export class NodeResolver<
         this.nodesByComponentId.delete(node.componentId);
       }
     }
-    for (const waiting of this.pendingParents.values()) {
+    for (const [componentId, waiting] of this.pendingParents) {
       waiting.delete(node);
+      if (waiting.size === 0) {
+        this.pendingParents.delete(componentId);
+      }
     }
     node.dispose();
   }
