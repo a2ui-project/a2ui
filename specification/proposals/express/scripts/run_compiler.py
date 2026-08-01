@@ -48,7 +48,7 @@ from a2ui.inference_formats.experimental.express.compiler import ExpressCompiler
 
 def compile_dsl_file(
     dsl_path: str, catalog_path: str, surface_id: str, catalog_id: str
-) -> dict:
+) -> list[dict]:
     """Compiles an A2UI Express DSL file into standard JSON.
 
     Args:
@@ -58,7 +58,7 @@ def compile_dsl_file(
         catalog_id: The optional URI/identifier of the catalog.
 
     Returns:
-        The compiled A2UI v1.0 JSON envelope.
+        The compiled A2UI wire JSON message list.
 
     Raises:
         FileNotFoundError: If the DSL or catalog file does not exist.
@@ -116,10 +116,10 @@ def main():
     args = parser.parse_args()
 
     try:
-        compiled_envelope = compile_dsl_file(
+        compiled_messages = compile_dsl_file(
             args.dsl_file, args.catalog, args.surface_id, args.catalog_id
         )
-        print(json.dumps(compiled_envelope, indent=2))
+        print(json.dumps(compiled_messages, indent=2))
         sys.exit(0)
     except Exception as e:
         print(f"Error: {e}", file=sys.stderr)

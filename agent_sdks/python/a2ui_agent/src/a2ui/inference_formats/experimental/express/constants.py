@@ -12,8 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Constants used by A2UI Express."""
-
 
 class SurfaceOperation:
     """Standard A2UI v1.0 surface operation envelope keys."""
