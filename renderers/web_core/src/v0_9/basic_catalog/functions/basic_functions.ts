@@ -76,7 +76,9 @@ export const MultiplyImplementation = createFunctionImplementation(
 );
 /**
  * Implementation of the division function.
- * Divides 'a' by 'b'. Returns NaN if inputs are invalid, and Infinity if dividing by zero.
+ * Divides 'a' by 'b'. Division by zero yields positive or negative Infinity
+ * following the sign of the dividend, or NaN when the dividend is also zero,
+ * which is what IEEE 754 division already produces.
  */
 export const DivideImplementation = createFunctionImplementation(DivideApi, args => {
   const a = args.a;
@@ -88,9 +90,6 @@ export const DivideImplementation = createFunctionImplementation(DivideApi, args
   const numB = Number(b);
   if (Number.isNaN(numA) || Number.isNaN(numB)) {
     return NaN;
-  }
-  if (numB === 0) {
-    return Infinity;
   }
   return numA / numB;
 });

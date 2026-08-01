@@ -66,7 +66,11 @@ describe('BASIC_FUNCTIONS', () => {
     });
     it('divide', () => {
       assert.strictEqual(invoke('divide', {a: 10, b: 2}, context), 5);
+      // Division by zero follows the catalog description, which is IEEE 754:
+      // the sign of the dividend carries, and 0/0 is NaN.
       assert.strictEqual(invoke('divide', {a: 10, b: 0}, context), Infinity);
+      assert.strictEqual(invoke('divide', {a: -10, b: 0}, context), -Infinity);
+      assert.ok(Number.isNaN(invoke('divide', {a: 0, b: 0}, context)));
       assert.throws(() => invoke('divide', {a: 10, b: undefined}, context), A2uiExpressionError);
       assert.throws(() => invoke('divide', {a: undefined, b: 10}, context), A2uiExpressionError);
       assert.throws(
