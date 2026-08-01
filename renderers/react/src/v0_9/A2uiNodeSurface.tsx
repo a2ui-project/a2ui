@@ -92,10 +92,20 @@ function toViewValue(parent: ComponentNode, value: unknown, index: ChildIndex): 
   if (Array.isArray(value)) {
     return value.map(item => toViewValue(parent, item, index));
   }
-  if (value && typeof value === 'object') {
-    return toViewProps(parent, value as Record<string, unknown>, index);
+  if (isPlainObject(value)) {
+    return toViewProps(parent, value, index);
   }
+  // Rebuilding non-plain values (Map, Date, class instances) key-wise would
+  // strip their prototype.
   return value;
+}
+
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+  if (!value || typeof value !== 'object') {
+    return false;
+  }
+  const proto = Object.getPrototypeOf(value);
+  return proto === Object.prototype || proto === null;
 }
 
 /**
