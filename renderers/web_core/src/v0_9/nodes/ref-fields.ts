@@ -125,8 +125,9 @@ export function extractRefFields(schema: z.ZodTypeAny): RefFields {
 }
 
 /**
- * Unwraps optional/nullable/default wrappers, collecting every description
- * seen along the way (a marker may sit on the wrapper or on the inner type).
+ * Unwraps optional/nullable/default/effects wrappers, collecting every
+ * description seen along the way (a marker may sit on the wrapper or on the
+ * inner type).
  */
 function unwrap(schema: z.ZodTypeAny): {schema: z.ZodTypeAny; descriptions: string[]} {
   const descriptions: string[] = [];
@@ -138,6 +139,8 @@ function unwrap(schema: z.ZodTypeAny): {schema: z.ZodTypeAny; descriptions: stri
     const typeName = current._def.typeName;
     if (typeName === 'ZodOptional' || typeName === 'ZodNullable' || typeName === 'ZodDefault') {
       current = current._def.innerType;
+    } else if (typeName === 'ZodEffects') {
+      current = current._def.schema;
     } else {
       return {schema: current, descriptions};
     }
