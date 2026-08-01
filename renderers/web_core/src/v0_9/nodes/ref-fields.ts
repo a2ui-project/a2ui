@@ -91,7 +91,7 @@ export function extractRefFields(schema: z.ZodTypeAny): RefFields {
   const list = new Set<string>();
   const nested = new Map<string, ReadonlySet<string>>();
 
-  const shape = unwrapped.schema._def.shape() as Record<string, z.ZodTypeAny>;
+  const shape = (unwrapped.schema as z.AnyZodObject).shape as Record<string, z.ZodTypeAny>;
   for (const [key, value] of Object.entries(shape)) {
     const field = unwrap(value);
     if (hasMarker(field.descriptions, SINGLE_REF_MARKER)) {
@@ -106,7 +106,10 @@ export function extractRefFields(schema: z.ZodTypeAny): RefFields {
       const element = unwrap(field.schema._def.type as z.ZodTypeAny);
       if (element.schema._def.typeName === 'ZodObject') {
         const subKeys = new Set<string>();
-        const elementShape = element.schema._def.shape() as Record<string, z.ZodTypeAny>;
+        const elementShape = (element.schema as z.AnyZodObject).shape as Record<
+          string,
+          z.ZodTypeAny
+        >;
         for (const [subKey, subValue] of Object.entries(elementShape)) {
           if (hasMarker(unwrap(subValue).descriptions, SINGLE_REF_MARKER)) {
             subKeys.add(subKey);
@@ -157,7 +160,11 @@ function isChildListUnion(schema: z.ZodTypeAny): boolean {
     return false;
   }
   const options = schema._def.options as z.ZodTypeAny[];
-  return options.some(
-    o => o._def.typeName === 'ZodObject' && o._def.shape().componentId && o._def.shape().path,
-  );
+  return options.some(o => {
+    if (o._def.typeName !== 'ZodObject') {
+      return false;
+    }
+    const shape = (o as z.AnyZodObject).shape;
+    return shape.componentId && shape.path;
+  });
 }
