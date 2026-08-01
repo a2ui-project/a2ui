@@ -844,6 +844,55 @@ It is critical to note that Two-Way Binding is **local to the renderer**.
 
 4.  **Send:** When clicked, the renderer resolves `/formData/email` (getting "jane@example.com") and sends it in the `action` payload.
 
+#### Reactive client-side computation
+
+Two-way binding delivers a value unchanged. When a consuming component needs a **transformation** of that value — a percentage scaled into a fraction, a subtotal plus tip, a raw slider position constrained to a usable range — bind the property to a `FunctionCall` over the same path rather than to the path itself.
+
+The whole loop runs on the renderer:
+
+1. An input component writes the user's raw value to a data model path.
+2. Every property bound to a `FunctionCall` whose arguments reference that path is re-evaluated.
+3. The renderer applies the results.
+
+No network request is issued and the agent is not invoked. This is the reactivity described above with a transformation in the middle.
+
+Transformations are built by nesting `FunctionCall` objects, not by evaluating an expression language. Nothing executable crosses the wire: the renderer only ever runs functions it already implements, and every argument is validated against the catalog schema before invocation.
+
+```json
+{
+  "id": "tip_amount",
+  "component": "Text",
+  "text": {
+    "call": "formatCurrency",
+    "args": {
+      "value": {
+        "call": "multiply",
+        "args": {
+          "a": {"path": "/order/subtotal"},
+          "b": {
+            "call": "divide",
+            "args": {"a": {"path": "/order/tipPercent"}, "b": 100}
+          }
+        }
+      },
+      "currency": "USD"
+    }
+  }
+}
+```
+
+Nesting composes to arbitrary depth, so a transformation can be assembled from as many registered functions as it needs. `clamp`, `round`, `min`, `max` and `abs` exist for the constraining and tidying steps such a chain usually ends with; `clamp` in particular is how a raw input range is mapped onto the range a consumer can accept.
+
+A `FunctionCall` produces a value for one property. It does not write its result back into the data model for other components to read, so each consumer binds the transformation it needs. Two components requiring the same computed value each carry their own `FunctionCall` over the same source path.
+
+`37_live-calculator.json` in the basic catalog examples is a complete worked instance: three sliders write to the data model, and every displayed amount is computed from them locally.
+
+#### Extending the pattern with a custom catalog
+
+The same loop applies to component types the basic catalog does not define. A colour manipulator, for example: a `Slider` writes a saturation between 0 and 100 to `/params/rawSaturation`, and a renderer-defined `ColorPreview` component binds its `saturation` property to `clamp(divide(/params/rawSaturation, 100), 0, 1)`. The preview follows the slider with no agent involvement, and the agent never needs to know how the value is consumed — it only needs the component and the functions to be declared in the catalog it was given.
+
+Functions of your own can be registered alongside the catalog's; see [custom functions](a2ui_custom_functions.md).
+
 ## Data model updates: synchronization and convergence
 
 While the sections above describe how components reference data, this section defines how the Data Model itself is **updated** and synchronized.
