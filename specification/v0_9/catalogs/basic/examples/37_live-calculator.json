@@ -1,0 +1,265 @@
+{
+  "name": "Live Calculator",
+  "description": "Example of client-side reactive computation: sliders write to the data model and bound function calls recompute locally, with no agent roundtrip.",
+  "messages": [
+    {
+      "version": "v0.9",
+      "createSurface": {
+        "surfaceId": "gallery-live-calculator",
+        "catalogId": "https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json",
+        "sendDataModel": true
+      }
+    },
+    {
+      "version": "v0.9",
+      "updateComponents": {
+        "surfaceId": "gallery-live-calculator",
+        "components": [
+          {
+            "id": "root",
+            "component": "Card",
+            "child": "main-column"
+          },
+          {
+            "id": "main-column",
+            "component": "Column",
+            "children": [
+              "title",
+              "subtitle",
+              "subtotal-slider",
+              "subtotal-text",
+              "tip-slider",
+              "tip-percent-text",
+              "people-slider",
+              "people-text",
+              "divider",
+              "tip-amount-row",
+              "per-person-row",
+              "total-row"
+            ]
+          },
+          {
+            "id": "title",
+            "component": "Text",
+            "text": "## Bill Splitter"
+          },
+          {
+            "id": "subtitle",
+            "component": "Text",
+            "text": "Drag any slider. Every amount below is recomputed on the client.",
+            "variant": "caption"
+          },
+          {
+            "id": "subtotal-slider",
+            "component": "Slider",
+            "label": "Subtotal",
+            "value": {"path": "/order/subtotal"},
+            "min": 0,
+            "max": 200
+          },
+          {
+            "id": "subtotal-text",
+            "component": "Text",
+            "text": {
+              "call": "formatCurrency",
+              "args": {
+                "value": {"path": "/order/subtotal"},
+                "currency": "USD"
+              },
+              "returnType": "string"
+            },
+            "variant": "body"
+          },
+          {
+            "id": "tip-slider",
+            "component": "Slider",
+            "label": "Tip percentage",
+            "value": {"path": "/order/tipPercent"},
+            "min": 0,
+            "max": 40
+          },
+          {
+            "id": "tip-percent-text",
+            "component": "Text",
+            "text": {
+              "call": "formatString",
+              "args": {"value": "${/order/tipPercent}% tip"},
+              "returnType": "string"
+            },
+            "variant": "body"
+          },
+          {
+            "id": "people-slider",
+            "component": "Slider",
+            "label": "Splitting between",
+            "value": {"path": "/order/people"},
+            "min": 0,
+            "max": 8
+          },
+          {
+            "id": "people-text",
+            "component": "Text",
+            "text": {
+              "call": "formatString",
+              "args": {
+                "value": "Splitting the tip ${clamp(value: ${/order/people}, min: 1, max: 8)} ways"
+              },
+              "returnType": "string"
+            },
+            "variant": "body"
+          },
+          {
+            "id": "divider",
+            "component": "Divider"
+          },
+          {
+            "id": "tip-amount-row",
+            "component": "Row",
+            "children": ["tip-amount-label", "tip-amount-value"],
+            "justify": "spaceBetween"
+          },
+          {
+            "id": "tip-amount-label",
+            "component": "Text",
+            "text": "Tip",
+            "variant": "body"
+          },
+          {
+            "id": "tip-amount-value",
+            "component": "Text",
+            "text": {
+              "call": "formatCurrency",
+              "args": {
+                "value": {
+                  "call": "round",
+                  "args": {
+                    "value": {
+                      "call": "multiply",
+                      "args": {
+                        "a": {"path": "/order/subtotal"},
+                        "b": {
+                          "call": "divide",
+                          "args": {"a": {"path": "/order/tipPercent"}, "b": 100},
+                          "returnType": "number"
+                        }
+                      },
+                      "returnType": "number"
+                    },
+                    "decimals": 2
+                  },
+                  "returnType": "number"
+                },
+                "currency": "USD"
+              },
+              "returnType": "string"
+            },
+            "variant": "body"
+          },
+          {
+            "id": "per-person-row",
+            "component": "Row",
+            "children": ["per-person-label", "per-person-value"],
+            "justify": "spaceBetween"
+          },
+          {
+            "id": "per-person-label",
+            "component": "Text",
+            "text": "Tip per person",
+            "variant": "body"
+          },
+          {
+            "id": "per-person-value",
+            "component": "Text",
+            "text": {
+              "call": "formatCurrency",
+              "args": {
+                "value": {
+                  "call": "divide",
+                  "args": {
+                    "a": {
+                      "call": "multiply",
+                      "args": {
+                        "a": {"path": "/order/subtotal"},
+                        "b": {
+                          "call": "divide",
+                          "args": {"a": {"path": "/order/tipPercent"}, "b": 100},
+                          "returnType": "number"
+                        }
+                      },
+                      "returnType": "number"
+                    },
+                    "b": {
+                      "call": "clamp",
+                      "args": {"value": {"path": "/order/people"}, "min": 1, "max": 8},
+                      "returnType": "number"
+                    }
+                  },
+                  "returnType": "number"
+                },
+                "currency": "USD"
+              },
+              "returnType": "string"
+            },
+            "variant": "body"
+          },
+          {
+            "id": "total-row",
+            "component": "Row",
+            "children": ["total-label", "total-value"],
+            "justify": "spaceBetween"
+          },
+          {
+            "id": "total-label",
+            "component": "Text",
+            "text": "**Total**",
+            "variant": "body"
+          },
+          {
+            "id": "total-value",
+            "component": "Text",
+            "text": {
+              "call": "formatCurrency",
+              "args": {
+                "value": {
+                  "call": "add",
+                  "args": {
+                    "a": {"path": "/order/subtotal"},
+                    "b": {
+                      "call": "multiply",
+                      "args": {
+                        "a": {"path": "/order/subtotal"},
+                        "b": {
+                          "call": "divide",
+                          "args": {"a": {"path": "/order/tipPercent"}, "b": 100},
+                          "returnType": "number"
+                        }
+                      },
+                      "returnType": "number"
+                    }
+                  },
+                  "returnType": "number"
+                },
+                "currency": "USD"
+              },
+              "returnType": "string"
+            },
+            "variant": "body"
+          }
+        ]
+      }
+    },
+    {
+      "version": "v0.9",
+      "updateDataModel": {
+        "surfaceId": "gallery-live-calculator",
+        "value": {
+          "order": {
+            "subtotal": 40,
+            "tipPercent": 20,
+            "people": 2
+          }
+        }
+      }
+    }
+  ]
+}
