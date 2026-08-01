@@ -213,7 +213,6 @@ export const A2uiNodeSurface: React.FC<{
     (onChange: () => void) => {
       const resolver = new NodeResolver(surface, surface.catalog);
       box.resolver = resolver;
-      onChange();
       const stopEffect = effect(() => {
         getValue(resolver.rootNode);
         onChange();
