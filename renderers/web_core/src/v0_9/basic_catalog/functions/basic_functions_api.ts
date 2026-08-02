@@ -28,8 +28,8 @@ export const AddApi = {
   name: 'add' as const,
   returnType: 'number' as const,
   schema: z.object({
-    a: z.preprocess(v => (v === null ? undefined : v), z.coerce.number()),
-    b: z.preprocess(v => (v === null ? undefined : v), z.coerce.number()),
+    'a': z.preprocess(v => (v === null ? undefined : v), z.coerce.number()),
+    'b': z.preprocess(v => (v === null ? undefined : v), z.coerce.number()),
   }),
 };
 
@@ -44,8 +44,8 @@ export const SubtractApi = {
   name: 'subtract' as const,
   returnType: 'number' as const,
   schema: z.object({
-    a: z.preprocess(v => (v === null ? undefined : v), z.coerce.number()),
-    b: z.preprocess(v => (v === null ? undefined : v), z.coerce.number()),
+    'a': z.preprocess(v => (v === null ? undefined : v), z.coerce.number()),
+    'b': z.preprocess(v => (v === null ? undefined : v), z.coerce.number()),
   }),
 };
 
@@ -60,8 +60,8 @@ export const MultiplyApi = {
   name: 'multiply' as const,
   returnType: 'number' as const,
   schema: z.object({
-    a: z.preprocess(v => (v === null ? undefined : v), z.coerce.number()),
-    b: z.preprocess(v => (v === null ? undefined : v), z.coerce.number()),
+    'a': z.preprocess(v => (v === null ? undefined : v), z.coerce.number()),
+    'b': z.preprocess(v => (v === null ? undefined : v), z.coerce.number()),
   }),
 };
 
@@ -76,8 +76,8 @@ export const DivideApi = {
   name: 'divide' as const,
   returnType: 'number' as const,
   schema: z.object({
-    a: z.preprocess(v => (v === null ? undefined : v), z.coerce.number()),
-    b: z.preprocess(v => (v === null ? undefined : v), z.coerce.number()),
+    'a': z.preprocess(v => (v === null ? undefined : v), z.coerce.number()),
+    'b': z.preprocess(v => (v === null ? undefined : v), z.coerce.number()),
   }),
 };
 
@@ -172,8 +172,8 @@ export const EqualsApi = {
   name: 'equals' as const,
   returnType: 'boolean' as const,
   schema: z.object({
-    a: z.any().refine(v => v !== undefined, 'Required'),
-    b: z.any().refine(v => v !== undefined, 'Required'),
+    'a': z.any().refine(v => v !== undefined, 'Required'),
+    'b': z.any().refine(v => v !== undefined, 'Required'),
   }),
 };
 
@@ -188,8 +188,8 @@ export const NotEqualsApi = {
   name: 'not_equals' as const,
   returnType: 'boolean' as const,
   schema: z.object({
-    a: z.any().refine(v => v !== undefined, 'Required'),
-    b: z.any().refine(v => v !== undefined, 'Required'),
+    'a': z.any().refine(v => v !== undefined, 'Required'),
+    'b': z.any().refine(v => v !== undefined, 'Required'),
   }),
 };
 
@@ -204,8 +204,8 @@ export const GreaterThanApi = {
   name: 'greater_than' as const,
   returnType: 'boolean' as const,
   schema: z.object({
-    a: z.preprocess(v => (v === null ? undefined : v), z.coerce.number()),
-    b: z.preprocess(v => (v === null ? undefined : v), z.coerce.number()),
+    'a': z.preprocess(v => (v === null ? undefined : v), z.coerce.number()),
+    'b': z.preprocess(v => (v === null ? undefined : v), z.coerce.number()),
   }),
 };
 
@@ -220,8 +220,8 @@ export const LessThanApi = {
   name: 'less_than' as const,
   returnType: 'boolean' as const,
   schema: z.object({
-    a: z.preprocess(v => (v === null ? undefined : v), z.coerce.number()),
-    b: z.preprocess(v => (v === null ? undefined : v), z.coerce.number()),
+    'a': z.preprocess(v => (v === null ? undefined : v), z.coerce.number()),
+    'b': z.preprocess(v => (v === null ? undefined : v), z.coerce.number()),
   }),
 };
 
@@ -236,7 +236,7 @@ export const AndApi = {
   name: 'and' as const,
   returnType: 'boolean' as const,
   schema: z.object({
-    values: z.array(z.any()).min(2),
+    'values': z.array(z.any()).min(2),
   }),
 };
 
@@ -250,7 +250,7 @@ export const OrApi = {
   name: 'or' as const,
   returnType: 'boolean' as const,
   schema: z.object({
-    values: z.array(z.any()).min(2),
+    'values': z.array(z.any()).min(2),
   }),
 };
 
@@ -264,7 +264,7 @@ export const NotApi = {
   name: 'not' as const,
   returnType: 'boolean' as const,
   schema: z.object({
-    value: z.any().refine(v => v !== undefined, 'Required'),
+    'value': z.any().refine(v => v !== undefined, 'Required'),
   }),
 };
 
@@ -280,8 +280,8 @@ export const ContainsApi = {
   name: 'contains' as const,
   returnType: 'boolean' as const,
   schema: z.object({
-    string: z.preprocess(v => (v === undefined ? undefined : String(v)), z.string()),
-    substring: z.preprocess(v => (v === undefined ? undefined : String(v)), z.string()),
+    'string': z.preprocess(v => (v === undefined ? undefined : String(v)), z.string()),
+    'substring': z.preprocess(v => (v === undefined ? undefined : String(v)), z.string()),
   }),
 };
 
@@ -296,8 +296,8 @@ export const StartsWithApi = {
   name: 'starts_with' as const,
   returnType: 'boolean' as const,
   schema: z.object({
-    string: z.preprocess(v => (v === undefined ? undefined : String(v)), z.string()),
-    prefix: z.preprocess(v => (v === undefined ? undefined : String(v)), z.string()),
+    'string': z.preprocess(v => (v === undefined ? undefined : String(v)), z.string()),
+    'prefix': z.preprocess(v => (v === undefined ? undefined : String(v)), z.string()),
   }),
 };
 
@@ -312,8 +312,8 @@ export const EndsWithApi = {
   name: 'ends_with' as const,
   returnType: 'boolean' as const,
   schema: z.object({
-    string: z.preprocess(v => (v === undefined ? undefined : String(v)), z.string()),
-    suffix: z.preprocess(v => (v === undefined ? undefined : String(v)), z.string()),
+    'string': z.preprocess(v => (v === undefined ? undefined : String(v)), z.string()),
+    'suffix': z.preprocess(v => (v === undefined ? undefined : String(v)), z.string()),
   }),
 };
 
@@ -328,7 +328,7 @@ export const RequiredApi = {
   name: 'required' as const,
   returnType: 'boolean' as const,
   schema: z.object({
-    value: z.any().refine(v => v !== undefined, 'Required'),
+    'value': z.any().refine(v => v !== undefined, 'Required'),
   }),
 };
 
@@ -343,8 +343,8 @@ export const RegexApi = {
   name: 'regex' as const,
   returnType: 'boolean' as const,
   schema: z.object({
-    value: z.preprocess(v => (v === undefined ? undefined : String(v)), z.string()),
-    pattern: z.preprocess(v => (v === undefined ? undefined : String(v)), z.string()),
+    'value': z.preprocess(v => (v === undefined ? undefined : String(v)), z.string()),
+    'pattern': z.preprocess(v => (v === undefined ? undefined : String(v)), z.string()),
   }),
 };
 
@@ -361,9 +361,9 @@ export const LengthApi = {
   returnType: 'boolean' as const,
   schema: z
     .object({
-      value: z.any().refine(v => v !== undefined, 'Required'),
-      min: z.coerce.number().optional(),
-      max: z.coerce.number().optional(),
+      'value': z.any().refine(v => v !== undefined, 'Required'),
+      'min': z.coerce.number().optional(),
+      'max': z.coerce.number().optional(),
     })
     .refine(data => data.min !== undefined || data.max !== undefined, {
       message: "Must provide either 'min' or 'max'",
@@ -383,9 +383,9 @@ export const NumericApi = {
   returnType: 'boolean' as const,
   schema: z
     .object({
-      value: z.coerce.number(),
-      min: z.coerce.number().optional(),
-      max: z.coerce.number().optional(),
+      'value': z.coerce.number(),
+      'min': z.coerce.number().optional(),
+      'max': z.coerce.number().optional(),
     })
     .refine(data => data.min !== undefined || data.max !== undefined, {
       message: "Must provide either 'min' or 'max'",
@@ -402,7 +402,7 @@ export const EmailApi = {
   name: 'email' as const,
   returnType: 'boolean' as const,
   schema: z.object({
-    value: z.preprocess(v => (v === undefined ? undefined : String(v)), z.string()),
+    'value': z.preprocess(v => (v === undefined ? undefined : String(v)), z.string()),
   }),
 };
 
@@ -427,7 +427,7 @@ export const FormatStringApi = {
   name: 'formatString' as const,
   returnType: 'any' as const,
   schema: z.object({
-    value: z.coerce.string(),
+    'value': z.coerce.string(),
   }),
 };
 
@@ -443,9 +443,9 @@ export const FormatNumberApi = {
   name: 'formatNumber' as const,
   returnType: 'string' as const,
   schema: z.object({
-    value: z.coerce.number(),
-    decimals: z.coerce.number().optional(),
-    grouping: z.boolean().default(true),
+    'value': z.coerce.number(),
+    'decimals': z.coerce.number().optional(),
+    'grouping': z.boolean().default(true),
   }),
 };
 
@@ -462,10 +462,10 @@ export const FormatCurrencyApi = {
   name: 'formatCurrency' as const,
   returnType: 'string' as const,
   schema: z.object({
-    value: z.coerce.number(),
-    currency: z.coerce.string(),
-    decimals: z.coerce.number().optional(),
-    grouping: z.boolean().default(true),
+    'value': z.coerce.number(),
+    'currency': z.coerce.string(),
+    'decimals': z.coerce.number().optional(),
+    'grouping': z.boolean().default(true),
   }),
 };
 
@@ -489,8 +489,8 @@ export const FormatDateApi = {
   name: 'formatDate' as const,
   returnType: 'string' as const,
   schema: z.object({
-    value: z.any().refine(v => v !== undefined, 'Required'),
-    format: z.coerce.string(),
+    'value': z.any().refine(v => v !== undefined, 'Required'),
+    'format': z.coerce.string(),
   }),
 };
 
@@ -512,13 +512,13 @@ export const PluralizeApi = {
   name: 'pluralize' as const,
   returnType: 'string' as const,
   schema: z.object({
-    value: z.coerce.number(),
-    zero: z.coerce.string().optional(),
-    one: z.coerce.string().optional(),
-    two: z.coerce.string().optional(),
-    few: z.coerce.string().optional(),
-    many: z.coerce.string().optional(),
-    other: z.coerce.string(),
+    'value': z.coerce.number(),
+    'zero': z.coerce.string().optional(),
+    'one': z.coerce.string().optional(),
+    'two': z.coerce.string().optional(),
+    'few': z.coerce.string().optional(),
+    'many': z.coerce.string().optional(),
+    'other': z.coerce.string(),
   }),
 };
 
@@ -533,7 +533,7 @@ export const OpenUrlApi = {
   name: 'openUrl' as const,
   returnType: 'void' as const,
   schema: z.object({
-    url: z.preprocess(v => (v === undefined ? undefined : String(v)), z.string()),
+    'url': z.preprocess(v => (v === undefined ? undefined : String(v)), z.string()),
   }),
 };
 

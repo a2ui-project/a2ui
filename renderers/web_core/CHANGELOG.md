@@ -2,8 +2,10 @@
 
 - (v0_9) Fix `divide` by zero to follow IEEE 754 and the basic catalog description: the sign of the dividend now carries, so `-1 / 0` is `-Infinity`, and `0 / 0` is `NaN`. Previously every division by zero returned positive `Infinity`.
 - (v0_9) Add `clamp`, `round`, `min`, `max` and `abs` basic catalog functions. `clamp` returns `min` when `max` is below `min`, and `round` rounds halfway cases away from zero.
+- (v0_9) Validate component properties against catalog schema in `MessageProcessor` to prevent malformed component actions.
 - (v0_9) Add prototype pollution protection and safe property lookup to `DataModel` (non-breaking security fix).
 - (v0_8) Export `A2uiMessageSchema` in public API.
+- Enable `inlineSources` in `tsconfig.json` to populate `sourcesContent` in sourcemaps.
 
 ## 0.10.5
 

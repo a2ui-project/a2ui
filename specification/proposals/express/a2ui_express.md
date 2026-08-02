@@ -17,28 +17,36 @@ A2UI Express layout blocks must be enclosed inside the `<a2ui>` and `</a2ui>` se
 
 ```
 <a2ui>
-variable_name = ComponentName(argument1, argument2, ...)
+variable_name = ComponentName(arg1, arg2, param=value)
 </a2ui>
 ```
 
-Every instruction in A2UI Express is a variable assignment statement. Statements are separated by newlines, and a single assignment can format-span multiple lines:
+Every instruction in A2UI Express is a variable assignment statement or standalone lifecycle command. Statements are separated by newlines, and a single assignment can span multiple lines:
 
 ```
-variable_name = ComponentName(argument1, argument2, ...)
+variable_name = ComponentName(arg1, arg2, param=value)
 ```
 
 The syntax rules define how types, structures, data paths, and validation actions are expressed.
 
-### Variable declarations
+### Variable declarations and component nesting
 
-Every component definition is assigned to a unique variable identifier. The compiler uses these variables to resolve parent-child hierarchies. A reserved variable named `root` acts as the primary entry point for the interface tree.
+Every component definition is assigned to a unique variable identifier, or constructed inline directly within a parent component's argument list. A reserved variable named `root` acts as the primary entry point for the interface tree.
 
 To support multi-lingual models while ensuring syntax safety for future extensions (such as math or conditional expressions), all variable identifiers MUST conform to the Unicode Identifier standard ([UAX #31](https://www.unicode.org/reports/tr31/)):
 
 - An identifier must start with a Unicode letter or an underscore `_`.
 - Subsequent characters must be Unicode letters, digits (`0-9`), or underscores `_`.
 
-To eliminate syntax errors from complex bracket structures and enable line-oriented streaming compilation, A2UI Express prohibits inline component nesting. Component constructor calls (e.g., `Text(...)`, `Column(...)`) can **only** appear on the right-hand side of a variable assignment (`var = ComponentName(...)`). They **cannot** be passed directly as positional arguments to other components. Instead, you must declare them separately and reference their variable names.
+A2UI Express supports flexible hybrid component nesting: child components can either be defined inline (e.g., `Card(child=Text("Hello"))`) or assigned to top-level variables and referenced by name (e.g., `header = Text("Hello")` and `root = Card(child=header)`).
+
+### Argument passing (positional and keyword)
+
+Component constructors support both positional arguments and keyword argument assignments (`param=value`):
+
+- **Positional Arguments**: Passed in the order defined by the component signature (e.g., `Text("Hello")`). Optional positional arguments at the end of a signature may be omitted. If an optional argument in the middle is omitted, a placeholder underscore `_` can be passed.
+- **Keyword Arguments**: Passed explicitly by parameter name (e.g., `Button(child=Text("Submit"), action=Event("click"))`). Keyword arguments can be freely mixed with positional arguments.
+- **Static Parameter Annotations**: Signature parameters annotated as `(static)` MUST be defined as literal values or arrays inline, and cannot use dynamic data binding paths (`$/path`).
 
 ### Core primitive types
 

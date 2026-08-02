@@ -106,45 +106,77 @@ Here is the schema for the `Chart` component:
 
 ## 2. Implementing the Component (Client)
 
-Implement your component using your client-side framework. For Angular, your component should extend `DynamicComponent` provided by `@a2ui/angular`.
+Implement your component using your client-side framework. For Angular, your component should extend `CatalogComponent` provided by `@a2ui/angular/v0_9`.
 
-In the [`orchestrator`](../../../samples/community/client/angular/projects/orchestrator/README.md) example, the `Chart` component is defined in [`chart.ts`](../../../samples/community/client/angular/projects/orchestrator/src/a2ui-catalog/chart.ts).
+In the `rizzcharts` example, the `Chart` component is defined in `chart.ts`.
 
-{% raw %}
+First, define the component API in TypeScript. This should match the JSON Schema defined in Step 1.
 
 ```typescript
-import {DynamicComponent} from '@a2ui/angular';
-import * as Primitives from '@a2ui/web_core/types/primitives';
-import * as Types from '@a2ui/web_core/types/types';
-import {Component, computed, input, Signal, signal} from '@angular/core';
+// api.ts
+import {ComponentApi} from '@a2ui/web_core/v0_9';
+import {z} from 'zod';
+
+export const ChartApi = {
+  name: 'Chart',
+  schema: z.object({
+    type: z.enum(['doughnut', 'pie']),
+    title: z.string().optional(),
+    chartData: z.array(
+      z.object({
+        label: z.string(),
+        value: z.number(),
+        drillDown: z.array(
+          z.object({
+            label: z.string(),
+            value: z.number(),
+          })
+        ).optional(),
+      })
+    ),
+  }).strict(),
+} satisfies ComponentApi;
+```
+
+Now implement the Angular component:
+
+```typescript
+import {CatalogComponent} from '@a2ui/angular/v0_9';
+import {Component, computed} from '@angular/core';
+import {BaseChartDirective} from 'ng2-charts';
+import {ChartApi} from './api';
 
 @Component({
   selector: 'a2ui-chart',
+  imports: [BaseChartDirective],
   template: `
     <div>
-      <h2>{{ resolvedTitle() }}</h2>
-      <canvas baseChart [data]="currentData()" [type]="chartType()"></canvas>
+      <h2>{{ title() }}</h2>
+      <canvas baseChart [data]="chartData()" [type]="chartType()"></canvas>
     </div>
   `,
 })
-export class Chart extends DynamicComponent<Types.CustomNode> {
-  readonly type = input.required<string>();
-  protected readonly chartType = computed(() => this.type() as ChartType);
-
-  readonly title = input<Primitives.StringValue | null>();
-  protected readonly resolvedTitle = computed(() => super.resolvePrimitive(this.title() ?? null));
-
-  readonly chartData = input.required<Primitives.StringValue | null>();
-  // ... data resolution logic using super.resolvePrimitive for data paths
+export class Chart extends CatalogComponent<typeof ChartApi> {
+  protected readonly chartType = computed(() => this.props()['type']?.value() || 'pie');
+  protected readonly title = computed(() => this.props()['title']?.value() || '');
+  protected readonly chartData = computed(() => {
+    const rawData = this.props()['chartData']?.value() || [];
+    return {
+      labels: rawData.map(item => item.label),
+      datasets: [
+        {
+          data: rawData.map(item => item.value),
+        },
+      ],
+    };
+  });
 }
 ```
 
-{% endraw %}
-
 Keep these key points in mind when implementing components:
 
-- **Extend `DynamicComponent`**: This gives you access to `resolvePrimitive` for data binding resolution.
-- **Use Angular Inputs**: Map properties from the schema to Angular inputs.
+- **Extend `CatalogComponent`**: This gives you access to the type-safe `props` signal input.
+- **Use `props()` Signal**: Access resolved properties reactively via `this.props()['propertyName']?.value()`. The framework automatically handles resolving data bindings and expressions.
 
 ---
 
@@ -152,32 +184,28 @@ Keep these key points in mind when implementing components:
 
 Once the component is implemented, register it in your client catalog. This maps the component name (used by agents) to the implementation class.
 
-In the [`orchestrator`](../../../samples/community/client/angular/projects/orchestrator/README.md) example, this is done in [`catalog.ts`](../../../samples/community/client/angular/projects/orchestrator/src/a2ui-catalog/catalog.ts).
+You use the `AngularCatalog` class to define your catalog.
 
 ```typescript
-import {Catalog, DEFAULT_CATALOG} from '@a2ui/angular';
-import {inputBinding} from '@angular/core';
+import {AngularCatalog, BASIC_COMPONENTS, BASIC_FUNCTIONS} from '@a2ui/angular/v0_9';
+import {Chart} from './chart';
+import {ChartApi} from './api';
 
-export const RIZZ_CHARTS_CATALOG = {
-  ...DEFAULT_CATALOG,
-  Chart: {
-    type: () => import('./chart').then(r => r.Chart),
-    bindings: ({properties}) => [
-      inputBinding('type', () => ('type' in properties && properties['type']) || undefined),
-      inputBinding('title', () => ('title' in properties && properties['title']) || undefined),
-      inputBinding(
-        'chartData',
-        () => ('chartData' in properties && properties['chartData']) || undefined,
-      ),
-    ],
-  },
-} as Catalog;
+const customChartComponent = {
+  ...ChartApi,
+  component: Chart
+};
+
+export const RIZZ_CHARTS_CATALOG = new AngularCatalog(
+  'https://github.com/.../rizzcharts_catalog_definition.json',
+  [...BASIC_COMPONENTS, customChartComponent],
+  BASIC_FUNCTIONS
+);
 ```
 
 Key points for registration:
 
-- **Lazy Loading**: Use `import()` to lazy-load the component code.
-- **Input Bindings**: Use `inputBinding` to map properties from the schema to Angular inputs.
+- **Eager Registration**: Component classes are registered directly in the catalog definition.
 
 ---
 
