@@ -125,9 +125,14 @@ function shiftExponent(value: number, exponent: number): number {
  * Halfway cases round away from zero, so -2.5 becomes -3 rather than the -2
  * that JavaScript's Math.round would produce. Non-finite values, and shifts
  * large enough to overflow to Infinity, are returned unchanged.
+ *
+ * The catalog types 'decimals' as a number rather than an integer, so a
+ * fractional value is valid on the wire and is truncated towards zero. Without
+ * that truncation shiftExponent would build a malformed literal ('1.005e2.5'),
+ * parse it as NaN, and silently return the value unrounded.
  */
 export const RoundImplementation = createFunctionImplementation(RoundApi, args => {
-  const decimals = args.decimals ?? 0;
+  const decimals = Math.trunc(args.decimals ?? 0);
   if (!Number.isFinite(args.value)) return args.value;
   const scaled = shiftExponent(Math.abs(args.value), decimals);
   if (!Number.isFinite(scaled)) return args.value;

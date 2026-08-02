@@ -116,6 +116,9 @@ describe('BASIC_FUNCTIONS', () => {
       assert.strictEqual(invoke('round', {value: 0}, context), 0);
       // A shift large enough to overflow leaves the value untouched.
       assert.strictEqual(invoke('round', {value: 1.5, decimals: 400}, context), 1.5);
+      // A fractional 'decimals' is truncated towards zero rather than ignored.
+      assert.strictEqual(invoke('round', {value: 1.005, decimals: 2.5}, context), 1.01);
+      assert.strictEqual(invoke('round', {value: 1234, decimals: -2.5}, context), 1200);
       assert.throws(() => invoke('round', {}, context), A2uiExpressionError);
       assert.throws(() => invoke('round', {value: null}, context), A2uiExpressionError);
       assert.throws(() => invoke('round', {value: 'invalid'}, context), A2uiExpressionError);

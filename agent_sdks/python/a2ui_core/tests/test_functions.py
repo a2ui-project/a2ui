@@ -101,6 +101,9 @@ def test_numeric_round():
     assert invoke("round", {"value": 0}) == 0
     # A shift large enough to overflow leaves the value untouched.
     assert invoke("round", {"value": 1.5, "decimals": 400}) == 1.5
+    # A fractional 'decimals' is truncated towards zero rather than ignored.
+    assert invoke("round", {"value": 1.005, "decimals": 2.5}) == 1.01
+    assert invoke("round", {"value": 1234, "decimals": -2.5}) == 1200
     with pytest.raises(ValidationError):
         invoke("round", {})
     with pytest.raises(ValidationError):
