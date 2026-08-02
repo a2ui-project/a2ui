@@ -33,7 +33,7 @@ _Note: There is no P4 priority tier. Issues that are out of scope, highly custom
   - **Reproduction**: Do not attempt local reproduction unless the steps are simple, clear, and the environment can be set up immediately (e.g., inspecting a file, executing a standard unit test). If you need to check out the branch or clone the PR repo to reproduce the issue, do it in a temporary clone or git worktree (e.g. in `<appDataDir>/brain/<conversation-id>/scratch/issue_12345_repro/`). This keeps the main working repository clean of temporary test files or build side effects.
   - **Static Analysis**: For complex bugs, analyze the logs, stack traces, and relevant specification files (e.g., JSON schemas in `specification/`) to diagnose the issue, but don't spend a bunch of resources setting up a complex reproduction.
 - **Action**:
-  - If reproduction steps or logs are missing and prevent diagnosis, set action to `needs_info`, draft a response asking for the missing details, and apply the `waiting-for-user-response` label.
+  - If reproduction steps or logs are missing and prevent diagnosis, set action to `needs_info`, draft a response asking for the missing details, and apply the `waiting-for-author-response` label.
   - If the bug is verified, suggest the appropriate priority (`P0` to `P3`) and recommend the owner of the affected component based on path mapping (e.g. paths with `renderers/lit` belong to the Lit renderer maintainer, `specification/` to the specification maintainer) and file commit history (`git log -n 5 --format="%ae" <file>`). Do not rely only on raw `git blame`, as formatting or linter changes can skew authorship.
   - Clean up any temporary files, worktrees, clones, and/or temporary branches when finished.
 
@@ -74,7 +74,7 @@ Examples:
 > 1. [Specific missing detail, e.g., browser console logs / the exact protocol payload]
 > 2. [Simplified reproduction steps or a minimal schema sample]
 >
-> Marked as `waiting-for-user-response` for now.
+> Marked as `waiting-for-author-response` for now.
 
 ### Duplicate Issues
 

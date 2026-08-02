@@ -22,7 +22,7 @@ from inspect_ai.model import (
     ChatMessageAssistant,
 )
 from a2ui.schema.catalog import CatalogConfig
-from a2ui.inference_formats.transport import TransportFormat
+from a2ui.inference_formats.direct_json import DirectJsonFormat
 from a2ui.inference_format import InferenceFormat
 from ..shared.utils import GIT_ROOT, measured_generate
 
@@ -36,7 +36,7 @@ def _get_strategy(
     """Resolves and instantiates the InferenceFormat strategy for the given format.
 
     Args:
-        format_name: The name of the format strategy (json, express, or elemental).
+        format_name: The name of the format strategy (direct_json, express, elemental, or atom).
         version: The specification version (e.g. 0.9.1 or 1.0).
         catalog_config: The catalog configuration details.
         surface_id: The surface identifier target.
@@ -44,15 +44,15 @@ def _get_strategy(
     Returns:
         The instantiated InferenceFormat strategy object.
     """
-    transport_format = TransportFormat(
+    direct_json_format = DirectJsonFormat(
         version=version,
         catalogs=[catalog_config],
         experiments={"version_1_0"} if version == "1.0" else None,
     )
-    if format_name == "json":
-        return transport_format
+    if format_name == "direct_json":
+        return direct_json_format
 
-    catalog = transport_format.get_selected_catalog()
+    catalog = direct_json_format.get_selected_catalog()
     if format_name == "express":
         from a2ui.inference_formats.experimental.express.format import ExpressFormat
 
@@ -61,6 +61,10 @@ def _get_strategy(
         from a2ui.inference_formats.experimental.elemental.format import ElementalFormat
 
         return ElementalFormat(catalog=catalog, surface_id=surface_id)
+    elif format_name == "atom":
+        from a2ui.inference_formats.experimental.atom.format import AtomFormat
+
+        return AtomFormat(catalog=catalog, surface_id=surface_id)
     else:
         raise ValueError(f"Unknown format strategy: {format_name}")
 
@@ -76,15 +80,29 @@ def format_system_prompt(format_name: str, version: str) -> Solver:
         catalog_config = CatalogConfig.from_path("basic_catalog", resolved_catalog_path)
         strategy = _get_strategy(format_name, version, catalog_config)
 
-        role_description = state.metadata.get("role_description", "")
-        workflow_description = state.metadata.get("workflow_description", "")
+        role_description = state.metadata.get("protocol_role") or state.metadata.get(
+            "role_description", ""
+        )
+        workflow_description = state.metadata.get(
+            "generation_rules"
+        ) or state.metadata.get("workflow_description", "")
 
-        prompt = strategy.prompt_generator.generate(
+        a2ui_prompt = strategy.prompt_generator.generate(
             role_description=role_description,
             workflow_description=workflow_description,
             include_schema=True,
         )
-        state.messages.insert(0, ChatMessageSystem(content=prompt))
+
+        domain_prompt = state.metadata.get("system_prompt", "").strip()
+        if domain_prompt:
+            full_prompt = (
+                f"## Domain Instructions\n{domain_prompt}\n\n## UI Protocol"
+                f" Instructions\n{a2ui_prompt}"
+            )
+        else:
+            full_prompt = a2ui_prompt
+
+        state.messages.insert(0, ChatMessageSystem(content=full_prompt))
         return state
 
     return solve
@@ -126,7 +144,7 @@ def compile_format_payload(format_name: str, version: str) -> Solver:
         )
         catalog = (
             strategy.get_selected_catalog()
-            if isinstance(strategy, TransportFormat)
+            if isinstance(strategy, DirectJsonFormat)
             else getattr(strategy, "catalog")
         )
         validator = catalog.validator
@@ -188,6 +206,6 @@ def format_solver(format_name: str, version: str) -> list[Solver]:
         format_system_prompt(format_name, version),
         measured_generate(),
     ]
-    if format_name != "json":
+    if format_name != "direct_json":
         chain.append(compile_format_payload(format_name, version))
     return chain

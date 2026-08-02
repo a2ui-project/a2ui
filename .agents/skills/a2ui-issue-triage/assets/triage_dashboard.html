@@ -851,7 +851,7 @@ limitations under the License.
             <select id="triageAction" onchange="updateActiveDecision('action', this.value)">
               <option value="investigate">Keep open, mark for research</option>
               <option value="assign_and_fix">Keep open, assign to developer</option>
-              <option value="needs_info">Ask for info, apply waiting-for-user-response</option>
+              <option value="needs_info">Ask for info, apply waiting-for-author-response</option>
               <option value="close_duplicate">Close as duplicate</option>
               <option value="close_invalid">Close as invalid/spam</option>
               <option value="close_resolved">Close as resolved/answered</option>
@@ -1444,7 +1444,7 @@ limitations under the License.
               const actionLabels = {
                 investigate: 'Keep open, mark for research',
                 assign_and_fix: 'Keep open, assign to developer',
-                needs_info: 'Ask for info, waiting-for-user-response',
+                needs_info: 'Ask for info, waiting-for-author-response',
                 close_duplicate: 'Close as duplicate',
                 close_invalid: 'Close as invalid/spam',
                 close_resolved: 'Close as resolved/answered',

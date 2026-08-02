@@ -517,6 +517,48 @@ class TestElementalParser(unittest.TestCase):
         self.assertIn("on-press=\"{Event('press')}\"", html_output)
         self.assertIn("on-ongoing=\"{Event('going')}\"", html_output)
 
+    def test_decompile_call_and_dict_expressions(self):
+        """Test decompilation of call objects and arbitrary dict expressions in Elemental format."""
+        decompiler = ElementalParser(self.catalog)
+        envelope = {
+            "version": "1.0",
+            "createSurface": {
+                "surfaceId": "test-surf",
+                "components": [{
+                    "id": "txt_1",
+                    "component": "Text",
+                    "text": {
+                        "call": "formatDate",
+                        "args": {"value": {"path": "created_at"}},
+                    },
+                    "custom_dict": {"key_one": "val1", "key with space": "val2"},
+                }],
+            },
+        }
+        html_output = decompiler.decompile(envelope)
+        self.assertIn("formatDate", html_output)
+        self.assertIn("key_one", html_output)
+
+    def test_decompile_contracted_options(self):
+        """Test decompilation of contractable options list where label equals value."""
+        decompiler = ElementalParser(self.catalog)
+        envelope = {
+            "version": "1.0",
+            "createSurface": {
+                "surfaceId": "test-surf",
+                "components": [{
+                    "id": "picker_1",
+                    "component": "ChoicePicker",
+                    "options": [
+                        {"label": "opt1", "value": "opt1"},
+                        {"label": "opt2", "value": "opt2"},
+                    ],
+                }],
+            },
+        }
+        html_output = decompiler.decompile(envelope)
+        self.assertIn("options", html_output)
+
 
 if __name__ == "__main__":
     unittest.main()

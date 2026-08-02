@@ -25,7 +25,7 @@ from a2ui.parser.constants import (
     MSG_TYPE_BEGIN_RENDERING,
 )
 from a2ui.schema.catalog import A2uiCatalog
-from a2ui.inference_formats.transport.streaming import TransportStreamParser
+from a2ui.inference_formats.direct_json.streaming import DirectJsonStreamParser
 from a2ui.parser.response_part import ResponsePart
 
 
@@ -239,7 +239,7 @@ def assertResponseContainsText(response, expected_text):
 
 
 def test_add_msg_type_deduplication(mock_catalog):
-    parser = TransportStreamParser(catalog=mock_catalog)
+    parser = DirectJsonStreamParser(catalog=mock_catalog)
     parser.add_msg_type(MSG_TYPE_SURFACE_UPDATE)
     parser.add_msg_type(MSG_TYPE_SURFACE_UPDATE)
     assert parser.msg_types == [MSG_TYPE_SURFACE_UPDATE]
@@ -251,7 +251,7 @@ def test_add_msg_type_deduplication(mock_catalog):
 
 
 def test_streaming_msg_type_deduplication(mock_catalog):
-    parser = TransportStreamParser(catalog=mock_catalog)
+    parser = DirectJsonStreamParser(catalog=mock_catalog)
     # 1. Send partial chunk that triggers sniffing
     chunk1 = A2UI_OPEN_TAG + '[{"surfaceUpdate": {"surfaceId": "s1", "components": ['
     parser.process_chunk(chunk1)
@@ -273,7 +273,7 @@ def test_streaming_msg_type_deduplication(mock_catalog):
 
 def test_v08_path_heuristic_adds_slash(mock_catalog):
     """Tests that v0.8 adds a leading slash to relative paths."""
-    parser = TransportStreamParser(catalog=mock_catalog)
+    parser = DirectJsonStreamParser(catalog=mock_catalog)
     # Disable validation for simplicity
     parser._validator = None
 

@@ -18,7 +18,7 @@ import {z} from 'zod';
 
 export const DataBindingSchema = z
   .object({
-    path: z.string().describe('A JSON Pointer path to a value in the data model.'),
+    'path': z.string().describe('A JSON Pointer path to a value in the data model.'),
   })
   .describe(
     'REF:common_types.json#/$defs/DataBinding|A JSON Pointer path to a value in the data model.',
@@ -27,9 +27,9 @@ export type DataBindingType = z.infer<typeof DataBindingSchema>;
 
 export const FunctionCallSchema = z
   .object({
-    call: z.string().describe('The name of the function to call.'),
-    args: z.record(z.any()).describe('Arguments passed to the function.'),
-    returnType: z
+    'call': z.string().describe('The name of the function to call.'),
+    'args': z.record(z.any()).describe('Arguments passed to the function.'),
+    'returnType': z
       .enum(['string', 'number', 'boolean', 'array', 'object', 'any', 'void'])
       .default('boolean'),
   })
@@ -102,8 +102,8 @@ export const ChildListSchema = z
     z.array(ComponentIdSchema).describe('A static list of child component IDs.'),
     z
       .object({
-        componentId: ComponentIdSchema,
-        path: z
+        'componentId': ComponentIdSchema,
+        'path': z
           .string()
           .describe('The path to the list of component property objects in the data model.'),
       })
@@ -117,15 +117,15 @@ export const ActionSchema = z
   .union([
     z
       .object({
-        event: z.object({
-          name: z.string(),
-          context: z.record(DynamicValueSchema).optional(),
+        'event': z.object({
+          'name': z.string(),
+          'context': z.record(DynamicValueSchema).optional(),
         }),
       })
       .describe('Triggers a server-side event.'),
     z
       .object({
-        functionCall: FunctionCallSchema,
+        'functionCall': FunctionCallSchema,
       })
       .describe('Executes a local client-side function.'),
   ])
@@ -135,8 +135,8 @@ export type Action = z.infer<typeof ActionSchema>;
 
 export const CheckRuleSchema = z
   .object({
-    condition: DynamicBooleanSchema,
-    message: z.string().describe('The error message to display if the check fails.'),
+    'condition': DynamicBooleanSchema,
+    'message': z.string().describe('The error message to display if the check fails.'),
   })
   .describe(
     'REF:common_types.json#/$defs/CheckRule|A check rule consisting of a condition and an error message.',
@@ -146,7 +146,12 @@ export type CheckRule = z.infer<typeof CheckRuleSchema>;
 
 export const CheckableSchema = z
   .object({
-    checks: z.array(CheckRuleSchema).optional().describe('A list of checks to perform.'),
+    'checks': z.array(CheckRuleSchema).optional().describe('A list of checks to perform.'),
+    'isValid': z.boolean().optional().describe('Whether the checks currently pass.'),
+    'validationErrors': z
+      .array(z.string())
+      .optional()
+      .describe('Current validation error messages.'),
   })
   .describe(
     'REF:common_types.json#/$defs/Checkable|Properties for components that support client-side checks.',
@@ -156,10 +161,10 @@ export type Checkable = z.infer<typeof CheckableSchema>;
 
 export const AccessibilityAttributesSchema = z
   .object({
-    label: DynamicStringSchema.optional().describe(
+    'label': DynamicStringSchema.optional().describe(
       'REF:common_types.json#/$defs/DynamicString|A short string used by assistive technologies to convey the purpose of an element.',
     ),
-    description: DynamicStringSchema.optional().describe(
+    'description': DynamicStringSchema.optional().describe(
       'REF:common_types.json#/$defs/DynamicString|Additional information provided by assistive technologies about an element.',
     ),
   })
@@ -172,9 +177,9 @@ export type AccessibilityAttributes = z.infer<typeof AccessibilityAttributesSche
 
 export const AnyComponentSchema = z
   .object({
-    component: z.string().describe('The type name of the component.'),
-    id: ComponentIdSchema.optional(),
-    weight: z.number().optional(),
+    'component': z.string().describe('The type name of the component.'),
+    'id': ComponentIdSchema.optional(),
+    'weight': z.number().optional(),
   })
   .passthrough()
   .describe('A generic A2UI component definition.');

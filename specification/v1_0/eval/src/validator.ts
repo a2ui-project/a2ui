@@ -401,14 +401,7 @@ export class Validator {
     if (data.catalogId === undefined) {
       errors.push("createSurface must have a 'catalogId' property.");
     }
-    const allowed = [
-      'surfaceId',
-      'catalogId',
-      'surfaceProperties',
-      'sendDataModel',
-      'components',
-      'dataModel',
-    ];
+    const allowed = ['surfaceId', 'catalogId', 'sendDataModel', 'components', 'dataModel'];
     for (const key in data) {
       if (!allowed.includes(key)) {
         errors.push(`createSurface has unexpected property: ${key}`);

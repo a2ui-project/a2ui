@@ -127,13 +127,36 @@ class ExpressAstVisitor(ExpressVisitor):
             args.append(self.visit(expr))
         return {"check": name, "args": args}
 
+    def visitArg(self, ctx: ExpressParser.ArgContext) -> dict:
+        # arg : named_arg | expression ;
+        if ctx.named_arg():
+            k, v = self.visit(ctx.named_arg())
+            return {"type": "kw", "key": k, "value": v}
+        return {"type": "pos", "value": self.visit(ctx.expression())}
+
+    def visitNamed_arg(self, ctx: ExpressParser.Named_argContext) -> tuple[str, Any]:
+        # named_arg : identifier '=' expression ;
+        k = ctx.identifier().getText()
+        v = self.visit(ctx.expression())
+        return k, v
+
     def visitCall(self, ctx: ExpressParser.CallContext) -> dict:
-        # call : identifier '(' (expression (',' expression)*)? ','? ')' ;
+        # call : identifier '(' (arg (',' arg)*)? ','? ')' ;
         name = ctx.identifier().getText()
         args = []
-        for expr in ctx.expression():
-            args.append(self.visit(expr))
-        return {"call": name, "args": args}
+        kwargs = {}
+        for arg_ctx in ctx.arg():
+            res = self.visit(arg_ctx)
+            if isinstance(res, dict) and res.get("type") == "kw":
+                kwargs[res["key"]] = res["value"]
+            elif isinstance(res, dict) and res.get("type") == "pos":
+                args.append(res["value"])
+            else:
+                args.append(res)
+        node = {"call": name, "args": args}
+        if kwargs:
+            node["kwargs"] = kwargs
+        return node
 
     def visitVariable(self, ctx: ExpressParser.VariableContext) -> dict:
         # variable : '_' | identifier ;

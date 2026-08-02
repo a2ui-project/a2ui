@@ -14,7 +14,6 @@
 
 import os
 import sys
-import traceback
 import argparse
 from inspect_ai import eval_set
 from tasks import a2ui_v0_9_1_eval, a2ui_v1_0_eval
@@ -24,12 +23,29 @@ from a2ui_eval.strategies import STRATEGIES
 os.environ["INSPECT_MAX_CONNECTIONS"] = "50"
 
 
+from inspect_ai.dataset import MemoryDataset
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="Run A2UI evaluations")
     parser.add_argument(
         "--sanity",
         action="store_true",
         help="Run a quick sanity check (2 samples, gemini-3.1-flash-lite, 0 retry)",
+    )
+    parser.add_argument(
+        "--dataset",
+        type=str,
+        default=None,
+        help=(
+            "Evaluate only a specific dataset (e.g. 'customer_a_data' or 'core_v0_9_1')"
+        ),
+    )
+    parser.add_argument(
+        "--datasets",
+        type=str,
+        default=None,
+        help="Comma-separated list of datasets to evaluate",
     )
     parser.add_argument(
         "--model",
@@ -82,8 +98,14 @@ def main() -> None:
         action="append",
         help=(
             "Evaluation strategies to run (choices: direct, subagent_tool, express,"
-            " elemental). Can be comma-separated or specified multiple times."
+            " elemental, atom). Can be comma-separated or specified multiple times."
         ),
+    )
+    parser.add_argument(
+        "--prompt",
+        type=str,
+        action="append",
+        help="Target specific sample prompt names to evaluate",
     )
     args = parser.parse_args()
 
@@ -91,6 +113,11 @@ def main() -> None:
     limit = 2 if args.sanity else args.limit
     retry_attempts = 0 if args.sanity else args.max_retries
     sample_shuffle = None if args.sanity else args.sample_shuffle
+
+    # Resolve dataset filters
+    selected_dataset = args.dataset
+    if args.datasets:
+        selected_dataset = args.datasets
 
     # Parse and validate strategies
     selected_strategies = []
@@ -108,14 +135,31 @@ def main() -> None:
                 f"Unknown evaluation strategy: {strat}. Valid choices:"
                 f" {', '.join(STRATEGIES.keys())}"
             )
-        if strat in ["express", "elemental"]:
-            tasks.append(
-                a2ui_v1_0_eval(strategy=strat, grading_model=args.grading_model)
+        task_func = (
+            a2ui_v1_0_eval
+            if strat in ["express", "elemental", "atom"]
+            else a2ui_v0_9_1_eval
+        )
+        task_obj = task_func(
+            strategy=strat,
+            grading_model=args.grading_model,
+            dataset=selected_dataset,
+        )
+        if args.prompt:
+            prompt_list = [p.lower() for p in args.prompt]
+            filtered = [
+                s
+                for s in task_obj.dataset
+                if any(
+                    p in str((s.metadata or {}).get("name", "")).lower()
+                    or p in str(s.input).lower()
+                    for p in prompt_list
+                )
+            ]
+            task_obj.dataset = MemoryDataset(
+                samples=filtered, name=task_obj.dataset.name
             )
-        else:
-            tasks.append(
-                a2ui_v0_9_1_eval(strategy=strat, grading_model=args.grading_model)
-            )
+        tasks.append(task_obj)
 
     eval_set_kwargs = {
         "tasks": tasks,
@@ -124,6 +168,7 @@ def main() -> None:
         "retry_attempts": retry_attempts,
         "limit": limit,
         "sample_shuffle": sample_shuffle,
+        "log_dir_allow_dirty": True,
     }
     model_args = {}
     if args.thinking_budget is not None:

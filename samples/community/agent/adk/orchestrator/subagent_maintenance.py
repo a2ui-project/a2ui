@@ -35,11 +35,11 @@ from a2ui.schema.constants import VERSION_0_8, VERSION_0_9
 from a2ui.a2a.extension import get_a2ui_agent_extension
 
 from a2ui.basic_catalog.provider import BasicCatalog
-from a2ui.inference_formats.transport import TransportFormat
+from a2ui.inference_formats.direct_json import DirectJsonFormat
 from a2ui.adk.a2a.part_converter import A2uiPartConverter
 from a2ui.schema.common_modifiers import remove_strict_validation
 
-inference_format = TransportFormat(
+inference_format = DirectJsonFormat(
     version=VERSION_0_9,
     catalogs=[BasicCatalog.get_config(version=VERSION_0_9)],
     schema_modifiers=[remove_strict_validation],

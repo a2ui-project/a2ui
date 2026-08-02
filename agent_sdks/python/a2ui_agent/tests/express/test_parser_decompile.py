@@ -136,7 +136,7 @@ class TestExpressParser(unittest.TestCase):
 
         def get_compiled_text(dsl_body: str) -> str:
             dsl = f"root = Column([t1])\nt1 = Text({dsl_body})"
-            res = compiler.compile(dsl)
+            res = compiler.compile(dsl)[0]
             return res["createSurface"]["components"][1]["text"]
 
         # 1. Standard Single-Quoted Strings & Escaping
@@ -214,8 +214,8 @@ class TestExpressParser(unittest.TestCase):
             compiler.compile(incomplete_dsl)
 
         res_partial = compiler.compile(incomplete_dsl, is_final=False)
-        self.assertEqual(res_partial["updateDataModel"]["value"]["foo"], 123)
-        self.assertNotIn("bar", res_partial["updateDataModel"]["value"])
+        self.assertEqual(res_partial[0]["updateDataModel"]["value"]["foo"], 123)
+        self.assertNotIn("bar", res_partial[0]["updateDataModel"]["value"])
 
     def test_schema_driven_child_reference_helper(self):
         """Verify that _is_component_reference_property correctly inspects JSON schema structures."""
@@ -342,6 +342,37 @@ class TestExpressParser(unittest.TestCase):
             decompiler.decompile(envelope_3),
             'myCustomFunc("hello", "middle", "world")',
         )
+
+    def test_decompile_unknown_function_call(self):
+        """Test decompilation of unknown function calls with list or dict arguments."""
+        decompiler = ExpressParser(self.catalog)
+        envelope_list = {
+            "version": "1.0",
+            "createSurface": {
+                "surfaceId": "test-surf",
+                "components": [{
+                    "id": "t1",
+                    "component": "Text",
+                    "text": {"call": "unknownFunc", "args": ["val1", "val2"]},
+                }],
+            },
+        }
+        dsl_list = decompiler.decompile(envelope_list)
+        self.assertIn("unknownFunc", dsl_list)
+
+        envelope_dict = {
+            "version": "1.0",
+            "createSurface": {
+                "surfaceId": "test-surf",
+                "components": [{
+                    "id": "t2",
+                    "component": "Text",
+                    "text": {"call": "unknownFunc", "args": {"param1": "val1"}},
+                }],
+            },
+        }
+        dsl_dict = decompiler.decompile(envelope_dict)
+        self.assertIn("unknownFunc", dsl_dict)
 
 
 if __name__ == "__main__":
