@@ -121,7 +121,11 @@ describe('CheckBoxComponent', () => {
     fixture.detectChanges();
     const input = fixture.nativeElement.querySelector('input');
     expect(input.getAttribute('aria-label')).toBe('A11y Label');
-    expect(input.getAttribute('aria-description')).toBe('A11y Description');
+    const descId = input.getAttribute('aria-describedby');
+    expect(descId).not.toBeNull();
+    const descElement = fixture.nativeElement.querySelector(`#${descId}`);
+    expect(descElement).not.toBeNull();
+    expect(descElement.textContent.trim()).toBe('A11y Description');
   });
 
   it('should render validation errors and link via aria-describedby when invalid', () => {

@@ -35,8 +35,15 @@ export const Card = createComponentImplementation(CardApi, ({props, buildChild})
     margin: 'var(--a2ui-card-margin, var(--a2ui-spacing-m))',
   };
 
+  const isRegion = props.accessibility?.role === 'region';
+
   return (
-    <div className="a2ui-card" style={style}>
+    <div
+      className="a2ui-card"
+      style={style}
+      role={isRegion ? 'region' : undefined}
+      aria-label={isRegion ? props.accessibility?.label : undefined}
+    >
       {props.child ? buildChild(props.child) : null}
     </div>
   );

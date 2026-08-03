@@ -31,7 +31,27 @@ export const TextField = createComponentImplementation(TextFieldApi, ({props}) =
     props.variant === 'number' ? 'number' : props.variant === 'obscured' ? 'password' : 'text';
 
   const uniqueId = React.useId();
+  const descriptionId = `${uniqueId}-description`;
+  const errorId = `${uniqueId}-error`;
+  const hasDescription = !!props.accessibility?.description;
   const hasError = props.validationErrors && props.validationErrors.length > 0;
+
+  const describedBy = [
+    hasDescription ? descriptionId : null,
+    hasError ? errorId : null,
+  ].filter(Boolean).join(' ') || undefined;
+
+  const hiddenStyle: React.CSSProperties = {
+    position: 'absolute',
+    width: '1px',
+    height: '1px',
+    padding: 0,
+    margin: '-1px',
+    overflow: 'hidden',
+    clip: 'rect(0,0,0,0)',
+    border: 0,
+  };
+
   const inputClasses = `${styles.input} ${hasError ? styles.invalid : ''}`;
 
   return (
@@ -48,9 +68,8 @@ export const TextField = createComponentImplementation(TextFieldApi, ({props}) =
           value={props.value || ''}
           onChange={onChange}
           aria-label={props.accessibility?.label}
-          aria-description={props.accessibility?.description}
           aria-invalid={hasError ? 'true' : 'false'}
-          aria-describedby={hasError ? `${uniqueId}-error` : undefined}
+          aria-describedby={describedBy}
         />
       ) : (
         <input
@@ -60,14 +79,18 @@ export const TextField = createComponentImplementation(TextFieldApi, ({props}) =
           value={props.value || ''}
           onChange={onChange}
           aria-label={props.accessibility?.label}
-          aria-description={props.accessibility?.description}
           aria-invalid={hasError ? 'true' : 'false'}
-          aria-describedby={hasError ? `${uniqueId}-error` : undefined}
+          aria-describedby={describedBy}
         />
       )}
       {hasError && (
-        <span id={`${uniqueId}-error`} className={styles.error}>
+        <span id={errorId} className={styles.error}>
           {props.validationErrors![0]}
+        </span>
+      )}
+      {hasDescription && (
+        <span id={descriptionId} style={hiddenStyle}>
+          {props.accessibility?.description}
         </span>
       )}
     </div>

@@ -202,17 +202,29 @@ describe('ChoicePickerComponent', () => {
 
     const group = fixture.nativeElement.querySelector('.a2ui-options-group');
     expect(group.getAttribute('aria-label')).toBe('Fruits');
-    expect(group.getAttribute('aria-description')).toBe('Choose one or more fruits');
     expect(group.getAttribute('aria-invalid')).toBe('false');
+
+    const descId1 = group.getAttribute('aria-describedby');
+    expect(descId1).not.toBeNull();
+    const descElement1 = fixture.nativeElement.querySelector(`#${descId1}`);
+    expect(descElement1).not.toBeNull();
+    expect(descElement1.textContent.trim()).toBe('Choose one or more fruits');
 
     isValidProp.value.set(false);
     errorsProp.value.set(['Required selection']);
     fixture.detectChanges();
 
     expect(group.getAttribute('aria-invalid')).toBe('true');
-    const descId = group.getAttribute('aria-describedby');
-    expect(descId).not.toBeNull();
-    const errorEl = fixture.nativeElement.querySelector(`#${descId}`);
+    const describedBy = group.getAttribute('aria-describedby');
+    expect(describedBy).not.toBeNull();
+    const ids = describedBy!.split(' ');
+    expect(ids.length).toBe(2);
+
+    const descElement2 = fixture.nativeElement.querySelector(`#${ids[0]}`);
+    expect(descElement2).not.toBeNull();
+    expect(descElement2.textContent.trim()).toBe('Choose one or more fruits');
+
+    const errorEl = fixture.nativeElement.querySelector(`#${ids[1]}`);
     expect(errorEl).toBeTruthy();
     expect(errorEl.textContent).toContain('Required selection');
   });

@@ -179,6 +179,10 @@ describe('ButtonComponent', () => {
     fixture.detectChanges();
     const button = fixture.debugElement.query(By.css('button'));
     expect(button.nativeElement.getAttribute('aria-label')).toBe('A11y Label');
-    expect(button.nativeElement.getAttribute('aria-description')).toBe('A11y Description');
+    const descId = button.nativeElement.getAttribute('aria-describedby');
+    expect(descId).not.toBeNull();
+    const descElement = fixture.debugElement.query(By.css(`#${descId}`));
+    expect(descElement).not.toBeNull();
+    expect(descElement.nativeElement.textContent.trim()).toBe('A11y Description');
   });
 });

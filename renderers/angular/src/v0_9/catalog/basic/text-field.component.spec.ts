@@ -158,17 +158,29 @@ describe('TextFieldComponent', () => {
     fixture.detectChanges();
     const input = fixture.debugElement.query(By.css('input'));
     expect(input.nativeElement.getAttribute('aria-label')).toBe('A11y Label');
-    expect(input.nativeElement.getAttribute('aria-description')).toBe('A11y Description');
     expect(input.nativeElement.getAttribute('aria-invalid')).toBe('false');
+
+    const descId1 = input.nativeElement.getAttribute('aria-describedby');
+    expect(descId1).not.toBeNull();
+    const descElement1 = fixture.debugElement.query(By.css(`#${descId1}`));
+    expect(descElement1).not.toBeNull();
+    expect(descElement1.nativeElement.textContent.trim()).toBe('A11y Description');
 
     isValidProp.value.set(false);
     errorsProp.value.set(['Required field']);
     fixture.detectChanges();
 
     expect(input.nativeElement.getAttribute('aria-invalid')).toBe('true');
-    const descId = input.nativeElement.getAttribute('aria-describedby');
-    expect(descId).not.toBeNull();
-    const errorEl = fixture.debugElement.query(By.css(`#${descId}`));
+    const describedBy = input.nativeElement.getAttribute('aria-describedby');
+    expect(describedBy).not.toBeNull();
+    const ids = describedBy!.split(' ');
+    expect(ids.length).toBe(2);
+
+    const descElement2 = fixture.debugElement.query(By.css(`#${ids[0]}`));
+    expect(descElement2).not.toBeNull();
+    expect(descElement2.nativeElement.textContent.trim()).toBe('A11y Description');
+
+    const errorEl = fixture.debugElement.query(By.css(`#${ids[1]}`));
     expect(errorEl).toBeTruthy();
     expect(errorEl.nativeElement.textContent).toContain('Required field');
   });

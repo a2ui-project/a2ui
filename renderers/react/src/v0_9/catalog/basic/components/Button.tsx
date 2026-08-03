@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 
+import React from 'react';
 import {createComponentImplementation} from '../../../adapter';
 import {ButtonApi} from '@a2ui/web_core/v0_9/basic_catalog';
 import {useBasicCatalogStyles} from '../utils';
@@ -21,6 +22,21 @@ import styles from './Button.module.css';
 
 export const Button = createComponentImplementation(ButtonApi, ({props, buildChild}) => {
   useBasicCatalogStyles();
+
+  const uniqueId = React.useId();
+  const descriptionId = `${uniqueId}-description`;
+  const hasDescription = !!props.accessibility?.description;
+
+  const hiddenStyle: React.CSSProperties = {
+    position: 'absolute',
+    width: '1px',
+    height: '1px',
+    padding: 0,
+    margin: '-1px',
+    overflow: 'hidden',
+    clip: 'rect(0,0,0,0)',
+    border: 0,
+  };
 
   const classes = [styles.button];
   if (props.variant === 'primary') {
@@ -30,14 +46,21 @@ export const Button = createComponentImplementation(ButtonApi, ({props, buildChi
   }
 
   return (
-    <button
-      className={classes.join(' ')}
-      onClick={props.action}
-      disabled={props.isValid === false}
-      aria-label={props.accessibility?.label}
-      aria-description={props.accessibility?.description}
-    >
-      {props.child ? buildChild(props.child) : null}
-    </button>
+    <>
+      <button
+        className={classes.join(' ')}
+        onClick={props.action}
+        disabled={props.isValid === false}
+        aria-label={props.accessibility?.label}
+        aria-describedby={hasDescription ? descriptionId : undefined}
+      >
+        {props.child ? buildChild(props.child) : null}
+      </button>
+      {hasDescription && (
+        <span id={descriptionId} style={hiddenStyle}>
+          {props.accessibility?.description}
+        </span>
+      )}
+    </>
   );
 });

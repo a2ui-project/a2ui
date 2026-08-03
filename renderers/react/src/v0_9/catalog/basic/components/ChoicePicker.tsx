@@ -29,7 +29,26 @@ export const ChoicePicker = createComponentImplementation(ChoicePickerApi, ({pro
   useBasicCatalogStyles();
   const [filter, setFilter] = useState('');
   const uniqueId = React.useId();
+  const descriptionId = `${uniqueId}-description`;
+  const errorId = `${uniqueId}-error`;
+  const hasDescription = !!props.accessibility?.description;
   const hasError = props.validationErrors && props.validationErrors.length > 0;
+
+  const describedBy = [
+    hasDescription ? descriptionId : null,
+    hasError ? errorId : null,
+  ].filter(Boolean).join(' ') || undefined;
+
+  const hiddenStyle: React.CSSProperties = {
+    position: 'absolute',
+    width: '1px',
+    height: '1px',
+    padding: 0,
+    margin: '-1px',
+    overflow: 'hidden',
+    clip: 'rect(0,0,0,0)',
+    border: 0,
+  };
 
   const values = Array.isArray(props.value) ? props.value : [];
   const isMutuallyExclusive = props.variant === 'mutuallyExclusive';
@@ -81,9 +100,8 @@ export const ChoicePicker = createComponentImplementation(ChoicePickerApi, ({pro
         role={isMutuallyExclusive ? 'radiogroup' : 'group'}
         aria-labelledby={props.label ? `${uniqueId}-label` : undefined}
         aria-label={props.accessibility?.label}
-        aria-description={props.accessibility?.description}
         aria-invalid={hasError ? 'true' : 'false'}
-        aria-describedby={hasError ? `${uniqueId}-error` : undefined}
+        aria-describedby={describedBy}
       >
         {options.map((opt: _Option, i: number) => {
           const isSelected = values.includes(opt.value);
@@ -113,8 +131,13 @@ export const ChoicePicker = createComponentImplementation(ChoicePickerApi, ({pro
         })}
       </div>
       {hasError && (
-        <span id={`${uniqueId}-error`} style={errorStyle}>
+        <span id={errorId} style={errorStyle}>
           {props.validationErrors?.[0]}
+        </span>
+      )}
+      {hasDescription && (
+        <span id={descriptionId} style={hiddenStyle}>
+          {props.accessibility?.description}
         </span>
       )}
     </div>

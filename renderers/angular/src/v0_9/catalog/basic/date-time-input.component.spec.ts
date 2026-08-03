@@ -153,24 +153,36 @@ describe('DateTimeInputComponent', () => {
     const timeInput = fixture.nativeElement.querySelector('input[type="time"]');
 
     expect(dateInput.getAttribute('aria-label')).toBe('Arrival');
-    expect(dateInput.getAttribute('aria-description')).toBe('Set date and time of arrival');
     expect(dateInput.getAttribute('aria-invalid')).toBe('false');
 
+    const descId1 = dateInput.getAttribute('aria-describedby');
+    expect(descId1).not.toBeNull();
+    const descElement1 = fixture.nativeElement.querySelector(`#${descId1}`);
+    expect(descElement1).not.toBeNull();
+    expect(descElement1.textContent.trim()).toBe('Set date and time of arrival');
+
     expect(timeInput.getAttribute('aria-label')).toBe('Arrival');
-    expect(timeInput.getAttribute('aria-description')).toBe('Set date and time of arrival');
     expect(timeInput.getAttribute('aria-invalid')).toBe('false');
+    expect(timeInput.getAttribute('aria-describedby')).toBe(descId1);
 
     isValidProp.value.set(false);
     errorsProp.value.set(['Required date/time']);
     fixture.detectChanges();
 
     expect(dateInput.getAttribute('aria-invalid')).toBe('true');
-    const descId = dateInput.getAttribute('aria-describedby');
-    expect(descId).not.toBeNull();
-    expect(timeInput.getAttribute('aria-invalid')).toBe('true');
-    expect(timeInput.getAttribute('aria-describedby')).toBe(descId);
+    const describedBy = dateInput.getAttribute('aria-describedby');
+    expect(describedBy).not.toBeNull();
+    const ids = describedBy!.split(' ');
+    expect(ids.length).toBe(2);
 
-    const errorEl = fixture.nativeElement.querySelector(`#${descId}`);
+    expect(timeInput.getAttribute('aria-invalid')).toBe('true');
+    expect(timeInput.getAttribute('aria-describedby')).toBe(describedBy);
+
+    const descElement2 = fixture.nativeElement.querySelector(`#${ids[0]}`);
+    expect(descElement2).not.toBeNull();
+    expect(descElement2.textContent.trim()).toBe('Set date and time of arrival');
+
+    const errorEl = fixture.nativeElement.querySelector(`#${ids[1]}`);
     expect(errorEl).toBeTruthy();
     expect(errorEl.textContent).toContain('Required date/time');
   });

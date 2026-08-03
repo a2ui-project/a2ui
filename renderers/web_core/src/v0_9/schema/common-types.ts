@@ -167,6 +167,7 @@ export const AccessibilityAttributesSchema = z
     'description': DynamicStringSchema.optional().describe(
       'REF:common_types.json#/$defs/DynamicString|Additional information provided by assistive technologies about an element.',
     ),
+    'role': z.string().optional().describe('The ARIA role for the component.'),
   })
   .describe(
     'REF:common_types.json#/$defs/AccessibilityAttributes|Attributes to enhance accessibility.',

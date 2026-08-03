@@ -122,17 +122,29 @@ describe('SliderComponent', () => {
     fixture.detectChanges();
     const input = fixture.nativeElement.querySelector('input');
     expect(input.getAttribute('aria-label')).toBe('A11y Vol');
-    expect(input.getAttribute('aria-description')).toBe('Set volume level');
     expect(input.getAttribute('aria-invalid')).toBe('false');
+
+    const descId1 = input.getAttribute('aria-describedby');
+    expect(descId1).not.toBeNull();
+    const descElement1 = fixture.nativeElement.querySelector(`#${descId1}`);
+    expect(descElement1).not.toBeNull();
+    expect(descElement1.textContent.trim()).toBe('Set volume level');
 
     isValidProp.value.set(false);
     errorsProp.value.set(['Vol check failed']);
     fixture.detectChanges();
 
     expect(input.getAttribute('aria-invalid')).toBe('true');
-    const descId = input.getAttribute('aria-describedby');
-    expect(descId).not.toBeNull();
-    const errorEl = fixture.nativeElement.querySelector(`#${descId}`);
+    const describedBy = input.getAttribute('aria-describedby');
+    expect(describedBy).not.toBeNull();
+    const ids = describedBy!.split(' ');
+    expect(ids.length).toBe(2);
+
+    const descElement2 = fixture.nativeElement.querySelector(`#${ids[0]}`);
+    expect(descElement2).not.toBeNull();
+    expect(descElement2.textContent.trim()).toBe('Set volume level');
+
+    const errorEl = fixture.nativeElement.querySelector(`#${ids[1]}`);
     expect(errorEl).not.toBeNull();
     expect(errorEl.textContent).toContain('Vol check failed');
   });

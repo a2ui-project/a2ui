@@ -51,9 +51,8 @@ import {TextFieldApi} from '@a2ui/web_core/v0_9/basic_catalog';
         (input)="handleInput($event)"
         [class.invalid]="props()['isValid']?.value() === false"
         [attr.aria-label]="props()['accessibility']?.value()?.label"
-        [attr.aria-description]="props()['accessibility']?.value()?.description"
         [attr.aria-invalid]="props()['isValid']?.value() === false ? 'true' : 'false'"
-        [attr.aria-describedby]="props()['isValid']?.value() === false ? uniqueId + '-error' : null"
+        [attr.aria-describedby]="describedBy()"
       />
       @if (props()['validationErrors']?.value()?.length) {
         <div [id]="uniqueId + '-error'">
@@ -61,6 +60,14 @@ import {TextFieldApi} from '@a2ui/web_core/v0_9/basic_catalog';
             <div class="a2ui-error-message">{{ message }}</div>
           }
         </div>
+      }
+      @if (props()['accessibility']?.value()?.description) {
+        <span
+          [id]="uniqueId + '-description'"
+          style="position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); border: 0;"
+        >
+          {{ props()['accessibility']?.value()?.description }}
+        </span>
       }
     </div>
   `,
@@ -106,6 +113,19 @@ export class TextFieldComponent extends BasicCatalogComponent<typeof TextFieldAp
   readonly label = computed(() => this.props()['label']?.value());
   readonly value = computed(() => this.props()['value']?.value() || '');
   readonly variant = computed(() => this.props()['variant']?.value());
+
+  readonly describedBy = computed(() => {
+    const hasError = this.props()['isValid']?.value() === false;
+    const hasDesc = !!this.props()['accessibility']?.value()?.description;
+    const ids: string[] = [];
+    if (hasDesc) {
+      ids.push(`${this.uniqueId}-description`);
+    }
+    if (hasError) {
+      ids.push(`${this.uniqueId}-error`);
+    }
+    return ids.length > 0 ? ids.join(' ') : null;
+  });
 
   readonly inputType = computed(() => {
     switch (this.variant()) {

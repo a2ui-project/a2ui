@@ -51,9 +51,8 @@ import {ChoicePickerApi} from '@a2ui/web_core/v0_9/basic_catalog';
           [attr.role]="groupRole()"
           [attr.aria-labelledby]="label() ? uniqueId + '-label' : null"
           [attr.aria-label]="props()['accessibility']?.value()?.label"
-          [attr.aria-description]="props()['accessibility']?.value()?.description"
           [attr.aria-invalid]="props()['isValid']?.value() === false ? 'true' : 'false'"
-          [attr.aria-describedby]="props()['isValid']?.value() === false ? uniqueId + '-error' : null"
+          [attr.aria-describedby]="describedBy()"
         >
           @for (option of options(); track option.value) {
             <button
@@ -73,9 +72,8 @@ import {ChoicePickerApi} from '@a2ui/web_core/v0_9/basic_catalog';
           [attr.role]="groupRole()"
           [attr.aria-labelledby]="label() ? uniqueId + '-label' : null"
           [attr.aria-label]="props()['accessibility']?.value()?.label"
-          [attr.aria-description]="props()['accessibility']?.value()?.description"
           [attr.aria-invalid]="props()['isValid']?.value() === false ? 'true' : 'false'"
-          [attr.aria-describedby]="props()['isValid']?.value() === false ? uniqueId + '-error' : null"
+          [attr.aria-describedby]="describedBy()"
         >
           @for (option of options(); track option.value) {
             <label class="a2ui-option-label">
@@ -99,6 +97,15 @@ import {ChoicePickerApi} from '@a2ui/web_core/v0_9/basic_catalog';
             <div class="a2ui-error-message">{{ message }}</div>
           }
         </div>
+      }
+
+      @if (props()['accessibility']?.value()?.description) {
+        <span
+          [id]="uniqueId + '-description'"
+          style="position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); border: 0;"
+        >
+          {{ props()['accessibility']?.value()?.description }}
+        </span>
       }
     </div>
   `,
@@ -179,6 +186,19 @@ export class ChoicePickerComponent extends BasicCatalogComponent<typeof ChoicePi
   readonly options = computed(() => this.props()['options']?.value() || []);
   readonly variant = computed(() => this.props()['variant']?.value());
   readonly selectedValue = computed(() => this.props()['value']?.value());
+
+  readonly describedBy = computed(() => {
+    const hasError = this.props()['isValid']?.value() === false;
+    const hasDesc = !!this.props()['accessibility']?.value()?.description;
+    const ids: string[] = [];
+    if (hasDesc) {
+      ids.push(`${this.uniqueId}-description`);
+    }
+    if (hasError) {
+      ids.push(`${this.uniqueId}-error`);
+    }
+    return ids.length > 0 ? ids.join(' ') : null;
+  });
 
   isMultiple(): boolean {
     return this.variant() === 'multipleSelection';

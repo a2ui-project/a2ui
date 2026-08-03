@@ -196,13 +196,17 @@ describe('Basic Catalog Components', () => {
     });
 
     it('binds accessibility label and description', () => {
-      renderA2uiComponent(Button, 'b1', {
+      const {view} = renderA2uiComponent(Button, 'b1', {
         child: 'btn',
         accessibility: {label: 'Custom Label', description: 'Custom Description'},
       });
       const button = screen.getByRole('button');
       expect(button.getAttribute('aria-label')).toBe('Custom Label');
-      expect(button.getAttribute('aria-description')).toBe('Custom Description');
+      const descId = button.getAttribute('aria-describedby');
+      expect(descId).not.toBeNull();
+      const descElement = view.container.querySelector(`#${descId}`);
+      expect(descElement).not.toBeNull();
+      expect(descElement?.textContent).toBe('Custom Description');
     });
   });
 
@@ -255,11 +259,17 @@ describe('Basic Catalog Components', () => {
 
       const input = screen.getByLabelText('Name') as HTMLInputElement;
       expect(input.getAttribute('aria-label')).toBe('A11y Name');
-      expect(input.getAttribute('aria-description')).toBe('Enter your name');
       expect(input.getAttribute('aria-invalid')).toBe('true');
-      const errorId = input.getAttribute('aria-describedby');
-      expect(errorId).not.toBeNull();
-      const errorElement = view.container.querySelector(`#${errorId}`);
+      const describedBy = input.getAttribute('aria-describedby');
+      expect(describedBy).not.toBeNull();
+      const ids = describedBy!.split(' ');
+      expect(ids.length).toBe(2);
+
+      const descElement = view.container.querySelector(`#${ids[0]}`);
+      expect(descElement).not.toBeNull();
+      expect(descElement?.textContent).toBe('Enter your name');
+
+      const errorElement = view.container.querySelector(`#${ids[1]}`);
       expect(errorElement).not.toBeNull();
       expect(errorElement?.textContent).toBe('Name is required');
     });
@@ -465,11 +475,17 @@ describe('Basic Catalog Components', () => {
 
       const checkbox = screen.getByLabelText('Agree') as HTMLInputElement;
       expect(checkbox.getAttribute('aria-label')).toBe('A11y Label');
-      expect(checkbox.getAttribute('aria-description')).toBe('A11y Desc');
       expect(checkbox.getAttribute('aria-invalid')).toBe('true');
-      const errorId = checkbox.getAttribute('aria-describedby');
-      expect(errorId).not.toBeNull();
-      const errorElement = view.container.querySelector(`#${errorId}`);
+      const describedBy = checkbox.getAttribute('aria-describedby');
+      expect(describedBy).not.toBeNull();
+      const ids = describedBy!.split(' ');
+      expect(ids.length).toBe(2);
+
+      const descElement = view.container.querySelector(`#${ids[0]}`);
+      expect(descElement).not.toBeNull();
+      expect(descElement?.textContent).toBe('A11y Desc');
+
+      const errorElement = view.container.querySelector(`#${ids[1]}`);
       expect(errorElement).not.toBeNull();
       expect(errorElement?.textContent).toBe('Agreed is required');
     });
@@ -500,11 +516,19 @@ describe('Basic Catalog Components', () => {
 
       const input = screen.getByLabelText('Volume') as HTMLInputElement;
       expect(input.getAttribute('aria-label')).toBe('A11y Vol');
-      expect(input.getAttribute('aria-description')).toBe('Set audio volume');
       expect(input.getAttribute('aria-invalid')).toBe('true');
-      const errorId = input.getAttribute('aria-describedby');
-      expect(errorId).not.toBeNull();
-      expect(view.container.querySelector(`#${errorId}`)?.textContent).toBe('Vol is required');
+      const describedBy = input.getAttribute('aria-describedby');
+      expect(describedBy).not.toBeNull();
+      const ids = describedBy!.split(' ');
+      expect(ids.length).toBe(2);
+
+      const descElement = view.container.querySelector(`#${ids[0]}`);
+      expect(descElement).not.toBeNull();
+      expect(descElement?.textContent).toBe('Set audio volume');
+
+      const errorElement = view.container.querySelector(`#${ids[1]}`);
+      expect(errorElement).not.toBeNull();
+      expect(errorElement?.textContent).toBe('Vol is required');
     });
 
     it('ChoicePicker mutuallyExclusive selection', () => {
@@ -582,11 +606,19 @@ describe('Basic Catalog Components', () => {
       const group = screen.getByRole('group');
       expect(group).toBeDefined();
       expect(group.getAttribute('aria-label')).toBe('A11y Picker');
-      expect(group.getAttribute('aria-description')).toBe('Pick options');
       expect(group.getAttribute('aria-invalid')).toBe('true');
-      const errorId = group.getAttribute('aria-describedby');
-      expect(errorId).not.toBeNull();
-      expect(view.container.querySelector(`#${errorId}`)?.textContent).toBe('Selection required');
+      const describedBy = group.getAttribute('aria-describedby');
+      expect(describedBy).not.toBeNull();
+      const ids = describedBy!.split(' ');
+      expect(ids.length).toBe(2);
+
+      const descElement = view.container.querySelector(`#${ids[0]}`);
+      expect(descElement).not.toBeNull();
+      expect(descElement?.textContent).toBe('Pick options');
+
+      const errorElement = view.container.querySelector(`#${ids[1]}`);
+      expect(errorElement).not.toBeNull();
+      expect(errorElement?.textContent).toBe('Selection required');
     });
 
     it('ChoicePicker binds radiogroup role for mutuallyExclusive variant', () => {
@@ -634,11 +666,19 @@ describe('Basic Catalog Components', () => {
 
       const input = screen.getByLabelText('When') as HTMLInputElement;
       expect(input.getAttribute('aria-label')).toBe('A11y Date');
-      expect(input.getAttribute('aria-description')).toBe('Enter date');
       expect(input.getAttribute('aria-invalid')).toBe('true');
-      const errorId = input.getAttribute('aria-describedby');
-      expect(errorId).not.toBeNull();
-      expect(view.container.querySelector(`#${errorId}`)?.textContent).toBe('Date is required');
+      const describedBy = input.getAttribute('aria-describedby');
+      expect(describedBy).not.toBeNull();
+      const ids = describedBy!.split(' ');
+      expect(ids.length).toBe(2);
+
+      const descElement = view.container.querySelector(`#${ids[0]}`);
+      expect(descElement).not.toBeNull();
+      expect(descElement?.textContent).toBe('Enter date');
+
+      const errorElement = view.container.querySelector(`#${ids[1]}`);
+      expect(errorElement).not.toBeNull();
+      expect(errorElement?.textContent).toBe('Date is required');
     });
   });
 });

@@ -61,6 +61,26 @@ export const DateTimeInput = createComponentImplementation(DateTimeInputApi, ({p
   };
 
   const uniqueId = React.useId();
+  const descriptionId = `${uniqueId}-description`;
+  const errorId = `${uniqueId}-error`;
+  const hasDescription = !!props.accessibility?.description;
+  const hasError = props.validationErrors && props.validationErrors.length > 0;
+
+  const describedBy = [
+    hasDescription ? descriptionId : null,
+    hasError ? errorId : null,
+  ].filter(Boolean).join(' ') || undefined;
+
+  const hiddenStyle: React.CSSProperties = {
+    position: 'absolute',
+    width: '1px',
+    height: '1px',
+    padding: 0,
+    margin: '-1px',
+    overflow: 'hidden',
+    clip: 'rect(0,0,0,0)',
+    border: 0,
+  };
 
   // If neither date or time are enabled, render nothing.
   if (!(props.enableDate || props.enableTime)) return null;
@@ -81,7 +101,6 @@ export const DateTimeInput = createComponentImplementation(DateTimeInputApi, ({p
     boxSizing: 'border-box',
   };
 
-  const hasError = props.validationErrors && props.validationErrors.length > 0;
   const errorStyle: React.CSSProperties = {
     fontSize: 'var(--a2ui-font-size-xs, 0.75rem)',
     color: 'var(--a2ui-color-error, red)',
@@ -119,13 +138,17 @@ export const DateTimeInput = createComponentImplementation(DateTimeInputApi, ({p
         min={typeof props.min === 'string' ? props.min : undefined}
         max={typeof props.max === 'string' ? props.max : undefined}
         aria-label={props.accessibility?.label}
-        aria-description={props.accessibility?.description}
         aria-invalid={hasError ? 'true' : 'false'}
-        aria-describedby={hasError ? `${uniqueId}-error` : undefined}
+        aria-describedby={describedBy}
       />
       {hasError && (
-        <span id={`${uniqueId}-error`} style={errorStyle}>
+        <span id={errorId} style={errorStyle}>
           {props.validationErrors?.[0]}
+        </span>
+      )}
+      {hasDescription && (
+        <span id={descriptionId} style={hiddenStyle}>
+          {props.accessibility?.description}
         </span>
       )}
     </div>

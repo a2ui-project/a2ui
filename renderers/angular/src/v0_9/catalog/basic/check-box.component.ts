@@ -50,9 +50,8 @@ import {CheckBoxApi} from '@a2ui/web_core/v0_9/basic_catalog';
           class="a2ui-check-box-input"
           [class.invalid]="props()['isValid']?.value() === false"
           [attr.aria-label]="props()['accessibility']?.value()?.label"
-          [attr.aria-description]="props()['accessibility']?.value()?.description"
           [attr.aria-invalid]="props()['isValid']?.value() === false ? 'true' : 'false'"
-          [attr.aria-describedby]="props()['isValid']?.value() === false ? uniqueId + '-error' : null"
+          [attr.aria-describedby]="describedBy()"
         />
         <span class="a2ui-check-box-text">{{ label() }}</span>
       </label>
@@ -62,6 +61,14 @@ import {CheckBoxApi} from '@a2ui/web_core/v0_9/basic_catalog';
             <div class="a2ui-error-message">{{ message }}</div>
           }
         </div>
+      }
+      @if (props()['accessibility']?.value()?.description) {
+        <span
+          [id]="uniqueId + '-description'"
+          style="position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); border: 0;"
+        >
+          {{ props()['accessibility']?.value()?.description }}
+        </span>
       }
     </div>
   `,
@@ -111,6 +118,19 @@ import {CheckBoxApi} from '@a2ui/web_core/v0_9/basic_catalog';
 export class CheckBoxComponent extends BasicCatalogComponent<typeof CheckBoxApi> {
   readonly value = computed(() => this.props()['value']?.value() === true);
   readonly label = computed(() => this.props()['label']?.value());
+
+  readonly describedBy = computed(() => {
+    const hasError = this.props()['isValid']?.value() === false;
+    const hasDesc = !!this.props()['accessibility']?.value()?.description;
+    const ids: string[] = [];
+    if (hasDesc) {
+      ids.push(`${this.uniqueId}-description`);
+    }
+    if (hasError) {
+      ids.push(`${this.uniqueId}-error`);
+    }
+    return ids.length > 0 ? ids.join(' ') : null;
+  });
 
   handleChange(event: Event) {
     const checked = (event.target as HTMLInputElement).checked;
