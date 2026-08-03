@@ -322,11 +322,10 @@
           "const": "Surface"
         },
         "child": {
-          "const": ["root"]
+          "const": "root"
         }
       },
       "additionalProperties": false
     }
   }
 }
-

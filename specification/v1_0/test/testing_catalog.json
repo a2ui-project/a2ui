@@ -8,9 +8,7 @@
   "components": {
     "Surface": {
       "type": "object",
-      "allOf": [
-        {"$ref": "common_types.json#/$defs/Surface"}
-      ]
+      "allOf": [{"$ref": "common_types.json#/$defs/Surface"}]
     },
     "Text": {
       "type": "object",

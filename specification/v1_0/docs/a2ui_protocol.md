@@ -216,7 +216,7 @@ It is an error to try to create a surface with a `surfaceId` that already exists
 
 ### `updateComponents`
 
-This message provides a list of UI components to be added to or updated within a specific surface. createSurface creates the component `Surface` which has a child='root'. The component `Surface` cannot be modified using `updateComponents`. The component in `components` with `"id": "root"` is mounted as the child of the Surface component. The components are provided as a flat list, and their relationships are defined by ID references in an adjacency list. This message may only be sent to a surface that has already been created. Note that components may reference children or data bindings that do not yet exist; renderers should handle this gracefully by rendering placeholders (progressive rendering).
+This message provides a list of UI components to be added to or updated within a specific surface. `createSurface` creates the component `Surface` which has `child='root'`. The component `Surface` cannot be modified using `updateComponents`. The component in `components` with `"id": "root"` is mounted as the child of the `Surface` component. The components are provided as a flat list, and their relationships are defined by ID references in an adjacency list. This message may only be sent to a surface that has already been created. Note that components may reference children or data bindings that do not yet exist; renderers should handle this gracefully by rendering placeholders (progressive rendering).
 
 **Properties:**
 
@@ -692,7 +692,7 @@ To enforce structural and compositional integrity across component hierarchies, 
          "type": "object",
          "allowedParents": ["Surface"],
          "properties": {
-           "component": { "const": "AppLayout" }
+           "component": {"const": "AppLayout"}
          }
        }
      }
@@ -724,7 +724,6 @@ To enforce structural and compositional integrity across component hierarchies, 
 4. **Validation Error Codes**:
    - When a component is placed under an unallowed parent, the renderer should emit a validation error message with `code` set to `"UNALLOWED_PARENT"`.
    - When an unallowed child component is placed inside a container, the renderer should emit a validation error message with `code` set to `"UNALLOWED_CHILD"`.
-
 
 ### Defining actions
 
