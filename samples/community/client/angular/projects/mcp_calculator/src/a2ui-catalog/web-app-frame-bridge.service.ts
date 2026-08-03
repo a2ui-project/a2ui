@@ -41,17 +41,6 @@ export class WebAppFrameBridgeService {
 
   private ajv = new Ajv();
   private validatorCache = new Map<string, ValidateFunction>();
-
-  private getValidator(schema: object): ValidateFunction {
-    const key = JSON.stringify(schema);
-    let validate = this.validatorCache.get(key);
-    if (!validate) {
-      validate = this.ajv.compile(schema);
-      this.validatorCache.set(key, validate);
-    }
-    return validate;
-  }
-
   private messageHandler: ((event: MessageEvent) => void) | null = null;
   private dataSubscriptions: {unsubscribe: () => void}[] = [];
   private resizeTimeout: ReturnType<typeof setTimeout> | null = null;
@@ -113,6 +102,16 @@ export class WebAppFrameBridgeService {
     const valuePaths = dataProp.value()?.paths;
 
     return rawPaths ?? valuePaths ?? {};
+  }
+
+  private getValidator(schema: object): ValidateFunction {
+    const key = JSON.stringify(schema);
+    let validate = this.validatorCache.get(key);
+    if (!validate) {
+      validate = this.ajv.compile(schema);
+      this.validatorCache.set(key, validate);
+    }
+    return validate;
   }
 
   private clearDataSubscriptions() {

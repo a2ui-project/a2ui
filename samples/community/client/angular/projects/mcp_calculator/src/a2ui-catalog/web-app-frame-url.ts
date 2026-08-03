@@ -38,6 +38,8 @@ export interface WebAppFrameUrlApi extends ComponentApi<typeof WebAppFrameUrlPro
   name: 'WebAppFrameUrl';
 }
 
+const INVALID_ORIGIN = 'about:invalid';
+
 @Component({
   selector: 'a2ui-web-app-frame-url',
   standalone: true,
@@ -102,10 +104,10 @@ export class WebAppFrameUrl extends CatalogComponent<WebAppFrameUrlApi> {
           return url.origin;
         }
       } catch {
-        return '';
+        return INVALID_ORIGIN;
       }
     }
-    return '';
+    return INVALID_ORIGIN;
   });
 
   private iframe = viewChild.required<ElementRef<HTMLIFrameElement>>('iframe');
