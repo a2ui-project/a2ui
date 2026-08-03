@@ -134,7 +134,12 @@ In catalog component definitions, `userInteractionLevel` declares the component'
 
 * **`"action"`**: Components designed to trigger side-effect actions (`Button`, `Link`, `MenuItem`). Generates `action`-level gesture tokens valid for all `requiresUserGesture` functions.
 * **`"input"`**: Components designed for data entry (`TextField`, `Slider`, `CheckBox`). Generates `input`-level gesture tokens valid for data model updates and validation checks, but blocked for `requiresUserGesture` functions.
-* **`"none"`** (default): Passive presentation nodes (`Text`, `Image`, `Container`, `Divider`). Never generates gesture tokens.
+* **`"none"`** (default for v1.0+): Passive presentation nodes (`Text`, `Image`, `Container`, `Divider`). Never generates gesture tokens.
+
+#### Protocol Version Gating (`protocolVersion >= 1.0`)
+To remain completely catalog-agnostic while guaranteeing backward compatibility with baseline v0.9 catalogs:
+* **v1.0+ Surfaces (`protocolVersion >= "1.0"`)**: Renderers strictly enforce `userInteractionLevel` component gating. Unclassified components default to `"none"`.
+* **Legacy Baseline Surfaces (`protocolVersion < "1.0"`)**: Renderers skip component-level `userInteractionLevel` filtering and issue gesture tokens directly from physical user events, relying on `requiresUserGesture` function checks. Legacy v0.9 components remain fully functional without catalog modification.
 
 ---
 
@@ -203,26 +208,32 @@ In `web_core` (shared by **Lit**, **React**, **Angular**, and **Vue** renderers)
 // web_core: src/v0_9/rendering/generic-binder.ts
 export function bindAction(dataContext: DataContext, actionCall: ActionDefinition, componentType: string) {
   return (eventOrOptions?: Event | {event?: Event}) => {
+    const isV1OrLater = (dataContext.protocolVersion ?? '0.9') >= '1.0';
     const componentDef = dataContext.catalog.components.get(componentType);
-    const level = componentDef?.userInteractionLevel ?? 'none';
+    const level = isV1OrLater ? (componentDef?.userInteractionLevel ?? 'none') : 'action';
 
-    // Passive components ('none') never generate gesture tokens
+    // Passive components ('none') never generate gesture tokens on v1.0+ surfaces
     if (level === 'none') {
       return dataContext.invokeFunction(actionCall.call, actionCall.args, {gestureToken: undefined});
     }
 
-    // Extract DOM Event from framework event argument or window fallback
+    // Extract DOM Event from framework event argument
     const domEvent =
       eventOrOptions instanceof Event
         ? eventOrOptions
         : eventOrOptions && 'nativeEvent' in eventOrOptions
           ? (eventOrOptions as any).nativeEvent
-          : ((eventOrOptions as any)?.event ??
-            (typeof window !== 'undefined' ? window.event : undefined));
+          : (eventOrOptions as any)?.event;
 
-    const gestureToken = domEvent
-      ? createWebGestureToken(domEvent, {interactionLevel: level})
-      : undefined;
+    // Enforce domEvent.isTrusted to reject synthetic script events
+    if (!domEvent || !domEvent.isTrusted) {
+      return dataContext.invokeFunction(actionCall.call, actionCall.args, {gestureToken: undefined});
+    }
+
+    const gestureToken = createWebGestureToken(domEvent, {
+      interactionLevel: level,
+      createdAt: performance.now(), // Monotonic clock
+    });
 
     return dataContext.invokeFunction(actionCall.call, actionCall.args, {gestureToken});
   };
@@ -257,28 +268,35 @@ this.invoker = (name, rawArgs, ctx, options) => {
 
 ### 6.2 Flutter (Dart) Design
 
-Flutter has a synchronous, single-threaded event loop. The token model is passed via `ActionDispatcher`.
+Flutter has a synchronous, single-threaded event loop. The token model uses Dart `Stopwatch` for monotonic time tracking and is passed via `ActionDispatcher`.
 
 #### Flutter Token Class and Function Invoker:
 
 ```dart
 class UserGestureToken {
-  final DateTime timestamp = DateTime.now();
+  final Stopwatch _stopwatch = Stopwatch()..start();
   final String sourceComponentId;
+  final String interactionLevel; // 'action' | 'input' | 'none'
   bool _consumed = false;
 
-  UserGestureToken({required this.sourceComponentId});
+  UserGestureToken({
+    required this.sourceComponentId,
+    this.interactionLevel = 'action',
+  });
 
-  /// Valid for 5 seconds and single-use
-  bool get isValid => !_consumed && DateTime.now().difference(timestamp) < const Duration(seconds: 5);
+  /// Valid for 5 seconds (monotonic clock) and single-use
+  bool get isValid => !_consumed && _stopwatch.elapsedMilliseconds < 5000;
 
   void consume() => _consumed = true;
 }
 
 // In Component onPressed handler:
 ElevatedButton(
-  onPressed: () {
-    final token = UserGestureToken(sourceComponentId: widget.id);
+  onPressed: props.disabled ? null : () {
+    final token = UserGestureToken(
+      sourceComponentId: widget.id,
+      interactionLevel: 'action',
+    );
     actionDispatcher.dispatch(props.action, gestureToken: token);
   },
   child: Text(props.label),
@@ -287,8 +305,8 @@ ElevatedButton(
 // In openUrl Implementation:
 void executeOpenUrl(Map<String, dynamic> args, FunctionContext context) {
   final token = context.gestureToken;
-  if (token == null || !token.isValid) {
-    throw SecurityException("Function 'openUrl' requires an active user gesture.");
+  if (token == null || !token.isValid || token.interactionLevel != 'action') {
+    throw SecurityException("Function 'openUrl' requires an active 'action' user gesture.");
   }
   token.consume();
   url_launcher.launchUrl(Uri.parse(args['url']));
@@ -299,19 +317,20 @@ void executeOpenUrl(Map<String, dynamic> args, FunctionContext context) {
 
 ### 6.3 Android (Kotlin / Jetpack Compose) Design
 
-On Android, Jetpack Compose click handlers (`onClick`) execute synchronously on the Main Thread. Kotlin's receiver lambdas and `CoroutineContext` pass and preserve gesture tokens across asynchronous coroutine suspensions cleanly.
+On Android, Jetpack Compose click handlers (`onClick`) execute synchronously on the Main Thread. Kotlin's `SystemClock.elapsedRealtime()` provides a monotonic clock, and `CoroutineContext` passes gesture tokens across asynchronous coroutine suspensions cleanly.
 
 #### Jetpack Compose Token and Coroutine Context Scope:
 
 ```kotlin
 data class UserGestureToken(
     val sourceComponentId: String,
-    val timestamp: Long = System.currentTimeMillis()
+    val interactionLevel: String = "action",
+    val createdAtRealtimeMs: Long = SystemClock.elapsedRealtime()
 ) {
     private var isConsumed = false
 
     val isValid: Boolean
-        get() = !isConsumed && (System.currentTimeMillis() - timestamp < 5000)
+        get() = !isConsumed && (SystemClock.elapsedRealtime() - createdAtRealtimeMs < 5000)
 
     fun consume(): Boolean {
         if (isConsumed) return false
@@ -320,26 +339,28 @@ data class UserGestureToken(
     }
 }
 
-// Action Scope passed into Compose event handlers
-class ActionScope(val gestureToken: UserGestureToken? = null)
-
-// Jetpack Compose Button
-@Composable
-fun A2UIButton(componentId: String, label: String, onAction: ActionScope.() -> Unit) {
-    Button(
-        onClick = {
-            val token = UserGestureToken(sourceComponentId = componentId)
-            ActionScope(gestureToken = token).onAction()
-        }
-    ) {
-        Text(text = label)
-    }
-}
-
 // CoroutineContext element for preserving token across async coroutines:
 class GestureContextElement(val token: UserGestureToken) : CoroutineContext.Element {
     companion object Key : CoroutineContext.Key<GestureContextElement>
     override val key: CoroutineContext.Key<*> = Key
+}
+
+// Jetpack Compose Button Component
+@Composable
+fun A2UIButton(componentId: String, label: String, enabled: Boolean = true, onAction: suspend () -> Unit) {
+    val coroutineScope = rememberCoroutineScope()
+    Button(
+        onClick = {
+            if (!enabled) return@Button
+            val token = UserGestureToken(sourceComponentId = componentId, interactionLevel = "action")
+            coroutineScope.launch(GestureContextElement(token)) {
+                onAction()
+            }
+        },
+        enabled = enabled
+    ) {
+        Text(text = label)
+    }
 }
 ```
 
@@ -347,22 +368,24 @@ class GestureContextElement(val token: UserGestureToken) : CoroutineContext.Elem
 
 ### 6.4 iOS (Swift / SwiftUI) Design
 
-In Swift and SwiftUI, closures passed to `Button(action: { ... })` execute on the `@MainActor`. Swift structured concurrency supports `@TaskLocal` values, allowing gesture tokens to be bound to Swift tasks and preserved automatically across `async/await` boundaries.
+In Swift and SwiftUI, closures passed to `Button(action: { ... })` execute on the `@MainActor`. Swift structured concurrency supports `@TaskLocal` values, using `ContinuousClock` for monotonic time tracking and `$currentToken.withValue` to bind tokens across `async/await` task boundaries.
 
 #### SwiftUI Token and TaskLocal Scoping:
 
 ```swift
 public final class UserGestureToken {
     public let sourceComponentId: String
-    public let timestamp: Date = Date()
+    public let interactionLevel: String
+    private let startTime: ContinuousClock.Instant = .now
     private var isConsumed: Bool = false
 
-    public init(sourceComponentId: String) {
+    public init(sourceComponentId: String, interactionLevel: String = "action") {
         self.sourceComponentId = sourceComponentId
+        self.interactionLevel = interactionLevel
     }
 
     public var isValid: Bool {
-        return !isConsumed && Date().timeIntervalSince(timestamp) < 5.0
+        return !isConsumed && startTime.duration(to: .now) < .seconds(5)
     }
 
     @discardableResult
@@ -370,13 +393,6 @@ public final class UserGestureToken {
         guard !isConsumed else { return false }
         isConsumed = true
         return true
-    }
-}
-
-public struct ActionContext {
-    public let gestureToken: UserGestureToken?
-    public init(gestureToken: UserGestureToken? = nil) {
-        self.gestureToken = gestureToken
     }
 }
 
@@ -389,15 +405,22 @@ public enum A2UIGestureScope {
 struct A2UIButton: View {
     let componentId: String
     let label: String
-    let onAction: (ActionContext) -> Void
+    let isEnabled: Bool
+    let onAction: () async -> Void
 
     var body: some View {
         Button(action: {
-            let token = UserGestureToken(sourceComponentId: componentId)
-            onAction(ActionContext(gestureToken: token))
+            guard isEnabled else { return }
+            let token = UserGestureToken(sourceComponentId: componentId, interactionLevel: "action")
+            Task {
+                await A2UIGestureScope.$currentToken.withValue(token) {
+                    await onAction()
+                }
+            }
         }) {
             Text(label)
         }
+        .disabled(!isEnabled)
     }
 }
 ```
