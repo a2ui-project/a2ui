@@ -387,6 +387,52 @@ describe('Basic Catalog Components', () => {
       expect(screen.queryByRole('dialog')).toBeNull();
     });
 
+    it('Modal does not restore focus on mount, but restores it on close', () => {
+      const triggerBtn = new ComponentModel('btn_trigger', 'Button', {
+        child: 'btn_label',
+        accessibility: {label: 'Open Modal'},
+      });
+
+      const {view} = renderA2uiComponent(
+        Modal,
+        'm1',
+        {
+          trigger: 'btn_trigger',
+          content: 'c1',
+        },
+        {
+          additionalComponents: [triggerBtn],
+          additionalImpls: [Button],
+        }
+      );
+
+      const button = screen.getByRole('button', {name: 'Open Modal'});
+      expect(button).toBeDefined();
+
+      // Focus an external element to ensure Modal doesn't steal it on mount
+      const externalInput = document.createElement('input');
+      document.body.appendChild(externalInput);
+      externalInput.focus();
+      expect(document.activeElement).toBe(externalInput);
+
+      // Trigger a re-render of the component to make sure it doesn't focus on subsequent renders either
+      // (Actually renderA2uiComponent doesn't easily let us force update without data change,
+      // but the mount effect is what we are testing).
+      expect(document.activeElement).toBe(externalInput);
+
+      // Open the modal
+      fireEvent.click(button);
+      const closeBtn = screen.getByLabelText('Close');
+      expect(document.activeElement).toBe(closeBtn);
+
+      // Close the modal
+      fireEvent.click(closeBtn);
+      // Focus should be restored to the trigger button
+      expect(document.activeElement).toBe(button);
+
+      document.body.removeChild(externalInput);
+    });
+
     it('Divider renders a themed line', () => {
       const {view} = renderA2uiComponent(Divider, 'd1', {axis: 'horizontal'});
       expect(view.container.firstChild).toHaveStyle({height: 'var(--a2ui-border-width, 1px)'});
@@ -541,6 +587,24 @@ describe('Basic Catalog Components', () => {
       const errorId = group.getAttribute('aria-describedby');
       expect(errorId).not.toBeNull();
       expect(view.container.querySelector(`#${errorId}`)?.textContent).toBe('Selection required');
+    });
+
+    it('ChoicePicker binds radiogroup role for mutuallyExclusive variant', () => {
+      renderA2uiComponent(
+        ChoicePicker,
+        'cp1',
+        {
+          label: 'Pick',
+          options: [
+            {label: 'A', value: 'a'},
+          ],
+          value: {path: '/picked'},
+          variant: 'mutuallyExclusive',
+        }
+      );
+
+      const group = screen.getByRole('radiogroup');
+      expect(group).toBeDefined();
     });
 
     it('DateTimeInput handles date changes', () => {

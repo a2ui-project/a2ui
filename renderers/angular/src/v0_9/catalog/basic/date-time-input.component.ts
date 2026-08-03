@@ -76,8 +76,12 @@ import {DateTimeInputApi} from '@a2ui/web_core/v0_9/basic_catalog';
           />
         }
       </div>
-      @for (message of props()['validationErrors']?.value(); track message) {
-        <div [id]="uniqueId + '-error'" class="a2ui-error-message">{{ message }}</div>
+      @if (props()['validationErrors']?.value()?.length) {
+        <div [id]="uniqueId + '-error'">
+          @for (message of props()['validationErrors']?.value(); track message) {
+            <div class="a2ui-error-message">{{ message }}</div>
+          }
+        </div>
       }
     </div>
   `,

@@ -134,7 +134,7 @@ describe('ChoicePickerComponent', () => {
     expect(onUpdateSpy).toHaveBeenCalledWith([]);
   });
 
-  it('should render group role and link label element', () => {
+  it('should render radiogroup role for single selection', () => {
     setComponentProps(fixture, {
       ...defaultProps,
       label: createBoundProperty<string | undefined>('Select Fruit'),
@@ -145,11 +145,28 @@ describe('ChoicePickerComponent', () => {
     fixture.detectChanges();
 
     const group = fixture.nativeElement.querySelector('.a2ui-options-group');
-    expect(group.getAttribute('role')).toBe('group');
+    expect(group.getAttribute('role')).toBe('radiogroup');
     const label = fixture.nativeElement.querySelector('.a2ui-choice-picker-label');
     const labelId = label.getAttribute('id');
     expect(labelId).toBeTruthy();
     expect(group.getAttribute('aria-labelledby')).toBe(labelId);
+  });
+
+  it('should render group role for multiple selection', () => {
+    setComponentProps(fixture, {
+      ...defaultProps,
+      label: createBoundProperty<string | undefined>('Select Fruits'),
+      variant: createBoundProperty<'multipleSelection' | 'mutuallyExclusive' | undefined>(
+        'multipleSelection',
+      ),
+      options: createBoundProperty<{label: DynamicString; value: string}[]>([
+        {label: 'Apple', value: 'apple'},
+      ]),
+    });
+    fixture.detectChanges();
+
+    const group = fixture.nativeElement.querySelector('.a2ui-options-group');
+    expect(group.getAttribute('role')).toBe('group');
   });
 
   it('should set aria-pressed on chips active states', () => {

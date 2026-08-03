@@ -1,5 +1,8 @@
 ## Unreleased
 
+- (v0_9) Fix React Modal focus restoration bug on mount by skipping focus restoration on initial mount.
+- (v0_9) Use `radiogroup` role instead of `group` for single selection in React ChoicePicker.
+
 ## 0.10.2
 
 - (v0_9) Normalize Safari placeholder text color for `DateTimeInput` by injecting WebKit-specific styles via a global stylesheet and adding the `.a2ui-date-time-input` class.

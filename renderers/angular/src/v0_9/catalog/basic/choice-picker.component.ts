@@ -48,7 +48,7 @@ import {ChoicePickerApi} from '@a2ui/web_core/v0_9/basic_catalog';
       @if (displayStyle() === 'chips') {
         <div
           class="a2ui-chips-group"
-          role="group"
+          [attr.role]="groupRole()"
           [attr.aria-labelledby]="label() ? uniqueId + '-label' : null"
           [attr.aria-label]="props()['accessibility']?.value()?.label"
           [attr.aria-description]="props()['accessibility']?.value()?.description"
@@ -70,7 +70,7 @@ import {ChoicePickerApi} from '@a2ui/web_core/v0_9/basic_catalog';
         <!-- Checkbox/Radio Variant -->
         <div
           class="a2ui-options-group"
-          role="group"
+          [attr.role]="groupRole()"
           [attr.aria-labelledby]="label() ? uniqueId + '-label' : null"
           [attr.aria-label]="props()['accessibility']?.value()?.label"
           [attr.aria-description]="props()['accessibility']?.value()?.description"
@@ -93,8 +93,12 @@ import {ChoicePickerApi} from '@a2ui/web_core/v0_9/basic_catalog';
         </div>
       }
 
-      @for (message of props()['validationErrors']?.value(); track message) {
-        <div [id]="uniqueId + '-error'" class="a2ui-error-message">{{ message }}</div>
+      @if (props()['validationErrors']?.value()?.length) {
+        <div [id]="uniqueId + '-error'">
+          @for (message of props()['validationErrors']?.value(); track message) {
+            <div class="a2ui-error-message">{{ message }}</div>
+          }
+        </div>
       }
     </div>
   `,
@@ -169,6 +173,7 @@ import {ChoicePickerApi} from '@a2ui/web_core/v0_9/basic_catalog';
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class ChoicePickerComponent extends BasicCatalogComponent<typeof ChoicePickerApi> {
+  readonly groupRole = computed(() => this.variant() === 'multipleSelection' ? 'group' : 'radiogroup');
   readonly label = computed(() => this.props()['label']?.value());
   readonly displayStyle = computed(() => this.props()['displayStyle']?.value());
   readonly options = computed(() => this.props()['options']?.value() || []);

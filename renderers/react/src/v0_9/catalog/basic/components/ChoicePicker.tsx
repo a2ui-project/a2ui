@@ -78,7 +78,7 @@ export const ChoicePicker = createComponentImplementation(ChoicePickerApi, ({pro
       )}
       <div
         className={listClasses}
-        role="group"
+        role={isMutuallyExclusive ? 'radiogroup' : 'group'}
         aria-labelledby={props.label ? `${uniqueId}-label` : undefined}
         aria-label={props.accessibility?.label}
         aria-description={props.accessibility?.description}

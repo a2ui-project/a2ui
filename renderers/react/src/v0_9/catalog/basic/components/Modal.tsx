@@ -24,10 +24,11 @@ export const Modal = createComponentImplementation(ModalApi, ({props, buildChild
   const [isOpen, setIsOpen] = useState(false);
   const triggerRef = useRef<HTMLDivElement>(null);
   const modalRef = useRef<HTMLDivElement>(null);
+  const isMounted = useRef(false);
 
   useEffect(() => {
     if (!isOpen) {
-      if (triggerRef.current) {
+      if (isMounted.current && triggerRef.current) {
         const focusable = triggerRef.current.querySelector(
           'button, [tabindex="0"], input, select, textarea'
         ) as HTMLElement;
@@ -37,6 +38,8 @@ export const Modal = createComponentImplementation(ModalApi, ({props, buildChild
       }
       return;
     }
+
+    isMounted.current = true;
 
     if (modalRef.current) {
       const focusables = modalRef.current.querySelectorAll(
