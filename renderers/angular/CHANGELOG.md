@@ -1,6 +1,9 @@
 ## Unreleased
 
 - (v0_9) Implement `createComponentImplementation` helper and deprecate `extraComponents` and `functions` in `BasicCatalogOptions` to align with the core API. [#2060](https://github.com/a2ui-project/a2ui/pull/2060)
+
+## 0.10.5
+
 - Add standalone helper `provideA2Ui` configuration function. [#2061](https://github.com/a2ui-project/a2ui/pull/2061)
 - Standardize package entry points to `index.ts` while maintaining `public-api.ts` wrappers for backward compatibility.
 - (v0_8) Export `A2uiMessageSchema` in public API.

@@ -30,12 +30,32 @@ class ExpressParser(Parser):
     """Concrete parser implementation for A2UI Express DSL responses."""
 
     def __init__(
-        self, catalog: Union[Catalog[Any, Any], A2uiCatalog], surface_id: str = "main"
+        self,
+        catalog: Union[Catalog[Any, Any], A2uiCatalog],
+        surface_id: str = "main",
+        version: str = "v1.0",
     ):
+        """Initializes the Express parser with a catalog schema and target version.
+
+        Args:
+            catalog: Catalog or A2uiCatalog schema helper.
+            surface_id: Surface identifier for compiled messages.
+            version: Target A2UI protocol version ("v0.9", "v0.9.1", or "v1.0").
+        """
         self.catalog = catalog
         self.surface_id = surface_id
+        self.version = version
 
     def has_format_content(self, content: str, *, complete: bool = False) -> bool:
+        """Checks whether the given content string contains A2UI Express sentinel tags.
+
+        Args:
+            content: The text content to inspect.
+            complete: Whether to require both opening and closing sentinel tags.
+
+        Returns:
+            True if Express format tags are detected; False otherwise.
+        """
         if complete:
             return (
                 A2UI_INFERENCE_OPEN_TAG in content
@@ -61,27 +81,30 @@ class ExpressParser(Parser):
         """Compiles raw Express DSL to structured A2UI messages."""
         from a2ui.parser.errors import A2uiCompilationError
 
-        compiler = ExpressCompiler(self.catalog)
+        compiler = ExpressCompiler(self.catalog, version=self.version)
         try:
-            compiled_json = compiler.compile(
+            return compiler.compile(
                 format_content, surface_id=self.surface_id, is_final=is_final
             )
-            return [compiled_json]
         except (SyntaxError, ValueError) as e:
             orig_err = e
             if isinstance(e, ValueError) and isinstance(e.__cause__, SyntaxError):
                 orig_err = e.__cause__
             line = getattr(orig_err, "lineno", None)
             column = getattr(orig_err, "offset", None)
+            help_msg = (
+                getattr(e, "help_message", None)
+                or "Please correct the syntax error in your Express DSL."
+            )
             raise A2uiCompilationError(
                 message=str(e),
                 raw_content=format_content,
                 line=line,
                 column=column,
-                help_message="Please correct the syntax error in your Express DSL.",
+                help_message=help_msg,
             ) from e
 
-    def decompile(self, val: dict[str, Any]) -> str:
+    def decompile(self, val: Union[dict[str, Any], List[dict[str, Any]]]) -> str:
         """Decompiles a structured A2UI payload into this format's raw notation."""
         return _ExpressDecompiler(self.catalog).decompile(val)
 

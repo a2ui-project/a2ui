@@ -136,7 +136,7 @@ class TestExpressParser(unittest.TestCase):
 
         def get_compiled_text(dsl_body: str) -> str:
             dsl = f"root = Column([t1])\nt1 = Text({dsl_body})"
-            res = compiler.compile(dsl)
+            res = compiler.compile(dsl)[0]
             return res["createSurface"]["components"][1]["text"]
 
         # 1. Standard Single-Quoted Strings & Escaping
@@ -214,8 +214,8 @@ class TestExpressParser(unittest.TestCase):
             compiler.compile(incomplete_dsl)
 
         res_partial = compiler.compile(incomplete_dsl, is_final=False)
-        self.assertEqual(res_partial["updateDataModel"]["value"]["foo"], 123)
-        self.assertNotIn("bar", res_partial["updateDataModel"]["value"])
+        self.assertEqual(res_partial[0]["updateDataModel"]["value"]["foo"], 123)
+        self.assertNotIn("bar", res_partial[0]["updateDataModel"]["value"])
 
     def test_schema_driven_child_reference_helper(self):
         """Verify that _is_component_reference_property correctly inspects JSON schema structures."""

@@ -27,6 +27,7 @@ import {PongScoreBoard} from './pong-scoreboard';
 import {PongLayout} from './pong-layout';
 import {Column} from '@a2ui/angular';
 import {WebAppFrameUrl} from './web-app-frame-url';
+import {WebAppFrameSrcdoc} from './web-app-frame-srcdoc';
 
 /**
  * The catalog ID for the MCP App catalog.
@@ -56,6 +57,18 @@ const PongLayoutSchema = z.object({
 
 const WebAppFrameUrlSchema = z.object({
   url: DynamicStringSchema,
+  config: z.record(z.any()).optional(),
+  data: DynamicValueSchema.optional(),
+  height: DynamicNumberSchema.optional(),
+  allowedEvents: z.record(z.any()).optional(),
+  allowedFunctions: z.record(z.any()).optional(),
+  mutableData: z.record(z.any()).optional(),
+  disableSchemaValidation: z.boolean().optional(),
+});
+
+const WebAppFrameSrcdocSchema = z.object({
+  htmlContent: z.string(),
+  config: z.record(z.any()).optional(),
   data: DynamicValueSchema.optional(),
   height: DynamicNumberSchema.optional(),
   allowedEvents: z.record(z.any()).optional(),
@@ -139,6 +152,7 @@ export const DEMO_CATALOG = new Catalog(
     {name: 'PongScoreBoard', component: PongScoreBoard, schema: PongScoreBoardSchema},
     {name: 'PongLayout', component: PongLayout, schema: PongLayoutSchema},
     {name: 'WebAppFrameUrl', component: WebAppFrameUrl, schema: WebAppFrameUrlSchema},
+    {name: 'WebAppFrameSrcdoc', component: WebAppFrameSrcdoc, schema: WebAppFrameSrcdocSchema},
     // Column should use ColumnApi.schema from @a2ui/web_core, but it is not currently
     // exported by the version of @a2ui/web_core resolved in this community sample.
     // We use z.any() to avoid duplicating the schema definition here.

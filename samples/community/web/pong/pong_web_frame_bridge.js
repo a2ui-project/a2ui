@@ -23,13 +23,30 @@
  * Failing to explicitly set this origin would allow any malicious parent site
  * to silently intercept sensitive messages and data sent from this iframe.
  */
-const urlParams = new URLSearchParams(window.location.search);
-const PARENT_ORIGIN = urlParams.get('origin');
-if (!PARENT_ORIGIN) {
+const PARENT_ORIGIN = (() => {
+  const urlParams = new URLSearchParams(window.location.search);
+  const originParam = urlParams.get('origin');
+  if (originParam) {
+    return originParam;
+  }
+
+  const isSrcdocOrSandboxed =
+    window.location.origin === 'null' ||
+    window.location.protocol === 'about:' ||
+    window.location.protocol === 'data:';
+
+  if (isSrcdocOrSandboxed) {
+    console.log(
+      'A2UI Web Frame: Running in srcdoc/sandboxed mode without "?origin="; defaulting target origin to "*".',
+    );
+    return '*';
+  }
+
   console.error(
-    'A2UI Web Frame: The parent origin must be specified via the "?origin=" query parameter for security.',
+    'A2UI Web Frame: Missing required "?origin=" parameter in URL mode. Refusing to broadcast postMessage to "*".',
   );
-}
+  return 'null';
+})();
 
 const MSG_TYPE_ACTION = 'a2ui_action';
 const MSG_TYPE_DATA_MODEL_CHANGE = 'a2ui_data_model_change';
