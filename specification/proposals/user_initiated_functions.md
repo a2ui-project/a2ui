@@ -21,34 +21,57 @@ A2UI is a declarative JSON protocol without inline code execution capabilities l
 
 2. **Dynamic Property Interpolation (`formatString`) Abuse**:
    The expression engine evaluates string interpolation expressions during component rendering or template list iteration. If a payload contains an expression such as:
+
    ```json
    {
      "component": "Text",
      "text": "${openUrl('https://example.com/phish')}"
    }
    ```
+
    the renderer evaluates `openUrl()` as part of string formatting. This opens an external browser window automatically during render without user consent.
 
 3. **Reactive Data Model Re-evaluations**:
    When background data synchronization or state updates modify the `DataContext`, reactive dependencies trigger re-evaluation of bound expressions. Any function call bound to state updates executes automatically.
 
 ### 1.2 Security and User Experience Impact
-* **Phishing and Unwanted Redirection**: Users can be navigated to external websites or deep-linked into native apps without clicking a link or button.
-* **Pop-up Blocker Conflicts**: Web browsers block `window.open` calls that do not originate from an active user gesture, causing runtime errors or silent failures.
-* **Loss of User Control**: Automated side effects violate the core requirement that actions with side effects (navigation, copying data, modifying system state) must be explicitly initiated by user intent.
+
+- **Phishing and Unwanted Redirection**: Users can be navigated to external websites or deep-linked into native apps without clicking a link or button.
+- **Pop-up Blocker Conflicts**: Web browsers block `window.open` calls that do not originate from an active user gesture, causing runtime errors or silent failures.
+- **Loss of User Control**: Automated side effects violate the core requirement that actions with side effects (navigation, copying data, modifying system state) must be explicitly initiated by user intent.
 
 ---
 
 ## 2. Pros and Cons
 
 ### 2.1 Pros
-* **Auto-Invocation Protection**: Stops automated window/tab navigation or side-effect triggers during layout rendering, dynamic property interpolation, or background state updates.
-* **Zero Custom Component Overhead**: Component authors write standard event bindings (`@click=${props.action}` in Lit, `onClick={props.action}` in React, `onPressed: props.action` in Flutter). Framework binders pre-wrap `props.action` to create and attach gesture tokens automatically. Custom component authors write no token-handling code.
-* **Centralized Web Implementation**: Web gesture token handling is implemented once inside `web_core` (`GenericBinder` and `DataContext`). This covers Lit, React, Angular, and Vue renderers without individual renderer modifications.
-* **Programmatic Token Inspection**: Custom function implementations can programmatically inspect `options.gestureToken`. This enables hybrid execution flows, such as navigating directly when gesture-initiated, or displaying a permission confirmation dialog when uninitiated.
+
+- **Auto-Invocation Protection**: Stops automated window/tab navigation or side-effect triggers during layout rendering, dynamic property interpolation, or background state updates.
+- **Zero Custom Component Overhead**: Component authors write standard event bindings (`@click=${props.action}` in Lit, `onClick={props.action}` in React, `onPressed: props.action` in Flutter). Framework binders pre-wrap `props.action` to create and attach gesture tokens automatically. Custom component authors write no token-handling code.
+- **Centralized Web Implementation**: Web gesture token handling is implemented once inside `web_core` (`GenericBinder` and `DataContext`). This covers Lit, React, Angular, and Vue renderers without individual renderer modifications.
+- **Programmatic Token Inspection**: Custom function implementations can programmatically inspect `options.gestureToken`. This enables hybrid execution flows, such as navigating directly when gesture-initiated, or displaying a permission confirmation dialog when uninitiated.
 
 ### 2.2 Cons
-* **Engine Invoker Signatures**: Requires updating `FunctionInvoker` and `DataContext` signatures across web (`web_core`) and native core SDKs (`a2ui_core`) to accept `InvocationOptions`.
+
+- **Engine Invoker Signatures**: Requires updating `FunctionInvoker` and `DataContext` signatures across web (`web_core`) and native core SDKs (`a2ui_core`) to accept `InvocationOptions`.
+
+### 2.3 Remaining Security Risks and Exploitation Vectors
+
+While `requiresUserGesture` blocks automated background invocations, malicious or poorly designed payloads can still attempt to exploit user-initiated event handlers:
+
+- **Text Entry and Input Validation Checks**:
+  While A2UI component schemas do not expose arbitrary direct event bindings on text inputs, text components evaluate validation rules (such as `check` or `validate` expressions) during user typing. If a validation check expression references a gesture-restricted function, typing a single character produces a physical event. The framework generates a valid `UserGestureToken` and executes the function during input validation.
+
+- **Hover and Cursor Movement (`onMouseEnter` / `onPointerMove`)**:
+  If a renderer framework binder treats hover or mouseover events as valid user gestures, moving the mouse cursor across a surface element generates a gesture token and triggers gesture-restricted actions unexpectedly.
+
+- **Click Hijacking and Deceptive UI Labels**:
+  A payload cannot bypass gesture verification, but it can mislabel interactive UI elements (such as labeling a button "Cancel" or "Close" while binding its click handler to a side-effecting action like `openUrl` or data export). When the user clicks the element, the physical click supplies a valid gesture token and triggers the action.
+
+#### Recommended Mitigations:
+
+1. **Restrict Gesture Token Creation**: Renderer engine binders must strictly limit `UserGestureToken` generation to activation events (`click`, `touchend`, `submit`, explicit key submission) and exclude passive events like mouse hover (`mouseenter`, `pointermove`).
+2. **Catalog Best Practices**: Standard catalog definitions should only bind `requiresUserGesture` functions to explicit submission or action components (such as `Button` or `Form.onSubmit`).
 
 ---
 
@@ -71,11 +94,11 @@ In catalog function definitions, `requiresUserGesture` specifies whether the fun
       "returnType": "void",
       "requiresUserGesture": true,
       "properties": {
-        "call": { "const": "openUrl" },
+        "call": {"const": "openUrl"},
         "args": {
           "type": "object",
           "properties": {
-            "url": { "type": "string", "format": "uri" }
+            "url": {"type": "string", "format": "uri"}
           },
           "required": ["url"]
         }
@@ -92,6 +115,7 @@ In catalog function definitions, `requiresUserGesture` specifies whether the fun
 Renderers enforce user-gesture constraints using **Explicit Gesture Context Tokens** (`UserGestureToken`).
 
 When a user interacts with a UI component:
+
 1. **Token Generation**: The component event listener (such as a `Button` click handler) generates a short-lived, single-use `UserGestureToken`.
 2. **Context Propagation**: The renderer passes the token into `invokeFunction(name, args, { gestureToken })`.
 3. **Validation and Consumption**:
@@ -117,13 +141,15 @@ flowchart TD
 Custom component authors do not need to modify component implementations to support this feature.
 
 ### 5.1 Automatic Action Wrapping via Framework Binders
+
 When custom components receive action callbacks as props (`props.action`), the renderer's framework binder (such as `GenericBinder` in `web_core`) generates those callbacks. The binder automatically wraps `props.action` to capture the DOM or native touch event and construct a `UserGestureToken`.
 
 Component authors write standard framework code:
-* **Lit**: `<button @click=${props.action}>Click Me</button>`
-* **React**: `<button onClick={props.action}>Click Me</button>`
-* **Flutter**: `ElevatedButton(onPressed: props.action, child: Text("Click Me"))`
-* **Jetpack Compose**: `Button(onClick = props.action) { Text("Click Me") }`
+
+- **Lit**: `<button @click=${props.action}>Click Me</button>`
+- **React**: `<button onClick={props.action}>Click Me</button>`
+- **Flutter**: `ElevatedButton(onPressed: props.action, child: Text("Click Me"))`
+- **Jetpack Compose**: `Button(onClick = props.action) { Text("Click Me") }`
 
 Because framework binders pre-wrap `props.action`, custom component authors write no gesture-token boilerplate or manual event extraction logic.
 
@@ -136,25 +162,29 @@ Because framework binders pre-wrap `props.action`, custom component authors writ
 In `web_core` (shared by **Lit**, **React**, **Angular**, and **Vue** renderers), gesture token handling is implemented centrally inside `GenericBinder` and `DataContext`.
 
 #### `web_core` Action Binder Implementation:
+
 ```typescript
 // web_core: src/v0_9/rendering/generic-binder.ts
 export function bindAction(dataContext: DataContext, actionCall: ActionDefinition) {
-  return (eventOrOptions?: Event | { event?: Event }) => {
+  return (eventOrOptions?: Event | {event?: Event}) => {
     // Extract DOM Event from framework event argument or window fallback
-    const domEvent = eventOrOptions instanceof Event
-      ? eventOrOptions
-      : (eventOrOptions && 'nativeEvent' in eventOrOptions)
-        ? (eventOrOptions as any).nativeEvent
-        : (eventOrOptions as any)?.event ?? (typeof window !== 'undefined' ? window.event : undefined);
+    const domEvent =
+      eventOrOptions instanceof Event
+        ? eventOrOptions
+        : eventOrOptions && 'nativeEvent' in eventOrOptions
+          ? (eventOrOptions as any).nativeEvent
+          : ((eventOrOptions as any)?.event ??
+            (typeof window !== 'undefined' ? window.event : undefined));
 
     const gestureToken = domEvent ? createWebGestureToken(domEvent) : undefined;
 
-    return dataContext.invokeFunction(actionCall.call, actionCall.args, { gestureToken });
+    return dataContext.invokeFunction(actionCall.call, actionCall.args, {gestureToken});
   };
 }
 ```
 
 #### `Catalog.invoker` Validation:
+
 ```typescript
 // web_core: src/v0_9/catalog/types.ts
 this.invoker = (name, rawArgs, ctx, options) => {
@@ -184,6 +214,7 @@ this.invoker = (name, rawArgs, ctx, options) => {
 Flutter has a synchronous, single-threaded event loop. The token model is passed via `ActionDispatcher`.
 
 #### Flutter Token Class and Function Invoker:
+
 ```dart
 class UserGestureToken {
   final DateTime timestamp = DateTime.now();
@@ -225,6 +256,7 @@ void executeOpenUrl(Map<String, dynamic> args, FunctionContext context) {
 On Android, Jetpack Compose click handlers (`onClick`) execute synchronously on the Main Thread. Kotlin's receiver lambdas and `CoroutineContext` pass and preserve gesture tokens across asynchronous coroutine suspensions cleanly.
 
 #### Jetpack Compose Token and Coroutine Context Scope:
+
 ```kotlin
 data class UserGestureToken(
     val sourceComponentId: String,
@@ -272,6 +304,7 @@ class GestureContextElement(val token: UserGestureToken) : CoroutineContext.Elem
 In Swift and SwiftUI, closures passed to `Button(action: { ... })` execute on the `@MainActor`. Swift structured concurrency supports `@TaskLocal` values, allowing gesture tokens to be bound to Swift tasks and preserved automatically across `async/await` boundaries.
 
 #### SwiftUI Token and TaskLocal Scoping:
+
 ```swift
 public final class UserGestureToken {
     public let sourceComponentId: String
@@ -327,13 +360,13 @@ struct A2UIButton: View {
 
 ## 7. Security Efficacy and Threat Matrix
 
-| Threat / Scenario | Risk Level | Protection Mechanism |
-| :--- | :--- | :--- |
-| **Initial Render Auto-Trigger** (Model payload invoking `openUrl` on load) | High | **Blocked**: Initial layout render passes `gestureToken: undefined`. |
-| **Interpolation Abuse** (Injecting `${openUrl('...')}` in text node) | High | **Blocked**: Expression engine passes no gesture token during formatting. |
-| **Reactive Model Update** (State sync triggering function execution) | Medium | **Blocked**: Reactive state updates lack active gesture token context. |
-| **Replay Attacks** (Re-using a single gesture token for multiple side effects) | Medium | **Blocked**: Token is consumed on first execution (`token.consume()`). |
-| **Expired Gesture Tokens** (Delayed invocation after 5 seconds) | Low | **Blocked**: `token.isValid` checks time window expiry (< 5s). |
+| Threat / Scenario                                                              | Risk Level | Protection Mechanism                                                      |
+| :----------------------------------------------------------------------------- | :--------- | :------------------------------------------------------------------------ |
+| **Initial Render Auto-Trigger** (Model payload invoking `openUrl` on load)     | High       | **Blocked**: Initial layout render passes `gestureToken: undefined`.      |
+| **Interpolation Abuse** (Injecting `${openUrl('...')}` in text node)           | High       | **Blocked**: Expression engine passes no gesture token during formatting. |
+| **Reactive Model Update** (State sync triggering function execution)           | Medium     | **Blocked**: Reactive state updates lack active gesture token context.    |
+| **Replay Attacks** (Re-using a single gesture token for multiple side effects) | Medium     | **Blocked**: Token is consumed on first execution (`token.consume()`).    |
+| **Expired Gesture Tokens** (Delayed invocation after 5 seconds)                | Low        | **Blocked**: `token.isValid` checks time window expiry (< 5s).            |
 
 ---
 
@@ -356,17 +389,17 @@ export const MyCustomOpenUrlImplementation = createFunctionImplementation(
     } else {
       // 2. Uninitiated / Automated Call: Fallback to displaying a permission dialog
       showPermissionModal({
-        title: "Permission Request",
+        title: 'Permission Request',
         message: `An automated action wants to open: ${args.url}. Allow navigation?`,
         onApprove: () => {
           // User clicked "Allow" on the dialog -> Physical click provides a new gesture
           window.open(args.url, '_blank', 'noopener,noreferrer');
         },
         onDeny: () => {
-          console.log("Navigation request denied by user.");
-        }
+          console.log('Navigation request denied by user.');
+        },
       });
     }
-  }
+  },
 );
 ```
