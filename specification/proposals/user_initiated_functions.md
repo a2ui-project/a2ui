@@ -60,28 +60,29 @@ A2UI is a declarative JSON protocol without inline code execution capabilities l
 While `requiresUserGesture` blocks automated background invocations, malicious or poorly designed payloads can still attempt to exploit user-initiated event handlers:
 
 - **Text Entry and Input Validation Checks**:
-  While A2UI component schemas do not expose arbitrary direct event bindings on text inputs, text components evaluate validation rules (such as `check` or `validate` expressions) during user typing. If a validation check expression references a gesture-restricted function, typing a single character produces a physical event. The framework generates a valid `UserGestureToken` and executes the function during input validation.
+  Text components evaluate validation rules (such as `check` expressions) during user typing. Typing a single character produces a physical event. By classifying `TextField` as `userInteractionLevel: "input"`, the framework issues an `input`-level gesture token. When an expression calls a function requiring an `action`-level token (such as `openUrl`), `invoker` blocks execution during character entry.
 
 - **Hover and Cursor Movement (`onMouseEnter` / `onPointerMove`)**:
-  If a renderer framework binder treats hover or mouseover events as valid user gestures, moving the mouse cursor across a surface element generates a gesture token and triggers gesture-restricted actions unexpectedly.
+  Passive layout nodes (`Container`, `Text`, `Image`) default to `userInteractionLevel: "none"`. The framework binder never generates gesture tokens for passive elements, preventing cursor movement or hover events from triggering side-effect actions unexpectedly.
 
 - **Click Hijacking and Deceptive UI Labels**:
-  A payload cannot bypass gesture verification, but it can mislabel interactive UI elements (such as labeling a button "Cancel" or "Close" while binding its click handler to a side-effecting action like `openUrl` or data export). When the user clicks the element, the physical click supplies a valid gesture token and triggers the action.
+  A payload cannot bypass gesture verification, but it can mislabel interactive UI elements (such as labeling a button "Cancel" or "Close" while binding its click handler to a side-effecting action like `openUrl` or data export). When the user clicks the element, the physical click supplies a valid `action`-level gesture token and triggers the function.
 
 #### Recommended Mitigations:
-
-1. **Restrict Gesture Token Creation**: Renderer engine binders must strictly limit `UserGestureToken` generation to activation events (`click`, `touchend`, `submit`, explicit key submission) and exclude passive events like mouse hover (`mouseenter`, `pointermove`).
-2. **Catalog Best Practices**: Standard catalog definitions should only bind `requiresUserGesture` functions to explicit submission or action components (such as `Button` or `Form.onSubmit`).
+1. **Component Interaction Classification**: Catalogs must classify components accurately using `userInteractionLevel` (`"action"` for buttons/links, `"input"` for text fields, `"none"` for passive nodes).
+2. **Restrict Token Event Types**: Framework binders must strictly limit `UserGestureToken` generation to activation events (`click`, `touchend`, `submit`, explicit key submission) and exclude passive events like mouse hover (`mouseenter`, `pointermove`).
 
 ---
 
 ## 3. Proposed Solution
 
-This proposal introduces an optional catalog attribute, `requiresUserGesture: boolean`, to function metadata definitions.
+This proposal introduces two complementary catalog attributes:
+1. `requiresUserGesture: boolean` on catalog function definitions (e.g., `openUrl`).
+2. `userInteractionLevel: "action" | "input" | "none"` on catalog component definitions (defaulting to `"none"`).
 
-When a function definition includes `requiresUserGesture: true` (such as `openUrl`), the A2UI framework guarantees that the function only executes in response to a physical user interaction (such as a button click, form submission, or touch gesture). Uninitiated calls during layout rendering, dynamic property interpolation, or reactive model updates are blocked and rejected by the renderer engine.
+When a function definition sets `requiresUserGesture: true` (such as `openUrl`), the A2UI framework guarantees that the function only executes in response to an active, physical user interaction originating from an interactive component classified as `userInteractionLevel: "action"`. Uninitiated calls during layout rendering, dynamic property interpolation, reactive model updates, or passive component evaluation are blocked and rejected by the renderer engine.
 
-### Protocol Schema Metadata (`requiresUserGesture`)
+### 3.1 Catalog Function Metadata (`requiresUserGesture`)
 
 In catalog function definitions, `requiresUserGesture` specifies whether the function requires an active user gesture context at invocation time:
 
@@ -108,6 +109,33 @@ In catalog function definitions, `requiresUserGesture` specifies whether the fun
 }
 ```
 
+### 3.2 Component Interaction Levels (`userInteractionLevel`)
+
+In catalog component definitions, `userInteractionLevel` declares the component's interaction class:
+
+```json
+{
+  "components": {
+    "Button": {
+      "userInteractionLevel": "action",
+      "description": "Interactive action button capable of triggering side-effect functions."
+    },
+    "TextField": {
+      "userInteractionLevel": "input",
+      "description": "Data entry input component."
+    },
+    "Text": {
+      "userInteractionLevel": "none",
+      "description": "Passive presentation node."
+    }
+  }
+}
+```
+
+* **`"action"`**: Components designed to trigger side-effect actions (`Button`, `Link`, `MenuItem`). Generates `action`-level gesture tokens valid for all `requiresUserGesture` functions.
+* **`"input"`**: Components designed for data entry (`TextField`, `Slider`, `CheckBox`). Generates `input`-level gesture tokens valid for data model updates and validation checks, but blocked for `requiresUserGesture` functions.
+* **`"none"`** (default): Passive presentation nodes (`Text`, `Image`, `Container`, `Divider`). Never generates gesture tokens.
+
 ---
 
 ## 4. Renderer Token Execution Model
@@ -116,22 +144,30 @@ Renderers enforce user-gesture constraints using **Explicit Gesture Context Toke
 
 When a user interacts with a UI component:
 
-1. **Token Generation**: The component event listener (such as a `Button` click handler) generates a short-lived, single-use `UserGestureToken`.
+1. **Token Generation**: The component event binder inspects the component's catalog `userInteractionLevel`. If the level is `"none"`, no token is issued (`gestureToken: undefined`). If the level is `"action"` or `"input"`, a short-lived, single-use `UserGestureToken` is generated carrying the corresponding `interactionLevel`.
 2. **Context Propagation**: The renderer passes the token into `invokeFunction(name, args, { gestureToken })`.
 3. **Validation and Consumption**:
-   - If `fn.requiresUserGesture === true` and no valid gesture token is present, execution is rejected with a security exception.
-   - If a valid token is present, the token is consumed (`token.consume()`) to prevent replay attacks, and the function executes.
+   - If `fn.requiresUserGesture === true`, execution requires a valid gesture token with `token.interactionLevel === "action"`. If the token is missing, expired, or has `interactionLevel !== "action"`, execution is rejected with a security exception.
+   - If a valid `action` token is present, the token is consumed (`token.consume()`) to prevent replay attacks, and the function executes.
 4. **Static and Reactive Expression Evaluation**: Data bindings, dynamic string interpolations, and reactive state updates explicitly pass `gestureToken: undefined`, automatically blocking `requiresUserGesture` functions during layout evaluation.
 
 ```mermaid
 flowchart TD
-    A["User Taps/Clicks UI Component"] --> B["Component Handler Generates GestureToken"]
-    B --> C["Passes Token to Invoker"]
-    C --> D{"Function requiresUserGesture?"}
-    D -- Yes --> E{"GestureToken Valid & Unconsumed?"}
-    E -- No --> F["Reject Invocation & Log Security Exception"]
-    E -- Yes --> G["Consume Token & Execute Function"]
-    D -- No --> G
+    A["User Interacts with Component"] --> B{"Component Disabled at Runtime?"}
+    B -- Yes --> C["Component Handler Aborts (No Action Callback Called)"]
+    B -- No --> D["Framework Binder Checks userInteractionLevel"]
+    D -- "none" --> E["Pass gestureToken: undefined to Invoker"]
+    D -- "input" --> F["Issue GestureToken with interactionLevel: 'input'"]
+    D -- "action" --> G["Issue GestureToken with interactionLevel: 'action'"]
+    
+    F --> H{"Function requiresUserGesture?"}
+    G --> H
+    E --> H
+    
+    H -- Yes --> I{"Token Valid & level === 'action'?"}
+    I -- No --> J["Block Execution & Log Security Exception"]
+    I -- Yes --> K["Consume Token & Execute Function"]
+    H -- No --> L["Execute Function"]
 ```
 
 ---
@@ -140,18 +176,18 @@ flowchart TD
 
 Custom component authors do not need to modify component implementations to support this feature.
 
-### 5.1 Automatic Action Wrapping via Framework Binders
+### 5.1 Automatic Action Wrapping and Option A Runtime Enablement
 
-When custom components receive action callbacks as props (`props.action`), the renderer's framework binder (such as `GenericBinder` in `web_core`) generates those callbacks. The binder automatically wraps `props.action` to capture the DOM or native touch event and construct a `UserGestureToken`.
+When custom components receive action callbacks as props (`props.action`), the renderer's framework binder (such as `GenericBinder` in `web_core`) generates those callbacks. The binder automatically inspects the component's catalog `userInteractionLevel` and wraps `props.action` to capture the DOM or native touch event and construct a `UserGestureToken`.
 
-Component authors write standard framework code:
+#### Runtime Enablement (Option A):
+Component authors handle runtime enablement (`disabled`, `enabled`, or custom state props) inside standard framework code:
+* **Lit**: `<button ?disabled=${props.disabled} @click=${e => !props.disabled && props.action(e)}>Click Me</button>`
+* **React**: `<button disabled={props.disabled} onClick={e => !props.disabled && props.action(e)}>Click Me</button>`
+* **Flutter**: `ElevatedButton(onPressed: props.disabled ? null : () => props.action(), child: Text("Click Me"))`
+* **Jetpack Compose**: `Button(onClick = props.action, enabled = !props.disabled) { Text("Click Me") }`
 
-- **Lit**: `<button @click=${props.action}>Click Me</button>`
-- **React**: `<button onClick={props.action}>Click Me</button>`
-- **Flutter**: `ElevatedButton(onPressed: props.action, child: Text("Click Me"))`
-- **Jetpack Compose**: `Button(onClick = props.action) { Text("Click Me") }`
-
-Because framework binders pre-wrap `props.action`, custom component authors write no gesture-token boilerplate or manual event extraction logic.
+If a component instance is disabled at runtime, the component implementation simply skips invoking `props.action()`. Because `props.action()` is never invoked, `bindAction` is never called, and no `UserGestureToken` is generated. This avoids reserving protocol property names like `disabled`, preventing property name collisions with custom components.
 
 ---
 
@@ -165,8 +201,16 @@ In `web_core` (shared by **Lit**, **React**, **Angular**, and **Vue** renderers)
 
 ```typescript
 // web_core: src/v0_9/rendering/generic-binder.ts
-export function bindAction(dataContext: DataContext, actionCall: ActionDefinition) {
+export function bindAction(dataContext: DataContext, actionCall: ActionDefinition, componentType: string) {
   return (eventOrOptions?: Event | {event?: Event}) => {
+    const componentDef = dataContext.catalog.components.get(componentType);
+    const level = componentDef?.userInteractionLevel ?? 'none';
+
+    // Passive components ('none') never generate gesture tokens
+    if (level === 'none') {
+      return dataContext.invokeFunction(actionCall.call, actionCall.args, {gestureToken: undefined});
+    }
+
     // Extract DOM Event from framework event argument or window fallback
     const domEvent =
       eventOrOptions instanceof Event
@@ -176,7 +220,9 @@ export function bindAction(dataContext: DataContext, actionCall: ActionDefinitio
           : ((eventOrOptions as any)?.event ??
             (typeof window !== 'undefined' ? window.event : undefined));
 
-    const gestureToken = domEvent ? createWebGestureToken(domEvent) : undefined;
+    const gestureToken = domEvent
+      ? createWebGestureToken(domEvent, {interactionLevel: level})
+      : undefined;
 
     return dataContext.invokeFunction(actionCall.call, actionCall.args, {gestureToken});
   };
@@ -191,17 +237,17 @@ this.invoker = (name, rawArgs, ctx, options) => {
   const fn = this.functions.get(name);
   if (!fn) throw new A2uiExpressionError(`Function not found: ${name}`, name);
 
-  if (fn.requiresUserGesture && (!options?.gestureToken || !options.gestureToken.isValid)) {
-    throw new A2uiSecurityError(
-      `Execution blocked: Function '${name}' requires an active user gesture.`,
-      name,
-    );
+  if (fn.requiresUserGesture) {
+    const token = options?.gestureToken;
+    if (!token || !token.isValid || token.interactionLevel !== 'action') {
+      throw new A2uiSecurityError(
+        `Execution blocked: Function '${name}' requires an active 'action' gesture token from an interactive component.`,
+        name,
+      );
+    }
+    token.consume();
   }
 
-  // Consume token to prevent replay attacks
-  if (fn.requiresUserGesture) {
-    options?.gestureToken?.consume();
-  }
   const safeArgs = fn.schema.parse(rawArgs);
   return fn.execute(safeArgs, ctx, options?.abortSignal);
 };
