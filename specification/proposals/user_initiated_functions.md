@@ -141,6 +141,12 @@ To remain completely catalog-agnostic while guaranteeing backward compatibility 
 * **v1.0+ Surfaces (`protocolVersion >= "1.0"`)**: Renderers strictly enforce `userInteractionLevel` component gating. Unclassified components default to `"none"`.
 * **Legacy Baseline Surfaces (`protocolVersion < "1.0"`)**: Renderers skip component-level `userInteractionLevel` filtering and issue gesture tokens directly from physical user events, relying on `requiresUserGesture` function checks. Legacy v0.9 components remain fully functional without catalog modification.
 
+#### Non-Inheritability Rule
+`userInteractionLevel` is strictly **non-inheritable** across nested component hierarchies:
+* The interaction level is bound directly and exclusively to the specific component definition dispatching the action callback.
+* Container components (such as `Form`, `Card`, `Column`, or `Row`) that contain nested child nodes do not pass their `userInteractionLevel` down to child components.
+* For example, if a `Form` container includes a submit button (`userInteractionLevel: "action"`) and but has a `Text` label child (`userInteractionLevel: "none"`), evaluating an expression on the `Text` child evaluates `Text`'s interaction level (`"none"`). The `Form`'s container scope never elevates child components to `"action"`.
+
 ---
 
 ## 4. Renderer Token Execution Model
@@ -164,11 +170,11 @@ flowchart TD
     D -- "none" --> E["Pass gestureToken: undefined to Invoker"]
     D -- "input" --> F["Issue GestureToken with interactionLevel: 'input'"]
     D -- "action" --> G["Issue GestureToken with interactionLevel: 'action'"]
-    
+
     F --> H{"Function requiresUserGesture?"}
     G --> H
     E --> H
-    
+
     H -- Yes --> I{"Token Valid & level === 'action'?"}
     I -- No --> J["Block Execution & Log Security Exception"]
     I -- Yes --> K["Consume Token & Execute Function"]
