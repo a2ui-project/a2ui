@@ -19,7 +19,7 @@ Version 1.0 differs from 0.9 in the following ways:
 - Identifier naming rules across all catalog entities (component names, function names, and argument keys) must conform to Unicode Standard Annex #31 (UAX #31).
 - The `@index` built-in function dynamically retrieves iteration indices during list template rendering. The `@` prefix is reserved for core system context evaluations.
 - Standardized the names of core architectural components, renaming "client" to _renderer_ and "server" to _agent_ (e.g., `server_to_client` schemas are renamed to `agent_to_renderer`), because A2UI is sometimes generated on clients, and rendering sometimes happens on servers, making those terms ambiguous.
-- Set-membership composition hierarchy constraints (`allowedParents` and `allowedChildren`) can now be defined on catalog component definitions, with `"Surface"` as the canonical implicit root component type. Because JSON Schema has no native way to restrict child component types across a flat adjacency list where children are referenced by string IDs and may be streamed in later, these rules allow catalogs to declare valid graph edges without altering the wire format.
+- Catalogs can now define composition constraints (`allowedParents` and `allowedChildren`) on component definitions, using `"Surface"` as the canonical root component type. Because JSON Schema cannot natively restrict child component types across a flat adjacency list of ID references, these rules allow catalogs to declare valid parent-child relationships without altering the wire format.
 
 ## 2. Changes
 
@@ -32,8 +32,8 @@ Version 1.0 differs from 0.9 in the following ways:
 - Supported standard JSON Schema metadata fields (`$schema`, `$id`, `title`, and `description`) in the Catalog object definition. Since the Catalog schema restricts properties with `additionalProperties: false`, this ensures inline catalogs containing standard schema metadata do not fail schema validation.
 - Added a `protocolVersion` field (e.g., `"protocolVersion": "1.0"`) to catalog definition metadata (`catalog_definition.json`). If omitted, `protocolVersion` defaults to `"0.9"` for backward compatibility; catalog definitions targeting `1.0` and beyond MUST specify `"protocolVersion"`.
 - Enforced Unicode Standard Annex #31 (UAX #31) identifier naming constraints (`XID_Start`, `XID_Continue`) across component names, function names, and argument keys.
-- Added optional `allowedParents` and `allowedChildren` properties to catalog component definitions (`catalog_definition.json`) to define set-membership composition hierarchy rules. Because JSON Schema has no native way to restrict child component types across a flat adjacency list where children are referenced by string IDs and may be streamed in later, these rules allow catalogs to declare valid graph edges.
-- Introduced the canonical `"Surface"` container component type in `common_types.json` representing the top-level container of an A2UI surface for anchoring `"allowedParents": ["Surface"]` rules. The `"Surface"` component name is reserved by the protocol. `createSurface` implicitly creates the component `Surface`, which has `child='root'`. The component `Surface` cannot be modified using `updateComponents`. These schema additions are catalog-level metadata and do not alter the wire format of component instances in `createSurface` or `updateComponents`.
+- Added optional `allowedParents` and `allowedChildren` properties to catalog component definitions (`catalog_definition.json`) to define parent-child composition constraints. Because JSON Schema cannot natively restrict child component types across a flat adjacency list of ID references, these rules allow catalogs to declare valid component relationships.
+- Added the canonical `"Surface"` container component type in `common_types.json` to represent the top-level container of a surface for `"allowedParents": ["Surface"]` rules. The protocol reserves the `"Surface"` component name. The `createSurface` message implicitly creates `Surface` with `"child": "root"`, and you cannot modify `Surface` using `updateComponents`. These schema additions are catalog-level metadata and do not alter the wire format of component instances in `createSurface` or `updateComponents`.
 
 ### 2.2. Standard catalogs (basic)
 
@@ -56,7 +56,7 @@ Version 1.0 differs from 0.9 in the following ways:
 - Added `actionId` to the `action` message properties, which the renderer generates if a response is expected (`wantResponse: true`).
 - Added the `functionResponse` renderer-to-agent message to return the successful result (`value`) of an agent-initiated function call. Function execution failures are reported via the separate `error` message (see next item), not via `functionResponse`.
 - Updated renderer `error` messages to support `functionCallId` when reporting function execution failures, enforcing mutual exclusivity with `surfaceId`.
-- Added `"UNALLOWED_PARENT"` and `"UNALLOWED_CHILD"` error code values to `renderer_to_agent.json` for reporting composition hierarchy validation failures when a component is placed under an unallowed parent or an unallowed child is placed inside a container.
+- Added `"UNALLOWED_PARENT"` and `"UNALLOWED_CHILD"` error code values to `renderer_to_agent.json` for reporting validation errors when a component is placed under an unallowed parent or an unallowed child is placed inside a container.
 - Updated all protocol version references from `v0.9` or `v0.9.1` to `v1.0`.
 
 ### 2.5. Catalog definition schema

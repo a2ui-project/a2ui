@@ -2,7 +2,7 @@
   "schema": "catalog_definition.json",
   "tests": [
     {
-      "description": "Valid catalog with top-level component restriction",
+      "description": "Valid catalog restricting component to top level",
       "valid": true,
       "data": {
         "catalogId": "https://example.com/catalog.json",
@@ -18,7 +18,7 @@
       }
     },
     {
-      "description": "Valid catalog with top-level or container union restriction",
+      "description": "Valid catalog allowing component at top level or in container",
       "valid": true,
       "data": {
         "catalogId": "https://example.com/catalog.json",
@@ -34,7 +34,7 @@
       }
     },
     {
-      "description": "Valid catalog with Surface container entry restriction",
+      "description": "Valid catalog with Surface container child restriction",
       "valid": true,
       "data": {
         "catalogId": "https://example.com/catalog.json",
