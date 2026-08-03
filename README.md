@@ -156,6 +156,7 @@ For Flutter, check out the [GenUI SDK](https://github.com/flutter/genui), which 
 We hope to work with the community on the following:
 
 - **Spec stabilization:** Moving towards a v1.0 specification.
+- **Conformance testing:** Language-agnostic conformance test suites across all Agent and Core SDK implementations (see [conformance/README.md](conformance/README.md)).
 - **More renderers:** Adding official support for React, Jetpack Compose, iOS (SwiftUI), and more.
 - **Additional transports:** Support for REST and more.
 - **Additional Agent frameworks:** Genkit, LangGraph, and more.

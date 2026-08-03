@@ -12,14 +12,25 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from typing import Any
 from ..common.events import EventSource, Signal
 from .component_model import ComponentModel
 from .component_node import ComponentNode
 from .data_model import DataModel
 from .surface_components_model import SurfaceComponentsModel
-from .surface_group_model import SurfaceGroupModel
-from .surface_model import SurfaceModel
-from .node_graph import NodeGraph
+
+
+def __getattr__(name: str) -> Any:
+    if name == "SurfaceGroupModel":
+        from .surface_group_model import SurfaceGroupModel
+        return SurfaceGroupModel
+    if name == "SurfaceModel":
+        from .surface_model import SurfaceModel
+        return SurfaceModel
+    if name == "NodeGraph":
+        from .node_graph import NodeGraph
+        return NodeGraph
+    raise AttributeError(f"module '{__name__}' has no attribute '{name}'")
 
 __all__ = [
     "ComponentModel",

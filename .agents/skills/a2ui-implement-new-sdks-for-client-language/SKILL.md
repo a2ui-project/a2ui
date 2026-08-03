@@ -41,7 +41,7 @@ Implement the framework-agnostic data and processor layers:
 4.  **Core State Models**: Implement `ComponentModel`, `SurfaceComponentsModel`, `SurfaceModel`, and `SurfaceGroupModel`.
 5.  **Context Mapping**: Implement `DataContext` and `ComponentContext`.
 6.  **MessageProcessor**: Ingest incoming messages and mutate the state models. Generate `inlineCatalogs` client capabilities.
-7.  **Verification**: Write comprehensive unit tests for pointer cascading, JSON deserialization/validation, and message dispatching.
+7.  **Verification & Conformance Testing**: Implement a test harness that runs the language-agnostic DataModel conformance suite from `conformance/suites/data_model.yaml` against your implementation. Consult the `.agents/skills/a2ui-conformance-testing/SKILL.md` skill for harness structure and reference implementations. Write comprehensive unit tests for pointer cascading, JSON deserialization/validation, and message dispatching.
 
 ### **Phase 4: Foundational Basic Catalog Support**
 

@@ -31,14 +31,22 @@ class DataModel:
     @staticmethod
     def _parse_pointer(path: str) -> List[str]:
         """Splits a JSON Pointer path into individual unescaped tokens."""
+        if path is None:
+            raise ValueError("Path cannot be null or undefined.")
         if not path or path == "/":
             return []
         if not path.startswith("/"):
             # Support relative scope path resolution
-            return [t.replace("~1", "/").replace("~0", "~") for t in path.split("/")]
+            tokens = path.split("/")
+        else:
+            tokens = path[1:].split("/")
 
-        tokens = path[1:].split("/")
-        return [t.replace("~1", "/").replace("~0", "~") for t in tokens]
+        forbidden = {"__proto__", "constructor", "prototype"}
+        res = [t.replace("~1", "/").replace("~0", "~") for t in tokens]
+        for token in res:
+            if token in forbidden:
+                raise ValueError(f"Forbidden path segment '{token}'")
+        return res
 
     @staticmethod
     def _build_pointer(tokens: List[str]) -> str:
@@ -103,19 +111,25 @@ class DataModel:
             is_next_numeric = bool(NUMERIC_PATTERN.match(next_token))
 
             if isinstance(current, dict):
-                if token not in current or not isinstance(current[token], (dict, list)):
+                if token in current and current[token] is not None and not isinstance(current[token], (dict, list)):
+                    raise ValueError(f"Cannot set path '{path}': segment '{token}' is a primitive value.")
+                if token not in current or current[token] is None:
                     current[token] = [] if is_next_numeric else {}
                 current = current[token]
-            elif isinstance(current, list) and NUMERIC_PATTERN.match(token):
+            elif isinstance(current, list):
+                if not NUMERIC_PATTERN.match(token):
+                    raise ValueError(f"Cannot use non-numeric segment '{token}' on an array in path '{path}'.")
                 idx = int(token)
                 # Expand array if index exceeds size
                 while len(current) <= idx:
                     current.append(None)
-                if current[idx] is None or not isinstance(current[idx], (dict, list)):
+                if current[idx] is not None and not isinstance(current[idx], (dict, list)):
+                    raise ValueError(f"Cannot set path '{path}': segment '{token}' is a primitive value.")
+                if current[idx] is None:
                     current[idx] = [] if is_next_numeric else {}
                 current = current[idx]
             else:
-                raise ValueError(f"Cannot traverse path segment: {token} in {path}")
+                raise ValueError(f"Cannot set path '{path}': segment '{token}' is a primitive value.")
 
         # Set final leaf value
         last_token = tokens[-1]
@@ -124,13 +138,15 @@ class DataModel:
                 current.pop(last_token, None)
             else:
                 current[last_token] = copy.deepcopy(value)
-        elif isinstance(current, list) and NUMERIC_PATTERN.match(last_token):
+        elif isinstance(current, list):
+            if not NUMERIC_PATTERN.match(last_token):
+                raise ValueError(f"Cannot use non-numeric segment '{last_token}' on an array in path '{path}'.")
             idx = int(last_token)
             while len(current) <= idx:
                 current.append(None)
             current[idx] = copy.deepcopy(value)
         else:
-            raise ValueError(f"Leaf segment is not a container: {last_token}")
+            raise ValueError(f"Cannot set path '{path}': segment '{last_token}' is a primitive value.")
 
         # Trigger notification cascade
         self._trigger_cascade(tokens)

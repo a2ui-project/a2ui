@@ -1,0 +1,252 @@
+- name: test_data_model_basic_get_set
+  description: Verifies basic get and set operations on root and nested paths.
+  initial_data:
+    user:
+      name: Alice
+      settings:
+        theme: dark
+    items:
+      - a
+      - b
+      - c
+  steps:
+    - action: get
+      path: "/user/name"
+      expect: Alice
+    - action: get
+      path: "/user/settings/theme"
+      expect: dark
+    - action: get
+      path: "/items/0"
+      expect: a
+    - action: get
+      path: "/user/age"
+      expect_undefined: true
+    - action: set
+      path: "/user/name"
+      value: Bob
+    - action: get
+      path: "/user/name"
+      expect: Bob
+    - action: set
+      path: "/user/age"
+      value: 30
+    - action: get
+      path: "/user/age"
+      expect: 30
+
+- name: test_data_model_auto_vivification
+  description: Verifies automatic intermediate structure creation when setting nested paths.
+  initial_data: {}
+  steps:
+    - action: set
+      path: "/a/b/c"
+      value: foo
+    - action: get
+      path: "/a/b/c"
+      expect: foo
+    - action: get
+      path: "/a/b"
+      expect:
+        c: foo
+    - action: get
+      path: "/a"
+      expect:
+        b:
+          c: foo
+
+- name: test_data_model_array_list_operations
+  description: Verifies numeric indexing, appending, and nested containers in arrays.
+  initial_data: {}
+  steps:
+    - action: set
+      path: "/list/0"
+      value: hello
+    - action: get
+      path: "/list/0"
+      expect: hello
+    - action: set
+      path: "/list/1"
+      value: world
+    - action: get
+      path: "/list"
+      expect:
+        - hello
+        - world
+    - action: set
+      path: "/nested/0/name"
+      value: first
+    - action: get
+      path: "/nested/0/name"
+      expect: first
+    - action: get
+      path: "/nested"
+      expect:
+        - name: first
+
+- name: test_data_model_remove_key
+  description: Verifies removing keys when setting a property with remove true.
+  initial_data:
+    user:
+      name: Alice
+      age: 30
+  steps:
+    - action: set
+      path: "/user/name"
+      remove: true
+    - action: get
+      path: "/user/name"
+      expect_undefined: true
+    - action: get
+      path: "/user"
+      expect:
+        age: 30
+
+- name: test_data_model_subscriptions_exact_and_ancestor
+  description: Verifies exact and ancestor container subscription notifications and unsubscription.
+  initial_data:
+    user:
+      name: Alice
+  steps:
+    - action: subscribe
+      path: "/user/name"
+      listener_id: sub_name
+    - action: subscribe
+      path: "/user"
+      listener_id: sub_user
+    - action: set
+      path: "/user/name"
+      value: Bob
+    - action: set
+      path: "/user/name"
+      value: Charlie
+    - action: verify_subscription
+      listener_id: sub_name
+      expect_updates:
+        - Bob
+        - Charlie
+    - action: verify_subscription
+      listener_id: sub_user
+      expect_updates:
+        - name: Bob
+        - name: Charlie
+    - action: unsubscribe
+      listener_id: sub_name
+    - action: set
+      path: "/user/name"
+      value: Dave
+    - action: verify_subscription
+      listener_id: sub_name
+      expect_updates:
+        - Bob
+        - Charlie
+    - action: verify_subscription
+      listener_id: sub_user
+      expect_updates:
+        - name: Bob
+        - name: Charlie
+        - name: Dave
+
+- name: test_data_model_subscriptions_descendant_and_root
+  description: Verifies descendant notifications when a parent is updated and root subscriber notifications.
+  initial_data:
+    user:
+      settings:
+        theme: light
+  steps:
+    - action: subscribe
+      path: "/user/settings/theme"
+      listener_id: sub_theme
+    - action: subscribe
+      path: "/"
+      listener_id: sub_root
+    - action: set
+      path: "/user/settings"
+      value:
+        theme: dark
+    - action: verify_subscription
+      listener_id: sub_theme
+      expect_updates:
+        - dark
+    - action: set
+      path: "/newProp"
+      value: test
+    - action: verify_subscription
+      listener_id: sub_root
+      expect_updates:
+        - user:
+            settings:
+              theme: dark
+        - user:
+            settings:
+              theme: dark
+          newProp: test
+
+- name: test_data_model_rfc6901_pointer_escaping
+  description: Verifies JSON Pointer RFC 6901 escaping for slashes (~1) and tildes (~0).
+  initial_data: {}
+  steps:
+    - action: set
+      path: "/user/detailed~1info"
+      value: "some/info"
+    - action: get
+      path: "/user/detailed~1info"
+      expect: "some/info"
+    - action: set
+      path: "/user/profile~0name"
+      value: "profile~name"
+    - action: get
+      path: "/user/profile~0name"
+      expect: "profile~name"
+    - action: set
+      path: "/user/a~01b"
+      value: "value"
+    - action: get
+      path: "/user/a~01b"
+      expect: "value"
+    - action: get
+      path: "/user"
+      expect:
+        detailed/info: "some/info"
+        profile~name: "profile~name"
+        a~1b: "value"
+
+- name: test_data_model_security_prototype_pollution
+  description: Verifies protection against prototype pollution path segments.
+  initial_data: {}
+  steps:
+    - action: set
+      path: "/__proto__/polluted"
+      value: hacked
+      expect_error: "Forbidden path segment '__proto__'"
+    - action: set
+      path: "/constructor/prototype/polluted"
+      value: hacked
+      expect_error: "Forbidden path segment 'constructor'"
+    - action: set
+      path: "/user/prototype/polluted"
+      value: hacked
+      expect_error: "Forbidden path segment 'prototype'"
+
+- name: test_data_model_error_handling
+  description: Verifies error handling for invalid pointer traversal and non-numeric array indexing.
+  initial_data:
+    user:
+      name: Alice
+    items:
+      - 1
+      - 2
+      - 3
+  steps:
+    - action: set
+      path: "/user/name/first"
+      value: Bob
+      expect_error: "Cannot set path|segment .* is a primitive value"
+    - action: set
+      path: "/items/01"
+      value: val
+      expect_error: "Cannot use non-numeric segment"
+    - action: set
+      path: "/items/foo"
+      value: val
+      expect_error: "Cannot use non-numeric segment"
