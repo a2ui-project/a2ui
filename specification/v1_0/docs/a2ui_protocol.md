@@ -462,7 +462,7 @@ To ensure complete cross-language compatibility across renderer SDKs, parsers, a
 1. **Permitted Characters**: Identifiers must begin with a character in the Unicode property class `XID_Start` or an underscore (`_`, `U+005F`). Subsequent characters must belong to the Unicode property class `XID_Continue`.
 2. **Prohibited Initial Characters**: Identifiers MUST NOT begin with a decimal digit (Unicode general category `Nd`).
 3. **Prohibited Symbols and Whitespace**: Identifiers MUST NOT contain any whitespace or symbols matching the Unicode character property classes `Pattern_Syntax` or `Pattern_White_Space`, other than underscores.
-4. **Reserved Component Names**: The protocol reserves the component type name `"Surface"` for the canonical surface container created by `createSurface`. Catalogs MUST NOT define a standard UI component named `"Surface"`. 
+4. **Reserved Component Names**: The protocol reserves the component type name `"Surface"` for the canonical surface container created by `createSurface`. Catalogs MUST NOT define a standard UI component named `"Surface"`.
 
 ##### Canonical Regular Expression
 
