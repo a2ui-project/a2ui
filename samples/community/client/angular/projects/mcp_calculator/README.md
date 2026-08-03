@@ -20,6 +20,7 @@ This sample demonstrates an Angular client displaying an interactive Pong game u
 2. Install local dependencies in the `samples/community` directory:
 
    ```bash
+   cd samples/community
    yarn install
    ```
 
@@ -40,6 +41,7 @@ This sample demonstrates an Angular client displaying an interactive Pong game u
 5. Start the Angular application in `samples/community/client/angular`:
 
    ```bash
+   cd samples/community/client/angular
    yarn start mcp_calculator
    ```
 
