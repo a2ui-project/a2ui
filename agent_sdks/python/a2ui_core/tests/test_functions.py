@@ -72,6 +72,79 @@ def test_arithmetic_divide():
     assert invoke("divide", {"a": "10", "b": "2"}) == 5
 
 
+def test_numeric_clamp():
+    assert invoke("clamp", {"value": 5, "min": 0, "max": 10}) == 5
+    assert invoke("clamp", {"value": -1, "min": 0, "max": 10}) == 0
+    assert invoke("clamp", {"value": 11, "min": 0, "max": 10}) == 10
+    assert invoke("clamp", {"value": 0.5, "min": 0, "max": 1}) == 0.5
+    assert invoke("clamp", {"value": "11", "min": "0", "max": "10"}) == 10
+    # The catalog declares that a max below min yields min.
+    assert invoke("clamp", {"value": 5, "min": 10, "max": 0}) == 10
+    with pytest.raises(ValidationError):
+        invoke("clamp", {"value": 5, "min": 0})
+    with pytest.raises(ValidationError):
+        invoke("clamp", {"value": 5, "min": 0, "max": None})
+    with pytest.raises(ValidationError):
+        invoke("clamp", {"value": "invalid", "min": 0, "max": 10})
+
+
+def test_numeric_round():
+    assert invoke("round", {"value": 2.4}) == 2
+    assert invoke("round", {"value": 2.5}) == 3
+    assert invoke("round", {"value": 1.2345, "decimals": 2}) == 1.23
+    assert invoke("round", {"value": 1.005, "decimals": 2}) == 1.01
+    assert invoke("round", {"value": 1234, "decimals": -2}) == 1200
+    assert invoke("round", {"value": "2.5"}) == 3
+    # Halfway cases round away from zero, unlike the built-in round().
+    assert invoke("round", {"value": -2.5}) == -3
+    assert invoke("round", {"value": -1.005, "decimals": 2}) == -1.01
+    assert invoke("round", {"value": 0}) == 0
+    # A shift large enough to overflow leaves the value untouched.
+    assert invoke("round", {"value": 1.5, "decimals": 400}) == 1.5
+    # A fractional 'decimals' is truncated towards zero rather than ignored.
+    assert invoke("round", {"value": 1.005, "decimals": 2.5}) == 1.01
+    assert invoke("round", {"value": 1234, "decimals": -2.5}) == 1200
+    with pytest.raises(ValidationError):
+        invoke("round", {})
+    with pytest.raises(ValidationError):
+        invoke("round", {"value": None})
+    with pytest.raises(ValidationError):
+        invoke("round", {"value": "invalid"})
+
+
+def test_numeric_min():
+    assert invoke("min", {"values": [3, 1, 2]}) == 1
+    assert invoke("min", {"values": ["3", "1"]}) == 1
+    assert invoke("min", {"values": [-5, 5]}) == -5
+    with pytest.raises(ValidationError):
+        invoke("min", {"values": [1, None]})
+    with pytest.raises(ValidationError):
+        invoke("min", {})
+
+
+def test_numeric_max():
+    assert invoke("max", {"values": [3, 1, 2]}) == 3
+    assert invoke("max", {"values": ["3", "1"]}) == 3
+    assert invoke("max", {"values": [-5, -1]}) == -1
+    with pytest.raises(ValidationError):
+        invoke("max", {"values": [1, "invalid"]})
+    with pytest.raises(ValidationError):
+        invoke("max", {})
+
+
+def test_numeric_abs():
+    assert invoke("abs", {"value": -3}) == 3
+    assert invoke("abs", {"value": 3}) == 3
+    assert invoke("abs", {"value": "-3.5"}) == 3.5
+    assert invoke("abs", {"value": 0}) == 0
+    with pytest.raises(ValidationError):
+        invoke("abs", {})
+    with pytest.raises(ValidationError):
+        invoke("abs", {"value": None})
+    with pytest.raises(ValidationError):
+        invoke("abs", {"value": "invalid"})
+
+
 def test_comparison_equals():
     assert invoke("equals", {"a": 1, "b": 1}) is True
     assert invoke("equals", {"a": 1, "b": 2}) is False

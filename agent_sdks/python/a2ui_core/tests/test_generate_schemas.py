@@ -204,6 +204,33 @@ def test_compile_function_to_pydantic():
     assert "    schema = None" in code
     assert '    return_type = "number"' in code
 
+    # snake_case catalog names compile to PascalCase class names while the
+    # wire-level name keeps its original spelling.
+    schema = {
+        "properties": {
+            "args": {"properties": {"a": {"type": "number"}}, "required": ["a"]},
+            "returnType": {"const": "boolean"},
+        }
+    }
+    code, class_name = generate_schemas.compile_function_to_pydantic(
+        "not_equals", schema
+    )
+    assert class_name == "NotEqualsApi"
+    assert "class NotEqualsArgs(StrictBaseModel):" in code
+    assert "class NotEqualsApi(FunctionApi):" in code
+    assert '    name = "not_equals"' in code
+    assert "    schema = NotEqualsArgs" in code
+
+
+def test_to_pascal_case():
+    # camelCase names keep their internal capitalisation
+    assert generate_schemas.to_pascal_case("formatString") == "FormatString"
+    assert generate_schemas.to_pascal_case("add") == "Add"
+    # snake_case names are joined segment by segment
+    assert generate_schemas.to_pascal_case("not_equals") == "NotEquals"
+    assert generate_schemas.to_pascal_case("greater_than") == "GreaterThan"
+    assert generate_schemas.to_pascal_case("starts_with") == "StartsWith"
+
 
 def test_generate_common_types():
     mock_common_data = {
@@ -384,6 +411,25 @@ def test_generate_basic_catalog_functions():
     assert names_defs == ["ToastApi"]
     assert "class ToastApi(FunctionApi):" in code_defs
     assert "class PrivateFuncApi(FunctionApi):" in code_defs
+
+    # Scenario C: snake_case function names resolve through anyFunction/oneOf
+    # to their PascalCase class names.
+    mock_catalog_data_snake = {
+        "functions": {
+            "not_equals": {
+                "properties": {
+                    "args": {"properties": {"a": {"type": "number"}}},
+                    "returnType": {"const": "boolean"},
+                }
+            }
+        },
+        "$defs": {"anyFunction": {"oneOf": [{"$ref": "#/functions/not_equals"}]}},
+    }
+    code_snake, names_snake = generate_schemas.generate_basic_catalog_functions(
+        mock_catalog_data_snake
+    )
+    assert names_snake == ["NotEqualsApi"]
+    assert "class NotEqualsApi(FunctionApi):" in code_snake
 
 
 def test_generate_basic_catalog_styles():

@@ -151,6 +151,21 @@ def map_json_type_to_python(prop_name: str, prop: Dict[str, Any]) -> str:
     return "Any"
 
 
+def to_pascal_case(name: str) -> str:
+    """Converts a catalog identifier to a PascalCase class-name prefix.
+
+    Catalog function names are either camelCase ("formatString") or snake_case
+    ("not_equals"); both must yield PascalCase ("FormatString", "NotEquals").
+    Only the leading character of each segment is upper-cased so that existing
+    camelCase names keep their internal capitalisation.
+
+    Assumes catalog names carry no leading or repeated underscores. Empty
+    segments are dropped, so "_foo" and "foo" would both yield "Foo"; no
+    catalog declares such a name.
+    """
+    return "".join(f"{part[0].upper()}{part[1:]}" for part in name.split("_") if part)
+
+
 def to_snake_case(name: str) -> str:
     if name in ("v0_9",):
         return name
@@ -322,13 +337,15 @@ def compile_function_to_pydantic(name: str, schema: Dict[str, Any]) -> tuple[str
     props = schema.get("properties", {}).get("args", {}).get("properties", {})
     required = schema.get("properties", {}).get("args", {}).get("required", [])
 
+    class_prefix = to_pascal_case(name)
+
     if props:
-        args_class = f"{name[0].upper()}{name[1:]}Args"
+        args_class = f"{class_prefix}Args"
         lines.append(f"class {args_class}(StrictBaseModel):")
         lines.extend(compile_properties_to_pydantic(props, required))
         lines.append("")
 
-    func_class = f"{name[0].upper()}{name[1:]}Api"
+    func_class = f"{class_prefix}Api"
     return_type = (
         schema.get("properties", {}).get("returnType", {}).get("const", "boolean")
     )
@@ -584,7 +601,7 @@ def generate_basic_catalog_functions(
         ref = ref_item.get("$ref", "")
         if ref.startswith("#/functions/"):
             name = ref.split("/")[-1]
-            func_class_name = f"{name[0].upper()}{name[1:]}Api"
+            func_class_name = f"{to_pascal_case(name)}Api"
             if func_class_name in func_classes:
                 any_func_names.append(func_class_name)
     if not any_func_names:

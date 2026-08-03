@@ -1319,6 +1319,1356 @@
           ]
         }
       }
+    },
+    {
+      "description": "add: Valid call",
+      "valid": true,
+      "data": {
+        "version": "v1.0",
+        "updateComponents": {
+          "surfaceId": "test",
+          "components": [
+            {
+              "id": "s1",
+              "component": "Slider",
+              "label": "L",
+              "max": 100,
+              "value": {"call": "add", "args": {"a": {"path": "/val"}, "b": 100}}
+            }
+          ]
+        }
+      }
+    },
+    {
+      "description": "add: Invalid args (missing b)",
+      "valid": false,
+      "data": {
+        "version": "v1.0",
+        "updateComponents": {
+          "surfaceId": "test",
+          "components": [
+            {
+              "id": "s1",
+              "component": "Slider",
+              "label": "L",
+              "max": 100,
+              "value": {"call": "add", "args": {"a": {"path": "/val"}}}
+            }
+          ]
+        }
+      }
+    },
+    {
+      "description": "add: Too many arguments",
+      "valid": false,
+      "data": {
+        "version": "v1.0",
+        "updateComponents": {
+          "surfaceId": "test",
+          "components": [
+            {
+              "id": "s1",
+              "component": "Slider",
+              "label": "L",
+              "max": 100,
+              "value": {"call": "add", "args": {"a": 1, "b": 2, "c": 3}}
+            }
+          ]
+        }
+      }
+    },
+    {
+      "description": "add: Invalid argument type (string)",
+      "valid": false,
+      "data": {
+        "version": "v1.0",
+        "updateComponents": {
+          "surfaceId": "test",
+          "components": [
+            {
+              "id": "s1",
+              "component": "Slider",
+              "label": "L",
+              "max": 100,
+              "value": {"call": "add", "args": {"a": "abc", "b": 2}}
+            }
+          ]
+        }
+      }
+    },
+    {
+      "description": "add: Invalid returnType on the wire",
+      "valid": false,
+      "data": {
+        "version": "v1.0",
+        "updateComponents": {
+          "surfaceId": "test",
+          "components": [
+            {
+              "id": "s1",
+              "component": "Slider",
+              "label": "L",
+              "max": 100,
+              "value": {"call": "add", "args": {"a": 1, "b": 2}, "returnType": "boolean"}
+            }
+          ]
+        }
+      }
+    },
+    {
+      "description": "subtract: Valid call",
+      "valid": true,
+      "data": {
+        "version": "v1.0",
+        "updateComponents": {
+          "surfaceId": "test",
+          "components": [
+            {
+              "id": "s1",
+              "component": "Slider",
+              "label": "L",
+              "max": 100,
+              "value": {"call": "subtract", "args": {"a": {"path": "/val"}, "b": 1}}
+            }
+          ]
+        }
+      }
+    },
+    {
+      "description": "subtract: Invalid argument type (boolean)",
+      "valid": false,
+      "data": {
+        "version": "v1.0",
+        "updateComponents": {
+          "surfaceId": "test",
+          "components": [
+            {
+              "id": "s1",
+              "component": "Slider",
+              "label": "L",
+              "max": 100,
+              "value": {"call": "subtract", "args": {"a": true, "b": 1}}
+            }
+          ]
+        }
+      }
+    },
+    {
+      "description": "multiply: Valid call",
+      "valid": true,
+      "data": {
+        "version": "v1.0",
+        "updateComponents": {
+          "surfaceId": "test",
+          "components": [
+            {
+              "id": "s1",
+              "component": "Slider",
+              "label": "L",
+              "max": 100,
+              "value": {"call": "multiply", "args": {"a": {"path": "/val"}, "b": 255}}
+            }
+          ]
+        }
+      }
+    },
+    {
+      "description": "multiply: Invalid args (missing a)",
+      "valid": false,
+      "data": {
+        "version": "v1.0",
+        "updateComponents": {
+          "surfaceId": "test",
+          "components": [
+            {
+              "id": "s1",
+              "component": "Slider",
+              "label": "L",
+              "max": 100,
+              "value": {"call": "multiply", "args": {"b": 255}}
+            }
+          ]
+        }
+      }
+    },
+    {
+      "description": "divide: Valid call",
+      "valid": true,
+      "data": {
+        "version": "v1.0",
+        "updateComponents": {
+          "surfaceId": "test",
+          "components": [
+            {
+              "id": "s1",
+              "component": "Slider",
+              "label": "L",
+              "max": 100,
+              "value": {"call": "divide", "args": {"a": {"path": "/val"}, "b": 100}}
+            }
+          ]
+        }
+      }
+    },
+    {
+      "description": "divide: Too many arguments",
+      "valid": false,
+      "data": {
+        "version": "v1.0",
+        "updateComponents": {
+          "surfaceId": "test",
+          "components": [
+            {
+              "id": "s1",
+              "component": "Slider",
+              "label": "L",
+              "max": 100,
+              "value": {"call": "divide", "args": {"a": 1, "b": 2, "precision": 2}}
+            }
+          ]
+        }
+      }
+    },
+    {
+      "description": "multiply: Valid nested call",
+      "valid": true,
+      "data": {
+        "version": "v1.0",
+        "updateComponents": {
+          "surfaceId": "test",
+          "components": [
+            {
+              "id": "s1",
+              "component": "Slider",
+              "label": "L",
+              "max": 100,
+              "value": {
+                "call": "multiply",
+                "args": {
+                  "a": {"call": "divide", "args": {"a": {"path": "/val"}, "b": 100}},
+                  "b": 255
+                }
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "description": "greater_than: Valid call",
+      "valid": true,
+      "data": {
+        "version": "v1.0",
+        "updateComponents": {
+          "surfaceId": "test",
+          "components": [
+            {
+              "id": "tf1",
+              "component": "TextField",
+              "label": "L",
+              "value": "",
+              "checks": [
+                {
+                  "condition": {"call": "greater_than", "args": {"a": {"path": "/val"}, "b": 18}},
+                  "message": "Msg"
+                }
+              ]
+            }
+          ]
+        }
+      }
+    },
+    {
+      "description": "greater_than: Invalid argument type (string)",
+      "valid": false,
+      "data": {
+        "version": "v1.0",
+        "updateComponents": {
+          "surfaceId": "test",
+          "components": [
+            {
+              "id": "tf1",
+              "component": "TextField",
+              "label": "L",
+              "value": "",
+              "checks": [
+                {
+                  "condition": {"call": "greater_than", "args": {"a": "abc", "b": 18}},
+                  "message": "Msg"
+                }
+              ]
+            }
+          ]
+        }
+      }
+    },
+    {
+      "description": "greater_than: Invalid returnType on the wire",
+      "valid": false,
+      "data": {
+        "version": "v1.0",
+        "updateComponents": {
+          "surfaceId": "test",
+          "components": [
+            {
+              "id": "tf1",
+              "component": "TextField",
+              "label": "L",
+              "value": "",
+              "checks": [
+                {
+                  "condition": {
+                    "call": "greater_than",
+                    "args": {"a": 1, "b": 2},
+                    "returnType": "number"
+                  },
+                  "message": "Msg"
+                }
+              ]
+            }
+          ]
+        }
+      }
+    },
+    {
+      "description": "less_than: Valid call",
+      "valid": true,
+      "data": {
+        "version": "v1.0",
+        "updateComponents": {
+          "surfaceId": "test",
+          "components": [
+            {
+              "id": "tf1",
+              "component": "TextField",
+              "label": "L",
+              "value": "",
+              "checks": [
+                {
+                  "condition": {"call": "less_than", "args": {"a": {"path": "/val"}, "b": 100}},
+                  "message": "Msg"
+                }
+              ]
+            }
+          ]
+        }
+      }
+    },
+    {
+      "description": "less_than: Invalid args (missing b)",
+      "valid": false,
+      "data": {
+        "version": "v1.0",
+        "updateComponents": {
+          "surfaceId": "test",
+          "components": [
+            {
+              "id": "tf1",
+              "component": "TextField",
+              "label": "L",
+              "value": "",
+              "checks": [
+                {
+                  "condition": {"call": "less_than", "args": {"a": {"path": "/val"}}},
+                  "message": "Msg"
+                }
+              ]
+            }
+          ]
+        }
+      }
+    },
+    {
+      "description": "equals: Valid call",
+      "valid": true,
+      "data": {
+        "version": "v1.0",
+        "updateComponents": {
+          "surfaceId": "test",
+          "components": [
+            {
+              "id": "tf1",
+              "component": "TextField",
+              "label": "L",
+              "value": "",
+              "checks": [
+                {
+                  "condition": {"call": "equals", "args": {"a": {"path": "/val"}, "b": "done"}},
+                  "message": "Msg"
+                }
+              ]
+            }
+          ]
+        }
+      }
+    },
+    {
+      "description": "equals: Too many arguments",
+      "valid": false,
+      "data": {
+        "version": "v1.0",
+        "updateComponents": {
+          "surfaceId": "test",
+          "components": [
+            {
+              "id": "tf1",
+              "component": "TextField",
+              "label": "L",
+              "value": "",
+              "checks": [
+                {
+                  "condition": {"call": "equals", "args": {"a": 1, "b": 1, "strict": true}},
+                  "message": "Msg"
+                }
+              ]
+            }
+          ]
+        }
+      }
+    },
+    {
+      "description": "equals: Valid call with a literal object argument",
+      "valid": true,
+      "data": {
+        "version": "v1.0",
+        "updateComponents": {
+          "surfaceId": "test",
+          "components": [
+            {
+              "id": "tf1",
+              "component": "TextField",
+              "label": "L",
+              "value": "",
+              "checks": [
+                {
+                  "condition": {"call": "equals", "args": {"a": {"unexpected": 1}, "b": 1}},
+                  "message": "Msg"
+                }
+              ]
+            }
+          ]
+        }
+      }
+    },
+    {
+      "description": "not_equals: Valid call",
+      "valid": true,
+      "data": {
+        "version": "v1.0",
+        "updateComponents": {
+          "surfaceId": "test",
+          "components": [
+            {
+              "id": "tf1",
+              "component": "TextField",
+              "label": "L",
+              "value": "",
+              "checks": [
+                {
+                  "condition": {"call": "not_equals", "args": {"a": {"path": "/val"}, "b": "done"}},
+                  "message": "Msg"
+                }
+              ]
+            }
+          ]
+        }
+      }
+    },
+    {
+      "description": "not_equals: Invalid args (missing b)",
+      "valid": false,
+      "data": {
+        "version": "v1.0",
+        "updateComponents": {
+          "surfaceId": "test",
+          "components": [
+            {
+              "id": "tf1",
+              "component": "TextField",
+              "label": "L",
+              "value": "",
+              "checks": [
+                {
+                  "condition": {"call": "not_equals", "args": {"a": {"path": "/val"}}},
+                  "message": "Msg"
+                }
+              ]
+            }
+          ]
+        }
+      }
+    },
+    {
+      "description": "contains: Valid call",
+      "valid": true,
+      "data": {
+        "version": "v1.0",
+        "updateComponents": {
+          "surfaceId": "test",
+          "components": [
+            {
+              "id": "tf1",
+              "component": "TextField",
+              "label": "L",
+              "value": "",
+              "checks": [
+                {
+                  "condition": {
+                    "call": "contains",
+                    "args": {"string": {"path": "/val"}, "substring": "@"}
+                  },
+                  "message": "Msg"
+                }
+              ]
+            }
+          ]
+        }
+      }
+    },
+    {
+      "description": "contains: Invalid args (missing substring)",
+      "valid": false,
+      "data": {
+        "version": "v1.0",
+        "updateComponents": {
+          "surfaceId": "test",
+          "components": [
+            {
+              "id": "tf1",
+              "component": "TextField",
+              "label": "L",
+              "value": "",
+              "checks": [
+                {
+                  "condition": {"call": "contains", "args": {"string": {"path": "/val"}}},
+                  "message": "Msg"
+                }
+              ]
+            }
+          ]
+        }
+      }
+    },
+    {
+      "description": "contains: Invalid argument type (number)",
+      "valid": false,
+      "data": {
+        "version": "v1.0",
+        "updateComponents": {
+          "surfaceId": "test",
+          "components": [
+            {
+              "id": "tf1",
+              "component": "TextField",
+              "label": "L",
+              "value": "",
+              "checks": [
+                {
+                  "condition": {"call": "contains", "args": {"string": 5, "substring": "@"}},
+                  "message": "Msg"
+                }
+              ]
+            }
+          ]
+        }
+      }
+    },
+    {
+      "description": "contains: Invalid returnType on the wire",
+      "valid": false,
+      "data": {
+        "version": "v1.0",
+        "updateComponents": {
+          "surfaceId": "test",
+          "components": [
+            {
+              "id": "tf1",
+              "component": "TextField",
+              "label": "L",
+              "value": "",
+              "checks": [
+                {
+                  "condition": {
+                    "call": "contains",
+                    "args": {"string": "abc", "substring": "b"},
+                    "returnType": "string"
+                  },
+                  "message": "Msg"
+                }
+              ]
+            }
+          ]
+        }
+      }
+    },
+    {
+      "description": "starts_with: Valid call",
+      "valid": true,
+      "data": {
+        "version": "v1.0",
+        "updateComponents": {
+          "surfaceId": "test",
+          "components": [
+            {
+              "id": "tf1",
+              "component": "TextField",
+              "label": "L",
+              "value": "",
+              "checks": [
+                {
+                  "condition": {
+                    "call": "starts_with",
+                    "args": {"string": {"path": "/val"}, "prefix": "https://"}
+                  },
+                  "message": "Msg"
+                }
+              ]
+            }
+          ]
+        }
+      }
+    },
+    {
+      "description": "starts_with: Too many arguments",
+      "valid": false,
+      "data": {
+        "version": "v1.0",
+        "updateComponents": {
+          "surfaceId": "test",
+          "components": [
+            {
+              "id": "tf1",
+              "component": "TextField",
+              "label": "L",
+              "value": "",
+              "checks": [
+                {
+                  "condition": {
+                    "call": "starts_with",
+                    "args": {"string": {"path": "/val"}, "prefix": "a", "ignoreCase": true}
+                  },
+                  "message": "Msg"
+                }
+              ]
+            }
+          ]
+        }
+      }
+    },
+    {
+      "description": "ends_with: Valid call",
+      "valid": true,
+      "data": {
+        "version": "v1.0",
+        "updateComponents": {
+          "surfaceId": "test",
+          "components": [
+            {
+              "id": "tf1",
+              "component": "TextField",
+              "label": "L",
+              "value": "",
+              "checks": [
+                {
+                  "condition": {
+                    "call": "ends_with",
+                    "args": {"string": {"path": "/val"}, "suffix": ".png"}
+                  },
+                  "message": "Msg"
+                }
+              ]
+            }
+          ]
+        }
+      }
+    },
+    {
+      "description": "ends_with: Invalid argument type (number)",
+      "valid": false,
+      "data": {
+        "version": "v1.0",
+        "updateComponents": {
+          "surfaceId": "test",
+          "components": [
+            {
+              "id": "tf1",
+              "component": "TextField",
+              "label": "L",
+              "value": "",
+              "checks": [
+                {
+                  "condition": {
+                    "call": "ends_with",
+                    "args": {"string": {"path": "/val"}, "suffix": 5}
+                  },
+                  "message": "Msg"
+                }
+              ]
+            }
+          ]
+        }
+      }
+    },
+    {
+      "description": "clamp: Valid call",
+      "valid": true,
+      "data": {
+        "version": "v1.0",
+        "updateComponents": {
+          "surfaceId": "test",
+          "components": [
+            {
+              "id": "s1",
+              "component": "Slider",
+              "label": "L",
+              "max": 100,
+              "value": {
+                "call": "clamp",
+                "args": {
+                  "value": {
+                    "path": "/val"
+                  },
+                  "min": 0,
+                  "max": 1
+                }
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "description": "clamp: Invalid args (missing max)",
+      "valid": false,
+      "data": {
+        "version": "v1.0",
+        "updateComponents": {
+          "surfaceId": "test",
+          "components": [
+            {
+              "id": "s1",
+              "component": "Slider",
+              "label": "L",
+              "max": 100,
+              "value": {
+                "call": "clamp",
+                "args": {
+                  "value": {
+                    "path": "/val"
+                  },
+                  "min": 0
+                }
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "description": "clamp: Too many arguments",
+      "valid": false,
+      "data": {
+        "version": "v1.0",
+        "updateComponents": {
+          "surfaceId": "test",
+          "components": [
+            {
+              "id": "s1",
+              "component": "Slider",
+              "label": "L",
+              "max": 100,
+              "value": {
+                "call": "clamp",
+                "args": {
+                  "value": 1,
+                  "min": 0,
+                  "max": 1,
+                  "step": 1
+                }
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "description": "clamp: Invalid argument type (string)",
+      "valid": false,
+      "data": {
+        "version": "v1.0",
+        "updateComponents": {
+          "surfaceId": "test",
+          "components": [
+            {
+              "id": "s1",
+              "component": "Slider",
+              "label": "L",
+              "max": 100,
+              "value": {
+                "call": "clamp",
+                "args": {
+                  "value": "abc",
+                  "min": 0,
+                  "max": 1
+                }
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "description": "clamp: Invalid returnType on the wire",
+      "valid": false,
+      "data": {
+        "version": "v1.0",
+        "updateComponents": {
+          "surfaceId": "test",
+          "components": [
+            {
+              "id": "s1",
+              "component": "Slider",
+              "label": "L",
+              "max": 100,
+              "value": {
+                "call": "clamp",
+                "args": {
+                  "value": 1,
+                  "min": 0,
+                  "max": 1
+                },
+                "returnType": "boolean"
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "description": "round: Valid call",
+      "valid": true,
+      "data": {
+        "version": "v1.0",
+        "updateComponents": {
+          "surfaceId": "test",
+          "components": [
+            {
+              "id": "s1",
+              "component": "Slider",
+              "label": "L",
+              "max": 100,
+              "value": {
+                "call": "round",
+                "args": {
+                  "value": {
+                    "path": "/val"
+                  },
+                  "decimals": 2
+                }
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "description": "round: Valid call (decimals omitted)",
+      "valid": true,
+      "data": {
+        "version": "v1.0",
+        "updateComponents": {
+          "surfaceId": "test",
+          "components": [
+            {
+              "id": "s1",
+              "component": "Slider",
+              "label": "L",
+              "max": 100,
+              "value": {
+                "call": "round",
+                "args": {
+                  "value": {
+                    "path": "/val"
+                  }
+                }
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "description": "round: Invalid args (empty)",
+      "valid": false,
+      "data": {
+        "version": "v1.0",
+        "updateComponents": {
+          "surfaceId": "test",
+          "components": [
+            {
+              "id": "s1",
+              "component": "Slider",
+              "label": "L",
+              "max": 100,
+              "value": {
+                "call": "round",
+                "args": {}
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "description": "round: Too many arguments",
+      "valid": false,
+      "data": {
+        "version": "v1.0",
+        "updateComponents": {
+          "surfaceId": "test",
+          "components": [
+            {
+              "id": "s1",
+              "component": "Slider",
+              "label": "L",
+              "max": 100,
+              "value": {
+                "call": "round",
+                "args": {
+                  "value": 1.5,
+                  "decimals": 2,
+                  "mode": "up"
+                }
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "description": "round: Invalid argument type (string)",
+      "valid": false,
+      "data": {
+        "version": "v1.0",
+        "updateComponents": {
+          "surfaceId": "test",
+          "components": [
+            {
+              "id": "s1",
+              "component": "Slider",
+              "label": "L",
+              "max": 100,
+              "value": {
+                "call": "round",
+                "args": {
+                  "value": "abc"
+                }
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "description": "round: Invalid returnType on the wire",
+      "valid": false,
+      "data": {
+        "version": "v1.0",
+        "updateComponents": {
+          "surfaceId": "test",
+          "components": [
+            {
+              "id": "s1",
+              "component": "Slider",
+              "label": "L",
+              "max": 100,
+              "value": {
+                "call": "round",
+                "args": {
+                  "value": 1.5
+                },
+                "returnType": "boolean"
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "description": "min: Valid call",
+      "valid": true,
+      "data": {
+        "version": "v1.0",
+        "updateComponents": {
+          "surfaceId": "test",
+          "components": [
+            {
+              "id": "s1",
+              "component": "Slider",
+              "label": "L",
+              "max": 100,
+              "value": {
+                "call": "min",
+                "args": {
+                  "values": [
+                    {
+                      "path": "/val"
+                    },
+                    0
+                  ]
+                }
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "description": "min: Invalid (single value)",
+      "valid": false,
+      "data": {
+        "version": "v1.0",
+        "updateComponents": {
+          "surfaceId": "test",
+          "components": [
+            {
+              "id": "s1",
+              "component": "Slider",
+              "label": "L",
+              "max": 100,
+              "value": {
+                "call": "min",
+                "args": {
+                  "values": [1]
+                }
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "description": "min: Too many arguments",
+      "valid": false,
+      "data": {
+        "version": "v1.0",
+        "updateComponents": {
+          "surfaceId": "test",
+          "components": [
+            {
+              "id": "s1",
+              "component": "Slider",
+              "label": "L",
+              "max": 100,
+              "value": {
+                "call": "min",
+                "args": {
+                  "values": [1, 2],
+                  "strict": true
+                }
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "description": "min: Invalid argument type (string)",
+      "valid": false,
+      "data": {
+        "version": "v1.0",
+        "updateComponents": {
+          "surfaceId": "test",
+          "components": [
+            {
+              "id": "s1",
+              "component": "Slider",
+              "label": "L",
+              "max": 100,
+              "value": {
+                "call": "min",
+                "args": {
+                  "values": [1, "abc"]
+                }
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "description": "min: Invalid returnType on the wire",
+      "valid": false,
+      "data": {
+        "version": "v1.0",
+        "updateComponents": {
+          "surfaceId": "test",
+          "components": [
+            {
+              "id": "s1",
+              "component": "Slider",
+              "label": "L",
+              "max": 100,
+              "value": {
+                "call": "min",
+                "args": {
+                  "values": [1, 2]
+                },
+                "returnType": "boolean"
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "description": "max: Valid call",
+      "valid": true,
+      "data": {
+        "version": "v1.0",
+        "updateComponents": {
+          "surfaceId": "test",
+          "components": [
+            {
+              "id": "s1",
+              "component": "Slider",
+              "label": "L",
+              "max": 100,
+              "value": {
+                "call": "max",
+                "args": {
+                  "values": [
+                    {
+                      "path": "/val"
+                    },
+                    100
+                  ]
+                }
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "description": "max: Invalid (single value)",
+      "valid": false,
+      "data": {
+        "version": "v1.0",
+        "updateComponents": {
+          "surfaceId": "test",
+          "components": [
+            {
+              "id": "s1",
+              "component": "Slider",
+              "label": "L",
+              "max": 100,
+              "value": {
+                "call": "max",
+                "args": {
+                  "values": [1]
+                }
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "description": "max: Too many arguments",
+      "valid": false,
+      "data": {
+        "version": "v1.0",
+        "updateComponents": {
+          "surfaceId": "test",
+          "components": [
+            {
+              "id": "s1",
+              "component": "Slider",
+              "label": "L",
+              "max": 100,
+              "value": {
+                "call": "max",
+                "args": {
+                  "values": [1, 2],
+                  "strict": true
+                }
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "description": "max: Invalid argument type (string)",
+      "valid": false,
+      "data": {
+        "version": "v1.0",
+        "updateComponents": {
+          "surfaceId": "test",
+          "components": [
+            {
+              "id": "s1",
+              "component": "Slider",
+              "label": "L",
+              "max": 100,
+              "value": {
+                "call": "max",
+                "args": {
+                  "values": [1, "abc"]
+                }
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "description": "max: Invalid returnType on the wire",
+      "valid": false,
+      "data": {
+        "version": "v1.0",
+        "updateComponents": {
+          "surfaceId": "test",
+          "components": [
+            {
+              "id": "s1",
+              "component": "Slider",
+              "label": "L",
+              "max": 100,
+              "value": {
+                "call": "max",
+                "args": {
+                  "values": [1, 2]
+                },
+                "returnType": "boolean"
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "description": "abs: Valid call",
+      "valid": true,
+      "data": {
+        "version": "v1.0",
+        "updateComponents": {
+          "surfaceId": "test",
+          "components": [
+            {
+              "id": "s1",
+              "component": "Slider",
+              "label": "L",
+              "max": 100,
+              "value": {
+                "call": "abs",
+                "args": {
+                  "value": {
+                    "path": "/val"
+                  }
+                }
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "description": "abs: Invalid args (empty)",
+      "valid": false,
+      "data": {
+        "version": "v1.0",
+        "updateComponents": {
+          "surfaceId": "test",
+          "components": [
+            {
+              "id": "s1",
+              "component": "Slider",
+              "label": "L",
+              "max": 100,
+              "value": {
+                "call": "abs",
+                "args": {}
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "description": "abs: Too many arguments",
+      "valid": false,
+      "data": {
+        "version": "v1.0",
+        "updateComponents": {
+          "surfaceId": "test",
+          "components": [
+            {
+              "id": "s1",
+              "component": "Slider",
+              "label": "L",
+              "max": 100,
+              "value": {
+                "call": "abs",
+                "args": {
+                  "value": -1,
+                  "sign": true
+                }
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "description": "abs: Invalid argument type (string)",
+      "valid": false,
+      "data": {
+        "version": "v1.0",
+        "updateComponents": {
+          "surfaceId": "test",
+          "components": [
+            {
+              "id": "s1",
+              "component": "Slider",
+              "label": "L",
+              "max": 100,
+              "value": {
+                "call": "abs",
+                "args": {
+                  "value": "abc"
+                }
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "description": "abs: Invalid returnType on the wire",
+      "valid": false,
+      "data": {
+        "version": "v1.0",
+        "updateComponents": {
+          "surfaceId": "test",
+          "components": [
+            {
+              "id": "s1",
+              "component": "Slider",
+              "label": "L",
+              "max": 100,
+              "value": {
+                "call": "abs",
+                "args": {
+                  "value": -1
+                },
+                "returnType": "boolean"
+              }
+            }
+          ]
+        }
+      }
     }
   ]
 }
