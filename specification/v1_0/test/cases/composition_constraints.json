@@ -34,8 +34,8 @@
       }
     },
     {
-      "description": "Valid catalog with Surface container child restriction",
-      "valid": true,
+      "description": "Invalid catalog defining reserved Surface component",
+      "valid": false,
       "data": {
         "catalogId": "https://example.com/catalog.json",
         "components": {

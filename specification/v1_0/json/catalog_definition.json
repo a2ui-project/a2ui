@@ -50,6 +50,11 @@
     "components": {
       "type": "object",
       "description": "Definitions for UI components supported by this catalog.",
+      "propertyNames": {
+        "not": {
+          "const": "Surface"
+        }
+      },
       "additionalProperties": {
         "$ref": "#/$defs/ComponentDefinition"
       }
