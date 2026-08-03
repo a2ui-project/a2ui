@@ -714,9 +714,7 @@ To validate component nesting hierarchies, A2UI component catalogs support compo
        "Menu": {
          "type": "object",
          "allowedChildren": ["MenuItem"]
-       }
-     },
-     {
+       },
        "MenuItem": {
          "type": "object",
          "allowedParents": ["Menu"]

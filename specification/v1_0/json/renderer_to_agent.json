@@ -97,6 +97,7 @@
           "title": "Generic Error",
           "properties": {
             "code": {
+              "type": "string",
               "not": {
                 "enum": ["VALIDATION_FAILED", "UNALLOWED_PARENT", "UNALLOWED_CHILD"]
               }
