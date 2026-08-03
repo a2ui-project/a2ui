@@ -35,11 +35,20 @@ import {AudioPlayerApi} from '@a2ui/web_core/v0_9/basic_catalog';
   template: `
     <div class="a2ui-audio-player">
       @if (description()) {
-        <div class="a2ui-audio-description">
+        <div
+          class="a2ui-audio-description"
+          [attr.id]="uniqueId + '-desc'"
+          style="position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); border: 0;"
+        >
           {{ description() }}
         </div>
       }
-      <audio [attr.src]="url() || null" controls class="a2ui-audio">
+      <audio
+        [attr.src]="url() || null"
+        controls
+        class="a2ui-audio"
+        [attr.aria-describedby]="description() ? uniqueId + '-desc' : null"
+      >
         Your browser does not support the audio tag.
       </audio>
     </div>
@@ -54,10 +63,6 @@ import {AudioPlayerApi} from '@a2ui/web_core/v0_9/basic_catalog';
         border-radius: var(--a2ui-audioplayer-border-radius, 0);
         padding: var(--a2ui-audioplayer-padding, 0);
         width: 100%;
-      }
-      .a2ui-audio-description {
-        font-size: var(--a2ui-font-size-s, 0.875rem);
-        color: var(--a2ui-text-caption-color, light-dark(#666, #aaa));
       }
       .a2ui-audio {
         width: 100%;

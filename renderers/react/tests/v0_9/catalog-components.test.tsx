@@ -145,6 +145,27 @@ describe('Basic Catalog Components', () => {
       const audio = document.querySelector('audio') as HTMLAudioElement;
       expect(audio.src).toContain('audio.mp3');
     });
+
+    it('associates description with audio element via aria-describedby', () => {
+      const {view} = renderA2uiComponent(AudioPlayer, 'a1', {
+        url: 'audio.mp3',
+        description: 'Listen to this',
+      });
+      const audio = view.container.querySelector('audio') as HTMLAudioElement;
+      const describedBy = audio.getAttribute('aria-describedby');
+      expect(describedBy).not.toBeNull();
+      const descElement = view.container.querySelector(`#${describedBy}`);
+      expect(descElement).not.toBeNull();
+      expect(descElement?.textContent).toBe('Listen to this');
+    });
+
+    it('does not set aria-describedby if description is missing', () => {
+      const {view} = renderA2uiComponent(AudioPlayer, 'a1', {
+        url: 'audio.mp3',
+      });
+      const audio = view.container.querySelector('audio') as HTMLAudioElement;
+      expect(audio.getAttribute('aria-describedby')).toBeNull();
+    });
   });
 
   describe('Button', () => {

@@ -21,6 +21,8 @@ import {useBasicCatalogStyles} from '../utils';
 
 export const AudioPlayer = createComponentImplementation(AudioPlayerApi, ({props}) => {
   useBasicCatalogStyles();
+  const id = React.useId();
+  const descriptionId = `${id}-desc`;
   const containerStyle: React.CSSProperties = {
     display: 'flex',
     flexDirection: 'column',
@@ -34,15 +36,26 @@ export const AudioPlayer = createComponentImplementation(AudioPlayerApi, ({props
     <div style={containerStyle}>
       {props.description && (
         <span
+          id={descriptionId}
           style={{
-            fontSize: 'var(--a2ui-font-size-xs, 0.75rem)',
-            color: 'var(--a2ui-text-caption-color, light-dark(#666, #aaa))',
+            position: 'absolute',
+            width: '1px',
+            height: '1px',
+            padding: '0',
+            margin: '-1px',
+            overflow: 'hidden',
+            clip: 'rect(0, 0, 0, 0)',
+            border: '0',
           }}
         >
           {props.description}
         </span>
       )}
-      <audio src={props.url} controls />
+      <audio
+        src={props.url}
+        controls
+        aria-describedby={props.description ? descriptionId : undefined}
+      />
     </div>
   );
 });

@@ -74,6 +74,26 @@ describe('AudioPlayerComponent', () => {
     expect(desc?.textContent?.trim()).toBe('Test Audio');
   });
 
+  it('should associate description with audio element via aria-describedby', () => {
+    fixture.detectChanges();
+    const audio = fixture.nativeElement.querySelector('audio') as HTMLAudioElement;
+    const describedBy = audio.getAttribute('aria-describedby');
+    expect(describedBy).toBeTruthy();
+    const desc = fixture.nativeElement.querySelector('#' + describedBy);
+    expect(desc).toBeTruthy();
+    expect(desc?.textContent?.trim()).toBe('Test Audio');
+  });
+
+  it('should not set aria-describedby if description is missing', () => {
+    setComponentProps(fixture, {
+      ...defaultProps,
+      description: createBoundProperty(undefined),
+    });
+    fixture.detectChanges();
+    const audio = fixture.nativeElement.querySelector('audio') as HTMLAudioElement;
+    expect(audio.getAttribute('aria-describedby')).toBeFalsy();
+  });
+
   it('should not render description if not provided', () => {
     setComponentProps(fixture, {
       ...defaultProps,
