@@ -27,6 +27,8 @@ export const Slider = createComponentImplementation(SliderApi, ({props}) => {
 
   const uniqueId = React.useId();
 
+  const hasError = props.validationErrors && props.validationErrors.length > 0;
+
   const containerStyle: React.CSSProperties = {
     display: 'flex',
     flexDirection: 'column',
@@ -58,6 +60,12 @@ export const Slider = createComponentImplementation(SliderApi, ({props}) => {
     background: 'var(--a2ui-slider-track-color, var(--a2ui-color-secondary, #e9ecef))',
   };
 
+  const errorStyle: React.CSSProperties = {
+    fontSize: 'var(--a2ui-font-size-xs, 0.75rem)',
+    color: 'var(--a2ui-color-error, red)',
+    marginTop: '4px',
+  };
+
   return (
     <div style={containerStyle}>
       <div style={headerStyle}>
@@ -76,7 +84,16 @@ export const Slider = createComponentImplementation(SliderApi, ({props}) => {
         value={props.value ?? 0}
         onChange={onChange}
         style={inputStyle}
+        aria-label={props.accessibility?.label}
+        aria-description={props.accessibility?.description}
+        aria-invalid={hasError ? 'true' : 'false'}
+        aria-describedby={hasError ? `${uniqueId}-error` : undefined}
       />
+      {hasError && (
+        <span id={`${uniqueId}-error`} style={errorStyle}>
+          {props.validationErrors?.[0]}
+        </span>
+      )}
     </div>
   );
 });

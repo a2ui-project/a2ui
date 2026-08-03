@@ -47,6 +47,10 @@ export const TextField = createComponentImplementation(TextFieldApi, ({props}) =
           className={inputClasses}
           value={props.value || ''}
           onChange={onChange}
+          aria-label={props.accessibility?.label}
+          aria-description={props.accessibility?.description}
+          aria-invalid={hasError ? 'true' : 'false'}
+          aria-describedby={hasError ? `${uniqueId}-error` : undefined}
         />
       ) : (
         <input
@@ -55,9 +59,17 @@ export const TextField = createComponentImplementation(TextFieldApi, ({props}) =
           className={inputClasses}
           value={props.value || ''}
           onChange={onChange}
+          aria-label={props.accessibility?.label}
+          aria-description={props.accessibility?.description}
+          aria-invalid={hasError ? 'true' : 'false'}
+          aria-describedby={hasError ? `${uniqueId}-error` : undefined}
         />
       )}
-      {hasError && <span className={styles.error}>{props.validationErrors![0]}</span>}
+      {hasError && (
+        <span id={`${uniqueId}-error`} className={styles.error}>
+          {props.validationErrors![0]}
+        </span>
+      )}
     </div>
   );
 });

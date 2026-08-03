@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import {useState} from 'react';
+import React, {useState} from 'react';
 import {createComponentImplementation} from '../../../adapter';
 import {TabsApi} from '@a2ui/web_core/v0_9/basic_catalog';
 import {useBasicCatalogStyles} from '../utils';
@@ -27,6 +27,7 @@ type _Tab = any;
 export const Tabs = createComponentImplementation(TabsApi, ({props, buildChild}) => {
   useBasicCatalogStyles();
   const [selectedIndex, setSelectedIndex] = useState(0);
+  const uniqueId = React.useId();
 
   const tabs = props.tabs || [];
   const activeTab = tabs[selectedIndex];
@@ -64,10 +65,14 @@ export const Tabs = createComponentImplementation(TabsApi, ({props, buildChild})
 
   return (
     <div style={tabsContainer}>
-      <div style={tabsHeaders}>
+      <div style={tabsHeaders} role="tablist">
         {tabs.map((tab: _Tab, i: number) => (
           <button
             key={i}
+            role="tab"
+            id={`tab-${uniqueId}-${i}`}
+            aria-selected={selectedIndex === i}
+            aria-controls={`tabpanel-${uniqueId}-${i}`}
             className={`a2ui-tabs-header a2ui-tab-button ${selectedIndex === i ? 'active' : ''}`}
             onClick={() => setSelectedIndex(i)}
             style={{
@@ -79,7 +84,14 @@ export const Tabs = createComponentImplementation(TabsApi, ({props, buildChild})
           </button>
         ))}
       </div>
-      <div style={content}>{activeTab ? buildChild(activeTab.child) : null}</div>
+      <div
+        role="tabpanel"
+        id={`tabpanel-${uniqueId}-${selectedIndex}`}
+        aria-labelledby={`tab-${uniqueId}-${selectedIndex}`}
+        style={content}
+      >
+        {activeTab ? buildChild(activeTab.child) : null}
+      </div>
     </div>
   );
 });

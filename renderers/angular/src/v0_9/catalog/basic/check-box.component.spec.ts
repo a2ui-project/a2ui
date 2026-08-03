@@ -109,4 +109,42 @@ describe('CheckBoxComponent', () => {
 
     expect(styles.accentColor).toBe('rgb(255, 0, 0)');
   });
+
+  it('should bind accessibility label and description to input element', () => {
+    setComponentProps(fixture, {
+      ...defaultProps,
+      accessibility: createBoundProperty({
+        label: 'A11y Label',
+        description: 'A11y Description',
+      }),
+    });
+    fixture.detectChanges();
+    const input = fixture.nativeElement.querySelector('input');
+    expect(input.getAttribute('aria-label')).toBe('A11y Label');
+    expect(input.getAttribute('aria-description')).toBe('A11y Description');
+  });
+
+  it('should render validation errors and link via aria-describedby when invalid', () => {
+    const isValidProp = createBoundProperty(true);
+    const errorsProp = createBoundProperty<string[]>([]);
+    setComponentProps(fixture, {
+      ...defaultProps,
+      isValid: isValidProp,
+      validationErrors: errorsProp,
+    });
+    fixture.detectChanges();
+    const input = fixture.nativeElement.querySelector('input');
+    expect(input.getAttribute('aria-invalid')).toBe('false');
+
+    isValidProp.value.set(false);
+    errorsProp.value.set(['Agreed check required']);
+    fixture.detectChanges();
+
+    expect(input.getAttribute('aria-invalid')).toBe('true');
+    const descId = input.getAttribute('aria-describedby');
+    expect(descId).not.toBeNull();
+    const errorEl = fixture.nativeElement.querySelector(`#${descId}`);
+    expect(errorEl).not.toBeNull();
+    expect(errorEl.textContent).toContain('Agreed check required');
+  });
 });

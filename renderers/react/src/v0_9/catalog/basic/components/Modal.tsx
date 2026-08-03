@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import {useState} from 'react';
+import React, {useState, useEffect, useRef} from 'react';
 import {createComponentImplementation} from '../../../adapter';
 import {ModalApi} from '@a2ui/web_core/v0_9/basic_catalog';
 import {useBasicCatalogStyles} from '../utils';
@@ -22,10 +22,68 @@ import {useBasicCatalogStyles} from '../utils';
 export const Modal = createComponentImplementation(ModalApi, ({props, buildChild}) => {
   useBasicCatalogStyles();
   const [isOpen, setIsOpen] = useState(false);
+  const triggerRef = useRef<HTMLDivElement>(null);
+  const modalRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!isOpen) {
+      if (triggerRef.current) {
+        const focusable = triggerRef.current.querySelector(
+          'button, [tabindex="0"], input, select, textarea'
+        ) as HTMLElement;
+        if (focusable) {
+          focusable.focus();
+        }
+      }
+      return;
+    }
+
+    if (modalRef.current) {
+      const focusables = modalRef.current.querySelectorAll(
+        'button, [href], input, select, textarea, [tabindex="0"]'
+      );
+      if (focusables.length > 0) {
+        (focusables[0] as HTMLElement).focus();
+      }
+    }
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setIsOpen(false);
+        return;
+      }
+      if (e.key === 'Tab' && modalRef.current) {
+        const focusables = modalRef.current.querySelectorAll(
+          'button, [href], input, select, textarea, [tabindex="0"]'
+        );
+        if (focusables.length === 0) return;
+        const first = focusables[0] as HTMLElement;
+        const last = focusables[focusables.length - 1] as HTMLElement;
+
+        if (e.shiftKey) {
+          if (document.activeElement === first) {
+            last.focus();
+            e.preventDefault();
+          }
+        } else {
+          if (document.activeElement === last) {
+            first.focus();
+            e.preventDefault();
+          }
+        }
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isOpen]);
+
+  const uniqueId = React.useId();
 
   return (
     <>
       <div
+        ref={triggerRef}
         className="a2ui-modal-trigger"
         onClick={() => setIsOpen(true)}
         style={{display: 'inline-block'}}
@@ -50,6 +108,11 @@ export const Modal = createComponentImplementation(ModalApi, ({props, buildChild
           onClick={() => setIsOpen(false)}
         >
           <div
+            ref={modalRef}
+            role="dialog"
+            aria-modal="true"
+            aria-label={props.accessibility?.label}
+            aria-describedby={props.accessibility?.description ? `${uniqueId}-description` : undefined}
             style={{
               backgroundColor: 'var(--a2ui-color-surface, #fff)',
               padding: 'var(--a2ui-modal-padding, var(--a2ui-spacing-l, 24px))',
@@ -67,6 +130,7 @@ export const Modal = createComponentImplementation(ModalApi, ({props, buildChild
               <button
                 className="a2ui-modal-close"
                 onClick={() => setIsOpen(false)}
+                aria-label="Close"
                 style={{
                   border: 'none',
                   background: 'none',
@@ -80,6 +144,11 @@ export const Modal = createComponentImplementation(ModalApi, ({props, buildChild
               </button>
             </div>
             <div style={{flex: 1}}>{props.content ? buildChild(props.content) : null}</div>
+            {props.accessibility?.description && (
+              <span id={`${uniqueId}-description`} style={{display: 'none'}}>
+                {props.accessibility.description}
+              </span>
+            )}
           </div>
         </div>
       )}

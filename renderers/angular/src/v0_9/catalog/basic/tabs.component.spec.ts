@@ -119,4 +119,34 @@ describe('TabsComponent', () => {
     expect(component.tabs()).toEqual([]);
     expect(fixture.nativeElement.querySelectorAll('.a2ui-tab-button').length).toBe(0);
   });
+
+  it('should render correct WAI-ARIA roles and attributes', () => {
+    setComponentProps(fixture, {
+      ...defaultProps,
+      tabs: createBoundProperty<{title: DynamicString; child: string}[]>([
+        {title: 'Tab 1', child: 'content-1'},
+        {title: 'Tab 2', child: 'content-2'},
+      ]),
+    });
+    fixture.detectChanges();
+
+    const tablist = fixture.nativeElement.querySelector('.a2ui-tab-bar');
+    expect(tablist.getAttribute('role')).toBe('tablist');
+
+    const tabButtons = fixture.nativeElement.querySelectorAll('.a2ui-tab-button');
+    expect(tabButtons.length).toBe(2);
+    expect(tabButtons[0].getAttribute('role')).toBe('tab');
+    expect(tabButtons[0].getAttribute('aria-selected')).toBe('true');
+    expect(tabButtons[1].getAttribute('aria-selected')).toBe('false');
+
+    const tab1Id = tabButtons[0].getAttribute('id');
+    const tab1Controls = tabButtons[0].getAttribute('aria-controls');
+    expect(tab1Id).toBeTruthy();
+    expect(tab1Controls).toBeTruthy();
+
+    const tabPanel = fixture.nativeElement.querySelector('.a2ui-tab-content');
+    expect(tabPanel.getAttribute('role')).toBe('tabpanel');
+    expect(tabPanel.getAttribute('id')).toBe(tab1Controls);
+    expect(tabPanel.getAttribute('aria-labelledby')).toBe(tab1Id);
+  });
 });

@@ -81,6 +81,13 @@ export const DateTimeInput = createComponentImplementation(DateTimeInputApi, ({p
     boxSizing: 'border-box',
   };
 
+  const hasError = props.validationErrors && props.validationErrors.length > 0;
+  const errorStyle: React.CSSProperties = {
+    fontSize: 'var(--a2ui-font-size-xs, 0.75rem)',
+    color: 'var(--a2ui-color-error, red)',
+    marginTop: '4px',
+  };
+
   return (
     <div
       style={{
@@ -111,7 +118,16 @@ export const DateTimeInput = createComponentImplementation(DateTimeInputApi, ({p
         onChange={onChange}
         min={typeof props.min === 'string' ? props.min : undefined}
         max={typeof props.max === 'string' ? props.max : undefined}
+        aria-label={props.accessibility?.label}
+        aria-description={props.accessibility?.description}
+        aria-invalid={hasError ? 'true' : 'false'}
+        aria-describedby={hasError ? `${uniqueId}-error` : undefined}
       />
+      {hasError && (
+        <span id={`${uniqueId}-error`} style={errorStyle}>
+          {props.validationErrors?.[0]}
+        </span>
+      )}
     </div>
   );
 });

@@ -38,9 +38,13 @@ import {DateTimeInputApi} from '@a2ui/web_core/v0_9/basic_catalog';
   standalone: true,
   imports: [],
   template: `
-    <div class="a2ui-date-time-container">
+    <div
+      class="a2ui-date-time-container"
+      role="group"
+      [attr.aria-labelledby]="label() ? uniqueId + '-label' : null"
+    >
       @if (label()) {
-        <label class="a2ui-date-time-label">
+        <label [id]="uniqueId + '-label'" class="a2ui-date-time-label">
           {{ label() }}
         </label>
       }
@@ -51,6 +55,11 @@ import {DateTimeInputApi} from '@a2ui/web_core/v0_9/basic_catalog';
             [value]="dateValue()"
             (change)="handleDateChange($event)"
             class="a2ui-date-time-input"
+            [class.invalid]="props()['isValid']?.value() === false"
+            [attr.aria-label]="props()['accessibility']?.value()?.label"
+            [attr.aria-description]="props()['accessibility']?.value()?.description"
+            [attr.aria-invalid]="props()['isValid']?.value() === false ? 'true' : 'false'"
+            [attr.aria-describedby]="props()['isValid']?.value() === false ? uniqueId + '-error' : null"
           />
         }
         @if (enableTime()) {
@@ -59,9 +68,17 @@ import {DateTimeInputApi} from '@a2ui/web_core/v0_9/basic_catalog';
             [value]="timeValue()"
             (change)="handleTimeChange($event)"
             class="a2ui-date-time-input"
+            [class.invalid]="props()['isValid']?.value() === false"
+            [attr.aria-label]="props()['accessibility']?.value()?.label"
+            [attr.aria-description]="props()['accessibility']?.value()?.description"
+            [attr.aria-invalid]="props()['isValid']?.value() === false ? 'true' : 'false'"
+            [attr.aria-describedby]="props()['isValid']?.value() === false ? uniqueId + '-error' : null"
           />
         }
       </div>
+      @for (message of props()['validationErrors']?.value(); track message) {
+        <div [id]="uniqueId + '-error'" class="a2ui-error-message">{{ message }}</div>
+      }
     </div>
   `,
   styles: [
@@ -94,9 +111,17 @@ import {DateTimeInputApi} from '@a2ui/web_core/v0_9/basic_catalog';
         font-family: inherit;
         flex: 1;
       }
+      .a2ui-date-time-input.invalid {
+        border-color: var(--a2ui-color-error, red);
+      }
       .a2ui-date-time-input::-webkit-datetime-edit,
       .a2ui-date-time-input::-webkit-datetime-edit-fields-wrapper {
         color: var(--a2ui-datetimeinput-color, var(--a2ui-color-on-input, #333));
+      }
+      .a2ui-error-message {
+        color: var(--a2ui-color-error, red);
+        font-size: var(--a2ui-font-size-xs, 12px);
+        margin-top: 4px;
       }
     `,
   ],

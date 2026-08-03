@@ -93,4 +93,47 @@ describe('SliderComponent', () => {
     input.dispatchEvent(new Event('input'));
     expect(onUpdateSpy).toHaveBeenCalledWith(75);
   });
+
+  it('should associate label and input elements using for/id attributes', () => {
+    setComponentProps(fixture, {
+      ...defaultProps,
+      label: createBoundProperty<string | undefined>('Volume'),
+    });
+    fixture.detectChanges();
+    const label = fixture.nativeElement.querySelector('label');
+    const input = fixture.nativeElement.querySelector('input');
+    const id = input.getAttribute('id');
+    expect(id).toBeTruthy();
+    expect(label.getAttribute('for')).toBe(id);
+  });
+
+  it('should bind accessibility and error attributes to input element', () => {
+    const isValidProp = createBoundProperty(true);
+    const errorsProp = createBoundProperty<string[]>([]);
+    setComponentProps(fixture, {
+      ...defaultProps,
+      accessibility: createBoundProperty({
+        label: 'A11y Vol',
+        description: 'Set volume level',
+      }),
+      isValid: isValidProp,
+      validationErrors: errorsProp,
+    });
+    fixture.detectChanges();
+    const input = fixture.nativeElement.querySelector('input');
+    expect(input.getAttribute('aria-label')).toBe('A11y Vol');
+    expect(input.getAttribute('aria-description')).toBe('Set volume level');
+    expect(input.getAttribute('aria-invalid')).toBe('false');
+
+    isValidProp.value.set(false);
+    errorsProp.value.set(['Vol check failed']);
+    fixture.detectChanges();
+
+    expect(input.getAttribute('aria-invalid')).toBe('true');
+    const descId = input.getAttribute('aria-describedby');
+    expect(descId).not.toBeNull();
+    const errorEl = fixture.nativeElement.querySelector(`#${descId}`);
+    expect(errorEl).not.toBeNull();
+    expect(errorEl.textContent).toContain('Vol check failed');
+  });
 });

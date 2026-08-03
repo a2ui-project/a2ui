@@ -40,13 +40,26 @@ import {ChoicePickerApi} from '@a2ui/web_core/v0_9/basic_catalog';
   imports: [],
   template: `
     <div class="a2ui-choice-picker">
+      @if (label()) {
+        <strong [id]="uniqueId + '-label'" class="a2ui-choice-picker-label">{{ label() }}</strong>
+      }
+
       <!-- Chips Variant -->
       @if (displayStyle() === 'chips') {
-        <div class="a2ui-chips-group">
+        <div
+          class="a2ui-chips-group"
+          role="group"
+          [attr.aria-labelledby]="label() ? uniqueId + '-label' : null"
+          [attr.aria-label]="props()['accessibility']?.value()?.label"
+          [attr.aria-description]="props()['accessibility']?.value()?.description"
+          [attr.aria-invalid]="props()['isValid']?.value() === false ? 'true' : 'false'"
+          [attr.aria-describedby]="props()['isValid']?.value() === false ? uniqueId + '-error' : null"
+        >
           @for (option of options(); track option.value) {
             <button
               class="a2ui-chip"
               [class.active]="isSelected(option.value)"
+              [attr.aria-pressed]="isSelected(option.value)"
               (click)="toggleActive(option.value)"
             >
               {{ option.label }}
@@ -55,7 +68,15 @@ import {ChoicePickerApi} from '@a2ui/web_core/v0_9/basic_catalog';
         </div>
       } @else {
         <!-- Checkbox/Radio Variant -->
-        <div class="a2ui-options-group">
+        <div
+          class="a2ui-options-group"
+          role="group"
+          [attr.aria-labelledby]="label() ? uniqueId + '-label' : null"
+          [attr.aria-label]="props()['accessibility']?.value()?.label"
+          [attr.aria-description]="props()['accessibility']?.value()?.description"
+          [attr.aria-invalid]="props()['isValid']?.value() === false ? 'true' : 'false'"
+          [attr.aria-describedby]="props()['isValid']?.value() === false ? uniqueId + '-error' : null"
+        >
           @for (option of options(); track option.value) {
             <label class="a2ui-option-label">
               <input
@@ -71,6 +92,10 @@ import {ChoicePickerApi} from '@a2ui/web_core/v0_9/basic_catalog';
           }
         </div>
       }
+
+      @for (message of props()['validationErrors']?.value(); track message) {
+        <div [id]="uniqueId + '-error'" class="a2ui-error-message">{{ message }}</div>
+      }
     </div>
   `,
   styles: [
@@ -78,6 +103,18 @@ import {ChoicePickerApi} from '@a2ui/web_core/v0_9/basic_catalog';
       .a2ui-choice-picker {
         width: 100%;
         padding: var(--a2ui-choicepicker-padding, 0);
+        display: flex;
+        flex-direction: column;
+        gap: var(--a2ui-spacing-xs, 4px);
+      }
+      .a2ui-choice-picker-label {
+        font-size: var(
+          --a2ui-choicepicker-label-font-size,
+          var(--a2ui-label-font-size, var(--a2ui-font-size-s, 14px))
+        );
+        font-weight: bold;
+        color: var(--a2ui-text-color-text, var(--a2ui-color-on-background, #333));
+        margin-bottom: 4px;
       }
       .a2ui-options-group {
         display: flex;
@@ -122,11 +159,17 @@ import {ChoicePickerApi} from '@a2ui/web_core/v0_9/basic_catalog';
           var(--a2ui-color-primary, #17e)
         );
       }
+      .a2ui-error-message {
+        color: var(--a2ui-color-error, red);
+        font-size: var(--a2ui-font-size-xs, 12px);
+        margin-top: 4px;
+      }
     `,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class ChoicePickerComponent extends BasicCatalogComponent<typeof ChoicePickerApi> {
+  readonly label = computed(() => this.props()['label']?.value());
   readonly displayStyle = computed(() => this.props()['displayStyle']?.value());
   readonly options = computed(() => this.props()['options']?.value() || []);
   readonly variant = computed(() => this.props()['variant']?.value());

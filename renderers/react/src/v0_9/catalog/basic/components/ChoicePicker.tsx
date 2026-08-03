@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import {useState} from 'react';
+import React, {useState} from 'react';
 import {createComponentImplementation} from '../../../adapter';
 import {ChoicePickerApi} from '@a2ui/web_core/v0_9/basic_catalog';
 import {useBasicCatalogStyles} from '../utils';
@@ -28,6 +28,8 @@ type _Option = any;
 export const ChoicePicker = createComponentImplementation(ChoicePickerApi, ({props, context}) => {
   useBasicCatalogStyles();
   const [filter, setFilter] = useState('');
+  const uniqueId = React.useId();
+  const hasError = props.validationErrors && props.validationErrors.length > 0;
 
   const values = Array.isArray(props.value) ? props.value : [];
   const isMutuallyExclusive = props.variant === 'mutuallyExclusive';
@@ -52,9 +54,19 @@ export const ChoicePicker = createComponentImplementation(ChoicePickerApi, ({pro
 
   const listClasses = `${styles.options} ${props.displayStyle === 'chips' ? styles.chips : ''}`;
 
+  const errorStyle: React.CSSProperties = {
+    fontSize: 'var(--a2ui-font-size-xs, 0.75rem)',
+    color: 'var(--a2ui-color-error, red)',
+    marginTop: '4px',
+  };
+
   return (
     <div className={styles.host}>
-      {props.label && <strong className={styles.label}>{props.label}</strong>}
+      {props.label && (
+        <strong id={`${uniqueId}-label`} className={styles.label}>
+          {props.label}
+        </strong>
+      )}
       {props.filterable && (
         <input
           type="text"
@@ -64,7 +76,15 @@ export const ChoicePicker = createComponentImplementation(ChoicePickerApi, ({pro
           className={styles.filterInput}
         />
       )}
-      <div className={listClasses}>
+      <div
+        className={listClasses}
+        role="group"
+        aria-labelledby={props.label ? `${uniqueId}-label` : undefined}
+        aria-label={props.accessibility?.label}
+        aria-description={props.accessibility?.description}
+        aria-invalid={hasError ? 'true' : 'false'}
+        aria-describedby={hasError ? `${uniqueId}-error` : undefined}
+      >
         {options.map((opt: _Option, i: number) => {
           const isSelected = values.includes(opt.value);
           if (props.displayStyle === 'chips') {
@@ -92,6 +112,11 @@ export const ChoicePicker = createComponentImplementation(ChoicePickerApi, ({pro
           );
         })}
       </div>
+      {hasError && (
+        <span id={`${uniqueId}-error`} style={errorStyle}>
+          {props.validationErrors?.[0]}
+        </span>
+      )}
     </div>
   );
 });

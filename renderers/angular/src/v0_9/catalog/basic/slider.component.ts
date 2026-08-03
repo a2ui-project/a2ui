@@ -37,17 +37,26 @@ import {SliderApi} from '@a2ui/web_core/v0_9/basic_catalog';
   template: `
     <div class="a2ui-slider-container">
       <div class="a2ui-slider-header">
-        <span class="a2ui-slider-label">{{ label() }}</span>
+        <label [attr.for]="uniqueId" class="a2ui-slider-label">{{ label() }}</label>
         <span class="a2ui-slider-value">{{ value() }}</span>
       </div>
       <input
+        [id]="uniqueId"
         type="range"
         [min]="min()"
         [max]="max()"
         [value]="value()"
         (input)="handleInput($event)"
         class="a2ui-slider"
+        [class.invalid]="props()['isValid']?.value() === false"
+        [attr.aria-label]="props()['accessibility']?.value()?.label"
+        [attr.aria-description]="props()['accessibility']?.value()?.description"
+        [attr.aria-invalid]="props()['isValid']?.value() === false ? 'true' : 'false'"
+        [attr.aria-describedby]="props()['isValid']?.value() === false ? uniqueId + '-error' : null"
       />
+      @for (message of props()['validationErrors']?.value(); track message) {
+        <div [id]="uniqueId + '-error'" class="a2ui-error-message">{{ message }}</div>
+      }
     </div>
   `,
   styles: [
@@ -74,6 +83,14 @@ import {SliderApi} from '@a2ui/web_core/v0_9/basic_catalog';
         cursor: pointer;
         accent-color: var(--a2ui-slider-thumb-color, var(--a2ui-color-primary, #007bff));
         background: var(--a2ui-slider-track-color, var(--a2ui-color-secondary, #e9ecef));
+      }
+      .a2ui-slider.invalid {
+        outline: 1px solid var(--a2ui-color-error, red);
+      }
+      .a2ui-error-message {
+        color: var(--a2ui-color-error, red);
+        font-size: var(--a2ui-font-size-xs, 12px);
+        margin-top: 4px;
       }
     `,
   ],

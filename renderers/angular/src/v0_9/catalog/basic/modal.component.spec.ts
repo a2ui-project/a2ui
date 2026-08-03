@@ -154,4 +154,54 @@ describe('ModalComponent', () => {
     expect(component.content()).toBeUndefined();
     expect(fixture.nativeElement.querySelector('a2ui-v09-component-host')).toBeFalsy();
   });
+
+  it('should render correct WAI-ARIA roles, label accessibility, and close button labels', () => {
+    setComponentProps(fixture, {
+      ...defaultProps,
+      trigger: createBoundProperty({id: 'trigger-btn', basePath: '/'}),
+      content: createBoundProperty({id: 'modal-content', basePath: '/'}),
+      accessibility: createBoundProperty({
+        label: 'Submit Dialog',
+        description: 'Complete the form to submit',
+      }),
+    });
+    fixture.detectChanges();
+
+    fixture.nativeElement.querySelector('.a2ui-modal-trigger').click();
+    fixture.detectChanges();
+
+    const dialog = fixture.nativeElement.querySelector('.a2ui-modal-content');
+    expect(dialog).toBeTruthy();
+    expect(dialog.getAttribute('role')).toBe('dialog');
+    expect(dialog.getAttribute('aria-modal')).toBe('true');
+    expect(dialog.getAttribute('aria-label')).toBe('Submit Dialog');
+
+    const descId = dialog.getAttribute('aria-describedby');
+    expect(descId).not.toBeNull();
+    const descEl = fixture.nativeElement.querySelector(`#${descId}`);
+    expect(descEl).toBeTruthy();
+    expect(descEl.textContent).toContain('Complete the form to submit');
+
+    const closeBtn = fixture.nativeElement.querySelector('.a2ui-modal-close');
+    expect(closeBtn.getAttribute('aria-label')).toBe('Close');
+  });
+
+  it('should close the modal when Escape key is pressed', () => {
+    setComponentProps(fixture, {
+      ...defaultProps,
+      trigger: createBoundProperty({id: 'trigger-btn', basePath: '/'}),
+      content: createBoundProperty({id: 'modal-content', basePath: '/'}),
+    });
+    fixture.detectChanges();
+
+    fixture.nativeElement.querySelector('.a2ui-modal-trigger').click();
+    fixture.detectChanges();
+    expect(fixture.nativeElement.querySelector('.a2ui-modal-overlay')).toBeTruthy();
+
+    const escapeEvent = new KeyboardEvent('keydown', {key: 'Escape'});
+    window.dispatchEvent(escapeEvent);
+    fixture.detectChanges();
+
+    expect(fixture.nativeElement.querySelector('.a2ui-modal-overlay')).toBeFalsy();
+  });
 });

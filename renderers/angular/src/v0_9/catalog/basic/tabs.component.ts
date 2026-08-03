@@ -39,9 +39,13 @@ import {TabsApi} from '@a2ui/web_core/v0_9/basic_catalog';
   imports: [ComponentHostComponent],
   template: `
     <div class="a2ui-tabs">
-      <div class="a2ui-tab-bar">
+      <div class="a2ui-tab-bar" role="tablist">
         @for (tab of tabs(); track tab; let i = $index) {
           <button
+            role="tab"
+            [id]="'tab-' + uniqueId + '-' + i"
+            [attr.aria-selected]="activeTabIndex() === i"
+            [attr.aria-controls]="'tabpanel-' + uniqueId + '-' + i"
             class="a2ui-tab-button"
             [class.active]="activeTabIndex() === i"
             (click)="setActiveTab(i)"
@@ -51,7 +55,12 @@ import {TabsApi} from '@a2ui/web_core/v0_9/basic_catalog';
         }
       </div>
       @if (normalizedActiveTabChild()) {
-        <div class="a2ui-tab-content">
+        <div
+          role="tabpanel"
+          [id]="'tabpanel-' + uniqueId + '-' + activeTabIndex()"
+          [attr.aria-labelledby]="'tab-' + uniqueId + '-' + activeTabIndex()"
+          class="a2ui-tab-content"
+        >
           <a2ui-v09-component-host
             [componentKey]="normalizedActiveTabChild()!"
             [surfaceId]="surfaceId()"

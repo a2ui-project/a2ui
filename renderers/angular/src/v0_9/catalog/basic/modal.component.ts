@@ -14,7 +14,15 @@
  * limitations under the License.
  */
 
-import {Component, computed, ChangeDetectionStrategy, signal} from '@angular/core';
+import {
+  Component,
+  computed,
+  ChangeDetectionStrategy,
+  signal,
+  ElementRef,
+  HostListener,
+  ViewChild,
+} from '@angular/core';
 import {ComponentHostComponent} from '../../core/component-host.component';
 import {BasicCatalogComponent} from './basic-catalog-component';
 import {ModalApi} from '@a2ui/web_core/v0_9/basic_catalog';
@@ -37,7 +45,7 @@ import {ModalApi} from '@a2ui/web_core/v0_9/basic_catalog';
   imports: [ComponentHostComponent],
   template: `
     <div class="a2ui-modal-wrapper">
-      <div (click)="openModal()" class="a2ui-modal-trigger">
+      <div #modalTrigger (click)="openModal()" class="a2ui-modal-trigger">
         @if (trigger()) {
           <a2ui-v09-component-host [componentKey]="trigger()!" [surfaceId]="surfaceId()">
           </a2ui-v09-component-host>
@@ -46,11 +54,24 @@ import {ModalApi} from '@a2ui/web_core/v0_9/basic_catalog';
 
       @if (isOpen()) {
         <div class="a2ui-modal-overlay" (click)="closeModal()">
-          <div class="a2ui-modal-content" (click)="$event.stopPropagation()">
-            <button class="a2ui-modal-close" (click)="closeModal()">&times;</button>
+          <div
+            #modalContent
+            role="dialog"
+            aria-modal="true"
+            [attr.aria-label]="props()['accessibility']?.value()?.label"
+            [attr.aria-describedby]="props()['accessibility']?.value()?.description ? uniqueId + '-description' : null"
+            class="a2ui-modal-content"
+            (click)="$event.stopPropagation()"
+          >
+            <button class="a2ui-modal-close" aria-label="Close" (click)="closeModal()">&times;</button>
             @if (content()) {
               <a2ui-v09-component-host [componentKey]="content()!" [surfaceId]="surfaceId()">
               </a2ui-v09-component-host>
+            }
+            @if (props()['accessibility']?.value()?.description) {
+              <span [id]="uniqueId + '-description'" style="display: none;">
+                {{ props()['accessibility']?.value()?.description }}
+              </span>
             }
           </div>
         </div>
@@ -111,11 +132,65 @@ export class ModalComponent extends BasicCatalogComponent<typeof ModalApi> {
   readonly trigger = computed(() => this.props()['trigger']?.value());
   readonly content = computed(() => this.props()['content']?.value());
 
+  @ViewChild('modalTrigger') triggerElement!: ElementRef<HTMLDivElement>;
+  @ViewChild('modalContent') modalContentElement!: ElementRef<HTMLDivElement>;
+
   openModal() {
     this.isOpen.set(true);
+    setTimeout(() => {
+      if (this.modalContentElement) {
+        const focusables = this.modalContentElement.nativeElement.querySelectorAll(
+          'button, [href], input, select, textarea, [tabindex="0"]'
+        );
+        if (focusables.length > 0) {
+          (focusables[0] as HTMLElement).focus();
+        }
+      }
+    });
   }
 
   closeModal() {
     this.isOpen.set(false);
+    setTimeout(() => {
+      if (this.triggerElement) {
+        const focusable = this.triggerElement.nativeElement.querySelector(
+          'button, [tabindex="0"], input, select, textarea'
+        ) as HTMLElement;
+        if (focusable) {
+          focusable.focus();
+        }
+      }
+    });
+  }
+
+  @HostListener('window:keydown', ['$event'])
+  handleKeyDown(event: KeyboardEvent) {
+    if (!this.isOpen()) return;
+
+    if (event.key === 'Escape') {
+      this.closeModal();
+      return;
+    }
+
+    if (event.key === 'Tab' && this.modalContentElement) {
+      const focusables = this.modalContentElement.nativeElement.querySelectorAll(
+        'button, [href], input, select, textarea, [tabindex="0"]'
+      );
+      if (focusables.length === 0) return;
+      const first = focusables[0] as HTMLElement;
+      const last = focusables[focusables.length - 1] as HTMLElement;
+
+      if (event.shiftKey) {
+        if (document.activeElement === first) {
+          last.focus();
+          event.preventDefault();
+        }
+      } else {
+        if (document.activeElement === last) {
+          first.focus();
+          event.preventDefault();
+        }
+      }
+    }
   }
 }

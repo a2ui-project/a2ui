@@ -119,4 +119,59 @@ describe('DateTimeInputComponent', () => {
     expect(dateInput.value).toBe('');
     expect(timeInput.value).toBe('');
   });
+
+  it('should render group role and link label element', () => {
+    setComponentProps(fixture, {
+      ...defaultProps,
+      label: createBoundProperty<string | undefined>('Arrival Time'),
+    });
+    fixture.detectChanges();
+
+    const container = fixture.nativeElement.querySelector('.a2ui-date-time-container');
+    expect(container.getAttribute('role')).toBe('group');
+    const label = fixture.nativeElement.querySelector('.a2ui-date-time-label');
+    const labelId = label.getAttribute('id');
+    expect(labelId).toBeTruthy();
+    expect(container.getAttribute('aria-labelledby')).toBe(labelId);
+  });
+
+  it('should bind accessibility, invalid state, and link errors via aria-describedby to input fields', () => {
+    const isValidProp = createBoundProperty(true);
+    const errorsProp = createBoundProperty<string[]>([]);
+    setComponentProps(fixture, {
+      ...defaultProps,
+      accessibility: createBoundProperty({
+        label: 'Arrival',
+        description: 'Set date and time of arrival',
+      }),
+      isValid: isValidProp,
+      validationErrors: errorsProp,
+    });
+    fixture.detectChanges();
+
+    const dateInput = fixture.nativeElement.querySelector('input[type="date"]');
+    const timeInput = fixture.nativeElement.querySelector('input[type="time"]');
+
+    expect(dateInput.getAttribute('aria-label')).toBe('Arrival');
+    expect(dateInput.getAttribute('aria-description')).toBe('Set date and time of arrival');
+    expect(dateInput.getAttribute('aria-invalid')).toBe('false');
+
+    expect(timeInput.getAttribute('aria-label')).toBe('Arrival');
+    expect(timeInput.getAttribute('aria-description')).toBe('Set date and time of arrival');
+    expect(timeInput.getAttribute('aria-invalid')).toBe('false');
+
+    isValidProp.value.set(false);
+    errorsProp.value.set(['Required date/time']);
+    fixture.detectChanges();
+
+    expect(dateInput.getAttribute('aria-invalid')).toBe('true');
+    const descId = dateInput.getAttribute('aria-describedby');
+    expect(descId).not.toBeNull();
+    expect(timeInput.getAttribute('aria-invalid')).toBe('true');
+    expect(timeInput.getAttribute('aria-describedby')).toBe(descId);
+
+    const errorEl = fixture.nativeElement.querySelector(`#${descId}`);
+    expect(errorEl).toBeTruthy();
+    expect(errorEl.textContent).toContain('Required date/time');
+  });
 });

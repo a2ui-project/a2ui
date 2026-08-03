@@ -194,6 +194,16 @@ describe('Basic Catalog Components', () => {
       expect(buildChild).toHaveBeenCalledWith('inner1');
       expect(screen.getByTestId('child-inner1')).toBeDefined();
     });
+
+    it('binds accessibility label and description', () => {
+      renderA2uiComponent(Button, 'b1', {
+        child: 'btn',
+        accessibility: {label: 'Custom Label', description: 'Custom Description'},
+      });
+      const button = screen.getByRole('button');
+      expect(button.getAttribute('aria-label')).toBe('Custom Label');
+      expect(button.getAttribute('aria-description')).toBe('Custom Description');
+    });
   });
 
   describe('TextField', () => {
@@ -228,6 +238,30 @@ describe('Basic Catalog Components', () => {
       });
 
       expect(screen.queryByText('Required!')).toBeNull();
+    });
+
+    it('binds accessibility label, description, and validation errors', () => {
+      const {view} = renderA2uiComponent(
+        TextField,
+        'f1',
+        {
+          label: 'Name',
+          value: {path: '/name'},
+          accessibility: {label: 'A11y Name', description: 'Enter your name'},
+          checks: [{call: 'required', args: {value: {path: '/name'}}, message: 'Name is required'}],
+        },
+        {initialData: {name: ''}},
+      );
+
+      const input = screen.getByLabelText('Name') as HTMLInputElement;
+      expect(input.getAttribute('aria-label')).toBe('A11y Name');
+      expect(input.getAttribute('aria-description')).toBe('Enter your name');
+      expect(input.getAttribute('aria-invalid')).toBe('true');
+      const errorId = input.getAttribute('aria-describedby');
+      expect(errorId).not.toBeNull();
+      const errorElement = view.container.querySelector(`#${errorId}`);
+      expect(errorElement).not.toBeNull();
+      expect(errorElement?.textContent).toBe('Name is required');
     });
   });
 
@@ -292,6 +326,28 @@ describe('Basic Catalog Components', () => {
       expect(screen.getByTestId('child-settings_c')).toBeDefined();
     });
 
+    it('conforms to WAI-ARIA tab pattern', () => {
+      const {view} = renderA2uiComponent(Tabs, 'tabs1', {
+        tabs: [
+          {title: 'Home', child: 'home_c'},
+          {title: 'Settings', child: 'settings_c'},
+        ],
+      });
+
+      const tablist = screen.getByRole('tablist');
+      expect(tablist).toBeDefined();
+
+      const tabs = screen.getAllByRole('tab');
+      expect(tabs).toHaveLength(2);
+      expect(tabs[0].getAttribute('aria-selected')).toBe('true');
+      expect(tabs[1].getAttribute('aria-selected')).toBe('false');
+
+      const homeTabPanel = screen.getByRole('tabpanel');
+      expect(homeTabPanel).toBeDefined();
+      expect(homeTabPanel.getAttribute('aria-labelledby')).toBe(tabs[0].id);
+      expect(tabs[0].getAttribute('aria-controls')).toBe(homeTabPanel.id);
+    });
+
     it('Modal opens content on trigger click', () => {
       renderA2uiComponent(Modal, 'm1', {
         trigger: 't1',
@@ -304,6 +360,31 @@ describe('Basic Catalog Components', () => {
       fireEvent.click(screen.getByTestId('child-t1'));
 
       expect(screen.getByTestId('child-c1')).toBeDefined();
+    });
+
+    it('conforms to accessible modal dialog behavior', () => {
+      const {view} = renderA2uiComponent(Modal, 'm1', {
+        trigger: 't1',
+        content: 'c1',
+        accessibility: {label: 'Confirm Modal', description: 'Confirm description'},
+      });
+
+      fireEvent.click(screen.getByTestId('child-t1'));
+
+      const dialog = screen.getByRole('dialog');
+      expect(dialog).toBeDefined();
+      expect(dialog.getAttribute('aria-modal')).toBe('true');
+      expect(dialog.getAttribute('aria-label')).toBe('Confirm Modal');
+      const descId = dialog.getAttribute('aria-describedby');
+      expect(descId).not.toBeNull();
+      expect(view.container.querySelector(`#${descId}`)).not.toBeNull();
+
+      const closeBtn = screen.getByLabelText('Close');
+      expect(closeBtn).toBeDefined();
+
+      // Escape key closes modal
+      fireEvent.keyDown(dialog, {key: 'Escape', code: 'Escape'});
+      expect(screen.queryByRole('dialog')).toBeNull();
     });
 
     it('Divider renders a themed line', () => {
@@ -323,6 +404,30 @@ describe('Basic Catalog Components', () => {
       expect(surface.dataModel.get('/agreed')).toBe(true);
     });
 
+    it('binds accessibility label, description, and validation errors', async () => {
+      const {view} = renderA2uiComponent(
+        CheckBox,
+        'cb1',
+        {
+          label: 'Agree',
+          value: {path: '/agreed'},
+          accessibility: {label: 'A11y Label', description: 'A11y Desc'},
+          checks: [{call: 'required', args: {value: {path: '/agreed'}}, message: 'Agreed is required'}],
+        },
+        {initialData: {agreed: null}},
+      );
+
+      const checkbox = screen.getByLabelText('Agree') as HTMLInputElement;
+      expect(checkbox.getAttribute('aria-label')).toBe('A11y Label');
+      expect(checkbox.getAttribute('aria-description')).toBe('A11y Desc');
+      expect(checkbox.getAttribute('aria-invalid')).toBe('true');
+      const errorId = checkbox.getAttribute('aria-describedby');
+      expect(errorId).not.toBeNull();
+      const errorElement = view.container.querySelector(`#${errorId}`);
+      expect(errorElement).not.toBeNull();
+      expect(errorElement?.textContent).toBe('Agreed is required');
+    });
+
     it('Slider updates data', () => {
       const {surface} = renderA2uiComponent(Slider, 's1', {
         label: 'Volume',
@@ -332,6 +437,28 @@ describe('Basic Catalog Components', () => {
 
       fireEvent.change(screen.getByLabelText('Volume'), {target: {value: '75'}});
       expect(surface.dataModel.get('/vol')).toBe(75);
+    });
+
+    it('binds accessibility label, description, and validation errors', () => {
+      const {view} = renderA2uiComponent(
+        Slider,
+        's1',
+        {
+          label: 'Volume',
+          value: {path: '/vol'},
+          accessibility: {label: 'A11y Vol', description: 'Set audio volume'},
+          checks: [{call: 'required', args: {value: {path: '/vol'}}, message: 'Vol is required'}],
+        },
+        {initialData: {vol: null}},
+      );
+
+      const input = screen.getByLabelText('Volume') as HTMLInputElement;
+      expect(input.getAttribute('aria-label')).toBe('A11y Vol');
+      expect(input.getAttribute('aria-description')).toBe('Set audio volume');
+      expect(input.getAttribute('aria-invalid')).toBe('true');
+      const errorId = input.getAttribute('aria-describedby');
+      expect(errorId).not.toBeNull();
+      expect(view.container.querySelector(`#${errorId}`)?.textContent).toBe('Vol is required');
     });
 
     it('ChoicePicker mutuallyExclusive selection', () => {
@@ -389,6 +516,33 @@ describe('Basic Catalog Components', () => {
       expect(surface.dataModel.get('/picked')).toEqual(['a']);
     });
 
+    it('binds group roles, labels, and validation errors', () => {
+      const {view} = renderA2uiComponent(
+        ChoicePicker,
+        'cp1',
+        {
+          label: 'Pick',
+          options: [
+            {label: 'A', value: 'a'},
+            {label: 'B', value: 'b'},
+          ],
+          value: {path: '/picked'},
+          accessibility: {label: 'A11y Picker', description: 'Pick options'},
+          checks: [{call: 'required', args: {value: {path: '/picked'}}, message: 'Selection required'}],
+        },
+        {initialData: {picked: []}},
+      );
+
+      const group = screen.getByRole('group');
+      expect(group).toBeDefined();
+      expect(group.getAttribute('aria-label')).toBe('A11y Picker');
+      expect(group.getAttribute('aria-description')).toBe('Pick options');
+      expect(group.getAttribute('aria-invalid')).toBe('true');
+      const errorId = group.getAttribute('aria-describedby');
+      expect(errorId).not.toBeNull();
+      expect(view.container.querySelector(`#${errorId}`)?.textContent).toBe('Selection required');
+    });
+
     it('DateTimeInput handles date changes', () => {
       const {surface} = renderA2uiComponent(DateTimeInput, 'dt1', {
         label: 'When',
@@ -398,6 +552,29 @@ describe('Basic Catalog Components', () => {
 
       fireEvent.change(screen.getByLabelText('When'), {target: {value: '2026-03-20'}});
       expect(surface.dataModel.get('/date')).toBe('2026-03-20');
+    });
+
+    it('binds accessibility label, description, and validation errors', () => {
+      const {view} = renderA2uiComponent(
+        DateTimeInput,
+        'dt1',
+        {
+          label: 'When',
+          value: {path: '/date'},
+          enableDate: true,
+          accessibility: {label: 'A11y Date', description: 'Enter date'},
+          checks: [{call: 'required', args: {value: {path: '/date'}}, message: 'Date is required'}],
+        },
+        {initialData: {date: ''}},
+      );
+
+      const input = screen.getByLabelText('When') as HTMLInputElement;
+      expect(input.getAttribute('aria-label')).toBe('A11y Date');
+      expect(input.getAttribute('aria-description')).toBe('Enter date');
+      expect(input.getAttribute('aria-invalid')).toBe('true');
+      const errorId = input.getAttribute('aria-describedby');
+      expect(errorId).not.toBeNull();
+      expect(view.container.querySelector(`#${errorId}`)?.textContent).toBe('Date is required');
     });
   });
 });

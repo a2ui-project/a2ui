@@ -85,6 +85,10 @@ export const CheckBox = createComponentImplementation(CheckBoxApi, ({props}) => 
             ...inputBaseStyle,
             ...(hasError ? inputErrorStyle : {}),
           }}
+          aria-label={props.accessibility?.label}
+          aria-description={props.accessibility?.description}
+          aria-invalid={hasError ? 'true' : 'false'}
+          aria-describedby={hasError ? `${uniqueId}-error` : undefined}
         />
         {props.label && (
           <label
@@ -98,7 +102,11 @@ export const CheckBox = createComponentImplementation(CheckBoxApi, ({props}) => 
           </label>
         )}
       </div>
-      {hasError && <span style={errorStyle}>{props.validationErrors?.[0]}</span>}
+      {hasError && (
+        <span id={`${uniqueId}-error`} style={errorStyle}>
+          {props.validationErrors?.[0]}
+        </span>
+      )}
     </div>
   );
 });

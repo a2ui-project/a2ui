@@ -19,6 +19,8 @@ import {Directive, input} from '@angular/core';
 import {ComponentApiToProps} from './types';
 import {CatalogComponentInstance} from './catalog_component_instance';
 
+let nextId = 0;
+
 /**
  * Base class for A2UI catalog component in Angular.
  *
@@ -37,4 +39,7 @@ export abstract class CatalogComponent<
   readonly surfaceId = input.required<string>();
   readonly componentId = input.required<string>();
   readonly dataContextPath = input<string>('/');
+
+  readonly uniqueId = `a2ui-id-${nextId++}`;
 }
+

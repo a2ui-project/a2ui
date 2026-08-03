@@ -133,4 +133,70 @@ describe('ChoicePickerComponent', () => {
     chips[0].click();
     expect(onUpdateSpy).toHaveBeenCalledWith([]);
   });
+
+  it('should render group role and link label element', () => {
+    setComponentProps(fixture, {
+      ...defaultProps,
+      label: createBoundProperty<string | undefined>('Select Fruit'),
+      options: createBoundProperty<{label: DynamicString; value: string}[]>([
+        {label: 'Apple', value: 'apple'},
+      ]),
+    });
+    fixture.detectChanges();
+
+    const group = fixture.nativeElement.querySelector('.a2ui-options-group');
+    expect(group.getAttribute('role')).toBe('group');
+    const label = fixture.nativeElement.querySelector('.a2ui-choice-picker-label');
+    const labelId = label.getAttribute('id');
+    expect(labelId).toBeTruthy();
+    expect(group.getAttribute('aria-labelledby')).toBe(labelId);
+  });
+
+  it('should set aria-pressed on chips active states', () => {
+    setComponentProps(fixture, {
+      ...defaultProps,
+      options: createBoundProperty<{label: DynamicString; value: string}[]>([
+        {label: 'Chip A', value: 'a'},
+        {label: 'Chip B', value: 'b'},
+      ]),
+      value: createBoundProperty(['a']),
+      displayStyle: createBoundProperty<'checkbox' | 'chips' | undefined>('chips'),
+    });
+    fixture.detectChanges();
+
+    const chips = fixture.nativeElement.querySelectorAll('.a2ui-chip');
+    expect(chips[0].getAttribute('aria-pressed')).toBe('true');
+    expect(chips[1].getAttribute('aria-pressed')).toBe('false');
+  });
+
+  it('should bind accessibility, invalid state, and link errors via aria-describedby', () => {
+    const isValidProp = createBoundProperty(true);
+    const errorsProp = createBoundProperty<string[]>([]);
+    setComponentProps(fixture, {
+      ...defaultProps,
+      accessibility: createBoundProperty({
+        label: 'Fruits',
+        description: 'Choose one or more fruits',
+      }),
+      isValid: isValidProp,
+      validationErrors: errorsProp,
+    });
+    fixture.detectChanges();
+
+    const group = fixture.nativeElement.querySelector('.a2ui-options-group');
+    expect(group.getAttribute('aria-label')).toBe('Fruits');
+    expect(group.getAttribute('aria-description')).toBe('Choose one or more fruits');
+    expect(group.getAttribute('aria-invalid')).toBe('false');
+
+    isValidProp.value.set(false);
+    errorsProp.value.set(['Required selection']);
+    fixture.detectChanges();
+
+    expect(group.getAttribute('aria-invalid')).toBe('true');
+    const descId = group.getAttribute('aria-describedby');
+    expect(descId).not.toBeNull();
+    const errorEl = fixture.nativeElement.querySelector(`#${descId}`);
+    expect(errorEl).toBeTruthy();
+    expect(errorEl.textContent).toContain('Required selection');
+  });
 });

@@ -40,25 +40,40 @@ import {CheckBoxApi} from '@a2ui/web_core/v0_9/basic_catalog';
   standalone: true,
   imports: [],
   template: `
-    <label class="a2ui-check-box-label">
-      <input
-        type="checkbox"
-        [checked]="value()"
-        (change)="handleChange($event)"
-        class="a2ui-check-box-input"
-      />
-      <span class="a2ui-check-box-text">{{ label() }}</span>
-    </label>
+    <div class="a2ui-check-box-container">
+      <label class="a2ui-check-box-label" [attr.for]="uniqueId">
+        <input
+          [id]="uniqueId"
+          type="checkbox"
+          [checked]="value()"
+          (change)="handleChange($event)"
+          class="a2ui-check-box-input"
+          [class.invalid]="props()['isValid']?.value() === false"
+          [attr.aria-label]="props()['accessibility']?.value()?.label"
+          [attr.aria-description]="props()['accessibility']?.value()?.description"
+          [attr.aria-invalid]="props()['isValid']?.value() === false ? 'true' : 'false'"
+          [attr.aria-describedby]="props()['isValid']?.value() === false ? uniqueId + '-error' : null"
+        />
+        <span class="a2ui-check-box-text">{{ label() }}</span>
+      </label>
+      @for (message of props()['validationErrors']?.value(); track message) {
+        <div [id]="uniqueId + '-error'" class="a2ui-error-message">{{ message }}</div>
+      }
+    </div>
   `,
   styles: [
     `
+      .a2ui-check-box-container {
+        display: flex;
+        flex-direction: column;
+        margin: var(--a2ui-checkbox-margin, var(--a2ui-spacing-m, 16px));
+      }
       .a2ui-check-box-label {
         display: flex;
         align-items: center;
         gap: var(--a2ui-checkbox-gap, var(--a2ui-spacing-s, 0.5rem));
         cursor: pointer;
         padding: 4px 0;
-        margin: var(--a2ui-checkbox-margin, var(--a2ui-spacing-m, 16px));
         color: var(--a2ui-text-color-text, var(--a2ui-color-on-background, #333));
       }
       .a2ui-check-box-input {
@@ -70,12 +85,20 @@ import {CheckBoxApi} from '@a2ui/web_core/v0_9/basic_catalog';
         border-radius: var(--a2ui-checkbox-border-radius, 4px);
         accent-color: var(--a2ui-color-primary);
       }
+      .a2ui-check-box-input.invalid {
+        outline: 1px solid var(--a2ui-checkbox-color-error, var(--a2ui-color-error, red));
+      }
       .a2ui-check-box-text {
         font-size: var(
           --a2ui-checkbox-label-font-size,
           var(--a2ui-label-font-size, var(--a2ui-font-size-s, 16px))
         );
         font-weight: var(--a2ui-checkbox-label-font-weight, bold);
+      }
+      .a2ui-error-message {
+        color: var(--a2ui-checkbox-color-error, var(--a2ui-color-error, red));
+        font-size: var(--a2ui-font-size-xs, 12px);
+        margin-top: 4px;
       }
     `,
   ],

@@ -129,9 +129,17 @@ export type ResolveA2uiProp<T> = [NonNullable<T>] extends [Action]
   ? (() => void) | Extract<T, undefined>
   : [NonNullable<T>] extends [ChildList]
     ? any | Extract<T, undefined>
-    : Exclude<T, DynamicTypes> extends never
-      ? any
-      : Exclude<T, DynamicTypes>;
+    : Exclude<NonNullable<T>, DynamicTypes> extends Array<any>
+      ? Array<ResolveA2uiProp<Exclude<NonNullable<T>, DynamicTypes>[number]>> | Extract<T, undefined>
+      : Exclude<NonNullable<T>, DynamicTypes> extends object
+        ? {
+            [K in keyof Exclude<NonNullable<T>, DynamicTypes>]: ResolveA2uiProp<
+              Exclude<NonNullable<T>, DynamicTypes>[K]
+            >;
+          } | Extract<T, undefined>
+        : Exclude<T, DynamicTypes> extends never
+          ? any
+          : Exclude<T, DynamicTypes>;
 
 /**
  * Automatically generates two-way binding setters for dynamic properties.

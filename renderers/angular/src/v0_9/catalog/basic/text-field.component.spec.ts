@@ -133,4 +133,43 @@ describe('TextFieldComponent', () => {
     expect(errorMsgs[0].nativeElement.textContent).toContain('Error 1');
     expect(errorMsgs[1].nativeElement.textContent).toContain('Error 2');
   });
+
+  it('should associate label and input elements using for/id attributes', () => {
+    fixture.detectChanges();
+    const label = fixture.debugElement.query(By.css('label'));
+    const input = fixture.debugElement.query(By.css('input'));
+    const id = input.nativeElement.getAttribute('id');
+    expect(id).toBeTruthy();
+    expect(label.nativeElement.getAttribute('for')).toBe(id);
+  });
+
+  it('should bind accessibility and error attributes to input element', () => {
+    const isValidProp = createBoundProperty(true);
+    const errorsProp = createBoundProperty<string[]>([]);
+    setComponentProps(fixture, {
+      ...defaultProps,
+      accessibility: createBoundProperty({
+        label: 'A11y Label',
+        description: 'A11y Description',
+      }),
+      isValid: isValidProp,
+      validationErrors: errorsProp,
+    });
+    fixture.detectChanges();
+    const input = fixture.debugElement.query(By.css('input'));
+    expect(input.nativeElement.getAttribute('aria-label')).toBe('A11y Label');
+    expect(input.nativeElement.getAttribute('aria-description')).toBe('A11y Description');
+    expect(input.nativeElement.getAttribute('aria-invalid')).toBe('false');
+
+    isValidProp.value.set(false);
+    errorsProp.value.set(['Required field']);
+    fixture.detectChanges();
+
+    expect(input.nativeElement.getAttribute('aria-invalid')).toBe('true');
+    const descId = input.nativeElement.getAttribute('aria-describedby');
+    expect(descId).not.toBeNull();
+    const errorEl = fixture.debugElement.query(By.css(`#${descId}`));
+    expect(errorEl).toBeTruthy();
+    expect(errorEl.nativeElement.textContent).toContain('Required field');
+  });
 });
