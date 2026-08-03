@@ -6,6 +6,12 @@
   "description": "Catalog for testing purposes.",
   "catalogId": "https://a2ui.org/specification/v1_0/testing_catalog.json",
   "components": {
+    "Surface": {
+      "type": "object",
+      "allOf": [
+        {"$ref": "common_types.json#/$defs/Surface"}
+      ]
+    },
     "Text": {
       "type": "object",
       "allOf": [

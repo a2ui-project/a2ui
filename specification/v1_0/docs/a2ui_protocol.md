@@ -176,7 +176,7 @@ This message signals the renderer to create a new surface and begin rendering it
 
 It is an error to try to create a surface with a `surfaceId` that already exists without first deleting it; `surfaceId` must be globally unique for the renderer's lifetime. Orchestrators with subagents are empowered to manage surface IDs as needed to prevent conflicts (e.g., prefixing the subagent's name to the `surfaceId` or requiring subagents to use UUIDs).
 
-One of the components in one of the component lists MUST have an `id` of `root` to serve as the root of the component tree.
+`createSurface` creates the component `Surface` which has `child='root'`. The component `Surface` cannot be modified using `updateComponents`. One of the components in one of the component lists MUST have an `id` of `root` to be mounted as the child of `Surface` to render the component tree.
 
 **Properties:**
 
@@ -216,7 +216,7 @@ One of the components in one of the component lists MUST have an `id` of `root` 
 
 ### `updateComponents`
 
-This message provides a list of UI components to be added to or updated within a specific surface. The components are provided as a flat list, and their relationships are defined by ID references in an adjacency list. This message may only be sent to a surface that has already been created. Note that components may reference children or data bindings that do not yet exist; renderers should handle this gracefully by rendering placeholders (progressive rendering).
+This message provides a list of UI components to be added to or updated within a specific surface. createSurface creates the component `Surface` which has a child='root'. The component `Surface` cannot be modified using `updateComponents`. The component in `components` with `"id": "root"` is mounted as the child of the Surface component. The components are provided as a flat list, and their relationships are defined by ID references in an adjacency list. This message may only be sent to a surface that has already been created. Note that components may reference children or data bindings that do not yet exist; renderers should handle this gracefully by rendering placeholders (progressive rendering).
 
 **Properties:**
 
@@ -673,6 +673,58 @@ flowchart TD
     A -- "Parsed and stored" --> E
 
 ```
+
+#### Composition validation rules
+
+To enforce structural and compositional integrity across component hierarchies, A2UI component catalogs support set-membership graph edge validation via `allowedParents` and `allowedChildren`. These constraints are defined on component type definitions in the catalog json schema and evaluated by the renderer against the component tree sent on the wire.
+
+1. **Graph Edge Validation**:
+   - `allowedParents` (array of string, optional): Specifies the list of parent component type names under which a component type can be placed. If undefined, all parent component types are allowed.
+   - `allowedChildren` (array of string, optional): Specifies the list of child component type names allowed inside a container or slot. If undefined, all child component types are allowed.
+2. **`"Surface"` Root Component**:
+   - `createSurface` creates the component `Surface`, that surface has a `child='root'`. The component `Surface` cannot be modified using `updateComponents`.
+   - Parent-child validation applies uniformly across the entire component tree, with `Surface` acting as the root parent type.
+3. **Catalog Schema Examples**:
+   - **Top-Level Root Component**: To restrict a component so it can only appear as the top-level root of a surface:
+     ```json
+     {
+       "AppLayout": {
+         "type": "object",
+         "allowedParents": ["Surface"],
+         "properties": {
+           "component": { "const": "AppLayout" }
+         }
+       }
+     }
+     ```
+   - **Root or Container Union**: To allow a component at the surface root OR inside a specific container:
+     ```json
+     {
+       "Card": {
+         "type": "object",
+         "allowedParents": ["Surface", "CanvasContainer"]
+       }
+     }
+     ```
+   - **Container Restricted components**: To restrict an item to only allow nesting within a certain component.
+     ```json
+     {
+       "Menu": {
+         "type": "object",
+         "allowedChildren": ["MenuItem"]
+       }
+     },
+     {
+       "MenuItem": {
+         "type": "object",
+         "allowedParents": ["Menu"]
+       }
+     }
+     ```
+4. **Validation Error Codes**:
+   - When a component is placed under an unallowed parent, the renderer should emit a validation error message with `code` set to `"UNALLOWED_PARENT"`.
+   - When an unallowed child component is placed inside a container, the renderer should emit a validation error message with `code` set to `"UNALLOWED_CHILD"`.
+
 
 ### Defining actions
 
@@ -1145,7 +1197,7 @@ This loop allows for a high degree of flexibility and robustness, as the system 
 
 If validation fails, the renderer (or the system acting on behalf of the renderer) should send an `error` message back to the LLM. To ensure the LLM can understand and correct the error, use the following standard format within the `error` message payload:
 
-- `code` (string, required): Must be `"VALIDATION_FAILED"`.
+- `code` (string, required): Must be `"VALIDATION_FAILED"`, `"UNALLOWED_PARENT"`, or `"UNALLOWED_CHILD"`. Use `"UNALLOWED_PARENT"` when a component is placed under an unallowed parent, and `"UNALLOWED_CHILD"` when an unallowed child is placed inside a container.
 - `surfaceId` (string, required): The ID of the surface where the error occurred.
 - `path` (string, required): The JSON pointer to the field that failed validation (e.g. `/components/0/text`).
 - `message` (string, required): A short one-sentence description of why validation failed.

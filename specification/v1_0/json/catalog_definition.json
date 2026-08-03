@@ -51,7 +51,7 @@
       "type": "object",
       "description": "Definitions for UI components supported by this catalog.",
       "additionalProperties": {
-        "$ref": "https://json-schema.org/draft/2020-12/schema"
+        "$ref": "#/$defs/ComponentDefinition"
       }
     },
     "functions": {
@@ -166,6 +166,34 @@
         }
       ],
       "unevaluatedProperties": false
+    },
+    "ComponentDefinition": {
+      "type": "object",
+      "description": "Describes a component's validation schema and composition hierarchy metadata.",
+      "allOf": [
+        {
+          "$ref": "https://json-schema.org/draft/2020-12/schema"
+        },
+        {
+          "type": "object",
+          "properties": {
+            "allowedParents": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "description": "Specifies the list of parent component type names under which this component type can be placed. If undefined, all parent component types are allowed. To restrict a component so it can only appear as the top-level root of a surface, set \"allowedParents\": [\"Surface\"]. To allow a component at the surface root OR inside a specific container, specify both (e.g., \"allowedParents\": [\"Surface\", \"CanvasContainer\"])."
+            },
+            "allowedChildren": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "description": "Specifies the list of child component type names allowed inside this container or slot. If undefined, all child component types are allowed."
+            }
+          }
+        }
+      ]
     }
   }
 }
