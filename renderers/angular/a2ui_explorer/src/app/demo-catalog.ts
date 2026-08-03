@@ -29,7 +29,7 @@ export class DemoCatalog extends AngularCatalog {
     super(
       'https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json',
       [...BASIC_COMPONENTS, customSliderComponentDeclaration],
-      BASIC_FUNCTIONS
+      BASIC_FUNCTIONS,
     );
   }
 }

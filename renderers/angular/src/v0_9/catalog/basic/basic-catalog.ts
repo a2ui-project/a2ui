@@ -15,7 +15,11 @@
  */
 
 import {Inject, Injectable, InjectionToken, Optional} from '@angular/core';
-import {AngularCatalog, AngularComponentImplementation, createComponentImplementation} from '../types';
+import {
+  AngularCatalog,
+  AngularComponentImplementation,
+  createComponentImplementation,
+} from '../types';
 import {TextComponent} from './text.component';
 import {RowComponent} from './row.component';
 import {ColumnComponent} from './column.component';
