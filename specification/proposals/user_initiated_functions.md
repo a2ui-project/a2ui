@@ -143,7 +143,9 @@ export function bindAction(dataContext: DataContext, actionCall: ActionDefinitio
     // Extract DOM Event from framework event argument or window fallback
     const domEvent = eventOrOptions instanceof Event
       ? eventOrOptions
-      : eventOrOptions?.event ?? (typeof window !== 'undefined' ? window.event : undefined);
+      : (eventOrOptions && 'nativeEvent' in eventOrOptions)
+        ? (eventOrOptions as any).nativeEvent
+        : (eventOrOptions as any)?.event ?? (typeof window !== 'undefined' ? window.event : undefined);
 
     const gestureToken = domEvent ? createWebGestureToken(domEvent) : undefined;
 
@@ -167,7 +169,9 @@ this.invoker = (name, rawArgs, ctx, options) => {
   }
 
   // Consume token to prevent replay attacks
-  options?.gestureToken?.consume();
+  if (fn.requiresUserGesture) {
+    options?.gestureToken?.consume();
+  }
   const safeArgs = fn.schema.parse(rawArgs);
   return fn.execute(safeArgs, ctx, options?.abortSignal);
 };
@@ -299,7 +303,7 @@ public struct ActionContext {
 
 // TaskLocal Concurrency Support:
 public enum A2UIGestureScope {
-    @TaskLocal public static var currentToken: UserGestureToken?
+    @TaskLocal public static let currentToken: UserGestureToken?
 }
 
 // SwiftUI Button Component
