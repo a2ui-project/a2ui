@@ -294,6 +294,7 @@ To prevent DOM-Based Cross-Site Scripting (XSS) via `javascript:`, `data:`, or o
 1. **Resolve Relative URLs:** Before validation, resolve relative paths against the current environment context (e.g., `window.location.href` in browsers) using standard URL parsing.
 2. **Enforce Scheme Allowlist:** Strictly validate that the resolved URL protocol/scheme is either `https:` or `http:`. Throw an execution or runtime error (such as `A2uiExpressionError`) and abort the action if any other scheme is used.
 3. **Tab-Nabbing Protection:** When opening URLs in a new browser window/tab, always supply security attributes: `noopener,noreferrer` (e.g. `window.open(url, '_blank', 'noopener,noreferrer')`).
+4. **User Gesture Requirement:** Enforce that `openUrl` is invoked only in response to an active, physical user interaction (such as a button click or form submit) by verifying a valid `UserGestureToken`. Any uninitiated invocation (e.g. initial layout render auto-trigger or dynamic data binding evaluation) must be rejected.
 
 ### `and`
 
