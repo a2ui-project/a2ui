@@ -313,8 +313,8 @@
       ]
     },
     "Surface": {
-      "title": "Surface Component",
-      "description": "The reserved component type representing an A2UI surface. The Surface component is immutable and always has child=['root'].",
+      "title": "Surface Container Component",
+      "description": "The reserved canonical container component representing an A2UI surface. The Surface component is immutable and always has child='root'.",
       "type": "object",
       "allowedParents": [],
       "properties": {

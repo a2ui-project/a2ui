@@ -176,7 +176,7 @@ This message signals the renderer to create a new surface and begin rendering it
 
 It is an error to try to create a surface with a `surfaceId` that already exists without first deleting it; `surfaceId` must be globally unique for the renderer's lifetime. Orchestrators with subagents are empowered to manage surface IDs as needed to prevent conflicts (e.g., prefixing the subagent's name to the `surfaceId` or requiring subagents to use UUIDs).
 
-`createSurface` creates the component `Surface` which has `child='root'`. The component `Surface` cannot be modified using `updateComponents`. One of the components in one of the component lists MUST have an `id` of `root` to be mounted as the child of `Surface` to render the component tree.
+`createSurface` implicitly creates the canonical `Surface` container component (`common_types.json#/$defs/Surface`), which has `child='root'`. The component `Surface` cannot be modified using `updateComponents`. One of the components in one of the component lists MUST have an `id` of `root` to be mounted as the child of `Surface` to render the component tree.
 
 **Properties:**
 
@@ -216,7 +216,7 @@ It is an error to try to create a surface with a `surfaceId` that already exists
 
 ### `updateComponents`
 
-This message provides a list of UI components to be added to or updated within a specific surface. `createSurface` creates the component `Surface` which has `child='root'`. The component `Surface` cannot be modified using `updateComponents`. The component in `components` with `"id": "root"` is mounted as the child of the `Surface` component. The components are provided as a flat list, and their relationships are defined by ID references in an adjacency list. This message may only be sent to a surface that has already been created. Note that components may reference children or data bindings that do not yet exist; renderers should handle this gracefully by rendering placeholders (progressive rendering).
+This message provides a list of UI components to be added to or updated within a specific surface. `createSurface` implicitly creates the canonical `Surface` container component (`common_types.json#/$defs/Surface`), which has `child='root'`. The component `Surface` cannot be modified using `updateComponents`. The component in `components` with `"id": "root"` is mounted as the child of the `Surface` component. The components are provided as a flat list, and their relationships are defined by ID references in an adjacency list. This message may only be sent to a surface that has already been created. Note that components may reference children or data bindings that do not yet exist; renderers should handle this gracefully by rendering placeholders (progressive rendering).
 
 **Properties:**
 
@@ -462,6 +462,7 @@ To ensure complete cross-language compatibility across renderer SDKs, parsers, a
 1. **Permitted Characters**: Identifiers must begin with a character in the Unicode property class `XID_Start` or an underscore (`_`, `U+005F`). Subsequent characters must belong to the Unicode property class `XID_Continue`.
 2. **Prohibited Initial Characters**: Identifiers MUST NOT begin with a decimal digit (Unicode general category `Nd`).
 3. **Prohibited Symbols and Whitespace**: Identifiers MUST NOT contain any whitespace or symbols matching the Unicode character property classes `Pattern_Syntax` or `Pattern_White_Space`, other than underscores.
+4. **Reserved Component Names**: The component type name `"Surface"` is reserved by the A2UI protocol to represent the canonical surface container created by `createSurface`. Catalogs MUST NOT define a standard UI component named `"Surface"`, though a catalog MAY include an entry for `"Surface"` solely to configure `allowedChildren` for the surface container.
 
 ##### Canonical Regular Expression
 
@@ -681,11 +682,12 @@ To enforce structural and compositional integrity across component hierarchies, 
 1. **Graph Edge Validation**:
    - `allowedParents` (array of string, optional): Specifies the list of parent component type names under which a component type can be placed. If undefined, all parent component types are allowed.
    - `allowedChildren` (array of string, optional): Specifies the list of child component type names allowed inside a container or slot. If undefined, all child component types are allowed.
-2. **`"Surface"` Root Component**:
-   - `createSurface` creates the component `Surface`, that surface has a `child='root'`. The component `Surface` cannot be modified using `updateComponents`.
-   - Parent-child validation applies uniformly across the entire component tree, with `Surface` acting as the root parent type.
+2. **`"Surface"` Container Component**:
+   - The component type name `"Surface"` is reserved by the A2UI protocol to represent the canonical surface container.
+   - `createSurface` implicitly creates the canonical `Surface` container component (`common_types.json#/$defs/Surface`), which has `child='root'`. The component `Surface` cannot be modified using `updateComponents`.
+   - Parent-child validation applies uniformly across the entire component tree, with `Surface` acting as the top-level container parent type.
 3. **Catalog Schema Examples**:
-   - **Top-Level Root Component**: To restrict a component so it can only appear as the top-level root of a surface:
+   - **Top-Level Component**: To restrict a component so it can only appear as the top-level component (`id='root'`) of a surface:
      ```json
      {
        "AppLayout": {
@@ -697,7 +699,7 @@ To enforce structural and compositional integrity across component hierarchies, 
        }
      }
      ```
-   - **Root or Container Union**: To allow a component at the surface root OR inside a specific container:
+   - **Top-Level or Container Union**: To allow a component as the top-level component (`id='root'`) OR inside a specific container:
      ```json
      {
        "Card": {

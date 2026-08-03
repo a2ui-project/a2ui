@@ -182,7 +182,7 @@
               "items": {
                 "type": "string"
               },
-              "description": "Specifies the list of parent component type names under which this component type can be placed. If undefined, all parent component types are allowed. To restrict a component so it can only appear as the top-level root of a surface, set \"allowedParents\": [\"Surface\"]. To allow a component at the surface root OR inside a specific container, specify both (e.g., \"allowedParents\": [\"Surface\", \"CanvasContainer\"])."
+              "description": "Specifies the list of parent component type names under which this component type can be placed. If undefined, all parent component types are allowed. To restrict a component so it can only appear as the top-level component (id='root') of a surface, set \"allowedParents\": [\"Surface\"]. To allow a component as the top-level component OR inside a specific container, specify both (e.g., \"allowedParents\": [\"Surface\", \"CanvasContainer\"])."
             },
             "allowedChildren": {
               "type": "array",
