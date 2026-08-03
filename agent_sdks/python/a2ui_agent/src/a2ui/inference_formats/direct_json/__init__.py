@@ -12,18 +12,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Deprecated compatibility redirect for A2uiStreamParser."""
-
-import warnings
-from a2ui.inference_formats.transport.streaming import A2uiStreamParser
-
-warnings.warn(
-    "a2ui.parser.streaming is deprecated. "
-    "Please import from a2ui.inference_formats.transport instead.",
-    DeprecationWarning,
-    stacklevel=2,
-)
+from .format import DirectJsonFormat
+from .parser import DirectJsonParser
+from .prompt_generator import DirectJsonPromptGenerator
+from .streaming import DirectJsonStreamParser
 
 __all__ = [
-    "A2uiStreamParser",
+    "DirectJsonFormat",
+    "DirectJsonParser",
+    "DirectJsonPromptGenerator",
+    "DirectJsonStreamParser",
 ]

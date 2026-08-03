@@ -322,12 +322,12 @@ class A2uiDemoAgent:
             parts_streamed = False
 
             if selected_catalog:
-                from a2ui.parser.streaming import A2uiStreamParser
+                from a2ui.inference_formats.direct_json.streaming import DirectJsonStreamParser
 
                 if session_id in self._parsers:
                     self._parsers.move_to_end(session_id)
                 else:
-                    self._parsers[session_id] = A2uiStreamParser(
+                    self._parsers[session_id] = DirectJsonStreamParser(
                         catalog=selected_catalog
                     )
                     if len(self._parsers) > self._max_parsers:

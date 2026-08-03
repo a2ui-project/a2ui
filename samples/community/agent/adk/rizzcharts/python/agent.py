@@ -20,7 +20,7 @@ from typing import Any, ClassVar, Dict, Optional
 from a2a.types import AgentCapabilities, AgentCard, AgentSkill
 from a2ui.a2a.extension import get_a2ui_agent_extension
 from a2ui.adk.send_a2ui_to_client_toolset import SendA2uiToClientToolset, A2uiEnabledProvider, A2uiCatalogProvider, A2uiExamplesProvider
-from a2ui.inference_formats.transport import TransportFormat
+from a2ui.inference_formats.direct_json import DirectJsonFormat
 from a2ui.schema.catalog import CatalogConfig
 from a2ui.basic_catalog.provider import BasicCatalog
 from a2ui.schema.constants import VERSION_0_8, VERSION_0_9
@@ -118,7 +118,7 @@ class RizzchartsAgent:
             self._build_llm_agent()
         )
 
-        self._inference_formats: Dict[str, TransportFormat] = {}
+        self._inference_formats: Dict[str, DirectJsonFormat] = {}
         self._ui_runners: Dict[str, Runner] = {}
 
         for version in [VERSION_0_8, VERSION_0_9]:
@@ -138,13 +138,15 @@ class RizzchartsAgent:
             return self._text_runner
         return self._ui_runners[version]
 
-    def get_inference_format(self, version: Optional[str]) -> Optional[TransportFormat]:
+    def get_inference_format(
+        self, version: Optional[str]
+    ) -> Optional[DirectJsonFormat]:
         if version is None:
             return None
         return self._inference_formats[version]
 
-    def _build_inference_format(self, version: str) -> TransportFormat:
-        return TransportFormat(
+    def _build_inference_format(self, version: str) -> DirectJsonFormat:
+        return DirectJsonFormat(
             version=version,
             catalogs=[
                 CatalogConfig.from_path(
@@ -245,7 +247,7 @@ class RizzchartsAgent:
         )
 
     def _build_llm_agent(
-        self, inference_format: Optional[TransportFormat] = None
+        self, inference_format: Optional[DirectJsonFormat] = None
     ) -> LlmAgent:
         """Builds the LLM agent for the contact agent."""
         instruction = (

@@ -16,19 +16,19 @@
 
 import warnings
 from typing import Any, Optional, Callable, Union
-from a2ui.inference_formats.transport.format import TransportFormat
+from a2ui.inference_formats.direct_json.format import DirectJsonFormat
 from a2ui.schema.catalog import CatalogConfig
 
 warnings.warn(
     "a2ui.schema.manager is deprecated and will be removed. "
-    "Import from a2ui.inference_formats.transport instead.",
+    "Import from a2ui.inference_formats.direct_json instead.",
     DeprecationWarning,
     stacklevel=2,
 )
 
 
-class A2uiSchemaManager(TransportFormat):
-    """Deprecated compatibility wrapper around TransportFormat."""
+class A2uiSchemaManager(DirectJsonFormat):
+    """Deprecated compatibility wrapper around DirectJsonFormat."""
 
     def __init__(
         self,
@@ -41,7 +41,7 @@ class A2uiSchemaManager(TransportFormat):
         experiments: Optional[Union[set[str], frozenset[str]]] = None,
     ):
         warnings.warn(
-            "A2uiSchemaManager is deprecated. Please use TransportFormat instead.",
+            "A2uiSchemaManager is deprecated. Please use DirectJsonFormat instead.",
             DeprecationWarning,
             stacklevel=2,
         )

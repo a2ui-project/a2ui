@@ -11,6 +11,7 @@ Use this skill when adding new data points or datasets to the A2UI evaluation fr
 
 For full architecture and setup details, consult:
 
+- `eval/CONTRIBUTING_USE_CASES.md`: The authoritative contributor guide for evaluation use cases, containing field definitions, context rules, and unencrypted multi-turn examples.
 - `eval/README.md`: Evaluation quickstart, Transcrypt setup, and CLI flags.
 - `eval/DESIGN.md`: Architecture, multi-stage scorers, and encryption-at-rest design.
 - `eval/datasets/dataset_schema.json`: Formal JSON Schema defining required fields and structural rules for evaluation data points.
@@ -21,7 +22,7 @@ For full architecture and setup details, consult:
 
 ### 1. Unlock Transcrypt
 
-Datasets in `eval/datasets/` are encrypted at rest. Unlock Transcrypt locally before authoring:
+Datasets in `eval/datasets/` are encrypted at rest. Unlock Transcrypt locally before authoring (ask an A2UI team member for the password):
 
 ```bash
 cd eval
@@ -32,35 +33,14 @@ bin/transcrypt -y -c aes-256-cbc -p <PASSWORD>
 
 Create or update a dataset file in `eval/datasets/<dataset_name>.yaml` (e.g. `eval/datasets/my_dataset.yaml`).
 
-Every data point **must conform** to the JSON Schema in `eval/datasets/dataset_schema.json`.
+Every data point **must conform** to the JSON Schema in `eval/datasets/dataset_schema.json` and follow the authoring guidelines in `eval/CONTRIBUTING_USE_CASES.md`.
 
-```yaml
-- name: sample_unique_identifier
-  dataset: my_dataset
-  description: Clear summary of what this scenario tests.
-  catalog: 'specification/{version}/catalogs/basic/catalog.json'
-  system_prompt: |
-    Optional domain-specific system instructions (e.g. company policies, triage rules).
-  messages:
-    - role: user
-      content: 'Initial user request...'
-    - role: assistant
-      content: 'Assistant response...'
-      tool_calls:
-        - id: call_001
-          type: function
-          function: query_database
-          arguments:
-            key: value
-    - role: tool
-      tool_call_id: call_001
-      function: query_database
-      content: '{"result": "data"}'
-    - role: user
-      content: 'Render the UI card with the retrieved data...'
-  target: |
-    Expected UI outcome and scoring criteria for the LLM judge.
-```
+For a complete unencrypted reference example of a multi-turn conversation with system instructions, tool calls (including unrelated background tool calls), tool responses, and a judging target rubric, inspect `eval/examples/example_eval_case.json`.
+
+**Key authoring requirements from `eval/CONTRIBUTING_USE_CASES.md`:**
+
+- Include the full multi-turn conversation history (`messages`), including assistant function calls (`tool_calls`) and tool responses (`role: tool`). Do not use single-turn prompts.
+- Write the `target` as a qualitative judging rubric for the LLM-as-a-judge (what UI components must appear, data binding rules, and what errors to penalize). Do not include a hardcoded JSON string, as that ties the evaluation to a particular inference format.
 
 ### 3. Validate schema compliance
 

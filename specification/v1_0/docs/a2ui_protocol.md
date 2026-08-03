@@ -36,7 +36,7 @@ The major differences between version 1.0 and 0.9 (including 0.9.1) are:
 
 - **Bidirectional RPC Messaging**: Supports synchronous agent responses to renderer actions (`actionResponse`) and remote agent-initiated function execution (`callFunction` / `functionResponse`) verified against runtime catalog definitions.
 - **Single-Message UI Instantiation**: Allows initial component trees and data models to be embedded directly within `createSurface`, enabling complete UI composition in a single payload.
-- **Decoupled Branding**: Replaces rigid theme properties with extensible `surfaceProperties` (removing hardcoded brand colors) to defer visual styling entirely to the target framework's native theme.
+- **Decoupled Branding**: Removes rigid theme properties (removing hardcoded brand colors) to defer visual styling entirely to the target framework's native theme.
 - **Enhanced Catalog Schemas**: Refactors function definitions into object maps for direct O(1) lookups and supports standard JSON Schema metadata fields (`$schema`, `$id`) on inline catalogs.
 - **Strict Identifier & Context Standards**: Enforces Unicode (UAX #31) naming rules across all catalog entities and reserves the `@` namespace for universal system context evaluations (such as `@index`).
 
@@ -138,11 +138,11 @@ The [`agent_to_renderer.json`] schema is the top-level entry point. Every messag
 
 ### The Basic Catalog
 
-The [`catalogs/basic/catalog.json`] schema contains the definitions for all specific UI components (e.g., `Text`, `Button`, `Row`), functions (e.g., `required`, `email`), and the `surfaceProperties` schema.
+The [`catalogs/basic/catalog.json`] schema contains the definitions for all specific UI components (e.g., `Text`, `Button`, `Row`) and functions (e.g., `required`, `email`).
 
 **Swappable Catalogs & Validation:**
 
-The [`agent_to_renderer.json`] envelope schema is designed to be catalog-agnostic. It references components and surfaceProperties using a placeholder filename: `catalog.json` (specifically `$ref: "catalog.json#/$defs/anyComponent"` and `$ref: "catalog.json#/$defs/surfaceProperties"`).
+The [`agent_to_renderer.json`] envelope schema is designed to be catalog-agnostic. It references components using a placeholder filename: `catalog.json` (specifically `$ref: "catalog.json#/$defs/anyComponent"`).
 
 To validate A2UI messages:
 
@@ -182,8 +182,6 @@ One of the components in one of the component lists MUST have an `id` of `root` 
 
 - `surfaceId` (string, required): The unique identifier for the UI surface to be rendered. This must be globally unique for the renderer's lifetime.
 - `catalogId` (string, optional): A string that uniquely identifies the default catalog (components and functions) used for this surface. Note that `catalogId` is a string identifier, not a resolvable URI; while it is conventionally formatted as a URI (e.g., `https://mycompany.com/1.0/somecatalog`) to avoid naming collisions across organizations, it does not need to point to any deployed resource or downloadable file. Components and function calls on this surface that do not explicitly specify their own `catalogId` will use this surface-level default `catalogId`.
-
-- `surfaceProperties` (object, optional): A JSON object containing surface properties (e.g., `agentDisplayName`) defined in the catalog's surfaceProperties schema.
 - `sendDataModel` (boolean, optional): If true, the renderer will send the full data model of this surface in the metadata of every message sent to the agent (via the Transport's metadata mechanism). This ensures the surface owner receives the full current state of the UI alongside the user's action or query. Defaults to false.
 - `components` (array, optional): A list containing UI components for the surface, allowing the renderer to build and populate the UI tree immediately on surface creation. Conforms to the `ComponentsList` schema.
 - `dataModel` (object, optional): A plain JSON object representing the initial root state of the data model.
@@ -196,9 +194,6 @@ One of the components in one of the component lists MUST have an `id` of `root` 
   "createSurface": {
     "surfaceId": "user_profile_card",
     "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
-    "surfaceProperties": {
-      "agentDisplayName": "Weather Bot"
-    },
     "sendDataModel": true,
     "components": [
       {
@@ -459,7 +454,6 @@ Every catalog follows the standard `Catalog` object definition:
 - **instructions** (string, optional): Markdown-formatted design principles, rules, or developer guidelines specific to this catalog. These rules guide LLMs when generating UI layouts under this catalog.
 - **components** (object, optional): A map of supported UI components, where each key is the component type (e.g., `Text`) and its value is its JSON Schema definition. All keys MUST conform to the UAX #31 entity naming rules defined below.
 - **functions** (object, optional): A map of renderer-side validation or utility functions supported by the catalog, where each key is the function name and its value is its definition. All function names MUST conform to the UAX #31 entity naming rules defined below. The renderer determines a function's execution boundary (e.g., rendererOnly status) at runtime by reading its configuration from the active catalog definition.
-- **surfaceProperties** (object, optional): A schema defining the catalog's customizable visual properties.
 
 #### Catalog Entity Naming Rules
 
@@ -490,12 +484,11 @@ To ensure catalog schemas can be translated reliably into alternative, LLM-frien
 1. **Strict Top-Level vs. `$defs` Boundary:**
    - **Top-Level components and functions:** All component and function schemas MUST be declared directly under the top-level keys `"components"` and `"functions"` respectively.
    - **External References inside `$defs`:** Any definition referenced externally (e.g., from the envelope schema `agent_to_renderer.json` or `common_types.json`) MUST reside inside the `"$defs"` object at the catalog root. This strictly includes:
-     - `surfaceProperties`: Referenced as `catalog.json#/$defs/surfaceProperties`.
      - `anyComponent`: Referenced as `catalog.json#/$defs/anyComponent`.
      - `anyFunction`: Referenced as `catalog.json#/$defs/anyFunction`.
 2. **No Custom `$defs` or Helpers:**
    - To prevent unconstrained branching, custom definitions or shared helper schemas inside a catalog are strictly prohibited under `"$defs"`.
-   - The only allowed keys within the catalog's `"$defs"` object are `anyComponent`, `anyFunction`, and `surfaceProperties`.
+   - The only allowed keys within the catalog's `"$defs"` object are `anyComponent` and `anyFunction`.
    - All helper properties (such as common properties factored out of catalog items) MUST be inlined directly inside the properties block of each supporting component schema rather than referenced from a shared helper.
 3. **Restricted `$ref` Targets:**
    - Local `$ref` targets are restricted to referencing the catalog's top-level components or functions (e.g., `#/components/Text`, `#/functions/required`).
@@ -554,7 +547,7 @@ Below is an annotated, fully compliant `catalog.json` schema template (written i
 
 ```jsonc
 {
-  // Rule 7: Strict Top-Level Schema Keys
+  // Strict Top-Level Schema Keys
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
   "protocolVersion": "1.0",
@@ -563,20 +556,20 @@ Below is an annotated, fully compliant `catalog.json` schema template (written i
   "catalogId": "https://example.com/catalogs/custom-v1",
   "instructions": "Design instructions for LLMs when generating layouts under this catalog.",
 
-  // Rule 1: Top-level components declared under top-level "components" map.
+  // Top-level components declared under top-level "components" map.
   "components": {
     "Text": {
       "type": "object",
-      // Rule 5: Components must combine ComponentCommon and local properties using "allOf".
+      // Components must combine ComponentCommon and local properties using "allOf".
       "allOf": [
         {
-          // Rule 3: External references must reference standard types in common_types.json.
+          // External references must reference standard types in common_types.json.
           "$ref": "https://a2ui.org/specification/v1_0/common_types.json#/$defs/ComponentCommon",
         },
         {
           "type": "object",
           "properties": {
-            // Rule 4: Required "component" property must be a constant matching the component key.
+            // Required "component" property must be a constant matching the component key.
             "component": {
               "const": "Text",
             },
@@ -593,16 +586,16 @@ Below is an annotated, fully compliant `catalog.json` schema template (written i
     },
   },
 
-  // Rule 1: Top-level functions declared under top-level "functions" map.
+  // Top-level functions declared under top-level "functions" map.
   "functions": {
     "required": {
       "type": "object",
       "description": "Checks that the value is not null, undefined, or empty.",
-      // Rule 6: Strict function metadata defined outside the properties block.
+      // Strict function metadata defined outside the properties block.
       "returnType": "boolean",
       "callableFrom": "rendererOnly",
       "properties": {
-        // Rule 6: Function call schema requires constant with function's name.
+        // Function call schema requires constant with function's name.
         "call": {
           "const": "required",
         },
@@ -622,21 +615,13 @@ Below is an annotated, fully compliant `catalog.json` schema template (written i
     },
   },
 
-  // Rule 1 & Rule 2: $defs is restricted strictly to surfaceProperties, anyComponent, and anyFunction.
+  // $defs is restricted strictly to anyComponent and anyFunction.
   // Custom definitions or helpers inside a catalog are strictly prohibited under $defs.
   "$defs": {
-    "surfaceProperties": {
-      "type": "object",
-      "properties": {
-        "agentDisplayName": {
-          "type": "string",
-        },
-      },
-    },
     "anyComponent": {
       "oneOf": [
         {
-          // Rule 3: Local refs restricted to top-level components map.
+          // Local refs restricted to top-level components map.
           "$ref": "#/components/Text",
         },
       ],
@@ -647,7 +632,7 @@ Below is an annotated, fully compliant `catalog.json` schema template (written i
     "anyFunction": {
       "oneOf": [
         {
-          // Rule 3: Local refs restricted to top-level functions map.
+          // Local refs restricted to top-level functions map.
           "$ref": "#/functions/required",
         },
       ],
@@ -1057,21 +1042,6 @@ The [`catalogs/basic/catalog.json`] provides the baseline set of components and 
 | **and**            | Logical AND operation on a list of boolean values.                       |
 | **or**             | Logical OR operation on a list of boolean values.                        |
 | **not**            | Logical NOT operation on a boolean value.                                |
-
-### Surface Properties
-
-The basic catalog defines the following surface properties that can be set in the `createSurface` message:
-
-| Property             | Type   | Description                                                                                                  |
-| :------------------- | :----- | :----------------------------------------------------------------------------------------------------------- |
-| **iconUrl**          | URI    | A URL for an image (e.g., logo or avatar) that identifies the agent or tool associated with the surface.     |
-| **agentDisplayName** | String | Text to be displayed next to the surface to identify the agent or tool that created it (e.g. "Weather Bot"). |
-
-#### Identity and attribution
-
-The `iconUrl` and `agentDisplayName` fields are used to provide attribution to the user, identifying which sub-agent or tool is responsible for a particular UI surface.
-
-In multi-agent systems or orchestrators, the orchestrator is responsible for setting or validating these fields. This ensures that the identity displayed to the user matches the actual agent being contacted, preventing malicious agents from impersonating trusted services. For example, an orchestrator might overwrite these fields with the verified identity of the sub-agent before forwarding the `createSurface` message to the renderer.
 
 ### The `formatString` function
 
