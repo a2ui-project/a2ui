@@ -298,17 +298,28 @@ class ExpressCompiler:
                     args = parsed_val.get("args", [])
                     kwargs = parsed_val.get("kwargs", {})
                     target_surf = (
-                        args[0]
-                        if isinstance(args, list) and args and isinstance(args[0], str)
-                        else surface_id
+                        kwargs.get("surfaceId")
+                        if isinstance(kwargs, dict)
+                        and isinstance(kwargs.get("surfaceId"), str)
+                        else (
+                            args[0]
+                            if isinstance(args, list)
+                            and args
+                            and isinstance(args[0], str)
+                            else surface_id
+                        )
                     )
-                    target_cat = kwargs.get(
-                        "catalogId",
-                        args[1]
-                        if isinstance(args, list)
-                        and len(args) > 1
-                        and isinstance(args[1], str)
-                        else catalog_id,
+                    target_cat = (
+                        kwargs.get("catalogId")
+                        if isinstance(kwargs, dict)
+                        and isinstance(kwargs.get("catalogId"), str)
+                        else (
+                            args[1]
+                            if isinstance(args, list)
+                            and len(args) > 1
+                            and isinstance(args[1], str)
+                            else catalog_id
+                        )
                     )
 
                     current_scope = _SurfaceScope(
@@ -320,8 +331,13 @@ class ExpressCompiler:
                     and parsed_val.get("call") == "deleteSurface"
                 ):
                     args = parsed_val.get("args", [])
-                    if args and isinstance(args[0], str):
+                    kwargs = parsed_val.get("kwargs", {})
+                    if isinstance(args, list) and args and isinstance(args[0], str):
                         target_delete_surface_id = args[0]
+                    elif isinstance(kwargs, dict) and isinstance(
+                        kwargs.get("surfaceId"), str
+                    ):
+                        target_delete_surface_id = kwargs["surfaceId"]
                 elif isinstance(parsed_val, dict) and "call" in parsed_val:
                     standalone_function_calls.append((parsed_val, current_scope))
             elif stmt_type == "ASSIGN":

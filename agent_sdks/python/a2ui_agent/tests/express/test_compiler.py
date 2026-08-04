@@ -774,12 +774,25 @@ root = Column(children=[Text("Top Header"), card1, Button("Click", action=Event(
     def test_compilation_surface_directive(self):
         """Validates surface("id") directive sets surfaceId in compiled output."""
         compiler = ExpressCompiler(self.catalog)
-        dsl = """surface("custom-surface-123")
+        dsl = """surface(surfaceId="custom-surface-123", catalogId="custom-catalog-uri")
 root = Text("Hello Surface")"""
         envelopes = compiler.compile(dsl)
         self.assertEqual(len(envelopes), 1)
         self.assertEqual(
             envelopes[0]["createSurface"]["surfaceId"], "custom-surface-123"
+        )
+        self.assertEqual(
+            envelopes[0]["createSurface"]["catalogId"], "custom-catalog-uri"
+        )
+
+    def test_compilation_delete_surface_kwargs(self):
+        """Validates deleteSurface directive with keyword argument surfaceId."""
+        compiler = ExpressCompiler(self.catalog)
+        dsl = 'deleteSurface(surfaceId="custom-surface-456")'
+        envelopes = compiler.compile(dsl)
+        self.assertEqual(len(envelopes), 1)
+        self.assertEqual(
+            envelopes[0]["deleteSurface"]["surfaceId"], "custom-surface-456"
         )
 
     def test_compilation_multi_surface(self):

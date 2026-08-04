@@ -216,9 +216,24 @@ class _ExpressDecompiler:
         components = create_surface.get("components", [])
         data_model = create_surface.get("dataModel", {})
 
+        catalog = self.helper.catalog if self.helper else None
+        default_catalog_id = "https://a2ui.org/catalog.json"
+        if isinstance(catalog, dict):
+            default_catalog_id = catalog.get("catalogId") or default_catalog_id
+        elif catalog and hasattr(catalog, "catalog_id"):
+            default_catalog_id = catalog.catalog_id or default_catalog_id
+        elif (
+            self.helper
+            and hasattr(self.helper, "catalog_model")
+            and getattr(self.helper.catalog_model, "catalog_id", None)
+        ):
+            default_catalog_id = (
+                self.helper.catalog_model.catalog_id or default_catalog_id
+            )
+
         dsl_lines = []
         if surface_id and surface_id != "default_surface":
-            if catalog_id:
+            if catalog_id and catalog_id != default_catalog_id:
                 dsl_lines.append(f'surface("{surface_id}", catalogId="{catalog_id}")')
             else:
                 dsl_lines.append(f'surface("{surface_id}")')
