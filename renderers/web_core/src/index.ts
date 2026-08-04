@@ -186,7 +186,12 @@ export {
 } from './reactivity/signals.js';
 
 import A2uiMessageSchemaRaw from './schemas/server_to_client.json' with {type: 'json'};
+import A2UIClientEventMessage from './v0_8/schemas/server_to_client_with_standard_catalog.json' with {type: 'json'};
 
 export const Schemas = {
   A2uiMessageSchemaRaw,
+  /**
+   * @deprecated Legacy v0.8 schema export. For v0.8 compatibility, import from '@a2ui/web_core/v0_8'.
+   */
+  A2UIClientEventMessage,
 };
