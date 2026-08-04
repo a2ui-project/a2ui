@@ -1,10 +1,10 @@
 # A2UI Inference Formats
 
-This directory contains inference format implementations (`transport`, `express`, `elemental`, `atom`) for the A2UI Python SDK.
+This directory contains inference format implementations (`direct_json`, `express`, `elemental`, `atom`) for the A2UI Python SDK.
 
 ## Design Philosophy
 
-An **Inference Format** defines how an LLM or agent emits UI definitions (e.g. raw Transport JSON, Express DSL, Elemental HTML, or Atom).
+An **Inference Format** defines how an LLM or agent emits UI definitions (e.g. Direct JSON, Express DSL, Elemental HTML, or Atom).
 
 ### Catalog-Agnostic Prompt Generation Rules
 

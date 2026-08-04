@@ -142,14 +142,14 @@ CONVERSATIONAL TEXT RESPONSE
 
 ## 5. The Streaming Parser
 
-The `A2uiStreamParser` uses **regex-based block parsing** to find and extract A2UI JSON payloads from the LLM's text output stream. It buffers incoming chunks and yields standard part representations when a complete block is detected.
+The `DirectJsonStreamParser` uses **regex-based block parsing** to find and extract A2UI JSON payloads from the LLM's text output stream. It buffers incoming chunks and yields standard part representations when a complete block is detected.
 
 ### 1. High-Level Usage
 
 The parser is designed to be fed chunks of text (e.g., from an LLM stream) and returns complete or partial `ResponsePart` objects.
 
 ```python
-parser = A2uiStreamParser(catalog=my_catalog)
+parser = DirectJsonStreamParser(catalog=my_catalog)
 
 for chunk in llm_stream:
     parts = parser.process_chunk(chunk)

@@ -15,7 +15,7 @@
 import pytest
 from a2ui.schema.catalog import A2uiCatalog
 from a2ui.schema.constants import VERSION_0_9
-from a2ui.inference_formats.transport import TransportFormat, TransportParser
+from a2ui.inference_formats.direct_json import DirectJsonFormat, DirectJsonParser
 from a2ui.adk.a2a.part_converter import A2uiPartConverter
 from google.genai import types as genai_types
 from a2ui.inference_formats.experimental.express import ExpressFormat, ExpressParser
@@ -64,8 +64,8 @@ def test_schema_strategy_prompt_generation(test_catalog):
         name="test_catalog", provider=MemoryCatalogProvider(test_catalog.catalog_schema)
     )
 
-    transport_format = TransportFormat(version=VERSION_0_9, catalogs=[config])
-    prompt = transport_format.generate_system_prompt(
+    direct_json_format = DirectJsonFormat(version=VERSION_0_9, catalogs=[config])
+    prompt = direct_json_format.generate_system_prompt(
         role_description="You are a helpful assistant.",
         workflow_description="Please adhere to constraints.",
         include_schema=True,
@@ -79,7 +79,7 @@ def test_schema_strategy_prompt_generation(test_catalog):
 
 
 def test_schema_parser(test_catalog):
-    parser = TransportParser(test_catalog)
+    parser = DirectJsonParser(test_catalog)
     parsed = parser.parse_response(
         '<a2ui-json>[{"createSurface": {"surfaceId": "main", "layout": {"component":'
         ' "Text"}}}]</a2ui-json>'
@@ -89,7 +89,7 @@ def test_schema_parser(test_catalog):
 
 
 def test_schema_parser_with_nested_close_tag(test_catalog):
-    parser = TransportParser(test_catalog)
+    parser = DirectJsonParser(test_catalog)
     # The JSON string literal itself contains '</a2ui-json>'
     response = (
         "<a2ui-json>[{\n"
@@ -112,7 +112,7 @@ def test_schema_parser_with_nested_close_tag(test_catalog):
 
 def test_strategy_based_converters(test_catalog, monkeypatch):
     monkeypatch.setenv("A2UI_VERSION_1_0", "true")
-    # Test JSON default (TransportParser)
+    # Test JSON default (DirectJsonParser)
     json_converter = A2uiPartConverter(a2ui_catalog=test_catalog)
     part_json = genai_types.Part(
         text=(
@@ -141,10 +141,10 @@ def test_supports_streaming_property(test_catalog):
         provider=MemoryCatalogProvider(test_catalog.catalog_schema),
     )
 
-    # 1. TransportFormat parser supports streaming
-    transport_fmt = TransportFormat(version=VERSION_0_9, catalogs=[config])
-    assert transport_fmt.supports_streaming is True
-    assert transport_fmt.parser.supports_streaming is True
+    # 1. DirectJsonFormat parser supports streaming
+    direct_json_fmt = DirectJsonFormat(version=VERSION_0_9, catalogs=[config])
+    assert direct_json_fmt.supports_streaming is True
+    assert direct_json_fmt.parser.supports_streaming is True
 
     # 2. ExpressFormat parser does not support streaming
     express_fmt = ExpressFormat(catalog=test_catalog)
@@ -179,10 +179,10 @@ def test_decompiler_delegation(test_catalog):
             return test_catalog.catalog_schema
 
     config = CatalogConfig(name="test_catalog", provider=DummyProvider())
-    # Verify Transport Parser Decompile
-    transport_fmt = TransportFormat(version=VERSION_0_9, catalogs=[config])
+    # Verify Direct JSON Parser Decompile
+    direct_json_fmt = DirectJsonFormat(version=VERSION_0_9, catalogs=[config])
     payload = {"createSurface": {"surfaceId": "main"}}
-    direct_decompile = transport_fmt.parser.decompile(payload)
+    direct_decompile = direct_json_fmt.parser.decompile(payload)
     assert "createSurface" in direct_decompile
     assert "main" in direct_decompile
 
@@ -205,7 +205,7 @@ def test_decompiler_delegation(test_catalog):
 
     # Verify wrap_decompiled_blocks implementation
     assert (
-        transport_fmt.parser.wrap_decompiled_blocks(["{}", "{}"])
+        direct_json_fmt.parser.wrap_decompiled_blocks(["{}", "{}"])
         == "<a2ui-json>\n{}\n{}\n</a2ui-json>"
     )
     assert (

@@ -33,7 +33,7 @@ async def test_a2ui_system_prompt(tmp_path: Path) -> None:
         '{"catalogId": "https://a2ui.org/test_catalog", "components": {}}'
     )
 
-    solver = format_system_prompt("json", version="0.9.1")
+    solver = format_system_prompt("direct_json", version="0.9.1")
 
     state = TaskState(
         model=ModelName("mock/model"),

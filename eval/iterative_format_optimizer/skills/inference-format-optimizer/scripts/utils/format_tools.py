@@ -35,7 +35,7 @@ if SDK_CORE_SRC not in sys.path:
     sys.path.insert(0, SDK_CORE_SRC)
 
 from a2ui.schema.catalog import CatalogConfig
-from a2ui.inference_formats.transport import TransportFormat
+from a2ui.inference_formats.direct_json import DirectJsonFormat
 
 
 def _load_basic_catalog() -> Any:
@@ -46,10 +46,10 @@ def _load_basic_catalog() -> Any:
     """
     cat_path = str(REPO_ROOT / "specification/v1_0/catalogs/basic/catalog.json")
     cat_cfg = CatalogConfig.from_path("basic", cat_path)
-    transport_format = TransportFormat(
+    direct_json_format = DirectJsonFormat(
         version="1.0", catalogs=[cat_cfg], experiments={"version_1_0"}
     )
-    return transport_format.get_selected_catalog()
+    return direct_json_format.get_selected_catalog()
 
 
 def test_compile_snippet(format_name: str, snippet: str) -> str:
@@ -73,7 +73,7 @@ def test_compile_snippet(format_name: str, snippet: str) -> str:
 
         compiler = AtomCompiler(catalog=cat)
         res = compiler.compile(snippet)
-    elif fmt_lower == "transport":
+    elif fmt_lower in ("direct_json", "transport", "direct"):
         res = json.loads(snippet) if isinstance(snippet, str) else snippet
     elif fmt_lower == "express":
         from a2ui.inference_formats.experimental.express.parser import ExpressParser
@@ -124,7 +124,7 @@ def test_decompile_payload(format_name: str, json_str_or_dict: Any) -> str:
 
         decompiler = AtomDecompiler(catalog=cat)
         return decompiler.decompile(payload)
-    elif fmt_lower == "transport":
+    elif fmt_lower in ("direct_json", "transport", "direct"):
         return json.dumps(payload, indent=2)
     elif fmt_lower == "express":
         from a2ui.inference_formats.experimental.express.parser import ExpressParser
@@ -163,7 +163,7 @@ def test_parse_ast(format_name: str, snippet: str) -> str:
         parser = SExprParser(snippet)
         ast = parser.parse()
         return json.dumps(ast, indent=2)
-    elif fmt_lower == "transport":
+    elif fmt_lower in ("direct_json", "transport", "direct"):
         return json.dumps(json.loads(snippet), indent=2)
     elif fmt_lower == "express":
         from a2ui.inference_formats.experimental.express.parser import ExpressParser

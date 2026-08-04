@@ -121,7 +121,9 @@ def run_evaluation(
         curr = parent
     eval_root = curr
 
-    strategy_name = "direct" if format_name == "transport" else format_name
+    strategy_name = (
+        "direct" if format_name in ("direct_json", "transport") else format_name
+    )
     cmd = [
         _get_uv_binary(),
         "run",

@@ -29,10 +29,26 @@ from .generated.express_parser import ExpressParser
 from .visitor import ExpressAstVisitor, ExpressErrorListener
 from .schema_helper import CatalogSchemaHelper
 from .constants import SurfaceOperation
+from .errors import (
+    ExpressCompilerError,
+    ExpressUnknownPropertyError,
+    ExpressDuplicatePropertyError,
+    ExpressInvalidParamError,
+    ExpressDuplicateParamError,
+    ExpressForbiddenDatabindingError,
+    ExpressUndefinedRootError,
+    ExpressUndefinedChildError,
+)
 
 
 def _set_nested_path(d: dict, path_str: str, val: Any) -> None:
-    """Populates a nested dictionary path from a JSON pointer-like string."""
+    """Populates a nested dictionary path from a JSON pointer-like string.
+
+    Args:
+        d: The target dictionary to mutate.
+        path_str: The data path string (e.g. "$/user/name").
+        val: The value to set at the specified path.
+    """
     if path_str.startswith("$/"):
         clean_path = path_str[2:]
     elif path_str.startswith("$"):
@@ -53,7 +69,14 @@ def _set_nested_path(d: dict, path_str: str, val: Any) -> None:
 
 
 def _schema_allows_databinding(schema: Any) -> bool:
-    """Recursively checks if a property's schema allows a dynamic DataBinding ref."""
+    """Recursively checks if a property's schema allows a dynamic DataBinding ref.
+
+    Args:
+        schema: The JSON schema dict for the target property.
+
+    Returns:
+        True if the schema permits dynamic databinding; False otherwise.
+    """
     if not isinstance(schema, dict):
         return False
     if "$ref" in schema:
@@ -71,6 +94,26 @@ def _schema_allows_databinding(schema: Any) -> bool:
             for sub in schema[key]:
                 if _schema_allows_databinding(sub):
                     return True
+    return False
+
+
+def _has_databinding(v: Any) -> bool:
+    """Recursively checks if a value structure contains a dynamic DataBinding ($path) ref.
+
+    Args:
+        v: The value (dict, list, or primitive) to inspect.
+
+    Returns:
+        True if a dynamic DataBinding is found; False otherwise.
+    """
+    if isinstance(v, dict):
+        if "call" in v or "event" in v or "functionCall" in v:
+            return False
+        if "path" in v and "componentId" not in v:
+            return True
+        return any(_has_databinding(x) for x in v.values())
+    if isinstance(v, list):
+        return any(_has_databinding(x) for x in v)
     return False
 
 
@@ -156,7 +199,7 @@ class ExpressCompiler:
         catalog_id: str = "",
         is_final: bool = True,
         version: Optional[str] = None,
-    ) -> Union[dict, list]:
+    ) -> list[dict[str, Any]]:
         """Compiles plain A2UI Express DSL into standard A2UI wire JSON.
 
         Args:
@@ -167,10 +210,11 @@ class ExpressCompiler:
             version: Target version override ("v0.9", "v0.9.1", or "v1.0").
 
         Returns:
-            The A2UI wire JSON envelope dict (v1.0) or list of message dicts (v0.9).
+            A list of standard A2UI wire JSON message dicts.
 
         Raises:
             ValueError: If the root component variable is missing or unsupported features are used.
+            ExpressCompilerError: If a component property, parameter, databinding, or reference is invalid.
         """
         target_version = version or self.version
         ctx = _CompileContext()
@@ -263,47 +307,45 @@ class ExpressCompiler:
             _set_nested_path(data_model, path_name, compiled_val)
 
         if target_delete_surface_id is not None:
-            return {
+            return [{
                 "version": target_version,
                 SurfaceOperation.DELETE: {"surfaceId": target_delete_surface_id},
-            }
+            }]
 
         if standalone_function_calls:
             if target_version in ("v0.9", "v0.9.1"):
                 raise ValueError(
-                    f"Standalone function calls are not supported in A2UI {target_version}"
+                    "Standalone function calls are not supported in A2UI"
+                    f" {target_version}"
                 )
             first_call = standalone_function_calls[0]
             ctx.inline_counter += 1
             compiled_val = self._compile_value(
                 first_call, raw_symbols, ctx, is_action=False
             )
-            return {
+            return [{
                 "version": target_version,
                 "functionCallId": f"call_{ctx.inline_counter}",
                 SurfaceOperation.CALL_FUNC: {
                     "call": compiled_val.get("call"),
                     "args": compiled_val.get("args", {}),
                 },
-            }
+            }]
 
         compiled_components = []
 
         # Adjacency list flattening starting at root
         if "root" not in raw_symbols:
             if data_path_assignments:
-                return {
+                return [{
                     "version": target_version,
                     SurfaceOperation.UPDATE_DATA: {
                         "surfaceId": surface_id,
                         "path": "/",
                         "value": data_model,
                     },
-                }
-            raise ValueError(
-                "A2UI Express source must define a 'root' variable or have data model"
-                " path assignments."
-            )
+                }]
+            raise ExpressUndefinedRootError("root")
 
         for var_name, ast in raw_symbols.items():
             comp_dict = self._compile_ast_node(var_name, ast, raw_symbols, ctx)
@@ -336,16 +378,14 @@ class ExpressCompiler:
                 },
             ]
             if data_model:
-                messages.append(
-                    {
-                        "version": target_version,
-                        SurfaceOperation.UPDATE_DATA: {
-                            "surfaceId": surface_id,
-                            "path": "/",
-                            "value": data_model,
-                        },
-                    }
-                )
+                messages.append({
+                    "version": target_version,
+                    SurfaceOperation.UPDATE_DATA: {
+                        "surfaceId": surface_id,
+                        "path": "/",
+                        "value": data_model,
+                    },
+                })
             return messages
 
         envelope = {
@@ -359,7 +399,7 @@ class ExpressCompiler:
         if data_model:
             envelope[SurfaceOperation.CREATE]["dataModel"] = data_model
 
-        return envelope
+        return [envelope]
 
     def _compile_ast_node(
         self, var_name: str, ast: Any, raw_symbols: dict, ctx: _CompileContext
@@ -419,8 +459,14 @@ class ExpressCompiler:
                 continue
             prop_arg_pairs.append((k, v))
 
+        seen_properties = set()
         for prop_name, arg in prop_arg_pairs:
-            if isinstance(arg, dict) and arg.get("skipped"):
+            if prop_name not in properties:
+                raise ExpressUnknownPropertyError(comp_name, prop_name, properties)
+            if prop_name in seen_properties:
+                raise ExpressDuplicatePropertyError(comp_name, prop_name)
+            seen_properties.add(prop_name)
+            if arg == {"skipped": True}:
                 comp_dict[prop_name] = None
                 continue
 
@@ -432,24 +478,8 @@ class ExpressCompiler:
             )
             prop_schema = self.helper.get_property_schema(comp_name, prop_name)
             if prop_schema and not _schema_allows_databinding(prop_schema):
-
-                def has_databinding(v: Any) -> bool:
-                    if isinstance(v, dict):
-                        if "call" in v or "event" in v or "functionCall" in v:
-                            return False
-                        if "path" in v and "componentId" not in v:
-                            return True
-                        return any(has_databinding(x) for x in v.values())
-                    if isinstance(v, list):
-                        return any(has_databinding(x) for x in v)
-                    return False
-
-                if has_databinding(mapped_val):
-                    raise ValueError(
-                        f"Property '{prop_name}' of component '{comp_name}' does"
-                        " not support dynamic data bindings (paths). You must"
-                        " provide a static value/array instead."
-                    )
+                if _has_databinding(mapped_val):
+                    raise ExpressForbiddenDatabindingError(comp_name, prop_name)
                 if isinstance(mapped_val, list) and _schema_expects_option_objects(
                     prop_schema
                 ):
@@ -695,7 +725,11 @@ class ExpressCompiler:
                                 compiled_args[fn_props[idx]] = val_item
 
                     for k, v in fn_kwargs.items():
-                        if isinstance(v, dict) and v.get("skipped"):
+                        if k not in fn_props:
+                            raise ExpressInvalidParamError(fn_name, k, fn_props)
+                        if k in compiled_args:
+                            raise ExpressDuplicateParamError(fn_name, k)
+                        if v == {"skipped": True}:
                             continue
                         val_item = self._compile_value(v, raw_symbols, ctx, is_action)
                         if val_item is not None:

@@ -15,7 +15,11 @@
  */
 
 import {Inject, Injectable, InjectionToken, Optional} from '@angular/core';
-import {AngularCatalog, AngularComponentImplementation} from '../types';
+import {
+  AngularCatalog,
+  AngularComponentImplementation,
+  createComponentImplementation,
+} from '../types';
 import {TextComponent} from './text.component';
 import {RowComponent} from './row.component';
 import {ColumnComponent} from './column.component';
@@ -66,24 +70,24 @@ import {FunctionImplementation} from '@a2ui/web_core/v0_9';
 // Ignore Prettier to preserve quoted keys, needed to survive property renaming.
 // prettier-ignore
 const DEFAULT_COMPONENT_IMPLEMENTATIONS: Record<string, AngularComponentImplementation> = {
-  'text': {...TextApi, component: TextComponent},
-  'row': {...RowApi, component: RowComponent},
-  'column': {...ColumnApi, component: ColumnComponent},
-  'button': {...ButtonApi, component: ButtonComponent},
-  'textField': {...TextFieldApi, component: TextFieldComponent},
-  'image': {...ImageApi, component: ImageComponent},
-  'icon': {...IconApi, component: IconComponent},
-  'video': {...VideoApi, component: VideoComponent},
-  'audioPlayer': {...AudioPlayerApi, component: AudioPlayerComponent},
-  'list': {...ListApi, component: ListComponent},
-  'card': {...CardApi, component: CardComponent},
-  'tabs': {...TabsApi, component: TabsComponent},
-  'modal': {...ModalApi, component: ModalComponent},
-  'divider': {...DividerApi, component: DividerComponent},
-  'checkBox': {...CheckBoxApi, component: CheckBoxComponent},
-  'choicePicker': {...ChoicePickerApi, component: ChoicePickerComponent},
-  'slider': {...SliderApi, component: SliderComponent},
-  'dateTimeInput': {...DateTimeInputApi, component: DateTimeInputComponent},
+  'text': createComponentImplementation(TextApi, TextComponent),
+  'row': createComponentImplementation(RowApi, RowComponent),
+  'column': createComponentImplementation(ColumnApi, ColumnComponent),
+  'button': createComponentImplementation(ButtonApi, ButtonComponent),
+  'textField': createComponentImplementation(TextFieldApi, TextFieldComponent),
+  'image': createComponentImplementation(ImageApi, ImageComponent),
+  'icon': createComponentImplementation(IconApi, IconComponent),
+  'video': createComponentImplementation(VideoApi, VideoComponent),
+  'audioPlayer': createComponentImplementation(AudioPlayerApi, AudioPlayerComponent),
+  'list': createComponentImplementation(ListApi, ListComponent),
+  'card': createComponentImplementation(CardApi, CardComponent),
+  'tabs': createComponentImplementation(TabsApi, TabsComponent),
+  'modal': createComponentImplementation(ModalApi, ModalComponent),
+  'divider': createComponentImplementation(DividerApi, DividerComponent),
+  'checkBox': createComponentImplementation(CheckBoxApi, CheckBoxComponent),
+  'choicePicker': createComponentImplementation(ChoicePickerApi, ChoicePickerComponent),
+  'slider': createComponentImplementation(SliderApi, SliderComponent),
+  'dateTimeInput': createComponentImplementation(DateTimeInputApi, DateTimeInputComponent),
 } as const;
 
 /**
@@ -110,11 +114,15 @@ export interface BasicCatalogOptions {
   /**
    * Optional additional components to include in the catalog beyond
    * the standard basic catalog components.
+   *
+   * @deprecated Use AngularCatalog constructor directly to combine BASIC_COMPONENTS with custom ones.
    */
   extraComponents?: AngularComponentImplementation[];
 
   /**
    * An optional set of function implementations to use instead of the defaults.
+   *
+   * @deprecated Use AngularCatalog constructor directly to combine BASIC_FUNCTIONS with custom ones.
    */
   functions?: FunctionImplementation[];
 }

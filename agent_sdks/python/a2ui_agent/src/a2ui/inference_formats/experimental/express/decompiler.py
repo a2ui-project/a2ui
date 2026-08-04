@@ -118,24 +118,37 @@ class _ExpressDecompiler:
         self.helper = CatalogSchemaHelper(catalog)
 
     def wrap_decompiled_blocks(self, blocks: list[str]) -> str:
-        # Merge individual express blocks into a single wrapper block
+        """Wraps individual decompiled A2UI Express DSL blocks within sentinel tags.
+
+        Args:
+            blocks: A list of decompiled A2UI Express DSL statement strings.
+
+        Returns:
+            The merged A2UI Express DSL string enclosed within opening and closing sentinel tags.
+        """
         full_dsl = "\n".join(blocks)
         return f"{A2UI_INFERENCE_OPEN_TAG}\n{full_dsl}\n{A2UI_INFERENCE_CLOSE_TAG}"
 
     def decompile(
         self,
-        envelope_json: dict,
+        envelope_json: Union[dict[str, Any], list[dict[str, Any]]],
         use_keyword_args: bool = False,
-        use_hybrid_nesting: bool = False,
     ) -> str:
         """Decompiles standard A2UI wire JSON into clean A2UI Express lines.
 
         Args:
-            envelope_json: The standard A2UI v1.0 JSON envelope.
+            envelope_json: Standard A2UI wire JSON envelope dict or list of message dicts.
+            use_keyword_args: Whether to format component arguments as keyword parameters (e.g., param=value).
 
         Returns:
             The decompiled A2UI Express DSL string.
         """
+        if isinstance(envelope_json, list):
+            return "\n".join(
+                self.decompile(item, use_keyword_args=use_keyword_args)
+                for item in envelope_json
+                if item
+            )
         # Handle deleteSurface action
         if SurfaceOperation.DELETE in envelope_json:
             surf_op = envelope_json[SurfaceOperation.DELETE]

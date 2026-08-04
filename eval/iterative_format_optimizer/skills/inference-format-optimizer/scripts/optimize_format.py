@@ -214,7 +214,7 @@ def main(argv: Optional[List[str]] = None) -> None:
         "--format",
         type=str,
         required=True,
-        choices=["transport", "express", "elemental", "atom"],
+        choices=["direct_json", "express", "elemental", "atom"],
         help="Target inference format strategy to optimize",
     )
     parser.add_argument(
