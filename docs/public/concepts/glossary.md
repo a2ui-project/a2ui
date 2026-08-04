@@ -61,10 +61,42 @@ A catalog maintained by the A2UI team to get up and running quickly with A2UI.
 
 See the [basic catalog](../specification/v1_0/catalogs/basic/catalog.json).
 
+### Catalog Transformer
+
+A rule set that programmatically filters, adapts, or mutates a pristine **Catalog** before system prompt instructions are generated or payload validation schemas are compiled.
+
+#### Why Catalog Transformers are needed
+
+While a catalog provides a complete specification of all UI components and functions supported by a renderer, agent implementations frequently need to prune or restrict the catalog for specific use cases:
+
+- **Context Window Token Optimization**: A catalog can define dozens of components and logic functions. Injecting all component JSON schemas into an LLM's system prompt consumes significant context window tokens, increases prompt latency, and inflates LLM inference costs. Pruning transformers restrict system prompt instructions to only the subset of components relevant to that agent's domain task.
+- **Task-Specific Capability Guardrails**: Specific agent workflows or security roles may require restricting interactive features (e.g. allowing display cards and text, but disabling form inputs or administrative components in guest mode).
+- **Model Signature Reduction**: Pruning function rules and validation checks to produce compact prompt instruction blocks for smaller or micro LLMs.
+
+#### Example catalog transformers
+
+- `ComponentPruningTransformer`: a utility class that filters the catalog based on a list of allowed component names.
+
+- `FunctionPruningTransformer`: a utility class that filters the catalog based on a list of allowed function names.
+
 ### Surface
 
 An area of UI, constructed by A2UI agent and managed by the A2UI renderer,
 which consists of a number of components. Surfaces cannot nest.
+
+### A2UI Tag
+
+Enclosing delimiter tags (such as `<a2ui-json>`, `<a2ui>`) used to bound A2UI payload code blocks within LLM text output.
+
+Because LLMs stream conversational plain text and UI payloads within the same turn, A2UI Tags serve as explicit syntactic boundaries isolating structured UI blocks from conversational text.
+
+### Tag Unwrapping
+
+The initial phase of response parsing (`unwrap`) where a parser scans LLM text responses for opening and closing **A2UI Tags**, isolating non-UI conversational text (e.g., _"Here is your summary:"_) from enclosed raw UI code blocks.
+
+### Compilation
+
+The second phase of response parsing (`compile`) where raw model-generated UI code string blocks extracted during unwrapping (such as standard JSON, Express DSL syntax, or Elemental HTML tags) are parsed, decompiled, and transformed into standardized A2UI protocol payload dictionaries (`createSurface`, `updateDataModel`).
 
 ### Agent architecture
 
