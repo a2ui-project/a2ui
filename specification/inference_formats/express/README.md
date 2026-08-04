@@ -30,7 +30,7 @@ To run inference and compiler validation using a standard remote Gemini model (e
 
    ```bash
    # Navigate to the express directory
-   cd specification/proposals/express
+   cd specification/inference_formats/express
 
    # Run inference against Gemini API (using the a2ui_agent project environment)
    A2UI_EXPRESS_ENABLED=true uv run --project ../../../agent_sdks/python/a2ui_agent scripts/run_inference.py \
@@ -50,7 +50,7 @@ The script will:
 
 ## CLI utility reference
 
-The `express` package provides standalone developer scripts in `specification/proposals/express/scripts/`. Each script dynamically adjusts python paths during execution, allowing them to run directly from any directory when invoked with the appropriate project environment.
+The `express` package provides standalone developer scripts in `specification/inference_formats/express/scripts/`. Each script dynamically adjusts python paths during execution, allowing them to run directly from any directory when invoked with the appropriate project environment.
 
 ### Direct prompt generation
 

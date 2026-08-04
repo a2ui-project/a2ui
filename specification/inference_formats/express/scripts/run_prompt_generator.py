@@ -24,25 +24,20 @@ import argparse
 import os
 import sys
 
-sys.path.insert(
-    0,
-    os.path.abspath(
-        os.path.join(
-            os.path.dirname(__file__),
-            "..",
-            "..",
-            "..",
-            "..",
-            "agent_sdks",
-            "python",
-            "a2ui_agent",
-            "src",
-        )
-    ),
+ROOT_DIR = os.path.abspath(
+    os.path.join(
+        os.path.dirname(__file__),
+        "..",
+        "..",
+        "..",
+        "..",
+    )
 )
+sys.path.insert(0, os.path.join(ROOT_DIR, "agent_sdks", "python", "a2ui_agent", "src"))
+sys.path.insert(0, os.path.join(ROOT_DIR, "agent_sdks", "python", "a2ui_core", "src"))
 import json
+
 from a2ui.core.catalog import Catalog
-from a2ui.inference_formats.experimental.express.prompt_generator import ExpressPromptGenerator
 
 
 def generate_prompt_text(catalog_path: str) -> str:

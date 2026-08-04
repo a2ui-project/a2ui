@@ -12,19 +12,20 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import json
-import re
-from typing import Any, Optional, List
-from a2ui.schema.catalog import A2uiCatalog
-from a2ui.parser.response_part import ResponsePart
 from a2ui.inference_format import InferenceFormat
 from a2ui.parser.parser import Parser
-from google.adk.utils.feature_decorator import experimental
+from a2ui.schema.catalog import A2uiCatalog
 
-from .prompt_generator import ElementalPromptGenerator
-from .compiler import TAG_PREFIX
+try:
+    from google.adk.utils.feature_decorator import experimental
+except ImportError:
+
+    def experimental(cls):
+        return cls
+
 
 from .parser import ElementalParser
+from .prompt_generator import ElementalPromptGenerator
 
 
 @experimental
@@ -33,14 +34,14 @@ class ElementalFormat(InferenceFormat):
 
     def __init__(
         self,
-        catalog: Optional[A2uiCatalog] = None,
+        catalog: A2uiCatalog | None = None,
         surface_id: str = "main",
-        examples_path: Optional[str] = None,
+        examples_path: str | None = None,
     ):
         self.catalog = catalog
         self.surface_id = surface_id
         self.examples_path = examples_path
-        self._prompt_generator: Optional[ElementalPromptGenerator] = None
+        self._prompt_generator: ElementalPromptGenerator | None = None
 
     def _ensure_catalog(self) -> None:
         if not self.catalog:

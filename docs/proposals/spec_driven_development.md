@@ -242,14 +242,14 @@ This section explains what steps will be taken by developers and agents to perfo
 1. Read the relevant module blueprint
 2. Search for all codebases that associated with the module
 3. Analyse every codebase associated with the module, identifying:
-   1. Required features that are missing from each codebase
-   2. Discrepancies between the blueprint and the actual implementation e.g. API names or structures which are inconsistent
-   3. Discrepancies between the codebases, for which the module blueprint provides no guidance.
+    1. Required features that are missing from each codebase
+    2. Discrepancies between the blueprint and the actual implementation e.g. API names or structures which are inconsistent
+    3. Discrepancies between the codebases, for which the module blueprint provides no guidance.
 4. Report the above and propose actions to take to reduce the inconsistencies including:
-   1. Adding additional detail to the blueprints to reduce ambiguity
-   2. Update the module blueprint to explicitly mark a detail as being a codebase-level decision
-   3. Updating codebases to match the module blueprints
-   4. Update the codebase blueprint to document a reason that it has intentionally deviated from the module blueprint for a language-specific reason.
+    1. Adding additional detail to the blueprints to reduce ambiguity
+    2. Update the module blueprint to explicitly mark a detail as being a codebase-level decision
+    3. Updating codebases to match the module blueprints
+    4. Update the codebase blueprint to document a reason that it has intentionally deviated from the module blueprint for a language-specific reason.
 5. Implement some of the proposed actions, based on human discretion **(significant human input required)**
 6. Send PR for review.
 

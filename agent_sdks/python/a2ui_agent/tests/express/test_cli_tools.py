@@ -14,16 +14,15 @@
 
 """Unit tests for A2UI Express CLI tools/scripts."""
 
+import json
 import os
 import sys
-import json
-import urllib.error
-import unittest
 import tempfile
-from unittest.mock import patch, MagicMock
+import unittest
+import urllib.error
+from unittest.mock import MagicMock, patch
 
-# Add express proposals directory to sys.path to import run_* scripts
-EXPRESS_DIR = os.path.abspath(
+REPO_ROOT = os.path.abspath(
     os.path.join(
         os.path.dirname(__file__),
         "..",
@@ -31,19 +30,32 @@ EXPRESS_DIR = os.path.abspath(
         "..",
         "..",
         "..",
-        "specification",
-        "proposals",
-        "express",
-        "scripts",
     )
+)
+sys.path.insert(0, os.path.join(REPO_ROOT, "agent_sdks", "python", "a2ui_agent", "src"))
+sys.path.insert(0, os.path.join(REPO_ROOT, "agent_sdks", "python", "a2ui_core", "src"))
+
+# Add express inference_formats directory to sys.path to import run_* scripts
+EXPRESS_DIR = os.path.join(
+    REPO_ROOT,
+    "specification",
+    "inference_formats",
+    "express",
+    "scripts",
 )
 sys.path.insert(0, EXPRESS_DIR)
 
 # Import CLI modules
 import run_compiler
 import run_decompiler
-import run_prompt_generator
 import run_inference
+import run_prompt_generator
+
+if "google.genai" not in sys.modules and run_inference.genai is None:
+    mock_genai_mod = MagicMock()
+    sys.modules["google"] = MagicMock()
+    sys.modules["google.genai"] = mock_genai_mod
+    run_inference.genai = mock_genai_mod
 
 # Reference paths to real basic catalog and schemas
 SPEC_DIR = os.path.abspath(
@@ -63,7 +75,7 @@ EXAMPLES_DIR = os.path.join(SPEC_DIR, "catalogs", "basic", "examples")
 
 
 class TestCliTools(unittest.TestCase):
-    """Validates all CLI tools under specification/proposals/express/."""
+    """Validates all CLI tools under specification/inference_formats/express/."""
 
     def setUp(self):
         self.temp_dir = tempfile.TemporaryDirectory()

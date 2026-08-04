@@ -29,8 +29,8 @@ import argparse
 import json
 import os
 import sys
-import urllib.request
 import urllib.error
+import urllib.request
 
 try:
     # pylint: disable=import-error
@@ -38,29 +38,22 @@ try:
 except ImportError:
     genai = None
 
-# Support direct script execution from any directory
-sys.path.insert(
-    0,
-    os.path.abspath(
-        os.path.join(
-            os.path.dirname(__file__),
-            "..",
-            "..",
-            "..",
-            "..",
-            "agent_sdks",
-            "python",
-            "a2ui_agent",
-            "src",
-        )
-    ),
+ROOT_DIR = os.path.abspath(
+    os.path.join(
+        os.path.dirname(__file__),
+        "..",
+        "..",
+        "..",
+        "..",
+    )
 )
+sys.path.insert(0, os.path.join(ROOT_DIR, "agent_sdks", "python", "a2ui_agent", "src"))
+sys.path.insert(0, os.path.join(ROOT_DIR, "agent_sdks", "python", "a2ui_core", "src"))
 
 # pylint: disable=import-error, wrong-import-position
-import json
 from a2ui.core.catalog import Catalog
 from a2ui.inference_formats.experimental.express.compiler import ExpressCompiler
-from a2ui.inference_formats.experimental.express.prompt_generator import ExpressPromptGenerator
+
 # pylint: enable=import-error, wrong-import-position
 
 

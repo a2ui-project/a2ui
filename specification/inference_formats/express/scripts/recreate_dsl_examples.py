@@ -26,27 +26,20 @@ import os
 import sys
 
 # Support direct execution and locate the agent SDK packages
-sys.path.insert(
-    0,
-    os.path.abspath(
-        os.path.join(
-            os.path.dirname(__file__),
-            "..",
-            "..",
-            "..",
-            "..",
-            "agent_sdks",
-            "python",
-            "a2ui_agent",
-            "src",
-        )
-    ),
+ROOT_DIR = os.path.abspath(
+    os.path.join(
+        os.path.dirname(__file__),
+        "..",
+        "..",
+        "..",
+        "..",
+    )
 )
+sys.path.insert(0, os.path.join(ROOT_DIR, "agent_sdks", "python", "a2ui_agent", "src"))
+sys.path.insert(0, os.path.join(ROOT_DIR, "agent_sdks", "python", "a2ui_core", "src"))
 
-import json
 from a2ui.core.catalog import Catalog
 from a2ui.inference_formats.experimental.express.compiler import ExpressCompiler
-from a2ui.inference_formats.experimental.express.prompt_generator import ExpressPromptGenerator
 
 WEATHER_DSL = """<a2ui>
 $/forecast = [{"day": "Monday", "icon": "https://img.icons8.com/color/48/000000/sun.png", "temp": "72°F / 55°F"}, {"day": "Tuesday", "icon": "https://img.icons8.com/color/48/000000/partly-cloudy-day.png", "temp": "68°F / 50°F"}, {"day": "Wednesday", "icon": "https://img.icons8.com/color/48/000000/rain.png", "temp": "60°F / 48°F"}, {"day": "Thursday", "icon": "https://img.icons8.com/color/48/000000/partly-cloudy-day.png", "temp": "65°F / 52°F"}, {"day": "Friday", "icon": "https://img.icons8.com/color/48/000000/sun.png", "temp": "70°F / 54°F"}]

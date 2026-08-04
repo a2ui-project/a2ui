@@ -12,17 +12,20 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import json
-import re
-from typing import Any, Optional, List
-from a2ui.schema.catalog import A2uiCatalog
-from a2ui.parser.response_part import ResponsePart
 from a2ui.inference_format import InferenceFormat
 from a2ui.parser.parser import Parser
-from google.adk.utils.feature_decorator import experimental
+from a2ui.schema.catalog import A2uiCatalog
 
-from .prompt_generator import ExpressPromptGenerator
+try:
+    from google.adk.utils.feature_decorator import experimental
+except ImportError:
+
+    def experimental(cls):
+        return cls
+
+
 from .parser import ExpressParser
+from .prompt_generator import ExpressPromptGenerator
 
 
 @experimental
@@ -31,9 +34,9 @@ class ExpressFormat(InferenceFormat):
 
     def __init__(
         self,
-        catalog: Optional[A2uiCatalog] = None,
+        catalog: A2uiCatalog | None = None,
         surface_id: str = "main",
-        examples_path: Optional[str] = None,
+        examples_path: str | None = None,
         version: str = "v1.0",
     ):
         """Initializes the Express DSL inference format.
@@ -48,7 +51,7 @@ class ExpressFormat(InferenceFormat):
         self.surface_id = surface_id
         self.examples_path = examples_path
         self.version = version
-        self._prompt_generator: Optional[ExpressPromptGenerator] = None
+        self._prompt_generator: ExpressPromptGenerator | None = None
 
     def _ensure_catalog(self) -> None:
         """Ensures a valid catalog is set, raising ValueError otherwise.

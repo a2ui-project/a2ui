@@ -135,7 +135,9 @@ class TestExpressIntegration(unittest.TestCase):
         """Verifies that all human-authored .a2ui examples compile to match their JSON counterparts."""
         compiler = ExpressCompiler(self.catalog)
 
-        a2ui_dir = os.path.join(SPEC_DIR, "..", "proposals", "express", "examples")
+        a2ui_dir = os.path.join(
+            SPEC_DIR, "..", "inference_formats", "express", "examples"
+        )
         a2ui_files = glob.glob(os.path.join(a2ui_dir, "*.a2ui"))
         self.assertEqual(
             len(a2ui_files), 36, f"Expected 36 a2ui files, found {len(a2ui_files)}"
