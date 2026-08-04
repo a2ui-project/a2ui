@@ -368,7 +368,7 @@ struct MessageProcessorTests {
 
   // MARK: - getClientCapabilities
 
-  @Test func getClientCapabilitiesReturnsSupportedCatalogIds() throws {
+  @Test func getClientCapabilitiesReturnsSupportedCatalogIDs() throws {
     let (processor, _) = try makeProcessor()
     let caps = processor.getClientCapabilities()
     #expect(caps["v0.9.1"]?["supportedCatalogIds"]?.arrayValue?.first?.stringValue == "default")

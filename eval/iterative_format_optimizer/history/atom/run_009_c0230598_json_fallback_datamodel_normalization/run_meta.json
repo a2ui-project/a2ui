@@ -1,0 +1,14 @@
+{
+  "hypothesis": "Recursively clean and normalize dataModel maps in AtomCompiler for both S-expressions and JSON fallback responses.",
+  "notes": "Reverted. Schema Accuracy regressed from 100.0% to 83.3% (-16.7%) due to missing action property on button trigger in Sample 5 when JSON fallback occurred.",
+  "status": "Backtracked",
+  "metrics": {
+    "schema_acc": 0.0,
+    "quality_acc": 0.0,
+    "code_tokens_median": 298.5,
+    "reasoning_tokens_median": 6183.0,
+    "input_tokens_median": 4436.5,
+    "latency_seconds_median": 0.0,
+    "total_samples": 0
+  }
+}

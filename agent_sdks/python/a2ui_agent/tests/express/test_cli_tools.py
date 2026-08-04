@@ -116,9 +116,11 @@ class TestCliTools(unittest.TestCase):
 
     def test_compiler_dsl_file_compilation(self):
         """Verifies compilation of a DSL file."""
-        envelope = run_compiler.compile_dsl_file(
+        res = run_compiler.compile_dsl_file(
             self.dsl_file, CATALOG_PATH, "my_surface", "my_catalog"
         )
+        self.assertIsInstance(res, list)
+        envelope = res[0]
         self.assertEqual(envelope["version"], "v1.0")
         self.assertEqual(envelope["createSurface"]["surfaceId"], "my_surface")
         self.assertEqual(envelope["createSurface"]["catalogId"], "my_catalog")
@@ -151,7 +153,7 @@ class TestCliTools(unittest.TestCase):
 
         printed = "".join(call.args[0] for call in mock_stdout.write.call_args_list)
         compiled = json.loads(printed)
-        self.assertEqual(compiled["createSurface"]["surfaceId"], "cli_surface")
+        self.assertEqual(compiled[0]["createSurface"]["surfaceId"], "cli_surface")
 
     @patch("sys.stderr")
     def test_compiler_main_cli_error(self, mock_stderr):
@@ -216,7 +218,7 @@ class TestCliTools(unittest.TestCase):
     def test_prompt_generator(self):
         """Verifies direct prompt text generation."""
         prompt = run_prompt_generator.generate_prompt_text(CATALOG_PATH)
-        self.assertIn("A2UI Express Output Contract", prompt)
+        self.assertIn("A2UI Express DSL Output Contract", prompt)
         self.assertIn("Button(", prompt)
 
         with self.assertRaises(FileNotFoundError):
@@ -236,7 +238,7 @@ class TestCliTools(unittest.TestCase):
             self.assertEqual(cm.exception.code, 0)
 
         printed = "".join(call.args[0] for call in mock_stdout.write.call_args_list)
-        self.assertIn("A2UI Express Output Contract", printed)
+        self.assertIn("A2UI Express DSL Output Contract", printed)
 
     @patch("sys.stderr")
     def test_prompt_generator_main_cli_error(self, mock_stderr):
@@ -279,7 +281,7 @@ class TestCliTools(unittest.TestCase):
             is_mlx=True,
         )
         self.assertIn("Hello MLX", dsl_output)
-        self.assertEqual(compiled_json["version"], "v1.0")
+        self.assertEqual(compiled_json[0]["version"], "v1.0")
 
     @patch("urllib.request.urlopen")
     def test_run_inference_mlx_error_empty_choices(self, mock_urlopen):

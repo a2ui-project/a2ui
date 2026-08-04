@@ -33,7 +33,7 @@ async def test_a2ui_system_prompt(tmp_path: Path) -> None:
         '{"catalogId": "https://a2ui.org/test_catalog", "components": {}}'
     )
 
-    solver = format_system_prompt("json", version="0.9.1")
+    solver = format_system_prompt("direct_json", version="0.9.1")
 
     state = TaskState(
         model=ModelName("mock/model"),
@@ -137,7 +137,7 @@ async def test_a2ui_express_solvers() -> None:
         state = await prompt_solver(state, dummy_generate)
         assert len(state.messages) == 1
         assert state.messages[0].role == "system"
-        assert "A2UI Express Output Contract" in state.messages[0].content
+        assert "A2UI Express DSL Output Contract" in state.messages[0].content
 
         # 2. Test Compile Solver
         compile_solver = compile_format_payload("express", version="1.0")

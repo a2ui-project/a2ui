@@ -32,7 +32,7 @@ from inspect_ai.model import (
 )
 from inspect_ai.tool import tool, Tool
 from inspect_ai.util import store
-from a2ui.inference_formats.transport import TransportFormat
+from a2ui.inference_formats.direct_json import DirectJsonFormat
 from a2ui.schema.catalog import CatalogConfig
 from a2ui.parser.parser import parse_response
 from ..shared.utils import GIT_ROOT, measured_generate
@@ -55,7 +55,7 @@ def a2ui_specialist() -> Tool:
         resolved_catalog_path = str(GIT_ROOT / catalog_path)
 
         catalog_config = CatalogConfig.from_path("basic_catalog", resolved_catalog_path)
-        transport_format = TransportFormat(
+        direct_json_format = DirectJsonFormat(
             version=version,
             catalogs=[catalog_config],
             experiments={"version_1_0"} if version == "1.0" else None,
@@ -64,7 +64,7 @@ def a2ui_specialist() -> Tool:
         role_description = store().get("role_description")
         workflow_description = store().get("workflow_description")
 
-        system_content = transport_format.prompt_generator.generate(
+        system_content = direct_json_format.prompt_generator.generate(
             role_description=role_description,
             workflow_description=workflow_description,
             include_schema=True,

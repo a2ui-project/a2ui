@@ -18,9 +18,8 @@ import pytest
 
 from a2ui.basic_catalog import BasicCatalog
 from a2ui.schema.catalog import A2uiCatalog
-from a2ui.inference_formats.transport.streaming import TransportStreamParser
+from a2ui.inference_formats.direct_json import DirectJsonFormat, DirectJsonStreamParser
 from a2ui.validation.validator import A2uiValidator
-from a2ui.inference_formats.transport import TransportFormat
 from a2ui.schema.catalog import CatalogConfig
 from a2ui.schema.common_modifiers import remove_strict_validation
 from a2ui.schema.constants import VERSION_0_8, VERSION_0_9
@@ -183,7 +182,7 @@ cases_parser = get_conformance_cases("streaming_parser.yaml")
 def test_parser_conformance(name, test_case):
     catalog_config = test_case["catalog"]
     catalog = setup_catalog(catalog_config)
-    parser = TransportStreamParser(catalog=catalog)
+    parser = DirectJsonStreamParser(catalog=catalog)
     if test_case.get("disable_validation"):
         parser._validator = None
 
@@ -358,7 +357,7 @@ def test_schema_manager_conformance(name, test_case):
                 )
             )
 
-        transport_format = TransportFormat(
+        direct_json_format = DirectJsonFormat(
             version=VERSION_0_9,
             catalogs=configs,
             accepts_inline_catalogs=accepts_inline_catalogs,
@@ -366,9 +365,9 @@ def test_schema_manager_conformance(name, test_case):
 
         if "expect_error" in test_case:
             with assert_raises(test_case["expect_error"]):
-                transport_format.get_selected_catalog(client_capabilities)
+                direct_json_format.get_selected_catalog(client_capabilities)
         else:
-            selected = transport_format.get_selected_catalog(client_capabilities)
+            selected = direct_json_format.get_selected_catalog(client_capabilities)
             if "expect_selected" in test_case:
                 assert selected.catalog_id == test_case["expect_selected"]
             if "expect_catalog_schema" in test_case:
@@ -388,16 +387,16 @@ def test_schema_manager_conformance(name, test_case):
             configs.append(
                 CatalogConfig.from_path(name=cfg["name"], catalog_path=full_path)
             )
-        transport_format = TransportFormat(
+        direct_json_format = DirectJsonFormat(
             version=VERSION_0_8, catalogs=configs, schema_modifiers=schema_modifiers
         )
-        selected = transport_format.get_selected_catalog()
+        selected = direct_json_format.get_selected_catalog()
         expected = test_case["expect"]
         if "catalog_schema" in expected:
             assert selected.catalog_schema == expected["catalog_schema"]
         if "supported_catalog_ids" in expected:
             assert [
-                c.catalog_id for c in transport_format._supported_catalogs
+                c.catalog_id for c in direct_json_format._supported_catalogs
             ] == expected["supported_catalog_ids"]
 
     elif action == "generate_prompt":
@@ -420,13 +419,13 @@ def test_schema_manager_conformance(name, test_case):
                 examples_path=examples_path,
             )
 
-        transport_format = TransportFormat(
+        direct_json_format = DirectJsonFormat(
             version=version,
             catalogs=[config],
             accepts_inline_catalogs=args.get("accepts_inline_catalogs", False),
         )
 
-        output = transport_format.generate_system_prompt(
+        output = direct_json_format.generate_system_prompt(
             role_description=role,
             workflow_description=workflow,
             ui_description=ui_desc,

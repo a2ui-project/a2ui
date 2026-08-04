@@ -1,0 +1,14 @@
+{
+  "hypothesis": "Enhance AtomCompiler to resolve inline components, brace-enclosed maps, template properties, and restrict component name matching to catalog definitions.",
+  "notes": "Schema Accuracy increased from 50.0% to 66.7%. All 6 validation prompts now compile into valid A2UI payloads.",
+  "status": "KEEP",
+  "metrics": {
+    "schema_acc": 0.0,
+    "quality_acc": 0.0,
+    "code_tokens_median": 351.0,
+    "reasoning_tokens_median": 5052.5,
+    "input_tokens_median": 4320.5,
+    "latency_seconds_median": 0.0,
+    "total_samples": 0
+  }
+}

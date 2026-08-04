@@ -36,7 +36,7 @@ The major differences between version 1.0 and 0.9 (including 0.9.1) are:
 
 - **Bidirectional RPC Messaging**: Supports synchronous agent responses to renderer actions (`actionResponse`) and remote agent-initiated function execution (`callFunction` / `functionResponse`) verified against runtime catalog definitions.
 - **Single-Message UI Instantiation**: Allows initial component trees and data models to be embedded directly within `createSurface`, enabling complete UI composition in a single payload.
-- **Decoupled Branding**: Replaces rigid theme properties with extensible `surfaceProperties` (removing hardcoded brand colors) to defer visual styling entirely to the target framework's native theme.
+- **Decoupled Branding**: Removes rigid theme properties (removing hardcoded brand colors) to defer visual styling entirely to the target framework's native theme.
 - **Enhanced Catalog Schemas**: Refactors function definitions into object maps for direct O(1) lookups and supports standard JSON Schema metadata fields (`$schema`, `$id`) on inline catalogs.
 - **Strict Identifier & Context Standards**: Enforces Unicode (UAX #31) naming rules across all catalog entities and reserves the `@` namespace for universal system context evaluations (such as `@index`).
 
@@ -138,11 +138,11 @@ The [`agent_to_renderer.json`] schema is the top-level entry point. Every messag
 
 ### The Basic Catalog
 
-The [`catalogs/basic/catalog.json`] schema contains the definitions for all specific UI components (e.g., `Text`, `Button`, `Row`), functions (e.g., `required`, `email`), and the `surfaceProperties` schema.
+The [`catalogs/basic/catalog.json`] schema contains the definitions for all specific UI components (e.g., `Text`, `Button`, `Row`) and functions (e.g., `required`, `email`).
 
 **Swappable Catalogs & Validation:**
 
-The [`agent_to_renderer.json`] envelope schema is designed to be catalog-agnostic. It references components and surfaceProperties using a placeholder filename: `catalog.json` (specifically `$ref: "catalog.json#/$defs/anyComponent"` and `$ref: "catalog.json#/$defs/surfaceProperties"`).
+The [`agent_to_renderer.json`] envelope schema is designed to be catalog-agnostic. It references components using a placeholder filename: `catalog.json` (specifically `$ref: "catalog.json#/$defs/anyComponent"`).
 
 To validate A2UI messages:
 
@@ -176,14 +176,12 @@ This message signals the renderer to create a new surface and begin rendering it
 
 It is an error to try to create a surface with a `surfaceId` that already exists without first deleting it; `surfaceId` must be globally unique for the renderer's lifetime. Orchestrators with subagents are empowered to manage surface IDs as needed to prevent conflicts (e.g., prefixing the subagent's name to the `surfaceId` or requiring subagents to use UUIDs).
 
-One of the components in one of the component lists MUST have an `id` of `root` to serve as the root of the component tree.
+The `createSurface` message implicitly instantiates the canonical `Surface` container component (`common_types.json#/$defs/Surface`). The `Surface` component always has `"child": "root"` and cannot be modified using `updateComponents`. To render the component tree, one of the components sent to the surface MUST have `"id": "root"`, which mounts as the child of `Surface`.
 
 **Properties:**
 
 - `surfaceId` (string, required): The unique identifier for the UI surface to be rendered. This must be globally unique for the renderer's lifetime.
 - `catalogId` (string, optional): A string that uniquely identifies the default catalog (components and functions) used for this surface. Note that `catalogId` is a string identifier, not a resolvable URI; while it is conventionally formatted as a URI (e.g., `https://mycompany.com/1.0/somecatalog`) to avoid naming collisions across organizations, it does not need to point to any deployed resource or downloadable file. Components and function calls on this surface that do not explicitly specify their own `catalogId` will use this surface-level default `catalogId`.
-
-- `surfaceProperties` (object, optional): A JSON object containing surface properties (e.g., `agentDisplayName`) defined in the catalog's surfaceProperties schema.
 - `sendDataModel` (boolean, optional): If true, the renderer will send the full data model of this surface in the metadata of every message sent to the agent (via the Transport's metadata mechanism). This ensures the surface owner receives the full current state of the UI alongside the user's action or query. Defaults to false.
 - `components` (array, optional): A list containing UI components for the surface, allowing the renderer to build and populate the UI tree immediately on surface creation. Conforms to the `ComponentsList` schema.
 - `dataModel` (object, optional): A plain JSON object representing the initial root state of the data model.
@@ -196,9 +194,6 @@ One of the components in one of the component lists MUST have an `id` of `root` 
   "createSurface": {
     "surfaceId": "user_profile_card",
     "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
-    "surfaceProperties": {
-      "agentDisplayName": "Weather Bot"
-    },
     "sendDataModel": true,
     "components": [
       {
@@ -221,7 +216,7 @@ One of the components in one of the component lists MUST have an `id` of `root` 
 
 ### `updateComponents`
 
-This message provides a list of UI components to be added to or updated within a specific surface. The components are provided as a flat list, and their relationships are defined by ID references in an adjacency list. This message may only be sent to a surface that has already been created. Note that components may reference children or data bindings that do not yet exist; renderers should handle this gracefully by rendering placeholders (progressive rendering).
+This message provides a flat list of UI components to add or update within a specific surface. Relationships between components are defined by ID references in an adjacency list. The component with `"id": "root"` mounts as the child of the surface's canonical `Surface` container. You cannot modify the `Surface` container itself using `updateComponents`. This message may only be sent to a surface that has already been created. Because components may reference children or data bindings that do not yet exist, renderers should handle missing references gracefully by rendering placeholders (progressive rendering).
 
 **Properties:**
 
@@ -459,7 +454,6 @@ Every catalog follows the standard `Catalog` object definition:
 - **instructions** (string, optional): Markdown-formatted design principles, rules, or developer guidelines specific to this catalog. These rules guide LLMs when generating UI layouts under this catalog.
 - **components** (object, optional): A map of supported UI components, where each key is the component type (e.g., `Text`) and its value is its JSON Schema definition. All keys MUST conform to the UAX #31 entity naming rules defined below.
 - **functions** (object, optional): A map of renderer-side validation or utility functions supported by the catalog, where each key is the function name and its value is its definition. All function names MUST conform to the UAX #31 entity naming rules defined below. The renderer determines a function's execution boundary (e.g., rendererOnly status) at runtime by reading its configuration from the active catalog definition.
-- **surfaceProperties** (object, optional): A schema defining the catalog's customizable visual properties.
 
 #### Catalog Entity Naming Rules
 
@@ -468,6 +462,7 @@ To ensure complete cross-language compatibility across renderer SDKs, parsers, a
 1. **Permitted Characters**: Identifiers must begin with a character in the Unicode property class `XID_Start` or an underscore (`_`, `U+005F`). Subsequent characters must belong to the Unicode property class `XID_Continue`.
 2. **Prohibited Initial Characters**: Identifiers MUST NOT begin with a decimal digit (Unicode general category `Nd`).
 3. **Prohibited Symbols and Whitespace**: Identifiers MUST NOT contain any whitespace or symbols matching the Unicode character property classes `Pattern_Syntax` or `Pattern_White_Space`, other than underscores.
+4. **Reserved Component Names**: The protocol reserves the component type name `"Surface"` for the canonical surface container created by `createSurface`. Catalogs MUST NOT define a standard UI component named `"Surface"`.
 
 ##### Canonical Regular Expression
 
@@ -490,12 +485,11 @@ To ensure catalog schemas can be translated reliably into alternative, LLM-frien
 1. **Strict Top-Level vs. `$defs` Boundary:**
    - **Top-Level components and functions:** All component and function schemas MUST be declared directly under the top-level keys `"components"` and `"functions"` respectively.
    - **External References inside `$defs`:** Any definition referenced externally (e.g., from the envelope schema `agent_to_renderer.json` or `common_types.json`) MUST reside inside the `"$defs"` object at the catalog root. This strictly includes:
-     - `surfaceProperties`: Referenced as `catalog.json#/$defs/surfaceProperties`.
      - `anyComponent`: Referenced as `catalog.json#/$defs/anyComponent`.
      - `anyFunction`: Referenced as `catalog.json#/$defs/anyFunction`.
 2. **No Custom `$defs` or Helpers:**
    - To prevent unconstrained branching, custom definitions or shared helper schemas inside a catalog are strictly prohibited under `"$defs"`.
-   - The only allowed keys within the catalog's `"$defs"` object are `anyComponent`, `anyFunction`, and `surfaceProperties`.
+   - The only allowed keys within the catalog's `"$defs"` object are `anyComponent` and `anyFunction`.
    - All helper properties (such as common properties factored out of catalog items) MUST be inlined directly inside the properties block of each supporting component schema rather than referenced from a shared helper.
 3. **Restricted `$ref` Targets:**
    - Local `$ref` targets are restricted to referencing the catalog's top-level components or functions (e.g., `#/components/Text`, `#/functions/required`).
@@ -554,7 +548,7 @@ Below is an annotated, fully compliant `catalog.json` schema template (written i
 
 ```jsonc
 {
-  // Rule 7: Strict Top-Level Schema Keys
+  // Strict Top-Level Schema Keys
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
   "protocolVersion": "1.0",
@@ -563,20 +557,20 @@ Below is an annotated, fully compliant `catalog.json` schema template (written i
   "catalogId": "https://example.com/catalogs/custom-v1",
   "instructions": "Design instructions for LLMs when generating layouts under this catalog.",
 
-  // Rule 1: Top-level components declared under top-level "components" map.
+  // Top-level components declared under top-level "components" map.
   "components": {
     "Text": {
       "type": "object",
-      // Rule 5: Components must combine ComponentCommon and local properties using "allOf".
+      // Components must combine ComponentCommon and local properties using "allOf".
       "allOf": [
         {
-          // Rule 3: External references must reference standard types in common_types.json.
+          // External references must reference standard types in common_types.json.
           "$ref": "https://a2ui.org/specification/v1_0/common_types.json#/$defs/ComponentCommon",
         },
         {
           "type": "object",
           "properties": {
-            // Rule 4: Required "component" property must be a constant matching the component key.
+            // Required "component" property must be a constant matching the component key.
             "component": {
               "const": "Text",
             },
@@ -593,16 +587,16 @@ Below is an annotated, fully compliant `catalog.json` schema template (written i
     },
   },
 
-  // Rule 1: Top-level functions declared under top-level "functions" map.
+  // Top-level functions declared under top-level "functions" map.
   "functions": {
     "required": {
       "type": "object",
       "description": "Checks that the value is not null, undefined, or empty.",
-      // Rule 6: Strict function metadata defined outside the properties block.
+      // Strict function metadata defined outside the properties block.
       "returnType": "boolean",
       "callableFrom": "rendererOnly",
       "properties": {
-        // Rule 6: Function call schema requires constant with function's name.
+        // Function call schema requires constant with function's name.
         "call": {
           "const": "required",
         },
@@ -622,21 +616,13 @@ Below is an annotated, fully compliant `catalog.json` schema template (written i
     },
   },
 
-  // Rule 1 & Rule 2: $defs is restricted strictly to surfaceProperties, anyComponent, and anyFunction.
+  // $defs is restricted strictly to anyComponent and anyFunction.
   // Custom definitions or helpers inside a catalog are strictly prohibited under $defs.
   "$defs": {
-    "surfaceProperties": {
-      "type": "object",
-      "properties": {
-        "agentDisplayName": {
-          "type": "string",
-        },
-      },
-    },
     "anyComponent": {
       "oneOf": [
         {
-          // Rule 3: Local refs restricted to top-level components map.
+          // Local refs restricted to top-level components map.
           "$ref": "#/components/Text",
         },
       ],
@@ -647,7 +633,7 @@ Below is an annotated, fully compliant `catalog.json` schema template (written i
     "anyFunction": {
       "oneOf": [
         {
-          // Rule 3: Local refs restricted to top-level functions map.
+          // Local refs restricted to top-level functions map.
           "$ref": "#/functions/required",
         },
       ],
@@ -688,6 +674,56 @@ flowchart TD
     A -- "Parsed and stored" --> E
 
 ```
+
+#### Composition validation rules
+
+To validate component nesting hierarchies, A2UI component catalogs support composition constraints via `allowedParents` and `allowedChildren`. You define these constraints on component type definitions in the catalog JSON Schema, and the renderer evaluates them against the component tree at runtime.
+
+1. **Composition Constraints**:
+   - `allowedParents` (array of strings, optional): The list of parent component type names that can contain this component type. If omitted, all parent component types are allowed.
+   - `allowedChildren` (array of strings, optional): The list of child component type names allowed inside this container or slot. If omitted, all child component types are allowed.
+2. **`"Surface"` Container Component**:
+   - The protocol reserves the component type name `"Surface"` for the canonical surface container.
+   - The `createSurface` message implicitly creates this container (`common_types.json#/$defs/Surface`) with `"child": "root"`. You cannot modify `Surface` using `updateComponents`.
+   - Parent-child validation applies uniformly across the entire component tree, with `Surface` acting as the top-level container parent.
+3. **Catalog Schema Examples**:
+   - **Top-Level Component**: To restrict a component so it can appear only as the top-level component (`"id": "root"`) of a surface:
+     ```json
+     {
+       "AppLayout": {
+         "type": "object",
+         "allowedParents": ["Surface"],
+         "properties": {
+           "component": {"const": "AppLayout"}
+         }
+       }
+     }
+     ```
+   - **Top-Level or Container Union**: To allow a component as either the top-level component (`"id": "root"`) of a surface or a child of a specific container:
+     ```json
+     {
+       "Card": {
+         "type": "object",
+         "allowedParents": ["Surface", "CanvasContainer"]
+       }
+     }
+     ```
+   - **Container-Restricted Components**: To restrict a child component so it can appear only within a specific parent container:
+     ```json
+     {
+       "Menu": {
+         "type": "object",
+         "allowedChildren": ["MenuItem"]
+       },
+       "MenuItem": {
+         "type": "object",
+         "allowedParents": ["Menu"]
+       }
+     }
+     ```
+4. **Validation Error Codes**:
+   - If a component is placed under an unallowed parent, the renderer emits a validation error message with `code` set to `"UNALLOWED_PARENT"`.
+   - If an unallowed child component is placed inside a container, the renderer emits a validation error message with `code` set to `"UNALLOWED_CHILD"`.
 
 ### Defining actions
 
@@ -1058,21 +1094,6 @@ The [`catalogs/basic/catalog.json`] provides the baseline set of components and 
 | **or**             | Logical OR operation on a list of boolean values.                        |
 | **not**            | Logical NOT operation on a boolean value.                                |
 
-### Surface Properties
-
-The basic catalog defines the following surface properties that can be set in the `createSurface` message:
-
-| Property             | Type   | Description                                                                                                  |
-| :------------------- | :----- | :----------------------------------------------------------------------------------------------------------- |
-| **iconUrl**          | URI    | A URL for an image (e.g., logo or avatar) that identifies the agent or tool associated with the surface.     |
-| **agentDisplayName** | String | Text to be displayed next to the surface to identify the agent or tool that created it (e.g. "Weather Bot"). |
-
-#### Identity and attribution
-
-The `iconUrl` and `agentDisplayName` fields are used to provide attribution to the user, identifying which sub-agent or tool is responsible for a particular UI surface.
-
-In multi-agent systems or orchestrators, the orchestrator is responsible for setting or validating these fields. This ensures that the identity displayed to the user matches the actual agent being contacted, preventing malicious agents from impersonating trusted services. For example, an orchestrator might overwrite these fields with the verified identity of the sub-agent before forwarding the `createSurface` message to the renderer.
-
 ### The `formatString` function
 
 The `formatString` function supports embedding dynamic expressions directly within string properties. This allows for mixing static text with data model values and function results.
@@ -1175,7 +1196,7 @@ This loop allows for a high degree of flexibility and robustness, as the system 
 
 If validation fails, the renderer (or the system acting on behalf of the renderer) should send an `error` message back to the LLM. To ensure the LLM can understand and correct the error, use the following standard format within the `error` message payload:
 
-- `code` (string, required): Must be `"VALIDATION_FAILED"`.
+- `code` (string, required): Must be `"VALIDATION_FAILED"`, `"UNALLOWED_PARENT"`, or `"UNALLOWED_CHILD"`. Use `"UNALLOWED_PARENT"` if a component is placed under an unallowed parent, and `"UNALLOWED_CHILD"` if an unallowed child is placed inside a container.
 - `surfaceId` (string, required): The ID of the surface where the error occurred.
 - `path` (string, required): The JSON pointer to the field that failed validation (e.g. `/components/0/text`).
 - `message` (string, required): A short one-sentence description of why validation failed.
