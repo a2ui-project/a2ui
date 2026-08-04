@@ -45,7 +45,7 @@ from tools import get_contact_info
 
 from a2ui.schema.constants import VERSION_0_8, VERSION_0_9, A2UI_OPEN_TAG, A2UI_CLOSE_TAG
 from a2ui.schema.common_modifiers import remove_strict_validation
-from a2ui.inference_formats.transport import TransportFormat, TransportStreamParser
+from a2ui.inference_formats.direct_json import DirectJsonFormat, DirectJsonStreamParser
 from a2ui.parser.parser import parse_response, ResponsePart
 from a2ui.basic_catalog.provider import BasicCatalog
 from a2ui.a2a.extension import get_a2ui_agent_extension
@@ -67,9 +67,9 @@ class ContactAgent:
             self._build_llm_agent()
         )
 
-        self._inference_formats: Dict[str, TransportFormat] = {}
+        self._inference_formats: Dict[str, DirectJsonFormat] = {}
         self._ui_runners: Dict[str, Runner] = {}
-        self._parsers: OrderedDict[str, TransportStreamParser] = OrderedDict()
+        self._parsers: OrderedDict[str, DirectJsonStreamParser] = OrderedDict()
         self._max_parsers = 1000  # Max active sessions to keep in memory
 
         for version in [VERSION_0_8, VERSION_0_9]:
@@ -84,13 +84,15 @@ class ContactAgent:
     def agent_card(self) -> AgentCard:
         return self._agent_card
 
-    def get_inference_format(self, version: Optional[str]) -> Optional[TransportFormat]:
+    def get_inference_format(
+        self, version: Optional[str]
+    ) -> Optional[DirectJsonFormat]:
         if version is None:
             return None
         return self._inference_formats[version]
 
-    def _build_inference_format(self, version: str) -> TransportFormat:
-        return TransportFormat(
+    def _build_inference_format(self, version: str) -> DirectJsonFormat:
+        return DirectJsonFormat(
             version=version,
             catalogs=[
                 BasicCatalog.get_config(
@@ -156,7 +158,7 @@ class ContactAgent:
         return "Looking up contact information..."
 
     def _build_llm_agent(
-        self, inference_format: Optional[TransportFormat] = None
+        self, inference_format: Optional[DirectJsonFormat] = None
     ) -> LlmAgent:
         """Builds the LLM agent for the contact agent."""
         LITELLM_MODEL = os.getenv("LITELLM_MODEL", "gemini/gemini-3-flash-preview")
@@ -432,7 +434,7 @@ class ContactAgent:
                 if session_id in self._parsers:
                     self._parsers.move_to_end(session_id)
                 else:
-                    self._parsers[session_id] = TransportStreamParser(
+                    self._parsers[session_id] = DirectJsonStreamParser(
                         catalog=selected_catalog
                     )
                     if len(self._parsers) > self._max_parsers:

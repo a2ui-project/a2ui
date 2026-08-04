@@ -68,7 +68,6 @@ export interface CatalogSchema {
   instructions?: string;
   components?: Record<string, ComponentDefinition>;
   functions?: Record<string, FunctionDefinition>;
-  surfaceProperties?: Record<string, unknown>;
   [key: string]: unknown;
 }
 

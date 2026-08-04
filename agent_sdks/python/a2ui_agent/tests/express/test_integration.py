@@ -93,7 +93,7 @@ class TestExpressIntegration(unittest.TestCase):
             dsl = decompiler.decompile(original_envelope)
             compiled_envelope = compiler.compile(
                 dsl, surface_id=surface_id, catalog_id=catalog_id
-            )
+            )[0]
 
             orig_comps = sorted(
                 original_envelope["createSurface"]["components"], key=lambda x: x["id"]
@@ -168,7 +168,7 @@ class TestExpressIntegration(unittest.TestCase):
                 if "updateComponents" in msg:
                     expected_components = msg["updateComponents"].get("components", [])
 
-            compiled_envelope = compiler.compile(dsl_content, surface_id=surface_id)
+            compiled_envelope = compiler.compile(dsl_content, surface_id=surface_id)[0]
 
             def normalize_value(val: Any) -> Any:
                 if isinstance(val, dict):
@@ -264,7 +264,7 @@ main_column = Column([icon, title], _, "center")
 icon = Icon($/icon)
 title = Text($/title, "body")"""
 
-        envelope = compiler.compile(dsl, surface_id="test_data_surf")
+        envelope = compiler.compile(dsl, surface_id="test_data_surf")[0]
         self.assertEqual(envelope["version"], "v1.0")
         create_surface = envelope["createSurface"]
 
@@ -282,7 +282,7 @@ title = Text($/title, "body")"""
 
         compiled_envelope_2 = compiler.compile(
             decompiled_dsl, surface_id="test_data_surf"
-        )
+        )[0]
         self.assertEqual(compiled_envelope_2["createSurface"]["dataModel"], data_model)
 
     def test_parser_robustness_and_event_variable_resolution(self):
@@ -295,7 +295,7 @@ title = Text($/title, "body")"""
     MY_EVENT = "my_custom_click"
     MY_CONTEXT = {userId: 123, "active": true}
     """
-        res = compiler.compile(dsl_event_var)
+        res = compiler.compile(dsl_event_var)[0]
         btn = res["createSurface"]["components"][0]
         self.assertEqual(btn["action"]["event"]["name"], "my_custom_click")
         self.assertEqual(btn["action"]["event"]["context"]["userId"], 123)
@@ -358,7 +358,7 @@ title = Text($/title, "body")"""
             decompiled_dsl,
         )
 
-        compiled_back = compiler.compile(decompiled_dsl, surface_id="main")
+        compiled_back = compiler.compile(decompiled_dsl, surface_id="main")[0]
         compiled_tabs = compiled_back["createSurface"]["components"][0]["tabs"]
         self.assertEqual(len(compiled_tabs), 1)
         self.assertEqual(compiled_tabs[0]["user-id-hyphen"], 123)
@@ -395,7 +395,7 @@ title = Text($/title, "body")"""
 
         # 1. Regression test: Sentinel tag on the same line as a statement
         dsl_sentinel = '<a2ui>root = Column([text1])\ntext1 = Text("Hello")\n</a2ui>'
-        res = compiler.compile(dsl_sentinel)
+        res = compiler.compile(dsl_sentinel)[0]
         self.assertIn("createSurface", res)
         components = res["createSurface"]["components"]
         self.assertEqual(len(components), 2)
@@ -422,7 +422,7 @@ This is bold.
 
 - Item 1")
 """
-        res_multiline = compiler.compile(dsl_multiline)
+        res_multiline = compiler.compile(dsl_multiline)[0]
         compiled_text = res_multiline["createSurface"]["components"][1]["text"]
         self.assertEqual(compiled_text, "# Heading 1\n\nThis is bold.\n\n- Item 1")
 

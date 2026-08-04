@@ -43,6 +43,9 @@ function hideOverlay() {
   overlayEl.classList.add('hidden');
 }
 
+// Default winning score for when the winning score is not provided by the host context
+const DEFAULT_WINNING_SCORE = 3;
+
 // Reference dimensions for scaling
 const REF_WIDTH = 600;
 const REF_HEIGHT = 400;
@@ -236,10 +239,12 @@ function syncScore(player) {
     });
   }
 
+  const targetScore = typeof winningScore !== 'undefined' ? winningScore : DEFAULT_WINNING_SCORE;
+
   let eventDescription = 'player scored';
-  if (localPlayerScore >= 3) {
+  if (localPlayerScore >= targetScore) {
     eventDescription = 'player won the match';
-  } else if (localCpuScore >= 3) {
+  } else if (localCpuScore >= targetScore) {
     eventDescription = 'cpu won the match';
   } else if (player === 'cpu') {
     eventDescription = 'cpu scored';
@@ -253,12 +258,12 @@ function syncScore(player) {
     },
   }).catch(e => console.error('Failed to request commentary:', e));
 
-  if (localPlayerScore >= 3 || localCpuScore >= 3) {
+  if (localPlayerScore >= targetScore || localCpuScore >= targetScore) {
     isPaused = true;
-    displayOverlay(localPlayerScore >= 3 ? 'YOU WIN!' : 'CPU WINS!');
+    displayOverlay(localPlayerScore >= targetScore ? 'YOU WIN!' : 'CPU WINS!');
     sendRequest('ui/requests/function-call', {
       call: 'showWinnerModal',
-      args: {winner: localPlayerScore >= 3 ? 'player' : 'cpu'},
+      args: {winner: localPlayerScore >= targetScore ? 'player' : 'cpu'},
     }).catch(e => console.error('Failed to trigger showWinnerModal:', e));
   }
 }

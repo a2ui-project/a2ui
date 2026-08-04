@@ -34,6 +34,7 @@ class ExpressFormat(InferenceFormat):
         catalog: Optional[A2uiCatalog] = None,
         surface_id: str = "main",
         examples_path: Optional[str] = None,
+        version: str = "v1.0",
     ):
         """Initializes the Express DSL inference format.
 
@@ -41,10 +42,12 @@ class ExpressFormat(InferenceFormat):
             catalog: The component catalog containing valid elements.
             surface_id: The surface identifier for layout targeting.
             examples_path: Optional path to markdown files containing examples.
+            version: Target A2UI protocol version ("v0.9", "v0.9.1", or "v1.0").
         """
         self.catalog = catalog
         self.surface_id = surface_id
         self.examples_path = examples_path
+        self.version = version
         self._prompt_generator: Optional[ExpressPromptGenerator] = None
 
     def _ensure_catalog(self) -> None:
@@ -70,4 +73,4 @@ class ExpressFormat(InferenceFormat):
     def parser(self) -> Parser:
         """The parser instance configured for this Express format."""
         self._ensure_catalog()
-        return ExpressParser(self.catalog, self.surface_id)
+        return ExpressParser(self.catalog, self.surface_id, version=self.version)

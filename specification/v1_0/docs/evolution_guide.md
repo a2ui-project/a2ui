@@ -12,7 +12,7 @@ Version 1.0 differs from 0.9 in the following ways:
 - Added an optional `catalogId` property to `ComponentCommon` and `FunctionCall` to allow individual components and function calls to explicitly declare their source catalog.
 - Retained `catalogId` on `createSurface` as an optional parameter that defines the default catalog for that surface.
 - Defined explicit component and function call resolution logic: the renderer checks the component-level (or function call-level) `catalogId` first, then falls back to the surface default `catalogId`. If neither is defined, the renderer errors out and does not render the component (or rejects the function call). There is no fallback to catalogs declared in capabilities. Available catalogs for a surface include both `supportedCatalogIds` and any negotiated `inlineCatalogs`, and all mixed catalogs must use the same A2UI specification version.
-- The `theme` property in the catalog and surface creation message is replaced by `surfaceProperties`, and `primaryColor` is removed to separate layout from branding.
+- The `theme` property in the catalog and surface creation message is removed, along with `primaryColor`, to separate layout from branding.
 - Components and initial data model states can be defined directly within the `createSurface` parameters. This allows for the creation of entire UIs in a single message, rather than a create followed by separate updates.
 - The `functions` field in a Catalog is now defined as a map of function name to its definition, instead of a list.
 - Standard JSON Schema metadata fields (`$schema`, `$id`, `title`, and `description`) are supported in catalogs, preventing validation failures on inline catalogs with strict property checks.
@@ -24,7 +24,7 @@ Version 1.0 differs from 0.9 in the following ways:
 
 ### 2.1. Catalog definition schema
 
-- Renamed the `$defs/theme` schema to `$defs/surfaceProperties` in the Catalog schema, and removed the `primaryColor` property.
+- Removed the `$defs/theme` schema and the `primaryColor` property from the Catalog schema.
 - Changed the `functions` property in the Catalog schema from a list to a map object, keyed by function name.
 - Added `callableFrom` (enum: `rendererOnly`, `agentOnly`, `rendererOrAgent`) to `FunctionDefinition` to restrict where a function can be invoked.
 - Added an optional `instructions` field to the `Catalog` schema to embed design guidelines and component usage rules directly in the catalog, replacing the external `rules.txt` file.
@@ -38,13 +38,13 @@ Version 1.0 differs from 0.9 in the following ways:
 - Added `placeholder` prop to the `TextField` component schema.
 - Added a `steps` property to the `Slider` component schema to snap values to discrete intervals.
 - Added an optional `instructions` field to the `Catalog` schema (`catalogs/basic/catalog.json`) to embed Markdown guidelines/rules directly, replacing the external `rules.txt` file.
-- Renamed `$defs/theme` to `$defs/surfaceProperties` in the basic catalog.
+- Removed `$defs/theme` from the basic catalog.
 
 ### 2.3. Agent-to-renderer messages
 
 - Added `actionResponse` message structure (`ActionResponseMessage`) to allow the agent to respond to a specific action call using a unique `actionId` with a `value` or `error`.
 - Added `callFunction` message structure (`CallFunctionMessage`) to support agent-initiated function execution. Removed `callableFrom` and `returnType` properties from the wire payload, relying on runtime catalog verification.
-- Updated the `createSurface` message (`CreateSurfaceMessage`) to rename the `theme` field to `surfaceProperties`, allowed passing initial `components` and `dataModel` directly inside the payload, and made `catalogId` an optional parameter that acts as the surface's default catalog.
+- Updated the `createSurface` message (`CreateSurfaceMessage`) to remove the `theme` field, allowed passing initial `components` and `dataModel` directly inside the payload, and made `catalogId` an optional parameter that acts as the surface's default catalog.
 - Added an optional `catalogId` property to `ComponentCommon` and `FunctionCall` in `common_types.json` to enable mixing catalogs and explicitly designating the catalog on individual components or function calls.
 - Updated all protocol version references and envelopes from `v0.9` or `v0.9.1` to `v1.0`.
 
@@ -58,7 +58,7 @@ Version 1.0 differs from 0.9 in the following ways:
 ### 2.5. Catalog definition schema
 
 - Added an optional `instructions` field to the `Catalog` object definition (`catalog_definition.json`) as a plain Markdown string to embed design guidelines directly.
-- Renamed `theme` capability block to `surfaceProperties` within the Catalog definition in `catalog_definition.json`.
+- Removed `theme` capability block from the Catalog definition in `catalog_definition.json`.
 - Added static `callableFrom` and `returnType` metadata properties to `FunctionDefinition` inside `catalog_definition.json` to advertise execution boundaries and return types to the agent.
 
 ### 2.6. Agent card and transport metadata
@@ -102,10 +102,10 @@ This section outlines the steps required to migrate existing applications and co
 
 - Set the `version` field in all streamed JSON envelopes to `"v1.0"`.
 - Change the MIME type of A2UI payloads in transport layers from `application/json+a2ui` to `application/a2ui+json`.
-- Rename the `theme` field in `createSurface` messages to `surfaceProperties` and remove `primaryColor`. You can pass initial `components` and `dataModel` directly in the `createSurface` payload, and `catalogId` is now optional (acting as the default catalog for that surface).
+- Remove the `theme` field from `createSurface` messages. You can pass initial `components` and `dataModel` directly in the `createSurface` payload, and `catalogId` is now optional (acting as the default catalog for that surface).
 - When mixing components from multiple catalogs, specify the optional `catalogId` on individual components or function calls.
 - Convert the `functions` property in catalog definitions from an array to a JSON object map keyed by function name.
-- Rename the `$defs/theme` catalog definition to `$defs/surfaceProperties` and remove the `primaryColor` field.
+- Remove the `$defs/theme` catalog definition and the `primaryColor` field.
 - Ensure all generated catalog entity names conform to UAX #31 identifier rules.
 - Do not include `callableFrom` or `returnType` properties in wire-level `FunctionCall` payloads. Set static `callableFrom` and `returnType` metadata in catalog function definitions where needed.
 - Update `Video`, `TextField`, and `Slider` components to support optional `posterUrl`, `placeholder`, and `steps` properties.

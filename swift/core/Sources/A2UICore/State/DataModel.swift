@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import Combine
 import Foundation
 import OrderedJSON
 
@@ -21,10 +22,10 @@ import OrderedJSON
 /// Mirrors `DataModel` in the core blueprint and `web_core`. The path
 /// subscripting logic delegates to `JSONValue`'s existing path utilities
 /// in ``JSONValue+Path``.
-public final class DataModel: @unchecked Sendable {
+public final class DataModel: @unchecked Sendable, ObservableObject {
 
   private let lock = NSRecursiveLock()
-  private var data: JSONValue = .object([:])
+  @Published public private(set) var data: JSONValue = .object([:])
 
   /// Creates an empty data model.
   public init() {}
@@ -55,10 +56,5 @@ public final class DataModel: @unchecked Sendable {
     lock.withLock {
       data[path] = value
     }
-  }
-
-  /// Returns a thread-safe copy of the entire data model.
-  public func snapshot() -> JSONValue {
-    lock.withLock { data }
   }
 }

@@ -68,7 +68,7 @@ class TestExpressPromptGenerator(unittest.TestCase):
         )
         self.assertIn("You are a helpful assistant.", prompt)
         self.assertIn("Please adhere to constraints.", prompt)
-        self.assertIn("# A2UI Express Output Contract", prompt)
+        self.assertIn("# A2UI Express DSL Output Contract", prompt)
         self.assertIn("Text(", prompt)
 
     def test_catalog_description_before_generate(self):
