@@ -14,7 +14,7 @@
 
 """A2UI Skill Generator module."""
 
-from .config import SkillConfig
+from .config import RuntimeProfile, SkillConfig
 from .generator import SkillGenerator
 
-__all__ = ["SkillConfig", "SkillGenerator"]
+__all__ = ["RuntimeProfile", "SkillConfig", "SkillGenerator"]
