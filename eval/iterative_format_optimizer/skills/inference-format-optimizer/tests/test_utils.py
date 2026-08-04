@@ -463,12 +463,12 @@ class TestRunnerAndReporter(unittest.TestCase):
         self.assertIn("1795", cmd_args)
 
     @patch("subprocess.run")
-    def test_run_evaluation_transport_and_defaults(self, mock_run) -> None:
+    def test_run_evaluation_direct_json_and_defaults(self, mock_run) -> None:
         from utils.runner import run_evaluation
 
         mock_run.return_value = MagicMock(returncode=0)
         res = run_evaluation(
-            format_name="transport",
+            format_name="direct_json",
             model="gemini",
             prompts=None,
             sanity=False,

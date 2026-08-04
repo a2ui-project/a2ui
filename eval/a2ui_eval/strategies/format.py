@@ -237,7 +237,6 @@ def compile_format_payload(format_name: str, version: str) -> Solver:
             if found_id in allowed_surface_ids:
                 surface_id = found_id
 
-
         try:
             compiled_jsons = await asyncio.to_thread(
                 parse_with_hard_kill_timeout,

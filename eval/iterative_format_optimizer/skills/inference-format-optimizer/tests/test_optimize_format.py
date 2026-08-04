@@ -576,7 +576,7 @@ def test_regenerate_master_index_results_json_fallback(tmp_path: Any) -> None:
 
 def test_main_cli_decompile() -> None:
     with pytest.raises(SystemExit) as e:
-        main(["--format", "transport", "--decompile", "{}"])
+        main(["--format", "direct_json", "--decompile", "{}"])
     assert e.value.code == 0
 
 

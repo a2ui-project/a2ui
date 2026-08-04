@@ -425,7 +425,7 @@
   "dataset": "core_v1_0",
   "epochs": 1,
   "run_config": {
-    "format": "transport",
+    "format": "direct_json",
     "thinking_budget": 0,
     "temperature": 0.0,
     "model": "google/gemini-3.5-flash",

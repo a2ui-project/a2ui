@@ -1,5 +1,5 @@
 {
-  "format": "transport",
+  "format": "direct_json",
   "metrics": {
     "schema_acc": 0.9686274509803922,
     "quality_acc": 0.931372549019608,
@@ -893,7 +893,7 @@
   "dataset": "core_v1_0",
   "epochs": 5,
   "run_config": {
-    "format": "transport",
+    "format": "direct_json",
     "thinking_budget": null,
     "temperature": 0.0,
     "model": "google/gemini-3.5-flash",
