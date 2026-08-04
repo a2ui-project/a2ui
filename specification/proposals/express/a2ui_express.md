@@ -149,7 +149,6 @@ The compiler automatically emits `createSurface` or `updateComponents` protocol 
 
 When the compiler encounters the standalone `deleteSurface` command, it produces a standard `deleteSurface` lifecycle message:
 
-
 ```
 deleteSurface("dashboard-surface-1")
 ```

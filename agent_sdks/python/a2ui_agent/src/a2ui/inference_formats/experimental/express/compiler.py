@@ -323,7 +323,7 @@ class ExpressCompiler:
                     if args and isinstance(args[0], str):
                         target_delete_surface_id = args[0]
                 elif isinstance(parsed_val, dict) and "call" in parsed_val:
-                    standalone_function_calls.append(parsed_val)
+                    standalone_function_calls.append((parsed_val, current_scope))
             elif stmt_type == "ASSIGN":
                 var_name, parsed_val = stmt_args
                 if current_scope is None:
@@ -348,12 +348,13 @@ class ExpressCompiler:
                     "Standalone function calls are not supported in A2UI"
                     f" {target_version}"
                 )
-            first_call = standalone_function_calls[0]
+            first_call, call_scope = standalone_function_calls[0]
             ctx.inline_counter += 1
-            raw_syms = current_scope.raw_symbols if current_scope else {}
+            raw_syms = call_scope.raw_symbols if call_scope else {}
             compiled_val = self._compile_value(
                 first_call, raw_syms, ctx, is_action=False
             )
+
             return [{
                 "version": target_version,
                 "functionCallId": f"call_{ctx.inline_counter}",

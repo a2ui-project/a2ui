@@ -2,7 +2,7 @@
 
 ## Executive Summary
 
-A2UI Express DSL is a compact declarative syntax designed for generative user interface models. Standard A2UI wire protocol distinguishes between initializing a surface (`createSurface`) and updating components on an existing surface (`updateComponents`). 
+A2UI Express DSL is a compact declarative syntax designed for generative user interface models. Standard A2UI wire protocol distinguishes between initializing a surface (`createSurface`) and updating components on an existing surface (`updateComponents`).
 
 To prevent unnecessary model complexity and state tracking errors, Express DSL abstracts this protocol distinction behind a single top-level `surface()` directive. The model uses `surface("surface_id")` to specify the target surface for subsequent component definitions. The host-side compiler automatically resolves whether to emit a `createSurface` or `updateComponents` wire protocol envelope based on session state and context.
 
@@ -36,10 +36,10 @@ surfaceStatement = "surface(" surfaceId [ "," catalogId ] ")" ;
 
 ### Parameters
 
-| Parameter | Type | Required | Description |
-| :--- | :--- | :--- | :--- |
-| `surfaceId` | String | Yes | Unique string identifier for the target surface. |
-| `catalogId` | String | No | Component catalog schema URI or identifier. |
+| Parameter   | Type   | Required | Description                                      |
+| :---------- | :----- | :------- | :----------------------------------------------- |
+| `surfaceId` | String | Yes      | Unique string identifier for the target surface. |
+| `catalogId` | String | No       | Component catalog schema URI or identifier.      |
 
 ---
 
@@ -184,12 +184,12 @@ nav_reports = Button(Text("Reports"))
 flowchart TD
     DSL["A2UI Express Stream"] --> AST["Parser & AST Visitor"]
     AST --> Statement{"Statement Type"}
-    
+
     Statement -->|"surface('id')"| ScopeSwitch["Set Active Surface Scope ('id')"]
     Statement -->|"var = Component(...)"| CompAssign["Assign Component to Active Scope"]
     Statement -->|"$/path = val"| DataAssign["Assign Data Path to Active Scope"]
     Statement -->|"deleteSurface('id')"| DeleteStmt["Emit deleteSurface Payload"]
-    
+
     CompAssign --> CheckState{"Is Surface New in Session?"}
     CheckState -->|Yes| EmitCreate["Emit createSurface Payload"]
     CheckState -->|No / Update Mode| EmitUpdate["Emit updateComponents Payload"]
