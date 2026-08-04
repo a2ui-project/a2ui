@@ -56,7 +56,21 @@
       "description": "A list containing UI components for the surface.",
       "minItems": 1,
       "items": {
-        "$ref": "catalog.json#/$defs/anyComponent"
+        "allOf": [
+          {
+            "$ref": "catalog.json#/$defs/anyComponent"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "component": {
+                "not": {
+                  "const": "Surface"
+                }
+              }
+            }
+          }
+        ]
       }
     },
     "UpdateComponentsMessage": {
