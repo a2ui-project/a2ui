@@ -20,7 +20,7 @@ Evaluation data points live in `datasets/*.yaml` files and must conform to the J
 
 ## Running Evaluations
 
-Make sure you are in the `eval/` directory.
+Make sure your working directory is `eval/`.
 
 ### Prerequisites
 
@@ -114,3 +114,7 @@ To run the unit tests and validate all dataset files against `datasets/dataset_s
 ```bash
 uv run python -m pytest
 ```
+
+## Iterative Format Optimization Framework
+
+For benchmarking, testing, and optimizing alternative A2UI inference formats (Atom, Express, Elemental), see the [Iterative Format Optimization Guide](iterative_format_optimizer/skills/inference-format-optimizer/SKILL.md).

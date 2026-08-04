@@ -1,0 +1,29 @@
+diff --git a/agent_sdks/python/a2ui_agent/src/a2ui/inference_formats/experimental/atom/prompt_generator.py b/agent_sdks/python/a2ui_agent/src/a2ui/inference_formats/experimental/atom/prompt_generator.py
+index 6ad0dac9..71e26db6 100644
+--- a/agent_sdks/python/a2ui_agent/src/a2ui/inference_formats/experimental/atom/prompt_generator.py
++++ b/agent_sdks/python/a2ui_agent/src/a2ui/inference_formats/experimental/atom/prompt_generator.py
+@@ -50,13 +50,13 @@ IMPORTANT: Wrap your output inside `<a2ui>` and `</a2ui>` sentinel tags. Do NOT
+ 
+ 5. Data Bindings:
+    - Absolute data model paths start with '$/', e.g., $/user/firstName.
+-   - Relative template item fields start with '$/item_var/field', e.g. $/item/name.
++   - Relative template item fields start with '$/item_var/field', e.g. $/item/name (where 'item_var' matches the template item variable declared via :item item_var).
+ 
+ 6. Data Model Population:
+    - Initialize or populate data model state exclusively using the (data $/path1 "val1" $/path2 123) block at the root level.
+ 
+ 7. Dynamic List Templates:
+-   - List templates use (template :item item (ChildComponent $/item/name)) or (ListComponent :children (template :item item (ChildComponent $/item/name))).
++   - List templates use (template :item item (ChildComponent :prop $/item/name)) or (ListComponent :items $/items :template (template :item item (ChildComponent :prop $/item/name))).
+ 
+ 8. Action Events:
+    - Actions use (Event "action_name" :param1 $/value).
+@@ -78,7 +78,7 @@ IMPORTANT: Wrap your output inside `<a2ui>` and `</a2ui>` sentinel tags. Do NOT
+    <a2ui>
+    (ContainerComponent
+      (data $/items [{"id": 1, "name": "Item 1"}] $/title "List Title")
+-     (ListComponent :items $/items :template (template item (ChildComponent :title $/item/name))))
++     (ListComponent :items $/items :template (template :item item (ChildComponent :title $/item/name))))
+    </a2ui>
+ 
+ 11. Strict Catalog Adherence:

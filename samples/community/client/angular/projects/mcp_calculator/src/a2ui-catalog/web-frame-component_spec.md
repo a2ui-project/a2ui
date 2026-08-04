@@ -448,7 +448,7 @@ Used to load standalone, sandboxed, model-generated HTML/JS layouts.
       },
       "htmlContent": {
         "type": "string",
-        "description": "The raw HTML string to render via srcdoc."
+        "description": "The raw HTML string to render via srcdoc. Can be URL-encoded."
       },
       "config": {
         "type": "object",
@@ -467,6 +467,9 @@ Used to load standalone, sandboxed, model-generated HTML/JS layouts.
         },
         "required": ["paths"],
         "additionalProperties": false
+      },
+      "height": {
+        "$ref": "common_types.json#/$defs/DynamicNumber"
       },
       "allowedEvents": {
         "type": "object",

@@ -92,7 +92,8 @@ window.addEventListener('message', async event => {
 
     if (isMcpResourceReady || isA2uiResourceReady) {
       const payload = isMcpResourceReady ? event.data.params : event.data;
-      const {html, url, sandbox, permissions} = payload as any;
+      const {html, htmlContent, url, sandbox, permissions} = payload as any;
+      const contentHtml = html ?? htmlContent;
       if (typeof sandbox === 'string') {
         inner.setAttribute('sandbox', sandbox);
       }
@@ -109,9 +110,9 @@ window.addEventListener('message', async event => {
         }
       };
 
-      if (typeof html === 'string') {
+      if (typeof contentHtml === 'string') {
         inner.onload = sendInit;
-        inner.srcdoc = html;
+        inner.srcdoc = contentHtml;
       } else if (typeof url === 'string') {
         inner.onload = sendInit;
         inner.src = url;

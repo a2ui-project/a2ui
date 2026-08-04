@@ -1,0 +1,15 @@
+{
+  "format": "express",
+  "hypothesis": "Pass 27: Auto-wrap single component ID strings in list properties in compiler.py",
+  "status": "Backtracked",
+  "notes": "Reverted",
+  "metrics": {
+    "schema_acc": 0.0,
+    "quality_acc": 0.0,
+    "code_tokens_median": 0.0,
+    "reasoning_tokens_median": 0.0,
+    "input_tokens_median": 0.0,
+    "latency_seconds_median": 0.0,
+    "total_samples": 0
+  }
+}
