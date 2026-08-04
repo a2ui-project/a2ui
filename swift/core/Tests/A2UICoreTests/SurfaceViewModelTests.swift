@@ -478,13 +478,13 @@ struct ComponentModelTests {
     #expect(model.properties["label"]?.stringValue == "Click Me")
   }
 
-  @Test func componentModelsEqualByIdTypeProperties() {
+  @Test func componentModelsEqualByIDTypeProperties() {
     let a = ComponentModel(id: "btn1", type: "button", properties: ["label": "OK"])
     let b = ComponentModel(id: "btn1", type: "button", properties: ["label": "OK"])
     #expect(a == b)
   }
 
-  @Test func componentModelsNotEqualByDifferentId() {
+  @Test func componentModelsNotEqualByDifferentID() {
     let a = ComponentModel(id: "btn1", type: "button", properties: [:])
     let b = ComponentModel(id: "btn2", type: "button", properties: [:])
     #expect(a != b)
@@ -500,6 +500,22 @@ struct ComponentModelTests {
     let a = ComponentModel(id: "btn1", type: "button", properties: ["label": "OK"])
     let b = ComponentModel(id: "btn1", type: "button", properties: ["label": "Cancel"])
     #expect(a != b)
+  }
+
+  @Test func componentModelsNotEqualByDifferentCatalogID() {
+    let firstModel = ComponentModel(id: "btn1", type: "button", catalogID: "catalogA", properties: [:])
+    let secondModel = ComponentModel(id: "btn1", type: "button", catalogID: "catalogB", properties: [:])
+    #expect(firstModel != secondModel)
+  }
+
+  @Test func componentModelStoresCatalogID() {
+    let model = ComponentModel(
+      id: "btn1",
+      type: "button",
+      catalogID: "catalogA",
+      properties: [:]
+    )
+    #expect(model.catalogID == "catalogA")
   }
 }
 

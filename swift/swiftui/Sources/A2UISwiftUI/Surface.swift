@@ -18,24 +18,29 @@ import SwiftUI
 /// The root SwiftUI view for a single A2UI surface.
 ///
 /// `Surface` observes a ``SurfaceViewModel`` and renders the resolved
-/// component tree via a catalog-defined ``CatalogView``. The active
-/// theme is propagated through the environment.
-public struct Surface<Catalog: CatalogView>: View {
+/// component tree using registered component view builders from the active
+/// ``ComponentRegistry``. The active theme and component registry are
+/// propagated through the environment.
+public struct Surface: View {
   @ObservedObject public var viewModel: SurfaceViewModel
 
-  private let catalogType: Catalog.Type
+  public let registry: ComponentRegistry?
   public let surfaceID: String
 
-  public init(viewModel: SurfaceViewModel, catalogType: Catalog.Type) {
+  public init(
+    viewModel: SurfaceViewModel,
+    registry: ComponentRegistry? = nil
+  ) {
     self.viewModel = viewModel
-    self.catalogType = catalogType
+    self.registry = registry
     self.surfaceID = viewModel.surfaceID
   }
 
   public var body: some View {
     if let rootNode = viewModel.rootNode {
-      Catalog(node: rootNode)
+      ComponentNodeView(node: rootNode)
         .environment(\.a2uiTheme, viewModel.theme)
+        .environment(\.a2uiComponentRegistry, registry)
     } else {
       ProgressView()
     }

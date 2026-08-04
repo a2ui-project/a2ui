@@ -29,7 +29,18 @@ struct NodeTests {
     )
     #expect(node.id == "btn1")
     #expect(node.type == "button")
+    #expect(node.catalogID == nil)
     #expect(node.properties["label"] as? String == "Click Me")
+  }
+
+  @Test func nodeStoresCatalogID() {
+    let node = Node(
+      id: "btn1",
+      type: "button",
+      catalogID: "catA",
+      properties: [:]
+    )
+    #expect(node.catalogID == "catA")
   }
 
   // MARK: - allChildNodes
@@ -98,13 +109,13 @@ struct NodeTests {
 
   // MARK: - Equality
 
-  @Test func nodesEqualByIdTypeAndProperties() {
+  @Test func nodesEqualByIDTypeAndProperties() {
     let a = Node(id: "btn1", type: "button", properties: ["label": "OK"])
     let b = Node(id: "btn1", type: "button", properties: ["label": "OK"])
     #expect(a == b)
   }
 
-  @Test func nodesNotEqualByDifferentId() {
+  @Test func nodesNotEqualByDifferentID() {
     let a = Node(id: "btn1", type: "button", properties: [:])
     let b = Node(id: "btn2", type: "button", properties: [:])
     #expect(a != b)
@@ -113,6 +124,12 @@ struct NodeTests {
   @Test func nodesNotEqualByDifferentType() {
     let a = Node(id: "btn1", type: "button", properties: [:])
     let b = Node(id: "btn1", type: "text", properties: [:])
+    #expect(a != b)
+  }
+
+  @Test func nodesNotEqualByDifferentCatalogID() {
+    let a = Node(id: "btn1", type: "button", catalogID: "catalogA", properties: [:])
+    let b = Node(id: "btn1", type: "button", catalogID: "catalogB", properties: [:])
     #expect(a != b)
   }
 

@@ -301,7 +301,8 @@ public final class MessageProcessor: ObservableObject {
   ) -> SurfaceViewModel {
     let vm = SurfaceViewModel(
       surfaceID: surfaceID,
-      catalog: catalog,
+      catalogs: catalogs.isEmpty ? [catalog.id: catalog] : catalogs,
+      defaultCatalogID: catalog.id,
       theme: theme,
       actionHandler: actionHandler,
       sendDataModel: sendDataModel
@@ -355,7 +356,9 @@ public final class MessageProcessor: ObservableObject {
         continue
       }
 
-      guard let schema = surface.catalog.components[type]?.schema else {
+      let componentCatalogID = componentDict["catalogId"]?.stringValue ?? surface.defaultCatalogID
+      let targetCatalog = surface.getCatalog(id: componentCatalogID)
+      guard let schema = targetCatalog?.components[type]?.schema else {
         let error = ClientServerError.validationFailed(
           ValidationFailedError(
             surfaceID: surfaceID,
@@ -376,7 +379,7 @@ public final class MessageProcessor: ObservableObject {
 
       if result.isValid {
         var props: [String: JSONValue] = [:]
-        for (key, val) in componentDict where key != "id" && key != "component" {
+        for (key, val) in componentDict where key != "id" && key != "component" && key != "catalogId" {
           props[key] = val
         }
 
@@ -385,7 +388,7 @@ public final class MessageProcessor: ObservableObject {
           surface.componentsModel.removeComponent(id)
         }
         surface.componentsModel.addComponent(
-          ComponentModel(id: id, type: type, properties: props)
+          ComponentModel(id: id, type: type, catalogID: componentCatalogID, properties: props)
         )
       } else {
         let errorMessage = result.errors?.first?.message ?? "Validation failed"
@@ -444,7 +447,8 @@ public final class MessageProcessor: ObservableObject {
       }
       let vm = SurfaceViewModel(
         surfaceID: msg.surfaceID,
-        catalog: catalog,
+        catalogs: catalogs,
+        defaultCatalogID: catalog.id,
         theme: msg.theme,
         actionHandler: actionHandler,
         sendDataModel: msg.shouldSendDataModel

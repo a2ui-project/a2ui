@@ -15,10 +15,27 @@
 import A2UICore
 import SwiftUI
 
-/// A protocol that all catalog views must conform to, enabling the
-/// SwiftUI rendering layer to construct catalog-defined views from
-/// resolved engine nodes.
-public protocol CatalogView: View {
-  /// Initializes the catalog view with a resolved engine node.
-  init(node: Node)
+/// Renders a single resolved A2UI engine node by looking up its view builder
+/// from the active component registry in the SwiftUI environment.
+public struct ComponentNodeView: View {
+  @Environment(\.a2uiComponentRegistry) private var registry
+
+  public let node: Node
+
+  public init(node: Node) {
+    self.node = node
+  }
+
+  public var body: some View {
+    if let renderedView = registry?.render(node: node) {
+      renderedView
+    } else {
+      fallbackView
+    }
+  }
+
+  private var fallbackView: some View {
+    print("[A2UI] Component view builder not found for type: \(node.type)")
+    return EmptyView()
+  }
 }

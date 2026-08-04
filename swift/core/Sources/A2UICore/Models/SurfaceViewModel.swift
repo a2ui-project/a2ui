@@ -32,7 +32,16 @@ public final class SurfaceViewModel: @unchecked Sendable, ObservableObject {
   // MARK: - Properties
 
   public let surfaceID: String
-  public let catalog: Catalog
+  public let catalogs: [String: Catalog]
+  public let defaultCatalogID: String?
+
+  /// The primary default catalog associated with this surface, if available.
+  public var catalog: Catalog {
+    if let defaultCatalogID, let catalog = catalogs[defaultCatalogID] {
+      return catalog
+    }
+    return catalogs.values.first ?? Catalog(id: "empty", components: [])
+  }
   public let theme: [String: JSONValue]?
   public let sendDataModel: Bool
 
@@ -51,13 +60,15 @@ public final class SurfaceViewModel: @unchecked Sendable, ObservableObject {
 
   public init(
     surfaceID: String,
-    catalog: Catalog,
+    catalogs: [String: Catalog],
+    defaultCatalogID: String? = nil,
     theme: [String: JSONValue]? = nil,
     actionHandler: (any ActionHandling)? = nil,
     sendDataModel: Bool = false
   ) {
     self.surfaceID = surfaceID
-    self.catalog = catalog
+    self.catalogs = catalogs
+    self.defaultCatalogID = defaultCatalogID ?? catalogs.keys.sorted().first
     self.theme = theme
     self.sendDataModel = sendDataModel
     self.actionHandler = actionHandler
@@ -65,6 +76,54 @@ public final class SurfaceViewModel: @unchecked Sendable, ObservableObject {
     self.componentsModel = SurfaceComponentsModel()
 
     setUpSubscriptions()
+  }
+
+  public convenience init(
+    surfaceID: String,
+    catalogs: [Catalog],
+    defaultCatalogID: String? = nil,
+    theme: [String: JSONValue]? = nil,
+    actionHandler: (any ActionHandling)? = nil,
+    sendDataModel: Bool = false
+  ) {
+    let dict = Dictionary(catalogs.map { ($0.id, $0) }, uniquingKeysWith: { _, last in last })
+    self.init(
+      surfaceID: surfaceID,
+      catalogs: dict,
+      defaultCatalogID: defaultCatalogID ?? catalogs.first?.id,
+      theme: theme,
+      actionHandler: actionHandler,
+      sendDataModel: sendDataModel
+    )
+  }
+
+  public convenience init(
+    surfaceID: String,
+    catalog: Catalog,
+    theme: [String: JSONValue]? = nil,
+    actionHandler: (any ActionHandling)? = nil,
+    sendDataModel: Bool = false
+  ) {
+    self.init(
+      surfaceID: surfaceID,
+      catalogs: [catalog.id: catalog],
+      defaultCatalogID: catalog.id,
+      theme: theme,
+      actionHandler: actionHandler,
+      sendDataModel: sendDataModel
+    )
+  }
+
+  /// Resolves a catalog by ID, falling back to the surface default catalog if nil.
+  public func getCatalog(id: String? = nil) -> Catalog? {
+    let targetCatalogID = id ?? defaultCatalogID
+    if let targetCatalogID, let catalog = catalogs[targetCatalogID] {
+      return catalog
+    }
+    if id == nil {
+      return catalogs.values.first
+    }
+    return nil
   }
 
   private func setUpSubscriptions() {
@@ -200,7 +259,9 @@ public final class SurfaceViewModel: @unchecked Sendable, ObservableObject {
     visited.insert(instanceID)
 
     // Get the schema for this component type to classify properties
-    let schema = catalog.components[type]?.schema
+    let effectiveCatalogID = component.catalogID ?? defaultCatalogID
+    let targetCatalog = getCatalog(id: effectiveCatalogID)
+    let schema = targetCatalog?.components[type]?.schema
     let schemaJSON = schema?.jsonValue ?? .object([:])
     let propertiesSchema = schemaJSON["properties"]?.objectValue
 
@@ -224,7 +285,12 @@ public final class SurfaceViewModel: @unchecked Sendable, ObservableObject {
       }
     }
 
-    return Node(id: instanceID, type: type, properties: resolvedProperties)
+    return Node(
+      id: instanceID,
+      type: type,
+      catalogID: effectiveCatalogID,
+      properties: resolvedProperties
+    )
   }
 
   private func resolveProperty(
@@ -277,7 +343,17 @@ public final class SurfaceViewModel: @unchecked Sendable, ObservableObject {
         let absPath = JSONValue.absolutePath(for: pathStr, in: basePath)
         return data[absPath] ?? .null
       } else if let callName = dict["call"]?.stringValue {
-        guard let function = catalog.functions[callName] else {
+        let callCatalogID = dict["catalogId"]?.stringValue ?? defaultCatalogID
+        var function = getCatalog(id: callCatalogID)?.functions[callName]
+        if function == nil && dict["catalogId"] == nil {
+          for catalog in catalogs.values {
+            if let matchingFunction = catalog.functions[callName] {
+              function = matchingFunction
+              break
+            }
+          }
+        }
+        guard let function else {
           return .null
         }
         var resolvedArgs: [String: JSONValue] = [:]
