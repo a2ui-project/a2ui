@@ -90,8 +90,6 @@ public final class MessageProcessor: ObservableObject {
       self.includeInlineCatalogs = includeInlineCatalogs
       self.version = version
     }
-    guard !result.isEmpty else { return nil }
-    return .object(result)
   }
 
   /// Generates the `a2uiClientCapabilities` object for all registered catalogs.
