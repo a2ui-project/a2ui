@@ -48,6 +48,19 @@ export default [
     },
   },
   {
+    files: ['**/web_core/src/index.ts'],
+    rules: {
+      'no-restricted-syntax': [
+        'error',
+        {
+          selector: 'ExportAllDeclaration',
+          message:
+            'Do not use `export *` in src/index.ts. Explicitly name exported symbols to control the public API.',
+        },
+      ],
+    },
+  },
+  {
     ignores: [
       '**/dist/**',
       '**/lib/**',

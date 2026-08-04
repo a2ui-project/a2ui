@@ -553,33 +553,8 @@ export declare interface Surface {
   styles: Record<string, string>;
 }
 
-// Markdown rendering
-/**
- * Renders `markdown` using `options`.
- *
- * Implementations MUST sanitize the resulting HTML to prevent XSS vulnerabilities.
- *
- * @returns A promise that resolves to the rendered, sanitized HTML as a string.
- */
-export declare type MarkdownRenderer = (
-  markdown: string,
-  options?: MarkdownRendererOptions,
-) => Promise<string>;
-
-/**
- * A map of tag names to a list of classnames to be applied to a tag.
- *
- * For example, if you want to apply the class "my-class" to all "h1" tags,
- * you would use `{"h1": ["my-class"]}`.
- */
-export declare type MarkdownRendererTagClassMap = Record<string, string[]>;
-
-/**
- * The options for the markdown renderer passed from A2UI.
- *
- * This includes the tagClassMap, which is a map of tag names to a list of
- * classnames to be applied to each tag, and configuration for the sanitizer.
- */
-export declare type MarkdownRendererOptions = {
-  tagClassMap?: MarkdownRendererTagClassMap;
-};
+export type {
+  MarkdownRendererTagClassMap,
+  MarkdownRendererOptions,
+  MarkdownRenderer,
+} from '../../common/markdown.js';

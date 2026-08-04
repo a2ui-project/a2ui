@@ -15,10 +15,12 @@
  */
 
 /**
- * Core rendering and state management logic for A2UI.
+ * @fileoverview Core rendering and state management logic for A2UI.
  *
  * This module explicitly exports the fundamental building blocks for building A2UI renderers,
  * including the data model, component model, expression parsing logic, and reactivity signals.
+ *
+ * @module @a2ui/web_core
  */
 
 export {
@@ -39,14 +41,29 @@ export {
 
 export {
   EventEmitter,
+  type Subscription,
+  type EventListener,
+  type EventSource,
 } from './common/events.js';
+
+import * as EventsCompat from './events-compat.js';
+/**
+ * @deprecated Legacy Events namespace export. Use named exports from '@a2ui/web_core' instead, or import legacy events from '@a2ui/web_core/v0_8'.
+ */
+export {EventsCompat as Events};
+
+export {
+  type MarkdownRendererTagClassMap,
+  type MarkdownRendererOptions,
+  type MarkdownRenderer,
+} from './common/markdown.js';
 
 export {
   MessageProcessor,
 } from './processing/message-processor.js';
 
 export {
-  type ComponentContext,
+  ComponentContext,
 } from './rendering/component-context.js';
 
 export {
@@ -56,6 +73,9 @@ export {
 export {
   GenericBinder,
   type BehaviorNode,
+  type ResolveA2uiProp,
+  type GenerateSetters,
+  type ResolveA2uiProps,
   scrapeSchemaBehavior,
 } from './rendering/generic-binder.js';
 
@@ -131,7 +151,7 @@ export {
 } from './schema/index.js';
 
 export {
-  type ComponentModel,
+  ComponentModel,
 } from './state/component-model.js';
 
 export {
@@ -149,6 +169,7 @@ export {
 
 export {
   SurfaceModel,
+  type ActionListener,
 } from './state/surface-model.js';
 
 export {

@@ -25,25 +25,30 @@ import {fileURLToPath} from 'node:url';
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const rootDir = join(__dirname, '..');
 
+// The current primary protocol version. Its schemas are copied to both its versioned target
+// (src/<version>/schemas) for backwards compatibility and to root (src/schemas) for the active codebase.
+const CURRENT_VERSION = 'v0_9';
+
 function copySchemas(version) {
   const srcJsonDir = join(rootDir, '..', '..', 'specification', version, 'json');
   const srcCatalogsDir = join(rootDir, '..', '..', 'specification', version, 'catalogs');
-  // Since root src/ contains the evolving v0.9/v1.0 codebase, v0_9 schemas are copied to root src/schemas/.
-  const destDir =
-    version === 'v0_9'
-      ? join(rootDir, 'src', 'schemas')
-      : join(rootDir, 'src', version, 'schemas');
+  const destDirs =
+    version === CURRENT_VERSION
+      ? [join(rootDir, 'src', version, 'schemas'), join(rootDir, 'src', 'schemas')]
+      : [join(rootDir, 'src', version, 'schemas')];
 
-  mkdirSync(destDir, {recursive: true});
+  for (const destDir of destDirs) {
+    mkdirSync(destDir, {recursive: true});
 
-  if (existsSync(srcJsonDir)) {
-    readdirSync(srcJsonDir)
-      .filter(file => file.endsWith('.json'))
-      .forEach(file => cpSync(join(srcJsonDir, file), join(destDir, file)));
-  }
+    if (existsSync(srcJsonDir)) {
+      readdirSync(srcJsonDir)
+        .filter(file => file.endsWith('.json'))
+        .forEach(file => cpSync(join(srcJsonDir, file), join(destDir, file)));
+    }
 
-  if (version !== 'v0_8') {
-    cpSync(srcCatalogsDir, join(destDir, 'catalogs'), {recursive: true});
+    if (version !== 'v0_8') {
+      cpSync(srcCatalogsDir, join(destDir, 'catalogs'), {recursive: true});
+    }
   }
 }
 
