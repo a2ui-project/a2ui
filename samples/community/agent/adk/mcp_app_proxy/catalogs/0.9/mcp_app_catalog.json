@@ -146,6 +146,65 @@
       ],
       "unevaluatedProperties": false
     },
+    "WebAppFrameSrcdoc": {
+      "type": "object",
+      "allOf": [
+        {
+          "$ref": "common_types.json#/$defs/ComponentCommon"
+        },
+        {
+          "type": "object",
+          "properties": {
+            "component": {
+              "const": "WebAppFrameSrcdoc",
+              "description": "The component type identifier."
+            },
+            "htmlContent": {
+              "type": "string",
+              "description": "The raw HTML string to render via srcdoc."
+            },
+            "height": {
+              "$ref": "common_types.json#/$defs/DynamicNumber",
+              "description": "The height of the iframe in pixels."
+            },
+            "allowedEvents": {
+              "type": "object",
+              "description": "A map of authorized action names to JSON Schemas defining the expected data payload.",
+              "additionalProperties": {"type": "object"}
+            },
+            "allowedFunctions": {
+              "type": "object",
+              "description": "A map of authorized host client functions to JSON Schemas defining their expected arguments.",
+              "additionalProperties": {"type": "object"}
+            },
+            "mutableData": {
+              "type": "object",
+              "description": "A map of data model keys that the embedded application is authorized to mutate in the parent A2UI Data Model, mapped to JSON Schemas defining their allowed values.",
+              "additionalProperties": {"type": "object"}
+            },
+            "config": {
+              "type": "object",
+              "description": "A dictionary of static key-value initialization properties passed directly to the embedded application without reactive data model binding."
+            },
+            "data": {
+              "type": "object",
+              "description": "Data binding configuration for the component.",
+              "properties": {
+                "paths": {
+                  "type": "object",
+                  "description": "A dictionary mapping custom state keys to distinct JSON Pointer paths in the data model.",
+                  "additionalProperties": {"type": "string"}
+                }
+              },
+              "required": ["paths"],
+              "additionalProperties": false
+            }
+          },
+          "required": ["component", "htmlContent"]
+        }
+      ],
+      "unevaluatedProperties": false
+    },
     "PongScoreBoard": {
       "type": "object",
       "allOf": [
@@ -218,6 +277,9 @@
         },
         {
           "$ref": "#/components/WebAppFrameUrl"
+        },
+        {
+          "$ref": "#/components/WebAppFrameSrcdoc"
         }
       ]
     }

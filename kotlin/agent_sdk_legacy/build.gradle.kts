@@ -18,6 +18,7 @@ plugins {
   kotlin("jvm") version "2.1.10"
   kotlin("plugin.serialization") version "2.1.10"
   id("java-library")
+  antlr
   id("com.ncorti.ktfmt.gradle") version "0.19.0"
   id("org.jetbrains.kotlinx.kover") version "0.9.1"
 }
@@ -36,6 +37,8 @@ repositories {
 }
 
 dependencies {
+  antlr("org.antlr:antlr4:4.13.2")
+  implementation("org.antlr:antlr4-runtime:4.13.2")
   api("org.jetbrains.kotlinx:kotlinx-serialization-json:1.6.3")
   implementation("com.networknt:json-schema-validator:2.0.1")
   implementation("com.fasterxml.jackson.core:jackson-databind:2.17.2")
@@ -83,6 +86,9 @@ sourceSets {
     resources {
       srcDir(copySpecs)
     }
+    antlr {
+      setSrcDirs(listOf(File(findRepoRoot(), "specification/inference_formats/express")))
+    }
   }
 }
 
@@ -106,4 +112,10 @@ tasks.withType<org.jetbrains.kotlin.gradle.tasks.KotlinCompile>().configureEach 
 tasks.withType<JavaCompile>().configureEach {
   options.release.set(21)
 }
+
+tasks.generateGrammarSource {
+  arguments = arguments + listOf("-visitor", "-package", "com.google.a2ui.inference_formats.experimental.express.generated")
+  outputDirectory = file("${layout.buildDirectory.get()}/generated/sources/antlr/main/com/google/a2ui/inference_formats/experimental/express/generated")
+}
+
 

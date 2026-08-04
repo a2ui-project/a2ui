@@ -91,11 +91,13 @@ class PackSpecsBuildHook(BuildHookInterface):
             repo_root, basic_catalog_constants.BASIC_CATALOG_PATHS, target_base
         )
 
-        # Automatically regenerate ANTLR parser from Express.g4
+        # Automatically regenerate ANTLR parser from Express.g4 in specification/
         express_dir = os.path.join(
             project_root, "src", "a2ui", "inference_formats", "experimental", "express"
         )
-        g4_path = os.path.join(express_dir, "Express.g4")
+        g4_path = os.path.join(
+            repo_root, "specification", "inference_formats", "express", "Express.g4"
+        )
 
         if os.path.exists(g4_path):
             import subprocess
@@ -131,7 +133,7 @@ class PackSpecsBuildHook(BuildHookInterface):
                 "-no-listener",
                 "-o",
                 "generated",
-                "Express.g4",
+                g4_path,
             ]
             env = os.environ.copy()
             env["ANTLR4_TOOLS_ANTLR_VERSION"] = "4.13.2"

@@ -9,6 +9,7 @@
     "build": "ng build a2a-chat-canvas && ng build orchestrator && ng build mcp_calculator",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
+    "test": "echo \"Workspace has no tests.\" && exit 0",
     "clean": "rm -rf dist .tsbuildinfo .wireit out-tsc",
     "format": "prettier --write .",
     "format:check": "prettier --check ."
