@@ -81,7 +81,7 @@ class TestExpressParser(unittest.TestCase):
         }
         decompiled_action = decompiler.decompile(action_envelope)
         self.assertIn(
-            'root = Button(btnText, _, openUrl("https://example.com"))',
+            'root = Button(openUrl("https://example.com"), btnText)',
             decompiled_action,
         )
 
@@ -101,7 +101,7 @@ class TestExpressParser(unittest.TestCase):
             },
         }
         decompiled_func = decompiler.decompile(func_expr_envelope)
-        self.assertIn("root = Text(length($/name, 5))", decompiled_func)
+        self.assertIn("root = Text(length($/name, _, 5))", decompiled_func)
 
         # 4. Check decompilation with custom message
         custom_msg_envelope = {
@@ -125,7 +125,7 @@ class TestExpressParser(unittest.TestCase):
         }
         decompiled_msg = decompiler.decompile(custom_msg_envelope)
         self.assertIn(
-            'root = TextField("Name", $/name, ?required("Name is required!"))',
+            'root = TextField("Name", ?required("Name is required!"), _, $/name)',
             decompiled_msg,
         )
 

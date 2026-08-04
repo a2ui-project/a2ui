@@ -291,7 +291,7 @@ title = Text($/title, "body")"""
 
         # 1. Event name and context variable resolution
         dsl_event_var = """
-    root = Button("Click", _, Event(MY_EVENT, MY_CONTEXT))
+    root = Button(Event(MY_EVENT, MY_CONTEXT), "Click")
     MY_EVENT = "my_custom_click"
     MY_CONTEXT = {userId: 123, "active": true}
     """

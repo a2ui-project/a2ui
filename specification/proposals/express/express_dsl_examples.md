@@ -77,21 +77,19 @@ Use these exact positional signatures to instantiate components. Do not output p
   - url: The URL of the audio to be played.
   - description: A description of the audio, such as a title or summary.
   - weight: The relative weight of this component within a Row or Column. This is similar to the CSS 'flex-grow' property. Note: this may ONLY be set when the component is a direct descendant of a Row or Column.
-• Button(child (static), variant? (static), action (static), weight? (static), checks? (static))
-  - child: The ID of the child component. Use a 'Text' component for a labeled button. Only use an 'Icon' if the requirements explicitly ask for an icon-only button. Do NOT define the child component inline.
+• Button(action (static), child (static), checks? (static), variant? (static), weight? (static))
+  - child: The ID of the child component. Use a 'Text' component for a labeled button. Only use an 'Icon' if the requirements explicitly ask for an icon-only button.
   - variant: A hint for the button style. If omitted, a default button style is used. 'primary' indicates this is the main call-to-action button. 'borderless' means the button has no visual border or background, making its child content appear like a clickable link. Must be one of: 'default', 'primary', 'borderless'
   - weight: The relative weight of this component within a Row or Column. This is similar to the CSS 'flex-grow' property. Note: this may ONLY be set when the component is a direct descendant of a Row or Column.
 • Card(child (static), weight? (static))
-  - child: The ID of the single child component to be rendered inside the card. To display multiple elements, you MUST wrap them in a layout component (like Column or Row) and pass that container's ID here. Do NOT pass multiple IDs or a non-existent ID. Do NOT define the child component inline.
+  - child: The ID of the single child component to be rendered inside the card. To display multiple elements, you MUST wrap them in a layout component (like Column or Row) and pass that container's ID here. Do NOT pass multiple IDs or a non-existent ID.
   - weight: The relative weight of this component within a Row or Column. This is similar to the CSS 'flex-grow' property. Note: this may ONLY be set when the component is a direct descendant of a Row or Column.
-• CheckBox(label, value, weight? (static), checks? (static))
+• CheckBox(label, value, checks? (static), weight? (static))
   - label: The text to display next to the checkbox.
   - value: The current state of the checkbox (true for checked, false for unchecked).
   - weight: The relative weight of this component within a Row or Column. This is similar to the CSS 'flex-grow' property. Note: this may ONLY be set when the component is a direct descendant of a Row or Column.
-• ChoicePicker(label?, variant? (static), options (static), value, displayStyle? (static), filterable? (static), weight? (static), checks? (static))
+• ChoicePicker(options (static), value, checks? (static), displayStyle? (static), filterable? (static), label?, variant? (static), weight? (static))
   - Description: A component that allows selecting one or more options from a list.
-  - label: The label for the group of options.
-  - variant: A hint for how the choice picker should be displayed and behave. Must be one of: 'multipleSelection', 'mutuallyExclusive'
   - options: The list of available options to choose from.
     List of maps keys:
     * label - The text to display for this option.
@@ -99,20 +97,22 @@ Use these exact positional signatures to instantiate components. Do not output p
   - value: The list of currently selected values. This should be bound to a string array in the data model.
   - displayStyle: The display style of the component. Must be one of: 'checkbox', 'chips'
   - filterable: If true, displays a search input to filter the options.
+  - label: The label for the group of options.
+  - variant: A hint for how the choice picker should be displayed and behave. Must be one of: 'multipleSelection', 'mutuallyExclusive'
   - weight: The relative weight of this component within a Row or Column. This is similar to the CSS 'flex-grow' property. Note: this may ONLY be set when the component is a direct descendant of a Row or Column.
-• Column(children, justify? (static), align? (static), weight? (static))
+• Column(children, align? (static), justify? (static), weight? (static))
   - Description: A layout component that arranges its children vertically. To create a grid layout, nest Rows within this Column.
   - children: Defines the children. Use an array of strings for a fixed set of children, or a template object to generate children from a data list. Children cannot be defined inline, they must be referred to by ID.
-  - justify: Defines the arrangement of children along the main axis (vertically). Use 'spaceBetween' to push items to the edges (e.g. header at top, footer at bottom), or 'start'/'end'/'center' to pack them together. Must be one of: 'start', 'center', 'end', 'spaceBetween', 'spaceAround', 'spaceEvenly', 'stretch'
   - align: Defines the alignment of children along the cross axis (horizontally). This is similar to the CSS 'align-items' property. Must be one of: 'center', 'end', 'start', 'stretch'
+  - justify: Defines the arrangement of children along the main axis (vertically). Use 'spaceBetween' to push items to the edges (e.g. header at top, footer at bottom), or 'start'/'end'/'center' to pack them together. Must be one of: 'start', 'center', 'end', 'spaceBetween', 'spaceAround', 'spaceEvenly', 'stretch'
   - weight: The relative weight of this component within a Row or Column. This is similar to the CSS 'flex-grow' property. Note: this may ONLY be set when the component is a direct descendant of a Row or Column.
-• DateTimeInput(value, enableDate? (static), enableTime? (static), min?, max?, label?, weight? (static), checks? (static))
+• DateTimeInput(value, checks? (static), enableDate? (static), enableTime? (static), label?, max?, min?, weight? (static))
   - value: The selected date and/or time value in ISO 8601 format. If not yet set, initialize with an empty string.
   - enableDate: If true, allows the user to select a date.
   - enableTime: If true, allows the user to select a time.
-  - min: The minimum allowed date/time in ISO 8601 format.
-  - max: The maximum allowed date/time in ISO 8601 format.
   - label: The text label for the input field.
+  - max: The maximum allowed date/time in ISO 8601 format.
+  - min: The minimum allowed date/time in ISO 8601 format.
   - weight: The relative weight of this component within a Row or Column. This is similar to the CSS 'flex-grow' property. Note: this may ONLY be set when the component is a direct descendant of a Row or Column.
 • Divider(axis? (static), weight? (static))
   - axis: The orientation of the divider. Must be one of: 'horizontal', 'vertical'
@@ -126,42 +126,42 @@ Use these exact positional signatures to instantiate components. Do not output p
   - fit: Specifies how the image should be resized to fit its container. This corresponds to the CSS 'object-fit' property. Must be one of: 'contain', 'cover', 'fill', 'none', 'scaleDown'
   - variant: A hint for the image size and style. Must be one of: 'icon', 'avatar', 'smallFeature', 'mediumFeature', 'largeFeature', 'header'
   - weight: The relative weight of this component within a Row or Column. This is similar to the CSS 'flex-grow' property. Note: this may ONLY be set when the component is a direct descendant of a Row or Column.
-• List(children, direction? (static), align? (static), weight? (static))
+• List(children, align? (static), direction? (static), weight? (static))
   - children: Defines the children. Use an array of strings for a fixed set of children, or a template object to generate children from a data list.
-  - direction: The direction in which the list items are laid out. Must be one of: 'vertical', 'horizontal'
   - align: Defines the alignment of children along the cross axis. Must be one of: 'start', 'center', 'end', 'stretch'
+  - direction: The direction in which the list items are laid out. Must be one of: 'vertical', 'horizontal'
   - weight: The relative weight of this component within a Row or Column. This is similar to the CSS 'flex-grow' property. Note: this may ONLY be set when the component is a direct descendant of a Row or Column.
-• Modal(trigger (static), content (static), weight? (static))
-  - trigger: The ID of the component that opens the modal when interacted with (e.g., a button). Do NOT define the component inline.
-  - content: The ID of the component to be displayed inside the modal. Do NOT define the component inline.
+• Modal(content (static), trigger (static), weight? (static))
+  - content: The ID of the component to be displayed inside the modal.
+  - trigger: The ID of the component that opens the modal when interacted with (e.g., a button).
   - weight: The relative weight of this component within a Row or Column. This is similar to the CSS 'flex-grow' property. Note: this may ONLY be set when the component is a direct descendant of a Row or Column.
-• Row(children, justify? (static), align? (static), weight? (static))
+• Row(children, align? (static), justify? (static), weight? (static))
   - Description: A layout component that arranges its children horizontally. To create a grid layout, nest Columns within this Row.
   - children: Defines the children. Use an array of strings for a fixed set of children, or a template object to generate children from a data list. Children cannot be defined inline, they must be referred to by ID.
-  - justify: Defines the arrangement of children along the main axis (horizontally). Use 'spaceBetween' to push items to the edges, or 'start'/'end'/'center' to pack them together. Must be one of: 'center', 'end', 'spaceAround', 'spaceBetween', 'spaceEvenly', 'start', 'stretch'
   - align: Defines the alignment of children along the cross axis (vertically). This is similar to the CSS 'align-items' property, but uses camelCase values (e.g., 'start'). Must be one of: 'start', 'center', 'end', 'stretch'
+  - justify: Defines the arrangement of children along the main axis (horizontally). Use 'spaceBetween' to push items to the edges, or 'start'/'end'/'center' to pack them together. Must be one of: 'center', 'end', 'spaceAround', 'spaceBetween', 'spaceEvenly', 'start', 'stretch'
   - weight: The relative weight of this component within a Row or Column. This is similar to the CSS 'flex-grow' property. Note: this may ONLY be set when the component is a direct descendant of a Row or Column.
-• Slider(label?, min? (static), max (static), value, steps? (static), weight? (static), checks? (static))
-  - label: The label for the slider.
-  - min: The minimum value of the slider.
+• Slider(max (static), value, checks? (static), label?, min? (static), steps? (static), weight? (static))
   - max: The maximum value of the slider.
   - value: The current value of the slider.
+  - label: The label for the slider.
+  - min: The minimum value of the slider.
   - steps: The number of discrete divisions in the slider range. If specified, the slider will snap to discrete values.
   - weight: The relative weight of this component within a Row or Column. This is similar to the CSS 'flex-grow' property. Note: this may ONLY be set when the component is a direct descendant of a Row or Column.
 • Tabs(tabs (static), weight? (static))
   - tabs: An array of objects, where each object defines a tab with a title and a child component.
     List of maps keys:
     * title - The tab title.
-    * child - The ID of the child component. Do NOT define the component inline.
+    * child - The ID of the child component.
   - weight: The relative weight of this component within a Row or Column. This is similar to the CSS 'flex-grow' property. Note: this may ONLY be set when the component is a direct descendant of a Row or Column.
 • Text(text, variant? (static), weight? (static))
   - text: The text content to display. While simple Markdown formatting is supported (i.e. without HTML, images, or links), utilizing dedicated UI components is generally preferred for a richer and more structured presentation.
   - variant: A hint for the base text style. Must be one of: 'caption', 'body'
   - weight: The relative weight of this component within a Row or Column. This is similar to the CSS 'flex-grow' property. Note: this may ONLY be set when the component is a direct descendant of a Row or Column.
-• TextField(label, value?, placeholder?, variant? (static), weight? (static), checks? (static))
+• TextField(label, checks? (static), placeholder?, value?, variant? (static), weight? (static))
   - label: The text label for the input field.
-  - value: The value of the text field.
   - placeholder: The placeholder text for the input field.
+  - value: The value of the text field.
   - variant: The type of input field to display. Must be one of: 'longText', 'number', 'shortText', 'obscured'
   - weight: The relative weight of this component within a Row or Column. This is similar to the CSS 'flex-grow' property. Note: this may ONLY be set when the component is a direct descendant of a Row or Column.
 • Video(url, posterUrl?, weight? (static))
@@ -176,27 +176,27 @@ Use these exact positional signatures to instantiate check rules or logic functi
   - Description: Performs a logical AND operation on a list of boolean values.
 • email(value)
   - Description: Checks that the value is a valid email address.
-• formatCurrency(value, currency, decimals?, grouping?)
+• formatCurrency(currency, value, decimals?, grouping?)
   - Description: Formats a number as a currency string.
-• formatDate(value, format)
+• formatDate(format, value)
   - Description: Formats a timestamp into a string using a pattern.
 • formatNumber(value, decimals?, grouping?)
   - Description: Formats a number with the specified grouping and decimal precision.
 • formatString(value)
   - Description: Performs string interpolation of data model values and other functions in the catalog functions list and returns the resulting string. The value string can contain interpolated expressions in the `${expression}` format. Supported expression types include: JSON Pointer paths to the data model (e.g., `${/absolute/path}` or `${relative/path}`), and renderer-side function calls (e.g., `${now()}`). Function arguments must be named (e.g., `${formatDate(value:${/currentDate}, format:'MM-dd')}`). To include a literal `${` sequence, escape it as `\${`.
-• length(value, min?, max?)
+• length(value, max?, min?)
   - Description: Checks string length constraints.
 • not(value)
   - Description: Performs a logical NOT operation on a boolean value.
-• numeric(value, min?, max?)
+• numeric(value, max?, min?)
   - Description: Checks numeric range constraints.
 • openUrl(url)
   - Description: Opens the specified URL in a browser or handler. This function has no return value.
 • or(values)
   - Description: Performs a logical OR operation on a list of boolean values.
-• pluralize(value, zero?, one?, two?, few?, many?, other)
+• pluralize(other, value, few?, many?, one?, two?, zero?)
   - Description: Returns a localized string based on the Common Locale Data Repository (CLDR) plural category of the count (zero, one, two, few, many, other). Requires an 'other' fallback. For English, just use 'one' and 'other'.
-• regex(value, pattern)
+• regex(pattern, value)
   - Description: Checks that the value matches a regular expression string.
 • required(value)
   - Description: Checks that the value is not null, undefined, or empty.
@@ -222,8 +222,8 @@ Example 1: Dynamic text form
 $/form/rep = "John Doe"
 $/form/value = 1500.0
 root = Column([repField, valueField])
-repField = TextField("Representative", $/form/rep, "Enter name")
-valueField = TextField("Deal Value", $/form/value, "0.00", "number", ?None)
+repField = TextField("Representative", _, "Enter name", $/form/rep)
+valueField = TextField("Deal Value", ?None, "0.00", $/form/value, "number")
 </a2ui>
 ```
 
@@ -232,7 +232,7 @@ Example 2: Dynamic list with templates
 <a2ui>
 $/breeds = [{url: "https://example.com/poodle.jpg"}, {url: "https://example.com/lab.jpg"}]
 root = Card(breedList)
-breedList = List(_template($/breeds, breedTemplate), "horizontal")
+breedList = List(_template($/breeds, breedTemplate), _, "horizontal")
 breedTemplate = Image($url)
 </a2ui>
 ```
@@ -263,8 +263,8 @@ currentRow = Row([currentTemp, currentIcon], "center", "center")
 currentTemp = Text("68°F")
 currentIcon = Image("https://img.icons8.com/color/96/000000/sun.png", "Sunny")
 divider = Divider("horizontal")
-forecastList = List(_template($/forecast, forecastItem), "vertical")
-forecastItem = Row([itemDay, itemIcon, itemTemp], "spaceBetween", "center")
+forecastList = List(_template($/forecast, forecastItem), _, "vertical")
+forecastItem = Row([itemDay, itemIcon, itemTemp], "center", "spaceBetween")
 itemDay = Text($day)
 itemIcon = Image($icon, "Weather icon")
 itemTemp = Text($temp)
@@ -278,113 +278,115 @@ itemTemp = Text($temp)
 The A2UI Express compiler parsed the compact DSL above, dynamically generated component IDs, constructed parent-child reference links, and resolved positional arguments to form a standard A2UI v1.0 `createSurface` message structure.
 
 ```json
-{
-  "version": "v1.0",
-  "createSurface": {
-    "surfaceId": "main",
-    "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
-    "components": [
-      {
-        "id": "root",
-        "component": "Column",
-        "children": ["cityName", "currentRow", "divider", "forecastList"]
-      },
-      {
-        "id": "cityName",
-        "component": "Text",
-        "text": "New York"
-      },
-      {
-        "id": "currentRow",
-        "component": "Row",
-        "children": ["currentTemp", "currentIcon"],
-        "justify": "center",
-        "align": "center"
-      },
-      {
-        "id": "currentTemp",
-        "component": "Text",
-        "text": "68\u00b0F"
-      },
-      {
-        "id": "currentIcon",
-        "component": "Image",
-        "url": "https://img.icons8.com/color/96/000000/sun.png",
-        "description": "Sunny"
-      },
-      {
-        "id": "divider",
-        "component": "Divider",
-        "axis": "horizontal"
-      },
-      {
-        "id": "forecastList",
-        "component": "List",
-        "children": {
-          "path": "/forecast",
-          "componentId": "forecastItem"
+[
+  {
+    "version": "v1.0",
+    "createSurface": {
+      "surfaceId": "main",
+      "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
+      "components": [
+        {
+          "id": "root",
+          "component": "Column",
+          "children": ["cityName", "currentRow", "divider", "forecastList"]
         },
-        "direction": "vertical"
-      },
-      {
-        "id": "forecastItem",
-        "component": "Row",
-        "children": ["itemDay", "itemIcon", "itemTemp"],
-        "justify": "spaceBetween",
-        "align": "center"
-      },
-      {
-        "id": "itemDay",
-        "component": "Text",
-        "text": {
-          "path": "day"
-        }
-      },
-      {
-        "id": "itemIcon",
-        "component": "Image",
-        "url": {
-          "path": "icon"
+        {
+          "id": "cityName",
+          "component": "Text",
+          "text": "New York"
         },
-        "description": "Weather icon"
-      },
-      {
-        "id": "itemTemp",
-        "component": "Text",
-        "text": {
-          "path": "temp"
+        {
+          "id": "currentRow",
+          "component": "Row",
+          "children": ["currentTemp", "currentIcon"],
+          "align": "center",
+          "justify": "center"
+        },
+        {
+          "id": "currentTemp",
+          "component": "Text",
+          "text": "68\u00b0F"
+        },
+        {
+          "id": "currentIcon",
+          "component": "Image",
+          "url": "https://img.icons8.com/color/96/000000/sun.png",
+          "description": "Sunny"
+        },
+        {
+          "id": "divider",
+          "component": "Divider",
+          "axis": "horizontal"
+        },
+        {
+          "id": "forecastList",
+          "component": "List",
+          "children": {
+            "path": "/forecast",
+            "componentId": "forecastItem"
+          },
+          "direction": "vertical"
+        },
+        {
+          "id": "forecastItem",
+          "component": "Row",
+          "children": ["itemDay", "itemIcon", "itemTemp"],
+          "align": "center",
+          "justify": "spaceBetween"
+        },
+        {
+          "id": "itemDay",
+          "component": "Text",
+          "text": {
+            "path": "day"
+          }
+        },
+        {
+          "id": "itemIcon",
+          "component": "Image",
+          "url": {
+            "path": "icon"
+          },
+          "description": "Weather icon"
+        },
+        {
+          "id": "itemTemp",
+          "component": "Text",
+          "text": {
+            "path": "temp"
+          }
         }
+      ],
+      "dataModel": {
+        "forecast": [
+          {
+            "day": "Monday",
+            "icon": "https://img.icons8.com/color/48/000000/sun.png",
+            "temp": "72\u00b0F / 55\u00b0F"
+          },
+          {
+            "day": "Tuesday",
+            "icon": "https://img.icons8.com/color/48/000000/partly-cloudy-day.png",
+            "temp": "68\u00b0F / 50\u00b0F"
+          },
+          {
+            "day": "Wednesday",
+            "icon": "https://img.icons8.com/color/48/000000/rain.png",
+            "temp": "60\u00b0F / 48\u00b0F"
+          },
+          {
+            "day": "Thursday",
+            "icon": "https://img.icons8.com/color/48/000000/partly-cloudy-day.png",
+            "temp": "65\u00b0F / 52\u00b0F"
+          },
+          {
+            "day": "Friday",
+            "icon": "https://img.icons8.com/color/48/000000/sun.png",
+            "temp": "70\u00b0F / 54\u00b0F"
+          }
+        ]
       }
-    ],
-    "dataModel": {
-      "forecast": [
-        {
-          "day": "Monday",
-          "icon": "https://img.icons8.com/color/48/000000/sun.png",
-          "temp": "72\u00b0F / 55\u00b0F"
-        },
-        {
-          "day": "Tuesday",
-          "icon": "https://img.icons8.com/color/48/000000/partly-cloudy-day.png",
-          "temp": "68\u00b0F / 50\u00b0F"
-        },
-        {
-          "day": "Wednesday",
-          "icon": "https://img.icons8.com/color/48/000000/rain.png",
-          "temp": "60\u00b0F / 48\u00b0F"
-        },
-        {
-          "day": "Thursday",
-          "icon": "https://img.icons8.com/color/48/000000/partly-cloudy-day.png",
-          "temp": "65\u00b0F / 52\u00b0F"
-        },
-        {
-          "day": "Friday",
-          "icon": "https://img.icons8.com/color/48/000000/sun.png",
-          "temp": "70\u00b0F / 54\u00b0F"
-        }
-      ]
     }
   }
-}
+]
 ```

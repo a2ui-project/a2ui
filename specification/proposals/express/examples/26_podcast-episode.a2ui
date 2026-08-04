@@ -6,13 +6,13 @@ $/duration = "45 min"
 $/episodeTitle = "The Future of AI in Product Design"
 $/showName = "Tech Talk Daily"
 root = Card(main_row)
-main_row = Row([artwork, content], _, "start")
+main_row = Row([artwork, content], "start")
 artwork = Image($/artwork, _, "cover")
 content = Column([show_name, episode_title, meta_row, description, audio_player])
 show_name = Text($/showName, "caption")
 episode_title = Text($/episodeTitle)
 meta_row = Row([duration, date])
 duration = Text($/duration, "caption")
-date = Text(formatDate($/date, "MMM d, yyyy"), "caption")
+date = Text(formatDate(value=$/date, format="MMM d, yyyy"), "caption")
 description = Text($/description, "body")
 audio_player = AudioPlayer($/audioUrl, $/episodeTitle)

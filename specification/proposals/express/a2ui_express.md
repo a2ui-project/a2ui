@@ -204,7 +204,7 @@ If the compiler encounters a syntax error or catalog schema mismatch during pars
 Because A2UI Express omits property keys, the compiler relies entirely on the JSON schema of the loaded catalog to map positional arguments.
 
 1. The compiler looks up the component or function name in the catalog schema, discarding structural keys like `component` and `id`.
-2. It reads the declared properties in their strict definition order.
+2. It orders property keys deterministically using catalog-agnostic heuristics: required properties sorted alphabetically first, followed by optional properties sorted alphabetically (with zero special cases; `checks` is included as an optional property sorted alphabetically).
 3. It maps the positional arguments of the A2UI Express statement to these property keys in sequence.
 4. Trailing optional arguments can be omitted from the end of the statement. For example, if a component signature is `Button(child, action?)` where `action` is optional, `Button(label_text)` is compiled with `action` as null/omitted.
 5. Skipped optional arguments (where a subsequent argument must be specified) are represented by an underscore `_` placeholder. For example, if `justify` is optional in `Column(children, justify?, align?)`, `Column([icon, title], _, "center")` maps the array to `children` and `"center"` to `align`, leaving `justify` unspecified.

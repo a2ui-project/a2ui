@@ -432,23 +432,35 @@ class ExpressCompiler:
         # Sibling path tracking for check rules
         sibling_value_path = None
 
-        non_check_properties = [p for p in properties if p != "checks"]
         raw_checks = []
 
         # Collect (prop_name, arg_val) pairs from positional and keyword args
         prop_arg_pairs = []
         prop_idx = 0
         for arg in args:
-            if _is_check_expression(arg):
-                if isinstance(arg, list):
-                    raw_checks.extend(arg)
+            if prop_idx < len(properties):
+                prop_name = properties[prop_idx]
+                if prop_name == "checks":
+                    if _is_check_expression(arg):
+                        if isinstance(arg, list):
+                            raw_checks.extend(arg)
+                        else:
+                            raw_checks.append(arg)
+                    elif arg != "_" and not (
+                        isinstance(arg, dict)
+                        and (arg.get("skipped") or arg.get("variable") == "_")
+                    ):
+                        prop_arg_pairs.append((prop_name, arg))
+                    prop_idx += 1
                 else:
-                    raw_checks.append(arg)
-                continue
-
-            if prop_idx < len(non_check_properties):
-                prop_arg_pairs.append((non_check_properties[prop_idx], arg))
-                prop_idx += 1
+                    if _is_check_expression(arg):
+                        if isinstance(arg, list):
+                            raw_checks.extend(arg)
+                        else:
+                            raw_checks.append(arg)
+                    else:
+                        prop_arg_pairs.append((prop_name, arg))
+                    prop_idx += 1
 
         for k, v in kwargs.items():
             if _is_check_expression(v):
@@ -554,8 +566,12 @@ class ExpressCompiler:
                                 message_val = c_arg
                                 break
 
-                            if isinstance(c_arg, dict) and c_arg.get("skipped"):
-                                compiled_args[prop_name] = None
+                            if c_arg == "_" or (
+                                isinstance(c_arg, dict)
+                                and (
+                                    c_arg.get("skipped") or c_arg.get("variable") == "_"
+                                )
+                            ):
                                 continue
                             compiled_args[prop_name] = self._compile_value(
                                 c_arg, raw_symbols, ctx
@@ -640,7 +656,12 @@ class ExpressCompiler:
                             if is_message:
                                 break
 
-                            if isinstance(c_arg, dict) and c_arg.get("skipped"):
+                            if c_arg == "_" or (
+                                isinstance(c_arg, dict)
+                                and (
+                                    c_arg.get("skipped") or c_arg.get("variable") == "_"
+                                )
+                            ):
                                 continue
                             compiled_args[prop_name] = self._compile_value(
                                 c_arg, raw_symbols, ctx, is_action
@@ -716,7 +737,10 @@ class ExpressCompiler:
                     compiled_args = {}
                     for idx, arg in enumerate(fn_args):
                         if idx < len(fn_props):
-                            if isinstance(arg, dict) and arg.get("skipped"):
+                            if arg == "_" or (
+                                isinstance(arg, dict)
+                                and (arg.get("skipped") or arg.get("variable") == "_")
+                            ):
                                 continue
                             val_item = self._compile_value(
                                 arg, raw_symbols, ctx, is_action

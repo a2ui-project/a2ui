@@ -2,12 +2,12 @@ $/description = "Get alerts for order status changes"
 $/icon = "check"
 $/title = "Enable notification"
 root = Card(main_column)
-main_column = Column([icon, title, description, actions], _, "center")
+main_column = Column([icon, title, description, actions], "center")
 icon = Icon($/icon)
 title = Text($/title)
 description = Text($/description, "body")
-actions = Row([yes_btn, no_btn], "center")
+actions = Row([yes_btn, no_btn], justify="center")
 yes_btn_text = Text("Yes")
-yes_btn = Button(yes_btn_text, _, Event("accept"))
+yes_btn = Button(Event("accept"), yes_btn_text)
 no_btn_text = Text("No")
-no_btn = Button(no_btn_text, _, Event("decline"))
+no_btn = Button(Event("decline"), no_btn_text)

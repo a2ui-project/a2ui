@@ -1,5 +1,5 @@
 root = Card(main_column)
-main_column = Column([title_text, markdown_content], _, "stretch")
+main_column = Column([title_text, markdown_content], "stretch")
 title_text = Text("### Markdown Rendering")
 markdown_content = Text("""# Heading 1
 

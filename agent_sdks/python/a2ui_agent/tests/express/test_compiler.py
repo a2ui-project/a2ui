@@ -67,8 +67,8 @@ class TestExpressCompiler(unittest.TestCase):
         """Validates parsing and compiling basic components and validations."""
         compiler = ExpressCompiler(self.catalog)
         dsl = """root = Column([repField, valueField])
-repField = TextField("Representative", $/form/rep, "Enter name")
-valueField = TextField("Deal Value", $/form/value, "0.00", "number", ?required)"""
+repField = TextField("Representative", _, "Enter name", $/form/rep)
+valueField = TextField("Deal Value", ?required, "0.00", $/form/value, "number")"""
 
         envelope = compiler.compile(dsl, surface_id="test_surf")[0]
         self.assertEqual(envelope["version"], "v1.0")
@@ -109,7 +109,7 @@ valueField = TextField("Deal Value", $/form/value, "0.00", "number", ?required)"
         compiler = ExpressCompiler(self.catalog)
         dsl = """root = Column([welcome, saveButton])
 welcome = Text(formatString("Welcome, ${/user/name}!"))
-saveButton = Button(saveLabel, "primary", Event("submitDeal", {rep: $/form/rep}))
+saveButton = Button(Event("submitDeal", {rep: $/form/rep}), saveLabel, variant="primary")
 saveLabel = Text("Save")"""
 
         envelope = compiler.compile(dsl)[0]
@@ -169,9 +169,9 @@ contentCol = Column([])"""
         """Validates that Event helper assignments and custom list arrays assigned to variables inline correctly."""
         compiler = ExpressCompiler(self.catalog)
         dsl = """root = Column([btn1, btn2])
-btn1 = Button(btn1Label, "primary", myAction)
+btn1 = Button(myAction, btn1Label, variant="primary")
 btn1Label = Text("Save")
-btn2 = Button(btn2Label, "borderless", closeAction)
+btn2 = Button(closeAction, btn2Label, variant="borderless")
 btn2Label = Text("Cancel")
 myAction = Event("submit", {val: "42"})
 closeAction = Event("close")"""
@@ -191,9 +191,9 @@ closeAction = Event("close")"""
         """Validates skipped (_) and trailing omitted positional arguments compile correctly."""
         compiler = ExpressCompiler(self.catalog)
         dsl = """root = Column([btn1, btn2])
-btn1 = Button(btn1_label, _, Event("click"))
+btn1 = Button(Event("click"), btn1_label)
 btn1_label = Text("Click")
-btn2 = Button(btn2_label)
+btn2 = Button(_, btn2_label)
 btn2_label = Text("Submit")"""
 
         envelope = compiler.compile(dsl)[0]
@@ -312,7 +312,7 @@ $/breeds = [{"url": "https://example.com/poodle.jpg"}]"""
             compiler.compile("root = List(_template($/path))")
 
         # 6. Verify Event helper compilation context layouts
-        event_dsl_dict = 'root = Button("Submit", _, Event("click", {"source": "btn"}))'
+        event_dsl_dict = 'root = Button(Event("click", {"source": "btn"}), "Submit")'
         event_envelope_dict = compiler.compile(event_dsl_dict)[0]
         btn_comp_dict = next(
             c
@@ -346,7 +346,7 @@ $/breeds = [{"url": "https://example.com/poodle.jpg"}]"""
         self.assertEqual(text_comp["text"], {"path": ""})
 
         # 9. Verify nested check compilation and active value path injection
-        nested_check_dsl = """root = TextField("Label", $/form/email, "placeholder", "shortText", ?and([?required, ?email]))"""
+        nested_check_dsl = """root = TextField("Label", ?and([?required, ?email]), "placeholder", $/form/email, "shortText")"""
         nested_check_envelope = compiler.compile(nested_check_dsl)[0]
         textfield_comp = next(
             c
@@ -401,8 +401,8 @@ $/breeds = [{"url": "https://example.com/poodle.jpg"}]"""
 
         # 1. Test check with custom error message breaking the positional property mapping loop
         dsl_check_msg = (
-            'root = TextField("Label", $/val, ?numeric(1, 10, "Custom range error'
-            ' message"))'
+            'root = TextField("Label", ?numeric(10, 1, "Custom range error'
+            ' message"), "placeholder", $/val)'
         )
         res = compiler.compile(dsl_check_msg)[0]
         checks = res["createSurface"]["components"][0]["checks"]
@@ -413,7 +413,9 @@ $/breeds = [{"url": "https://example.com/poodle.jpg"}]"""
         self.assertEqual(checks[0]["message"], "Custom range error message")
 
         # 2. Test unregistered function call fallback
-        dsl_fallback_fn = 'root = TextField("Label", my_unregistered_func(1, 2))'
+        dsl_fallback_fn = (
+            'root = TextField("Label", _, "placeholder", my_unregistered_func(1, 2))'
+        )
         res_fallback = compiler.compile(dsl_fallback_fn)[0]
         tf = res_fallback["createSurface"]["components"][0]
         self.assertEqual(tf["value"]["call"], "my_unregistered_func")
@@ -500,8 +502,8 @@ btnLabel = Text("Click Thread 2")
         # 2. Test trailing commas in lists, maps, component calls, and checks
         trailing_comma_dsl = """
     root = Column([btn1, btn2,],);
-    btn1 = Button("Label", "primary", myAction,);
-    btn2 = TextField("Input", $/val, "placeholder", _, ?numeric(1, 10,),);
+    btn1 = Button(myAction, "Label", variant="primary",);
+    btn2 = TextField("Input", "placeholder", $/val, _, ?numeric(10, 1,),);
     myAction = Event("click", {a: 1, b: 2,},);
     """
         envelope2 = compiler.compile(trailing_comma_dsl)[0]
@@ -526,7 +528,7 @@ btnLabel = Text("Click Thread 2")
     def test_strict_enum_validation(self):
         """Verifies that the compiler raises a ValueError when an invalid enum option is passed."""
         compiler = ExpressCompiler(self.catalog)
-        invalid_dsl = 'root = Button("Click", "invalid_variant")'
+        invalid_dsl = 'root = Button(variant="invalid_variant")'
         with self.assertRaises(ValueError) as context:
             compiler.compile(invalid_dsl)
         self.assertIn(
@@ -538,26 +540,27 @@ btnLabel = Text("Click Thread 2")
         compiler = ExpressCompiler(self.catalog)
 
         # 1. Direct databinding (should fail)
-        invalid_dsl1 = 'root = Button("Click", $/some/path)'
+        invalid_dsl1 = "root = Button(variant=$/some/path)"
         with self.assertRaises(ValueError) as context:
             compiler.compile(invalid_dsl1)
         self.assertIn("does not support dynamic data bindings", str(context.exception))
 
         # 2. Nested inside list (should fail)
-        invalid_dsl2 = 'root = Button("Click", [$/some/path])'
+        invalid_dsl2 = "root = Button(variant=[$/some/path])"
         with self.assertRaises(ValueError) as context:
             compiler.compile(invalid_dsl2)
         self.assertIn("does not support dynamic data bindings", str(context.exception))
 
         # 3. Deeply nested inside dict inside list (should fail)
-        invalid_dsl3 = 'root = Button("Click", [{label: "Click", value: $/some/path}])'
+        invalid_dsl3 = 'root = Button(variant=[{label: "Click", value: $/some/path}])'
         with self.assertRaises(ValueError) as context:
             compiler.compile(invalid_dsl3)
         self.assertIn("does not support dynamic data bindings", str(context.exception))
 
         # 4. Valid Event action containing databinding (should succeed)
         valid_dsl = (
-            'root = Button("Click", "primary", Event("click", {rep: $/some/path}))'
+            'root = Button(Event("click", {rep: $/some/path}), "Click",'
+            ' variant="primary")'
         )
         envelope = compiler.compile(valid_dsl)[0]
         self.assertEqual(len(envelope["createSurface"]["components"]), 1)
@@ -581,8 +584,8 @@ btnLabel = Text("Click Thread 2")
         )
 
         dsl = """root = Column([repField, valueField])
-repField = TextField("Representative", $/form/rep, "Enter name")
-valueField = TextField("Deal Value", $/form/value, "0.00", "number", ?required)"""
+repField = TextField("Representative", _, "Enter name", $/form/rep)
+valueField = TextField("Deal Value", ?required, "0.00", $/form/value, "number")"""
 
         expected_components_count = 3
 
@@ -690,7 +693,7 @@ b1 = Button(child=Text("Click"), action=Event("save", {id: 42}))"""
         """Verifies compilation of Express DSL statements using inline/hybrid nested component syntax."""
         compiler = ExpressCompiler(self.catalog)
         dsl = """card1 = Card(child=Text("Inside Card"))
-root = Column(children=[Text("Top Header"), card1, Button("Click", action=Event("submit"))], align="center")"""
+root = Column(children=[Text("Top Header"), card1, Button(Event("submit"), "Click")], align="center")"""
         envelope = compiler.compile(dsl)[0]
         components = envelope["createSurface"]["components"]
         comp_map = {c["id"]: c for c in components}
@@ -730,7 +733,7 @@ root = Column(children=[Text("Top Header"), card1, Button("Click", action=Event(
         # 3. Invalid function parameter
         with self.assertRaises(ExpressInvalidParamError) as ctx:
             compiler.compile(
-                'root = Button("Click", action=openUrl("https://example.com",'
+                'root = Button(child="Click", action=openUrl("https://example.com",'
                 " unknownParam=123))"
             )
         self.assertEqual(ctx.exception.fn_name, "openUrl")
@@ -739,7 +742,7 @@ root = Column(children=[Text("Top Header"), card1, Button("Click", action=Event(
         # 4. Duplicate function parameter
         with self.assertRaises(ExpressDuplicateParamError) as ctx:
             compiler.compile(
-                'root = Button("Click", action=openUrl("https://example.com",'
+                'root = Button(child="Click", action=openUrl("https://example.com",'
                 ' url="https://duplicate.com"))'
             )
         self.assertEqual(ctx.exception.fn_name, "openUrl")

@@ -23,10 +23,52 @@ from a2ui.core.catalog import Catalog
 from a2ui.schema.catalog import A2uiCatalog
 
 
+def _sort_component_properties(
+    props: dict[str, Any], reqs: list[str], is_checkable: bool
+) -> tuple[list[str], list[str]]:
+    """Sorts component properties deterministically in a catalog-agnostic manner.
+
+    Ordering Strategy:
+    1. Filter out structural protocol properties ('component', 'id').
+    2. Separate remaining properties into required and optional sets.
+    3. Sort required properties alphabetically.
+    4. Sort optional properties alphabetically (including 'checks' if checkable).
+    5. Combine sorted required properties followed by sorted optional properties.
+    """
+    prop_dict = dict(props)
+    if is_checkable and "checks" not in prop_dict:
+        prop_dict["checks"] = {
+            "type": "array",
+            "description": "Validation check rules for this component.",
+        }
+
+    req_set = {r for r in reqs if r not in ["component", "id"]}
+    all_prop_keys = [k for k in prop_dict if k not in ["component", "id"]]
+
+    req_props = sorted([k for k in all_prop_keys if k in req_set])
+    opt_props = sorted([k for k in all_prop_keys if k not in req_set])
+
+    return req_props + opt_props, sorted(list(req_set))
+
+
+def _sort_function_properties(
+    props: dict[str, Any], reqs: list[str]
+) -> tuple[list[str], list[str]]:
+    """Sorts function argument properties deterministically in a catalog-agnostic manner."""
+    req_set = {r for r in reqs if r not in ["component", "id"]}
+    fn_prop_keys = list(props.keys())
+
+    req_props = sorted([k for k in fn_prop_keys if k in req_set])
+    opt_props = sorted([k for k in fn_prop_keys if k not in req_set])
+
+    return req_props + opt_props, sorted(list(req_set))
+
+
 class CatalogSchemaHelper:
     """Dynamic schema crawler for A2UI catalogs.
 
-    Resolves component and function properties in strict schema definition order
+    Resolves component and function properties in deterministic sorted order
+    (required properties first alphabetically, followed by optional properties alphabetically)
     to support positional parameter mapping for compact generative notations.
 
     Attributes:
@@ -107,18 +149,12 @@ class CatalogSchemaHelper:
                 if "required" in sub:
                     reqs.extend(sub["required"])
 
-            # Filter out structural properties component and id
-            ordered_keys = []
-            for k in props:
-                if k not in ["component", "id"]:
-                    ordered_keys.append(k)
-
-            # If it's checkable, add checks at the end
-            if is_checkable:
-                ordered_keys.append("checks")
+            ordered_keys, reqs_clean = _sort_component_properties(
+                props, reqs, is_checkable
+            )
 
             self.component_properties[name] = ordered_keys
-            self.component_required[name] = reqs
+            self.component_required[name] = reqs_clean
             self.component_is_checkable[name] = is_checkable
 
         self.function_properties = {}
@@ -141,8 +177,11 @@ class CatalogSchemaHelper:
                             props.update(args_obj["properties"])
                         if "required" in args_obj:
                             reqs.extend(args_obj["required"])
-            self.function_properties[name] = list(props.keys())
-            self.function_required[name] = reqs
+
+            fn_ordered_props, fn_reqs_clean = _sort_function_properties(props, reqs)
+
+            self.function_properties[name] = fn_ordered_props
+            self.function_required[name] = fn_reqs_clean
 
     def get_component_properties(self, name: str) -> list[str]:
         """Returns the ordered properties of the specified component.
