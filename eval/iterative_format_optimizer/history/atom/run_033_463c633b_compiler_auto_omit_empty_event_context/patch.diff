@@ -1,0 +1,39 @@
+diff --git a/agent_sdks/python/a2ui_agent/src/a2ui/inference_formats/experimental/atom/compiler.py b/agent_sdks/python/a2ui_agent/src/a2ui/inference_formats/experimental/atom/compiler.py
+index 41257220..f54c055d 100644
+--- a/agent_sdks/python/a2ui_agent/src/a2ui/inference_formats/experimental/atom/compiler.py
++++ b/agent_sdks/python/a2ui_agent/src/a2ui/inference_formats/experimental/atom/compiler.py
+@@ -930,14 +930,29 @@ class AtomCompiler:
+         context = {}
+         i = 2
+         while i < len(expr):
+-            if str(expr[i]).startswith(":") and i + 1 < len(expr):
+-                context[str(expr[i])[1:]] = expr[i + 1]
+-                i += 2
++            item = expr[i]
++            if isinstance(item, str) and item.startswith(":") and len(item) > 1:
++                k = item[1:]
++                if i + 1 < len(expr):
++                    v = expr[i + 1]
++                    if k not in ("name", "action"):
++                        context[k] = v
++                    i += 2
++                else:
++                    i += 1
++            elif isinstance(item, dict):
++                for k, v in item.items():
++                    if k not in ("name", "action"):
++                        context[k] = v
++                i += 1
+             else:
+                 i += 1
+         ev_obj: Dict[str, Any] = {"name": event_name}
+-        if context:
+-            ev_obj["context"] = {k: self._resolve_val(v, []) for k, v in context.items()}
++        resolved_context = {
++            k: self._resolve_val(v, []) for k, v in context.items()
++        } if context else {}
++        if resolved_context:
++            ev_obj["context"] = resolved_context
+         return {"event": ev_obj}
+ 
+     def _compile_template(self, expr: List[Any], components: List[Dict[str, Any]]) -> Dict[str, Any]:

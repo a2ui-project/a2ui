@@ -50,8 +50,13 @@
     "components": {
       "type": "object",
       "description": "Definitions for UI components supported by this catalog.",
+      "propertyNames": {
+        "not": {
+          "const": "Surface"
+        }
+      },
       "additionalProperties": {
-        "$ref": "https://json-schema.org/draft/2020-12/schema"
+        "$ref": "#/$defs/ComponentDefinition"
       }
     },
     "functions": {
@@ -166,6 +171,36 @@
         }
       ],
       "unevaluatedProperties": false
+    },
+    "ComponentDefinition": {
+      "type": "object",
+      "description": "Describes a component's validation schema and composition constraints.",
+      "allOf": [
+        {
+          "$ref": "https://json-schema.org/draft/2020-12/schema"
+        },
+        {
+          "type": "object",
+          "properties": {
+            "allowedParents": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "description": "The list of parent component type names that can contain this component type. If omitted, all parent component types are allowed. To restrict a component so it can appear only as the top-level component (id='root') of a surface, set \"allowedParents\": [\"Surface\"]. To allow a component as either the top-level component of a surface or a child of a specific container, specify both (e.g., \"allowedParents\": [\"Surface\", \"CanvasContainer\"]).",
+              "uniqueItems": true
+            },
+            "allowedChildren": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "description": "The list of child component type names allowed inside this container or slot. If omitted, all child component types are allowed.",
+              "uniqueItems": true
+            }
+          }
+        }
+      ]
     }
   }
 }
