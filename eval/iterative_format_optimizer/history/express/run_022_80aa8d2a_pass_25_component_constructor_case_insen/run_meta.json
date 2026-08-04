@@ -1,0 +1,15 @@
+{
+  "format": "express",
+  "hypothesis": "Pass 25: Component constructor case-insensitive matching in compiler.py",
+  "status": "Kept",
+  "notes": "Pytest passed 63/63. Overall evaluation pass rate 100.0%.",
+  "metrics": {
+    "schema_acc": 1.0,
+    "quality_acc": 1.0,
+    "code_tokens_median": 313.0,
+    "reasoning_tokens_median": 2353.0,
+    "input_tokens_median": 5936.5,
+    "latency_seconds_median": 14.944591296021827,
+    "total_samples": 6
+  }
+}

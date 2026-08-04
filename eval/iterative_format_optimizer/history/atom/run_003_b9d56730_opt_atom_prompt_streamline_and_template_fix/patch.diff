@@ -1,0 +1,824 @@
+diff --git a/agent_sdks/python/a2ui_agent/src/a2ui/inference_formats/experimental/atom/compiler.py.orig b/agent_sdks/python/a2ui_agent/src/a2ui/inference_formats/experimental/atom/compiler.py.orig
+deleted file mode 100644
+index 04e587cb..00000000
+--- a/agent_sdks/python/a2ui_agent/src/a2ui/inference_formats/experimental/atom/compiler.py.orig
++++ /dev/null
+@@ -1,394 +0,0 @@
+-# Copyright 2026 Google LLC
+-#
+-# Licensed under the Apache License, Version 2.0 (the "License");
+-# you may not use this file except in compliance with the License.
+-# You may obtain a copy of the License at
+-#
+-#      https://www.apache.org/licenses/LICENSE-2.0
+-#
+-# Unless required by applicable law or agreed to in writing, software
+-# distributed under the License is distributed on an "AS IS" BASIS,
+-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+-# See the License for the specific language governing permissions and
+-# limitations under the License.
+-
+-"""Compilation engine for A2UI Atom S-Expressions."""
+-
+-import re
+-import json
+-from typing import Any, Dict, List, Tuple, Union, Optional
+-from a2ui.core.catalog import Catalog
+-from a2ui.schema.catalog import A2uiCatalog
+-class CatalogSchemaHelperWrapper:
+-    def __init__(self, catalog: Any):
+-        self.catalog = catalog
+-
+-    def get_component_properties(self, comp_type: str) -> Dict[str, Any]:
+-        if hasattr(self.catalog, "get_components"):
+-            comps = self.catalog.get_components()
+-            if comp_type in comps:
+-                return comps[comp_type].get("properties", {})
+-        try:
+-            from a2ui.inference_formats.experimental.express.schema_helper import CatalogSchemaHelper
+-            return CatalogSchemaHelper(self.catalog).get_component_properties(comp_type)
+-        except Exception:
+-            return {}
+-
+-
+-class SExprParser:
+-    """Tokenizer and S-expression AST parser for Atom syntax."""
+-
+-    def __init__(self, text: str):
+-        self.text = text
+-        self.tokens = self._tokenize(text)
+-        self.pos = 0
+-
+-    def _tokenize(self, text: str) -> List[str]:
+-        """Tokenizes S-expression string handling parens, brackets, quotes, keywords, and paths."""
+-        token_spec = [
+-            ("STRING", r'"(?:\\.|[^"\\])*"'),
+-            ("LPAREN", r'[(\[]'),
+-            ("RPAREN", r'[\])]'),
+-            ("KEYWORD", r':\w+'),
+-            ("PATH", r'\$/?[\w/]+'),
+-            ("SYMBOL", r'[^\s()":\[\],]+'),
+-            ("SKIP", r'[,\s]+'),
+-        ]
+-        tok_regex = "|".join(f"(?P<{pair[0]}>{pair[1]})" for pair in token_spec)
+-        tokens = []
+-        for mo in re.finditer(tok_regex, text):
+-            kind = mo.lastgroup
+-            value = mo.group()
+-            if kind == "SKIP":
+-                continue
+-            tokens.append(value)
+-        return tokens
+-
+-    def parse(self) -> List[Any]:
+-        """Parses tokens into nested S-expression lists."""
+-        expressions = []
+-        while self.pos < len(self.tokens):
+-            expr = self._parse_expr()
+-            if expr is not None:
+-                expressions.append(expr)
+-        return expressions
+-
+-    def _parse_expr(self) -> Any:
+-        if self.pos >= len(self.tokens):
+-            return None
+-
+-        tok = self.tokens[self.pos]
+-        if tok in ("(", "[", "{"):
+-            closing = ")" if tok == "(" else ("]" if tok == "[" else "}")
+-            self.pos += 1
+-            elements = []
+-            while self.pos < len(self.tokens) and self.tokens[self.pos] != closing:
+-                sub = self._parse_expr()
+-                if sub is not None:
+-                    elements.append(sub)
+-            if self.pos < len(self.tokens) and self.tokens[self.pos] == closing:
+-                self.pos += 1
+-            return elements
+-        elif tok in (")", "]", "}"):
+-            self.pos += 1
+-            return None
+-        else:
+-            self.pos += 1
+-            return self._parse_atom(tok)
+-
+-    def _parse_atom(self, tok: str) -> Any:
+-        if tok.startswith('"') and tok.endswith('"'):
+-            return tok[1:-1].encode().decode('unicode_escape')
+-        if tok == "true":
+-            return True
+-        if tok == "false":
+-            return False
+-        if tok == "null":
+-            return None
+-        try:
+-            if "." in tok:
+-                return float(tok)
+-            return int(tok)
+-        except ValueError:
+-            return tok
+-
+-
+-class AtomCompiler:
+-    """Compiles Atom S-Expression AST into standard A2UI v1.0 JSON payloads."""
+-
+-    def __init__(self, catalog: Union[Catalog[Any, Any], A2uiCatalog, Any]):
+-        self.catalog = catalog
+-        self.schema_helper = CatalogSchemaHelperWrapper(catalog)
+-        self.node_counter = 0
+-
+-    def _next_id(self) -> str:
+-        id_str = f"node_{self.node_counter}"
+-        self.node_counter += 1
+-        return id_str
+-
+-    def _is_component_type(self, name: str) -> bool:
+-        """Determines if a string is a valid component type name."""
+-        if not name or not isinstance(name, str):
+-            return False
+-        if name in ("Card", "Column", "Row", "Text", "Image", "Icon", "Button", "List", "TextField", "ChoicePicker", "Divider", "Container", "Page"):
+-            return True
+-        if name[0].isupper():
+-            return True
+-        comp_props = self.schema_helper.get_component_properties(name)
+-        return bool(comp_props)
+-
+-    def compile(
+-        self, text: str, surface_id: str = "main", is_final: bool = True
+-    ) -> Dict[str, Any]:
+-        """Compiles raw Atom text into an A2UI message dictionary."""
+-        parser = SExprParser(text)
+-        exprs = parser.parse()
+-        if not exprs:
+-            raise ValueError("No valid Atom expressions found.")
+-
+-        data_model: Dict[str, Any] = {}
+-        components: List[Dict[str, Any]] = []
+-
+-        for expr in exprs:
+-            if not isinstance(expr, list) or not expr:
+-                continue
+-
+-            head = str(expr[0])
+-
+-            if head in ("data", "set!"):
+-                self._parse_data_node(expr, data_model)
+-            elif head == "deleteSurface":
+-                surface_target = str(expr[1]) if len(expr) > 1 else surface_id
+-                return {
+-                    "version": "v1.0",
+-                    "deleteSurface": {"surfaceId": surface_target},
+-                }
+-            elif head == "callFunction":
+-                func_name = str(expr[1]) if len(expr) > 1 else ""
+-                args = {}
+-                i = 2
+-                while i < len(expr):
+-                    tok = str(expr[i])
+-                    if tok.startswith(":") and i + 1 < len(expr):
+-                        args[tok[1:]] = expr[i + 1]
+-                        i += 2
+-                    else:
+-                        i += 1
+-                return {
+-                    "version": "v1.0",
+-                    "callFunction": {
+-                        "call": func_name,
+-                        "args": args,
+-                    },
+-                }
+-            elif head in ("createSurface", "surface"):
+-                for sub in expr[1:]:
+-                    if isinstance(sub, list) and sub:
+-                        if str(sub[0]) in ("data", "set!"):
+-                            self._parse_data_node(sub, data_model)
+-                        elif self._is_component_type(str(sub[0])):
+-                            self._compile_component(sub, components, data_model, is_root=True)
+-            else:
+-                # Component root tree
+-                root_id = self._compile_component(expr, components, data_model, is_root=True)
+-
+-        if not components and data_model:
+-            return {
+-                "version": "v1.0",
+-                "updateDataModel": {
+-                    "surfaceId": surface_id,
+-                    "path": "/",
+-                    "value": data_model,
+-                },
+-            }
+-
+-        return {
+-            "version": "v1.0",
+-            "createSurface": {
+-                "surfaceId": surface_id,
+-                "catalogId": getattr(self.catalog, "id", "basic"),
+-                "components": components,
+-                "dataModel": data_model,
+-            },
+-        }
+-
+-    def _clean_data_value(self, val: Any) -> Any:
+-        if isinstance(val, list):
+-            if not val:
+-                return []
+-            if len(val) >= 2 and len(val) % 2 == 0 and all(isinstance(val[i], str) and val[i].startswith(":") for i in range(0, len(val), 2)):
+-                res = {}
+-                i = 0
+-                while i < len(val) - 1:
+-                    key = str(val[i])[1:]
+-                    res[key] = self._clean_data_value(val[i + 1])
+-                    i += 2
+-                return res
+-            return [self._clean_data_value(item) for item in val]
+-        return val
+-
+-    def _parse_data_node(self, expr: List[Any], data_model: Dict[str, Any]) -> None:
+-        """Parses (data $/path/key val ...) into data_model structure."""
+-        head = str(expr[0])
+-        pairs = []
+-        if head == "data":
+-            i = 1
+-            while i < len(expr) - 1:
+-                pairs.append((str(expr[i]), expr[i + 1]))
+-                i += 2
+-        elif head == "set!" and len(expr) >= 3:
+-            pairs.append((str(expr[1]), expr[2]))
+-
+-        for k, v in pairs:
+-            clean_path = k[2:] if k.startswith("$/") else (k[1:] if k.startswith("$") else k)
+-            clean_path = clean_path.lstrip("/")
+-            if not clean_path:
+-                continue
+-            parts = clean_path.split("/")
+-            curr = data_model
+-            for p in parts[:-1]:
+-                if p not in curr or not isinstance(curr[p], dict):
+-                    curr[p] = {}
+-                curr = curr[p]
+-            curr[parts[-1]] = self._clean_data_value(v)
+-
+-    def _compile_component(
+-        self,
+-        expr: List[Any],
+-        components: List[Dict[str, Any]],
+-        data_model: Optional[Dict[str, Any]] = None,
+-        is_root: bool = False,
+-    ) -> str:
+-        """Recursively processes S-expression component nodes into flat JSON adjacency list."""
+-        if data_model is None:
+-            data_model = {}
+-        comp_type = str(expr[0])
+-        comp_id = "root" if is_root else self._next_id()
+-        comp_dict: Dict[str, Any] = {"id": comp_id, "component": comp_type}
+-
+-        children: List[str] = []
+-        i = 1
+-        pos_arg_index = 0
+-        comp_props = self.schema_helper.get_component_properties(comp_type)
+-        if isinstance(comp_props, dict):
+-            prop_keys = [k for k in comp_props.keys() if k not in ("id", "component")]
+-        elif isinstance(comp_props, (list, tuple)):
+-            prop_keys = [k for k in comp_props if k not in ("id", "component")]
+-        else:
+-            prop_keys = []
+-
+-        while i < len(expr):
+-            item = expr[i]
+-            if isinstance(item, str) and item.startswith(":"):
+-                # Tagged keyword attribute :key val
+-                key = item[1:]
+-                val = expr[i + 1] if i + 1 < len(expr) else None
+-                if key == "children" and isinstance(val, list):
+-                    for child_item in val:
+-                        if isinstance(child_item, list):
+-                            child_id = self._compile_component(child_item, components, data_model)
+-                            children.append(child_id)
+-                        elif isinstance(child_item, str) and child_item not in ("]", ")", "[", "("):
+-                            raise ValueError(
+-                                f"Flat adjacency lists and string child ID references ('{child_item}') are disallowed in Atom format. "
+-                                "Child components must be directly nested S-expressions."
+-                            )
+-                elif key == "child" and isinstance(val, list):
+-                    child_id = self._compile_component(val, components, data_model)
+-                    comp_dict["child"] = child_id
+-                else:
+-                    comp_dict[key] = self._resolve_val(val, components)
+-                i += 2
+-            elif isinstance(item, list):
+-                # Nested child component or expression
+-                if item and str(item[0]) in ("data", "set!"):
+-                    self._parse_data_node(item, data_model)
+-                elif item and str(item[0]) == "Event":
+-                    # Inline (Event "action_name")
+-                    comp_dict["action"] = self._compile_event(item)
+-                elif item and str(item[0]) == "template":
+-                    # Inline template
+-                    comp_dict["template"] = self._compile_template(item, components)
+-                elif item and self._is_component_type(str(item[0])):
+-                    child_id = self._compile_component(item, components, data_model)
+-                    children.append(child_id)
+-                else:
+-                    # Flatten list of child component IDs or primitives
+-                    for sub_c in item:
+-                        if isinstance(sub_c, list) and sub_c and self._is_component_type(str(sub_c[0])):
+-                            child_id = self._compile_component(sub_c, components, data_model)
+-                            children.append(child_id)
+-                        elif isinstance(sub_c, str) and sub_c not in ("]", ")", "[", "("):
+-                            raise ValueError(
+-                                f"Flat adjacency lists and string child ID references ('{sub_c}') are disallowed in Atom format. "
+-                                "Child components must be directly nested S-expressions."
+-                            )
+-                i += 1
+-            else:
+-                # Positional attribute matching schema definition order
+-                if comp_type in ("Column", "Row", "List", "Container", "Page"):
+-                    if isinstance(item, str) and item not in ("]", ")", "[", "("):
+-                        raise ValueError(
+-                            f"Flat adjacency lists and string child ID references ('{item}') are disallowed in Atom format. "
+-                            "Child components must be directly nested S-expressions."
+-                        )
+-                else:
+-                    if pos_arg_index < len(prop_keys):
+-                        pkey = prop_keys[pos_arg_index]
+-                        comp_dict[pkey] = self._resolve_val(item, components)
+-                        pos_arg_index += 1
+-                i += 1
+-
+-        if children:
+-            if len(children) == 1 and self._schema_expects_single_child(comp_type):
+-                comp_dict["child"] = children[0]
+-            else:
+-                comp_dict["children"] = children
+-
+-        components.insert(0, comp_dict)
+-        return comp_id
+-
+-    def _resolve_val(self, val: Any, components: List[Dict[str, Any]]) -> Any:
+-        """Resolves primitive values, dynamic bindings, and helper expressions."""
+-        if isinstance(val, str):
+-            if val.startswith("$/"):
+-                return {"path": val[1:]}
+-            elif val.startswith("$"):
+-                return {"path": val}
+-        if isinstance(val, list) and val:
+-            head = str(val[0])
+-            if head == "Event":
+-                return self._compile_event(val)
+-            elif head in ("formatDate", "formatString", "formatCurrency"):
+-                return {
+-                    "call": head,
+-                    "args": {f"arg_{k}": self._resolve_val(v, components) for k, v in enumerate(val[1:])},
+-                }
+-        return val
+-
+-    def _compile_event(self, expr: List[Any]) -> Dict[str, Any]:
+-        event_name = str(expr[1]) if len(expr) > 1 else ""
+-        context = {}
+-        i = 2
+-        while i < len(expr):
+-            if str(expr[i]).startswith(":") and i + 1 < len(expr):
+-                context[str(expr[i])[1:]] = expr[i + 1]
+-                i += 2
+-            else:
+-                i += 1
+-        ev_obj: Dict[str, Any] = {"name": event_name}
+-        if context:
+-            ev_obj["context"] = {k: self._resolve_val(v, []) for k, v in context.items()}
+-        return {"event": ev_obj}
+-
+-    def _compile_template(self, expr: List[Any], components: List[Dict[str, Any]]) -> Dict[str, Any]:
+-        # (template :item item_var child_expr)
+-        template_child_id = ""
+-        for item in expr[1:]:
+-            if isinstance(item, list):
+-                template_child_id = self._compile_component(item, components)
+-        return {"componentId": template_child_id}
+-
+-    def _schema_expects_single_child(self, comp_type: str) -> bool:
+-        props = self.schema_helper.get_component_properties(comp_type)
+-        return "child" in props and "children" not in props
+diff --git a/agent_sdks/python/a2ui_agent/src/a2ui/inference_formats/experimental/atom/prompt_generator.py b/agent_sdks/python/a2ui_agent/src/a2ui/inference_formats/experimental/atom/prompt_generator.py
+index 6623a9c9..512fee68 100644
+--- a/agent_sdks/python/a2ui_agent/src/a2ui/inference_formats/experimental/atom/prompt_generator.py
++++ b/agent_sdks/python/a2ui_agent/src/a2ui/inference_formats/experimental/atom/prompt_generator.py
+@@ -24,53 +24,42 @@ if TYPE_CHECKING:
+ 
+ ATOM_RULES = r'''# A2UI Atom Output Contract
+ 
+-You must output the user interface using the compact A2UI Atom S-Expression notation.
+-You MUST surround the entire A2UI Atom block with the sentinel tags `<a2ui>` and `</a2ui>`.
+-
+-IMPORTANT: Wrap your output inside `<a2ui>` and `</a2ui>` sentinel tags. Do NOT output raw JSON messages.
++You must output the user interface using compact A2UI Atom S-Expression notation wrapped inside `<a2ui>` and `</a2ui>` sentinel tags. Do NOT output raw JSON.
+ 
+ ## Grammar Rules
+ 
+-1. Every component node is a parenthesized expression starting with the ComponentName:
+-   (ComponentName :key1 val1 :key2 val2 child1 child2 ...)
++1. Node Syntax: (ComponentName :key1 val1 :key2 val2 child1 child2 ...)
++   - Tagged attributes start with ':', e.g., :align "stretch" or :variant "body" (order-independent).
++   - Positional attributes can be passed matching catalog signature order.
+ 
+ 2. Primitives:
+-   - Strings: Double-quoted, e.g., "Hello". Escapes: \n, \t, \\, \".
+-   - Numbers: Integers or decimals, e.g., 42 or 3.14.
+-   - Booleans: true or false.
+-   - Null: null.
+-
+-3. Property Arguments:
+-   - Tagged attributes: Prefixed with a colon ':', e.g., :align "stretch" or :variant "body". Tagged keys are order-independent.
+-   - Positional attributes: Can be passed sequentially matching catalog signature order.
+-
+-4. Child Components & Strict Tree Nesting:
+-   - You MUST nest child components directly inside their parent container expressions, e.g., (Card (Column (Text "Hello"))).
+-   - Do NOT output flat adjacency lists, explicit `:id` attributes, or separate component variable IDs. Every UI component must be nested directly within a single root tree expression.
+-
+-5. Data Bindings:
+-   - Absolute data model paths start with '$/', e.g., $/user/firstName.
+-   - Relative list paths start with '$', e.g., $name.
+-
+-6. Data Model Population & Data-Only Messages:
+-   - Initialize data values using (data $/key "value" $/key2 123) or (set! $/key "value").
+-   - For data-only update messages (updating data without creating UI components), output ONLY the (data $/key "val" ...) expression without wrapping in UI components like (Column ...).
+-
+-7. Dynamic List Templates & Specialized Components:
+-   - List templates use (template :source $/path :item item (Card (Text item/name))).
+-   - Tabs components use (Tabs :tabs [{:title "Profile" :child (Column ...)} {:title "Notifications" :child (Column ...)}]).
+-   - Modal components use (Modal :trigger (Button (Text "Open")) :content (Column (Text "Modal body"))).
+-
+-8. Action Events & String Formatting:
+-   - Actions use (Event "action_name" :param1 $/value).
+-   - Do NOT use set! or raw expressions inside :action; actions must be (Event "name" ...).
+-   - String formatting uses (formatString "Hello %s" $/user/name).
+-
+-9. Standalone Operations:
++   - Strings: Double-quoted, e.g., "Hello".
++   - Numbers: Integers or decimals.
++   - Booleans: true / false. Null: null.
++
++3. Strict Tree Nesting:
++   - Nest child components directly inside parent container expressions, e.g., (Card (Column (Text "Hello"))).
++   - Do NOT output flat adjacency lists, explicit `:id` attributes, or separate component variable IDs.
++
++4. Data Bindings & Population:
++   - Absolute data paths: $/path/to/key. Relative list paths: $key.
++   - Initialize data values: (data $/key "val" $/key2 123) or (set! $/key "val").
++   - Data-only update messages (no UI components): output ONLY (data $/key "val" ...).
++
++5. Dynamic List Templates & Specialized Components:
++   - List templates: (template :source $/path :item item (Card (Text item/name))).
++   - Tabs: (Tabs :tabs [{:title "Profile" :child (Column ...)} {:title "Notifications" :child (Column ...)}]).
++   - Modal: (Modal :trigger (Button (Text "Open")) :content (Column (Text "Body"))).
++
++6. Actions & Helpers:
++   - Actions: (Event "action_name" :param1 $/value). Do NOT use set! or raw expressions inside :action.
++   - String formatting: (formatString "Hello %s" $/user/name).
++
++7. Standalone Operations:
+    - Delete surface: (deleteSurface "surface_id")
+    - Call RPC function: (callFunction "openUrl" :url "https://example.com")
+ 
+-10. Concrete Syntax Examples:
++8. Examples:
+    Example 1 (Card with Form & Inputs):
+    <a2ui>
+    (Card
+@@ -89,10 +78,9 @@ IMPORTANT: Wrap your output inside `<a2ui>` and `</a2ui>` sentinel tags. Do NOT
+        (List :children (template :source $/products :item item (Card (Text :text item/name))))])
+    </a2ui>
+ 
+-11. Strict Catalog Adherence:
+-   - You MUST ONLY use property names listed in the Component Catalog Signatures below.
+-   - Do NOT invent CSS or style attributes (e.g. style, padding, margin, backgroundColor, color, fontSize, size, minHeight, borderRadius, spacing, align, justify).
+-   - Use correct catalog property names (e.g. Image uses :url, not :src. Text variant must be "caption" or "body").
++9. Catalog Constraints:
++   - ONLY use property names listed in Component Catalog Signatures.
++   - Do NOT invent style/CSS attributes (style, padding, margin, color, fontSize, align, etc.).
+ '''
+ 
+ 
+diff --git a/agent_sdks/python/a2ui_agent/src/a2ui/inference_formats/experimental/atom/prompt_generator.py.orig b/agent_sdks/python/a2ui_agent/src/a2ui/inference_formats/experimental/atom/prompt_generator.py.orig
+deleted file mode 100644
+index 723214fd..00000000
+--- a/agent_sdks/python/a2ui_agent/src/a2ui/inference_formats/experimental/atom/prompt_generator.py.orig
++++ /dev/null
+@@ -1,232 +0,0 @@
+-# Copyright 2026 Google LLC
+-#
+-# Licensed under the Apache License, Version 2.0 (the "License");
+-# you may not use this file except in compliance with the License.
+-# You may obtain a copy of the License at
+-#
+-#     http://www.apache.org/licenses/LICENSE-2.0
+-#
+-# Unless required by applicable law or agreed to in writing, software
+-# distributed under the License is distributed on an "AS IS" BASIS,
+-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+-# See the License for the specific language governing permissions and
+-# limitations under the License.
+-
+-"""Prompt compiler for A2UI Atom inference format."""
+-
+-from typing import Any, Optional, TYPE_CHECKING
+-from a2ui.prompt import PromptGenerator
+-from a2ui.core.schema.client_capabilities import V09Capabilities
+-# CatalogSchemaHelper import handled lazily inside class
+-
+-if TYPE_CHECKING:
+-    from .format import AtomFormat
+-
+-ATOM_RULES = r'''# A2UI Atom Output Contract
+-
+-You must output the user interface using the compact A2UI Atom S-Expression notation.
+-You MUST surround the entire A2UI Atom block with the sentinel tags `<a2ui>` and `</a2ui>`.
+-
+-IMPORTANT: Wrap your output inside `<a2ui>` and `</a2ui>` sentinel tags. Do NOT output raw JSON messages.
+-
+-## Grammar Rules
+-
+-1. Every component node is a parenthesized expression starting with the ComponentName:
+-   (ComponentName :key1 val1 :key2 val2 child1 child2 ...)
+-
+-2. Primitives:
+-   - Strings: Double-quoted, e.g., "Hello". Escapes: \n, \t, \\, \".
+-   - Numbers: Integers or decimals, e.g., 42 or 3.14.
+-   - Booleans: true or false.
+-   - Null: null.
+-
+-3. Property Arguments:
+-   - Tagged attributes: Prefixed with a colon ':', e.g., :align "stretch" or :variant "body". Tagged keys are order-independent.
+-   - Positional attributes: Can be passed sequentially matching catalog signature order.
+-
+-4. Child Components & Strict Tree Nesting:
+-   - You MUST nest child components directly inside their parent container expressions, e.g., (Card (Column (Text "Hello"))).
+-   - Do NOT output flat adjacency lists, explicit `:id` attributes, or separate component variable IDs. Every UI component must be nested directly within a single root tree expression.
+-
+-5. Data Bindings:
+-   - Absolute data model paths start with '$/', e.g., $/user/firstName.
+-   - Relative list paths start with '$', e.g., $name.
+-
+-6. Data Model Population:
+-   - Initialize data values using (data $/key "value" $/key2 123) or (set! $/key "value").
+-
+-7. Dynamic List Templates:
+-   - List templates use (template :item item (Card (Text item/name))).
+-
+-8. Action Events:
+-   - Actions use (Event "action_name" :param1 $/value).
+-
+-9. Standalone Operations:
+-   - Delete surface: (deleteSurface "surface_id")
+-   - Call RPC function: (callFunction "openUrl" :url "https://example.com")
+-
+-10. Concrete Syntax Examples:
+-   Example 1 (Card with Form & Inputs):
+-   <a2ui>
+-   (Card
+-     (Column
+-       (Text :text "Sign In" :variant "heading")
+-       (TextField :label "Username" :value $/form/username)
+-       (Button :text "Submit" :onPress (Event "login" :user $/form/username))))
+-   </a2ui>
+-
+-   Example 2 (Tabs & Dynamic List Template):
+-   <a2ui>
+-   (Tabs
+-     :items ["Overview" "Items"]
+-     :content [
+-       (Column (Text :text "Welcome"))
+-       (List :items $/products :template (template item (Card (Text :text item/name))))])
+-   </a2ui>
+-
+-11. Strict Catalog Adherence:
+-   - You MUST ONLY use property names listed in the Component Catalog Signatures below.
+-   - Do NOT invent CSS or style attributes (e.g. style, padding, margin, backgroundColor, color, fontSize, size, minHeight, borderRadius, spacing, align, justify).
+-   - Use correct catalog property names (e.g. Image uses :url, not :src. Text variant must be "caption" or "body").
+-'''
+-
+-
+-def _get_schema_enum(prop_schema: Any) -> Optional[list[str]]:
+-    """Helper to recursively find enum definitions inside a JSON schema."""
+-    if not isinstance(prop_schema, dict):
+-        return None
+-    if "enum" in prop_schema:
+-        return prop_schema["enum"]
+-    if "oneOf" in prop_schema or "anyOf" in prop_schema:
+-        subs = prop_schema.get("oneOf", []) + prop_schema.get("anyOf", [])
+-        for sub in subs:
+-            enum_val = _get_schema_enum(sub)
+-            if enum_val:
+-                return enum_val
+-    return None
+-
+-
+-class AtomPromptGenerator(PromptGenerator):
+-    """Generates catalog prompts for Atom S-Expression format."""
+-
+-    def __init__(self, format_inst: "AtomFormat"):
+-        self.format = format_inst
+-        try:
+-            from a2ui.inference_formats.experimental.express.schema_helper import CatalogSchemaHelper
+-            self.schema_helper = CatalogSchemaHelper(format_inst.catalog)
+-        except Exception:
+-            self.schema_helper = None
+-
+-    def generate(
+-        self,
+-        role_description: str = "",
+-        workflow_description: str = "",
+-        ui_description: str = "",
+-        client_ui_capabilities: Optional[Any] = None,
+-        allowed_components: Optional[list[str]] = None,
+-        allowed_messages: Optional[list[str]] = None,
+-        include_schema: bool = True,
+-        include_examples: bool = True,
+-        validate_examples: bool = False,
+-    ) -> str:
+-        """Generates system prompt for Atom format."""
+-        parts = []
+-        if role_description:
+-            parts.append(role_description)
+-
+-        rules = ATOM_RULES
+-        if workflow_description:
+-            rules += f"\n\n{workflow_description}"
+-        parts.append(f"## Instructions:\n{rules}")
+-
+-        if include_schema and self.schema_helper:
+-            comp_sigs = self.generate_component_signatures()
+-            func_sigs = self.generate_function_signatures()
+-            if comp_sigs:
+-                parts.append(f"## Component Catalog Signatures:\n{comp_sigs}")
+-            if func_sigs:
+-                parts.append(f"## Function Signatures:\n{func_sigs}")
+-
+-        return "\n\n".join(parts)
+-
+-    def generate_component_signatures(self) -> str:
+-        """Compiles component definitions into S-expression signatures."""
+-        if not self.schema_helper:
+-            return ""
+-        signatures = []
+-        for name in sorted(self.schema_helper.component_properties.keys()):
+-            props = self.schema_helper.get_component_properties(name)
+-            reqs = self.schema_helper.get_component_required(name)
+-            comp_desc = self.schema_helper.get_component_description(name)
+-
+-            ordered_args = []
+-            prop_details = []
+-            for p in props:
+-                if p in ("id", "component"):
+-                    continue
+-                is_req = p in reqs
+-                opt_suffix = "" if is_req else "?"
+-                p_schema = self.schema_helper.get_property_schema(name, p)
+-
+-                arg_label = f":{p}{opt_suffix}"
+-                ordered_args.append(arg_label)
+-
+-                p_desc = p_schema.get("description") if isinstance(p_schema, dict) else None
+-                enum_vals = _get_schema_enum(p_schema)
+-
+-                if p_desc or enum_vals:
+-                    p_line_parts = []
+-                    if p_desc:
+-                        p_line_parts.append(p_desc)
+-                    if enum_vals:
+-                        enum_vals_str = ", ".join([f"'{v}'" for v in enum_vals])
+-                        p_line_parts.append(f"Must be one of: {enum_vals_str}")
+-                    prop_details.append(f"  - :{p}: {' '.join(p_line_parts)}")
+-
+-            sig = f"- ({name} {' '.join(ordered_args)})"
+-            if comp_desc:
+-                sig += f"\n  - {comp_desc}"
+-            if prop_details:
+-                sig += "\n" + "\n".join(prop_details)
+-            signatures.append(sig)
+-        return "\n".join(signatures)
+-
+-    def generate_function_signatures(self) -> str:
+-        """Compiles function definitions into S-expression signatures."""
+-        if not self.schema_helper:
+-            return ""
+-        signatures = []
+-        for name in sorted(self.schema_helper.function_properties.keys()):
+-            props = self.schema_helper.get_function_properties(name)
+-            reqs = self.schema_helper.get_function_required(name)
+-            f_desc = self.schema_helper.get_function_description(name)
+-
+-            ordered_args = []
+-            prop_details = []
+-            for p in props:
+-                is_req = p in reqs
+-                opt_suffix = "" if is_req else "?"
+-                p_schema = self.schema_helper.get_property_schema(name, p)
+-
+-                arg_label = f":{p}{opt_suffix}"
+-                ordered_args.append(arg_label)
+-
+-                p_desc = p_schema.get("description") if isinstance(p_schema, dict) else None
+-                enum_vals = _get_schema_enum(p_schema)
+-
+-                if p_desc or enum_vals:
+-                    p_line_parts = []
+-                    if p_desc:
+-                        p_line_parts.append(p_desc)
+-                    if enum_vals:
+-                        enum_vals_str = ", ".join([f"'{v}'" for v in enum_vals])
+-                        p_line_parts.append(f"Must be one of: {enum_vals_str}")
+-                    prop_details.append(f"  - :{p}: {' '.join(p_line_parts)}")
+-
+-            sig = f"- ({name} {' '.join(ordered_args)})"
+-            if f_desc:
+-                sig += f"\n  - {f_desc}"
+-            if prop_details:
+-                sig += "\n" + "\n".join(prop_details)
+-            signatures.append(sig)
+-        return "\n".join(signatures)
+diff --git a/eval/iterative/current_report.md b/eval/iterative/current_report.md
+index fefda944..2985421a 100644
+--- a/eval/iterative/current_report.md
++++ b/eval/iterative/current_report.md
+@@ -6,14 +6,14 @@
+ | Metric | Baseline | Current | Diff |
+ | :--- | :--- | :--- | :--- |
+ | **Pytest Conformance** | - | PASS | - |
+-| **Overall Pass Rate** | - | 0.0% |  |
+-| **Algorithmic Schema Pass Rate** | - | 0.0% |  |
+-| **Inference Duration (sec)** | - | 0.00s |  |
++| **Overall Pass Rate** | - | 100.0% |  |
++| **Algorithmic Schema Pass Rate** | - | 100.0% |  |
++| **Inference Duration (sec)** | - | 11.43s |  |
+ | **Avg Input Tokens** | - | 0 |  |
+ | **Avg Output Tokens** | - | 0 |  |
+ 
+ ## Active Git Diff
+ *No files modified under `agent_sdks`.*
+ 
+-## Failure Details (Count: 0 / 0)
++## Failure Details (Count: 0 / 5)
+ 🎉 *All tests passed successfully!*
+\ No newline at end of file
+diff --git a/eval/iterative/history_summary.md b/eval/iterative/history_summary.md
+index 6e9aac23..b2c49b41 100644
+--- a/eval/iterative/history_summary.md
++++ b/eval/iterative/history_summary.md
+@@ -3,4 +3,5 @@
+ | Run ID | Hypothesis | Pytest | Overall Acc | Algo Acc | Latency | Input Tok | Output Tok | Status | Notes |
+ | :--- | :--- | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :--- |
+ | `001` | Enhance AtomCompiler to resolve inline components, brace-enclosed maps, template properties, and restrict component name matching to catalog definitions. | PASS | 66.7% | 66.7% | 8.48s | 0 | 0 | KEEP | Schema Accuracy increased from 50.0% to 66.7%. All 6 validation prompts now compile into valid A2UI payloads. |
+-| `002` | - | PASS | 83.3% | 100.0% | 8.49s | 0 | 0 | - | - |
+\ No newline at end of file
++| `002` | - | PASS | 83.3% | 100.0% | 8.49s | 0 | 0 | - | - |
++| `003` | - | PASS | - | - | - | - | - | - | - |
+\ No newline at end of file
+diff --git a/eval/main.py b/eval/main.py
+index 675de0ec..ea7ab6bf 100644
+--- a/eval/main.py
++++ b/eval/main.py
+@@ -17,6 +17,7 @@ import sys
+ import traceback
+ import argparse
+ from inspect_ai import eval_set
++from inspect_ai.dataset import MemoryDataset
+ from tasks import a2ui_v0_9_1_eval, a2ui_v1_0_eval
+ from a2ui_eval.strategies import STRATEGIES
+ 
+@@ -85,6 +86,12 @@ def main() -> None:
+             " elemental, atom). Can be comma-separated or specified multiple times."
+         ),
+     )
++    parser.add_argument(
++        "--prompt",
++        type=str,
++        action="append",
++        help="Prompt names to filter evaluation samples",
++    )
+     args = parser.parse_args()
+ 
+     model = "google/gemini-3.1-flash-lite" if args.sanity else args.model
+@@ -109,13 +116,18 @@ def main() -> None:
+                 f" {', '.join(STRATEGIES.keys())}"
+             )
+         if strat in ["express", "elemental", "atom"]:
+-            tasks.append(
+-                a2ui_v1_0_eval(strategy=strat, grading_model=args.grading_model)
+-            )
++            task_obj = a2ui_v1_0_eval(strategy=strat, grading_model=args.grading_model)
+         else:
+-            tasks.append(
+-                a2ui_v0_9_1_eval(strategy=strat, grading_model=args.grading_model)
++            task_obj = a2ui_v0_9_1_eval(strategy=strat, grading_model=args.grading_model)
++
++        if args.prompt:
++            task_obj.dataset = MemoryDataset(
++                samples=[
++                    s for s in task_obj.dataset
++                    if s.metadata.get("name") in args.prompt or s.id in args.prompt
++                ]
+             )
++        tasks.append(task_obj)
+ 
+     eval_set_kwargs = {
+         "tasks": tasks,
