@@ -778,7 +778,9 @@ root = Column(children=[Text("Top Header"), card1, Button("Click", action=Event(
 root = Text("Hello Surface")"""
         envelopes = compiler.compile(dsl)
         self.assertEqual(len(envelopes), 1)
-        self.assertEqual(envelopes[0]["createSurface"]["surfaceId"], "custom-surface-123")
+        self.assertEqual(
+            envelopes[0]["createSurface"]["surfaceId"], "custom-surface-123"
+        )
 
     def test_compilation_multi_surface(self):
         """Validates sequential multi-surface scopes in a single DSL block."""
@@ -796,4 +798,3 @@ root = Text("Body")"""
 
 if __name__ == "__main__":
     unittest.main()
-

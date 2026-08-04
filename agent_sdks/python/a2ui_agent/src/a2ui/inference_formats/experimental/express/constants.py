@@ -22,4 +22,3 @@ class SurfaceOperation:
     UPDATE_DATA = "updateDataModel"
     CALL_FUNC = "callFunction"
     SURFACE = "surface"
-

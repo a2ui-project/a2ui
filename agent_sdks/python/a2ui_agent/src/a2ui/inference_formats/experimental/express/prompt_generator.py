@@ -93,7 +93,6 @@ The host compiler will compile your A2UI Express output into the correct JSON en
     root = Card(...)'''
 
 
-
 def _schema_allows_databinding(prop_schema: Any) -> bool:
     """Helper to check if a JSON schema allows data binding (DynamicString/DataBinding, etc)."""
     if not isinstance(prop_schema, dict):

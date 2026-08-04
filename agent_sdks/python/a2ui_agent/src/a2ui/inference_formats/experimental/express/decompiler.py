@@ -226,7 +226,6 @@ class _ExpressDecompiler:
         # Index components by ID for hierarchy mapping
         comp_ids = {c["id"] for c in components}
 
-
         # Decompile dataModel paths first
         if data_model:
             for path, val in sorted(_flatten_data_model(data_model)):

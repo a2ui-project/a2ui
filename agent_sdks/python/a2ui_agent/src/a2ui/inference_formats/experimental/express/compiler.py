@@ -297,12 +297,23 @@ class ExpressCompiler:
                 if isinstance(parsed_val, dict) and parsed_val.get("call") == "surface":
                     args = parsed_val.get("args", [])
                     kwargs = parsed_val.get("kwargs", {})
-                    target_surf = args[0] if args and isinstance(args[0], str) else surface_id
+                    target_surf = (
+                        args[0]
+                        if isinstance(args, list) and args and isinstance(args[0], str)
+                        else surface_id
+                    )
                     target_cat = kwargs.get(
                         "catalogId",
-                        args[1] if len(args) > 1 and isinstance(args[1], str) else catalog_id,
+                        args[1]
+                        if isinstance(args, list)
+                        and len(args) > 1
+                        and isinstance(args[1], str)
+                        else catalog_id,
                     )
-                    current_scope = _SurfaceScope(surface_id=target_surf, catalog_id=target_cat)
+
+                    current_scope = _SurfaceScope(
+                        surface_id=target_surf, catalog_id=target_cat
+                    )
                     scopes.append(current_scope)
                 elif (
                     isinstance(parsed_val, dict)
@@ -316,7 +327,9 @@ class ExpressCompiler:
             elif stmt_type == "ASSIGN":
                 var_name, parsed_val = stmt_args
                 if current_scope is None:
-                    current_scope = _SurfaceScope(surface_id=surface_id, catalog_id=catalog_id)
+                    current_scope = _SurfaceScope(
+                        surface_id=surface_id, catalog_id=catalog_id
+                    )
                     scopes.append(current_scope)
                 if var_name.startswith("$"):
                     current_scope.data_path_assignments[var_name] = parsed_val
@@ -357,8 +370,10 @@ class ExpressCompiler:
 
         for scope in scopes:
             scope_surf_id = scope.surface_id
-            scope_cat_id = scope.catalog_id or catalog_id or self.helper.catalog.get(
-                "catalogId", "https://a2ui.org/catalog.json"
+            scope_cat_id = (
+                scope.catalog_id
+                or catalog_id
+                or self.helper.catalog.get("catalogId", "https://a2ui.org/catalog.json")
             )
 
             # Compile data model paths
@@ -382,7 +397,9 @@ class ExpressCompiler:
 
             compiled_components = []
             for var_name, ast in scope.raw_symbols.items():
-                comp_dict = self._compile_ast_node(var_name, ast, scope.raw_symbols, ctx)
+                comp_dict = self._compile_ast_node(
+                    var_name, ast, scope.raw_symbols, ctx
+                )
                 if comp_dict:
                     compiled_components.append(comp_dict)
 
@@ -429,7 +446,6 @@ class ExpressCompiler:
                 result_messages.append(envelope)
 
         return result_messages
-
 
     def _compile_ast_node(
         self, var_name: str, ast: Any, raw_symbols: dict, ctx: _CompileContext

@@ -3,7 +3,8 @@ from antlr4 import *
 if "." in __name__:
     from .express_parser import ExpressParser
 else:
-    from .express_parser import ExpressParser
+    from express_parser import ExpressParser
+
 
 # This class defines a complete generic visitor for a parse tree produced by ExpressParser.
 
