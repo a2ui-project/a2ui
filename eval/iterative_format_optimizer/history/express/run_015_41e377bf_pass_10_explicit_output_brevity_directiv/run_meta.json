@@ -1,0 +1,15 @@
+{
+  "format": "express",
+  "hypothesis": "Pass 10: Explicit output brevity directive in EXPRESS_RULES",
+  "status": "Backtracked",
+  "notes": "Output tokens expanded by 17.4% (from 272 to 319 tokens), exceeding the 5% threshold.",
+  "metrics": {
+    "schema_acc": 1.0,
+    "quality_acc": 1.0,
+    "code_tokens_median": 273.0,
+    "reasoning_tokens_median": 2167.0,
+    "input_tokens_median": 5962.5,
+    "latency_seconds_median": 14.375965697923675,
+    "total_samples": 6
+  }
+}
