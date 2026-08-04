@@ -81,7 +81,7 @@ a2ui/agent/
 │       └── prompt_generator   # ExpressPromptGenerator class
 ├── parser/                    # Common Parser contracts and data structures
 │   ├── parser                 # Abstract Parser base class
-│   └── response_part          # RawResponsePart, TextPart, A2uiPart data structures
+│   └── response_part          # RawResponsePart, RawA2uiPart, TextPart, A2uiPart data structures
 ├── prompt/                    # Prompt Generation contracts
 │   └── generator              # Abstract PromptGenerator base class
 ├── catalog_transformers/      # Catalog and Protocol Transformers
@@ -198,19 +198,6 @@ class PromptGenerator(ABC):
 
 ```python
 @dataclass
-class RawResponsePart:
-    """Represents an uncompiled part of an LLM response.
-
-    Attributes:
-        text: The conversational text segment preceding a format block (or trailing text after the last block when a2ui_raw is None). Can be empty.
-        a2ui_raw: The raw uncompiled format content string (e.g., raw XML/DSL/JSON). None if conversational text.
-        is_final: Whether this format-content block is complete/closed (not truncated).
-    """
-    text: str = ""
-    a2ui_raw: Optional[str] = None
-    is_final: bool = True
-
-@dataclass
 class TextPart:
     """Represents extracted conversational text from an LLM response.
 
@@ -218,6 +205,26 @@ class TextPart:
         text: The conversational text content intended for user display.
     """
     text: str
+
+@dataclass
+class RawA2uiPart:
+    """Represents an uncompiled A2UI format content block extracted from an LLM response.
+
+    Attributes:
+        a2ui_raw: The raw uncompiled format content string (e.g., raw XML/DSL/JSON).
+    """
+    a2ui_raw: str
+
+@dataclass
+class RawResponsePart:
+    """Represents an uncompiled token from an LLM response stream.
+
+    Attributes:
+        part: The underlying content, either conversational TextPart or uncompiled RawA2uiPart.
+        is_final: Whether this part is complete/closed (not truncated during streaming).
+    """
+    part: Union[TextPart, RawA2uiPart]
+    is_final: bool = True
 
 @dataclass
 class A2uiPart:
@@ -298,11 +305,11 @@ class Parser(ABC):
         if wrapped:
             parts = self.unwrap(content)
             result: List[ResponsePart] = []
-            for part in parts:
-                if part.text:
-                    result.append(TextPart(text=part.text))
-                if part.a2ui_raw is not None:
-                    compiled = self.compile(part.a2ui_raw)
+            for raw_part in parts:
+                if isinstance(raw_part.part, TextPart):
+                    result.append(raw_part.part)
+                elif isinstance(raw_part.part, RawA2uiPart):
+                    compiled = self.compile(raw_part.part.a2ui_raw)
                     result.append(A2uiPart(a2ui=compiled))
             return result
         return [A2uiPart(a2ui=self.compile(content))]
