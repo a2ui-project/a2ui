@@ -16,7 +16,7 @@
 
 import {TestBed} from '@angular/core/testing';
 import {App} from './app';
-import {provideMarkdownRenderer} from '../../../src/v0_9/core/markdown';
+import {provideMarkdownRenderer} from '@a2ui/angular';
 
 describe('App', () => {
   beforeEach(async () => {

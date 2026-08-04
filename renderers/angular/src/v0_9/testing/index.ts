@@ -14,4 +14,7 @@
  * limitations under the License.
  */
 
-export {type ComponentToProps, setComponentProps, createBoundProperty} from './test-utils';
+/**
+ * @deprecated Please import from '@a2ui/angular/testing' instead.
+ */
+export * from '@a2ui/angular/testing';

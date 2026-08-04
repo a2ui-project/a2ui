@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2026 Google LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -14,9 +14,4 @@
  * limitations under the License.
  */
 
-import {ApplicationConfig, provideBrowserGlobalErrorListeners} from '@angular/core';
-import {provideMarkdownRenderer} from '@a2ui/angular';
-
-export const appConfig: ApplicationConfig = {
-  providers: [provideBrowserGlobalErrorListeners(), provideMarkdownRenderer()],
-};
+export const A2UI_ANGULAR_VERSION = '0.9.0';

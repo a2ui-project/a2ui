@@ -48,7 +48,7 @@ export default [
     },
   },
   {
-    files: ['**/web_core/src/index.ts'],
+    files: ['**/web_core/src/index.ts', '**/renderers/angular/src/index.ts'],
     rules: {
       'no-restricted-syntax': [
         'error',

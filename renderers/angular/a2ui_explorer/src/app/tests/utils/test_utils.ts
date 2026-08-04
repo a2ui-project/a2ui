@@ -17,7 +17,7 @@
 import {TestBed} from '@angular/core/testing';
 import {DemoComponent} from '../../demo.component';
 import {EXAMPLES_V08, EXAMPLES_V09} from '../../generated/examples-bundle';
-import {provideMarkdownRenderer} from '../../../../../src/v0_9/core/markdown';
+import {provideMarkdownRenderer} from '@a2ui/angular';
 import {A2UI_VERSION, Version} from '../../types';
 
 export {Version};
