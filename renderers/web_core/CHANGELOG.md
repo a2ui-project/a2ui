@@ -1,6 +1,6 @@
 ## Unreleased
 
-- **BREAKING CHANGE**: Importing from `@a2ui/web_core` (root `.`) now resolves to the modern evolving codebase (`v0.9` / `v1.0`) instead of `v0.8`. For legacy v0.8 imports, use `@a2ui/web_core/v0_8`. Backwards compatibility for `./v0_9` is maintained via re-export shims.
+- **BREAKING CHANGE**: Importing from `@a2ui/web_core` (root `.`) now resolves to the modern evolving codebase (`v0.9` / `v1.0`) instead of `v0.8`. For legacy v0.8 imports, use `@a2ui/web_core/v0_8`. Importing from `./v0_9` continues to work, for backwards-compatibility.
 
 ## 0.10.6
 

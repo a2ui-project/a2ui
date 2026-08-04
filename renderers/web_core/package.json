@@ -88,8 +88,6 @@
         "src/schemas/*.json",
         "src/schemas/catalogs/**/*.json",
         "src/v0_8/schemas/*.json",
-        "src/v0_9/schemas/*.json",
-        "src/v0_9/schemas/catalogs/**/*.json",
         "src/v1_0/schemas/*.json",
         "src/v1_0/schemas/catalogs/**/*.json"
       ]
