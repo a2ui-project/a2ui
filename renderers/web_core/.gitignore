@@ -4,3 +4,4 @@ dist/
 src/v0_8/schemas/
 src/v0_9/schemas/
 src/v1_0/schemas/
+src/schemas/

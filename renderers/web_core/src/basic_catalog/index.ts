@@ -1,5 +1,5 @@
 /*
- * Copyright 2026 Google LLC
+ * Copyright 2025 Google LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,7 +14,9 @@
  * limitations under the License.
  */
 
-/**
- * @deprecated Import from '@a2ui/web_core' root instead. Maintained for backwards compatibility.
- */
-export * from '../index.js';
+export * from './expressions/expression_parser.js';
+export * from './functions/basic_functions.js';
+export * from './functions/basic_functions_api.js';
+export * from './components/basic_components.js';
+export {injectBasicCatalogStyles, computeColorVariant} from './styles/default.js';
+export type {ColorVariantLightDarkOptions, ColorVariantHoverOptions} from './styles/default.js';

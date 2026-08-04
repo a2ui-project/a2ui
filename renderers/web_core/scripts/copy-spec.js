@@ -28,18 +28,23 @@ const rootDir = join(__dirname, '..');
 function copySchemas(version) {
   const srcJsonDir = join(rootDir, '..', '..', 'specification', version, 'json');
   const srcCatalogsDir = join(rootDir, '..', '..', 'specification', version, 'catalogs');
-  const destDir = join(rootDir, 'src', version, 'schemas');
+  const destDirs =
+    version === 'v0_9'
+      ? [join(rootDir, 'src', version, 'schemas'), join(rootDir, 'src', 'schemas')]
+      : [join(rootDir, 'src', version, 'schemas')];
 
-  mkdirSync(destDir, {recursive: true});
+  for (const destDir of destDirs) {
+    mkdirSync(destDir, {recursive: true});
 
-  if (existsSync(srcJsonDir)) {
-    readdirSync(srcJsonDir)
-      .filter(file => file.endsWith('.json'))
-      .forEach(file => cpSync(join(srcJsonDir, file), join(destDir, file)));
-  }
+    if (existsSync(srcJsonDir)) {
+      readdirSync(srcJsonDir)
+        .filter(file => file.endsWith('.json'))
+        .forEach(file => cpSync(join(srcJsonDir, file), join(destDir, file)));
+    }
 
-  if (version !== 'v0_8') {
-    cpSync(srcCatalogsDir, join(destDir, 'catalogs'), {recursive: true});
+    if (version !== 'v0_8') {
+      cpSync(srcCatalogsDir, join(destDir, 'catalogs'), {recursive: true});
+    }
   }
 }
 

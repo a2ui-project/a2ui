@@ -1,5 +1,7 @@
 ## Unreleased
 
+- **BREAKING CHANGE**: Importing from `@a2ui/web_core` (root `.`) now resolves to the modern evolving codebase (`v0.9` / `v1.0`) instead of `v0.8`. For legacy v0.8 imports, use `@a2ui/web_core/v0_8`. Backwards compatibility for `./v0_9` is maintained via re-export shims.
+
 ## 0.10.6
 
 - (v0_9) Validate component properties against catalog schema in `MessageProcessor` to prevent malformed component actions.

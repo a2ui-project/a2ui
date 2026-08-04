@@ -19,12 +19,12 @@
     "ui",
     "renderer"
   ],
-  "main": "./dist/src/v0_8/index.js",
-  "types": "./dist/src/v0_8/index.d.ts",
+  "main": "./dist/src/index.js",
+  "types": "./dist/src/index.d.ts",
   "exports": {
     ".": {
-      "types": "./dist/src/v0_8/index.d.ts",
-      "default": "./dist/src/v0_8/index.js"
+      "types": "./dist/src/index.d.ts",
+      "default": "./dist/src/index.js"
     },
     "./v0_8": {
       "types": "./dist/src/v0_8/index.d.ts",
@@ -85,6 +85,8 @@
         "scripts/copy-spec.js"
       ],
       "output": [
+        "src/schemas/*.json",
+        "src/schemas/catalogs/**/*.json",
         "src/v0_8/schemas/*.json",
         "src/v0_9/schemas/*.json",
         "src/v0_9/schemas/catalogs/**/*.json",
