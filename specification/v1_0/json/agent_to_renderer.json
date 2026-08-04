@@ -68,6 +68,9 @@
       "items": {
         "allOf": [
           {
+            "$ref": "common_types.json#/$defs/ComponentCommon"
+          },
+          {
             "$ref": "catalog.json#/$defs/anyComponent"
           },
           {

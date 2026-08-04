@@ -289,6 +289,23 @@
           ]
         }
       }
+    },
+    {
+      "description": "Invalid: component missing id required by ComponentCommon",
+      "valid": false,
+      "data": {
+        "version": "v1.0",
+        "createSurface": {
+          "surfaceId": "test_surface",
+          "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
+          "components": [
+            {
+              "component": "Text",
+              "text": "Missing ID component"
+            }
+          ]
+        }
+      }
     }
   ]
 }
