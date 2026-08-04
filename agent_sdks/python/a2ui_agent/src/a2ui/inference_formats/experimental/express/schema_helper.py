@@ -21,47 +21,10 @@ signatures, and requirements directly from standard catalog JSON schemas.
 from typing import Any, Optional, Union
 from a2ui.core.catalog import Catalog
 from a2ui.schema.catalog import A2uiCatalog
-
-
-def _sort_component_properties(
-    props: dict[str, Any], reqs: list[str], is_checkable: bool
-) -> tuple[list[str], list[str]]:
-    """Sorts component properties deterministically in a catalog-agnostic manner.
-
-    Ordering Strategy:
-    1. Filter out structural protocol properties ('component', 'id').
-    2. Separate remaining properties into required and optional sets.
-    3. Sort required properties alphabetically.
-    4. Sort optional properties alphabetically (including 'checks' if checkable).
-    5. Combine sorted required properties followed by sorted optional properties.
-    """
-    prop_dict = dict(props)
-    if is_checkable and "checks" not in prop_dict:
-        prop_dict["checks"] = {
-            "type": "array",
-            "description": "Validation check rules for this component.",
-        }
-
-    req_set = {r for r in reqs if r not in ["component", "id"]}
-    all_prop_keys = [k for k in prop_dict if k not in ["component", "id"]]
-
-    req_props = sorted([k for k in all_prop_keys if k in req_set])
-    opt_props = sorted([k for k in all_prop_keys if k not in req_set])
-
-    return req_props + opt_props, sorted(list(req_set))
-
-
-def _sort_function_properties(
-    props: dict[str, Any], reqs: list[str]
-) -> tuple[list[str], list[str]]:
-    """Sorts function argument properties deterministically in a catalog-agnostic manner."""
-    req_set = {r for r in reqs if r not in ["component", "id"]}
-    fn_prop_keys = list(props.keys())
-
-    req_props = sorted([k for k in fn_prop_keys if k in req_set])
-    opt_props = sorted([k for k in fn_prop_keys if k not in req_set])
-
-    return req_props + opt_props, sorted(list(req_set))
+from a2ui.schema.schema_helper import (
+    _sort_component_properties,
+    _sort_function_properties,
+)
 
 
 class CatalogSchemaHelper:

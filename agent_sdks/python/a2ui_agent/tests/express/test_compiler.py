@@ -503,7 +503,7 @@ btnLabel = Text("Click Thread 2")
         trailing_comma_dsl = """
     root = Column([btn1, btn2,],);
     btn1 = Button(myAction, "Label", variant="primary",);
-    btn2 = TextField("Input", "placeholder", $/val, _, ?numeric(10, 1,),);
+    btn2 = TextField("Input", _, "placeholder", $/val, _, ?numeric(10, 1,),);
     myAction = Event("click", {a: 1, b: 2,},);
     """
         envelope2 = compiler.compile(trailing_comma_dsl)[0]
