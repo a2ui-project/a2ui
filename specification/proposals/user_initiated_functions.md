@@ -69,6 +69,7 @@ While `requiresUserGesture` blocks automated background invocations, malicious o
   A payload cannot bypass gesture verification, but it can mislabel interactive UI elements (such as labeling a button "Cancel" or "Close" while binding its click handler to a side-effecting action like `openUrl` or data export). When the user clicks the element, the physical click supplies a valid `action`-level gesture token and triggers the function.
 
 #### Recommended Mitigations:
+
 1. **Component Interaction Classification**: Catalogs must classify components accurately using `userInteractionLevel` (`"action"` for buttons/links, `"input"` for text fields, `"none"` for passive nodes).
 2. **Restrict Token Event Types**: Framework binders must strictly limit `UserGestureToken` generation to activation events (`click`, `touchend`, `submit`, explicit key submission) and exclude passive events like mouse hover (`mouseenter`, `pointermove`).
 
@@ -77,6 +78,7 @@ While `requiresUserGesture` blocks automated background invocations, malicious o
 ## 3. Proposed Solution
 
 This proposal introduces two complementary catalog attributes:
+
 1. `requiresUserGesture: boolean` on catalog function definitions (e.g., `openUrl`).
 2. `userInteractionLevel: "action" | "input" | "none"` on catalog component definitions (defaulting to `"none"`).
 
@@ -132,20 +134,24 @@ In catalog component definitions, `userInteractionLevel` declares the component'
 }
 ```
 
-* **`"action"`**: Components designed to trigger side-effect actions (`Button`, `Link`, `MenuItem`). Generates `action`-level gesture tokens valid for all `requiresUserGesture` functions.
-* **`"input"`**: Components designed for data entry (`TextField`, `Slider`, `CheckBox`). Generates `input`-level gesture tokens valid for data model updates and validation checks, but blocked for `requiresUserGesture` functions.
-* **`"none"`** (default for v1.0+): Passive presentation nodes (`Text`, `Image`, `Container`, `Divider`). Never generates gesture tokens.
+- **`"action"`**: Components designed to trigger side-effect actions (`Button`, `Link`, `MenuItem`). Generates `action`-level gesture tokens valid for all `requiresUserGesture` functions.
+- **`"input"`**: Components designed for data entry (`TextField`, `Slider`, `CheckBox`). Generates `input`-level gesture tokens valid for data model updates and validation checks, but blocked for `requiresUserGesture` functions.
+- **`"none"`** (default for v1.0+): Passive presentation nodes (`Text`, `Image`, `Container`, `Divider`). Never generates gesture tokens.
 
 #### Protocol Version Gating (`protocolVersion >= 1.0`)
+
 To remain completely catalog-agnostic while guaranteeing backward compatibility with baseline v0.9 catalogs:
-* **v1.0+ Surfaces (`protocolVersion >= "1.0"`)**: Renderers strictly enforce `userInteractionLevel` component gating. Unclassified components default to `"none"`.
-* **Legacy Baseline Surfaces (`protocolVersion < "1.0"`)**: Renderers skip component-level `userInteractionLevel` filtering and issue gesture tokens directly from physical user events, relying on `requiresUserGesture` function checks. Legacy v0.9 components remain fully functional without catalog modification.
+
+- **v1.0+ Surfaces (`protocolVersion >= "1.0"`)**: Renderers strictly enforce `userInteractionLevel` component gating. Unclassified components default to `"none"`.
+- **Legacy Baseline Surfaces (`protocolVersion < "1.0"`)**: Renderers skip component-level `userInteractionLevel` filtering and issue gesture tokens directly from physical user events, relying on `requiresUserGesture` function checks. Legacy v0.9 components remain fully functional without catalog modification.
 
 #### Non-Inheritability Rule
+
 `userInteractionLevel` is strictly **non-inheritable** across nested component hierarchies:
-* The interaction level is bound directly and exclusively to the specific component definition dispatching the action callback.
-* Container components (such as `Form`, `Card`, `Column`, or `Row`) that contain nested child nodes do not pass their `userInteractionLevel` down to child components.
-* For example, if a `Form` container includes a submit button (`userInteractionLevel: "action"`) and but has a `Text` label child (`userInteractionLevel: "none"`), evaluating an expression on the `Text` child evaluates `Text`'s interaction level (`"none"`). The `Form`'s container scope never elevates child components to `"action"`.
+
+- The interaction level is bound directly and exclusively to the specific component definition dispatching the action callback.
+- Container components (such as `Form`, `Card`, `Column`, or `Row`) that contain nested child nodes do not pass their `userInteractionLevel` down to child components.
+- For example, if a `Form` container includes a submit button (`userInteractionLevel: "action"`) and but has a `Text` label child (`userInteractionLevel: "none"`), evaluating an expression on the `Text` child evaluates `Text`'s interaction level (`"none"`). The `Form`'s container scope never elevates child components to `"action"`.
 
 ---
 
@@ -192,11 +198,13 @@ Custom component authors do not need to modify component implementations to supp
 When custom components receive action callbacks as props (`props.action`), the renderer's framework binder (such as `GenericBinder` in `web_core`) generates those callbacks. The binder automatically inspects the component's catalog `userInteractionLevel` and wraps `props.action` to capture the DOM or native touch event and construct a `UserGestureToken`.
 
 #### Runtime Enablement (Option A):
+
 Component authors handle runtime enablement (`disabled`, `enabled`, or custom state props) inside standard framework code:
-* **Lit**: `<button ?disabled=${props.disabled} @click=${e => !props.disabled && props.action(e)}>Click Me</button>`
-* **React**: `<button disabled={props.disabled} onClick={e => !props.disabled && props.action(e)}>Click Me</button>`
-* **Flutter**: `ElevatedButton(onPressed: props.disabled ? null : () => props.action(), child: Text("Click Me"))`
-* **Jetpack Compose**: `Button(onClick = props.action, enabled = !props.disabled) { Text("Click Me") }`
+
+- **Lit**: `<button ?disabled=${props.disabled} @click=${e => !props.disabled && props.action(e)}>Click Me</button>`
+- **React**: `<button disabled={props.disabled} onClick={e => !props.disabled && props.action(e)}>Click Me</button>`
+- **Flutter**: `ElevatedButton(onPressed: props.disabled ? null : () => props.action(), child: Text("Click Me"))`
+- **Jetpack Compose**: `Button(onClick = props.action, enabled = !props.disabled) { Text("Click Me") }`
 
 If a component instance is disabled at runtime, the component implementation simply skips invoking `props.action()`. Because `props.action()` is never invoked, `bindAction` is never called, and no `UserGestureToken` is generated. This avoids reserving protocol property names like `disabled`, preventing property name collisions with custom components.
 
@@ -212,7 +220,11 @@ In `web_core` (shared by **Lit**, **React**, **Angular**, and **Vue** renderers)
 
 ```typescript
 // web_core: src/v0_9/rendering/generic-binder.ts
-export function bindAction(dataContext: DataContext, actionCall: ActionDefinition, componentType: string) {
+export function bindAction(
+  dataContext: DataContext,
+  actionCall: ActionDefinition,
+  componentType: string,
+) {
   return (eventOrOptions?: Event | {event?: Event}) => {
     const isV1OrLater = (dataContext.protocolVersion ?? '0.9') >= '1.0';
     const componentDef = dataContext.catalog.components.get(componentType);
@@ -220,7 +232,9 @@ export function bindAction(dataContext: DataContext, actionCall: ActionDefinitio
 
     // Passive components ('none') never generate gesture tokens on v1.0+ surfaces
     if (level === 'none') {
-      return dataContext.invokeFunction(actionCall.call, actionCall.args, {gestureToken: undefined});
+      return dataContext.invokeFunction(actionCall.call, actionCall.args, {
+        gestureToken: undefined,
+      });
     }
 
     // Extract DOM Event from framework event argument
@@ -233,7 +247,9 @@ export function bindAction(dataContext: DataContext, actionCall: ActionDefinitio
 
     // Enforce domEvent.isTrusted to reject synthetic script events
     if (!domEvent || !domEvent.isTrusted) {
-      return dataContext.invokeFunction(actionCall.call, actionCall.args, {gestureToken: undefined});
+      return dataContext.invokeFunction(actionCall.call, actionCall.args, {
+        gestureToken: undefined,
+      });
     }
 
     const gestureToken = createWebGestureToken(domEvent, {
