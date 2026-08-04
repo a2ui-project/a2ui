@@ -208,12 +208,24 @@ class _ExpressDecompiler:
             return f"{fn_name}({args_str})"
 
         create_surface = envelope_json.get(SurfaceOperation.CREATE, {})
+        if not create_surface and SurfaceOperation.UPDATE_COMPONENTS in envelope_json:
+            create_surface = envelope_json[SurfaceOperation.UPDATE_COMPONENTS]
+
+        surface_id = create_surface.get("surfaceId", "")
+        catalog_id = create_surface.get("catalogId", "")
         components = create_surface.get("components", [])
         data_model = create_surface.get("dataModel", {})
 
         dsl_lines = []
+        if surface_id and surface_id != "default_surface":
+            if catalog_id:
+                dsl_lines.append(f'surface("{surface_id}", catalogId="{catalog_id}")')
+            else:
+                dsl_lines.append(f'surface("{surface_id}")')
+
         # Index components by ID for hierarchy mapping
         comp_ids = {c["id"] for c in components}
+
 
         # Decompile dataModel paths first
         if data_model:

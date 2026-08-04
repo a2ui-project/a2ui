@@ -374,6 +374,33 @@ class TestExpressParser(unittest.TestCase):
         dsl_dict = decompiler.decompile(envelope_dict)
         self.assertIn("unknownFunc", dsl_dict)
 
+    def test_decompile_surface_directive(self):
+        """Test decompiling createSurface envelope with custom surfaceId emits surface() directive."""
+        decompiler = ExpressParser(self.catalog)
+        envelope = {
+            "version": "1.0",
+            "createSurface": {
+                "surfaceId": "custom-surface-456",
+                "components": [{"id": "root", "component": "Text", "text": "Hello"}],
+            },
+        }
+        decompiled = decompiler.decompile(envelope)
+        self.assertIn('surface("custom-surface-456")', decompiled)
+
+    def test_decompile_update_components(self):
+        """Test decompiling updateComponents envelope emits surface() directive."""
+        decompiler = ExpressParser(self.catalog)
+        envelope = {
+            "version": "1.0",
+            "updateComponents": {
+                "surfaceId": "update-surf-789",
+                "components": [{"id": "root", "component": "Text", "text": "Updated"}],
+            },
+        }
+        decompiled = decompiler.decompile(envelope)
+        self.assertIn('surface("update-surf-789")', decompiled)
+
 
 if __name__ == "__main__":
     unittest.main()
+
