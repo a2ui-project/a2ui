@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import * as v0_8 from '@a2ui/lit/0.8';
+import {v0_8} from '@a2ui/lit';
 import {registerMcpComponents} from './ui/custom-components/register-components.js';
 import {componentRegistry} from '@a2ui/lit/ui';
 

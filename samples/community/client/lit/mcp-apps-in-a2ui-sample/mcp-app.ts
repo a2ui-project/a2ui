@@ -19,7 +19,7 @@ import {provide} from '@lit/context';
 import {LitElement, html, css, nothing, unsafeCSS} from 'lit';
 import {customElement, state} from 'lit/decorators.js';
 import {A2UIClient} from './client.js';
-import * as v0_8 from '@a2ui/lit/0.8';
+import {v0_8} from '@a2ui/lit';
 import * as UI from '@a2ui/lit/ui';
 
 // Register custom components

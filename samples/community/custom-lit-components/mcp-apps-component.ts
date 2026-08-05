@@ -17,7 +17,7 @@
 import {html, css} from 'lit';
 import {property, query} from 'lit/decorators.js';
 import {Root} from '@a2ui/lit/ui';
-import * as v0_8 from '@a2ui/lit/0.8';
+import {v0_8} from '@a2ui/lit';
 import {AppBridge, PostMessageTransport} from '@modelcontextprotocol/ext-apps/app-bridge';
 import type {McpUiSandboxProxyReadyNotification} from '@modelcontextprotocol/ext-apps/app-bridge';
 import {SANDBOX_IFRAME_PATH} from './shared-constants.js';
