@@ -21,7 +21,7 @@
         },
         "createSurface": {
           "type": "object",
-          "description": "Signals the renderer to create a new surface and begin rendering it. It is an error to try to create a surface with the same ID twice without first deleting it; surfaceId MUST be globally unique for the renderer's lifetime. When this message is sent, the renderer will expect 'updateComponents' and/or 'updateDataModel' messages for the same surfaceId that define the component tree.",
+          "description": "Signals the renderer to create a new surface and begin rendering it. Creating a surface implicitly instantiates the canonical 'Surface' container component ('common_types.json#/$defs/Surface') with 'child': 'root'. It is an error to try to create a surface with an existing ID without first deleting it; surfaceId MUST be globally unique for the renderer's lifetime. When this message is sent, the renderer expects 'updateComponents' and/or 'updateDataModel' messages for the same surfaceId to define the component tree.",
           "properties": {
             "surfaceId": {
               "type": "string",
@@ -56,7 +56,21 @@
       "description": "A list containing UI components for the surface.",
       "minItems": 1,
       "items": {
-        "$ref": "catalog.json#/$defs/anyComponent"
+        "allOf": [
+          {
+            "$ref": "catalog.json#/$defs/anyComponent"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "component": {
+                "not": {
+                  "const": "Surface"
+                }
+              }
+            }
+          }
+        ]
       }
     },
     "UpdateComponentsMessage": {

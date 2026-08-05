@@ -1,0 +1,14 @@
+{
+  "hypothesis": "Combine concise catalog signature hints (from Run 25) with an explicit output brevity directive in ATOM_RULES to capture reasoning token reduction while preventing code token expansion.",
+  "notes": "Pytest 100% pass, 100.0% Schema Acc, 100.0% Quality Score. Reduced reasoning tokens by -43.5% (2,684 vs 4,750). However, Code Output Tokens increased by +40.1% (192 vs 137), exceeding the 5% cap. Score S_opt dropped from +0.600 to +0.562 (-0.038). Reverted per Rule 2 and Rule 3.",
+  "status": "Backtracked",
+  "metrics": {
+    "schema_acc": 0.0,
+    "quality_acc": 0.0,
+    "code_tokens_median": 192.0,
+    "reasoning_tokens_median": 2683.5,
+    "input_tokens_median": 4339.5,
+    "latency_seconds_median": 0.0,
+    "total_samples": 0
+  }
+}

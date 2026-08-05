@@ -137,3 +137,8 @@ app.*.map.json
 
 # SwiftPM
 Package.resolved
+
+# Evaluation & Optimizer temporary logs
+eval/logs/
+eval/iterative_format_optimizer/logs/
+eval/iterative_format_optimizer/skills/inference-format-optimizer/logs/
