@@ -74,16 +74,26 @@ export class A2uiLitTabs extends BasicCatalogA2uiLitElement<typeof TabsApi> {
   override render() {
     const props = this.controller.props;
     if (!props || !props.tabs) return nothing;
+    const uniqueId = this.context.componentModel.id;
+
     return html`
-      <div class="a2ui-tabs-headers">
+      <div
+        class="a2ui-tabs-headers"
+        role="tablist"
+        aria-label=${props.accessibility?.label || nothing}
+      >
         ${props.tabs.map(
           (tab: any, i: number) => html`
             <button
+              id="${uniqueId}-tab-${i}"
               class=${classMap({
                 'a2ui-tabs-header': true,
                 'a2ui-tab-button': true,
                 active: i === this.activeIndex,
               })}
+              role="tab"
+              aria-selected=${i === this.activeIndex ? 'true' : 'false'}
+              aria-controls="${uniqueId}-panel-${i}"
               @click=${() => (this.activeIndex = i)}
             >
               ${tab.title}
@@ -91,7 +101,12 @@ export class A2uiLitTabs extends BasicCatalogA2uiLitElement<typeof TabsApi> {
           `,
         )}
       </div>
-      <div class="a2ui-tabs-content">
+      <div
+        id="${uniqueId}-panel-${this.activeIndex}"
+        class="a2ui-tabs-content"
+        role="tabpanel"
+        aria-labelledby="${uniqueId}-tab-${this.activeIndex}"
+      >
         ${props.tabs[this.activeIndex]
           ? html`${this.renderNode(props.tabs[this.activeIndex].child)}`
           : nothing}

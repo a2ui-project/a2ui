@@ -55,6 +55,11 @@ export class A2uiSliderElement extends BasicCatalogA2uiLitElement<typeof SliderA
       accent-color: var(--a2ui-slider-thumb-color, var(--a2ui-color-primary, #007bff));
       background: var(--a2ui-slider-track-color, var(--a2ui-color-secondary, #e9ecef));
     }
+    .error {
+      color: var(--a2ui-slider-color-error, red);
+      font-size: var(--a2ui-font-size-xs, 0.75rem);
+      margin-top: 4px;
+    }
   `;
 
   protected createController() {
@@ -66,6 +71,14 @@ export class A2uiSliderElement extends BasicCatalogA2uiLitElement<typeof SliderA
     if (!props) return nothing;
 
     const uniqueId = this.context.componentModel.id;
+
+    const isInvalid = props.isValid === false;
+    const hasDesc = !!props.accessibility?.description;
+    const hasError = isInvalid && !!props.validationErrors?.length;
+    const descIds = [];
+    if (hasDesc) descIds.push(`${uniqueId}-description`);
+    if (hasError) descIds.push(`${uniqueId}-error`);
+    const ariaDescribedBy = descIds.length > 0 ? descIds.join(' ') : undefined;
 
     return html`
       <div class="header">
@@ -79,7 +92,21 @@ export class A2uiSliderElement extends BasicCatalogA2uiLitElement<typeof SliderA
         max=${props.max ?? 100}
         .value=${props.value?.toString() || '0'}
         @input=${(e: Event) => props.setValue?.(Number((e.target as HTMLInputElement).value))}
+        aria-label=${props.accessibility?.label || nothing}
+        aria-invalid=${isInvalid ? 'true' : 'false'}
+        aria-describedby=${ariaDescribedBy || nothing}
       />
+      ${isInvalid && props.validationErrors?.length
+        ? html`<div id="${uniqueId}-error" class="error">${props.validationErrors[0]}</div>`
+        : nothing}
+      ${props.accessibility?.description
+        ? html`<span
+            id="${uniqueId}-description"
+            style="position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); border: 0;"
+          >
+            ${props.accessibility.description}
+          </span>`
+        : nothing}
     `;
   }
 }

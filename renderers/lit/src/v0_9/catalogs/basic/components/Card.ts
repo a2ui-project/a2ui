@@ -52,6 +52,24 @@ export class A2uiCardElement extends BasicCatalogA2uiLitElement<typeof CardApi> 
     return new A2uiController(this, CardApi);
   }
 
+  override willUpdate(changedProperties: Map<string, any>) {
+    super.willUpdate(changedProperties);
+    const props = this.controller.props;
+    if (props) {
+      if (props.accessibility?.role === 'region') {
+        this.setAttribute('role', 'region');
+        if (props.accessibility?.label) {
+          this.setAttribute('aria-label', props.accessibility.label);
+        } else {
+          this.removeAttribute('aria-label');
+        }
+      } else {
+        this.removeAttribute('role');
+        this.removeAttribute('aria-label');
+      }
+    }
+  }
+
   override render() {
     const props = this.controller.props;
     if (!props) return nothing;

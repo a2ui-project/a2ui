@@ -55,6 +55,9 @@ export class A2uiLitModal extends BasicCatalogA2uiLitElement<typeof ModalApi> {
     const props = this.controller.props;
     if (!props) return nothing;
 
+    const uniqueId = this.context.componentModel.id;
+    const descId = `${uniqueId}-description`;
+
     return html`
       <div
         @click=${() => this.dialog?.showModal()}
@@ -63,11 +66,23 @@ export class A2uiLitModal extends BasicCatalogA2uiLitElement<typeof ModalApi> {
       >
         ${props.trigger ? html`${this.renderNode(props.trigger)}` : nothing}
       </div>
-      <dialog class="a2ui-modal a2ui-modal-overlay">
+      <dialog
+        class="a2ui-modal a2ui-modal-overlay"
+        aria-label=${props.accessibility?.label || nothing}
+        aria-describedby=${props.accessibility?.description ? descId : nothing}
+      >
         <form method="dialog" style="text-align: right;">
-          <button class="a2ui-modal-close">×</button>
+          <button class="a2ui-modal-close" aria-label="Close">×</button>
         </form>
         ${props.content ? html`${this.renderNode(props.content)}` : nothing}
+        ${props.accessibility?.description
+          ? html`<span
+              id=${descId}
+              style="position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); border: 0;"
+            >
+              ${props.accessibility.description}
+            </span>`
+          : nothing}
       </dialog>
     `;
   }

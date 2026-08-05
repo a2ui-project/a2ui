@@ -84,6 +84,14 @@ export class A2uiDateTimeInputElement extends BasicCatalogA2uiLitElement<typeof 
       );
       font-weight: var(--a2ui-datetimeinput-label-font-weight, var(--a2ui-label-font-weight, bold));
     }
+    input.invalid {
+      border-color: var(--a2ui-datetimeinput-color-error, red);
+    }
+    .error {
+      color: var(--a2ui-datetimeinput-color-error, red);
+      font-size: var(--a2ui-font-size-xs, 0.75rem);
+      margin-top: 4px;
+    }
   `;
 
   protected createController() {
@@ -102,15 +110,37 @@ export class A2uiDateTimeInputElement extends BasicCatalogA2uiLitElement<typeof 
       props.enableDate && props.enableTime ? 'datetime-local' : props.enableDate ? 'date' : 'time';
     const normalizedValue = normalizeDateTimeValue(props.value, inputType);
 
+    const isInvalid = props.isValid === false;
+    const hasDesc = !!props.accessibility?.description;
+    const hasError = isInvalid && !!props.validationErrors?.length;
+    const descIds = [];
+    if (hasDesc) descIds.push(`${uniqueId}-description`);
+    if (hasError) descIds.push(`${uniqueId}-error`);
+    const ariaDescribedBy = descIds.length > 0 ? descIds.join(' ') : undefined;
+
     return html`
       ${props.label ? html`<label for=${uniqueId}>${props.label}</label>` : nothing}
       <input
         id=${uniqueId}
-        class="a2ui-date-time-input"
+        class="a2ui-date-time-input ${isInvalid ? 'invalid' : ''}"
         type=${inputType}
         .value=${normalizedValue}
         @input=${(e: Event) => props.setValue?.((e.target as HTMLInputElement).value)}
+        aria-label=${props.accessibility?.label || nothing}
+        aria-invalid=${isInvalid ? 'true' : 'false'}
+        aria-describedby=${ariaDescribedBy || nothing}
       />
+      ${isInvalid && props.validationErrors?.length
+        ? html`<div id="${uniqueId}-error" class="error">${props.validationErrors[0]}</div>`
+        : nothing}
+      ${props.accessibility?.description
+        ? html`<span
+            id="${uniqueId}-description"
+            style="position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); border: 0;"
+          >
+            ${props.accessibility.description}
+          </span>`
+        : nothing}
     `;
   }
 }

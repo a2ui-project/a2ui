@@ -97,6 +97,11 @@ export class A2uiChoicePickerElement extends BasicCatalogA2uiLitElement<typeof C
       color: var(--a2ui-color-on-primary, #fff);
       border-color: var(--a2ui-color-primary, #007bff);
     }
+    .error {
+      color: var(--a2ui-choicepicker-color-error, red);
+      font-size: var(--a2ui-font-size-xs, 0.75rem);
+      margin-top: 4px;
+    }
   `;
 
   @state() accessor filter = '';
@@ -135,8 +140,16 @@ export class A2uiChoicePickerElement extends BasicCatalogA2uiLitElement<typeof C
         String(opt.label).toLowerCase().includes(this.filter.toLowerCase()),
     );
 
+    const isInvalid = props.isValid === false;
+    const hasDesc = !!props.accessibility?.description;
+    const hasError = isInvalid && !!props.validationErrors?.length;
+    const descIds = [];
+    if (hasDesc) descIds.push(`${baseId}-description`);
+    if (hasError) descIds.push(`${baseId}-error`);
+    const ariaDescribedBy = descIds.length > 0 ? descIds.join(' ') : undefined;
+
     return html`
-      ${props.label ? html`<label>${props.label}</label>` : nothing}
+      ${props.label ? html`<label id="${baseId}-label">${props.label}</label>` : nothing}
       ${props.filterable
         ? html`
             <input
@@ -149,7 +162,14 @@ export class A2uiChoicePickerElement extends BasicCatalogA2uiLitElement<typeof C
             />
           `
         : nothing}
-      <div class=${classMap({options: true, chips: isChips})}>
+      <div
+        class=${classMap({options: true, chips: isChips})}
+        role=${isMulti ? 'group' : 'radiogroup'}
+        aria-labelledby=${props.label ? `${baseId}-label` : nothing}
+        aria-label=${props.accessibility?.label || nothing}
+        aria-invalid=${isInvalid ? 'true' : 'false'}
+        aria-describedby=${ariaDescribedBy || nothing}
+      >
         ${options.map((opt: any, i: number) => {
           const optId = `${baseId}-${i}`;
           return isChips
@@ -178,6 +198,17 @@ export class A2uiChoicePickerElement extends BasicCatalogA2uiLitElement<typeof C
               `;
         })}
       </div>
+      ${isInvalid && props.validationErrors?.length
+        ? html`<div id="${baseId}-error" class="error">${props.validationErrors[0]}</div>`
+        : nothing}
+      ${props.accessibility?.description
+        ? html`<span
+            id="${baseId}-description"
+            style="position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); border: 0;"
+          >
+            ${props.accessibility.description}
+          </span>`
+        : nothing}
     `;
   }
 }

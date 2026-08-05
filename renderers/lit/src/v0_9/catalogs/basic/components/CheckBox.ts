@@ -89,6 +89,13 @@ export class A2uiCheckBoxElement extends BasicCatalogA2uiLitElement<typeof Check
     const labelClasses = {'a2ui-checkbox': true, invalid: isInvalid};
     const inputClasses = {invalid: isInvalid};
 
+    const hasDesc = !!props.accessibility?.description;
+    const hasError = isInvalid && !!props.validationErrors?.length;
+    const descIds = [];
+    if (hasDesc) descIds.push(`${uniqueId}-description`);
+    if (hasError) descIds.push(`${uniqueId}-error`);
+    const ariaDescribedBy = descIds.length > 0 ? descIds.join(' ') : undefined;
+
     return html`
       <div class="container">
         <label class=${classMap(labelClasses)} for=${uniqueId}>
@@ -98,11 +105,22 @@ export class A2uiCheckBoxElement extends BasicCatalogA2uiLitElement<typeof Check
             class=${classMap(inputClasses)}
             .checked=${props.value || false}
             @change=${(e: Event) => props.setValue?.((e.target as HTMLInputElement).checked)}
+            aria-label=${props.accessibility?.label || nothing}
+            aria-invalid=${isInvalid ? 'true' : 'false'}
+            aria-describedby=${ariaDescribedBy || nothing}
           />
           ${props.label}
         </label>
         ${isInvalid && props.validationErrors?.length
-          ? html`<div class="error">${props.validationErrors[0]}</div>`
+          ? html`<div id="${uniqueId}-error" class="error">${props.validationErrors[0]}</div>`
+          : nothing}
+        ${props.accessibility?.description
+          ? html`<span
+              id="${uniqueId}-description"
+              style="position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); border: 0;"
+            >
+              ${props.accessibility.description}
+            </span>`
           : nothing}
       </div>
     `;

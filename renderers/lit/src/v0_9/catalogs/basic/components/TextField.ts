@@ -89,6 +89,13 @@ export class A2uiBasicTextFieldElement extends BasicCatalogA2uiLitElement<typeof
     if (props.variant === 'number') type = 'number';
     if (props.variant === 'obscured') type = 'password';
 
+    const hasDesc = !!props.accessibility?.description;
+    const hasError = isInvalid && !!props.validationErrors?.length;
+    const descIds = [];
+    if (hasDesc) descIds.push(`${uniqueId}-description`);
+    if (hasError) descIds.push(`${uniqueId}-error`);
+    const ariaDescribedBy = descIds.length > 0 ? descIds.join(' ') : undefined;
+
     const classes = {'a2ui-textfield': true, invalid: isInvalid};
 
     return html`
@@ -99,6 +106,9 @@ export class A2uiBasicTextFieldElement extends BasicCatalogA2uiLitElement<typeof
             class=${classMap(classes)}
             .value=${props.value || ''}
             @input=${onInput}
+            aria-label=${props.accessibility?.label || nothing}
+            aria-invalid=${isInvalid ? 'true' : 'false'}
+            aria-describedby=${ariaDescribedBy || nothing}
           ></textarea>`
         : html`<input
             id=${uniqueId}
@@ -106,9 +116,20 @@ export class A2uiBasicTextFieldElement extends BasicCatalogA2uiLitElement<typeof
             class=${classMap(classes)}
             .value=${props.value || ''}
             @input=${onInput}
+            aria-label=${props.accessibility?.label || nothing}
+            aria-invalid=${isInvalid ? 'true' : 'false'}
+            aria-describedby=${ariaDescribedBy || nothing}
           />`}
       ${isInvalid && props.validationErrors?.length
-        ? html`<div class="error">${props.validationErrors[0]}</div>`
+        ? html`<div id="${uniqueId}-error" class="error">${props.validationErrors[0]}</div>`
+        : nothing}
+      ${props.accessibility?.description
+        ? html`<span
+            id="${uniqueId}-description"
+            style="position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); border: 0;"
+          >
+            ${props.accessibility.description}
+          </span>`
         : nothing}
     `;
   }

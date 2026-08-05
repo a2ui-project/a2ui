@@ -106,14 +106,27 @@ export class A2uiBasicButtonElement extends BasicCatalogA2uiLitElement<typeof Bu
       ['a2ui-button-' + (props.variant || 'default')]: true,
     };
 
+    const uniqueId = this.context.componentModel.id;
+    const descId = `${uniqueId}-description`;
+
     return html`
       <button
         class=${classMap(classes)}
         @click=${() => !isDisabled && props.action && props.action()}
         ?disabled=${isDisabled}
+        aria-label=${props.accessibility?.label || nothing}
+        aria-describedby=${props.accessibility?.description ? descId : nothing}
       >
         ${props.child ? html`${this.renderNode(props.child)}` : nothing}
       </button>
+      ${props.accessibility?.description
+        ? html`<span
+            id=${descId}
+            style="position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); border: 0;"
+          >
+            ${props.accessibility.description}
+          </span>`
+        : nothing}
     `;
   }
 }
