@@ -19,14 +19,13 @@ import assert from 'node:assert';
 import {describe, it, beforeEach, after, before} from 'node:test';
 import {ComponentContext, MessageProcessor} from '@a2ui/web_core/v0_9';
 
-describe('CheckBox Component', () => {
+describe('DateTimeInput Component', () => {
   let basicCatalog: any;
 
   before(async () => {
     setupTestDom();
     basicCatalog = (await import('../../catalogs/basic/index.js')).basicCatalog;
-    // Ensure component is registered
-    await import('../../catalogs/basic/components/CheckBox.js');
+    await import('../../catalogs/basic/components/DateTimeInput.js');
   });
 
   after(teardownTestDom);
@@ -50,12 +49,12 @@ describe('CheckBox Component', () => {
           surfaceId: 'test-surface',
           components: [
             {
-              id: 'checkbox_invalid',
-              component: 'CheckBox',
-              label: 'Check me',
-              value: false,
-              isValid: false,
-              validationErrors: ['This is required'],
+              id: 'datetime_test',
+              component: 'DateTimeInput',
+              label: 'Meeting Time',
+              enableDate: true,
+              enableTime: true,
+              value: '2026-08-05T12:00:00Z',
             },
           ],
         },
@@ -64,38 +63,24 @@ describe('CheckBox Component', () => {
     surface = processor.model.getSurface('test-surface')!;
   });
 
-  it('should render validation error in CheckBox', async () => {
-    const el = document.createElement('a2ui-checkbox') as any;
+  it('should render datetime input with label linked by id', async () => {
+    const el = document.createElement('a2ui-datetimeinput') as any;
     document.body.appendChild(el);
 
-    const context = new ComponentContext(surface, 'checkbox_invalid');
-    await asyncUpdate(el, e => {
-      e.context = context;
-    });
-
-    const errorDiv = el.shadowRoot.querySelector('.error');
-    assert.ok(errorDiv);
-    assert.strictEqual(errorDiv.textContent.trim(), 'This is required');
-
-    document.body.removeChild(el);
-  });
-
-  it('should render checkbox with label linked by id', async () => {
-    const el = document.createElement('a2ui-checkbox') as any;
-    document.body.appendChild(el);
-
-    const context = new ComponentContext(surface, 'checkbox_invalid');
+    const context = new ComponentContext(surface, 'datetime_test');
     await asyncUpdate(el, e => {
       e.context = context;
     });
 
     const label = el.shadowRoot.querySelector('label');
     assert.ok(label);
-    assert.strictEqual(label.getAttribute('for'), 'checkbox_invalid');
+    assert.strictEqual(label.textContent.trim(), 'Meeting Time');
+    assert.strictEqual(label.getAttribute('for'), 'datetime_test');
 
     const input = el.shadowRoot.querySelector('input');
     assert.ok(input);
-    assert.strictEqual(input.getAttribute('id'), 'checkbox_invalid');
+    assert.strictEqual(input.getAttribute('id'), 'datetime_test');
+    assert.strictEqual(input.value, '2026-08-05T12:00');
 
     document.body.removeChild(el);
   });

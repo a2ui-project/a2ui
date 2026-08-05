@@ -96,13 +96,16 @@ export class A2uiDateTimeInputElement extends BasicCatalogA2uiLitElement<typeof 
     // If neither date or time are enabled, render nothing.
     if (!(props.enableDate || props.enableTime)) return nothing;
 
+    const uniqueId = this.context.componentModel.id;
+
     const inputType =
       props.enableDate && props.enableTime ? 'datetime-local' : props.enableDate ? 'date' : 'time';
     const normalizedValue = normalizeDateTimeValue(props.value, inputType);
 
     return html`
-      ${props.label ? html`<label>${props.label}</label>` : nothing}
+      ${props.label ? html`<label for=${uniqueId}>${props.label}</label>` : nothing}
       <input
+        id=${uniqueId}
         class="a2ui-date-time-input"
         type=${inputType}
         .value=${normalizedValue}

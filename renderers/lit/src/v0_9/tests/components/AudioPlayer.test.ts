@@ -19,14 +19,13 @@ import assert from 'node:assert';
 import {describe, it, beforeEach, after, before} from 'node:test';
 import {ComponentContext, MessageProcessor} from '@a2ui/web_core/v0_9';
 
-describe('CheckBox Component', () => {
+describe('AudioPlayer Component', () => {
   let basicCatalog: any;
 
   before(async () => {
     setupTestDom();
     basicCatalog = (await import('../../catalogs/basic/index.js')).basicCatalog;
-    // Ensure component is registered
-    await import('../../catalogs/basic/components/CheckBox.js');
+    await import('../../catalogs/basic/components/AudioPlayer.js');
   });
 
   after(teardownTestDom);
@@ -50,12 +49,10 @@ describe('CheckBox Component', () => {
           surfaceId: 'test-surface',
           components: [
             {
-              id: 'checkbox_invalid',
-              component: 'CheckBox',
-              label: 'Check me',
-              value: false,
-              isValid: false,
-              validationErrors: ['This is required'],
+              id: 'audio_test',
+              component: 'AudioPlayer',
+              url: 'https://example.com/audio.mp3',
+              description: 'Sample Audio Description',
             },
           ],
         },
@@ -64,38 +61,24 @@ describe('CheckBox Component', () => {
     surface = processor.model.getSurface('test-surface')!;
   });
 
-  it('should render validation error in CheckBox', async () => {
-    const el = document.createElement('a2ui-checkbox') as any;
+  it('should render audio player with description linked by aria-describedby', async () => {
+    const el = document.createElement('a2ui-audioplayer') as any;
     document.body.appendChild(el);
 
-    const context = new ComponentContext(surface, 'checkbox_invalid');
+    const context = new ComponentContext(surface, 'audio_test');
     await asyncUpdate(el, e => {
       e.context = context;
     });
 
-    const errorDiv = el.shadowRoot.querySelector('.error');
-    assert.ok(errorDiv);
-    assert.strictEqual(errorDiv.textContent.trim(), 'This is required');
+    const desc = el.shadowRoot.querySelector('.a2ui-audio-description');
+    assert.ok(desc);
+    assert.strictEqual(desc.textContent.trim(), 'Sample Audio Description');
+    assert.strictEqual(desc.getAttribute('id'), 'audio_test-desc');
 
-    document.body.removeChild(el);
-  });
-
-  it('should render checkbox with label linked by id', async () => {
-    const el = document.createElement('a2ui-checkbox') as any;
-    document.body.appendChild(el);
-
-    const context = new ComponentContext(surface, 'checkbox_invalid');
-    await asyncUpdate(el, e => {
-      e.context = context;
-    });
-
-    const label = el.shadowRoot.querySelector('label');
-    assert.ok(label);
-    assert.strictEqual(label.getAttribute('for'), 'checkbox_invalid');
-
-    const input = el.shadowRoot.querySelector('input');
-    assert.ok(input);
-    assert.strictEqual(input.getAttribute('id'), 'checkbox_invalid');
+    const audio = el.shadowRoot.querySelector('audio');
+    assert.ok(audio);
+    assert.strictEqual(audio.getAttribute('src'), 'https://example.com/audio.mp3');
+    assert.strictEqual(audio.getAttribute('aria-describedby'), 'audio_test-desc');
 
     document.body.removeChild(el);
   });

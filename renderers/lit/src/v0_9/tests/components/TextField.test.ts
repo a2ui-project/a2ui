@@ -108,10 +108,12 @@ describe('TextField Component', () => {
     const label = el.shadowRoot?.querySelector('label');
     assert.ok(label);
     assert.strictEqual(label.textContent?.trim(), 'Username');
+    assert.strictEqual(label.getAttribute('for'), 'field_name');
 
     const input = el.shadowRoot?.querySelector('input');
     assert.ok(input);
     assert.strictEqual(input.value, 'Bob');
+    assert.strictEqual(input.getAttribute('id'), 'field_name');
   });
 
   it('should update the data model value on input event', async () => {
@@ -145,9 +147,14 @@ describe('TextField Component', () => {
       e.context = context;
     });
 
+    const label = el.shadowRoot?.querySelector('label');
+    assert.ok(label);
+    assert.strictEqual(label.getAttribute('for'), 'field_long');
+
     const textarea = el.shadowRoot?.querySelector('textarea');
     assert.ok(textarea);
     assert.strictEqual(textarea.value, 'Initial Bio');
+    assert.strictEqual(textarea.getAttribute('id'), 'field_long');
 
     const input = el.shadowRoot?.querySelector('input');
     assert.strictEqual(input, null);

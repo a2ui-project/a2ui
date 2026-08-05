@@ -41,9 +41,18 @@ export class A2uiAudioPlayerElement extends BasicCatalogA2uiLitElement<typeof Au
     const props = this.controller.props;
     if (!props) return nothing;
 
+    const uniqueId = this.context.componentModel.id;
+    const descId = `${uniqueId}-desc`;
+
     return html`
-      ${props.description ? html`<p>${props.description}</p>` : nothing}
-      <audio src=${props.url} controls></audio>
+      ${props.description
+        ? html`<div id=${descId} class="a2ui-audio-description">${props.description}</div>`
+        : nothing}
+      <audio
+        src=${props.url}
+        controls
+        aria-describedby=${props.description ? descId : nothing}
+      ></audio>
     `;
   }
 }

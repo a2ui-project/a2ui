@@ -120,22 +120,21 @@ describe('DateTimeInputComponent', () => {
     expect(timeInput.value).toBe('');
   });
 
-  it('should render group role and link label element', () => {
+  it('should render fieldset and legend when both date and time are enabled', () => {
     setComponentProps(fixture, {
       ...defaultProps,
       label: createBoundProperty<string | undefined>('Arrival Time'),
     });
     fixture.detectChanges();
 
-    const container = fixture.nativeElement.querySelector('.a2ui-date-time-container');
-    expect(container.getAttribute('role')).toBe('group');
-    const label = fixture.nativeElement.querySelector('.a2ui-date-time-label');
-    const labelId = label.getAttribute('id');
-    expect(labelId).toBeTruthy();
-    expect(container.getAttribute('aria-labelledby')).toBe(labelId);
+    const container = fixture.nativeElement.querySelector('fieldset.a2ui-date-time-container');
+    expect(container).toBeTruthy();
+    const legend = fixture.nativeElement.querySelector('legend.a2ui-date-time-label');
+    expect(legend).toBeTruthy();
+    expect(legend.textContent.trim()).toBe('Arrival Time');
   });
 
-  it('should bind accessibility, invalid state, and link errors via aria-describedby to input fields', () => {
+  it('should bind accessibility, invalid state, and link errors via aria-describedby to input fields (both enabled)', () => {
     const isValidProp = createBoundProperty(true);
     const errorsProp = createBoundProperty<string[]>([]);
     setComponentProps(fixture, {
@@ -152,7 +151,7 @@ describe('DateTimeInputComponent', () => {
     const dateInput = fixture.nativeElement.querySelector('input[type="date"]');
     const timeInput = fixture.nativeElement.querySelector('input[type="time"]');
 
-    expect(dateInput.getAttribute('aria-label')).toBe('Arrival');
+    expect(dateInput.getAttribute('aria-label')).toBe('Date');
     expect(dateInput.getAttribute('aria-invalid')).toBe('false');
 
     const descId1 = dateInput.getAttribute('aria-describedby');
@@ -161,7 +160,7 @@ describe('DateTimeInputComponent', () => {
     expect(descElement1).not.toBeNull();
     expect(descElement1.textContent.trim()).toBe('Set date and time of arrival');
 
-    expect(timeInput.getAttribute('aria-label')).toBe('Arrival');
+    expect(timeInput.getAttribute('aria-label')).toBe('Time');
     expect(timeInput.getAttribute('aria-invalid')).toBe('false');
     expect(timeInput.getAttribute('aria-describedby')).toBe(descId1);
 
@@ -185,5 +184,31 @@ describe('DateTimeInputComponent', () => {
     const errorEl = fixture.nativeElement.querySelector(`#${ids[1]}`);
     expect(errorEl).toBeTruthy();
     expect(errorEl.textContent).toContain('Required date/time');
+  });
+
+  it('should render single date input linked to label by id', () => {
+    setComponentProps(fixture, {
+      ...defaultProps,
+      label: createBoundProperty<string | undefined>('Start Date'),
+      value: createBoundProperty('2026-03-16'),
+      enableTime: createBoundProperty<boolean | undefined>(false),
+      accessibility: createBoundProperty({
+        label: 'Arrival Date',
+        description: 'Set date of arrival',
+      }),
+    });
+    fixture.detectChanges();
+
+    const container = fixture.nativeElement.querySelector('.a2ui-date-time-container');
+    expect(container.tagName.toLowerCase()).toBe('div');
+
+    const label = fixture.nativeElement.querySelector('label.a2ui-date-time-label');
+    expect(label).toBeTruthy();
+    expect(label.getAttribute('for')).toBe(component.uniqueId);
+
+    const input = fixture.nativeElement.querySelector('input[type="date"]');
+    expect(input).toBeTruthy();
+    expect(input.getAttribute('id')).toBe(component.uniqueId);
+    expect(input.getAttribute('aria-label')).toBe('Arrival Date');
   });
 });

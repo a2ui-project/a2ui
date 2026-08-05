@@ -19,14 +19,13 @@ import assert from 'node:assert';
 import {describe, it, beforeEach, after, before} from 'node:test';
 import {ComponentContext, MessageProcessor} from '@a2ui/web_core/v0_9';
 
-describe('CheckBox Component', () => {
+describe('Slider Component', () => {
   let basicCatalog: any;
 
   before(async () => {
     setupTestDom();
     basicCatalog = (await import('../../catalogs/basic/index.js')).basicCatalog;
-    // Ensure component is registered
-    await import('../../catalogs/basic/components/CheckBox.js');
+    await import('../../catalogs/basic/components/Slider.js');
   });
 
   after(teardownTestDom);
@@ -50,12 +49,11 @@ describe('CheckBox Component', () => {
           surfaceId: 'test-surface',
           components: [
             {
-              id: 'checkbox_invalid',
-              component: 'CheckBox',
-              label: 'Check me',
-              value: false,
-              isValid: false,
-              validationErrors: ['This is required'],
+              id: 'slider_test',
+              component: 'Slider',
+              label: 'Volume',
+              value: 50,
+              max: 100,
             },
           ],
         },
@@ -64,38 +62,24 @@ describe('CheckBox Component', () => {
     surface = processor.model.getSurface('test-surface')!;
   });
 
-  it('should render validation error in CheckBox', async () => {
-    const el = document.createElement('a2ui-checkbox') as any;
+  it('should render slider with label linked by id', async () => {
+    const el = document.createElement('a2ui-slider') as any;
     document.body.appendChild(el);
 
-    const context = new ComponentContext(surface, 'checkbox_invalid');
-    await asyncUpdate(el, e => {
-      e.context = context;
-    });
-
-    const errorDiv = el.shadowRoot.querySelector('.error');
-    assert.ok(errorDiv);
-    assert.strictEqual(errorDiv.textContent.trim(), 'This is required');
-
-    document.body.removeChild(el);
-  });
-
-  it('should render checkbox with label linked by id', async () => {
-    const el = document.createElement('a2ui-checkbox') as any;
-    document.body.appendChild(el);
-
-    const context = new ComponentContext(surface, 'checkbox_invalid');
+    const context = new ComponentContext(surface, 'slider_test');
     await asyncUpdate(el, e => {
       e.context = context;
     });
 
     const label = el.shadowRoot.querySelector('label');
     assert.ok(label);
-    assert.strictEqual(label.getAttribute('for'), 'checkbox_invalid');
+    assert.strictEqual(label.textContent.trim(), 'Volume');
+    assert.strictEqual(label.getAttribute('for'), 'slider_test');
 
     const input = el.shadowRoot.querySelector('input');
     assert.ok(input);
-    assert.strictEqual(input.getAttribute('id'), 'checkbox_invalid');
+    assert.strictEqual(input.getAttribute('id'), 'slider_test');
+    assert.strictEqual(input.value, '50');
 
     document.body.removeChild(el);
   });

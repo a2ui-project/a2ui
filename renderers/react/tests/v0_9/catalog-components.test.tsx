@@ -555,7 +555,7 @@ describe('Basic Catalog Components', () => {
     });
 
     it('ChoicePicker mutuallyExclusive selection', () => {
-      const {surface} = renderA2uiComponent(ChoicePicker, 'cp1', {
+      const {view, surface} = renderA2uiComponent(ChoicePicker, 'cp1', {
         label: 'Pick',
         options: [
           {label: 'A', value: 'a'},
@@ -565,6 +565,19 @@ describe('Basic Catalog Components', () => {
         variant: 'mutuallyExclusive',
       });
 
+      const labels = view.container.querySelectorAll('label');
+      expect(labels.length).toBe(2);
+      const inputs = view.container.querySelectorAll('input[type="radio"]');
+      expect(inputs.length).toBe(2);
+
+      const id0 = inputs[0].getAttribute('id');
+      const id1 = inputs[1].getAttribute('id');
+      expect(id0).not.toBeNull();
+      expect(id1).not.toBeNull();
+
+      expect(labels[0].getAttribute('for')).toBe(id0);
+      expect(labels[1].getAttribute('for')).toBe(id1);
+
       fireEvent.click(screen.getByLabelText('A'));
       expect(surface.dataModel.get('/picked')).toEqual(['a']);
 
@@ -573,7 +586,7 @@ describe('Basic Catalog Components', () => {
     });
 
     it('ChoicePicker filters options', () => {
-      renderA2uiComponent(ChoicePicker, 'cp2', {
+      const {view} = renderA2uiComponent(ChoicePicker, 'cp2', {
         label: 'Pick',
         options: [
           {label: 'Apple', value: 'apple'},
@@ -582,6 +595,19 @@ describe('Basic Catalog Components', () => {
         value: {path: '/picked'},
         filterable: true,
       });
+
+      const labels = view.container.querySelectorAll('label');
+      expect(labels.length).toBe(2);
+      const inputs = view.container.querySelectorAll('input[type="checkbox"]');
+      expect(inputs.length).toBe(2);
+
+      const id0 = inputs[0].getAttribute('id');
+      const id1 = inputs[1].getAttribute('id');
+      expect(id0).not.toBeNull();
+      expect(id1).not.toBeNull();
+
+      expect(labels[0].getAttribute('for')).toBe(id0);
+      expect(labels[1].getAttribute('for')).toBe(id1);
 
       expect(screen.getByText('Apple')).toBeDefined();
       expect(screen.getByText('Banana')).toBeDefined();

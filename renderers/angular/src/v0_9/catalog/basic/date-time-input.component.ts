@@ -38,58 +38,86 @@ import {DateTimeInputApi} from '@a2ui/web_core/v0_9/basic_catalog';
   standalone: true,
   imports: [],
   template: `
-    <div
-      class="a2ui-date-time-container"
-      role="group"
-      [attr.aria-labelledby]="label() ? uniqueId + '-label' : null"
-    >
-      @if (label()) {
-        <label [id]="uniqueId + '-label'" class="a2ui-date-time-label">
-          {{ label() }}
-        </label>
-      }
-      <div class="a2ui-date-time-inputs">
-        @if (enableDate()) {
+    @if (enableDate() && enableTime()) {
+      <fieldset class="a2ui-date-time-container" style="border: none; padding: 0; margin: 0;">
+        @if (label()) {
+          <legend class="a2ui-date-time-label">{{ label() }}</legend>
+        }
+        <div class="a2ui-date-time-inputs">
           <input
             type="date"
             [value]="dateValue()"
             (change)="handleDateChange($event)"
             class="a2ui-date-time-input"
             [class.invalid]="props()['isValid']?.value() === false"
-            [attr.aria-label]="props()['accessibility']?.value()?.label"
+            aria-label="Date"
             [attr.aria-invalid]="props()['isValid']?.value() === false ? 'true' : 'false'"
             [attr.aria-describedby]="describedBy()"
           />
-        }
-        @if (enableTime()) {
           <input
             type="time"
             [value]="timeValue()"
             (change)="handleTimeChange($event)"
             class="a2ui-date-time-input"
             [class.invalid]="props()['isValid']?.value() === false"
-            [attr.aria-label]="props()['accessibility']?.value()?.label"
+            aria-label="Time"
             [attr.aria-invalid]="props()['isValid']?.value() === false ? 'true' : 'false'"
             [attr.aria-describedby]="describedBy()"
           />
+        </div>
+      </fieldset>
+    } @else {
+      <div class="a2ui-date-time-container">
+        @if (label()) {
+          <label [attr.for]="uniqueId" class="a2ui-date-time-label">
+            {{ label() }}
+          </label>
         }
-      </div>
-      @if (props()['validationErrors']?.value()?.length) {
-        <div [id]="uniqueId + '-error'">
-          @for (message of props()['validationErrors']?.value(); track message) {
-            <div class="a2ui-error-message">{{ message }}</div>
+        <div class="a2ui-date-time-inputs">
+          @if (enableDate()) {
+            <input
+              [id]="uniqueId"
+              type="date"
+              [value]="dateValue()"
+              (change)="handleDateChange($event)"
+              class="a2ui-date-time-input"
+              [class.invalid]="props()['isValid']?.value() === false"
+              [attr.aria-label]="props()['accessibility']?.value()?.label"
+              [attr.aria-invalid]="props()['isValid']?.value() === false ? 'true' : 'false'"
+              [attr.aria-describedby]="describedBy()"
+            />
+          }
+          @if (enableTime()) {
+            <input
+              [id]="uniqueId"
+              type="time"
+              [value]="timeValue()"
+              (change)="handleTimeChange($event)"
+              class="a2ui-date-time-input"
+              [class.invalid]="props()['isValid']?.value() === false"
+              [attr.aria-label]="props()['accessibility']?.value()?.label"
+              [attr.aria-invalid]="props()['isValid']?.value() === false ? 'true' : 'false'"
+              [attr.aria-describedby]="describedBy()"
+            />
           }
         </div>
-      }
-      @if (props()['accessibility']?.value()?.description) {
-        <span
-          [id]="uniqueId + '-description'"
-          style="position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); border: 0;"
-        >
-          {{ props()['accessibility']?.value()?.description }}
-        </span>
-      }
-    </div>
+      </div>
+    }
+    @if (props()['validationErrors']?.value()?.length) {
+      <div [id]="uniqueId + '-error'">
+        @for (message of props()['validationErrors']?.value(); track message) {
+          <div class="a2ui-error-message">{{ message }}</div>
+        }
+      </div>
+    }
+    @if (props()['accessibility']?.value()?.description) {
+      <span
+        [id]="uniqueId + '-description'"
+        style="position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); border: 0;"
+      >
+        {{ props()['accessibility']?.value()?.description }}
+      </span>
+    }
   `,
   styles: [
     `

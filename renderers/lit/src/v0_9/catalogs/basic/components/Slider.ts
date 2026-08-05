@@ -65,12 +65,15 @@ export class A2uiSliderElement extends BasicCatalogA2uiLitElement<typeof SliderA
     const props = this.controller.props;
     if (!props) return nothing;
 
+    const uniqueId = this.context.componentModel.id;
+
     return html`
       <div class="header">
-        ${props.label ? html`<label>${props.label}</label>` : nothing}
+        ${props.label ? html`<label for=${uniqueId}>${props.label}</label>` : nothing}
         <span>${props.value}</span>
       </div>
       <input
+        id=${uniqueId}
         type="range"
         min=${props.min ?? 0}
         max=${props.max ?? 100}

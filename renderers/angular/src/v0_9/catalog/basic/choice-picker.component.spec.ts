@@ -88,6 +88,17 @@ describe('ChoicePickerComponent', () => {
     const options = fixture.nativeElement.querySelectorAll('.a2ui-option-label');
     expect(options.length).toBe(2);
     expect(options[0].textContent).toContain('Opt 1');
+
+    const inputs = fixture.nativeElement.querySelectorAll('.a2ui-option-input');
+    expect(inputs.length).toBe(2);
+
+    const id0 = inputs[0].getAttribute('id');
+    const id1 = inputs[1].getAttribute('id');
+    expect(id0).toBeTruthy();
+    expect(id1).toBeTruthy();
+
+    expect(options[0].getAttribute('for')).toBe(id0);
+    expect(options[1].getAttribute('for')).toBe(id1);
   });
 
   it('should call onUpdate when option selected', () => {

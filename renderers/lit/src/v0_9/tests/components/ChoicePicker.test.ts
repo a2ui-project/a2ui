@@ -104,7 +104,15 @@ describe('ChoicePicker Component', () => {
     });
 
     // Initially 2 options + 1 main label = 3 labels
-    assert.strictEqual(el.shadowRoot.querySelectorAll('label').length, 3);
+    const labels = el.shadowRoot.querySelectorAll('label');
+    assert.strictEqual(labels.length, 3);
+    assert.strictEqual(labels[1].getAttribute('for'), 'choice_picker_filterable-0');
+    assert.strictEqual(labels[2].getAttribute('for'), 'choice_picker_filterable-1');
+
+    const inputs = el.shadowRoot.querySelectorAll('input[type="radio"], input[type="checkbox"]');
+    assert.strictEqual(inputs.length, 2);
+    assert.strictEqual(inputs[0].getAttribute('id'), 'choice_picker_filterable-0');
+    assert.strictEqual(inputs[1].getAttribute('id'), 'choice_picker_filterable-1');
 
     // Simulate input by setting state directly
     await asyncUpdate(el, e => {
@@ -112,7 +120,9 @@ describe('ChoicePicker Component', () => {
     });
 
     // Now only Apple should be visible + main label = 2 labels
-    assert.strictEqual(el.shadowRoot.querySelectorAll('label').length, 2);
+    const labelsAfterFilter = el.shadowRoot.querySelectorAll('label');
+    assert.strictEqual(labelsAfterFilter.length, 2);
+    assert.strictEqual(labelsAfterFilter[1].getAttribute('for'), 'choice_picker_filterable-0');
 
     document.body.removeChild(el);
   });

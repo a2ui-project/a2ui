@@ -81,6 +81,8 @@ export class A2uiBasicTextFieldElement extends BasicCatalogA2uiLitElement<typeof
     const props = this.controller.props;
     if (!props) return nothing;
 
+    const uniqueId = this.context.componentModel.id;
+
     const isInvalid = props.isValid === false;
     const onInput = (e: Event) => props.setValue?.((e.target as HTMLInputElement).value);
     let type: 'text' | 'number' | 'password' = 'text';
@@ -90,14 +92,16 @@ export class A2uiBasicTextFieldElement extends BasicCatalogA2uiLitElement<typeof
     const classes = {'a2ui-textfield': true, invalid: isInvalid};
 
     return html`
-      ${props.label ? html`<label>${props.label}</label>` : nothing}
+      ${props.label ? html`<label for=${uniqueId}>${props.label}</label>` : nothing}
       ${props.variant === 'longText'
         ? html`<textarea
+            id=${uniqueId}
             class=${classMap(classes)}
             .value=${props.value || ''}
             @input=${onInput}
           ></textarea>`
         : html`<input
+            id=${uniqueId}
             type=${type}
             class=${classMap(classes)}
             .value=${props.value || ''}

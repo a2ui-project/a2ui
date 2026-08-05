@@ -109,6 +109,8 @@ export class A2uiChoicePickerElement extends BasicCatalogA2uiLitElement<typeof C
     const props = this.controller.props;
     if (!props) return nothing;
 
+    const baseId = this.context.componentModel.id;
+
     const selected = Array.isArray(props.value) ? props.value : [];
     const isMulti = props.variant === 'multipleSelection';
     const isChips = props.displayStyle === 'chips';
@@ -148,8 +150,9 @@ export class A2uiChoicePickerElement extends BasicCatalogA2uiLitElement<typeof C
           `
         : nothing}
       <div class=${classMap({options: true, chips: isChips})}>
-        ${options.map((opt: any) =>
-          isChips
+        ${options.map((opt: any, i: number) => {
+          const optId = `${baseId}-${i}`;
+          return isChips
             ? html`
                 <button
                   class=${classMap({
@@ -163,16 +166,17 @@ export class A2uiChoicePickerElement extends BasicCatalogA2uiLitElement<typeof C
                 </button>
               `
             : html`
-                <label>
+                <label for=${optId}>
                   <input
+                    id=${optId}
                     type=${isMulti ? 'checkbox' : 'radio'}
                     .checked=${selected.includes(opt.value)}
                     @change=${() => toggle(opt.value)}
                   />
                   ${opt.label}
                 </label>
-              `,
-        )}
+              `;
+        })}
       </div>
     `;
   }

@@ -75,9 +75,10 @@ import {ChoicePickerApi} from '@a2ui/web_core/v0_9/basic_catalog';
           [attr.aria-invalid]="props()['isValid']?.value() === false ? 'true' : 'false'"
           [attr.aria-describedby]="describedBy()"
         >
-          @for (option of options(); track option.value) {
-            <label class="a2ui-option-label">
+          @for (option of options(); track option.value; let i = $index) {
+            <label class="a2ui-option-label" [attr.for]="uniqueId + '-' + i">
               <input
+                [id]="uniqueId + '-' + i"
                 [type]="isMultiple() ? 'checkbox' : 'radio'"
                 [name]="componentId()"
                 [value]="option.value"

@@ -104,6 +104,7 @@ export const ChoicePicker = createComponentImplementation(ChoicePickerApi, ({pro
       >
         {options.map((opt: _Option, i: number) => {
           const isSelected = values.includes(opt.value);
+          const optId = `${uniqueId}-${i}`;
           if (props.displayStyle === 'chips') {
             return (
               <button
@@ -117,8 +118,9 @@ export const ChoicePicker = createComponentImplementation(ChoicePickerApi, ({pro
             );
           }
           return (
-            <label key={i} className={styles.optionLabel}>
+            <label key={i} htmlFor={optId} className={styles.optionLabel}>
               <input
+                id={optId}
                 type={isMutuallyExclusive ? 'radio' : 'checkbox'}
                 checked={isSelected}
                 onChange={() => onToggle(opt.value)}

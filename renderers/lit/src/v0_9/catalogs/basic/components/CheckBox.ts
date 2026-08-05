@@ -83,14 +83,17 @@ export class A2uiCheckBoxElement extends BasicCatalogA2uiLitElement<typeof Check
     const props = this.controller.props;
     if (!props) return nothing;
 
+    const uniqueId = this.context.componentModel.id;
+
     const isInvalid = props.isValid === false;
     const labelClasses = {'a2ui-checkbox': true, invalid: isInvalid};
     const inputClasses = {invalid: isInvalid};
 
     return html`
       <div class="container">
-        <label class=${classMap(labelClasses)}>
+        <label class=${classMap(labelClasses)} for=${uniqueId}>
           <input
+            id=${uniqueId}
             type="checkbox"
             class=${classMap(inputClasses)}
             .checked=${props.value || false}
