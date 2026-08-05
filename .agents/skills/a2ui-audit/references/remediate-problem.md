@@ -86,11 +86,11 @@ The agent execution environment must provide the following environment variables
      --title "${PR_TITLE}" \
      --body-file pr_description.md)
    ```
-3. Clean up the temporary PR description file:
+4. Clean up the temporary PR description file:
    ```bash
    rm -f pr_description.md
    ```
-4. Comment on the original issue to notify maintainers of the new Draft PR and branch:
+5. Comment on the original issue to notify maintainers of the new Draft PR and branch:
    ```bash
    gh issue comment "${ISSUE_NUMBER}" \
      --repo a2ui-project/a2ui \

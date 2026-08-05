@@ -27,18 +27,22 @@ This reference defines the required structure, writing guidelines, and standard 
 
 When creating the PR description file (e.g. `pr_description.md`), follow this exact structure, replacing `${ISSUE_NUMBER}` and `${RECOMMENDATION_INDEX}` with the target issue number and recommendation index:
 
-```markdown
+````markdown
 ## Summary
+
 [Provide a 1-2 sentence overview of the remediation fix, referencing the original compliance report issue and recommendation index, e.g., "Addresses recommendation #3 from compliance report issue #2178 by creating `swift/core/README.md`."]
 
 ## Changes
+
 - [Bulleted list of specific files added, modified, or deleted.]
 - [Summary of primary code, blueprint, or documentation modifications made.]
 
 ## Impact & Risks
+
 - [Notes on any potential side effects, public API changes, or dependencies. State "No breaking changes or external dependency impacts" if applicable.]
 
 ## Testing
+
 - [Step-by-step list of verification checks performed, e.g., unit test execution, linter output, static checks.]
 
 ---
@@ -56,4 +60,8 @@ git checkout remediation/issue-${ISSUE_NUMBER}-${RECOMMENDATION_INDEX}
 git commit -am "fix: additional adjustments for recommendation #${RECOMMENDATION_INDEX}"
 git push upstream remediation/issue-${ISSUE_NUMBER}-${RECOMMENDATION_INDEX}
 ```
+````
+
+```
+
 ```

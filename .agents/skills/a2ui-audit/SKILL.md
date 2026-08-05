@@ -56,39 +56,47 @@ When compiling `compliance_report.md`, use the following structure:
 
 ```markdown
 ## Summary
+
 [Provide a 2-3 paragraph detailed summary explaining the repository state, key areas audited across SDKs, renderers, and tests, and major findings.]
 
 ## Recommendations
+
 1. **[Priority]**: [Clear title and detailed explanation of the fix needed, specifying affected directories or modules.]
 2. **[Priority]**: [Clear title and detailed explanation of the fix needed, specifying affected directories or modules.]
 
 > 🤖 **Automated Remediation**: Comment `/fix <number>` (e.g., `/fix 1`) on this issue to have an agent create a draft PR for that recommendation.
 
 ## Codebase Blueprint Compliance Audit
-| Codebase Implementation | Associated Module | Status | Commits Behind | Current Commit | Latest Commit |
-|---|---|---|---|---|---|
-| `path/to/codebase` | `associated_module` | Status | X | `commit_hash` | `latest_hash` |
+
+| Codebase Implementation | Associated Module   | Status | Commits Behind | Current Commit | Latest Commit |
+| ----------------------- | ------------------- | ------ | -------------- | -------------- | ------------- |
+| `path/to/codebase`      | `associated_module` | Status | X              | `commit_hash`  | `latest_hash` |
 
 ### Detailed Findings & Discrepancies
+
 - **[Codebase Path]**: [Detailed description of missing specifications, missing required features, or frontmatter commit hash drift.]
 
 ## Code & Documentation Sync Audit
-| Directory | Status | Identified Issues |
-|---|---|---|
-| `path/to/dir` | Status | Brief Summary |
+
+| Directory     | Status | Identified Issues |
+| ------------- | ------ | ----------------- |
+| `path/to/dir` | Status | Brief Summary     |
 
 ### Detailed Findings
+
 - **README Mismatches**:
   - `path/to/README.md`: [Exact invalid command or outdated setup step found in README.]
 - **Docstring / API Drift**:
   - `path/to/file.ext:L12-L34`: [Specific parameter or return type mismatch between implementation and docstring/comments.]
 
 ## Test Quality & Assertions Audit
-| Suite / Module | Status | Observations |
-|---|---|---|
+
+| Suite / Module  | Status | Observations  |
+| --------------- | ------ | ------------- |
 | `path/to/tests` | Status | Brief Summary |
 
 ### Detailed Findings
+
 - **Weak Assertions**:
   - `path/to/test_file.ext` (`test_function_name`): [Explanation of weak assertion, e.g. using `assertNotNull` instead of schema/type check.]
 - **Missing Edge Case Tests**:

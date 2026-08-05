@@ -196,4 +196,3 @@ class TestCreateComplianceReport(unittest.TestCase):
 
         output = mock_stdout.getvalue()
         self.assertIn("Error: 'gh' CLI tool not found", output)
-
