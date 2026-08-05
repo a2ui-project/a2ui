@@ -398,16 +398,16 @@ class CatalogProvider(ABC):
 class BundledCatalogProvider(CatalogProvider):
     """Loads catalog schemas from bundled package resources for a specified protocol version."""
 
-    def __init__(self, spec_version: str):
+    def __init__(self, protocol_version: ProtocolVersion):
         """Initializes the bundled provider.
 
         Args:
-            spec_version: Protocol specification version string (e.g. 'v0.9.1', 'v1.0').
+            protocol_version: Protocol specification version string (e.g. 'v0.9.1', 'v1.0').
         """
-        self.spec_version = spec_version
+        self.protocol_version = protocol_version
 
     def load(self) -> Catalog[TComponent, TFunction]:
-        """Loads the bundled package catalog schema for spec_version."""
+        """Loads the bundled package catalog schema for protocol_version."""
         pass
 
 class FileSystemCatalogProvider(CatalogProvider):
@@ -761,6 +761,7 @@ class DirectJsonParser(Parser):
 Compact functional DSL format designed to reduce output token consumption. For formal grammar and syntax specification, see [Express Specification](../../specification/proposals/express/a2ui_express.md) and [Express Grammar](../../specification/inference_formats/express/Express.g4).
 
 The Express format package under `a2ui/agent/inference_formats/express/` contains:
+
 - `format`: `ExpressFormatFactory` (subclassing `InferenceFormatFactory`) and `ExpressFormat` (subclassing `InferenceFormat`).
 - `prompt_generator`: `ExpressPromptGenerator` (subclassing `PromptGenerator`), rendering compact positional signatures for catalog components and functions into prompt instructions.
 - `compiler`: `ExpressCompiler`, lexing and parsing `<a2ui-express>` DSL expressions into standard `AgentToRendererMessage` list structures.
