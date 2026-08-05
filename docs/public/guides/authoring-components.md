@@ -140,6 +140,8 @@ export const ChartApi = {
 
 Now implement the Angular component:
 
+{% raw %}
+
 ```typescript
 import {CatalogComponent} from '@a2ui/angular/v0_9';
 import {Component, computed} from '@angular/core';
@@ -172,6 +174,8 @@ export class Chart extends CatalogComponent<typeof ChartApi> {
   });
 }
 ```
+
+{% endraw %}
 
 Keep these key points in mind when implementing components:
 

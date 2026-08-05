@@ -201,7 +201,8 @@ hooks:
 # Plugins
 plugins:
   - search
-  - macros
+  - macros:
+      on_undefined: keep
   # - include-markdown
   - mermaid2
   - redirects:
