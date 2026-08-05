@@ -27,7 +27,7 @@ The Agent SDK architecture introduces a clear separation between **low-level sin
 
 ```mermaid
 graph TD
-    Facade["High-Level Application Facade<br/>(A2uiGenerator / A2uiProcessor)"]
+    Facade["High-Level Application Facade<br/>(A2uiGenerator / A2uiRequestProcessor)"]
     Transformers["Catalog Transformers<br/>(Component / Function Allowlist Rules)"]
     Formats["Inference Formats<br/>(DirectJson / Express / More to be added)"]
     Parsers["Parser Engine<br/>(Unwrap, Compile, parse_response, parse_chunk)"]
@@ -50,8 +50,8 @@ graph TD
    - **Validation Layer**: Leverages core `A2uiValidator` capabilities directly from `a2ui_core`, natively supporting protocol version branching (`v0_8`, `v0_9`, `v0_9_1`, `v1_0`).
 2. **Encapsulated Application Processor**:
    - `CatalogConfig`: Configuration dataclass encapsulating catalog providers (`BundledCatalogProvider`, `FileSystemCatalogProvider`, `InMemoryCatalogProvider`), custom transformers, and examples.
-   - `A2uiGenerator`: Agent-level lifecycle manager holding supported `CatalogConfig`s, generating pre-negotiated `A2uiProcessor` instances per renderer capability signature.
-   - `A2uiProcessor`: Central processor facade object unifying multi-catalog capability resolution (`resolve_catalogs`), system prompt snippet rendering, turn-scoped parser creation, and response validation.
+   - `A2uiGenerator`: Agent-level lifecycle manager holding supported `CatalogConfig`s, generating pre-negotiated `A2uiRequestProcessor` instances per renderer capability signature.
+   - `A2uiRequestProcessor`: Central processor facade object unifying multi-catalog capability resolution (`resolve_catalogs`), system prompt snippet rendering, turn-scoped parser creation, and response validation.
 
 ---
 
@@ -63,7 +63,7 @@ All SDK implementations of `a2ui_agent` must maintain a standardized directory l
 a2ui/agent/
 ├── processor/                 # High-level application facade package
 │   ├── catalog_config         # CatalogConfig structure for catalog registration
-│   ├── processor              # A2uiProcessor facade implementation
+│   ├── processor              # A2uiRequestProcessor facade implementation
 │   ├── generator              # A2uiGenerator class
 │   └── catalog_providers      # Catalog provider classes
 ├── inference_format           # Abstract InferenceFormat & InferenceFormatFactory facades
@@ -252,7 +252,7 @@ class Parser(ABC):
 
     @abstractmethod
     def wrap(self, blocks: List[RawResponsePart]) -> str:
-        """Wraps multiple decompiled blocks with the format's enclosing tags/markers."""
+        """Converts a list of RawResponseParts to a string, adding enclosing tags or markers around each raw A2UI section and concatenating conversational text parts."""
         pass
 
     def unwrap(self, content: str) -> List[RawResponsePart]:
@@ -513,7 +513,7 @@ class CatalogConfig:
 
 ```python
 class A2uiGenerator:
-    """Agent-level generator holding agent-supported catalogs and returning A2uiProcessor instances per request renderer capabilities.
+    """Agent-level generator holding agent-supported catalogs and returning A2uiRequestProcessor instances per request renderer capabilities.
 
     Attributes:
         catalogs: Master list of CatalogConfig objects supported by the agent.
@@ -534,38 +534,30 @@ class A2uiGenerator:
             examples: Optional dictionary of prompt examples.
             inference_format_factory: Optional default InferenceFormatFactory (defaults to DirectJsonFormatFactory).
         """
-        self._catalogs = catalogs
-        self._examples = examples
-        self._factory = inference_format_factory or DirectJsonFormatFactory()
+        pass
 
     def create_processor(
         self,
         renderer_capabilities: Any,
         inference_format_factory: Optional[InferenceFormatFactory] = None,
-    ) -> "A2uiProcessor":
-        """Creates an A2uiProcessor bound to the specified renderer capabilities.
+    ) -> A2uiRequestProcessor:
+        """Creates an A2uiRequestProcessor bound to the specified renderer capabilities.
 
         Args:
             renderer_capabilities: A2uiRendererCapabilities object sent by the client renderer.
             inference_format_factory: Optional override format factory for this processor.
 
         Returns:
-            Pre-negotiated client-bound A2uiProcessor instance.
+            Pre-negotiated client-bound A2uiRequestProcessor instance.
         """
-        factory = inference_format_factory or self._factory
-        active_catalogs = resolve_catalogs(self._catalogs, renderer_capabilities)
-        return A2uiProcessor(
-            catalogs=active_catalogs,
-            examples=self._examples,
-            format_factory=factory,
-        )
+        pass
 ```
 
-#### `A2uiProcessor`
+#### `A2uiRequestProcessor`
 
 ```python
-class A2uiProcessor:
-    """Central processor facade unifying multi-catalog capability resolution, prompt rendering, parser creation, and validation."""
+class A2uiRequestProcessor:
+    """Central request processor facade unifying multi-catalog capability resolution, prompt rendering, parser creation, and validation."""
 
     def __init__(
         self,
@@ -573,65 +565,33 @@ class A2uiProcessor:
         examples: Optional[Dict[str, List[AgentToRendererMessage]]] = None,
         format_factory: Optional[InferenceFormatFactory] = None,
     ):
-        """Initializes A2uiProcessor, resolving active catalogs and instantiating validator and format strategy.
+        """Initializes A2uiRequestProcessor, resolving active catalogs and instantiating validator and format strategy.
 
         Args:
             catalogs: List of active Catalog instances.
             examples: Optional dictionary of prompt examples.
             format_factory: Format factory for instantiating format strategies.
         """
-        self._catalogs = catalogs
-        self._examples = examples
-        self._validator = A2uiValidator(catalogs)
-        self._validate_examples(examples)
-        self._inference_format = format_factory.create_format(catalogs, examples)
-        self._parser: Parser = self._inference_format.create_parser()
-        self._prompt: str = self._inference_format.prompt_generator.generate()
+        pass
 
     @property
     def active_catalogs(self) -> List[Catalog[TComponent, TFunction]]:
         """Returns the list of active negotiated Catalog instances for this processor."""
-        return self._catalogs
+        pass
 
     @property
     def examples(self) -> Optional[Dict[str, List[AgentToRendererMessage]]]:
         """Returns the prompt example mapping."""
-        return self._examples
+        pass
 
     @property
     def prompt_snippet(self) -> str:
         """Format-specific system prompt instruction snippet."""
-        return self._prompt
-
-    def _validate_examples(self, examples: Optional[Dict[str, List[AgentToRendererMessage]]]) -> None:
-        """Validates all prompt examples against bound A2uiValidator, raising ValueError if any example is invalid."""
-        if not examples:
-            return
-        for description, messages in examples.items():
-            for msg in messages:
-                errors = self._validator.validate_message(msg)
-                if errors:
-                    raise ValueError(f"Invalid prompt example '{description}' for negotiated catalogs: {errors}")
-
-    def create_parser(self) -> Parser:
-        """Creates a turn-scoped parser instance bound to active processor catalogs."""
-        return self._inference_format.create_parser()
+        pass
 
     def parse_response(self, content: str) -> List[ResponsePart]:
         """Parses and validates the LLM response into ResponseParts."""
-        parts = self._parser.parse_response(content)
-        for part in parts:
-            if isinstance(part, A2uiPart) and part.a2ui:
-                self._validate_response(part.a2ui)
-        return parts
-
-    def _validate_response(self, messages: List[AgentToRendererMessage]) -> None:
-        """Validates output payload messages against active catalog schemas.
-
-        Args:
-            messages: List of AgentToRendererMessage objects to validate.
-        """
-        self._validator.validate(messages)
+        pass
 ```
 
 ---
@@ -798,184 +758,14 @@ class DirectJsonParser(Parser):
 
 ### B. EXPRESS Format (`a2ui.inference_formats.express`)
 
-Compact functional DSL format designed to reduce output token consumption.
+Compact functional DSL format designed to reduce output token consumption. For formal grammar and syntax specification, see [Express Specification](../../specification/proposals/express/a2ui_express.md) and [Express Grammar](../../specification/inference_formats/express/Express.g4).
 
-```python
-class ExpressFormatFactory(InferenceFormatFactory):
-    """Factory for instantiating ExpressFormat strategies bound to active catalogs."""
-
-    def create_format(
-        self,
-        catalogs: List[Catalog[TComponent, TFunction]],
-        examples: Optional[Dict[str, List[AgentToRendererMessage]]] = None,
-    ) -> InferenceFormat:
-        """Constructs an ExpressFormat instance bound to active catalogs.
-
-        Args:
-            catalogs: Active Catalog instances.
-            examples: Optional prompt example mapping.
-
-        Returns:
-            ExpressFormat strategy instance.
-        """
-        return ExpressFormat(catalogs=catalogs, examples=examples)
-
-class ExpressFormat(InferenceFormat):
-    """Coordinator facade pairing ExpressPromptGenerator and ExpressParser for functional DSL format."""
-
-    def __init__(
-        self,
-        catalogs: List[Catalog[TComponent, TFunction]],
-        examples: Optional[Dict[str, List[AgentToRendererMessage]]] = None,
-    ):
-        """Initializes ExpressFormat with active catalogs and prompt examples.
-
-        Args:
-            catalogs: Active Catalog instances.
-            examples: Optional prompt example mapping.
-        """
-        self._prompt_generator = ExpressPromptGenerator(catalogs=catalogs, examples=examples)
-        self._catalogs = catalogs
-
-    @property
-    def prompt_generator(self) -> ExpressPromptGenerator:
-        """Returns the ExpressPromptGenerator instance."""
-        return self._prompt_generator
-
-    def create_parser(self) -> ExpressParser:
-        """Creates a fresh ExpressParser instance bound to active catalogs."""
-        return ExpressParser(catalogs=self._catalogs)
-
-class ExpressPromptGenerator(PromptGenerator):
-    """Compiles catalog components and functions into compact functional DSL signatures for system prompts."""
-
-    def __init__(
-        self,
-        catalogs: List[Catalog[TComponent, TFunction]],
-        examples: Optional[Dict[str, List[AgentToRendererMessage]]] = None,
-    ):
-        """Initializes ExpressPromptGenerator.
-
-        Args:
-            catalogs: Active Catalog instances.
-            examples: Optional prompt example mapping.
-        """
-        super().__init__(catalogs, examples)
-
-    def _generate_component_signatures(self) -> str:
-        """Compiles component JSON schemas into multi-line plain-text positional signatures.
-
-        Returns:
-            Multi-line plain text signatures for all catalog components.
-        """
-        pass
-
-    def _generate_function_signatures(self) -> str:
-        """Compiles logic check rules and functions into plain-text signatures.
-
-        Returns:
-            Multi-line plain text signatures for all catalog functions.
-        """
-        pass
-
-    def generate(self) -> str:
-        """Assembles Express DSL system prompt instructions incorporating positional signatures and example blocks.
-
-        Returns:
-            Formatted Express DSL system prompt instruction snippet string.
-        """
-        pass
-
-class ExpressCompiler:
-    """Compiler that lexes and evaluates Express functional DSL expressions into standard A2UI dictionary structures."""
-
-    def __init__(self, catalogs: List[Catalog[TComponent, TFunction]]):
-        """Initializes ExpressCompiler with target catalogs.
-
-        Args:
-            catalogs: Active Catalog instances.
-        """
-        self.catalogs = catalogs
-
-    def compile(self, format_content: str) -> List[AgentToRendererMessage]:
-        """Lexes and evaluates AST expressions from format_content string into AgentToRendererMessage list.
-
-        Args:
-            format_content: Express DSL expression string extracted from <a2ui-express> tags.
-
-        Returns:
-            List of compiled AgentToRendererMessage objects.
-        """
-        pass
-
-class ExpressDecompiler:
-    """Decompiler that converts standard A2UI JSON payload objects into Express functional DSL notation."""
-
-    def __init__(self, catalogs: List[Catalog[TComponent, TFunction]]):
-        """Initializes ExpressDecompiler with target catalogs.
-
-        Args:
-            catalogs: Active Catalog instances.
-        """
-        self.catalogs = catalogs
-
-    def decompile(self, a2ui_payload: List[AgentToRendererMessage]) -> str:
-        """Decompiles structured A2UI payload messages into Express functional DSL string.
-
-        Args:
-            a2ui_payload: List of AgentToRendererMessage objects.
-
-        Returns:
-            Express functional DSL string.
-        """
-        pass
-
-class ExpressParser(Parser):
-    """Parser that extracts Express functional DSL chunks from LLM responses and decompiles/compiles payloads."""
-
-    def __init__(self, catalogs: List[Catalog[TComponent, TFunction]]):
-        """Initializes ExpressParser.
-
-        Args:
-            catalogs: Active Catalog instances.
-        """
-        self.compiler = ExpressCompiler(catalogs)
-        self.decompiler = ExpressDecompiler(catalogs)
-
-    def compile(self, format_content: str) -> List[AgentToRendererMessage]:
-        """Compiles Express DSL content string into AgentToRendererMessage list using ExpressCompiler.
-
-        Args:
-            format_content: Express DSL expression string.
-
-        Returns:
-            List of compiled AgentToRendererMessage objects.
-        """
-        return self.compiler.compile(format_content)
-
-    def decompile(self, a2ui_payload: List[AgentToRendererMessage]) -> str:
-        """Decompiles AgentToRendererMessage list into Express DSL string using ExpressDecompiler.
-
-        Args:
-            a2ui_payload: List of AgentToRendererMessage objects.
-
-        Returns:
-            Express functional DSL string.
-        """
-        return self.decompiler.decompile(a2ui_payload)
-
-    def parse_chunk(self, chunk: str, wrapped: bool = True) -> List[ResponsePart]:
-        """Processes Express DSL response chunks incrementally.
-
-        Args:
-            chunk: Incremental text chunk from LLM stream.
-            wrapped: Whether output is wrapped in sentinel tags.
-
-        Returns:
-            List of newly parsed ResponsePart objects.
-        """
-        pass
-```
+The Express format package under `a2ui/agent/inference_formats/express/` contains:
+- `format`: `ExpressFormatFactory` (subclassing `InferenceFormatFactory`) and `ExpressFormat` (subclassing `InferenceFormat`).
+- `prompt_generator`: `ExpressPromptGenerator` (subclassing `PromptGenerator`), rendering compact positional signatures for catalog components and functions into prompt instructions.
+- `compiler`: `ExpressCompiler`, lexing and parsing `<a2ui-express>` DSL expressions into standard `AgentToRendererMessage` list structures.
+- `decompiler`: `ExpressDecompiler`, converting `AgentToRendererMessage` payload lists back into Express DSL string format.
+- `parser`: `ExpressParser` (subclassing `Parser`), delegating compilation and decompilation to `ExpressCompiler` and `ExpressDecompiler`, and handling streaming response chunks.
 
 ---
 
@@ -996,7 +786,7 @@ generator = A2uiGenerator(
     examples=load_examples("./prompts/examples/**")
 )
 
-# 2. In Request Handler: Retrieve pre-negotiated A2uiProcessor matching renderer capabilities
+# 2. In Request Handler: Retrieve pre-negotiated A2uiRequestProcessor matching renderer capabilities
 processor = generator.create_processor(renderer_capabilities)
 
 # 3. Invoke LLM to generate the output

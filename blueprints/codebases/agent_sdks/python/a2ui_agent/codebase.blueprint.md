@@ -22,7 +22,7 @@ The reference Python implementation of the A2UI Agent SDK (`a2ui_agent`).
 
 ## **Local Technical Decisions & Overrides**
 
-- **Multi-Catalog Capability Negotiation**: Implements `A2uiGenerator` and `A2uiProcessor` to negotiate client capabilities (`A2uiRendererCapabilities`) against registered catalog configurations (`CatalogConfig`), caching processors by deterministic capability hash signature.
+- **Multi-Catalog Capability Negotiation**: Implements `A2uiGenerator` and `A2uiRequestProcessor` to negotiate client capabilities (`A2uiRendererCapabilities`) against registered catalog configurations (`CatalogConfig`), caching processors by deterministic capability hash signature.
 - **Standalone Catalog Transformers**: Uses `ComponentPruningTransformer` and `FunctionPruningTransformer` to decouple component and function allowlist filtering from raw schema parsing and representation.
 - **Zero Validator Overhead**: Directly reuses `a2ui.core.validating.A2uiValidator` from `a2ui_core`, eliminating redundant validator facade wrappers in the agent layer.
 - **Direct JSON Syntax Healing**: `DirectJsonFormat` includes JSON-specific repair utilities and `progressive_keys` to auto-heal fragmented JSON syntax, unquoted keys, and trailing commas.
