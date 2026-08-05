@@ -46,7 +46,9 @@ import {ButtonApi} from '@a2ui/web_core/v0_9/basic_catalog';
       (click)="handleClick()"
       [disabled]="props()['isValid']?.value() === false"
       [attr.aria-label]="props()['accessibility']?.value()?.label"
-      [attr.aria-describedby]="props()['accessibility']?.value()?.description ? uniqueId + '-description' : null"
+      [attr.aria-describedby]="
+        props()['accessibility']?.value()?.description ? uniqueId + '-description' : null
+      "
     >
       @if (child()) {
         <a2ui-v09-component-host [componentKey]="child()!" [surfaceId]="surfaceId()">

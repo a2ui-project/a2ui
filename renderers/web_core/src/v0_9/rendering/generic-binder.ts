@@ -130,13 +130,17 @@ export type ResolveA2uiProp<T> = [NonNullable<T>] extends [Action]
   : [NonNullable<T>] extends [ChildList]
     ? any | Extract<T, undefined>
     : Exclude<NonNullable<T>, DynamicTypes> extends Array<any>
-      ? Array<ResolveA2uiProp<Exclude<NonNullable<T>, DynamicTypes>[number]>> | Extract<T, undefined>
+      ?
+          | Array<ResolveA2uiProp<Exclude<NonNullable<T>, DynamicTypes>[number]>>
+          | Extract<T, undefined>
       : Exclude<NonNullable<T>, DynamicTypes> extends object
-        ? {
-            [K in keyof Exclude<NonNullable<T>, DynamicTypes>]: ResolveA2uiProp<
-              Exclude<NonNullable<T>, DynamicTypes>[K]
-            >;
-          } | Extract<T, undefined>
+        ?
+            | {
+                [K in keyof Exclude<NonNullable<T>, DynamicTypes>]: ResolveA2uiProp<
+                  Exclude<NonNullable<T>, DynamicTypes>[K]
+                >;
+              }
+            | Extract<T, undefined>
         : Exclude<T, DynamicTypes> extends never
           ? any
           : Exclude<T, DynamicTypes>;

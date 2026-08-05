@@ -180,7 +180,9 @@ import {ChoicePickerApi} from '@a2ui/web_core/v0_9/basic_catalog';
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class ChoicePickerComponent extends BasicCatalogComponent<typeof ChoicePickerApi> {
-  readonly groupRole = computed(() => this.variant() === 'multipleSelection' ? 'group' : 'radiogroup');
+  readonly groupRole = computed(() =>
+    this.variant() === 'multipleSelection' ? 'group' : 'radiogroup',
+  );
   readonly label = computed(() => this.props()['label']?.value());
   readonly displayStyle = computed(() => this.props()['displayStyle']?.value());
   readonly options = computed(() => this.props()['options']?.value() || []);

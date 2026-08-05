@@ -50,5 +50,11 @@ export const Image = createComponentImplementation(ImageApi, ({props}) => {
     style.objectFit = 'cover';
   }
 
-  return <img src={props.url} alt={props.accessibility?.label ?? props.description ?? ''} style={style} />;
+  return (
+    <img
+      src={props.url}
+      alt={props.accessibility?.label ?? props.description ?? ''}
+      style={style}
+    />
+  );
 });

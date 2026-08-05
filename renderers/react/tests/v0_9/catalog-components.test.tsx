@@ -434,7 +434,7 @@ describe('Basic Catalog Components', () => {
         {
           additionalComponents: [triggerBtn],
           additionalImpls: [Button],
-        }
+        },
       );
 
       const button = screen.getByRole('button', {name: 'Open Modal'});
@@ -489,7 +489,9 @@ describe('Basic Catalog Components', () => {
           label: 'Agree',
           value: {path: '/agreed'},
           accessibility: {label: 'A11y Label', description: 'A11y Desc'},
-          checks: [{call: 'required', args: {value: {path: '/agreed'}}, message: 'Agreed is required'}],
+          checks: [
+            {call: 'required', args: {value: {path: '/agreed'}}, message: 'Agreed is required'},
+          ],
         },
         {initialData: {agreed: null}},
       );
@@ -619,7 +621,9 @@ describe('Basic Catalog Components', () => {
           ],
           value: {path: '/picked'},
           accessibility: {label: 'A11y Picker', description: 'Pick options'},
-          checks: [{call: 'required', args: {value: {path: '/picked'}}, message: 'Selection required'}],
+          checks: [
+            {call: 'required', args: {value: {path: '/picked'}}, message: 'Selection required'},
+          ],
         },
         {initialData: {picked: []}},
       );
@@ -643,18 +647,12 @@ describe('Basic Catalog Components', () => {
     });
 
     it('ChoicePicker binds radiogroup role for mutuallyExclusive variant', () => {
-      renderA2uiComponent(
-        ChoicePicker,
-        'cp1',
-        {
-          label: 'Pick',
-          options: [
-            {label: 'A', value: 'a'},
-          ],
-          value: {path: '/picked'},
-          variant: 'mutuallyExclusive',
-        }
-      );
+      renderA2uiComponent(ChoicePicker, 'cp1', {
+        label: 'Pick',
+        options: [{label: 'A', value: 'a'}],
+        value: {path: '/picked'},
+        variant: 'mutuallyExclusive',
+      });
 
       const group = screen.getByRole('radiogroup');
       expect(group).toBeDefined();

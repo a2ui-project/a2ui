@@ -59,11 +59,15 @@ import {ModalApi} from '@a2ui/web_core/v0_9/basic_catalog';
             role="dialog"
             aria-modal="true"
             [attr.aria-label]="props()['accessibility']?.value()?.label"
-            [attr.aria-describedby]="props()['accessibility']?.value()?.description ? uniqueId + '-description' : null"
+            [attr.aria-describedby]="
+              props()['accessibility']?.value()?.description ? uniqueId + '-description' : null
+            "
             class="a2ui-modal-content"
             (click)="$event.stopPropagation()"
           >
-            <button class="a2ui-modal-close" aria-label="Close" (click)="closeModal()">&times;</button>
+            <button class="a2ui-modal-close" aria-label="Close" (click)="closeModal()">
+              &times;
+            </button>
             @if (content()) {
               <a2ui-v09-component-host [componentKey]="content()!" [surfaceId]="surfaceId()">
               </a2ui-v09-component-host>
@@ -140,7 +144,7 @@ export class ModalComponent extends BasicCatalogComponent<typeof ModalApi> {
     setTimeout(() => {
       if (this.modalContentElement) {
         const focusables = this.modalContentElement.nativeElement.querySelectorAll(
-          'button, [href], input, select, textarea, [tabindex="0"]'
+          'button, [href], input, select, textarea, [tabindex="0"]',
         );
         if (focusables.length > 0) {
           (focusables[0] as HTMLElement).focus();
@@ -154,7 +158,7 @@ export class ModalComponent extends BasicCatalogComponent<typeof ModalApi> {
     setTimeout(() => {
       if (this.triggerElement) {
         const focusable = this.triggerElement.nativeElement.querySelector(
-          'button, [tabindex="0"], input, select, textarea'
+          'button, [tabindex="0"], input, select, textarea',
         ) as HTMLElement;
         if (focusable) {
           focusable.focus();
@@ -174,7 +178,7 @@ export class ModalComponent extends BasicCatalogComponent<typeof ModalApi> {
 
     if (event.key === 'Tab' && this.modalContentElement) {
       const focusables = this.modalContentElement.nativeElement.querySelectorAll(
-        'button, [href], input, select, textarea, [tabindex="0"]'
+        'button, [href], input, select, textarea, [tabindex="0"]',
       );
       if (focusables.length === 0) return;
       const first = focusables[0] as HTMLElement;

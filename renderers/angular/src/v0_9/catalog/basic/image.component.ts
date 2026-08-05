@@ -80,6 +80,8 @@ export class ImageComponent extends BasicCatalogComponent<typeof ImageApi> {
   readonly variant = computed(() => this.props()['variant']?.value() || 'default');
 
   readonly altText = computed(() => {
-    return this.props()['accessibility']?.value()?.label ?? this.props()['description']?.value() ?? '';
+    return (
+      this.props()['accessibility']?.value()?.label ?? this.props()['description']?.value() ?? ''
+    );
   });
 }

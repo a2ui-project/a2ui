@@ -31,10 +31,9 @@ export const Slider = createComponentImplementation(SliderApi, ({props}) => {
   const hasDescription = !!props.accessibility?.description;
   const hasError = props.validationErrors && props.validationErrors.length > 0;
 
-  const describedBy = [
-    hasDescription ? descriptionId : null,
-    hasError ? errorId : null,
-  ].filter(Boolean).join(' ') || undefined;
+  const describedBy =
+    [hasDescription ? descriptionId : null, hasError ? errorId : null].filter(Boolean).join(' ') ||
+    undefined;
 
   const hiddenStyle: React.CSSProperties = {
     position: 'absolute',

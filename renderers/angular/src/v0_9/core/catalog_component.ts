@@ -42,4 +42,3 @@ export abstract class CatalogComponent<
 
   readonly uniqueId = `a2ui-id-${nextId++}`;
 }
-

@@ -30,7 +30,7 @@ export const Modal = createComponentImplementation(ModalApi, ({props, buildChild
     if (!isOpen) {
       if (isMounted.current && triggerRef.current) {
         const focusable = triggerRef.current.querySelector(
-          'button, [tabindex="0"], input, select, textarea'
+          'button, [tabindex="0"], input, select, textarea',
         ) as HTMLElement;
         if (focusable) {
           focusable.focus();
@@ -43,7 +43,7 @@ export const Modal = createComponentImplementation(ModalApi, ({props, buildChild
 
     if (modalRef.current) {
       const focusables = modalRef.current.querySelectorAll(
-        'button, [href], input, select, textarea, [tabindex="0"]'
+        'button, [href], input, select, textarea, [tabindex="0"]',
       );
       if (focusables.length > 0) {
         (focusables[0] as HTMLElement).focus();
@@ -57,7 +57,7 @@ export const Modal = createComponentImplementation(ModalApi, ({props, buildChild
       }
       if (e.key === 'Tab' && modalRef.current) {
         const focusables = modalRef.current.querySelectorAll(
-          'button, [href], input, select, textarea, [tabindex="0"]'
+          'button, [href], input, select, textarea, [tabindex="0"]',
         );
         if (focusables.length === 0) return;
         const first = focusables[0] as HTMLElement;
@@ -115,7 +115,9 @@ export const Modal = createComponentImplementation(ModalApi, ({props, buildChild
             role="dialog"
             aria-modal="true"
             aria-label={props.accessibility?.label}
-            aria-describedby={props.accessibility?.description ? `${uniqueId}-description` : undefined}
+            aria-describedby={
+              props.accessibility?.description ? `${uniqueId}-description` : undefined
+            }
             style={{
               backgroundColor: 'var(--a2ui-color-surface, #fff)',
               padding: 'var(--a2ui-modal-padding, var(--a2ui-spacing-l, 24px))',
