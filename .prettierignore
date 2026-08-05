@@ -35,3 +35,6 @@ eval/logs
 eval/history
 **/history
 **/history_summary.md
+
+# Lavish design output
+.lavish/

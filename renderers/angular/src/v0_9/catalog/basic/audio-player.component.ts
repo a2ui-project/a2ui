@@ -35,10 +35,7 @@ import {AudioPlayerApi} from '@a2ui/web_core/v0_9/basic_catalog';
   template: `
     <div class="a2ui-audio-player">
       @if (description()) {
-        <div
-          class="a2ui-audio-description"
-          [attr.id]="uniqueId + '-desc'"
-        >
+        <div class="a2ui-audio-description" [attr.id]="uniqueId + '-desc'">
           {{ description() }}
         </div>
       }
