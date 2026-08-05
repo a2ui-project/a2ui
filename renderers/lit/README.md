@@ -20,10 +20,10 @@ yarn add @a2ui/lit @a2ui/web_core
 A2UI supports multiple protocol versions. For new projects, it is recommended to
 use the **v0.9** protocol.
 
-To use the v0.9 implementation, import from the versioned path:
+To use the modern implementation, import directly from the root package:
 
 ```typescript
-import {A2uiSurface, basicCatalog} from '@a2ui/lit/v0_9';
+import {A2uiSurface, basicCatalog} from '@a2ui/lit';
 ```
 
 ## Quick Start
@@ -33,8 +33,8 @@ The Lit renderer works alongside the `MessageProcessor` from `@a2ui/web_core`.
 ```typescript
 import {LitElement, html} from 'lit';
 import {customElement, state} from 'lit/decorators.js';
-import {MessageProcessor} from '@a2ui/web_core/v0_9';
-import {A2uiSurface, basicCatalog} from '@a2ui/lit/v0_9';
+import {MessageProcessor} from '@a2ui/web_core';
+import {A2uiSurface, basicCatalog} from '@a2ui/lit';
 
 @customElement('my-app')
 export class MyApp extends LitElement {
@@ -87,7 +87,7 @@ Use Zod to define the properties.
 
 ```typescript
 import {z} from 'zod';
-import {CommonSchemas} from '@a2ui/web_core/v0_9';
+import {CommonSchemas} from '@a2ui/web_core';
 
 export const MyProfileApi = {
   name: 'Profile',
@@ -104,7 +104,7 @@ export const MyProfileApi = {
 Extend `A2uiLitElement` and implement `createController` and `render`.
 
 ```typescript
-import {A2uiLitElement, A2uiController} from '@a2ui/lit/v0_9';
+import {A2uiLitElement, A2uiController} from '@a2ui/lit';
 import {customElement} from 'lit/decorators.js';
 import {html, nothing} from 'lit';
 import {MyProfileApi} from './my-profile-api';
@@ -138,10 +138,10 @@ export const MyProfile = {
 
 ### 3. Define the Catalog
 
-Group your custom components into a `Catalog` from `@a2ui/web_core/v0_9`.
+Group your custom components into a `Catalog` from `@a2ui/web_core`.
 
 ```typescript
-import {Catalog} from '@a2ui/web_core/v0_9';
+import {Catalog} from '@a2ui/web_core';
 import {MyProfile} from './my-profile';
 
 export const myCatalog = new Catalog('https://example.com/catalogs/my-catalog.json', [MyProfile]);
@@ -153,8 +153,8 @@ Pass your custom catalog to the `MessageProcessor` alongside the basic catalog
 in your app setup (as seen in the Quick Start).
 
 ```typescript
-import {MessageProcessor} from '@a2ui/web_core/v0_9';
-import {basicCatalog} from '@a2ui/lit/v0_9';
+import {MessageProcessor} from '@a2ui/web_core';
+import {basicCatalog} from '@a2ui/lit';
 import {myCatalog} from './my-catalog';
 
 // Initialize the MessageProcessor with both catalogs
@@ -163,7 +163,7 @@ const processor = new MessageProcessor([basicCatalog, myCatalog]);
 
 ## Basic Catalog Components
 
-The `@a2ui/lit/v0_9` package includes a `basicCatalog` with standard components.
+The `@a2ui/lit` package includes a `basicCatalog` with standard components.
 You can find the full specification of the basic catalog in the [GitHub repository](../../specification/v0_9/catalogs/basic/catalog.json).
 
 - **Layout**: `Row`, `Column`, `List`, `Card`, `Tabs`, `Modal`, `Divider`

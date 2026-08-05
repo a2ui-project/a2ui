@@ -14,15 +14,15 @@
  * limitations under the License.
  */
 
-/**
- * Public API surface for A2UI Lit Renderer.
- *
- * @module @a2ui/lit
- */
+import {ComponentApi} from '@a2ui/web_core';
 
-export type {LitComponentApi} from './types.js';
-export {A2uiController} from './a2ui-controller.js';
-export {A2uiSurface} from './surface/a2ui-surface.js';
-export {A2uiLitElement} from './a2ui-lit-element.js';
-export {Context} from './context/context.js';
-export {basicCatalog} from './catalogs/basic/index.js';
+/**
+ * Interface representing an A2UI component implementation in Lit.
+ *
+ * Extends the framework-agnostic component API to include the Lit custom element
+ * tag name. Used by A2uiNode to dynamically render the corresponding Lit component,
+ * and as the type parameter when defining custom Catalogs.
+ */
+export interface LitComponentApi extends ComponentApi {
+  tagName: string;
+}

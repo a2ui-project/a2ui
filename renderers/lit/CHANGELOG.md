@@ -1,5 +1,7 @@
 ## Unreleased
 
+- **BREAKING CHANGE**: Importing from `@a2ui/lit` (root `.`) now resolves to the modern evolving codebase (`v0.9` / `v1.0`) instead of `v0.8`. For legacy v0.8 imports, use `@a2ui/lit/v0_8`. Backwards compatibility for `./v0_9` is maintained via re-export shims.
+
 ## 0.10.3
 
 - Enable `inlineSources` in `tsconfig.json` to populate `sourcesContent` in sourcemaps.

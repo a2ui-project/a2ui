@@ -15,7 +15,7 @@
  * limitations under the License.
  */
 
-import {setupTestDom, teardownTestDom, asyncUpdate} from '../v0_9/tests/dom-setup.js';
+import {setupTestDom, teardownTestDom, asyncUpdate} from '../tests/dom-setup.js';
 import assert from 'node:assert';
 import {describe, it, after, before} from 'node:test';
 
