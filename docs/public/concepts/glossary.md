@@ -157,7 +157,7 @@ Functionality of A2UI renderer consists of layers that can be developed separate
     Implementation of the catalog schema for a framework.
 
     For example:
-    - See the [Angular implementation of the basic catalog](../../../renderers/angular/src/v0_9/catalog/basic)
+    - See the [Angular implementation of the basic catalog](../../../renderers/angular/src/catalog/basic)
 
 ```mermaid
 flowchart TD;
