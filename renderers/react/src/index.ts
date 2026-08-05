@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2026 Google LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -14,4 +14,41 @@
  * limitations under the License.
  */
 
-export * from './v0_8/index';
+/**
+ * Public API surface for A2UI React Renderer.
+ *
+ * @module @a2ui/react
+ */
+
+export {A2uiSurface} from './A2uiSurface';
+export {
+  type ReactComponentImplementation,
+  type ReactA2uiComponentProps,
+  createComponentImplementation,
+  createBinderlessComponentImplementation,
+} from './adapter';
+
+// Basic catalog & markdown context
+export {
+  MarkdownContext,
+  useMarkdownRenderer,
+  basicCatalog,
+  Text,
+  Image,
+  Icon,
+  Video,
+  AudioPlayer,
+  Row,
+  Column,
+  List,
+  Card,
+  Tabs,
+  Divider,
+  Modal,
+  Button,
+  TextField,
+  CheckBox,
+  ChoicePicker,
+  Slider,
+  DateTimeInput,
+} from './catalog/basic';

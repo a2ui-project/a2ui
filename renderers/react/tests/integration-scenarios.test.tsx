@@ -17,12 +17,12 @@
 import {describe, it, expect} from 'vitest';
 import {render, screen, act, fireEvent} from '@testing-library/react';
 import React from 'react';
-import {MessageProcessor} from '@a2ui/web_core/v0_9';
-import {A2uiSurface, basicCatalog} from '@a2ui/react/v0_9';
+import {MessageProcessor} from '@a2ui/web_core';
+import {A2uiSurface, basicCatalog} from '@a2ui/react';
 
-import exMarkdown from '../../../../specification/v0_9/catalogs/basic/examples/35_markdown-text.json';
-import exTaskCard from '../../../../specification/v0_9/catalogs/basic/examples/07_task-card.json';
-import exLoginForm from '../../../../specification/v0_9/catalogs/basic/examples/09_login-form.json';
+import exMarkdown from '../../../specification/v0_9/catalogs/basic/examples/35_markdown-text.json';
+import exTaskCard from '../../../specification/v0_9/catalogs/basic/examples/07_task-card.json';
+import exLoginForm from '../../../specification/v0_9/catalogs/basic/examples/09_login-form.json';
 
 describe('Gallery Integration Tests', () => {
   it('renders Markdown Text -> "Markdown Rendering"', async () => {

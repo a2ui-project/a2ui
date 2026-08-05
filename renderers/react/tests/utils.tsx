@@ -17,9 +17,9 @@
 import React from 'react';
 import {render} from '@testing-library/react';
 import {vi} from 'vitest';
-import {SurfaceModel, ComponentModel, Catalog, ComponentContext} from '@a2ui/web_core/v0_9';
-import {BASIC_FUNCTIONS} from '@a2ui/web_core/v0_9/basic_catalog';
-import type {ReactComponentImplementation} from '../src/v0_9/adapter';
+import {SurfaceModel, ComponentModel, Catalog, ComponentContext} from '@a2ui/web_core';
+import {BASIC_FUNCTIONS} from '@a2ui/web_core/basic_catalog';
+import type {ReactComponentImplementation} from '../src/adapter';
 
 export interface RenderA2uiOptions {
   initialData?: Record<string, any>;

@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2026 Google LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -14,4 +14,7 @@
  * limitations under the License.
  */
 
-export * from './v0_8/types';
+export type {
+  ReactComponentImplementation,
+  ReactA2uiComponentProps,
+} from './adapter';

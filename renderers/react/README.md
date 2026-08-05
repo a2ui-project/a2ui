@@ -21,10 +21,10 @@ yarn add @a2ui/react @a2ui/web_core
 
 A2UI supports multiple protocol versions to ensure backward compatibility. For new projects, it is recommended to use the **v0.9** protocol.
 
-To use the v0.9 implementation, import from the versioned path:
+To use the modern implementation, import directly from the root package:
 
 ```typescript
-import {A2uiSurface, basicCatalog} from '@a2ui/react/v0_9';
+import {A2uiSurface, basicCatalog} from '@a2ui/react';
 ```
 
 ## Quick Start
@@ -39,8 +39,8 @@ The example below creates a processor with the built-in `basicCatalog`, feeds it
 
 ```tsx
 import {useState, useEffect} from 'react';
-import {MessageProcessor} from '@a2ui/web_core/v0_9';
-import {A2uiSurface, basicCatalog} from '@a2ui/react/v0_9';
+import {MessageProcessor} from '@a2ui/web_core';
+import {A2uiSurface, basicCatalog} from '@a2ui/react';
 
 export default function App() {
   // 1. Create the processor and feed it messages.
@@ -123,7 +123,7 @@ Use Zod to define the properties. Using `CommonSchemas` from `web_core` enables 
 
 ```typescript
 import {z} from 'zod';
-import {CommonSchemas} from '@a2ui/web_core/v0_9';
+import {CommonSchemas} from '@a2ui/web_core';
 
 export const MyProfileApi = {
   name: 'Profile',
@@ -144,7 +144,7 @@ export const MyProfileApi = {
 The `createComponentImplementation` factory uses a **Generic Binder** to resolve all dynamic values before your component renders.
 
 ```tsx
-import {createComponentImplementation} from '@a2ui/react/v0_9';
+import {createComponentImplementation} from '@a2ui/react';
 
 export const MyProfile = createComponentImplementation(MyProfileApi, ({props, buildChild}) => {
   // 'props' is strictly inferred from the Zod schema:
@@ -188,7 +188,7 @@ The Generic Binder is a framework-agnostic engine that transforms raw JSON paylo
 For advanced use cases where you need direct access to the `ComponentContext` or want to manage reactivity manually (e.g., for performance-critical animations), use `createBinderlessComponentImplementation`.
 
 ```tsx
-import {createBinderlessComponentImplementation} from '@a2ui/react/v0_9';
+import {createBinderlessComponentImplementation} from '@a2ui/react';
 
 export const RawInspector = createBinderlessComponentImplementation(InspectorApi, ({context}) => {
   // Access the raw, unresolved component model and the data model directly
@@ -209,7 +209,7 @@ export const RawInspector = createBinderlessComponentImplementation(InspectorApi
 Group your components and logic functions into a `Catalog` to be used by the `MessageProcessor`.
 
 ```typescript
-import {Catalog, createFunctionImplementation} from '@a2ui/web_core/v0_9';
+import {Catalog, createFunctionImplementation} from '@a2ui/web_core';
 import {z} from 'zod';
 
 // 1. Implement a custom logic function
@@ -232,7 +232,7 @@ export const myCatalog = new Catalog(
 
 ## Basic Catalog Components
 
-The `@a2ui/react/v0_9` package includes a `basicCatalog` with standard components:
+The `@a2ui/react` package includes a `basicCatalog` with standard components:
 
 - **Layout**: `Row`, `Column`, `List`, `Card`, `Tabs`, `Modal`, `Divider`
 - **Content**: `Text`, `Image`, `Icon`, `Video`, `AudioPlayer`

@@ -19,8 +19,8 @@
 import {describe, it, expect} from 'vitest';
 import {render} from '@testing-library/react';
 import React from 'react';
-import {MessageProcessor} from '@a2ui/web_core/v0_9';
-import {A2uiSurface, basicCatalog} from '@a2ui/react/v0_9';
+import {MessageProcessor} from '@a2ui/web_core';
+import {A2uiSurface, basicCatalog} from '@a2ui/react';
 import fs from 'fs';
 import path from 'path';
 

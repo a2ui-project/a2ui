@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2026 Google LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -14,8 +14,7 @@
  * limitations under the License.
  */
 
-export * from './A2uiSurface';
-export * from './adapter';
-
-// Export basic catalog components directly for 3P developers
-export * from './catalog/basic';
+/**
+ * @deprecated Please import from '@a2ui/react' root instead.
+ */
+export * from '../index';

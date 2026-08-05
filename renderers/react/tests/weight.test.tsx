@@ -15,9 +15,9 @@
  */
 
 import {describe, it, expect} from 'vitest';
-import {renderA2uiComponent} from '../utils';
-import {getWeightStyle} from '../../src/v0_9/catalog/basic/utils';
-import {Image, Text, Card, Row, Column} from '../../src/v0_9/catalog/basic';
+import {renderA2uiComponent} from './utils';
+import {getWeightStyle} from '../src/catalog/basic/utils';
+import {Image, Text, Card, Row, Column} from '../src/catalog/basic';
 
 describe('getWeightStyle', () => {
   it('returns empty object when weight is undefined', () => {

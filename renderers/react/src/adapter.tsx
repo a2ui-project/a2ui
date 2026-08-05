@@ -15,12 +15,12 @@
  */
 
 import React, {useRef, useSyncExternalStore, useCallback, memo, useEffect} from 'react';
-import {type ComponentContext, GenericBinder} from '@a2ui/web_core/v0_9';
+import {type ComponentContext, GenericBinder} from '@a2ui/web_core';
 import type {
   ComponentApi,
   InferredComponentApiSchemaType,
   ResolveA2uiProps,
-} from '@a2ui/web_core/v0_9';
+} from '@a2ui/web_core';
 
 export interface ReactComponentImplementation extends ComponentApi {
   /** The framework-specific rendering wrapper. */

@@ -16,7 +16,7 @@
 
 import '@testing-library/jest-dom/vitest';
 import {beforeAll} from 'vitest';
-import {initializeDefaultCatalog} from '../src';
+import {initializeDefaultCatalog} from '../src/v0_8';
 
 // Initialize the default catalog before all tests
 beforeAll(() => {

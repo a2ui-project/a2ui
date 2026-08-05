@@ -16,8 +16,8 @@
 
 import {describe, it, expect, vi} from 'vitest';
 import {screen, fireEvent, act} from '@testing-library/react';
-import {ComponentModel} from '@a2ui/web_core/v0_9';
-import {renderA2uiComponent} from '../utils';
+import {ComponentModel} from '@a2ui/web_core';
+import {renderA2uiComponent} from './utils';
 
 import {
   Text,
@@ -38,7 +38,7 @@ import {
   ChoicePicker,
   Slider,
   DateTimeInput,
-} from '../../src/v0_9/catalog/basic';
+} from '../src/catalog/basic';
 
 describe('Basic Catalog Components', () => {
   describe('Text', () => {
