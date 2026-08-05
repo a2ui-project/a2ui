@@ -4,7 +4,7 @@ _Status: Draft_
 
 _Author: Greg Spencer_
 
-_Created: 2026-08-03_
+_Created: 2026-08-03 (Updated: 2026-08-05)_
 
 ---
 
@@ -46,47 +46,30 @@ A2UI is a declarative JSON protocol without inline code execution capabilities l
 
 ### 2.1 Pros
 
-- **Auto-Invocation Protection**: Stops automated window/tab navigation or side-effect triggers during layout rendering, dynamic property interpolation, or background state updates.
-- **Zero Custom Component Overhead**: Component authors write standard event bindings (`@click=${props.action}` in Lit, `onClick={props.action}` in React, `onPressed: props.action` in Flutter). Framework binders pre-wrap `props.action` to create and attach gesture tokens automatically. Custom component authors write no token-handling code.
-- **Centralized Web Implementation**: Web gesture token handling is implemented once inside `web_core` (`GenericBinder` and `DataContext`). This covers Lit, React, Angular, and Vue renderers without individual renderer modifications.
-- **Programmatic Token Inspection**: Custom function implementations can programmatically inspect `options.gestureToken`. This enables hybrid execution flows, such as navigating directly when gesture-initiated, or displaying a permission confirmation dialog when uninitiated.
+- **Auto-Invocation Protection**: Stops automated window/tab navigation or side-effect triggers during layout rendering, dynamic property interpolation, background state updates, or passive input events (e.g. `onBlurAction`, `onChangeAction`).
+- **100% Catalog Agnostic**: Requires **zero component metadata changes** in catalog definitions. Does not pollute catalog component schemas with interaction level annotations (`userInteractionLevel`).
+- **Zero Custom Component Overhead**: Custom component authors write standard event bindings (`@click=${props.action}` in Lit, `onClick={props.action}` in React, `onPressed: props.action` in Flutter). Binders automatically wrap action callbacks to set the Action Execution Scope.
+- **Zero Protocol Versioning Burden**: Does not require renderer protocol version checks (`protocolVersion >= "1.0"` vs `< "1.0"`). Works uniformly across all protocol versions.
+- **Cross-Platform Consistency**: Leverages native platform event primitives across Web, Flutter, Jetpack Compose, and SwiftUI.
 
-### 2.2 Cons
+### 2.2 Cons & Trade-offs
 
-- **Engine Invoker Signatures**: Requires updating `FunctionInvoker` and `DataContext` signatures across web (`web_core`) and native core SDKs (`a2ui_core`) to accept `InvocationOptions`.
-
-### 2.3 Remaining Security Risks and Exploitation Vectors
-
-While `requiresUserGesture` blocks automated background invocations, malicious or poorly designed payloads can still attempt to exploit user-initiated event handlers:
-
-- **Text Entry and Input Validation Checks**:
-  Text components evaluate validation rules (such as `check` expressions) during user typing. Typing a single character produces a physical event. By classifying `TextField` as `userInteractionLevel: "input"`, the framework issues an `input`-level gesture token. When an expression calls a function requiring an `action`-level token (such as `openUrl`), `invoker` blocks execution during character entry.
-
-- **Hover and Cursor Movement (`onMouseEnter` / `onPointerMove`)**:
-  Passive layout nodes (`Container`, `Text`, `Image`) default to `userInteractionLevel: "none"`. The framework binder never generates gesture tokens for passive elements, preventing cursor movement or hover events from triggering side-effect actions unexpectedly.
-
-- **Click Hijacking and Deceptive UI Labels**:
-  A payload cannot bypass gesture verification, but it can mislabel interactive UI elements (such as labeling a button "Cancel" or "Close" while binding its click handler to a side-effecting action like `openUrl` or data export). When the user clicks the element, the physical click supplies a valid `action`-level gesture token and triggers the function.
-
-#### Recommended Mitigations:
-
-1. **Component Interaction Classification**: Catalogs must classify components accurately using `userInteractionLevel` (`"action"` for buttons/links, `"input"` for text fields, `"none"` for passive nodes).
-2. **Restrict Token Event Types**: Framework binders must strictly limit `UserGestureToken` generation to activation events (`click`, `touchend`, `submit`, explicit key submission) and exclude passive events like mouse hover (`mouseenter`, `pointermove`).
+- **Trusted Event Inspection Requirement**: Renderers MUST inspect native event types (`click`/`touchend` vs `blur`/`input`) and verify `event.isTrusted` inside action binders so that synthetic JavaScript `.dispatchEvent()` or uninitiated timers cannot programmatically open an Activation Action Context.
 
 ---
 
 ## 3. Proposed Solution
 
-This proposal introduces two complementary catalog attributes:
+This proposal introduces **Action Context Enforcement with Event Classification**:
 
 1. `requiresUserGesture: boolean` on catalog function definitions (e.g., `openUrl`).
-2. `userInteractionLevel: "action" | "input" | "none"` on catalog component definitions (defaulting to `"none"`).
+2. Framework-enforced **Action Execution Scope & Activation Event Classification** across renderers.
 
-When a function definition sets `requiresUserGesture: true` (such as `openUrl`), the A2UI framework guarantees that the function only executes in response to an active, physical user interaction originating from an interactive component classified as `userInteractionLevel: "action"`. Uninitiated calls during layout rendering, dynamic property interpolation, reactive model updates, or passive component evaluation are blocked and rejected by the renderer engine.
+When a function definition sets `requiresUserGesture: true` (such as `openUrl`), the A2UI framework guarantees that the function only executes when dispatched from within the execution scope of an **intentional user activation Action** (e.g., click, tap, submit). Uninitiated calls during layout rendering, dynamic property interpolation, reactive model updates, or passive input handlers (`onBlurAction`, `onChangeAction`) are blocked and rejected by the renderer engine.
 
 ### 3.1 Catalog Function Metadata (`requiresUserGesture`)
 
-In catalog function definitions, `requiresUserGesture` specifies whether the function requires an active user gesture context at invocation time:
+In catalog function definitions, `requiresUserGesture` specifies whether the function requires an active user activation context at invocation time:
 
 ```json
 {
@@ -111,80 +94,52 @@ In catalog function definitions, `requiresUserGesture` specifies whether the fun
 }
 ```
 
-### 3.2 Component Interaction Levels (`userInteractionLevel`)
+### 3.2 Runtime Action Execution Scope & Event Classification
 
-In catalog component definitions, `userInteractionLevel` declares the component's interaction class:
+Rather than adding metadata to catalog component definitions or introducing new Action types in JSON payloads, renderer engines classify the **underlying interaction event intent** at runtime:
 
-```json
-{
-  "components": {
-    "Button": {
-      "userInteractionLevel": "action",
-      "description": "Interactive action button capable of triggering side-effect functions."
-    },
-    "TextField": {
-      "userInteractionLevel": "input",
-      "description": "Data entry input component."
-    },
-    "Text": {
-      "userInteractionLevel": "none",
-      "description": "Passive presentation node."
-    }
-  }
-}
-```
+- **Activation Intent (`actionIntent = "activation"`)**:
+  Triggered by physical, intentional user activation events:
+  - Web: Trusted DOM events (`click`, `auxclick`, `touchend`, `submit`, `Enter`/`Space` keypress on focused interactive node).
+  - Mobile: Primary gesture callbacks (`onPressed`/`onTap` in Flutter, `onClick` in Compose, `Button(action:)` in SwiftUI).
+  - **Permits** functions marked `requiresUserGesture: true`.
 
-- **`"action"`**: Components designed to trigger side-effect actions (`Button`, `Link`, `MenuItem`). Generates `action`-level gesture tokens valid for all `requiresUserGesture` functions.
-- **`"input"`**: Components designed for data entry (`TextField`, `Slider`, `CheckBox`). Generates `input`-level gesture tokens valid for data model updates and validation checks, but blocked for `requiresUserGesture` functions.
-- **`"none"`** (default for v1.0+): Passive presentation nodes (`Text`, `Image`, `Container`, `Divider`). Never generates gesture tokens.
+- **Passive Intent (`actionIntent = "passive"`)**:
+  Triggered by continuous input, focus change, or passive events:
+  - Web: DOM events (`blur`, `focus`, `input`, `change`, `pointermove`, `mouseenter`).
+  - Mobile: Input/focus callbacks (`onChangeAction`, `onBlurAction`, `onFocusAction`).
+  - **Blocks** functions marked `requiresUserGesture: true`, while allowing standard state model updates or data validations.
 
-#### Protocol Version Gating (`protocolVersion >= 1.0`)
-
-To remain completely catalog-agnostic while guaranteeing backward compatibility with baseline v0.9 catalogs:
-
-- **v1.0+ Surfaces (`protocolVersion >= "1.0"`)**: Renderers strictly enforce `userInteractionLevel` component gating. Unclassified components default to `"none"`.
-- **Legacy Baseline Surfaces (`protocolVersion < "1.0"`)**: Renderers skip component-level `userInteractionLevel` filtering and issue gesture tokens directly from physical user events, relying on `requiresUserGesture` function checks. Legacy v0.9 components remain fully functional without catalog modification.
-
-#### Non-Inheritability Rule
-
-`userInteractionLevel` is strictly **non-inheritable** across nested component hierarchies:
-
-- The interaction level is bound directly and exclusively to the specific component definition dispatching the action callback.
-- Container components (such as `Form`, `Card`, `Column`, or `Row`) that contain nested child nodes do not pass their `userInteractionLevel` down to child components.
-- For example, if a `Form` container includes a submit button (`userInteractionLevel: "action"`) and but has a `Text` label child (`userInteractionLevel: "none"`), evaluating an expression on the `Text` child evaluates `Text`'s interaction level (`"none"`). The `Form`'s container scope never elevates child components to `"action"`.
+- **Non-Action Scope (`isExecutingAction = false`)**:
+  Active during surface layout construction, dynamic string interpolation (`${openUrl(...)}`), template iteration, or reactive state updates.
+  - **Blocks** functions marked `requiresUserGesture: true`.
 
 ---
 
-## 4. Renderer Token Execution Model
+## 4. Renderer Action Execution Model
 
-Renderers enforce user-gesture constraints using **Explicit Gesture Context Tokens** (`UserGestureToken`).
-
-When a user interacts with a UI component:
-
-1. **Token Generation**: The component event binder inspects the component's catalog `userInteractionLevel`. If the level is `"none"`, no token is issued (`gestureToken: undefined`). If the level is `"action"` or `"input"`, a short-lived, single-use `UserGestureToken` is generated carrying the corresponding `interactionLevel`.
-2. **Context Propagation**: The renderer passes the token into `invokeFunction(name, args, { gestureToken })`.
-3. **Validation and Consumption**:
-   - If `fn.requiresUserGesture === true`, execution requires a valid gesture token with `token.interactionLevel === "action"`. If the token is missing, expired, or has `interactionLevel !== "action"`, execution is rejected with a security exception.
-   - If a valid `action` token is present, the token is consumed (`token.consume()`) to prevent replay attacks, and the function executes.
-4. **Static and Reactive Expression Evaluation**: Data bindings, dynamic string interpolations, and reactive state updates explicitly pass `gestureToken: undefined`, automatically blocking `requiresUserGesture` functions during layout evaluation.
+Renderers enforce user-gesture constraints using **Action Execution Scopes** (`isExecutingAction` and `actionIntent`).
 
 ```mermaid
 flowchart TD
-    A["User Interacts with Component"] --> B{"Component Disabled at Runtime?"}
-    B -- Yes --> C["Component Handler Aborts (No Action Callback Called)"]
-    B -- No --> D["Framework Binder Checks userInteractionLevel"]
-    D -- "none" --> E["Pass gestureToken: undefined to Invoker"]
-    D -- "input" --> F["Issue GestureToken with interactionLevel: 'input'"]
-    D -- "action" --> G["Issue GestureToken with interactionLevel: 'action'"]
+    UserEvent["User Interacts with UI Component"] --> PlatformCheck{"Platform Event Capture Mechanism"}
 
-    F --> H{"Function requiresUserGesture?"}
-    G --> H
-    E --> H
+    PlatformCheck -- "Web: Inspect DOM Event (click / touchend vs blur / input)" --> IntentCheck
+    PlatformCheck -- "Flutter / Compose / SwiftUI: Component Prop Binder (onClick vs onChange/onBlur)" --> IntentCheck
 
-    H -- Yes --> I{"Token Valid & level === 'action'?"}
-    I -- No --> J["Block Execution & Log Security Exception"]
-    I -- Yes --> K["Consume Token & Execute Function"]
-    H -- No --> L["Execute Function"]
+    IntentCheck{"Classified Event Intent"}
+    IntentCheck -- "Activation (Click / Tap / Submit)" --> ActivationContext["Action Context (isExecutingAction = true, intent = 'activation')"]
+    IntentCheck -- "Passive (Blur / Change / Focus / Hover)" --> PassiveContext["Action Context (isExecutingAction = true, intent = 'passive')"]
+
+    ActivationContext --> Invoker{"Function requiresUserGesture?"}
+    PassiveContext --> Invoker
+    
+    RenderEval["Expression Eval / String Interpolation ${openUrl(...)}"] --> NonActionContext["Non-Action Scope (isExecutingAction = false)"]
+    NonActionContext --> Invoker
+
+    Invoker -- "Yes & isExecutingAction && intent === 'activation'" --> Allow["Execute Function (e.g. openUrl)"]
+    Invoker -- "Yes & (isExecutingAction == false || intent === 'passive')" --> Block["Block Execution & Throw Security Exception"]
+    Invoker -- "No" --> Allow
 ```
 
 ---
@@ -193,11 +148,11 @@ flowchart TD
 
 Custom component authors do not need to modify component implementations to support this feature.
 
-### 5.1 Automatic Action Wrapping and Option A Runtime Enablement
+### 5.1 Automatic Action Wrapping
 
-When custom components receive action callbacks as props (`props.action`), the renderer's framework binder (such as `GenericBinder` in `web_core`) generates those callbacks. The binder automatically inspects the component's catalog `userInteractionLevel` and wraps `props.action` to capture the DOM or native touch event and construct a `UserGestureToken`.
+When custom components receive action callbacks as props (`props.action`), the renderer's framework binder (such as `GenericBinder` in `web_core`) generates those callbacks. The binder automatically captures native touch/click events and wraps callback execution within `dataContext.executeInActionScope(intent, callback)`.
 
-#### Runtime Enablement (Option A):
+#### Runtime Enablement:
 
 Component authors handle runtime enablement (`disabled`, `enabled`, or custom state props) inside standard framework code:
 
@@ -206,7 +161,7 @@ Component authors handle runtime enablement (`disabled`, `enabled`, or custom st
 - **Flutter**: `ElevatedButton(onPressed: props.disabled ? null : () => props.action(), child: Text("Click Me"))`
 - **Jetpack Compose**: `Button(onClick = props.action, enabled = !props.disabled) { Text("Click Me") }`
 
-If a component instance is disabled at runtime, the component implementation simply skips invoking `props.action()`. Because `props.action()` is never invoked, `bindAction` is never called, and no `UserGestureToken` is generated. This avoids reserving protocol property names like `disabled`, preventing property name collisions with custom components.
+If a component instance is disabled at runtime, `props.action()` is skipped, no Action Context is opened, and no function executes.
 
 ---
 
@@ -214,50 +169,61 @@ If a component instance is disabled at runtime, the component implementation sim
 
 ### 6.1 Web Engine (`web_core`) Design
 
-In `web_core` (shared by **Lit**, **React**, **Angular**, and **Vue** renderers), gesture token handling is implemented centrally inside `GenericBinder` and `DataContext`.
+In `web_core` (shared by **Lit**, **React**, **Angular**, and **Vue** renderers), Action Context handling is implemented centrally inside `GenericBinder` and `DataContext`.
 
 #### `web_core` Action Binder Implementation:
 
 ```typescript
-// web_core: src/v0_9/rendering/generic-binder.ts
-export function bindAction(
-  dataContext: DataContext,
-  actionCall: ActionDefinition,
-  componentType: string,
-) {
-  return (eventOrOptions?: Event | {event?: Event}) => {
-    const isV1OrLater = (dataContext.protocolVersion ?? '0.9') >= '1.0';
-    const componentDef = dataContext.catalog.components.get(componentType);
-    const level = isV1OrLater ? (componentDef?.userInteractionLevel ?? 'none') : 'action';
+// web_core: src/v0_9/data/data-context.ts
+export type ActionIntent = 'activation' | 'passive';
 
-    // Passive components ('none') never generate gesture tokens on v1.0+ surfaces
-    if (level === 'none') {
-      return dataContext.invokeFunction(actionCall.call, actionCall.args, {
-        gestureToken: undefined,
-      });
+export class DataContext {
+  private _isExecutingAction = false;
+  private _actionIntent: ActionIntent = 'passive';
+
+  public get isExecutingAction(): boolean {
+    return this._isExecutingAction;
+  }
+
+  public get actionIntent(): ActionIntent {
+    return this._actionIntent;
+  }
+
+  public executeInActionScope<T>(intent: ActionIntent, callback: () => T): T {
+    const prevAction = this._isExecutingAction;
+    const prevIntent = this._actionIntent;
+    this._isExecutingAction = true;
+    this._actionIntent = intent;
+    try {
+      return callback();
+    } finally {
+      this._isExecutingAction = prevAction;
+      this._actionIntent = prevIntent;
     }
+  }
+}
 
-    // Extract DOM Event from framework event argument
+// web_core: src/v0_9/rendering/generic-binder.ts
+const ACTIVATION_EVENTS = new Set(['click', 'auxclick', 'touchend', 'submit']);
+
+export function bindAction(dataContext: DataContext, actionCall: ActionDefinition) {
+  return (eventOrOptions?: Event | { event?: Event }) => {
     const domEvent =
       eventOrOptions instanceof Event
         ? eventOrOptions
-        : eventOrOptions && 'nativeEvent' in eventOrOptions
-          ? (eventOrOptions as any).nativeEvent
-          : (eventOrOptions as any)?.event;
+        : (eventOrOptions as any)?.nativeEvent ?? (eventOrOptions as any)?.event;
 
-    // Enforce domEvent.isTrusted to reject synthetic script events
-    if (!domEvent || !domEvent.isTrusted) {
-      return dataContext.invokeFunction(actionCall.call, actionCall.args, {
-        gestureToken: undefined,
-      });
-    }
+    // Classify event intent based on DOM event type
+    const isActivationEvent = domEvent && domEvent.isTrusted && (
+      ACTIVATION_EVENTS.has(domEvent.type) ||
+      (domEvent instanceof KeyboardEvent && (domEvent.key === 'Enter' || domEvent.key === ' '))
+    );
 
-    const gestureToken = createWebGestureToken(domEvent, {
-      interactionLevel: level,
-      createdAt: performance.now(), // Monotonic clock
+    const intent: ActionIntent = isActivationEvent ? 'activation' : 'passive';
+
+    return dataContext.executeInActionScope(intent, () => {
+      return dataContext.invokeFunction(actionCall.call, actionCall.args);
     });
-
-    return dataContext.invokeFunction(actionCall.call, actionCall.args, {gestureToken});
   };
 }
 ```
@@ -266,23 +232,23 @@ export function bindAction(
 
 ```typescript
 // web_core: src/v0_9/catalog/types.ts
-this.invoker = (name, rawArgs, ctx, options) => {
+this.invoker = (name, rawArgs, ctx) => {
   const fn = this.functions.get(name);
   if (!fn) throw new A2uiExpressionError(`Function not found: ${name}`, name);
 
   if (fn.requiresUserGesture) {
-    const token = options?.gestureToken;
-    if (!token || !token.isValid || token.interactionLevel !== 'action') {
+    const isValidScope = ctx.isExecutingAction && ctx.actionIntent === 'activation';
+    if (!isValidScope) {
       throw new A2uiSecurityError(
-        `Execution blocked: Function '${name}' requires an active 'action' gesture token from an interactive component.`,
+        `Execution blocked: Function '${name}' requires an active user activation Action context (e.g. click, tap, submit). ` +
+        `It cannot be executed during layout rendering, interpolation, passive events (blur/change), or reactive updates.`,
         name,
       );
     }
-    token.consume();
   }
 
   const safeArgs = fn.schema.parse(rawArgs);
-  return fn.execute(safeArgs, ctx, options?.abortSignal);
+  return fn.execute(safeArgs, ctx);
 };
 ```
 
@@ -290,48 +256,51 @@ this.invoker = (name, rawArgs, ctx, options) => {
 
 ### 6.2 Flutter (Dart) Design
 
-Flutter has a synchronous, single-threaded event loop. The token model uses Dart `Stopwatch` for monotonic time tracking and is passed via `ActionDispatcher`.
-
-#### Flutter Token Class and Function Invoker:
+In Flutter/Dart, Action Context scopes propagate using `DataContext.runInActionScope`:
 
 ```dart
-class UserGestureToken {
-  final Stopwatch _stopwatch = Stopwatch()..start();
-  final String sourceComponentId;
-  final String interactionLevel; // 'action' | 'input' | 'none'
-  bool _consumed = false;
+enum ActionIntent { activation, passive }
 
-  UserGestureToken({
-    required this.sourceComponentId,
-    this.interactionLevel = 'action',
-  });
+class DataContext {
+  bool _isExecutingAction = false;
+  ActionIntent _actionIntent = ActionIntent.passive;
 
-  /// Valid for 5 seconds (monotonic clock) and single-use
-  bool get isValid => !_consumed && _stopwatch.elapsedMilliseconds < 5000;
+  bool get isExecutingAction => _isExecutingAction;
+  ActionIntent get actionIntent => _actionIntent;
 
-  void consume() => _consumed = true;
+  R runInActionScope<R>(ActionIntent intent, R Function() block) {
+    final prevAction = _isExecutingAction;
+    final prevIntent = _actionIntent;
+    _isExecutingAction = true;
+    _actionIntent = intent;
+    try {
+      return block();
+    } finally {
+      _isExecutingAction = prevAction;
+      _actionIntent = prevIntent;
+    }
+  }
 }
 
-// In Component onPressed handler:
+// Button Widget Binder:
 ElevatedButton(
   onPressed: props.disabled ? null : () {
-    final token = UserGestureToken(
-      sourceComponentId: widget.id,
-      interactionLevel: 'action',
-    );
-    actionDispatcher.dispatch(props.action, gestureToken: token);
+    context.runInActionScope(ActionIntent.activation, () {
+      actionDispatcher.dispatch(props.action, context: context);
+    });
   },
   child: Text(props.label),
 );
 
-// In openUrl Implementation:
-void executeOpenUrl(Map<String, dynamic> args, FunctionContext context) {
-  final token = context.gestureToken;
-  if (token == null || !token.isValid || token.interactionLevel != 'action') {
-    throw SecurityException("Function 'openUrl' requires an active 'action' user gesture.");
+// Function Invocation Guard:
+void verifyFunctionExecution(FunctionDefinition fn, DataContext context) {
+  if (fn.requiresUserGesture) {
+    if (!context.isExecutingAction || context.actionIntent != ActionIntent.activation) {
+      throw SecurityException(
+        "Function '${fn.name}' requires execution within an active intentional user activation Action context.",
+      );
+    }
   }
-  token.consume();
-  url_launcher.launchUrl(Uri.parse(args['url']));
 }
 ```
 
@@ -339,31 +308,16 @@ void executeOpenUrl(Map<String, dynamic> args, FunctionContext context) {
 
 ### 6.3 Android (Kotlin / Jetpack Compose) Design
 
-On Android, Jetpack Compose click handlers (`onClick`) execute synchronously on the Main Thread. Kotlin's `SystemClock.elapsedRealtime()` provides a monotonic clock, and `CoroutineContext` passes gesture tokens across asynchronous coroutine suspensions cleanly.
-
-#### Jetpack Compose Token and Coroutine Context Scope:
+On Android, Jetpack Compose click handlers execute in coroutines with `ActionContextElement`:
 
 ```kotlin
-data class UserGestureToken(
-    val sourceComponentId: String,
-    val interactionLevel: String = "action",
-    val createdAtRealtimeMs: Long = SystemClock.elapsedRealtime()
-) {
-    private var isConsumed = false
+enum class ActionIntent { ACTIVATION, PASSIVE }
 
-    val isValid: Boolean
-        get() = !isConsumed && (SystemClock.elapsedRealtime() - createdAtRealtimeMs < 5000)
-
-    fun consume(): Boolean {
-        if (isConsumed) return false
-        isConsumed = true
-        return true
-    }
-}
-
-// CoroutineContext element for preserving token across async coroutines:
-class GestureContextElement(val token: UserGestureToken) : CoroutineContext.Element {
-    companion object Key : CoroutineContext.Key<GestureContextElement>
+class ActionContextElement(
+    val isExecutingAction: Boolean = true,
+    val intent: ActionIntent = ActionIntent.ACTIVATION
+) : CoroutineContext.Element {
+    companion object Key : CoroutineContext.Key<ActionContextElement>
     override val key: CoroutineContext.Key<*> = Key
 }
 
@@ -374,8 +328,7 @@ fun A2UIButton(componentId: String, label: String, enabled: Boolean = true, onAc
     Button(
         onClick = {
             if (!enabled) return@Button
-            val token = UserGestureToken(sourceComponentId = componentId, interactionLevel = "action")
-            coroutineScope.launch(GestureContextElement(token)) {
+            coroutineScope.launch(ActionContextElement(isExecutingAction = true, intent = ActionIntent.ACTIVATION)) {
                 onAction()
             }
         },
@@ -390,59 +343,36 @@ fun A2UIButton(componentId: String, label: String, enabled: Boolean = true, onAc
 
 ### 6.4 iOS (Swift / SwiftUI) Design
 
-In Swift and SwiftUI, closures passed to `Button(action: { ... })` execute on the `@MainActor`. Swift structured concurrency supports `@TaskLocal` values, using `ContinuousClock` for monotonic time tracking and `$currentToken.withValue` to bind tokens across `async/await` task boundaries.
-
-#### SwiftUI Token and TaskLocal Scoping:
+In SwiftUI, TaskLocal values (`A2UIActionScope`) bind Action Context scopes across `async/await` tasks:
 
 ```swift
-public final class UserGestureToken {
-    public let sourceComponentId: String
-    public let interactionLevel: String
-    private let startTime: ContinuousClock.Instant = .now
-    private var isConsumed: Bool = false
-
-    public init(sourceComponentId: String, interactionLevel: String = "action") {
-        self.sourceComponentId = sourceComponentId
-        self.interactionLevel = interactionLevel
-    }
-
-    public var isValid: Bool {
-        return !isConsumed && startTime.duration(to: .now) < .seconds(5)
-    }
-
-    @discardableResult
-    public func consume() -> Bool {
-        guard !isConsumed else { return false }
-        isConsumed = true
-        return true
-    }
+public enum ActionIntent {
+    case activation
+    case passive
 }
 
-// TaskLocal Concurrency Support:
-public enum A2UIGestureScope {
-    @TaskLocal public static let currentToken: UserGestureToken?
+public enum A2UIActionScope {
+    @TaskLocal public static var isExecutingAction: Bool = false
+    @TaskLocal public static var actionIntent: ActionIntent = .passive
 }
 
 // SwiftUI Button Component
 struct A2UIButton: View {
-    let componentId: String
-    let label: String
-    let isEnabled: Bool
-    let onAction: () async -> Void
+    let actionCall: ActionDefinition
+    let context: DataContext
 
     var body: some View {
         Button(action: {
-            guard isEnabled else { return }
-            let token = UserGestureToken(sourceComponentId: componentId, interactionLevel: "action")
             Task {
-                await A2UIGestureScope.$currentToken.withValue(token) {
-                    await onAction()
+                await A2UIActionScope.$isExecutingAction.withValue(true) {
+                    await A2UIActionScope.$actionIntent.withValue(.activation) {
+                        await context.invokeFunction(actionCall.call, args: actionCall.args)
+                    }
                 }
             }
         }) {
-            Text(label)
+            Text(actionCall.label)
         }
-        .disabled(!isEnabled)
     }
 }
 ```
@@ -451,46 +381,12 @@ struct A2UIButton: View {
 
 ## 7. Security Efficacy and Threat Matrix
 
-| Threat / Scenario                                                              | Risk Level | Protection Mechanism                                                      |
-| :----------------------------------------------------------------------------- | :--------- | :------------------------------------------------------------------------ |
-| **Initial Render Auto-Trigger** (Model payload invoking `openUrl` on load)     | High       | **Blocked**: Initial layout render passes `gestureToken: undefined`.      |
-| **Interpolation Abuse** (Injecting `${openUrl('...')}` in text node)           | High       | **Blocked**: Expression engine passes no gesture token during formatting. |
-| **Reactive Model Update** (State sync triggering function execution)           | Medium     | **Blocked**: Reactive state updates lack active gesture token context.    |
-| **Replay Attacks** (Re-using a single gesture token for multiple side effects) | Medium     | **Blocked**: Token is consumed on first execution (`token.consume()`).    |
-| **Expired Gesture Tokens** (Delayed invocation after 5 seconds)                | Low        | **Blocked**: `token.isValid` checks time window expiry (< 5s).            |
+| Threat / Scenario | Risk Level | Protection Mechanism |
+| :--- | :--- | :--- |
+| **Initial Render Auto-Trigger** (Model payload invoking `openUrl` on load) | High | **Blocked**: Initial layout render has `isExecutingAction = false`. |
+| **Interpolation Abuse** (Injecting `${openUrl('...')}` in text node) | High | **Blocked**: Expression engine operates with `isExecutingAction = false`. |
+| **Reactive Model Update** (State sync triggering function execution) | Medium | **Blocked**: Reactive state updates operate outside Action Context. |
+| **Passive Event Exploitation** (`openUrl` bound to `onBlurAction`/`onChangeAction`) | Medium | **Blocked**: Blur/change events operate with `actionIntent = "passive"`. |
+| **Synthetic Event Attack** (Script calling `.click()`) | Medium | **Blocked**: Binders require `domEvent.isTrusted === true`. |
 
 ---
-
-## Addendum: Programmatic Token Access Example
-
-Setting `requiresUserGesture: true` delegates security enforcement to the framework invoker. However, custom functions can omit `requiresUserGesture` (or set it to `false`) and inspect `options.gestureToken` programmatically inside their `execute()` function body.
-
-This enables **hybrid function implementations** that execute directly when gesture-initiated, but fall back to displaying a user permission dialog when uninitiated:
-
-```typescript
-export const MyCustomOpenUrlImplementation = createFunctionImplementation(
-  MyCustomOpenUrlApi,
-  (args, context, options) => {
-    const hasActiveGesture = options?.gestureToken?.isValid === true;
-
-    if (hasActiveGesture) {
-      // 1. Gesture-Initiated: Consume token and open URL directly
-      options.gestureToken.consume();
-      window.open(args.url, '_blank', 'noopener,noreferrer');
-    } else {
-      // 2. Uninitiated / Automated Call: Fallback to displaying a permission dialog
-      showPermissionModal({
-        title: 'Permission Request',
-        message: `An automated action wants to open: ${args.url}. Allow navigation?`,
-        onApprove: () => {
-          // User clicked "Allow" on the dialog -> Physical click provides a new gesture
-          window.open(args.url, '_blank', 'noopener,noreferrer');
-        },
-        onDeny: () => {
-          console.log('Navigation request denied by user.');
-        },
-      });
-    }
-  },
-);
-```
