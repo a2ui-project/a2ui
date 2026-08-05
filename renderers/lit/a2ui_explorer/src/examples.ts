@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-import {basicCatalog} from '@a2ui/lit/v0_9';
-import {A2uiMessage, CreateSurfaceMessage} from '@a2ui/web_core/v0_9';
+import {basicCatalog} from '@a2ui/lit';
+import {A2uiMessage, CreateSurfaceMessage} from '@a2ui/web_core';
 import {ExampleData, ExampleModule, exampleModules} from './generated/examples-list';
 
 /**

@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import {v0_8} from '@a2ui/lit';
+import {Styles, Types} from '@a2ui/lit/0.8';
 
 /** Elements */
 
@@ -147,18 +147,18 @@ const video = {
   'layout-el-cv': true,
 };
 
-const aLight = v0_8.Styles.merge(a, {});
-const inputLight = v0_8.Styles.merge(input, {});
-const textareaLight = v0_8.Styles.merge(textarea, {});
-const buttonLight = v0_8.Styles.merge(button, {});
-const bodyLight = v0_8.Styles.merge(body, {});
-const pLight = v0_8.Styles.merge(p, {});
-const preLight = v0_8.Styles.merge(pre, {});
-const orderedListLight = v0_8.Styles.merge(orderedList, {});
-const unorderedListLight = v0_8.Styles.merge(unorderedList, {});
-const listItemLight = v0_8.Styles.merge(listItem, {});
+const aLight = Styles.merge(a, {});
+const inputLight = Styles.merge(input, {});
+const textareaLight = Styles.merge(textarea, {});
+const buttonLight = Styles.merge(button, {});
+const bodyLight = Styles.merge(body, {});
+const pLight = Styles.merge(p, {});
+const preLight = Styles.merge(pre, {});
+const orderedListLight = Styles.merge(orderedList, {});
+const unorderedListLight = Styles.merge(unorderedList, {});
+const listItemLight = Styles.merge(listItem, {});
 
-export const theme: v0_8.Types.Theme = {
+export const theme: Types.Theme = {
   additionalStyles: {
     Button: {
       '--n-35': 'var(--n-100)',
