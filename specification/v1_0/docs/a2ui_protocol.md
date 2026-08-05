@@ -143,7 +143,7 @@ The [`catalogs/basic/catalog.json`] schema contains the definitions for all spec
 
 **Swappable Catalogs & Validation:**
 
-The [`agent_to_renderer.json`] envelope schema is designed to be catalog-agnostic. Within [`ComponentsList`], it validates base properties against `common_types.json#/$defs/ComponentCommon` and references components using a placeholder filename: `catalog.json` (specifically `$ref: "catalog.json#/$defs/anyComponent"`).
+The [`agent_to_renderer.json`] envelope schema is designed to be catalog-agnostic. Within `ComponentsList`, it validates base properties against `common_types.json#/$defs/ComponentCommon` and references components using a placeholder filename: `catalog.json` (specifically `$ref: "catalog.json#/$defs/anyComponent"`).
 
 To validate A2UI messages:
 
