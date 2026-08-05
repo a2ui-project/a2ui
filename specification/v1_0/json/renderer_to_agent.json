@@ -74,7 +74,7 @@
           "title": "Validation Failed Error",
           "properties": {
             "code": {
-              "const": "VALIDATION_FAILED"
+              "enum": ["VALIDATION_FAILED", "UNALLOWED_PARENT", "UNALLOWED_CHILD"]
             },
             "surfaceId": {
               "type": "string",
@@ -97,8 +97,9 @@
           "title": "Generic Error",
           "properties": {
             "code": {
+              "type": "string",
               "not": {
-                "const": "VALIDATION_FAILED"
+                "enum": ["VALIDATION_FAILED", "UNALLOWED_PARENT", "UNALLOWED_CHILD"]
               }
             },
             "message": {

@@ -31,6 +31,32 @@
       }
     },
     {
+      "description": "Valid error message (unallowed parent)",
+      "valid": true,
+      "data": {
+        "version": "v1.0",
+        "error": {
+          "code": "UNALLOWED_PARENT",
+          "surfaceId": "main",
+          "path": "/components/1",
+          "message": "Component 'TextField' is not allowed as a child of 'Surface'."
+        }
+      }
+    },
+    {
+      "description": "Valid error message (unallowed child)",
+      "valid": true,
+      "data": {
+        "version": "v1.0",
+        "error": {
+          "code": "UNALLOWED_CHILD",
+          "surfaceId": "main",
+          "path": "/components/0/children/0",
+          "message": "Component 'Modal' is not allowed inside 'Column'."
+        }
+      }
+    },
+    {
       "description": "Invalid updateDataModel (renamed)",
       "valid": false,
       "data": {

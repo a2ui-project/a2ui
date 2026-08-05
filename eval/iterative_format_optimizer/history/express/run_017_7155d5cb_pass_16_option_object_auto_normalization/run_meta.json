@@ -1,0 +1,15 @@
+{
+  "format": "express",
+  "hypothesis": "Pass 16: Option object auto-normalization for choice components in compiler.py",
+  "status": "Kept",
+  "notes": "Option object auto-normalization for choice components expanded successfully, unit tests passed (60/60), evaluation pass rate reached 100.0% with 0 failures.",
+  "metrics": {
+    "schema_acc": 1.0,
+    "quality_acc": 1.0,
+    "code_tokens_median": 299.0,
+    "reasoning_tokens_median": 2603.0,
+    "input_tokens_median": 5936.5,
+    "latency_seconds_median": 15.521826619980857,
+    "total_samples": 6
+  }
+}

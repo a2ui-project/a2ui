@@ -60,6 +60,13 @@ jobs:
       - name: Build web samples (Angular a2a-chat-canvas + orchestrator, Lit mcp-apps + personalized_learning)
         run: yarn build:web
 
+      - name: Build custom-lit-components (type-check + bundle verification pages)
+        # Kept as its own step rather than folded into the build:web chain above:
+        # it type-checks the custom component catalog against the published
+        # @a2ui/* API and bundles test/*.html, so a break there reports on its own
+        # instead of being masked by an earlier sample in the chain.
+        run: yarn workspace custom-lit-components run build
+
   python:
     runs-on: ubuntu-latest
     steps:

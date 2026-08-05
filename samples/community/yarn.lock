@@ -6032,6 +6032,20 @@ __metadata:
   languageName: node
   linkType: hard
 
+"custom-lit-components@workspace:custom-lit-components":
+  version: 0.0.0-use.local
+  resolution: "custom-lit-components@workspace:custom-lit-components"
+  dependencies:
+    "@a2ui/lit": "npm:^0.10.0"
+    "@a2ui/web_core": "npm:^0.10.0"
+    "@modelcontextprotocol/ext-apps": "npm:^1.7.4"
+    eslint: "npm:^10.4.1"
+    lit: "npm:^3.3.3"
+    typescript: "npm:5.9.3"
+    vite: "npm:^8.0.16"
+  languageName: unknown
+  linkType: soft
+
 "data-uri-to-buffer@npm:^4.0.0":
   version: 4.0.1
   resolution: "data-uri-to-buffer@npm:4.0.1"
