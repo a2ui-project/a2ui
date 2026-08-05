@@ -62,14 +62,14 @@ A2UI is a declarative JSON protocol without inline code execution capabilities l
 
 This proposal introduces **Action Context Enforcement with Event Classification**:
 
-1. `requiresUserGesture: boolean` on catalog function definitions (e.g., `openUrl`).
+1. `requiresUserAction: boolean` on catalog function definitions (e.g., `openUrl`).
 2. Framework-enforced **Action Execution Scope & Activation Event Classification** across renderers.
 
-When a function definition sets `requiresUserGesture: true` (such as `openUrl`), the A2UI framework guarantees that the function only executes when dispatched from within the execution scope of an **intentional user activation Action** (e.g., click, tap, submit). Uninitiated calls during layout rendering, dynamic property interpolation, reactive model updates, or passive input handlers (`onBlurAction`, `onChangeAction`) are blocked and rejected by the renderer engine.
+When a function definition sets `requiresUserAction: true` (such as `openUrl`), the A2UI framework guarantees that the function only executes when dispatched from within the execution scope of an **intentional user activation Action** (e.g., click, tap, submit). Uninitiated calls during layout rendering, dynamic property interpolation, reactive model updates, or passive input handlers (`onBlurAction`, `onChangeAction`) are blocked and rejected by the renderer engine.
 
-### 3.1 Catalog Function Metadata (`requiresUserGesture`)
+### 3.1 Catalog Function Metadata (`requiresUserAction`)
 
-In catalog function definitions, `requiresUserGesture` specifies whether the function requires an active user activation context at invocation time:
+In catalog function definitions, `requiresUserAction` specifies whether the function requires an active user activation context at invocation time:
 
 ```json
 {
@@ -78,7 +78,7 @@ In catalog function definitions, `requiresUserGesture` specifies whether the fun
       "type": "object",
       "description": "Opens the specified URL in a browser or handler. Requires an active user gesture.",
       "returnType": "void",
-      "requiresUserGesture": true,
+      "requiresUserAction": true,
       "properties": {
         "call": {"const": "openUrl"},
         "args": {
@@ -102,17 +102,17 @@ Rather than adding metadata to catalog component definitions or introducing new 
   Triggered by physical, intentional user activation events:
   - Web: Trusted DOM events (`click`, `auxclick`, `touchend`, `submit`, `Enter`/`Space` keypress on focused interactive node).
   - Mobile: Primary gesture callbacks (`onPressed`/`onTap` in Flutter, `onClick` in Compose, `Button(action:)` in SwiftUI).
-  - **Permits** functions marked `requiresUserGesture: true`.
+  - **Permits** functions marked `requiresUserAction: true`.
 
 - **Passive Intent (`actionIntent = "passive"`)**:
   Triggered by continuous input, focus change, or passive events:
   - Web: DOM events (`blur`, `focus`, `input`, `change`, `pointermove`, `mouseenter`).
   - Mobile: Input/focus callbacks (`onChangeAction`, `onBlurAction`, `onFocusAction`).
-  - **Blocks** functions marked `requiresUserGesture: true`, while allowing standard state model updates or data validations.
+  - **Blocks** functions marked `requiresUserAction: true`, while allowing standard state model updates or data validations.
 
 - **Non-Action Scope (`isExecutingAction = false`)**:
   Active during surface layout construction, dynamic string interpolation (`${openUrl(...)}`), template iteration, or reactive state updates.
-  - **Blocks** functions marked `requiresUserGesture: true`.
+  - **Blocks** functions marked `requiresUserAction: true`.
 
 ---
 
@@ -131,7 +131,7 @@ flowchart TD
     IntentCheck -- "Activation (Click / Tap / Submit)" --> ActivationContext["Action Context (isExecutingAction = true, intent = 'activation')"]
     IntentCheck -- "Passive (Blur / Change / Focus / Hover)" --> PassiveContext["Action Context (isExecutingAction = true, intent = 'passive')"]
 
-    ActivationContext --> Invoker{"Function requiresUserGesture?"}
+    ActivationContext --> Invoker{"Function requiresUserAction?"}
     PassiveContext --> Invoker
     
     RenderEval["Expression Eval / String Interpolation ${openUrl(...)}"] --> NonActionContext["Non-Action Scope (isExecutingAction = false)"]
@@ -236,7 +236,7 @@ this.invoker = (name, rawArgs, ctx) => {
   const fn = this.functions.get(name);
   if (!fn) throw new A2uiExpressionError(`Function not found: ${name}`, name);
 
-  if (fn.requiresUserGesture) {
+  if (fn.requiresUserAction) {
     const isValidScope = ctx.isExecutingAction && ctx.actionIntent === 'activation';
     if (!isValidScope) {
       throw new A2uiSecurityError(
@@ -294,7 +294,7 @@ ElevatedButton(
 
 // Function Invocation Guard:
 void verifyFunctionExecution(FunctionDefinition fn, DataContext context) {
-  if (fn.requiresUserGesture) {
+  if (fn.requiresUserAction) {
     if (!context.isExecutingAction || context.actionIntent != ActionIntent.activation) {
       throw SecurityException(
         "Function '${fn.name}' requires execution within an active intentional user activation Action context.",

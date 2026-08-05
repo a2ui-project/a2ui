@@ -166,10 +166,10 @@
               "default": "rendererOnly",
               "description": "Specifies where this function can be invoked from."
             },
-            "requiresUserGesture": {
+            "requiresUserAction": {
               "type": "boolean",
               "default": false,
-              "description": "Specifies whether this function requires an active user gesture context to execute."
+              "description": "Specifies whether this function requires an active user action context to execute."
             }
           },
           "required": ["returnType"]
