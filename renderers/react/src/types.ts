@@ -14,7 +14,4 @@
  * limitations under the License.
  */
 
-export type {
-  ReactComponentImplementation,
-  ReactA2uiComponentProps,
-} from './adapter';
+export type {ReactComponentImplementation, ReactA2uiComponentProps} from './adapter';
