@@ -4,7 +4,7 @@ _Status: Draft_
 
 _Author: Greg Spencer_
 
-_Created: 2026-08-03 (Updated: 2026-08-05)_
+_Created: 2026-08-05_
 
 ---
 
@@ -69,14 +69,14 @@ When a function definition sets `requiresUserActivation: true` (such as `openUrl
 
 ### 3.1 Catalog Function Metadata (`requiresUserActivation`)
 
-In catalog function definitions, `requiresUserActivation` specifies whether the function requires an active user activation context at invocation time:
+In catalog function definitions, `requiresUserActivation` specifies whether the function requires a user activation context at invocation time:
 
 ```json
 {
   "functions": {
     "openUrl": {
       "type": "object",
-      "description": "Opens the specified URL in a browser or handler. Requires an active user activation.",
+      "description": "Opens the specified URL in a browser or handler. Requires user activation.",
       "returnType": "void",
       "requiresUserActivation": true,
       "properties": {
@@ -111,8 +111,10 @@ Rather than adding metadata to catalog component definitions or introducing new 
   - **Blocks** functions marked `requiresUserActivation: true`, while allowing standard state model updates or data validations.
 
 - **Non-Action Scope (`isExecutingAction = false`)**:
-  Active during surface layout construction, dynamic string interpolation (`${openUrl(...)}`), template iteration, or reactive state updates.
+  Active during surface layout construction, dynamic string interpolation (`${openUrl(...)}`), template iteration, reactive state updates, or direct agent function invocation messages.
   - **Blocks** functions marked `requiresUserActivation: true`.
+
+- **Agent Invocation Rejection**: Functions declared with `callableFrom: "rendererOrAgent"` (or `"rendererOnly"`) that set `requiresUserActivation: true` MUST be rejected with a runtime security error if directly invoked by a server/agent message. Because direct backend agent calls execute without a physical client user activation context (`isExecutingAction = false`), they are prohibited from auto-executing user-activation-restricted functions.
 
 ### 3.3 Asynchronous Execution Boundaries
 
@@ -202,10 +204,20 @@ export class DataContext {
     this._isExecutingAction = true;
     this._actionIntent = intent;
     try {
-      return callback();
-    } finally {
+      const result = callback();
+      if (result instanceof Promise) {
+        return result.finally(() => {
+          this._isExecutingAction = prevAction;
+          this._actionIntent = prevIntent;
+        }) as unknown as T;
+      }
       this._isExecutingAction = prevAction;
       this._actionIntent = prevIntent;
+      return result;
+    } catch (error) {
+      this._isExecutingAction = prevAction;
+      this._actionIntent = prevIntent;
+      throw error;
     }
   }
 }
@@ -248,7 +260,7 @@ this.invoker = (name, rawArgs, ctx) => {
     const isValidScope = ctx.isExecutingAction && ctx.actionIntent === 'activation';
     if (!isValidScope) {
       throw new A2uiSecurityError(
-        `Execution blocked: Function '${name}' requires an active user activation Action context (e.g. click, tap, submit). ` +
+        `Execution blocked: Function '${name}' requires a user activation Action context (e.g. click, tap, submit). ` +
           `It cannot be executed during layout rendering, interpolation, passive events (blur/change), or reactive updates.`,
         name,
       );
@@ -282,10 +294,20 @@ class DataContext {
     _isExecutingAction = true;
     _actionIntent = intent;
     try {
-      return block();
-    } finally {
+      final result = block();
+      if (result is Future) {
+        return (result.whenComplete(() {
+          _isExecutingAction = prevAction;
+          _actionIntent = prevIntent;
+        })) as R;
+      }
       _isExecutingAction = prevAction;
       _actionIntent = prevIntent;
+      return result;
+    } catch (error) {
+      _isExecutingAction = prevAction;
+      _actionIntent = prevIntent;
+      rethrow;
     }
   }
 }

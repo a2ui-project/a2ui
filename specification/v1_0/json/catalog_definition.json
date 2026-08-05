@@ -169,7 +169,7 @@
             "requiresUserActivation": {
               "type": "boolean",
               "default": false,
-              "description": "Specifies whether this function requires an active user activation context to execute."
+              "description": "Specifies whether this function requires a user activation context to execute."
             }
           },
           "required": ["returnType"]
