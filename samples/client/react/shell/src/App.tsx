@@ -20,8 +20,8 @@ import {
   basicCatalog,
   MarkdownContext,
   ReactComponentImplementation,
-} from '@a2ui/react/v0_9';
-import {A2uiClientMessage, A2uiMessage, MessageProcessor, SurfaceModel} from '@a2ui/web_core/v0_9';
+} from '@a2ui/react';
+import {A2uiClientMessage, A2uiMessage, MessageProcessor, SurfaceModel} from '@a2ui/web_core';
 import {renderMarkdown} from '@a2ui/markdown-it';
 import {A2UIClient} from './client';
 import {AppConfig, restaurantConfig} from './configs';
