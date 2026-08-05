@@ -74,18 +74,18 @@ class TestDeterministicSortHeuristics(unittest.TestCase):
         catalog = Catalog.from_json(mock_catalog_dict, spec_version="0.9.1")
         helper = CatalogSchemaHelper(catalog)
 
-        # CustomWidget: Required = [alpha, zeta], Optional = [beta, checks, gamma]
-        # Expected order: ['alpha', 'zeta', 'beta', 'checks', 'gamma']
+        # CustomWidget: Required = [alpha, zeta], Optional = [beta, gamma], Checks = [checks]
+        # Expected order: ['alpha', 'zeta', 'beta', 'gamma', 'checks']
         self.assertEqual(
             helper.get_component_properties("CustomWidget"),
-            ["alpha", "zeta", "beta", "checks", "gamma"],
+            ["alpha", "zeta", "beta", "gamma", "checks"],
         )
 
-        # CheckableWidget: Required = [label], Optional = [checks, value, variant]
-        # Expected order: ['label', 'checks', 'value', 'variant']
+        # CheckableWidget: Required = [label], Optional = [value, variant], Checks = [checks]
+        # Expected order: ['label', 'value', 'variant', 'checks']
         self.assertEqual(
             helper.get_component_properties("CheckableWidget"),
-            ["label", "checks", "value", "variant"],
+            ["label", "value", "variant", "checks"],
         )
 
         # customFunc: Required = [valA, valB], Optional = [optX, optY]

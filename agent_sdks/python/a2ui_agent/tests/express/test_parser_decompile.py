@@ -125,7 +125,7 @@ class TestExpressParser(unittest.TestCase):
         }
         decompiled_msg = decompiler.decompile(custom_msg_envelope)
         self.assertIn(
-            'root = TextField("Name", ?required("Name is required!"), _, $/name)',
+            'root = TextField("Name", _, $/name, ?required("Name is required!"))',
             decompiled_msg,
         )
 

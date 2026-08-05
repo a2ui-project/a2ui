@@ -438,28 +438,26 @@ class ExpressCompiler:
         prop_arg_pairs = []
         prop_idx = 0
         for arg in args:
+            if _is_check_expression(arg):
+                if isinstance(arg, list):
+                    raw_checks.extend(arg)
+                else:
+                    raw_checks.append(arg)
+                if prop_idx < len(properties) and properties[prop_idx] == "checks":
+                    prop_idx += 1
+                continue
+
             if prop_idx < len(properties):
                 prop_name = properties[prop_idx]
                 if prop_name == "checks":
-                    if _is_check_expression(arg):
-                        if isinstance(arg, list):
-                            raw_checks.extend(arg)
-                        else:
-                            raw_checks.append(arg)
-                    elif arg != "_" and not (
+                    if arg != "_" and not (
                         isinstance(arg, dict)
                         and (arg.get("skipped") or arg.get("variable") == "_")
                     ):
                         prop_arg_pairs.append((prop_name, arg))
                     prop_idx += 1
                 else:
-                    if _is_check_expression(arg):
-                        if isinstance(arg, list):
-                            raw_checks.extend(arg)
-                        else:
-                            raw_checks.append(arg)
-                    else:
-                        prop_arg_pairs.append((prop_name, arg))
+                    prop_arg_pairs.append((prop_name, arg))
                     prop_idx += 1
 
         for k, v in kwargs.items():

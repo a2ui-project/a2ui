@@ -67,8 +67,8 @@ class TestExpressCompiler(unittest.TestCase):
         """Validates parsing and compiling basic components and validations."""
         compiler = ExpressCompiler(self.catalog)
         dsl = """root = Column([repField, valueField])
-repField = TextField("Representative", _, "Enter name", $/form/rep)
-valueField = TextField("Deal Value", ?required, "0.00", $/form/value, "number")"""
+repField = TextField("Representative", "Enter name", $/form/rep)
+valueField = TextField("Deal Value", "0.00", $/form/value, "number", ?required)"""
 
         envelope = compiler.compile(dsl, surface_id="test_surf")[0]
         self.assertEqual(envelope["version"], "v1.0")
@@ -346,7 +346,7 @@ $/breeds = [{"url": "https://example.com/poodle.jpg"}]"""
         self.assertEqual(text_comp["text"], {"path": ""})
 
         # 9. Verify nested check compilation and active value path injection
-        nested_check_dsl = """root = TextField("Label", ?and([?required, ?email]), "placeholder", $/form/email, "shortText")"""
+        nested_check_dsl = """root = TextField("Label", "placeholder", $/form/email, "shortText", ?and([?required, ?email]))"""
         nested_check_envelope = compiler.compile(nested_check_dsl)[0]
         textfield_comp = next(
             c
@@ -401,8 +401,8 @@ $/breeds = [{"url": "https://example.com/poodle.jpg"}]"""
 
         # 1. Test check with custom error message breaking the positional property mapping loop
         dsl_check_msg = (
-            'root = TextField("Label", ?numeric(10, 1, "Custom range error'
-            ' message"), "placeholder", $/val)'
+            'root = TextField("Label", "placeholder", $/val, ?numeric(10, 1, "Custom'
+            ' range error message"))'
         )
         res = compiler.compile(dsl_check_msg)[0]
         checks = res["createSurface"]["components"][0]["checks"]
@@ -414,7 +414,7 @@ $/breeds = [{"url": "https://example.com/poodle.jpg"}]"""
 
         # 2. Test unregistered function call fallback
         dsl_fallback_fn = (
-            'root = TextField("Label", _, "placeholder", my_unregistered_func(1, 2))'
+            'root = TextField("Label", "placeholder", my_unregistered_func(1, 2))'
         )
         res_fallback = compiler.compile(dsl_fallback_fn)[0]
         tf = res_fallback["createSurface"]["components"][0]
@@ -503,7 +503,7 @@ btnLabel = Text("Click Thread 2")
         trailing_comma_dsl = """
     root = Column([btn1, btn2,],);
     btn1 = Button(myAction, "Label", variant="primary",);
-    btn2 = TextField("Input", _, "placeholder", $/val, _, ?numeric(10, 1,),);
+    btn2 = TextField("Input", "placeholder", $/val, _, ?numeric(10, 1,),);
     myAction = Event("click", {a: 1, b: 2,},);
     """
         envelope2 = compiler.compile(trailing_comma_dsl)[0]
@@ -584,8 +584,8 @@ btnLabel = Text("Click Thread 2")
         )
 
         dsl = """root = Column([repField, valueField])
-repField = TextField("Representative", _, "Enter name", $/form/rep)
-valueField = TextField("Deal Value", ?required, "0.00", $/form/value, "number")"""
+repField = TextField("Representative", "Enter name", $/form/rep)
+valueField = TextField("Deal Value", "0.00", $/form/value, "number", ?required)"""
 
         expected_components_count = 3
 

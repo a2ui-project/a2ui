@@ -77,18 +77,18 @@ Use these exact positional signatures to instantiate components. Do not output p
   - url: The URL of the audio to be played.
   - description: A description of the audio, such as a title or summary.
   - weight: The relative weight of this component within a Row or Column. This is similar to the CSS 'flex-grow' property. Note: this may ONLY be set when the component is a direct descendant of a Row or Column.
-• Button(action (static), child (static), checks? (static), variant? (static), weight? (static))
+• Button(action (static), child (static), variant? (static), weight? (static), checks? (static))
   - child: The ID of the child component. Use a 'Text' component for a labeled button. Only use an 'Icon' if the requirements explicitly ask for an icon-only button.
   - variant: A hint for the button style. If omitted, a default button style is used. 'primary' indicates this is the main call-to-action button. 'borderless' means the button has no visual border or background, making its child content appear like a clickable link. Must be one of: 'default', 'primary', 'borderless'
   - weight: The relative weight of this component within a Row or Column. This is similar to the CSS 'flex-grow' property. Note: this may ONLY be set when the component is a direct descendant of a Row or Column.
 • Card(child (static), weight? (static))
   - child: The ID of the single child component to be rendered inside the card. To display multiple elements, you MUST wrap them in a layout component (like Column or Row) and pass that container's ID here. Do NOT pass multiple IDs or a non-existent ID.
   - weight: The relative weight of this component within a Row or Column. This is similar to the CSS 'flex-grow' property. Note: this may ONLY be set when the component is a direct descendant of a Row or Column.
-• CheckBox(label, value, checks? (static), weight? (static))
+• CheckBox(label, value, weight? (static), checks? (static))
   - label: The text to display next to the checkbox.
   - value: The current state of the checkbox (true for checked, false for unchecked).
   - weight: The relative weight of this component within a Row or Column. This is similar to the CSS 'flex-grow' property. Note: this may ONLY be set when the component is a direct descendant of a Row or Column.
-• ChoicePicker(options (static), value, checks? (static), displayStyle? (static), filterable? (static), label?, variant? (static), weight? (static))
+• ChoicePicker(options (static), value, displayStyle? (static), filterable? (static), label?, variant? (static), weight? (static), checks? (static))
   - Description: A component that allows selecting one or more options from a list.
   - options: The list of available options to choose from.
     List of maps keys:
@@ -106,7 +106,7 @@ Use these exact positional signatures to instantiate components. Do not output p
   - align: Defines the alignment of children along the cross axis (horizontally). This is similar to the CSS 'align-items' property. Must be one of: 'center', 'end', 'start', 'stretch'
   - justify: Defines the arrangement of children along the main axis (vertically). Use 'spaceBetween' to push items to the edges (e.g. header at top, footer at bottom), or 'start'/'end'/'center' to pack them together. Must be one of: 'start', 'center', 'end', 'spaceBetween', 'spaceAround', 'spaceEvenly', 'stretch'
   - weight: The relative weight of this component within a Row or Column. This is similar to the CSS 'flex-grow' property. Note: this may ONLY be set when the component is a direct descendant of a Row or Column.
-• DateTimeInput(value, checks? (static), enableDate? (static), enableTime? (static), label?, max?, min?, weight? (static))
+• DateTimeInput(value, enableDate? (static), enableTime? (static), label?, max?, min?, weight? (static), checks? (static))
   - value: The selected date and/or time value in ISO 8601 format. If not yet set, initialize with an empty string.
   - enableDate: If true, allows the user to select a date.
   - enableTime: If true, allows the user to select a time.
@@ -141,7 +141,7 @@ Use these exact positional signatures to instantiate components. Do not output p
   - align: Defines the alignment of children along the cross axis (vertically). This is similar to the CSS 'align-items' property, but uses camelCase values (e.g., 'start'). Must be one of: 'start', 'center', 'end', 'stretch'
   - justify: Defines the arrangement of children along the main axis (horizontally). Use 'spaceBetween' to push items to the edges, or 'start'/'end'/'center' to pack them together. Must be one of: 'center', 'end', 'spaceAround', 'spaceBetween', 'spaceEvenly', 'start', 'stretch'
   - weight: The relative weight of this component within a Row or Column. This is similar to the CSS 'flex-grow' property. Note: this may ONLY be set when the component is a direct descendant of a Row or Column.
-• Slider(max (static), value, checks? (static), label?, min? (static), steps? (static), weight? (static))
+• Slider(max (static), value, label?, min? (static), steps? (static), weight? (static), checks? (static))
   - max: The maximum value of the slider.
   - value: The current value of the slider.
   - label: The label for the slider.
@@ -158,7 +158,7 @@ Use these exact positional signatures to instantiate components. Do not output p
   - text: The text content to display. While simple Markdown formatting is supported (i.e. without HTML, images, or links), utilizing dedicated UI components is generally preferred for a richer and more structured presentation.
   - variant: A hint for the base text style. Must be one of: 'caption', 'body'
   - weight: The relative weight of this component within a Row or Column. This is similar to the CSS 'flex-grow' property. Note: this may ONLY be set when the component is a direct descendant of a Row or Column.
-• TextField(label, checks? (static), placeholder?, value?, variant? (static), weight? (static))
+• TextField(label, placeholder?, value?, variant? (static), weight? (static), checks? (static))
   - label: The text label for the input field.
   - placeholder: The placeholder text for the input field.
   - value: The value of the text field.
@@ -222,8 +222,8 @@ Example 1: Dynamic text form
 $/form/rep = "John Doe"
 $/form/value = 1500.0
 root = Column([repField, valueField])
-repField = TextField("Representative", _, "Enter name", $/form/rep)
-valueField = TextField("Deal Value", ?None, "0.00", $/form/value, "number")
+repField = TextField("Representative", "Enter name", $/form/rep)
+valueField = TextField("Deal Value", "0.00", $/form/value, "number", ?None)
 </a2ui>
 ```
 

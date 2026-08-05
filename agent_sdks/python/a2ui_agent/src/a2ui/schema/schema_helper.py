@@ -37,23 +37,22 @@ def _sort_component_properties(
     1. Filter out structural protocol properties ('component', 'id').
     2. Separate remaining properties into required and optional sets.
     3. Sort required properties alphabetically.
-    4. Sort optional properties alphabetically (including 'checks' if checkable).
-    5. Combine sorted required properties followed by sorted optional properties.
+    4. Sort optional properties alphabetically (excluding 'checks').
+    5. Combine sorted required properties, sorted optional properties, and append 'checks' at the end if checkable or defined.
     """
     prop_dict = dict(props)
-    if is_checkable and "checks" not in prop_dict:
-        prop_dict["checks"] = {
-            "type": "array",
-            "description": "Validation check rules for this component.",
-        }
-
+    has_checks = is_checkable or ("checks" in prop_dict)
     req_set = {str(r) for r in reqs if str(r) not in ["component", "id"]}
-    all_prop_keys = [k for k in prop_dict if k not in ["component", "id"]]
+    all_prop_keys = [k for k in prop_dict if k not in ["component", "id", "checks"]]
 
     req_props = sorted([k for k in all_prop_keys if k in req_set])
     opt_props = sorted([k for k in all_prop_keys if k not in req_set])
 
-    return req_props + opt_props, sorted(list(req_set))
+    result = req_props + opt_props
+    if has_checks:
+        result.append("checks")
+
+    return result, sorted(list(req_set))
 
 
 def _sort_function_properties(
