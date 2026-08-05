@@ -166,13 +166,25 @@
               "default": "rendererOnly",
               "description": "Specifies where this function can be invoked from."
             },
-            "requiresUserAction": {
+            "requiresUserActivation": {
               "type": "boolean",
               "default": false,
-              "description": "Specifies whether this function requires an active user action context to execute."
+              "description": "Specifies whether this function requires an active user activation context to execute."
             }
           },
           "required": ["returnType"]
+        },
+        {
+          "if": {
+            "properties": {
+              "requiresUserActivation": {"const": true}
+            }
+          },
+          "then": {
+            "properties": {
+              "callableFrom": {"enum": ["rendererOnly", "rendererOrAgent"]}
+            }
+          }
         }
       ],
       "unevaluatedProperties": false

@@ -47,9 +47,9 @@ A2UI is a declarative JSON protocol without inline code execution capabilities l
 ### 2.1 Pros
 
 - **Auto-Invocation Protection**: Stops automated window/tab navigation or side-effect triggers during layout rendering, dynamic property interpolation, background state updates, or passive input events (e.g. `onBlurAction`, `onChangeAction`).
-- **100% Catalog Agnostic**: Requires **zero component metadata changes** in catalog definitions. Does not pollute catalog component schemas with interaction level annotations (`userInteractionLevel`).
-- **Zero Custom Component Overhead**: Custom component authors write standard event bindings (`@click=${props.action}` in Lit, `onClick={props.action}` in React, `onPressed: props.action` in Flutter). Binders automatically wrap action callbacks to set the Action Execution Scope.
-- **Zero Protocol Versioning Burden**: Does not require renderer protocol version checks (`protocolVersion >= "1.0"` vs `< "1.0"`). Works uniformly across all protocol versions.
+- **Catalog Compatibility**: Requires no component metadata changes in catalog definitions. Does not add interaction annotations (`userInteractionLevel`) to component schemas.
+- **Standard Component Bindings**: Custom component authors write standard event handlers (`@click=${props.action}` in Lit, `onClick={props.action}` in React, `onPressed: props.action` in Flutter). Binders wrap action callbacks automatically to set the Action Execution Scope.
+- **Uniform Protocol Handling**: Avoids renderer protocol version checks (`protocolVersion >= "1.0"` vs `< "1.0"`), working uniformly across all protocol versions.
 - **Cross-Platform Consistency**: Leverages native platform event primitives across Web, Flutter, Jetpack Compose, and SwiftUI.
 
 ### 2.2 Cons & Trade-offs
@@ -62,23 +62,23 @@ A2UI is a declarative JSON protocol without inline code execution capabilities l
 
 This proposal introduces **Action Context Enforcement with Event Classification**:
 
-1. `requiresUserAction: boolean` on catalog function definitions (e.g., `openUrl`).
+1. `requiresUserActivation: boolean` on catalog function definitions (e.g., `openUrl`).
 2. Framework-enforced **Action Execution Scope & Activation Event Classification** across renderers.
 
-When a function definition sets `requiresUserAction: true` (such as `openUrl`), the A2UI framework guarantees that the function only executes when dispatched from within the execution scope of an **intentional user activation Action** (e.g., click, tap, submit). Uninitiated calls during layout rendering, dynamic property interpolation, reactive model updates, or passive input handlers (`onBlurAction`, `onChangeAction`) are blocked and rejected by the renderer engine.
+When a function definition sets `requiresUserActivation: true` (such as `openUrl`), the A2UI framework guarantees that the function only executes when dispatched from within the execution scope of an **intentional user activation Action** (e.g., click, tap, submit). Uninitiated calls during layout rendering, dynamic property interpolation, reactive model updates, or passive input handlers (`onBlurAction`, `onChangeAction`) are blocked and rejected by the renderer engine.
 
-### 3.1 Catalog Function Metadata (`requiresUserAction`)
+### 3.1 Catalog Function Metadata (`requiresUserActivation`)
 
-In catalog function definitions, `requiresUserAction` specifies whether the function requires an active user activation context at invocation time:
+In catalog function definitions, `requiresUserActivation` specifies whether the function requires an active user activation context at invocation time:
 
 ```json
 {
   "functions": {
     "openUrl": {
       "type": "object",
-      "description": "Opens the specified URL in a browser or handler. Requires an active user gesture.",
+      "description": "Opens the specified URL in a browser or handler. Requires an active user activation.",
       "returnType": "void",
-      "requiresUserAction": true,
+      "requiresUserActivation": true,
       "properties": {
         "call": {"const": "openUrl"},
         "args": {
@@ -102,17 +102,24 @@ Rather than adding metadata to catalog component definitions or introducing new 
   Triggered by physical, intentional user activation events:
   - Web: Trusted DOM events (`click`, `auxclick`, `touchend`, `submit`, `Enter`/`Space` keypress on focused interactive node).
   - Mobile: Primary gesture callbacks (`onPressed`/`onTap` in Flutter, `onClick` in Compose, `Button(action:)` in SwiftUI).
-  - **Permits** functions marked `requiresUserAction: true`.
+  - **Permits** functions marked `requiresUserActivation: true`.
 
 - **Passive Intent (`actionIntent = "passive"`)**:
   Triggered by continuous input, focus change, or passive events:
   - Web: DOM events (`blur`, `focus`, `input`, `change`, `pointermove`, `mouseenter`).
   - Mobile: Input/focus callbacks (`onChangeAction`, `onBlurAction`, `onFocusAction`).
-  - **Blocks** functions marked `requiresUserAction: true`, while allowing standard state model updates or data validations.
+  - **Blocks** functions marked `requiresUserActivation: true`, while allowing standard state model updates or data validations.
 
 - **Non-Action Scope (`isExecutingAction = false`)**:
   Active during surface layout construction, dynamic string interpolation (`${openUrl(...)}`), template iteration, or reactive state updates.
-  - **Blocks** functions marked `requiresUserAction: true`.
+  - **Blocks** functions marked `requiresUserActivation: true`.
+
+### 3.3 Asynchronous Execution Boundaries
+
+When a user initiates an Action, the resulting execution chain may include asynchronous processing turns (such as asynchronous state updates, data transformations, or `await` promises/futures).
+
+- **Scope Persistence Across `await` Turns**: The Action Execution Scope (`isExecutingAction = true` and `actionIntent = "activation"`) persists across asynchronous task boundaries (`await`, Promises, Futures, Coroutines, Tasks) for any execution flow initiated by a user activation event.
+- **Rule**: As long as the initial execution was triggered by an intentional user activation Action, subsequent asynchronous operations and function calls within that Action handler pipeline remain inside the active Action Context and are permitted to execute `requiresUserActivation` functions.
 
 ---
 
@@ -131,9 +138,9 @@ flowchart TD
     IntentCheck -- "Activation (Click / Tap / Submit)" --> ActivationContext["Action Context (isExecutingAction = true, intent = 'activation')"]
     IntentCheck -- "Passive (Blur / Change / Focus / Hover)" --> PassiveContext["Action Context (isExecutingAction = true, intent = 'passive')"]
 
-    ActivationContext --> Invoker{"Function requiresUserAction?"}
+    ActivationContext --> Invoker{"Function requiresUserActivation?"}
     PassiveContext --> Invoker
-    
+
     RenderEval["Expression Eval / String Interpolation ${openUrl(...)}"] --> NonActionContext["Non-Action Scope (isExecutingAction = false)"]
     NonActionContext --> Invoker
 
@@ -207,17 +214,18 @@ export class DataContext {
 const ACTIVATION_EVENTS = new Set(['click', 'auxclick', 'touchend', 'submit']);
 
 export function bindAction(dataContext: DataContext, actionCall: ActionDefinition) {
-  return (eventOrOptions?: Event | { event?: Event }) => {
+  return (eventOrOptions?: Event | {event?: Event}) => {
     const domEvent =
       eventOrOptions instanceof Event
         ? eventOrOptions
-        : (eventOrOptions as any)?.nativeEvent ?? (eventOrOptions as any)?.event;
+        : ((eventOrOptions as any)?.nativeEvent ?? (eventOrOptions as any)?.event);
 
     // Classify event intent based on DOM event type
-    const isActivationEvent = domEvent && domEvent.isTrusted && (
-      ACTIVATION_EVENTS.has(domEvent.type) ||
-      (domEvent instanceof KeyboardEvent && (domEvent.key === 'Enter' || domEvent.key === ' '))
-    );
+    const isActivationEvent =
+      domEvent &&
+      domEvent.isTrusted &&
+      (ACTIVATION_EVENTS.has(domEvent.type) ||
+        (domEvent instanceof KeyboardEvent && (domEvent.key === 'Enter' || domEvent.key === ' ')));
 
     const intent: ActionIntent = isActivationEvent ? 'activation' : 'passive';
 
@@ -236,12 +244,12 @@ this.invoker = (name, rawArgs, ctx) => {
   const fn = this.functions.get(name);
   if (!fn) throw new A2uiExpressionError(`Function not found: ${name}`, name);
 
-  if (fn.requiresUserAction) {
+  if (fn.requiresUserActivation) {
     const isValidScope = ctx.isExecutingAction && ctx.actionIntent === 'activation';
     if (!isValidScope) {
       throw new A2uiSecurityError(
         `Execution blocked: Function '${name}' requires an active user activation Action context (e.g. click, tap, submit). ` +
-        `It cannot be executed during layout rendering, interpolation, passive events (blur/change), or reactive updates.`,
+          `It cannot be executed during layout rendering, interpolation, passive events (blur/change), or reactive updates.`,
         name,
       );
     }
@@ -294,7 +302,7 @@ ElevatedButton(
 
 // Function Invocation Guard:
 void verifyFunctionExecution(FunctionDefinition fn, DataContext context) {
-  if (fn.requiresUserAction) {
+  if (fn.requiresUserActivation) {
     if (!context.isExecutingAction || context.actionIntent != ActionIntent.activation) {
       throw SecurityException(
         "Function '${fn.name}' requires execution within an active intentional user activation Action context.",
@@ -381,12 +389,12 @@ struct A2UIButton: View {
 
 ## 7. Security Efficacy and Threat Matrix
 
-| Threat / Scenario | Risk Level | Protection Mechanism |
-| :--- | :--- | :--- |
-| **Initial Render Auto-Trigger** (Model payload invoking `openUrl` on load) | High | **Blocked**: Initial layout render has `isExecutingAction = false`. |
-| **Interpolation Abuse** (Injecting `${openUrl('...')}` in text node) | High | **Blocked**: Expression engine operates with `isExecutingAction = false`. |
-| **Reactive Model Update** (State sync triggering function execution) | Medium | **Blocked**: Reactive state updates operate outside Action Context. |
-| **Passive Event Exploitation** (`openUrl` bound to `onBlurAction`/`onChangeAction`) | Medium | **Blocked**: Blur/change events operate with `actionIntent = "passive"`. |
-| **Synthetic Event Attack** (Script calling `.click()`) | Medium | **Blocked**: Binders require `domEvent.isTrusted === true`. |
+| Threat / Scenario                                                                   | Risk Level | Protection Mechanism                                                      |
+| :---------------------------------------------------------------------------------- | :--------- | :------------------------------------------------------------------------ |
+| **Initial Render Auto-Trigger** (Model payload invoking `openUrl` on load)          | High       | **Blocked**: Initial layout render has `isExecutingAction = false`.       |
+| **Interpolation Abuse** (Injecting `${openUrl('...')}` in text node)                | High       | **Blocked**: Expression engine operates with `isExecutingAction = false`. |
+| **Reactive Model Update** (State sync triggering function execution)                | Medium     | **Blocked**: Reactive state updates operate outside Action Context.       |
+| **Passive Event Exploitation** (`openUrl` bound to `onBlurAction`/`onChangeAction`) | Medium     | **Blocked**: Blur/change events operate with `actionIntent = "passive"`.  |
+| **Synthetic Event Attack** (Script calling `.click()`)                              | Medium     | **Blocked**: Binders require `domEvent.isTrusted === true`.               |
 
 ---
