@@ -1,5 +1,7 @@
 ## Unreleased
 
+- **BREAKING CHANGE**: Import markdown types directly from `@a2ui/web_core` root (requiring modern `v0.9` / `v1.0` web core API).
+
 ## 0.1.1
 
 - Enable `inlineSources` in `tsconfig.json` to populate `sourcesContent` in sourcemaps.
