@@ -72,13 +72,6 @@ let package = Package(
       path: "swift/swiftui/Sources/A2UISwiftUI"
     ),
 
-    // ── Sample Client ──
-    .executableTarget(
-      name: "A2UISampleClient",
-      dependencies: ["A2UISwiftUI", "A2UICore"],
-      path: "swift/sample/Sources/A2UISampleClient"
-    ),
-
     // ── Tests ──
     .testTarget(
       name: "A2UIJSONTests",
