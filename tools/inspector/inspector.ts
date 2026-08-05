@@ -24,7 +24,7 @@ import {classMap} from 'lit/directives/class-map.js';
 import {Snackbar} from './ui/snackbar.js';
 import {ref} from 'lit/directives/ref.js';
 import {SnackbarAction, SnackbarMessage, SnackbarUUID, SnackType} from './types/types.js';
-import {v0_8} from '@a2ui/lit';
+import * as v0_8 from '@a2ui/lit/0.8';
 import * as UI from '@a2ui/lit/ui';
 import {map} from 'lit/directives/map.js';
 

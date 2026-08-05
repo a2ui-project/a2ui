@@ -15,7 +15,7 @@
  */
 
 import {Root} from '@a2ui/lit/ui';
-import {v0_8} from '@a2ui/lit';
+import * as v0_8 from '@a2ui/lit/0.8';
 import {html, css} from 'lit';
 import {property} from 'lit/decorators.js';
 import {map} from 'lit/directives/map.js';

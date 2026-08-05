@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import {v0_8} from '@a2ui/lit';
+import * as v0_8 from '@a2ui/lit/0.8';
 import * as UI from '@a2ui/lit/ui';
 import {LitElement, html} from 'lit';
 import {ContextProvider} from '@lit/context';

@@ -23,8 +23,8 @@ import {Snackbar} from './ui/snackbar.js';
 import {repeat} from 'lit/directives/repeat.js';
 
 // A2UI
-import * as v0_9 from '@a2ui/web_core/v0_9';
-import {basicCatalog, Context} from '@a2ui/lit/v0_9';
+import {MessageProcessor, A2uiClientAction} from '@a2ui/web_core';
+import {basicCatalog, Context} from '@a2ui/lit';
 import {renderMarkdown} from '@a2ui/markdown-it';
 
 // Configurations
@@ -511,9 +511,9 @@ export class A2UILayoutEditor extends SignalWatcher(LitElement) {
   ];
 
   // Create a Message Processor that uses the catalogs.
-  private _processor = new v0_9.MessageProcessor(
+  private _processor = new MessageProcessor(
     [basicCatalog],
-    async (action: v0_9.A2uiClientAction): Promise<any> => {
+    async (action: A2uiClientAction): Promise<any> => {
       console.debug('Handling action', action);
 
       const context: Record<string, any> = {...action.context};

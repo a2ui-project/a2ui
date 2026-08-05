@@ -21,7 +21,7 @@
  * Uses the signal-based model processor for proper reactivity.
  */
 
-import {v0_8} from '@a2ui/lit';
+import * as v0_8 from '@a2ui/lit/0.8';
 import type {SourceInfo} from './a2a-client';
 // Import the theme provider to register the custom element
 import './theme-provider.js';

@@ -18,7 +18,7 @@ import {LitElement, css, html, nothing, svg, unsafeCSS} from 'lit';
 import {customElement, query, state} from 'lit/decorators.js';
 import {EnumValue} from '../types/types';
 import {ItemSelect} from './item-select';
-import {v0_8} from '@a2ui/lit';
+import * as v0_8 from '@a2ui/lit/0.8';
 
 type RenderMode = 'free' | 'line' | 'rect';
 interface Path {

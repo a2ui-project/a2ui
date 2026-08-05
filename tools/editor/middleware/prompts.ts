@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import {v0_8} from '@a2ui/lit';
+import * as v0_8 from '@a2ui/lit/0.8';
 
 export function createImageParsePrompt(
   catalog: v0_8.Types.ClientCapabilitiesDynamic,

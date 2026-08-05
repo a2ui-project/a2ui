@@ -16,9 +16,9 @@
 
 import {LitElement, html, css, nothing} from 'lit';
 import {customElement, state} from 'lit/decorators.js';
-import {MessageProcessor} from '@a2ui/web_core/v0_9';
-import {basicCatalog, Context} from '@a2ui/lit/v0_9';
-import '@a2ui/lit/v0_9'; // Registers <a2ui-surface>
+import {MessageProcessor} from '@a2ui/web_core';
+import {basicCatalog, Context} from '@a2ui/lit';
+import '@a2ui/lit'; // Registers <a2ui-surface>
 import {provide} from '@lit/context';
 import {renderMarkdown} from '@a2ui/markdown-it';
 

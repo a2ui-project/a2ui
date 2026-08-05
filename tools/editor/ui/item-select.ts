@@ -20,7 +20,7 @@ import {classMap} from 'lit/directives/class-map.js';
 import {createRef, ref, Ref} from 'lit/directives/ref.js';
 import {repeat} from 'lit/directives/repeat.js';
 import {EnumValue} from '../types/types';
-import {v0_8} from '@a2ui/lit';
+import * as v0_8 from '@a2ui/lit/0.8';
 
 @customElement('item-select')
 export class ItemSelect extends LitElement {

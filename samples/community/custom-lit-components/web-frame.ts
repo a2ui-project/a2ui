@@ -18,7 +18,7 @@ import {html, css} from 'lit';
 import {property, query} from 'lit/decorators.js';
 import {ifDefined} from 'lit/directives/if-defined.js';
 import {Root} from '@a2ui/lit/ui';
-import {v0_8} from '@a2ui/lit';
+import * as v0_8 from '@a2ui/lit/0.8';
 
 export class WebFrame extends Root {
   static override styles = [
