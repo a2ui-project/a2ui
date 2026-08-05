@@ -32,10 +32,7 @@ export {
 export {ComponentHostComponent} from './core/component-host.component';
 export {SurfaceComponent} from './core/surface.component';
 export {CatalogComponent} from './core/catalog_component';
-export {
-  type Child,
-  ComponentBinder,
-} from './core/component-binder.service';
+export {type Child, ComponentBinder} from './core/component-binder.service';
 export {
   type ComponentTemplate,
   type BoundProperty,

@@ -18,12 +18,7 @@ import {TestBed, ComponentFixture} from '@angular/core/testing';
 import {By} from '@angular/platform-browser';
 import {ComponentHostComponent} from './component-host.component';
 import {A2uiRendererService} from './a2ui-renderer.service';
-import {
-  ComponentApi,
-  ComponentModel,
-  SurfaceComponentsModel,
-  SurfaceModel,
-} from '@a2ui/web_core';
+import {ComponentApi, ComponentModel, SurfaceComponentsModel, SurfaceModel} from '@a2ui/web_core';
 import {Component, EnvironmentInjector, EventEmitter, Input, NgZone} from '@angular/core';
 import {initializeAngularReactivity} from './reactivity';
 
