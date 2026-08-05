@@ -1,0 +1,14 @@
+{
+  "hypothesis": "Dynamic list template path resolution optimization in _compile_template.",
+  "notes": "Pytest 100% pass (507 passed). Parallel wall latency (-12.8%) and reasoning tokens (-11.1%) improved. However, Code Output Tokens increased (+20.2%), dropping S_opt from +0.570 to +0.545 (-0.025). Reverted per Rule 3.",
+  "status": "Backtracked",
+  "metrics": {
+    "schema_acc": 0.0,
+    "quality_acc": 0.0,
+    "code_tokens_median": 307.0,
+    "reasoning_tokens_median": 4570.5,
+    "input_tokens_median": 4439.5,
+    "latency_seconds_median": 0.0,
+    "total_samples": 0
+  }
+}

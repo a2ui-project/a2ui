@@ -17,7 +17,7 @@ from typing import Any, Optional, List, AsyncIterable, TYPE_CHECKING
 from a2ui.parser.parser import Parser
 
 if TYPE_CHECKING:
-    from a2ui.inference_formats.transport.streaming import TransportStreamParser
+    from a2ui.inference_formats.direct_json.streaming import DirectJsonStreamParser
 from a2a.types import (
     Part,
     DataPart,
@@ -178,14 +178,14 @@ def parse_response_to_parts(
 
 
 async def stream_response_to_parts(
-    parser: "TransportStreamParser",
+    parser: "DirectJsonStreamParser",
     token_stream: AsyncIterable[str],
     version: Optional[str] = None,
 ) -> AsyncIterable[Part]:
     """Helper to parse a stream of LLM tokens into A2A Parts incrementally.
 
     Args:
-        parser: TransportStreamParser instance to process the stream.
+        parser: DirectJsonStreamParser instance to process the stream.
         token_stream: An async iterable of strings (tokens).
         version: Optional version string.
 

@@ -18,8 +18,8 @@ A2UI components on Gemini Enterprise UI.
 
 Before running the deployment script, ensure you have the following:
 
-- A **Google Cloud Project** with billing enabled.
-- **Google Cloud SDK** installed and up to date.
+- A [Google Cloud Project](https://cloud.google.com/resource-manager/docs/creating-managing-projects) with billing enabled.
+- [Google Cloud SDK](https://cloud.google.com/sdk/docs/install) installed and up to date.
 
 ### Authentication
 
@@ -33,12 +33,14 @@ gcloud config set project <YOUR_PROJECT_ID>
 
 ### Enable Required APIs
 
-Enable the required Google Cloud APIs for Cloud Run, Cloud Build, Vertex AI, and Discovery Engine:
+Enable the required Google Cloud APIs for Cloud Run, Cloud Build, Artifact
+Registry, Vertex AI, and Discovery Engine:
 
 ```bash
 gcloud services enable \
 run.googleapis.com \
 cloudbuild.googleapis.com \
+artifactregistry.googleapis.com \
 aiplatform.googleapis.com \
 discoveryengine.googleapis.com \
 --project <YOUR_PROJECT_ID>
@@ -119,7 +121,7 @@ cat <<EOF > agent_request.json
   "displayName": "$AGENT_DISPLAY_NAME",
   "description": "$AGENT_DESCRIPTION",
   "a2aAgentDefinition": {
-     "jsonAgentCard": "{\"protocolVersion\": \"0.3.0\", \"name\": \"$AGENT_NAME\", \"description\": \"$AGENT_DESCRIPTION\", \"url\": \"$AGENT_URL\", \"version\": \"1.0.0\", \"capabilities\": {\"streaming\": false, \"preferredTransport\": \"JSONRPC\", \"extensions\": [{\"uri\": \"https://a2ui.org/a2a-extension/a2ui/v0.8\", \"description\": \"Ability to render A2UI\", \"required\": false, \"params\": {\"supportedCatalogIds\": [\"https://a2ui.org/specification/v0_8/standard_catalog_definition.json\"]}}]}, \"skills\": [], \"defaultInputModes\": [\"text\", \"text/plain\"], \"defaultOutputModes\": [\"text\", \"text/plain\"]}"
+     "jsonAgentCard": "{\"protocolVersion\": \"0.3.0\", \"name\": \"$AGENT_NAME\", \"description\": \"$AGENT_DESCRIPTION\", \"url\": \"$AGENT_URL\", \"version\": \"1.0.0\", \"capabilities\": {\"streaming\": false, \"preferredTransport\": \"JSONRPC\", \"extensions\": [{\"uri\": \"https://a2ui.org/a2a-extension/a2ui/v0.8\", \"description\": \"Ability to render A2UI\", \"required\": false, \"params\": {\"supportedCatalogIds\": [\"https://a2ui.org/specification/v0_8/standard_catalog_definition.json\"]}}]}, \"skills\": [], \"defaultInputModes\": [\"text/plain\"], \"defaultOutputModes\": [\"text/plain\"]}"
   }
 }
 EOF

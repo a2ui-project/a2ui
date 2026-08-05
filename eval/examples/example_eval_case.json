@@ -1,0 +1,56 @@
+[
+  {
+    "name": "flight_booking_multiturn_selection",
+    "dataset": "flight_booking",
+    "description": "Verifies that the agent renders a selectable flight list using data returned from a tool call while ignoring an unrelated weather tool call.",
+    "catalog": "specification/{version}/catalogs/basic/catalog.json",
+    "system_prompt": "You are a corporate travel booking assistant. Always present flight options clearly with pricing and carrier information.",
+    "messages": [
+      {
+        "role": "user",
+        "content": "What's the weather in SFO today, and also find non-stop flights from SFO to JFK on October 12."
+      },
+      {
+        "role": "assistant",
+        "tool_calls": [
+          {
+            "id": "call_weather_01",
+            "type": "function",
+            "function": "get_weather",
+            "arguments": {
+              "city": "SFO"
+            }
+          },
+          {
+            "id": "call_flight_search_01",
+            "type": "function",
+            "function": "search_flights",
+            "arguments": {
+              "origin": "SFO",
+              "destination": "JFK",
+              "date": "2026-10-12",
+              "nonstop_only": true
+            }
+          }
+        ]
+      },
+      {
+        "role": "tool",
+        "tool_call_id": "call_weather_01",
+        "function": "get_weather",
+        "content": "{\"temperature_f\": 68, \"condition\": \"Sunny\"}"
+      },
+      {
+        "role": "tool",
+        "tool_call_id": "call_flight_search_01",
+        "function": "search_flights",
+        "content": "{\"status\": \"success\", \"flights\": [{\"id\": \"UA100\", \"airline\": \"United\", \"price_usd\": 450, \"departure\": \"08:00\"}, {\"id\": \"DL200\", \"airline\": \"Delta\", \"price_usd\": 520, \"departure\": \"11:30\"}]}"
+      },
+      {
+        "role": "user",
+        "content": "Please display these flights in an interactive card so I can choose one to book."
+      }
+    ],
+    "target": "The assistant must generate a valid A2UI surface containing:\n1. A Card container with a descriptive heading for SFO to JFK flights.\n2. A List layout displaying both UA100 ($450) and DL200 ($520).\n3. Two-way data binding on a selection control allowing the user to select a flight ID.\n4. The agent must reason correctly over the flight search results without being distracted by the unrelated weather tool response."
+  }
+]

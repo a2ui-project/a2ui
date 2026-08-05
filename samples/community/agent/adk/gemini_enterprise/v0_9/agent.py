@@ -74,7 +74,7 @@ COMPOSITE_CATALOG_PATH = os.path.join(
 class A2uiDemoAgent:
     """A generic agent that demos A2UI v0.9 Material and custom components."""
 
-    SUPPORTED_CONTENT_TYPES = ["text", "text/plain"]
+    SUPPORTED_CONTENT_TYPES = ["text/plain"]
 
     def __init__(self, base_url: str):
         self.base_url = base_url
@@ -322,12 +322,12 @@ class A2uiDemoAgent:
             parts_streamed = False
 
             if selected_catalog:
-                from a2ui.parser.streaming import A2uiStreamParser
+                from a2ui.inference_formats.direct_json.streaming import DirectJsonStreamParser
 
                 if session_id in self._parsers:
                     self._parsers.move_to_end(session_id)
                 else:
-                    self._parsers[session_id] = A2uiStreamParser(
+                    self._parsers[session_id] = DirectJsonStreamParser(
                         catalog=selected_catalog
                     )
                     if len(self._parsers) > self._max_parsers:

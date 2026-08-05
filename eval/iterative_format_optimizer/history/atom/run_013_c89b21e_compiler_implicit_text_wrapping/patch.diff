@@ -1,0 +1,24 @@
+diff --git a/agent_sdks/python/a2ui_agent/src/a2ui/inference_formats/experimental/atom/compiler.py b/agent_sdks/python/a2ui_agent/src/a2ui/inference_formats/experimental/atom/compiler.py
+index 408cb95e..87154d42 100644
+--- a/agent_sdks/python/a2ui_agent/src/a2ui/inference_formats/experimental/atom/compiler.py
++++ b/agent_sdks/python/a2ui_agent/src/a2ui/inference_formats/experimental/atom/compiler.py
+@@ -644,7 +644,18 @@ class AtomCompiler:
+                 # Positional attribute matching schema definition order
+                 if self.schema_helper.get_property_type(comp_type, "children") == "ChildList" or "children" in prop_keys or "child" in prop_keys:
+                     if isinstance(item, str) and item not in ("]", ")", "[", "(") and item != "...":
+-                        children.append(item)
++                        if not re.match(r'^(node_\d+|root)$', item):
++                            text_comp = next((c for c in self.schema_helper.get_available_components() if any(t in c.lower() for t in ("text", "label", "span"))), None)
++                            if text_comp:
++                                text_props = self.schema_helper.get_component_properties(text_comp)
++                                first_prop = list(text_props.keys())[0] if (isinstance(text_props, dict) and text_props) else "text"
++                                implicit_id = self._next_id()
++                                components.insert(0, {"id": implicit_id, "component": text_comp, first_prop: item})
++                                children.append(implicit_id)
++                            else:
++                                children.append(item)
++                        else:
++                            children.append(item)
+                 else:
+                     if pos_arg_index < len(prop_keys):
+                         pkey = prop_keys[pos_arg_index]

@@ -22,8 +22,8 @@ import Testing
 
 // MARK: - Test Helpers
 
-/// A simple catalog view for testing that renders a text label.
-struct TestCatalogView: CatalogView {
+/// A simple view for testing that renders a component node's type and ID.
+struct TestComponentView: View {
   let node: Node
 
   init(node: Node) {
@@ -38,11 +38,6 @@ struct TestCatalogView: CatalogView {
   }
 }
 
-/// A simple theme for testing.
-struct TestRenderTheme: SurfaceTheme {
-  let color: String
-}
-
 // MARK: - Surface Tests
 
 @MainActor
@@ -50,26 +45,50 @@ struct SurfaceTests {
 
   @Test func surfaceInitializesWithViewModel() throws {
     let catalog = try makeTestSurfaceCatalogForRendering()
-    let vm = SurfaceViewModel(surfaceID: "s1", catalog: catalog)
-    let surface = Surface<TestCatalogView>(viewModel: vm, catalogType: TestCatalogView.self)
+    let viewModel = SurfaceViewModel(
+      surfaceID: "s1",
+      catalog: catalog
+    )
+    let registry = ComponentRegistry()
+    let surface = Surface(
+      viewModel: viewModel,
+      registry: registry
+    )
     #expect(surface.surfaceID == "s1")
   }
 
   @Test func surfaceIDMatchesViewModel() throws {
     let catalog = try makeTestSurfaceCatalogForRendering()
-    let vm = SurfaceViewModel(surfaceID: "s1", catalog: catalog)
-    let a = Surface<TestCatalogView>(viewModel: vm, catalogType: TestCatalogView.self)
-    let b = Surface<TestCatalogView>(viewModel: vm, catalogType: TestCatalogView.self)
-    #expect(a.surfaceID == b.surfaceID)
+    let viewModel = SurfaceViewModel(
+      surfaceID: "s1",
+      catalog: catalog
+    )
+    let firstSurface = Surface(
+      viewModel: viewModel
+    )
+    let secondSurface = Surface(
+      viewModel: viewModel
+    )
+    #expect(firstSurface.surfaceID == secondSurface.surfaceID)
   }
 
   @Test func surfaceDifferentSurfaceIDs() throws {
     let catalog = try makeTestSurfaceCatalogForRendering()
-    let vm1 = SurfaceViewModel(surfaceID: "s1", catalog: catalog)
-    let vm2 = SurfaceViewModel(surfaceID: "s2", catalog: catalog)
-    let a = Surface<TestCatalogView>(viewModel: vm1, catalogType: TestCatalogView.self)
-    let b = Surface<TestCatalogView>(viewModel: vm2, catalogType: TestCatalogView.self)
-    #expect(a.surfaceID != b.surfaceID)
+    let firstViewModel = SurfaceViewModel(
+      surfaceID: "s1",
+      catalog: catalog
+    )
+    let secondViewModel = SurfaceViewModel(
+      surfaceID: "s2",
+      catalog: catalog
+    )
+    let firstSurface = Surface(
+      viewModel: firstViewModel
+    )
+    let secondSurface = Surface(
+      viewModel: secondViewModel
+    )
+    #expect(firstSurface.surfaceID != secondSurface.surfaceID)
   }
 }
 
@@ -123,28 +142,98 @@ struct ThemeEnvironmentTests {
   }
 
   @Test func themeEnvironmentCanBeSet() throws {
-    let theme = TestRenderTheme(color: "blue")
-    var env = EnvironmentValues()
-    env.a2uiTheme = theme
-    #expect(env.a2uiTheme != nil)
-    #expect((env.a2uiTheme as? TestRenderTheme)?.color == "blue")
+    let theme: [String: JSONValue] = ["color": .string("blue")]
+    var environment = EnvironmentValues()
+    environment.a2uiTheme = theme
+    #expect(environment.a2uiTheme != nil)
+    #expect(environment.a2uiTheme?["color"]?.stringValue == "blue")
   }
 
   @Test func themeEnvironmentDefaultsToNil() {
-    let env = EnvironmentValues()
-    #expect(env.a2uiTheme == nil)
+    let environment = EnvironmentValues()
+    #expect(environment.a2uiTheme == nil)
   }
 }
 
-// MARK: - CatalogView Tests
+// MARK: - ComponentRegistry Tests
 
-struct CatalogViewTests {
+struct ComponentRegistryTests {
 
-  @MainActor @Test func catalogViewInitializesWithNode() {
-    let node = Node(id: "test", type: "text", properties: ["label": "Hello"])
-    let view = TestCatalogView(node: node)
-    #expect(view.node.id == "test")
-    #expect(view.node.type == "text")
+  @Test func componentKeyEquality() {
+    let firstKey = ComponentKey(
+      catalogID: "catalogA",
+      type: "button"
+    )
+    let secondKey = ComponentKey(
+      catalogID: "catalogA",
+      type: "button"
+    )
+    let thirdKey = ComponentKey(
+      catalogID: "catalogB",
+      type: "button"
+    )
+    #expect(firstKey == secondKey)
+    #expect(firstKey != thirdKey)
+  }
+
+  @Test func registryResolvesUnqualifiedFallback() {
+    let registry = ComponentRegistry()
+    registry.register(
+      type: "button",
+      builder: { node in AnyView(Text(node.type)) }
+    )
+    let node = Node(
+      id: "btn1",
+      type: "button",
+      catalogID: "catalogA",
+      properties: [:]
+    )
+    let renderedView = registry.render(node: node)
+    #expect(renderedView != nil)
+  }
+
+  @Test func registryResolvesQualifiedKeyOverFallback() {
+    let registry = ComponentRegistry()
+    var qualifiedCalled = false
+    var fallbackCalled = false
+
+    registry.register(
+      catalogID: "catalogA",
+      type: "button",
+      builder: { _ in
+        qualifiedCalled = true
+        return AnyView(Text("Qualified"))
+      }
+    )
+    registry.register(
+      type: "button",
+      builder: { _ in
+        fallbackCalled = true
+        return AnyView(Text("Fallback"))
+      }
+    )
+
+    let node = Node(
+      id: "btn1",
+      type: "button",
+      catalogID: "catalogA",
+      properties: [:]
+    )
+    _ = registry.render(node: node)
+    #expect(qualifiedCalled)
+    #expect(!fallbackCalled)
+  }
+
+  @Test func registryEnvironmentDefaultsToNil() {
+    let environment = EnvironmentValues()
+    #expect(environment.a2uiComponentRegistry == nil)
+  }
+
+  @Test func registryEnvironmentCanBeSet() {
+    var environment = EnvironmentValues()
+    let registry = ComponentRegistry()
+    environment.a2uiComponentRegistry = registry
+    #expect(environment.a2uiComponentRegistry != nil)
   }
 }
 
@@ -174,6 +263,12 @@ func makeTestSurfaceCatalogForRendering() throws -> Catalog {
   )
   return Catalog(
     id: "default",
-    components: [ComponentAPI(name: "text", schema: textSchema)]
+    components: [
+      ComponentAPI(
+        name: "text",
+        schema: textSchema
+      )
+    ]
   )
 }
+

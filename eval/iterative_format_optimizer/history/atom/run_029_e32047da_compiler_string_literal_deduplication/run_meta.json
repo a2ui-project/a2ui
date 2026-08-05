@@ -1,0 +1,14 @@
+{
+  "hypothesis": "Compiler-side deduplication of redundant string literal property assignments in _compile_component.",
+  "notes": "Pytest 100% pass, 100.0% Schema Acc, 100.0% Quality Score. Reduced reasoning tokens by -29.7% (3,774 vs 5,364). However, Code Output Tokens increased by +34.2% (249 vs 186), exceeding the 5% cap. Score S_opt dropped from +0.600 to +0.563 (-0.037). Reverted per Rule 2 and Rule 3.",
+  "status": "Backtracked",
+  "metrics": {
+    "schema_acc": 0.0,
+    "quality_acc": 0.0,
+    "code_tokens_median": 249.0,
+    "reasoning_tokens_median": 3773.5,
+    "input_tokens_median": 4459.5,
+    "latency_seconds_median": 0.0,
+    "total_samples": 0
+  }
+}

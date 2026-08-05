@@ -14,14 +14,14 @@
 
 import os
 import sys
-import traceback
 import argparse
 from inspect_ai import eval_set
 from tasks import a2ui_v0_9_1_eval, a2ui_v1_0_eval
 from a2ui_eval.strategies import STRATEGIES
 
-# Automatically override Inspect AI's connection rate-limiter limit to prevent queuing delays in latency measurements
-os.environ["INSPECT_MAX_CONNECTIONS"] = "50"
+# Automatically limit Inspect AI's connection rate-limiter limit and cap model retry backoffs to prevent 503 errors
+os.environ["INSPECT_MAX_CONNECTIONS"] = "10"
+os.environ["INSPECT_MODEL_MAX_BACKOFF"] = "300"
 
 
 from inspect_ai.dataset import MemoryDataset
@@ -33,6 +33,20 @@ def main() -> None:
         "--sanity",
         action="store_true",
         help="Run a quick sanity check (2 samples, gemini-3.1-flash-lite, 0 retry)",
+    )
+    parser.add_argument(
+        "--dataset",
+        type=str,
+        default=None,
+        help=(
+            "Evaluate only a specific dataset (e.g. 'customer_a_data' or 'core_v0_9_1')"
+        ),
+    )
+    parser.add_argument(
+        "--datasets",
+        type=str,
+        default=None,
+        help="Comma-separated list of datasets to evaluate",
     )
     parser.add_argument(
         "--model",
@@ -94,12 +108,24 @@ def main() -> None:
         action="append",
         help="Target specific sample prompt names to evaluate",
     )
+    parser.add_argument(
+        "--epochs",
+        type=int,
+        default=None,
+        help="Number of epochs/repetitions to run for each evaluation sample",
+    )
     args = parser.parse_args()
 
     model = "google/gemini-3.1-flash-lite" if args.sanity else args.model
     limit = 2 if args.sanity else args.limit
     retry_attempts = 0 if args.sanity else args.max_retries
     sample_shuffle = None if args.sanity else args.sample_shuffle
+    epochs = None if args.sanity else args.epochs
+
+    # Resolve dataset filters
+    selected_dataset = args.dataset
+    if args.datasets:
+        selected_dataset = args.datasets
 
     # Parse and validate strategies
     selected_strategies = []
@@ -119,10 +145,14 @@ def main() -> None:
             )
         task_func = (
             a2ui_v1_0_eval
-            if strat in ["express", "elemental", "atom"]
+            if strat in ["express", "elemental", "atom", "direct"]
             else a2ui_v0_9_1_eval
         )
-        task_obj = task_func(strategy=strat, grading_model=args.grading_model)
+        task_obj = task_func(
+            strategy=strat,
+            grading_model=args.grading_model,
+            dataset=selected_dataset,
+        )
         if args.prompt:
             prompt_list = [p.lower() for p in args.prompt]
             filtered = [
@@ -146,18 +176,20 @@ def main() -> None:
         "retry_attempts": retry_attempts,
         "limit": limit,
         "sample_shuffle": sample_shuffle,
+        "working_limit": 350,
+        "log_dir_allow_dirty": True,
     }
-    model_args = {}
+    if epochs is not None:
+        eval_set_kwargs["epochs"] = epochs
     if args.thinking_budget is not None:
-        model_args["reasoning_tokens"] = args.thinking_budget
+        eval_set_kwargs["reasoning_tokens"] = args.thinking_budget
     if args.temperature is not None:
-        model_args["temperature"] = args.temperature
-    if model_args:
-        eval_set_kwargs["model_args"] = model_args
+        eval_set_kwargs["temperature"] = args.temperature
     if args.max_tasks is not None:
         eval_set_kwargs["max_tasks"] = args.max_tasks
-    if args.max_samples is not None:
-        eval_set_kwargs["max_samples"] = args.max_samples
+    eval_set_kwargs["max_samples"] = (
+        args.max_samples if args.max_samples is not None else 10
+    )
 
     print("Starting evaluation for multiple strategies...")
     success, logs = eval_set(**eval_set_kwargs)

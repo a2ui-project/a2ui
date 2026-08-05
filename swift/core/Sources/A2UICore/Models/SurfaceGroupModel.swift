@@ -19,16 +19,12 @@ import OrderedJSON
 
 /// The root state model managing the collection of active surfaces.
 ///
-/// `SurfaceGroupModel` owns the surface dictionary, lifecycle
-/// (add/remove), and cross-surface aggregation such as
-/// `sendDataModel` tracking. It mirrors the `SurfaceGroupModel` type
-/// in the `web_core` reference implementation.
+/// `SurfaceGroupModel` owns the surface dictionary and surface lifecycle
+/// (add/remove). It mirrors the `SurfaceGroupModel` type in the `web_core`
+/// reference implementation.
 @MainActor
 public final class SurfaceGroupModel: ObservableObject {
-  private var surfaces: [String: SurfaceViewModel] = [:]
-  private var sendDataModelSurfaces: Set<String> = []
-
-  /// The dictionary of active surfaces, published to the UI.
+  /// The map of active surfaces, published to the UI.
   @Published public private(set) var surfacesMap: [String: SurfaceViewModel] = [:]
 
   public init() {}
@@ -40,41 +36,29 @@ public final class SurfaceGroupModel: ObservableObject {
   /// If a surface with the same ID already exists, the call is
   /// silently ignored (matching `web_core`'s behavior).
   public func addSurface(_ vm: SurfaceViewModel) {
-    guard surfaces[vm.surfaceID] == nil else { return }
-    surfaces[vm.surfaceID] = vm
-    surfacesMap = surfaces
+    guard surfacesMap[vm.surfaceID] == nil else { return }
+    surfacesMap[vm.surfaceID] = vm
   }
 
   /// Removes a surface from the group by its ID.
   public func removeSurface(id: String) {
-    guard surfaces[id] != nil else { return }
-    surfaces.removeValue(forKey: id)
-    sendDataModelSurfaces.remove(id)
-    surfacesMap = surfaces
+    guard surfacesMap[id] != nil else { return }
+    surfacesMap.removeValue(forKey: id)
   }
 
   // MARK: - Surface Lookup
 
   /// Retrieves a surface by its ID.
   public func surface(id: String) -> SurfaceViewModel? {
-    surfaces[id]
+    surfacesMap[id]
   }
 
   /// Returns a snapshot of all active surfaces.
   public func allSurfaces() -> [String: SurfaceViewModel] {
-    surfaces
+    surfacesMap
   }
 
-  // MARK: - send Data Model
-
-  /// Marks a surface as requesting data-model reporting.
-  public func setSendDataModel(surfaceID: String, enabled: Bool) {
-    if enabled {
-      sendDataModelSurfaces.insert(surfaceID)
-    } else {
-      sendDataModelSurfaces.remove(surfaceID)
-    }
-  }
+  // MARK: - Data Model Aggregation
 
   /// Aggregates the data models of all surfaces that have
   /// `sendDataModel` enabled.
@@ -82,9 +66,10 @@ public final class SurfaceGroupModel: ObservableObject {
   /// Returns `nil` if no surfaces have the flag set.
   public func getClientDataModel() -> JSONValue? {
     var result: OrderedDictionary<String, JSONValue> = [:]
-    for surfaceID in sendDataModelSurfaces {
-      guard let vm = surfaces[surfaceID] else { continue }
-      result[surfaceID] = vm.dataModel.snapshot()
+    for (surfaceID, vm) in surfacesMap {
+      if vm.sendDataModel {
+        result[surfaceID] = vm.dataModel.data
+      }
     }
     guard !result.isEmpty else { return nil }
     return .object(result)

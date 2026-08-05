@@ -4,6 +4,7 @@
   "private": true,
   "packageManager": "yarn@4.13.0",
   "workspaces": [
+    "custom-lit-components",
     "client/angular",
     "client/angular/projects/*",
     "client/lit/*",

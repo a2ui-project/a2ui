@@ -25,16 +25,16 @@ from typing import Any
 
 
 def extract_accuracy(log_data: dict[str, Any]) -> float:
-    """Extracts accuracy from parsed JSON log data.
+    """Extracts accuracy metric from parsed JSON log data.
 
     Args:
-        log_data: Parsed JSON data from inspect log dump.
+        log_data: Dictionary containing parsed evaluation log data.
 
     Returns:
-        The accuracy score as a float.
+        The accuracy score as a float between 0.0 and 1.0.
 
     Raises:
-        ValueError: If scores or accuracy are not found or invalid.
+        ValueError: If no scores or accuracy metrics are present.
     """
     scores = log_data.get("results", {}).get("scores", [])
     if not scores:
@@ -51,69 +51,95 @@ def extract_accuracy(log_data: dict[str, Any]) -> float:
 
 
 def print_results_summary(log_data: dict[str, Any]) -> None:
-    """Prints a summary of the results for each sample.
+    """Prints a summary of the evaluation results for each sample grouped by dataset.
 
     Args:
-        log_data: Parsed JSON data from inspect log dump.
+        log_data: Dictionary containing parsed evaluation log data.
     """
     samples = log_data.get("samples", [])
     print("\n=== Evaluation Results Summary ===")
-    durations = []
+
+    # Group by dataset
+    datasets: dict[str, list[dict[str, Any]]] = {}
     for sample in samples:
-        name = sample.get("metadata", {}).get("name") or f"Sample {sample.get('id')}"
-        scores = sample.get("scores", {})
+        d_name = sample.get("metadata", {}).get("dataset") or "default"
+        datasets.setdefault(d_name, []).append(sample)
 
-        # Algorithmic validity (a2ui_scorer)
-        a2ui_score = scores.get("a2ui_scorer", {})
-        a2ui_passed = a2ui_score.get("value") == 1.0
-        a2ui_str = "PASS" if a2ui_passed else "FAIL"
+    all_durations = []
+    dataset_stats: dict[str, dict[str, int]] = {}
 
-        # Judging results (measured_model_graded_qa)
-        qa_score = scores.get("measured_model_graded_qa", {})
-        qa_val = qa_score.get("value", "N/A")
-
-        inference_time = None
-        for event in sample["events"]:
-            if event["event"] == "model":
-                inference_time = event.get("working_time") or event.get("duration")
-                break
-        if inference_time is None:
-            inference_time = sample.get("metadata", {}).get(
-                "evaluation_duration_seconds"
+    for d_name, d_samples in datasets.items():
+        total = len(d_samples)
+        passed = 0
+        print(f"\n--- Dataset: {d_name} ---")
+        for sample in d_samples:
+            name = (
+                sample.get("metadata", {}).get("name") or f"Sample {sample.get('id')}"
             )
-        inference_time_str = (
-            f"{float(inference_time):.2f}s" if inference_time is not None else "N/A"
-        )
+            scores = sample.get("scores", {})
 
-        print(
-            f"{name:<25} | Algorithmic: {a2ui_str:<4} | Judging: {qa_val:<2} |"
-            f" Inference Time: {inference_time_str}"
-        )
+            # Algorithmic validity (a2ui_scorer)
+            a2ui_score = scores.get("a2ui_scorer", {})
+            a2ui_passed = a2ui_score.get("value") == 1.0
+            a2ui_str = "PASS" if a2ui_passed else "FAIL"
 
-        if not a2ui_passed or qa_val != "C":
-            if not a2ui_passed:
-                print(f"  [Algorithmic Failure Reason]:")
-                expl = a2ui_score.get("explanation") or "No explanation provided."
-                for line in expl.splitlines():
-                    print(f"    {line}")
-            if qa_val != "C":
-                print(f"  [Judging Failure Reason (Grade {qa_val})]:")
-                expl = qa_score.get("explanation") or "No explanation provided."
-                for line in expl.splitlines():
-                    print(f"    {line}")
+            # Judging results (measured_model_graded_qa)
+            qa_score = scores.get("measured_model_graded_qa", {})
+            qa_val = qa_score.get("value", "N/A")
 
-        if inference_time is not None:
-            durations.append(float(inference_time))
+            inference_time = None
+            for event in sample.get("events", []):
+                if event.get("event") == "model":
+                    inference_time = event.get("working_time") or event.get("duration")
+                    break
+            if inference_time is None:
+                inference_time = sample.get("metadata", {}).get(
+                    "evaluation_duration_seconds"
+                )
+            inference_time_str = (
+                f"{float(inference_time):.2f}s" if inference_time is not None else "N/A"
+            )
 
-    print("==================================")
-    if durations:
-        avg_duration = statistics.mean(durations)
-        med_duration = statistics.median(durations)
+            sample_passed = a2ui_passed and qa_val == "C"
+            if sample_passed:
+                passed += 1
+
+            print(
+                f"{name:<25} | Algorithmic: {a2ui_str:<4} | Judging: {qa_val:<2} |"
+                f" Inference Time: {inference_time_str}"
+            )
+
+            if not sample_passed:
+                if not a2ui_passed:
+                    print(f"  [Algorithmic Failure Reason]:")
+                    expl = a2ui_score.get("explanation") or "No explanation provided."
+                    for line in str(expl).splitlines():
+                        print(f"    {line}")
+                if qa_val != "C":
+                    print(f"  [Judging Failure Reason (Grade {qa_val})]:")
+                    expl = qa_score.get("explanation") or "No explanation provided."
+                    for line in str(expl).splitlines():
+                        print(f"    {line}")
+
+            if inference_time is not None:
+                all_durations.append(float(inference_time))
+
+        dataset_stats[d_name] = {"passed": passed, "total": total}
+
+    print("\n==================================")
+    print("Dataset Summary:")
+    for d_name, stats in dataset_stats.items():
+        pct = (stats["passed"] / stats["total"] * 100) if stats["total"] else 0.0
+        print(f"  {d_name:<16}: {stats['passed']}/{stats['total']} passed ({pct:.2f}%)")
+
+    if all_durations:
+        avg_duration = statistics.mean(all_durations)
+        med_duration = statistics.median(all_durations)
         print(
             f"Inference Time - Average: {avg_duration:.2f}s | Median:"
             f" {med_duration:.2f}s"
         )
-        print("==================================")
+    print("==================================")
 
 
 def generate_markdown_summary(
@@ -122,12 +148,12 @@ def generate_markdown_summary(
     """Generates a markdown summary of the evaluation results.
 
     Args:
-        log_data: Parsed JSON data from inspect log dump.
-        accuracy_percentage: The calculated accuracy percentage.
-        threshold: The threshold to compare against.
+        log_data: Dictionary containing parsed evaluation log data.
+        accuracy_percentage: Pass percentage achieved in the evaluation.
+        threshold: Minimum pass percentage required by CI.
 
     Returns:
-        A string containing the markdown summary.
+        A formatted markdown string summarizing evaluation performance.
     """
     eval_spec = log_data.get("eval", {}) or {}
     task_name = eval_spec.get("task", "Unknown Task")
@@ -144,23 +170,66 @@ def generate_markdown_summary(
         f" `{threshold:.2f}%`)"
     )
     lines.append("")
+
+    samples = log_data.get("samples", []) or []
+
+    # Dataset performance summary table
+    datasets: dict[str, list[dict[str, Any]]] = {}
+    for sample in samples:
+        d_name = sample.get("metadata", {}).get("dataset") or "default"
+        datasets.setdefault(d_name, []).append(sample)
+
+    if any(k != "default" for k in datasets.keys()):
+        lines.append("#### Dataset Performance Summary")
+        lines.append(
+            "| Dataset Name | Total Samples | Algorithmic Pass Rate | Judging Pass Rate"
+            " | Dataset Pass Rate |"
+        )
+        lines.append("| :--- | :---: | :---: | :---: | :---: |")
+
+        for d_name, d_samples in datasets.items():
+            total = len(d_samples)
+            a2ui_pass_cnt = sum(
+                1
+                for s in d_samples
+                if s.get("scores", {}).get("a2ui_scorer", {}).get("value") == 1.0
+            )
+            qa_pass_cnt = sum(
+                1
+                for s in d_samples
+                if s.get("scores", {}).get("measured_model_graded_qa", {}).get("value")
+                == "C"
+            )
+            both_pass_cnt = sum(
+                1
+                for s in d_samples
+                if s.get("scores", {}).get("a2ui_scorer", {}).get("value") == 1.0
+                and s.get("scores", {}).get("measured_model_graded_qa", {}).get("value")
+                == "C"
+            )
+            a2ui_pct = (a2ui_pass_cnt / total * 100) if total else 0.0
+            qa_pct = (qa_pass_cnt / total * 100) if total else 0.0
+            both_pct = (both_pass_cnt / total * 100) if total else 0.0
+            lines.append(
+                f"| `{d_name}` | {total} | {a2ui_pct:.1f}% | {qa_pct:.1f}% |"
+                f" {both_pct:.1f}% |"
+            )
+        lines.append("")
+
     lines.append("#### Sample Results")
     lines.append("| Sample / Task | Algorithmic | Judging | Inference Time | Status |")
     lines.append("| :--- | :---: | :---: | :---: | :---: |")
 
-    samples = log_data.get("samples", []) or []
     failures = []
 
     for sample in samples:
         name = sample.get("metadata", {}).get("name") or f"Sample {sample.get('id')}"
         scores = sample.get("scores", {}) or {}
 
-        # Algorithmic validity (a2ui_scorer)
         a2ui_score = scores.get("a2ui_scorer", {}) or {}
         a2ui_passed = a2ui_score.get("value") == 1.0
         a2ui_str = "PASS" if a2ui_passed else "FAIL"
 
-        # Judging results (measured_model_graded_qa)
         qa_score = scores.get("measured_model_graded_qa", {}) or {}
         qa_val = qa_score.get("value", "N/A")
 
@@ -169,7 +238,6 @@ def generate_markdown_summary(
             f"{float(inference_time):.2f}s" if inference_time is not None else "N/A"
         )
 
-        # Overall sample status
         sample_passed = a2ui_passed and qa_val == "C"
         sample_status_str = "PASS" if sample_passed else "FAIL"
 
@@ -213,13 +281,13 @@ def generate_markdown_summary(
 
 
 def load_log_data(log_path: str) -> dict[str, Any]:
-    """Runs inspect log dump to get JSON and parses it.
+    """Loads and parses Inspect AI evaluation log JSON data using inspect log dump.
 
     Args:
         log_path: Path to the .eval log file.
 
     Returns:
-        Parsed JSON data as a dictionary.
+        A dictionary containing parsed evaluation log data.
     """
     dump_cmd = ["uv", "run", "inspect", "log", "dump", log_path]
     dump_output = subprocess.check_output(dump_cmd, text=True)
@@ -228,6 +296,7 @@ def load_log_data(log_path: str) -> dict[str, Any]:
 
 
 def main() -> None:
+    """Main entrypoint for reporting evaluation results."""
     parser = argparse.ArgumentParser(
         description="Report results from an Inspect AI eval log file."
     )
@@ -235,31 +304,20 @@ def main() -> None:
     args = parser.parse_args()
 
     if not os.path.exists(args.log):
-        print(f"Error: Log file not found: {args.log}")
+        print(f"Error: Log file not found: {args.log}", file=sys.stderr)
         sys.exit(1)
 
     print(f"Processing log file: {args.log}")
 
     try:
         log_data = load_log_data(args.log)
-
-        # Print summary of results per sample
         print_results_summary(log_data)
-
-        try:
-            accuracy = extract_accuracy(log_data)
-            percentage = accuracy * 100
-            print(f"Pass percentage: {percentage:.2f}%")
-            sys.exit(0)
-        except ValueError as e:
-            print(f"Error: {e}")
-            sys.exit(1)
-
-    except subprocess.CalledProcessError as e:
-        print(f"Error running inspect log dump: {e}")
-        sys.exit(e.returncode)
-    except Exception as e:
-        print(f"Error processing log file: {e}")
+        accuracy = extract_accuracy(log_data)
+        percentage = accuracy * 100
+        print(f"Pass percentage: {percentage:.2f}%")
+        sys.exit(0)
+    except (subprocess.CalledProcessError, ValueError) as e:
+        print(f"Error processing log file: {e}", file=sys.stderr)
         sys.exit(1)
 
 

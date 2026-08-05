@@ -1,0 +1,15 @@
+{
+  "run_id": "run_007_5dcecfe7_relative_item_bindings_prompt_clarification",
+  "hypothesis": "Clarify relative template item field bindings ($/item_var/field) and harmonize :item variable declaration syntax in ATOM_RULES.",
+  "status": "REVERT",
+  "notes": "Reverted. Quality Score regressed from 83.3% to 66.7% (-16.7%) and Schema Acc regressed from 100.0% to 83.3% (-16.7%), with S_opt dropping from +0.550 to +0.393 vs baseline.",
+  "metrics": {
+    "schema_acc": 0.0,
+    "quality_acc": 0.0,
+    "code_tokens_median": 373.0,
+    "reasoning_tokens_median": 5470.0,
+    "input_tokens_median": 4465.5,
+    "latency_seconds_median": 0.0,
+    "total_samples": 0
+  }
+}
