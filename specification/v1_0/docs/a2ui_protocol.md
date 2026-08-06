@@ -1353,7 +1353,7 @@ In A2UI v1.0, strict schema validation (`additionalProperties: false`) protects 
 2. **Parser Conformance Rule**: Conformant renderers MUST NOT reject payloads containing extension keys within an `extensions` object. Renderers MAY inspect and process extension keys they recognize, and MUST ignore unrecognized extension keys without error.
 3. **Unicode Identifiers (UAX #31) and Prefix Reservation**: Extension names MUST be valid Unicode UAX #31 identifiers (`^[\p{XID_Start}_][\p{XID_Continue}]*$`). To prevent key collisions:
    - Official A2UI extensions are strictly reserved under the prefix `a2ui_`.
-   - Third-party vendor extensions MUST be prefixed with a distinct organization or product identifier separated by an underscore (e.g. extension from a company with the domain `company.com` might be named `com_company_extension`).
+   - Third-party vendor extensions MUST be prefixed with a distinct organization or product identifier separated by an underscore (e.g. an extension from a company with the domain `company.com` might be named `com_company_extension`).
      - Use of names derived from reversed domain names is encouraged for public facing extensions.
    - Extension namespace uniqueness is self-managed by extension authors; no central registry is maintained.
 
@@ -1363,8 +1363,8 @@ A2UI defines optional `metadata.extensions` containers across four scopes:
 
 - **Surface Scope** (`CreateSurfaceMessage.createSurface.metadata.extensions` in [`agent_to_renderer.json`]): Attach surface-level security metadata, access policies, or telemetry session identifiers.
 - **Component Scope** (`ComponentCommon.metadata.extensions` in [`common_types.json`]): Attach component-instance styling overrides, telemetry markers, or custom validation rules.
-- **Catalog Component Definition Scope** (`CatalogComponentDefinition.metadata.extensions` in `catalog_definition.json`): Attach static component metadata or default telemetry tagging directly to catalog component schemas.
-- **Action Egress Scope** (`UserActionMessage.action.metadata.extensions` in [`renderer_to_agent.json`]): Send client-side action attestations, audit signatures, or authorization tokens back to the agent when user actions trigger.
+- **Catalog Component Definition Scope** (`ComponentDefinition.metadata.extensions` in [`catalog_definition.json`]): Attach static component metadata or default telemetry tagging directly to catalog component schemas.
+- **Action Egress Scope** (`UserActionMessage.action.metadata.extensions` in [`renderer_to_agent.json`]): Send client-side action attestations, audit signatures, or authorization tokens back to the agent when user actions are triggered.
 
 #### SDK Accessor Pattern
 
