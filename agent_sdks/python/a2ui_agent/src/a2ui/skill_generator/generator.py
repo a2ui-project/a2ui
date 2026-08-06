@@ -37,7 +37,6 @@ from .templates import (
     BUILDER_LIB_TEMPLATE,
     EMITTER_LIB_JS_TEMPLATE,
     EMITTER_LIB_TEMPLATE,
-    META_SKILL_MD_TEMPLATE,
     RUNTIME_BRIDGE_JS_TEMPLATE,
     RUNTIME_BRIDGE_TEMPLATE,
     SKILL_MD_JS_TEMPLATE,
@@ -54,7 +53,7 @@ from .templates import (
 # Declaration-only keys. They describe how to BUILD the tree and must never reach the device
 # as component properties -- the renderer would pass them through to a component that has no
 # idea what they mean.
-_DECL_KEYS = ("when", "requires", "emptyMessage", "normalize", "resolve", "userText")
+_DECL_KEYS = ("when", "requires", "emptyMessage", "normalize", "resolve", "userText", "confirm")
 
 
 class _Raw(str):
@@ -162,9 +161,17 @@ class SkillGenerator:
         else:
             for item in self.catalogs_raw:
                 if isinstance(item, str):
-                    if os.path.exists(item):
-                        with open(item, "r", encoding="utf-8") as f:
-                            self.parsed_catalogs.append(json.load(f))
+                    # An explicitly-passed path that does not resolve is an ERROR, not a
+                    # reason to carry on. Skipping it silently produced a skill with an empty
+                    # component section and a pre-flight that allowed nothing -- generated,
+                    # reported as success, and unable to render anything at all.
+                    if not os.path.exists(item):
+                        raise FileNotFoundError(
+                            f"catalog not found: {item!r} (resolved against {os.getcwd()!r}). "
+                            "Pass a path that exists, or omit --catalog to use the basic catalog."
+                        )
+                    with open(item, "r", encoding="utf-8") as f:
+                        self.parsed_catalogs.append(json.load(f))
                 elif isinstance(item, dict):
                     self.parsed_catalogs.append(item)
                 elif hasattr(item, "provider"):
@@ -581,6 +588,24 @@ class SkillGenerator:
 
         collect_caps(payload)
 
+        # SKIP an emit when the tree is unchanged -- but only because the HOST repaints
+        # itself on a data write. That is load-bearing: some of what a component shows is
+        # derived at render time and exists nowhere in the tree (a DateField's min/max
+        # error, a `min` bound to a sibling field), so something must redraw. A first
+        # attempt at this dedupe alone, without the host-side repaint, silently broke
+        # validation display -- the emitted tree was identical, so nothing ever redrew.
+
+        # CONFIRM GATING is declared, not inferred. A frame shows a repeated array; it does
+        # not show whether that array is "groups that each need a pick" (one flight per leg)
+        # or "options to pick one of" (four restaurants). Guessing wrong disables the button
+        # forever with no explanation, which is the worst dead end a surface can have -- so
+        # the default is not to gate, and a surface that needs a gate says so.
+        #   all-groups: every index of every repetition needs a pick
+        #   any:        at least one pick anywhere on the surface
+        #   none:       never disabled (default)
+        root_decl = payload if isinstance(payload, dict) else {}
+        gate_mode = (root_decl.get("confirm") or {}).get("require", "none")
+
         # Set when any repetition had to be lowered to a code loop, or a computed value
         # appeared -- both need the data helpers in the prelude.
         state = {"lowered": False, "scopes": 0}
@@ -644,7 +669,8 @@ class SkillGenerator:
                 cap = act["capability"]
                 ev = (act.get("event") or {}).get("name") or cap.get("name", "invoke")
                 props["action"] = {"event": {"name": ev}}   # the renderer only knows events
-            gate = (comp_type == "Button" and groups
+            gate = (comp_type == "Button" and gate_mode in ("all-groups", "any")
+                    and (gate_mode != "all-groups" or groups)
                     and isinstance(props.get("action"), dict)
                     and (props["action"].get("event") or {}).get("name") == "confirm")
 
@@ -780,8 +806,8 @@ class SkillGenerator:
             data_js = (
                 "\n  // Repetition that varies per item is expanded HERE rather than handed to the\n"
                 "  // client as a List template: a template is ONE component repeated, so it cannot\n"
-                "  // render a leg the traveller drives differently from one they fly. Items carry\n"
-                "  // ABSOLUTE binding paths, which is also what makes a pick report where it landed.\n"
+                "  // render one item differently from another, and it cannot compute a value. Items\n"
+                "  // carry ABSOLUTE binding paths, which is what makes a pick report where it landed.\n"
                 "  const read = (p) => String(p == null ? '' : p).replace(/^\\//, '')\n"
                 "    .split('/').filter(Boolean).reduce((o, k) => (o == null ? o : o[k]), model);\n"
                 "  const at = (b, i) => b + '/' + i;\n"
@@ -801,6 +827,25 @@ class SkillGenerator:
                 "    return !!v;\n"
                 "  };\n"
             )
+
+        # A re-render whose tree is byte-identical costs a postMessage, a full rebuild of
+        # every component, and changes nothing: the host has already repainted from the data
+        # model. Emitting only on a real difference keeps the wire honest about what changed.
+        draw_js = ("  render(build());\n" if not events else (
+            "  // Emit only when the tree actually differs. Selection highlighting and field\n"
+            "  // validation are redrawn by the CLIENT from the data model, so an identical\n"
+            "  // tree carries no information. Every prop here is data by construction, so\n"
+            "  // comparing the serialized tree is a sound identity test.\n"
+            "  let __sent = '';\n"
+            "  const draw = () => {\n"
+            "    const t = build();\n"
+            "    const s = JSON.stringify(t);\n"
+            "    if (s === __sent) return false;   // nothing changed -- the client already has it\n"
+            "    __sent = s;\n"
+            "    render(t);\n"
+            "    return true;\n"
+            "  };\n\n"
+            "  draw();\n"))
 
         requires_js = ""
         if requires:
@@ -850,10 +895,10 @@ class SkillGenerator:
                 "  // selection. Returning an empty object instead leaves the agent with no picks.\n"
                 "  const picked = {};\n"
                 + (
-                    "  // GATE the button: every repeated group in this surface needs at least one\n"
-                    "  // pick before the user can confirm. The groups are the List templates in the\n"
-                    "  // tree, so this is derived, not assumed -- one flight per leg, one stay per\n"
-                    "  // city, and so on, whatever the data happens to contain.\n"
+                    "  // GATE the button, as the example declared. `all-groups` means every index\n"
+                    "  // of every repetition needs its own pick -- correct when the array is a list\n"
+                    "  // of groups, wrong when it is a list of options to choose one of, which is\n"
+                    "  // why it is declared rather than inferred from the shape of the data.\n"
                     f"  const GROUPS = {json.dumps(groups)};\n"
                     "  const groupItems = (g) => {\n"
                     "    const at = g.replace(/^\\//, '').split('/');\n"
@@ -870,7 +915,11 @@ class SkillGenerator:
                     "    }\n"
                     "    return true;\n"
                     "  });\n"
-                    if groups else ""
+                    if gate_mode == "all-groups" else
+                    "  // GATE the button: the example declared that SOMETHING must be picked before\n"
+                    "  // the user can continue, without saying how many or from where.\n"
+                    "  const ready = () => Object.values(picked).some((v) => v === true);\n"
+                    if gate_mode == "any" else ""
                 )
             )
             tail = (
@@ -878,10 +927,10 @@ class SkillGenerator:
                 "    if (value === null || value === undefined || value === false) delete picked[path];\n"
                 "    else picked[path] = value;\n"
                 + (
-                    "    // SINGLE-SELECT: picking one item clears its siblings -- one flight per leg,\n"
-                    "    // one stay per city. Siblings are the entries sharing this item's parent\n"
-                    "    // array, i.e. the path minus its trailing '<index>/<field>'. Groups declared\n"
-                    "    // selectionMode:'multi' in the example are left alone.\n"
+                    "    // SINGLE-SELECT: picking one item clears its siblings, which is the default\n"
+                    "    // because one-per-group is the common case. Siblings are the entries sharing\n"
+                    "    // this item's parent array, i.e. the path minus its trailing '<index>/<field>'.\n"
+                    "    // Groups declared selectionMode:'multi' in the example are left alone.\n"
                     f"    const MULTI = {json.dumps(multi)};\n"
                     "    if (value === true && !MULTI.some((m) => path.indexOf(m + '/') === 0)) {\n"
                     "      const parent = path.split('/').slice(0, -2).join('/');\n"
@@ -893,7 +942,7 @@ class SkillGenerator:
                     "      }\n"
                     "    }\n"
                 )
-                + "    render(build());\n"
+                + "    draw();\n"
                 "  });\n\n"
                 "  // RESOLVE on one of the buttons this surface actually renders.\n"
                 "  return await new Promise((resolve) => {\n"
@@ -928,9 +977,9 @@ class SkillGenerator:
                 "        return;\n"
                 "      }\n"
                 + (
-                    "      // Context the selection map cannot carry: a leg the traveller drives is\n"
-                    "      // part of the plan even though there was nothing to pick for it, and the\n"
-                    "      // agent plans the next step from this text.\n"
+                    "      // Context the selection map cannot carry: an item that is part of the\n"
+                    "      // outcome even though there was nothing to pick for it. The agent plans\n"
+                    "      // its next step from this text, so what is omitted here is invisible.\n"
                     f"      const PARTS = {json.dumps((user_text or {}).get('parts') or [])};\n"
                     "      const extra = [];\n"
                     "      for (const p of PARTS) {\n"
@@ -978,8 +1027,7 @@ async function {entry}(input) {{
 {tree}
   );
 
-  render(build());
-{tail}}}
+{draw_js}{tail}}}
 """
 
     def _convert_a2ui_message_to_python(self, msg_data: Dict[str, Any]) -> str:
@@ -1091,6 +1139,19 @@ async function {entry}(input) {{
                 with open(references_dir / sanitized_name, "w", encoding="utf-8") as f:
                     f.write(code_content)
                 created_files.append((sanitized_name, str(msg_name)))
+
+        # index.json -- the reference library, materialized.
+        #
+        # A browser cannot list a directory over plain HTTP, so a host that resolves
+        # references by name needs the listing as a file. It belongs HERE because this is
+        # what wrote the directory: owned by anything else, it goes missing the first time
+        # the skill is regenerated into a clean tree, and the host then fails to resolve a
+        # reference that exists on disk.
+        if created_files:
+            names = sorted(n for n, _ in created_files)
+            with open(references_dir / "index.json", "w", encoding="utf-8") as f:
+                json.dump(names, f, indent=2)
+                f.write("\n")
         else:
             # Fallback reference if no example messages provided
             sanitized_name = f"01_basic_reference.{ext}"
@@ -1268,11 +1329,9 @@ async function {entry}(input) {{
     def _generate_webview(
         self,
         target_dir: Path,
-        catalog_dir: Path,
         scripts_dir: Path,
         references_dir: Path,
         lib_dir: Path,
-        preserve: set,
     ) -> str:
         """Emits a skill for a classic-main / injected-emit host.
 
@@ -1298,7 +1357,7 @@ async function {entry}(input) {{
             entry=rt.entry or "main",
             tool_name=rt.tool_name or "the host's module tool",
             preflight_cmd=(rt.preflight_cmd or "").format(
-                skill_root=".agents/skills/" + self.config.skill_name,
+                skill_root=rt.mount_root.rstrip("/") + "/" + self.config.skill_name,
                 app="app.js",
                 components=",".join(components),
             ),
@@ -1337,10 +1396,7 @@ async function {entry}(input) {{
             f.write(validator)
         os.chmod(scripts_dir / validator_name, 0o755)
 
-        # References: skip entirely when the caller preserves hand-authored modules that
-        # carry interaction logic a scaffold cannot reproduce.
-        if "references" not in preserve:
-            self._generate_references(references_dir, is_js=True)
+        self._generate_references(references_dir, is_js=True)
 
         return str(target_dir)
 
@@ -1349,21 +1405,15 @@ async function {entry}(input) {{
         target_dir = Path(output_dir or self.config.output_dir).resolve()
         target_dir.mkdir(parents=True, exist_ok=True)
 
-        preserve = set(self.config.preserve or [])
         is_js = self.config.target_language.lower() in ["javascript", "js", "typescript", "ts"]
         webview = is_js and self.runtime.is_classic_main
 
         lib_dir = target_dir / "lib"
-        catalog_dir = target_dir / "catalog"
         runtime_dir = target_dir / "runtime"
         scripts_dir = target_dir / "scripts"
         references_dir = target_dir / "references"
 
         dirs = [scripts_dir, references_dir]
-        # The normalized component dump duplicates the client's own catalog, which is
-        # already mounted; emit it only when asked.
-        if self.config.include_catalog_dump:
-            dirs.append(catalog_dir)
         # A host that injects its own compiler needs neither a bundled builder nor a stdout
         # bridge; emitting them would put a second, unused runtime on the device.
         if self.runtime.bundle_builder:
@@ -1373,14 +1423,9 @@ async function {entry}(input) {{
         for d in dirs:
             d.mkdir(exist_ok=True)
 
-        # 1. Write catalog JSON files
-        if self.config.include_catalog_dump:
-            with open(catalog_dir / "components.json", "w", encoding="utf-8") as f:
-                json.dump({"components": self._extract_components()}, f, indent=2)
-
         if webview:
             return self._generate_webview(
-                target_dir, catalog_dir, scripts_dir, references_dir, lib_dir, preserve
+                target_dir, scripts_dir, references_dir, lib_dir
             )
 
         # 2. Write lib/ files

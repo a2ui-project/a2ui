@@ -84,12 +84,6 @@ def main(args: Optional[List[str]] = None) -> None:
         "--capabilities",
         help="Path to a capability catalog JSON (documents invoke()'s typed args/results)",
     )
-    parser.add_argument(
-        "--preserve",
-        action="append",
-        default=[],
-        help="Entry under --output to leave untouched when regenerating (e.g. 'references')",
-    )
 
     parsed_args = parser.parse_args(args)
 
@@ -106,13 +100,26 @@ def main(args: Optional[List[str]] = None) -> None:
         capabilities=parsed_args.capabilities,
         examples_path=parsed_args.examples,
         examples=examples_list,
-        preserve=parsed_args.preserve,
     )
 
     generator = SkillGenerator(config=config, runtime=RUNTIME_PROFILES[parsed_args.runtime]())
     created_path = generator.generate()
 
+    # Report what was actually READ, not just that something was written. A catalog path that
+    # does not resolve falls back to the built-in basic catalog and still succeeds, so
+    # "Success" alone cannot distinguish a generated travel skill from a generic one. The
+    # component names make that visible at a glance.
+    components = list(generator._extract_components().keys())
+    refs = sorted(
+        os.path.splitext(f)[0]
+        for f in os.listdir(os.path.join(created_path, "references"))
+        if not f.endswith(".md") and not f.endswith(".json")
+    ) if os.path.isdir(os.path.join(created_path, "references")) else []
+
     print(f"Success: Skill successfully created at {created_path}")
+    print(f"  runtime    : {parsed_args.runtime}")
+    print(f"  components : {len(components)} -- {', '.join(components) or '(none)'}")
+    print(f"  references : {len(refs)} -- {', '.join(refs) or '(none)'}")
 
 
 if __name__ == "__main__":
