@@ -1089,7 +1089,7 @@ The [`catalogs/basic/catalog.json`] provides the baseline set of components and 
 | **formatCurrency** | Formats a number as a currency string.                                   |
 | **formatDate**     | Formats a date/time using a pattern.                                     |
 | **pluralize**      | Selects a localized string based on a numeric count.                     |
-| **openUrl**        | Opens a URL in a browser.                                                |
+| **openUrl**        | Opens a URL in a browser (requires user activation).                     |
 | **and**            | Logical AND operation on a list of boolean values.                       |
 | **or**             | Logical OR operation on a list of boolean values.                        |
 | **not**            | Logical NOT operation on a boolean value.                                |
