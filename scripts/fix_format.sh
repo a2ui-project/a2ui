@@ -45,14 +45,14 @@ if [ -f ".yarn/install-state.gz" ]; then
   if [ "$CHECK_ONLY" = true ]; then
     "${YARN_CMD[@]}" format:check:all
   else
-    "${YARN_CMD[@]}" format:all
+    "${YARN_CMD[@]}" format:all | sed '/ (unchanged)$/d'
   fi
 else
   # Non-Node contributor or CI; run standalone Prettier via dlx without full monorepo install
   if [ "$CHECK_ONLY" = true ]; then
     "${YARN_CMD[@]}" dlx prettier@3.8.4 --config .prettierrc --check .
   else
-    "${YARN_CMD[@]}" dlx prettier@3.8.4 --config .prettierrc --write .
+    "${YARN_CMD[@]}" dlx prettier@3.8.4 --config .prettierrc --write . | sed '/ (unchanged)$/d'
   fi
 fi
 
