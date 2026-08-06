@@ -55,6 +55,19 @@ describe('Slider Component', () => {
               value: 50,
               max: 100,
             },
+            {
+              id: 'slider_a11y',
+              component: 'Slider',
+              label: 'Brightness',
+              value: 0,
+              max: 100,
+              isValid: false,
+              validationErrors: ['Brightness is required'],
+              accessibility: {
+                label: 'A11y Brightness',
+                description: 'Set screen brightness',
+              },
+            },
           ],
         },
       },
@@ -80,6 +93,35 @@ describe('Slider Component', () => {
     assert.ok(input);
     assert.strictEqual(input.getAttribute('id'), 'slider_test');
     assert.strictEqual(input.value, '50');
+
+    document.body.removeChild(el);
+  });
+
+  it('should bind accessibility label, invalid state, description, and error to aria attributes', async () => {
+    const el = document.createElement('a2ui-slider') as any;
+    document.body.appendChild(el);
+
+    const context = new ComponentContext(surface, 'slider_a11y');
+    await asyncUpdate(el, e => {
+      e.context = context;
+    });
+
+    const input = el.shadowRoot.querySelector('input');
+    assert.ok(input);
+    assert.strictEqual(input.getAttribute('aria-label'), 'A11y Brightness');
+    assert.strictEqual(input.getAttribute('aria-invalid'), 'true');
+
+    const describedBy = input.getAttribute('aria-describedby');
+    assert.ok(describedBy);
+    assert.strictEqual(describedBy, 'slider_a11y-description slider_a11y-error');
+
+    const desc = el.shadowRoot.querySelector('#slider_a11y-description');
+    assert.ok(desc);
+    assert.strictEqual(desc.textContent.trim(), 'Set screen brightness');
+
+    const error = el.shadowRoot.querySelector('#slider_a11y-error');
+    assert.ok(error);
+    assert.strictEqual(error.textContent.trim(), 'Brightness is required');
 
     document.body.removeChild(el);
   });

@@ -78,6 +78,15 @@ describe('Button Component', () => {
               action: {event: {name: 'ignored'}},
             },
             {
+              id: 'btn_a11y',
+              component: 'Button',
+              child: 'txt1',
+              accessibility: {
+                label: 'A11y Label',
+                description: 'A11y Description',
+              },
+            },
+            {
               id: 'txt1',
               component: 'Text',
               text: 'Click Me',
@@ -144,5 +153,25 @@ describe('Button Component', () => {
 
     button.click();
     assert.strictEqual(dispatchedAction, false);
+  });
+
+  it('should bind accessibility label and description to aria attributes', async () => {
+    const el = document.createElement('a2ui-basic-button') as A2uiBasicButtonElement;
+    element = el;
+    document.body.appendChild(el);
+
+    const context = new ComponentContext(surface, 'btn_a11y');
+    await asyncUpdate(el, e => {
+      e.context = context;
+    });
+
+    const button = el.shadowRoot?.querySelector('button');
+    assert.ok(button);
+    assert.strictEqual(button.getAttribute('aria-label'), 'A11y Label');
+    assert.strictEqual(button.getAttribute('aria-describedby'), 'btn_a11y-description');
+
+    const descElement = el.shadowRoot?.querySelector('#btn_a11y-description');
+    assert.ok(descElement);
+    assert.strictEqual(descElement.textContent?.trim(), 'A11y Description');
   });
 });

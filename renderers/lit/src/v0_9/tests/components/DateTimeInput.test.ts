@@ -56,6 +56,19 @@ describe('DateTimeInput Component', () => {
               enableTime: true,
               value: '2026-08-05T12:00:00Z',
             },
+            {
+              id: 'datetime_a11y',
+              component: 'DateTimeInput',
+              label: 'Event Date',
+              enableDate: true,
+              value: '',
+              isValid: false,
+              validationErrors: ['Date is required'],
+              accessibility: {
+                label: 'A11y Date',
+                description: 'Enter event date',
+              },
+            },
           ],
         },
       },
@@ -81,6 +94,35 @@ describe('DateTimeInput Component', () => {
     assert.ok(input);
     assert.strictEqual(input.getAttribute('id'), 'datetime_test');
     assert.strictEqual(input.value, '2026-08-05T12:00');
+
+    document.body.removeChild(el);
+  });
+
+  it('should bind accessibility label, invalid state, description, and error to aria attributes', async () => {
+    const el = document.createElement('a2ui-datetimeinput') as any;
+    document.body.appendChild(el);
+
+    const context = new ComponentContext(surface, 'datetime_a11y');
+    await asyncUpdate(el, e => {
+      e.context = context;
+    });
+
+    const input = el.shadowRoot.querySelector('input');
+    assert.ok(input);
+    assert.strictEqual(input.getAttribute('aria-label'), 'A11y Date');
+    assert.strictEqual(input.getAttribute('aria-invalid'), 'true');
+
+    const describedBy = input.getAttribute('aria-describedby');
+    assert.ok(describedBy);
+    assert.strictEqual(describedBy, 'datetime_a11y-description datetime_a11y-error');
+
+    const desc = el.shadowRoot.querySelector('#datetime_a11y-description');
+    assert.ok(desc);
+    assert.strictEqual(desc.textContent.trim(), 'Enter event date');
+
+    const error = el.shadowRoot.querySelector('#datetime_a11y-error');
+    assert.ok(error);
+    assert.strictEqual(error.textContent.trim(), 'Date is required');
 
     document.body.removeChild(el);
   });

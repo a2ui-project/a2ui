@@ -80,6 +80,19 @@ describe('TextField Component', () => {
               isValid: false,
               validationErrors: ['Email is invalid'],
             },
+            {
+              id: 'field_a11y',
+              component: 'TextField',
+              label: 'Password',
+              value: '',
+              variant: 'obscured',
+              isValid: false,
+              validationErrors: ['Password is required'],
+              accessibility: {
+                label: 'A11y Password',
+                description: 'Enter your account password',
+              },
+            },
           ],
         },
       },
@@ -177,5 +190,34 @@ describe('TextField Component', () => {
     const input = el.shadowRoot?.querySelector('input');
     assert.ok(input);
     assert.ok(input.classList.contains('invalid'));
+  });
+
+  it('should bind accessibility label, invalid state, description, and error to aria attributes', async () => {
+    const el = document.createElement('a2ui-basic-textfield') as A2uiBasicTextFieldElement;
+    element = el;
+    document.body.appendChild(el);
+
+    const context = new ComponentContext(surface, 'field_a11y');
+    await asyncUpdate(el, e => {
+      e.context = context;
+    });
+
+    const input = el.shadowRoot?.querySelector('input');
+    assert.ok(input);
+    assert.strictEqual(input.getAttribute('type'), 'password');
+    assert.strictEqual(input.getAttribute('aria-label'), 'A11y Password');
+    assert.strictEqual(input.getAttribute('aria-invalid'), 'true');
+
+    const describedBy = input.getAttribute('aria-describedby');
+    assert.ok(describedBy);
+    assert.strictEqual(describedBy, 'field_a11y-description field_a11y-error');
+
+    const desc = el.shadowRoot?.querySelector('#field_a11y-description');
+    assert.ok(desc);
+    assert.strictEqual(desc.textContent?.trim(), 'Enter your account password');
+
+    const error = el.shadowRoot?.querySelector('#field_a11y-error');
+    assert.ok(error);
+    assert.strictEqual(error.textContent?.trim(), 'Password is required');
   });
 });

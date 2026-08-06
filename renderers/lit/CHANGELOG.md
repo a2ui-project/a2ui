@@ -1,5 +1,7 @@
 ## Unreleased
 
+- (v0_9) Use `radiogroup` role instead of `group` for single selection in Lit ChoicePicker.
+
 ## 0.10.3
 
 - Enable `inlineSources` in `tsconfig.json` to populate `sourcesContent` in sourcemaps.

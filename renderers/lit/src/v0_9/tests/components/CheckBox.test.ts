@@ -57,6 +57,18 @@ describe('CheckBox Component', () => {
               isValid: false,
               validationErrors: ['This is required'],
             },
+            {
+              id: 'checkbox_a11y',
+              component: 'CheckBox',
+              label: 'Subscribe',
+              value: false,
+              isValid: false,
+              validationErrors: ['Subscription is required'],
+              accessibility: {
+                label: 'A11y Subscribe',
+                description: 'Subscribe to newsletter',
+              },
+            },
           ],
         },
       },
@@ -96,6 +108,35 @@ describe('CheckBox Component', () => {
     const input = el.shadowRoot.querySelector('input');
     assert.ok(input);
     assert.strictEqual(input.getAttribute('id'), 'checkbox_invalid');
+
+    document.body.removeChild(el);
+  });
+
+  it('should bind accessibility label, invalid state, description, and error to aria attributes', async () => {
+    const el = document.createElement('a2ui-checkbox') as any;
+    document.body.appendChild(el);
+
+    const context = new ComponentContext(surface, 'checkbox_a11y');
+    await asyncUpdate(el, e => {
+      e.context = context;
+    });
+
+    const input = el.shadowRoot.querySelector('input');
+    assert.ok(input);
+    assert.strictEqual(input.getAttribute('aria-label'), 'A11y Subscribe');
+    assert.strictEqual(input.getAttribute('aria-invalid'), 'true');
+
+    const describedBy = input.getAttribute('aria-describedby');
+    assert.ok(describedBy);
+    assert.strictEqual(describedBy, 'checkbox_a11y-description checkbox_a11y-error');
+
+    const desc = el.shadowRoot.querySelector('#checkbox_a11y-description');
+    assert.ok(desc);
+    assert.strictEqual(desc.textContent.trim(), 'Subscribe to newsletter');
+
+    const error = el.shadowRoot.querySelector('#checkbox_a11y-error');
+    assert.ok(error);
+    assert.strictEqual(error.textContent.trim(), 'Subscription is required');
 
     document.body.removeChild(el);
   });
