@@ -48,12 +48,12 @@ The A2UI protocol uses a unidirectional stream of JSON messages from the agent t
 
 Here is an example sequence of events (which don't have to be in exactly this order):
 
-1.  **Create Surface:** The agent sends a `createSurface` message to initialize the surface.
-2.  **Update Surface:** Once a surface has been created, the agent sends one or more `updateComponents` messages containing the definitions for all the components that will be part of the surface.
-3.  **Update Data Model:** Once a surface has been created, the agent can send `updateDataModel` messages at any time to populate or change the data that the UI components will display.
-4.  **Render:** The renderer renders the UI for the surface, using the component definitions to build the structure and the data model to populate the content.
-5.  **Dynamic updates:** As the user interacts with the application or as new information becomes available, the agent can send additional `updateComponents` and `updateDataModel` messages to dynamically change the UI.
-6.  **Delete Surface:** When a UI region is no longer needed, the agent sends a `deleteSurface` message to remove it.
+1. **Create Surface:** The agent sends a `createSurface` message to initialize the surface.
+2. **Update Surface:** Once a surface has been created, the agent sends one or more `updateComponents` messages containing the definitions for all the components that will be part of the surface.
+3. **Update Data Model:** Once a surface has been created, the agent can send `updateDataModel` messages at any time to populate or change the data that the UI components will display.
+4. **Render:** The renderer renders the UI for the surface, using the component definitions to build the structure and the data model to populate the content.
+5. **Dynamic updates:** As the user interacts with the application or as new information becomes available, the agent can send additional `updateComponents` and `updateDataModel` messages to dynamically change the UI.
+6. **Delete Surface:** When a UI region is no longer needed, the agent sends a `deleteSurface` message to remove it.
 
 ```mermaid
 sequenceDiagram
@@ -86,12 +86,12 @@ The A2UI protocol is designed to be transport-agnostic. It defines the JSON mess
 
 To support A2UI, a transport layer must fulfill the following contract:
 
-1.  **Reliable delivery**: Messages must be delivered in the order they were generated. A2UI relies on stateful updates (e.g., creating a surface before updating it), so out-of-order delivery can corrupt the UI state.
-2.  **Message framing**: The transport must clearly delimit individual JSON envelope messages (e.g., using newlines in JSONL, WebSocket frames, or SSE events).
-3.  **Metadata support**: The transport must provide a mechanism to associate metadata with messages. This is critical for:
-    - **Data model synchronization**: The `sendDataModel` feature requires the renderer to send the current data model state as metadata alongside user actions.
-    - **Capabilities exchange**: Renderer capabilities (supported catalogs, custom components) and Agent capabilities are exchanged via metadata or transport-specific handshakes (like Agent Cards in A2A or initialization in MCP).
-4.  **Bidirectional capability (optional)**: While the rendering stream is unidirectional (Agent -> Renderer), interactive applications require a return channel for `action` messages (Renderer -> Agent).
+1. **Reliable delivery**: Messages must be delivered in the order they were generated. A2UI relies on stateful updates (e.g., creating a surface before updating it), so out-of-order delivery can corrupt the UI state.
+2. **Message framing**: The transport must clearly delimit individual JSON envelope messages (e.g., using newlines in JSONL, WebSocket frames, or SSE events).
+3. **Metadata support**: The transport must provide a mechanism to associate metadata with messages. This is critical for:
+   - **Data model synchronization**: The `sendDataModel` feature requires the renderer to send the current data model state as metadata alongside user actions.
+   - **Capabilities exchange**: Renderer capabilities (supported catalogs, custom components) and Agent capabilities are exchanged via metadata or transport-specific handshakes (like Agent Cards in A2A or initialization in MCP).
+4. **Bidirectional capability (optional)**: While the rendering stream is unidirectional (Agent -> Renderer), interactive applications require a return channel for `action` messages (Renderer -> Agent).
 
 ### Transport bindings
 
@@ -126,7 +126,9 @@ A2UI v1.0 is defined by three interacting JSON schemas.
 The [`common_types.json`] schema defines reusable primitives used throughout the protocol.
 
 - **`DynamicString` / `DynamicNumber` / `DynamicBoolean` / `DynamicStringList`**: The core of the data binding system. Any property that can be bound to data is defined as a `Dynamic*` type. It accepts either a literal value, a `path` string ([JSON Pointer]), or a `FunctionCall` (function call).
+
 - **`ChildList`**: Defines how containers hold children. It supports:
+
   - `array`: A static array of `ComponentId` component references.
   - `object`: A template for generating children from a data binding list (requires a template `componentId` and a data binding `path`).
 
@@ -146,8 +148,8 @@ The [`agent_to_renderer.json`] envelope schema is designed to be catalog-agnosti
 
 To validate A2UI messages:
 
-1.  **Basic Catalog**: Map `catalog.json` to `catalogs/basic/catalog.json`.
-2.  **Renderer Catalog**: Map `catalog.json` to your own catalog file (e.g., `my_company_catalog.json`).
+1. **Basic Catalog**: Map `catalog.json` to `catalogs/basic/catalog.json`.
+2. **Renderer Catalog**: Map `catalog.json` to your own catalog file (e.g., `my_company_catalog.json`).
 
 This indirection allows the same core envelope schema to be used with any compliant component catalog without modification.
 
@@ -157,12 +159,14 @@ Defining your own catalog allows you to restrict the agent to using exactly the 
 
 To ensure that automated validators can verify the integrity of your UI tree (checking that parents reference existing children), any catalog you define MUST adhere to the following strict typing rules:
 
-1.  **Single child references:** Any property that holds the ID of another component MUST use the `ComponentId` type defined in `common_types.json`.
-    - Use: `"$ref": "common_types.json#/$defs/ComponentId"`
-    - Do NOT use: `"type": "string"`
+1. **Single child references:** Any property that holds the ID of another component MUST use the `ComponentId` type defined in `common_types.json`.
 
-2.  **List references:** Any property that holds a list of children or a template MUST use the `ChildList` type.
-    - Use: `"$ref": "common_types.json#/$defs/ChildList"`
+   - Use: `"$ref": "common_types.json#/$defs/ComponentId"`
+   - Do NOT use: `"type": "string"`
+
+2. **List references:** Any property that holds a list of children or a template MUST use the `ChildList` type.
+
+   - Use: `"$ref": "common_types.json#/$defs/ChildList"`
 
 Validators determine which fields represent structural links by looking for these specific schema references. If you use a raw string type for an ID, the validator will treat it as static text (like a URL or label) and will not check if the target component exists.
 
@@ -793,8 +797,11 @@ By default, all components operate in the **Root Scope**.
 When a container component (such as `Column`, `Row`, or `List`) utilizes the **Template** feature of `ChildList`, it creates a new **Child Scope** for each item in the bound array.
 
 - **Template definition:** When a container binds its children to a path (e.g., `path: "/users"`), the renderer iterates over the array found at that location.
+
 - **Scope instantiation:** For every item in the array, the renderer instantiates the template component.
+
 - **Relative resolution:** Inside these instantiated components, any path that **does not** start with a forward slash `/` is treated as a **Relative Path**.
+
   - A relative path `firstName` inside a template iterating over `/users` resolves to `/users/0/firstName` for the first item, `/users/1/firstName` for the second, etc.
 
 - **Mixing scopes:** Components inside a Child Scope can still access the Root Scope by using an Absolute Path.
@@ -859,8 +866,8 @@ Interactive components that accept user input (`TextField`, `CheckBox`, `Slider`
 
 Unlike static display components (like `Text`), input components modify the renderer-side data model immediately upon user interaction.
 
-1.  **Read (Model -> View):** When the component renders, it reads its value from the bound `path`. If the Data Model is updated via `updateDataModel`, the component re-renders to reflect the new value.
-2.  **Write (View -> Model):** When the user interacts with the component (e.g., types a character, toggles a box), the renderer **immediately** updates the value at the bound `path` in the local Data Model.
+1. **Read (Model -> View):** When the component renders, it reads its value from the bound `path`. If the Data Model is updated via `updateDataModel`, the component re-renders to reflect the new value.
+2. **Write (View -> Model):** When the user interacts with the component (e.g., types a character, toggles a box), the renderer **immediately** updates the value at the bound `path` in the local Data Model.
 
 #### Reactivity
 
@@ -878,22 +885,24 @@ It is critical to note that Two-Way Binding is **local to the renderer**.
 
 #### Example: form submission pattern
 
-1.  **Bind:** `TextField` is bound to `/formData/email`.
-2.  **Interact:** User types "jane@example.com". The local model at `/formData/email` is updated.
-3.  **Action:** A "Submit" button has the following action definition:
+1. **Bind:** `TextField` is bound to `/formData/email`.
 
-    ```json
-    "action": {
-      "event": {
-        "name": "submit_form",
-        "context": {
-          "email": { "path": "/formData/email" }
-        }
-      }
-    }
-    ```
+2. **Interact:** User types "jane@example.com". The local model at `/formData/email` is updated.
 
-4.  **Send:** When clicked, the renderer resolves `/formData/email` (getting "jane@example.com") and sends it in the `action` payload.
+3. **Action:** A "Submit" button has the following action definition:
+
+   ```json
+   "action": {
+     "event": {
+       "name": "submit_form",
+       "context": {
+         "email": { "path": "/formData/email" }
+       }
+     }
+   }
+   ```
+
+4. **Send:** When clicked, the renderer resolves `/formData/email` (getting "jane@example.com") and sends it in the `action` payload.
 
 ## Data model updates: synchronization and convergence
 
@@ -1181,14 +1190,15 @@ Displaying item positions inside a list row template:
 
 The A2UI protocol is designed to be used in a three-step loop with a Large Language Model:
 
-1.  **Prompt**: Construct a prompt for the LLM that includes:
-    - The desired UI to be generated.
-    - The A2UI JSON schema, including the component catalog.
-    - Examples of valid A2UI JSON.
+1. **Prompt**: Construct a prompt for the LLM that includes:
 
-2.  **Generate**: Send the prompt to the LLM and receive the generated JSON output.
+   - The desired UI to be generated.
+   - The A2UI JSON schema, including the component catalog.
+   - Examples of valid A2UI JSON.
 
-3.  **Validate**: Validate the generated JSON against the A2UI schema. If the JSON is valid, it can be sent to the renderer for rendering. If it is invalid, the errors can be reported back to the LLM in a subsequent prompt, allowing it to self-correct.
+2. **Generate**: Send the prompt to the LLM and receive the generated JSON output.
+
+3. **Validate**: Validate the generated JSON against the A2UI schema. If the JSON is valid, it can be sent to the renderer for rendering. If it is invalid, the errors can be reported back to the LLM in a subsequent prompt, allowing it to self-correct.
 
 This loop allows for a high degree of flexibility and robustness, as the system can leverage the generative capabilities of the LLM while still enforcing the structural integrity of the UI protocol.
 
@@ -1333,12 +1343,43 @@ When `sendDataModel` is enabled for a surface, the renderer includes the `a2uiRe
 - `version` (string, required): Must be the constant `"v1.0"`.
 - `surfaces` (object, required): A map of surface IDs to their current local data models.
 
+### Vendor Extension Seam
+
+In A2UI v1.0, strict schema validation (`additionalProperties: false`) protects components and wire messages from unrecognized fields. To enable non-visual enterprise metadata (such as access constraints, audit tags, and telemetry identifiers) without allowing arbitrary properties that would weaken schema validation, A2UI defines a centralized `Extensions` type in `common_types.json#/$defs/Extensions`.
+
+#### Architectural Principles
+
+1. **Optional Schema Fields**: All `metadata.extensions` fields are strictly optional on the wire. When omitted, they incur zero token overhead.
+2. **Parser Conformance Rule**: Conformant renderers MUST NOT reject payloads containing extension keys within an `extensions` object. Renderers MAY inspect and process extension keys they recognize, and MUST ignore unrecognized extension keys without error.
+3. **Unicode Identifiers (UAX #31) and Prefix Reservation**: Extension names MUST be valid Unicode UAX #31 identifiers (`^[\p{XID_Start}_][\p{XID_Continue}]*$`). To prevent key collisions:
+   - Official A2UI extensions are strictly reserved under the prefix `a2ui_`.
+   - Third-party vendor extensions MUST be prefixed with a distinct organization or product identifier separated by an underscore (e.g. extension from a company with the domain `company.com` might be named `com_company_extension`).
+     - Use of names derived from reversed domain names is encouraged for public facing extensions.
+   - Extension namespace uniqueness is self-managed by extension authors; no central registry is maintained.
+
+#### Wire Containers
+
+A2UI defines optional `metadata.extensions` containers across four scopes:
+
+- **Surface Scope** (`CreateSurfaceMessage.createSurface.metadata.extensions` in [`agent_to_renderer.json`]): Attach surface-level security metadata, access policies, or telemetry session identifiers.
+- **Component Scope** (`ComponentCommon.metadata.extensions` in [`common_types.json`]): Attach component-instance styling overrides, telemetry markers, or custom validation rules.
+- **Catalog Component Definition Scope** (`CatalogComponentDefinition.metadata.extensions` in `catalog_definition.json`): Attach static component metadata or default telemetry tagging directly to catalog component schemas.
+- **Action Egress Scope** (`UserActionMessage.action.metadata.extensions` in [`renderer_to_agent.json`]): Send client-side action attestations, audit signatures, or authorization tokens back to the agent when user actions trigger.
+
+#### SDK Accessor Pattern
+
+Renderers and client SDKs expose surface and component metadata using uniform accessors and change notification callbacks:
+
+- `getMetadata()`: Retrieves the metadata object containing vendor extensions.
+- `setMetadata(metadata)`: Updates the metadata object and notifies listeners.
+- `onMetadataChanged(callback)`: Registers a callback that fires whenever metadata updates.
+
+[json pointer]: https://datatracker.ietf.org/doc/html/rfc6901
+[rfc 6901]: https://datatracker.ietf.org/doc/html/rfc6901
+[`agent_capabilities.json`]: ../json/agent_capabilities.json
+[`agent_to_renderer.json`]: ../json/agent_to_renderer.json
 [`catalogs/basic/catalog.json`]: ../catalogs/basic/catalog.json
 [`common_types.json`]: ../json/common_types.json
-[`agent_to_renderer.json`]: ../json/agent_to_renderer.json
-[`renderer_to_agent.json`]: ../json/renderer_to_agent.json
-[`agent_capabilities.json`]: ../json/agent_capabilities.json
 [`renderer_capabilities.json`]: ../json/renderer_capabilities.json
 [`renderer_data_model.json`]: ../json/renderer_data_model.json
-[JSON Pointer]: https://datatracker.ietf.org/doc/html/rfc6901
-[RFC 6901]: https://datatracker.ietf.org/doc/html/rfc6901
+[`renderer_to_agent.json`]: ../json/renderer_to_agent.json

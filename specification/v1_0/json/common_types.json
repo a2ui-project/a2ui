@@ -26,6 +26,14 @@
         }
       }
     },
+    "Extensions": {
+      "type": "object",
+      "description": "Optional vendor extension metadata. Keys MUST be Unicode identifiers (UAX #31). Keys starting with 'a2ui_' are reserved for official extensions, and third-party extensions MUST start with a distinct organization or product prefix followed by an underscore (e.g., 'company_extension' or 'com_company_extension').",
+      "patternProperties": {
+        "^[\\p{XID_Start}_][\\p{XID_Continue}]*$": {}
+      },
+      "additionalProperties": false
+    },
     "ComponentCommon": {
       "type": "object",
       "properties": {
@@ -38,6 +46,16 @@
         },
         "accessibility": {
           "$ref": "#/$defs/AccessibilityAttributes"
+        },
+        "metadata": {
+          "type": "object",
+          "description": "Optional component-level metadata for vendor extensions.",
+          "properties": {
+            "extensions": {
+              "$ref": "#/$defs/Extensions"
+            }
+          },
+          "additionalProperties": false
         }
       },
       "required": ["id"]
