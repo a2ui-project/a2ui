@@ -56,7 +56,7 @@ class TestSuggestTriage(unittest.TestCase):
         res = suggest_triage.guess_triage_heuristics(
             "Feature request", "Can you add a new button?"
         )
-        self.assertEqual(res["action"], "investigate")
+        self.assertEqual(res["action"], "backlog")
         self.assertIn("type: feature/enhancement", res["labels"])
 
     def test_guess_triage_heuristics_all_components(self):
@@ -237,9 +237,11 @@ class TestSuggestTriage(unittest.TestCase):
         written_data = "".join([call[0][0] for call in handle.write.call_args_list])
         parsed_output = json.loads(written_data)
 
-        # Verify that existing assignee is preserved
+        # Verify that existing assignee is preserved and P2 / assign_and_fix is set
         suggestions = parsed_output["issues"][0]["suggestions"]
         self.assertEqual(suggestions["assignee"], "Varun-S10")
+        self.assertEqual(suggestions["priority"], "P2")
+        self.assertEqual(suggestions["action"], "assign_and_fix")
         self.assertEqual(
             suggestions["assignee_reason"], "Preserving existing assignee: Varun-S10."
         )

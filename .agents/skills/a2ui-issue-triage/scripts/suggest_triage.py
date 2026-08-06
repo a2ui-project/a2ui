@@ -197,7 +197,7 @@ def guess_triage_heuristics(title, body):
             )
         else:
             priority = "P3"
-            action = "investigate"
+            action = "backlog"
             reply = (
                 "Thanks for the suggestion. We will evaluate this against our"
                 " roadmap."
@@ -292,21 +292,20 @@ def main():
         suggestions["suggested_assignees"] = suggested
 
         # If the issue already has an assignee, preserve it!
+        # Rule from triage-templates.md: Assigned issue without a priority gets P2 and assign_and_fix
         existing_assignees = issue.get("assignees", [])
         if existing_assignees:
             suggestions["assignee"] = existing_assignees[0]
             suggestions["assignee_reason"] = (
                 f"Preserving existing assignee: {existing_assignees[0]}."
             )
-            # Rule from triage-templates.md: Assigned issue without a priority gets P2 and assign_and_fix
-            if suggestions["priority"] == "None":
-                suggestions["priority"] = "P2"
-                suggestions["action"] = "assign_and_fix"
-                suggestions["reply"] = (
-                    "I assigned a P2 priority to move this out of the triage"
-                    " queue. Please adjust the priority if needed to better"
-                    " reflect the issue's status."
-                )
+            suggestions["priority"] = "P2"
+            suggestions["action"] = "assign_and_fix"
+            suggestions["reply"] = (
+                "I assigned a P2 priority to move this out of the triage"
+                " queue. Please adjust the priority if needed to better"
+                " reflect the issue's status."
+            )
         else:
             # 3. Add assignee reason
             if suggested:
