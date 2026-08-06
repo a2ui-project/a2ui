@@ -80,6 +80,7 @@ def main() -> None:
     # Poll for completion with a 30-second interval (max 60 minutes)
     max_attempts = 120
     attempts = 0
+    consecutive_failures = 0
     while interaction.status in ["in_progress", "queued"]:
         if attempts >= max_attempts:
             raise TimeoutError("Remediation interaction timed out after 60 minutes.")
@@ -87,9 +88,17 @@ def main() -> None:
         attempts += 1
         try:
             interaction = client.interactions.get(id=interaction.id)
+            consecutive_failures = 0
             print(f"Current status: {interaction.status}...")
         except Exception as err:
-            print(f"Transient error fetching interaction status: {err}")
+            consecutive_failures += 1
+            print(
+                f"Transient error fetching interaction status ({consecutive_failures}/5): {err}"
+            )
+            if consecutive_failures >= 5:
+                raise RuntimeError(
+                    f"Failed to fetch interaction status 5 consecutive times: {err}"
+                ) from err
 
     print("--- Remediation Completed ---")
     print(interaction.output_text)

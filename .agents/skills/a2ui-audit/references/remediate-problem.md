@@ -47,7 +47,7 @@ The agent execution environment must provide the following environment variables
    ```bash
    git config user.name "github-actions[bot]"
    git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-   git config extraheader "AUTHORIZATION: bearer ${GITHUB_TOKEN}"
+   git config http.extraheader "AUTHORIZATION: bearer ${GITHUB_TOKEN}"
    ```
 2. Fetch `main` and create a clean branch named `remediation/issue-${ISSUE_NUMBER}-${RECOMMENDATION_INDEX}` based on `origin/main`:
    ```bash

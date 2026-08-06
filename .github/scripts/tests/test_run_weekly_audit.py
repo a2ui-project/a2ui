@@ -144,6 +144,33 @@ class TestRunWeeklyAudit(unittest.TestCase):
     @patch("time.sleep", return_value=None)
     @patch.dict(
         os.environ,
+        {"GEMINI_API_KEY": "fake-key", "GITHUB_TOKEN": "fake-token"},
+        clear=True,
+    )
+    def test_persistent_polling_failure_fails_fast(self, mock_sleep: MagicMock) -> None:
+        """Verifies that 5 consecutive status polling failures cause script to fail fast."""
+        mock_genai = MagicMock()
+        mock_client = MagicMock()
+        mock_genai.Client.return_value = mock_client
+
+        mock_interaction_queued = MagicMock(id="test-id-123", status="queued")
+        mock_client.interactions.create.return_value = mock_interaction_queued
+        mock_client.interactions.get.side_effect = Exception("500 Internal Server Error")
+
+        mock_google = MagicMock()
+        mock_google.genai = mock_genai
+
+        with patch.dict(
+            sys.modules, {"google": mock_google, "google.genai": mock_genai}
+        ):
+            with self.assertRaisesRegex(RuntimeError, "5 consecutive times"):
+                main()
+
+        self.assertEqual(mock_client.interactions.get.call_count, 5)
+
+    @patch("time.sleep", return_value=None)
+    @patch.dict(
+        os.environ,
         {
             "GEMINI_API_KEY": "fake-key",
             "GITHUB_TOKEN": "fake-token",
