@@ -246,6 +246,50 @@ class TestSuggestTriage(unittest.TestCase):
             suggestions["assignee_reason"], "Preserving existing assignee: Varun-S10."
         )
 
+    @patch("os.makedirs")
+    @patch("argparse.ArgumentParser.parse_args")
+    @patch("suggest_triage.subprocess.run")
+    @patch("os.path.exists")
+    def test_main_flow_existing_assignee_compliance_report(
+        self, mock_exists, mock_run, mock_parse_args, mock_makedirs
+    ):
+        mock_args = MagicMock()
+        mock_args.repo_dir = "/mock/repo"
+        mock_args.issues_file = "/mock/issues.json"
+        mock_args.output_file = "/mock/output.json"
+        mock_args.limit = 1
+        mock_parse_args.return_value = mock_args
+
+        mock_exists.return_value = True
+
+        mock_issues_data = {
+            "repo": "a2ui-project/a2ui",
+            "assignees": [{"login": "gspencer"}],
+            "labels": [],
+            "issues": [{
+                "id": 125,
+                "title": "Weekly A2UI Compliance Report",
+                "body": "Compliance report content",
+                "createdAt": "2026-06-25",
+                "assignees": ["Varun-S10"],
+            }],
+            "total_issues_count": 1,
+        }
+
+        m_open = mock_open(read_data=json.dumps(mock_issues_data))
+        with patch("suggest_triage.open", m_open):
+            suggest_triage.main()
+
+        handle = m_open()
+        written_data = "".join([call[0][0] for call in handle.write.call_args_list])
+        parsed_output = json.loads(written_data)
+
+        # Assigned compliance report should keep P3 and backlog
+        suggestions = parsed_output["issues"][0]["suggestions"]
+        self.assertEqual(suggestions["assignee"], "Varun-S10")
+        self.assertEqual(suggestions["priority"], "P3")
+        self.assertEqual(suggestions["action"], "backlog")
+
 
 if __name__ == "__main__":
     unittest.main()

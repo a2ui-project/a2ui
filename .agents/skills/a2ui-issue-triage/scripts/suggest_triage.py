@@ -292,20 +292,22 @@ def main():
         suggestions["suggested_assignees"] = suggested
 
         # If the issue already has an assignee, preserve it!
-        # Rule from triage-templates.md: Assigned issue without a priority gets P2 and assign_and_fix
+        # Rule from triage-templates.md: Assigned issue without a priority gets P2 and assign_and_fix (unless compliance report)
         existing_assignees = issue.get("assignees", [])
         if existing_assignees:
             suggestions["assignee"] = existing_assignees[0]
             suggestions["assignee_reason"] = (
                 f"Preserving existing assignee: {existing_assignees[0]}."
             )
-            suggestions["priority"] = "P2"
-            suggestions["action"] = "assign_and_fix"
-            suggestions["reply"] = (
-                "I assigned a P2 priority to move this out of the triage"
-                " queue. Please adjust the priority if needed to better"
-                " reflect the issue's status."
-            )
+            text = (issue.get("title", "") + " " + issue.get("body", "")).lower()
+            if "weekly a2ui compliance report" not in text:
+                suggestions["priority"] = "P2"
+                suggestions["action"] = "assign_and_fix"
+                suggestions["reply"] = (
+                    "I assigned a P2 priority to move this out of the triage"
+                    " queue. Please adjust the priority if needed to better"
+                    " reflect the issue's status."
+                )
         else:
             # 3. Add assignee reason
             if suggested:
