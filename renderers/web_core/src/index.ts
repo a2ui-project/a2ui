@@ -164,6 +164,7 @@ export {
   ExpressionParser,
   BASIC_FUNCTIONS,
   BASIC_COMPONENTS,
+  OpenUrlApi,
   injectBasicCatalogStyles,
   computeColorVariant,
   type ColorVariantLightDarkOptions,
@@ -195,3 +196,13 @@ export const Schemas = {
    */
   A2UIClientEventMessage,
 };
+
+/**
+ * @deprecated Legacy v0.8 symbol re-exports. For v0.8 compatibility, import directly from '@a2ui/web_core/v0_8'.
+ */
+export type {AnyComponentNode, CustomNode, SurfaceID, Theme} from './v0_8/types/types.js';
+
+/**
+ * @deprecated Legacy v0.8 styles re-export. For v0.8 compatibility, import directly from '@a2ui/web_core/v0_8'.
+ */
+export {structuralStyles} from './v0_8/styles/index.js';
