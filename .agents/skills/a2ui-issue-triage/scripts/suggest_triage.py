@@ -300,7 +300,11 @@ def main():
                 f"Preserving existing assignee: {existing_assignees[0]}."
             )
             text = (issue.get("title", "") + " " + issue.get("body", "")).lower()
-            if "weekly a2ui compliance report" not in text:
+            if (
+                "weekly a2ui compliance report" not in text
+                and suggestions.get("action") != "needs_info"
+                and suggestions.get("priority") not in ("P0", "P1")
+            ):
                 suggestions["priority"] = "P2"
                 suggestions["action"] = "assign_and_fix"
                 suggestions["reply"] = (

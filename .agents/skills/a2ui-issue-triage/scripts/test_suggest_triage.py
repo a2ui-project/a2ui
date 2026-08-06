@@ -221,7 +221,7 @@ class TestSuggestTriage(unittest.TestCase):
             "issues": [{
                 "id": 124,
                 "title": "Trivial issue",
-                "body": "Body",
+                "body": "Body with steps to reproduce.",
                 "createdAt": "2026-06-25",
                 # Pre-existing assignee Varun-S10
                 "assignees": ["Varun-S10"],
@@ -245,6 +245,49 @@ class TestSuggestTriage(unittest.TestCase):
         self.assertEqual(
             suggestions["assignee_reason"], "Preserving existing assignee: Varun-S10."
         )
+
+    @patch("os.makedirs")
+    @patch("argparse.ArgumentParser.parse_args")
+    @patch("suggest_triage.subprocess.run")
+    @patch("os.path.exists")
+    def test_main_flow_existing_assignee_needs_info(
+        self, mock_exists, mock_run, mock_parse_args, mock_makedirs
+    ):
+        mock_args = MagicMock()
+        mock_args.repo_dir = "/mock/repo"
+        mock_args.issues_file = "/mock/issues.json"
+        mock_args.output_file = "/mock/output.json"
+        mock_args.limit = 1
+        mock_parse_args.return_value = mock_args
+
+        mock_exists.return_value = True
+
+        mock_issues_data = {
+            "repo": "a2ui-project/a2ui",
+            "assignees": [{"login": "gspencer"}],
+            "labels": [],
+            "issues": [{
+                "id": 126,
+                "title": "Trivial bug",
+                "body": "No details here",
+                "createdAt": "2026-06-25",
+                "assignees": ["Varun-S10"],
+            }],
+            "total_issues_count": 1,
+        }
+
+        m_open = mock_open(read_data=json.dumps(mock_issues_data))
+        with patch("suggest_triage.open", m_open):
+            suggest_triage.main()
+
+        handle = m_open()
+        written_data = "".join([call[0][0] for call in handle.write.call_args_list])
+        parsed_output = json.loads(written_data)
+
+        # Assigned issue missing repro steps should preserve action needs_info
+        suggestions = parsed_output["issues"][0]["suggestions"]
+        self.assertEqual(suggestions["assignee"], "Varun-S10")
+        self.assertEqual(suggestions["action"], "needs_info")
 
     @patch("os.makedirs")
     @patch("argparse.ArgumentParser.parse_args")

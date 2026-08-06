@@ -146,6 +146,7 @@ def main():
             if lname in priority_labels or lname in {
                 "status: waiting-for-author-response",
                 "status: in-discussion",
+                "status: first-line-handled",
             }:
                 is_ignored = True
                 break

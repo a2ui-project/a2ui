@@ -30,7 +30,7 @@ Use the fetch script to retrieve all open issues lacking a priority label (`P0`,
 
 Process the raw issues and generate recommended triage fields based on the project's triage criteria.
 
-1. Read the triage criteria reference document: [triage_criteria.md](references/triage_criteria.md) and repository canonical templates: [triage-templates.md](../../docs/contributing/triage-templates.md).
+1. Read the triage criteria reference document: [triage_criteria.md](references/triage_criteria.md) and repository canonical templates: [triage-templates.md](../../../docs/contributing/triage-templates.md).
 2. For each issue in `raw_issues.json`, evaluate its description and comments to determine:
    - **Priority**: `P0` (Urgent), `P1` (High), `P2` (Medium), `P3` (Low), `P4` (Unplanned/Out of Scope), or `None`. `P0` and `P1` require assignees.
    - **Assignee**: Recommended owner based on the affected component or area.
