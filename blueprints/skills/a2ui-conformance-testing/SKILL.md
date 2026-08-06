@@ -17,6 +17,7 @@ To ensure 100% behavioral parity across all programming language implementations
 - **Client/Core Framework Conformance Tests**: Located under `conformance/suites/` at the repository root (e.g. `data_model.yaml`). These test client-side core state management, JSON pointer reactivity, and message processing.
 
 All YAML suites are validated against official JSON Schemas:
+
 - `conformance/conformance_schema.json` for Client/Core SDK suites.
 - `agent_sdks/conformance/conformance_schema.json` for Agent SDK suites.
 
@@ -25,12 +26,14 @@ All YAML suites are validated against official JSON Schemas:
 ## 2. Structure of a Core Conformance Suite (`data_model.yaml`)
 
 A Core SDK test suite consists of an array of test case objects. Each test case defines:
+
 - `name`: Unique test case name (e.g., `test_data_model_basic_get_set`).
 - `description`: Explanation of what is verified.
 - `initial_data`: The starting JSON data structure to load into the store (defaults to `{}`).
 - `steps`: An ordered array of step objects that execute actions sequentially.
 
 ### Supported Actions in `steps`:
+
 - `get`: Reads the value at `path`. Asks for `expect` (value), `expect_undefined` (boolean), or `expect_error` (regex/string).
 - `set`: Updates `path` with `value`. Asks for optional `remove: true` (to remove the key or set to undefined) or `expect_error` (regex/string).
 - `subscribe`: Registers an observer on `path` identified by `listener_id`.
