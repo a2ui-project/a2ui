@@ -56,7 +56,7 @@ class AdkExtensionsConformanceTest {
 
   @TestFactory
   fun testAdkExtensionsConformance(): List<DynamicTest> {
-    val conformanceFile = ConformanceTestHelper.getConformanceFile("suites/adk_extensions.yaml")
+    val conformanceFile = ConformanceTestHelper.getConformanceFile("suites/agent/adk/adk_extensions.yaml")
     val rawList = yamlMapper.readValue(conformanceFile, Any::class.java) as List<*>
 
     return rawList.map { caseObj ->

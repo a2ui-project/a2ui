@@ -94,7 +94,7 @@
         ]
       }
     },
-    "required": ["name", "action"],
+    "required": ["name"],
     "allOf": [
       {
         "oneOf": [
@@ -119,7 +119,8 @@
           {"$ref": "#/$defs/GetExtensionTest"},
           {"$ref": "#/$defs/TryActivateTest"},
           {"$ref": "#/$defs/SelectNewestTest"},
-          {"$ref": "#/$defs/VerifyCuttableKeysTest"}
+          {"$ref": "#/$defs/VerifyCuttableKeysTest"},
+          {"$ref": "#/$defs/DataModelTest"}
         ]
       }
     ]
@@ -454,6 +455,35 @@
         }
       },
       "required": ["action", "expect"]
+    },
+    "DataModelTest": {
+      "type": "object",
+      "properties": {
+        "initial_data": {},
+        "steps": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "action": {
+                "type": "string",
+                "enum": ["get", "set", "subscribe", "unsubscribe", "verify_subscription", "dispose"]
+              },
+              "path": {"type": "string"},
+              "value": {},
+              "remove": {"type": "boolean"},
+              "listener_id": {"type": "string"},
+              "expect": {},
+              "expect_undefined": {"type": "boolean"},
+              "expect_null": {"type": "boolean"},
+              "expect_error": {"type": "string"},
+              "expect_updates": {"type": "array"}
+            },
+            "required": ["action"]
+          }
+        }
+      },
+      "required": ["steps"]
     },
     "ExpectError": {
       "oneOf": [

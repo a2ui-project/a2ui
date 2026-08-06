@@ -25,15 +25,15 @@ import yaml
 from a2ui.core.state.data_model import DataModel
 
 
-def _get_conformance_suite_path(filename: str) -> str:
+def _get_conformance_suite_path(rel_path: str) -> str:
     # Resolve relative to repo root
     this_dir = os.path.dirname(os.path.abspath(__file__))
     root_dir = os.path.abspath(os.path.join(this_dir, "../../../.."))
-    return os.path.join(root_dir, "conformance", "suites", filename)
+    return os.path.join(root_dir, "agent_sdks", "conformance", "suites", rel_path)
 
 
-def load_yaml_suite(filename: str) -> list[dict]:
-    path = _get_conformance_suite_path(filename)
+def load_yaml_suite(rel_path: str) -> list[dict]:
+    path = _get_conformance_suite_path(rel_path)
     with open(path, "r", encoding="utf-8") as f:
         return yaml.safe_load(f)
 
@@ -42,7 +42,7 @@ class TestDataModelConformance(unittest.TestCase):
     """Executes the language-agnostic DataModel conformance suite."""
 
     def test_all_conformance_cases(self) -> None:
-        cases = load_yaml_suite("data_model.yaml")
+        cases = load_yaml_suite("core/state/data_model.yaml")
         self.assertTrue(cases, "No test cases found in data_model.yaml")
 
         for test_case in cases:

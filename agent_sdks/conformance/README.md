@@ -4,13 +4,19 @@ To ensure behavioral parity across all SDK implementations (Python, Kotlin, etc.
 
 ## Suite Structure
 
-All test suites are located in the `suites/` directory:
+All test suites are located in the `suites/` directory, organized by SDK target (`agent/` vs `core/`) and layer paths:
 
-- `suites/streaming_parser.yaml`: Contains test cases for the `A2uiStreamParser` (streaming), verifying chunk buffering, incremental yielding, and edge cases like cut tokens.
-- `suites/parser.yaml`: Contains test cases for non-streaming parsing and payload fixing.
-- `suites/validator.yaml`: Contains test cases for the `A2uiValidator`, verifying structural integrity, cycle detection, and reachability.
-- `suites/catalog.yaml`: Contains test cases for `A2uiCatalog` (prune, render, load).
-- `suites/schema_manager.yaml`: Contains test cases for `A2uiSchemaManager` (select_catalog, load_catalog, generate_prompt).
+### Agent SDK Suites (`suites/agent/`)
+- `suites/agent/processing/streaming_parser.yaml`: Test cases for `A2uiStreamParser` (streaming), verifying chunk buffering, incremental yielding, and edge cases.
+- `suites/agent/processing/parser.yaml`: Test cases for non-streaming parsing and payload fixing.
+- `suites/agent/validating/validator.yaml`: Test cases for `A2uiValidator`, verifying structural integrity, cycle detection, and reachability.
+- `suites/agent/catalog/catalog.yaml`: Test cases for `A2uiCatalog` (prune, render, load).
+- `suites/agent/inference/inference_format.yaml`: Test cases for `A2uiSchemaManager` (select_catalog, load_catalog, generate_prompt).
+- `suites/agent/adk/adk_extensions.yaml`: Test cases for ADK extensions.
+- `suites/agent/a2a/a2a_integration.yaml`: Test cases for A2A protocol integration.
+
+### Core SDK Suites (`suites/core/`)
+- `suites/core/state/data_model.yaml`: Comprehensive test cases for `DataModel` reactive state management (get, set, auto-vivification, subscriptions, RFC 6901 pointer escaping, prototype pollution protection).
 
 All static test data and simplified schemas are located in the `test_data/` directory.
 

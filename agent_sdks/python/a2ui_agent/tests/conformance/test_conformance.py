@@ -97,7 +97,7 @@ class MemoryCatalogProvider:
 
 def _get_conformance_path(filename):
     return os.path.abspath(
-        os.path.join(os.path.dirname(__file__), "../../../../conformance", filename)
+        os.path.join(os.path.dirname(__file__), "../../../../agent_sdks/conformance", filename)
     )
 
 
@@ -173,7 +173,7 @@ def get_conformance_cases(filename):
 
 
 # --- Streaming Parser Conformance ---
-cases_parser = get_conformance_cases("streaming_parser.yaml")
+cases_parser = get_conformance_cases("agent/processing/streaming_parser.yaml")
 
 
 @pytest.mark.parametrize(
@@ -204,7 +204,7 @@ def test_parser_conformance(name, test_case):
 
 
 # --- Non-Streaming Parser Conformance ---
-cases_parser_non_streaming = get_conformance_cases("parser.yaml")
+cases_parser_non_streaming = get_conformance_cases("agent/processing/parser.yaml")
 
 
 @pytest.mark.parametrize(
@@ -248,7 +248,7 @@ def test_parser_non_streaming_conformance(name, test_case):
 
 # --- Validator Conformance ---
 
-cases_validator = get_conformance_cases("validator.yaml")
+cases_validator = get_conformance_cases("agent/validating/validator.yaml")
 
 
 @pytest.mark.parametrize(
@@ -276,7 +276,7 @@ def test_validator_conformance(name, test_case):
 
 
 # --- Catalog Conformance ---
-cases_catalog = get_conformance_cases("catalog.yaml")
+cases_catalog = get_conformance_cases("agent/catalog/catalog.yaml")
 
 
 @pytest.mark.parametrize(
@@ -308,7 +308,7 @@ def test_catalog_conformance(name, test_case):
         path = args.get("path")
         if path:
             full_path = os.path.join(
-                os.path.dirname(__file__), "../../../../conformance", path
+                os.path.dirname(__file__), "../../../../agent_sdks/conformance", path
             )
         else:
             full_path = None
@@ -331,7 +331,7 @@ def test_catalog_conformance(name, test_case):
 
 
 # --- Schema Manager Conformance ---
-cases_schema_manager = get_conformance_cases("inference_format.yaml")
+cases_schema_manager = get_conformance_cases("agent/inference/inference_format.yaml")
 
 
 @pytest.mark.parametrize(

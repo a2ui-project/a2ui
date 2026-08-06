@@ -16,7 +16,13 @@ import os
 import json
 import yaml
 import pytest
-import jsonschema
+try:
+    import jsonschema
+    HAS_JSONSCHEMA = True
+except ImportError:
+    jsonschema = None
+    HAS_JSONSCHEMA = False
+
 import glob
 
 
@@ -36,15 +42,22 @@ SCHEMA = load_json_file(SCHEMA_PATH)
 
 
 def get_yaml_files():
-    pattern = os.path.join(CONFORMANCE_DIR, "suites", "*.yaml")
-    return glob.glob(pattern)
+    pattern = os.path.join(CONFORMANCE_DIR, "suites", "**", "*.yaml")
+    return glob.glob(pattern, recursive=True)
 
 
 @pytest.mark.parametrize("yaml_path", get_yaml_files(), ids=os.path.basename)
 def test_validate_conformance_yaml(yaml_path):
     yaml_data = load_yaml_file(yaml_path)
     basename = os.path.basename(yaml_path)
-    try:
-        jsonschema.validate(instance=yaml_data, schema=SCHEMA)
-    except jsonschema.ValidationError as e:
-        pytest.fail(f"{basename} failed schema validation: {e.message}")
+    if HAS_JSONSCHEMA:
+        try:
+            jsonschema.validate(instance=yaml_data, schema=SCHEMA)
+        except jsonschema.ValidationError as e:
+            pytest.fail(f"{basename} failed schema validation: {e.message}")
+    else:
+        assert isinstance(yaml_data, list), f"{basename} must be a list of test cases"
+        for idx, item in enumerate(yaml_data):
+            assert isinstance(item, dict), f"{basename} item {idx} must be a dict"
+            assert "name" in item, f"{basename} item {idx} missing 'name'"
+            assert "action" in item or "steps" in item, f"{basename} item {idx} missing 'action' or 'steps'"

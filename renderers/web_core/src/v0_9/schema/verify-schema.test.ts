@@ -28,9 +28,16 @@ import {
 } from './server-to-client.js';
 
 const currentDir = typeof __dirname !== 'undefined' ? __dirname : resolve('src/v0_9/schema');
-const specPathCandidate1 = resolve(currentDir, '../../../../../specification/v0_9/json');
-const specPathCandidate2 = resolve(currentDir, '../../../../../../specification/v0_9/json');
-const SPEC_DIR_V0_9 = existsSync(specPathCandidate1) ? specPathCandidate1 : specPathCandidate2;
+function findSpecDir(): string {
+  let dir = currentDir;
+  while (dir !== resolve(dir, '..')) {
+    const candidate = join(dir, 'specification', 'v0_9', 'json');
+    if (existsSync(candidate)) return candidate;
+    dir = resolve(dir, '..');
+  }
+  return resolve(currentDir, '../../../../../../specification/v0_9/json');
+}
+const SPEC_DIR_V0_9 = findSpecDir();
 
 // Parse both so we can do structural comparison rather than formatting
 // Compare definitions specifically, ignoring descriptions

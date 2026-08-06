@@ -22,20 +22,20 @@ import * as url from 'node:url';
 import yaml from 'js-yaml';
 import {DataModel, DataSubscription} from './data-model.js';
 
-function getSuitePath(filename: string): string {
+function getSuitePath(relPath: string): string {
   let currentDir = path.dirname(url.fileURLToPath(import.meta.url));
   while (currentDir !== path.parse(currentDir).root) {
-    const candidate = path.join(currentDir, 'conformance', 'suites', filename);
+    const candidate = path.join(currentDir, 'agent_sdks', 'conformance', 'suites', relPath);
     if (fs.existsSync(candidate)) {
       return candidate;
     }
     currentDir = path.dirname(currentDir);
   }
-  throw new Error(`Could not find conformance suite ${filename}`);
+  throw new Error(`Could not find conformance suite ${relPath}`);
 }
 
 describe('DataModel Conformance Suite (YAML)', () => {
-  const suitePath = getSuitePath('data_model.yaml');
+  const suitePath = getSuitePath('core/state/data_model.yaml');
   const suiteContent = fs.readFileSync(suitePath, 'utf8');
   const cases = yaml.load(suiteContent) as Array<any>;
 

@@ -13,13 +13,8 @@ This skill explains how A2UI conformance tests work overall, how the YAML suites
 
 To ensure 100% behavioral parity across all programming language implementations (Python, TypeScript/JavaScript, Swift, Kotlin, Rust, etc.), A2UI separates test definitions from language-specific test runners:
 
-- **Server/Agent SDK Conformance Tests**: Located under `agent_sdks/conformance/suites/` (e.g. `parser.yaml`, `validator.yaml`, `catalog.yaml`, `schema_manager.yaml`, `streaming_parser.yaml`). These test the backend agent-side processing.
-- **Client/Core Framework Conformance Tests**: Located under `conformance/suites/` at the repository root (e.g. `data_model.yaml`). These test client-side core state management, JSON pointer reactivity, and message processing.
-
-All YAML suites are validated against official JSON Schemas:
-
-- `conformance/conformance_schema.json` for Client/Core SDK suites.
-- `agent_sdks/conformance/conformance_schema.json` for Agent SDK suites.
+- **Central Conformance Test Suites**: Located under `agent_sdks/conformance/suites/`, organized into subdirectories by target SDK (`agent/` vs `core/`) and layer paths (e.g. `core/state/data_model.yaml`, `agent/processing/parser.yaml`, `agent/validating/validator.yaml`, etc.).
+- **Validation Schema**: All YAML test suites are validated against `agent_sdks/conformance/conformance_schema.json`.
 
 ---
 
@@ -48,7 +43,7 @@ A Core SDK test suite consists of an array of test case objects. Each test case 
 When building a new Core SDK (e.g., in Swift, Kotlin, or Rust):
 
 1. **Locate the YAML Suite**:
-   Resolve the relative or absolute filesystem path to `conformance/suites/data_model.yaml`.
+   Resolve the relative or absolute filesystem path to `agent_sdks/conformance/suites/core/state/data_model.yaml`.
 
 2. **Load and Iterate**:
    Parse the YAML file into an array of test cases. Iterate through each test case and instantiate a fresh instance of the language's `DataModel` class with `initial_data`.
