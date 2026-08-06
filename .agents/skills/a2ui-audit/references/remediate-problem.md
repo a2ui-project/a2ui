@@ -49,9 +49,10 @@ The agent execution environment must provide the following environment variables
    git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
    git config extraheader "AUTHORIZATION: bearer ${GITHUB_TOKEN}"
    ```
-2. Create and checkout a new branch named `remediation/issue-${ISSUE_NUMBER}-${RECOMMENDATION_INDEX}`:
+2. Fetch `main` and create a clean branch named `remediation/issue-${ISSUE_NUMBER}-${RECOMMENDATION_INDEX}` based on `origin/main`:
    ```bash
-   git checkout -b "remediation/issue-${ISSUE_NUMBER}-${RECOMMENDATION_INDEX}"
+   git fetch origin main
+   git checkout -b "remediation/issue-${ISSUE_NUMBER}-${RECOMMENDATION_INDEX}" origin/main
    ```
 
 ---
