@@ -16,14 +16,7 @@
 
 import {Component, computed, ChangeDetectionStrategy} from '@angular/core';
 import {BasicCatalogComponent} from './basic-catalog-component';
-import {IconApi} from '@a2ui/web_core/v0_9/basic_catalog';
-
-const ICON_NAME_OVERRIDES: Record<string, string> = {
-  play: 'play_arrow',
-  rewind: 'fast_rewind',
-  favoriteOff: 'favorite_border',
-  starOff: 'star_border',
-};
+import {IconApi, toMaterialSymbol} from '@a2ui/web_core/v0_9/basic_catalog';
 
 /**
  * Angular implementation of the A2UI Icon component (v0.9).
@@ -101,9 +94,6 @@ export class IconComponent extends BasicCatalogComponent<typeof IconApi> {
 
   readonly iconName = computed(() => {
     const name = this.iconNameRaw();
-    if (typeof name !== 'string') return '';
-    if (ICON_NAME_OVERRIDES[name]) return ICON_NAME_OVERRIDES[name];
-    // Convert camelCase to snake_case for Material Icons
-    return name.replace(/[A-Z]/g, letter => `_${letter.toLowerCase()}`);
+    return typeof name === 'string' ? toMaterialSymbol(name) : '';
   });
 }

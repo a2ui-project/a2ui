@@ -121,6 +121,16 @@ describe('IconComponent', () => {
     expect(icon.textContent.trim()).toBe('star_border');
   });
 
+  it('should not add a leading underscore for PascalCase names', () => {
+    setComponentProps(fixture, {
+      ...defaultProps,
+      name: createBoundProperty('ShoppingCart' as unknown as 'shoppingCart'),
+    });
+    fixture.detectChanges();
+    const icon = fixture.nativeElement.querySelector('.a2ui-icon');
+    expect(icon.textContent.trim()).toBe('shopping_cart');
+  });
+
   it('should render path icon', () => {
     setComponentProps(fixture, {
       ...defaultProps,

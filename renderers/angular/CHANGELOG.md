@@ -1,5 +1,6 @@
 ## Unreleased
 
+- (v0_9) Use the shared `toMaterialSymbol` helper from `web_core` for Icon name conversion, fixing a bug where PascalCase names produced a leading underscore (e.g. `_shopping_cart`). [#858](https://github.com/a2ui-project/a2ui/pull/858)
 - (v0_9) Implement `createComponentImplementation` helper and deprecate `extraComponents` and `functions` in `BasicCatalogOptions` to align with the core API. [#2060](https://github.com/a2ui-project/a2ui/pull/2060)
 
 ## 0.10.5

@@ -1,5 +1,7 @@
 ## Unreleased
 
+- (v0_9) Add shared `toMaterialSymbol` icon-name helper to `basic_catalog`, so the Angular, Lit, and React renderers no longer each duplicate their own Icon name-to-ligature conversion. [#858](https://github.com/a2ui-project/a2ui/pull/858)
+
 ## 0.10.6
 
 - (v0_9) Validate component properties against catalog schema in `MessageProcessor` to prevent malformed component actions.
