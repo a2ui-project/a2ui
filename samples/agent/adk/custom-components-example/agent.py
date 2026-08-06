@@ -45,9 +45,8 @@ from tools import get_contact_info
 
 from a2ui.schema.constants import VERSION_0_8, VERSION_0_9, A2UI_OPEN_TAG, A2UI_CLOSE_TAG
 from a2ui.schema.common_modifiers import remove_strict_validation
-from a2ui.schema.manager import A2uiSchemaManager
+from a2ui.inference_formats.direct_json import DirectJsonFormat, DirectJsonStreamParser
 from a2ui.parser.parser import parse_response, ResponsePart
-from a2ui.parser.streaming import A2uiStreamParser
 from a2ui.basic_catalog.provider import BasicCatalog
 from a2ui.a2a.extension import get_a2ui_agent_extension
 from a2ui.a2a.parts import create_a2ui_part, parse_response_to_parts, stream_response_to_parts
@@ -58,7 +57,7 @@ logger = logging.getLogger(__name__)
 class ContactAgent:
     """An agent that finds contact info for colleagues."""
 
-    SUPPORTED_CONTENT_TYPES = ["text", "text/plain"]
+    SUPPORTED_CONTENT_TYPES = ["text/plain"]
 
     def __init__(self, base_url: str):
         self.base_url = base_url
@@ -68,15 +67,15 @@ class ContactAgent:
             self._build_llm_agent()
         )
 
-        self._schema_managers: Dict[str, A2uiSchemaManager] = {}
+        self._inference_formats: Dict[str, DirectJsonFormat] = {}
         self._ui_runners: Dict[str, Runner] = {}
-        self._parsers: OrderedDict[str, A2uiStreamParser] = OrderedDict()
+        self._parsers: OrderedDict[str, DirectJsonStreamParser] = OrderedDict()
         self._max_parsers = 1000  # Max active sessions to keep in memory
 
         for version in [VERSION_0_8, VERSION_0_9]:
-            schema_manager = self._build_schema_manager(version)
-            self._schema_managers[version] = schema_manager
-            agent = self._build_llm_agent(schema_manager)
+            inference_format = self._build_inference_format(version)
+            self._inference_formats[version] = inference_format
+            agent = self._build_llm_agent(inference_format)
             self._ui_runners[version] = self._build_runner(agent)
 
         self._agent_card = self._build_agent_card()
@@ -85,13 +84,15 @@ class ContactAgent:
     def agent_card(self) -> AgentCard:
         return self._agent_card
 
-    def get_schema_manager(self, version: Optional[str]) -> Optional[A2uiSchemaManager]:
+    def get_inference_format(
+        self, version: Optional[str]
+    ) -> Optional[DirectJsonFormat]:
         if version is None:
             return None
-        return self._schema_managers[version]
+        return self._inference_formats[version]
 
-    def _build_schema_manager(self, version: str) -> A2uiSchemaManager:
-        return A2uiSchemaManager(
+    def _build_inference_format(self, version: str) -> DirectJsonFormat:
+        return DirectJsonFormat(
             version=version,
             catalogs=[
                 BasicCatalog.get_config(
@@ -104,8 +105,8 @@ class ContactAgent:
 
     def _build_agent_card(self) -> AgentCard:
         extensions = []
-        if self._schema_managers:
-            for version, sm in self._schema_managers.items():
+        if self._inference_formats:
+            for version, sm in self._inference_formats.items():
                 ext = get_a2ui_agent_extension(
                     version,
                     sm.accepts_inline_catalogs,
@@ -157,13 +158,13 @@ class ContactAgent:
         return "Looking up contact information..."
 
     def _build_llm_agent(
-        self, schema_manager: Optional[A2uiSchemaManager] = None
+        self, inference_format: Optional[DirectJsonFormat] = None
     ) -> LlmAgent:
         """Builds the LLM agent for the contact agent."""
         LITELLM_MODEL = os.getenv("LITELLM_MODEL", "gemini/gemini-3-flash-preview")
 
         instruction = (
-            schema_manager.generate_system_prompt(
+            inference_format.generate_system_prompt(
                 role_description=ROLE_DESCRIPTION,
                 workflow_description=WORKFLOW_DESCRIPTION,
                 ui_description=UI_DESCRIPTION,
@@ -171,7 +172,7 @@ class ContactAgent:
                 include_schema=True,
                 validate_examples=False,  # Missing inline_catalogs for OrgChart and WebFrame validation
             )
-            if schema_manager
+            if inference_format
             else get_text_prompt()
         )
 
@@ -298,15 +299,15 @@ class ContactAgent:
         # Determine which runner to use based on whether the a2ui extension is active.
         if ui_version:
             runner = self._ui_runners[ui_version]
-            schema_manager = self._schema_managers[ui_version]
+            inference_format = self._inference_formats[ui_version]
             selected_catalog = (
-                schema_manager.get_selected_catalog(client_ui_capabilities)
-                if schema_manager
+                inference_format.get_selected_catalog(client_ui_capabilities)
+                if inference_format
                 else None
             )
         else:
             runner = self._text_runner
-            schema_manager = None
+            inference_format = None
             selected_catalog = None
 
         session = await runner.session_service.get_session(
@@ -433,7 +434,7 @@ class ContactAgent:
                 if session_id in self._parsers:
                     self._parsers.move_to_end(session_id)
                 else:
-                    self._parsers[session_id] = A2uiStreamParser(
+                    self._parsers[session_id] = DirectJsonStreamParser(
                         catalog=selected_catalog
                     )
                     if len(self._parsers) > self._max_parsers:

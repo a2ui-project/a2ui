@@ -1,5 +1,16 @@
 ## Unreleased
 
+## 0.10.6
+
+- (v0_9) Validate component properties against catalog schema in `MessageProcessor` to prevent malformed component actions.
+- (v0_9) Add prototype pollution protection and safe property lookup to `DataModel` (non-breaking security fix).
+- (v0_8) Export `A2uiMessageSchema` in public API.
+- Enable `inlineSources` in `tsconfig.json` to populate `sourcesContent` in sourcemaps.
+
+## 0.10.5
+
+- (v0_9) Accept both `v0.9` and `v0.9.1` versions when parsing messages. Allow `A2uiClientCapabilities` to support simultaneous version capability advertising (`'v0.9'` and `'v0.9.1'`).
+
 ## 0.10.4
 
 - (v0_9) Support JSON Pointer escaping (RFC 6901) in DataModel ([#1796](https://github.com/a2ui-project/a2ui/pull/1796)).

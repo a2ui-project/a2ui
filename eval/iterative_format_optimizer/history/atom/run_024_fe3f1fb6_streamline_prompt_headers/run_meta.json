@@ -1,0 +1,14 @@
+{
+  "hypothesis": "Streamlining system prompt section headers and rule numbering in ATOM_RULES to reduce prompt input token size.",
+  "notes": "Input tokens reduced by -7.4% (4,122 vs 4,452) and reasoning tokens by -25.9% (3,829 vs 5,168). However, Quality Score regressed from 100.0% to 83.3% (-16.7%) and Code Output Tokens increased by +17.8% (311 vs 264). Score S_opt dropped from +0.600 to +0.536 (-0.064). Reverted per Rule 1 and Rule 2.",
+  "status": "Backtracked",
+  "metrics": {
+    "schema_acc": 0.0,
+    "quality_acc": 0.0,
+    "code_tokens_median": 311.0,
+    "reasoning_tokens_median": 3829.0,
+    "input_tokens_median": 4121.5,
+    "latency_seconds_median": 0.0,
+    "total_samples": 0
+  }
+}

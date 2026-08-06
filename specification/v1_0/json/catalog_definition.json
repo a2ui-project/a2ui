@@ -7,15 +7,16 @@
   "properties": {
     "$schema": {"type": "string"},
     "$id": {"type": "string"},
+    "protocolVersion": {
+      "type": "string",
+      "pattern": "^(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)(?:\\.(0|[1-9][0-9]*))?(?:-((?:0|[1-9][0-9]*|[0-9]*[a-zA-Z-][0-9a-zA-Z-]*)(?:\\.(?:0|[1-9][0-9]*|[0-9]*[a-zA-Z-][0-9a-zA-Z-]*))*))?(?:\\+([0-9a-zA-Z-]+(?:\\.[0-9a-zA-Z-]+)*))?$",
+      "default": "0.9",
+      "description": "The A2UI specification version of this catalog definition (e.g. '1.0'). Defaults to '0.9' if omitted."
+    },
     "$defs": {
       "type": "object",
       "description": "Standardized schema definitions referenced from outside the catalog file.",
       "properties": {
-        "surfaceProperties": {
-          "title": "A2UI Surface Properties Schema",
-          "description": "A JSON Schema that defines the catalog's surface properties.",
-          "$ref": "https://json-schema.org/draft/2020-12/schema"
-        },
         "anyComponent": {
           "title": "A2UI Any Component Schema",
           "description": "Unified validation schema for all components.",
@@ -49,8 +50,13 @@
     "components": {
       "type": "object",
       "description": "Definitions for UI components supported by this catalog.",
+      "propertyNames": {
+        "not": {
+          "const": "Surface"
+        }
+      },
       "additionalProperties": {
-        "$ref": "https://json-schema.org/draft/2020-12/schema"
+        "$ref": "#/$defs/ComponentDefinition"
       }
     },
     "functions": {
@@ -67,45 +73,77 @@
     "FunctionCallValidationSchema": {
       "type": "object",
       "description": "JSON Schema structure that validates a wire-level FunctionCall object.",
-      "properties": {
-        "type": {
-          "const": "object"
-        },
-        "description": {
-          "type": "string"
-        },
-        "properties": {
+      "oneOf": [
+        {
           "type": "object",
           "properties": {
-            "call": {
+            "type": {
+              "const": "object"
+            },
+            "description": {
+              "type": "string"
+            },
+            "properties": {
               "type": "object",
               "properties": {
-                "const": {"type": "string"}
+                "call": {
+                  "type": "object",
+                  "properties": {
+                    "const": {"type": "string"}
+                  },
+                  "required": ["const"]
+                },
+                "catalogId": {
+                  "type": "object",
+                  "description": "Optional catalog ID override for this function call."
+                },
+                "args": {
+                  "type": "object",
+                  "description": "A JSON Schema describing the expected arguments (args) for this function.",
+                  "$ref": "https://json-schema.org/draft/2020-12/schema"
+                }
               },
-              "required": ["const"]
+              "required": ["call"],
+              "additionalProperties": false
             },
-            "args": {
-              "type": "object",
-              "description": "A JSON Schema describing the expected arguments (args) for this function.",
-              "$ref": "https://json-schema.org/draft/2020-12/schema"
+            "required": {
+              "type": "array",
+              "items": {"type": "string"},
+              "contains": {"const": "call"}
+            },
+            "unevaluatedProperties": {
+              "type": "boolean"
+            },
+            "additionalProperties": {
+              "type": "boolean"
             }
           },
-          "required": ["call"],
-          "additionalProperties": false
+          "required": ["type", "properties", "required"]
         },
-        "required": {
-          "type": "array",
-          "items": {"type": "string"},
-          "contains": {"const": "call"}
-        },
-        "unevaluatedProperties": {
-          "type": "boolean"
-        },
-        "additionalProperties": {
-          "type": "boolean"
+        {
+          "type": "object",
+          "properties": {
+            "type": {
+              "const": "object"
+            },
+            "description": {
+              "type": "string"
+            },
+            "allOf": {
+              "type": "array",
+              "items": {"type": "object"},
+              "minItems": 1
+            },
+            "unevaluatedProperties": {
+              "type": "boolean"
+            },
+            "additionalProperties": {
+              "type": "boolean"
+            }
+          },
+          "required": ["type", "allOf"]
         }
-      },
-      "required": ["type", "properties", "required"]
+      ]
     },
     "FunctionDefinition": {
       "type": "object",
@@ -124,8 +162,8 @@
             },
             "callableFrom": {
               "type": "string",
-              "enum": ["clientOnly", "remoteOnly", "clientOrRemote"],
-              "default": "clientOnly",
+              "enum": ["rendererOnly", "agentOnly", "rendererOrAgent"],
+              "default": "rendererOnly",
               "description": "Specifies where this function can be invoked from."
             }
           },
@@ -133,6 +171,36 @@
         }
       ],
       "unevaluatedProperties": false
+    },
+    "ComponentDefinition": {
+      "type": "object",
+      "description": "Describes a component's validation schema and composition constraints.",
+      "allOf": [
+        {
+          "$ref": "https://json-schema.org/draft/2020-12/schema"
+        },
+        {
+          "type": "object",
+          "properties": {
+            "allowedParents": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "description": "The list of parent component type names that can contain this component type. If omitted, all parent component types are allowed. To restrict a component so it can appear only as the top-level component (id='root') of a surface, set \"allowedParents\": [\"Surface\"]. To allow a component as either the top-level component of a surface or a child of a specific container, specify both (e.g., \"allowedParents\": [\"Surface\", \"CanvasContainer\"]).",
+              "uniqueItems": true
+            },
+            "allowedChildren": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "description": "The list of child component type names allowed inside this container or slot. If omitted, all child component types are allowed.",
+              "uniqueItems": true
+            }
+          }
+        }
+      ]
     }
   }
 }

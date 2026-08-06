@@ -30,7 +30,7 @@ CATALOG_PATH_V091 = os.path.abspath(
 
 
 @pytest.mark.asyncio
-async def test_scorer_valid_json_v091():
+async def test_scorer_valid_json_v091() -> None:
     scorer = a2ui_scorer(version="0.9.1")
     valid_json = """
     <a2ui-json>
@@ -82,12 +82,14 @@ async def test_scorer_valid_json_v091():
     )
 
     score = await scorer(state, Target(""))
+    assert score is not None
+    assert score.explanation is not None
     assert score.value == 1.0
     assert "Valid A2UI payload" in score.explanation
 
 
 @pytest.mark.asyncio
-async def test_scorer_valid_json():
+async def test_scorer_valid_json() -> None:
     scorer = a2ui_scorer(version="0.9")
     valid_json = """
     <a2ui-json>
@@ -111,12 +113,14 @@ async def test_scorer_valid_json():
     )
 
     score = await scorer(state, Target(""))
+    assert score is not None
+    assert score.explanation is not None
     assert score.value == 1.0
     assert "Valid A2UI payload" in score.explanation
 
 
 @pytest.mark.asyncio
-async def test_scorer_invalid_json():
+async def test_scorer_invalid_json() -> None:
     scorer = a2ui_scorer(version="0.9")
     state = TaskState(
         model=ModelName("mock/model"),
@@ -128,12 +132,14 @@ async def test_scorer_invalid_json():
         metadata={"catalog": str(CATALOG_PATH)},
     )
     score = await scorer(state, Target(""))
+    assert score is not None
+    assert score.explanation is not None
     assert score.value == 0.0
     assert "tags '<a2ui-json>' and '</a2ui-json>' not found" in score.explanation
 
 
 @pytest.mark.asyncio
-async def test_scorer_missing_root():
+async def test_scorer_missing_root() -> None:
     scorer = a2ui_scorer(version="0.9")
     payload = """
     <a2ui-json>
@@ -167,12 +173,14 @@ async def test_scorer_missing_root():
         metadata={"catalog": str(CATALOG_PATH)},
     )
     score = await scorer(state, Target(""))
+    assert score is not None
+    assert score.explanation is not None
     assert score.value == 0.0
     assert "Missing root component" in score.explanation
 
 
 @pytest.mark.asyncio
-async def test_scorer_duplicate_ids():
+async def test_scorer_duplicate_ids() -> None:
     scorer = a2ui_scorer(version="0.9")
     payload = """
     <a2ui-json>
@@ -199,12 +207,14 @@ async def test_scorer_duplicate_ids():
         metadata={"catalog": str(CATALOG_PATH)},
     )
     score = await scorer(state, Target(""))
+    assert score is not None
+    assert score.explanation is not None
     assert score.value == 0.0
     assert "Duplicate component ID" in score.explanation
 
 
 @pytest.mark.asyncio
-async def test_scorer_broken_relationship():
+async def test_scorer_broken_relationship() -> None:
     scorer = a2ui_scorer(version="0.9")
     payload = """
     <a2ui-json>
@@ -239,12 +249,14 @@ async def test_scorer_broken_relationship():
         metadata={"catalog": str(CATALOG_PATH)},
     )
     score = await scorer(state, Target(""))
+    assert score is not None
+    assert score.explanation is not None
     assert score.value == 0.0
     assert "references non-existent component" in score.explanation
 
 
 @pytest.mark.asyncio
-async def test_scorer_circular_reference():
+async def test_scorer_circular_reference() -> None:
     scorer = a2ui_scorer(version="0.9")
     payload = """
     <a2ui-json>
@@ -271,5 +283,7 @@ async def test_scorer_circular_reference():
         metadata={"catalog": str(CATALOG_PATH)},
     )
     score = await scorer(state, Target(""))
+    assert score is not None
+    assert score.explanation is not None
     assert score.value == 0.0
     assert "Circular reference detected" in score.explanation

@@ -15,4 +15,4 @@
  */
 
 rootProject.name = "rizzcharts-java"
-includeBuild("../../../../../agent_sdks/kotlin")
+includeBuild("../../../../../../kotlin/agent_sdk_legacy")

@@ -7,7 +7,6 @@ dist
 .idea/
 *.pyc
 .angular/
-*.tsbuildinfo
 
 # MkDocs build output
 site/
@@ -45,10 +44,14 @@ worktrees/
 # TypeScript incremental build info
 *.tsbuildinfo
 
+# Playwright test artifacts
+.playwright/
+
 # Local-only scratch files.
 .local/
 
 # Locally symlinked SDD blueprint skills
+/.agents/skills/a2ui-blueprint-compliance
 /.agents/skills/a2ui-blueprint-maintenance
 /.agents/skills/a2ui-blueprint-navigator
 /.agents/skills/a2ui-create-feature-blueprint
@@ -131,3 +134,11 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
+
+# SwiftPM
+Package.resolved
+
+# Evaluation & Optimizer temporary logs
+eval/logs/
+eval/iterative_format_optimizer/logs/
+eval/iterative_format_optimizer/skills/inference-format-optimizer/logs/

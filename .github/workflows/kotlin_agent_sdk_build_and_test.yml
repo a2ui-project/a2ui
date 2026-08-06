@@ -19,13 +19,15 @@ on:
     branches:
       - "*"
     paths:
-      - "agent_sdks/kotlin/**"
+      - "kotlin/agent_sdk_legacy/**"
       - "specification/**/json/**"
+      - "specification/inference_formats/**"
       - "agent_sdks/conformance/**"
   pull_request:
     paths:
-      - "agent_sdks/kotlin/**"
+      - "kotlin/agent_sdk_legacy/**"
       - "specification/**/json/**"
+      - "specification/inference_formats/**"
       - "agent_sdks/conformance/**"
 
 permissions:
@@ -37,7 +39,7 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
         with:
           persist-credentials: false
 
@@ -49,13 +51,13 @@ jobs:
           cache: "gradle"
 
       - name: Make gradlew executable
-        working-directory: agent_sdks/kotlin
+        working-directory: kotlin/agent_sdk_legacy
         run: chmod +x gradlew
 
       - name: Check formatting
-        working-directory: agent_sdks/kotlin
+        working-directory: kotlin/agent_sdk_legacy
         run: ./gradlew ktfmtCheck
 
       - name: Run tests
-        working-directory: agent_sdks/kotlin
+        working-directory: kotlin/agent_sdk_legacy
         run: ./gradlew test --info

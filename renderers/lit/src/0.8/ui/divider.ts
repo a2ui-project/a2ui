@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-import {html, css, nothing} from 'lit';
-import {customElement} from 'lit/decorators.js';
+import {html, css} from 'lit';
+import {customElement, property} from 'lit/decorators.js';
 import {Root} from './root.js';
 import {styleMap} from 'lit/directives/style-map.js';
 import {classMap} from 'lit/directives/class-map.js';
@@ -23,6 +23,15 @@ import {structuralStyles} from './styles.js';
 
 @customElement('a2ui-divider')
 export class Divider extends Root {
+  @property()
+  accessor axis: 'horizontal' | 'vertical' | null = 'horizontal';
+
+  @property()
+  accessor color: string | null = null;
+
+  @property({type: Number})
+  accessor thickness: number | null = null;
+
   static styles = [
     structuralStyles,
     css`
@@ -30,22 +39,60 @@ export class Divider extends Root {
         display: block;
         min-height: 0;
         overflow: auto;
+        align-self: stretch;
+      }
+
+      hr,
+      .vertical-divider {
+        background: #ccc;
+        border: none;
       }
 
       hr {
         height: 1px;
-        background: #ccc;
-        border: none;
+      }
+
+      .vertical-divider {
+        width: 1px;
+        height: 100%;
       }
     `,
   ];
 
   render() {
-    return html`<hr
-      class=${classMap(this.theme.components.Divider)}
-      style=${this.theme.additionalStyles?.Divider
-        ? styleMap(this.theme.additionalStyles?.Divider)
-        : nothing}
-    />`;
+    const dividerTheme =
+      typeof this.theme?.components?.Divider === 'string'
+        ? {[this.theme.components.Divider]: true}
+        : this.theme?.components?.Divider;
+
+    const classes = {
+      ...dividerTheme,
+      vertical: this.axis === 'vertical',
+      horizontal: this.axis !== 'vertical',
+    };
+
+    const dynamicStyle: Record<string, string> = {};
+    if (this.color) {
+      dynamicStyle['background-color'] = this.color;
+    }
+    if (this.thickness !== null && this.thickness !== undefined) {
+      if (this.axis === 'vertical') {
+        dynamicStyle['width'] = `${this.thickness}px`;
+      } else {
+        dynamicStyle['height'] = `${this.thickness}px`;
+      }
+    }
+
+    const style = {
+      ...this.theme?.additionalStyles?.Divider,
+      ...dynamicStyle,
+    };
+
+    return this.axis === 'vertical'
+      ? html`<div
+          class=${classMap({...classes, 'vertical-divider': true})}
+          style=${styleMap(style)}
+        ></div>`
+      : html`<hr class=${classMap(classes)} style=${styleMap(style)} />`;
   }
 }

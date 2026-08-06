@@ -21,7 +21,6 @@ from a2ui.adk.send_a2ui_to_client_toolset import SendA2uiToClientToolset
 from a2ui.schema.catalog import A2uiCatalog
 from google.adk.agents.readonly_context import ReadonlyContext
 from google.adk.tools.tool_context import ToolContext
-from google.genai import types as genai_types
 
 # region SendA2uiToClientToolset Tests
 """Tests for the SendA2uiToClientToolset class."""
@@ -34,7 +33,7 @@ async def test_toolset_init_bool():
         a2ui_enabled=True, a2ui_catalog=catalog_mock, a2ui_examples="examples"
     )
     ctx = MagicMock(spec=ReadonlyContext)
-    assert await toolset._resolve_a2ui_enabled(ctx) == True
+    assert await toolset._resolve_a2ui_enabled(ctx)
 
     # Access the tool to check schema resolution
     tool = toolset._ui_tools[0]
@@ -52,7 +51,7 @@ async def test_toolset_init_callable():
         a2ui_examples=examples_mock,
     )
     ctx = MagicMock(spec=ReadonlyContext)
-    assert await toolset._resolve_a2ui_enabled(ctx) == True
+    assert await toolset._resolve_a2ui_enabled(ctx)
 
     # Access the tool to check schema resolution
     tool = toolset._ui_tools[0]
@@ -82,7 +81,7 @@ async def test_toolset_init_async_callable():
         a2ui_examples=async_examples,
     )
     ctx = MagicMock(spec=ReadonlyContext)
-    assert await toolset._resolve_a2ui_enabled(ctx) == True
+    assert await toolset._resolve_a2ui_enabled(ctx)
 
     # Access the tool to check schema resolution
     tool = toolset._ui_tools[0]
@@ -204,7 +203,7 @@ async def test_send_tool_run_async_valid():
             valid_a2ui
         )
     }
-    assert tool_context_mock.actions.skip_summarization == True
+    assert tool_context_mock.actions.skip_summarization
     catalog_mock.validator.validate.assert_called_once_with(valid_a2ui)
 
 
@@ -230,7 +229,7 @@ async def test_send_tool_run_async_valid_list():
             valid_a2ui
         )
     }
-    assert tool_context_mock.actions.skip_summarization == True
+    assert tool_context_mock.actions.skip_summarization
     catalog_mock.validator.validate.assert_called_once_with(valid_a2ui)
 
 

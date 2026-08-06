@@ -15,6 +15,7 @@
 **/node_modules
 **/dist
 **/build
+**/lib
 **/.wireit
 **/*.tsbuildinfo
 .git
@@ -28,6 +29,9 @@ renderers/lit/a2ui_explorer/src/generated/**
 .next
 **/.next
 
-# Evaluation logs
+# Evaluation logs and history
 eval/logs
 **/eval/logs
+eval/history
+**/history
+**/history_summary.md

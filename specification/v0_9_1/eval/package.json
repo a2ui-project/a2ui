@@ -45,7 +45,7 @@
     "ajv-formats": "^3.0.1",
     "genkit": "^1.36.0",
     "genkitx-anthropic": "^0.30.0",
-    "js-yaml": "^4.2.0",
+    "js-yaml": "^4.3.0",
     "winston": "^3.19.0",
     "zod": "^3.25.76"
   }

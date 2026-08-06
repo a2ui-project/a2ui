@@ -14,7 +14,15 @@
  * limitations under the License.
  */
 
-import {Injectable, OnDestroy, InjectionToken, inject, EnvironmentInjector} from '@angular/core';
+import {
+  Injectable,
+  OnDestroy,
+  InjectionToken,
+  inject,
+  EnvironmentInjector,
+  EnvironmentProviders,
+  makeEnvironmentProviders,
+} from '@angular/core';
 import {
   MessageProcessor,
   SurfaceGroupModel,
@@ -48,6 +56,25 @@ export const A2UI_RENDERER_CONFIG = new InjectionToken<RendererConfiguration>(
 );
 
 /**
+ * Provides the A2UI renderer configuration.
+ *
+ * @param configOrFactory The configuration or a factory function that returns the configuration.
+ * @returns The providers for the A2UI renderer.
+ */
+export function provideA2Ui(
+  configOrFactory: RendererConfiguration | (() => RendererConfiguration),
+): EnvironmentProviders {
+  return makeEnvironmentProviders([
+    {
+      provide: A2UI_RENDERER_CONFIG,
+      ...(typeof configOrFactory === 'function'
+        ? {useFactory: configOrFactory}
+        : {useValue: configOrFactory}),
+    },
+  ]);
+}
+
+/**
  * Manages A2UI v0.9 rendering sessions by bridging the MessageProcessor to Angular.
  *
  * This service is the central entry point for the A2UI renderer. It maintains a
@@ -63,6 +90,7 @@ export class A2uiRendererService implements OnDestroy {
   constructor() {
     initializeAngularReactivity(inject(EnvironmentInjector));
     this._catalogs = this._config.catalogs;
+    console.log('[A2uiRendererService] constructor, config:', this._config);
     this._messageProcessor = new MessageProcessor<AngularComponentImplementation>(
       this._catalogs,
       this._config.actionHandler as ActionHandler,

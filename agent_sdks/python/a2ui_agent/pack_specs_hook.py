@@ -91,11 +91,13 @@ class PackSpecsBuildHook(BuildHookInterface):
             repo_root, basic_catalog_constants.BASIC_CATALOG_PATHS, target_base
         )
 
-        # Automatically regenerate ANTLR parser from Express.g4
+        # Automatically regenerate ANTLR parser from Express.g4 in specification/
         express_dir = os.path.join(
-            project_root, "src", "a2ui", "experimental", "express"
+            project_root, "src", "a2ui", "inference_formats", "experimental", "express"
         )
-        g4_path = os.path.join(express_dir, "Express.g4")
+        g4_path = os.path.join(
+            repo_root, "specification", "inference_formats", "express", "Express.g4"
+        )
 
         if os.path.exists(g4_path):
             import subprocess
@@ -131,7 +133,7 @@ class PackSpecsBuildHook(BuildHookInterface):
                 "-no-listener",
                 "-o",
                 "generated",
-                "Express.g4",
+                g4_path,
             ]
             env = os.environ.copy()
             env["ANTLR4_TOOLS_ANTLR_VERSION"] = "4.13.2"
@@ -193,32 +195,9 @@ class PackSpecsBuildHook(BuildHookInterface):
                 with open(visitor_path, "w", encoding="utf-8") as f:
                     f.write(content)
 
-            # Run pyink to format the newly generated files, overriding any global exclusions
-            if importlib.util.find_spec("pyink") is not None:
-                print("Formatting generated parser files with pyink...")
-                pyink_cmd = [
-                    sys.executable,
-                    "-m",
-                    "pyink",
-                    "--exclude",
-                    "",
-                    "express_lexer.py",
-                    "express_parser.py",
-                    "express_visitor.py",
-                    "__init__.py",
-                ]
-                subprocess.run(
-                    pyink_cmd,
-                    cwd=generated_dir,
-                    capture_output=True,
-                    text=True,
-                )
-            else:
-                print("pyink not found, skipping formatting of generated files.")
-
             print(
-                "ANTLR parser generated, renamed to snake_case, post-processed, and"
-                " formatted successfully."
+                "ANTLR parser generated, renamed to snake_case, and post-processed"
+                " successfully."
             )
 
     def _pack_schemas(self, repo_root, spec_map, target_base):

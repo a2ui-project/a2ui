@@ -40,8 +40,7 @@ describe('Example: Task Card', () => {
   });
 
   it('should render date time input', async () => {
-    const inputs = Array.from(surface.querySelectorAll('input')) as HTMLInputElement[];
-    const dateTimeInput = inputs.find(i => i.type === 'datetime-local') as HTMLInputElement;
+    const dateTimeInput = surface.querySelector('.a2ui-date-time-input') as HTMLInputElement;
     expect(dateTimeInput).withContext('Should have a date time input element').toBeTruthy();
     expect(dateTimeInput.value).toContain('2025-12-15');
   });

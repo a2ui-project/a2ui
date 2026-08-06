@@ -20,13 +20,13 @@ import json
 import unittest
 from typing import Any
 
-os.environ["A2UI_EXPRESS_ENABLED"] = "true"
 
 from a2ui.core.catalog import Catalog
-from a2ui.experimental.express.compiler import ExpressCompiler
-from a2ui.experimental.express.decompiler import ExpressDecompiler
-from a2ui.experimental.express.parser import parse_express_response
-from a2ui.experimental.express.schema_helper import CatalogSchemaHelper
+from a2ui.inference_formats.experimental.express.compiler import ExpressCompiler
+from a2ui.inference_formats.experimental.express.parser import ExpressParser
+from a2ui.inference_formats.experimental.express.schema_helper import (
+    CatalogSchemaHelper,
+)
 
 SPEC_DIR = os.path.abspath(
     os.path.join(
@@ -51,7 +51,7 @@ class TestExpressIntegration(unittest.TestCase):
     def test_round_trip_examples(self):
         """Runs a semantically rigorous round-trip test on real catalog examples."""
         compiler = ExpressCompiler(self.catalog)
-        decompiler = ExpressDecompiler(self.catalog)
+        decompiler = ExpressParser(self.catalog)
 
         example_files = glob.glob(os.path.join(EXAMPLES_DIR, "*.json"))
         self.assertTrue(
@@ -93,7 +93,7 @@ class TestExpressIntegration(unittest.TestCase):
             dsl = decompiler.decompile(original_envelope)
             compiled_envelope = compiler.compile(
                 dsl, surface_id=surface_id, catalog_id=catalog_id
-            )
+            )[0]
 
             orig_comps = sorted(
                 original_envelope["createSurface"]["components"], key=lambda x: x["id"]
@@ -168,7 +168,7 @@ class TestExpressIntegration(unittest.TestCase):
                 if "updateComponents" in msg:
                     expected_components = msg["updateComponents"].get("components", [])
 
-            compiled_envelope = compiler.compile(dsl_content, surface_id=surface_id)
+            compiled_envelope = compiler.compile(dsl_content, surface_id=surface_id)[0]
 
             def normalize_value(val: Any) -> Any:
                 if isinstance(val, dict):
@@ -253,7 +253,7 @@ class TestExpressIntegration(unittest.TestCase):
     def test_data_model_compilation_and_decompilation(self):
         """Validates compiling and decompiling shared data model assignments in the DSL."""
         compiler = ExpressCompiler(self.catalog)
-        decompiler = ExpressDecompiler(self.catalog)
+        decompiler = ExpressParser(self.catalog)
 
         dsl = """$/icon = "check"
 $/title = "Enable notification"
@@ -264,7 +264,7 @@ main_column = Column([icon, title], _, "center")
 icon = Icon($/icon)
 title = Text($/title, "body")"""
 
-        envelope = compiler.compile(dsl, surface_id="test_data_surf")
+        envelope = compiler.compile(dsl, surface_id="test_data_surf")[0]
         self.assertEqual(envelope["version"], "v1.0")
         create_surface = envelope["createSurface"]
 
@@ -282,7 +282,7 @@ title = Text($/title, "body")"""
 
         compiled_envelope_2 = compiler.compile(
             decompiled_dsl, surface_id="test_data_surf"
-        )
+        )[0]
         self.assertEqual(compiled_envelope_2["createSurface"]["dataModel"], data_model)
 
     def test_parser_robustness_and_event_variable_resolution(self):
@@ -295,7 +295,7 @@ title = Text($/title, "body")"""
     MY_EVENT = "my_custom_click"
     MY_CONTEXT = {userId: 123, "active": true}
     """
-        res = compiler.compile(dsl_event_var)
+        res = compiler.compile(dsl_event_var)[0]
         btn = res["createSurface"]["components"][0]
         self.assertEqual(btn["action"]["event"]["name"], "my_custom_click")
         self.assertEqual(btn["action"]["event"]["context"]["userId"], 123)
@@ -305,22 +305,22 @@ title = Text($/title, "body")"""
         conversational_content = (
             "Hello there! I am a conversational response without any UI tags."
         )
-        parts = parse_express_response(conversational_content, self.catalog)
+        parts = ExpressParser(self.catalog).parse_response(conversational_content)
         self.assertEqual(len(parts), 1)
         self.assertEqual(parts[0].text, conversational_content)
         self.assertIsNone(parts[0].a2ui_json)
 
         # 3. Empty text part omission
         ui_only_content = '<a2ui>root = Text("Hello")</a2ui>'
-        parts_ui = parse_express_response(ui_only_content, self.catalog)
+        parts_ui = ExpressParser(self.catalog).parse_response(ui_only_content)
         self.assertEqual(len(parts_ui), 1)
-        self.assertIsNone(parts_ui[0].text)
+        self.assertEqual(parts_ui[0].text, "")
         self.assertIsNotNone(parts_ui[0].a2ui_json)
 
     def test_template_validation_and_decompiler_quoted_keys(self):
         """Regression tests for template path validation, decompiler dictionary key quoting, and check message string formatting."""
         compiler = ExpressCompiler(self.catalog)
-        decompiler = ExpressDecompiler(self.catalog)
+        decompiler = ExpressParser(self.catalog)
 
         # 1. Test template path validation in compiler
         dsl_invalid_template = (
@@ -358,7 +358,7 @@ title = Text($/title, "body")"""
             decompiled_dsl,
         )
 
-        compiled_back = compiler.compile(decompiled_dsl, surface_id="main")
+        compiled_back = compiler.compile(decompiled_dsl, surface_id="main")[0]
         compiled_tabs = compiled_back["createSurface"]["components"][0]["tabs"]
         self.assertEqual(len(compiled_tabs), 1)
         self.assertEqual(compiled_tabs[0]["user-id-hyphen"], 123)
@@ -391,11 +391,11 @@ title = Text($/title, "body")"""
     ):
         """Regression tests for sentinel spacing, literal string matching, multiline string preservation, and boolean allOf schemas."""
         compiler = ExpressCompiler(self.catalog)
-        decompiler = ExpressDecompiler(self.catalog)
+        decompiler = ExpressParser(self.catalog)
 
         # 1. Regression test: Sentinel tag on the same line as a statement
         dsl_sentinel = '<a2ui>root = Column([text1])\ntext1 = Text("Hello")\n</a2ui>'
-        res = compiler.compile(dsl_sentinel)
+        res = compiler.compile(dsl_sentinel)[0]
         self.assertIn("createSurface", res)
         components = res["createSurface"]["components"]
         self.assertEqual(len(components), 2)
@@ -422,7 +422,7 @@ This is bold.
 
 - Item 1")
 """
-        res_multiline = compiler.compile(dsl_multiline)
+        res_multiline = compiler.compile(dsl_multiline)[0]
         compiled_text = res_multiline["createSurface"]["components"][1]["text"]
         self.assertEqual(compiled_text, "# Heading 1\n\nThis is bold.\n\n- Item 1")
 
@@ -435,7 +435,7 @@ This is bold.
             'text1 = Text("Hello")\n'
             'btn = Button("Cli'
         )
-        parts = parse_express_response(truncated_response, self.catalog)
+        parts = ExpressParser(self.catalog).parse_response(truncated_response)
         self.assertEqual(len(parts), 1)
         self.assertEqual(parts[0].text, "Here is the partial UI:")
         self.assertIsNotNone(parts[0].a2ui_json)
@@ -445,6 +445,49 @@ This is bold.
         self.assertEqual(compiled_components[0]["id"], "root")
         self.assertEqual(compiled_components[1]["id"], "text1")
         self.assertFalse(any(c["id"] == "btn" for c in compiled_components))
+
+    def test_parser_compilation_error_handling(self):
+        """Verify that parsing invalid Express syntax raises A2uiCompilationError with error details."""
+        from a2ui.parser.errors import A2uiCompilationError
+
+        invalid_response = (
+            "Preceding conversation text.\n"
+            "<a2ui>\n"
+            "root = Column([text1])\n"
+            'text1 = Text("Hello")\n'
+            "MY_BAD_SYNTAX = {\n"
+            "</a2ui>"
+        )
+
+        with self.assertRaises(A2uiCompilationError) as ctx:
+            ExpressParser(self.catalog).parse_response(invalid_response)
+
+        exc = ctx.exception
+        self.assertIn("Syntax error", str(exc))
+        self.assertEqual(len(exc.partial_results), 0)
+        self.assertIn("MY_BAD_SYNTAX", exc.raw_content)
+        self.assertIsNotNone(exc.line)
+
+        # Test multi-block scenario where first compiles and second fails
+        multi_response = (
+            "First part text.\n"
+            "<a2ui>\n"
+            'root = Text("First")\n'
+            "</a2ui>\n"
+            "Second part text.\n"
+            "<a2ui>\n"
+            "MY_BAD_SYNTAX = {\n"
+            "</a2ui>"
+        )
+
+        with self.assertRaises(A2uiCompilationError) as ctx:
+            ExpressParser(self.catalog).parse_response(multi_response)
+
+        exc_multi = ctx.exception
+        self.assertEqual(len(exc_multi.partial_results), 1)
+        self.assertEqual(exc_multi.partial_results[0].text, "First part text.")
+        self.assertIsNotNone(exc_multi.partial_results[0].a2ui_json)
+        self.assertIn("MY_BAD_SYNTAX", exc_multi.raw_content)
 
 
 if __name__ == "__main__":

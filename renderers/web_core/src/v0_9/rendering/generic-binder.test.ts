@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import assert from 'node:assert';
+import * as assert from 'node:assert';
 import {describe, it} from 'node:test';
 import {z} from 'zod';
 import {GenericBinder} from './generic-binder.js';

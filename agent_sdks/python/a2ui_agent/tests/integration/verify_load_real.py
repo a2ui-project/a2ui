@@ -14,21 +14,21 @@
 
 import sys
 
-from a2ui.schema.manager import A2uiSchemaManager
+from a2ui.inference_formats.direct_json.format import DirectJsonFormat
 from a2ui.schema.constants import CATALOG_COMPONENTS_KEY, VERSION_0_8, VERSION_0_9
 from a2ui.schema.common_modifiers import remove_strict_validation
 from a2ui.basic_catalog.provider import BasicCatalog
 
 
 def verify():
-    print('Verifying A2uiSchemaManager...')
+    print('Verifying DirectJsonFormat...')
     try:
-        manager = A2uiSchemaManager(
+        direct_json_format = DirectJsonFormat(
             version=VERSION_0_8,
             catalogs=[BasicCatalog.get_config(VERSION_0_8)],
             schema_modifiers=[remove_strict_validation],
         )
-        catalog = manager.get_selected_catalog()
+        catalog = direct_json_format.get_selected_catalog()
         catalog_components = catalog.catalog_schema[CATALOG_COMPONENTS_KEY]
         print(
             f'Successfully loaded {VERSION_0_8}: {len(catalog_components)} components'
@@ -416,12 +416,12 @@ def verify():
         sys.exit(1)
 
     try:
-        manager = A2uiSchemaManager(
+        direct_json_format = DirectJsonFormat(
             version=VERSION_0_9,
             catalogs=[BasicCatalog.get_config(VERSION_0_9)],
             schema_modifiers=[remove_strict_validation],
         )
-        catalog = manager.get_selected_catalog()
+        catalog = direct_json_format.get_selected_catalog()
         catalog_components = catalog.catalog_schema[CATALOG_COMPONENTS_KEY]
         print(
             f'Successfully loaded {VERSION_0_9}: {len(catalog_components)} components'

@@ -108,6 +108,9 @@ Writing excellent tests ensures high confidence in our SDKs and services.
   - Deterministic object encoding (e.g., keys sorted alphabetically)
   - Round-trip string serialization/deserialization
   - Order-independent equality checks for dictionaries or objects
+- **No force unwraps:** Never use force unwraps (`!`) in tests. Use
+  `try #require(...)` from Swift Testing to safely unwrap optionals, which
+  produces a clear test failure instead of a crash.
 
 - **Running Tests:** Use the `run_tests.sh` script to run tests on the root package:
   ```bash
@@ -120,5 +123,5 @@ Writing excellent tests ensures high confidence in our SDKs and services.
 
 - **Compiler Warnings:** Avoid introducing compiler warnings. Fix warnings as they appear,
   for example, by replacing unmutated variables (`var`) with constants (`let`).
-- **Directory Structure:** All sources must reside under `<ModuleName>/Sources` and all test
-  files under `<ModuleName>/Tests`.
+- **Directory Structure:** All sources must reside under `swift/<Layer>/Sources/<ModuleName>` and all test
+  files under `swift/<Layer>/Tests/<ModuleName>Tests`.

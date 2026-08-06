@@ -45,7 +45,7 @@ export interface EvaluatedResult extends ValidatedResult {
 export interface FunctionDefinition {
   description?: string;
   args?: Record<string, unknown>;
-  callableFrom?: 'clientOnly' | 'remoteOnly' | 'clientOrRemote';
+  callableFrom?: 'rendererOnly' | 'agentOnly' | 'rendererOrAgent';
   returnType?: string;
   [key: string]: unknown;
 }
@@ -61,13 +61,13 @@ export interface ComponentDefinition {
 export interface CatalogSchema {
   $schema?: string;
   $id?: string;
+  protocolVersion?: string;
   title?: string;
   description?: string;
   catalogId?: string;
   instructions?: string;
   components?: Record<string, ComponentDefinition>;
   functions?: Record<string, FunctionDefinition>;
-  surfaceProperties?: Record<string, unknown>;
   [key: string]: unknown;
 }
 
@@ -86,7 +86,7 @@ export interface JsonSchema {
 export interface ProtocolSchemas {
   'catalogs/basic/catalog.json'?: CatalogSchema;
   'json/common_types.json'?: JsonSchema;
-  'json/server_to_client.json'?: JsonSchema;
+  'json/agent_to_renderer.json'?: JsonSchema;
   'catalog.json'?: CatalogSchema;
   [key: string]: JsonSchema | CatalogSchema | undefined;
 }
