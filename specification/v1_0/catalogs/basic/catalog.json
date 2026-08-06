@@ -1223,8 +1223,9 @@
     },
     "openUrl": {
       "type": "object",
-      "description": "Opens the specified URL in a browser or handler. This function has no return value.",
+      "description": "Opens the specified URL in a browser or handler (requires user activation). This function has no return value.",
       "returnType": "void",
+      "requiresUserActivation": true,
       "allOf": [
         {
           "$ref": "https://a2ui.org/specification/v1_0/common_types.json#/$defs/FunctionCommon"
