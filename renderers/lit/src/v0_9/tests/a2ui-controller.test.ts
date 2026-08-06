@@ -18,9 +18,7 @@ import assert from 'node:assert';
 import {describe, it, beforeEach, mock, after, before} from 'node:test';
 import {setupTestDom, teardownTestDom, asyncUpdate} from './dom-setup.js';
 
-import {A2uiController} from '../a2ui-controller.js';
 import {MessageProcessor, ComponentContext} from '@a2ui/web_core/v0_9';
-import {TextApi} from '@a2ui/web_core/v0_9/basic_catalog';
 
 /**
  * These tests verify:
@@ -30,12 +28,22 @@ import {TextApi} from '@a2ui/web_core/v0_9/basic_catalog';
  */
 describe('A2uiController', () => {
   let basicCatalog: any;
+  let A2uiController: any;
+  let TextApi: any;
+  let TestMockHostClass: any;
+
+  function ensureCustomElement() {
+    if (!customElements.get('test-mock-host')) {
+      customElements.define('test-mock-host', TestMockHostClass);
+    }
+  }
 
   /**
    * Helper function to instantiate and append the `test-mock-host` custom element
    * defined in the `before()` hook below.
    */
   async function createMockHost(context: ComponentContext) {
+    ensureCustomElement();
     const mockHost = document.createElement('test-mock-host') as any;
     document.body.appendChild(mockHost);
 
@@ -55,7 +63,10 @@ describe('A2uiController', () => {
     // Dynamically import component files *after* setting up JSDOM globals
     // to prevent LitElement from evaluating in an empty Node context and crashing.
     const {A2uiLitElement} = await import('../a2ui-lit-element.js');
-    basicCatalog = (await import('../catalogs/basic/index.js')).basicCatalog;
+    A2uiController = (await import('../a2ui-controller.js')).A2uiController;
+    const basicCatalogModule = await import('../catalogs/basic/index.js');
+    basicCatalog = basicCatalogModule.basicCatalog;
+    TextApi = basicCatalogModule.TextApi;
 
     /**
      * A real Lit element registered as `test-mock-host` in JSDOM.
@@ -71,7 +82,8 @@ describe('A2uiController', () => {
         return this.testController;
       }
     }
-    customElements.define('test-mock-host', TestMockHost);
+    TestMockHostClass = TestMockHost;
+    ensureCustomElement();
   });
 
   after(teardownTestDom);
@@ -113,6 +125,7 @@ describe('A2uiController', () => {
   it('should initialize with correct props and bind to context', async () => {
     // For this specific test, we manually mount the DOM element without the helper
     // because we need to spy on `addController` BEFORE the context is evaluated.
+    ensureCustomElement();
     const mockHost = document.createElement('test-mock-host') as any;
     document.body.appendChild(mockHost);
 

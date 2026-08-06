@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2026 Google LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -14,11 +14,4 @@
  * limitations under the License.
  */
 
-import {markdown} from './markdown.js';
-
-/**
- * Contexts used to inject dependencies into the Lit renderer.
- */
-export const Context = {
-  markdown,
-};
+export {Context} from '@a2ui/web_core/v0_9/basic_catalog';

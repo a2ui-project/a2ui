@@ -120,7 +120,7 @@ describe('A2uiSurface', () => {
     }
 
     const html = el.shadowRoot?.innerHTML;
-    const childHtml = childEl?.shadowRoot?.innerHTML;
+    const childHtml = childEl?.innerHTML;
 
     assert.ok(!html?.includes('Loading surface'), 'Loading text should be gone');
     assert.ok(childHtml?.includes('Hello JSDOM'), 'Actual child HTML: ' + childHtml);

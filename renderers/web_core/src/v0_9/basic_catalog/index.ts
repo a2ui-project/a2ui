@@ -1,5 +1,5 @@
 /*
- * Copyright 2025 Google LLC
+ * Copyright 2026 Google LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,9 +14,85 @@
  * limitations under the License.
  */
 
+import {Catalog, WebComponentImplementation} from '../catalog/types.js';
+import {BASIC_FUNCTIONS} from './functions/basic_functions.js';
+
+import {A2uiText} from './components/Text.js';
+import {A2uiButton} from './components/Button.js';
+import {A2uiTextField} from './components/TextField.js';
+import {A2uiRow} from './components/Row.js';
+import {A2uiColumn} from './components/Column.js';
+import {A2uiList} from './components/List.js';
+import {A2uiImage} from './components/Image.js';
+import {A2uiIcon} from './components/Icon.js';
+import {A2uiVideo} from './components/Video.js';
+import {A2uiAudioPlayer} from './components/AudioPlayer.js';
+import {A2uiCard} from './components/Card.js';
+import {A2uiDivider} from './components/Divider.js';
+import {A2uiCheckBox} from './components/CheckBox.js';
+import {A2uiSlider} from './components/Slider.js';
+import {A2uiDateTimeInput} from './components/DateTimeInput.js';
+import {A2uiChoicePicker} from './components/ChoicePicker.js';
+import {A2uiTabs} from './components/Tabs.js';
+import {A2uiModal} from './components/Modal.js';
+
 export * from './expressions/expression_parser.js';
 export * from './functions/basic_functions.js';
 export * from './functions/basic_functions_api.js';
 export * from './components/basic_components.js';
 export {injectBasicCatalogStyles, computeColorVariant} from './styles/default.js';
 export type {ColorVariantLightDarkOptions, ColorVariantHoverOptions} from './styles/default.js';
+
+export * from './a2ui-lit-element.js';
+export * from './a2ui-controller.js';
+export * from './basic-catalog-a2ui-lit-element.js';
+export * from './render-a2ui-node.js';
+export * from './context/context.js';
+export * from './directives/directives.js';
+
+export * from './components/Text.js';
+export * from './components/Button.js';
+export * from './components/TextField.js';
+export * from './components/Row.js';
+export * from './components/Column.js';
+export * from './components/List.js';
+export * from './components/Image.js';
+export * from './components/Icon.js';
+export * from './components/Video.js';
+export * from './components/AudioPlayer.js';
+export * from './components/Card.js';
+export * from './components/Divider.js';
+export * from './components/CheckBox.js';
+export * from './components/Slider.js';
+export * from './components/DateTimeInput.js';
+export * from './components/ChoicePicker.js';
+export * from './components/Tabs.js';
+export * from './components/Modal.js';
+
+/**
+ * The single canonical basic catalog of A2UI components implemented via Web Components (Custom Elements).
+ */
+export const basicCatalog = new Catalog<WebComponentImplementation>(
+  'https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json',
+  [
+    A2uiText,
+    A2uiButton,
+    A2uiTextField,
+    A2uiRow,
+    A2uiColumn,
+    A2uiList,
+    A2uiImage,
+    A2uiIcon,
+    A2uiVideo,
+    A2uiAudioPlayer,
+    A2uiCard,
+    A2uiDivider,
+    A2uiCheckBox,
+    A2uiSlider,
+    A2uiDateTimeInput,
+    A2uiChoicePicker,
+    A2uiTabs,
+    A2uiModal,
+  ],
+  BASIC_FUNCTIONS,
+);

@@ -105,10 +105,7 @@ export function teardownTestDom() {
   // Clear the document to prevent leaks between tests
   if (dom) {
     dom.window.document.body.innerHTML = '';
-    dom = null;
   }
-
-  applyGlobals(originalGlobals);
 }
 
 /**
