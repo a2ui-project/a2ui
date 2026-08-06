@@ -82,19 +82,3 @@ export {CheckBoxComponent} from './catalog/basic/check-box.component';
 export {ChoicePickerComponent} from './catalog/basic/choice-picker.component';
 export {SliderComponent} from './catalog/basic/slider.component';
 export {DateTimeInputComponent} from './catalog/basic/date-time-input.component';
-
-/**
- * @deprecated Legacy v0.8 re-exports. For v0.8 compatibility, import directly from '@a2ui/angular/v0_8'.
- */
-export {
-  Catalog,
-  DEFAULT_CATALOG,
-  DynamicComponent,
-  MessageProcessor,
-  provideA2UI,
-  Renderer,
-  Surface,
-  Theme,
-  Types,
-  type DispatchedEvent,
-} from '@a2ui/angular/v0_8';
