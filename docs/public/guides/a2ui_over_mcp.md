@@ -57,8 +57,8 @@ In the Inspector:
 
 For a fully rendered interactive experience that visually demonstrates A2UI over MCP, run the included web application:
 
-> [!NOTE]
-> **Package Manager Usage:** Running the built-in sample applications within the A2UI repository requires Yarn (`yarn install` / `yarn dev`) as configured by Corepack workspaces. For your own regular usage and standalone projects outside this repository, use the package manager of your choice (e.g. npm, pnpm).
+!!! note ""
+**Package Manager Usage:** Running the built-in sample applications within the A2UI repository requires Yarn (`yarn install` / `yarn dev`) as configured by Corepack workspaces. For your own regular usage and standalone projects outside this repository, use the package manager of your choice (e.g. npm, pnpm).
 
 1. In a new terminal window, navigate to the client directory:
     ```bash
@@ -89,9 +89,8 @@ There are two primary ways an MCP server can deliver A2UI content to a client:
 
 In both cases, the client detects the `application/a2ui+json` MIME type and routes the payload to an A2UI renderer.
 
-> [!IMPORTANT]
-> **MIME Type Uniformity**
-> Regardless of the delivery channel (whether fetched directly as a Resource or returned inside a Tool's `CallToolResult`), the A2UI JSON payload is always identified by the `application/a2ui+json` MIME type. In Tool responses, the payload must be wrapped inside an `EmbeddedResource` carrying this MIME type. This uniform identification allows client-side middleware to seamlessly intercept and route both static resources and dynamic tool responses to A2UI.
+!!! info "MIME Type Uniformity"
+Regardless of the delivery channel (whether fetched directly as a Resource or returned inside a Tool's `CallToolResult`), the A2UI JSON payload is always identified by the `application/a2ui+json` MIME type. In Tool responses, the payload must be wrapped inside an `EmbeddedResource` carrying this MIME type. This uniform identification allows client-side middleware to seamlessly intercept and route both static resources and dynamic tool responses to A2UI.
 
 ### 1. Resource-based Delivery Flow (`resources/read`)
 

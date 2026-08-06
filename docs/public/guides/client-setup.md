@@ -111,8 +111,8 @@ export ENABLE_STREAMING=false
 yarn start restaurant
 ```
 
-> [!NOTE]
-> **Package Manager Usage:** The `yarn start` command above is specific to running the sample application within the A2UI monorepo repository. For your own regular usage and standalone projects outside this repository, use the package manager of your choice (e.g. npm, pnpm).
+!!! note ""
+**Package Manager Usage:** The `yarn start` command above is specific to running the sample application within the A2UI monorepo repository. For your own regular usage and standalone projects outside this repository, use the package manager of your choice (e.g. npm, pnpm).
 
 ## React
 

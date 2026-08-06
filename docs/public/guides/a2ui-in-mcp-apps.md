@@ -156,29 +156,27 @@ MCP Apps are typically delivered as a single HTML resource from the MCP Server. 
 2.  Use a post-build script (like the [`inline.js`](../../../samples/community/mcp/a2ui-in-mcpapps/server/apps/src/inline.js) script in the sample) to read the `index.html` and replace external `<script src="...">` and `<link rel="stylesheet" href="...">` tags with inline `<script>` and `<style>` tags containing the actual file contents.
 3.  This produces a self-contained HTML file that can be safely loaded via `srcdoc` in the restricted iframe.
 
-> [!TIP]
-> **Using Vite to inline**
->
-> If your project uses Vite (common for React, Vue, or Lit), you can achieve the same single-file output automatically using plugins like `vite-plugin-singlefile`. This eliminates the need for a custom post-build script by handling the inlining during the build process itself.
->
-> **How to use it:**
->
-> 1. **Install the plugin**:
->     ```bash
->     npm install -D vite-plugin-singlefile
->     ```
-> 2. **Configure Vite**: Add the plugin to your `vite.config.ts` (or `.js`):
->
->     ```typescript
->     import {defineConfig} from 'vite';
->     import {viteSingleFile} from 'vite-plugin-singlefile';
->
->     export default defineConfig({
->       plugins: [viteSingleFile()],
->     });
->     ```
->
->     This will ensure that all JS and CSS assets are inlined into the `index.html` file on build, making it ready to be served by your MCP server as a single resource.
+!!! tip "Using Vite to inline"
+If your project uses Vite (common for React, Vue, or Lit), you can achieve the same single-file output automatically using plugins like `vite-plugin-singlefile`. This eliminates the need for a custom post-build script by handling the inlining during the build process itself.
+
+    **How to use it:**
+
+    1. **Install the plugin**:
+        ```bash
+        npm install -D vite-plugin-singlefile
+        ```
+    2. **Configure Vite**: Add the plugin to your `vite.config.ts` (or `.js`):
+
+        ```typescript
+        import {defineConfig} from 'vite';
+        import {viteSingleFile} from 'vite-plugin-singlefile';
+
+        export default defineConfig({
+          plugins: [viteSingleFile()],
+        });
+        ```
+
+        This will ensure that all JS and CSS assets are inlined into the `index.html` file on build, making it ready to be served by your MCP server as a single resource.
 
 ### Step 2: Leveraging A2UI-over-MCP
 
