@@ -23,6 +23,10 @@ import {MockDriveUploadService} from './mock-drive-upload-service';
 import {z} from 'zod';
 
 const actionMessageSchema = z.string().transform((str, ctx) => {
+  if (!str.trim().startsWith('{')) {
+    ctx.addIssue({code: z.ZodIssueCode.custom, message: 'Not a JSON object'});
+    return z.NEVER;
+  }
   try {
     return JSON.parse(str);
   } catch {
@@ -118,7 +122,7 @@ export class A2aServiceImpl implements A2aService {
         for (const p of parts) {
           if ('a2ui' in p && Array.isArray(p.a2ui)) {
             for (const msg of p.a2ui) {
-              if (msg.updateDataModel && msg.updateDataModel.path === '/uploaded_file') {
+              if (msg.updateDataModel && (msg.updateDataModel.path === '/uploaded_file' || msg.updateDataModel.path === '/uploaded_files')) {
                 this.telemetry.log({
                   card: 'websocket',
                   title: 'Step 4: Agent responds with datamodel update to hydrate',

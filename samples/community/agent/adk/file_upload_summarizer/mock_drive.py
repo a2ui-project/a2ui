@@ -24,13 +24,14 @@ without requiring real Mock Drive credentials or internet access.
 import json
 import logging
 import os
+import tempfile
 import uuid
 from starlette.requests import Request
 from starlette.responses import JSONResponse, Response
 
 logger = logging.getLogger(__name__)
 
-MOCK_STORAGE_DIR = "/tmp/mock_drive_storage"
+MOCK_STORAGE_DIR = os.path.join(tempfile.gettempdir(), "mock_drive_storage")
 os.makedirs(MOCK_STORAGE_DIR, exist_ok=True)
 
 
@@ -81,6 +82,11 @@ async def handle_mock_drive_download(request: Request) -> Response:
     """Handles downloading raw file bytes mirroring Mock Drive v3 alt=media API."""
     try:
         file_id = request.path_params.get("file_id", "")
+        if not file_id or not file_id.isalnum():
+            return JSONResponse(
+                {"error": {"message": "Invalid file ID"}},
+                status_code=400,
+            )
         file_path = os.path.join(MOCK_STORAGE_DIR, file_id)
         meta_path = os.path.join(MOCK_STORAGE_DIR, f"{file_id}.meta.json")
 

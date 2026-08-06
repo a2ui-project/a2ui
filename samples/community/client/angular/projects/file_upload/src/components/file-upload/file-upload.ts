@@ -103,7 +103,7 @@ export class FileUploadComponent extends CatalogComponent<any> {
 
     const surface = this.rendererService.surfaceGroup.getSurface(this.surfaceId());
     if (surface) {
-      surface.dataModel.set('/uploaded_file/fileId', undefined);
+      surface.dataModel.set('/uploaded_files', undefined);
     }
 
     try {

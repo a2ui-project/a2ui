@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import asyncio
 import base64
 import logging
 import os
@@ -27,6 +28,42 @@ logger = logging.getLogger(__name__)
 
 DEFAULT_BASE_URL = "http://localhost:10008"
 STATE_KEY_BASE_URL = "base_url"
+
+
+async def fetch_and_process(file_info, http_client, base_url):
+    if not isinstance(file_info, dict):
+        return None
+    file_id = file_info.get("fileId", "")
+    file_name = file_info.get("fileName", "document")
+    mime_type = file_info.get("mimeType", "text/plain")
+
+    drive_id = file_id
+    if file_id.startswith("mockdrive://"):
+        drive_id = file_id.split("mockdrive://", 1)[1]
+
+    url = f"{base_url}/api/mock-drive/v3/files/{drive_id}?alt=media"
+    response = await http_client.get(url, follow_redirects=True)
+    response.raise_for_status()
+    file_bytes = response.content
+
+    logger.info(
+        f"Successfully downloaded {len(file_bytes)} bytes out of band for {drive_id}"
+    )
+
+    content_parts = [f"\n\n--- Document: {file_name} ---"]
+    if mime_type.startswith("text/") or mime_type in [
+        "application/json",
+        "application/javascript",
+        "application/xml",
+    ]:
+        try:
+            text_content = file_bytes.decode("utf-8", errors="replace")
+            content_parts.append(f"Content:\n{text_content}")
+        except Exception:
+            content_parts.append(genai_types.Part.from_bytes(data=file_bytes, mime_type=mime_type))
+    else:
+        content_parts.append(genai_types.Part.from_bytes(data=file_bytes, mime_type=mime_type))
+    return file_name, content_parts
 
 
 async def show_file_uploader_tool(tool_context: ToolContext, multiple: bool = False):
@@ -143,47 +180,26 @@ async def summarize_file_tool(
     )
 
     try:
+        if not isinstance(files, list):
+            return {
+                "summary_title": "Invalid Input",
+                "summary_text": "Expected a list of files.",
+                "status": "error",
+            }
+
         base_url = tool_context.session.state.get(STATE_KEY_BASE_URL, DEFAULT_BASE_URL)
         
         contents = []
         file_names = []
         
         async with httpx.AsyncClient() as http_client:
-            for file_info in files:
-                file_id = file_info.get("fileId", "")
-                file_name = file_info.get("fileName", "document")
-                mime_type = file_info.get("mimeType", "text/plain")
-                
-                drive_id = file_id
-                if file_id.startswith("mockdrive://"):
-                    drive_id = file_id.split("mockdrive://", 1)[1]
-
-                url = f"{base_url}/api/mock-drive/v3/files/{drive_id}?alt=media"
-                params = {}
-
-                response = await http_client.get(url, params=params, follow_redirects=True)
-                response.raise_for_status()
-                file_bytes = response.content
-
-                logger.info(
-                    f"Successfully downloaded {len(file_bytes)} bytes out of band for {drive_id}"
-                )
-                
-                file_names.append(file_name)
-                
-                contents.append(f"\n\n--- Document: {file_name} ---")
-                if mime_type.startswith("text/") or mime_type in [
-                    "application/json",
-                    "application/javascript",
-                    "application/xml",
-                ]:
-                    try:
-                        text_content = file_bytes.decode("utf-8", errors="replace")
-                        contents.append(f"Content:\n{text_content}")
-                    except Exception:
-                        contents.append(genai_types.Part.from_bytes(data=file_bytes, mime_type=mime_type))
-                else:
-                    contents.append(genai_types.Part.from_bytes(data=file_bytes, mime_type=mime_type))
+            tasks = [fetch_and_process(f, http_client, base_url) for f in files]
+            results = await asyncio.gather(*tasks)
+            for res in results:
+                if res:
+                    file_name, content_parts = res
+                    file_names.append(file_name)
+                    contents.extend(content_parts)
 
         lite_llm_model = os.getenv("LITELLM_MODEL", "gemini/gemini-3.1-flash-lite-preview")
         gemini_model = (
