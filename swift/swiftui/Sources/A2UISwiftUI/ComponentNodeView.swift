@@ -16,9 +16,9 @@ import A2UICore
 import SwiftUI
 
 /// Renders a single resolved A2UI engine node by looking up its view builder
-/// from the active component registry in the SwiftUI environment.
+/// from the active catalog implementation in the SwiftUI environment.
 public struct ComponentNodeView: View {
-  @Environment(\.a2uiComponentRegistry) private var registry
+  @Environment(\.a2uiCatalogImplementation) private var catalogImplementation
 
   public let node: Node
 
@@ -27,7 +27,7 @@ public struct ComponentNodeView: View {
   }
 
   public var body: some View {
-    if let renderedView = registry?.render(node: node) {
+    if let renderedView = Surface.render(node: node, using: catalogImplementation) {
       renderedView
     } else {
       fallbackView
