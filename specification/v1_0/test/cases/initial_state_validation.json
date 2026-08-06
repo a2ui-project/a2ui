@@ -198,6 +198,23 @@
       }
     },
     {
+      "description": "Valid createSurface with non-ASCII Unicode UAX #31 extension keys",
+      "valid": true,
+      "data": {
+        "version": "v1.0",
+        "createSurface": {
+          "surfaceId": "test_surface",
+          "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
+          "metadata": {
+            "extensions": {
+              "wellsky_über": {"locale": "de"},
+              "wellsky_τάξις": {"category": "greek"}
+            }
+          }
+        }
+      }
+    },
+    {
       "description": "Invalid: createSurface with extension key violating UAX #31 identifier pattern",
       "valid": false,
       "data": {
