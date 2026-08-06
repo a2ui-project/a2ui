@@ -103,13 +103,24 @@ def main():
             if "status: first-line-handled" not in current_labels and "status: first-line-handled" not in add_labels:
                 add_labels.append("status: first-line-handled")
 
-            # If the action is not needs_info, ensure status: waiting-for-author-response is removed if present
-            if action != "needs_info" and "status: waiting-for-author-response" in current_labels:
-                if "status: waiting-for-author-response" not in remove_labels:
+            # Handle status: waiting-for-author-response based on action
+            if action == "needs_info":
+                if (
+                    "status: waiting-for-author-response" not in current_labels
+                    and "status: waiting-for-author-response" not in add_labels
+                ):
+                    add_labels.append("status: waiting-for-author-response")
+            else:
+                if (
+                    "status: waiting-for-author-response" in current_labels
+                    and "status: waiting-for-author-response" not in remove_labels
+                ):
                     remove_labels.append("status: waiting-for-author-response")
 
             # Determine other non-priority component/type labels to add
             for l in labels:
+                if l == "status: waiting-for-author-response":
+                    continue
                 if l and l not in current_labels and l not in add_labels:
                     add_labels.append(l)
 
