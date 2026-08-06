@@ -15,7 +15,9 @@
  */
 
 import {Injectable} from '@angular/core';
-import type {MarkdownRenderer as MarkdownRendererType, MarkdownRendererOptions} from '../types';
+import type {MarkdownRendererOptions} from '@a2ui/web_core';
+
+export type {MarkdownRendererOptions};
 
 @Injectable({
   providedIn: 'root',
@@ -39,17 +41,18 @@ export class DefaultMarkdownRenderer extends MarkdownRenderer {
     } catch {
       if (!DefaultMarkdownRenderer.warningLogged) {
         console.warn(
-          '[DefaultMarkdownRenderer] Failed to load optional `@a2ui/markdown-it` renderer. Using fallback regex.',
+          '[DefaultMarkdownRenderer] Failed to load optional `@a2ui/markdown-it` renderer. Using fallback.',
         );
         DefaultMarkdownRenderer.warningLogged = true;
       }
-      // Basic implementation for v0.8
       return markdown;
     }
   }
 }
 
-export function provideMarkdownRenderer(renderFn?: MarkdownRendererType) {
+export function provideMarkdownRenderer(
+  renderFn?: (markdown: string, options?: MarkdownRendererOptions) => Promise<string>,
+) {
   if (renderFn) {
     return {
       provide: MarkdownRenderer,

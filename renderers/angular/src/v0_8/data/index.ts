@@ -16,4 +16,9 @@
 
 export * from './processor';
 export * from './types';
-export {MarkdownRenderer, provideMarkdownRenderer} from './markdown';
+export {
+  type MarkdownRendererOptions,
+  MarkdownRenderer,
+  DefaultMarkdownRenderer,
+  provideMarkdownRenderer,
+} from './markdown';
