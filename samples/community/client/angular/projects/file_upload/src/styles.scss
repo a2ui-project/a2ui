@@ -1,0 +1,77 @@
+// Copyright 2026 Google LLC
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     https://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+@use '@angular/material' as mat;
+
+@mixin styled-scrollbar {
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+    background: transparent;
+  }
+
+  ::-webkit-scrollbar-track {
+    background: rgba(255, 255, 255, 0.03);
+    border-radius: 4px;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.15);
+    border-radius: 4px;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    background: rgba(0, 242, 255, 0.4);
+  }
+}
+
+html {
+  color-scheme: dark;
+  @include mat.theme(
+    (
+      color: mat.$blue-palette,
+      typography: Roboto,
+      density: 0,
+    )
+  );
+  @include styled-scrollbar;
+}
+
+:root {
+  --primary: #00f2ff;
+  --secondary: #a855f7;
+  --accent: #ec4899;
+  --text-color: #f8fafc;
+  --text-muted: #94a3b8;
+  --bg-dark: #070913;
+  --bg-card: rgba(15, 20, 38, 0.7);
+  --border-color: rgba(255, 255, 255, 0.08);
+  --border-glow: rgba(0, 242, 255, 0.3);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  font-family: 'Outfit', 'Inter', sans-serif;
+  margin: 0;
+  padding: 0;
+  width: 100svw;
+  height: 100svh;
+  background-color: var(--bg-dark);
+  color: var(--text-color);
+  overflow: hidden;
+}

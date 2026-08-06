@@ -37,6 +37,7 @@ members = [
   "samples/community/agent/adk/gemini_enterprise/cloud_run",
   "samples/community/agent/adk/mcp-apps-in-a2ui-sample",
   "samples/community/agent/adk/mcp_app_proxy",
+  "samples/community/agent/adk/file_upload_summarizer",
   "samples/community/agent/adk/orchestrator",
   "samples/community/agent/adk/personalized_learning",
   "samples/community/agent/adk/rizzcharts/python",
