@@ -165,9 +165,26 @@
               "enum": ["rendererOnly", "agentOnly", "rendererOrAgent"],
               "default": "rendererOnly",
               "description": "Specifies where this function can be invoked from."
+            },
+            "requiresUserActivation": {
+              "type": "boolean",
+              "default": false,
+              "description": "Specifies whether this function requires a user activation context to execute."
             }
           },
           "required": ["returnType"]
+        },
+        {
+          "if": {
+            "properties": {
+              "requiresUserActivation": {"const": true}
+            }
+          },
+          "then": {
+            "properties": {
+              "callableFrom": {"enum": ["rendererOnly", "rendererOrAgent"]}
+            }
+          }
         }
       ],
       "unevaluatedProperties": false

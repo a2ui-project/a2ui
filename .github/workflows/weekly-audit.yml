@@ -1,0 +1,54 @@
+# Copyright 2026 Google LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+name: Weekly Antigravity Code Audit
+
+on:
+  schedule:
+    # Every Tuesday at 7:00 AM PST (14:00 UTC during PDT / 15:00 UTC during PST)
+    - cron: "0 14 * * 2"
+  workflow_dispatch: # Allows manual trigger from GitHub Actions UI
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  run-audit:
+    name: Execute Antigravity Compliance Audit
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+
+      - name: Set up Python
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: "3.11"
+          cache: "pip"
+
+      - name: Install Google GenAI SDK
+        run: |
+          pip install "google-genai>=1.0.0"
+
+      - name: Invoke Antigravity Agent API
+        env:
+          GEMINI_API_KEY: ${{ secrets.REPO_GEMINI_API_KEY }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          python .github/scripts/run_weekly_audit.py

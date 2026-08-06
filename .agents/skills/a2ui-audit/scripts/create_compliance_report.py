@@ -22,8 +22,40 @@ and post it as a new GitHub issue in the target repository using the `gh` CLI.
 import argparse
 import datetime
 import os
+import re
 import subprocess
 import sys
+
+
+def inject_remediation_links(report_content: str) -> str:
+    """Injects ChatOps remediation instructions into report recommendations."""
+    lines = report_content.splitlines()
+    new_lines: list[str] = []
+    in_recommendations = False
+    rec_pattern = re.compile(r"^(\d+)\.\s+(.*)")
+
+    for line in lines:
+        if line.strip().startswith("## Recommendations"):
+            in_recommendations = True
+            new_lines.append(line)
+            continue
+        elif in_recommendations and line.strip().startswith("## "):
+            in_recommendations = False
+
+        if in_recommendations:
+            match = rec_pattern.match(line.strip())
+            if match:
+                idx = match.group(1)
+                new_lines.append(line)
+                new_lines.append(
+                    f"   > 🤖 **Automated Remediation**: Comment `/remediate {idx}` on"
+                    " this issue to trigger an agent draft PR."
+                )
+                continue
+
+        new_lines.append(line)
+
+    return "\n".join(new_lines) + "\n"
 
 
 def main() -> None:
@@ -46,6 +78,12 @@ def main() -> None:
     if not os.path.exists(report_path):
         print(f"Error: Report file not found at '{report_path}'")
         sys.exit(1)
+
+    with open(report_path, "r", encoding="utf-8") as f:
+        content = f.read()
+    enhanced_content = inject_remediation_links(content)
+    with open(report_path, "w", encoding="utf-8") as f:
+        f.write(enhanced_content)
 
     today = datetime.date.today().isoformat()
     issue_title = f"Weekly A2UI Compliance Report ({today})"
