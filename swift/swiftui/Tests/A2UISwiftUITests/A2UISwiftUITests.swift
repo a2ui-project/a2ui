@@ -49,10 +49,10 @@ struct SurfaceTests {
       surfaceID: "s1",
       catalog: catalog
     )
-    let registry = ComponentRegistry()
+    let catalogImplementation = CatalogImplementation()
     let surface = Surface(
       viewModel: viewModel,
-      registry: registry
+      catalogImplementation: catalogImplementation
     )
     #expect(surface.surfaceID == "s1")
   }
@@ -155,9 +155,10 @@ struct ThemeEnvironmentTests {
   }
 }
 
-// MARK: - ComponentRegistry Tests
+// MARK: - CatalogImplementation Tests
 
-struct ComponentRegistryTests {
+@MainActor
+struct CatalogImplementationTests {
 
   @Test func componentKeyEquality() {
     let firstKey = ComponentKey(
@@ -176,28 +177,34 @@ struct ComponentRegistryTests {
     #expect(firstKey != thirdKey)
   }
 
-  @Test func registryResolvesUnqualifiedFallback() {
-    let registry = ComponentRegistry()
-    registry.register(
+  @Test func catalogImplementationResolvesUnqualifiedFallback() {
+    let catalogImplementation = CatalogImplementation()
+    catalogImplementation.register(
       type: "button",
       builder: { node in AnyView(Text(node.type)) }
     )
+    let builder = catalogImplementation.builder(
+      catalogID: "catalogA",
+      type: "button"
+    )
+    #expect(builder != nil)
+
     let node = Node(
       id: "btn1",
       type: "button",
       catalogID: "catalogA",
       properties: [:]
     )
-    let renderedView = registry.render(node: node)
+    let renderedView = Surface.render(node: node, using: catalogImplementation)
     #expect(renderedView != nil)
   }
 
-  @Test func registryResolvesQualifiedKeyOverFallback() {
-    let registry = ComponentRegistry()
+  @Test func catalogImplementationResolvesQualifiedKeyOverFallback() {
+    let catalogImplementation = CatalogImplementation()
     var qualifiedCalled = false
     var fallbackCalled = false
 
-    registry.register(
+    catalogImplementation.register(
       catalogID: "catalogA",
       type: "button",
       builder: { _ in
@@ -205,7 +212,7 @@ struct ComponentRegistryTests {
         return AnyView(Text("Qualified"))
       }
     )
-    registry.register(
+    catalogImplementation.register(
       type: "button",
       builder: { _ in
         fallbackCalled = true
@@ -219,21 +226,51 @@ struct ComponentRegistryTests {
       catalogID: "catalogA",
       properties: [:]
     )
-    _ = registry.render(node: node)
+    _ = Surface.render(node: node, using: catalogImplementation)
     #expect(qualifiedCalled)
     #expect(!fallbackCalled)
   }
 
-  @Test func registryEnvironmentDefaultsToNil() {
-    let environment = EnvironmentValues()
-    #expect(environment.a2uiComponentRegistry == nil)
+  @Test func catalogImplementationRegistersComponentImplementation() throws {
+    let schema = try Schema(instance: "{\"type\": \"object\"}")
+    var builderCalled = false
+    let component = ComponentImplementation(
+      name: "map",
+      schema: schema
+    ) { _ in
+      builderCalled = true
+      return AnyView(Text("Map"))
+    }
+
+    #expect(component.name == "map")
+    #expect(component.api.name == "map")
+    #expect(component.schema == schema)
+
+    let catalogImplementation = CatalogImplementation(
+      catalogID: "mapsCatalog",
+      components: [component]
+    )
+
+    let node = Node(
+      id: "map1",
+      type: "map",
+      catalogID: "mapsCatalog",
+      properties: [:]
+    )
+    _ = Surface.render(node: node, using: catalogImplementation)
+    #expect(builderCalled)
   }
 
-  @Test func registryEnvironmentCanBeSet() {
+  @Test func catalogImplementationEnvironmentDefaultsToNil() {
+    let environment = EnvironmentValues()
+    #expect(environment.a2uiCatalogImplementation == nil)
+  }
+
+  @Test func catalogImplementationEnvironmentCanBeSet() {
     var environment = EnvironmentValues()
-    let registry = ComponentRegistry()
-    environment.a2uiComponentRegistry = registry
-    #expect(environment.a2uiComponentRegistry != nil)
+    let catalogImplementation = CatalogImplementation()
+    environment.a2uiCatalogImplementation = catalogImplementation
+    #expect(environment.a2uiCatalogImplementation != nil)
   }
 }
 
@@ -271,4 +308,3 @@ func makeTestSurfaceCatalogForRendering() throws -> Catalog {
     ]
   )
 }
-

@@ -503,8 +503,10 @@ struct ComponentModelTests {
   }
 
   @Test func componentModelsNotEqualByDifferentCatalogID() {
-    let firstModel = ComponentModel(id: "btn1", type: "button", catalogID: "catalogA", properties: [:])
-    let secondModel = ComponentModel(id: "btn1", type: "button", catalogID: "catalogB", properties: [:])
+    let firstModel = ComponentModel(
+      id: "btn1", type: "button", catalogID: "catalogA", properties: [:])
+    let secondModel = ComponentModel(
+      id: "btn1", type: "button", catalogID: "catalogB", properties: [:])
     #expect(firstModel != secondModel)
   }
 

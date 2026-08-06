@@ -19,20 +19,20 @@ import SwiftUI
 ///
 /// `Surface` observes a ``SurfaceViewModel`` and renders the resolved
 /// component tree using registered component view builders from the active
-/// ``ComponentRegistry``. The active theme and component registry are
+/// ``CatalogImplementation``. The active theme and catalog implementation are
 /// propagated through the environment.
 public struct Surface: View {
   @ObservedObject public var viewModel: SurfaceViewModel
 
-  public let registry: ComponentRegistry?
+  public let catalogImplementation: CatalogImplementation?
   public let surfaceID: String
 
   public init(
     viewModel: SurfaceViewModel,
-    registry: ComponentRegistry? = nil
+    catalogImplementation: CatalogImplementation? = nil
   ) {
     self.viewModel = viewModel
-    self.registry = registry
+    self.catalogImplementation = catalogImplementation
     self.surfaceID = viewModel.surfaceID
   }
 
@@ -40,9 +40,28 @@ public struct Surface: View {
     if let rootNode = viewModel.rootNode {
       ComponentNodeView(node: rootNode)
         .environment(\.a2uiTheme, viewModel.theme)
-        .environment(\.a2uiComponentRegistry, registry)
+        .environment(\.a2uiCatalogImplementation, catalogImplementation)
     } else {
       ProgressView()
     }
+  }
+}
+
+extension Surface {
+  /// Resolves the view builder for a node from a catalog implementation and invokes it to render.
+  ///
+  /// - Parameters:
+  ///   - node: The resolved engine node to render.
+  ///   - catalogImplementation: The catalog implementation defining available component builders.
+  /// - Returns: The rendered `AnyView`, or `nil` if no corresponding view builder was found.
+  public static func render(
+    node: Node,
+    using catalogImplementation: CatalogImplementation?
+  ) -> AnyView? {
+    guard let catalogImplementation else { return nil }
+    if let builder = catalogImplementation.builder(catalogID: node.catalogID, type: node.type) {
+      return builder(node)
+    }
+    return nil
   }
 }

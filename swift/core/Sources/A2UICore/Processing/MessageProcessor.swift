@@ -80,15 +80,35 @@ public final class MessageProcessor: ObservableObject {
     /// If true, full definitions of all catalogs will be included as inline catalogs.
     public var includeInlineCatalogs: Bool
 
-    /// The protocol version to generate capabilities for (defaults to "v0.9.1").
+    /// The protocol version to generate capabilities for.
     public var version: String
 
+    /// Creates a capabilities option instance with an explicit protocol version.
+    ///
+    /// - Parameters:
+    ///   - includeInlineCatalogs: Whether to include inline catalog definitions.
+    ///   - version: The protocol version string (e.g., "v0.9.1").
     public init(
       includeInlineCatalogs: Bool = false,
-      version: String = "v0.9.1"
+      version: String
     ) {
       self.includeInlineCatalogs = includeInlineCatalogs
       self.version = version
+    }
+
+    /// Creates a capabilities option instance defaulting to protocol version "v0.9.1".
+    ///
+    /// - Parameter includeInlineCatalogs: Whether to include inline catalog definitions.
+    @available(
+      *,
+      deprecated,
+      message: "Specify the protocol version explicitly using init(includeInlineCatalogs:version:)"
+    )
+    public init(
+      includeInlineCatalogs: Bool = false
+    ) {
+      self.includeInlineCatalogs = includeInlineCatalogs
+      self.version = "v0.9.1"
     }
   }
 
@@ -97,7 +117,7 @@ public final class MessageProcessor: ObservableObject {
   /// - Parameter options: Configuration options for capability generation.
   /// - Returns: A `JSONValue` representing the capabilities structure.
   public func getClientCapabilities(
-    options: CapabilitiesOptions = CapabilitiesOptions()
+    options: CapabilitiesOptions
   ) -> JSONValue {
     let supportedCatalogIDs = Array(catalogs.keys).sorted()
     var versionCaps: OrderedDictionary<String, JSONValue> = [
@@ -112,6 +132,20 @@ public final class MessageProcessor: ObservableObject {
     return .object([
       options.version: .object(versionCaps)
     ])
+  }
+
+  /// Generates `a2uiClientCapabilities` using default options for protocol version "v0.9.1".
+  ///
+  /// - Returns: A `JSONValue` representing the capabilities structure.
+  @available(
+    *,
+    deprecated,
+    message: "Specify capabilities options explicitly using getClientCapabilities(options:)"
+  )
+  public func getClientCapabilities() -> JSONValue {
+    getClientCapabilities(
+      options: CapabilitiesOptions(includeInlineCatalogs: false, version: "v0.9.1")
+    )
   }
 
   private func generateInlineCatalog(_ catalog: Catalog) -> JSONValue {
@@ -379,7 +413,8 @@ public final class MessageProcessor: ObservableObject {
 
       if result.isValid {
         var props: [String: JSONValue] = [:]
-        for (key, val) in componentDict where key != "id" && key != "component" && key != "catalogId" {
+        for (key, val) in componentDict
+        where key != "id" && key != "component" && key != "catalogId" {
           props[key] = val
         }
 
