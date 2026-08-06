@@ -69,3 +69,16 @@ export const IncomingWebFrameMessageSchema = z.discriminatedUnion('type', [
 ]);
 
 export type IncomingWebFrameMessage = z.infer<typeof IncomingWebFrameMessageSchema>;
+
+/**
+ * Shared base Zod schema for A2UI WebAppFrame components.
+ * Contains common optional properties shared across URL-based and HTML-based frames.
+ */
+export const WebAppFrameBasePropsSchema = z.object({
+  config: z.record(z.unknown()).optional(),
+  data: z.any().optional(),
+  allowedEvents: z.record(z.unknown()).optional(),
+  allowedFunctions: z.record(z.unknown()).optional(),
+  mutableData: z.record(z.unknown()).optional(),
+  disableSchemaValidation: z.boolean().optional(),
+});

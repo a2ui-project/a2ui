@@ -41,3 +41,4 @@ default = true
 
 [tool.uv.sources]
 a2ui-agent-sdk = { workspace = true }
+a2ui-core = { workspace = true }

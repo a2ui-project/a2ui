@@ -145,6 +145,39 @@
           "dataModel": "not-an-object"
         }
       }
+    },
+    {
+      "description": "Invalid: createSurface cannot create a component named Surface",
+      "valid": false,
+      "data": {
+        "version": "v1.0",
+        "createSurface": {
+          "surfaceId": "test_surface",
+          "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
+          "components": [
+            {
+              "id": "root",
+              "component": "Surface"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "description": "Invalid: updateComponents cannot create a component named Surface",
+      "valid": false,
+      "data": {
+        "version": "v1.0",
+        "updateComponents": {
+          "surfaceId": "test_surface",
+          "components": [
+            {
+              "id": "root",
+              "component": "Surface"
+            }
+          ]
+        }
+      }
     }
   ]
 }

@@ -30,7 +30,7 @@ from google.adk.runners import Runner
 from google.adk.sessions import InMemorySessionService
 from google.genai import types
 from pydantic import PrivateAttr
-from tools import get_calculator_app, calculate_via_mcp, get_pong_mcp_app_json, get_pong_app_web_frame_json, commentate_pong_game
+from tools import get_calculator_app, calculate_via_mcp, get_pong_mcp_app_json, get_pong_app_web_frame_json, get_pong_app_web_frame_srcdoc_json, commentate_pong_game
 from agent_executor import get_a2ui_enabled, get_a2ui_catalog, get_a2ui_examples
 
 logger = logging.getLogger(__name__)
@@ -40,6 +40,7 @@ You are an expert A2UI Proxy Agent. Your primary functions are to fetch the Calc
 When the user asks for the calculator, you MUST call the `get_calculator_app` tool.
 When the user asks for Pong with MCP Apps, you MUST call the `get_pong_mcp_app_json` tool.
 When the user asks for Pong with WebApp URL, you MUST call the `get_pong_app_web_frame_json` tool.
+When the user asks for Pong with WebApp Srcdoc, you MUST call the `get_pong_app_web_frame_srcdoc_json` tool.
 
 IMPORTANT: Do NOT attempt to construct the JSON manually. The tools handle it automatically.
 
@@ -53,6 +54,7 @@ WORKFLOW_DESCRIPTION = """
    - If User asks for calculator: Call `get_calculator_app`.
    - If User asks for Pong with MCP Apps: Call `get_pong_mcp_app_json`.
    - If User asks for Pong with WebApp URL: Call `get_pong_app_web_frame_json`.
+   - If User asks for Pong with WebApp Srcdoc: Call `get_pong_app_web_frame_srcdoc_json`.
    - If User interacts with the calculator (ACTION: calculate): Extract 'operation', 'a', and 'b' from the event context and call `calculate_via_mcp`. Return the result to the user.
    - If you receive a `"commentate_pong"` action: Call `commentate_pong_game` with `"game_event"` from `"context" -> "game_event"`. Do not generate text responses; only call the tool.
 """
@@ -178,6 +180,13 @@ class McpAppProxyAgent:
                     tags=["html", "app", "demo", "tool"],
                     examples=["open pong with webapp url"],
                 ),
+                AgentSkill(
+                    id="open_pong_web_frame_srcdoc",
+                    name="Open Pong with WebApp Srcdoc",
+                    description="Opens Pong using the new WebAppFrame Srcdoc method.",
+                    tags=["html", "app", "demo", "tool"],
+                    examples=["open pong with webapp srcdoc"],
+                ),
             ],
         )
 
@@ -217,6 +226,7 @@ class McpAppProxyAgent:
                 calculate_via_mcp,
                 get_pong_mcp_app_json,
                 get_pong_app_web_frame_json,
+                get_pong_app_web_frame_srcdoc_json,
                 commentate_pong_game,
             ],
             planner=BuiltInPlanner(
