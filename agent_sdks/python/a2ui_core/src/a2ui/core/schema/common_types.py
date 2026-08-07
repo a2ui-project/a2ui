@@ -125,7 +125,7 @@ class AccessibilityAttributes(StrictBaseModel):
             " 'Silences notifications about this conversation'."
         ),
     )
-    live: Optional[Literal["off", "polite", "assertive"]] = Field(
+    live: Literal["off", "polite", "assertive"] = Field(
         default="off",
         description=(
             "Controls screen reader announcements for dynamic updates (WAI-ARIA"
