@@ -1476,6 +1476,46 @@
     </span>
 </a>
 </li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#extensions">
+<span class="md-ellipsis">
+      
+        Extensions
+      
+    </span>
+</a>
+<nav aria-label="Extensions" class="md-nav">
+<ul class="md-nav__list">
+<li class="md-nav__item">
+<a class="md-nav__link" href="#architectural-principles">
+<span class="md-ellipsis">
+      
+        Architectural Principles
+      
+    </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#wire-containers">
+<span class="md-ellipsis">
+      
+        Wire Containers
+      
+    </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#sdk-accessor-pattern">
+<span class="md-ellipsis">
+      
+        SDK Accessor Pattern
+      
+    </span>
+</a>
+</li>
+</ul>
+</nav>
+</li>
 </ul>
 </nav>
 </li>
@@ -2573,6 +2613,46 @@
     </span>
 </a>
 </li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#extensions">
+<span class="md-ellipsis">
+      
+        Extensions
+      
+    </span>
+</a>
+<nav aria-label="Extensions" class="md-nav">
+<ul class="md-nav__list">
+<li class="md-nav__item">
+<a class="md-nav__link" href="#architectural-principles">
+<span class="md-ellipsis">
+      
+        Architectural Principles
+      
+    </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#wire-containers">
+<span class="md-ellipsis">
+      
+        Wire Containers
+      
+    </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#sdk-accessor-pattern">
+<span class="md-ellipsis">
+      
+        SDK Accessor Pattern
+      
+    </span>
+</a>
+</li>
+</ul>
+</nav>
+</li>
 </ul>
 </nav>
 </li>
@@ -3667,7 +3747,7 @@ There is <strong>no fallback</strong> to the list of catalogs declared in <code>
 </tr>
 <tr>
 <td style="text-align: left;"><strong>openUrl</strong></td>
-<td style="text-align: left;">Opens a URL in a browser.</td>
+<td style="text-align: left;">Opens a URL in a browser (requires user activation).</td>
 </tr>
 <tr>
 <td style="text-align: left;"><strong>and</strong></td>
@@ -3875,6 +3955,35 @@ There is <strong>no fallback</strong> to the list of catalogs declared in <code>
 <ul>
 <li><code>version</code> (string, required): Must be the constant <code>"v1.0"</code>.</li>
 <li><code>surfaces</code> (object, required): A map of surface IDs to their current local data models.</li>
+</ul>
+<h3 id="extensions">Extensions<a class="headerlink" href="#extensions" title="Permanent link">¶</a></h3>
+<p>In A2UI v1.0, strict schema validation (<code>additionalProperties: false</code>) protects components and wire messages from unrecognized fields. To enable non-visual metadata (such as access constraints, audit tags, and telemetry identifiers, etc.) without allowing arbitrary properties that would weaken schema validation, A2UI defines a centralized <code>Extensions</code> type in <code>common_types.json#/$defs/Extensions</code>.</p>
+<h4 id="architectural-principles">Architectural Principles<a class="headerlink" href="#architectural-principles" title="Permanent link">¶</a></h4>
+<ol>
+<li><strong>Optional Schema Fields</strong>: All <code>metadata.extensions</code> fields are strictly optional on the wire. When omitted, they incur zero token overhead.</li>
+<li><strong>Parser Conformance Rule</strong>: Conformant renderers MUST NOT reject payloads containing extension keys within an <code>extensions</code> object. Renderers MAY inspect and process extension keys they recognize, and MUST ignore unrecognized extension keys without error.</li>
+<li><strong>Unicode Identifiers (UAX #31) and Prefix Reservation</strong>: Extension names MUST be valid <a href="https://www.unicode.org/reports/tr31/">Unicode UAX #31</a> identifiers (<code>^[\p{XID_Start}_][\p{XID_Continue}]*$</code>). To prevent key collisions:<ul>
+<li>Official A2UI extensions are strictly reserved under the prefix <code>a2ui_</code>.</li>
+<li>Third-party extensions MUST be prefixed with a distinct organization or product identifier separated by an underscore (e.g. an extension from a company with the domain <code>company.com</code> might be named <code>com_company_extension</code>).</li>
+<li>Use of names derived from reversed domain names is encouraged for public facing extensions.</li>
+<li>Extension namespace uniqueness is self-managed by extension authors; no central registry is maintained.</li>
+</ul>
+</li>
+</ol>
+<h4 id="wire-containers">Wire Containers<a class="headerlink" href="#wire-containers" title="Permanent link">¶</a></h4>
+<p>A2UI defines optional <code>metadata.extensions</code> containers across four scopes:</p>
+<ul>
+<li><strong>Surface Scope</strong> (<code>CreateSurfaceMessage.createSurface.metadata.extensions</code> in [<code>agent_to_renderer.json</code>]): Attach surface-level security metadata, access policies, or telemetry session identifiers.</li>
+<li><strong>Component Scope</strong> (<code>ComponentCommon.metadata.extensions</code> in [<code>common_types.json</code>]): Attach component-instance styling overrides, telemetry markers, or custom validation rules.</li>
+<li><strong>Catalog Component Definition Scope</strong> (<code>ComponentDefinition.metadata.extensions</code> in [<code>catalog_definition.json</code>]): Attach static component metadata or default telemetry tagging directly to catalog component schemas.</li>
+<li><strong>Action Egress Scope</strong> (<code>UserActionMessage.action.metadata.extensions</code> in [<code>renderer_to_agent.json</code>]): Send client-side action attestations, audit signatures, or authorization tokens back to the agent when user actions are triggered.</li>
+</ul>
+<h4 id="sdk-accessor-pattern">SDK Accessor Pattern<a class="headerlink" href="#sdk-accessor-pattern" title="Permanent link">¶</a></h4>
+<p>Renderers and client SDKs expose surface and component metadata using uniform accessors and change notification callbacks:</p>
+<ul>
+<li><code>getMetadata()</code>: Retrieves the metadata object containing extensions.</li>
+<li><code>setMetadata(metadata)</code>: Updates the metadata object and notifies listeners.</li>
+<li><code>onMetadataChanged(callback)</code>: Registers a callback that fires whenever metadata updates.</li>
 </ul>
 </article>
 </div>

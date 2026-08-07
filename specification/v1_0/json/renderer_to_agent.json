@@ -44,6 +44,16 @@
         "actionId": {
           "type": "string",
           "description": "Unique ID for this action call. Only needed if wantResponse is true."
+        },
+        "metadata": {
+          "type": "object",
+          "description": "Optional client-side metadata to send back to the agent with the action.",
+          "properties": {
+            "extensions": {
+              "$ref": "common_types.json#/$defs/Extensions"
+            }
+          },
+          "additionalProperties": false
         }
       },
       "required": ["name", "surfaceId", "sourceComponentId", "timestamp", "context"]

@@ -12,13 +12,9 @@
         <meta name="author" content="Google">
       
       
-        <link rel="canonical" href="https://a2ui.org/composer/">
+        <link rel="canonical" href="https://a2ui.org/composer_renderer_integration/">
       
       
-        <link rel="prev" href="../quickstart/">
-      
-      
-        <link rel="next" href="../concepts/overview/">
       
       
         
@@ -29,7 +25,7 @@
     
     
       
-        <title>A2UI Composer ⭐ - A2UI</title>
+        <title>A2UI Composer Integration Manual - A2UI</title>
       
     
     
@@ -157,7 +153,7 @@
     <div data-md-component="skip">
       
         
-        <a href="#a2ui-composer" class="md-skip">
+        <a href="#a2ui-composer-integration-manual" class="md-skip">
           Skip to content
         </a>
       
@@ -192,7 +188,7 @@
         <div class="md-header__topic" data-md-component="header-topic">
           <span class="md-ellipsis">
             
-              A2UI Composer ⭐
+              A2UI Composer Integration Manual
             
           </span>
         </div>
@@ -564,37 +560,10 @@
       
   
   
-    
   
   
-  
-    <li class="md-nav__item md-nav__item--active">
-      
-      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
-      
-      
-        
-      
-      
-        <label class="md-nav__link md-nav__link--active" for="__toc">
-          
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    A2UI Composer ⭐
-  
-
-    
-  </span>
-  
-  
-
-          <span class="md-nav__icon md-icon"></span>
-        </label>
-      
-      <a href="./" class="md-nav__link md-nav__link--active">
+    <li class="md-nav__item">
+      <a href="../composer/" class="md-nav__link">
         
   
   
@@ -610,109 +579,6 @@
   
 
       </a>
-      
-        
-
-<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
-  
-  
-  
-    
-  
-  
-    <label class="md-nav__title" for="__toc">
-      <span class="md-nav__icon md-icon"></span>
-      Table of contents
-    </label>
-    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
-      
-        <li class="md-nav__item">
-  <a href="#using-the-composer-ui" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Using the Composer UI
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#components-gallery" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Components Gallery
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#settings" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Settings
-      
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="Settings">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#renderer-application" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Renderer Application
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#gemini-api-key" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Gemini API Key
-      
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#work-in-progress" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Work in Progress
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#raw-messages" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Raw Messages
-      
-    </span>
-  </a>
-  
-</li>
-      
-    </ul>
-  
-</nav>
-      
     </li>
   
 
@@ -2456,10 +2322,10 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#using-the-composer-ui" class="md-nav__link">
+  <a href="#background" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Using the Composer UI
+        Background
       
     </span>
   </a>
@@ -2467,10 +2333,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#components-gallery" class="md-nav__link">
+  <a href="#the-bridge" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Components Gallery
+        The Bridge
       
     </span>
   </a>
@@ -2478,22 +2344,22 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#settings" class="md-nav__link">
+  <a href="#examples" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Settings
+        Examples
       
     </span>
   </a>
   
-    <nav class="md-nav" aria-label="Settings">
+    <nav class="md-nav" aria-label="Examples">
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
-  <a href="#renderer-application" class="md-nav__link">
+  <a href="#using-angular" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Renderer Application
+        Using Angular
       
     </span>
   </a>
@@ -2501,10 +2367,33 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#gemini-api-key" class="md-nav__link">
+  <a href="#add-dependencies" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Gemini API Key
+        Add dependencies
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Add dependencies">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#create-the-wrapper-component" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Create the wrapper component
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#bootstrap-your-renderer-application" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Bootstrap your renderer application
       
     </span>
   </a>
@@ -2515,26 +2404,9 @@
     </nav>
   
 </li>
-      
-        <li class="md-nav__item">
-  <a href="#work-in-progress" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Work in Progress
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#raw-messages" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Raw Messages
-      
-    </span>
-  </a>
+        
+      </ul>
+    </nav>
   
 </li>
       
@@ -2567,137 +2439,99 @@
     
       
     
-    <a href="https://github.com/a2ui-project/a2ui/raw/main/docs/public/composer.md" title="View source of this page" class="md-content__button md-icon">
+    <a href="https://github.com/a2ui-project/a2ui/raw/main/docs/public/composer_renderer_integration.md" title="View source of this page" class="md-content__button md-icon">
       
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M17 18c.56 0 1 .44 1 1s-.44 1-1 1-1-.44-1-1 .44-1 1-1m0-3c-2.73 0-5.06 1.66-6 4 .94 2.34 3.27 4 6 4s5.06-1.66 6-4c-.94-2.34-3.27-4-6-4m0 6.5a2.5 2.5 0 0 1-2.5-2.5 2.5 2.5 0 0 1 2.5-2.5 2.5 2.5 0 0 1 2.5 2.5 2.5 2.5 0 0 1-2.5 2.5M9.27 20H6V4h7v5h5v4.07c.7.08 1.36.25 2 .49V8l-6-6H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h4.5a8.2 8.2 0 0 1-1.23-2"/></svg>
     </a>
   
 
 
-<h1 id="a2ui-composer">A2UI Composer<a class="headerlink" href="#a2ui-composer" title="Permanent link">&para;</a></h1>
-<p>Try building A2UI widgets interactively with the <strong>A2UI Composer</strong>.
-<img alt="A2UI Composer Workspace" src="../assets/composer_workspace.png" /></p>
-<ol>
-<li>
-<p>Navigate to the <a href="https://a2ui-project.github.io/composer/">A2UI Composer</a></p>
-</li>
-<li>
-<p>By default, you'll be using the Basic catalog provided by an Angular-based
-   renderer</p>
-</li>
-<li>
-<p>Use the Gemini chat to start building an A2UI interface! (<strong>Note</strong>: This
-   requires a Gemini API key. See <a href="#gemini-api-key">below</a>)</p>
-</li>
-</ol>
-<h2 id="using-the-composer-ui">Using the Composer UI<a class="headerlink" href="#using-the-composer-ui" title="Permanent link">&para;</a></h2>
-<p>The Composer workspace is split into several interactive panels to assist in
-developing and debugging A2UI surfaces:</p>
+<h1 id="a2ui-composer-integration-manual">A2UI Composer Integration Manual<a class="headerlink" href="#a2ui-composer-integration-manual" title="Permanent link">&para;</a></h1>
+<h2 id="background">Background<a class="headerlink" href="#background" title="Permanent link">&para;</a></h2>
+<p>The A2UI Composer has no knowledge or integration with any particular catalog or
+renderer stack. In order to see the A2UI JSON rendered, it relies on a “Renderer
+Application.” The A2UI Composer hosts the Renderer Application in an iframe and
+communicates with it via <strong>postMessage</strong>. The iframe hosting the renderer
+application has <code>sandbox='allow-scripts allow-same-origin allow-forms'</code>, which
+should not be a problem for simply rendering the A2UI JSON.</p>
+<p>The Renderer Application is responsible for accepting A2UI JSON and using its
+renderers to display the result.</p>
+<h2 id="the-bridge">The Bridge<a class="headerlink" href="#the-bridge" title="Permanent link">&para;</a></h2>
+<p>To simplify the work of integrating with the A2UI Composer, a <strong>bridge</strong> has
+been created. This is a small amount of Javascript code that the Renderer
+Application incorporates, and coordinates all the communication between the A2UI
+Composer and the Renderer Application.</p>
+<p>To further simplify the integration, different framework-specific wrappers are
+provided.</p>
+<h2 id="examples">Examples<a class="headerlink" href="#examples" title="Permanent link">&para;</a></h2>
+<p>Check out the sample renderer apps:</p>
 <ul>
-<li><strong>Gemini Assistant:</strong> A chat interface powered by Gemini. You can use
-  natural language prompts to ask Gemini to generate new layouts, refine the
-  existing JSON, or modify visual attributes.</li>
-<li>You can <strong>upload an attachment</strong> (a mock, for example) by clicking the
-  paper clip icon
-  <img src="assets/composer_paperclip.png" alt="paper clip icon" style="width:30px;height:30px;display:inline;vertical-align:middle;"/>.</li>
-<li>
-<p>You can <strong>include a screenshot</strong> of the
-  current A2UI interface by clicking the camera icon
-  <img src="assets/composer_camera.png" alt="camera icon" style="width:30px;height:30px;display:inline;vertical-align:middle;">.</p>
-</li>
-<li>
-<p><strong>Rendered A2UI Preview:</strong> Displays the live visual preview of the active
-  component.</p>
-</li>
-<li>
-<p><strong>A2UI JSON Editor:</strong> Displays the raw JSON payload defining the UI
-  structure and component hierarchy. You can edit this directly to instantly
-  update the rendered preview.</p>
-</li>
-<li>The editor has <strong><a href="../assets/composer_editor_tooltip.png">tooltips on hover</a></strong>,
-  showing the description of the A2UI element.</li>
-<li>
-<p>If you have A2UI JSON from another source, you can paste it into this
-  panel. You can right-click to format the JSON if you want.</p>
-</li>
-<li>
-<p><strong>Debug &amp; Inspection Tabs (Bottom):</strong></p>
-<ul>
-<li><strong>Data Model:</strong> Inspects and modifies the runtime state/data values
-  bound to the UI components. Changes here propagate to the preview, and
-  user inputs in the preview update this model.</li>
-<li><strong>Events:</strong> Logs user-interaction events (e.g., clicks, inputs, or
-  selections) dispatched by the rendered components.</li>
-<li><strong>Errors:</strong> Displays errors from rendering, JSON parsing, or API
-  failures.</li>
-<li><strong>Raw Messages:</strong> Shows the communication between the Composer and the
-  renderer, as well as interactions with Gemini. (See more <a href="#raw-messages">below</a>.)</li>
+<li><a href="https://github.com/a2ui-project/composer/tree/main/samples/ng-basic-catalog">Angular</a></li>
+<li><a href="https://github.com/a2ui-project/composer/tree/main/samples/lit-basic-catalog">Lit</a></li>
+<li><a href="https://github.com/a2ui-project/composer/tree/main/samples/react-basic-catalog">React</a></li>
 </ul>
-</li>
-</ul>
-<h2 id="components-gallery">Components Gallery<a class="headerlink" href="#components-gallery" title="Permanent link">&para;</a></h2>
-<p><img alt="screenshot of a component with A2UI usage and properties" src="../assets/composer_components_gallery.png" /></p>
-<p>The Components gallery allows you to browse through all the components which
-are provided in the current A2UI catalog. Each component has an example
-rendered, along with the A2UI JSON to produce that rendering. Use the copy icon
-<img src="assets/composer_copy.png" alt="copy icon" style="width:30px;height:30px;display:inline;vertical-align:middle;">
-at the top of the Usage panel to copy the full A2UI JSON for this component.</p>
-<p>At the bottom of the page is a table listing all the properties of the
-component with descriptions, type, and indicating whether the property is
-required or not.</p>
-<h2 id="settings">Settings<a class="headerlink" href="#settings" title="Permanent link">&para;</a></h2>
-<h3 id="renderer-application">Renderer Application<a class="headerlink" href="#renderer-application" title="Permanent link">&para;</a></h3>
-<p>The settings page allows you to change the renderer application being used.
-At this time, there are three preloaded renderer applications:</p>
-<ul>
-<li>Angular Basic Catalog</li>
-<li>Lit Basic Catalog</li>
-<li>React Basic Catalog</li>
-</ul>
-<p>If you are building another renderer app, you can select "Custom" from the
-dropdown, and put the URL in the text box. (For instructions on building a
-renderer app, see <a href="../composer_renderer_integration/">A2UI Composer Integration</a>).</p>
-<h3 id="gemini-api-key">Gemini API Key<a class="headerlink" href="#gemini-api-key" title="Permanent link">&para;</a></h3>
-<p>This is also where you can enter a Gemini API key, enabling use of the Gemini
-chat feature.</p>
-<p>To obtain an API key:</p>
-<ol>
-<li>Go to <a href="https://aistudio.google.com/api-keys">Google AI Studio</a> and sign in
-   with your Google account.</li>
-<li>Click Create API key.</li>
-<li>Select or create a Google Cloud project when prompted, then click Create key.</li>
-<li>Save your key in a secure location!</li>
-</ol>
-<p>Note that the A2UI Composer encrypts your key and stores it locally in your
-browser's secure database using the <a href="https://developer.mozilla.org/en-US/docs/Web/API/Web_Crypto_API">Web Crypto API</a>.
-Neither Google nor anyone else has access to this key.</p>
-<h2 id="work-in-progress">Work in Progress<a class="headerlink" href="#work-in-progress" title="Permanent link">&para;</a></h2>
-<p>The A2UI team is actively working on the following improvements:</p>
-<ul>
-<li><strong>Latency reduction:</strong> Improving latency within Gemini-assisted workflows.</li>
-<li><strong>Visual understanding:</strong> Updating Gemini-assisted workflows to improve
-  visual understanding of already rendered surfaces.</li>
-</ul>
-<h2 id="raw-messages">Raw Messages<a class="headerlink" href="#raw-messages" title="Permanent link">&para;</a></h2>
-<p>The messages which flow between the Composer and the renderer can help with
-troubleshooting and to gain a better understanding of what's going on. These
-messages include:</p>
-<ul>
-<li><strong>RENDERER_READY</strong>: Sent by the renderer once it has fully bootstrapped.</li>
-<li><strong>A2UI_CATALOG</strong>: Sent by the renderer (upon request from the Composer).
-  Contains the full A2UI catalog supported by the renderer.</li>
-<li><strong>COMPONENT_USAGES</strong>: Sent by the renderer (upon request from the Composer),
-  containing the data to support the Component Gallery page.</li>
-</ul>
-<p>Whenever there is a change to the A2UI component's data model, the
-<strong>DATA_MODEL_CHANGE</strong> message is captured, showing the <code>updateDataModel</code>
-message which would be sent back to the agent.</p>
-<p>Additionally, when using the Gemini chat feature:</p>
-<ul>
-<li><strong>LLM_REQUEST</strong>: Shows the full request (including the system prompt) sent
-  to the LLM.</li>
-<li><strong>LLM_RESPONSE</strong>: Shows the full response received from the LLM.</li>
-</ul>
+<p>They all serve the same version of the Basic catalog.</p>
+<p>When running the hosted <a href="https://a2ui-project.github.io/composer/">A2UI Composer</a>,
+you can see each of these renderer applications in action by going to the
+Settings page and clicking the Renderer dropdown.</p>
+<h3 id="using-angular">Using Angular<a class="headerlink" href="#using-angular" title="Permanent link">&para;</a></h3>
+<p>As an example, we'll walk through creating a Renderer application based on
+Angular.</p>
+<h3 id="add-dependencies">Add dependencies<a class="headerlink" href="#add-dependencies" title="Permanent link">&para;</a></h3>
+<p>First, add the core integration package to your project dependencies list:</p>
+<div class="language-text highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>yarn add a2ui-bridge @a2ui/web_core @a2ui/angular
+</span></code></pre></div>
+<p>Of course, if you’re using a different package manager, follow the appropriate
+steps.</p>
+<h4 id="create-the-wrapper-component">Create the wrapper component<a class="headerlink" href="#create-the-wrapper-component" title="Permanent link">&para;</a></h4>
+<p>Create a new component that looks like this:</p>
+<div class="language-ts highlight"><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="k">import</span><span class="w"> </span><span class="p">{</span><span class="nx">Component</span><span class="p">,</span><span class="w"> </span><span class="nx">inject</span><span class="p">}</span><span class="w"> </span><span class="kr">from</span><span class="w"> </span><span class="s1">&#39;@angular/core&#39;</span><span class="p">;</span>
+</span><span id="__span-1-2"><a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a><span class="k">import</span><span class="w"> </span><span class="p">{</span><span class="nx">SurfaceComponent</span><span class="p">}</span><span class="w"> </span><span class="kr">from</span><span class="w"> </span><span class="s1">&#39;@a2ui/angular/v0_9&#39;</span><span class="p">;</span>
+</span><span id="__span-1-3"><a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a><span class="k">import</span><span class="w"> </span><span class="p">{</span><span class="nx">A2uiSandboxConnection</span><span class="p">}</span><span class="w"> </span><span class="kr">from</span><span class="w"> </span><span class="s1">&#39;a2ui-bridge/angular&#39;</span><span class="p">;</span>
+</span><span id="__span-1-4"><a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a>
+</span><span id="__span-1-5"><a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a><span class="kd">@Component</span><span class="p">({</span>
+</span><span id="__span-1-6"><a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a><span class="w">  </span><span class="nx">selector</span><span class="o">:</span><span class="w"> </span><span class="s1">&#39;app-root&#39;</span><span class="p">,</span>
+</span><span id="__span-1-7"><a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a><span class="w">  </span><span class="nx">standalone</span><span class="o">:</span><span class="w"> </span><span class="kt">true</span><span class="p">,</span>
+</span><span id="__span-1-8"><a id="__codelineno-1-8" name="__codelineno-1-8" href="#__codelineno-1-8"></a><span class="w">  </span><span class="nx">imports</span><span class="o">:</span><span class="w"> </span><span class="p">[</span><span class="nx">SurfaceComponent</span><span class="p">],</span>
+</span><span id="__span-1-9"><a id="__codelineno-1-9" name="__codelineno-1-9" href="#__codelineno-1-9"></a><span class="w">  </span><span class="nx">template</span><span class="o">:</span><span class="w"> </span><span class="sb">`</span>
+</span><span id="__span-1-10"><a id="__codelineno-1-10" name="__codelineno-1-10" href="#__codelineno-1-10"></a><span class="sb">    &lt;main class=&quot;sandbox-shell&quot;&gt;</span>
+</span><span id="__span-1-11"><a id="__codelineno-1-11" name="__codelineno-1-11" href="#__codelineno-1-11"></a><span class="sb">      @if (sandbox.surfaceId()) {</span>
+</span><span id="__span-1-12"><a id="__codelineno-1-12" name="__codelineno-1-12" href="#__codelineno-1-12"></a><span class="sb">        &lt;a2ui-v09-surface [surfaceId]=&quot;sandbox.surfaceId()&quot; /&gt;</span>
+</span><span id="__span-1-13"><a id="__codelineno-1-13" name="__codelineno-1-13" href="#__codelineno-1-13"></a><span class="sb">      } @else {</span>
+</span><span id="__span-1-14"><a id="__codelineno-1-14" name="__codelineno-1-14" href="#__codelineno-1-14"></a><span class="sb">        &lt;p style=&quot;padding: 24px; color: #666; font-family: sans-serif; text-align: center;&quot;&gt;</span>
+</span><span id="__span-1-15"><a id="__codelineno-1-15" name="__codelineno-1-15" href="#__codelineno-1-15"></a><span class="sb">          Waiting for RENDER_A2UI payloads...</span>
+</span><span id="__span-1-16"><a id="__codelineno-1-16" name="__codelineno-1-16" href="#__codelineno-1-16"></a><span class="sb">        &lt;/p&gt;</span>
+</span><span id="__span-1-17"><a id="__codelineno-1-17" name="__codelineno-1-17" href="#__codelineno-1-17"></a><span class="sb">      }</span>
+</span><span id="__span-1-18"><a id="__codelineno-1-18" name="__codelineno-1-18" href="#__codelineno-1-18"></a><span class="sb">    &lt;/main&gt;</span>
+</span><span id="__span-1-19"><a id="__codelineno-1-19" name="__codelineno-1-19" href="#__codelineno-1-19"></a><span class="sb">  `</span><span class="p">,</span>
+</span><span id="__span-1-20"><a id="__codelineno-1-20" name="__codelineno-1-20" href="#__codelineno-1-20"></a><span class="p">})</span>
+</span><span id="__span-1-21"><a id="__codelineno-1-21" name="__codelineno-1-21" href="#__codelineno-1-21"></a><span class="k">export</span><span class="w"> </span><span class="kd">class</span><span class="w"> </span><span class="nx">AppComponent</span><span class="w"> </span><span class="p">{</span>
+</span><span id="__span-1-22"><a id="__codelineno-1-22" name="__codelineno-1-22" href="#__codelineno-1-22"></a><span class="w">  </span><span class="k">protected</span><span class="w"> </span><span class="nx">sandbox</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nx">inject</span><span class="p">(</span><span class="nx">A2uiSandboxConnection</span><span class="p">);</span>
+</span><span id="__span-1-23"><a id="__codelineno-1-23" name="__codelineno-1-23" href="#__codelineno-1-23"></a><span class="p">}</span>
+</span></code></pre></div>
+<p>Note that contents of the <code>@else</code> can be modified as you see fit, but the rest
+of the template should remain as-is.</p>
+<h4 id="bootstrap-your-renderer-application">Bootstrap your renderer application<a class="headerlink" href="#bootstrap-your-renderer-application" title="Permanent link">&para;</a></h4>
+<p>Configure the standard Angular bootstrapping entrypoint file (<code>src/main.ts</code>),
+passing your catalog classes dynamically to the sandbox provider mapping:</p>
+<div class="language-ts highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="k">import</span><span class="w"> </span><span class="p">{</span><span class="nx">bootstrapApplication</span><span class="p">}</span><span class="w"> </span><span class="kr">from</span><span class="w"> </span><span class="s1">&#39;@angular/platform-browser&#39;</span><span class="p">;</span>
+</span><span id="__span-2-2"><a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a><span class="k">import</span><span class="w"> </span><span class="p">{</span><span class="nx">AppComponent</span><span class="p">}</span><span class="w"> </span><span class="kr">from</span><span class="w"> </span><span class="s1">&#39;./app/app.component&#39;</span><span class="p">;</span>
+</span><span id="__span-2-3"><a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a><span class="k">import</span><span class="w"> </span><span class="p">{</span><span class="nx">provideA2uiSandbox</span><span class="p">}</span><span class="w"> </span><span class="kr">from</span><span class="w"> </span><span class="s1">&#39;a2ui-bridge/angular&#39;</span><span class="p">;</span>
+</span><span id="__span-2-4"><a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a><span class="k">import</span><span class="w"> </span><span class="p">{</span><span class="nx">BasicCatalog</span><span class="p">}</span><span class="w"> </span><span class="kr">from</span><span class="w"> </span><span class="s1">&#39;@a2ui/angular/v0_9&#39;</span><span class="p">;</span>
+</span><span id="__span-2-5"><a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a>
+</span><span id="__span-2-6"><a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a><span class="nx">bootstrapApplication</span><span class="p">(</span><span class="nx">AppComponent</span><span class="p">,</span><span class="w"> </span><span class="p">{</span>
+</span><span id="__span-2-7"><a id="__codelineno-2-7" name="__codelineno-2-7" href="#__codelineno-2-7"></a><span class="w">  </span><span class="nx">providers</span><span class="o">:</span><span class="w"> </span><span class="p">[</span>
+</span><span id="__span-2-8"><a id="__codelineno-2-8" name="__codelineno-2-8" href="#__codelineno-2-8"></a><span class="w">    </span><span class="nx">provideA2uiSandbox</span><span class="p">([</span><span class="nx">BasicCatalog</span><span class="p">]),</span><span class="w"> </span><span class="c1">// Injects and exposes dynamic catalogs</span>
+</span><span id="__span-2-9"><a id="__codelineno-2-9" name="__codelineno-2-9" href="#__codelineno-2-9"></a><span class="w">  </span><span class="p">],</span>
+</span><span id="__span-2-10"><a id="__codelineno-2-10" name="__codelineno-2-10" href="#__codelineno-2-10"></a><span class="p">}).</span><span class="k">catch</span><span class="p">((</span><span class="nx">err</span><span class="p">)</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="nx">console</span><span class="p">.</span><span class="nx">error</span><span class="p">(</span><span class="s1">&#39;A2UI Sandbox Bootstrap Failed:&#39;</span><span class="p">,</span><span class="w"> </span><span class="nx">err</span><span class="p">));</span>
+</span></code></pre></div>
+<p>Make sure to replace <code>BasicCatalog</code> with your catalog.</p>
+<blockquote>
+<p>NOTE on change detection compatibility: The <code>provideA2uiSandbox</code> helper is
+100% compatible with both standard Zone-based change detection (using <code>zone.js</code>)
+and Zoneless change detection (<code>provideZonelessChangeDetection()</code>)
+out-of-the-box.</p>
+</blockquote>
 
 
 
@@ -2732,44 +2566,6 @@ message which would be sent back to the agent.</p>
       
         <footer class="md-footer">
   
-    
-      
-      <nav class="md-footer__inner md-grid" aria-label="Footer" >
-        
-          
-          <a href="../quickstart/" class="md-footer__link md-footer__link--prev" aria-label="Previous: Quickstart">
-            <div class="md-footer__button md-icon">
-              
-              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
-            </div>
-            <div class="md-footer__title">
-              <span class="md-footer__direction">
-                Previous
-              </span>
-              <div class="md-ellipsis">
-                Quickstart
-              </div>
-            </div>
-          </a>
-        
-        
-          
-          <a href="../concepts/overview/" class="md-footer__link md-footer__link--next" aria-label="Next: Overview">
-            <div class="md-footer__title">
-              <span class="md-footer__direction">
-                Next
-              </span>
-              <div class="md-ellipsis">
-                Overview
-              </div>
-            </div>
-            <div class="md-footer__button md-icon">
-              
-              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M4 11v2h12l-5.5 5.5 1.42 1.42L19.84 12l-7.92-7.92L10.5 5.5 16 11z"/></svg>
-            </div>
-          </a>
-        
-      </nav>
     
   
   <div class="md-footer-meta md-typeset">

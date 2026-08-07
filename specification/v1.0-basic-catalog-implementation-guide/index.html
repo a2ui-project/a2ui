@@ -2645,6 +2645,7 @@ To prevent DOM-Based Cross-Site Scripting (XSS) via <code>javascript:</code>, <c
 <li><strong>Resolve Relative URLs:</strong> Before validation, resolve relative paths against the current environment context (e.g., <code>window.location.href</code> in browsers) using standard URL parsing.</li>
 <li><strong>Enforce Scheme Allowlist:</strong> Strictly validate that the resolved URL protocol/scheme is either <code>https:</code> or <code>http:</code>. Throw an execution or runtime error (such as <code>A2uiExpressionError</code>) and abort the action if any other scheme is used.</li>
 <li><strong>Tab-Nabbing Protection:</strong> When opening URLs in a new browser window/tab, always supply security attributes: <code>noopener,noreferrer</code> (e.g. <code>window.open(url, '_blank', 'noopener,noreferrer')</code>).</li>
+<li><strong>User Activation Requirement:</strong> Enforce that <code>openUrl</code> is invoked only in response to an active, physical user interaction (such as a button click or form submit) by verifying an active Action Context with activation intent. Any uninitiated invocation (e.g. initial layout render auto-trigger or dynamic data binding evaluation) must be rejected.</li>
 </ol>
 <h3 id="and"><code>and</code><a class="headerlink" href="#and" title="Permanent link">&para;</a></h3>
 <p><strong>Description:</strong> Logical AND operator.</p>
