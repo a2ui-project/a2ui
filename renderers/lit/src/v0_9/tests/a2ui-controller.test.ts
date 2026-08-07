@@ -18,9 +18,23 @@ import assert from 'node:assert';
 import {describe, it, beforeEach, mock, after, before} from 'node:test';
 import {setupTestDom, teardownTestDom, asyncUpdate} from './dom-setup.js';
 
-import {A2uiController} from '../a2ui-controller.js';
-import {MessageProcessor, ComponentContext} from '@a2ui/web_core/v0_9';
-import {TextApi} from '@a2ui/web_core/v0_9/basic_catalog';
+import type {
+  MessageProcessor,
+  ComponentContext,
+  Catalog,
+  WebComponentImplementation,
+  SurfaceModel,
+} from '@a2ui/web_core/v0_9';
+import type {TextApi as TextApiType} from '@a2ui/web_core/v0_9/basic_catalog';
+import type {A2uiLitElement as A2uiLitElementType} from '../a2ui-lit-element.js';
+import type {A2uiController as A2uiControllerType} from '../a2ui-controller.js';
+
+interface TestMockHostElement extends HTMLElement {
+  context: ComponentContext;
+  testController: A2uiControllerType<typeof TextApiType>;
+  addController(controller: unknown): void;
+  requestUpdate(): void;
+}
 
 /**
  * These tests verify:
@@ -29,14 +43,26 @@ import {TextApi} from '@a2ui/web_core/v0_9/basic_catalog';
  * - Safely cleaning up subscriptions when the host is disconnected or the controller is disposed.
  */
 describe('A2uiController', () => {
-  let basicCatalog: any;
+  let basicCatalog: Catalog<WebComponentImplementation>;
+  let A2uiController: typeof A2uiControllerType;
+  let TextApi: typeof TextApiType;
+  let MessageProcessorClass: typeof MessageProcessor;
+  let ComponentContextClass: typeof ComponentContext;
+  let TestMockHostClass: CustomElementConstructor;
+
+  function ensureCustomElement() {
+    if (!customElements.get('test-mock-host')) {
+      customElements.define('test-mock-host', TestMockHostClass);
+    }
+  }
 
   /**
    * Helper function to instantiate and append the `test-mock-host` custom element
    * defined in the `before()` hook below.
    */
-  async function createMockHost(context: ComponentContext) {
-    const mockHost = document.createElement('test-mock-host') as any;
+  async function createMockHost(context: ComponentContext): Promise<TestMockHostElement> {
+    ensureCustomElement();
+    const mockHost = document.createElement('test-mock-host') as unknown as TestMockHostElement;
     document.body.appendChild(mockHost);
 
     // Initializing the context property triggers Lit's reactive execution cycle,
@@ -55,15 +81,24 @@ describe('A2uiController', () => {
     // Dynamically import component files *after* setting up JSDOM globals
     // to prevent LitElement from evaluating in an empty Node context and crashing.
     const {A2uiLitElement} = await import('../a2ui-lit-element.js');
-    basicCatalog = (await import('../catalogs/basic/index.js')).basicCatalog;
+    A2uiController = (await import('../a2ui-controller.js')).A2uiController;
+    const webCore = await import('@a2ui/web_core/v0_9');
+    MessageProcessorClass = webCore.MessageProcessor;
+    ComponentContextClass = webCore.ComponentContext;
+    const webCoreBasic = await import('@a2ui/web_core/v0_9/basic_catalog');
+    basicCatalog = webCoreBasic.basicCatalog;
+    TextApi = webCoreBasic.TextApi;
 
     /**
      * A real Lit element registered as `test-mock-host` in JSDOM.
      * Instances of this element are instantiated across the test suite
      * using the `createMockHost` helper function defined above.
      */
-    class TestMockHost extends A2uiLitElement<any> {
-      public testController: any;
+    class TestMockHost
+      extends (A2uiLitElement as typeof A2uiLitElementType)<typeof TextApiType>
+      implements TestMockHostElement
+    {
+      public testController!: A2uiControllerType<typeof TextApiType>;
 
       override createController() {
         // Automatically create and store the controller using the imported TextApi catalog.
@@ -71,17 +106,18 @@ describe('A2uiController', () => {
         return this.testController;
       }
     }
-    customElements.define('test-mock-host', TestMockHost);
+    TestMockHostClass = TestMockHost as unknown as CustomElementConstructor;
+    ensureCustomElement();
   });
 
   after(teardownTestDom);
 
-  let processor: MessageProcessor<any>;
-  let surface: any;
+  let processor: MessageProcessor<WebComponentImplementation>;
+  let surface: SurfaceModel<WebComponentImplementation>;
   let context: ComponentContext;
 
   beforeEach(() => {
-    processor = new MessageProcessor([basicCatalog]);
+    processor = new MessageProcessorClass([basicCatalog]);
     // Initialize the test surface and seed an initial text component
     processor.processMessages([
       {
@@ -107,13 +143,14 @@ describe('A2uiController', () => {
     ]);
 
     surface = processor.model.getSurface('test-surface')!;
-    context = new ComponentContext(surface, 'test-comp');
+    context = new ComponentContextClass(surface, 'test-comp');
   });
 
   it('should initialize with correct props and bind to context', async () => {
     // For this specific test, we manually mount the DOM element without the helper
     // because we need to spy on `addController` BEFORE the context is evaluated.
-    const mockHost = document.createElement('test-mock-host') as any;
+    ensureCustomElement();
+    const mockHost = document.createElement('test-mock-host') as unknown as TestMockHostElement;
     document.body.appendChild(mockHost);
 
     mock.method(mockHost, 'addController');
@@ -124,7 +161,8 @@ describe('A2uiController', () => {
 
     const controller = mockHost.testController;
 
-    assert.ok((mockHost.addController as any).mock.calls.length >= 1);
+    const addControllerMock = mockHost.addController as unknown as {mock: {calls: unknown[]}};
+    assert.ok(addControllerMock.mock.calls.length >= 1);
     assert.strictEqual(controller.props.text, 'Initial');
   });
 
@@ -171,7 +209,7 @@ describe('A2uiController', () => {
     // Simulate what happens when a component's ID changes or it gets recycled by
     // disposing the old controller and replacing the host context instance.
     controller.dispose();
-    const context2 = new ComponentContext(surface, 'test-comp-2');
+    const context2 = new ComponentContextClass(surface, 'test-comp-2');
 
     const mockHost2 = await createMockHost(context2);
     const controller2 = mockHost2.testController;
@@ -194,8 +232,9 @@ describe('A2uiController', () => {
       ]),
     );
 
+    const requestUpdateMock = mockHost2.requestUpdate as unknown as {mock: {calls: unknown[]}};
     assert.strictEqual(controller2.props.text, 'Update2');
-    assert.ok((mockHost2.requestUpdate as any).mock.calls.length > 0);
+    assert.ok(requestUpdateMock.mock.calls.length > 0);
 
     controller2.dispose();
   });
@@ -208,7 +247,8 @@ describe('A2uiController', () => {
 
     controller.hostDisconnected();
 
-    const initialCalls = (mockHost.requestUpdate as any).mock.calls.length;
+    const requestUpdateMock = mockHost.requestUpdate as unknown as {mock: {calls: unknown[]}};
+    const initialCalls = requestUpdateMock.mock.calls.length;
 
     // Attempt to trigger a component update while the host is disconnected
     await asyncUpdate(processor, p =>
@@ -232,6 +272,6 @@ describe('A2uiController', () => {
     // Props should not update
     assert.notStrictEqual(controller.props.text, 'Another');
     // requestUpdate shouldn't be called again
-    assert.strictEqual((mockHost.requestUpdate as any).mock.calls.length, initialCalls);
+    assert.strictEqual(requestUpdateMock.mock.calls.length, initialCalls);
   });
 });

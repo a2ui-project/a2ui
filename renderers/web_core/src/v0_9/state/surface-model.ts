@@ -87,8 +87,6 @@ export class SurfaceModel<T extends ComponentApi = ComponentApi> {
         console.error('A2UI: Invalid action payload dispatched.', validationResult.error.format());
       }
     }
-    // Note: local functionCall actions are currently handled by the renderer or binder
-    // and do not necessarily need to be emitted here if they are not intended for the server.
   }
 
   /**

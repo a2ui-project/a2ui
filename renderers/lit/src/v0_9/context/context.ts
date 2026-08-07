@@ -14,11 +14,7 @@
  * limitations under the License.
  */
 
-import {markdown} from './markdown.js';
-
 /**
- * Contexts used to inject dependencies into the Lit renderer.
+ * Re-exported for backwards compatibility.
  */
-export const Context = {
-  markdown,
-};
+export {Context} from '@a2ui/web_core/v0_9/basic_catalog';
