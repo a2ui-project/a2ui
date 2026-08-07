@@ -199,8 +199,7 @@ def guess_triage_heuristics(title, body):
             priority = "P3"
             action = "backlog"
             reply = (
-                "Thanks for the suggestion. We will evaluate this against our"
-                " roadmap."
+                "Thanks for the suggestion. We will evaluate this against our roadmap."
             )
     else:
         # Default to bug if not documentation/feature and contains words like error, fail, crash, bug
