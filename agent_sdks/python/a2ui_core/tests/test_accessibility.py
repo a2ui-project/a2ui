@@ -62,9 +62,7 @@ def test_accessibility_attributes_hidden_data_binding():
 
 def test_accessibility_attributes_forbid_extra_properties():
     with pytest.raises(ValidationError):
-        AccessibilityAttributes.model_validate(
-            {"label": "Submit", "role": "button"}
-        )
+        AccessibilityAttributes.model_validate({"label": "Submit", "role": "button"})
 
 
 def test_accessibility_attributes_component_common_integration():

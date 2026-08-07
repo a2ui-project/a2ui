@@ -460,7 +460,7 @@
     "AccessibilityCheckTest": {
       "type": "object",
       "properties": {
-        "action": { "const": "accessibility_check" },
+        "action": {"const": "accessibility_check"},
         "surface": {
           "type": "object",
           "description": "Surface component structure being validated."
@@ -471,7 +471,7 @@
           "properties": {
             "axe_core": {
               "type": "array",
-              "items": { "type": "string" },
+              "items": {"type": "string"},
               "description": "axe-core rule IDs expected to pass (e.g. 'button-name', 'aria-valid-attr-value')."
             },
             "accessibility_tree": {

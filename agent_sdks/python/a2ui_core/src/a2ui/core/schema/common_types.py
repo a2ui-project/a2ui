@@ -128,13 +128,17 @@ class AccessibilityAttributes(StrictBaseModel):
     live: Optional[Literal["off", "polite", "assertive"]] = Field(
         default="off",
         description=(
-            "Controls screen reader announcements for dynamic updates (WAI-ARIA aria-live)."
-            " 'polite' waits for user pause; 'assertive' interrupts immediately for alerts."
+            "Controls screen reader announcements for dynamic updates (WAI-ARIA"
+            " aria-live). 'polite' waits for user pause; 'assertive' interrupts"
+            " immediately for alerts."
         ),
     )
     hidden: Optional[DynamicBoolean] = Field(
         None,
-        description="Hides the element and its children from assistive technologies when set to true.",
+        description=(
+            "Hides the element and its children from assistive technologies when set to"
+            " true."
+        ),
     )
 
 
