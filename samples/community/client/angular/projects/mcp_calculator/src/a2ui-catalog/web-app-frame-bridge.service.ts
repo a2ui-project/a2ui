@@ -276,7 +276,7 @@ export class WebAppFrameBridgeService {
         const dataContext = new DataContext(surface, '/');
         try {
           const result = await surface.catalog.invoker(data.call, data.args || {}, dataContext);
-          this.appPort.postMessage({
+          this.appPort?.postMessage({
             type: A2uiMessageType.FunctionResult,
             call: data.call,
             callId: data.callId,
@@ -286,7 +286,7 @@ export class WebAppFrameBridgeService {
         } catch (err: unknown) {
           const errorMessage =
             err instanceof Error ? err.message : String(err) || 'Error executing function';
-          this.appPort.postMessage({
+          this.appPort?.postMessage({
             type: A2uiMessageType.FunctionResult,
             call: data.call,
             callId: data.callId,
@@ -370,25 +370,21 @@ export class WebAppFrameBridgeService {
             for (const [k, v] of Object.entries(value)) {
               const oldVal = prev ? prev[k] : undefined;
               if (stringify(oldVal) !== stringify(v)) {
-                this.appPort?.postMessage(
-                  {
-                    type: A2uiMessageType.DataModelUpdate,
-                    key,
-                    subpath: `/${k}`,
-                    value: v,
-                  }
-                );
+                this.appPort?.postMessage({
+                  type: A2uiMessageType.DataModelUpdate,
+                  key,
+                  subpath: `/${k}`,
+                  value: v,
+                });
               }
             }
           } else {
             if (stringify(prev) !== stringify(value)) {
-              this.appPort?.postMessage(
-                {
-                  type: A2uiMessageType.DataModelUpdate,
-                  key,
-                  value,
-                }
-              );
+              this.appPort?.postMessage({
+                type: A2uiMessageType.DataModelUpdate,
+                key,
+                value,
+              });
             }
           }
         });
@@ -400,10 +396,13 @@ export class WebAppFrameBridgeService {
     if (iframeEl && iframeEl.contentWindow) {
       // 1. Create a secure, dedicated 1-to-1 communication pipe
       const channel = new MessageChannel();
-      
+
       // 2. The Host keeps port1 for itself to listen for and send messages
+      if (this.appPort) {
+        this.appPort.close();
+      }
       this.appPort = channel.port1;
-      
+
       // 3. We package port2 to be physically transferred to the embedded application (the iframe).
       // The embedded app will extract this port and use it to communicate back to the Host.
       const transferrablePorts = [channel.port2];
@@ -427,7 +426,7 @@ export class WebAppFrameBridgeService {
           this.handleSizeChange(data.width, data.height);
         }
       };
-      
+
       this.appPort.start();
 
       const rect = iframeEl.getBoundingClientRect();
@@ -459,17 +458,15 @@ export class WebAppFrameBridgeService {
       this.hostResizeObserver = new ResizeObserver(entries => {
         const entry = entries[0];
         if (entry && this.appPort) {
-          this.appPort.postMessage(
-            {
-              type: A2uiMessageType.HostContextUpdate,
-              value: {
-                containerDimensions: {
-                  width: entry.contentRect.width,
-                  height: entry.contentRect.height,
-                },
+          this.appPort.postMessage({
+            type: A2uiMessageType.HostContextUpdate,
+            value: {
+              containerDimensions: {
+                width: entry.contentRect.width,
+                height: entry.contentRect.height,
               },
-            }
-          );
+            },
+          });
         }
       });
       this.hostResizeObserver.observe(iframeEl);
