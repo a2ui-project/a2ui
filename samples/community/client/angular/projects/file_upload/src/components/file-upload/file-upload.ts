@@ -35,6 +35,22 @@ export const FILE_UPLOAD_CONFIG = new InjectionToken<FileUploadConfig>('FILE_UPL
 export const DEFAULT_MAX_INLINE_SIZE = 500_000;
 export const DEFAULT_MAX_FILE_SIZE = 10_485_760;
 
+export enum UploadState {
+  IDLE = 'idle',
+  UPLOADING = 'uploading',
+  SUCCESS = 'success',
+  ERROR = 'error',
+}
+
+export interface UploadedFile {
+  fileId: string;
+  metadata: {
+    fileName: string;
+    fileSize: number;
+    mimeType: string;
+  };
+}
+
 export interface FileUploadProps {
   label?: string;
   accept?: string;
@@ -50,6 +66,7 @@ export interface FileUploadProps {
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class FileUploadComponent extends CatalogComponent<any> {
+  // Optional by design: If no host callback is configured, the component falls back to inline base64 encoding (see fileupload_component_design.md).
   private readonly config = inject(FILE_UPLOAD_CONFIG, {optional: true}) || {
     maxInlineSize: DEFAULT_MAX_INLINE_SIZE,
   };
@@ -64,19 +81,17 @@ export class FileUploadComponent extends CatalogComponent<any> {
     () => this.props()['maxSize']?.value() ?? DEFAULT_MAX_FILE_SIZE,
   );
 
-  readonly uploadState = signal<'idle' | 'uploading' | 'success' | 'error'>('idle');
+  readonly uploadState = signal<UploadState>(UploadState.IDLE);
   readonly progress = signal<number>(0);
   readonly errorMessage = signal<string>('');
-  readonly uploadedFiles = signal<
-    {fileId: string; metadata: {fileName: string; fileSize: number; mimeType: string}}[]
-  >([]);
+  readonly uploadedFiles = signal<UploadedFile[]>([]);
 
   async onFileSelected(event: Event) {
     const input = event.target as HTMLInputElement;
     if (!input.files || input.files.length === 0) {
       return;
     }
-    await this.processFiles(Array.from(input.files));
+    await this.addFilesToUpload(Array.from(input.files));
   }
 
   onDragOver(event: DragEvent) {
@@ -90,10 +105,10 @@ export class FileUploadComponent extends CatalogComponent<any> {
     if (!event.dataTransfer?.files || event.dataTransfer.files.length === 0) {
       return;
     }
-    await this.processFiles(Array.from(event.dataTransfer.files));
+    await this.addFilesToUpload(Array.from(event.dataTransfer.files));
   }
 
-  private async processFiles(files: File[]) {
+  private async addFilesToUpload(files: File[]) {
     // Enforce single file if multiple is not allowed
     if (!this.multiple() && files.length > 1) {
       files = [files[0]];
@@ -101,15 +116,17 @@ export class FileUploadComponent extends CatalogComponent<any> {
 
     for (const file of files) {
       if (file.size > this.maxSize()) {
-        this.uploadState.set('error');
+        this.uploadState.set(UploadState.ERROR);
         this.errorMessage.set(`File size (${(file.size / 1024).toFixed(1)} KB) exceeds limit`);
         return;
       }
     }
 
-    this.uploadState.set('uploading');
+    this.uploadState.set(UploadState.UPLOADING);
+    // Fake an initial progress of 15% for immediate UX feedback
     this.progress.set(15);
 
+    // Look up the A2UI Surface and clear the data model to wipe out any stale file pointers
     const surface = this.rendererService.surfaceGroup.getSurface(this.surfaceId());
     if (surface) {
       surface.dataModel.set('/uploaded_files', undefined);
@@ -120,53 +137,63 @@ export class FileUploadComponent extends CatalogComponent<any> {
 
       for (let i = 0; i < files.length; i++) {
         const file = files[i];
-        let pointerUri: string;
-
-        if (this.config.onUploadFile) {
-          pointerUri = await this.config.onUploadFile(file, percent => {
-            this.progress.set(Math.round((i * 100 + percent) / files.length));
-          });
-        } else if (file.size <= (this.config.maxInlineSize || DEFAULT_MAX_INLINE_SIZE)) {
-          pointerUri = await this.encodeAsDataUri(file);
-          this.progress.set(Math.round(((i + 1) * 100) / files.length));
-        } else {
-          throw new Error(
-            `File size (${file.size} bytes) exceeds inline upload limit. ` +
-              'A host onUploadFile callback must be configured for large file uploads.',
-          );
-        }
-
-        uploadedFilesContext.push({
-          fileId: pointerUri,
-          metadata: {
-            fileName: file.name,
-            fileSize: file.size,
-            mimeType: file.type || 'text/plain',
-          },
-        });
+        const context = await this.uploadSingleFile(file, i, files.length);
+        uploadedFilesContext.push(context);
       }
 
       this.uploadedFiles.set(uploadedFilesContext);
-      this.uploadState.set('success');
+      this.uploadState.set(UploadState.SUCCESS);
       this.progress.set(100);
 
-      if (surface) {
-        surface.dispatchAction(
-          {
-            event: {
-              name: 'upload_complete',
-              context: {
-                files: uploadedFilesContext,
-                surfaceId: this.surfaceId(),
-              },
+      this.dispatchUploadCompleteAction(uploadedFilesContext);
+    } catch (err) {
+      this.uploadState.set(UploadState.ERROR);
+      this.errorMessage.set(err instanceof Error ? err.message : 'Upload failed');
+    }
+  }
+
+  private async uploadSingleFile(file: File, index: number, totalFiles: number): Promise<UploadedFile> {
+    let pointerUri: string;
+
+    if (this.config.onUploadFile) {
+      pointerUri = await this.config.onUploadFile(file, percent => {
+        this.progress.set(Math.round((index * 100 + percent) / totalFiles));
+      });
+    } else if (file.size <= (this.config.maxInlineSize || DEFAULT_MAX_INLINE_SIZE)) {
+      pointerUri = await this.encodeAsDataUri(file);
+      this.progress.set(Math.round(((index + 1) * 100) / totalFiles));
+    } else {
+      throw new Error(
+        `File size (${file.size} bytes) exceeds inline upload limit. ` +
+          'A host onUploadFile callback must be configured for large file uploads.',
+      );
+    }
+
+    return {
+      fileId: pointerUri,
+      metadata: {
+        fileName: file.name,
+        fileSize: file.size,
+        mimeType: file.type || 'text/plain',
+      },
+    };
+  }
+
+  private dispatchUploadCompleteAction(files: UploadedFile[]) {
+    const surface = this.rendererService.surfaceGroup.getSurface(this.surfaceId());
+    if (surface) {
+      surface.dispatchAction(
+        {
+          event: {
+            name: 'upload_complete',
+            context: {
+              files: files,
+              surfaceId: this.surfaceId(),
             },
           },
-          this.componentId(),
-        );
-      }
-    } catch (err) {
-      this.uploadState.set('error');
-      this.errorMessage.set(err instanceof Error ? err.message : 'Upload failed');
+        },
+        this.componentId(),
+      );
     }
   }
 
@@ -188,24 +215,10 @@ export class FileUploadComponent extends CatalogComponent<any> {
       this.config.onRemoveFile(removed.fileId);
     }
 
-    const surface = this.rendererService.surfaceGroup.getSurface(this.surfaceId());
-    if (surface) {
-      surface.dispatchAction(
-        {
-          event: {
-            name: 'upload_complete',
-            context: {
-              files: files,
-              surfaceId: this.surfaceId(),
-            },
-          },
-        },
-        this.componentId(),
-      );
-    }
+    this.dispatchUploadCompleteAction(files);
 
     if (files.length === 0) {
-      this.uploadState.set('idle');
+      this.uploadState.set(UploadState.IDLE);
     }
   }
 }

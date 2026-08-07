@@ -43,6 +43,8 @@ app.use(
   }),
 );
 
+// Proxies file uploads from the Angular client to the Python Mock Drive server
+// running alongside the agent.
 app.post('/api/upload', async (req, res) => {
   const url = `${agentUrl}/api/mock-drive/v3/files?uploadType=multipart`;
   try {
@@ -66,6 +68,10 @@ app.post('/api/upload', async (req, res) => {
   }
 });
 
+// Proxies A2A chat requests from the Angular client to the backend agent.
+// This endpoint receives simple HTTP requests with chat parts, wraps them into
+// the full A2A Message structure (including supported catalog IDs), and sends
+// them to the agent using the A2A SDK.
 app.post('/a2a', (req, res) => {
   let originalBody = '';
 

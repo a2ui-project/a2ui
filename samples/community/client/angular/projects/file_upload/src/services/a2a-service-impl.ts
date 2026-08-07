@@ -77,29 +77,9 @@ export class A2aServiceImpl implements A2aService {
             });
           }
         } else {
-          // Normal text chat message: if files have been uploaded, enrich prompt with Host IoC pointer context
-          const uploadedFiles = this.driveService.uploadedFiles();
-          if (
-            uploadedFiles.length > 0 &&
-            /summariz|analy|explain|file|doc|upload|read/i.test(p.text)
-          ) {
-            const contextItems = uploadedFiles.map(
-              f => `fileId="${f.fileId}", fileName="${f.fileName}", mimeType="${f.mimeType}"`,
-            );
-            const contextStr = contextItems.map(item => `  - ${item}`).join('\n');
-            p.text = `${p.text}\n\n[Host IoC Context: UploadedFiles\n${contextStr}\n]`;
-
-            this.telemetry.log({
-              card: 'websocket',
-              title: 'Attached IoC File Pointers to Chat Prompt',
-              detail: {
-                promptText: p.text.split('\n')[0],
-                filesIncluded: uploadedFiles.length,
-                inlineDataBytes: 0,
-                note: '0 Base64 bytes transmitted in prompt (Pointer-only)',
-              },
-            });
-          }
+          // The previous check attempts to parse the text as a JSON action.
+          // If it fails (parseResult.success === false), it means it's a normal plain-text chat message from the user.
+          this.enrichPromptWithContext(p);
         }
       }
     }
@@ -112,47 +92,7 @@ export class A2aServiceImpl implements A2aService {
 
     if (response.ok) {
       const data = (await response.json()) as SendMessageSuccessResponse;
-      this.telemetry.log({
-        card: 'agent',
-        title: 'Agent Inference & UI Stream',
-        detail: data,
-      });
-
-      // Intercept data model update to show Steps 4 and 5
-      let parts: any[] = [];
-      if (data.result && (data.result as any).parts) {
-        parts = (data.result as any).parts;
-      } else if (data.result && (data.result as any).history?.length) {
-        parts = (data.result as any).history[(data.result as any).history.length - 1].parts || [];
-      }
-
-      if (parts) {
-        for (const p of parts) {
-          if ('a2ui' in p && Array.isArray(p.a2ui)) {
-            for (const msg of p.a2ui) {
-              if (
-                msg.updateDataModel &&
-                (msg.updateDataModel.path === '/uploaded_file' ||
-                  msg.updateDataModel.path === '/uploaded_files')
-              ) {
-                this.telemetry.log({
-                  card: 'websocket',
-                  title: 'Step 4: Agent responds with datamodel update to hydrate',
-                  detail: {payload: msg.updateDataModel},
-                });
-                setTimeout(() => {
-                  this.telemetry.log({
-                    card: 'resolver',
-                    title: 'Step 5: The button is hydrated with a new ID',
-                    detail: {newId: msg.updateDataModel.value?.fileId},
-                  });
-                }, 500); // slight delay to represent hydration time
-              }
-            }
-          }
-        }
-      }
-
+      this.handleAgentResponse(data);
       return data;
     }
 
@@ -196,5 +136,83 @@ export class A2aServiceImpl implements A2aService {
     }
 
     return card;
+  }
+
+  private enrichPromptWithContext(p: Part) {
+    const uploadedFiles = this.driveService.uploadedFiles();
+    if (
+      uploadedFiles.length > 0 &&
+      'text' in p &&
+      typeof p.text === 'string' &&
+      this.isPromptRequestingFileContext(p.text)
+    ) {
+      const contextItems = uploadedFiles.map(
+        f => `fileId="${f.fileId}", fileName="${f.fileName}", mimeType="${f.mimeType}"`,
+      );
+      const contextStr = contextItems.map(item => `  - ${item}`).join('\n');
+      p.text = `${p.text}\n\n[Host IoC Context: UploadedFiles\n${contextStr}\n]`;
+
+      this.telemetry.log({
+        card: 'websocket',
+        title: 'Attached IoC File Pointers to Chat Prompt',
+        detail: {
+          promptText: p.text.split('\n')[0],
+          filesIncluded: uploadedFiles.length,
+          inlineDataBytes: 0,
+          note: '0 Base64 bytes transmitted in prompt (Pointer-only)',
+        },
+      });
+    }
+  }
+  /**
+   * Evaluates whether the user's prompt text suggests they are asking about
+   * uploaded files or documents. Uses word roots (e.g., `summariz`) to match
+   * variants like summarize, summarizes, summarizing, summarization.
+   */
+  private isPromptRequestingFileContext(text: string): boolean {
+    return /summariz|analy|explain|file|doc|upload|read/i.test(text);
+  }
+
+  private handleAgentResponse(data: SendMessageSuccessResponse) {
+    this.telemetry.log({
+      card: 'agent',
+      title: 'Agent Inference & UI Stream',
+      detail: data,
+    });
+
+    // Intercept data model update to show Steps 4 and 5
+    let parts: any[] = [];
+    if (data.result && (data.result as any).parts) {
+      parts = (data.result as any).parts;
+    } else if (data.result && (data.result as any).history?.length) {
+      parts = (data.result as any).history[(data.result as any).history.length - 1].parts || [];
+    }
+
+    if (parts) {
+      for (const p of parts) {
+        if ('a2ui' in p && Array.isArray(p.a2ui)) {
+          for (const msg of p.a2ui) {
+            if (
+              msg.updateDataModel &&
+              (msg.updateDataModel.path === '/uploaded_file' ||
+                msg.updateDataModel.path === '/uploaded_files')
+            ) {
+              this.telemetry.log({
+                card: 'websocket',
+                title: 'Step 4: Agent responds with datamodel update to hydrate',
+                detail: {payload: msg.updateDataModel},
+              });
+              setTimeout(() => {
+                this.telemetry.log({
+                  card: 'resolver',
+                  title: 'Step 5: The button is hydrated with a new ID',
+                  detail: {newId: msg.updateDataModel.value?.fileId},
+                });
+              }, 500); // slight delay to represent hydration time
+            }
+          }
+        }
+      }
+    }
   }
 }

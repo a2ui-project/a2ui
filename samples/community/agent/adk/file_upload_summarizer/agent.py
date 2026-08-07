@@ -81,11 +81,10 @@ class FileUploadSummarizerAgent:
         self._inference_formats: Dict[str, DirectJsonFormat] = {}
         self._ui_runners: Dict[str, Runner] = {}
 
-        for version in [VERSION_0_9]:
-            inference_format = self._build_inference_format(version)
-            self._inference_formats[version] = inference_format
-            agent = self._build_llm_agent(inference_format)
-            self._ui_runners[version] = self._build_runner(agent)
+        inference_format = self._build_inference_format(VERSION_0_9)
+        self._inference_formats[VERSION_0_9] = inference_format
+        agent = self._build_llm_agent(inference_format)
+        self._ui_runners[VERSION_0_9] = self._build_runner(agent)
 
         self._agent_card = self._build_agent_card()
 

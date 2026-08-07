@@ -20,6 +20,9 @@ import {TelemetryLoggerService} from './telemetry-logger-service';
 @Injectable({
   providedIn: 'root',
 })
+// NOTE: This is a mock implementation of a file upload service designed for demonstration purposes.
+// In a real-world scenario, you would replace this with an integration to a real storage
+// provider (e.g., Google Drive, AWS S3, or Azure Blob Storage).
 export class MockDriveUploadService {
   private readonly uploadEndpoint = '/api/upload';
   readonly uploadedFiles = signal<

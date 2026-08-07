@@ -4,35 +4,71 @@ Upload delegation and file handling without context bloat
 
 ## 1. Executive summary
 
-As agents expand to handle multimodal tasks, the Agent-to-UI (A2UI) protocol must support file uploads such as documents and images natively. In standard A2UI workflows, the user action event relay embeds client data directly into the JSON action payload. If we leverage this native relay for files without restrictions, raw binary data would be embedded directly into the payload. Because these payloads are often appended to the agent's conversation history, this approach can cause context bloat and performance degradation for large files.
+As agents expand to handle multimodal tasks, the Agent-to-UI (A2UI) protocol must support file
+uploads such as documents and images natively. In standard A2UI workflows, the user action event
+relay embeds client data directly into the JSON action payload. If we leverage this native relay for
+files without restrictions, raw binary data would be embedded directly into the payload. Because
+these payloads are often appended to the agent's conversation history, this approach can cause
+context bloat and performance degradation for large files.
 
-This proposal recommends a simplified, dual-strategy architecture combining inversion of control (IoC) with an inline upload fallback. A single, polymorphic FileUpload component delegates upload execution to the host application via an IoC callback (`onUploadFile`) configured programmatically when registering the component in the catalog. For lightweight web environments or rapid prototyping where no host callback is configured, the component falls back to an inline upload strategy, encoding small files directly as data URIs. Direct client-led HTTP upload with presigned URLs is reserved as a future extension to keep the core component free of networking transport complexity. During model inference, file pointers are resolved out of band via implicit resolution when agent and host share a storage schema, or via explicit resolution when operating across trust boundaries without a shared schema.
+This proposal recommends a simplified, dual-strategy architecture combining inversion of control
+(IoC) with an inline upload fallback. A single, polymorphic FileUpload component delegates upload
+execution to the host application via an IoC callback (`onUploadFile`) configured programmatically
+when registering the component in the catalog. For lightweight web environments or rapid prototyping
+where no host callback is configured, the component falls back to an inline upload strategy,
+encoding small files directly as data URIs. Direct client-led HTTP upload with presigned URLs is
+reserved as a future extension to keep the core component free of networking transport complexity.
+During model inference, file pointers are resolved out of band via implicit resolution when agent
+and host share a storage schema, or via explicit resolution when operating across trust boundaries
+without a shared schema.
 
 ## 2. Problem statement
 
-- Context congestion: Encoding large binary files directly into LLM prompts or A2UI JSON-RPC payloads increases latency, token consumption, and memory usage.
-- Multi-surface requirement: Session states between users and A2UI agents must transition across desktop, web, mobile, and wearable devices without losing access to file attachments. This requirement disqualifies local-only file storage techniques.
-- Framework interoperability: Both agent development SDKs (such as LangChain, LlamaIndex, and ADK) and foundation model APIs (such as Claude and Gemini) need to parse file references out of the box without requiring custom middleware to decode proprietary protocols.
+- Context congestion: Encoding large binary files directly into LLM prompts or A2UI JSON-RPC
+  payloads increases latency, token consumption, and memory usage.
+- Multi-surface requirement: Session states between users and A2UI agents must transition across
+  desktop, web, mobile, and wearable devices without losing access to file attachments. This
+  requirement disqualifies local-only file storage techniques.
+- Framework interoperability: Both agent development SDKs (such as LangChain, LlamaIndex, and ADK)
+  and foundation model APIs (such as Claude and Gemini) need to parse file references out of the box
+  without requiring custom middleware to decode proprietary protocols.
 
 ## 3. Industry precedents (MCP, ChatGPT, Claude)
 
-- Abstract pointer pattern: Commercial platforms separate the upload pipeline from the messaging pipeline. When a user uploads a file, it goes directly to cloud blob storage. The chat state records only an abstract identifier such as `file-12345` or a presigned URL.
-- Just-in-time (JIT) resolution: Backend orchestration layers resolve these identifiers into raw binaries or extracted text at the moment of model inference, keeping transport layers lightweight.
-- Model Context Protocol (MCP): MCP handles file references out of band by passing standard URIs and file paths to servers, avoiding payload bloat.
+- Abstract pointer pattern: Commercial platforms separate the upload pipeline from the messaging
+  pipeline. When a user uploads a file, it goes directly to cloud blob storage. The chat state
+  records only an abstract identifier such as `file-12345` or a presigned URL.
+- Just-in-time (JIT) resolution: Backend orchestration layers resolve these identifiers into raw
+  binaries or extracted text at the moment of model inference, keeping transport layers lightweight.
+- Model Context Protocol (MCP): MCP handles file references out of band by passing standard URIs and
+  file paths to servers, avoiding payload bloat.
 
 ## 4. Proposed solution: the unified hybrid architecture
 
-Rather than building complex HTTP uploaders into the web component or forcing host developers to use a single network protocol, A2UI handles file uploads using a dual-strategy model orchestrated by an environment-aware web component.
+Rather than building complex HTTP uploaders into the web component or forcing host developers to use
+a single network protocol, A2UI handles file uploads using a dual-strategy model orchestrated by an
+environment-aware web component.
 
 ### The single component, dual strategy model
 
-Agent developers declare a `<FileUpload>` component without needing to know whether the user is on a web browser, a native iOS app, or an enterprise sandbox. The component internally determines how to transport the file:
+Agent developers declare a `<FileUpload>` component without needing to know whether the user is on a
+web browser, a native iOS app, or an enterprise sandbox. The component internally determines how to
+transport the file:
 
-- Host-delegated mode (IoC primary strategy): In production web, enterprise, or native mobile apps, the host application passes an upload callback programmatically to the component constructor or factory when registering it in the catalog. The component intercepts the file and hands the binary object directly to the host callback in memory. The host performs the upload via its own secure channels and returns an abstract reference ID (`fileId: "host-file-ref-789"`).
-- Inline upload mode (fallback strategy): If no host callback is configured, the component falls back to encoding small files as inline data URIs (`fileId: "data:image/png;base64,..."`). This enables rapid prototyping and lightweight web usage out of the box without requiring cloud bucket provisioning.
-- Future extension (presigned URLs): Direct client-led HTTP uploading with presigned URLs is left as a future extension.
+- Host-delegated mode (IoC primary strategy): In production web, enterprise, or native mobile apps,
+  the host application passes an upload callback programmatically to the component constructor or
+  factory when registering it in the catalog. The component intercepts the file and hands the binary
+  object directly to the host callback in memory. The host performs the upload via its own secure
+  channels and returns an abstract reference ID (`fileId: "host-file-ref-789"`).
+- Inline upload mode (fallback strategy): If no host callback is configured, the component falls
+  back to encoding small files as inline data URIs (`fileId: "data:image/png;base64,..."`). This
+  enables rapid prototyping and lightweight web usage out of the box without requiring cloud bucket
+  provisioning.
+- Future extension (presigned URLs): Direct client-led HTTP uploading with presigned URLs is left as
+  a future extension.
 
-In all scenarios, the final payload sent to the agent backend remains a uniform reference string (`fileId`), keeping the WebSocket and JSON-RPC layers clean.
+In all scenarios, the final payload sent to the agent backend remains a uniform reference string
+(`fileId`), keeping the WebSocket and JSON-RPC layers clean.
 
 ```mermaid
 flowchart TD
@@ -45,10 +81,24 @@ flowchart TD
 
 ### Pointer resolution: implicit versus explicit approaches
 
-Once a file is uploaded and an abstract reference ID (`fileId`) is produced, the agent must resolve that pointer into physical bytes or extracted text during model inference. The architecture supports two resolution models depending on the trust boundary and coupling between the agent and the host:
+Once a file is uploaded and an abstract reference ID (`fileId`) is produced, the agent must resolve
+that pointer into physical bytes or extracted text during model inference. The architecture supports
+two resolution models depending on the trust boundary and coupling between the agent and the host:
 
-- Implicit resolution (shared schema): When the agent and host operate within the same organizational boundary or share an agreed-upon URI schema (such as `gdrive://<id>`, `s3://<bucket>/<key>`, or `enterprise-vault://<id>`), resolution is implicit. The host passes the abstract URI string in the action payload, and the agent's backend adapter recognizes the URI prefix to fetch the physical file out of band using its own pre-configured backend credentials or SDKs.
-- Explicit resolution (unshared schema): When the agent and host operate across organizational boundaries without a pre-shared storage schema (such as third-party agents or multi-vendor ecosystems), resolution is explicit. Because the agent cannot assume how to interpret a proprietary pointer or authenticate against a private bucket, the host provides explicit resolution instructions. This is achieved either by sending an ephemeral, authenticated HTTPS download URL (`https://host.domain.com/api/files/download/<token>`), by passing self-describing resolver metadata in the event payload, or by exposing a standardized read-resource tool (as seen in the Model Context Protocol) that the agent calls to retrieve file contents.
+- Implicit resolution (shared schema): When the agent and host operate within the same
+  organizational boundary or share an agreed-upon URI schema (such as `gdrive://<id>`,
+  `s3://<bucket>/<key>`, or `enterprise-vault://<id>`), resolution is implicit. The host passes the
+  abstract URI string in the action payload, and the agent's backend adapter recognizes the URI
+  prefix to fetch the physical file out of band using its own pre-configured backend credentials or
+  SDKs.
+- Explicit resolution (unshared schema): When the agent and host operate across organizational
+  boundaries without a pre-shared storage schema (such as third-party agents or multi-vendor
+  ecosystems), resolution is explicit. Because the agent cannot assume how to interpret a
+  proprietary pointer or authenticate against a private bucket, the host provides explicit
+  resolution instructions. This is achieved either by sending an ephemeral, authenticated HTTPS
+  download URL (`https://host.domain.com/api/files/download/<token>`), by passing self-describing
+  resolver metadata in the event payload, or by exposing a standardized read-resource tool (as seen
+  in the Model Context Protocol) that the agent calls to retrieve file contents.
 
 ## 5. Division of responsibilities
 
@@ -62,11 +112,15 @@ Once a file is uploaded and an abstract reference ID (`fileId`) is produced, the
 
 ## 6. Technical implementation
 
-We package `FileUpload` as an optional extension module (`@a2ui/plugin-fileupload`). By removing internal HTTP chunking and networking engines, the component remains lightweight and focused on UI state and strategy delegation.
+We package `FileUpload` as an optional extension module (`@a2ui/plugin-fileupload`). By removing
+internal HTTP chunking and networking engines, the component remains lightweight and focused on UI
+state and strategy delegation.
 
 #### A. Component catalog schema definition (the agent's interface)
 
-To integrate `FileUpload` into the A2UI ecosystem, it is defined in the catalog schema. This contract outlines the properties the agent can configure and the events it will receive. Note that presigned URL properties are omitted from this schema and reserved for future extensions.
+To integrate `FileUpload` into the A2UI ecosystem, it is defined in the catalog schema. This
+contract outlines the properties the agent can configure and the events it will receive. Note that
+presigned URL properties are omitted from this schema and reserved for future extensions.
 
 ```ts
 import {ComponentDefinition} from '@a2ui/core';
@@ -129,7 +183,9 @@ export const FileUploadDefinition: ComponentDefinition = {
 
 #### B. The polymorphic component logic
 
-The web component handles visual states such as drag-and-drop zones and progress bars, while inspecting its constructor configuration to execute either host delegation or inline data URI encoding:
+The web component handles visual states such as drag-and-drop zones and progress bars, while
+inspecting its constructor configuration to execute either host delegation or inline data URI
+encoding:
 
 ```ts
 export interface FileUploadConfig {
@@ -201,7 +257,10 @@ export class FileUploadComponent extends HTMLElement {
 
 #### C. Batching and error handling
 
-If `multiple` is true and a user drops multiple files, the component processes them concurrently. To avoid LLM race conditions, the component batches successful uploads into a single `upload_complete` event. If individual files fail, successful files are dispatched immediately while failed files remain in the UI queue with a retry option.
+If `multiple` is true and a user drops multiple files, the component processes them concurrently. To
+avoid LLM race conditions, the component batches successful uploads into a single `upload_complete`
+event. If individual files fail, successful files are dispatched immediately while failed files
+remain in the UI queue with a retry option.
 
 ```ts
 export class FileUploadComponent extends HTMLElement {
@@ -233,7 +292,10 @@ export class FileUploadComponent extends HTMLElement {
 
 #### D. Host application component registration (programmatic configuration)
 
-For the component to function in production or enterprise environments, the host developer passes an upload callback programmatically to the component factory when registering `FileUpload` into the catalog. For rapid prototyping, registering the component without a callback automatically enables inline upload.
+For the component to function in production or enterprise environments, the host developer passes an
+upload callback programmatically to the component factory when registering `FileUpload` into the
+catalog. For rapid prototyping, registering the component without a callback automatically enables
+inline upload.
 
 ```ts
 import {Catalog} from '@a2ui/web_core/v0_9';
@@ -266,10 +328,16 @@ catalog.addComponent(
 
 #### E. Agent backend resolution (the FileResolver adapter)
 
-The backend SDK relies on a storage adapter pattern (`FileResolver`). During model inference, this resolver inspects the incoming `fileId` and applies either an implicit or explicit resolution strategy:
+The backend SDK relies on a storage adapter pattern (`FileResolver`). During model inference, this
+resolver inspects the incoming `fileId` and applies either an implicit or explicit resolution
+strategy:
 
-- Implicit resolution (shared schema): For internal agents sharing a known schema (such as `s3://` or `gdrive://`), the adapter matches the URI prefix and uses backend service credentials to download the object out of band.
-- Explicit resolution (unshared schema): For external agents or unshared schemas, the adapter either performs a standard HTTP GET against an ephemeral HTTPS download URL or calls an environment-provided resource read tool.
+- Implicit resolution (shared schema): For internal agents sharing a known schema (such as `s3://`
+  or `gdrive://`), the adapter matches the URI prefix and uses backend service credentials to
+  download the object out of band.
+- Explicit resolution (unshared schema): For external agents or unshared schemas, the adapter either
+  performs a standard HTTP GET against an ephemeral HTTPS download URL or calls an
+  environment-provided resource read tool.
 
 ```python
 import base64
@@ -327,18 +395,38 @@ async def handle_upload_complete(payload: dict, session: SessionData):
 
 ## 7. Security and operational benefits
 
-- Reduced complexity in core components: By deferring presigned URL support to a future extension, the `<FileUpload>` web component requires no internal HTTP client, chunked uploading logic, or CORS troubleshooting.
-- Declarative purity and graceful degradation: Agent developers write one generic `<FileUpload>` tag. The system adapts to the capabilities of the host environment without leaking implementation logic to the agent.
-- Native mobile resiliency: By supporting host delegation, iOS and Android implementations bypass WebView thread suspension limits, handing large uploads off to native background daemons.
-- Flexible pointer resolution across trust boundaries: Supporting both implicit resolution (via shared URI schemas) and explicit resolution (via ephemeral HTTPS URLs or resource tools) allows organizations to deploy agents internally with zero-overhead schema contracts, while supporting third-party agents without exposing internal cloud storage topology.
-- Zero prompt and schema pollution: Configuring the upload callback programmatically on the component constructor prevents upload handlers from appearing in the catalog JSON schema. This eliminates the risk of an LLM hallucinating calls to upload functions from arbitrary components.
-- Immediate prototyping capability: Developers building demos can use inline upload immediately without provisioning cloud storage buckets or backend upload endpoints.
-- Orchestrator data sovereignty: Standardizing on abstract identifiers ensures orchestrators can enforce multi-agent isolation. Utilities such as `A2uiSubagentMap` can strip unowned file pointers from sub-agent payloads to prevent cross-agent data leakage.
-- Zero-trust file validation: Schema properties such as `accept` and `maxSize` are client-side UI conveniences. Because physical file transport bypasses the JSON-RPC layer, host bucket policies and backend `FileResolver` adapters must enforce file size limits, verify MIME types, and execute malware scanning before passing bytes into the LLM context window.
+- Reduced complexity in core components: By deferring presigned URL support to a future extension,
+  the `<FileUpload>` web component requires no internal HTTP client, chunked uploading logic, or
+  CORS troubleshooting.
+- Declarative purity and graceful degradation: Agent developers write one generic `<FileUpload>`
+  tag. The system adapts to the capabilities of the host environment without leaking implementation
+  logic to the agent.
+- Native mobile resiliency: By supporting host delegation, iOS and Android implementations bypass
+  WebView thread suspension limits, handing large uploads off to native background daemons.
+- Flexible pointer resolution across trust boundaries: Supporting both implicit resolution (via
+  shared URI schemas) and explicit resolution (via ephemeral HTTPS URLs or resource tools) allows
+  organizations to deploy agents internally with zero-overhead schema contracts, while supporting
+  third-party agents without exposing internal cloud storage topology.
+- Zero prompt and schema pollution: Configuring the upload callback programmatically on the
+  component constructor prevents upload handlers from appearing in the catalog JSON schema. This
+  eliminates the risk of an LLM hallucinating calls to upload functions from arbitrary components.
+- Immediate prototyping capability: Developers building demos can use inline upload immediately
+  without provisioning cloud storage buckets or backend upload endpoints.
+- Orchestrator data sovereignty: Standardizing on abstract identifiers ensures orchestrators can
+  enforce multi-agent isolation. Utilities such as `A2uiSubagentMap` can strip unowned file pointers
+  from sub-agent payloads to prevent cross-agent data leakage.
+- Zero-trust file validation: Schema properties such as `accept` and `maxSize` are client-side UI
+  conveniences. Because physical file transport bypasses the JSON-RPC layer, host bucket policies
+  and backend `FileResolver` adapters must enforce file size limits, verify MIME types, and execute
+  malware scanning before passing bytes into the LLM context window.
 
 ## 8. Rollout strategy and tactical recommendations
 
-To advance development, deploy to GE, and engage the Security Review team promptly, we recommend the following phased rollout:
+To advance development, deploy to GE, and engage the Security Review team promptly, we recommend the
+following phased rollout:
 
-- Commit immediately to the dual architecture of **inversion of control (IoC)** and **inline upload**. This covers production enterprise web and native mobile environments via host delegation while enabling rapid prototyping via inline data URIs.
-- Reserve client-led presigned URL transport (`uploadUrl`) as a future plugin extension. This keeps the initial codebase lean and focused on core UI state management and host integration.
+- Commit immediately to the dual architecture of **inversion of control (IoC)** and **inline
+  upload**. This covers production enterprise web and native mobile environments via host delegation
+  while enabling rapid prototyping via inline data URIs.
+- Reserve client-led presigned URL transport (`uploadUrl`) as a future plugin extension. This keeps
+  the initial codebase lean and focused on core UI state management and host integration.

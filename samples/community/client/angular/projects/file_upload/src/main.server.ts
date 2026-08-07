@@ -18,6 +18,9 @@ import {BootstrapContext, bootstrapApplication} from '@angular/platform-browser'
 import {App} from './app/app';
 import {config} from './app/app.config.server';
 
+// This is the bootstrap file for server-side rendering (SSR).
+// Unlike `main.ts` which runs in the browser, this file is executed by the Node.js server
+// to render the initial HTML state before sending it to the client.
 const bootstrap = (context: BootstrapContext) => bootstrapApplication(App, config, context);
 
 export default bootstrap;
