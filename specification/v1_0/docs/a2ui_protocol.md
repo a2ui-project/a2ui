@@ -1341,7 +1341,7 @@ In A2UI v1.0, strict schema validation (`additionalProperties: false`) protects 
 
 1.  **Optional Schema Fields**: All `metadata.extensions` fields are strictly optional on the wire. When omitted, they incur zero token overhead.
 2.  **Parser Conformance Rule**: Conformant renderers MUST NOT reject payloads containing extension keys within an `extensions` object. Renderers MAY inspect and process extension keys they recognize, and MUST ignore unrecognized extension keys without error.
-3.  **Unicode Identifiers (UAX #31) and Prefix Reservation**: Extension names MUST be valid [Unicode UAX #31](https://www.unicode.org/reports/tr31/) identifiers (`^[\p{XID_Start}_][\p{XID_Continue}]*$`). To prevent key collisions:
+3.  **Unicode Identifiers (UAX #31) and Prefix Reservation**: Extension names MUST be valid [Unicode UAX #31] identifiers (`^[\p{XID_Start}_][\p{XID_Continue}]*$`). To prevent key collisions:
     - Official A2UI extensions are strictly reserved under the prefix `a2ui_`.
     - Third-party vendor extensions MUST be prefixed with a distinct organization or product identifier separated by an underscore (e.g. an extension from a company with the domain `company.com` might be named `com_company_extension`).
     - Use of names derived from reversed domain names is encouraged for public facing extensions.
@@ -1366,8 +1366,10 @@ Renderers and client SDKs expose surface and component metadata using uniform ac
 
 [json pointer]: https://datatracker.ietf.org/doc/html/rfc6901
 [rfc 6901]: https://datatracker.ietf.org/doc/html/rfc6901
+[unicode uax #31]: https://www.unicode.org/reports/tr31/
 [`agent_capabilities.json`]: ../json/agent_capabilities.json
 [`agent_to_renderer.json`]: ../json/agent_to_renderer.json
+[`catalog_definition.json`]: ../json/catalog_definition.json
 [`catalogs/basic/catalog.json`]: ../catalogs/basic/catalog.json
 [`common_types.json`]: ../json/common_types.json
 [`renderer_capabilities.json`]: ../json/renderer_capabilities.json
