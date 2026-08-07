@@ -1,5 +1,12 @@
 ## Unreleased
 
+- (v0_9) Align Basic Catalog component behaviors and styling contracts with the Angular reference implementation:
+  - `TextField`: Render all validation error messages in `validationErrors` instead of only the first error, and ensure full-width container styling (`width: 100%`, `box-sizing: border-box`).
+  - `DateTimeInput`: Add `width: 100%` container styling and `box-sizing: border-box` input sizing.
+  - `Column`: Add `width: 100%` container styling to ensure consistent flex layout distribution.
+  - `Image`: Remove default `width: 100%` constraint on `img` elements to preserve intrinsic aspect ratios and support explicit layout sizing.
+  - `Modal`: Migrate from native `<dialog>` to an overlay container (`.a2ui-modal-overlay`, `.a2ui-modal-content`) managed with explicit `@state() isOpen` lifecycle tracking, standard backdrop theming (`--a2ui-modal-backdrop-bg`), accessible dialog ARIA attributes (`role="dialog"`, `aria-modal="true"`), and an accessible close button (`aria-label="Close"`).
+  - `Text`: Wrap caption variant (`variant: 'caption'`) typography in `<em>` elements for default italic styling.
 - (v0_9) Migrate Basic Catalog components and surface rendering from Shadow DOM to Light DOM.
 
 ## 0.10.3
