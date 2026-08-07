@@ -78,7 +78,7 @@ describe('TextField Component', () => {
               label: 'Email',
               value: '',
               isValid: false,
-              validationErrors: ['Email is invalid'],
+              validationErrors: ['Email is required', 'Email must contain @'],
             },
           ],
         },
@@ -153,7 +153,7 @@ describe('TextField Component', () => {
     assert.strictEqual(input, null);
   });
 
-  it('should render validation error message when invalid', async () => {
+  it('should render all validation error messages when invalid', async () => {
     const el = document.createElement('a2ui-basic-textfield') as A2uiBasicTextFieldElement;
     element = el;
     document.body.appendChild(el);
@@ -163,9 +163,10 @@ describe('TextField Component', () => {
       e.context = context;
     });
 
-    const error = el.querySelector('.error');
-    assert.ok(error);
-    assert.strictEqual(error.textContent?.trim(), 'Email is invalid');
+    const errors = el.querySelectorAll('.error');
+    assert.strictEqual(errors.length, 2);
+    assert.strictEqual(errors[0].textContent?.trim(), 'Email is required');
+    assert.strictEqual(errors[1].textContent?.trim(), 'Email must contain @');
 
     const input = el.querySelector('input');
     assert.ok(input);
