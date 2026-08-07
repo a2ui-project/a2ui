@@ -1,5 +1,5 @@
 /*
- * Copyright 2025 Google LLC
+ * Copyright 2026 Google LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -20,3 +20,31 @@ export * from './functions/basic_functions_api.js';
 export * from './components/basic_components.js';
 export {injectBasicCatalogStyles, computeColorVariant} from './styles/default.js';
 export type {ColorVariantLightDarkOptions, ColorVariantHoverOptions} from './styles/default.js';
+
+export * from './a2ui-lit-element.js';
+export * from './a2ui-controller.js';
+export * from './basic-catalog-a2ui-lit-element.js';
+export * from './render-a2ui-node.js';
+export * from './context/context.js';
+export * from './directives/directives.js';
+
+export * from './components/Text.js';
+export * from './components/Button.js';
+export * from './components/TextField.js';
+export * from './components/Row.js';
+export * from './components/Column.js';
+export * from './components/List.js';
+export * from './components/Image.js';
+export * from './components/Icon.js';
+export * from './components/Video.js';
+export * from './components/AudioPlayer.js';
+export * from './components/Card.js';
+export * from './components/Divider.js';
+export * from './components/CheckBox.js';
+export * from './components/Slider.js';
+export * from './components/DateTimeInput.js';
+export * from './components/ChoicePicker.js';
+export * from './components/Tabs.js';
+export * from './components/Modal.js';
+
+export * from './catalog.js';

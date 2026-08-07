@@ -1,5 +1,6 @@
 ## Unreleased
 
+- (v0_9) Move Basic Catalog components to `@a2ui/web_core` as universal Web Components.
 - (v0_9) Align Basic Catalog component behaviors and styling contracts with the Angular reference implementation:
   - `TextField`: Render all validation error messages in `validationErrors` instead of only the first error, and ensure full-width container styling (`width: 100%`, `box-sizing: border-box`).
   - `DateTimeInput`: Add `width: 100%` container styling and `box-sizing: border-box` input sizing.

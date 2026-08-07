@@ -190,3 +190,27 @@ function LocaleOptionsExterns() {}
 /** @type {?} */ LocaleOptionsExterns.prototype.width;
 /** @type {?} */ LocaleOptionsExterns.prototype.abbreviated;
 /** @type {?} */ LocaleOptionsExterns.prototype.wide;
+
+/**
+ * Externs for `Surface`, `SurfaceModel`, `ComponentContext`, `DataContext`, and `Catalog` interfaces.
+ * @record
+ * @struct
+ */
+function SurfaceModelExterns() {}
+/** @type {?} */ SurfaceModelExterns.prototype.componentsModel;
+/** @type {?} */ SurfaceModelExterns.prototype.dataModel;
+/** @type {?} */ SurfaceModelExterns.prototype.catalog;
+/** @type {?} */ SurfaceModelExterns.prototype.dataContext;
+/** @type {?} */ SurfaceModelExterns.prototype.componentModel;
+/** @type {?} */ SurfaceModelExterns.prototype.components;
+/** @type {?} */ SurfaceModelExterns.prototype.functions;
+/** @type {?} */ SurfaceModelExterns.prototype.getSignal;
+/** @type {?} */ SurfaceModelExterns.prototype.signals;
+
+/**
+ * Externs for `MarkdownRenderer` interface.
+ * @record
+ * @struct
+ */
+function MarkdownRendererExterns() {}
+/** @type {?} */ MarkdownRendererExterns.prototype.render;

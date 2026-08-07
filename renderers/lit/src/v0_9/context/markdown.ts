@@ -14,12 +14,7 @@
  * limitations under the License.
  */
 
-import {createContext} from '@lit/context';
-import * as Types from '@a2ui/web_core/types/types';
-
 /**
- * The markdown renderer context.
- *
- * This is used by the Text widget to render markdown content.
+ * Re-exported for backwards compatibility.
  */
-export const markdown = createContext<Types.MarkdownRenderer | undefined>(Symbol('A2UIMarkdown'));
+export {markdown} from '@a2ui/web_core/v0_9/basic_catalog';
