@@ -73,7 +73,7 @@ describe('CheckBox Component', () => {
       e.context = context;
     });
 
-    const errorDiv = el.shadowRoot.querySelector('.error');
+    const errorDiv = el.querySelector('.error');
     assert.ok(errorDiv);
     assert.strictEqual(errorDiv.textContent.trim(), 'This is required');
 

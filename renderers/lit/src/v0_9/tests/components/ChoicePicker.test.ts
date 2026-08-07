@@ -87,7 +87,7 @@ describe('ChoicePicker Component', () => {
       e.context = context;
     });
 
-    const buttons = el.shadowRoot.querySelectorAll('button.chip');
+    const buttons = el.querySelectorAll('button.chip');
     assert.strictEqual(buttons.length, 2);
     assert.strictEqual(buttons[0].textContent.trim(), 'Apple');
 
@@ -104,7 +104,7 @@ describe('ChoicePicker Component', () => {
     });
 
     // Initially 2 options + 1 main label = 3 labels
-    assert.strictEqual(el.shadowRoot.querySelectorAll('label').length, 3);
+    assert.strictEqual(el.querySelectorAll('label').length, 3);
 
     // Simulate input by setting state directly
     await asyncUpdate(el, e => {
@@ -112,7 +112,7 @@ describe('ChoicePicker Component', () => {
     });
 
     // Now only Apple should be visible + main label = 2 labels
-    assert.strictEqual(el.shadowRoot.querySelectorAll('label').length, 2);
+    assert.strictEqual(el.querySelectorAll('label').length, 2);
 
     document.body.removeChild(el);
   });
