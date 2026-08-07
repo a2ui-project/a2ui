@@ -15,8 +15,14 @@
  */
 
 import {CatalogComponent, A2uiRendererService} from '@a2ui/angular/v0_9';
-import {ChangeDetectionStrategy, Component, computed, inject, signal, InjectionToken} from '@angular/core';
-
+import {
+  ChangeDetectionStrategy,
+  Component,
+  computed,
+  inject,
+  signal,
+  InjectionToken,
+} from '@angular/core';
 
 export interface FileUploadConfig {
   onUploadFile?: (file: File, onProgress: (percent: number) => void) => Promise<string>;
@@ -51,16 +57,19 @@ export class FileUploadComponent extends CatalogComponent<any> {
   readonly multiple = computed<boolean>(() => this.props()['multiple']?.value() ?? false);
 
   readonly label = computed<string>(
-    () =>
-      this.props()['label']?.value() ?? 'Drag and drop files or click to upload',
+    () => this.props()['label']?.value() ?? 'Drag and drop files or click to upload',
   );
   readonly accept = computed<string>(() => this.props()['accept']?.value() ?? '*/*');
-  readonly maxSize = computed<number>(() => this.props()['maxSize']?.value() ?? DEFAULT_MAX_FILE_SIZE);
+  readonly maxSize = computed<number>(
+    () => this.props()['maxSize']?.value() ?? DEFAULT_MAX_FILE_SIZE,
+  );
 
   readonly uploadState = signal<'idle' | 'uploading' | 'success' | 'error'>('idle');
   readonly progress = signal<number>(0);
   readonly errorMessage = signal<string>('');
-  readonly uploadedFiles = signal<{fileId: string, metadata: {fileName: string, fileSize: number, mimeType: string}}[]>([]);
+  readonly uploadedFiles = signal<
+    {fileId: string; metadata: {fileName: string; fileSize: number; mimeType: string}}[]
+  >([]);
 
   async onFileSelected(event: Event) {
     const input = event.target as HTMLInputElement;
@@ -115,7 +124,7 @@ export class FileUploadComponent extends CatalogComponent<any> {
 
         if (this.config.onUploadFile) {
           pointerUri = await this.config.onUploadFile(file, percent => {
-            this.progress.set(Math.round(((i * 100) + percent) / files.length));
+            this.progress.set(Math.round((i * 100 + percent) / files.length));
           });
         } else if (file.size <= (this.config.maxInlineSize || DEFAULT_MAX_INLINE_SIZE)) {
           pointerUri = await this.encodeAsDataUri(file);
@@ -123,7 +132,7 @@ export class FileUploadComponent extends CatalogComponent<any> {
         } else {
           throw new Error(
             `File size (${file.size} bytes) exceeds inline upload limit. ` +
-            'A host onUploadFile callback must be configured for large file uploads.'
+              'A host onUploadFile callback must be configured for large file uploads.',
           );
         }
 
@@ -133,7 +142,7 @@ export class FileUploadComponent extends CatalogComponent<any> {
             fileName: file.name,
             fileSize: file.size,
             mimeType: file.type || 'text/plain',
-          }
+          },
         });
       }
 
@@ -142,15 +151,18 @@ export class FileUploadComponent extends CatalogComponent<any> {
       this.progress.set(100);
 
       if (surface) {
-        surface.dispatchAction({
-          event: {
-            name: 'upload_complete',
-            context: {
-              files: uploadedFilesContext,
-              surfaceId: this.surfaceId()
-            }
-          }
-        }, this.componentId());
+        surface.dispatchAction(
+          {
+            event: {
+              name: 'upload_complete',
+              context: {
+                files: uploadedFilesContext,
+                surfaceId: this.surfaceId(),
+              },
+            },
+          },
+          this.componentId(),
+        );
       }
     } catch (err) {
       this.uploadState.set('error');
@@ -171,24 +183,27 @@ export class FileUploadComponent extends CatalogComponent<any> {
     const files = [...this.uploadedFiles()];
     const removed = files.splice(index, 1)[0];
     this.uploadedFiles.set(files);
-    
+
     if (this.config.onRemoveFile) {
       this.config.onRemoveFile(removed.fileId);
     }
-    
+
     const surface = this.rendererService.surfaceGroup.getSurface(this.surfaceId());
     if (surface) {
-      surface.dispatchAction({
-        event: {
-          name: 'upload_complete',
-          context: {
-            files: files,
-            surfaceId: this.surfaceId()
-          }
-        }
-      }, this.componentId());
+      surface.dispatchAction(
+        {
+          event: {
+            name: 'upload_complete',
+            context: {
+              files: files,
+              surfaceId: this.surfaceId(),
+            },
+          },
+        },
+        this.componentId(),
+      );
     }
-    
+
     if (files.length === 0) {
       this.uploadState.set('idle');
     }

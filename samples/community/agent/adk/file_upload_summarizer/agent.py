@@ -136,7 +136,8 @@ class FileUploadSummarizerAgent:
         return AgentCard(
             name="Mock Drive FileUpload Summarizer Agent",
             description=(
-                "Demonstrates zero-context-bloat file upload pointer resolution and document summarization."
+                "Demonstrates zero-context-bloat file upload pointer resolution and"
+                " document summarization."
             ),
             url=self.base_url,
             iconUrl="A2UI_light.svg",
@@ -150,12 +151,19 @@ class FileUploadSummarizerAgent:
                     name="Show File Uploader",
                     description="Displays the document upload and summarization UI.",
                     tags=["fileupload", "upload", "summarize", "demo", "tool"],
-                    examples=["show file uploader", "upload document", "summarize file"],
+                    examples=[
+                        "show file uploader",
+                        "upload document",
+                        "summarize file",
+                    ],
                 ),
                 AgentSkill(
                     id="resolve_file_pointer",
                     name="Resolve File Pointer",
-                    description=f"Resolves abstract pointer URIs out-of-band via {self.base_url}/api/mock-drive/v3/files/{{id}}?alt=media",
+                    description=(
+                        "Resolves abstract pointer URIs out-of-band via"
+                        f" {self.base_url}/api/mock-drive/v3/files/{{id}}?alt=media"
+                    ),
                     tags=["fileupload", "resolve", "pointer", "ioc"],
                     examples=["mockdrive://file-id"],
                 ),

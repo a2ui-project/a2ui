@@ -52,7 +52,7 @@ app.post('/api/upload', async (req, res) => {
         'content-type': req.headers['content-type'] as string,
       },
       body: req as any,
-      duplex: 'half'
+      duplex: 'half',
     } as RequestInit);
 
     if (!response.ok) {

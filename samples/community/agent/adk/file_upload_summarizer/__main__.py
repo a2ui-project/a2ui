@@ -45,10 +45,13 @@ def main(host, port):
         if not os.getenv("GOOGLE_GENAI_USE_VERTEXAI") == "TRUE":
             if not os.getenv("GEMINI_API_KEY"):
                 logger.warning(
-                    "GEMINI_API_KEY environment variable not set. Summarization calls may fail if no API key is provided."
+                    "GEMINI_API_KEY environment variable not set. Summarization calls"
+                    " may fail if no API key is provided."
                 )
 
-        lite_llm_model = os.getenv("LITELLM_MODEL", "gemini/gemini-3.1-flash-lite-preview")
+        lite_llm_model = os.getenv(
+            "LITELLM_MODEL", "gemini/gemini-3.1-flash-lite-preview"
+        )
         gemini_model = (
             lite_llm_model[len("gemini/") :]
             if lite_llm_model.startswith("gemini/")

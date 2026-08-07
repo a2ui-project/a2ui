@@ -22,19 +22,16 @@ import {TelemetryLoggerService} from './telemetry-logger-service';
 })
 export class MockDriveUploadService {
   private readonly uploadEndpoint = '/api/upload';
-  readonly uploadedFiles = signal<{
-    fileId: string;
-    fileName: string;
-    fileSize: number;
-    mimeType: string;
-  }[]>([]);
+  readonly uploadedFiles = signal<
+    {
+      fileId: string;
+      fileName: string;
+      fileSize: number;
+      mimeType: string;
+    }[]
+  >([]);
 
-  addUploadedFile(info: {
-    fileId: string;
-    fileName: string;
-    fileSize: number;
-    mimeType: string;
-  }) {
+  addUploadedFile(info: {fileId: string; fileName: string; fileSize: number; mimeType: string}) {
     this.uploadedFiles.update(files => [...files, info]);
   }
 

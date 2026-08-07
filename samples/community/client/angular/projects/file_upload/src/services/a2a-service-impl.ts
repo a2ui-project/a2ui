@@ -22,22 +22,27 @@ import {TelemetryLoggerService} from './telemetry-logger-service';
 import {MockDriveUploadService} from './mock-drive-upload-service';
 import {z} from 'zod';
 
-const actionMessageSchema = z.string().transform((str, ctx) => {
-  if (!str.trim().startsWith('{')) {
-    ctx.addIssue({code: z.ZodIssueCode.custom, message: 'Not a JSON object'});
-    return z.NEVER;
-  }
-  try {
-    return JSON.parse(str);
-  } catch {
-    ctx.addIssue({code: z.ZodIssueCode.custom, message: 'Invalid JSON'});
-    return z.NEVER;
-  }
-}).pipe(
-  z.object({
-    action: z.any().optional(),
-  }).passthrough()
-);
+const actionMessageSchema = z
+  .string()
+  .transform((str, ctx) => {
+    if (!str.trim().startsWith('{')) {
+      ctx.addIssue({code: z.ZodIssueCode.custom, message: 'Not a JSON object'});
+      return z.NEVER;
+    }
+    try {
+      return JSON.parse(str);
+    } catch {
+      ctx.addIssue({code: z.ZodIssueCode.custom, message: 'Invalid JSON'});
+      return z.NEVER;
+    }
+  })
+  .pipe(
+    z
+      .object({
+        action: z.any().optional(),
+      })
+      .passthrough(),
+  );
 
 @Injectable({
   providedIn: 'root',
@@ -74,9 +79,12 @@ export class A2aServiceImpl implements A2aService {
         } else {
           // Normal text chat message: if files have been uploaded, enrich prompt with Host IoC pointer context
           const uploadedFiles = this.driveService.uploadedFiles();
-          if (uploadedFiles.length > 0 && /summariz|analy|explain|file|doc|upload|read/i.test(p.text)) {
+          if (
+            uploadedFiles.length > 0 &&
+            /summariz|analy|explain|file|doc|upload|read/i.test(p.text)
+          ) {
             const contextItems = uploadedFiles.map(
-              f => `fileId="${f.fileId}", fileName="${f.fileName}", mimeType="${f.mimeType}"`
+              f => `fileId="${f.fileId}", fileName="${f.fileName}", mimeType="${f.mimeType}"`,
             );
             const contextStr = contextItems.map(item => `  - ${item}`).join('\n');
             p.text = `${p.text}\n\n[Host IoC Context: UploadedFiles\n${contextStr}\n]`;
@@ -122,17 +130,21 @@ export class A2aServiceImpl implements A2aService {
         for (const p of parts) {
           if ('a2ui' in p && Array.isArray(p.a2ui)) {
             for (const msg of p.a2ui) {
-              if (msg.updateDataModel && (msg.updateDataModel.path === '/uploaded_file' || msg.updateDataModel.path === '/uploaded_files')) {
+              if (
+                msg.updateDataModel &&
+                (msg.updateDataModel.path === '/uploaded_file' ||
+                  msg.updateDataModel.path === '/uploaded_files')
+              ) {
                 this.telemetry.log({
                   card: 'websocket',
                   title: 'Step 4: Agent responds with datamodel update to hydrate',
-                  detail: { payload: msg.updateDataModel },
+                  detail: {payload: msg.updateDataModel},
                 });
                 setTimeout(() => {
                   this.telemetry.log({
                     card: 'resolver',
                     title: 'Step 5: The button is hydrated with a new ID',
-                    detail: { newId: msg.updateDataModel.value?.fileId },
+                    detail: {newId: msg.updateDataModel.value?.fileId},
                   });
                 }, 500); // slight delay to represent hydration time
               }

@@ -16,7 +16,7 @@
 A mock Mock Drive API server implementation.
 
 This module provides simulated Mock Drive v3 endpoints for multipart uploads
-and media downloads. It is used by the A2UI file upload demo to demonstrate 
+and media downloads. It is used by the A2UI file upload demo to demonstrate
 out-of-band file resolution (uploading a file and returning a `mockdrive://` URI pointer)
 without requiring real Mock Drive credentials or internet access.
 """
@@ -67,7 +67,8 @@ async def handle_mock_drive_upload(request: Request) -> Response:
             json.dump(meta_data, mf)
 
         logger.info(
-            f"Mock Drive upload completed: id={file_id}, name={filename}, size={len(content)}"
+            f"Mock Drive upload completed: id={file_id}, name={filename},"
+            f" size={len(content)}"
         )
         return JSONResponse(meta_data, status_code=200)
     except Exception as e:

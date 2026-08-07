@@ -333,8 +333,6 @@
         font-weight: 600;
         color: #f8fafc;
       }
-
-
     }
 
     .log-json {
@@ -352,7 +350,7 @@
   }
 }
 
-// Override A2UI core component styles to fix the disabled button text color 
+// Override A2UI core component styles to fix the disabled button text color
 // (which incorrectly stays white against a light gray disabled background)
 ::ng-deep a2ui-v09-button .a2ui-button:disabled {
   --_a2ui-text-color: #6c757d;

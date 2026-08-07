@@ -60,15 +60,19 @@ async def fetch_and_process(file_info, http_client, base_url):
             text_content = file_bytes.decode("utf-8", errors="replace")
             content_parts.append(f"Content:\n{text_content}")
         except Exception:
-            content_parts.append(genai_types.Part.from_bytes(data=file_bytes, mime_type=mime_type))
+            content_parts.append(
+                genai_types.Part.from_bytes(data=file_bytes, mime_type=mime_type)
+            )
     else:
-        content_parts.append(genai_types.Part.from_bytes(data=file_bytes, mime_type=mime_type))
+        content_parts.append(
+            genai_types.Part.from_bytes(data=file_bytes, mime_type=mime_type)
+        )
     return file_name, content_parts
 
 
 async def show_file_uploader_tool(tool_context: ToolContext, multiple: bool = False):
     """Displays the A2UI FileUpload demonstration surface with uploader and button.
-    
+
     Args:
         multiple: Set to True if the user asks to upload multiple files, False for a single file.
     """
@@ -78,10 +82,11 @@ async def show_file_uploader_tool(tool_context: ToolContext, multiple: bool = Fa
             "version": "v0.9",
             "createSurface": {
                 "surfaceId": surface_id,
-                "catalogId": "https://a2ui.org/samples/community/agent/adk/file_upload_summarizer/catalogs/0.9/file_upload_catalog.json",
+                "catalogId": (
+                    "https://a2ui.org/samples/community/agent/adk/file_upload_summarizer/catalogs/0.9/file_upload_catalog.json"
+                ),
             },
         },
-
         {
             "version": "v0.9",
             "updateComponents": {
@@ -107,24 +112,18 @@ async def show_file_uploader_tool(tool_context: ToolContext, multiple: bool = Fa
                         "id": "summarize_btn",
                         "component": "Button",
                         "child": "summarize_btn_txt",
-                        "checks": [
-                            {
-                                "condition": {
-                                    "call": "required",
-                                    "args": {
-                                        "value": {"path": "/uploaded_files"}
-                                    },
-                                    "returnType": "boolean"
-                                },
-                                "message": "Please wait for the file upload to complete"
-                            }
-                        ],
+                        "checks": [{
+                            "condition": {
+                                "call": "required",
+                                "args": {"value": {"path": "/uploaded_files"}},
+                                "returnType": "boolean",
+                            },
+                            "message": "Please wait for the file upload to complete",
+                        }],
                         "action": {
                             "event": {
                                 "name": "summarize_file",
-                                "context": {
-                                    "files": {"path": "/uploaded_files"}
-                                }
+                                "context": {"files": {"path": "/uploaded_files"}},
                             }
                         },
                     },
@@ -149,20 +148,22 @@ async def update_upload_context_tool(
     """Updates the data model with the uploaded file pointers context.
     IMPORTANT: After calling this tool, you MUST STOP and wait for the user. Do NOT call summarize_file_tool.
     """
-    messages = [
-        {
-            "version": "v0.9",
-            "updateDataModel": {
-                "surfaceId": surface_id,
-                "path": "/uploaded_files",
-                "value": files
-            },
-        }
-    ]
+    messages = [{
+        "version": "v0.9",
+        "updateDataModel": {
+            "surfaceId": surface_id,
+            "path": "/uploaded_files",
+            "value": files,
+        },
+    }]
     tool_context.actions.skip_summarization = True
     return {
         "validated_a2ui_json": messages,
-        "instruction_to_model": "SUCCESS. The data model is updated. You MUST STOP NOW. Do NOT proactively call summarize_file_tool. Wait for the user to click the summarize button."
+        "instruction_to_model": (
+            "SUCCESS. The data model is updated. You MUST STOP NOW. Do NOT proactively"
+            " call summarize_file_tool. Wait for the user to click the summarize"
+            " button."
+        ),
     }
 
 
@@ -175,9 +176,7 @@ async def summarize_file_tool(
     Args:
         files: A list of dictionaries, each containing 'fileId', 'fileName', and 'mimeType' of an uploaded file.
     """
-    logger.info(
-        f"Out-of-band resolution triggered for {len(files)} files"
-    )
+    logger.info(f"Out-of-band resolution triggered for {len(files)} files")
 
     try:
         if not isinstance(files, list):
@@ -188,10 +187,10 @@ async def summarize_file_tool(
             }
 
         base_url = tool_context.session.state.get(STATE_KEY_BASE_URL, DEFAULT_BASE_URL)
-        
+
         contents = []
         file_names = []
-        
+
         async with httpx.AsyncClient() as http_client:
             tasks = [fetch_and_process(f, http_client, base_url) for f in files]
             results = await asyncio.gather(*tasks)
@@ -201,7 +200,9 @@ async def summarize_file_tool(
                     file_names.append(file_name)
                     contents.extend(content_parts)
 
-        lite_llm_model = os.getenv("LITELLM_MODEL", "gemini/gemini-3.1-flash-lite-preview")
+        lite_llm_model = os.getenv(
+            "LITELLM_MODEL", "gemini/gemini-3.1-flash-lite-preview"
+        )
         gemini_model = (
             lite_llm_model[len("gemini/") :]
             if lite_llm_model.startswith("gemini/")
@@ -209,18 +210,21 @@ async def summarize_file_tool(
         )
 
         client = Client()
-        
+
         if len(files) == 1:
             prompt = (
-                f"You are analyzing an uploaded document titled '{file_names[0]}'. "
-                "Provide a concise executive summary followed by 3 clear key takeaways formatted in Markdown."
+                f"You are analyzing an uploaded document titled '{file_names[0]}'."
+                " Provide a concise executive summary followed by 3 clear key"
+                " takeaways formatted in Markdown."
             )
         else:
             prompt = (
-                f"You are analyzing a collection of {len(files)} uploaded documents: {', '.join(file_names)}. "
-                "Provide a concise executive summary of the entire collection followed by clear key takeaways formatted in Markdown."
+                f"You are analyzing a collection of {len(files)} uploaded documents:"
+                f" {', '.join(file_names)}. Provide a concise executive summary of the"
+                " entire collection followed by clear key takeaways formatted in"
+                " Markdown."
             )
-            
+
         final_contents = [prompt] + contents
 
         llm_response = client.models.generate_content(
@@ -233,7 +237,9 @@ async def summarize_file_tool(
             else "Summary generation completed."
         )
 
-        title_suffix = file_names[0] if len(file_names) == 1 else f"{len(file_names)} Documents"
+        title_suffix = (
+            file_names[0] if len(file_names) == 1 else f"{len(file_names)} Documents"
+        )
         return {
             "summary_title": f"Summary: {title_suffix}",
             "summary_text": summary_text,
@@ -243,6 +249,8 @@ async def summarize_file_tool(
         logger.error(f"Error summarizing files: {e}\n{traceback.format_exc()}")
         return {
             "summary_title": "Resolution Error",
-            "summary_text": f"Could not resolve file pointers or generate summary: {str(e)}",
+            "summary_text": (
+                f"Could not resolve file pointers or generate summary: {str(e)}"
+            ),
             "status": "error",
         }

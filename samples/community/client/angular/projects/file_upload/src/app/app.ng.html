@@ -27,7 +27,8 @@
       <div class="header-actions">
         <mat-slide-toggle
           [checked]="fileUploadSettings.enableMultiFile()"
-          (change)="fileUploadSettings.enableMultiFile.set($event.checked)">
+          (change)="fileUploadSettings.enableMultiFile.set($event.checked)"
+        >
           Support Multi-File
         </mat-slide-toggle>
       </div>
@@ -47,7 +48,15 @@
             service) and returning an abstract pointer URI (<code>mockdrive://...</code>).
           </p>
           <div class="suggestion-chips">
-            <button mat-stroked-button class="chip" (click)="sendMessage('show file uploader (multiple: ' + fileUploadSettings.enableMultiFile() + ')')">
+            <button
+              mat-stroked-button
+              class="chip"
+              (click)="
+                sendMessage(
+                  'show file uploader (multiple: ' + fileUploadSettings.enableMultiFile() + ')'
+                )
+              "
+            >
               <span class="material-icons-outlined">cloud_upload</span>
               Show A2UI File Uploader Interface
             </button>

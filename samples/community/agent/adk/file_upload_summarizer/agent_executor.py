@@ -71,7 +71,9 @@ class FileUploadSummarizerAgentExecutor(A2aAgentExecutor):
                 Event(
                     invocation_id=new_invocation_context_id(),
                     author="system",
-                    actions=EventActions(state_delta={STATE_KEY_BASE_URL: self._base_url}),
+                    actions=EventActions(
+                        state_delta={STATE_KEY_BASE_URL: self._base_url}
+                    ),
                 ),
             )
 
