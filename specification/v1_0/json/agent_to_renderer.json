@@ -45,7 +45,7 @@
             },
             "metadata": {
               "type": "object",
-              "description": "Optional surface-level metadata for vendor extensions.",
+              "description": "Optional surface-level metadata.",
               "properties": {
                 "extensions": {
                   "$ref": "common_types.json#/$defs/Extensions"

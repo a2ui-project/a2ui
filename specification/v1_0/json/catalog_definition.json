@@ -217,7 +217,7 @@
             },
             "metadata": {
               "type": "object",
-              "description": "Optional static vendor metadata.",
+              "description": "Optional static metadata.",
               "properties": {
                 "extensions": {
                   "$ref": "common_types.json#/$defs/Extensions"

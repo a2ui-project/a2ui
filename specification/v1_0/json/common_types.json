@@ -28,7 +28,7 @@
     },
     "Extensions": {
       "type": "object",
-      "description": "Optional vendor extension metadata. Keys MUST be Unicode identifiers (UAX #31). Keys starting with 'a2ui_' are reserved for official extensions, and third-party extensions MUST start with a distinct organization or product prefix followed by an underscore (e.g., 'company_extension' or 'com_company_extension').",
+      "description": "Optional extension metadata. Keys MUST be Unicode identifiers (UAX #31). Keys starting with 'a2ui_' are reserved for official extensions.",
       "patternProperties": {
         "^[\\p{XID_Start}_][\\p{XID_Continue}]*$": {}
       },
