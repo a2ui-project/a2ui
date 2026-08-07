@@ -1333,15 +1333,15 @@ When `sendDataModel` is enabled for a surface, the renderer includes the `a2uiRe
 - `version` (string, required): Must be the constant `"v1.0"`.
 - `surfaces` (object, required): A map of surface IDs to their current local data models.
 
-### Vendor Extension Seam
+### Vendor Extensions
 
-In A2UI v1.0, strict schema validation (`additionalProperties: false`) protects components and wire messages from unrecognized fields. To enable non-visual enterprise metadata (such as access constraints, audit tags, and telemetry identifiers) without allowing arbitrary properties that would weaken schema validation, A2UI defines a centralized `Extensions` type in `common_types.json#/$defs/Extensions`.
+In A2UI v1.0, strict schema validation (`additionalProperties: false`) protects components and wire messages from unrecognized fields. To enable non-visual vendor metadata (such as access constraints, audit tags, and telemetry identifiers, etc.) without allowing arbitrary properties that would weaken schema validation, A2UI defines a centralized `Extensions` type in `common_types.json#/$defs/Extensions`.
 
 #### Architectural Principles
 
 1.  **Optional Schema Fields**: All `metadata.extensions` fields are strictly optional on the wire. When omitted, they incur zero token overhead.
 2.  **Parser Conformance Rule**: Conformant renderers MUST NOT reject payloads containing extension keys within an `extensions` object. Renderers MAY inspect and process extension keys they recognize, and MUST ignore unrecognized extension keys without error.
-3.  **Unicode Identifiers (UAX #31) and Prefix Reservation**: Extension names MUST be valid Unicode UAX #31 identifiers (`^[\p{XID_Start}_][\p{XID_Continue}]*$`). To prevent key collisions:
+3.  **Unicode Identifiers (UAX #31) and Prefix Reservation**: Extension names MUST be valid [Unicode UAX #31](https://www.unicode.org/reports/tr31/) identifiers (`^[\p{XID_Start}_][\p{XID_Continue}]*$`). To prevent key collisions:
     - Official A2UI extensions are strictly reserved under the prefix `a2ui_`.
     - Third-party vendor extensions MUST be prefixed with a distinct organization or product identifier separated by an underscore (e.g. an extension from a company with the domain `company.com` might be named `com_company_extension`).
     - Use of names derived from reversed domain names is encouraged for public facing extensions.
