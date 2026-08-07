@@ -135,6 +135,16 @@ Form validation checks are defined using the `?` prefix. If a component expects 
 
 To execute standalone lifecycle operations or invoke client-side functions directly from the server, A2UI Express supports standalone function call lines without variable assignments:
 
+#### Surface targeting
+
+To specify or target a user interface surface, output `surface(surfaceId)` or `surface(surfaceId, catalogId)` before component variable definitions:
+
+```
+surface("dashboard-surface-1")
+```
+
+The compiler automatically emits `createSurface` or `updateComponents` protocol envelopes depending on whether the surface is being instantiated or updated in the active session. If `surface()` is omitted, the compiler falls back to the default surface identifier (`"default_surface"`).
+
 #### Deleting a surface
 
 When the compiler encounters the standalone `deleteSurface` command, it produces a standard `deleteSurface` lifecycle message:

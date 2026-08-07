@@ -168,6 +168,16 @@ class _CompileContext:
         self.active_value_path: Optional[dict] = None
 
 
+class _SurfaceScope:
+    """Holds symbols and data path assignments for a target surface scope."""
+
+    def __init__(self, surface_id: str, catalog_id: Optional[str] = None):
+        self.surface_id = surface_id
+        self.catalog_id = catalog_id
+        self.raw_symbols: dict[str, Any] = {}
+        self.data_path_assignments: dict[str, Any] = {}
+
+
 class ExpressCompiler:
     """Compilation pipeline for A2UI Express.
 
@@ -275,36 +285,72 @@ class ExpressCompiler:
                     raise e
                 raise ValueError(f"Failed to parse expression: {e}") from e
 
-        raw_symbols = {}
-        data_path_assignments = {}
+        scopes: list[_SurfaceScope] = []
+        current_scope: Optional[_SurfaceScope] = None
         target_delete_surface_id = None
         standalone_function_calls = []
 
         for stmt in statements:
             stmt_type, *stmt_args = stmt
-            if stmt_type == "ASSIGN":
-                var_name, parsed_val = stmt_args
-                if var_name.startswith("$"):
-                    data_path_assignments[var_name] = parsed_val
-                else:
-                    raw_symbols[var_name] = parsed_val
-            elif stmt_type == "EXPR":
+            if stmt_type == "EXPR":
                 parsed_val = stmt_args[0]
-                if (
+                if isinstance(parsed_val, dict) and parsed_val.get("call") == "surface":
+                    args = parsed_val.get("args", [])
+                    kwargs = parsed_val.get("kwargs", {})
+                    target_surf = (
+                        kwargs.get("surfaceId")
+                        if isinstance(kwargs, dict)
+                        and isinstance(kwargs.get("surfaceId"), str)
+                        else (
+                            args[0]
+                            if isinstance(args, list)
+                            and args
+                            and isinstance(args[0], str)
+                            else surface_id
+                        )
+                    )
+                    target_cat = (
+                        kwargs.get("catalogId")
+                        if isinstance(kwargs, dict)
+                        and isinstance(kwargs.get("catalogId"), str)
+                        else (
+                            args[1]
+                            if isinstance(args, list)
+                            and len(args) > 1
+                            and isinstance(args[1], str)
+                            else catalog_id
+                        )
+                    )
+
+                    current_scope = _SurfaceScope(
+                        surface_id=target_surf, catalog_id=target_cat
+                    )
+                    scopes.append(current_scope)
+                elif (
                     isinstance(parsed_val, dict)
                     and parsed_val.get("call") == "deleteSurface"
                 ):
                     args = parsed_val.get("args", [])
-                    if args and isinstance(args[0], str):
+                    kwargs = parsed_val.get("kwargs", {})
+                    if isinstance(args, list) and args and isinstance(args[0], str):
                         target_delete_surface_id = args[0]
+                    elif isinstance(kwargs, dict) and isinstance(
+                        kwargs.get("surfaceId"), str
+                    ):
+                        target_delete_surface_id = kwargs["surfaceId"]
                 elif isinstance(parsed_val, dict) and "call" in parsed_val:
-                    standalone_function_calls.append(parsed_val)
-
-        # Compile data model paths
-        data_model = {}
-        for path_name, ast_val in data_path_assignments.items():
-            compiled_val = self._compile_value(ast_val, raw_symbols, ctx)
-            _set_nested_path(data_model, path_name, compiled_val)
+                    standalone_function_calls.append((parsed_val, current_scope))
+            elif stmt_type == "ASSIGN":
+                var_name, parsed_val = stmt_args
+                if current_scope is None:
+                    current_scope = _SurfaceScope(
+                        surface_id=surface_id, catalog_id=catalog_id
+                    )
+                    scopes.append(current_scope)
+                if var_name.startswith("$"):
+                    current_scope.data_path_assignments[var_name] = parsed_val
+                else:
+                    current_scope.raw_symbols[var_name] = parsed_val
 
         if target_delete_surface_id is not None:
             return [{
@@ -318,11 +364,13 @@ class ExpressCompiler:
                     "Standalone function calls are not supported in A2UI"
                     f" {target_version}"
                 )
-            first_call = standalone_function_calls[0]
+            first_call, call_scope = standalone_function_calls[0]
             ctx.inline_counter += 1
+            raw_syms = call_scope.raw_symbols if call_scope else {}
             compiled_val = self._compile_value(
-                first_call, raw_symbols, ctx, is_action=False
+                first_call, raw_syms, ctx, is_action=False
             )
+
             return [{
                 "version": target_version,
                 "functionCallId": f"call_{ctx.inline_counter}",
@@ -332,74 +380,89 @@ class ExpressCompiler:
                 },
             }]
 
-        compiled_components = []
-
-        # Adjacency list flattening starting at root
-        if "root" not in raw_symbols:
-            if data_path_assignments:
-                return [{
-                    "version": target_version,
-                    SurfaceOperation.UPDATE_DATA: {
-                        "surfaceId": surface_id,
-                        "path": "/",
-                        "value": data_model,
-                    },
-                }]
+        if not scopes:
             raise ExpressUndefinedRootError("root")
 
-        for var_name, ast in raw_symbols.items():
-            comp_dict = self._compile_ast_node(var_name, ast, raw_symbols, ctx)
-            if comp_dict:
-                compiled_components.append(comp_dict)
+        result_messages = []
 
-        compiled_components.extend(ctx.extra_components)
-
-        # Resolve catalog ID
-        if not catalog_id:
-            catalog_id = self.helper.catalog.get(
-                "catalogId", "https://a2ui.org/catalog.json"
+        for scope in scopes:
+            scope_surf_id = scope.surface_id
+            scope_cat_id = (
+                scope.catalog_id
+                or catalog_id
+                or self.helper.catalog.get("catalogId", "https://a2ui.org/catalog.json")
             )
 
-        if target_version in ("v0.9", "v0.9.1"):
-            messages = [
-                {
+            # Compile data model paths
+            data_model = {}
+            for path_name, ast_val in scope.data_path_assignments.items():
+                compiled_val = self._compile_value(ast_val, scope.raw_symbols, ctx)
+                _set_nested_path(data_model, path_name, compiled_val)
+
+            if "root" not in scope.raw_symbols:
+                if scope.data_path_assignments:
+                    result_messages.append({
+                        "version": target_version,
+                        SurfaceOperation.UPDATE_DATA: {
+                            "surfaceId": scope_surf_id,
+                            "path": "/",
+                            "value": data_model,
+                        },
+                    })
+                    continue
+                raise ExpressUndefinedRootError("root")
+
+            compiled_components = []
+            for var_name, ast in scope.raw_symbols.items():
+                comp_dict = self._compile_ast_node(
+                    var_name, ast, scope.raw_symbols, ctx
+                )
+                if comp_dict:
+                    compiled_components.append(comp_dict)
+
+            compiled_components.extend(ctx.extra_components)
+            ctx.extra_components = []
+
+            if target_version in ("v0.9", "v0.9.1"):
+                result_messages.extend([
+                    {
+                        "version": target_version,
+                        SurfaceOperation.CREATE: {
+                            "surfaceId": scope_surf_id,
+                            "catalogId": scope_cat_id,
+                        },
+                    },
+                    {
+                        "version": target_version,
+                        SurfaceOperation.UPDATE_COMPONENTS: {
+                            "surfaceId": scope_surf_id,
+                            "components": compiled_components,
+                        },
+                    },
+                ])
+                if data_model:
+                    result_messages.append({
+                        "version": target_version,
+                        SurfaceOperation.UPDATE_DATA: {
+                            "surfaceId": scope_surf_id,
+                            "path": "/",
+                            "value": data_model,
+                        },
+                    })
+            else:
+                envelope = {
                     "version": target_version,
                     SurfaceOperation.CREATE: {
-                        "surfaceId": surface_id,
-                        "catalogId": catalog_id,
-                    },
-                },
-                {
-                    "version": target_version,
-                    "updateComponents": {
-                        "surfaceId": surface_id,
+                        "surfaceId": scope_surf_id,
+                        "catalogId": scope_cat_id,
                         "components": compiled_components,
                     },
-                },
-            ]
-            if data_model:
-                messages.append({
-                    "version": target_version,
-                    SurfaceOperation.UPDATE_DATA: {
-                        "surfaceId": surface_id,
-                        "path": "/",
-                        "value": data_model,
-                    },
-                })
-            return messages
+                }
+                if data_model:
+                    envelope[SurfaceOperation.CREATE]["dataModel"] = data_model
+                result_messages.append(envelope)
 
-        envelope = {
-            "version": target_version,
-            SurfaceOperation.CREATE: {
-                "surfaceId": surface_id,
-                "catalogId": catalog_id,
-                "components": compiled_components,
-            },
-        }
-        if data_model:
-            envelope[SurfaceOperation.CREATE]["dataModel"] = data_model
-
-        return [envelope]
+        return result_messages
 
     def _compile_ast_node(
         self, var_name: str, ast: Any, raw_symbols: dict, ctx: _CompileContext
