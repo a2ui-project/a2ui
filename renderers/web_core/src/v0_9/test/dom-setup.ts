@@ -54,9 +54,6 @@ export function setupTestDom() {
       'requestAnimationFrame',
       'cancelAnimationFrame',
       'CSSStyleSheet',
-      'CSSStyleRule',
-      'CSSMediaRule',
-      'CSSRule',
       'ShadowRoot',
     ];
 
@@ -98,9 +95,6 @@ export function setupTestDom() {
     Event: dom.window.Event,
     MutationObserver: dom.window.MutationObserver,
     CSSStyleSheet: dom.window.CSSStyleSheet,
-    CSSStyleRule: dom.window.CSSStyleRule,
-    CSSMediaRule: dom.window.CSSMediaRule,
-    CSSRule: dom.window.CSSRule,
     ShadowRoot: (dom.window as any).ShadowRoot,
     requestAnimationFrame: (cb: FrameRequestCallback) => setTimeout(cb, 16),
     cancelAnimationFrame: (id: string | number | NodeJS.Timeout | undefined) =>
@@ -112,12 +106,15 @@ export function setupTestDom() {
 setupTestDom();
 
 /**
- * Cleans up the JSDOM instance between tests.
+ * Cleans up the JSDOM instance and restores the original Node.js globals.
  */
 export function teardownTestDom() {
+  // Clear the document to prevent leaks between tests
   if (dom) {
     dom.window.document.body.innerHTML = '';
   }
+  applyGlobals(originalGlobals);
+  dom = null;
 }
 
 /**
@@ -126,9 +123,11 @@ export function teardownTestDom() {
  */
 export async function asyncUpdate<T = any>(
   target: T,
-  updateFn: (el: T) => void | Promise<void>,
+  updateFn?: (el: T) => void | Promise<void>,
 ): Promise<void> {
-  await updateFn(target);
+  if (updateFn) {
+    await updateFn(target);
+  }
   if ((target as any).updateComplete) {
     await (target as any).updateComplete;
   } else {

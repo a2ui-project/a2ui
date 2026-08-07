@@ -5,7 +5,7 @@
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      https://www.apache.org/licenses/LICENSE-2.0
+ *     https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -14,11 +14,11 @@
  * limitations under the License.
  */
 
-import {WebComponentImplementation} from '@a2ui/web_core/v0_9';
+import {markdown} from './markdown.js';
 
 /**
- * Interface representing an A2UI component implementation in Lit / Web Components.
- *
- * Re-exported for backwards compatibility as a type alias for `WebComponentImplementation`.
+ * Contexts used to inject dependencies into the Lit renderer.
  */
-export type LitComponentApi = WebComponentImplementation;
+export const Context = {
+  markdown,
+};

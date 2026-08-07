@@ -14,11 +14,4 @@
  * limitations under the License.
  */
 
-import {WebComponentImplementation} from '@a2ui/web_core/v0_9';
-
-/**
- * Interface representing an A2UI component implementation in Lit / Web Components.
- *
- * Re-exported for backwards compatibility as a type alias for `WebComponentImplementation`.
- */
-export type LitComponentApi = WebComponentImplementation;
+export * from './markdown.js';
