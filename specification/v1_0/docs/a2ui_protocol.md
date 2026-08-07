@@ -34,7 +34,7 @@ End of agent turn is signaled by [transport layer](../../../docs/public/concepts
 
 The major differences between version 1.0 and 0.9 (including 0.9.1) are:
 
-- **Bidirectional RPC Messaging**: Supports synchronous agent responses to renderer actions (`actionResponse`) and remote agent-initiated function execution (`callFunction` / `functionResponse`) verified against runtime catalog definitions.
+- **Bidirectional RPC Messaging**: Supports correlated request-response agent messages for renderer actions (`actionResponse`) and bidirectional function calls (`callRendererFunction`, `callAgentFunction`, and `functionResponse`) verified against runtime catalog definitions.
 - **Single-Message UI Instantiation**: Allows initial component trees and data models to be embedded directly within `createSurface`, enabling complete UI composition in a single payload.
 - **Decoupled Branding**: Removes rigid theme properties (removing hardcoded brand colors) to defer visual styling entirely to the target framework's native theme.
 - **Enhanced Catalog Schemas**: Refactors function definitions into object maps for direct O(1) lookups and supports standard JSON Schema metadata fields (`$schema`, `$id`) on inline catalogs.
@@ -168,7 +168,7 @@ Validators determine which fields represent structural links by looking for thes
 
 ## Envelope message structure
 
-The envelope defines several message types, and every message streamed by the agent must be a JSON object containing exactly one of the following keys: `createSurface`, `updateComponents`, `updateDataModel`, `deleteSurface`, `callFunction`, or `actionResponse`. The key indicates the type of message, and these are the messages that make up each message in the protocol stream.
+The envelope defines several message types, and every message streamed by the agent must be a JSON object containing exactly one of the following keys: `createSurface`, `updateComponents`, `updateDataModel`, `deleteSurface`, `callRendererFunction`, `functionResponse`, or `actionResponse`. The key indicates the type of message, and these are the messages that make up each message in the protocol stream.
 
 ### `createSurface`
 
@@ -340,24 +340,26 @@ Agent responds with:
 }
 ```
 
-### `callFunction`
+### `callRendererFunction`
 
 This message is sent by the agent to execute a function registered on the renderer. Functions are catalog-defined abstractions that avoid sending raw executable code across the wire.
 
 **Properties:**
 
-- `functionCallId` (string, required): A unique identifier for this invocation instance. The renderer MUST copy this ID verbatim into the subsequent `functionResponse` or `error` message.
-- `wantResponse` (boolean, optional, default `false`): Specifies whether the agent expects a response payload back from the renderer. If set to `true`, the renderer MUST reply with either a `functionResponse` or an `error` message.
-- `callFunction` (object, required): The description of the function call.
-  - `call` (string, required): The registered name of the function to execute.
-  - `args` (object, optional): Arguments passed to the function, as defined by its schema in the catalog.
+- `callRendererFunction` (object, required):
+  - `surfaceId` (string, optional): The surface ID where the call originated.
+  - `functionCallId` (string, required): A unique identifier for this invocation instance. The renderer MUST copy this ID verbatim into the subsequent `functionResponse` or `error` message.
+  - `callFunction` (object, required): The description of the function call.
+    - `call` (string, required): The registered name of the function to execute.
+    - `catalogId` (string, optional): Overrides the default catalog ID for this function call.
+    - `args` (object, optional): Arguments passed to the function, as defined by its schema in the catalog.
 
 **Security Boundaries and Verification:**
 
 Execution boundary verification (`agentOnly` vs `rendererOnly`) is enforced strictly at runtime by the renderer application:
 
-- When a renderer receives a `callFunction` message, it MUST look up the requested function name in its active catalog registry. (Note: The renderer determines the execution boundary of a function by reading the `callableFrom` metadata property or schema annotation declared in the catalog; if omitted, the boundary defaults to `"rendererOnly"`.)
-- If the requested function is configured in the catalog as `rendererOnly`, or if the function is not registered at all, the renderer MUST immediately reject the call and return a renderer-to-agent `error` message with `code: "INVALID_FUNCTION_CALL"`.
+- When a renderer receives a `callRendererFunction` message, it MUST look up the requested function name in its active catalog registry. (Note: The renderer determines the execution boundary of a function by reading the `callableFrom` metadata property or schema annotation declared in the catalog; if omitted, the boundary defaults to `"rendererOnly"`.)
+- If the requested function is configured in the catalog as `agentOnly`, or if the function is not registered at all, the renderer MUST immediately reject the call and return a renderer-to-agent `error` message with `code: "INVALID_FUNCTION_CALL"`.
 
 **Example:**
 
@@ -366,12 +368,14 @@ Agent sends this message to the renderer:
 ```json
 {
   "version": "v1.0",
-  "functionCallId": "get_device_resolution_123",
-  "wantResponse": true,
-  "callFunction": {
-    "call": "getScreenResolution",
-    "args": {
-      "screenIndex": 0
+  "callRendererFunction": {
+    "surfaceId": "main_surface",
+    "functionCallId": "get_device_resolution_123",
+    "callFunction": {
+      "call": "getScreenResolution",
+      "args": {
+        "screenIndex": 0
+      }
     }
   }
 }
@@ -1251,25 +1255,73 @@ This message is sent when a user interacts with a component that has an agent ac
 }
 ```
 
-### `functionResponse`
+### `callAgentFunction`
 
-This message is sent by the renderer to return the successful execution result of an agent-initiated function call. It is required only if the agent sent the `callFunction` request with `wantResponse: true`.
+This message is sent by the renderer to execute a function remotely on the agent (e.g. verifying a provider ID or checking inventory availability).
 
 **Properties:**
 
-- `functionCallId` (string, required): The unique invocation ID copied verbatim from the agent's `callFunction` message.
-- `call` (string, required): The name of the executed function, copied verbatim from the agent's `callFunction` message.
-- `value` (any, required): The returned execution value of the function call.
+- `callAgentFunction` (object, required):
+  - `surfaceId` (string, required): The surface ID where the call originated.
+  - `functionCallId` (string, required): A unique identifier for this invocation instance. The agent MUST copy this ID verbatim into the return `functionResponse`.
+  - `callFunction` (object, required): The description of the function call (`call`, `catalogId`, `args`).
 
 **Example:**
 
 ```json
 {
   "version": "v1.0",
+  "callAgentFunction": {
+    "surfaceId": "contact_form_1",
+    "functionCallId": "verify_provider_99",
+    "callFunction": {
+      "call": "verifyProvider",
+      "args": {
+        "providerId": "PRV-102"
+      }
+    }
+  }
+}
+```
+
+### `functionResponse`
+
+This message is sent by either party (renderer or agent) to return the execution result of an initiating function call (`callAgentFunction` or `callRendererFunction`).
+
+**Properties:**
+
+- `functionCallId` (string, required): The unique invocation ID matching the initiating function call.
+- `value` (any, optional): The returned execution value of the function call.
+- `error` (object, optional): An error object containing `code` (string) and `message` (string) describing execution failure.
+
+The payload MUST include either `value` or `error`.
+
+**Example (Success):**
+
+```json
+{
+  "version": "v1.0",
   "functionResponse": {
-    "functionCallId": "ping-call-id-102",
-    "call": "pingAgent",
-    "value": true
+    "functionCallId": "verify_provider_99",
+    "value": {
+      "valid": true,
+      "name": "Acme Provider"
+    }
+  }
+}
+```
+
+**Example (Failure):**
+
+```json
+{
+  "version": "v1.0",
+  "functionResponse": {
+    "functionCallId": "verify_provider_99",
+    "error": {
+      "code": "PROVIDER_NOT_FOUND",
+      "message": "Provider ID PRV-102 was not found."
+    }
   }
 }
 ```

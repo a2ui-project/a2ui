@@ -97,6 +97,13 @@ export class Validator {
             validated = this.ajv.validate(`${schemaUri}#/$defs/UpdateDataModelMessage`, message);
           } else if (message.deleteSurface) {
             validated = this.ajv.validate(`${schemaUri}#/$defs/DeleteSurfaceMessage`, message);
+          } else if (message.callRendererFunction) {
+            validated = this.ajv.validate(
+              `${schemaUri}#/$defs/CallRendererFunctionMessage`,
+              message,
+            );
+          } else if (message.functionResponse) {
+            validated = this.ajv.validate(`${schemaUri}#/$defs/FunctionResponseMessage`, message);
           } else {
             // Fallback to top-level validation if no known key matches (or if it's empty/invalid structure)
             validated = this.validateFn(message);

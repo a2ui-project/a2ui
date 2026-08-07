@@ -4,10 +4,11 @@ This document serves as a comprehensive guide to the changes between A2UI versio
 
 ## 1. Executive summary
 
+1
 Version 1.0 differs from 0.9 in the following ways:
 
-- A new renderer-to-agent RPC mechanism allows synchronous responses to renderer actions (`actionResponse`) using a unique `actionId`.
-- Agent-to-renderer RPC function calls are supported via the `callFunction` message. Renderers return execution results via the `functionResponse` message. Runtime execution boundaries and return types are defined in catalogs and verified at runtime, rather than being validated on the wire.
+- A new renderer-to-agent RPC mechanism allows correlated responses to renderer actions (`actionResponse`) using a unique `actionId`.
+- Bidirectional RPC function calls are supported via explicit role-based messages: `callRendererFunction` for agent-initiated calls on the renderer, and `callAgentFunction` for renderer-initiated calls on the agent. Execution results or errors are returned via `functionResponse` messages. Runtime execution boundaries and return types are defined in catalogs and verified at runtime, rather than being validated on the wire.
 - Catalogs can now be mixed within a single UI surface. Advertised `supportedCatalogIds` are mixable, allowing UI trees to combine components and functions from multiple catalogs simultaneously.
 - Added an optional `catalogId` property to `ComponentCommon` and `FunctionCall` to allow individual components and function calls to explicitly declare their source catalog.
 - Retained `catalogId` on `createSurface` as an optional parameter that defines the default catalog for that surface.
@@ -46,7 +47,8 @@ Version 1.0 differs from 0.9 in the following ways:
 ### 2.3. Agent-to-renderer messages
 
 - Added `actionResponse` message structure (`ActionResponseMessage`) to allow the agent to respond to a specific action call using a unique `actionId` with a `value` or `error`.
-- Added `callFunction` message structure (`CallFunctionMessage`) to support agent-initiated function execution. Removed `callableFrom` and `returnType` properties from the wire payload, relying on runtime catalog verification.
+- Replaced `callFunction` with `callRendererFunction` message structure (`CallRendererFunctionMessage`) to support agent-to-renderer function execution requests.
+- Added `functionResponse` message structure (`FunctionResponseMessage`) to `agent_to_renderer.json` so agents can return execution results or error payloads for renderer-initiated function calls.
 - Updated the `createSurface` message (`CreateSurfaceMessage`) to remove the `theme` field, allowed passing initial `components` and `dataModel` directly inside the payload, and made `catalogId` an optional parameter that acts as the surface's default catalog.
 - Added an optional `catalogId` property to `ComponentCommon` and `FunctionCall` in `common_types.json` to enable mixing catalogs and explicitly designating the catalog on individual components or function calls.
 - Updated all protocol version references and envelopes from `v0.9` or `v0.9.1` to `v1.0`.
@@ -54,7 +56,8 @@ Version 1.0 differs from 0.9 in the following ways:
 ### 2.4. Renderer-to-agent events
 
 - Added `actionId` to the `action` message properties, which the renderer generates if a response is expected (`wantResponse: true`).
-- Added the `functionResponse` renderer-to-agent message to return the successful result (`value`) of an agent-initiated function call. Function execution failures are reported via the separate `error` message (see next item), not via `functionResponse`.
+- Added `callAgentFunction` message structure to support renderer-initiated remote function execution requests sent to the agent.
+- Updated `functionResponse` renderer-to-agent message structure to return function execution results (`value`) or failure payloads (`error`), referencing `common_types.json#/$defs/FunctionResponse` without requiring the redundant function call name string.
 - Updated renderer `error` messages to support `functionCallId` when reporting function execution failures, enforcing mutual exclusivity with `surfaceId`.
 - Added `"UNALLOWED_PARENT"` and `"UNALLOWED_CHILD"` error code values to `renderer_to_agent.json` for reporting validation errors when a component is placed under an unallowed parent or an unallowed child is placed inside a container.
 - Updated all protocol version references from `v0.9` or `v0.9.1` to `v1.0`.
@@ -121,7 +124,7 @@ This section outlines the steps required to migrate existing applications and co
 - Implement multi-catalog mixing by supporting components and function calls from any catalog in `supportedCatalogIds` or negotiated `inlineCatalogs`. All catalogs mixed within a surface must use the same A2UI specification version.
 - Implement component and function resolution order: (1) explicit component/call `catalogId`, (2) surface default `catalogId`, (3) error if neither exists (no fallback to capabilities).
 - Implement function execution by adding support for parsing `callFunction` messages, checking boundary definitions in the catalog (`callableFrom`), rejecting invalid calls with `INVALID_FUNCTION_CALL`, and returning `functionResponse` messages.
-- Support synchronous action responses by generating `actionId` for actions with `wantResponse: true` and writing returned values from `actionResponse` messages into the data model.
+- Support action responses by generating `actionId` for actions with `wantResponse: true` and writing returned values from `actionResponse` messages into the data model.
 - Support simultaneous version handling during session initialization by inspecting the `version` property (e.g., `"v1.0"`) to route payloads to version-specific controllers.
 - Enforce surface uniqueness by raising an error if `createSurface` is received for an existing `surfaceId`.
 - Update error reporting to handle `functionCallId` and enforce mutual exclusivity with `surfaceId`.

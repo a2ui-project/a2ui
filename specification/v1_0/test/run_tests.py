@@ -510,6 +510,7 @@ def validate_a2a_schemas():
                     SCHEMA_DIR, "renderer_to_agent.json"
                 ),
                 "common_types.json": os.path.join(SCHEMA_DIR, "common_types.json"),
+                "catalog.json": TEMP_CATALOG_FILE,
             },
         },
     ]

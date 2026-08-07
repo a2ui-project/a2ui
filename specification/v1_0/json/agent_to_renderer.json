@@ -9,7 +9,8 @@
     {"$ref": "#/$defs/UpdateComponentsMessage"},
     {"$ref": "#/$defs/UpdateDataModelMessage"},
     {"$ref": "#/$defs/DeleteSurfaceMessage"},
-    {"$ref": "#/$defs/CallFunctionMessage"},
+    {"$ref": "#/$defs/CallRendererFunctionMessage"},
+    {"$ref": "#/$defs/FunctionResponseMessage"},
     {"$ref": "#/$defs/ActionResponseMessage"}
   ],
   "$defs": {
@@ -159,32 +160,46 @@
       "required": ["deleteSurface", "version"],
       "additionalProperties": false
     },
-    "CallFunctionMessage": {
+    "CallRendererFunctionMessage": {
       "type": "object",
-      "description": "A function invoked from the agent.",
       "properties": {
         "version": {
           "const": "v1.0"
         },
-        "functionCallId": {
-          "$ref": "common_types.json#/$defs/CallId",
-          "description": "Unique ID for the instance of this function call. MUST be copied verbatim into the functionResponse or error."
-        },
-        "wantResponse": {
-          "type": "boolean",
-          "default": false
-        },
-        "callFunction": {
-          "allOf": [
-            {
+        "callRendererFunction": {
+          "type": "object",
+          "description": "Signals the renderer to execute a function locally on behalf of the agent.",
+          "properties": {
+            "surfaceId": {
+              "type": "string",
+              "description": "The surface ID where the call originated."
+            },
+            "functionCallId": {
+              "$ref": "common_types.json#/$defs/CallId",
+              "description": "Unique ID for this instance of the function call. The renderer MUST copy this ID into the return response."
+            },
+            "callFunction": {
               "$ref": "common_types.json#/$defs/FunctionCall"
             }
-          ],
-          "required": ["call"],
-          "unevaluatedProperties": false
+          },
+          "required": ["functionCallId", "callFunction"],
+          "additionalProperties": false
         }
       },
-      "required": ["version", "callFunction", "functionCallId"],
+      "required": ["callRendererFunction", "version"],
+      "additionalProperties": false
+    },
+    "FunctionResponseMessage": {
+      "type": "object",
+      "properties": {
+        "version": {
+          "const": "v1.0"
+        },
+        "functionResponse": {
+          "$ref": "common_types.json#/$defs/FunctionResponse"
+        }
+      },
+      "required": ["functionResponse", "version"],
       "additionalProperties": false
     },
     "ActionResponseMessage": {

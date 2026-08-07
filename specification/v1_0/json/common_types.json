@@ -10,7 +10,7 @@
     },
     "CallId": {
       "type": "string",
-      "description": "The unique identifier for an agent initiated function call."
+      "description": "The unique identifier for a function call."
     },
     "AccessibilityAttributes": {
       "type": "object",
@@ -217,7 +217,7 @@
     },
     "FunctionCall": {
       "type": "object",
-      "description": "Invokes a named function on the renderer.",
+      "description": "Invokes a named function.",
       "properties": {
         "call": {
           "type": "string",
@@ -343,6 +343,32 @@
           "const": "root"
         }
       },
+      "additionalProperties": false
+    },
+    "FunctionResponse": {
+      "type": "object",
+      "description": "The return response matching a callAgentFunction or callRendererFunction invocation.",
+      "properties": {
+        "functionCallId": {
+          "$ref": "#/$defs/CallId",
+          "description": "The unique ID matching the initiating function call."
+        },
+        "value": {
+          "description": "The return value of the function."
+        },
+        "error": {
+          "type": "object",
+          "description": "An error object indicating failure of the function execution.",
+          "properties": {
+            "code": {"type": "string"},
+            "message": {"type": "string"}
+          },
+          "required": ["code", "message"],
+          "additionalProperties": false
+        }
+      },
+      "required": ["functionCallId"],
+      "oneOf": [{"required": ["value"]}, {"required": ["error"]}],
       "additionalProperties": false
     }
   }
