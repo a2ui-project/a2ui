@@ -93,7 +93,8 @@ def main() -> None:
         except Exception as err:
             consecutive_failures += 1
             print(
-                f"Transient error fetching interaction status ({consecutive_failures}/5): {err}"
+                "Transient error fetching interaction status"
+                f" ({consecutive_failures}/5): {err}"
             )
             if consecutive_failures >= 5:
                 raise RuntimeError(

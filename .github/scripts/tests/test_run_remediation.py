@@ -216,7 +216,9 @@ class TestRunRemediation(unittest.TestCase):
 
         mock_interaction_queued = MagicMock(id="test-rem-id", status="queued")
         mock_client.interactions.create.return_value = mock_interaction_queued
-        mock_client.interactions.get.side_effect = Exception("500 Internal Server Error")
+        mock_client.interactions.get.side_effect = Exception(
+            "500 Internal Server Error"
+        )
 
         mock_google = MagicMock()
         mock_google.genai = mock_genai
