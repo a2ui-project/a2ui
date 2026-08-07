@@ -57,8 +57,7 @@ export class A2uiBasicTextFieldElement extends BasicCatalogA2uiLitElement<typeof
     textarea.invalid {
       border-color: var(--a2ui-textfield-color-error, var(--a2ui-color-error, red));
     }
-    .a2ui-error-message,
-    .error {
+    .a2ui-error-message {
       color: var(--a2ui-textfield-color-error, var(--a2ui-color-error, red));
       font-size: var(--a2ui-font-size-xs, 12px);
     }
@@ -95,9 +94,9 @@ export class A2uiBasicTextFieldElement extends BasicCatalogA2uiLitElement<typeof
               .value=${props.value || ''}
               @input=${onInput}
             />`}
-        ${isInvalid && props.validationErrors?.length
+        ${props.validationErrors?.length
           ? props.validationErrors.map(
-              (msg: string) => html`<div class="error a2ui-error-message">${msg}</div>`,
+              (msg: string) => html`<div class="a2ui-error-message">${msg}</div>`,
             )
           : nothing}
       </div>

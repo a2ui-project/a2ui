@@ -56,8 +56,7 @@ export class A2uiChoicePickerElement extends BasicCatalogA2uiLitElement<typeof C
       flex-wrap: wrap;
       gap: var(--a2ui-choicepicker-gap, var(--a2ui-spacing-xs, 0.25rem));
     }
-    .a2ui-chip,
-    .chip {
+    .a2ui-chip {
       padding: var(
         --a2ui-choicepicker-chip-padding,
         var(--a2ui-spacing-s, 0.5rem) var(--a2ui-spacing-m, 1rem)
@@ -68,10 +67,7 @@ export class A2uiChoicePickerElement extends BasicCatalogA2uiLitElement<typeof C
       cursor: pointer;
       transition: all 0.2s;
     }
-    .a2ui-chip.active,
-    .a2ui-chip.selected,
-    .chip.active,
-    .chip.selected {
+    .a2ui-chip.active {
       background-color: var(
         --a2ui-choicepicker-chip-background-selected,
         var(--a2ui-color-primary, #17e)
@@ -135,21 +131,6 @@ export class A2uiChoicePickerElement extends BasicCatalogA2uiLitElement<typeof C
 
     return html`
       <div class="a2ui-choice-picker">
-        ${props.label
-          ? html`<label class="a2ui-choice-picker-label">${props.label}</label>`
-          : nothing}
-        ${props.filterable
-          ? html`
-              <input
-                type="text"
-                class="filter-input"
-                placeholder="Filter options..."
-                aria-label="Filter options"
-                .value=${this.filter}
-                @input=${(e: Event) => (this.filter = (e.target as HTMLInputElement).value)}
-              />
-            `
-          : nothing}
         ${isChips
           ? html`
               <div class="a2ui-chips-group">
@@ -158,10 +139,8 @@ export class A2uiChoicePickerElement extends BasicCatalogA2uiLitElement<typeof C
                     <button
                       type="button"
                       class=${classMap({
-                        chip: true,
                         'a2ui-chip': true,
                         active: selected.includes(option.value),
-                        selected: selected.includes(option.value),
                       })}
                       @click=${() => updateValue(option.value, !selected.includes(option.value))}
                     >

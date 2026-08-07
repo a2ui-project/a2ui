@@ -50,11 +50,6 @@ export class A2uiCheckBoxElement extends BasicCatalogA2uiLitElement<typeof Check
       );
       font-weight: var(--a2ui-checkbox-label-font-weight, bold);
     }
-    .error {
-      color: var(--a2ui-checkbox-color-error, red);
-      font-size: var(--a2ui-font-size-xs, 0.75rem);
-      margin-top: 4px;
-    }
   `;
 
   protected createController() {
@@ -77,8 +72,8 @@ export class A2uiCheckBoxElement extends BasicCatalogA2uiLitElement<typeof Check
         />
         <span class="a2ui-check-box-text">${props.label}</span>
       </label>
-      ${isInvalid && props.validationErrors?.length
-        ? html`<div class="error a2ui-error-message">${props.validationErrors[0]}</div>`
+      ${props.validationErrors?.length
+        ? props.validationErrors.map((msg: string) => html`<div class="a2ui-error-message">${msg}</div>`)
         : nothing}
     `;
   }
