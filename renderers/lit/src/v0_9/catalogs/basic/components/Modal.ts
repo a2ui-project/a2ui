@@ -19,21 +19,11 @@ import {customElement, query} from 'lit/decorators.js';
 import {ModalApi} from '@a2ui/web_core/v0_9/basic_catalog';
 import {BasicCatalogA2uiLitElement} from '../basic-catalog-a2ui-lit-element.js';
 import {A2uiController} from '../../../a2ui-controller.js';
+import {LitComponentApi} from '../../../types.js';
 
 @customElement('a2ui-modal')
 export class A2uiLitModal extends BasicCatalogA2uiLitElement<typeof ModalApi> {
-  /**
-   * The styles of the modal can be customized by redefining the following
-   * CSS variables:
-   *
-   * - `--a2ui-modal-backdrop-bg`: Controls the backdrop color of the dialog.
-   * - `--a2ui-modal-padding`: Padding inside the dialog content area. Defaults to `24px`.
-   * - `--a2ui-modal-border-radius`: Border radius of the dialog. Defaults to `8px`.
-   */
   static override styles = css`
-    :host {
-      display: inline-block;
-    }
     dialog {
       border: 1px solid var(--a2ui-color-border, #ccc);
       border-radius: var(--a2ui-modal-border-radius, 8px);
@@ -73,7 +63,7 @@ export class A2uiLitModal extends BasicCatalogA2uiLitElement<typeof ModalApi> {
   }
 }
 
-export const A2uiModal = {
+export const A2uiModal: LitComponentApi = {
   ...ModalApi,
   tagName: 'a2ui-modal',
 };

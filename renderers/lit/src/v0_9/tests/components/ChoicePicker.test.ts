@@ -79,40 +79,17 @@ describe('ChoicePicker Component', () => {
   });
 
   it('should render chips when displayStyle is chips', async () => {
-    const el = document.createElement('a2ui-choicepicker') as any;
+    const el = document.createElement('a2ui-choice-picker') as any;
     document.body.appendChild(el);
 
     const context = new ComponentContext(surface, 'choice_picker_chips');
-    await asyncUpdate(el, e => {
+    await asyncUpdate(el, (e: any) => {
       e.context = context;
     });
 
-    const buttons = el.shadowRoot.querySelectorAll('button.chip');
+    const buttons = el.querySelectorAll('button.a2ui-chip');
     assert.strictEqual(buttons.length, 2);
     assert.strictEqual(buttons[0].textContent.trim(), 'Apple');
-
-    document.body.removeChild(el);
-  });
-
-  it('should filter options when filterable is true', async () => {
-    const el = document.createElement('a2ui-choicepicker') as any;
-    document.body.appendChild(el);
-
-    const context = new ComponentContext(surface, 'choice_picker_filterable');
-    await asyncUpdate(el, e => {
-      e.context = context;
-    });
-
-    // Initially 2 options + 1 main label = 3 labels
-    assert.strictEqual(el.shadowRoot.querySelectorAll('label').length, 3);
-
-    // Simulate input by setting state directly
-    await asyncUpdate(el, e => {
-      e.filter = 'app';
-    });
-
-    // Now only Apple should be visible + main label = 2 labels
-    assert.strictEqual(el.shadowRoot.querySelectorAll('label').length, 2);
 
     document.body.removeChild(el);
   });

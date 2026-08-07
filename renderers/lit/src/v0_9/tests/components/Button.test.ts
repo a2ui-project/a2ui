@@ -99,7 +99,7 @@ describe('Button Component', () => {
   });
 
   it('should render and dispatch action on click', async () => {
-    const el = document.createElement('a2ui-basic-button') as A2uiBasicButtonElement;
+    const el = document.createElement('a2ui-button') as unknown as A2uiBasicButtonElement;
     element = el;
     document.body.appendChild(el);
 
@@ -108,11 +108,11 @@ describe('Button Component', () => {
       e.context = context;
     });
 
-    const button = el.shadowRoot?.querySelector('button');
+    const button = el.querySelector('button');
     assert.ok(button);
     assert.strictEqual(button.disabled, false);
 
-    const dispatched = {action: null as A2uiClientAction | null};
+    const dispatched = {action: null as unknown as A2uiClientAction | null};
     subscription = surface.onAction.subscribe((action: A2uiClientAction) => {
       dispatched.action = action;
     });
@@ -124,7 +124,7 @@ describe('Button Component', () => {
   });
 
   it('should be disabled when isValid is false', async () => {
-    const el = document.createElement('a2ui-basic-button') as A2uiBasicButtonElement;
+    const el = document.createElement('a2ui-button') as unknown as A2uiBasicButtonElement;
     element = el;
     document.body.appendChild(el);
 
@@ -133,7 +133,7 @@ describe('Button Component', () => {
       e.context = context;
     });
 
-    const button = el.shadowRoot?.querySelector('button');
+    const button = el.querySelector('button');
     assert.ok(button);
     assert.strictEqual(button.disabled, true);
 

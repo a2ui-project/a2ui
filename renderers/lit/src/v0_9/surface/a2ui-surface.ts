@@ -32,6 +32,13 @@ import {LitComponentApi} from '../types.js';
 @customElement('a2ui-surface')
 export class A2uiSurface extends LitElement {
   /**
+   * Renders into the element's direct children (Light DOM) instead of a ShadowRoot.
+   */
+  override createRenderRoot() {
+    return this;
+  }
+
+  /**
    * The surface model containing the component tree and catalog.
    */
   @property({type: Object}) accessor surface: SurfaceModel<LitComponentApi> | undefined;

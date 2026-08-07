@@ -14,7 +14,9 @@
  * limitations under the License.
  */
 
-import {ComponentApi, type ComponentId} from '@a2ui/web_core/v0_9';
+import {CSSResultGroup, PropertyValues} from 'lit';
+import {ComponentApi} from '@a2ui/web_core/v0_9';
+import {type ComponentId} from '@a2ui/web_core/v0_9';
 import {A2uiLitElement} from '../../a2ui-lit-element.js';
 import {injectBasicCatalogStyles, computeColorVariant} from '@a2ui/web_core/v0_9/basic_catalog';
 
@@ -27,26 +29,87 @@ export type ResolvedChildRef =
 
 export type ResolvedChildList = ResolvedChildRef[];
 
+interface HasCustomStyles {
+  styles?: CSSResultGroup;
+  _cachedSheet?: CSSStyleSheet;
+}
+
 /**
- * A base class for A2UI basic catalog components.
- *
- * Handles some common features of all basic catalog A2ui elements, like
- * injecting the basic CSS styles if needed, and setting the flex property
- * if set by the framework.
+ * Common base class for universal A2UI Basic Catalog components.
+ * Renders into the Light DOM for seamless interop across frontend frameworks.
  */
 export abstract class BasicCatalogA2uiLitElement<
-  Api extends ComponentApi,
+  Api extends ComponentApi = ComponentApi,
 > extends A2uiLitElement<Api> {
-  override connectedCallback() {
-    super.connectedCallback();
-    injectBasicCatalogStyles();
+  /**
+   * Renders into the element's direct children (Light DOM) instead of a ShadowRoot.
+   */
+  override createRenderRoot() {
+    return this;
   }
 
-  override willUpdate(changedProperties: Map<string, any>) {
+  override connectedCallback() {
+    super.connectedCallback();
+    const root = this.getRootNode() as ShadowRoot | Document;
+    injectBasicCatalogStyles();
+    this.injectComponentStyles(root);
+  }
+
+  /**
+   * Automatically adapts and injects static styles for Light DOM custom elements.
+   */
+  private injectComponentStyles(root?: ShadowRoot | Document) {
+    const ctor = this.constructor as typeof BasicCatalogA2uiLitElement & HasCustomStyles;
+    if (!ctor.styles) return;
+
+    if (typeof document === 'undefined') return;
+
+    if (!ctor._cachedSheet) {
+      const styles = ctor.styles;
+      const rawCss = Array.isArray(styles)
+        ? styles
+            .map(s =>
+              typeof s === 'object' && s !== null && 'cssText' in s
+                ? String((s as {cssText: string}).cssText)
+                : String(s),
+            )
+            .join('\n')
+        : typeof styles === 'object' && styles !== null && 'cssText' in styles
+          ? String((styles as {cssText: string}).cssText)
+          : String(styles);
+
+      const tagName = this.tagName.toLowerCase();
+      const convertedCss = rawCss
+        .replace(/:where\(:host\)/g, `:where(${tagName})`)
+        .replace(/:host\(([^)]+)\)/g, `${tagName}$1`)
+        .replace(/:host/g, tagName);
+
+      try {
+        const sheet = new CSSStyleSheet();
+        sheet.replaceSync(convertedCss);
+        ctor._cachedSheet = sheet;
+      } catch {
+        // Fallback for environments lacking adoptedStyleSheets support
+      }
+    }
+
+    if (ctor._cachedSheet) {
+      if (!document.adoptedStyleSheets.includes(ctor._cachedSheet)) {
+        document.adoptedStyleSheets = [...document.adoptedStyleSheets, ctor._cachedSheet];
+      }
+      if (root && 'adoptedStyleSheets' in root && root !== document) {
+        if (!root.adoptedStyleSheets.includes(ctor._cachedSheet)) {
+          root.adoptedStyleSheets = [...root.adoptedStyleSheets, ctor._cachedSheet];
+        }
+      }
+    }
+  }
+
+  override willUpdate(changedProperties: any) {
     super.willUpdate(changedProperties);
 
-    const props = this.controller?.props as any;
-    if (props && props.weight !== undefined) {
+    const props = this.controller?.props;
+    if (props && 'weight' in props && typeof props.weight === 'number') {
       this.style.flex = String(props.weight);
     } else {
       this.style.removeProperty('flex');

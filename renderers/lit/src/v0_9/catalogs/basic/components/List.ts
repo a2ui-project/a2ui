@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import {html, nothing, css, PropertyValues} from 'lit';
+import {html, nothing, css} from 'lit';
 import {customElement} from 'lit/decorators.js';
 import {map} from 'lit/directives/map.js';
 import {ListApi} from '@a2ui/web_core/v0_9/basic_catalog';
@@ -23,15 +23,30 @@ import {
   type ResolvedChildList,
 } from '../basic-catalog-a2ui-lit-element.js';
 import {A2uiController} from '../../../a2ui-controller.js';
+import {LitComponentApi} from '../../../types.js';
 
 @customElement('a2ui-list')
 export class A2uiListElement extends BasicCatalogA2uiLitElement<typeof ListApi> {
   static override styles = css`
-    :host {
+    .a2ui-list {
       display: flex;
-      overflow: auto;
-      gap: var(--a2ui-list-gap, var(--a2ui-spacing-m, 0.5rem));
-      padding: var(--a2ui-list-padding, 0);
+      padding-inline-start: var(--a2ui-list-padding, var(--a2ui-spacing-l, 24px));
+      margin: 0;
+    }
+    .a2ui-list.vertical {
+      flex-direction: column;
+      gap: var(--a2ui-list-gap, var(--a2ui-spacing-s, 8px));
+    }
+    .a2ui-list.horizontal {
+      flex-direction: row;
+      gap: var(--a2ui-list-gap, var(--a2ui-spacing-m, 16px));
+      list-style-position: inside;
+    }
+    .a2ui-list-item-none {
+      display: block;
+    }
+    .horizontal .a2ui-list-item-none {
+      display: inline-block;
     }
   `;
 
@@ -39,24 +54,42 @@ export class A2uiListElement extends BasicCatalogA2uiLitElement<typeof ListApi> 
     return new A2uiController(this, ListApi);
   }
 
-  override updated(changedProperties: PropertyValues) {
-    super.updated(changedProperties);
-    const props = this.controller.props;
-    if (props) {
-      this.style.flexDirection = props.direction === 'horizontal' ? 'row' : 'column';
-    }
-  }
-
   override render() {
-    const props = this.controller.props;
+    const props = this.controller?.props;
     if (!props) return nothing;
 
     const children: ResolvedChildList = Array.isArray(props.children) ? props.children : [];
-    return html`${map(children, child => html`${this.renderNode(child)}`)}`;
+    const listStyle = props.listStyle;
+    const direction = props.direction || 'vertical';
+
+    if (listStyle === 'ordered') {
+      return html`
+        <ol class="a2ui-list ${direction}">
+          ${map(children, child => html`<li>${this.renderNode(child)}</li>`)}
+        </ol>
+      `;
+    }
+
+    if (listStyle === 'unordered') {
+      return html`
+        <ul class="a2ui-list ${direction}">
+          ${map(children, child => html`<li>${this.renderNode(child)}</li>`)}
+        </ul>
+      `;
+    }
+
+    return html`
+      <div class="a2ui-list ${direction}" style="list-style-type: none;">
+        ${map(
+          children,
+          child => html`<div class="a2ui-list-item-none">${this.renderNode(child)}</div>`,
+        )}
+      </div>
+    `;
   }
 }
 
-export const A2uiList = {
+export const A2uiList: LitComponentApi = {
   ...ListApi,
   tagName: 'a2ui-list',
 };

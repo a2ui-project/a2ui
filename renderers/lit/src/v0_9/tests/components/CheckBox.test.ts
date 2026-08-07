@@ -66,6 +66,7 @@ describe('CheckBox Component', () => {
 
   it('should render validation error in CheckBox', async () => {
     const el = document.createElement('a2ui-checkbox') as any;
+
     document.body.appendChild(el);
 
     const context = new ComponentContext(surface, 'checkbox_invalid');
@@ -73,7 +74,7 @@ describe('CheckBox Component', () => {
       e.context = context;
     });
 
-    const errorDiv = el.shadowRoot.querySelector('.error');
+    const errorDiv = el.querySelector('.a2ui-error-message');
     assert.ok(errorDiv);
     assert.strictEqual(errorDiv.textContent.trim(), 'This is required');
 

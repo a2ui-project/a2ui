@@ -23,6 +23,7 @@ import {
   type ResolvedChildList,
 } from '../basic-catalog-a2ui-lit-element.js';
 import {A2uiController} from '../../../a2ui-controller.js';
+import {LitComponentApi} from '../../../types.js';
 
 const JUSTIFY_MAP: Record<string, string> = {
   start: 'flex-start',
@@ -39,21 +40,16 @@ const ALIGN_MAP: Record<string, string> = {
   center: 'center',
   end: 'flex-end',
   stretch: 'stretch',
+  baseline: 'baseline',
 };
 
-@customElement('a2ui-basic-row')
+@customElement('a2ui-row')
 export class A2uiBasicRowElement extends BasicCatalogA2uiLitElement<typeof RowApi> {
-  /**
-   * The styles of the row can be customized by redefining the following
-   * CSS variables:
-   *
-   * - `--a2ui-row-gap`: The gap between items in the row. Defaults to `--a2ui-spacing-m`.
-   */
   static override styles = css`
-    :host {
+    a2ui-basic-row {
       display: flex;
       flex-direction: row;
-      gap: var(--a2ui-row-gap, var(--a2ui-spacing-m));
+      gap: var(--a2ui-row-gap, var(--a2ui-spacing-m, 16px));
     }
   `;
 
@@ -63,15 +59,26 @@ export class A2uiBasicRowElement extends BasicCatalogA2uiLitElement<typeof RowAp
 
   override updated(changedProperties: PropertyValues) {
     super.updated(changedProperties);
-    const props = this.controller.props;
+    const props = this.controller?.props;
     if (props) {
-      this.style.justifyContent = JUSTIFY_MAP[props.justify ?? ''] ?? 'flex-start';
-      this.style.alignItems = ALIGN_MAP[props.align ?? ''] ?? 'stretch';
+      this.style.display = 'flex';
+      this.style.flexDirection = 'row';
+      this.style.gap = 'var(--a2ui-row-gap, var(--a2ui-spacing-m, 16px))';
+      if (props.justify) {
+        this.style.justifyContent = JUSTIFY_MAP[props.justify] || props.justify;
+      } else {
+        this.style.removeProperty('justify-content');
+      }
+      if (props.align) {
+        this.style.alignItems = ALIGN_MAP[props.align] || props.align;
+      } else {
+        this.style.removeProperty('align-items');
+      }
     }
   }
 
   override render() {
-    const props = this.controller.props;
+    const props = this.controller?.props;
     if (!props) return nothing;
 
     const children: ResolvedChildList = Array.isArray(props.children) ? props.children : [];
@@ -80,7 +87,7 @@ export class A2uiBasicRowElement extends BasicCatalogA2uiLitElement<typeof RowAp
   }
 }
 
-export const A2uiRow = {
+export const A2uiRow: LitComponentApi = {
   ...RowApi,
-  tagName: 'a2ui-basic-row',
+  tagName: 'a2ui-row',
 };

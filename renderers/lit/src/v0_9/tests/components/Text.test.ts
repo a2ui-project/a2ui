@@ -91,7 +91,7 @@ describe('Text Component', () => {
   });
 
   it('should render static text content', async () => {
-    const el = document.createElement('a2ui-basic-text') as A2uiBasicTextElement;
+    const el = document.createElement('a2ui-text') as unknown as A2uiBasicTextElement;
     element = el;
     document.body.appendChild(el);
 
@@ -100,13 +100,13 @@ describe('Text Component', () => {
       e.context = context;
     });
 
-    const span = el.shadowRoot?.querySelector('.no-markdown-renderer');
+    const span = el.querySelector('.no-markdown-renderer');
     assert.ok(span);
     assert.strictEqual(span.textContent?.trim(), 'Hello static text');
   });
 
   it('should render reactive dynamic text content', async () => {
-    const el = document.createElement('a2ui-basic-text') as A2uiBasicTextElement;
+    const el = document.createElement('a2ui-text') as unknown as A2uiBasicTextElement;
     element = el;
     document.body.appendChild(el);
 
@@ -115,7 +115,7 @@ describe('Text Component', () => {
       e.context = context;
     });
 
-    const span = el.shadowRoot?.querySelector('.no-markdown-renderer');
+    const span = el.querySelector('.no-markdown-renderer');
     assert.ok(span);
     assert.strictEqual(span.textContent?.trim(), 'Hello dynamic text');
 
@@ -127,7 +127,7 @@ describe('Text Component', () => {
   });
 
   it('should apply caption variant styling structure', async () => {
-    const el = document.createElement('a2ui-basic-text') as A2uiBasicTextElement;
+    const el = document.createElement('a2ui-text') as unknown as A2uiBasicTextElement;
     element = el;
     document.body.appendChild(el);
 
@@ -136,9 +136,9 @@ describe('Text Component', () => {
       e.context = context;
     });
 
-    const captionSpan = el.shadowRoot?.querySelector('span.a2ui-caption');
+    const captionSpan = el.querySelector('span.a2ui-text.caption');
     assert.ok(captionSpan);
-    const innerSpan = captionSpan.querySelector('.no-markdown-renderer');
+    const innerSpan = captionSpan;
     assert.ok(innerSpan);
     assert.strictEqual(innerSpan.textContent?.trim(), 'Caption text');
   });

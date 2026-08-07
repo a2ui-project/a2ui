@@ -19,70 +19,42 @@ import {customElement} from 'lit/decorators.js';
 import {DateTimeInputApi} from '@a2ui/web_core/v0_9/basic_catalog';
 import {BasicCatalogA2uiLitElement} from '../basic-catalog-a2ui-lit-element.js';
 import {A2uiController} from '../../../a2ui-controller.js';
+import {LitComponentApi} from '../../../types.js';
 
-/**
- * Normalizes an incoming ISO or partial date/time value into a format accepted by HTML5 inputs.
- *
- * HTML5 input elements (like type="date", type="time", and type="datetime-local") strictly reject
- * timezone indicators (like "Z" or "+00:00") and trailing seconds/milliseconds in their .value property.
- * If these are present, the browser will reset the input to an empty string. This function strips
- * those specifiers using string splitting and substring manipulation without shifting timezones.
- */
-function normalizeDateTimeValue(value: string | null | undefined, type: string): string {
-  if (!value) return '';
-
-  const hasT = value.includes('T');
-  const split = value.split('T');
-
-  // If the incoming value is not in ISO format (not hasT), use the incoming value.
-  // It might be just a date: '2010-07-11' or a time: '13:37', so we use value as a
-  // the fallback to the split.
-  const datePart = (hasT ? split[0] : value)?.substring(0, 10) ?? '';
-  const timePart = (hasT ? split[1] : value)?.substring(0, 5) ?? '';
-
-  switch (type) {
-    case 'date':
-      return datePart;
-    case 'time':
-      return timePart;
-    case 'datetime-local':
-      return `${datePart}T${timePart}`;
-  }
-  return '';
-}
-
-@customElement('a2ui-datetimeinput')
+@customElement('a2ui-datetime-input')
 export class A2uiDateTimeInputElement extends BasicCatalogA2uiLitElement<typeof DateTimeInputApi> {
-  /**
-   * The styles of the datetime input can be customized by redefining the following
-   * CSS variables:
-   *
-   * - `--a2ui-datetimeinput-label-font-size`: Font size of the label. Defaults to `--a2ui-label-font-size` then `--a2ui-font-size-s`.
-   * - `--a2ui-datetimeinput-label-font-weight`: Font weight of the label. Defaults to `--a2ui-label-font-weight` then `bold`.
-   */
   static override styles = css`
-    :host {
+    .a2ui-date-time-container {
       display: flex;
       flex-direction: column;
-      gap: var(--a2ui-spacing-xs, 0.25rem);
+      gap: var(--a2ui-spacing-xs, 4px);
+      width: 100%;
     }
-    input {
+    .a2ui-date-time-label {
+      font-size: var(
+        --a2ui-datetimeinput-label-font-size,
+        var(--a2ui-label-font-size, var(--a2ui-font-size-s, 14px))
+      );
+      font-weight: var(--a2ui-datetimeinput-label-font-weight, bold);
+      color: var(--a2ui-text-color-text, var(--a2ui-color-on-background, #333));
+    }
+    .a2ui-date-time-inputs {
+      display: flex;
+      gap: var(--a2ui-spacing-s, 8px);
+      width: 100%;
+    }
+    .a2ui-date-time-input {
+      padding: var(--a2ui-datetimeinput-padding, 8px);
+      border-radius: var(--a2ui-datetimeinput-border-radius, 4px);
+      border: var(--a2ui-datetimeinput-border, 1px solid var(--a2ui-color-border, #ccc));
       background-color: var(--a2ui-datetimeinput-background, var(--a2ui-color-input, #fff));
       color: var(--a2ui-datetimeinput-color, var(--a2ui-color-on-input, #333));
-      border: var(--a2ui-datetimeinput-border, var(--a2ui-border));
-      border-radius: var(--a2ui-datetimeinput-border-radius, var(--a2ui-border-radius));
-      padding: var(--a2ui-datetimeinput-padding, var(--a2ui-spacing-s));
+      font-family: inherit;
+      flex: 1;
     }
     .a2ui-date-time-input::-webkit-datetime-edit,
     .a2ui-date-time-input::-webkit-datetime-edit-fields-wrapper {
       color: var(--a2ui-datetimeinput-color, var(--a2ui-color-on-input, #333));
-    }
-    label {
-      font-size: var(
-        --a2ui-datetimeinput-label-font-size,
-        var(--a2ui-label-font-size, var(--a2ui-font-size-s))
-      );
-      font-weight: var(--a2ui-datetimeinput-label-font-weight, var(--a2ui-label-font-weight, bold));
     }
   `;
 
@@ -91,28 +63,66 @@ export class A2uiDateTimeInputElement extends BasicCatalogA2uiLitElement<typeof 
   }
 
   override render() {
-    const props = this.controller.props;
+    const props = this.controller?.props;
     if (!props) return nothing;
-    // If neither date or time are enabled, render nothing.
-    if (!(props.enableDate || props.enableTime)) return nothing;
 
-    const inputType =
-      props.enableDate && props.enableTime ? 'datetime-local' : props.enableDate ? 'date' : 'time';
-    const normalizedValue = normalizeDateTimeValue(props.value, inputType);
+    const enableDate = props.enableDate ?? true;
+    const enableTime = props.enableTime ?? false;
+    const rawValue = props.value || '';
+
+    const dateValue = rawValue ? (rawValue.includes('T') ? rawValue.split('T')[0] : rawValue) : '';
+    const timeValue =
+      !rawValue || !rawValue.includes('T') ? '' : rawValue.split('T')[1].substring(0, 5);
+
+    const handleDateChange = (event: Event) => {
+      const date = (event.target as HTMLInputElement).value;
+      if (enableTime) {
+        const time = rawValue.includes('T') ? rawValue.split('T')[1] : '00:00:00';
+        props.setValue?.(`${date}T${time}`);
+      } else {
+        props.setValue?.(date);
+      }
+    };
+
+    const handleTimeChange = (event: Event) => {
+      const time = (event.target as HTMLInputElement).value;
+      const date = rawValue.includes('T')
+        ? rawValue.split('T')[0]
+        : rawValue || new Date().toISOString().split('T')[0];
+      props.setValue?.(`${date}T${time}:00`);
+    };
 
     return html`
-      ${props.label ? html`<label>${props.label}</label>` : nothing}
-      <input
-        class="a2ui-date-time-input"
-        type=${inputType}
-        .value=${normalizedValue}
-        @input=${(e: Event) => props.setValue?.((e.target as HTMLInputElement).value)}
-      />
+      <div class="a2ui-date-time-container">
+        ${props.label ? html`<label class="a2ui-date-time-label">${props.label}</label>` : nothing}
+        <div class="a2ui-date-time-inputs">
+          ${enableDate
+            ? html`
+                <input
+                  type="date"
+                  .value=${dateValue}
+                  @change=${handleDateChange}
+                  class="a2ui-date-time-input"
+                />
+              `
+            : nothing}
+          ${enableTime
+            ? html`
+                <input
+                  type="time"
+                  .value=${timeValue}
+                  @change=${handleTimeChange}
+                  class="a2ui-date-time-input"
+                />
+              `
+            : nothing}
+        </div>
+      </div>
     `;
   }
 }
 
-export const A2uiDateTimeInput = {
+export const A2uiDateTimeInput: LitComponentApi = {
   ...DateTimeInputApi,
-  tagName: 'a2ui-datetimeinput',
+  tagName: 'a2ui-datetime-input',
 };

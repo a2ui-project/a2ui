@@ -1,5 +1,7 @@
 ## Unreleased
 
+- (v0_9) Migrate basic catalog components from Shadow DOM to Light DOM rendering with shared basic catalog styling.
+
 ## 0.10.3
 
 - Enable `inlineSources` in `tsconfig.json` to populate `sourcesContent` in sourcemaps.

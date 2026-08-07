@@ -96,7 +96,7 @@ describe('TextField Component', () => {
   });
 
   it('should render input field with label and initial value', async () => {
-    const el = document.createElement('a2ui-basic-textfield') as A2uiBasicTextFieldElement;
+    const el = document.createElement('a2ui-textfield') as unknown as A2uiBasicTextFieldElement;
     element = el;
     document.body.appendChild(el);
 
@@ -105,17 +105,17 @@ describe('TextField Component', () => {
       e.context = context;
     });
 
-    const label = el.shadowRoot?.querySelector('label');
+    const label = el.querySelector('label');
     assert.ok(label);
     assert.strictEqual(label.textContent?.trim(), 'Username');
 
-    const input = el.shadowRoot?.querySelector('input');
+    const input = el.querySelector('input');
     assert.ok(input);
     assert.strictEqual(input.value, 'Bob');
   });
 
   it('should update the data model value on input event', async () => {
-    const el = document.createElement('a2ui-basic-textfield') as A2uiBasicTextFieldElement;
+    const el = document.createElement('a2ui-textfield') as unknown as A2uiBasicTextFieldElement;
     element = el;
     document.body.appendChild(el);
 
@@ -124,7 +124,7 @@ describe('TextField Component', () => {
       e.context = context;
     });
 
-    const input = el.shadowRoot?.querySelector('input');
+    const input = el.querySelector('input');
     assert.ok(input);
 
     input.value = 'Alice';
@@ -136,7 +136,7 @@ describe('TextField Component', () => {
   });
 
   it('should render textarea for longText variant', async () => {
-    const el = document.createElement('a2ui-basic-textfield') as A2uiBasicTextFieldElement;
+    const el = document.createElement('a2ui-textfield') as unknown as A2uiBasicTextFieldElement;
     element = el;
     document.body.appendChild(el);
 
@@ -145,16 +145,16 @@ describe('TextField Component', () => {
       e.context = context;
     });
 
-    const textarea = el.shadowRoot?.querySelector('textarea');
+    const textarea = el.querySelector('textarea');
     assert.ok(textarea);
     assert.strictEqual(textarea.value, 'Initial Bio');
 
-    const input = el.shadowRoot?.querySelector('input');
+    const input = el.querySelector('input');
     assert.strictEqual(input, null);
   });
 
   it('should render validation error message when invalid', async () => {
-    const el = document.createElement('a2ui-basic-textfield') as A2uiBasicTextFieldElement;
+    const el = document.createElement('a2ui-textfield') as unknown as A2uiBasicTextFieldElement;
     element = el;
     document.body.appendChild(el);
 
@@ -163,11 +163,11 @@ describe('TextField Component', () => {
       e.context = context;
     });
 
-    const error = el.shadowRoot?.querySelector('.error');
+    const error = el.querySelector('.a2ui-error-message');
     assert.ok(error);
     assert.strictEqual(error.textContent?.trim(), 'Email is invalid');
 
-    const input = el.shadowRoot?.querySelector('input');
+    const input = el.querySelector('input');
     assert.ok(input);
     assert.ok(input.classList.contains('invalid'));
   });
