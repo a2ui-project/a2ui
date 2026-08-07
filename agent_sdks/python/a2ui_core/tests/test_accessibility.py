@@ -15,7 +15,11 @@
 import pytest
 from pydantic import ValidationError
 
-from a2ui.core.schema.common_types import AccessibilityAttributes, DataBinding
+from a2ui.core.schema.common_types import (
+    AccessibilityAttributes,
+    ComponentCommon,
+    DataBinding,
+)
 
 
 def test_accessibility_attributes_defaults():
@@ -61,3 +65,37 @@ def test_accessibility_attributes_forbid_extra_properties():
         AccessibilityAttributes.model_validate(
             {"label": "Submit", "role": "button"}
         )
+
+
+def test_accessibility_attributes_component_common_integration():
+    comp = ComponentCommon(
+        id="btn1",
+        accessibility=AccessibilityAttributes(
+            label="Mute Notifications",
+            live="polite",
+            hidden=False,
+        ),
+    )
+    assert comp.id == "btn1"
+    assert comp.accessibility is not None
+    assert comp.accessibility.label == "Mute Notifications"
+    assert comp.accessibility.live == "polite"
+    assert comp.accessibility.hidden is False
+
+    dumped = comp.model_dump(mode="json", exclude_none=True)
+    assert dumped["id"] == "btn1"
+    assert dumped["accessibility"]["label"] == "Mute Notifications"
+    assert dumped["accessibility"]["live"] == "polite"
+    assert dumped["accessibility"]["hidden"] is False
+
+
+def test_accessibility_attributes_json_serialization_roundtrip():
+    payload = {
+        "label": "Mute",
+        "description": "Mutes audio",
+        "live": "assertive",
+        "hidden": True,
+    }
+    attr = AccessibilityAttributes.model_validate(payload)
+    dumped = attr.model_dump(mode="json", exclude_none=True)
+    assert dumped == payload

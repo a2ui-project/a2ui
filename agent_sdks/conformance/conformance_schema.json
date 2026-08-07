@@ -20,7 +20,7 @@
         "properties": {
           "version": {
             "type": "string",
-            "enum": ["0.8", "0.9"],
+            "enum": ["0.8", "0.9", "1.0"],
             "description": "Protocol version."
           },
           "s2c_schema": {
@@ -481,7 +481,7 @@
           }
         }
       },
-      "required": ["action", "assertions"]
+      "required": ["action", "surface", "assertions"]
     },
     "ExpectError": {
       "oneOf": [
