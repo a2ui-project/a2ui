@@ -65,9 +65,12 @@ export class A2uiDateTimeInputElement extends BasicCatalogA2uiLitElement<typeof 
     a2ui-datetimeinput {
       display: flex;
       flex-direction: column;
+      width: 100%;
       gap: var(--a2ui-spacing-xs, 0.25rem);
     }
     input {
+      box-sizing: border-box;
+      width: 100%;
       background-color: var(--a2ui-datetimeinput-background, var(--a2ui-color-input, #fff));
       color: var(--a2ui-datetimeinput-color, var(--a2ui-color-on-input, #333));
       border: var(--a2ui-datetimeinput-border, var(--a2ui-border));

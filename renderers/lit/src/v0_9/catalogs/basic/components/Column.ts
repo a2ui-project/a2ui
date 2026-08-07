@@ -54,6 +54,7 @@ export class A2uiBasicColumnElement extends BasicCatalogA2uiLitElement<typeof Co
     a2ui-basic-column {
       display: flex;
       flex-direction: column;
+      width: 100%;
       gap: var(--a2ui-column-gap, var(--a2ui-spacing-m));
     }
   `;

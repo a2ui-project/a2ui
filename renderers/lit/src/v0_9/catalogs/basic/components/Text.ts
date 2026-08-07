@@ -89,10 +89,13 @@ export class A2uiBasicTextElement extends BasicCatalogA2uiLitElement<typeof Text
       line-height: var(--a2ui-line-height-body, 1.5);
     }
     .a2ui-caption,
-    .a2ui-caption > *,
+    .a2ui-caption *,
     .a2ui-caption ::slotted(*) {
       font-size: var(--a2ui-font-size-xs);
       color: var(--a2ui-text-caption-color, light-dark(#666, #aaa));
+    }
+    .a2ui-caption p {
+      font-size: var(--a2ui-font-size-xs);
     }
     a {
       color: var(--a2ui-text-a-color, inherit);
@@ -138,7 +141,7 @@ export class A2uiBasicTextElement extends BasicCatalogA2uiLitElement<typeof Text
     // There's not a good way to handle the caption variant in markdown, so we
     // tag it with a class so it can be tweaked via CSS.
     if (props.variant === 'caption') {
-      return html`<span class="a2ui-caption">${renderedMarkdown}</span>`;
+      return html`<span class="a2ui-caption"><em>${renderedMarkdown}</em></span>`;
     }
     return html`${renderedMarkdown}`;
   }
