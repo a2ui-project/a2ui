@@ -38,7 +38,6 @@ export class A2uiImageElement extends BasicCatalogA2uiLitElement<typeof ImageApi
   static override styles = css`
     img {
       display: block;
-      width: 100%;
       height: auto;
       border-radius: var(--a2ui-image-border-radius, 0);
     }

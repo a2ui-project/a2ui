@@ -1,5 +1,6 @@
 ## Unreleased
 
+- (v0_9) Align Basic Catalog component behavior with Angular implementation.
 - (v0_9) Migrate Basic Catalog components and surface rendering from Shadow DOM to Light DOM.
 
 ## 0.10.3

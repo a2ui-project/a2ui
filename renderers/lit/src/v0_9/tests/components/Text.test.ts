@@ -138,7 +138,9 @@ describe('Text Component', () => {
 
     const captionSpan = el.querySelector('span.a2ui-caption');
     assert.ok(captionSpan);
-    const innerSpan = captionSpan.querySelector('.no-markdown-renderer');
+    const em = captionSpan.querySelector('em');
+    assert.ok(em);
+    const innerSpan = em.querySelector('.no-markdown-renderer');
     assert.ok(innerSpan);
     assert.strictEqual(innerSpan.textContent?.trim(), 'Caption text');
   });

@@ -105,7 +105,7 @@ export class A2uiBasicTextFieldElement extends BasicCatalogA2uiLitElement<typeof
             @input=${onInput}
           />`}
       ${isInvalid && props.validationErrors?.length
-        ? html`<div class="error">${props.validationErrors[0]}</div>`
+        ? props.validationErrors.map((err: string) => html`<div class="error">${err}</div>`)
         : nothing}
     `;
   }
