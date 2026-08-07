@@ -170,7 +170,7 @@ You can find the full specification of the basic catalog in the [GitHub reposito
 - **Content**: `Text`, `Image`, `Icon`, `Video`
 - **Input**: `Button`, `TextField`, `CheckBox`, `ChoicePicker`, `Slider`, `DateTimeInput`
 
-You can find the source code for these components in the [GitHub repository](src/v0_9/catalogs/basic/components).
+You can find the source code for these components in the [GitHub repository](../web_core/src/v0_9/basic_catalog/components).
 
 ## Migration from v0.8
 

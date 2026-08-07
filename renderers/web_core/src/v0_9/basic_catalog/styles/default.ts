@@ -129,11 +129,16 @@ function getDefaultStyleSheet(): CSSStyleSheet {
  * stylesheet above (and the specific ones exposed by each basic catalog
  * package) to customize the appearance of the items of the basic catalog.
  */
-export function injectBasicCatalogStyles() {
+export function injectBasicCatalogStyles(targetRoot?: Document | ShadowRoot) {
   if (typeof document === 'undefined') return;
   const sheet = getDefaultStyleSheet();
   if (!document.adoptedStyleSheets.includes(sheet)) {
     document.adoptedStyleSheets = [...document.adoptedStyleSheets, sheet];
+  }
+  if (targetRoot && 'adoptedStyleSheets' in targetRoot && targetRoot !== document) {
+    if (!targetRoot.adoptedStyleSheets.includes(sheet)) {
+      targetRoot.adoptedStyleSheets = [...targetRoot.adoptedStyleSheets, sheet];
+    }
   }
 }
 

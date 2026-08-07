@@ -39,14 +39,18 @@ describe('Example: Modal', () => {
     expect(trigger).toBeTruthy();
 
     // Check modal is closed initially
-    expect(querySelectorAllDeep(surface, '.a2ui-modal-overlay').length).toBe(0);
+
+    expect(querySelectorAllDeep(surface, '.a2ui-modal-overlay')[0]).toBeFalsy();
+
 
     // Click trigger
     trigger.click();
     await whenSettled(gallery);
 
     // Check modal is open
-    expect(querySelectorAllDeep(surface, '.a2ui-modal-overlay').length).toBeGreaterThan(0);
+
+    expect(querySelectorAllDeep(surface, '.a2ui-modal-overlay')[0]).toBeTruthy();
+
 
     // Check content
     expect(getDeepTextContent(querySelectorAllDeep(surface, '.a2ui-modal-overlay')[0])).toContain(
@@ -60,6 +64,8 @@ describe('Example: Modal', () => {
     await whenSettled(gallery);
 
     // Check modal is closed
-    expect(querySelectorAllDeep(surface, '.a2ui-modal-overlay').length).toBe(0);
+
+    expect(querySelectorAllDeep(surface, '.a2ui-modal-overlay')[0]).toBeFalsy();
+
   });
 });
