@@ -50,7 +50,8 @@ export class A2uiBasicColumnElement extends BasicCatalogA2uiLitElement<typeof Co
    * - `--a2ui-column-gap`: The gap between items in the column. Defaults to `--a2ui-spacing-m`.
    */
   static override styles = css`
-    :host {
+    :host,
+    a2ui-basic-column {
       display: flex;
       flex-direction: column;
       gap: var(--a2ui-column-gap, var(--a2ui-spacing-m));
