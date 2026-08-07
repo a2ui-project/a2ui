@@ -42,6 +42,16 @@
               "type": "object",
               "description": "The initial root data model object for the surface.",
               "additionalProperties": true
+            },
+            "metadata": {
+              "type": "object",
+              "description": "Optional surface-level metadata.",
+              "properties": {
+                "extensions": {
+                  "$ref": "common_types.json#/$defs/Extensions"
+                }
+              },
+              "additionalProperties": false
             }
           },
           "required": ["surfaceId"],
