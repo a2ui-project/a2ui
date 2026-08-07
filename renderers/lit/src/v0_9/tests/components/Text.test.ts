@@ -136,10 +136,10 @@ describe('Text Component', () => {
       e.context = context;
     });
 
-    const captionSpan = el.querySelector('span.a2ui-caption');
+    const captionSpan = el.querySelector('span.a2ui-text.caption');
     assert.ok(captionSpan);
-    const innerSpan = captionSpan.querySelector('.no-markdown-renderer');
-    assert.ok(innerSpan);
-    assert.strictEqual(innerSpan.textContent?.trim(), 'Caption text');
+    const em = captionSpan.querySelector('em');
+    assert.ok(em);
+    assert.strictEqual(em.textContent?.trim(), 'Caption text');
   });
 });

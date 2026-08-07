@@ -69,7 +69,8 @@ export class A2uiCheckBoxElement extends BasicCatalogA2uiLitElement<typeof Check
     input.invalid {
       outline: 1px solid var(--a2ui-checkbox-color-error, red);
     }
-    .error {
+    .error,
+    .a2ui-error-message {
       color: var(--a2ui-checkbox-color-error, red);
       font-size: var(--a2ui-font-size-xs, 0.75rem);
       margin-top: 4px;
@@ -97,10 +98,12 @@ export class A2uiCheckBoxElement extends BasicCatalogA2uiLitElement<typeof Check
             .checked=${props.value || false}
             @change=${(e: Event) => props.setValue?.((e.target as HTMLInputElement).checked)}
           />
-          ${props.label}
+          <span class="a2ui-check-box-text">${props.label}</span>
         </label>
         ${isInvalid && props.validationErrors?.length
-          ? html`<div class="error">${props.validationErrors[0]}</div>`
+          ? props.validationErrors.map(
+              (msg: string) => html`<div class="error a2ui-error-message">${msg}</div>`,
+            )
           : nothing}
       </div>
     `;

@@ -33,19 +33,17 @@ export class A2uiCardElement extends BasicCatalogA2uiLitElement<typeof CardApi> 
    * - `--a2ui-card-margin`: The outer margin of the card. Defaults to `--a2ui-spacing-m`.
    */
   static override styles = css`
-    :host,
-    a2ui-card {
-      display: block;
+    .a2ui-card {
+      padding: var(--a2ui-card-padding, var(--a2ui-spacing-m, 16px));
+      border-radius: var(--a2ui-card-border-radius, var(--a2ui-border-radius, 8px));
+      box-shadow: var(--a2ui-card-box-shadow, 0 2px 4px rgba(0, 0, 0, 0.1));
+      background: var(--a2ui-card-background, var(--a2ui-color-surface, #fff));
+      color: var(--a2ui-color-on-surface, #333);
       border: var(
         --a2ui-card-border,
         var(--a2ui-border-width, 1px) solid var(--a2ui-color-border, #ccc)
       );
-      border-radius: var(--a2ui-card-border-radius, var(--a2ui-border-radius, 8px));
-      padding: var(--a2ui-card-padding, var(--a2ui-spacing-m, 16px));
-      background: var(--a2ui-card-background, var(--a2ui-color-surface, #fff));
-      color: var(--a2ui-color-on-surface, #333);
-      box-shadow: var(--a2ui-card-box-shadow, 0 2px 4px rgba(0, 0, 0, 0.1));
-      margin: var(--a2ui-card-margin, var(--a2ui-spacing-m));
+      margin: var(--a2ui-card-margin, var(--a2ui-spacing-m, 16px));
     }
   `;
 
@@ -57,7 +55,9 @@ export class A2uiCardElement extends BasicCatalogA2uiLitElement<typeof CardApi> 
     const props = this.controller.props;
     if (!props) return nothing;
 
-    return html` ${props.child ? html`${this.renderNode(props.child)}` : nothing} `;
+    return html`
+      <div class="a2ui-card">${props.child ? this.renderNode(props.child) : nothing}</div>
+    `;
   }
 }
 

@@ -22,8 +22,9 @@ import {BasicCatalogA2uiLitElement} from '../basic-catalog-a2ui-lit-element.js';
 import {A2uiController} from '../../../a2ui-controller.js';
 import {Context} from '../../../context/context.js';
 import * as Types from '@a2ui/web_core/types/types';
-
 import {markdown} from '../../../directives/directives.js';
+
+const NON_MARKDOWN_VARIANTS = new Set<string>(['h1', 'h2', 'h3', 'h4', 'h5', 'caption']);
 
 @customElement('a2ui-basic-text')
 export class A2uiBasicTextElement extends BasicCatalogA2uiLitElement<typeof TextApi> {
@@ -33,76 +34,71 @@ export class A2uiBasicTextElement extends BasicCatalogA2uiLitElement<typeof Text
    *
    * - `--a2ui-text-color-text`: The color of the text. Defaults to `--a2ui-color-on-background`.
    * - `--a2ui-text-caption-color`: The color for caption text. Defaults to `light-dark(#666, #aaa)`.
-   *
-   * It also supports `--_a2ui-text-color` override from parent components (like Button).
    */
   static override styles = css`
-    :host,
-    a2ui-basic-text {
-      display: inline-block;
-      color: var(--_a2ui-text-color, var(--a2ui-text-color-text, var(--a2ui-color-on-background)));
+    :host {
+      display: contents;
     }
-    p,
-    h1,
-    h2,
-    h3,
-    h4,
-    h5,
-    h6,
-    ol,
-    ul,
-    li,
-    blockquote,
-    pre {
+    .a2ui-text p,
+    .a2ui-text h1,
+    .a2ui-text h2,
+    .a2ui-text h3,
+    .a2ui-text h4,
+    .a2ui-text h5,
+    .a2ui-text h6,
+    .a2ui-text ol,
+    .a2ui-text ul,
+    .a2ui-text li,
+    .a2ui-text blockquote,
+    .a2ui-text pre {
       margin: var(--_a2ui-text-margin, 0);
     }
-    h1,
-    h2,
-    h3,
-    h4,
-    h5 {
+    .a2ui-text {
+      color: var(--_a2ui-text-color, var(--a2ui-text-color-text, var(--a2ui-color-on-background)));
+    }
+    .a2ui-text h1,
+    .a2ui-text h2,
+    .a2ui-text h3,
+    .a2ui-text h4,
+    .a2ui-text h5,
+    .a2ui-text h6 {
       font-family: var(--a2ui-font-family-title, inherit);
       line-height: var(--a2ui-line-height-headings, 1.2);
     }
-    h1 {
+    .a2ui-text h1 {
       font-size: var(--a2ui-font-size-2xl);
     }
-    h2 {
+    .a2ui-text h2 {
       font-size: var(--a2ui-font-size-xl);
     }
-    h3 {
+    .a2ui-text h3 {
       font-size: var(--a2ui-font-size-l);
     }
-    p,
-    h4 {
+    .a2ui-text p,
+    .a2ui-text h4 {
       font-size: var(--a2ui-font-size-m);
     }
-    h5 {
+    .a2ui-text h5 {
       font-size: var(--a2ui-font-size-s);
     }
-    p,
-    ol,
-    ul,
-    li,
-    blockquote,
-    .a2ui-caption {
+    .a2ui-text p {
       line-height: var(--a2ui-line-height-body, 1.5);
     }
-    .a2ui-caption,
-    .a2ui-caption > *,
-    .a2ui-caption ::slotted(*) {
+    .a2ui-text.caption,
+    .a2ui-caption {
       font-size: var(--a2ui-font-size-xs);
       color: var(--a2ui-text-caption-color, light-dark(#666, #aaa));
     }
-    a {
+    .a2ui-text a {
       color: var(--a2ui-text-a-color, inherit);
       font-weight: var(--a2ui-text-a-font-weight, inherit);
     }
   `;
 
-  // Retrieve a MarkdownRenderer provided by the application.
   @consume({context: Context.markdown, subscribe: true})
   accessor markdownRenderer: Types.MarkdownRenderer | undefined;
+
+  protected readonly api = TextApi;
 
   protected createController() {
     return new A2uiController(this, TextApi);
@@ -112,35 +108,37 @@ export class A2uiBasicTextElement extends BasicCatalogA2uiLitElement<typeof Text
     const props = this.controller.props;
     if (!props) return nothing;
 
-    // Use props.variant to convert props.text to markdown
-    let markdownText = typeof props.text === 'string' ? props.text : String(props.text ?? '');
-    switch (props.variant) {
-      case 'h1':
-        markdownText = `# ${markdownText}`;
-        break;
-      case 'h2':
-        markdownText = `## ${markdownText}`;
-        break;
-      case 'h3':
-        markdownText = `### ${markdownText}`;
-        break;
-      case 'h4':
-        markdownText = `#### ${markdownText}`;
-        break;
-      case 'h5':
-        markdownText = `##### ${markdownText}`;
-        break;
-      default:
-        break; // body and caption.
+    const variant = props.variant || 'body';
+    const text = typeof props.text === 'string' ? props.text : String(props.text ?? '');
+    const flexStyle = typeof props.weight === 'number' ? `flex: ${props.weight};` : nothing;
+
+    if (NON_MARKDOWN_VARIANTS.has(variant)) {
+      let content = html`${text}`;
+      switch (variant) {
+        case 'h1':
+          content = html`<h1>${text}</h1>`;
+          break;
+        case 'h2':
+          content = html`<h2>${text}</h2>`;
+          break;
+        case 'h3':
+          content = html`<h3>${text}</h3>`;
+          break;
+        case 'h4':
+          content = html`<h4>${text}</h4>`;
+          break;
+        case 'h5':
+          content = html`<h5>${text}</h5>`;
+          break;
+        case 'caption':
+          content = html`<em>${text}</em>`;
+          break;
+      }
+      return html`<span class="a2ui-text ${variant}" style=${flexStyle}>${content}</span>`;
     }
 
-    const renderedMarkdown = markdown(markdownText, this.markdownRenderer);
-    // There's not a good way to handle the caption variant in markdown, so we
-    // tag it with a class so it can be tweaked via CSS.
-    if (props.variant === 'caption') {
-      return html`<span class="a2ui-caption">${renderedMarkdown}</span>`;
-    }
-    return html`${renderedMarkdown}`;
+    const renderedMarkdown = markdown(text, this.markdownRenderer);
+    return html`<span class="a2ui-text ${variant}" style=${flexStyle}>${renderedMarkdown}</span>`;
   }
 }
 

@@ -78,6 +78,12 @@ describe('Button Component', () => {
               action: {event: {name: 'ignored'}},
             },
             {
+              id: 'btn_primary',
+              component: 'Button',
+              variant: 'primary',
+              child: 'txt1',
+            },
+            {
               id: 'txt1',
               component: 'Text',
               text: 'Click Me',
@@ -111,6 +117,7 @@ describe('Button Component', () => {
     const button = el.querySelector('button');
     assert.ok(button);
     assert.strictEqual(button.disabled, false);
+    assert.strictEqual(button.type, 'button');
 
     const dispatched = {action: null as A2uiClientAction | null};
     subscription = surface.onAction.subscribe((action: A2uiClientAction) => {
@@ -121,6 +128,21 @@ describe('Button Component', () => {
     await new Promise(resolve => setTimeout(resolve, 0));
     assert.ok(dispatched.action);
     assert.strictEqual(dispatched.action.name, 'submit_clicked');
+  });
+
+  it('should always render with type="button" even for primary variant', async () => {
+    const el = document.createElement('a2ui-basic-button') as A2uiBasicButtonElement;
+    element = el;
+    document.body.appendChild(el);
+
+    const context = new ComponentContext(surface, 'btn_primary');
+    await asyncUpdate(el, e => {
+      e.context = context;
+    });
+
+    const button = el.querySelector('button');
+    assert.ok(button);
+    assert.strictEqual(button.type, 'button');
   });
 
   it('should be disabled when isValid is false', async () => {

@@ -16,7 +16,6 @@
 
 import {html, nothing, css} from 'lit';
 import {customElement} from 'lit/decorators.js';
-import {classMap} from 'lit/directives/class-map.js';
 import {styleMap} from 'lit/directives/style-map.js';
 import {ImageApi} from '@a2ui/web_core/v0_9/basic_catalog';
 import {BasicCatalogA2uiLitElement} from '../basic-catalog-a2ui-lit-element.js';
@@ -36,34 +35,29 @@ export class A2uiImageElement extends BasicCatalogA2uiLitElement<typeof ImageApi
    * - `--a2ui-image-header-size`: Controls the height of the `header` variant. Defaults to `200px`.
    */
   static override styles = css`
-    img {
+    .a2ui-image {
       display: block;
-      width: 100%;
+      max-width: 100%;
       height: auto;
       border-radius: var(--a2ui-image-border-radius, 0);
     }
-    :is(:host(.icon), a2ui-image.icon),
-    img.icon {
+    .a2ui-image.icon {
       width: var(--a2ui-image-icon-size, 24px);
       height: var(--a2ui-image-icon-size, 24px);
     }
-    img.avatar {
+    .a2ui-image.avatar {
       width: var(--a2ui-image-avatar-size, 40px);
       height: var(--a2ui-image-avatar-size, 40px);
       border-radius: 50%;
     }
-    :is(:host(.smallFeature), a2ui-image.smallFeature),
-    img.smallFeature {
+    .a2ui-image.smallFeature {
       max-width: var(--a2ui-image-small-feature-size, 100px);
     }
-    :is(:host(.largeFeature), a2ui-image.largeFeature),
-    img.largeFeature {
+    .a2ui-image.largeFeature {
       max-height: var(--a2ui-image-large-feature-size, 400px);
     }
-    :is(:host(.header), a2ui-image.header),
-    img.header {
+    .a2ui-image.header {
       height: var(--a2ui-image-header-size, 200px);
-      object-fit: cover;
     }
   `;
 
@@ -75,20 +69,14 @@ export class A2uiImageElement extends BasicCatalogA2uiLitElement<typeof ImageApi
     const props = this.controller.props;
     if (!props) return nothing;
 
-    const classes = {
-      'a2ui-image': true,
-      [props.variant || '']: !!props.variant,
-    };
-
-    const styles = {
-      objectFit: props.fit || 'fill',
-    };
+    const variant = props.variant || 'default';
+    const fit = props.fit || 'cover';
 
     return html`<img
       src=${props.url}
       alt=${props.description || ''}
-      class=${classMap(classes)}
-      style=${styleMap(styles)}
+      style=${styleMap({objectFit: fit})}
+      class="a2ui-image ${variant}"
     />`;
   }
 }

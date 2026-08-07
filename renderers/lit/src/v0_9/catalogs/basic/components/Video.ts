@@ -29,18 +29,19 @@ export class A2uiVideoElement extends BasicCatalogA2uiLitElement<typeof VideoApi
    * - `--a2ui-video-border-radius`: Controls the rounded corners of the video. Defaults to `0`.
    */
   static override styles = css`
-    :host,
-    a2ui-video {
-      display: block;
+    .a2ui-video-container {
       width: 100%;
+      max-width: 100%;
     }
-    video {
-      display: block;
+    .a2ui-video {
       width: 100%;
       height: auto;
+      display: block;
       border-radius: var(--a2ui-video-border-radius, 0);
     }
   `;
+
+  protected readonly api = VideoApi;
 
   protected createController() {
     return new A2uiController(this, VideoApi);
@@ -50,7 +51,13 @@ export class A2uiVideoElement extends BasicCatalogA2uiLitElement<typeof VideoApi
     const props = this.controller.props;
     if (!props) return nothing;
 
-    return html`<video src=${props.url} controls class="a2ui-video"></video>`;
+    return html`
+      <div class="a2ui-video-container">
+        <video src=${props.url || nothing} controls class="a2ui-video">
+          Your browser does not support the video tag.
+        </video>
+      </div>
+    `;
   }
 }
 

@@ -37,19 +37,26 @@ export class A2uiChoicePickerElement extends BasicCatalogA2uiLitElement<typeof C
    */
   static override styles = css`
     :host,
-    a2ui-choicepicker {
+    .a2ui-choice-picker {
       display: flex;
       flex-direction: column;
+      width: 100%;
       gap: var(--a2ui-choicepicker-gap, var(--a2ui-spacing-xs, 0.25rem));
       padding: var(--a2ui-choicepicker-padding, 0);
     }
-    .options {
+    .options,
+    .a2ui-options-group {
       display: flex;
       flex-direction: column;
       gap: var(--a2ui-choicepicker-gap, var(--a2ui-spacing-xs, 0.25rem));
     }
-    label {
-      color: var(--a2ui-choicepicker-label-color, inherit);
+    label,
+    .a2ui-option-label {
+      display: flex;
+      align-items: center;
+      gap: var(--a2ui-choicepicker-gap, var(--a2ui-spacing-xs, 0.25rem));
+      cursor: pointer;
+      color: var(--a2ui-text-color-text, var(--a2ui-choicepicker-label-color, inherit));
       font-size: var(--a2ui-choicepicker-label-font-size, inherit);
     }
     :host,
@@ -63,41 +70,62 @@ export class A2uiChoicePickerElement extends BasicCatalogA2uiLitElement<typeof C
     .filter-input {
       background-color: var(--a2ui-color-input, #fff);
       color: var(--a2ui-color-on-input, #333);
-      border: var(--a2ui-textfield-border, var(--a2ui-border));
-      border-radius: var(--a2ui-textfield-border-radius, var(--a2ui-spacing-m));
+      border: var(
+        --a2ui-textfield-border,
+        var(--a2ui-border, 1px solid var(--a2ui-color-border, #ccc))
+      );
+      border-radius: var(--a2ui-textfield-border-radius, var(--a2ui-spacing-m, 4px));
       padding: var(
         --a2ui-choicepicker-filter-padding,
         var(--a2ui-spacing-xs, 4px) var(--a2ui-spacing-s, 8px)
       );
+      margin-bottom: var(--a2ui-choicepicker-filter-margin-bottom, var(--a2ui-spacing-s, 0.25rem));
       font-family: inherit;
     }
     .filter-input:focus {
       outline: none;
       border-color: var(--a2ui-textfield-color-border-focus, var(--a2ui-color-primary, #17e));
     }
-    .chips {
+    .a2ui-option-input {
+      width: var(--a2ui-choicepicker-checkbox-size, 1rem);
+      height: var(--a2ui-choicepicker-checkbox-size, 1rem);
+    }
+    .chips,
+    .a2ui-chips-group {
       display: flex;
       flex-direction: row;
       flex-wrap: wrap;
       gap: var(--a2ui-choicepicker-gap, var(--a2ui-spacing-xs, 0.25rem));
     }
-    .chip {
+    .chip,
+    .a2ui-chip {
       padding: var(
         --a2ui-choicepicker-chip-padding,
         var(--a2ui-spacing-s, 4px) var(--a2ui-spacing-m, 8px)
       );
       border-radius: var(--a2ui-choicepicker-chip-border-radius, 999px);
-      border: 1px solid var(--a2ui-color-border, #ccc);
-      background-color: var(--a2ui-color-surface, #fff);
+      border: var(--a2ui-choicepicker-chip-border, 1px solid var(--a2ui-color-border, #ccc));
+      background-color: var(--a2ui-choicepicker-chip-background, var(--a2ui-color-surface, #fff));
       color: var(--a2ui-color-on-surface, inherit);
       cursor: pointer;
-      font-size: var(--a2ui-font-size-xs, 0.75rem);
+      font-size: var(--a2ui-choicepicker-chip-font-size, var(--a2ui-font-size-xs, 0.75rem));
       font-family: inherit;
+      font-weight: var(--a2ui-choicepicker-chip-font-weight, normal);
+      transition: all 0.2s;
     }
-    .chip.selected {
-      background-color: var(--a2ui-color-primary, #007bff);
+    .chip.selected,
+    .chip.active,
+    .a2ui-chip.selected,
+    .a2ui-chip.active {
+      background-color: var(
+        --a2ui-choicepicker-chip-background-selected,
+        var(--a2ui-color-primary, #007bff)
+      );
       color: var(--a2ui-color-on-primary, #fff);
-      border-color: var(--a2ui-color-primary, #007bff);
+      border-color: var(
+        --a2ui-choicepicker-chip-background-selected,
+        var(--a2ui-color-primary, #007bff)
+      );
     }
   `;
 
@@ -108,23 +136,29 @@ export class A2uiChoicePickerElement extends BasicCatalogA2uiLitElement<typeof C
   }
 
   override render() {
-    const props = this.controller.props;
+    const props = this.controller?.props;
     if (!props) return nothing;
 
-    const selected = Array.isArray(props.value) ? props.value : [];
+    const rawVal = props.value;
+    const selected: string[] = Array.isArray(rawVal)
+      ? (rawVal as string[])
+      : typeof rawVal === 'string'
+        ? [rawVal]
+        : [];
     const isMulti = props.variant === 'multipleSelection';
     const isChips = props.displayStyle === 'chips';
 
     const toggle = (val: string) => {
-      if (!props.setValue) return;
+      const setter = props.setValue;
+      if (typeof setter !== 'function') return;
       if (isMulti) {
         if (selected.includes(val)) {
-          props.setValue(selected.filter((v: string) => v !== val));
+          setter(selected.filter((v: string) => v !== val));
         } else {
-          props.setValue([...selected, val]);
+          setter([...selected, val]);
         }
       } else {
-        props.setValue([val]);
+        setter([val]);
       }
     };
 
@@ -134,6 +168,16 @@ export class A2uiChoicePickerElement extends BasicCatalogA2uiLitElement<typeof C
         this.filter === '' ||
         String(opt.label).toLowerCase().includes(this.filter.toLowerCase()),
     );
+
+    // Radio group names are document-scoped while component ids are only
+    // surface-scoped, so the group name qualifies the component id with the
+    // surface id and the data context path (which disambiguates instances
+    // stamped from a list template within one surface).
+    const surfaceId = this.context?.dataContext?.surface?.id || 'default';
+    const componentId = this.context?.componentModel?.id || 'choice-picker';
+    const dataPath = this.context?.dataContext?.path || '/';
+    const sanitizedPath = dataPath.replace(/[^a-zA-Z0-9-]/g, '_');
+    const groupName = `a2ui-choice-${surfaceId}-${componentId}-${sanitizedPath}`;
 
     return html`
       ${props.label ? html`<label>${props.label}</label>` : nothing}
@@ -149,13 +193,24 @@ export class A2uiChoicePickerElement extends BasicCatalogA2uiLitElement<typeof C
             />
           `
         : nothing}
-      <div class=${classMap({options: true, chips: isChips})}>
+      <div
+        class=${classMap({
+          'a2ui-choice-picker': true,
+          options: true,
+          'a2ui-options-group': !isChips,
+          chips: isChips,
+          'a2ui-chips-group': isChips,
+        })}
+      >
         ${options.map((opt: any) =>
           isChips
             ? html`
                 <button
+                  type="button"
                   class=${classMap({
+                    'a2ui-chip': true,
                     chip: true,
+                    active: selected.includes(opt.value),
                     selected: selected.includes(opt.value),
                   })}
                   aria-pressed=${selected.includes(opt.value)}
@@ -165,13 +220,16 @@ export class A2uiChoicePickerElement extends BasicCatalogA2uiLitElement<typeof C
                 </button>
               `
             : html`
-                <label>
+                <label class="a2ui-option-label">
                   <input
                     type=${isMulti ? 'checkbox' : 'radio'}
+                    name=${isMulti ? nothing : groupName}
+                    value=${opt.value}
                     .checked=${selected.includes(opt.value)}
                     @change=${() => toggle(opt.value)}
+                    class="a2ui-option-input"
                   />
-                  ${opt.label}
+                  <span class="a2ui-option-text">${opt.label}</span>
                 </label>
               `,
         )}

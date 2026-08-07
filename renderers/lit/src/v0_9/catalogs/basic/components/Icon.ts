@@ -27,9 +27,9 @@ const ICON_NAME_OVERRIDES: Record<string, string> = {
   starOff: 'star_border',
 };
 
-function toMaterialSymbol(name: string): string {
+function toMaterialIconName(name: string): string {
   if (ICON_NAME_OVERRIDES[name]) return ICON_NAME_OVERRIDES[name];
-  return name.replace(/[A-Z]/g, letter => '_' + letter.toLowerCase());
+  return name.replace(/[A-Z]/g, letter => `_${letter.toLowerCase()}`);
 }
 
 @customElement('a2ui-icon')
@@ -39,34 +39,37 @@ export class A2uiIconElement extends BasicCatalogA2uiLitElement<typeof IconApi> 
    *
    * - `--a2ui-icon-size`: Dimensions of the icon.
    * - `--a2ui-icon-color`: Color tint applied to the icon.
-   * - `--a2ui-icon-font-family`: Override the font family for icons. Defaults to Material Symbols Outlined.
+   * - `--a2ui-icon-font-family`: Override the font family for icons. Defaults to 'Material Icons', 'Material Symbols Outlined'.
    * - `--a2ui-icon-font-variation-settings`: Complete override for font-variation-settings.
    */
   static override styles = css`
-    :where(:host, a2ui-icon) {
-      --_icon-size: var(--a2ui-icon-size, var(--a2ui-font-size-xl, 24px));
-    }
-    :host,
-    a2ui-icon {
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-    }
-    .material-symbol {
-      font-family: var(--a2ui-icon-font-family, 'Material Symbols Outlined', sans-serif);
-      font-size: var(--_icon-size);
-      font-weight: normal;
+    .a2ui-icon {
+      display: inline-block;
+      width: var(--a2ui-icon-size, 24px);
+      height: var(--a2ui-icon-size, 24px);
+      font-size: var(--a2ui-icon-size, 24px);
       font-style: normal;
-      line-height: 1;
-      letter-spacing: normal;
-      text-transform: none;
-      color: var(--a2ui-icon-color, inherit);
+      font-weight: normal;
+      font-family: var(--a2ui-icon-font-family, 'Material Icons', 'Material Symbols Outlined');
+      color: var(
+        --a2ui-icon-color,
+        var(--a2ui-text-color-text, var(--a2ui-color-on-background, #333))
+      );
       font-variation-settings: var(--a2ui-icon-font-variation-settings, 'FILL' 1);
+      line-height: 1;
+      text-transform: none;
+      letter-spacing: normal;
+      word-wrap: normal;
+      white-space: nowrap;
+      direction: ltr;
+      -webkit-font-smoothing: antialiased;
+      text-rendering: optimizeLegibility;
+      -moz-osx-font-smoothing: grayscale;
+      font-feature-settings: 'liga';
+      vertical-align: middle;
     }
-    .svg {
+    .a2ui-icon.svg {
       fill: currentColor;
-      width: var(--_icon-size);
-      height: var(--_icon-size);
     }
   `;
 
@@ -79,15 +82,19 @@ export class A2uiIconElement extends BasicCatalogA2uiLitElement<typeof IconApi> 
     if (!props) return nothing;
 
     const name = props.name;
-    const isPath = typeof name === 'object' && name !== null && 'svgPath' in name;
+    const isSvgPath = typeof name === 'object' && name !== null && 'svgPath' in name;
 
-    if (isPath) {
-      const path = (name as {svgPath: string}).svgPath;
-      return html`<svg class="svg" viewBox="0 0 24 24"><path d=${path}></path></svg>`;
+    if (isSvgPath) {
+      const svgPath = (name as {svgPath: string}).svgPath;
+      return html`
+        <svg class="a2ui-icon svg" viewBox="0 0 24 24">
+          <path d=${svgPath}></path>
+        </svg>
+      `;
     }
 
-    const iconName = typeof name === 'string' ? toMaterialSymbol(name) : '';
-    return html`<span class="material-symbol">${iconName}</span>`;
+    const iconName = typeof name === 'string' ? toMaterialIconName(name) : '';
+    return html`<i class="material-icons a2ui-icon">${iconName}</i>`;
   }
 }
 

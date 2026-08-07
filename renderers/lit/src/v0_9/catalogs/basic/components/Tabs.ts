@@ -27,44 +27,45 @@ export class A2uiLitTabs extends BasicCatalogA2uiLitElement<typeof TabsApi> {
    * The styles of the tabs can be customized by redefining the following
    * CSS variables:
    *
-   * - `--a2ui-tabs-header-background`: Default transparent.
-   * - `--a2ui-tabs-header-background-active`: Default `--a2ui-color-secondary`.
-   * - `--a2ui-tabs-header-color`: Default `--a2ui-color-on-surface`.
-   * - `--a2ui-tabs-header-color-active`: Default `--a2ui-color-on-secondary`.
-   * - `--a2ui-tabs-border`: Default `--a2ui-border-width` solid `--a2ui-color-border`.
-   * - `--a2ui-tabs-content-padding`: Default `0 var(--a2ui-spacing-m, 0.5rem)`.
+   * - `--a2ui-tabs-border`: Controls the border of the tab bar. Defaults to `2px solid var(--a2ui-color-border, #eee)`.
+   * - `--a2ui-tabs-header-background`: Controls the background of tab buttons. Defaults to `transparent`.
+   * - `--a2ui-tabs-header-color`: Controls the text color of tab buttons. Defaults to `var(--a2ui-text-caption-color, #666)`.
+   * - `--a2ui-tabs-header-background-active`: Controls the background of the active tab button. Defaults to `transparent`.
+   * - `--a2ui-tabs-header-color-active`: Controls the text color of the active tab button. Defaults to `var(--a2ui-color-primary, #007bff)`.
+   * - `--a2ui-tabs-content-padding`: Controls the padding of the tab content. Defaults to `var(--a2ui-spacing-m, 16px) 0`.
    */
   static override styles = css`
-    :host,
-    a2ui-tabs {
-      display: block;
-    }
-    .a2ui-tabs-headers {
+    .a2ui-tabs {
       display: flex;
-      gap: var(--a2ui-spacing-xs, 0.25rem);
-      border-bottom: var(
-        --a2ui-tabs-border,
-        var(--a2ui-border-width, 1px) solid var(--a2ui-color-border, #ccc)
-      );
-      margin-bottom: var(--a2ui-spacing-m, 0.5rem);
+      flex-direction: column;
+      width: 100%;
     }
-    .a2ui-tabs-header {
-      padding: var(--a2ui-spacing-m, 0.5rem) var(--a2ui-spacing-l, 1rem);
-      background: var(--a2ui-tabs-header-background, transparent);
-      color: var(--a2ui-tabs-header-color, var(--a2ui-color-on-surface));
+    .a2ui-tab-bar {
+      display: flex;
+      border-bottom: var(--a2ui-tabs-border, 2px solid var(--a2ui-color-border, #eee));
+      gap: var(--a2ui-spacing-m, 16px);
+    }
+    .a2ui-tab-button {
+      padding: var(--a2ui-spacing-s, 8px) var(--a2ui-spacing-m, 16px);
       border: none;
-      border-radius: var(--a2ui-border-radius, 0.25rem) var(--a2ui-border-radius, 0.25rem) 0 0;
+      background: var(--a2ui-tabs-header-background, transparent);
       cursor: pointer;
-      font-family: inherit;
+      font-weight: 500;
+      color: var(--a2ui-tabs-header-color, var(--a2ui-text-caption-color, #666));
+      border-bottom: 2px solid transparent;
+      margin-bottom: -2px;
     }
-    .a2ui-tabs-header.active {
-      background: var(--a2ui-tabs-header-background-active, var(--a2ui-color-secondary, #eee));
-      color: var(--a2ui-tabs-header-color-active, var(--a2ui-color-on-secondary, #333));
+    .a2ui-tab-button.active {
+      background: var(--a2ui-tabs-header-background-active, transparent);
+      color: var(--a2ui-tabs-header-color-active, var(--a2ui-color-primary, #007bff));
+      border-bottom: 2px solid var(--a2ui-color-primary, #007bff);
     }
-    .a2ui-tabs-content {
-      padding: var(--a2ui-tabs-content-padding, 0 var(--a2ui-spacing-m, 0.5rem));
+    .a2ui-tab-content {
+      padding: var(--a2ui-tabs-content-padding, var(--a2ui-spacing-m, 16px) 0);
     }
   `;
+
+  protected readonly api = TabsApi;
 
   protected createController() {
     return new A2uiController(this, TabsApi);
@@ -72,30 +73,40 @@ export class A2uiLitTabs extends BasicCatalogA2uiLitElement<typeof TabsApi> {
 
   @state() accessor activeIndex = 0;
 
+  override willUpdate(changedProperties: any) {
+    super.willUpdate(changedProperties);
+    const props = this.controller.props;
+    if (props?.tabs && this.activeIndex >= props.tabs.length) {
+      this.activeIndex = 0;
+    }
+  }
+
   override render() {
     const props = this.controller.props;
     if (!props || !props.tabs) return nothing;
+
     return html`
-      <div class="a2ui-tabs-headers">
-        ${props.tabs.map(
-          (tab: any, i: number) => html`
-            <button
-              class=${classMap({
-                'a2ui-tabs-header': true,
-                'a2ui-tab-button': true,
-                active: i === this.activeIndex,
-              })}
-              @click=${() => (this.activeIndex = i)}
-            >
-              ${tab.title}
-            </button>
-          `,
-        )}
-      </div>
-      <div class="a2ui-tabs-content">
-        ${props.tabs[this.activeIndex]
-          ? html`${this.renderNode(props.tabs[this.activeIndex].child)}`
-          : nothing}
+      <div class="a2ui-tabs">
+        <div class="a2ui-tab-bar">
+          ${props.tabs.map(
+            (tab, i) => html`
+              <button
+                class=${classMap({
+                  'a2ui-tab-button': true,
+                  active: i === this.activeIndex,
+                })}
+                @click=${() => (this.activeIndex = i)}
+              >
+                ${tab.title}
+              </button>
+            `,
+          )}
+        </div>
+        <div class="a2ui-tab-content">
+          ${props.tabs[this.activeIndex]
+            ? html`${this.renderNode(props.tabs[this.activeIndex].child)}`
+            : nothing}
+        </div>
       </div>
     `;
   }

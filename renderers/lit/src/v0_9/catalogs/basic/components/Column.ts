@@ -16,7 +16,7 @@
 
 import {html, nothing, css, PropertyValues} from 'lit';
 import {customElement} from 'lit/decorators.js';
-import {map} from 'lit/directives/map.js';
+import {repeat} from 'lit/directives/repeat.js';
 import {ColumnApi} from '@a2ui/web_core/v0_9/basic_catalog';
 import {
   BasicCatalogA2uiLitElement,
@@ -39,7 +39,14 @@ const ALIGN_MAP: Record<string, string> = {
   center: 'center',
   end: 'flex-end',
   stretch: 'stretch',
+  baseline: 'baseline',
 };
+
+function getChildKey(child: any): string {
+  return typeof child === 'object' && child !== null
+    ? `${child.basePath ?? ''}/${child.id}`
+    : String(child);
+}
 
 @customElement('a2ui-basic-column')
 export class A2uiBasicColumnElement extends BasicCatalogA2uiLitElement<typeof ColumnApi> {
@@ -48,15 +55,19 @@ export class A2uiBasicColumnElement extends BasicCatalogA2uiLitElement<typeof Co
    * CSS variables:
    *
    * - `--a2ui-column-gap`: The gap between items in the column. Defaults to `--a2ui-spacing-m`.
+   * - `--a2ui-column-width`: The width of the column. Defaults to `100%`.
    */
   static override styles = css`
     :host,
     a2ui-basic-column {
       display: flex;
       flex-direction: column;
+      width: var(--a2ui-column-width, 100%);
       gap: var(--a2ui-column-gap, var(--a2ui-spacing-m));
     }
   `;
+
+  protected readonly api = ColumnApi;
 
   protected createController() {
     return new A2uiController(this, ColumnApi);
@@ -66,8 +77,16 @@ export class A2uiBasicColumnElement extends BasicCatalogA2uiLitElement<typeof Co
     super.updated(changedProperties);
     const props = this.controller.props;
     if (props) {
-      this.style.justifyContent = JUSTIFY_MAP[props.justify ?? ''] ?? 'flex-start';
-      this.style.alignItems = ALIGN_MAP[props.align ?? ''] ?? 'stretch';
+      if (props.justify) {
+        this.style.justifyContent = JUSTIFY_MAP[props.justify] ?? 'flex-start';
+      } else {
+        this.style.removeProperty('justify-content');
+      }
+      if (props.align) {
+        this.style.alignItems = ALIGN_MAP[props.align] ?? 'stretch';
+      } else {
+        this.style.removeProperty('align-items');
+      }
     }
   }
 
@@ -77,7 +96,7 @@ export class A2uiBasicColumnElement extends BasicCatalogA2uiLitElement<typeof Co
 
     const children: ResolvedChildList = Array.isArray(props.children) ? props.children : [];
 
-    return html` ${map(children, child => html`${this.renderNode(child)}`)} `;
+    return html` ${repeat(children, getChildKey, child => html`${this.renderNode(child)}`)} `;
   }
 }
 

@@ -116,4 +116,106 @@ describe('ChoicePicker Component', () => {
 
     document.body.removeChild(el);
   });
+
+  it('ChoicePicker radio groups do not collide across surfaces', async () => {
+    // Component ids are only surface-scoped, so two surfaces may each
+    // contain a ChoicePicker with the same id. Radio names are
+    // document-scoped: if the group name is derived from the component id,
+    // both pickers merge into one radio group and fight over one selection.
+    processor.processMessages([
+      {
+        version: 'v0.9',
+        createSurface: {
+          surfaceId: 'second-surface',
+          catalogId: basicCatalog.id,
+        },
+      },
+      {
+        version: 'v0.9',
+        updateComponents: {
+          surfaceId: 'second-surface',
+          components: [
+            {
+              id: 'choice_picker_filterable',
+              component: 'ChoicePicker',
+              label: 'Filter me',
+              options: [
+                {label: 'Apple', value: 'apple'},
+                {label: 'Banana', value: 'banana'},
+              ],
+              value: [],
+            },
+          ],
+        },
+      },
+    ]);
+    const secondSurface = processor.model.getSurface('second-surface')!;
+
+    const firstEl = document.createElement('a2ui-choicepicker') as any;
+    const secondEl = document.createElement('a2ui-choicepicker') as any;
+    document.body.appendChild(firstEl);
+    document.body.appendChild(secondEl);
+
+    const firstContext = new ComponentContext(surface, 'choice_picker_filterable');
+    const secondContext = new ComponentContext(secondSurface, 'choice_picker_filterable');
+
+    await asyncUpdate(firstEl, e => {
+      e.context = firstContext;
+    });
+    await asyncUpdate(secondEl, e => {
+      e.context = secondContext;
+    });
+
+    const getGroupNames = (el: HTMLElement) =>
+      new Set(
+        Array.from(el.querySelectorAll<HTMLInputElement>('input[type="radio"]')).map(
+          input => input.name,
+        ),
+      );
+
+    const firstNames = getGroupNames(firstEl);
+    const secondNames = getGroupNames(secondEl);
+
+    assert.strictEqual(firstNames.size, 1);
+    assert.strictEqual(secondNames.size, 1);
+    assert.notStrictEqual([...firstNames][0], [...secondNames][0]);
+
+    document.body.removeChild(firstEl);
+    document.body.removeChild(secondEl);
+  });
+
+  it('should not set a name on checkbox inputs', async () => {
+    processor.processMessages([
+      {
+        version: 'v0.9',
+        updateComponents: {
+          surfaceId: 'test-surface',
+          components: [
+            {
+              id: 'choice_picker_multi',
+              component: 'ChoicePicker',
+              label: 'Multi pick',
+              options: [{label: 'Option 1', value: 'opt1'}],
+              value: [],
+              variant: 'multipleSelection',
+            },
+          ],
+        },
+      },
+    ]);
+
+    const el = document.createElement('a2ui-choicepicker') as any;
+    document.body.appendChild(el);
+
+    const context = new ComponentContext(surface, 'choice_picker_multi');
+    await asyncUpdate(el, e => {
+      e.context = context;
+    });
+
+    const checkbox = el.querySelector('input[type="checkbox"]');
+    assert.ok(checkbox);
+    assert.strictEqual(checkbox.hasAttribute('name'), false);
+
+    document.body.removeChild(el);
+  });
 });

@@ -16,7 +16,7 @@
 
 import {html, nothing, css, PropertyValues} from 'lit';
 import {customElement} from 'lit/decorators.js';
-import {map} from 'lit/directives/map.js';
+import {repeat} from 'lit/directives/repeat.js';
 import {RowApi} from '@a2ui/web_core/v0_9/basic_catalog';
 import {
   BasicCatalogA2uiLitElement,
@@ -39,7 +39,14 @@ const ALIGN_MAP: Record<string, string> = {
   center: 'center',
   end: 'flex-end',
   stretch: 'stretch',
+  baseline: 'baseline',
 };
+
+function getChildKey(child: any): string {
+  return typeof child === 'object' && child !== null
+    ? `${child.basePath ?? ''}/${child.id}`
+    : String(child);
+}
 
 @customElement('a2ui-basic-row')
 export class A2uiBasicRowElement extends BasicCatalogA2uiLitElement<typeof RowApi> {
@@ -58,6 +65,8 @@ export class A2uiBasicRowElement extends BasicCatalogA2uiLitElement<typeof RowAp
     }
   `;
 
+  protected readonly api = RowApi;
+
   protected createController() {
     return new A2uiController(this, RowApi);
   }
@@ -66,8 +75,16 @@ export class A2uiBasicRowElement extends BasicCatalogA2uiLitElement<typeof RowAp
     super.updated(changedProperties);
     const props = this.controller.props;
     if (props) {
-      this.style.justifyContent = JUSTIFY_MAP[props.justify ?? ''] ?? 'flex-start';
-      this.style.alignItems = ALIGN_MAP[props.align ?? ''] ?? 'stretch';
+      if (props.justify) {
+        this.style.justifyContent = JUSTIFY_MAP[props.justify] ?? 'flex-start';
+      } else {
+        this.style.removeProperty('justify-content');
+      }
+      if (props.align) {
+        this.style.alignItems = ALIGN_MAP[props.align] ?? 'stretch';
+      } else {
+        this.style.removeProperty('align-items');
+      }
     }
   }
 
@@ -77,7 +94,7 @@ export class A2uiBasicRowElement extends BasicCatalogA2uiLitElement<typeof RowAp
 
     const children: ResolvedChildList = Array.isArray(props.children) ? props.children : [];
 
-    return html` ${map(children, child => html`${this.renderNode(child)}`)} `;
+    return html` ${repeat(children, getChildKey, child => html`${this.renderNode(child)}`)} `;
   }
 }
 

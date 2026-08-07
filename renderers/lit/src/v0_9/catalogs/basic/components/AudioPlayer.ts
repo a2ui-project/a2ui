@@ -23,14 +23,24 @@ import {A2uiController} from '../../../a2ui-controller.js';
 @customElement('a2ui-audioplayer')
 export class A2uiAudioPlayerElement extends BasicCatalogA2uiLitElement<typeof AudioPlayerApi> {
   static override styles = css`
-    :host,
-    a2ui-audioplayer {
+    .a2ui-audio-player {
       display: flex;
       flex-direction: column;
       gap: var(--a2ui-spacing-xs, 0.25rem);
       background: var(--a2ui-audioplayer-background, transparent);
       border-radius: var(--a2ui-audioplayer-border-radius, 0);
       padding: var(--a2ui-audioplayer-padding, 0);
+      width: 100%;
+    }
+    .a2ui-audio-description {
+      font-size: var(--a2ui-font-size-s, 0.875rem);
+      color: var(
+        --a2ui-audioplayer-description-color,
+        var(--a2ui-text-caption-color, light-dark(#666, #aaa))
+      );
+    }
+    .a2ui-audio {
+      width: 100%;
     }
   `;
 
@@ -43,8 +53,14 @@ export class A2uiAudioPlayerElement extends BasicCatalogA2uiLitElement<typeof Au
     if (!props) return nothing;
 
     return html`
-      ${props.description ? html`<p>${props.description}</p>` : nothing}
-      <audio src=${props.url} controls></audio>
+      <div class="a2ui-audio-player">
+        ${props.description
+          ? html`<div class="a2ui-audio-description">${props.description}</div>`
+          : nothing}
+        <audio src=${props.url || nothing} controls class="a2ui-audio">
+          Your browser does not support the audio tag.
+        </audio>
+      </div>
     `;
   }
 }
