@@ -37,6 +37,7 @@ export class A2uiSurface extends LitElement {
   override createRenderRoot() {
     return this;
   }
+
   /**
    * The surface model containing the component tree and catalog.
    */

@@ -1,5 +1,9 @@
 ## Unreleased
 
+- (v0_9) Add `@a2ui/web_core/v0_9/basic_catalog` entrypoint exporting universal Web Component basic catalog implementations (`A2uiText`, `A2uiButton`, `A2uiTextField`, `A2uiRow`, `A2uiColumn`, `A2uiList`, `A2uiImage`, `A2uiIcon`, `A2uiVideo`, `A2uiAudioPlayer`, `A2uiCard`, `A2uiDivider`, `A2uiCheckBox`, `A2uiSlider`, `A2uiDateTimeInput`, `A2uiChoicePicker`, `A2uiTabs`, `A2uiModal`, `basicCatalog`).
+- (v0_9) Export `BasicCatalogA2uiLitElement`, `A2uiLitElement`, `A2uiController`, `renderA2uiNode`, `Context`, `injectBasicCatalogStyles`, and styling helper utilities from `@a2ui/web_core/v0_9/basic_catalog`.
+- (v0_9) Add unit test coverage for all basic catalog Web Component implementations.
+
 ## 0.10.6
 
 - (v0_9) Validate component properties against catalog schema in `MessageProcessor` to prevent malformed component actions.

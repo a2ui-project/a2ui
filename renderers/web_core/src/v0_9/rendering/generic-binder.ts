@@ -58,17 +58,48 @@ export function scrapeSchemaBehavior(schema: z.ZodTypeAny): BehaviorNode {
 function getFieldBehavior(type: z.ZodTypeAny, propertyName?: string): BehaviorNode {
   let current = type;
 
+  let description = current._def?.description || '';
+
   // Unwrap optionals/nullables/defaults
   while (
     current._def.typeName === 'ZodOptional' ||
     current._def.typeName === 'ZodNullable' ||
     current._def.typeName === 'ZodDefault'
   ) {
+    if (!description && current._def.description) {
+      description = current._def.description;
+    }
     current = current._def.innerType;
+  }
+  if (!description && current._def.description) {
+    description = current._def.description;
   }
 
   if (propertyName === 'checks') {
     return {type: 'CHECKABLE'};
+  }
+
+  if (
+    propertyName === 'action' ||
+    description.includes('#/$defs/Action') ||
+    description.includes('Triggers a server-side event')
+  ) {
+    return {type: 'ACTION'};
+  }
+
+  if (propertyName === 'children' || description.includes('#/$defs/ChildList')) {
+    return {type: 'STRUCTURAL'};
+  }
+
+  if (
+    propertyName === 'text' ||
+    propertyName === 'label' ||
+    propertyName === 'value' ||
+    propertyName === 'url' ||
+    description.includes('#/$defs/Dynamic') ||
+    description.includes('#/$defs/DataBinding')
+  ) {
+    return {type: 'DYNAMIC'};
   }
 
   // Structural matching for A2UI primitives using typeName to avoid dual-module instanceof issues
@@ -256,33 +287,37 @@ export class GenericBinder<T> {
       }
 
       case 'STRUCTURAL': {
-        if (value && typeof value === 'object' && value.path && value.componentId) {
-          const bound = this.context.dataContext.subscribeDynamicValue(
-            {path: value.path},
-            newVal => {
-              const arr = Array.isArray(newVal) ? newVal : [];
-              const listContext = this.context.dataContext.nested(value.path);
-              const resolvedChildren = arr.map((_, i) => ({
-                id: value.componentId,
-                basePath: listContext.nested(String(i)).path,
-              }));
-              this.updateDeepValue(path, resolvedChildren);
-              this.notify();
-            },
-          );
+        if (value && typeof value === 'object' && !Array.isArray(value)) {
+          const templatePath = value.path;
+          const templateComponentId = value.componentId || value.id;
+          if (templatePath && templateComponentId) {
+            const bound = this.context.dataContext.subscribeDynamicValue(
+              {path: templatePath},
+              newVal => {
+                const arr = Array.isArray(newVal) ? newVal : [];
+                const listContext = this.context.dataContext.nested(templatePath);
+                const resolvedChildren = arr.map((_, i) => ({
+                  id: templateComponentId,
+                  basePath: listContext.nested(String(i)).path,
+                }));
+                this.updateDeepValue(path, resolvedChildren);
+                this.notify();
+              },
+            );
 
-          if (!isSync) {
-            this.dataListeners.push(() => bound.unsubscribe());
-          } else {
-            bound.unsubscribe();
+            if (!isSync) {
+              this.dataListeners.push(() => bound.unsubscribe());
+            } else {
+              bound.unsubscribe();
+            }
+
+            const currentArr = Array.isArray(bound.value) ? bound.value : [];
+            const listContext = this.context.dataContext.nested(templatePath);
+            return currentArr.map((_, i) => ({
+              id: templateComponentId,
+              basePath: listContext.nested(String(i)).path,
+            }));
           }
-
-          const currentArr = Array.isArray(bound.value) ? bound.value : [];
-          const listContext = this.context.dataContext.nested(value.path);
-          return currentArr.map((_, i) => ({
-            id: value.componentId,
-            basePath: listContext.nested(String(i)).path,
-          }));
         }
         return value;
       }
@@ -328,8 +363,70 @@ export class GenericBinder<T> {
         return value; // The 'checks' property itself remains as the original rules array
       }
 
-      case 'STATIC':
+      case 'STATIC': {
+        if (value && typeof value === 'object') {
+          if (('componentId' in value || 'id' in value) && 'path' in value) {
+            const templatePath = (value as any).path;
+            const templateComponentId = (value as any).componentId || (value as any).id;
+            if (templatePath && templateComponentId) {
+              const bound = this.context.dataContext.subscribeDynamicValue(
+                {path: templatePath},
+                newVal => {
+                  const arr = Array.isArray(newVal) ? newVal : [];
+                  const listContext = this.context.dataContext.nested(templatePath);
+                  const resolvedChildren = arr.map((_, i) => ({
+                    id: templateComponentId,
+                    basePath: listContext.nested(String(i)).path,
+                  }));
+                  this.updateDeepValue(path, resolvedChildren);
+                  this.notify();
+                },
+              );
+
+              if (!isSync) {
+                this.dataListeners.push(() => bound.unsubscribe());
+              } else {
+                bound.unsubscribe();
+              }
+
+              const currentArr = Array.isArray(bound.value) ? bound.value : [];
+              const listContext = this.context.dataContext.nested(templatePath);
+              return currentArr.map((_, i) => ({
+                id: templateComponentId,
+                basePath: listContext.nested(String(i)).path,
+              }));
+            }
+          }
+          if ('path' in value || 'call' in value) {
+            const bound = this.context.dataContext.subscribeDynamicValue(value, newVal => {
+              this.updateDeepValue(path, newVal);
+              this.notify();
+            });
+
+            if (!isSync) {
+              this.dataListeners.push(() => bound.unsubscribe());
+            } else {
+              bound.unsubscribe();
+            }
+            return bound.value;
+          }
+          if ('event' in value) {
+            return () => {
+              const resolveDeepSync = (val: any): any => {
+                if (typeof val !== 'object' || val === null) return val;
+                if ('path' in val || 'call' in val)
+                  return this.context.dataContext.resolveDynamicValue(val);
+                if (Array.isArray(val)) return val.map(resolveDeepSync);
+                const res: any = {};
+                for (const [k, v] of Object.entries(val)) res[k] = resolveDeepSync(v);
+                return res;
+              };
+              this.context.dispatchAction(resolveDeepSync(value));
+            };
+          }
+        }
         return value;
+      }
 
       case 'ARRAY': {
         if (!Array.isArray(value)) return value;
@@ -402,10 +499,13 @@ export class GenericBinder<T> {
   }
 
   subscribe(listener: (props: T) => void) {
-    if (this.propsListeners.length === 0) {
-      this.connect();
-    }
+    const shouldConnect = this.propsListeners.length === 0;
     this.propsListeners.push(listener);
+    if (shouldConnect) {
+      this.connect();
+    } else {
+      listener(this.currentProps as T);
+    }
 
     return {
       unsubscribe: () => {

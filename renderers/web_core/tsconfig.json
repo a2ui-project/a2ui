@@ -10,7 +10,7 @@
     "preserveWatchOutput": true,
     "sourceMap": true,
     "inlineSources": true,
-    "target": "es2022",
+    "target": "es2021",
     "module": "esnext",
     "lib": ["es2023", "DOM", "DOM.Iterable"],
     "types": ["node"],

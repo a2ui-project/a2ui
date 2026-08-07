@@ -35,7 +35,11 @@ export * from './state/surface-components-model.js';
 export * from './state/surface-group-model.js';
 export * from './state/surface-model.js';
 export * from './errors.js';
-export * from './basic_catalog/index.js';
+export * from './basic_catalog/expressions/expression_parser.js';
+export * from './basic_catalog/functions/basic_functions.js';
+export * from './basic_catalog/functions/basic_functions_api.js';
+export * from './basic_catalog/components/basic_components.js';
+export {injectBasicCatalogStyles, computeColorVariant} from './basic_catalog/styles/default.js';
 
 export {
   type Signal,
